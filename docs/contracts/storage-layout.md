@@ -224,6 +224,13 @@ source requires the migration owner; a nonempty different destination is never
 implicitly adopted. No source bytes or category directories are removed or
 created by configuration.
 
+Preview separates `selectionDiff` from `effectiveDiff`. An existing explicit
+launch, environment or effective-config category override retains precedence;
+relocation through a shadowed locator is blocked with its actual caller source
+and remedy. Updating that override belongs to its existing configuration owner.
+Directory emptiness is checked with one bounded entry read, rather than an
+unbounded listing of a potentially large category.
+
 Configuration publishes a create-only, durable receipt under
 `<home>/config/storage-selections/<plan-id>.json` and atomically selects it through
 `storage-locations.json`. Consumers verify the receipt hash and exact home,
@@ -243,3 +250,18 @@ before creating any declared directories. An intervening configure/migration
 selection requires a new child plan. Invalid machine-layout shapes remain
 visible in home-level doctor/explain diagnostics without granting mutation
 authority from fallback paths.
+
+Rollback records `rollback-prepared` with its exact target locator before
+switching selection, under the same migration operation lock used by forward
+copy/resume. Interruption before the pointer keeps the selected copy usable;
+interruption after it leaves an explicit pending rollback that can be settled
+by verified resume. Pointer publication alone is not settlement. Forward resume
+cannot overwrite pending rollback intent, and duplicate settled rollback makes
+no further change. Both copies remain retained.
+
+Resume and rollback bind the selected path and category owner as well as the
+migration ID. Unknown journal fields, incompatible recovery records and unknown
+staging/publication marker fields are preserved rather than adopted by failure
+recording. Status requires the intact reviewed plan before resolving recovery
+paths. Source-only fixtures cover these boundaries; platform, interruption and
+runtime acceptance remain deferred.

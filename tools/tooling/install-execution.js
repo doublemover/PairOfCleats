@@ -85,7 +85,8 @@ export const runToolInstallChild = async ({ command, args, options, storagePlan,
     const result = session.value.result;
     return { ok: result.exitCode === 0, status: result.exitCode ?? null, signal: result.signal || null,
       stdout: result.stdout || '', stderr: result.stderr || '', error: null,
-      storage: session.storage, settlement: { resourceId: session.resourceId, settled: true, pending: false } };
+      storage: { ...session.storage, settlement: { resourceId: session.resourceId, settled: true, pending: false } },
+      settlement: { resourceId: session.resourceId, settled: true, pending: false } };
   } catch (error) {
     if (error.cacheOwnershipPending) throw error;
     const result = error.result || {};

@@ -170,7 +170,7 @@ export function buildTestRuntimeEnv(baseEnv = process.env, overrides = null) {
   return env;
 }
 
-function resolveDetectArgCandidates(tool) {
+export function resolveDetectArgCandidates(tool) {
   const candidates = [];
   const seen = new Set();
   const addCandidate = (args) => {
@@ -229,7 +229,7 @@ function probeWithArgCandidates(cmd, argCandidates, providerId, toolingRoot = nu
   };
 }
 
-function applyToolLayoutValidation(tool, detectedPath, probe) {
+export function applyToolLayoutValidation(tool, detectedPath, probe) {
   let validation = validateResolvedToolingCommandLayout({
     providerId: tool?.id || tool?.detect?.cmd || '',
     resolvedCmd: detectedPath,
@@ -845,9 +845,12 @@ export async function buildToolingReport(root, languageOverride = null, options 
       return acc;
     }, {})
     : languages;
-  const tools = options.skipToolDetection === true ? [] : resolveToolsForLanguages(languageList, toolingConfig.dir, root, toolingConfig).map((tool) => {
-    const status = (options.detectTool || detectTool)(tool);
-    return {
+  const tools = [];
+  if (options.skipToolDetection !== true) {
+    const detect = options.detectTool || (await import('./owned-detect.js')).detectToolOwned;
+    for (const tool of resolveToolsForLanguages(languageList, toolingConfig.dir, root, toolingConfig)) {
+    const status = await detect(tool);
+    tools.push({
       id: tool.id,
       label: tool.label,
       docs: tool.docs,
@@ -857,8 +860,9 @@ export async function buildToolingReport(root, languageOverride = null, options 
       path: status.path,
       probe: status.probe || null,
       install: tool.install || {}
-    };
-  });
+    });
+    }
+  }
   return {
     root,
     toolingRoot: toolingConfig.dir,

@@ -30,7 +30,7 @@ const sdk = await ensureManagedGoSdk({ toolingRoot: dir, cwd: dir,
     }
     await fs.writeFile(path.join(destination, 'go/VERSION'), version);
   },
-  probe: async () => ({ ok: true, status: 0, stdout: `go version ${version} ${target.os}/${target.arch}\n` })
+  probe: async (_command, { resourceId }) => ({ ok: true, status: 0, stdout: `go version ${version} ${target.os}/${target.arch}\n`, settlement: { resourceId, settled: true, pending: false } })
 } });
 const explicit = { PATH: path.join(dir, 'selected-path'), GOROOT: path.join(dir, 'selected-sdk'),
   GOTOOLCHAIN: 'go1.26.4+path' };

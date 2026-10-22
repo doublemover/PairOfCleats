@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { TOOLING_INSTALL_OPTIONS } from '../../src/shared/cli-options.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
-import { exitLikeCommandResult, probeCommand } from '../shared/cli-utils.js';
-import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
+import { exitLikeCommandResult } from '../shared/cli-utils.js';
+import { buildToolingReport, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
+import { detectToolOwned } from './owned-detect.js';
 import { getToolingConfig, resolveRepoRootArg, resolveToolRoot } from '../shared/dict-utils.js';
 import { buildToolInstallReadiness } from '../setup/readiness.js';
 import { invalidateToolingCommandProbeCache, resolveNoProvisionToolingEnvironment } from '../../src/index/tooling/command-resolver.js';
@@ -15,17 +16,24 @@ import { ensureManagedGoSdk } from './install-go-sdk.js';
 import { applyManagedGoEnvironment, resolveManagedGoSdk } from '../../src/shared/managed-go.js';
 import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
-import { bindProvisioningCommand, createToolProvisioningPlan } from './provisioning-plan.js';
+import { bindProvisioningCommand, createToolProvisioningPlan, probeProvisioningCommand, verifyToolProvisioningPlan } from './provisioning-plan.js';
 import { buildToolInstallReceipt, writeToolInstallReceipt } from './install-receipts.js';
 import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 import { planManagedChildStorage } from '../../src/shared/storage/child-environment.js';
 import { bindDeclaredInstallAdmission, resolveDeclaredInstallAdmission, runToolInstallChild } from './install-execution.js';
 import { installPinnedManagedTool, validatePinnedInstallDescriptor } from './managed-install.js';
+import { createToolInstallPreview } from './install-preview.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats tooling install',
   options: TOOLING_INSTALL_OPTIONS
 }).parserConfiguration({ 'boolean-negation': false }).parse();
+
+const cancellation = new AbortController();
+const onInterrupt = () => cancellation.abort(new Error('Tool installation interrupted.'));
+process.once('SIGINT', onInterrupt);
+process.once('SIGTERM', onInterrupt);
+try {
 
 const explicitRoot = argv.root || argv.repo;
 const root = resolveRepoRootArg(explicitRoot);
@@ -78,8 +86,20 @@ const isAllowedRequirementCommand = (command) => {
   }
 };
 
+if (argv['dry-run']) {
+  const preview = createToolInstallPreview({ tools, scope, allowFallback, isAllowed: isAllowedRequirementCommand });
+  const payload = { root, scope, allowFallback, actions: preview.entries.filter(entry => entry.action).map(entry => ({ id: entry.id, ...entry.action })),
+    results, preview, readiness: { state: 'planned', ready: false, verification: 'not-probed', dryRun: true } };
+  if (argv.json) stdoutGuard.writeJson(payload);
+  else {
+    console.error('[tooling-install] Read-only preview; executable and prerequisite commands were not run.');
+    for (const entry of preview.entries) console.error(`- ${entry.id}: ${entry.state}; ${entry.location.state}; ${entry.blockers.map(blocker => blocker.code).join(', ') || 'verification deferred'}`);
+  }
+  process.exitCode = results.length || preview.state === 'blocked-or-unqualified' ? 1 : 0;
+} else {
 for (const tool of tools) {
-  const status = detectTool(tool);
+  cancellation.signal.throwIfAborted();
+  const status = await detectToolOwned(tool, { signal: cancellation.signal });
   const verifiedPath = resolveVerifiedPath(status);
   const selection = selectInstallPlan(tool, scope, allowFallback);
   const storageAdmission = selection.plan ? resolveDeclaredInstallAdmission(selection.plan) : null;
@@ -91,9 +111,9 @@ for (const tool of tools) {
     continue;
   }
   // Launch requirements are checked even when server bytes already exist.
-  const provisioning = createToolProvisioningPlan({ tool, selection: verifiedPath ? { ...selection, plan: null } : selection,
-    probe: argv['dry-run'] ? null : (command, args, options) => probeCommand(command, args, { ...options, cwd: installationCwd }),
-    isAllowed: isAllowedRequirementCommand });
+  const provisioning = await verifyToolProvisioningPlan(createToolProvisioningPlan({ tool,
+    selection: verifiedPath ? { ...selection, plan: null } : selection, isAllowed: isAllowedRequirementCommand }),
+  { signal: cancellation.signal, cwd: installationCwd });
   const blockedPrerequisites = provisioning.steps.filter(step => ['missing', 'incompatible'].includes(step.state)
     && step.id !== 'go');
   if (blockedPrerequisites.length && !argv['dry-run']) {
@@ -126,12 +146,12 @@ for (const tool of tools) {
     try {
       const installed = await installPinnedManagedTool({ toolingRoot: path.resolve(toolingConfig.dir),
         descriptor: selection.plan.managedDescriptor, approvedOrigins: selection.plan.approvedOrigins,
-        verify: tool.verifyManagedInstall, onProgress: event => console.error(`[tooling-install] ${tool.id}: ${event.state}`) });
+        verify: tool.verifyManagedInstall, signal: cancellation.signal, onProgress: event => console.error(`[tooling-install] ${tool.id}: ${event.state}`) });
       results.push({ id: tool.id, status: installed.ok ? installed.reused ? 'already-installed' : 'installed' : 'verification-failed',
         path: installed.command || null, provisioning, managedInstallation: installed,
         probe: { ok: installed.ok, verificationLevel: installed.verification?.level || 'canonical-recipe-verification' } });
     } catch (error) {
-      if (error.cacheOwnershipPending) throw error;
+      if (error.cacheOwnershipPending || cancellation.signal.aborted) throw error;
       results.push({ id: tool.id, status: 'failed', error: error.message, code: error.code || null, provisioning });
     }
     continue;
@@ -164,7 +184,8 @@ for (const tool of tools) {
         continue;
       }
       for (const requirementArgs of requirementArgCandidates) {
-        const requireCheck = probeCommand(candidate, requirementArgs, {
+        const requireCheck = await probeProvisioningCommand(candidate, requirementArgs, {
+          signal: cancellation.signal,
           cwd: installationCwd,
           env: requires === 'go' ? resolveNoProvisionToolingEnvironment(candidate === managedGoSdk?.command
             ? applyManagedGoEnvironment(process.env, { toolingRoot: toolingConfig.dir, sdk: managedGoSdk }) : process.env,
@@ -212,7 +233,7 @@ for (const tool of tools) {
         try {
           if (goBootstrapFailure) throw goBootstrapFailure;
           managedGoSdk = await ensureManagedGoSdk({ toolingRoot: path.resolve(toolingConfig.dir), cwd: installationCwd,
-            storageEstimate: selection.plan.goSdkStorageEstimate });
+            storageEstimate: selection.plan.goSdkStorageEstimate, signal: cancellation.signal });
           if (minimumGoVersion && !isGoSdkVersionAtLeast(managedGoSdk.version, minimumGoVersion)) {
             throw Object.assign(new Error(`The verified SDK ${managedGoSdk.version} does not meet ${minimumGoVersion}.`),
               { reason: 'unsupported_go_sdk_version' });
@@ -224,6 +245,7 @@ for (const tool of tools) {
             sourceUrl: managedGoSdk.sourceUrl, archiveSha256: managedGoSdk.archiveSha256,
             reused: managedGoSdk.reused, verificationLevel: managedGoSdk.verificationLevel };
         } catch (error) {
+          if (error.cacheOwnershipPending || cancellation.signal.aborted) throw error;
           goBootstrapFailure = error;
           goPrerequisite = { id: 'go-sdk', state: 'failed', reason: error.reason || error.code || 'go_sdk_install_failed',
             error: String(error.message || error).slice(0, 4096) };
@@ -262,22 +284,8 @@ for (const tool of tools) {
     scope: selection.scope, fallback: selection.fallback || false, docs: tool.docs || null });
 }
 
-if (argv['dry-run']) {
-  const readiness = buildToolInstallReadiness([...results, ...actions.map((action) => ({ id: action.id, status: 'planned' }))], { dryRun: true });
-  const payload = { root, scope, allowFallback, actions, results, readiness };
-  if (argv.json) {
-    stdoutGuard.writeJson(payload);
-    await new Promise((resolve) => process.stdout.write('', resolve));
-  } else {
-    console.error('[tooling-install] Dry run. Planned actions:');
-    for (const action of actions) {
-      console.error(`- ${action.id}: ${action.cmd} ${action.args.join(' ')}`);
-    }
-  }
-  process.exit(0);
-}
-
 for (const action of actions) {
+  cancellation.signal.throwIfAborted();
   if (action.requires && !isAllowedRequirementCommand(action.cmd)) {
     results.push({ id: action.id, status: 'failed', error: 'Go installer command is unavailable or no longer authorized for this repository.',
       ...(action.prerequisite ? { prerequisite: action.prerequisite } : {}) });
@@ -306,6 +314,7 @@ for (const action of actions) {
   const spawnOpts = {
     cwd: installationCwd,
     env,
+    signal: cancellation.signal,
     // Keep JSON mode machine-parseable: suppress child stdout and stream
     // installer diagnostics through stderr only.
     stdio: argv.json ? ['inherit', 'ignore', 'inherit'] : 'inherit'
@@ -338,7 +347,7 @@ for (const action of actions) {
   // broken package layout. Re-check from the future runtime environment.
   invalidateToolingCommandProbeCache({ providerId: action.id });
   const tool = tools.find((entry) => entry.id === action.id);
-  const verified = detectTool(tool);
+  const verified = await detectToolOwned(tool, { signal: cancellation.signal });
   const verifiedPath = resolveVerifiedPath(verified);
   results.push(verifiedPath
     ? { id: action.id, status: 'installed', path: verifiedPath, source: verified.source, probe: verified.probe,
@@ -376,3 +385,8 @@ if (argv.json) {
   }
 }
 process.exitCode = hasFailedInstalls ? 1 : 0;
+}
+} finally {
+  process.removeListener('SIGINT', onInterrupt);
+  process.removeListener('SIGTERM', onInterrupt);
+}

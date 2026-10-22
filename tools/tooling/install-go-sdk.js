@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import {
   GO_ARCHIVE_ORIGIN, GO_RELEASE_INDEX_URL, applyManagedGoEnvironment,
   hashManagedGoFile, readManagedGoText, resolveGoSdkTarget, resolveManagedGoSdk
@@ -44,11 +44,12 @@ const ensureChildDirectory = async (parent, name) => {
   return child;
 };
 
-const probeInstalledSdk = (command, { cwd, env }) => {
-  const result = spawnSync(command, ['version'], { cwd, env, encoding: 'utf8',
-    timeout: 10_000, maxBuffer: 64 * 1024, stdio: ['ignore', 'pipe', 'pipe'], shell: false });
-  return { ok: result.status === 0 && !result.signal && !result.error,
-    status: result.status, signal: result.signal || null, stdout: result.stdout || '' };
+const probeInstalledSdk = async (command, { cwd, env, signal, resourceId }) => {
+  const result = await spawnResolvedSubprocess(command, ['version'], { cwd, env, signal,
+    timeoutMs: 10000, outputEncoding: 'utf8', maxOutputBytes: 65536, rejectOnNonZeroExit: false });
+  return { ok: result.exitCode === 0 && !result.signal && !result.outputCapture?.stdout?.truncated,
+    status: result.exitCode, signal: result.signal || null, stdout: result.stdout || '',
+    settlement: { resourceId, settled: true, pending: false } };
 };
 
 const checkSdkLayout = async (goRoot, archive) => {
@@ -86,7 +87,8 @@ const checkSdkLayout = async (goRoot, archive) => {
  */
 const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env,
   platform = process.platform, arch = process.arch, version = '', timeoutMs = 120_000,
-  dependencies = {} } = {}) => {
+  signal = null, dependencies = {} } = {}) => {
+  signal?.throwIfAborted();
   const target = resolveGoSdkTarget({ platform, arch });
   if (!target) throw createInstallError('go_sdk_unsupported_target', 'No portable Go SDK recipe for this platform/architecture.');
   if (!toolingRoot || !path.isAbsolute(toolingRoot)) {
@@ -104,7 +106,7 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
   }
   const download = dependencies.download || downloadToBuffer;
   const index = await download({ url: GO_RELEASE_INDEX_URL, label: 'official Go release index',
-    timeoutMs, maxBytes: 2 * 1024 * 1024, redirect: 'error' });
+    timeoutMs, maxBytes: 2 * 1024 * 1024, redirect: 'error', signal });
   if (index.sourceUrl !== GO_RELEASE_INDEX_URL) throw createInstallError('go_sdk_source_mismatch', 'Go release index changed origin.');
   const archive = selectOfficialGoSdkArchive(JSON.parse(index.body.toString('utf8')), target, version);
   const packageKey = `${archive.version}-${target.os}-${target.arch}`;
@@ -115,17 +117,29 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
   const transaction = await fs.mkdtemp(path.join(cache, '.install-'));
   const transactionIdentity = await fs.lstat(transaction);
   let pointerTemp = null;
+  let pendingError = null;
+  let operationError = null;
+  const resourceId = randomUUID();
+  const cleanupTransaction = async () => {
+    if (pointerTemp) await fs.rm(pointerTemp, { force: true });
+    const current = await fs.lstat(transaction).catch(() => null);
+    if (current?.isDirectory() && current.dev === transactionIdentity.dev && current.ino === transactionIdentity.ino) {
+      await fs.rm(transaction, { recursive: true, force: true });
+    }
+  };
   try {
     const fetched = await download({ url: archive.sourceUrl, label: 'official Go SDK archive',
-      timeoutMs, maxBytes: MAX_DOWNLOAD_BYTES, redirect: 'error' });
+      timeoutMs, maxBytes: MAX_DOWNLOAD_BYTES, redirect: 'error', signal });
     if (fetched.sourceUrl !== archive.sourceUrl || fetched.body.length !== archive.size
       || computeSha256(fetched.body) !== archive.sha256) {
       throw createInstallError('go_sdk_checksum_mismatch', 'Go SDK bytes disagree with official size/source/SHA256 metadata.');
     }
     const archivePath = path.join(transaction, archive.filename);
+    signal?.throwIfAborted();
     await fs.writeFile(archivePath, fetched.body, { flag: 'wx' });
     const extracted = path.join(transaction, 'extracted');
     await (dependencies.extract || extractArchive)(archivePath, extracted, archive.archiveType, GO_SDK_ARCHIVE_LIMITS);
+    signal?.throwIfAborted();
     const goRoot = path.join(extracted, 'go');
     if (!(await fs.lstat(goRoot)).isDirectory() || await fs.realpath(goRoot) !== path.join(await fs.realpath(extracted), 'go')) {
       throw createInstallError('go_sdk_layout_invalid', 'Go SDK root must be an owned extracted directory.');
@@ -135,7 +149,11 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
     const env = applyManagedGoEnvironment(baseEnv, { toolingRoot, sdk });
     env.GOENV = 'off';
     env.GOWORK = 'off';
-    const probe = await (dependencies.probe || probeInstalledSdk)(command, { cwd: cwd || transaction, env });
+    const probe = await (dependencies.probe || probeInstalledSdk)(command, { cwd: cwd || transaction, env, signal, resourceId });
+    if (probe?.settlement?.resourceId !== resourceId || probe.settlement.settled !== true || probe.settlement.pending === true) {
+      throw Object.assign(new Error('Go SDK verification did not confirm its exact child/resource settlement.'),
+        { code: 'ERR_GO_SDK_VERIFY_PENDING', cacheOwnershipPending: true });
+    }
     const verification = verifyInstallerRequirementProbe('go', probe);
     if (!verification.ok || verification.identity.version !== archive.version
       || verification.identity.platform !== target.os || verification.identity.arch !== target.arch) {
@@ -147,6 +165,7 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
       identity: verification.identity, verificationLevel: 'official-release-sha256-and-executable-version',
       installedAt: new Date().toISOString() };
     await fs.writeFile(path.join(extracted, 'installation.json'), `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
+    signal?.throwIfAborted();
     await fs.rename(extracted, destination);
     pointerTemp = path.join(cache, `.current-${randomUUID()}.json`);
     await fs.writeFile(pointerTemp, `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
@@ -160,16 +179,27 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
     const installed = resolveManagedGoSdk(toolingRoot, { platform, arch });
     if (!installed) throw createInstallError('go_sdk_cache_verification_failed', 'Published SDK receipt could not be verified.');
     return { ...installed, reused: false };
+  } catch (error) {
+    operationError = error;
+    if (error.cacheOwnershipPending) {
+      pendingError = error;
+      Object.defineProperty(error, 'goSdkInstallSession', { configurable: true, value: { resourceId, transaction,
+        releaseAfterClosure: async () => {
+          if (error.cacheOwnershipReleased?.() !== true) throw new Error('Actual Go SDK verifier child/tree closure remains pending.');
+          await cleanupTransaction(); return true;
+        } } });
+    }
+    throw error;
   } finally {
-    if (pointerTemp) await fs.rm(pointerTemp, { force: true });
-    const current = await fs.lstat(transaction).catch(() => null);
-    if (current?.isDirectory() && current.dev === transactionIdentity.dev && current.ino === transactionIdentity.ino) {
-      await fs.rm(transaction, { recursive: true, force: true });
+    if (!pendingError) {
+      try { await cleanupTransaction(); }
+      catch (error) { if (operationError) operationError.goSdkCleanupError = error; else throw error; }
     }
   }
 };
 
 export const ensureManagedGoSdk = async (options = {}) => {
+  options.signal?.throwIfAborted();
   if (!resolveGoSdkTarget({ platform: options.platform || process.platform, arch: options.arch || process.arch })) throw createInstallError('go_sdk_unsupported_target', 'No portable Go SDK recipe for this platform/architecture.');
   if (!options.toolingRoot || !path.isAbsolute(options.toolingRoot)) throw createInstallError('go_sdk_cache_path_invalid', 'Managed Go SDK installation requires an absolute tooling directory.');
   const cached = resolveManagedGoSdk(options.toolingRoot, { platform: options.platform || process.platform, arch: options.arch || process.arch });

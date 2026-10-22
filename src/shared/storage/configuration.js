@@ -19,10 +19,13 @@ const inspectDirectory = async target => {
   try {
     const stat = await fs.lstat(target, { bigint: true });
     if (!stat.isDirectory()) return { status: 'unexpected-file', empty: false };
-    const entries = await fs.readdir(target);
+    const directory = await fs.opendir(target);
+    let first;
+    try { first = await directory.read(); }
+    finally { await directory.close(); }
     const after = await fs.lstat(target, { bigint: true });
     if (!sameStorageFileIdentity(storageFileIdentity(stat), storageFileIdentity(after))) throw new Error('Storage directory changed during configuration preview.');
-    return { status: 'present', empty: entries.length === 0, identity: storageFileIdentity(after) };
+    return { status: 'present', empty: first === null, identity: storageFileIdentity(after) };
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
     let ancestor = path.dirname(target);
@@ -71,7 +74,7 @@ const validateLocations = ({ home, target, source, repoRoot }) => {
  * the category migration owner. Neither operation grants deletion authority.
  */
 export const planStorageConfiguration = async ({ layout, category, target, currentPath = null,
-  machineConfigPath = null, repoRoot = null } = {}) => {
+  currentSource = null, machineConfigPath = null, repoRoot = null } = {}) => {
   if (!layout?.descriptors?.[category] || !CONFIGURABLE_STORAGE_CATEGORIES.includes(category)) {
     throw new Error('Configuration requires a category with adopted application callers.');
   }
@@ -86,15 +89,23 @@ export const planStorageConfiguration = async ({ layout, category, target, curre
     inspectDirectory(source), inspectDirectory(target), machineSource(machineConfigPath)
   ]);
   const blocked = [];
+  const selectedSourceBefore = currentSource || layout.descriptors[category].source;
+  const shadowedByExplicitOverride = selectedSourceBefore !== 'layout-default'
+    && !selectedSourceBefore.startsWith('locator.categories.');
+  if (source !== target && shadowedByExplicitOverride) blocked.push('explicit-current-override-would-shadow-locator-selection');
   if (sourceObservation.status === 'unexpected-file' || destinationObservation.status === 'unexpected-file') blocked.push('category-location-is-not-a-directory');
   if (source !== target && !sourceObservation.empty) blocked.push('existing-source-requires-verified-category-migration');
   if (source !== target && !destinationObservation.empty) blocked.push('nonempty-destination-is-not-adopted-by-configuration');
   const body = { schemaVersion: 1, kind: 'pairofcleats-storage-configuration-plan', home, category,
     configFile: locator.target, configurationSource, repoRoot: repoRoot ? path.resolve(repoRoot) : null,
-    selectedSourceBefore: layout.descriptors[category].source, before: source, after: target,
+    selectedSourceBefore, before: source, after: target,
     locatorBeforeHash: locator.sha256, priorSelection: locator.value.categories[category] || null,
     sourceObservation, destinationObservation,
-    effectiveDiff: { [`categories.${category}`]: { before: source, after: target } },
+    selectionDiff: { [`categories.${category}`]: { before: source, after: target } },
+    effectiveDiff: { [`categories.${category}`]: { before: source, after: shadowedByExplicitOverride ? source : target } },
+    shadowedByExplicitOverride, activation: shadowedByExplicitOverride
+      ? 'Current explicit override retains precedence; remove or change it through its existing owner before relocation.'
+      : 'Restart adopted consumers after selection.',
     migrationRequired: source !== target && !sourceObservation.empty, restartRequired: true,
     sourcePreserved: true, deletionAuthority: false, blocked, ready: blocked.length === 0,
     writableDestination: 'unchecked-no-probe-or-category-directory-creation', mutationPerformed: false };
@@ -111,6 +122,7 @@ export const applyStorageConfiguration = async (plan, { approvedPlanId, home, ca
     throw new Error('Configuration requires the exact reviewed plan and explicit launch-selected home, category and target.');
   }
   validateLocations({ home: body.home, target: body.after, source: body.before, repoRoot: body.repoRoot });
+  if (body.before !== body.after && body.shadowedByExplicitOverride) throw new Error('Current explicit override retains authority; locator publication cannot relocate that category.');
   const directory = path.join(body.home, 'config');
   assertNoSymlinkPath(path.parse(directory).root, directory, { allowMissing: true });
   const lock = await acquireFileLock({ lockPath: path.join(directory, 'storage-locator.lock'), waitMs: 0,

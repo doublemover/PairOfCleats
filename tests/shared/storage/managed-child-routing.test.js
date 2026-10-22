@@ -11,6 +11,8 @@ try {
   const layout = resolveStorageLayout({ home: temporary, env: {} });
   const input = { layout, managed: true, command: 'npm', toolId: 'fixture-npm-tool', toolIdentity: 'fixture@1', runId: 'fixture-run', baseEnv: {} };
   const plan = planManagedChildStorage(input);
+  for (const runId of ['.', '..']) assert.throws(() => planManagedChildStorage({ ...input, runId }), /exact tool\/profile and run identities/,
+    'dot segments cannot collapse run scratch into a shared profile or parent');
   assert.ok(plan.env.npm_config_cache.startsWith(layout.descriptors.tooling.path));
   assert.equal(plan.env.HOME, undefined);
   assert.equal(plan.env.GEM_HOME, undefined);

@@ -8,15 +8,16 @@ import { readToolingCacheEntry } from '../../src/index/tooling/cache-storage.js'
 import { isOwnedCommandProbeCacheEntry } from '../../src/index/tooling/command-probe-persistent-cache.js';
 import { inspectEmbeddingStorageProfile } from './embedding-adapter.js';
 import { readStorageProbePolicy } from '../../src/shared/storage/probe-policy-read.js';
+import { inspectManagedStorageReceipts } from './managed-receipt-inventory.js';
 
-export const STORAGE_INVENTORY_ADAPTERS = Object.freeze(['embedding-profiles', 'dictionaries', 'command-probes']);
+export const STORAGE_INVENTORY_ADAPTERS = Object.freeze(['embedding-profiles', 'dictionaries', 'command-probes', 'managed-installations']);
 const errorRecord = error => ({ code: error.code || 'ERR_STORAGE_CATEGORY_INVENTORY', message: error.message });
 
 /** Same structured read-only owner entry for CLI and native/TUI consumers.
  * A requested path is inspection scope, never adoption or mutation authority.
  */
 export const inspectStorageCategory = async ({ category, root, home, request = null,
-  maxEntries = 100000, maxDurationMs = 10000, signal = null } = {}) => {
+  registeredRoots = [], maxEntries = 100000, maxDurationMs = 10000, signal = null } = {}) => {
   if (!STORAGE_INVENTORY_ADAPTERS.includes(category) || !path.isAbsolute(root || '') || !path.isAbsolute(home || '')) {
     throw new TypeError('Category inventory requires a registered owner and explicit absolute root/home.');
   }
@@ -25,6 +26,8 @@ export const inspectStorageCategory = async ({ category, root, home, request = n
     external: !isPathWithinRoot(root, home), scopeProvenance: 'explicit-read-only-category-inspection',
     mutationPerformed: false, deletionAuthority: false, cleanupAuthority: false };
   if (category === 'command-probes') base.policy = readStorageProbePolicy(home);
+  if (category === 'managed-installations') return { ...await inspectManagedStorageReceipts({ root, home, registeredRoots,
+    maxEntries, maxDurationMs, signal }), ...base, owner: 'existing-managed-install-receipt-producer' };
   if (category === 'embedding-profiles') {
     if (!request || request.schemaVersion !== 1 || request.kind !== 'embedding-storage-profile-request'
       || !request.identity || typeof request.identity !== 'object' || Array.isArray(request.identity)

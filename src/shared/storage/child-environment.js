@@ -8,6 +8,12 @@ import { atomicWriteJson } from '../io/atomic-write.js';
 import { readStorageLocator } from './locator-read.js';
 import { applyStorageLocatorSelections } from './selected-layout.js';
 
+// The producer and persisted receipt readers share this vocabulary. Evidence
+// remains protected even when its path happens to be run-owned scratch.
+export const MANAGED_CHILD_STORAGE_RETENTION_TIERS = Object.freeze([
+  'downloadable', 'derived', 'durable', 'temporary', 'evidence'
+]);
+
 export const MANAGED_CHILD_CACHE_FAMILIES = Object.freeze({
   npm: [['npm_config_cache', 'npm-downloads', 'downloadable']],
   go: [['GOPATH', 'go-path', 'downloadable'], ['GOMODCACHE', 'go-modules', 'downloadable'], ['GOCACHE', 'go-build', 'derived']],
@@ -41,7 +47,7 @@ export const planManagedChildStorage = ({ baseEnv = process.env, layout, command
   const locator = readStorageLocator(layout.home.path);
   layout = applyStorageLocatorSelections(layout, locator);
   if (typeof toolId !== 'string' || !toolId || typeof toolIdentity !== 'string' || !toolIdentity
-    || !/^[a-zA-Z0-9._-]{1,120}$/u.test(runId)) throw new TypeError('Managed child routing requires exact tool/profile and run identities.');
+    || !/^[a-zA-Z0-9._-]{1,120}$/u.test(runId) || ['.', '..'].includes(runId)) throw new TypeError('Managed child routing requires exact tool/profile and run identities.');
   const identity = createHash('sha256').update(JSON.stringify({ toolId, toolIdentity,
     platform: process.platform, arch: process.arch, projectIdentity })).digest('hex');
   const cache = path.join(layout.descriptors.shared.path, 'managed-children', identity);

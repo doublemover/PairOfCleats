@@ -90,8 +90,10 @@ try {
   } else if (action === 'list' || action === 'explain') receipt = { ...explainStorageLayout(layout), currentCompatibilityLocations: legacy };
   else if (action === 'inspect' && STORAGE_INVENTORY_ADAPTERS.includes(argv.category)) {
     const root = argv.path || (argv.category === 'command-probes' ? path.join(currentCache || cacheRoot, 'tooling', 'command-probes')
-      : argv.category === 'dictionaries' ? legacy.find(entry => entry.id === 'legacy-dictionaries')?.path : null);
+      : argv.category === 'dictionaries' ? legacy.find(entry => entry.id === 'legacy-dictionaries')?.path
+      : argv.category === 'managed-installations' ? legacy.find(entry => entry.id === 'legacy-tooling')?.path : null);
     receipt = await inspectStorageCategory({ category: argv.category, root, home: layout.home.path,
+      registeredRoots: [...Object.values(layout.descriptors).map(descriptor => descriptor.path), ...legacy.map(entry => entry.path)],
       request: argv.plan ? await readPlan(argv.plan) : null, ...limits });
   } else if (action === 'inspect') receipt = await inspectStorageLayout(layout, { ...limits, exact: argv.exact,
     extraRoots: legacy, category: argv.category || null });
@@ -109,12 +111,22 @@ try {
     approvedPlanId: argv['plan-id'], home: layout.home.path, category: argv.category, repoRoot
   });
   else if (action === 'configure-plan') {
+    const environment = getEnvConfig();
+    const explicitSource = {
+      cache: argv['cache-root'] ? 'launch.cache' : userConfig.cache?.root ? 'effective-config.cache.root'
+        : environment.cacheRoot ? 'env.PAIROFCLEATS_CACHE_ROOT' : null,
+      models: environment.modelsDir ? 'env.PAIROFCLEATS_MODELS_DIR' : userConfig.models?.dir ? 'effective-config.models.dir' : null,
+      tooling: environment.toolingDir ? 'env.PAIROFCLEATS_TOOLING_DIR' : userConfig.tooling?.dir ? 'effective-config.tooling.dir' : null,
+      extensions: environment.extensionsDir ? 'env.PAIROFCLEATS_EXTENSIONS_DIR' : userConfig.extensions?.dir ? 'effective-config.extensions.dir'
+        : userConfig.sqlite?.vectorExtension?.dir ? 'effective-config.sqlite.vectorExtension.dir' : null,
+      dictionaries: environment.dictDir ? 'env.PAIROFCLEATS_DICT_DIR' : userConfig.dictionary?.dir ? 'effective-config.dictionary.dir' : null
+    }[argv.category];
     const compatibilityId = { models: 'legacy-models', tooling: 'legacy-tooling', extensions: 'legacy-extensions',
       dictionaries: 'legacy-dictionaries', tmp: 'legacy-scratch' }[argv.category];
     const currentPath = argv.category === 'cache' ? currentCache
       : argv.category === 'tmp' && layout.descriptors.tmp.source === 'locator.categories.tmp' ? layout.descriptors.tmp.path
       : legacy.find(entry => entry.id === compatibilityId)?.path;
-    receipt = await planStorageConfiguration({ layout, category: argv.category, currentPath,
+    receipt = await planStorageConfiguration({ layout, category: argv.category, currentPath, currentSource: explicitSource,
       target: argv.path, machineConfigPath: configPath, repoRoot });
   } else if (action === 'configure-apply') receipt = await applyStorageConfiguration(await readPlan(argv.plan), {
     approvedPlanId: argv['plan-id'], home: layout.home.path, category: argv.category, target: argv.path

@@ -48,6 +48,17 @@ export const runInstallWithStorageAdmission = async ({ toolingRoot, storageEstim
           return storage.releaseAfterSettlement(storageReceipt);
         } } });
     }
+    const goOwned = error.goSdkInstallSession;
+    if (goOwned && error.storageSession) {
+      const storage = error.storageSession;
+      Object.defineProperty(error, 'goSdkInstallSession', { configurable: true, value: { ...goOwned,
+        releaseAfterClosure: async () => {
+          await goOwned.releaseAfterClosure();
+          const receipt = { resourceId: storage.resourceId, settled: true, pending: false };
+          for (const reservation of reservations) await reservation.releaseAfterSettlement(receipt);
+          return storage.releaseAfterSettlement(receipt);
+        } } });
+    }
     throw error;
   }
 };

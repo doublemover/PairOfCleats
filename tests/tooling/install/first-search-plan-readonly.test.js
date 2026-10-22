@@ -54,14 +54,18 @@ try {
   assert.deepEqual(partial.completed, ['config']);
   assert.equal(partial.failed.id, partial.pending[0]);
   let pendingError;
+  let actualChildClosed = false;
   await assert.rejects(applyFirstSearchPlan(await createFirstSearchPlan({ repoRoot: root }), {
-    execute: async () => { throw Object.assign(new Error('fixture child settlement pending'), { cacheOwnershipPending: true }); }
+    execute: async () => { throw Object.assign(new Error('fixture child settlement pending'), { cacheOwnershipPending: true, cacheOwnershipReleased: () => actualChildClosed }); }
   }), error => { pendingError = error; return error.cacheOwnershipPending === true; });
   assert.equal(pendingError.setupOutcome.state, 'settlement-pending');
   assert.deepEqual(pendingError.setupOutcome.completed, ['config']);
   assert.equal((await fs.stat(path.join(root, '.pairofcleats.json.setup-lock'))).isFile(), true);
   const pendingSession = pendingError.setupPlanSession;
   assert.throws(() => pendingSession.releaseAfterSettlement({ resourceId: 'wrong-owner', settled: true }), /unconfirmed/);
+  assert.throws(() => pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true, pending: false }), /actual execution owner/,
+    'knowing the exact lock id cannot fabricate child settlement');
+  actualChildClosed = true;
   await pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true, pending: false });
   await assert.rejects(fs.stat(path.join(root, '.pairofcleats.json.setup-lock')), { code: 'ENOENT' });
 } finally { await fs.rm(root, { recursive: true, force: true }); await fs.rm(trusted, { force: true }); }

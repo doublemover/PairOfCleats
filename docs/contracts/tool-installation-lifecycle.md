@@ -62,7 +62,7 @@ Current recipes without qualified complete bounds remain deferred.
 
 `runToolInstallChild` uses the shared async subprocess owner and
 `runManagedChildWithStorage` across preparation through actual child close or
-confirmed tree termination. The generic publication wrapper holds shared storage
+the existing termination owner's scoped error receipt. The generic publication wrapper holds shared storage
 sessions and destination reservations through its archive/staging/verifier work.
 All use the existing state `storage-access` coordination namespace.
 
@@ -77,13 +77,43 @@ resource owner confirms settlement.
 The read-only `resolveManagedToolInstallation` locator verifies selected receipt
 and consumer command bytes. It does not pin a runtime lifetime. Consumers must
 hold `retainManagedToolInstallation` until their actual owned children settle.
-Structural search currently adopts configured selection and a command-byte
-recheck; complete scoped lifetime adoption by structural/LSP/provider consumers
-remains separate integration work. Installed bytes, executable/runtime checks,
+The shared module exposes both async and sync retain APIs without importing the
+tooling installer. Both inspect the complete selected physical generation and
+take category/owner leases before admission. The sync API does not itself launch
+or establish settlement of a sync child.
+Structural runtime, actual tooling reports and install pre/post detection now
+retain the exact physical installation before async version/help and work
+children. Cancellation and unconfirmed closure preserve their exact error/session
+handles. Installed bytes, executable/runtime checks,
 protocol capability, model inference and project qualification remain distinct.
 
 The legacy Go SDK owner retains its official-index/full-layout verification and
-now uses admission at its writer boundary. Its synchronous verification adapter
-and real SDK/consumer lifetime still require platform proof. Concrete portable
+uses admission at its writer boundary. Its verifier is now async, propagates
+cancellation and requires exact resource settlement before publication. Unknown
+closure retains staging and destination reservations; the same actual child
+callback controls later cleanup/release. Real SDK/consumer lifetime still
+requires platform proof. Concrete portable
 language descriptors, full package integrity closure and every operational
 feature recipe are not implied by these generic interfaces.
+
+The current shared subprocess boundary is direct-child close, with scoped
+termination evidence on errors. It does not establish arbitrary detached
+descendant/resource settlement after normal exit. A pending in-memory handle
+alone also does not prove durable cross-process ownership after parent exit.
+Those shared lifecycle gaps remain explicit; source adoption is UNVALIDATED.
+
+## Secondary storage observations in receipts
+
+Only the actual child's settled `action.storage` projection can populate
+`secondaryStorage` version 1. It records `profileIdentity`, `runId`, declared
+locations (`environmentKey`, `path`, `retention`, `external`, `source`, `purpose`,
+`file`, `cleanupAuthority:false`) and bounded exception fields. Raw environment
+objects and arbitrary extra properties are omitted. These are declared routes,
+not observed child-write qualification, and never grant deletion authority.
+Prior/external/missing/unconfirmed projections explicitly report
+`unknown-or-not-recorded`. Inventory/cleanup owners must preserve that unknown
+state rather than infer a cache footprint or ownership.
+
+The producer and receipt readers share the managed child retention vocabulary.
+File-valued BEAM `ERL_CRASH_DUMP` locations retain the protected `evidence` tier;
+their placement under run-owned scratch does not grant cleanup authority.

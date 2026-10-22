@@ -58,7 +58,7 @@ const createDependencies = (overrides = {}) => ({
     assert.equal(options.env.GOTOOLCHAIN, 'local');
     assert.equal(options.env.GOMAXPROCS, '1');
     assert.equal(options.env.GOFLAGS, '-p=1');
-    return { ok: true, stdout: `go version ${version} linux/amd64` };
+    return { ok: true, stdout: `go version ${version} linux/amd64`, settlement: { resourceId: options.resourceId, settled: true, pending: false } };
   },
   ...overrides
 });
@@ -148,9 +148,24 @@ try {
 
   const probeRoot = path.join(root, 'bad-probe');
   await assert.rejects(ensureManagedGoSdk({ toolingRoot: probeRoot, storageEstimate, cwd: root, platform: 'linux', arch: 'x64',
-    dependencies: createDependencies({ probe: async () => ({ ok: true, stdout: 'go version go1.26.8 linux/amd64' }) }) }),
+    dependencies: createDependencies({ probe: async (_command, { resourceId }) => ({ ok: true, stdout: 'go version go1.26.8 linux/amd64', settlement: { resourceId, settled: true, pending: false } }) }) }),
   (error) => error.reason === 'go_sdk_probe_failed');
   assert.deepEqual(await fs.readdir(path.join(probeRoot, 'sdk/go')), []);
+  const pendingRoot = path.join(root, 'pending-probe');
+  let actualProbeClosed = false;
+  const pendingFailure = Object.assign(new Error('fixture verifier still owns output handles'), {
+    cacheOwnershipPending: true, cacheOwnershipReleased: () => actualProbeClosed
+  });
+  await assert.rejects(ensureManagedGoSdk({ toolingRoot: pendingRoot, storageEstimate, cwd: root, platform: 'linux', arch: 'x64',
+    dependencies: createDependencies({ probe: async () => { throw pendingFailure; } }) }), error => error === pendingFailure);
+  assert.equal(pendingFailure.cacheOwnershipPending, true);
+  assert.ok((await fs.readdir(path.join(pendingRoot, 'sdk/go'))).some(name => name.startsWith('.install-')),
+    'unknown child closure preserves exact transaction bytes and storage owners');
+  await assert.rejects(fs.stat(path.join(pendingRoot, 'sdk/go/current.json')), { code: 'ENOENT' });
+  await assert.rejects(pendingFailure.goSdkInstallSession.releaseAfterClosure(), /remains pending/);
+  actualProbeClosed = true;
+  assert.equal(await pendingFailure.goSdkInstallSession.releaseAfterClosure(), true);
+  assert.deepEqual(await fs.readdir(path.join(pendingRoot, 'sdk/go')), []);
   const runtimeMarker = path.join(sdk.goRoot, 'src/runtime/runtime.go');
   await fs.rm(runtimeMarker);
   assert.equal(resolveManagedGoSdk(toolingRoot, { platform: 'linux', arch: 'x64' }), null,

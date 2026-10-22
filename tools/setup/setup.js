@@ -41,6 +41,10 @@ const toolRoot = resolveToolRoot();
 const jsonOutput = argv.json === true;
 if (argv.plan || argv['apply-plan']) {
   let payload;
+  const cancellation = new AbortController();
+  const onInterrupt = () => cancellation.abort(new Error('First-search setup interrupted.'));
+  process.once('SIGINT', onInterrupt);
+  process.once('SIGTERM', onInterrupt);
   try {
   if (!explicitRoot) throw new Error('Plan/apply requires --repo <target> (or --root) so target selection is explicit.');
   if (argv.plan && argv['apply-plan']) throw new Error('Choose either --plan or --apply-plan.');
@@ -50,7 +54,7 @@ if (argv.plan || argv['apply-plan']) {
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024 * 1024) throw new Error('Setup plan must be a bounded regular JSON file.');
     const approved = JSON.parse(fs.readFileSync(planPath, 'utf8'));
     if (fs.realpathSync(approved.repoRoot) !== fs.realpathSync(root)) throw new Error('The selected --repo differs from the approved plan.');
-    payload = await applyFirstSearchPlan(approved, { jsonOutput });
+    payload = await applyFirstSearchPlan(approved, { jsonOutput, signal: cancellation.signal });
   } else {
     payload = await createFirstSearchPlan({ repoRoot: root, profile: argv.profile, model: argv.model,
       backend: argv.backend, tools: String(argv.tools || '').split(',').map(value => value.trim()).filter(Boolean) });
@@ -61,6 +65,9 @@ if (argv.plan || argv['apply-plan']) {
       error: { code: error.code || 'ERR_SETUP_PLAN', message: redactDiagnosticText(error.message, 2048) },
       ...(error.setupPlanSession ? { settlement: { state: 'pending', resourceId: error.setupPlanSession.resourceId,
         nextAction: 'Retain the active setup owner and lock until its actual child settlement is confirmed.' } } : {}) };
+  } finally {
+    process.removeListener('SIGINT', onInterrupt);
+    process.removeListener('SIGTERM', onInterrupt);
   }
   if (jsonOutput) console.log(JSON.stringify(payload, null, 2));
   else {

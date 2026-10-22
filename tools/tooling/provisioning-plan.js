@@ -5,6 +5,7 @@ import { stableStringify } from '../../src/shared/stable-json.js';
 import { findBinaryOnPath } from '../../src/index/tooling/binary-utils.js';
 import { resolveInstallerRequirementProbeArgs, verifyInstallerRequirementProbe } from './install-requirements.js';
 import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
+import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 
 const digest = value => createHash('sha256').update(value).digest('hex');
 export const identifyProvisioningExecutable = command => {
@@ -72,8 +73,11 @@ export const createToolProvisioningPlan = ({ tool, selection, probe = null, reso
     const command = path.isAbsolute(requirement.command) ? requirement.command : resolve(requirement.command);
     if (!command || !isAllowed(command)) return { ...requirement, state: 'missing', reason: 'command-missing-or-untrusted',
       nextAction: requirement.systemAction || requirement.recipe || 'No qualified managed recipe is declared for this requirement/platform.' };
-    if (!probe) return { ...requirement, command, state: 'not-probed', verificationLevel: null,
-      executable: identifyProvisioningExecutable(command) };
+    let executable;
+    try { executable = identifyProvisioningExecutable(command); }
+    catch (error) { return { ...requirement, command, state: 'missing', reason: 'command-bytes-unavailable',
+      errorCode: error.code || 'ERR_PREREQUISITE_BYTES', nextAction: 'Repair the exact selected command path, then re-plan; no fallback was executed.' }; }
+    if (!probe) return { ...requirement, command, state: 'not-probed', verificationLevel: null, executable };
     let verification = null;
     for (const args of resolveInstallerRequirementProbeArgs(requirement.family || requirement.id)) {
       const outcome = probe(command, args, { env: resolveNoProvisionToolingEnvironment(env, { command, providerId: requirement.id }),
@@ -102,4 +106,44 @@ export const bindProvisioningCommand = (action, plan, baseEnv = process.env) => 
   }
   return { command: manager && action.cmd === action.requires ? manager.executable.path : action.cmd,
     args: action.args, env: childEnv, prerequisites: plan.steps };
+};
+
+/** Actual install prerequisites use async children; pending close is never
+ * flattened into a retryable missing-command report or installation consent.
+ */
+export const probeProvisioningCommand = async (command, args, { spawn = spawnResolvedSubprocess, ...options } = {}) => {
+  try {
+    const result = await spawn(command, args, { ...options, outputEncoding: 'utf8',
+      timeoutMs: options.timeoutMs || 4000, maxOutputBytes: options.maxOutputBytes || 65536, rejectOnNonZeroExit: false });
+    const truncated = result.outputCapture?.stdout?.truncated || result.outputCapture?.stderr?.truncated;
+    return { ok: result.exitCode === 0 && !truncated, outcome: truncated ? 'output-limit' : result.exitCode === 0 ? 'ok' : 'nonzero',
+      status: result.exitCode, signal: result.signal || null, errorCode: null, stdout: result.stdout || '', stderr: result.stderr || '' };
+  } catch (error) {
+    if (error.cacheOwnershipPending || options.signal?.aborted) throw error;
+    return { ok: false, outcome: error.name === 'SubprocessTimeoutError' ? 'timeout' : error.code === 'ENOENT' ? 'missing' : 'spawn-error',
+      status: error.result?.exitCode ?? null, signal: error.result?.signal || null, errorCode: error.code || null,
+      stdout: error.result?.stdout || '', stderr: error.result?.stderr || '' };
+  }
+};
+
+export const verifyToolProvisioningPlan = async (plan, { env = process.env, signal = null, cwd = process.cwd(), probe = probeProvisioningCommand } = {}) => {
+  const steps = [];
+  for (const step of plan.steps) {
+    signal?.throwIfAborted();
+    if (step.state === 'missing') { steps.push(step); continue; }
+    if (!step.executable || identifyProvisioningExecutable(step.executable.path).sha256 !== step.executable.sha256) throw new Error('Prerequisite bytes changed before async verification: ' + step.id);
+    let verification = null, acceptedArgs = null;
+    for (const args of resolveInstallerRequirementProbeArgs(step.family || step.id)) {
+      const result = await probe(step.command, args, { cwd, signal, env: resolveNoProvisionToolingEnvironment(env, { command: step.command, providerId: step.id }),
+        timeoutMs: 4000, maxOutputBytes: 65536 });
+      if (identifyProvisioningExecutable(step.executable.path).sha256 !== step.executable.sha256) throw new Error('Prerequisite bytes changed during async verification: ' + step.id);
+      verification = verifyInstallerRequirementProbe(step.family || step.id, result, step);
+      if (verification.ok) { acceptedArgs = args; break; }
+    }
+    steps.push({ ...step, ...verification, state: verification?.ok ? 'verified' : 'incompatible',
+      ...(acceptedArgs ? { args: acceptedArgs } : { nextAction: 'Repair the exact selected runtime/components, then re-plan.' }) });
+  }
+  const { planId: _previousIdentity, ...body } = plan;
+  const updated = { ...body, steps, state: steps.every(step => step.state === 'verified') ? 'requirements-verified' : 'blocked-or-unprobed' };
+  return { ...updated, planId: digest(stableStringify(updated)) };
 };

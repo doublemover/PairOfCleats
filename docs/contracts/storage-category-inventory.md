@@ -40,3 +40,24 @@ transport, permission error or failed scan keeps accounting incomplete and
 bytes unknown. Doctor reports those roots as inaccessible or offline. A separate
 volume observation is not mount continuity, writable-space proof or mutation
 authority; concurrent filesystem changes remain outside a snapshot guarantee.
+
+`storage inspect --category managed-installations` reads existing install
+receipts under the current tooling location. It validates the real receipt
+identity and the canonical versioned `secondaryStorage` projection. Only
+`settled-declared-not-observed` records expose declared locations; prior,
+external, pending or mismatched resource settlement remains unknown. The
+adapter does not run a consumer executable or promote a version probe to
+protocol qualification.
+
+Secondary bytes are scanned only within launch-selected registered roots, under
+the shared bounded accounting owner. Receipt paths never become read/write,
+migration or cleanup authority. Deliberate external overrides stay metadata
+only with unknown bytes; saved/unknown receipts remain protected. Overlapping
+secondary roots share unique physical accounting, separately from receipt
+evidence accounting. Declared routing and a settled installation receipt do not
+prove actual subprocess writes or universal runtime lease coverage.
+
+The managed child producer, install receipt projection and inventory reader use
+the same retention vocabulary. BEAM's file-valued `ERL_CRASH_DUMP` remains
+`evidence` through that path, including when stored under run-owned scratch.
+Accounting a crash dump does not authorize cleanup or migration of that file.

@@ -4,9 +4,40 @@ import { createHash, randomUUID } from 'node:crypto';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 import { identifyProvisioningExecutable } from './provisioning-plan.js';
+import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
+import { MANAGED_CHILD_STORAGE_RETENTION_TIERS } from '../../src/shared/storage/child-environment.js';
 
 export const TOOL_INSTALL_RECEIPT_VERSION = 1;
 const hash = value => createHash('sha256').update(value).digest('hex');
+export const TOOL_SECONDARY_STORAGE_VERSION = 1;
+/** Accept only the actual install child's settled canonical projection. No env
+ * object, value bag or inferred scratch path is ever copied into a receipt.
+ */
+export const projectToolSecondaryStorage = storage => {
+  const absent = reason => ({ schemaVersion: TOOL_SECONDARY_STORAGE_VERSION, state: 'unknown-or-not-recorded',
+    reason, profileIdentity: null, runId: null, locations: [], exceptions: [] });
+  if (!storage) return absent('no-canonical-child-storage-projection');
+  if (storage.prepared !== true || storage.source !== 'declared-not-observed-writes') return absent('managed-storage-not-prepared-or-external');
+  if (storage.settlement?.settled !== true || storage.settlement.pending !== false
+    || storage.settlement.resourceId !== `${storage.profileIdentity}:${storage.runId}`) return absent('actual-child-storage-settlement-unconfirmed');
+  if (!/^[a-f0-9]{64}$/.test(storage.profileIdentity || '') || !/^[a-zA-Z0-9._-]{1,120}$/.test(storage.runId || '')
+    || ['.', '..'].includes(storage.runId) || !Array.isArray(storage.locations) || storage.locations.length > 128
+    || !Array.isArray(storage.exceptions) || storage.exceptions.length > 128) throw new Error('Invalid canonical secondary storage identity/inventory.');
+  const text = value => typeof value === 'string' && value.length <= 256 && !/[\x00-\x1f]/.test(value) ? redactDiagnosticText(value, 256) : null;
+  const locations = storage.locations.map(location => {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]{0,127}$/.test(location.environmentKey || '') || !path.isAbsolute(location.path || '')
+      || /[\x00-\x1f]/.test(location.path) || !MANAGED_CHILD_STORAGE_RETENTION_TIERS.includes(location.retention)
+      || typeof location.external !== 'boolean' || typeof location.file !== 'boolean'
+      || !['inherited-or-explicit-environment', 'managed-storage-profile'].includes(location.source)) throw new Error('Invalid canonical secondary storage location.');
+    return { environmentKey: location.environmentKey, path: location.path, retention: location.retention, external: location.external,
+      source: location.source, purpose: text(location.purpose), file: location.file, cleanupAuthority: false };
+  });
+  const exceptions = storage.exceptions.map(exception => ({ ...(text(exception.environmentKey) ? { environmentKey: text(exception.environmentKey) } : {}),
+    ...(path.isAbsolute(exception.path || '') && !/[\x00-\x1f]/.test(exception.path) ? { path: exception.path } : {}),
+    kind: text(exception.kind), status: text(exception.status) }));
+  return { schemaVersion: TOOL_SECONDARY_STORAGE_VERSION, state: 'settled-declared-not-observed', profileIdentity: storage.profileIdentity,
+    runId: storage.runId, locations, exceptions };
+};
 const toolId = id => {
   if (!/^[a-z0-9][a-z0-9.-]*$/.test(id)) throw new Error('Invalid tool receipt id.');
   return id;
@@ -42,6 +73,7 @@ export const buildToolInstallReceipt = ({ tool, action = null, result, toolingRo
     consumer: { command: consumer.path, args: result.managedInstallation?.args || [], executable: consumer },
     ownedPaths: ownership === 'managed' ? [{ path: consumer.path, sha256: consumer.sha256, kind: 'consumer-file' }] : [],
     prerequisites: action?.provisioning?.steps || result.provisioning?.steps || [],
+    secondaryStorage: projectToolSecondaryStorage(action?.storage),
     verification: { bytes: 'identified', executable: result.probe?.ok ? 'probe-passed' : 'not-probed',
       runtime: (action?.provisioning || result.provisioning)?.state === 'requirements-verified' ? 'verified' : 'not-probed',
       protocol: 'not-probed', consumer: 'not-qualified' }

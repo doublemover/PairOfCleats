@@ -111,7 +111,9 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
       runtime: process.version, executable: process.execPath, platform: process.platform, arch: process.arch,
       setupInputs: ['package.json', 'package-lock.json', '.nvmrc', 'docs/config/schema.json', 'tools/setup/first-search-plan.js',
         'tools/setup/model-readiness.js', 'tools/dict-utils/config.js', 'tools/tooling/install.js', 'tools/tooling/utils.js', 'tools/tooling/provisioning-plan.js',
-        'tools/tooling/install-execution.js', 'tools/tooling/install-storage.js', 'tools/tooling/managed-install.js', 'tools/tooling/install-go-sdk.js']
+        'tools/tooling/install-execution.js', 'tools/tooling/install-storage.js', 'tools/tooling/managed-install.js', 'tools/tooling/install-go-sdk.js',
+        'tools/tooling/owned-detect.js', 'tools/tooling/install-preview.js', 'src/shared/managed-installation.js',
+        'src/shared/managed-installation-retain.js', 'src/shared/storage/session.js', 'src/shared/storage/managed-child-session.js']
         .map(relative => [relative, hash(fs.readFileSync(path.join(toolRoot, relative)))]) },
     prerequisites: prerequisitePlans,
     operations, readiness: 'not-probed',
@@ -185,6 +187,7 @@ export const applyFirstSearchPlan = async (approved, { execute = executeSetupSte
       Object.defineProperty(error, 'setupPlanSession', { configurable: true, value: { resourceId: lock.payload.lockId,
         releaseAfterSettlement: receipt => {
           if (receipt?.resourceId !== lock.payload.lockId || receipt.settled !== true || receipt.pending === true) throw new Error('Setup child settlement remains unconfirmed.');
+          if (error.cacheOwnershipReleased?.() !== true) throw new Error('Setup child settlement remains unconfirmed by its actual execution owner.');
           return releaseFileLockOrThrow(lock);
         } } });
       error.setupOutcome = outcome;
