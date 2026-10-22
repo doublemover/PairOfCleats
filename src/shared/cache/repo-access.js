@@ -6,7 +6,8 @@ import { readJsonFileSyncSafe } from '../file-read.js';
 import { repoAccessPaths, consumeRepoCacheAccessHandoff } from './repo-access-reader.js';
 import { assertNoSymlinkPath } from '../contained-file.js';
 export { repoAccessPaths, retainRepoCacheAccess, retainCachePathAccess,
-  prepareRepoCacheAccessHandoff, cancelRepoCacheAccessHandoff } from './repo-access-reader.js';
+  prepareRepoCacheAccessHandoff, cancelRepoCacheAccessHandoff,
+  acquireRepoCacheAccessLease } from './repo-access-reader.js';
 
 const readOwner = file => readJsonFileSyncSafe(file, { maxBytes: 64 * 1024 });
 

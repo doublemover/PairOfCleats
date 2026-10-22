@@ -190,3 +190,25 @@ BEAM defaults now select owned scratch instead of project cwd while preserving
 an explicit ERL_CRASH_DUMP. Lua/package-patch same-volume staging, additional
 installer families and all failure/platform acceptance still require their
 existing owner integrations.
+
+The scoped `storage/session.js` adapter now composes the existing reader protocol
+for individual model/tool/download resources. It retains exact leases until the
+owning resource supplies an explicit settlement receipt bound to its resource ID.
+Unconfirmed teardown retains the session and primary error for later reconciliation;
+a fulfilled action promise alone is not a disposition proof. It does not replace
+process-lifetime repository reader defaults. `managed-child-session.js` holds
+those leases across explicit scratch/cache preparation and child execution; its
+caller must validate the real subprocess termination receipt. Runtime adoption
+at the actual model/tool owner remains required and unvalidated.
+
+`tools/storage/embedding-adapter.js` adds a read-only complete-identity profile
+adapter. It calls `readCacheIndex(..., {strict:true})`, including delta replay,
+and the existing immutable-reference protection owner. Metadata snapshots before
+and after index/reference reads detect concurrent checkpoint/delta/lock changes;
+any unreadable/partial reference authority blocks lifecycle admission. Inventory
+protects JSON/bin checkpoints, `cache.index.delta`, mode metadata and lock files.
+Only known mode/chunk directories are scanned: recursively treating the legacy
+tuple parent as legacy bytes would accidentally count every nested profiles-v2
+identity. No lock is acquired or recovered during inventory. The adapter grants
+no generic cleanup/migration authority; shard pruning remains with the embedding
+owner, and consumer/runtime/quota acceptance is still deferred.

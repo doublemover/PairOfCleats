@@ -8,8 +8,19 @@ import { toRealPathSync } from '../../workspace/identity.js';
 import { assertNoSymlinkPath } from '../contained-file.js';
 
 const held = new Map();
+const scoped = new Map();
 const handoffs = new WeakMap();
 let exitHookInstalled = false;
+
+const installExitHook = () => {
+  if (exitHookInstalled) return;
+  exitHookInstalled = true;
+  process.once('exit', () => {
+    for (const lease of [...held.values(), ...scoped.values()]) {
+      try { removeLockFileSyncIfOwned(lease.file, lease.payload); } catch {}
+    }
+  });
+};
 
 export const repoAccessPaths = (repoCacheRoot, { coordinationRoot = null } = {}) => {
   const root = toRealPathSync(repoCacheRoot);
@@ -24,16 +35,11 @@ export const repoAccessPaths = (repoCacheRoot, { coordinationRoot = null } = {})
 };
 
 /** Admission precedes any cache access; leases cover retained handles until process exit. */
-export const retainRepoCacheAccess = (repoCacheRoot, options = {}) => {
-  const paths = repoAccessPaths(repoCacheRoot, options);
-  const current = held.get(paths.directory);
-  if (current?.suspended) throw Object.assign(new Error('Local cache readers are drained for an exclusive owner handoff.'), {
-    code: 'ERR_REPO_CACHE_ACCESS_SUSPENDED'
-  });
-  if (current && fs.existsSync(current.file)) return;
+const createAccessLease = (paths, options = {}) => {
   if (options.coordinationRoot) assertNoSymlinkPath(path.parse(paths.directory).root, paths.directory, { allowMissing: true });
   fs.mkdirSync(paths.leases, { recursive: true });
-  const payload = createLockPayload({ scope: 'repo-cache-access', hostname: os.hostname() });
+  const payload = createLockPayload({ scope: options.scope || 'repo-cache-access', hostname: os.hostname(),
+    ...(typeof options.resourceId === 'string' ? { resourceId: options.resourceId } : {}) });
   const file = path.join(paths.leases, `${payload.lockId}.json`);
   fs.writeFileSync(file, JSON.stringify(payload), { flag: 'wx' });
   // A collector creates its exclusion lock BEFORE inspecting leases. Therefore
@@ -46,20 +52,44 @@ export const retainRepoCacheAccess = (repoCacheRoot, options = {}) => {
     }
   }
   if (fs.existsSync(paths.lockPath)) {
-    fs.rmSync(file, { force: true });
+    removeLockFileSyncIfOwned(file, payload);
     throw Object.assign(new Error('Repository cache cleanup is in progress; retry after cleanup completes.'), {
       code: 'ERR_REPO_CACHE_CLEANUP_BUSY'
     });
   }
-  held.set(paths.directory, { file, payload, paths, suspended: false });
-  if (!exitHookInstalled) {
-    exitHookInstalled = true;
-    process.once('exit', () => {
-      for (const lease of held.values()) {
-        try { removeLockFileSyncIfOwned(lease.file, lease.payload); } catch {}
-      }
-    });
-  }
+  installExitHook();
+  return { file, payload, paths, suspended: false };
+};
+
+export const retainRepoCacheAccess = (repoCacheRoot, options = {}) => {
+  const paths = repoAccessPaths(repoCacheRoot, options);
+  const current = held.get(paths.directory);
+  if (current?.suspended) throw Object.assign(new Error('Local cache readers are drained for an exclusive owner handoff.'), {
+    code: 'ERR_REPO_CACHE_ACCESS_SUSPENDED'
+  });
+  if (current && fs.existsSync(current.file)) return;
+  held.set(paths.directory, createAccessLease(paths, options));
+};
+
+/** Scoped assets use the identical reader/collector exclusion handshake, but
+ * release only their own exact lease after the owning resource confirms close.
+ */
+export const acquireRepoCacheAccessLease = (repoCacheRoot, options = {}) => {
+  const paths = repoAccessPaths(repoCacheRoot, options);
+  if (held.get(paths.directory)?.suspended) throw Object.assign(new Error('Local cache access is suspended for an exclusive handoff.'), {
+    code: 'ERR_REPO_CACHE_ACCESS_SUSPENDED'
+  });
+  const lease = createAccessLease(paths, options);
+  scoped.set(lease.file, lease);
+  let released = false;
+  return Object.freeze({ root: paths.root, leaseId: lease.payload.lockId,
+    release: () => {
+      if (released) return true;
+      if (!removeLockFileSyncIfOwned(lease.file, lease.payload)) return false;
+      released = true;
+      scoped.delete(lease.file);
+      return true;
+    } });
 };
 
 /** Suspend new local admissions before draining handles; the exact lease stays
