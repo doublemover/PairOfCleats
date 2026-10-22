@@ -30,9 +30,9 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `ee2606838` adds bounded prepared symbol rows,
-pre-encoding semantic/report admission, original VSCode request lifetime,
-scene disposal prerequisites and truthful provisioning/evaluation evidence.
+Latest source continuation: `f676316c5` retains failed SQLite cache handles,
+finalizes eval resources before reports, pins original Sublime requests, separates
+erased compiler syntax and bounds LSP selections/common source-linked reports.
 Dispositions: 141 historical, 555 source, 163 partial, 98 pending.
 All authored checks remain unvalidated.
 
@@ -83,7 +83,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `ee2606838` repairs watch/pointer and queue authority,
+Current source through `f676316c5` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
@@ -122,8 +122,8 @@ Unicode type roots and own parameter/argument names reach parser/cache/public
 consumers. Complete source-checked semantic tokens and iterative symbols preserve
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
-sourceChunking11/importResolution7/typeNormalization6/compilerBindings20/
-lspBindings39/rq10/cfgFlow24/callFlow25/valueSlice8. VSCode and Sublime retain
+sourceChunking11/importResolution7/typeNormalization6/compilerBindings21/
+lspBindings40/rq10/cfgFlow25/callFlow25/valueSlice9. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 
 The rollout gate now requires explicit coherent benchmark counts and diagnostic
@@ -148,6 +148,13 @@ Existing evidence/report bounds now charge before encoded expansion; selection,
 aggregate, transport and downstream memory remain partial. Bounded final symbol
 rows reuse fitting bytes through sizing/output (#1363 partial). All detailed
 chronology and limits live in the archived receipt. Authored controls remain unrun.
+
+
+SQLite cache failure no longer becomes confirmed close or a lost eviction scope;
+original work/leases gate exact cleanup, and evaluation finalizes resources before
+publishing metrics. Compiler type-only syntax stays out of runtime consumers.
+Original editor views and map callbacks retain authority across delayed/reentrant
+work. These authored controls remain unrun; real host/native qualification stays open.
 
 ## Environment and qualification boundaries
 
