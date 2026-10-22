@@ -10,6 +10,9 @@ assert.equal(catalog.some(command => command.supportTier === 'experimental'), fa
 const complete = describeIndexWorkflows({ includeExperimental: true });
 const coverage = describeWorkflowCoverage();
 const registered = listCommandRegistry({ supportTiers: ['stable', 'operator', 'experimental'] });
+assert.equal(catalog.some(command => command.registryId === 'graph-evidence'), false);
+assert.match(complete.find(command => command.registryId === 'graph-evidence').unsupportedReason, /pinned-build\/family/,
+  'new experimental retained graph evidence has an explicit native limitation, never a generic fallback');
 assert.deepEqual(new Set(coverage.map(row => row.registryId)), new Set(registered.map(row => row.id)),
   'every visible registry command has an explicit adapter or reviewed concrete reason');
 for (const row of coverage) {
@@ -52,7 +55,7 @@ for (const command of describeIndexWorkflows({ backendDelegationEnabled: true })
   assert.equal(command.fields.some(field => field.name === 'index-root'), false, 'the reviewed current generation supplies the explicit root');
   assert.equal(validateConfig(command.schema, { mode: 'records' }).ok, false);
 }
-for (const id of ['storage.configure-plan', 'storage.configure-apply', 'storage.migration-plan',
+for (const id of ['storage.configure-plan', 'storage.configure-apply', 'storage.policy-plan', 'storage.policy-apply', 'storage.migration-plan',
   'storage.migration-apply', 'storage.migration-rollback', 'storage.migration-status']) {
   assert.ok(catalog.find(command => command.id === id).unsupportedReason,
     `${id}: explicit native root/plan/lease integration remains required`);

@@ -86,7 +86,7 @@ export const createTuiIndexer = ({ toolRoot, requireScope, env = process.env,
         : 'Observe the existing index queue and global shutdown state; do not claim or mutate jobs.',
       exclusions: ['other repository jobs', 'custom argv jobs', 'embedding queues', 'sync/clone', 'enqueue', 'global shutdown/resume', 'global stale-job recovery'],
       cancellation: 'Stops this native worker from claiming and aborts only its active claimed executions; waits for canonical settlement. Other workers retain their state.' };
-    const execute = async ({ signal: jobSignal, env: launchEnv, onActivity }) => {
+    const execute = async ({ signal: jobSignal, env: launchEnv, onActivity, jobId }) => {
       if (capture().identity !== prepared.identity) fail('ERR_TUI_INDEXER_STALE', 'Indexer configuration or membership changed after preview.');
       throwIfAborted(jobSignal);
       const queueDir = prepared.authority.queue.path;
@@ -100,7 +100,7 @@ export const createTuiIndexer = ({ toolRoot, requireScope, env = process.env,
       const combined = AbortSignal.any([jobSignal, controller.signal]);
       let settled;
       const settlement = new Promise(resolve => { settled = resolve; });
-      const entry = { scopeId: scope.id, controller, settlement, worker: null };
+      const entry = { scopeId: scope.id, jobId, controller, settlement, worker: null };
       active.set(controller, entry);
       let authorityError = null, metrics = null;
       const { config } = prepared;
@@ -167,7 +167,9 @@ export const createTuiIndexer = ({ toolRoot, requireScope, env = process.env,
     return { review, execute };
   };
   return { prepare,
-    status: scopeId => [...active.values()].filter(entry => entry.scopeId === scopeId).map(entry => entry.worker),
+    status: scopeId => [...active.values()].filter(entry => entry.scopeId === scopeId)
+      .map(entry => ({ service: 'indexer', jobId: entry.jobId, phase: entry.worker?.status || 'starting',
+        ...entry.worker, healthMeaning: 'Canonical queue worker/lease observations; no published-index readiness claim.' })),
     dispose: async () => {
       const owned = [...active.values()];
       for (const entry of owned) entry.controller.abort();

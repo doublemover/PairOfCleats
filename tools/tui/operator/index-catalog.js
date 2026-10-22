@@ -99,6 +99,7 @@ const OPTIONS = {
 // Deliberate dispositions, not a catch-all. A new public registry command must
 // receive an adapter or a reviewed concrete reason before catalog admission.
 const UNSUPPORTED = {
+  'graph-evidence': 'Retained graph evidence needs an exact pinned-build/family request review and native cursor owner; use the canonical graph-evidence request-file CLI. No native action/capture or graph coverage is implied.',
   'workspace.init': 'Workspace authoring needs a native membership/create-file preview; use the canonical workspace init CLI.',
   'workspace.add': 'Workspace membership changes need a native exact-membership/file revision preview; use the canonical workspace add CLI.',
   'workspace.validate': 'Workspace authoring validation is available through the canonical workspace validate CLI; this native status action observes index publication instead.',
@@ -106,6 +107,8 @@ const UNSUPPORTED = {
   'checkout.diagnose': 'Source-checkout diagnosis and opt-in prerequisite probes belong to the canonical onboarding CLI; this native session already requires a prepared installation.',
   'storage.configure-plan': 'Storage configuration planning has no native exact-root/configuration revision preview; use canonical storage configure-plan.',
   'storage.configure-apply': 'Storage configuration application needs a native retained exact-root/configuration revision plan and explicit selection receipt; use canonical storage configure-apply.',
+  'storage.policy-plan': 'Machine-local probe policy needs a native immutable policy/selected-home review; use canonical storage policy-plan.',
+  'storage.policy-apply': 'Machine-local probe policy application needs an exact reviewed policy identity and selection preview; use canonical storage policy-apply.',
   'storage.migration-plan': 'Storage migration planning requires native source/destination ownership and impact presentation; use canonical storage migration-plan.',
   'storage.migration-apply': 'Storage migration application needs a native retained exact source/destination plan, lease authority and pending-state recovery view; use canonical storage migration-apply.',
   'storage.migration-rollback': 'Storage migration rollback needs a native exact retained migration identity, recovery journal and source/destination ownership review; use canonical storage migration-rollback.',

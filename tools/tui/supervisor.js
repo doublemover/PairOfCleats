@@ -115,7 +115,7 @@ const {
   captureArtifactInventory: input => artifactRegistry.capture(input),
   assertWorkAdmission: ({ kind, method }) => {
     output.assertWritable();
-    if (kind === 'operation' && ['status', 'describe'].includes(method)) return;
+    if (kind === 'operation' && ['status', 'describe', 'services', 'stop-service'].includes(method)) return;
     indexWorkflows?.assertCacheAdmission();
   }
 });
@@ -195,6 +195,7 @@ const runWorkflow = async (request, context) => {
     return settingsSession.selectScope(request.params, context);
   }
   indexWorkflows ||= workflows.createTuiIndexWorkflows({ scopes: settingsSession, startJob, toolRoot: ROOT,
+    getJob, cancelJob,
     drainLocalReaders: drainBackendReaders,
     // Enabled only together with actual canonical SQLite/LMDB closure hooks.
     backendDelegationEnabled: true });
@@ -291,7 +292,7 @@ const handleRequest = async (request) => {
     try {
       await startOperation({ jobId: request.jobId, method: request.method }, context => runWorkflow(request, context),
         { title: 'Index workflow', isCommitted: data => data?.launched === true || typeof data?.id === 'string'
-          || data?.nativePageCommitted === true || data?.discarded === true });
+          || data?.nativePageCommitted === true || data?.discarded === true || data?.stopRequested === true });
     } catch {
       emitLog(null, 'error', 'Workflow request was not admitted.');
     }

@@ -14,6 +14,8 @@ enum Page {
     Edit,
     Preview,
     Result,
+    Services,
+    ServiceReview,
 }
 
 /// Volatile typed forms. Drafts, previews and scopes are never layout snapshots.
@@ -43,6 +45,12 @@ pub(crate) struct WorkflowUi {
     next_id: u64,
     early_completion: Option<Value>,
     experimental: bool,
+    services: Vec<Value>,
+    service_selection: Option<String>,
+    service_armed: Option<String>,
+    services_return: Page,
+    service_outcome: Option<Value>,
+    service_resources: Vec<Value>,
 }
 
 impl Default for WorkflowUi {
@@ -73,6 +81,12 @@ impl Default for WorkflowUi {
             next_id: 1,
             early_completion: None,
             experimental: false,
+            services: vec![],
+            service_selection: None,
+            service_armed: None,
+            services_return: Page::Commands,
+            service_outcome: None,
+            service_resources: vec![],
         }
     }
 }
@@ -114,6 +128,17 @@ impl WorkflowUi {
             .and_then(|command| command["fields"].as_array())
             .map(Vec::as_slice)
             .unwrap_or_default()
+    }
+
+    fn selected_service(&self) -> Option<&Value> {
+        self.services.iter().find(|service| service["serviceId"].as_str() == self.service_selection.as_deref())
+    }
+
+    fn open_services(&mut self) {
+        if self.scope.is_none() { return; }
+        if !matches!(self.page, Page::Services | Page::ServiceReview) { self.services_return = self.page; }
+        self.page = Page::Services; self.service_armed = None;
+        if let Some(scope) = &self.scope { self.request("services", json!({"scopeId":scope["id"]})); }
     }
 
     pub fn key(&mut self, key: KeyEvent) -> bool {
@@ -161,6 +186,7 @@ impl WorkflowUi {
                 _ => {}
             },
             Page::Commands => match key.code {
+                KeyCode::Char('v') => self.open_services(),
                 KeyCode::Char('X') => { self.experimental = !self.experimental; self.selected = 0;
                     self.request("describe", json!({"includeExperimental":self.experimental})); }
                 KeyCode::Esc => return true,
@@ -240,6 +266,7 @@ impl WorkflowUi {
                 _ => {}
             },
             Page::Result => match key.code {
+                KeyCode::Char('v') => self.open_services(),
                 KeyCode::Esc => {
                     if let Some(params) = self.continuation_params() { self.request("close-continuation", params); }
                     else { self.page = Page::Commands; self.selected = 0; }
@@ -254,6 +281,44 @@ impl WorkflowUi {
                 } else if let Some(scope) = &self.scope { self.request("status", json!({"scopeId":scope["id"]})); },
                 KeyCode::Down => self.scroll.down(),
                 KeyCode::Up => self.scroll.up(),
+                _ => {}
+            },
+            Page::Services => match key.code {
+                KeyCode::Esc => { self.page = self.services_return; self.service_armed = None; }
+                KeyCode::Char('t') => self.open_services(),
+                KeyCode::Down | KeyCode::Char('j') | KeyCode::Up | KeyCode::Char('k') => {
+                    let current = self.services.iter().position(|service| service["serviceId"].as_str() == self.service_selection.as_deref());
+                    let index = match (current, key.code) {
+                        (Some(index), KeyCode::Up | KeyCode::Char('k')) => index.saturating_sub(1),
+                        (Some(index), _) => (index + 1).min(self.services.len().saturating_sub(1)),
+                        (None, _) => 0,
+                    };
+                    self.service_selection = self.services.get(index).and_then(|service| service["serviceId"].as_str()).map(str::to_owned);
+                    self.service_armed = None;
+                }
+                KeyCode::Enter | KeyCode::Char('c') => {
+                    if let Some(service) = self.selected_service().cloned() {
+                        if service["canStop"] == true {
+                            self.service_armed = service["serviceId"].as_str().map(str::to_owned);
+                            self.page = Page::ServiceReview;
+                            self.status = "Review the exact owned service; Enter confirms stop, Esc returns".into();
+                        } else { self.status = "This service already ended or is stopping; refresh its actual state".into(); }
+                    }
+                }
+                _ => {}
+            },
+            Page::ServiceReview => match key.code {
+                KeyCode::Down => self.scroll.down(),
+                KeyCode::Up => self.scroll.up(),
+                KeyCode::Esc => { self.service_armed = None; self.page = Page::Services; }
+                KeyCode::Enter => {
+                    if let (Some(scope), Some(service)) = (&self.scope, self.selected_service()) {
+                        if service["serviceId"].as_str() == self.service_armed.as_deref() && service["canStop"] == true {
+                            let params = json!({"scopeId":scope["id"],"serviceId":service["serviceId"],"confirmed":true});
+                            self.request("stop-service", params);
+                        }
+                    }
+                }
                 _ => {}
             },
         }
@@ -301,6 +366,16 @@ impl WorkflowUi {
     }
 
     pub fn event(&mut self, event: &Value) -> bool {
+        if event["event"] == "job:end" {
+            for service in &mut self.services {
+                if service["jobId"].as_str().is_some() && service["jobId"] == event["jobId"] {
+                    service["canStop"] = json!(false); service["phase"] = event["status"].clone();
+                    if service["serviceId"].as_str() == self.service_armed.as_deref() {
+                        self.service_armed = None; self.page = Page::Services;
+                    }
+                }
+            }
+        }
         if event["event"] == "job:end"
             && event["jobId"]
                 .as_str()
@@ -347,6 +422,9 @@ impl WorkflowUi {
                     .as_str()
                     .unwrap_or("ERR_TUI_WORKFLOW_RESPONSE")
             );
+            if matches!(method.as_str(), "services" | "stop-service") {
+                self.page = Page::Services; self.service_armed = None; return true;
+            }
             self.presentation.get_mut().clear(); self.preview = None;
             self.early_completion = None;
             self.page = if self.scope.is_some() {
@@ -360,6 +438,8 @@ impl WorkflowUi {
         let data = &event["result"]["data"];
         match method.as_str() {
             "select" => {
+                self.services.clear(); self.service_selection = None; self.service_armed = None;
+                self.service_outcome = None; self.service_resources.clear();
                 self.presentation.get_mut().clear(); self.scope = Some(data.clone());
                 self.owned_job = None;
                 self.early_completion = None;
@@ -420,6 +500,26 @@ impl WorkflowUi {
                     "Published generation observation; independent of process success".into()
                 };
             }
+            "services" => {
+                let initial = self.services.is_empty() && self.service_selection.is_none();
+                self.services = data["ownedServices"].as_array().map(|services| services.iter()
+                    .filter(|service| service["serviceId"].is_string() && service["jobId"].is_string())
+                    .take(6).cloned().collect()).unwrap_or_default();
+                if !self.services.iter().any(|service| service["serviceId"].as_str() == self.service_selection.as_deref()) {
+                    self.service_selection = if initial { self.services.first().and_then(|service| service["serviceId"].as_str()).map(str::to_owned) } else { None };
+                }
+                self.service_armed = None; self.page = Page::Services;
+                self.service_resources = data["resources"].as_array().map(|resources| resources.iter().take(6).cloned().collect()).unwrap_or_default();
+                self.status = "Current-session services only; health and index readiness are separate observations".into();
+            }
+            "stop-service" => {
+                self.service_outcome = Some(data.clone());
+                self.service_armed = None; self.page = Page::Services;
+                self.status = if data["settled"] == true {
+                    "Exact owned service execution and resource closure settled; t refreshes services".into()
+                } else { "Stop requested; resource closure remains pending. No closure or readiness is claimed".into() };
+                self.open_services();
+            }
             "next" => {
                 self.result = Some(data.clone()); self.page = Page::Result; self.scroll.reset();
                 self.status = "Canonical semantic page received; n continues in the same owned process, Esc disposes".into();
@@ -460,7 +560,7 @@ impl WorkflowUi {
                 return self.scroll.lines(lines, &self.cursor.visible(&self.target, width), height, width);
             }
             Page::Commands => {
-                lines.push(format!("Arrows select | Enter form/reason | X experimental {} | t status | s scope | Esc closes", self.experimental));
+                lines.push(format!("Arrows select | Enter form/reason | X experimental {} | t status | v owned services | s scope | Esc closes", self.experimental));
                 let rows = self.commands().iter().enumerate().map(|(i, command)| format!("{} {} [{}] {}", if i == self.selected {">"} else {" "}, command["id"].as_str().unwrap_or_default(), command["supportTier"].as_str().unwrap_or_default(), command["description"].as_str().unwrap_or_default())).collect();
                 return selected_rows(lines, rows, self.selected, height, width);
             }
@@ -482,7 +582,7 @@ impl WorkflowUi {
                 return self.scroll.lines(lines, &format!("Field: {name}\n{}", self.cursor.visible(&self.draft, width)), height, width);
             }
             Page::Preview | Page::Result => {
-                lines.push(if self.page == Page::Preview {"Review exact scope/argv/readiness | Enter confirms | Esc discards | arrows scroll"} else {"Owned job result | n semantic next | c cancel | t status | Esc disposes continuation/catalog | arrows scroll"}.into());
+                lines.push(if self.page == Page::Preview {"Review exact scope/argv/readiness | Enter confirms | Esc discards | arrows scroll"} else {"Owned job result | n semantic next | c cancel | t status | v services | Esc disposes continuation/catalog | arrows scroll"}.into());
                 if let Some(job) = &self.owned_job { lines.push(format!("Owned job: {job}")); }
                 if self.page == Page::Preview {
                     let empty = Value::Null;
@@ -494,6 +594,36 @@ impl WorkflowUi {
                 }
                 return self.presentation.borrow_mut().lines(2, self.scope.as_ref(), self.result.as_ref().unwrap_or(&Value::Null),
                     &self.scroll, lines, height, width);
+            }
+            Page::Services => {
+                lines.push("Owned services | arrows select | Enter/c review stop | t refresh | Esc back".into());
+                if let Some(outcome) = &self.service_outcome {
+                    lines.push(format!("Last stop: {} | {}", outcome["jobId"].as_str().unwrap_or("unknown"),
+                        if outcome["settled"] == true { "resource closure settled" } else { "closure pending; no success receipt" }));
+                }
+                for resource in &self.service_resources {
+                    if resource["phase"] == "closure-failed" || resource["closurePending"] == true {
+                        lines.push(format!("Retained owner {} {}: {}", resource["service"].as_str().unwrap_or("service"),
+                            resource["jobId"].as_str().unwrap_or("unknown"), resource["closeErrorCode"].as_str().unwrap_or("closure pending")));
+                    }
+                }
+                if self.services.is_empty() { lines.push("No active service control is retained for this selected scope".into()); }
+                if self.service_selection.is_none() && !self.services.is_empty() { lines.push("Previous service disappeared; arrows choose a new exact service".into()); }
+                let selected = self.services.iter().position(|service| service["serviceId"].as_str() == self.service_selection.as_deref()).unwrap_or(0);
+                let rows = self.services.iter().map(|service| format!("{} {} | {} | {} | stop {}",
+                    if service["serviceId"].as_str() == self.service_selection.as_deref() { ">" } else { " " },
+                    service["service"].as_str().unwrap_or("service"), service["jobId"].as_str().unwrap_or("unknown"),
+                    service["phase"].as_str().unwrap_or("unverified"), if service["canStop"] == true { "available" } else { "unavailable" })).collect();
+                return selected_rows(lines, rows, selected, height, width);
+            }
+            Page::ServiceReview => {
+                lines.push("Enter stops this exact session-owned service | Esc returns | arrows review".into());
+                if let Some(service) = self.selected_service() {
+                    let review = format!("Service: {}\nJob: {}\nControl identity: {}\nState: {}\nStop only this owned job; await actual execution and resource closure. No published-index readiness is inferred.",
+                        service["service"].as_str().unwrap_or("unknown"), service["jobId"].as_str().unwrap_or("unknown"),
+                        service["serviceId"].as_str().unwrap_or("unknown"), service["phase"].as_str().unwrap_or("unverified"));
+                    return self.scroll.lines(lines, &review, height, width);
+                }
             }
         }
         lines.into_iter().take(height).map(|line| crate::fit_text(&line, width)).collect()
@@ -544,5 +674,43 @@ mod presentation_tests {
             "workflow":{"maintenance":{"blocked":true,"pending":true},"publications":[]}}));
         assert!(ui.status.contains("ownership unresolved"));
         assert_eq!(ui.result.as_ref().unwrap()["publicationEvidence"]["maintenance"]["pending"], true);
+    }
+    #[test]
+    fn service_stop_reviews_exact_identity_and_preserves_pending_resource_outcome() {
+        let mut ui = WorkflowUi { available: true, scope: Some(json!({"id":"scope"})),
+            page: Page::Commands, ..WorkflowUi::default() };
+        ui.key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE));
+        end(&mut ui, json!({"ownedServices":[{"serviceId":"opaque-api","service":"api",
+            "jobId":"owned-api","phase":"running","canStop":true}],"resources":[]}));
+        ui.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert!(matches!(ui.page, Page::ServiceReview));
+        assert_eq!(ui.service_armed.as_deref(), Some("opaque-api"));
+        ui.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        let request = ui.outbox.back().unwrap();
+        assert_eq!(request["method"], "stop-service");
+        assert_eq!(request["params"], json!({"scopeId":"scope","serviceId":"opaque-api","confirmed":true}));
+        end(&mut ui, json!({"jobId":"owned-api","stopRequested":true,"executionSettled":true,
+            "settled":false,"pending":true,"errorCode":"ERR_TUI_SERVICE_CLOSURE_PENDING"}));
+        assert!(matches!(ui.page, Page::Services));
+        assert!(ui.lines(20, 120).join("\n").contains("closure pending"));
+        assert_eq!(ui.outbox.back().unwrap()["method"], "services");
+    }
+    #[test]
+    fn service_refresh_and_job_end_never_retarget_an_armed_stop() {
+        let mut ui = WorkflowUi { available: true, scope: Some(json!({"id":"scope"})),
+            page: Page::Commands, ..WorkflowUi::default() };
+        ui.open_services();
+        end(&mut ui, json!({"ownedServices":[{"serviceId":"old","jobId":"old-job","canStop":true}]}));
+        ui.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        ui.event(&json!({"event":"job:end","jobId":"old-job","status":"failed"}));
+        assert!(ui.service_armed.is_none());
+        assert!(matches!(ui.page, Page::Services));
+        ui.open_services();
+        end(&mut ui, json!({"ownedServices":[{"serviceId":"replacement","jobId":"new-job","canStop":true}]}));
+        assert!(ui.service_selection.is_none());
+        let count = ui.outbox.len();
+        ui.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(ui.outbox.len(), count, "replacement requires its own selection and review");
+        assert!(ui.pending.is_none());
     }
 }

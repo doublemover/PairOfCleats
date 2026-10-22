@@ -35,6 +35,7 @@ import { createTuiIndexer } from './indexer.js';
 import { createTuiApiServices } from './api-service.js';
 import { createTuiCacheMaintenance, NATIVE_BACKEND_MAINTENANCE } from './cache-maintenance.js';
 import { settleOwnedActions } from './settle-owned.js';
+import { createTuiServiceControls } from './service-controls.js';
 
 const MAX_REPOS = 32;
 const MAX_PLANS = 16;
@@ -97,7 +98,7 @@ export const observeIndexPublication = async (repo, config, { signal, validateCu
 
 /** Private, expiring typed plans. Reuses scope, build/config/model, and job owners. */
 export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.cwd(), env = process.env, now = Date.now,
-  drainLocalReaders = null, backendDelegationEnabled = false } = {}) => {
+  drainLocalReaders = null, backendDelegationEnabled = false, getJob = null, cancelJob = null } = {}) => {
   const plans = new Map();
   const backendEnabled = backendDelegationEnabled === true && typeof drainLocalReaders === 'function';
   let experimentalEnabled = false;
@@ -107,6 +108,7 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
     if (disposed) fail('ERR_TUI_SESSION_CLOSED', 'The workflow session has closed.');
     return scopes.captureScope(id);
   };
+  const serviceControls = createTuiServiceControls({ requireScope, getJob, cancelJob });
   const mcp = createTuiMcpClients({ toolRoot, requireScope });
   const semantic = createTuiSemanticPages({ toolRoot, requireScope, now });
   const indexer = createTuiIndexer({ toolRoot, requireScope, env });
@@ -366,7 +368,16 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
           }) } };
       }
     });
+    const serviceKind = ['service.api', 'service.mcp'].includes(plan.command.registryId)
+      || plan.command.registryId === 'service.indexer' && plan.values.command === 'work'
+      ? plan.command.registryId.slice('service.'.length) : null;
+    const serviceControlId = serviceKind ? serviceControls.register({ scopeId: plan.scope.id, kind: serviceKind, jobId,
+      inspectClosure: () => {
+        const owner = { api, mcp, indexer }[serviceKind];
+        return { closed: !owner.status(plan.scope.id).some(entry => entry.jobId === jobId) };
+      } }) : null;
     return { launched: true, jobId, commandId: plan.command.id, canonicalArgv: plan.storage || plan.service || plan.backend ? null : plan.argv,
+      ...(serviceKind ? { serviceControlId } : {}),
       ...(plan.storage || plan.service || plan.backend ? { executionOwner: plan.backend ? 'authenticated-canonical-cache-child'
         : plan.storage ? 'canonical-storage-api' : 'canonical-service-worker-owners' } : {}),
       note: 'Track this owned job for progress, cancellation, publication evidence and artifact references.' };
@@ -388,9 +399,19 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
   const closeContinuation = async request => {
     assertTuiWorkflowRequest('close-continuation', request); return semantic.discard(request);
   };
+  const services = request => {
+    assertTuiWorkflowRequest('services', request); const scope = requireScope(request.scopeId);
+    return { scope, ownedServices: serviceControls.list(scope.id),
+      resources: [...mcp.status(scope.id), ...api.status(scope.id), ...indexer.status(scope.id)],
+      note: 'Only exact admitted current-session jobs receive stop controls. Resource health and closure remain separate observations.' };
+  };
+  const stopService = async (request, { signal } = {}) => {
+    assertTuiWorkflowRequest('stop-service', request); throwIfAborted(signal);
+    return serviceControls.stop(request);
+  };
   const reset = async () => { plans.clear(); await settleOwnedActions({ mcp: () => mcp.dispose(), api: () => api.dispose(),
-    semantic: () => semantic.dispose(), indexer: () => indexer.dispose() }); };
-  return { describe, preview, launch, discard, status, next, 'close-continuation': closeContinuation, reset,
+    semantic: () => semantic.dispose(), indexer: () => indexer.dispose() }); serviceControls.clear(); };
+  return { describe, preview, launch, discard, status, services, 'stop-service': stopService, next, 'close-continuation': closeContinuation, reset,
     assertCacheAdmission: maintenance.assertAdmission, cacheMaintenanceStatus: maintenance.status,
     dispose: async () => { disposed = true; await settleOwnedActions({ maintenance: () => maintenance.dispose(), sessions: reset }); } };
 };
