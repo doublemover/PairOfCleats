@@ -1,3 +1,5 @@
+import { captureEmbeddingCacheFailure, projectEmbeddingCacheFailure } from './embedding-cache-failure-inspection.js';
+
 const objectLike = value => value && (typeof value === 'object' || typeof value === 'function');
 const failureProvenance = new WeakMap(), leaseOwners = new WeakMap(), ownershipObservers = new WeakMap();
 export const getEmbeddingFailureProvenance = error => objectLike(error) ? failureProvenance.get(error) || null : null;
@@ -22,32 +24,24 @@ export const observeEmbeddingOwnership = error => {
 };
 
 const copyFailure = (primary, errors) => {
-  let message = 'Embedding resource cleanup remains pending.';
-  try { if (typeof primary?.message === 'string') message = primary.message; } catch {}
-  const failure = new AggregateError(errors, message, { cause: primary });
-  if (objectLike(primary)) {
-    const descriptors = Object.getOwnPropertyDescriptors(primary);
-    const reserved = new Set(['cause', 'errors', 'message', 'stack', 'cleanupErrors', 'embeddingCacheOwner',
-      'cacheOwnershipPending', 'cacheOwnershipReleased']);
-    for (const key of Reflect.ownKeys(descriptors)) {
-      if (!reserved.has(key)) Object.defineProperty(failure, key, descriptors[key]);
-    }
-    if (!Object.hasOwn(failure, 'name')) {
-      try { if (typeof primary.name === 'string') failure.name = primary.name; } catch {}
-    }
-  }
+  const captured = captureEmbeddingCacheFailure(primary, observeEmbeddingOwnership);
+  const failure = new AggregateError([...errors, ...captured.inspectionErrors], captured.message, { cause: primary });
+  projectEmbeddingCacheFailure(failure, captured);
   return failure;
 };
 
 /** Preserve immutable primary and cleanup errors, including both original
  * pending observers. This does not adopt or attempt any native resource. */
 export const preserveEmbeddingCleanupFailure = (primary, cleanup) => {
+  const captured = [primary, cleanup].map(error => captureEmbeddingCacheFailure(error, observeEmbeddingOwnership));
   const failure = copyFailure(primary, [primary, cleanup]);
-  const observers = [primary, cleanup].map(observeEmbeddingOwnership).filter(Boolean);
-  const released = () => observers.every(observe => observe());
+  const released = () => captured.every(snapshot => snapshot.released());
+  for (const error of captured[1].inspectionErrors) if (!failure.errors.includes(error)) failure.errors.push(error);
   Object.defineProperties(failure, { cleanupErrors: { value: Object.freeze([cleanup]) },
     cacheOwnershipPending: { get: () => !released() }, cacheOwnershipReleased: { value: released } });
-  failureProvenance.set(failure, Object.freeze({ owner: null, children: Object.freeze([primary, cleanup]) }));
+  failureProvenance.set(failure, Object.freeze({ owner: null,
+    get children() { return Object.freeze([...new Set([primary, cleanup, ...captured.flatMap(snapshot => snapshot.inspectionErrors)])]); }
+  }));
   return failure;
 };
 
@@ -58,8 +52,9 @@ export const createEmbeddingCacheLifetime = ({ cache, kind }) => {
   const retired = new Set();
   const receipt = entry => Object.freeze({ settled: entry.closed, pending: !entry.closed, references: entry.references });
   const recordFailure = (entry, error) => {
-    const observe = observeEmbeddingOwnership(error);
-    if (observe && !entry.pendingFailures.has(error)) entry.pendingFailures.set(error, observe);
+    const captured = captureEmbeddingCacheFailure(error, observeEmbeddingOwnership);
+    entry.diagnosticFailures.set(error, captured.inspectionsReleased);
+    if (captured.hasOwnership && !entry.pendingFailures.has(error)) entry.pendingFailures.set(error, captured.released);
   };
   const pendingFailure = entry => {
     for (const [error, observe] of entry.pendingFailures) if (!observe()) return error;
@@ -89,7 +84,10 @@ export const createEmbeddingCacheLifetime = ({ cache, kind }) => {
     if (!Object.hasOwn(failure, 'code')) failure.code = 'ERR_EMBEDDING_CACHE_RESOURCE_PENDING';
     Object.defineProperties(failure, { embeddingCacheOwner: { value: entry.owner },
       cacheOwnershipPending: { get: () => !entry.closed }, cacheOwnershipReleased: { value: () => entry.closed } });
-    failureProvenance.set(failure, Object.freeze({ owner: entry.owner, children: Object.freeze([error]) }));
+    const captured = captureEmbeddingCacheFailure(error, observeEmbeddingOwnership);
+    failureProvenance.set(failure, Object.freeze({ owner: entry.owner,
+      get children() { return Object.freeze([...new Set([error, ...captured.inspectionErrors])]); }
+    }));
     return failure;
   };
   const retire = (entry, { retry = false } = {}) => {
@@ -102,6 +100,10 @@ export const createEmbeddingCacheLifetime = ({ cache, kind }) => {
       // A rejected startup cannot be replaced with a fresh pipeline/adapter.
       // Its original pending child observer remains authoritative.
       try { await entry.promise; } catch (error) { recordFailure(entry, error); }
+      // Diagnostic work is independent of the resource's own close producer.
+      // It must settle before disposal; diagnostic formatting cannot authorize
+      // invoking a native parent while an inspector still owns child work.
+      for (const [error, released] of entry.diagnosticFailures) if (!released()) throw error;
       if (entry.resource && !entry.disposeCompleted) {
         if (entry.disposeCaptureFailed) throw entry.disposeError;
         if (entry.dispose) await entry.dispose.call(entry.resource);
@@ -123,7 +125,8 @@ export const createEmbeddingCacheLifetime = ({ cache, kind }) => {
   };
   const adopt = entry => {
     Object.assign(entry, { retired: false, closed: false, releasing: null, releaseError: null, waiting: null,
-      startup: 'pending', resource: null, dispose: null, disposeError: null, disposeCaptureFailed: false, disposeCompleted: false, pendingFailures: new Map() });
+      startup: 'pending', resource: null, dispose: null, disposeError: null, disposeCaptureFailed: false, disposeCompleted: false,
+      pendingFailures: new Map(), diagnosticFailures: new Map() });
     entry.owner = Object.freeze({ kind, get pending() { return !entry.closed; },
       get references() { return entry.references; }, get startup() { return entry.startup; },
       get resource() { return entry.resource; }, get lastError() { return entry.releaseError; },

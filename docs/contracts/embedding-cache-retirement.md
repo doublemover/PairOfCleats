@@ -61,3 +61,26 @@ host, browser, GPU, resource/thread/memory, allocator, timing or performance
 qualification was performed. Existing prepared encoder component acquisition,
 tensor lifetime and provider-specific disposal details retain their separate
 owners and qualification requirements.
+
+The outer owner now captures diagnostic message/name/code once, preserves
+readonly data fields and original receivers for unrelated accessors, and skips
+lazy stack descriptors before lookup. Exact falsey or frozen diagnostic failures
+remain independent causes. A retained snapshot bounds recorded diagnostic errors
+and projected fields; overflow is unknown. Caller/Proxy own-key allocation is
+outside that bound. No arbitrary error-object coercion is needed.
+
+Independent diagnostic work captured during failure recording gates the original
+outer disposer before invocation. Original observer functions and receivers remain
+binding after property replacement. After that work settles, explicit existing
+owner reconciliation can continue; successful disposal remains remembered. The
+composition helper keeps both primary and cleanup diagnostic observations.
+`outer-cache-diagnostic-prerequisites.test.js` authors these actual-owner controls
+with inert resources and no execution or native qualification.
+
+This scoped change does **not** move all operation-failure observers before
+disposal. Some existing provider failures describe that same provider's own
+captured child-close capability; treating those as unrelated work would strand
+legitimate explicit recovery. Proving exact producer delegation and gating every
+independent original operation remains separate work. Existing provider/native
+retry safety, original observer-getter diagnostic propagation, hostile property
+enumeration, all-consumer lifetime and real memory/GC qualification remain open.
