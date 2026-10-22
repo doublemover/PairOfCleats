@@ -2,7 +2,7 @@
 import sublime
 
 from . import config, operations, paths, results, runner, ui
-from .source_authority import read_current_source, read_verified_source
+from .source_authority import read_current_source, read_verified_source, source_cursor_position
 
 _QUALIFIED_NAVIGATION = {}
 
@@ -70,17 +70,17 @@ def execute_qualified_navigation(view, query, kind, on_hits, limit, title, inclu
         failed('PairOfCleats: no current source cursor is available.')
         return
     point = selections[0].begin()
-    row, _column = view.rowcol(point)
-    prefix = view.substr(sublime.Region(view.text_point(row, 0), point))
-    column = len(prefix.encode('utf-16-le')) // 2
-    if row == 0 and normalization['removedBom']:
-        column += 1
+    try:
+        line, column = source_cursor_position(disk, text, point)
+    except (ValueError, UnicodeError) as error:
+        failed('PairOfCleats: source cursor could not be qualified: ' + str(error))
+        return
     source_hash = source['sourceHash']
     version = str(view.change_count())
     args = ['tooling', 'navigate', '--json', '--repo', repo_root, '--kind', kind,
             '--top', str(limit), '--file', file_name, '--symbol', query,
             '--source-hash', source_hash, '--source-version', version,
-            '--line', str(row + 1), '--column', str(column + 1), '--coordinate-unit', 'utf16',
+            '--line', str(line), '--column', str(column), '--coordinate-unit', 'utf16',
             '--include-declaration', str(bool(include_declaration)).lower()]
     def done(result):
         if not operations.is_current(scope) or view.change_count() != int(version) or view.is_dirty():

@@ -1,5 +1,4 @@
 import os
-import re
 import time
 
 import sublime
@@ -7,7 +6,7 @@ from .saved_search import normalize_saved_options
 from . import operations
 from . import results_state
 from .filter_pagination import selected_index, capture_selection
-from .source_authority import read_verified_source
+from .source_authority import read_verified_source, source_buffer_form, source_range_in_buffer
 
 HIGHLIGHT_KEY = 'pairofcleats.search.highlight'
 HIGHLIGHT_SCOPE = 'region.yellowish'
@@ -321,16 +320,8 @@ def resolve_hit_context_query(hit):
 
 def qualified_source_buffer(source_text, buffer_text):
     """Only actually observed exact BOM/newline projections are admitted."""
-    bom_options = (False, True) if source_text.startswith('\ufeff') else (False,)
-    for removed_bom in bom_options:
-        text = source_text[1:] if removed_bom else source_text
-        normalized = text.replace('\r\n', '\n')
-        if buffer_text in (text, normalized, normalized.replace('\r', '\n')):
-            return {'removedBom': removed_bom}
-        # Replacing bare CR while retaining CRLF is also an exact observed form.
-        if buffer_text == re.sub(r'\r(?!\n)', '\n', text):
-            return {'removedBom': removed_bom}
-    return None
+    form = source_buffer_form(source_text, buffer_text)
+    return {'removedBom': form['removedBom']} if form is not None else None
 
 
 def highlight_hit(view, hit, scope=None, repo_root=None):
@@ -350,7 +341,7 @@ def highlight_hit(view, hit, scope=None, repo_root=None):
         if (scope is not None and not operations.is_current(scope)
                 or hasattr(view, 'is_valid') and not view.is_valid()):
             return
-        removed_bom = False
+        source, buffer_text = None, None
         if view.is_loading():
             if time.monotonic() >= deadline:
                 sublime.status_message('PairOfCleats: source loading did not settle within the selection deadline.')
@@ -370,24 +361,27 @@ def highlight_hit(view, hit, scope=None, repo_root=None):
                 if normalization is None:
                     sublime.status_message('PairOfCleats: source changed; indexed selection was not applied.')
                     return
-                removed_bom = normalization['removedBom']
             except (ValueError, OSError, UnicodeError):
                 return
         start_col = hit.get('startCol')
         end_col = hit.get('endCol')
+        if (source is not None and (start_col is not None or end_col is not None)
+                and (not isinstance(start_col, int) or isinstance(start_col, bool) or start_col < 1
+                     or not isinstance(end_col, int) or isinstance(end_col, bool) or end_col < 1)):
+            sublime.status_message('PairOfCleats: indexed source columns are invalid; selection unavailable.')
+            return
         if isinstance(start_col, int) and start_col > 0 and isinstance(end_col, int) and end_col > 0:
-            if removed_bom:
-                start_col -= 1 if start_line == 1 else 0
-                end_col -= 1 if end_line == 1 else 0
-                if start_col < 1 or end_col < 1:
-                    sublime.status_message('PairOfCleats: indexed span includes a BOM removed by the host; selection unavailable.')
-                    return
             try:
-                start_pt = _utf16_point(view, start_line - 1, start_col - 1)
-                end_pt = _utf16_point(view, end_line - 1, end_col - 1)
+                if source is not None:
+                    qualified = source_range_in_buffer(source, buffer_text, {'startLine': start_line, 'startCol': start_col,
+                        'endLine': end_line, 'endCol': end_col})
+                    start_pt, end_pt = qualified['start'], qualified['end']
+                else:
+                    start_pt = _utf16_point(view, start_line - 1, start_col - 1)
+                    end_pt = _utf16_point(view, end_line - 1, end_col - 1)
                 if end_pt < start_pt:
                     raise ValueError('Source range ends before it begins.')
-            except ValueError as error:
+            except (ValueError, UnicodeError) as error:
                 sublime.status_message('PairOfCleats: indexed selection unavailable: ' + str(error))
                 return
             region = sublime.Region(start_pt, end_pt)

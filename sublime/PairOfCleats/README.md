@@ -219,3 +219,12 @@ From a search/context/risk hit action, **Create Context from This Evidence**, or
 Typed index-watch lifecycle frames can show **idle-watch**, indexing and degraded states. Idle requires admitted watcher, quiescence and no queued/replay work. Watcher admission, a canonical publication commit/build ID and search readiness are separate observations; search/backend readiness remains unknown. A typed degraded state retains its reason/code and publication evidence until the watch owner explicitly recovers. Terminal ownership failures are observed even after UI publication is revoked; they do not create late result panels, successful cancellation, automatic replacement or saved-PID authority.
 
 **Select Service Repository** separates the API host's repository path from this editor's local checkout. `/status` must admit that service root and report a matching Git revision with clean service source; editor worktree freshness remains unverified. Paths are mapped using service-host path rules and traversal is rejected. Non-Git identities require local CLI or another qualified workflow. Sublime has no automatic SSH/WSL/container shell transport: run a compatible CLI on the host where Sublime executes, or deliberately select supported API operations. `require` never silently switches to CLI. Connection recovery does not replay mutations or change binds/credentials.
+
+Exact saved-source cursor requests and line/column selections derive protocol
+CR/LF/CRLF boundaries from the verified original text, then invert only the
+actually observed BOM/newline buffer form. They do not depend on a host's LF-only
+line table. Split-surrogate, CRLF-interior, removed-BOM and out-of-range boundaries
+are refused. Qualified range helpers retain an internal original UTF-8 byte-span
+witness with contained path, source digest and original byte length; they do not
+infer task identity, generation, exploration or use telemetry. These controls are
+source-authored and unrun; supported Sublime/Python host acceptance remains separate.

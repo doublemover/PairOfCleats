@@ -101,11 +101,45 @@ with isolated_temp_directory() as temporary:
         handle.write(mixed.encode('utf-8'))
     mixed_hash = hashlib.sha256(mixed.encode('utf-8')).hexdigest()
     assert authority.read_current_source(temporary, filename)['byteLength'] == len(mixed.encode('utf-8'))
+    verified_mixed = authority.read_verified_source(temporary, filename, mixed_hash)
+    qualified_mixed = authority.source_range_in_buffer(verified_mixed, normalized_mixed,
+        {'startLine': 4, 'startCol': 1, 'endLine': 4, 'endCol': 7})
+    assert (qualified_mixed['start'], qualified_mixed['end']) == (18, 24)
+    assert qualified_mixed['originalSource'] == {'file': 'snow 雪.py', 'contentDigest': mixed_hash,
+        'byteLength': len(mixed.encode('utf-8')), 'span': {
+            'start': len('one\r😀second\r\nthird\n'.encode('utf-8')),
+            'end': len('one\r😀second\r\nthird\nfourth'.encode('utf-8')), 'unit': 'utf8-byte'}}
+    assert authority.source_cursor_position(mixed, mixed, 19) == (4, 1)
+    assert authority.source_cursor_position(mixed, normalized_mixed, 18) == (4, 1)
+    assert authority.source_cursor_position('\ufeff' + mixed, normalized_mixed, 0) == (1, 2)
+    for buffer_point in (-1, len(mixed) + 1, True, 12):
+        try:
+            authority.source_cursor_position(mixed, mixed, buffer_point)
+            raise AssertionError('invalid or retained CRLF-interior cursor was admitted')
+        except ValueError:
+            pass
+    for invalid_range in ({'startLine': 2, 'startCol': 2, 'endLine': 2, 'endCol': 3},
+                          {'startLine': 2, 'startCol': 99, 'endLine': 2, 'endCol': 99},
+                          {'startLine': True, 'startCol': 1, 'endLine': 2, 'endCol': 1},
+                          {'startLine': 4, 'startCol': 7, 'endLine': 4, 'endCol': 1}):
+        try:
+            authority.source_range_in_buffer(verified_mixed, normalized_mixed, invalid_range)
+            raise AssertionError('invalid or split-surrogate protocol range was admitted')
+        except (ValueError, UnicodeError):
+            pass
     mixed_view = SourceView(filename, normalized_mixed)
     window.set_active_view(mixed_view)
     results.highlight_hit(mixed_view, {'sourceHash': mixed_hash, 'startLine': 4, 'startCol': 1,
         'endLine': 4, 'endCol': 7, 'coordinateUnit': 'utf16'}, repo_root=temporary)
     assert [(row.a, row.b) for row in mixed_view.sel()] == [(18, 24)], 'actual normalized target selection uses protocol bare-CR lines'
+    # The fake host intentionally reports LF-only rows. Exact source operations
+    # must derive protocol lines/points from original authority, not this table.
+    raw_view = SourceView(filename, mixed)
+    window.set_active_view(raw_view)
+    results.highlight_hit(raw_view, {'sourceHash': mixed_hash, 'startLine': 4, 'startCol': 1,
+        'endLine': 4, 'endCol': 7, 'coordinateUnit': 'utf16'}, repo_root=temporary)
+    assert [(row.a, row.b) for row in raw_view.sel()] == [(19, 25)]
+    window.set_active_view(mixed_view)
     semantic_state = {'context': {'root': temporary}, 'payload': {'sourceRefs': [{'ref': 'source-ref',
         'path': 'snow 雪.py', 'sourceHash': mixed_hash, 'coordinateUnit': 'utf16'}]}}
     with patch.object(semantic.results, 'open_hit') as opened:
@@ -125,6 +159,16 @@ with isolated_temp_directory() as temporary:
         assert requested[requested.index('--line') + 1] == '4'
         assert requested[requested.index('--column') + 1] == '1'
         assert requested[requested.index('--source-hash') + 1] == mixed_hash
+        raw_view._selection = Selection([FakeRegion(19, 19)])
+        window.set_active_view(raw_view)
+        navigation.execute_qualified_navigation(raw_view, 'fourth', 'definitions', lambda *_args: None, 25, 'raw fixture')
+        raw_requested = invoked.call_args[0][1]
+        assert raw_requested[raw_requested.index('--line') + 1] == '4'
+        assert raw_requested[raw_requested.index('--column') + 1] == '1'
+        raw_view._selection = Selection([FakeRegion(12, 12)])
+        before_calls = invoked.call_count
+        navigation.execute_qualified_navigation(raw_view, 'second', 'definitions', lambda *_args: None, 25, 'invalid cursor fixture')
+        assert invoked.call_count == before_calls, 'CRLF-interior source cursor cannot start a tooling request'
     with open(filename, 'wb') as handle:
         handle.write(retained.encode('utf-8'))
     window.set_active_view(view)
