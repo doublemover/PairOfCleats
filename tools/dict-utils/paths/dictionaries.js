@@ -6,6 +6,7 @@ import { getDictConfig } from '../config.js';
 import { isTestingEnv } from '../../../src/shared/env/testing.js';
 import { getDefaultCacheRoot } from '../cache.js';
 import { getRepoId, getLegacyRepoId, resolvePath } from './repo.js';
+import { registerDictionaryStorageRoot, acquireDictionaryStorageRead } from '../../../src/shared/storage/dictionary-access.js';
 import {
   CODE_DICT_COMMON_FILE,
   CODE_DICT_DIR_NAME,
@@ -169,7 +170,7 @@ async function listTxtFilesNested(dirPath) {
  * @param {object|null} dictConfig
  * @returns {Promise<string[]>}
  */
-export async function getDictionaryPaths(repoRoot, dictConfig = null, options = {}) {
+async function getDictionaryPathsOwned(repoRoot, dictConfig = null, options = {}) {
   const config = dictConfig || getDictConfig(repoRoot);
   const allowFallback = options?.allowFallback !== false;
   const buildPaths = async (dictDir) => {
@@ -247,7 +248,7 @@ export async function getDictionaryPaths(repoRoot, dictConfig = null, options = 
  * @param {{languages?:string[]|Set<string>}} [options]
  * @returns {Promise<{baseDir:string,common:string[],byLanguage:Map<string,string[]>,all:string[]}>}
  */
-export async function getCodeDictionaryPaths(repoRoot, dictConfig = null, options = {}) {
+async function getCodeDictionaryPathsOwned(repoRoot, dictConfig = null, options = {}) {
   const config = dictConfig || getDictConfig(repoRoot);
   const baseDir = path.join(config.dir, CODE_DICT_DIR_NAME);
   const hasLanguageFilter = Array.isArray(options.languages) || options.languages instanceof Set;
@@ -322,3 +323,18 @@ export async function getCodeDictionaryPaths(repoRoot, dictConfig = null, option
     bundledBaseDir: bundled?.baseDir || null
   };
 }
+
+const enumerateWithDictionaryAccess = async (repoRoot, dictConfig, options, enumerate, scope) => {
+  const config = dictConfig || getDictConfig(repoRoot);
+  const root = path.resolve(config.dir);
+  registerDictionaryStorageRoot(root);
+  const access = acquireDictionaryStorageRead(root, { root, scope });
+  try { return await enumerate(repoRoot, config, options); }
+  finally { access.releaseAfterClosure(); }
+};
+
+export const getDictionaryPaths = (repoRoot, dictConfig = null, options = {}) => enumerateWithDictionaryAccess(
+  repoRoot, dictConfig, options, getDictionaryPathsOwned, 'dictionary-path-enumeration');
+
+export const getCodeDictionaryPaths = (repoRoot, dictConfig = null, options = {}) => enumerateWithDictionaryAccess(
+  repoRoot, dictConfig, options, getCodeDictionaryPathsOwned, 'code-dictionary-path-enumeration');

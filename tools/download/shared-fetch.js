@@ -28,7 +28,7 @@ const toTimeoutMs = (value) => {
 const downloadError = (url, message, code = 'ERR_DOWNLOAD_NETWORK') =>
   Object.assign(new Error(`Download request failed for ${url}: ${message}`), { code });
 
-const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes, allowLocal }) => new Promise((resolve, reject) => {
+const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes, allowLocal, signal, onResource }) => new Promise((resolve, reject) => {
   const parsed = validateDownloadUrl(url, { allowLocal });
   const handler = parsed.protocol === 'https:' ? https : http;
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
@@ -38,6 +38,12 @@ const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes, allowLoc
 
   let settled = false;
   let timedOut = false;
+  let requestClosed = false;
+  let responseClosed = true;
+  let response = null;
+  let resolveClosed;
+  const closed = new Promise(resolveClosure => { resolveClosed = resolveClosure; });
+  const checkClosed = () => { if (requestClosed && responseClosed) resolveClosed(); };
   const finish = (fn, value) => {
     if (settled) return;
     settled = true;
@@ -45,8 +51,12 @@ const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes, allowLoc
   };
 
   const req = handler.request(parsed, {
-    method: 'GET', headers, lookup: createDownloadLookup({ allowLocal })
+    method: 'GET', headers, lookup: createDownloadLookup({ allowLocal }), signal
   }, (res) => {
+    response = res;
+    responseClosed = res.closed === true;
+    res.once('close', () => { responseClosed = true; checkClosed(); });
+    res.on('error', error => finish(reject, downloadError(url, error?.message || 'response error', error?.code || 'ERR_DOWNLOAD_NETWORK')));
     const statusCode = Number(res.statusCode) || 0;
     const responseHeaders = res.headers || {};
     if (REDIRECT_STATUS_CODES.has(statusCode)) {
@@ -121,8 +131,15 @@ const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes, allowLoc
     finish(reject, downloadError(url, err?.message || 'request error', err?.code || 'ERR_DOWNLOAD_NETWORK'));
   });
   req.on('close', () => {
+    requestClosed = true;
+    checkClosed();
     if (timeoutHandle != null) clearTimeout(timeoutHandle);
   });
+  if (typeof onResource === 'function') {
+    try { onResource({ closed, isClosed: () => requestClosed && responseClosed,
+      close: () => { response?.destroy(); req.destroy(); } }); }
+    catch (error) { req.destroy(); finish(reject, error); return; }
+  }
   req.end();
 });
 
@@ -138,6 +155,7 @@ const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes, allowLoc
  * @returns {Promise<{statusCode:number,headers:object,body?:Buffer,stream?:import('node:stream').Readable,url:string,redirects:number}>}
  */
 export async function fetchDownloadUrl(initialUrl, options = {}) {
+  options.signal?.throwIfAborted();
   let headers = options.headers && typeof options.headers === 'object'
     ? { ...options.headers }
     : {};
@@ -162,10 +180,12 @@ export async function fetchDownloadUrl(initialUrl, options = {}) {
   }
 
   for (let redirects = 0; redirects <= maxRedirects; redirects++) {
+    options.signal?.throwIfAborted();
     validateDownloadUrl(currentUrl, { allowLocal });
     const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) throw downloadError(currentUrl, `timeout after ${timeoutMs}ms`, 'ERR_DOWNLOAD_TIMEOUT');
-    const result = await requestOnce(currentUrl, { headers, responseType, timeoutMs: remainingMs, maxBytes, allowLocal });
+    const result = await requestOnce(currentUrl, { headers, responseType, timeoutMs: remainingMs, maxBytes, allowLocal,
+      signal: options.signal, onResource: options.onResource });
     if (result.redirectUrl) {
       if (redirects >= maxRedirects) {
         throw downloadError(currentUrl, `too many redirects (max ${maxRedirects})`, 'ERR_DOWNLOAD_REDIRECT');

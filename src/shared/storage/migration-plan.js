@@ -15,10 +15,17 @@ export const storageMigrationOwnerProof = async (owner, input) => {
     || typeof owner.inspect !== 'function' || typeof owner.verifyDestination !== 'function') {
     return { complete: false, reason: 'category-migration-owner-required' };
   }
-  const receipt = await owner.inspect(input);
+  let receipt;
+  try { receipt = await owner.inspect(input); }
+  catch (error) {
+    if (input.signal?.aborted) throw error;
+    return { complete: false, reason: 'category-owner-inspection-failed',
+      error: { code: error.code || 'ERR_STORAGE_CATEGORY_INSPECTION', message: String(error.message).slice(0, 2000) } };
+  }
   if (receipt?.complete !== true || receipt.quiescent !== true || receipt.referencesPortable !== true
     || receipt.permissionsCompatible !== true || typeof receipt.identity !== 'string' || !receipt.identity) {
-    return { complete: false, reason: 'category-owner-cannot-confirm-quiescence-portability-or-permissions' };
+    return { complete: false, reason: typeof receipt?.reason === 'string' ? receipt.reason
+      : 'category-owner-cannot-confirm-quiescence-portability-or-permissions' };
   }
   return { complete: true, id: owner.id, version: owner.version, identity: receipt.identity };
 };
@@ -73,7 +80,8 @@ export const createStorageMigrationPlan = async ({ category, source, destination
   }
   const access = await inspectStorageAccess(locations.source, { coordinationRoot });
   if (access.protected) blocked.push({ role: 'source', reason: 'active-or-unknown-lease' });
-  const ownerProof = await storageMigrationOwnerProof(owner, { category, ...locations, phase: 'plan', signal });
+  const ownerProof = await storageMigrationOwnerProof(owner, { category, ...locations, coordinationRoot,
+    limits: { maxEntries, maxBytes, maxDurationMs }, phase: 'plan', signal });
   if (!ownerProof.complete) blocked.push({ role: 'source', reason: ownerProof.reason });
   const locator = readStorageLocator(locations.home);
   if (locator.status === 'invalid') blocked.push({ role: 'locator', reason: 'invalid-current-locator' });

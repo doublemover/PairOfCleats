@@ -8,7 +8,9 @@ import { resolveTrustedConfigPath } from '../../src/shared/config-authority.js';
 import { explainStorageLayout, inspectStorageLayout, diagnoseStorageLayout, planStorageConfiguration, applyStorageConfiguration } from '../../src/shared/storage/operator.js';
 import { planCacheRootCleanup, applyStorageCleanupPlan } from '../../src/shared/storage/cleanup.js';
 import { createStorageMigrationPlan } from '../../src/shared/storage/migration-plan.js';
-import { readStorageMigrationStatus } from '../../src/shared/storage/migration.js';
+import { applyStorageMigration, applyStorageMigrationRollback, readStorageMigrationStatus } from '../../src/shared/storage/migration.js';
+import { createDictionaryMigrationOwner } from '../../src/shared/storage/dictionary-adapter.js';
+import { inspectStorageFreeSpace } from '../../src/shared/storage/destination.js';
 import { resolveRepoConfig, resolveRepoCacheRootPath, getModelsDir, getToolingDir, getExtensionsDir, getDictConfig, getCacheRoot } from '../shared/dict-utils.js';
 import { STORAGE_ACTIONS, STORAGE_OPTIONS } from './options.js';
 import { readStorageLocator } from '../../src/shared/storage/locator-read.js';
@@ -68,7 +70,7 @@ try {
     code: error.code || 'ERR_STORAGE_CURRENT_LOCATIONS', message: error.message, authorityGranted: false }); }
   const limits = { maxEntries: argv['max-entries'], maxDurationMs: argv['max-duration-ms'] };
   let receipt;
-  if (configurationErrors.length && ['cleanup-plan', 'cleanup-apply', 'migration-plan', 'migration-status', 'configure-plan', 'configure-apply'].includes(action)) {
+  if (configurationErrors.length && ['cleanup-plan', 'cleanup-apply', 'migration-plan', 'migration-apply', 'migration-rollback', 'migration-status', 'configure-plan', 'configure-apply'].includes(action)) {
     receipt = { schemaVersion: 1, action, ready: false, complete: false, mutationPerformed: false,
       blocked: [{ reason: 'configuration-incomplete-no-storage-authority-granted' }], configurationErrors };
     process.exitCode = 1;
@@ -90,16 +92,29 @@ try {
     const plan = await readPlan(argv.plan);
     if (plan.cacheRoot !== cacheRoot) throw new Error('Cleanup plan root differs from the launch-selected cache root.');
     receipt = await applyStorageCleanupPlan(plan, { authorityRoots: [cacheRoot], approvedPlanId: argv['plan-id'] });
-  } else if (action === 'migration-plan') receipt = await createStorageMigrationPlan({ category: argv.category,
-    source: argv.source, destination: argv.destination, home: layout.home.path,
-    recoveryRoot: layout.descriptors.recovery.path, coordinationRoot: path.join(layout.descriptors.state.path, 'storage-access'),
-    authorityRoots: [layout.home.path, cacheRoot], ...limits });
-  else if (action === 'migration-status') receipt = await readStorageMigrationStatus(await readPlan(argv.plan), { authorityRoots: [layout.home.path, cacheRoot] });
+  } else if (action === 'migration-plan') {
+    const owner = argv.category === 'dictionaries' ? createDictionaryMigrationOwner({ home: layout.home.path, source: argv.source }) : null;
+    receipt = await createStorageMigrationPlan({ category: argv.category,
+      source: argv.source, destination: argv.destination, home: layout.home.path,
+      recoveryRoot: layout.descriptors.recovery.path, coordinationRoot: path.join(layout.home.path, 'state', 'storage-access'),
+      authorityRoots: [layout.home.path], owner, ...limits });
+  } else if (action === 'migration-apply' || action === 'migration-rollback') {
+    const plan = await readPlan(argv.plan);
+    if (plan.category !== 'dictionaries' || argv.category !== plan.category || !path.isAbsolute(argv.source || '')
+      || !path.isAbsolute(argv.destination || '') || path.resolve(argv.source) !== plan.source
+      || path.resolve(argv.destination) !== plan.destination || layout.home.path !== plan.home) {
+      throw new Error('Dictionary migration requires exact launch-selected category, source, destination and application home.');
+    }
+    const owner = createDictionaryMigrationOwner({ home: layout.home.path, source: plan.source });
+    const options = { approvedPlanId: argv['plan-id'], authorityRoots: [layout.home.path], owner,
+      checkFreeSpace: input => inspectStorageFreeSpace(input) };
+    receipt = action === 'migration-apply' ? await applyStorageMigration(plan, options) : await applyStorageMigrationRollback(plan, options);
+  } else if (action === 'migration-status') receipt = await readStorageMigrationStatus(await readPlan(argv.plan), { authorityRoots: [layout.home.path] });
   receipt = { ...receipt, configurationErrors };
   if (argv.json) console.log(JSON.stringify(receipt, null, 2));
   else console.log(JSON.stringify({ action, status: receipt.complete === true ? 'complete' : receipt.ready === false ? 'blocked' : 'review-receipt',
     mutationPerformed: receipt.mutationPerformed === true, receipt }, null, 2));
-  if (['cleanup-apply', 'configure-apply'].includes(action) && receipt.complete !== true) process.exitCode = 1;
+  if (['cleanup-apply', 'configure-apply', 'migration-apply'].includes(action) && receipt.complete !== true) process.exitCode = 1;
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;

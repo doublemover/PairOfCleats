@@ -37,9 +37,11 @@ const pathsFor = plan => {
 };
 const withExclusiveRoots = async (roots, options, action) => {
   const ordered = [...new Set(roots)].sort();
-  const next = async index => {
-    if (index === ordered.length) return action();
-    const result = await withExclusiveStorageAccess(ordered[index], () => next(index + 1), options);
+  const next = async (index, owners = []) => {
+    if (index === ordered.length) return action(owners);
+    const result = await withExclusiveStorageAccess(ordered[index], context => next(index + 1, [...owners, {
+      root: context.paths.root, lockId: context.lock.payload.lockId, pid: context.lock.payload.pid
+    }]), options);
     if (result.protected) throw Object.assign(new Error(`Migration blocked by ${result.reason}.`), { code: 'ERR_STORAGE_MIGRATION_BUSY' });
     return result.result;
   };
@@ -129,10 +131,10 @@ export const applyStorageMigration = async (plan, { approvedPlanId, authorityRoo
         paths.stage = journal.staging;
       }
     }
-    return await withExclusiveRoots([plan.source, plan.destination], { coordinationRoot: plan.coordinationRoot }, async () => {
+    return await withExclusiveRoots([plan.source, plan.destination], { coordinationRoot: plan.coordinationRoot }, async exclusiveOwners => {
       for (const target of [plan.source, plan.destination, plan.home, plan.recoveryRoot]) assertSafeCacheDeletion(target, authorityRoots);
       await revalidateStorageAuthority(plan.authoritySnapshots, authorityRoots);
-      const proof = await storageMigrationOwnerProof(owner, { ...plan, phase: 'exclusive', signal });
+      const proof = await storageMigrationOwnerProof(owner, { ...plan, phase: 'exclusive', exclusiveOwners, signal });
       if (storagePlanDigest(proof) !== storagePlanDigest(plan.owner)) throw new Error('Category migration ownership changed since preview.');
       await buildStorageMigrationManifest({ root: plan.source, ...plan.limits, signal, expectedManifest: plan.manifest });
       const requiredBytes = await exists(paths.published) ? 0 : plan.requiredFreeBytes;
@@ -235,10 +237,10 @@ export const applyStorageMigrationRollback = async (plan, { approvedPlanId, owne
   const paths = pathsFor(plan);
   await revalidateStorageAuthority(plan.authoritySnapshots, authorityRoots);
   for (const target of [plan.source, plan.destination, plan.home, plan.recoveryRoot, plan.coordinationRoot]) assertSafeCacheDeletion(target, authorityRoots);
-  return withExclusiveRoots([plan.source, path.join(paths.published, 'data')], { coordinationRoot: plan.coordinationRoot }, async () => {
+  return withExclusiveRoots([plan.source, path.join(paths.published, 'data')], { coordinationRoot: plan.coordinationRoot }, async exclusiveOwners => {
     await buildStorageMigrationManifest({ root: plan.source, ...plan.limits, signal, expectedManifest: plan.manifest });
     await verifyCopy(plan, path.join(paths.published, 'data'), signal);
-    const proof = await storageMigrationOwnerProof(owner, { ...plan, phase: 'rollback', signal });
+    const proof = await storageMigrationOwnerProof(owner, { ...plan, phase: 'rollback', exclusiveOwners, signal });
     if (storagePlanDigest(proof) !== storagePlanDigest(plan.owner)) throw new Error('Rollback category owner cannot confirm retained identities.');
     const lock = await acquireFileLock({ lockPath: path.join(plan.home, 'config', 'storage-locator.lock'), waitMs: 0,
       staleMs: Number.MAX_SAFE_INTEGER, metadata: { scope: 'storage-locator-rollback', planId: plan.planId } });

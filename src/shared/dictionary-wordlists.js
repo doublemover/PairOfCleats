@@ -1,6 +1,7 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import readline from 'node:readline';
+import { acquireDictionaryStorageRead, isDictionaryStorageAccessError } from './storage/dictionary-access.js';
 
 const DEFAULT_DICTIONARY_READ_CONCURRENCY = 8;
 
@@ -111,17 +112,33 @@ const readDictionaryWordsFromFile = async (
   target,
   { lowerCase = false } = {}
 ) => {
-  const stream = fsSync.createReadStream(dictFile, { encoding: 'utf8' });
-  const lineReader = readline.createInterface({
-    input: stream,
-    crlfDelay: Infinity
-  });
+  const access = acquireDictionaryStorageRead(dictFile);
+  let stream = null;
+  let lineReader = null;
+  let closed = null;
+  let closeFailure = null;
   try {
+    stream = fsSync.createReadStream(dictFile, { encoding: 'utf8' });
+    stream.on('error', error => { if (error?.syscall === 'close') closeFailure = error; });
+    closed = new Promise(resolve => stream.once('close', resolve));
+    lineReader = readline.createInterface({ input: stream, crlfDelay: Infinity });
     for await (const line of lineReader) {
       addDictionaryWordFromLine(line, target, lowerCase);
     }
   } finally {
-    lineReader.close();
+    lineReader?.close();
+    stream?.destroy();
+    // readline completion/destroy requests are not native handle closure.
+    // Keep the exact scoped lease until the ReadStream emits actual close.
+    if (closed) await closed;
+    if (closeFailure) {
+      const error = Object.assign(new Error('Dictionary file close is unconfirmed; its storage lease remains retained.', { cause: closeFailure }), {
+        code: 'ERR_DICTIONARY_STORAGE_CLOSE_PENDING', cacheOwnershipPending: true
+      });
+      Object.defineProperty(error, 'dictionaryStorageAccess', { value: access });
+      throw error;
+    }
+    access.releaseAfterClosure();
   }
 };
 
@@ -145,7 +162,7 @@ export const loadDictionaryWordSetFromFiles = async (
   await runWithBoundedConcurrency(files, DEFAULT_DICTIONARY_READ_CONCURRENCY, async (dictFile) => {
     try {
       await readDictionaryWordsFromFile(dictFile, words, { lowerCase });
-    } catch {}
+    } catch (error) { if (isDictionaryStorageAccessError(error)) throw error; }
   });
   return words;
 };
@@ -164,12 +181,13 @@ const buildDictionaryFileSignature = async (
   const signaturePath = typeof toSignaturePath === 'function'
     ? toSignaturePath(dictFile)
     : String(dictFile || '');
+  const access = acquireDictionaryStorageRead(dictFile, { scope: 'dictionary-signature-stat' });
   try {
     const stat = await fs.stat(dictFile);
     return `${prefix}${signaturePath}:${stat.size}:${stat.mtimeMs}`;
   } catch {
     return `${prefix}${signaturePath}:missing`;
-  }
+  } finally { access.releaseAfterClosure(); }
 };
 
 /**

@@ -1,5 +1,5 @@
 export const STORAGE_ACTIONS = Object.freeze(['list', 'inspect', 'explain', 'doctor', 'configure-plan', 'configure-apply',
-  'cleanup-plan', 'cleanup-apply', 'migration-plan', 'migration-status']);
+  'cleanup-plan', 'cleanup-apply', 'migration-plan', 'migration-apply', 'migration-rollback', 'migration-status']);
 
 export const STORAGE_OPTIONS = {
   json: { type: 'boolean', default: false, describe: 'Print structured storage receipt' },
