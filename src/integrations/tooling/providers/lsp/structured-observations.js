@@ -33,18 +33,14 @@ export const createLspObservationCollector = ({ identity, consumers, capabilitie
     throwIfAborted(signal);
     if (invalidated || isCurrent(pinned) !== true) throw fail('Structured LSP session, source or profile changed.');
   };
-  const retainHierarchyItem = item => {
-    if (items.size >= maxFacts) return null;
-    const token = semanticHash('lsp.hierarchy-item.v1', { identity: pinned, item });
-    if (!items.has(token)) items.set(token, structuredClone(item));
-    return token;
-  };
+  const callHierarchy = new Set(['prepareCallHierarchy', 'incomingCalls', 'outgoingCalls']);
+  const typeHierarchy = new Set(['prepareTypeHierarchy', 'supertypes', 'subtypes']);
   const empty = (requestClass, params, reason, state = 'unsupported') => ({ schemaVersion: 1, identity: pinned,
     requestClass, method: LSP_STRUCTURED_METHODS[requestClass] || null, params, raw: null,
     state, reason, facts: [], omissions: [], exactCount: 0, coverage: 'unknown', projectReady });
   const record = ({ requestClass, params, response, positionEncoding = 'utf-16' }) => {
     assertCurrent();
-    const normalizedParams = JSON.parse(canonicalSemanticJson(params));
+    const normalizedParams = freeze(JSON.parse(canonicalSemanticJson(params)));
     if (!requested.has(requestClass)) return empty(requestClass, normalizedParams, 'consumer_not_declared');
     const key = semanticHash('lsp.structured-request.v1', { identity: pinned, requestClass, params: normalizedParams, positionEncoding });
     if (cache.has(key)) return cache.get(key);
@@ -70,8 +66,22 @@ export const createLspObservationCollector = ({ identity, consumers, capabilitie
       return empty(requestClass, normalizedParams, 'output_budget', 'partial');
     }
     const raw = JSON.parse(rawText);
-    const projected = projectLspObservation({ requestClass, payload: raw, uri: normalizedParams.textDocument?.uri || normalizedParams.item?.uri || identity.uri,
+    // Items borrow the admitted raw response's immutable subtree. Stage tokens
+    // locally until the complete observation passes its shared byte allowance;
+    // a discarded response cannot leave retained opaque provider data behind.
+    const pendingItems = new Map();
+    const family = callHierarchy.has(requestClass) ? 'call' : typeHierarchy.has(requestClass) ? 'type' : null;
+    const retainHierarchyItem = item => {
+      if (!family) return null;
+      const token = semanticHash('lsp.hierarchy-item.v2', { identity: pinned, family, item });
+      if (items.has(token) || pendingItems.has(token)) return token;
+      if (items.size + pendingItems.size >= maxFacts) return null;
+      pendingItems.set(token, { item, family });
+      return token;
+    };
+    const projected = projectLspObservation({ requestClass, payload: raw, uri: normalizedParams.textDocument?.uri || normalizedParams.item?.uri || pinned.uri,
       positionEncoding, sourceForUri, maxFacts: maxFacts - facts, maxDepth, retainHierarchyItem });
+    assertCurrent();
     const value = { schemaVersion: 1, identity: pinned, requestClass, method: LSP_STRUCTURED_METHODS[requestClass],
       params: normalizedParams, positionEncoding, raw, ...projected, projectReady,
       state: projected.omissions.length || projected.exactCount !== projected.facts.length || projectReady !== 'ready' ? 'partial' : 'complete',
@@ -79,8 +89,10 @@ export const createLspObservationCollector = ({ identity, consumers, capabilitie
       coverage: 'requested_scope' };
     const projectedBytes = Buffer.byteLength(canonicalSemanticJson(value));
     if (projectedBytes > maxBytes - bytes) return empty(requestClass, normalizedParams, 'output_budget', 'partial');
+    freeze(value);
+    for (const [token, retained] of pendingItems) items.set(token, retained);
     bytes += projectedBytes; facts += projected.facts.length;
-    freeze(value); observations.push(value); cache.set(key, value);
+    observations.push(value); cache.set(key, value);
     return value;
   };
   const acquireOnce = async ({ requestClass, params, positionEncoding = 'utf-16' }) => {
@@ -108,8 +120,10 @@ export const createLspObservationCollector = ({ identity, consumers, capabilitie
   };
   const acquire = (options) => {
     assertCurrent();
-    const normalized = { ...options, positionEncoding: options.positionEncoding || 'utf-16' };
-    const key = canonicalSemanticJson(normalized);
+    const supplied = JSON.parse(canonicalSemanticJson(options));
+    const normalized = freeze({ requestClass: supplied.requestClass, params: supplied.params,
+      positionEncoding: supplied.positionEncoding || 'utf-16' });
+    const key = semanticHash('lsp.structured-request.v1', { identity: pinned, ...normalized });
     if (pending.has(key)) return pending.get(key);
     const promise = acquireOnce(normalized).finally(() => pending.delete(key));
     pending.set(key, promise);
@@ -124,9 +138,11 @@ export const createLspObservationCollector = ({ identity, consumers, capabilitie
       assertCurrent();
       if (!['incomingCalls', 'outgoingCalls', 'supertypes', 'subtypes'].includes(requestClass)
         || !Number.isSafeInteger(depth) || depth < 1 || depth > maxDepth) return empty(requestClass, {}, 'hierarchy_depth_budget', 'partial');
-      const item = items.get(itemToken);
-      if (!item) throw fail('Hierarchy item belongs to another or expired session/profile.');
-      return acquire({ requestClass, params: { item: structuredClone(item) }, positionEncoding });
+      const retained = items.get(itemToken);
+      if (!retained) throw fail('Hierarchy item belongs to another or expired session/profile.');
+      const family = callHierarchy.has(requestClass) ? 'call' : 'type';
+      if (retained.family !== family) throw fail('Hierarchy item belongs to another request family.');
+      return acquire({ requestClass, params: { item: retained.item }, positionEncoding });
     }
   };
 };
