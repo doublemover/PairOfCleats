@@ -7,6 +7,7 @@ import { runWithConcurrency } from '../../shared/concurrency/run-with-queue.js';
 import { coerceAbortSignal, throwIfAborted } from '../../shared/abort.js';
 import { createFileScanner, readFileSample } from './file-scan.js';
 import { discoverEntries } from './discover.js';
+import { createPreprocessSnapshotSession } from './preprocess-snapshot.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
 import { resolveFileCaps } from './file-processor/read.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
@@ -109,6 +110,7 @@ export async function preprocessFiles({
   maxFiles = null,
   fileScan = null,
   lineCounts = false,
+  snapshotCache = null,
   concurrency = 8,
   log = null,
   abortSignal = null
@@ -119,7 +121,7 @@ export async function preprocessFiles({
     ? generatedPolicy
     : buildGeneratedPolicyConfig({});
   const documentExtractionEnabled = documentExtractionConfig?.enabled === true;
-  const { entries, skippedCommon } = await discoverEntries({
+  const { entries, skippedCommon, metrics: discoveryMetrics } = await discoverEntries({
     root,
     modes,
     recordsDir,
@@ -138,6 +140,22 @@ export async function preprocessFiles({
   const fileScanner = createFileScanner(fileScan);
   const recordsClassifier = createRecordsClassifier({ root, config: recordsConfig });
   const recordSniffBytes = recordsClassifier?.config?.sniffBytes ?? 0;
+  const needsLines = lineCounts === true || hasMaxLinesCaps(fileCaps);
+  const retrySnapshot = {};
+  const snapshot = needsLines ? await createPreprocessSnapshotSession({ root, snapshotCache,
+    policy: {
+      ignorePolicy: ignoreMatcher?.policyFingerprint || null, modes,
+      generatedPolicy: { includePatterns: effectiveGeneratedPolicy.includePatterns || [],
+        excludePatterns: effectiveGeneratedPolicy.excludePatterns || [], extractedProse: effectiveGeneratedPolicy.extractedProse || null },
+      recordsDir, recordsConfig: recordsClassifier.config, documentExtractionConfig,
+      semanticRouting: { enabled: semanticPolicy?.enabled === true, languages: semanticPolicy?.languages || [] },
+      fileScan, fileCaps, maxFileBytes, maxDepth, maxFiles, needsLines
+    },
+    sampleBytes: Math.ceil(Math.max(fileScanner.sampleSizeBytes || 0, recordSniffBytes, EXTRACTED_PROSE_PREFILTER_SAMPLE_BYTES)),
+    signal: effectiveAbortSignal, metrics: retrySnapshot
+  }) : null;
+  const observations = new WeakMap();
+  const replayed = new WeakSet();
   const scanSkips = [];
   await runWithConcurrency(
     entries,
@@ -145,11 +163,32 @@ export async function preprocessFiles({
     async (entry) => {
       throwIfAborted(effectiveAbortSignal);
       if (!entry) return;
+      let observation = null;
+      if (snapshot) {
+        entry.preprocessInputKey = snapshot.inputKey(entry);
+        const eligible = isSupportedEntry(entry, 'code', { documentExtractionEnabled })
+          || isSupportedEntry(entry, 'prose', { documentExtractionEnabled }) || !!entry.record;
+        if (eligible) {
+          const reuse = await snapshot.reuse(entry);
+          if (reuse?.hit) { replayed.add(entry); return; }
+          observation = reuse?.observation || null;
+          if (observation) {
+            // Only the bounded worker-local sample survives classification; no corpus-sized prefix cache.
+            observations.set(entry, { hash: observation.hash, bytes: observation.bytes, lines: observation.lines });
+          }
+        }
+      }
+      const sample = async (filename, bytes) => {
+        if (observation?.sample && (bytes <= observation.sample.length || observation.bytes <= observation.sample.length)) {
+          return observation.sample.subarray(0, Math.min(bytes, observation.sample.length));
+        }
+        return readFileSample(filename, bytes);
+      };
       const scanResult = await fileScanner.scanFile({
         absPath: entry.abs,
         stat: entry.stat,
         ext: entry.ext,
-        readSample: readFileSample
+        readSample: sample
       });
       const bypassBinarySkip = Boolean(
         scanResult?.skip?.reason === 'binary'
@@ -161,7 +200,7 @@ export async function preprocessFiles({
       if (recordsClassifier && !entry.record) {
         if (!sampleBuffer && recordSniffBytes > 0 && shouldSniffRecordContent(entry.ext)) {
           try {
-            sampleBuffer = await readFileSample(entry.abs, recordSniffBytes);
+            sampleBuffer = await sample(entry.abs, recordSniffBytes);
           } catch {
             sampleBuffer = null;
           }
@@ -233,7 +272,7 @@ export async function preprocessFiles({
       if (proseAllowed && !codeAllowed) {
         if (!sampleBuffer) {
           try {
-            sampleBuffer = await readFileSample(entry.abs, EXTRACTED_PROSE_PREFILTER_SAMPLE_BYTES);
+            sampleBuffer = await sample(entry.abs, EXTRACTED_PROSE_PREFILTER_SAMPLE_BYTES);
           } catch {
             sampleBuffer = null;
           }
@@ -260,7 +299,6 @@ export async function preprocessFiles({
   );
   if (scanSkips.length) skippedCommon.push(...scanSkips);
 
-  const needsLines = lineCounts === true || hasMaxLinesCaps(fileCaps);
   const supportedEntries = entries.filter((entry) => !entry.skip
     && (isSupportedEntry(entry, 'code', { documentExtractionEnabled })
       || isSupportedEntry(entry, 'prose', { documentExtractionEnabled })
@@ -268,15 +306,22 @@ export async function preprocessFiles({
   let lineCountMap = new Map();
   if (needsLines && supportedEntries.length) {
     throwIfAborted(effectiveAbortSignal);
-    lineCountMap = await countLinesForEntries(supportedEntries, {
-      concurrency: Math.max(1, Math.floor(concurrency)),
-      signal: effectiveAbortSignal
-    });
-    throwIfAborted(effectiveAbortSignal);
-    for (const entry of supportedEntries) {
-      const lines = lineCountMap.get(toPosix(entry.rel || ''));
-      if (Number.isFinite(lines)) entry.lines = lines;
+    if (snapshot) {
+      await runWithConcurrency(supportedEntries, Math.max(1, Math.floor(concurrency)), async entry => {
+        if (!replayed.has(entry)) await snapshot.countAndCapture(entry, observations.get(entry));
+        lineCountMap.set(toPosix(entry.rel || ''), entry.lines);
+      }, { collectResults: false, signal: effectiveAbortSignal, requireSignal: true,
+        signalLabel: 'build.preprocess.snapshot-lines' });
+    } else {
+      lineCountMap = await countLinesForEntries(supportedEntries, {
+        concurrency: Math.max(1, Math.floor(concurrency)), signal: effectiveAbortSignal
+      });
+      for (const entry of supportedEntries) {
+        const lines = lineCountMap.get(toPosix(entry.rel || ''));
+        if (Number.isFinite(lines)) entry.lines = lines;
+      }
     }
+    throwIfAborted(effectiveAbortSignal);
   }
 
   const entriesByMode = {};
@@ -355,8 +400,12 @@ export async function preprocessFiles({
     throw new Error(`Preprocess output invalid (${detail}).`);
   }
 
+  if (snapshot) await snapshot.seal(entries, skippedCommon, discoveryMetrics);
+
   const stats = {
     root,
+    discovery: discoveryMetrics,
+    ...(snapshotCache ? { retrySnapshot } : {}),
     createdAt: new Date().toISOString(),
     modes: statsByMode
   };

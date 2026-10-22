@@ -421,8 +421,8 @@ export function createFileProcessor(options) {
     // permit; source/AST/window and all retained-byte ownership stay admitted.
     const runEmbedding = (fn, { signal: operationSignal = signal } = {}) => embeddingQueue
       ? withSchedulerCpuSuspended(() => embeddingQueue.add(fn, { signal: operationSignal })) : fn();
-    const runProc = (fn, { cpu = 1 } = {}) => procQueue
-      ? withSchedulerCpuSuspended(() => procQueue.add(fn, { signal, cpu })) : fn();
+    const runProc = (fn, { cpu = 1, bytes = 0 } = {}) => procQueue
+      ? withSchedulerCpuSuspended(() => procQueue.add(fn, { signal, cpu, bytes })) : fn();
     throwIfAborted();
     const abs = typeof fileEntry === 'string' ? fileEntry : fileEntry.abs;      
     const fileStart = Date.now();
@@ -599,7 +599,7 @@ export function createFileProcessor(options) {
         });
       }
       if (artifacts.cachedBundle?.stageRefresh?.embeddings) {
-        cachedOutcome.result.manifestEntry = await writeBundleForFile({semanticContext,semanticSegmentFactsRefs:cachedResult.semanticSegmentFactsRefs || [],semanticEvidenceArtifacts:cachedResult.semanticEvidenceArtifacts || [],semanticFactsRef:cachedResult.semanticFactsRef,runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
+        cachedOutcome.result.manifestEntry = await writeBundleForFile({semanticContext,semanticSegmentFactsRefs:cachedResult.semanticSegmentFactsRefs || [],semanticEvidenceArtifacts:cachedResult.semanticEvidenceArtifacts || [],semanticFactsRef:cachedResult.semanticFactsRef,runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,lexicalCheckpoint:artifacts.cachedBundle.lexicalCheckpoint || null,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
       }
       warnEncodingFallback(relKey, cachedOutcome.result.fileInfo);
       return cachedOutcome.result;
@@ -755,6 +755,8 @@ export function createFileProcessor(options) {
         cachedResult.parseCheckpointFallback?.sourceHash === artifacts.fileHash
           ? { parseCheckpoint: cachedResult.parseCheckpointFallback.checkpoint,
             stageRefresh: { parse: false, lexical: true } } : null),
+      cachedLexicalCheckpoint: artifacts.cachedBundle?.stageRefresh?.lexical === false ? artifacts.cachedBundle.lexicalCheckpoint : null,
+      lexicalCheckpointDependencies: incrementalState.enabled ? incrementalState.manifest.dependencySignatures : null,
       documentExtraction: artifacts.documentExtraction,
       fileStat,
       fileHash: artifacts.fileHash,
@@ -868,6 +870,7 @@ export function createFileProcessor(options) {
       fileHash: artifacts.fileHash,
       fileChunks,
       parseCheckpoint: cpuResult?.parseCheckpoint || null,
+      lexicalCheckpoint: cpuResult?.lexicalCheckpoint || null,
       fileRelations,
       lexiconFilterStats,
       vfsManifestRows,

@@ -1,3 +1,4 @@
+import { validateTokenizeBatch } from './tokenize-batch.js';
 import { IndexerProcessPool, getProcessMemoryAccount } from './process-pool.js';
 import { readEffectiveMemory } from '../../../shared/effective-memory.js';
 import { resolveWorkerHeapLaunchContract } from '../../../shared/workers/heap-contract.js';
@@ -617,8 +618,16 @@ export async function createIndexerWorkerPool(input = {}) {
         }
         return false;
       },
+      async tokenizeBatch(payload, { signal = null } = {}) {
+        const { items } = validateTokenizeBatch(payload);
+        // One language/policy per batch preserves the existing per-language throttle charge.
+        const first = items[0];
+        return this.tokenizeChunk({ ...first, items }, { signal });
+      },
       async tokenizeChunk(payload, { signal = null } = {}) {
         throwIfAborted(signal);
+        const batchItems = Array.isArray(payload?.items) ? validateTokenizeBatch(payload).items : null;
+        const task = batchItems ? 'tokenizeBatch' : 'tokenizeChunk';
         activeTasks += 1;
         updatePoolMetrics();
         let throttleSlot = null;
@@ -629,7 +638,7 @@ export async function createIndexerWorkerPool(input = {}) {
               payloadMetaPool: tokenizePayloadMetaPool,
               assignPayloadMeta: assignTokenizePayloadMeta,
               phase: 'worker-tokenize',
-              task: 'tokenizeChunk'
+              task
             });
             return null;
           }
@@ -639,8 +648,9 @@ export async function createIndexerWorkerPool(input = {}) {
           finally { waitingForThrottle -= 1; }
           if (queueController.isClosed()) return null;
           const result = await lifecycle.getPool().run(
-            sanitizePoolPayload(payload, sanitizeDictConfig(payload?.dictConfig)),
-            { name: 'tokenizeChunk', signal }
+            batchItems ? { items: batchItems.map(item => sanitizePoolPayload(item, sanitizeDictConfig(item.dictConfig))) }
+              : sanitizePoolPayload(payload, sanitizeDictConfig(payload?.dictConfig)),
+            { name: task, signal }
           );
           updatePoolMetrics();
           return result;
@@ -654,7 +664,7 @@ export async function createIndexerWorkerPool(input = {}) {
             payloadMetaPool: tokenizePayloadMetaPool,
             assignPayloadMeta: assignTokenizePayloadMeta,
             phase: 'worker-tokenize',
-            task: 'tokenizeChunk',
+            task,
             preferDetailMessage: true
           });
         } finally {

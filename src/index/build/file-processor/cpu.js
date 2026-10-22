@@ -944,11 +944,12 @@ export const processFileCpu = async (context) => {
   });
 
   const parseCheckpoint = captureChunkingCheckpoint(sc, chunkingDiagnostics, text.length);
-  const cachedLexicalBySpan = cachedStageBundle?.stageRefresh?.lexical === false ? new Map(cachedStageBundle.chunks.map(chunk=>[chunk.start+':'+chunk.end,{tokens:chunk.tokens,seq:chunk.seq}])) : null;
+
   updateCrashStage('process-chunks');
   const chunkResult = await processChunks({
     sc,
-    cachedLexicalBySpan,
+    cachedLexicalCheckpoint: context.cachedLexicalCheckpoint || (cachedStageBundle?.stageRefresh?.lexical === false ? cachedStageBundle.lexicalCheckpoint : null),
+    lexicalCheckpointDependencies: context.lexicalCheckpointDependencies,
     text,
     ext,
     rel,
@@ -1039,6 +1040,7 @@ export const processFileCpu = async (context) => {
     semanticEvidenceArtifacts: embeddedSemantic?.evidenceArtifacts || [],
     chunks: chunkResult.chunks,
     parseCheckpoint,
+    lexicalCheckpoint: chunkResult.lexicalCheckpoint || null,
     fileRelations,
     lexiconFilterStats,
     vfsManifestRows: chunkResult.vfsManifestRows || null,

@@ -16,6 +16,7 @@ export const BUNDLE_PATCH_FIELD_KEYS = [
   'encodingFallbackClass',
   'encodingFallbackRisk',
   'parseCheckpoint',
+  'lexicalCheckpoint',
   'dependencySignatures',
   'lexiconFilterStats',
   'artifactSurfaceVersion'

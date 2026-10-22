@@ -100,6 +100,7 @@ const buildBundleShards = ({ bundle }) => {
   const shardChunks = splitBundleChunksBySize(bundle);
   return { bundles: shardChunks.map((chunks, index) => ({ ...bundle,
     parseCheckpoint: index === 0 ? bundle.parseCheckpoint : null,
+    lexicalCheckpoint: index === 0 ? bundle.lexicalCheckpoint : null,
     chunks, bundleShardIndex: index, bundleShardCount: shardChunks.length })) };
 };
 
@@ -241,6 +242,7 @@ export async function writeIncrementalBundle({
   semanticEvidenceArtifacts = [],
   semanticContext = null,
   parseCheckpoint = null,
+  lexicalCheckpoint = null,
   dependencySignatures = null,
   fileRelations,
   lexiconFilterStats = null,
@@ -280,6 +282,7 @@ export async function writeIncrementalBundle({
     size: fileStat.size,
     chunks: fileChunks,
     parseCheckpoint,
+    lexicalCheckpoint,
     dependencySignatures,
     fileRelations,
     lexiconFilterStats,
@@ -575,6 +578,7 @@ export async function updateBundlesWithChunks({
         size: entry.size,
         chunks: fileChunks,
         parseCheckpoint: existingBundle?.parseCheckpoint || null,
+        lexicalCheckpoint: existingBundle?.lexicalCheckpoint || null,
         ...(Object.hasOwn(existingBundle || {},'lexiconFilterStats') ? {lexiconFilterStats:existingBundle.lexiconFilterStats} : {}),
         dependencySignatures: entry.dependencySignatures || null,
         fileRelations: relations,

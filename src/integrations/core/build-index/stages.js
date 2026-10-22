@@ -820,6 +820,7 @@ export const runStage = async (
           maxFiles: runtime.guardrails?.maxFiles ?? null,
           fileScan: runtime.fileScan,
           lineCounts: true,
+          snapshotCache: { repoCacheRoot: runtime.repoCacheRoot, lease: runtime.cacheWriterLease, buildId: runtime.buildId },
           concurrency: runtime.ioConcurrency,
           log,
           abortSignal: effectiveAbortSignal

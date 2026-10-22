@@ -1,4 +1,5 @@
 import { parentPort as nativeParentPort, threadId as nativeThreadId, workerData as nativeWorkerData } from 'node:worker_threads';
+import { executeTokenizeBatch } from './tokenize-batch.js';
 import { observeWorkerHeap } from '../../../shared/workers/heap-contract.js';
 import util from 'node:util';
 import { quantizeVec } from '../../embedding.js';
@@ -272,7 +273,7 @@ const reportTiming = (label, startedAt, status) => {
   const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
   parentPort.postMessage({
     type: 'worker-task',
-    task: label === 'tokenizeChunk' ? 'tokenize' : 'quantize',
+    task: label.startsWith('tokenize') ? 'tokenize' : 'quantize',
     threadId,
     durationMs,
     status
@@ -347,7 +348,7 @@ let lastResult = null;
 const withWorkerError = (fn, label) => async (input) => {
   const startedAt = process.hrtime.bigint();
   parentPort?.postMessage({ type: 'worker-task-start', threadId,
-    task: label === 'tokenizeChunk' ? 'tokenize' : 'quantize' });
+    task: label.startsWith('tokenize') ? 'tokenize' : 'quantize' });
   lastTask = label;
   lastStage = 'payload';
   lastPayload = input;
@@ -372,28 +373,22 @@ const withWorkerError = (fn, label) => async (input) => {
   }
 };
 
-export const tokenizeChunk = withWorkerError(
-  async (input) => {
-    const hasOverrides = input && (input.dictConfig || input.postingsConfig);
-    const context = hasOverrides
-      ? createTokenizationContext({
-        dictWords,
-        dictConfig: input.dictConfig || dictConfig,
-        postingsConfig: {
-          ...(input.postingsConfig || postingsConfig),
-          tokenClassification: { enabled: false }
-        },
-        codeDictWords,
-        codeDictWordsByLanguage,
-        codeDictLanguages,
-        treeSitter: null
-      })
-      : tokenContext;
-    const result = tokenizeChunkText({ ...input, context, buffers: tokenBuffers });
-    return sanitizeTokenizeResult(result);
-  },
-  'tokenizeChunk'
-);
+const resolveTaskTokenContext = input => input && (input.dictConfig || input.postingsConfig)
+  ? createTokenizationContext({ dictWords, dictConfig: input.dictConfig || dictConfig,
+    postingsConfig: { ...(input.postingsConfig || postingsConfig), tokenClassification: { enabled: false } },
+    codeDictWords, codeDictWordsByLanguage, codeDictLanguages, treeSitter: null })
+  : tokenContext;
+const tokenizeOne = (input, context = resolveTaskTokenContext(input)) =>
+  sanitizeTokenizeResult(tokenizeChunkText({ ...input, context, buffers: tokenBuffers }));
+export const tokenizeChunk = withWorkerError(tokenizeOne, 'tokenizeChunk');
+export const tokenizeBatch = withWorkerError(input => {
+  let context = null;
+  return executeTokenizeBatch(input, item => {
+    // Batch admission proves one policy; dictionary runtime is prepared only once.
+    context ||= resolveTaskTokenContext(item);
+    return tokenizeOne(item, context);
+  });
+}, 'tokenizeBatch');
 
 export const quantizeVectors = withWorkerError((input) => {
   const { vectors = [], minVal = -1, maxVal = 1, levels = 256 } = input || {};
