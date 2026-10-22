@@ -935,11 +935,12 @@ export async function createCrashLogger({ repoCacheRoot, enabled, buildId = null
         const nextState = queuedState;
         queuedState = null;
         const payload = { ts: formatTimestamp(), ...nextState };
-        try {
-          await atomicWriteJson(statePath, payload, { spaces: 2 });
-          await atomicWriteJson(evidenceOwner.paths.statePath, payload, { spaces: 2 });
-        } catch (err) {
-          warnIo('write crash state', err);
+        // The fixed latest path is a convenience. Its failure cannot suppress
+        // the independently owned attempt record (or the reverse).
+        for (const [target, action] of [[statePath, 'write crash state'],
+          [evidenceOwner.paths.statePath, 'write attempt crash state']]) {
+          try { await atomicWriteJson(target, payload, { spaces: 2 }); }
+          catch (err) { warnIo(action, err); }
         }
       }
     })();
@@ -1107,12 +1108,11 @@ export async function createCrashLogger({ repoCacheRoot, enabled, buildId = null
       void flushStateWrites();
       void appendLine('error', { event, diagnosticEvidence: evidence });
       if (recentEvents.length) {
-        try {
-          const snapshot = { ts: formatTimestamp(), ...boundedCrashEvent({ events: recentEvents }) };
-          atomicWriteJsonSync(eventsPath, snapshot, { spaces: 2, newline: false });
-          atomicWriteJsonSync(evidenceOwner.paths.eventsPath, snapshot, { spaces: 2, newline: false });
-        } catch (err) {
-          warnIo('write crash events snapshot', err);
+        const snapshot = { ts: formatTimestamp(), ...boundedCrashEvent({ events: recentEvents }) };
+        for (const [target, action] of [[eventsPath, 'write crash events snapshot'],
+          [evidenceOwner.paths.eventsPath, 'write attempt crash events snapshot']]) {
+          try { atomicWriteJsonSync(target, snapshot, { spaces: 2, newline: false }); }
+          catch (err) { warnIo(action, err); }
         }
       }
       return evidence;
