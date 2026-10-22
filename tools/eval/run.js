@@ -9,6 +9,7 @@ import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
 import { resolveEvaluationCohorts, selectEvaluationCohort, judgmentsForCohort } from './cohorts.js';
 import { matchExpected, resolveMatchMode } from './match.js';
 import { collectExpectedJudgments, computeMRR, computeNDCG, computeRecallAtK } from './metrics.js';
+import { evaluateDatasetVectorReplay } from './vector-oracle.js';
 
 const argv = createCli({
   scriptName: 'eval-run',
@@ -117,7 +118,9 @@ for (const entry of cases) {
     return { recallAtK: Object.fromEntries(ks.map(k => [k, average(row => row.recallAtK[k])])),
       ndcgAtK: Object.fromEntries(ks.map(k => [k, average(row => row.ndcgAtK[k])])), mrr: average(row => row.mrr) };
   };
+  const vectorOracleReplay = await evaluateDatasetVectorReplay({ entry, query, topN });
   results.push({ query, mode: selection.requestMode || 'default', cohorts,
+    ...(vectorOracleReplay ? { vectorOracleReplay } : {}),
     totals: { relevant: cohorts.reduce((sum, row) => sum + row.totals.relevant, 0),
       gold: cohorts.reduce((sum, row) => sum + row.totals.gold, 0), hits: cohorts.reduce((sum, row) => sum + row.totals.hits, 0) },
     metrics: macroMetrics('metrics'), goldMetrics: macroMetrics('goldMetrics') });
@@ -160,6 +163,7 @@ const output = {
   ann: annFlag,
   ks,
   relevancePolicy: 'mode-qualified-cohort-macro.v2:distinct-document-one-to-one.v1',
+  vectorEvaluationPolicy: 'independent-original-and-stored.v1;saved-stage-replay-separated',
   summary,
   results
 };
