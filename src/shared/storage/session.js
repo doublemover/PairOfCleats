@@ -73,26 +73,42 @@ export const acquireStorageSession = ({ roots, coordinationRoot, authorizedRoots
   const protectedRoots = [...new Set([...selected, ...authorizedRoots.map(root => path.resolve(root))
     .filter(approved => selected.some(root => isPathWithinRoot(root, approved)))])].sort();
   const leases = [];
-  try {
-    for (const root of protectedRoots) leases.push(acquireRepoCacheAccessLease(root,
-      { coordinationRoot: metadataRoot, scope, resourceId, requireSettlement: true }));
-  } catch (error) {
-    for (const lease of leases) lease.release();
-    throw error;
-  }
   let released = false;
-  return Object.freeze({ schemaVersion: 1, resourceId, roots: selected, coordinationRoot: metadataRoot,
-    leaseIds: leases.map(lease => lease.leaseId),
+  const session = Object.freeze({ schemaVersion: 1, resourceId, roots: selected, coordinationRoot: metadataRoot,
+    get leaseIds() { return leases.map(lease => lease.leaseId); },
     releaseAfterSettlement: receipt => {
       if (receipt?.resourceId !== resourceId || receipt.settled !== true || receipt.pending !== false) {
         throw Object.assign(new Error('Storage session remains retained until its exact resource lifetime settles.'), { code: 'ERR_STORAGE_SESSION_PENDING', cacheOwnershipPending: true });
       }
       if (released) return true;
-      const success = leases.map(lease => lease.release()).every(Boolean);
-      if (!success) throw Object.assign(new Error('A storage session lease changed before release.'), { code: 'ERR_STORAGE_SESSION_LEASE_CHANGED', cacheOwnershipPending: true });
+      const errors = [];
+      for (const lease of leases) {
+        try {
+          if (!lease.release()) errors.push(Object.assign(new Error('A storage session lease changed before release.'),
+            { leaseId: lease.leaseId }));
+        } catch (error) { errors.push(asError(error)); }
+      }
+      if (errors.length) {
+        const error = Object.assign(new AggregateError(errors, 'Storage session leases did not all release.', { cause: errors[0] }), {
+          code: 'ERR_STORAGE_SESSION_LEASE_CHANGED', cacheOwnershipPending: true, cacheOwnershipReleased: () => released
+        });
+        Object.defineProperty(error, 'storageSession', { value: session, configurable: true });
+        throw error;
+      }
       released = true;
       return true;
     } });
+  try {
+    for (const root of protectedRoots) leases.push(acquireRepoCacheAccessLease(root,
+      { coordinationRoot: metadataRoot, scope, resourceId, requireSettlement: true }));
+  } catch (error) {
+    // No asset work has started, but each admitted metadata lease still needs
+    // exact removal. Attempt all and retain the partial owner if any fail.
+    try { session.releaseAfterSettlement({ resourceId, settled: true, pending: false }); }
+    catch (cleanupError) { throw retainSessionFailure(asError(error), cleanupError, session); }
+    throw error;
+  }
+  return session;
 };
 
 /** The resource owner interprets its own termination/disposal receipt. Missing,

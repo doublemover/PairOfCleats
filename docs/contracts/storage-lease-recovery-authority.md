@@ -35,3 +35,13 @@ Authored controls use disposable ordinary storage roots and actual exclusion
 owners with inert frozen/readonly failures, contradictory receipts, independent
 pending observers, nested sessions and the normal successful release path. They
 have not run; no resource runtime or current-source acceptance is claimed.
+
+Partial admission constructs the same session owner before acquiring its leases.
+If a later root refuses admission, rollback attempts every earlier exact handle.
+Failed removals retain that partial session on the original admission failure;
+reconciliation requires the exact resource receipt and retries only those original
+handles. Normal release also attempts every owned lease before reporting failure.
+Unsealed records that never yielded a known handle remain protected evidence.
+The authored partial-admission fixture denies a later root, injects an actual
+earlier metadata unlink failure, checks later cleanup and exact retry, and retains
+the normal subsequent-admission positive. It is unexecuted.
