@@ -96,6 +96,20 @@ try {
   assert.equal(readCheckedRetainedMaySummary({ projection: prefix, capsule: prefixCapsule, node: ref(2) }).check.status, 'unknown');
   assert.equal(readCheckedRetainedMaySummary({ projection, capsule, node: ref(2), maxObligations: 0 }).seedRefs, null);
   assert.equal(readCheckedRetainedMaySummary({ projection, capsule, node: ref(2), maxBytes: 1 }).seedRefs, null);
+  let oversizedEnumerations = 0;
+  const oversizedCapsule = { ...capsule, extra: new Proxy(new Array(1000000), { ownKeys() {
+    oversizedEnumerations++;
+    throw new Error('Oversized caller certificate must not be enumerated.');
+  } }) };
+  const oversizedSummary = readCheckedRetainedMaySummary({ projection, capsule: oversizedCapsule, node: ref(2), maxBytes: 4096 });
+  assert.equal(oversizedSummary.seedRefs, null);
+  assert.deepEqual(oversizedSummary.check.frontier, [{ reason: 'encoded-byte-allowance' }]);
+  const oversizedLens = materializeCheckedRetainedMaySummaryLens({ projection, capsule: oversizedCapsule,
+    node: ref(2), taskId: 'oversized-certificate', maxBytes: 4096 });
+  assert.equal(oversizedLens.status, 'checkerUnaccepted');
+  assert.equal(oversizedLens.answer.seedRefs, null);
+  assert.ok(oversizedLens.lens.facets.every(facet => facet.roles.length === 1 && facet.roles[0] === 'summaryQuery'));
+  assert.equal(oversizedEnumerations, 0, 'actual retained summary/lens paths deny oversized certificate capture before enumeration');
   const unavailable = await projectRetainedMaySummarySystem({ ...args, nodes: [ref(4)], seeds: [ref(4)] });
   const unavailableCapsule = capsuleFor(unavailable, unavailable.system.nodes.map(node => ({ node, facts: [...unavailable.system.universe] })));
   const unavailableLens = materializeCheckedRetainedMaySummaryLens({ projection: unavailable, capsule: unavailableCapsule, node: ref(4), taskId: 'no-source-span' });

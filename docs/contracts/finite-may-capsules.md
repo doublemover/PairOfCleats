@@ -39,13 +39,22 @@ post-fixpoint may remain strictly larger than least reachability. There is no
 negative whole-source claim, edit authority or durable proof store. The actual
 writer/index/store/checker fixture is authored and unexecuted.
 
-The read-only summary consumer copies the admitted system and untrusted capsule
-before checking and reads accepted facts from that exact copy. A caller-owned
-signal object cannot mutate the original certificate between checking its states
-and reading them back. Oversized encoded input returns the existing unknown-byte
-frontier before allocating a copied state inventory; invalid checker allowances
-still use the checker's shared contract. This is request ownership, not a new
-certificate or transfer rule.
+The independent checker and read-only summary consumer capture the system and
+untrusted capsule with the existing bounded canonical JSON encoder. The byte
+allowance is charged during encoding, before a complete encoded copy exists;
+oversized input returns the existing unknown-byte frontier. The summary checks
+and reads facts from one private snapshot. No caller signal callback runs until
+that capture completes, so a signal getter cannot rewrite an accepted identity
+or certificate between checking and use. Getters in the JSON input are rejected
+without invocation. Invalid allowances retain the checker's shared contract.
+Checker identity, transfer rules and obligation order are unchanged.
+
+The allowance bounds this encoded snapshot work. Caller-owned input memory,
+proxy/engine property enumeration, subsequent identity hashing depth, projected
+source inventories and response/lens materialization retain their separate
+limits; this is not a measured process-memory bound. The exact-byte, pre-array-
+enumeration, identity-mutation and actual retained-summary/lens controls are
+authored and unexecuted.
 
 `materializeCheckedRetainedMaySummaryLens` now consumes an owned projection and
 the independent check through the existing exact-source task lens. A query node

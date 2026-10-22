@@ -1,7 +1,6 @@
 import { canonicalSemanticJson, semanticHash } from '../identity.js';
 import { validateSemanticEnvelope } from '../../../contracts/validators/semantic-envelopes.js';
 
-const key = canonicalSemanticJson;
 const text = value => typeof value === 'string' && value.length > 0 && value.length <= 4096;
 const uniqueTexts = value => Array.isArray(value) && value.every(text) && new Set(value).size === value.length;
 const invalid = message => { throw Object.assign(new TypeError(message), { code: 'ERR_ANALYSIS_CAPSULE_CONTRACT' }); };
@@ -23,7 +22,7 @@ export const assertFiniteMayCheckLimits = (maxObligations, maxBytes) => {
  * fixed-point worklist, and never equates a post-fixpoint with the least solution.
  * All graph edges, entry seeds and universe closure come from the admitted system.
  */
-export const checkFiniteMayCapsule = ({ system, capsule, maxObligations = 100000,
+const checkOwnedFiniteMayCapsule = ({ system, capsule, maxObligations = 100000,
   maxBytes = 8 * 1024 * 1024, signal }) => {
   assertFiniteMayCheckLimits(maxObligations, maxBytes);
   const result = createFiniteMayCheckState();
@@ -50,8 +49,6 @@ export const checkFiniteMayCapsule = ({ system, capsule, maxObligations = 100000
   if (!capsule || capsule.schemaVersion !== 1 || capsule.profile !== system.profile
     || capsule.checker !== result.checker || !Array.isArray(capsule.states)
     || capsule.states.length !== system.nodes.length) invalid('Full finite-state certificate required.');
-  const payload = key({ system, capsule });
-  if (Buffer.byteLength(payload) > maxBytes) return unknown('encoded-byte-allowance');
   if (signal?.aborted) return unknown('cancelled');
   if (capsule.payloadId !== finiteMayPayloadIdentity(capsule.states)) {
     return { ...result, status: 'rejected', structuralIntegrity: 'failed', failures: [{ reason: 'payload-digest-mismatch' }] };
@@ -98,4 +95,46 @@ export const checkFiniteMayCapsule = ({ system, capsule, maxObligations = 100000
     checkId: semanticHash('pairofcleats.finite-may-check.v1', {
       checker: result.checker, systemId: capsule.systemId, payloadId: capsule.payloadId
     }) };
+};
+
+const byteFrontier = () => ({ ...createFiniteMayCheckState(), frontier: [{ reason: 'encoded-byte-allowance' }] });
+const captureCheckInput = (system, capsule, maxObligations, maxBytes) => {
+  assertFiniteMayCheckLimits(maxObligations, maxBytes);
+  let encoded;
+  // No caller callbacks run before the private copy exists. In particular,
+  // cancellation/progress objects may be getters that mutate caller inputs.
+  try { encoded = canonicalSemanticJson({ system, capsule }, { maxBytes }); }
+  catch (error) { if (error?.code === 'ERR_SEMANTIC_JSON_BUDGET') return null; throw error; }
+  return JSON.parse(encoded);
+};
+
+/** The independent public checker owns its inputs before any signal callback. */
+export const checkFiniteMayCapsule = ({ system, capsule, maxObligations = 100000,
+  maxBytes = 8 * 1024 * 1024, signal }) => {
+  assertFiniteMayCheckLimits(maxObligations, maxBytes);
+  // Preserve the unsupported-domain outcome without inspecting a foreign
+  // domain's certificate. Accessors still reach passive JSON rejection below.
+  const profile = system && typeof system === 'object' ? Object.getOwnPropertyDescriptor(system, 'profile') : null;
+  const transfer = system && typeof system === 'object' ? Object.getOwnPropertyDescriptor(system, 'transferVersion') : null;
+  if ((!profile || Object.hasOwn(profile, 'value')) && (!transfer || Object.hasOwn(transfer, 'value'))
+    && (profile?.value !== 'finite-may-set-v1' || transfer?.value !== 1)) {
+    return { ...createFiniteMayCheckState(), frontier: [{ reason: 'unsupported-domain-or-transfer' }] };
+  }
+  const input = captureCheckInput(system, capsule === undefined ? null : capsule, maxObligations, maxBytes);
+  return input ? checkOwnedFiniteMayCapsule({ ...input, maxObligations, maxBytes, signal }) : byteFrontier();
+};
+
+/** The existing summary consumer reads the same one private snapshot checked by
+ * the kernel. It never reopens caller-owned states after successful checking. */
+export const readFiniteMayCheckedSummary = ({ system, capsule, node, maxObligations = 100000,
+  maxBytes = 8 * 1024 * 1024, signal }) => {
+  const input = captureCheckInput(system, capsule, maxObligations, maxBytes);
+  if (!input) return { check: byteFrontier(), node, facts: null, negativeMeaning: 'unknown' };
+  if (!Array.isArray(input.system?.nodes) || !input.system.nodes.includes(node)) {
+    throw new TypeError('Requested summary node is outside the admitted system.');
+  }
+  const check = checkOwnedFiniteMayCapsule({ ...input, maxObligations, maxBytes, signal });
+  if (check.status !== 'checked-in-model') return { check, node, facts: null, negativeMeaning: 'unknown' };
+  return { check, node, facts: [...input.capsule.states.find(state => state.node === node).facts].sort(),
+    negativeMeaning: 'absent-from-checked-upper-model', sourceLanguageCompleteness: 'not-implied', precision: check.precision };
 };
