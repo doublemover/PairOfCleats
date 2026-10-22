@@ -18,7 +18,7 @@ const { resultTreeItemId, resultTreeHitOccurrences } = require('./results-tree-i
 const { createSemanticEvidenceWorkflow, sourceQualifiedSelection, qualifiedBindingSeed } = require('./semantic-evidence.js');
 let latestNavigationEvidence = null;
 const navigationLocationSources = new WeakMap();
-const { sourceNavigationArgs, qualifiedNavigationRows } = require('./source-navigation.js');
+const { captureNavigationRequest, sourceNavigationArgs, qualifiedNavigationRows } = require('./source-navigation.js');
 const { readGitHead, validateServiceRoot, mapServicePayload, verifyServiceRevision } = require('./service-repository.js');
 const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask,
   boundedLogLine, retainTaskLog } = require('./progress-view.js');
@@ -2158,6 +2158,21 @@ async function createNavigationLocations(repoContext, rows) {
   }
 }
 
+async function publishNavigationLocations(repoContext, rows, sourceRequest) {
+  if (!rows.length || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
+  const locations = await createNavigationLocations(repoContext, rows);
+  if (!locations.length || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
+  try {
+    // Opening each target document introduces another await after CLI source
+    // admission. Keep the original requesting buffer and saved bytes current.
+    sourceRequest.args(repoContext.repoRoot);
+    return operations.isCurrent() ? locations : [];
+  } catch (error) {
+    if (operations.isCurrent()) noteNavigationDegraded('source-changed-before-publication', error.message);
+    return [];
+  }
+}
+
 function mapNavigationSymbolKind(kind) {
   const normalized = String(kind || '').trim().toLowerCase();
   if (normalized.includes('class')) return vscode.SymbolKind.Class;
@@ -2222,12 +2237,16 @@ async function runNavigationCommand({
   query = '',
   filePath = '',
   sourceDocument = null,
+  sourceRequest = null,
   position = null,
   includeDeclaration = true,
   limit = NAVIGATION_RESULT_LIMIT
 }) {
   if (!operations.isCurrent()) return [];
-  const requestedSourceVersion = sourceDocument?.version;
+  const precise = kind === 'definitions' || kind === 'references';
+  const request = sourceRequest || (precise ? captureNavigationRequest(sourceDocument, position, includeDeclaration) : null);
+  if (precise && !request?.isCurrent()) return [];
+  const requestedSourceVersion = request?.version;
   const config = getExtensionConfiguration(repoContext);
   const apiSettings = readApiSettings(config);
   if (apiSettings.error) { noteNavigationDegraded('invalid-policy', apiSettings.error); return []; }
@@ -2259,8 +2278,8 @@ async function runNavigationCommand({
   ];
   if (filePath) args.push('--file', filePath);
   if (query) args.push('--symbol', query);
-  if (kind === 'definitions' || kind === 'references') {
-    try { args.push(...sourceNavigationArgs(sourceDocument, position, includeDeclaration, repoContext.repoRoot)); }
+  if (precise) {
+    try { args.push(...request.args(repoContext.repoRoot)); }
     catch (error) { noteNavigationDegraded('source-admission', error.message); return []; }
   }
   const output = getOutputChannel();
@@ -2336,11 +2355,11 @@ async function runNavigationCommand({
     noteNavigationDegraded(`payload-${kind}`, result.payload.message || 'PairOfCleats navigation query failed.');
     return [];
   }
-  if (kind === 'definitions' || kind === 'references') {
-    if (sourceDocument?.isDirty || sourceDocument?.version !== requestedSourceVersion) return [];
+  if (precise) {
+    if (!request.isCurrent()) return [];
     const expectedHash = args[args.indexOf('--source-hash') + 1];
     try {
-      const currentArgs = sourceNavigationArgs(sourceDocument, position, includeDeclaration, repoContext.repoRoot);
+      const currentArgs = request.args(repoContext.repoRoot);
       if (currentArgs[currentArgs.indexOf('--source-hash') + 1] !== expectedHash) {
         noteNavigationDegraded('source-changed', 'The saved source changed before indexed navigation completed.');
         return [];
@@ -2352,8 +2371,8 @@ async function runNavigationCommand({
       noteNavigationDegraded('source-echo', 'Indexed navigation did not retain the requested source identity/version.');
       return [];
     }
-    latestNavigationEvidence = { payload: result.payload, repoContext, sourceFile: sourceDocument.uri.fsPath,
-      position: { line: position.line, character: position.character } };
+    latestNavigationEvidence = { payload: result.payload, repoContext, sourceFile: request.file,
+      position: request.position };
     const rows = qualifiedNavigationRows(result.payload);
     if (!rows.length) noteNavigationDegraded(`binding-${result.payload?.status || 'unknown'}`,
       `Indexed navigation: ${result.payload?.status || 'unqualified'}. Use PairOfCleats Related Search for approximate matches.`,
@@ -2480,19 +2499,21 @@ function provideDefinitionsAtPosition(document, position, token) {
 }
 
 async function provideOwnedDefinitions(document, position) {
-  const query = getWordQueryAtPosition(document, position);
+  const sourceRequest = captureNavigationRequest(document, position);
+  if (!sourceRequest) return [];
+  const query = getWordQueryAtPosition(document, sourceRequest.position);
   if (!query) return [];
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
-  if (!repoContext.ok || !operations.isCurrent()) return [];
+  if (!repoContext.ok || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
   const rows = await runNavigationCommand({
     kind: 'definitions',
-    sourceDocument: document, position,
+    sourceDocument: document, sourceRequest, position: sourceRequest.position,
     repoContext,
     query,
     filePath: getDocumentFilePath(document),
     limit: NAVIGATION_RESULT_LIMIT
   });
-  return createNavigationLocations(repoContext, rows);
+  return publishNavigationLocations(repoContext, rows, sourceRequest);
 }
 
 function provideReferencesAtPosition(document, position, context, token) {
@@ -2500,19 +2521,21 @@ function provideReferencesAtPosition(document, position, context, token) {
 }
 
 async function provideOwnedReferences(document, position, context = {}) {
-  const query = getWordQueryAtPosition(document, position);
+  const sourceRequest = captureNavigationRequest(document, position, context.includeDeclaration);
+  if (!sourceRequest) return [];
+  const query = getWordQueryAtPosition(document, sourceRequest.position);
   if (!query) return [];
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
-  if (!repoContext.ok || !operations.isCurrent()) return [];
+  if (!repoContext.ok || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
   const rows = await runNavigationCommand({
     kind: 'references',
-    sourceDocument: document, position, includeDeclaration: context.includeDeclaration,
+    sourceDocument: document, sourceRequest, position: sourceRequest.position,
     repoContext,
     query,
     filePath: getDocumentFilePath(document),
     limit: NAVIGATION_RESULT_LIMIT
   });
-  return createNavigationLocations(repoContext, rows);
+  return publishNavigationLocations(repoContext, rows, sourceRequest);
 }
 
 function provideDocumentSymbolsForDocument(document, token) {
@@ -2520,8 +2543,10 @@ function provideDocumentSymbolsForDocument(document, token) {
 }
 
 async function provideOwnedDocumentSymbols(document) {
+  const sourceRequest = captureNavigationRequest(document, null, true, { allowDirty: true });
+  if (!sourceRequest) return [];
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
-  if (!repoContext.ok || !operations.isCurrent()) return [];
+  if (!repoContext.ok || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
   const filePath = getDocumentFilePath(document);
   if (!filePath) return [];
   const rows = await runNavigationCommand({
@@ -2530,7 +2555,7 @@ async function provideOwnedDocumentSymbols(document) {
     filePath,
     limit: DOCUMENT_SYMBOL_LIMIT
   });
-  return rows.map((entry) => createDocumentSymbol(entry));
+  return operations.isCurrent() && sourceRequest.isCurrent() ? rows.map((entry) => createDocumentSymbol(entry)) : [];
 }
 
 function provideCompletionItemsAtPosition(document, position, token) {
@@ -2538,10 +2563,12 @@ function provideCompletionItemsAtPosition(document, position, token) {
 }
 
 async function provideOwnedCompletions(document, position) {
-  const query = getWordPrefixQueryAtPosition(document, position);
+  const sourceRequest = captureNavigationRequest(document, position, true, { allowDirty: true });
+  if (!sourceRequest) return [];
+  const query = getWordPrefixQueryAtPosition(document, sourceRequest.position);
   if (!query || query.length < MIN_COMPLETION_QUERY_LENGTH) return [];
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
-  if (!repoContext.ok || !operations.isCurrent()) return [];
+  if (!repoContext.ok || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
   const rows = await runNavigationCommand({
     kind: 'completions',
     repoContext,
@@ -2549,7 +2576,7 @@ async function provideOwnedCompletions(document, position) {
     filePath: getDocumentFilePath(document),
     limit: COMPLETION_RESULT_LIMIT
   });
-  return rows.map((entry) => createCompletionItem(entry)).filter(Boolean);
+  return operations.isCurrent() && sourceRequest.isCurrent() ? rows.map((entry) => createCompletionItem(entry)).filter(Boolean) : [];
 }
 
 function provideInlineHoverAtPosition(document, position, token) {

@@ -3,6 +3,31 @@ const { createHash } = require('node:crypto');
 const path = require('node:path');
 const { readCurrentSource, assertSourceUri, sourceRangeOffsets, sourceDocumentForm } = require('./document-authority.js');
 
+/** Capture the requesting buffer before repository/target-document awaits.
+ * Saved-source arguments must continue to identify that original request. */
+function captureNavigationRequest(document, position = null, includeDeclaration = true, { allowDirty = false } = {}) {
+  if (!document || document.isClosed === true || document.uri?.scheme !== 'file'
+    || typeof document.uri.fsPath !== 'string' || (!allowDirty && document.isDirty)) return null;
+  const version = document.version, file = document.uri.fsPath, dirty = document.isDirty;
+  const cursor = position && Object.freeze({ line: position.line, character: position.character });
+  const declaration = includeDeclaration !== false;
+  let qualified = null;
+  const isCurrent = () => document.isClosed !== true && document.version === version
+    && document.isDirty === dirty && document.uri?.scheme === 'file' && document.uri.fsPath === file;
+  return Object.freeze({ document, version, file, position: cursor, isCurrent,
+    args(repoRoot) {
+      if (!isCurrent()) throw new Error('Original navigation document changed before publication.');
+      const args = sourceNavigationArgs(document, cursor, declaration, repoRoot);
+      const identity = JSON.stringify(args);
+      if (!isCurrent() || (qualified && (qualified.repoRoot !== repoRoot || qualified.identity !== identity))) {
+        throw new Error('Original saved navigation source changed before publication.');
+      }
+      if (!qualified) qualified = { repoRoot, identity };
+      return args;
+    }
+  });
+}
+
 function sourceNavigationArgs(document, position, includeDeclaration = true, repoRoot = null) {
   if (!document?.uri?.fsPath || !position || document.isDirty) {
     throw new Error('PairOfCleats indexed navigation requires a saved source document. Use Related Search for approximate matches.');
@@ -53,4 +78,4 @@ function verifyLocationSource(file, sourceHash) {
   } catch { return false; }
 }
 
-module.exports = { sourceNavigationArgs, qualifiedNavigationRows, verifyLocationSource };
+module.exports = { captureNavigationRequest, sourceNavigationArgs, qualifiedNavigationRows, verifyLocationSource };
