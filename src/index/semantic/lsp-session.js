@@ -9,7 +9,7 @@ import { assertSemanticEnvelope } from '../../contracts/validators/semantic-enve
 import { createAnalysisPartitionId, createSymbolGroupId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { persistSemanticEvidence } from './lsp-evidence.js';
-import { exactLspRange, normalizeLspLocations, offsetToLspPosition } from './lsp-locations.js';
+import { exactLspRange, exactLspLocationRange, normalizeLspLocations, offsetToLspPosition } from './lsp-locations.js';
 import { getLspLineIndex } from '../../integrations/tooling/lsp/positions.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { nativeExecutionAuthority } from './native-execution-context.js';
@@ -220,9 +220,10 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
           data: { method: 'textDocument/definition', producerId: providerId, producerVersion: providerVersion, evidenceKind: 'lsp-location', sourceRef: item.source.sourceUnitId, artifactRef } } });
         const candidates = [], exact = [];
         for (const location of normalizeLspLocations(response.payload)) {
+          if (!location.valid) continue;
           let mapped = byUri.get(location.uri);
           if (!mapped && location.uri?.startsWith('file:')) { try { mapped = sourceIndex.itemForPath(fileURLToPath(location.uri)); } catch { /* Not a recognized source URI. */ } }
-          const span = mapped ? exactLspRange(mapped.source, mapped.text, location.range, positionEncoding) : null;
+          const span = mapped ? exactLspLocationRange(mapped.source, mapped.text, location, positionEncoding) : null;
           const originSpan = location.originRange ? exactLspRange(item.source, item.text, location.originRange, positionEncoding) : target.span;
           const origin = originSpan && originSpan[0] <= target.span[0] && originSpan[1] >= target.span[1];
           const declarations = span && origin ? sourceIndex.containingDeclarations(mapped, span) : [];

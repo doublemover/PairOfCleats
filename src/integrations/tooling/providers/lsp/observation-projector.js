@@ -1,4 +1,4 @@
-import { exactLspRange, normalizeLspLocations } from '../../../../index/semantic/lsp-locations.js';
+import { exactLspRange, lspRangeContains, normalizeLspLocations } from '../../../../index/semantic/lsp-locations.js';
 
 /** Operation-specific observations preserve protocol meaning and exact mapping.
  * An external URI or invalid coordinate remains an explicit non-exact result. */
@@ -20,19 +20,25 @@ export const projectLspObservation = ({ requestClass, payload, uri, sourceForUri
     if (facts.length >= maxFacts) { if (!omissions.includes('fact_budget')) omissions.push('fact_budget'); return false; }
     facts.push(fact); return true;
   };
+  const qualifySelection = (target, container, containerRange, selectionRange) => {
+    const contained = lspRangeContains(containerRange, selectionRange);
+    const exactContainer = target.state !== 'exact' || container?.state === 'exact';
+    if (!contained || !exactContainer) {
+      omissions.push(contained ? 'invalid_selection_container' : 'selection_outside_container');
+      target.state = 'invalid_range'; target.span = null;
+    }
+  };
   if (['definition', 'typeDefinition', 'references'].includes(requestClass)) {
     for (const location of normalizeLspLocations(payload)) {
       if (facts.length >= maxFacts) { omissions.push('fact_budget'); break; }
-      if (typeof location.uri !== 'string' || !location.range) { omissions.push('malformed_location'); continue; }
+      if (!location.valid) { omissions.push('malformed_location'); continue; }
       const target = mapped(location.uri, location.range);
       const container = location.targetRange ? mapped(location.uri, location.targetRange) : null;
       const origin = location.originRange ? mapped(uri, location.originRange) : null;
-      if (container?.span && target.span && (target.span[0] < container.span[0] || target.span[1] > container.span[1])) {
-        omissions.push('selection_outside_container');
-        target.state = 'invalid_range'; target.span = null;
-      }
+      qualifySelection(target, container, location.targetRange, location.range);
+      if (origin?.state === 'invalid_range') omissions.push('invalid_origin_range');
       add({ kind: requestClass, target, container, origin,
-        protocolShape: location.raw?.targetUri ? 'LocationLink' : 'Location' });
+        protocolShape: location.protocolShape });
     }
   } else if (requestClass === 'documentSymbol') {
     if (payload !== null && !Array.isArray(payload)) omissions.push('malformed_symbols');
@@ -43,6 +49,7 @@ export const projectLspObservation = ({ requestClass, payload, uri, sourceForUri
       const flat = Boolean(value.location), targetUri = flat ? value.location.uri : uri;
       const selection = flat ? value.location.range : value.selectionRange;
       const target = mapped(targetUri, selection), container = flat ? null : mapped(uri, value.range);
+      if (!flat) qualifySelection(target, container, value.range, selection);
       const index = facts.length;
       add({ kind: 'symbol', name: value.name, symbolKind: value.kind, detail: value.detail ?? null,
         protocolShape: flat ? 'SymbolInformation' : 'DocumentSymbol', parent,
@@ -65,13 +72,14 @@ export const projectLspObservation = ({ requestClass, payload, uri, sourceForUri
         omissions.push('malformed_hierarchy_item'); continue;
       }
       const target = mapped(item.uri, item.selectionRange), container = mapped(item.uri, item.range);
+      qualifySelection(target, container, item.range, item.selectionRange);
       const ranges = [];
       if (Array.isArray(value.fromRanges)) {
         for (const range of value.fromRanges.slice(0, maxFacts)) ranges.push(mapped(requestClass === 'incomingCalls' ? item.uri : uri, range));
         if (value.fromRanges.length > maxFacts) omissions.push('hierarchy_range_budget');
       }
       add({ kind: requestClass, name: item.name, symbolKind: item.kind, target, container, fromRanges: ranges,
-        itemToken: retainHierarchyItem(item), completeness: 'provider_observation' });
+        itemToken: target.state === 'invalid_range' ? null : retainHierarchyItem(item), completeness: 'provider_observation' });
     }
   }
   return { facts, omissions: [...new Set(omissions)], exactCount: facts.filter(fact => fact.target?.state === 'exact').length };

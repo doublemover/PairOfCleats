@@ -7,6 +7,22 @@ Incoming ranges must roundtrip exactly; clamped and reversed ranges contribute
 no source ownership. Chunks use half-open ranges. A zero-width insertion belongs
 to the nonempty containing chunk on its right; document EOF belongs to none.
 
+Location and LocationLink retain their distinct required fields. A link cannot
+substitute its whole target range for an absent target selection. Canonical
+definition joins require both the selection and its enclosing range to map
+exactly to the captured source, with selection containment. Malformed protocol
+shapes remain raw evidence and cannot mint declaration candidates. An otherwise
+well-shaped location with an unmappable enclosing range remains a heuristic
+external candidate with no source range.
+
+Structured DocumentSymbol and call/type hierarchy observations enforce the same
+selection containment and exact container mapping before qualifying a target.
+Invalid hierarchy selections do not mint follow-up item tokens. Flat
+SymbolInformation retains its single location range without an invented
+container. A malformed origin range keeps an observation partial even when its
+separate target is source-qualified. These are protocol/source ownership checks,
+not proof of runtime dispatch or project analysis completeness.
+
 Inlay labels are observations until a bounded declaration-header scan attributes
 the insertion to a parameter binding or the return position. Local variables,
 nested declarations and argument-name hints cannot supply an enclosing callable's
