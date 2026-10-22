@@ -15,7 +15,7 @@ export const readSourceLinkedEvidenceDetail = async ({ store, ref, evidenceRoot 
     || !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1024 * 1024
     || !Number.isSafeInteger(maxReferences) || maxReferences < 1 || maxReferences > 4096) throw fail('Evidence root or detail bounds are not admitted.');
   const [record] = await store.getRecords([ref], ['data'], { signal });
-  if (record?.kind !== 'evidence' || !['graphql-schema-references', 'configuration-local-references', 'template-local-references', 'proto-descriptor-references', 'shellcheck-diagnostics', 'sql-catalog-references'].includes(record.data.evidenceKind)) throw fail('Record is not source-linked schema/configuration/template/diagnostic evidence.');
+  if (record?.kind !== 'evidence' || !['graphql-schema-references', 'configuration-local-references', 'template-local-references', 'proto-descriptor-references', 'shellcheck-diagnostics', 'sql-catalog-references', 'scala-semanticdb-references', 'astro-generated-references'].includes(record.data.evidenceKind)) throw fail('Record is not source-linked schema/configuration/template/diagnostic evidence.');
   const match = /^semantic-evidence\/([a-f0-9]{64})\.json$/u.exec(record.data.artifactRef || '');
   if (!match) throw fail('Invalid source-linked evidence reference.');
   const { buffer } = await readVerifiedContainedFile(evidenceRoot, path.join(evidenceRoot, record.data.artifactRef), { expectedHash: match[1], maxBytes, signal });
