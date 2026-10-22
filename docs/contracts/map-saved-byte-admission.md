@@ -26,8 +26,26 @@ length. Split multibyte stream chunks remain valid because decoding sees the
 complete bounded byte sequence. Source scripts are still never executed.
 
 Cancellation checks surround reads and admission publication. The descriptor
-closes in the existing finally owner on success, failure and cancellation; no
-new cache/session namespace is introduced. Input-model semantics, source scope,
+has one attempt-scoped close owner on success, failure and cancellation. An
+admitted model is published only after its original handle's close promise
+fulfills. A rejected close preserves the exact primary read/parse/cancellation
+cause and actual close failure in an aggregate, including frozen original errors.
+The non-enumerable `mapSavedHandle` capability retains that exact resource and its
+captured close method for explicit coalesced reconciliation. It never reopens the
+filename, acts on a saved numeric fd, substitutes another method or closes a
+sibling handle. A rejected close stays pending; an fd property or absent error
+is not settlement evidence. Successful reconciliation returns explicit
+`settled:true,pending:false` and preserves earlier failure diagnostics.
+Cancellation arriving during close still waits for that exact call to settle;
+it cannot publish an otherwise admitted model afterward. If that close rejects,
+the cancellation and close failure are both retained.
+
+The retained error's existing `cacheOwnershipPending`/`cacheOwnershipReleased`
+observation also respects any other pending resource carried by the original
+cause. No new cache/session namespace is introduced. Callers must retain this
+error/capability until exact cleanup settles; serialization does not retain a
+resource capability. There is no automatic path/raw-descriptor fallback or a
+claim that failed closure has already released the resource. Input-model semantics, source scope,
 legacy/version handling and generation health remain unchanged. Stable saved
 bytes do not prove that an old source generation is current or complete, and no
 CPU/heap/latency or browser acceptance follows. The authored recording filesystem

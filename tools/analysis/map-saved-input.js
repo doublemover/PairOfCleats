@@ -4,6 +4,7 @@ import { TextDecoder } from 'node:util';
 import { MAP_MODEL_VERSION } from '../../src/map/constants.js';
 import { readMapCacheEnvelope } from '../../src/shared/generated-artifact.js';
 import { sourceEntityKey } from '../../src/map/isometric/client/data/protocol.js';
+import { createSavedMapHandleOwner, savedMapHandleCloseFailure } from './map-saved-handle.js';
 
 export const MAP_SAVED_INPUT_BYTES = 32 * 1024 * 1024;
 const assertJsonDepth = (text) => {
@@ -77,6 +78,8 @@ const sameSourceSnapshot = (left, right) => ['dev', 'ino', 'size', 'mtimeNs', 'c
 export const readSavedMap = async (inputPath, { signal = null, fsImpl = fs } = {}) => {
   signal?.throwIfAborted();
   const handle = await fsImpl.open(inputPath, 'r');
+  const owner = createSavedMapHandleOwner(handle);
+  let result, primaryError, hasPrimary = false;
   try {
     const before = await handle.stat({ bigint: true });
     if (!before.isFile() || before.size > BigInt(MAP_SAVED_INPUT_BYTES)) throw new Error('Saved map must be a regular file no larger than 32 MiB.');
@@ -98,6 +101,16 @@ export const readSavedMap = async (inputPath, { signal = null, fsImpl = fs } = {
     catch { throw new Error('Saved map is not valid UTF-8; byte identity cannot be reconstructed through replacement characters.'); }
     const parsed = parseSavedMap(text);
     if (parsed.sha256 !== rawHash.digest('hex') || parsed.bytes !== bytes) throw new Error('Saved map decoding changed its original byte identity.');
-    signal?.throwIfAborted();return parsed;
-  } finally { await handle.close(); }
+    signal?.throwIfAborted();result = parsed;
+  } catch(error) { primaryError = error; hasPrimary = true; }
+  try { await owner.close(); }
+  catch(closeError) {
+    if (!hasPrimary && signal?.aborted) {
+      try { signal.throwIfAborted(); } catch(error) { primaryError = error; hasPrimary = true; }
+    }
+    throw savedMapHandleCloseFailure({ owner, closeError, hasPrimary, primaryError });
+  }
+  if (hasPrimary) throw primaryError;
+  signal?.throwIfAborted();
+  return result;
 };
