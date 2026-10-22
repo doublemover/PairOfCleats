@@ -20,6 +20,8 @@ import { writeStructuredLspEvidence } from './lsp-structured-evidence.js';
 import { readRetainedSemanticSourceSnapshot } from '../../semantic/retained-source-snapshot.js';
 import { readRetainedEmbeddedSourceMap, assertRetainedEmbeddedSourceRange } from './embedded-map-read.js';
 const refKey = ref => canonicalSemanticJson(ref);
+const valueWrapperKinds = new Set(['ParenthesizedExpression', 'NonNullExpression', 'AsExpression',
+  'TypeAssertionExpression', 'SatisfiesExpression']);
 /** One build-owned LSP lane; this owns no server, Program, or request scheduler. */
 export const createSemanticLspSession = async ({ state, runtime, signal = null, languages = null, eagerOnly = false }) => {
   const inventory = new Map(), byUri = new Map(), texts = new Map(), emitted = [], contexts = new Map(), completed = new Set();
@@ -57,7 +59,10 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
         if(data?.invocationKind)return ['callee','tag','expression'].includes(link.slot)?{ref:link.parent,kind:data.invocationKind}:null;
         const member=['PropertyAccessExpression','ElementAccessExpression','MemberExpression','OptionalMemberExpression'].includes(data?.astKind);
         // The receiver occurrence in obj.method() is not the invoked member.
-        if(member?!['name','property','ast:PropertyAccessExpression.name'].includes(link.slot):!['ParenthesizedExpression','NonNullExpression'].includes(data?.astKind)||!['expression','ast:ParenthesizedExpression.expression','ast:NonNullExpression.expression'].includes(link.slot))return null;
+        if (member) {
+          if (!['name','property','ast:PropertyAccessExpression.name'].includes(link.slot)) return null;
+        } else if (!valueWrapperKinds.has(data?.astKind)
+          || link.slot !== 'expression' && link.slot !== `ast:${data.astKind}.expression`) return null;
         current=link.parent;
       }
       return null;
