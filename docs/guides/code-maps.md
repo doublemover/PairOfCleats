@@ -134,3 +134,9 @@ both geometry forms. Hover moves coalesce to the latest pointer per render
 frame, with explicit camera/culling/visibility invalidation and disposal. These
 are implementation contracts; authored CPU/DOM fixtures do not establish
 browser responsiveness, GPU/FPS or retained-memory improvements.
+Adjacency layout ordering uses incremental candidate-to-placed scores with the
+existing total-weight bonus and lexical tie-breaking. It scans candidates in
+quadratic work and visits each adjacency edge once, retaining linear graph state.
+The same ordering policy applies above 300 items; there is no abrupt lexical-only
+fallback. This is an algorithmic work reduction; browser rebuild and latency
+measurements remain separate qualification.

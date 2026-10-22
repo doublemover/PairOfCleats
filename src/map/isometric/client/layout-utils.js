@@ -149,37 +149,44 @@ export const buildSlots = (width, depth, columns, rows, cellSize, gap, memberIns
 export const orderByAdjacency = (items, getKey, adjacency) => {
   if (!items.length) return [];
   if (items.length === 1) return items.slice();
-  if (items.length > 300) {
-    return items
-      .slice()
-      .sort((a, b) => String(getKey(a)).localeCompare(String(getKey(b))));
-  }
   const keys = items.map(getKey);
   const totalWeight = new Map();
+  const reverse = new Map();
+  const itemKeys = new Set(keys);
   keys.forEach((key) => {
     const neighbors = adjacency.get(key) || new Map();
     let total = 0;
-    for (const value of neighbors.values()) total += value;
+    for (const [target, value] of neighbors) {
+      total += value;
+      // The original score is candidate -> placed, not placed -> candidate.
+      // Keep that direction even when adjacency is asymmetric.
+      if (itemKeys.has(target) && value) {
+        if (!reverse.has(target)) reverse.set(target, new Map());
+        reverse.get(target).set(key, value);
+      }
+    }
     totalWeight.set(key, total);
   });
   const remaining = new Set(keys);
   const orderedKeys = [];
-  let current = keys.slice().sort((a, b) => {
+  const placedWeight = new Map(keys.map(key => [key, 0]));
+  const current = keys.slice().sort((a, b) => {
     const diff = (totalWeight.get(b) || 0) - (totalWeight.get(a) || 0);
     return diff || a.localeCompare(b);
   })[0];
   orderedKeys.push(current);
   remaining.delete(current);
+  let newlyPlaced = current;
   while (remaining.size) {
+    // Each edge contributes once, in placement order. Keep the total-weight
+    // bonus separate to preserve the old floating-point summation order.
+    for (const [candidate, weight] of reverse.get(newlyPlaced) || []) {
+      if (remaining.has(candidate)) placedWeight.set(candidate, placedWeight.get(candidate) + weight);
+    }
     let best = null;
-    let bestScore = -1;
+    let bestScore = -Infinity;
     for (const key of remaining) {
-      const neighbors = adjacency.get(key) || new Map();
-      let score = 0;
-      for (const placed of orderedKeys) {
-        score += neighbors.get(placed) || 0;
-      }
-      score += (totalWeight.get(key) || 0) * 0.1;
+      const score = placedWeight.get(key) + (totalWeight.get(key) || 0) * 0.1;
       if (score > bestScore) {
         bestScore = score;
         best = key;
@@ -189,6 +196,7 @@ export const orderByAdjacency = (items, getKey, adjacency) => {
     }
     orderedKeys.push(best);
     remaining.delete(best);
+    newlyPlaced = best;
   }
   const itemByKey = new Map(items.map((item) => [getKey(item), item]));
   return orderedKeys.map((key) => itemByKey.get(key)).filter(Boolean);
