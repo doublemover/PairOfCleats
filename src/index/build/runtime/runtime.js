@@ -215,14 +215,10 @@ async function createBuildRuntimeImpl({
   const policyHugeRepoProfile = isObject(autoPolicy?.indexing?.hugeRepoProfile)
     ? autoPolicy.indexing.hugeRepoProfile
     : null;
-  const explicitHugeRepoProfile = isObject(indexingConfig?.hugeRepoProfile)
-    ? indexingConfig.hugeRepoProfile
-    : {};
-  const hugeRepoProfileEnabled = typeof explicitHugeRepoProfile.enabled === 'boolean'
-    ? explicitHugeRepoProfile.enabled
-    : policyHugeRepoProfile?.enabled === true;
+  const hugeRepoProfileEnabled = policyHugeRepoProfile?.enabled === true;
   if (hugeRepoProfileEnabled && isObject(policyHugeRepoProfile?.overrides)) {
-    indexingConfig = mergeConfig(indexingConfig, policyHugeRepoProfile.overrides);
+    // The profile supplies defaults; explicit leaf configuration has precedence.
+    indexingConfig = mergeConfig(policyHugeRepoProfile.overrides, indexingConfig);
   }
   if (policyConcurrency) {
     indexingConfig = mergeConfig(indexingConfig, {

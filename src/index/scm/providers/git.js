@@ -59,17 +59,6 @@ const parseNullSeparated = (value) => (
 );
 
 /**
- * Parse newline-delimited command output.
- * @param {string} value
- * @returns {string[]}
- */
-const parseLines = (value) => (
-  String(value || '')
-    .split(/\r?\n/)
-    .filter(Boolean)
-);
-
-/**
  * Normalize SCM paths to repo-relative posix and return sorted output.
  * @param {string[]} entries
  * @param {string} repoRoot
@@ -78,7 +67,11 @@ const parseLines = (value) => (
 const toSortedRepoPosixFiles = (entries, repoRoot) => {
   const filesPosix = [];
   for (const entry of Array.isArray(entries) ? entries : []) {
-    const normalized = toRepoPosixPath(toPosix(entry), repoRoot);
+    // Git -z labels already use forward slash separators. On POSIX a literal
+    // backslash is filename data, not a separator to rewrite.
+    const relative = path.relative(path.resolve(repoRoot), path.resolve(repoRoot, entry));
+    const normalized = process.platform === 'win32' ? relative.replaceAll('\\', '/') : relative;
+    if (normalized === '..' || normalized.startsWith('../') || path.isAbsolute(normalized)) continue;
     if (!normalized) continue;
     filesPosix.push(normalized);
   }
@@ -158,7 +151,7 @@ const appendDiffRefArgs = (args, { fromRef = null, toRef = null }) => {
  * @param {{stdout:string,repoRoot:string,parser:(value:string)=>string[]}} input
  * @returns {string[]}
  */
-const parseProviderFileList = ({ stdout, repoRoot, parser }) => (
+export const parseProviderFileList = ({ stdout, repoRoot, parser }) => (
   toSortedRepoPosixFiles(parser(stdout), repoRoot)
 );
 
@@ -297,7 +290,7 @@ export const gitProvider = {
   },
   async getChangedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null }) {
     const args = appendScopedSubdirArg(
-      appendDiffRefArgs(['-C', repoRoot, 'diff', '--name-only'], { fromRef, toRef }),
+      appendDiffRefArgs(['-C', repoRoot, 'diff', '--name-only', '-z'], { fromRef, toRef }),
       { repoRoot, subdir }
     );
     const result = await runGitProviderCommand(args);
@@ -308,7 +301,7 @@ export const gitProvider = {
       filesPosix: parseProviderFileList({
         stdout: result.stdout,
         repoRoot,
-        parser: parseLines
+        parser: parseNullSeparated
       })
     };
   },

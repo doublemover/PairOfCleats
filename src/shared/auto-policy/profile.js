@@ -102,14 +102,14 @@ export const formatBytes = (bytes) => {
 };
 
 export const resolveHugeRepoProfile = ({ config = {}, repo = null }) => {
-  const raw = config?.hugeRepoProfile;
+  const raw = config?.indexing?.hugeRepoProfile;
   const profileConfig = raw && typeof raw === 'object' ? raw : {};
   const enabled = typeof profileConfig.enabled === 'boolean'
     ? profileConfig.enabled
     : repo?.huge === true;
   const id = enabled ? CANONICAL_HUGE_REPO_PROFILE_ID : 'default';
   const reason = enabled
-    ? (repo?.huge === true ? 'repo-size-threshold' : 'explicit-config')
+    ? (typeof profileConfig.enabled === 'boolean' ? 'explicit-config' : 'repo-size-threshold')
     : 'disabled';
   const overrides = enabled
     ? clonePlain(CANONICAL_HUGE_REPO_OVERRIDES)

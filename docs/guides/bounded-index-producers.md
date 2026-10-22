@@ -52,3 +52,13 @@ authorize only themselves, never a recursive parent walk.
 JSONL byte hints never control output lengths: encoded row bytes plus the newline own batching. Ignore files are ordered rule programs; repeated rules are retained and canonical parser whitespace/escape semantics are preserved. Generated ancestor traversal openings retain preceding child exclusions so selected descendants do not admit siblings.
 
 PDF EOL flags terminate their own item, including empty markers. DOCX text/separator tokens remain in source order across styled runs; both extraction backends obtain physical paragraph ordinals and direct paragraph styles from the same bounded XML owner. Custom/inherited Word styles are retained as source style IDs rather than invented heading levels.
+
+## Selected roots and evaluation receipts
+
+Validation, stats and health capture published mode roots once. Explicit validation roots discover their own declared/present modes, including declared missing artifacts, independently of the current pointer. Stats exposes per-mode provenance; combined build/config fields are null for mixed generations. Health checks selected file families and recorded backend capabilities, distinguishing not-built/not-selected/unknown from a broken ready backend; zero-state waivers use the existing independent proof validator.
+
+Setup forwards the explicit target repository to restore and all indexing stages. Huge-repository profile resolution reads only the canonical indexing.hugeRepoProfile path. Its leaf overrides supply defaults, with explicit repository leaf values taking precedence.
+
+Evaluation uses canonical search mode expansion and independent ranking cohorts. Combined-mode judgments must name their mode; ambiguous unqualified judgments are refused before search. Metrics are macro means of judged cohorts and judged cases; unjudged cohorts remain null. Scores from separate lists are never concatenated into an invented global rank. Bakeoff resume identity version 2 binds canonical dataset content, query bytes, matching/metric producer sources, repository identity, and per-model selected generation manifests/index-state. Missing inputs fail before resume; old receipts cannot authorize reuse.
+
+Benchmark waivers require an explicit supported schema, unique ID, owner, justification, finite expiry and exact failure/diagnostic scope. One invalid row invalidates the complete policy. Run watchdog interruption is terminal evidence before termination; a zero exit or retry cannot erase it. All controls here are authored and unexecuted.

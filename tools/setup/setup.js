@@ -440,7 +440,7 @@ if (!argv['skip-artifacts']) {
   if (fs.existsSync(manifestPath)) {
     const shouldRestore = await promptYesNo('Restore CI artifacts from ci-artifacts?', true);
     if (shouldRestore) {
-      const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--from', artifactsDir]);
+      const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--from', artifactsDir, '--repo', root]);
       restoredArtifacts = result.ok;
       if (!result.ok) {
         warn('CI artifact restore failed.');
@@ -479,7 +479,7 @@ if (!argv['skip-index'] && !restoredArtifacts) {
     !indexReady
   );
   if (shouldBuild) {
-    const args = [path.join(toolRoot, 'build_index.js')];
+    const args = [path.join(toolRoot, 'build_index.js'), '--repo', root];
     if (useIncremental) args.push('--incremental');
     const result = runCommand(process.execPath, args);
     if (!result.ok) {
@@ -506,7 +506,7 @@ if (!argv['skip-sqlite']) {
     if (!indexReady) {
       const shouldBuildIndex = await promptYesNo('SQLite build requires file-backed indexes. Build index now?', true);
       if (shouldBuildIndex && !argv['skip-index']) {
-        const args = [path.join(toolRoot, 'build_index.js')];
+        const args = [path.join(toolRoot, 'build_index.js'), '--repo', root];
         if (useIncremental) args.push('--incremental');
         const result = runCommand(process.execPath, args);
         if (!result.ok) {
@@ -519,7 +519,7 @@ if (!argv['skip-sqlite']) {
       }
     }
     if (indexReady) {
-      const sqliteArgs = [path.join(toolRoot, 'build_index.js'), '--stage', '4'];
+      const sqliteArgs = [path.join(toolRoot, 'build_index.js'), '--stage', '4', '--repo', root];
       if (useIncremental) sqliteArgs.push('--incremental');
       const result = runCommand(process.execPath, sqliteArgs);
       sqliteBuilt = true;

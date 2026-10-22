@@ -12,7 +12,8 @@ import { assertKnownIndexProfileId } from '../../src/contracts/index-profile.js'
 import { resolveRequiredArtifactsForProfile } from '../../src/contracts/index-profile.js';
 import { accumulateManifestBytes, summarizeManifestBytes, buildPrefixedPieceStats, missingRequiredStatsFamilies } from './stats-artifacts.js';
 import { fromPosix, isRelativePathEscape } from '../../src/shared/file-paths.js';
-import { getRepoId, loadUserConfig, resolveIndexRoot, resolveRepoRootArg } from '../shared/dict-utils.js';
+import { captureSelectedModeRoots } from '../../src/shared/indexing/selected-mode-roots.js';
+import { getRepoId, loadUserConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
 
 const MODE_ORDER = ['code', 'prose', 'extracted-prose', 'records'];
 const SCHEMA_VERSION = 1;
@@ -93,18 +94,14 @@ const selectModeDirs = () => {
   // resolving to enclosing git/config roots.
   const repoRoot = resolveRepoRootArg(String(argv.repo));
   const userConfig = loadUserConfig(repoRoot);
-  const indexRoot = resolveIndexRoot(repoRoot, userConfig, {});
-  const modes = collectModeDirsFromRoot(indexRoot, modeFilter);
-  if (!modes.length) {
-    throw new Error(`No index directories found under ${indexRoot}.`);
-  }
-  return {
-    source: 'repo',
-    indexRoot,
-    repoRoot,
-    repoId: getRepoId(repoRoot),
-    modes
-  };
+  const selection = captureSelectedModeRoots({ root: repoRoot, userConfig });
+  const modes = selection.modes.filter(mode => !modeFilter || mode === modeFilter)
+    .map(mode => ({ mode, dir: path.join(selection.roots[mode], `index-${mode}`) }));
+  if (!modes.length) throw new Error('No selected index modes are published for this repository.');
+  const roots = new Set(modes.map(entry => path.dirname(entry.dir)));
+  return { source: selection.source, indexRoot: roots.size === 1 ? [...roots][0] : null,
+    repoRoot, repoId: getRepoId(repoRoot), modes };
+
 };
 
 const buildFamilyStats = (pieces, {
@@ -250,24 +247,18 @@ const modeReports = [];
 const allPhysicalPieces = new Map();
 const verifyErrors = [];
 const verifyWarnings = [];
-let buildId = null;
-let compatibilityKey = null;
-let artifactSurfaceVersion = null;
-let manifestRepoId = null;
 
 const selected = selectModeDirs();
 for (const { mode, dir } of selected.modes) {
   const manifest = loadPiecesManifest(dir, { strict: true });
   const pieces = Array.isArray(manifest?.pieces) ? manifest.pieces : [];
   accumulateManifestBytes(allPhysicalPieces, dir, pieces);
-  if (!buildId && manifest?.buildId) buildId = manifest.buildId;
-  if (!compatibilityKey && manifest?.compatibilityKey) compatibilityKey = manifest.compatibilityKey;
-  if (!artifactSurfaceVersion && manifest?.artifactSurfaceVersion) artifactSurfaceVersion = manifest.artifactSurfaceVersion;
-  if (!manifestRepoId && manifest?.repoId) manifestRepoId = manifest.repoId;
 
   const report = {
     mode,
     indexDir: dir,
+    provenance: { buildId: manifest.buildId || null, compatibilityKey: manifest.compatibilityKey || null,
+      artifactSurfaceVersion: manifest.artifactSurfaceVersion, repoId: manifest.repoId || null },
     manifestBytes: summarizeManifestBytes(accumulateManifestBytes(new Map(), dir, pieces)),
     chunkMeta: buildChunkStats(pieces),
     tokenPostings: buildTokenStats(pieces),
@@ -299,6 +290,8 @@ const totals = aggregateTotals(modeReports);
 const modesPayload = {};
 for (const report of modeReports) {
   modesPayload[report.mode] = {
+    indexDir: report.indexDir,
+    provenance: report.provenance,
     chunkMeta: report.chunkMeta,
     tokenPostings: report.tokenPostings,
     phraseNgrams: report.phraseNgrams,
@@ -313,13 +306,20 @@ for (const report of modeReports) {
   };
 }
 
+const sharedIdentity = key => {
+  const values = new Set(modeReports.map(report => report.provenance[key]));
+  return values.size === 1 ? [...values][0] : null;
+};
+
 const payload = {
   schemaVersion: SCHEMA_VERSION,
-  repoId: selected.repoId || manifestRepoId || null,
-  buildId: buildId || null,
+  repoId: selected.repoId || sharedIdentity('repoId'),
+  buildId: sharedIdentity('buildId'),
   indexRoot: selected.indexRoot,
-  artifactSurfaceVersion: artifactSurfaceVersion || null,
-  compatibilityKey: compatibilityKey || null,
+  artifactSurfaceVersion: sharedIdentity('artifactSurfaceVersion'),
+  compatibilityKey: sharedIdentity('compatibilityKey'),
+  generationSelection: selected.source,
+  mixedGenerations: new Set(modeReports.map(report => report.provenance.buildId)).size > 1,
   modes: modesPayload,
   totals
 };

@@ -1,3 +1,4 @@
+import { readFrozenModeState } from './snapshots/mode-provenance.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getRepoCacheRoot } from '../shared/dict-utils.js';
@@ -371,7 +372,23 @@ const resolveSnapshot = ({
     }
   }
 
-  const metadata = collectBuildStateByMode({ repoCacheRoot, indexBaseRootByMode, modes, allowMissingModes: true, warnings });
+  const metadata = preferFrozen && hasFrozen
+    ? { buildIdByMode: {}, configHashByMode: {}, toolVersionByMode: {} }
+    : collectBuildStateByMode({ repoCacheRoot, indexBaseRootByMode, modes, allowMissingModes: true, warnings });
+  if (preferFrozen && hasFrozen) {
+    for (const mode of modes) {
+      const frozenRoot = indexBaseRootByMode[mode];
+      if (!frozenRoot) continue;
+      if (frozenJson?.modeProvenanceVersion !== 1 || !frozenJson.modeProvenance?.[mode]) {
+        warnings.push(`Legacy frozen ${mode} state provenance is unknown; shared build_state.json is not mode authority.`);
+        continue;
+      }
+      const state = readFrozenModeState({ frozenRoot, mode, receipt: frozenJson.modeProvenance[mode] });
+      metadata.buildIdByMode[mode] = state.buildId;
+      metadata.configHashByMode[mode] = state.configHash ?? null;
+      metadata.toolVersionByMode[mode] = state.tool?.version ?? null;
+    }
+  }
   const buildIdByMode = {};
   for (const mode of modes) {
     if (!indexBaseRootByMode[mode]) continue;

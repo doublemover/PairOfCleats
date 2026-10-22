@@ -1,3 +1,6 @@
+import { captureSelectedModeRoots } from '../../shared/indexing/selected-mode-roots.js';
+import { readJsonFile } from '../../shared/artifact-io/json.js';
+import { validateSqliteZeroStateManifest } from '../../storage/sqlite/zero-state.js';
 import { readRuntimeReceipt } from '../../shared/runtime-envelope/read-receipt.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -30,13 +33,20 @@ export async function getStatus(input = {}) {
   const repoCacheRoot = resolveRepoCacheRootPath(root, userConfig);
   const dictConfig = getDictConfig(root, userConfig);
   const dictDir = dictConfig.dir;
+  const selection = captureSelectedModeRoots({ root, userConfig });
   const sqlitePaths = resolveSqlitePaths(root, userConfig);
+  for (const [mode, key] of [['code', 'codePath'], ['prose', 'prosePath'], ['extracted-prose', 'extractedProsePath'], ['records', 'recordsPath']]) {
+    if (selection.roots[mode]) sqlitePaths[key] = resolveSqlitePaths(root, userConfig, { indexRoot: selection.roots[mode] })[key];
+  }
   const lmdbPaths = resolveLmdbPaths(root, userConfig);
+  for (const mode of ['code', 'prose']) {
+    if (selection.roots[mode]) lmdbPaths[`${mode}Path`] = resolveLmdbPaths(root, userConfig, { indexRoot: selection.roots[mode] })[`${mode}Path`];
+  }
 
-  const indexCodeDir = getIndexDir(root, 'code', userConfig);
-  const indexProseDir = getIndexDir(root, 'prose', userConfig);
-  const indexExtractedProseDir = getIndexDir(root, 'extracted-prose', userConfig);
-  const indexRecordsDir = getIndexDir(root, 'records', userConfig);
+  const indexCodeDir = selection.roots['code'] ? path.join(selection.roots['code'], 'index-code') : getIndexDir(root, 'code', userConfig);
+  const indexProseDir = selection.roots['prose'] ? path.join(selection.roots['prose'], 'index-prose') : getIndexDir(root, 'prose', userConfig);
+  const indexExtractedProseDir = selection.roots['extracted-prose'] ? path.join(selection.roots['extracted-prose'], 'index-extracted-prose') : getIndexDir(root, 'extracted-prose', userConfig);
+  const indexRecordsDir = selection.roots['records'] ? path.join(selection.roots['records'], 'index-records') : getIndexDir(root, 'records', userConfig);
   const repoArtifacts = {
     indexCode: indexCodeDir,
     indexProse: indexProseDir,
@@ -94,7 +104,12 @@ export async function getStatus(input = {}) {
   const dictSize = await sizeOfPath(dictDir);
   const overallSize = cacheRootSize + sqliteOutsideCacheSize + lmdbOutsideCacheSize;
 
-  const health = { issues: [], hints: [] };
+  const health = { issues: [], hints: [], selection: selection.source, modes: {}, backends: { sqlite: {}, lmdb: {} } };
+  const modeStates = {};
+  for (const mode of selection.modes) {
+    try { modeStates[mode] = readJsonFile(path.join(selection.roots[mode], `index-${mode}`, 'index_state.json'), { maxBytes: MAX_STATUS_JSON_BYTES, containedRoot: path.join(selection.roots[mode], `index-${mode}`) }); }
+    catch (error) { modeStates[mode] = null; health.issues.push(`index-${mode} selected capability metadata unreadable`); }
+  }
   const indexIssues = [];
   const checkIndexArtifacts = (dir, label) => {
     if (!fs.existsSync(dir)) {
@@ -126,6 +141,7 @@ export async function getStatus(input = {}) {
     } else if (chunkMeta.missingMeta || (chunkMeta.missingPaths && chunkMeta.missingPaths.length)) {
       indexIssues.push(`${label} chunk_meta manifest paths missing`);
     }
+    if (modeStates[label.replace(/^index-/, '')]?.artifacts?.present?.token_postings === false) return;
     const tokenPostings = resolveArtifactPresence(dir, 'token_postings', {
       manifest,
       maxBytes: MAX_STATUS_JSON_BYTES,
@@ -139,39 +155,55 @@ export async function getStatus(input = {}) {
       indexIssues.push(`${label} token_postings manifest paths missing`);
     }
   };
-  checkIndexArtifacts(indexCodeDir, 'index-code');
-  checkIndexArtifacts(indexProseDir, 'index-prose');
-  checkIndexArtifacts(indexExtractedProseDir, 'index-extracted-prose');
-  checkIndexArtifacts(indexRecordsDir, 'index-records');
+  for (const [mode, dir] of Object.entries({ code: indexCodeDir, prose: indexProseDir,
+    'extracted-prose': indexExtractedProseDir, records: indexRecordsDir })) {
+    const selected = selection.modes.includes(mode);
+    health.modes[mode] = { selected, status: selected ? 'selected' : 'not-built', path: selected ? dir : null };
+    if (selected) {
+      const before = indexIssues.length;
+      checkIndexArtifacts(dir, `index-${mode}`);
+      if (indexIssues.length > before || !modeStates[mode]) health.modes[mode].status = 'invalid';
+    }
+  }
   if (indexIssues.length) {
     health.issues.push(...indexIssues);
     health.hints.push('Run `pairofcleats index build` (or `node build_index.js`) to rebuild file-backed indexes.');
   }
 
   const sqliteIssues = [];
-  if (userConfig.sqlite?.use !== false) {
-    if (!fs.existsSync(sqlitePaths.codePath)) sqliteIssues.push('sqlite code db missing');
-    if (!fs.existsSync(sqlitePaths.prosePath)) sqliteIssues.push('sqlite prose db missing');
-    if (!fs.existsSync(sqlitePaths.extractedProsePath)) sqliteIssues.push('sqlite extracted-prose db missing');
-    if (!fs.existsSync(sqlitePaths.recordsPath)) sqliteIssues.push('sqlite records db missing');
+  const lmdbIssues = [];
+  for (const target of sqliteTargets) {
+    const mode = target.label;
+    const state = modeStates[mode]?.sqlite;
+    let status = !selection.modes.includes(mode) ? 'not-selected' : !state ? 'not-built'
+      : state.status === 'ready' ? 'ready' : state.status || 'unknown';
+    if (status === 'ready' && !fs.existsSync(target.path)) {
+      const indexDir = path.join(selection.roots[mode], `index-${mode}`);
+      const markerPath = path.join(indexDir, 'pieces', 'sqlite-zero-state.json');
+      try {
+        await validateSqliteZeroStateManifest({ indexDir, mode, outputPath: target.path,
+          payload: readJsonFile(markerPath, { containedRoot: indexDir }) });
+        status = 'zero-state';
+      } catch { status = 'missing'; sqliteIssues.push(`sqlite ${mode} published db missing or zero-state proof invalid`); }
+    } else if (status === 'failed') sqliteIssues.push(`sqlite ${mode} build failed`);
+    health.backends.sqlite[mode] = { status, selected: selection.modes.includes(mode), path: target.path };
+  }
+  for (const target of lmdbTargets) {
+    const state = modeStates[target.label]?.lmdb;
+    let status = !selection.modes.includes(target.label) ? 'not-selected' : !state ? 'unknown'
+      : state.status === 'ready' ? 'ready' : state.status || 'unknown';
+    if (status === 'ready' && !hasLmdbStore(target.path)) {
+      status = 'missing'; lmdbIssues.push(`lmdb ${target.label} published db missing`);
+    } else if (status === 'failed') lmdbIssues.push(`lmdb ${target.label} build failed`);
+    health.backends.lmdb[target.label] = { status, selected: selection.modes.includes(target.label), path: target.path };
   }
   if (sqliteIssues.length) {
     health.issues.push(...sqliteIssues);
-    health.hints.push('Run `pairofcleats index build --stage 4` (or `node build_index.js --stage 4`) to rebuild SQLite indexes.');
-  }
-
-  const lmdbIssues = [];
-  if (userConfig.lmdb?.use !== false) {
-    if (!hasLmdbStore(lmdbPaths.codePath)) {
-      lmdbIssues.push('lmdb code db missing');
-    }
-    if (!hasLmdbStore(lmdbPaths.prosePath)) {
-      lmdbIssues.push('lmdb prose db missing');
-    }
+    health.hints.push('Run `pairofcleats index build --stage 4` to rebuild selected SQLite indexes.');
   }
   if (lmdbIssues.length) {
     health.issues.push(...lmdbIssues);
-    health.hints.push('Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB indexes.');
+    health.hints.push('Run `pairofcleats lmdb build` to rebuild selected LMDB indexes.');
   }
 
   const coverage = readIndexCoverage({
@@ -184,6 +216,8 @@ export async function getStatus(input = {}) {
   coverage.discovery = { status: discovery.status };
   for (const [mode, indexDir] of Object.entries({ code: indexCodeDir, prose: indexProseDir,
     'extracted-prose': indexExtractedProseDir, records: indexRecordsDir })) {
+    coverage.modes[mode].selected = selection.modes.includes(mode);
+    if (!selection.modes.includes(mode)) continue;
     coverage.modes[mode].workingTree = await compareIndexedFiles({ repoRoot: root, indexDir,
       currentFiles: discovery.files?.[mode], discoveryStatus: discovery.status });
   }

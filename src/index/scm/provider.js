@@ -100,7 +100,7 @@ export const assertScmProvider = (provider) => {
     if (result && Array.isArray(result.filesPosix)) {
       const filesPosix = Array.from(new Set(
         result.filesPosix
-          .map((entry) => String(entry || '').replace(/\\/g, '/'))
+          .map((entry) => process.platform === 'win32' ? String(entry || '').replace(/\\/g, '/') : String(entry || ''))
           .filter(Boolean)
       )).sort((a, b) => a.localeCompare(b));
       return { filesPosix };
