@@ -6,6 +6,7 @@ import {
 import { getEnvConfig } from '../shared/env/runtime.js';
 import { createWarnOnce } from '../shared/logging/warn-once.js';
 import { resolveEmbeddingModelProfile } from '../shared/embedding-model-profile.js';
+import { assertEmbeddingArtifactCompatibility } from '../shared/embedding-artifact-identity.js';
 
 const warnOnce = createWarnOnce();
 
@@ -76,6 +77,14 @@ export async function getQueryEmbedding({
     try {
       const embedding = await adapter.embedOne(formattedText);
       if (!embedding || !embedding.length) return null;
+      const execution = adapter.executionInfo();
+      const requestedProvider = execution.requestedProvider || provider;
+      if (execution.provider !== requestedProvider && !resolvedUseStub) {
+        throw new Error(`Query embedding provider changed from ${requestedProvider} to ${execution.provider}; rebuild the dense index with the effective provider.`);
+      }
+      if (modelArtifact && !resolvedUseStub) {
+        assertEmbeddingArtifactCompatibility(modelArtifact, execution.modelArtifact);
+      }
       return embedding;
     } finally { await adapter.dispose?.(); }
   } catch (err) {
