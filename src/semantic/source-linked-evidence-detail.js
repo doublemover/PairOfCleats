@@ -27,7 +27,8 @@ export const readSourceLinkedEvidenceDetail = async ({ store, ref, evidenceRoot 
     || !Array.isArray(sidecar.sourcePartitions) || sidecar.sourcePartitions.length > 20
     || !Array.isArray(report.results) || report.results.length > 20) throw fail('Invalid source-linked evidence framing.');
   const { identity, ...identityInput } = report;
-  if (semanticHash('tooling.source-linked-evidence.v1', identityInput) !== identity) throw fail('Source-linked batch identity changed.');
+  if (semanticHash('tooling.source-linked-evidence.v1', identityInput,
+    { maxBytes, check: () => throwIfAborted(signal) }) !== identity) throw fail('Source-linked batch identity changed.');
   const results = report.results.filter(value => value.sourceUnitId === record.data.sourceRef);
   if (results.length !== 1) throw fail('Source-linked evidence does not uniquely identify its source.');
   const result = results[0], sourcePartitions = new Map();

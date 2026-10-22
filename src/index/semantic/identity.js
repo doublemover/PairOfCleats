@@ -48,12 +48,12 @@ export const canonicalSemanticJson = (value, { onObjectEncoded = null, maxBytes 
   return encode(value);
 };
 
-export const semanticHash = (domain, inputs) => {
+export const semanticHash = (domain, inputs, { maxBytes = null, check = null } = {}) => {
   if (typeof domain !== 'string' || !domain || domain.includes('\0')) {
     throw new TypeError('A nonempty semantic hash domain is required.');
   }
   return createHash('sha256').update(domain + '\0', 'utf8')
-    .update(canonicalSemanticJson(inputs), 'utf8').digest('hex');
+    .update(canonicalSemanticJson(inputs, { maxBytes, check }), 'utf8').digest('hex');
 };
 
 const identity = (prefix, domain, fields, inputs) => {
