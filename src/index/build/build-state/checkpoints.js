@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { sha1 } from '../../../shared/hash.js';
 import { compareStrings } from '../../../shared/sort.js';
@@ -35,7 +36,10 @@ const resolveSafeCheckpointRelativePath = (mode, relPath) => {
     return null;
   }
   const expected = buildStageCheckpointModeBasename(mode);
-  return normalized === expected ? normalized : null;
+  if (normalized === expected) return normalized;
+  const prefix = `${expected.slice(0, -5)}.`;
+  const suffix = normalized.startsWith(prefix) ? normalized.slice(prefix.length) : '';
+  return /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.json$/.test(suffix) ? normalized : null;
 };
 
 const readJsonFile = async (filePath) => {
@@ -134,6 +138,12 @@ const readCheckpointIndex = async (buildRoot) => {
   return normalizeCheckpointIndex(parsed);
 };
 
+export const resolveCheckpointModePaths = async (buildRoot) => {
+  const index = await readCheckpointIndex(buildRoot);
+  return Object.fromEntries(Object.entries(index?.modes || {}).map(([mode, descriptor]) =>
+    [mode, path.join(buildRoot, descriptor.path)]));
+};
+
 const serializeCheckpointIndex = (indexValue) => {
   const modes = {};
   const modeKeys = Object.keys(indexValue?.modes || {}).sort(compareStrings);
@@ -154,7 +164,7 @@ const serializeCheckpointIndex = (indexValue) => {
 
 export const loadCheckpointSlices = async (buildRoot) => {
   const index = await readCheckpointIndex(buildRoot);
-  if (index?.modes && Object.keys(index.modes).length) {
+  if (index?.modes) {
     const merged = {};
     const modeKeys = Object.keys(index.modes).sort(compareStrings);
     for (const mode of modeKeys) {
@@ -185,7 +195,7 @@ export const writeCheckpointSlices = async (buildRoot, {
   if (!buildRoot || !checkpointPatch || !mergedCheckpoints || !cache) return null;
   const indexPath = resolveCheckpointIndexPath(buildRoot);
   const existingIndex = await readCheckpointIndex(buildRoot);
-  const nextIndex = existingIndex || {
+  const nextIndex = existingIndex ? { ...existingIndex, modes: { ...existingIndex.modes } } : {
     version: STAGE_CHECKPOINTS_SIDECAR_VERSION,
     updatedAt: null,
     modes: {}
@@ -199,58 +209,48 @@ export const writeCheckpointSlices = async (buildRoot, {
     ? checkpointPatch
     : mergedCheckpoints;
   const modeKeys = Object.keys(modeSource || {}).sort(compareStrings);
-  if (!isObjectLike(cache.modeHashes)) {
-    cache.modeHashes = {};
-  }
-  if (!isObjectLike(cache.modeFingerprints)) {
-    cache.modeFingerprints = {};
-  }
+  const modeHashes = isObjectLike(cache.modeHashes) ? { ...cache.modeHashes } : {};
+  const modeFingerprints = isObjectLike(cache.modeFingerprints) ? { ...cache.modeFingerprints } : {};
   for (const mode of modeKeys) {
     const modePayload = mergedCheckpoints?.[mode];
     const descriptor = nextIndex.modes?.[mode] || null;
     const indexedRelPath = resolveSafeCheckpointRelativePath(mode, descriptor?.path);
     const indexedModePath = indexedRelPath ? path.join(buildRoot, indexedRelPath) : null;
     if (!modePayload || typeof modePayload !== 'object') {
-      if (indexedModePath) {
-        await fs.rm(indexedModePath, { force: true }).catch(() => {});
-      }
-      const canonicalModePath = resolveCheckpointModePath(buildRoot, mode);
-      if (!indexedModePath || canonicalModePath !== indexedModePath) {
-        await fs.rm(canonicalModePath, { force: true }).catch(() => {});
-      }
       if (nextIndex.modes && mode in nextIndex.modes) {
         delete nextIndex.modes[mode];
       }
-      if (cache.modeHashes && mode in cache.modeHashes) {
-        delete cache.modeHashes[mode];
-      }
-      if (cache.modeFingerprints && mode in cache.modeFingerprints) {
-        delete cache.modeFingerprints[mode];
-      }
+      delete modeHashes[mode];
+      delete modeFingerprints[mode];
       continue;
     }
-    const modePath = resolveCheckpointModePath(buildRoot, mode);
-    const relPath = path.basename(modePath);
+    let modePath = indexedModePath || resolveCheckpointModePath(buildRoot, mode);
     const modeHash = hashJson(modePayload);
-    const priorModeHash = typeof cache.modeHashes[mode] === 'string'
-      ? cache.modeHashes[mode]
+    const priorModeHash = typeof modeHashes[mode] === 'string'
+      ? modeHashes[mode]
       : null;
     const currentFingerprint = await readFingerprint(modePath);
-    const priorFingerprint = isObjectLike(cache.modeFingerprints?.[mode])
-      ? cache.modeFingerprints[mode]
+    const priorFingerprint = isObjectLike(modeFingerprints[mode])
+      ? modeFingerprints[mode]
       : null;
     if (modeHash !== priorModeHash || !fingerprintsMatch(currentFingerprint, priorFingerprint)) {
+      const canonical = buildStageCheckpointModeBasename(mode);
+      modePath = path.join(buildRoot, `${canonical.slice(0, -5)}.${randomUUID()}.json`);
       await atomicWriteText(modePath, `${JSON.stringify(modePayload)}\n`);
     }
-    cache.modeFingerprints[mode] = await readFingerprint(modePath);
-    cache.modeHashes[mode] = modeHash;
+    modeFingerprints[mode] = await readFingerprint(modePath);
+    modeHashes[mode] = modeHash;
     nextIndex.modes[mode] = {
-      path: relPath,
+      path: path.basename(modePath),
       updatedAt: now
     };
   }
   nextIndex.updatedAt = now;
   await atomicWriteText(indexPath, `${JSON.stringify(serializeCheckpointIndex(nextIndex))}\n`);
+  // Retain old slices for readers with an older index. Build retention owns
+  // their eventual retirement; a failed commit never deletes recovery data.
+  cache.modeHashes = modeHashes;
+  cache.modeFingerprints = modeFingerprints;
   cache.stageCheckpoints = mergedCheckpoints;
   cache.checkpointsFingerprint = await readFingerprint(indexPath);
   cache.checkpointsHash = hashJson(mergedCheckpoints);

@@ -488,7 +488,12 @@ export const createPatchQueue = ({
       clearTimeout(pending.timer);
       pending.timer = null;
     }
-    const result = await flushPendingState(buildRoot);
+    // Detachment is synchronous. Capture the serialized tail after admitting
+    // this flush, including already detached work but excluding later arrivals.
+    const flushing = flushPendingState(buildRoot);
+    const barrier = stateQueues.get(key);
+    if (barrier) await barrier;
+    const result = await flushing;
     const nextPending = statePending.get(key);
     if (nextPending?.patch || nextPending?.failedBatch) {
       return createTimedOutOutcome(key, Math.max(0, Date.now() - startedAtMs));

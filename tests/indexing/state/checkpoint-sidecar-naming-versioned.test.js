@@ -39,7 +39,8 @@ await flushBuildState(buildRoot);
 const entries = await fs.readdir(buildRoot);
 const sidecars = entries.filter((name) => name.startsWith('stage_checkpoints.v1.'));
 assert.ok(sidecars.includes('stage_checkpoints.v1.index.json'), 'expected versioned checkpoint index file');
-assert.ok(sidecars.includes('stage_checkpoints.v1.code.json'), 'expected versioned per-mode sidecar');
+const index = JSON.parse(await fs.readFile(path.join(buildRoot, 'stage_checkpoints.v1.index.json'), 'utf8'));
+assert.ok(sidecars.includes(index.modes.code.path), 'expected indexed versioned per-mode generation sidecar');
 for (const fileName of sidecars) {
   assert.match(
     fileName,

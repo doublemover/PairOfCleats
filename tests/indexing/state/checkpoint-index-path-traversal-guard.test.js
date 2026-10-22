@@ -30,7 +30,7 @@ await fs.writeFile(indexPath, JSON.stringify({
 }), 'utf8');
 
 const loaded = await loadCheckpointSlices(buildRoot);
-assert.equal(loaded, null, 'expected unsafe checkpoint descriptor path to be ignored');
+assert.deepEqual(loaded, {}, 'unsafe descriptor paths are ignored without reviving legacy state');
 await fs.access(outsidePayloadPath);
 
 await fs.rm(tempRoot, { recursive: true, force: true });

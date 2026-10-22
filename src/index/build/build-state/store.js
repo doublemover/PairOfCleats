@@ -9,7 +9,7 @@ import { atomicWriteJson, atomicWriteText } from '../../../shared/io/atomic-writ
 import { sha1 } from '../../../shared/hash.js';
 import { logLine } from '../../../shared/progress-runtime.js';
 import { readJsonFileSafe } from '../../../shared/file-read.js';
-import { loadCheckpointSlices, mergeStageCheckpoints, resolveCheckpointIndexPath, writeCheckpointSlices } from './checkpoints.js';
+import { loadCheckpointSlices, mergeStageCheckpoints, resolveCheckpointIndexPath, resolveCheckpointModePaths, writeCheckpointSlices } from './checkpoints.js';
 import { buildStageCheckpointModeBasename } from '../stage-checkpoints/sidecar.js';
 import {
   BUILD_STATE_DURABILITY_CLASS,
@@ -206,8 +206,9 @@ const readFingerprint = async (filePath) => {
   try {
     const stat = await fs.stat(filePath);
     return { mtimeMs: stat.mtimeMs, size: stat.size };
-  } catch {
-    return null;
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
   }
 };
 
@@ -263,7 +264,8 @@ const readJsonFile = async (filePath, {
 };
 
 const trimRecentPatchStageBuildRoots = () => {
-  while (recentPatchStagesByBuildRoot.size > PATCH_STAGE_TRACK_MAX_BUILD_ROOTS) {
+  let remaining = recentPatchStagesByBuildRoot.size;
+  while (recentPatchStagesByBuildRoot.size > PATCH_STAGE_TRACK_MAX_BUILD_ROOTS && remaining-- > 0) {
     const oldestKey = recentPatchStagesByBuildRoot.keys().next().value;
     if (oldestKey == null) break;
     if (isActiveStateKey(oldestKey)) {
@@ -280,8 +282,8 @@ const getRecentPatchStageMap = (buildRoot) => {
   const key = path.resolve(buildRoot);
   if (!recentPatchStagesByBuildRoot.has(key)) {
     recentPatchStagesByBuildRoot.set(key, new Map());
-    trimRecentPatchStageBuildRoots();
   }
+  trimRecentPatchStageBuildRoots();
   return recentPatchStagesByBuildRoot.get(key);
 };
 
@@ -866,13 +868,14 @@ const loadSidecar = async (buildRoot, type) => {
     return parsed;
   }
   const checkpointsFingerprint = await readFingerprint(resolveCheckpointIndexPath(buildRoot));
+  const checkpointModePaths = await resolveCheckpointModePaths(buildRoot);
   if (fingerprintsMatch(checkpointsFingerprint, cache.checkpointsFingerprint) && cache.stageCheckpoints) {
     const cachedModeFingerprints = cache.modeFingerprints;
     const modeKeys = Object.keys(cache.stageCheckpoints || {});
     if (isObjectLike(cachedModeFingerprints) && modeKeys.length) {
       let allModeFingerprintsMatch = true;
       for (const mode of modeKeys) {
-        const currentFingerprint = await readFingerprint(path.join(buildRoot, buildStageCheckpointModeBasename(mode)));
+        const currentFingerprint = await readFingerprint(checkpointModePaths[mode] || path.join(buildRoot, buildStageCheckpointModeBasename(mode)));
         const priorFingerprint = isObjectLike(cachedModeFingerprints?.[mode])
           ? cachedModeFingerprints[mode]
           : null;
@@ -894,7 +897,7 @@ const loadSidecar = async (buildRoot, type) => {
     const modeFingerprints = {};
     for (const mode of Object.keys(parsed)) {
       modeFingerprints[mode] = await readFingerprint(
-        path.join(buildRoot, buildStageCheckpointModeBasename(mode))
+        checkpointModePaths[mode] || path.join(buildRoot, buildStageCheckpointModeBasename(mode))
       );
     }
     cache.modeFingerprints = modeFingerprints;

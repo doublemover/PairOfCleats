@@ -24,5 +24,26 @@ try {
     assert.equal(await fs.readFile(filePath, 'utf8'), bytes);
     if (target === 'progress') assert.equal(await fs.readFile(statePath, 'utf8'), state);
   }
+  for (const target of ['state', 'progress']) {
+    const buildRoot = path.join(root, `unreadable-${target}`);
+    await fs.mkdir(buildRoot);
+    const statePath = path.join(buildRoot, 'build_state.json');
+    const state = JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, keep: 'original' });
+    await fs.writeFile(statePath, state);
+    const filePath = target === 'state' ? statePath : path.join(buildRoot, 'build_state.progress.json');
+    if (target === 'progress') await fs.writeFile(filePath, '{"code":{"keep":true}}');
+    const before = await fs.readFile(filePath);
+    const stat = fs.stat;
+    fs.stat = async (file, ...args) => {
+      if (file === filePath) throw Object.assign(new Error('read permission denied'), { code: 'EACCES' });
+      return stat(file, ...args);
+    };
+    try {
+      await assert.rejects(applyStatePatch(buildRoot,
+        target === 'state' ? { stage: 'new' } : { progress: { code: { done: 1 } } }), { code: 'EACCES' });
+    } finally { fs.stat = stat; }
+    assert.deepEqual(await fs.readFile(filePath), before);
+    assert.equal(await fs.readFile(statePath, 'utf8'), state);
+  }
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('oversized build-state and progress patches preserve original bytes');
