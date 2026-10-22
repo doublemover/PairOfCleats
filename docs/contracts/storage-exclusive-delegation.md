@@ -46,6 +46,14 @@ event. It returns the existing exclusion wrapper result containing the exit
 code/signal and settlement receipt. The wrapper then restores the parent reader
 before releasing exclusion.
 
+The child stops admitting reads when settlement transmission starts. Its local
+`settled` state remains false until the actual IPC send callback fulfills.
+Concurrent closure callers join one original transmission. Failed transmission
+retains that rejected flight and the blocked reader state: delivery is unknown,
+so another call cannot replay the authenticated one-use receipt or claim local
+settlement. A fulfilled send still does not independently release parent
+exclusion; the parent requires its authenticated receipt and actual child close.
+
 Missing/forged/stale/wrong-child receipts, an unconfirmed child lifetime or any
 changed lock/root/lease record retain exclusion. The exact parent reader lease
 is restored while local admissions remain suspended. An unresolved delegation
@@ -57,5 +65,9 @@ override.
 
 The authored fixture uses a real `node:sqlite` database handle behind the import
 gate and includes wrong-child/stale grants, forged closure, missing settlement,
-and stale-parent reader admission. LMDB and the existing TUI service's actual
-SQLite/LMDB closers require their owner integration and deferred runtime proof.
+stale-parent reader admission, and in-flight/rejected settlement transmission.
+The latter uses the actual admitted child/native owner with a controlled IPC
+send callback, requires the child's assertion-success marker and zero exit, and
+retains parent exclusion. These authored controls are unrun. LMDB and the existing
+TUI service's actual SQLite/LMDB closers require their owner integration and
+deferred runtime proof.

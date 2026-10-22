@@ -237,9 +237,9 @@ export const admitDelegatedRepoCacheOwner = async () => {
     process.on('message', receive); process.once('disconnect', disconnected);
     send(process, { protocol: PROTOCOL, type: 'claim', signature: mac(capability, payload) }).catch(disconnected);
   });
-  const owner = { paths, record, capability, claim, settled: false };
+  const owner = { paths, record, capability, claim, settled: false, settlementStarted: false, settlementFlight: null };
   registerDelegatedRepoCacheReader(paths, { assertAdmission: () => {
-    if (owner.settled) throw new Error('Delegated native owner is already settled.');
+    if (owner.settlementStarted) throw new Error('Delegated native owner no longer admits reads after settlement starts.');
     requireRecord(paths, record);
     if (readLockInfoSync(record.claimFile)?.lockId !== claim.lockId) throw new Error('Delegated child lease changed.');
   } });
@@ -254,12 +254,22 @@ export const settleDelegatedRepoCacheOwner = async ({ resourceId, handlesClosed,
   const owner = childOwner;
   if (!owner || owner.settled || resourceId !== owner.record.resourceId || handlesClosed !== true
     || descendantsSettled !== true || pending !== false) throw new Error('Exact delegated native resource closure is required.');
+  if (owner.settlementFlight) return owner.settlementFlight;
   requireRecord(owner.paths, owner.record);
   const receipt = { sessionId: owner.record.sessionId, childPid: process.pid, childNonce: owner.record.childNonce,
     invocationId: owner.record.invocationId, resourceId, handlesClosed: true, descendantsSettled: true, pending: false };
-  owner.settled = true;
-  await send(process, { protocol: PROTOCOL, type: 'settled', receipt, signature: mac(owner.capability, receipt) });
-  return { ...receipt, settled: true };
+  // Stop new reads before the asynchronous send, but do not report successful
+  // settlement until its actual callback confirms transmission. A failed send
+  // has unknown delivery, so retain this one flight instead of replaying a
+  // one-use authenticated receipt or allowing readers to resume.
+  owner.settlementStarted = true;
+  owner.settlementFlight = Promise.resolve().then(async () => {
+    await send(process, { protocol: PROTOCOL, type: 'settled', receipt, signature: mac(owner.capability, receipt) });
+    owner.settled = true;
+    return { ...receipt, settled: true };
+  });
+  owner.settlementFlight.catch(() => {});
+  return owner.settlementFlight;
 };
 
 export const getDelegatedRepoCacheOwner = () => childOwner ? Object.freeze({ resourceId: childOwner.record.resourceId,

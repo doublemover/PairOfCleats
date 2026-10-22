@@ -33,7 +33,7 @@ try {
     assert.notEqual(code, 0, 'serialized wrong-child/stale grant cannot admit the entry');
     assert.deepEqual(await fs.readdir(root), [], 'native command must not import or open a database before admission');
   }
-  for (const mode of ['settled', 'no-settlement', 'forged-receipt']) {
+  for (const mode of ['settled', 'no-settlement', 'forged-receipt', 'failed-settlement-send']) {
     const root = path.join(temporary, mode);
     await fs.mkdir(root);
     retainRepoCacheAccess(root, { coordinationRoot });
@@ -48,15 +48,23 @@ try {
       drain: async ({ leaseId }) => ({ leaseId, drained: true, pending: false }) }) : handoff;
     const controller = await startDelegatedRepoCacheOwner(root, { localAccessHandoff: actual, resourceId: 'fixture-native',
       commandIdentity: 'fixture-sqlite-create', entry, args: [mode, root, coordinationRoot], coordinationRoot, env });
-    controller.child.stdout?.resume(); controller.child.stderr?.resume();
+    let childProof = '';
+    controller.child.stdout?.on('data', bytes => { childProof += bytes.toString('utf8'); });
+    controller.child.stderr?.resume();
     if (mode === 'settled') {
       const result = await controller.completion;
       assert.equal(result.result.settled, true);
+      assert.equal(controller.child.exitCode, 0);
+      assert.match(childProof, /actual settlement transmission controls passed/);
       assert.equal(inspectRepoCacheDelegation(repoAccessPaths(root, { coordinationRoot })).protected, false);
       retainRepoCacheAccess(root, { coordinationRoot });
       assert.equal((await fs.readdir(repoAccessPaths(root, { coordinationRoot }).leases)).length, 1, 'exact parent lease restored before exclusion release');
     } else {
       await assert.rejects(controller.completion, { code: 'ERR_REPO_CACHE_DELEGATION_PENDING' });
+      if (mode === 'failed-settlement-send') {
+        assert.equal(controller.child.exitCode, 0, 'expected pending ownership cannot mask failed child assertions');
+        assert.match(childProof, /original settlement send failure controls passed/);
+      }
       const paths = repoAccessPaths(root, { coordinationRoot });
       const record = JSON.parse(await fs.readFile(path.join(paths.directory, 'delegation.json'), 'utf8'));
       assert.equal(record.parentLeaseId, actual.leaseId);
