@@ -85,3 +85,26 @@ export const groupQueueJobsByIdempotency = jobs => {
   }
   return [...groups].map(({ idempotencyKey, jobs: members }) => ({ idempotencyKey, jobs: members }));
 };
+
+/** Direct alias lookup for one locked claim snapshot, preserving queue order. */
+export const createRunningQueueDuplicateLookup = (jobs) => {
+  const byAlias = new Map();
+  for (let order = 0; order < jobs.length; order += 1) {
+    const job = jobs[order];
+    if (job?.status !== 'running' || !job.idempotencyKey) continue;
+    for (const key of identityKeys(job)) {
+      const candidates = byAlias.get(key) || [];
+      // One exclusion ID is queried; the first two distinct IDs suffice.
+      if (candidates.length < 2 && !candidates.some(entry => entry.job.id === job.id)) candidates.push({ job, order });
+      byAlias.set(key, candidates);
+    }
+  }
+  return (job) => {
+    let found = null;
+    for (const key of identityKeys(job)) {
+      const candidate = byAlias.get(key)?.find(entry => entry.job.id !== job.id);
+      if (candidate && (!found || candidate.order < found.order)) found = candidate;
+    }
+    return found?.job || null;
+  };
+};

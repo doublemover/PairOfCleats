@@ -1,3 +1,4 @@
+import { prepareStructuralMatches } from './chunk.js';
 import { collectStandaloneWasm } from '../../semantic/wasm/standalone.js';
 import { collectEmbeddedSemanticSources, collectEmbeddedSemanticOwnership } from '../../semantic/embedded-source.js';
 import { collectSemanticOwnership } from '../../semantic/ownership.js';
@@ -964,7 +965,7 @@ export const processFileCpu = async (context) => {
     relationsEnabled: effectiveRelationsEnabled,
     fileRelations,
     callIndex,
-    fileStructural,
+    fileStructural: prepareStructuralMatches(fileStructural, totalLines),
     commentEntries,
     commentRanges,
     normalizedCommentsConfig,

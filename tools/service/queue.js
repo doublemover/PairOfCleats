@@ -4,7 +4,7 @@ import path from 'node:path';
 import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
 import { resolveQueueLeasePolicy } from './lease-policy.js';
 import { buildQueueJobIdempotencyKey, groupQueueJobsByIdempotency, normalizeQueueEmbeddingPayloadVersion,
-  queueJobsShareIdempotency, resolveQueueIdempotencySource } from './queue-idempotency.js';
+  createRunningQueueDuplicateLookup, queueJobsShareIdempotency, resolveQueueIdempotencySource } from './queue-idempotency.js';
 import {
   appendQueueJournalEntries,
   createQueueJournalEntry,
@@ -1155,11 +1155,12 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
     const now = Date.now();
     const nowIso = new Date(now).toISOString();
     const journalEntries = [];
+    const runningDuplicateFor = createRunningQueueDuplicateLookup(queue.jobs);
     let job = null;
     for (const entry of queue.jobs) {
       if (entry.status !== 'queued') continue;
       if (entry.idempotencyKey) {
-        const runningDuplicate = findActiveDuplicateJob(queue.jobs, entry.idempotencyKey, entry.id, entry);
+        const runningDuplicate = runningDuplicateFor(entry);
         if (runningDuplicate?.status === 'running') {
           const suppressed = suppressQueuedDuplicateJob(entry, {
             at: nowIso,

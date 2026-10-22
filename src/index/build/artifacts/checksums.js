@@ -46,6 +46,8 @@ export const writePiecesManifest = async ({
       }
       if (!Number.isFinite(bytes)) {
         bytes = stat.size;
+      } else if (bytes !== stat.size) {
+        throw new Error(`Pieces manifest sealed size mismatch for ${entry.path}`);
       }
       if (typeof entry?.checksum === 'string' && entry.checksum.includes(':')) {
         const [algo, value] = entry.checksum.split(':');

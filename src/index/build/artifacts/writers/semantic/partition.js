@@ -1,3 +1,4 @@
+import { readPreparedSemanticBatchEntry } from '../../../../semantic/prepared-batch.js';
 import { syncParentDirectory } from '../../../../../shared/io/persistence-helpers.js';
 import { retainSemanticSource } from '../../../../semantic/source-storage.js';
 import fs from 'node:fs/promises';
@@ -84,12 +85,11 @@ export const createSemanticPartitionSink = async ({
         'evidence', 'recordRef', 'scope']) inspectRef(row[key]);
     }
   };
-  const writePart = async (member, rows) => {
-    if (!rows.length) return;
+  const writePart = async (member, buffers) => {
+    if (!buffers.length) return;
     throwIfAborted(signal);
-    const buffers = rows.map((row) => Buffer.from(canonicalSemanticJson(row), 'utf8'));
     const bytes = buffers.reduce((sum, buffer) => sum + buffer.length + 1, 0);
-    const offsets = Buffer.alloc(rows.length * 8);
+    const offsets = Buffer.alloc(buffers.length * 8);
     let offset = 0;
     for (let i = 0; i < buffers.length; i += 1) {
       offsets.writeBigUInt64LE(BigInt(offset), i * 8);
@@ -126,9 +126,9 @@ export const createSemanticPartitionSink = async ({
     members[member].push({
       path: prefix + '/' + filename, offsetsPath: prefix + '/' + filename + '.offsets',
       hash: hash.digest('hex'), offsetsHash: createHash('sha256').update(offsets).digest('hex'),
-      count: rows.length, bytes, firstRow: counts[member]
+      count: buffers.length, bytes, firstRow: counts[member]
     });
-    counts[member] += rows.length;
+    counts[member] += buffers.length;
   };
   const abort = async () => {
     if (busy) throw fail('Await the active semantic sink operation before aborting.');
@@ -147,20 +147,41 @@ export const createSemanticPartitionSink = async ({
     }
     // Check the complete bounded batch before any write. Long operands are rows,
     // never a reason to erase an argument list or truncate a source payload.
-    const measured = batch.rows.reduce((sum, entry) => sum + Buffer.byteLength(canonicalSemanticJson(entry)) + 1, 0);
+    const prepared = [];
+    let measured = 0;
+    for (const entry of batch.rows) {
+      const owned = readPreparedSemanticBatchEntry(entry);
+      if (owned) {
+        measured += owned.byteCount;
+        if (measured > batchBytes) throw fail('Semantic batch byte limit/count mismatch.');
+        prepared.push({ family: entry.family, row: entry.row, payload: Buffer.from(owned.rowJson, 'utf8') });
+        continue;
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(entry, 'row');
+      if (!descriptor || !Object.hasOwn(descriptor, 'value')) throw fail('Semantic row getters are not JSON.');
+      const row = descriptor.value;
+      let payload = null;
+      const envelope = canonicalSemanticJson(entry, {
+        onObjectEncoded: (value, encoded) => { if (value === row) payload = Buffer.from(encoded, 'utf8'); }
+      });
+      measured += Buffer.byteLength(envelope) + 1;
+      if (measured > batchBytes) throw fail('Semantic batch byte limit/count mismatch.');
+      if (!payload) throw fail('Semantic batch row must be an explicit JSON object.');
+      prepared.push({ family: entry.family, row, payload });
+    }
     if (measured > batchBytes || batch.byteCount !== measured) throw fail('Semantic batch byte limit/count mismatch.');
     const groups = Object.fromEntries(Object.values(MEMBERS).map((name) => [name, []]));
     let nextNode = counts.semantic_records;
     let nextEdge = edgeId;
-    for (const { family, row } of batch.rows) {
+    for (const { family, row, payload } of prepared) {
       if (!Object.hasOwn(MEMBERS, family)) throw fail('Unsupported semantic row family: ' + family);
       const validation = validateSemanticRecord(family, row, { sourceLength: source.textLength, structuralSlots });
       if (!validation.ok) throw fail(validation.errors.join('; '));
       if (family === 'node' && row.id !== nextNode++) throw fail('Semantic nodes must have contiguous preorder IDs.');
       if (family === 'edge' && row.id !== nextEdge++) throw fail('Analysis edges must have contiguous IDs.');
-      groups[MEMBERS[family]].push(row);
+      groups[MEMBERS[family]].push(payload);
     }
-    for (const { family, row } of batch.rows) inspectReferences(family, row);
+    for (const { family, row } of prepared) inspectReferences(family, row);
     busy = true;
     let release = null;
     try {
@@ -181,7 +202,7 @@ export const createSemanticPartitionSink = async ({
     busy = true;
     try {
       await retainSemanticSource({ root: stagingRoot, source, bytes: sourceBytes, diskAccount, signal });
-      await writePart('semantic_sources', [source]);
+      await writePart('semantic_sources', [Buffer.from(canonicalSemanticJson(source), 'utf8')]);
       const memberHashes = Object.fromEntries(SEMANTIC_MEMBER_NAMES.map((name) => [name, hashes[name].digest('hex')]));
       const descriptor = {
         schemaVersion: 1, semanticSchemaVersion: 1, partitionId, sourceUnitId: source.sourceUnitId,

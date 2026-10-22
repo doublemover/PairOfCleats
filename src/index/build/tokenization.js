@@ -242,12 +242,7 @@ export function buildChargramsFromTokens(tokens, options, buffers = null) {
   return out;
 }
 
-const computeTokenStats = (tokens) => {
-  const freq = Object.create(null);
-  for (let i = 0; i < tokens.length; i += 1) {
-    const token = tokens[i];
-    freq[token] = (freq[token] || 0) + 1;
-  }
+const computeTokenStats = (freq) => {
   const counts = Object.values(freq);
   const unique = counts.length;
   let sum = 0;
@@ -295,8 +290,13 @@ export function tokenizeChunkText(input) {
 
   const tokenIdsOut = buffers?.tokenIds || [];
   if (buffers?.tokenIds) tokenIdsOut.length = 0;
+  const frequencies = Object.create(null);
+  const tokenIdentity = new Map();
   for (let i = 0; i < tokens.length; i += 1) {
-    tokenIdsOut.push(hashTokenId(tokens[i]));
+    const token = tokens[i];
+    frequencies[token] = (frequencies[token] || 0) + 1;
+    if (!tokenIdentity.has(token)) tokenIdentity.set(token, hashTokenId(token));
+    tokenIdsOut.push(tokenIdentity.get(token));
   }
   const tokenIds = buffers?.tokenIds ? tokenIdsOut.slice() : tokenIdsOut;
 
@@ -318,9 +318,7 @@ export function tokenizeChunkText(input) {
 
   const mh = buffers?.minhash || new SimpleMinHash();
   if (buffers?.minhash) mh.reset();
-  for (let i = 0; i < tokens.length; i += 1) {
-    mh.update(tokens[i]);
-  }
+  for (const token of tokenIdentity.keys()) mh.update(token);
 
   return {
     tokens,
@@ -328,7 +326,7 @@ export function tokenizeChunkText(input) {
     tokenIds,
     minhashSig: buffers?.minhash ? mh.hashValues.slice() : mh.hashValues,
     minhashHashIdentity: mh.hashIdentity,
-    stats: computeTokenStats(tokens),
+    stats: computeTokenStats(frequencies),
     ...(classification ? {
       identifierTokens: classification.identifierTokens,
       keywordTokens: classification.keywordTokens,

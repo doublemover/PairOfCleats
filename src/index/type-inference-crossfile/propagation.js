@@ -1,3 +1,4 @@
+import { createSymbolRefCacheMaintenance } from './symbol-ref-cache-maintenance.js';
 import path from 'node:path';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { mergeSymbolicTypeGraphs } from '../../shared/symbolic-types.js';
@@ -164,25 +165,9 @@ export async function runCrossFilePropagation({
   const fileSet = new Set();
   const symbolRefCache = new Map();
   const callSampleCounts = new Map();
-
-  const pruneSymbolRefCache = (nowMs) => {
-    if (!symbolRefCache.size) return;
-    if (symbolRefCache.size > SYMBOL_REF_CACHE_MAX_ENTRIES) {
-      const toEvict = symbolRefCache.size - SYMBOL_REF_CACHE_MAX_ENTRIES;
-      const iter = symbolRefCache.keys();
-      for (let index = 0; index < toEvict; index += 1) {
-        const next = iter.next();
-        if (next.done) break;
-        symbolRefCache.delete(next.value);
-      }
-    }
-    const cutoff = nowMs - SYMBOL_REF_CACHE_TTL_MS;
-    for (const [key, entry] of symbolRefCache.entries()) {
-      if (!entry || Number(entry.ts) < cutoff) {
-        symbolRefCache.delete(key);
-      }
-    }
-  };
+  const symbolRefMaintenance = createSymbolRefCacheMaintenance(symbolRefCache, {
+    maxEntries: SYMBOL_REF_CACHE_MAX_ENTRIES, ttlMs: SYMBOL_REF_CACHE_TTL_MS
+  });
 
   for (const chunk of chunks) {
     throwIfAborted(abortSignal);
@@ -238,8 +223,9 @@ export async function runCrossFilePropagation({
       fileSet
     });
     symbolRefCache.set(cacheKey, { value: resolved || null, ts: now });
+    symbolRefMaintenance.inserted(now);
     if (symbolRefCache.size > SYMBOL_REF_CACHE_MAX_ENTRIES) {
-      pruneSymbolRefCache(now);
+      symbolRefMaintenance.prune(now);
     }
     return resolved || null;
   };

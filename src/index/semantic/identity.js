@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 /** Canonical JSON for semantic identities; never silently drops unsupported values. */
-export const canonicalSemanticJson = (value) => {
+export const canonicalSemanticJson = (value, { onObjectEncoded = null } = {}) => {
   const active = new Set();
   const encode = (item) => {
     if (item === null) return 'null';
@@ -28,13 +28,17 @@ export const canonicalSemanticJson = (value) => {
           if (!descriptor || !Object.hasOwn(descriptor, 'value')) throw new TypeError('Identity getters are not JSON.');
           parts.push(encode(descriptor.value));
         }
-        return '[' + parts.join(',') + ']';
+        const encoded = '[' + parts.join(',') + ']';
+        onObjectEncoded?.(item, encoded);
+        return encoded;
       }
-      return '{' + Object.keys(item).sort().map((key) => {
+      const encoded = '{' + Object.keys(item).sort().map((key) => {
         const descriptor = Object.getOwnPropertyDescriptor(item, key);
         if (!Object.hasOwn(descriptor, 'value')) throw new TypeError('Identity getters are not JSON.');
         return JSON.stringify(key) + ':' + encode(descriptor.value);
       }).join(',') + '}';
+      onObjectEncoded?.(item, encoded);
+      return encoded;
     } finally {
       active.delete(item);
     }

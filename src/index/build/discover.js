@@ -18,7 +18,7 @@ import { pickMinLimit, resolveFileCaps, resolveSharedDiscoveryFileCaps } from '.
 import { getEnvConfig } from '../../shared/env/runtime.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { detectShebangLanguage } from './shebang.js';
-import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
+import { isWithinRoot, toRealPath } from '../../workspace/identity.js';
 import {
   buildGeneratedPolicyConfig,
   buildGeneratedPolicyDowngradePayload,
@@ -172,13 +172,13 @@ export async function discoverEntries({
     const caps = resolveSharedDiscoveryFileCaps(fileCaps, ext, languageId, modes);
     return pickMinLimit(maxBytes, caps.maxBytes);
   };
-  const canonicalRoot = toRealPathSync(root);
-  const canonicalRecordsRoot = recordsDir ? toRealPathSync(recordsDir) : null;
+  const canonicalRoot = await toRealPath(root);
+  const canonicalRecordsRoot = recordsDir ? await toRealPath(recordsDir) : null;
   const recordsRoot = canonicalRecordsRoot
     && isWithinRoot(canonicalRecordsRoot, canonicalRoot)
     ? canonicalRecordsRoot
     : null;
-  const canonicalRepoRoot = scmRepoRoot ? toRealPathSync(scmRepoRoot) : null;
+  const canonicalRepoRoot = scmRepoRoot ? await toRealPath(scmRepoRoot) : null;
   const rootRel = canonicalRepoRoot
     ? (isWithinRoot(canonicalRoot, canonicalRepoRoot)
       ? toPosix(path.relative(canonicalRepoRoot, canonicalRoot))
@@ -262,7 +262,7 @@ export async function discoverEntries({
   };
   const processCandidate = async (absPath) => {
     throwIfAborted(abortSignal);
-    const canonicalAbs = toRealPathSync(absPath);
+    const canonicalAbs = await toRealPath(absPath);
     if (!isWithinRoot(canonicalAbs, canonicalRoot)) return;
     let relPosix = toPosix(path.relative(root, absPath));
     if (!relPosix || relPosix === '.' || isRelativePathEscape(relPosix) || path.isAbsolute(relPosix)) {

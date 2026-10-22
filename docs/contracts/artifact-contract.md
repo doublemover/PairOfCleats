@@ -362,3 +362,9 @@ gzip sharded output does not construct an unused zstd-worker pool.
 These implementation bounds have authored regressions. Throughput, allocation,
 platform and cancellation qualification remain separate measurement obligations;
 no performance improvement is asserted by this contract.
+
+Reconciliation uses an identity-only chunk reader. JSONL cold rows pass through
+the ordinary manifest-selected decoder and validation, then only identity and
+provenance fields enter the cold-ID map; complete context/relation rows are not
+retained. JSON/columnar formats retain their existing bounded decode limits. Full
+search/display readers continue to hydrate the complete cold surface.

@@ -36,6 +36,17 @@ const order = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 export const createSemanticCompilerSession = async ({ state, runtime, signal = null }) => {
   const policy = runtime.semanticPolicy, inventory = new Map(), texts = new Map(), wasmModules = new Map();
   const emitted = [], contexts = [], groups = [], declarationChunks = new Map();
+  const factsBySource = new Map(), factsByContainer = new Map();
+  const unique = (map, key, value, label) => {
+    if (map.has(key)) throw Object.assign(new Error(`Ambiguous semantic ${label}: ${key}`), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
+    map.set(key, value);
+  };
+  for (const [file, descriptor] of state.semanticFactsByFile || []) {
+    const entry = [file, descriptor];
+    unique(factsBySource, descriptor.sourceUnitId, entry, 'source identity');
+    unique(factsByContainer, keyPath(path.resolve(runtime.root, file)), entry, 'container identity');
+  }
+
   let activeCompilerSystem = null;
   const chunksByUid = new Map((state.chunks || []).map(chunk => [chunk.chunkUid || chunk.metaV2?.chunkUid, chunk]));
   const detailsByFile = new Map();
@@ -62,7 +73,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       const mapBytes = await fs.readFile(await resolveSemanticPartPath(root, source.mapping.mapRef));
       sourceMap = JSON.parse(mapBytes.toString('utf8'));
       if (createHash('sha256').update(mapBytes).digest('hex') !== path.basename(source.mapping.mapRef, '.json') || semanticHash('semantic.embedded-map.v1', sourceMap) !== source.mapping.identity) throw new Error('Compiler embedded mapping mismatch.');
-      const parent = [...state.semanticFactsByFile.values()].find(value => value.sourceUnitId === source.mapping.parentSourceUnitId);
+      const parent = factsBySource.get(source.mapping.parentSourceUnitId)?.[1];
       if (!parent || sourceMap.parentSourceUnitId !== parent.sourceUnitId || sourceMap.parentByteHash !== parent.sourceHash || sourceMap.localEnd !== source.textLength || sourceMap.quality !== source.mapping.quality) throw new Error('Compiler embedded parent mismatch.');
       if (source.mapping.quality !== 'exact') continue;
     }
@@ -81,14 +92,14 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         declarationChunks.set(refKey(join.recordRef), join.chunkUid);
       }
     }
-    const sourcePolicy = resolveSemanticSourcePolicy(policy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, language: source.language, path: source.mapping ? [...state.semanticFactsByFile].find(([, parent]) => parent.sourceUnitId === source.mapping.parentSourceUnitId)?.[0] || source.path : source.path });
+    const sourcePolicy = resolveSemanticSourcePolicy(policy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, language: source.language, path: source.mapping ? factsBySource.get(source.mapping.parentSourceUnitId)?.[0] || source.path : source.path });
     const plan = state.semanticPlanningBySource?.get(source.sourceUnitId) || planSemanticSource(sourcePolicy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, syntaxPartitionId: syntax.partitionId, metrics: { nodes: descriptor.counts?.semantic_records || 0, operands: descriptor.counts?.semantic_operands || 0 } });
-    inventory.set(keyPath(path.join(runtime.root, source.path)), { file, descriptor, source, root, store, syntax, declarations, callables, sourceMap, policy: sourcePolicy, plan });
+    unique(inventory, keyPath(path.join(runtime.root, source.path)), { file, descriptor, source, root, store, syntax, declarations, callables, sourceMap, policy: sourcePolicy, plan }, 'compiler path');
     texts.set(source.path, text);
   }
   // VFS segmentation reads the exact retained container, never today's working tree.
   for (const item of inventory.values()) if (item.source.mapping) {
-    const [parentFile, parent] = [...state.semanticFactsByFile].find(([, descriptor]) => descriptor.sourceUnitId === item.source.mapping.parentSourceUnitId) || [];
+    const [parentFile, parent] = factsBySource.get(item.source.mapping.parentSourceUnitId) || [];
     if (!parent || texts.has(parentFile)) continue;
     const root = path.join(runtime.buildRoot, parent.storage.relativePath);
     const store = createArtifactSemanticStore({ root, repoRoot: runtime.root, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
@@ -101,11 +112,29 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       texts.set(parentFile, text);
     }
   }
+  const inventoryBySource = new Map(), inventoryBySegment = new Map();
+  const segmentKey = (container, uid, start, end) => JSON.stringify([container, uid, start, end]);
+  for (const item of inventory.values()) {
+    unique(inventoryBySource, item.source.sourceUnitId, item, 'compiler source identity');
+    if (item.sourceMap) {
+      const parent = factsBySource.get(item.source.mapping.parentSourceUnitId);
+      if (!parent) throw new Error('Compiler embedded parent missing.');
+      const key = segmentKey(keyPath(path.join(runtime.root, parent[0])), item.sourceMap.segmentUid, item.sourceMap.parentStart, item.sourceMap.parentEnd);
+      const candidates = inventoryBySegment.get(key) || [];
+      candidates.push(item); inventoryBySegment.set(key, candidates);
+    }
+  }
   const sourceForDoc = doc => {
-    if (doc.semanticSourceUnitId && !doc.segmentUid) return [...inventory.values()].find(item => !item.source.mapping && item.source.sourceUnitId === doc.semanticSourceUnitId);
+    if (doc.semanticSourceUnitId && !doc.segmentUid) {
+      const item = inventoryBySource.get(doc.semanticSourceUnitId);
+      return item && !item.source.mapping ? item : undefined;
+    }
     const container = keyPath(path.resolve(runtime.root, doc.containerPath || doc.virtualPath));
-    if (doc.segmentUid) return [...inventory.values()].find(item => item.sourceMap?.segmentUid === doc.segmentUid && item.sourceMap.parentStart === doc.segmentRange?.start && item.sourceMap.parentEnd === doc.segmentRange?.end && item.sourceMap.localEnd === doc.text.length && texts.get(item.source.path) === doc.text && [...state.semanticFactsByFile].some(([parentFile, parent]) => parent.sourceUnitId === item.source.mapping.parentSourceUnitId && keyPath(path.join(runtime.root, parentFile)) === container));
-    return inventory.get(container);
+    if (!doc.segmentUid) return inventory.get(container);
+    const key = segmentKey(container, doc.segmentUid, doc.segmentRange?.start, doc.segmentRange?.end);
+    const matches = (inventoryBySegment.get(key) || []).filter(item => item.sourceMap.localEnd === doc.text.length && texts.get(item.source.path) === doc.text);
+    if (matches.length > 1) throw Object.assign(new Error('Ambiguous compiler embedded source.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
+    return matches[0];
   };
   return {
     fileTextByFile: texts,
@@ -115,7 +144,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       return documents.map(doc => {
         const item = sourceForDoc(doc), source = item?.source;
         const containerPath = doc.containerPath || doc.virtualPath;
-        const parent = [...state.semanticFactsByFile].find(([file]) => keyPath(path.resolve(runtime.root,file)) === keyPath(path.resolve(runtime.root,containerPath)))?.[1];
+        const parent = factsByContainer.get(keyPath(path.resolve(runtime.root, containerPath)))?.[1];
         if (!parent && !source) throw Object.assign(new Error('Compiler virtual document has no retained source authority.'), { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' });
         return { ...doc, authority: { virtualPath: doc.virtualPath, containerPath,
           segmentUid: doc.segmentUid || null, sourceUnitId: source?.sourceUnitId || null, sourceHash: source?.byteHash || null,

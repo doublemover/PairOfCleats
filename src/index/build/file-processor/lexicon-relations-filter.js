@@ -58,16 +58,15 @@ const resolveDropConfig = ({ languageId, config }) => {
 };
 
 const buildDropSet = (lexicon, dropConfig) => {
-  const set = new Set();
-  const maybeAdd = (enabled, values) => {
-    if (!enabled || !(values instanceof Set)) return;
-    for (const value of values) set.add(value);
+  // A constant-size membership view avoids copying all immutable lexicon tokens
+  // per file, and observes injected mutable lexicons for this synchronous call.
+  const categories = ['keywords', 'literals', 'builtins', 'types']
+    .filter(category => dropConfig[category] && lexicon[category] instanceof Set)
+    .map(category => lexicon[category]);
+  return {
+    size: categories.reduce((sum, values) => sum + values.size, 0),
+    has: value => categories.some(values => values.has(value))
   };
-  maybeAdd(dropConfig.keywords, lexicon.keywords);
-  maybeAdd(dropConfig.literals, lexicon.literals);
-  maybeAdd(dropConfig.builtins, lexicon.builtins);
-  maybeAdd(dropConfig.types, lexicon.types);
-  return set;
 };
 
 const classifyToken = (token, lexicon) => {

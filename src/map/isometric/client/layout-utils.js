@@ -412,11 +412,9 @@ const buildSccLanes = (keys, adjacency) => {
   for (let i = 0; i < indegree.length; i += 1) {
     if (indegree[i] === 0) queue.push(i);
   }
-  queue.sort((a, b) => a - b);
-
   const topo = [];
-  while (queue.length) {
-    const comp = queue.shift();
+  for (let queueHead = 0; queueHead < queue.length; queueHead += 1) {
+    const comp = queue[queueHead];
     topo.push(comp);
     const out = componentEdges.get(comp);
     if (!out) continue;
@@ -424,7 +422,6 @@ const buildSccLanes = (keys, adjacency) => {
       indegree[target] -= 1;
       if (indegree[target] === 0) {
         queue.push(target);
-        queue.sort((a, b) => a - b);
       }
     }
   }

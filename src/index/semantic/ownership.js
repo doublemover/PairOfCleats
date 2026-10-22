@@ -1,8 +1,9 @@
+import { prepareSemanticBatchEntry, semanticBatchEntryBytes } from './prepared-batch.js';
 import { createSemanticFactsRef } from './file-ref.js';
 import { SEMANTIC_OWNERSHIP_VERSION, SEMANTIC_OWNERSHIP_PRODUCER_HASH } from './analysis-versions.js';
 import { createArtifactSemanticStore } from '../../semantic/artifact-store.js';
 import { createSemanticPartitionSink } from '../build/artifacts/writers/semantic/partition.js';
-import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
+import { createAnalysisPartitionId, semanticHash } from './identity.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 
 /** Interval tree avoids scanning every chunk for every syntax record. */
@@ -54,10 +55,10 @@ export const collectSemanticOwnership = async ({ facts, chunks, bytes,
       let primary = false;
       for (const match of matches) {
         const contains = match.start <= row.span[0] && match.end >= row.span[1];
-        const entry = { family: 'ownership', row: { recordRef: { partitionId: facts.partition.partitionId, localId: row.id },
-          chunkUid: match.uid, role: contains && !primary ? 'primary' : 'overlap' } };
+        const entry = prepareSemanticBatchEntry({ family: 'ownership', row: { recordRef: { partitionId: facts.partition.partitionId, localId: row.id },
+          chunkUid: match.uid, role: contains && !primary ? 'primary' : 'overlap' } });
         if (contains) primary = true;
-        const size = Buffer.byteLength(canonicalSemanticJson(entry)) + 1;
+        const size = semanticBatchEntryBytes(entry);
         if (rows.length && (rows.length >= policy.storage.batchRows || byteCount + size > policy.storage.batchBytes)) await flush();
         rows.push(entry); byteCount += size;
       }

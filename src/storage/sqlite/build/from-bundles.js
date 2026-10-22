@@ -328,11 +328,13 @@ export async function buildDatabaseFromBundles({
       if (!(map instanceof Map)) return warned;
       if (map.size < maxVocabLookupEntries) return warned;
       if (typeof flushPending === 'function') flushPending();
-      map.clear();
+      // Flush before eviction so a pending identity remains SQL-resolvable.
+      // Evict only enough oldest entries for one admission, retaining hot IDs.
+      while (map.size >= maxVocabLookupEntries) map.delete(map.keys().next().value);
       if (!warned) {
         warn(
           `[sqlite] ${label} lookup cache reached ${maxVocabLookupEntries} entries; ` +
-          'clearing cache to cap memory.'
+          'evicting least-recently-used identities to cap memory.'
         );
       }
       return true;
@@ -353,6 +355,11 @@ export async function buildDatabaseFromBundles({
       map.set(value, id);
       return nextWarned;
     };
+    const getCachedVocabId = (map, value) => {
+      const cached = map.get(value);
+      if (cached !== undefined) { map.delete(value); map.set(value, cached); }
+      return cached;
+    };
     const resolvePersistedVocabId = ({
       map,
       value,
@@ -361,7 +368,7 @@ export async function buildDatabaseFromBundles({
       warned,
       flushPending = null
     }) => {
-      const cached = map.get(value);
+      const cached = getCachedVocabId(map, value);
       if (cached !== undefined) {
         return { id: cached, warned };
       }
@@ -443,7 +450,7 @@ export async function buildDatabaseFromBundles({
         if (tokensArray.length) {
           const freq = buildTokenFrequency(tokensArray);
           for (const [token, tf] of freq.entries()) {
-            let tokenId = tokenIdMap.get(token);
+            let tokenId = getCachedVocabId(tokenIdMap, token);
             if (tokenId === undefined) {
               const persisted = resolvePersistedVocabId({
                 map: tokenIdMap,
@@ -492,7 +499,7 @@ export async function buildDatabaseFromBundles({
         if (Array.isArray(chunk.ngrams)) {
           const unique = new Set(chunk.ngrams);
           for (const ng of unique) {
-            let phraseId = phraseIdMap.get(ng);
+            let phraseId = getCachedVocabId(phraseIdMap, ng);
             if (phraseId === undefined) {
               const persisted = resolvePersistedVocabId({
                 map: phraseIdMap,
@@ -541,7 +548,7 @@ export async function buildDatabaseFromBundles({
         if (Array.isArray(chunk.chargrams)) {
           const unique = new Set(chunk.chargrams);
           for (const gram of unique) {
-            let gramId = chargramIdMap.get(gram);
+            let gramId = getCachedVocabId(chargramIdMap, gram);
             if (gramId === undefined) {
               const persisted = resolvePersistedVocabId({
                 map: chargramIdMap,

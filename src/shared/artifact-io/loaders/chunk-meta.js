@@ -1,5 +1,5 @@
 import { MAX_JSON_BYTES } from '../constants.js';
-import { readJsonFile, readJsonLinesArray, readJsonLinesIterator } from '../json.js';
+import { readJsonFile, readJsonLinesIterator } from '../json.js';
 import { resolveJsonlRequiredKeys } from '../jsonl.js';
 import {
   loadPiecesManifest,
@@ -39,15 +39,15 @@ const inflatePackedTokenIdsEntry = (entry) => {
  *   strict: boolean,
  *   validationMode: 'strict'|'trusted'
  * }} input
- * @returns {Promise<any[]|null>}
+ * @returns {AsyncGenerator<any>}
  */
-const loadChunkMetaColdRows = async ({
+const loadChunkMetaColdRows = async function* ({
   dir,
   maxBytes,
   manifest,
   strict,
   validationMode
-}) => {
+}) {
   const requiredKeys = ['id'];
   const sources = resolveManifestArtifactSources({
     dir,
@@ -62,7 +62,8 @@ const loadChunkMetaColdRows = async ({
       throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', 'Ambiguous JSON sources for chunk_meta_cold');
     }
     const rows = readJsonFile(sources.paths[0], { maxBytes, containedRoot: sources.containedRoot });
-    return Array.isArray(rows) ? rows : null;
+    if (Array.isArray(rows)) yield* rows;
+    return;
   }
   if (sources.format === 'columnar') {
     if (sources.paths.length > 1) {
@@ -76,14 +77,14 @@ const loadChunkMetaColdRows = async ({
     if (!inflated) {
       throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid columnar chunk_meta_cold payload');
     }
-    return inflated;
+    yield* inflated;
+    return;
   }
-  return await readJsonLinesArray(sources.paths, {
-    maxBytes,
-    containedRoot: sources.containedRoot,
-    requiredKeys,
-    validationMode
-  });
+  for (const partPath of sources.paths) {
+    yield* readJsonLinesIterator(partPath, {
+      maxBytes, containedRoot: sources.containedRoot, requiredKeys, validationMode
+    });
+  }
 };
 
 /**
@@ -92,15 +93,29 @@ const loadChunkMetaColdRows = async ({
  * @param {any[]|null} rows
  * @returns {Map<number, object>|null}
  */
-const buildChunkMetaColdById = (rows) => {
-  if (!Array.isArray(rows) || !rows.length) return null;
-  const coldById = new Map();
-  for (const row of rows) {
-    const id = Number(row?.id);
-    if (!Number.isFinite(id)) continue;
-    coldById.set(id, row);
+const pickIdentityFields = (value, keys) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const result = {};
+  for (const key of keys) if (Object.hasOwn(value, key)) result[key] = value[key];
+  return result;
+};
+const projectIdentitySegment = value => pickIdentityFields(value, [
+  'segmentUid', 'segmentId', 'virtualPath', 'file', 'languageId', 'start', 'end', 'segmentStart', 'segmentEnd'
+]);
+const projectChunkIdentityRow = value => {
+  const projected = pickIdentityFields(value, [
+    'id', 'docId', 'chunkUid', 'chunkId', 'file', 'virtualPath', 'lang', 'start', 'end', 'identity'
+  ]);
+  if (!projected || typeof projected !== 'object') return projected;
+  if (Object.hasOwn(value, 'segment')) projected.segment = projectIdentitySegment(value.segment);
+  if (Object.hasOwn(value, 'metaV2')) {
+    projected.metaV2 = pickIdentityFields(value.metaV2, [
+      'schemaVersion', 'chunkUid', 'chunkId', 'file', 'virtualPath', 'lang',
+      'mintedByStage', 'disambiguation', 'canonicalEnvelopeVersion'
+    ]);
+    if (value.metaV2 && Object.hasOwn(value.metaV2, 'segment')) projected.metaV2.segment = projectIdentitySegment(value.metaV2.segment);
   }
-  return coldById.size ? coldById : null;
+  return projected;
 };
 
 const transformChunkMetaRow = (row, { coldById = null, materializeTokenIds = false } = {}) => {
@@ -148,7 +163,8 @@ export const loadChunkMetaRows = async function* (
     preferBinaryColumnar = true,
     materializeTokenIds = false,
     includeCold = true,
-    enforceBinaryDataBudget = false
+    enforceBinaryDataBudget = false,
+    identityOnly = false
   } = {}
 ) {
   const requiredKeys = resolveJsonlRequiredKeys('chunk_meta');
@@ -167,20 +183,18 @@ export const loadChunkMetaRows = async function* (
   if (!sources?.paths?.length) {
     throw createLoaderError('ERR_MANIFEST_ENTRY_MISSING', 'Missing manifest entry for chunk_meta');
   }
-  const coldRows = includeCold
-    ? await loadChunkMetaColdRows({
-      dir,
-      maxBytes,
-      manifest: resolvedManifest,
-      strict,
-      validationMode
-    })
-    : null;
-  const coldById = buildChunkMetaColdById(coldRows);
-  const transform = (row) => transformChunkMetaRow(row, {
-    coldById,
-    materializeTokenIds
-  });
+  let coldById = null;
+  if (includeCold) {
+    coldById = new Map();
+    for await (const row of loadChunkMetaColdRows({ dir, maxBytes, manifest: resolvedManifest, strict, validationMode })) {
+      const id = Number(row?.id);
+      if (Number.isFinite(id)) coldById.set(id, identityOnly ? projectChunkIdentityRow(row) : row);
+    }
+  }
+  const transform = (row) => {
+    const merged = transformChunkMetaRow(row, { coldById, materializeTokenIds });
+    return identityOnly ? projectChunkIdentityRow(merged) : merged;
+  };
   if (useBinaryColumnar) {
     const binaryRows = await iterateChunkMetaBinaryColumnarRowsLazy(dir, {
       maxBytes,
@@ -290,3 +304,8 @@ export const loadChunkMeta = async (
   }
   return rows;
 };
+
+/** Reconciliation-only projection; full cold decoding/validation still occurs. */
+export const loadChunkMetaIdentityRows = (dir, options = {}) => loadChunkMetaRows(dir, {
+  ...options, identityOnly: true, materializeTokenIds: false, includeCold: true
+});

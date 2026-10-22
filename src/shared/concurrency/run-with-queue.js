@@ -39,6 +39,16 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   const abortError = options.abortError instanceof Error ? options.abortError : createAbortError();
   const results = collectResults ? new Array(list.length) : null;
   const pendingSignals = new Set();
+  let capacityChange = null, notifyCapacityChange = null;
+  const readCapacityChange = () => {
+    if (!capacityChange) capacityChange = new Promise(resolve => { notifyCapacityChange = resolve; });
+    return capacityChange;
+  };
+  const notifyCapacity = () => {
+    const notify = notifyCapacityChange;
+    capacityChange = null; notifyCapacityChange = null;
+    notify?.();
+  };
   const parsedMaxPending = Number(queue?.maxPending);
   const maxPending = Number.isFinite(parsedMaxPending) && parsedMaxPending > 0
     ? Math.floor(parsedMaxPending)
@@ -147,7 +157,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   };
   const waitForAnyPendingOrAbort = async () => {
     if (!pendingSignals.size) return;
-    const pendingRace = Promise.race(Array.from(pendingSignals));
+    const pendingRace = readCapacityChange();
     if (!signal) {
       await awaitWithKeepalive(pendingRace);
       return;
@@ -255,6 +265,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
         setInflightBytes(readInflightBytes() - taskBytes);
       }
       pendingSignals.delete(settled);
+      notifyCapacity();
     });
     void cleanup.catch(() => {});
   };

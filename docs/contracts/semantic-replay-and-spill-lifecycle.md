@@ -53,3 +53,32 @@ Focused acceptance is deferred until the root validation phase:
 These are small fixtures, not full-index throughput evidence. Windows lifecycle
 qualification, supported optional backend parity and representative large-build
 RSS/disk/throughput measurements remain external acceptance boundaries.
+
+## Prepared semantic rows and sealed receipts
+
+The partition sink canonicalizes each untrusted envelope once while privately
+capturing that same traversal's payload bytes. It checks envelope byte accounting,
+row/schema limits, IDs and references before admission or writes. Prepared bytes
+are bounded by the existing batch allowance and do not alias producer objects.
+Member writes, offsets and hashes consume those exact bytes; a producer mutation
+after an IO await cannot rewrite an admitted row. Completion still requires data
+and offset fsync, directory durability and offset validation.
+
+Registration carries SHA-256 receipts for verified immutable semantic parts,
+offsets, evidence and frontier targets at their exact finalized paths. Generated
+JSON without a writer receipt still follows ordinary manifest hashing. Manifest
+construction refuses a sealed size differing from the current physical size;
+independent publication integrity validation remains mandatory.
+
+Compiler sessions build source, canonical-container and composite segment indexes
+once per session. Indexed candidates still require exact retained text, range,
+parent-source and mapping authority. Colliding source or canonical path identities
+fail closed; they do not select the first descriptor in an inventory scan.
+
+Shared syntax, analysis and ownership producers mint private prepared-entry
+receipts from canonical traversal. They retain immutable canonical row strings and
+a deeply frozen snapshot, use exact envelope byte accounting for batch formation,
+and let the sink validate schema/sequence/references without serializing the row
+again. Lookalike objects and arbitrary encoded JSON cannot forge a receipt. Mutable
+input callers continue through the checked sink path. Prepared objects are weakly
+owned and released with their bounded producer batch.

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
 import { loadJsonArrayArtifactRows } from '../../shared/artifact-io/loaders/core.js';
-import { loadChunkMetaRows } from '../../shared/artifact-io/loaders/chunk-meta.js';
+import { loadChunkMetaIdentityRows } from '../../shared/artifact-io/loaders/chunk-meta.js';
 import { loadPiecesManifest } from '../../shared/artifact-io/manifest.js';
 import {
   assertChunkIdentityEnvelope,
@@ -144,7 +144,7 @@ const buildChunkIndex = async ({
 }) => {
   const chunkByUid = new Map();
   const chunkByDocId = new Map();
-  for await (const row of loadChunkMetaRows(indexDir, {
+  for await (const row of loadChunkMetaIdentityRows(indexDir, {
     manifest,
     strict,
     maxBytes,

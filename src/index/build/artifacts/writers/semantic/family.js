@@ -82,18 +82,23 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
       }
     }
     await writeSemanticJson({ filename: path.join(outDir, 'semantic_manifest.json'), value: manifest, diskAccount, signal });
-    const register = (name, filePath, count = 0) => addPieceFile({ type: 'semantic', name,
-      format: filePath.endsWith('.jsonl') ? 'jsonl' : filePath.endsWith('.json') ? 'json' : 'binary', count }, filePath);
-    for (const artifact of evidenceArtifacts) register('semantic_evidence', path.join(semanticRoot, artifact.path));
-    for (const target of frontierTargets) register('semantic_frontier_targets', path.join(semanticRoot, target.path));
+    const register = (name, filePath, count = 0, sealedHash = null, bytes = null) => {
+      if (sealedHash != null && !/^[a-f0-9]{64}$/.test(sealedHash)) throw new Error('Invalid sealed semantic checksum.');
+      addPieceFile({ type: 'semantic', name,
+        format: filePath.endsWith('.jsonl') ? 'jsonl' : filePath.endsWith('.json') ? 'json' : 'binary', count,
+        ...(sealedHash ? { checksum: `sha256:${sealedHash}` } : {}),
+        ...(Number.isSafeInteger(bytes) && bytes >= 0 ? { bytes } : {}) }, filePath);
+    };
+    for (const artifact of evidenceArtifacts) register('semantic_evidence', path.join(semanticRoot, artifact.path), 0, artifact.hash, artifact.bytes);
+    for (const target of frontierTargets) register('semantic_frontier_targets', path.join(semanticRoot, target.path), 0, target.hash, target.bytes);
     register('semantic_manifest', path.join(outDir, 'semantic_manifest.json'), partitions.length);
     const queryIndex = await writeSemanticQueryIndex({ root: semanticRoot, repoRoot: root, generation, partitions, store,
       diskAccount, signal });
     await writeSemanticJson({ filename: path.join(outDir, 'semantic_query_index.json'), value: queryIndex, diskAccount, signal });
     register('semantic_query_index', path.join(outDir, 'semantic_query_index.json'), queryIndex.rowCount);
     for (const piece of queryIndex.pieces) {
-      register('semantic_query_index_rows', path.join(semanticRoot, piece.path), piece.count);
-      register('semantic_query_index_offsets', path.join(semanticRoot, piece.offsetsPath), piece.count);
+      register('semantic_query_index_rows', path.join(semanticRoot, piece.path), piece.count, piece.hash, piece.bytes);
+      register('semantic_query_index_offsets', path.join(semanticRoot, piece.offsetsPath), piece.count, piece.offsetsHash);
     }
     const operationIndex = await writeSemanticQueryIndex({ root: semanticRoot, generation, partitions, store,
       diskAccount, signal,
@@ -102,8 +107,8 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
     await writeSemanticJson({ filename: path.join(outDir, 'semantic_operation_index.json'), value: operationIndex, diskAccount, signal });
     register('semantic_operation_index', path.join(outDir, 'semantic_operation_index.json'), operationIndex.rowCount);
     for (const piece of operationIndex.pieces) {
-      register('semantic_operation_index_rows', path.join(semanticRoot, piece.path), piece.count);
-      register('semantic_operation_index_offsets', path.join(semanticRoot, piece.offsetsPath), piece.count);
+      register('semantic_operation_index_rows', path.join(semanticRoot, piece.path), piece.count, piece.hash, piece.bytes);
+      register('semantic_operation_index_offsets', path.join(semanticRoot, piece.offsetsPath), piece.count, piece.offsetsHash);
     }
     for (const member of SEMANTIC_MEMBER_NAMES) {
       const inventory = partitions.map((p) => ({ partitionId: p.partitionId, pieces: p.members[member] }));
@@ -111,8 +116,8 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
       await writeSemanticJson({ filename: filePath, value: { schemaVersion: 1, generation, partitions: inventory }, diskAccount, signal });
       register(member, filePath, inventory.length);
       for (const partition of partitions) for (const piece of partition.members[member]) {
-        register(member, path.join(semanticRoot, piece.path), piece.count);
-        register(member + '_offsets', path.join(semanticRoot, piece.offsetsPath), piece.count);
+        register(member, path.join(semanticRoot, piece.path), piece.count, piece.hash, piece.bytes);
+        register(member + '_offsets', path.join(semanticRoot, piece.offsetsPath), piece.count, piece.offsetsHash);
       }
     }
     const registered = new Set();
