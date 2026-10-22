@@ -52,3 +52,13 @@ shutdown. All source and assertions are **UNVALIDATED**. No Three import, browse
 host, WebGL context, actual GPU release/retry, raster, memory, timing or hardware
 qualification was performed. Partial renderer construction before the scene
 shutdown owner is installed remains separate work.
+
+Captured getter failures and caught conversion/preparation failures use explicit
+presence observations, so `undefined`, `null`, `false`, zero and empty-string
+throws remain exact aggregate causes rather than successful cleanup. A cleanup
+failure represented by a primitive is normalized into an aggregate with that
+exact value. If an original error provides both scene and cache release
+observers, both original functions/receivers are retained independently and
+both must report release. Copying an observer onto a wrapper with a different
+receiver cannot establish settlement. The additional falsey/observer fixture is
+also authored and unrun.

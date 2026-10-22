@@ -39,7 +39,7 @@ export const prepareResidentScene = async (request, operation) => {
   const previous=capture(),stage={retired:false,published:false,values:{}},preparedGroups={};
   try{
     for(const key of groups){const group=new state.THREE.Group();preparedGroups[key]=group;group.visible=previous[key]?.visible!==false;group.userData={...previous[key]?.userData};group.renderOrder=previous[key]?.renderOrder||0;}
-  }catch(error){const errors=[];for(const group of Object.values(preparedGroups))try{clearGroup(group);}catch(cleanup){errors.push(cleanup);}throw preserveSceneCleanupFailures(error,errors);}
+  }catch(error){const errors=[];for(const group of Object.values(preparedGroups))try{clearGroup(group);}catch(cleanup){errors.push(cleanup);}throw preserveSceneCleanupFailures(error,errors,{hasPrimary:true});}
   try{
     Object.assign(state,preparedGroups);state.stackPacketOwner=null;
     for(const key of arrays)state[key]=[];
@@ -51,7 +51,7 @@ export const prepareResidentScene = async (request, operation) => {
     buildStackMeshes();buildStackPipes();updateFileOpacity();updateMemberOpacity();
     stage.values=capture();stage.values.preparingScene=false;
     return stage;
-  }catch(error){stage.values=capture();try{retireResidentScene(stage);}catch(cleanup){throw preserveSceneCleanupFailures(error,[cleanup]);}throw error;}
+  }catch(error){stage.values=capture();try{retireResidentScene(stage);}catch(cleanup){throw preserveSceneCleanupFailures(error,[cleanup],{hasPrimary:true});}throw preserveSceneCleanupFailures(error,[],{hasPrimary:true});}
   finally{Object.assign(state,previous);}
 };
 
@@ -60,7 +60,7 @@ export const commitResidentScene = (candidate,request) => {
   try{
     for(const key of groups){state.scene.add(candidate.values[key]);added.push(candidate.values[key]);}
     Object.assign(state,candidate.values);
-  }catch(error){for(const group of added)state.scene.remove(group);Object.assign(state,previous);throw error;}
+  }catch(error){const cleanupErrors=[];for(const group of added)try{state.scene.remove(group);}catch(cleanup){cleanupErrors.push(cleanup);}Object.assign(state,previous);throw preserveSceneCleanupFailures(error,cleanupErrors,{hasPrimary:true});}
   candidate.published=true;
   state.remoteSource?.registerPlan(request);
   retirePicking();

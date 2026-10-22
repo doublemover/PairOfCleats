@@ -27,7 +27,7 @@ export const createEnvironmentOwner = ({ THREE, renderer, scene }) => {
         const failure = preserveSceneCleanupFailures(null, errors); if (failure) throw failure;
         return false;
       }
-      let generator = null, next = null, primary = null, published = false;
+      let generator = null, next = null, primary, hasPrimary = false, published = false;
       try {
         texture.mapping = THREE.EquirectangularReflectionMapping;
         const converter = new THREE.PMREMGenerator(renderer);
@@ -39,11 +39,11 @@ export const createEnvironmentOwner = ({ THREE, renderer, scene }) => {
         scene.environment = output.texture;
         target = next; published = true;
         if (previous !== target) release(previous, errors);
-      } catch (error) { primary = error; }
+      } catch (error) { hasPrimary = true; primary = error; }
       // Independent transient cleanup cannot replace a conversion failure.
       if (next && !published) release(next, errors);
       release(generator, errors); release(input, errors);
-      const failure = preserveSceneCleanupFailures(primary, errors); if (failure) throw failure;
+      const failure = preserveSceneCleanupFailures(primary, errors, { hasPrimary }); if (failure) throw failure;
       return true;
     },
     dispose() {

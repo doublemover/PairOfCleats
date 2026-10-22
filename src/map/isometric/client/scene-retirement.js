@@ -3,29 +3,33 @@ const objectLike = value => value && (typeof value === 'object' || typeof value 
 const describe = error => { try { return error?.message || 'Scene resource retirement remains pending.'; } catch { return 'Scene resource retirement remains pending.'; } };
 const observe = error => {
   if (!objectLike(error)) return null;
-  try {
-    const method = error.sceneOwnershipReleased || error.cacheOwnershipReleased;
-    if (error.sceneOwnershipPending !== true && error.cacheOwnershipPending !== true && typeof method !== 'function') return null;
-    return () => { try { return typeof method === 'function' && method.call(error) === true; } catch { return false; } };
-  } catch { return () => false; }
+  const observers = [];
+  for (const [marker, released] of [['sceneOwnershipPending', 'sceneOwnershipReleased'], ['cacheOwnershipPending', 'cacheOwnershipReleased']]) {
+    try {
+      const method = error[released];
+      if (error[marker] !== true && typeof method !== 'function') continue;
+      observers.push(() => { try { return typeof method === 'function' && method.call(error) === true; } catch { return false; } });
+    } catch { observers.push(() => false); }
+  }
+  return observers.length ? () => observers.map(check => check()).every(Boolean) : null;
 };
 const failure = (primary, errors) => {
   const result = new AggregateError(errors, describe(primary), { cause: primary });
   if (objectLike(primary)) {
     const descriptors = Object.getOwnPropertyDescriptors(primary);
     const reserved = new Set(['cause', 'errors', 'message', 'stack', 'sceneResourceOwner', 'sceneResourceOwners',
-      'sceneCleanupErrors', 'sceneOwnershipPending', 'sceneOwnershipReleased']);
+      'sceneCleanupErrors', 'sceneOwnershipPending', 'sceneOwnershipReleased', 'cacheOwnershipPending', 'cacheOwnershipReleased']);
     for (const key of Reflect.ownKeys(descriptors)) if (!reserved.has(key)) Object.defineProperty(result, key, descriptors[key]);
   }
   return result;
 };
 
 /** Keep the exact primary and every independently attempted cleanup outcome. */
-export const preserveSceneCleanupFailures = (primary, cleanupErrors) => {
-  const errors = primary ? [primary, ...cleanupErrors] : cleanupErrors;
+export const preserveSceneCleanupFailures = (primary, cleanupErrors, { hasPrimary = primary !== null && primary !== undefined } = {}) => {
+  const errors = hasPrimary ? [primary, ...cleanupErrors] : cleanupErrors;
   if (!errors.length) return null;
-  if (!primary && errors.length === 1) return errors[0];
-  const result = failure(primary || errors[0], errors), observers = errors.map(observe).filter(Boolean);
+  if (!hasPrimary && errors.length === 1 && objectLike(errors[0])) return errors[0];
+  const result = failure(hasPrimary ? primary : errors[0], errors), observers = errors.map(observe).filter(Boolean);
   const released = () => observers.every(check => check());
   const owners = errors.flatMap(error => error?.sceneResourceOwners || (error?.sceneResourceOwner ? [error.sceneResourceOwner] : []));
   Object.defineProperties(result, { sceneCleanupErrors: { value: Object.freeze([...cleanupErrors]) },
@@ -38,10 +42,10 @@ export const preserveSceneCleanupFailures = (primary, cleanupErrors) => {
  * event dispatch are not proof that a throwing listener completed cleanup. */
 export const captureSceneResource = (resource, label = 'scene resource', methodName = 'dispose', args = []) => {
   const capturedArgs = [...args];
-  let dispose = null, captureError = null, closed = false, lastError = null, flight = null;
+  let dispose = null, captureError, captureFailed = false, closed = false, lastError = null, flight = null;
   const children = new Map();
   try { const method = resource?.[methodName]; dispose = typeof method === 'function' ? method : null; }
-  catch (error) { captureError = error; }
+  catch (error) { captureFailed = true; captureError = error; }
   const retain = error => {
     const check = observe(error); if (check && !children.has(error)) children.set(error, check);
     const retained = failure(error, [error]);
@@ -59,7 +63,7 @@ export const captureSceneResource = (resource, label = 'scene resource', methodN
     if (flight || (lastError && !retry)) throw lastError;
     pending.add(owner);
     try {
-      if (captureError) throw captureError;
+      if (captureFailed) throw captureError;
       if (!disposed) {
         const result = dispose?.apply(resource, capturedArgs);
         if (result && typeof result.then === 'function') {
