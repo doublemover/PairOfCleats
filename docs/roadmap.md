@@ -2,7 +2,7 @@
 
 Status: Active
 Last audited: 2026-10-21
-Last reconciled: 2026-10-21
+Last reconciled: 2026-10-22
 Canonical for: initiative status, execution order, and remaining work
 
 Current reconciliation, 2026-10-21: 784 open issues are being reconciled by
@@ -74,8 +74,14 @@ also have source repairs and authored regressions. Scheduler hard admission,
 observed tokenization evidence, bounded extraction, SCM/metadata authority, CLI
 terminal outcomes, setup selection and generated USR contracts have development
 checkpoints. A further 47 storage/index P3 reports have implementation mappings.
-Editor-wide request ownership and inline freshness continue alongside retrieval
-P3 work; completed independent owners are moving into the performance backlog.
+Editor request ownership, source/policy freshness, latest-search publication,
+provider cancellation and TUI rejected-draft recovery now have source checkpoints.
+Map paging/selection, relationship vocabularies, lazy detail admission, shared
+endpoint matching, retained pipe geometry and frame-owned hover are implemented.
+The final missed P2 service-progress owner now binds one claimed execution to its
+persisted runtime evidence. Retrieval P3 handoffs add 36 mappings. Performance
+implementation is active across serialization, workers, semantic row preparation,
+inventories, retrieval and embeddings; measurements remain deferred.
 There is no current-source deep-suite, native-host or performance claim.
 
 ## Environment and qualification boundaries
