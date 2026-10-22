@@ -5,6 +5,10 @@ import { USR_REPORT_SCHEMA_DEFS } from '../../../src/contracts/schemas/usr.js';
 import { buildUsrDocumentSchemas } from '../../../tools/docs/export-usr-schemas.js';
 
 const docs = buildUsrDocumentSchemas();
+for (const [name, schema] of docs) {
+  assert.deepEqual(JSON.parse(await fs.readFile(`docs/schemas/usr/${name}`, 'utf8')), schema,
+    `${name}: every published USR schema, including envelope aliases and capability transitions, follows its runtime owner`);
+}
 const witness = schema => {
   if (schema.const !== undefined) return schema.const;
   if (schema.enum) return schema.enum[0];

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { USR_EVIDENCE_ENVELOPE_SCHEMA, USR_REPORT_SCHEMA_DEFS } from '../../src/contracts/schemas/usr.js';
+import { USR_EVIDENCE_ENVELOPE_SCHEMA, USR_SCHEMA_DEFS } from '../../src/contracts/schemas/usr.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 
 export const buildUsrDocumentSchemas = () => new Map([
   ['evidence-envelope.schema.json', { ...USR_EVIDENCE_ENVELOPE_SCHEMA, $id: 'usr/evidence-envelope.schema.json' }],
-  ...Object.entries(USR_REPORT_SCHEMA_DEFS).map(([id, schema]) => [`${id}.schema.json`, {
+  ...Object.entries(USR_SCHEMA_DEFS).map(([id, schema]) => [`${id}.schema.json`, {
     ...schema, $id: `usr/${id}.schema.json`
   }])
 ]);
