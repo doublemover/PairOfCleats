@@ -9,6 +9,7 @@ import { writeIndexState } from '../../../tools/build/embeddings/state.js';
 import { updateSqliteState } from '../../../src/storage/sqlite/build/index-state.js';
 import { updateIndexStateManifest } from '../../../src/shared/index-state-utils.js';
 import { checksumFile } from '../../../src/shared/hash.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 const root = process.cwd();
 const cacheRoot = resolveTestCachePath(root, 'manifest-retains-non-embedding-pieces');
@@ -30,7 +31,7 @@ await fs.writeFile(path.join(indexDir, 'dense_vectors_code_uint8.bin.meta.json')
 
 await fs.writeFile(manifestPath, JSON.stringify({
   version: 2,
-  artifactSurfaceVersion: '2026-02-01',
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   compatibilityKey: null,
   generatedAt: new Date().toISOString(),
   updatedAt: null,
@@ -119,5 +120,17 @@ assert.deepEqual(migrated.extensions.rootCaller, { keep: true });
 const stableBytes = await fs.readFile(manifestPath, 'utf8');
 await updateIndexStateManifest(indexDir);
 assert.equal(await fs.readFile(manifestPath, 'utf8'), stableBytes);
+
+await fs.writeFile(`${manifestPath}.bak`, stableBytes);
+await fs.writeFile(manifestPath, '{truncated');
+await updatePieceManifest({ indexDir, mode: 'code', totalChunks: 1, dims: 4 });
+assert.ok(JSON.parse(await fs.readFile(manifestPath, 'utf8')).pieces.some(piece => piece.name === 'chunk_meta'),
+  'recovery preserves prior non-embedding pieces');
+await fs.rm(`${manifestPath}.bak`, { force: true });
+await fs.writeFile(manifestPath, '{truncated');
+await assert.rejects(updatePieceManifest({ indexDir, mode: 'code', totalChunks: 1, dims: 4 }), /valid existing manifest/);
+assert.equal(await fs.readFile(manifestPath, 'utf8'), '{truncated', 'failed recovery cannot replace the prior manifest');
+await fs.writeFile(manifestPath, JSON.stringify({ pieces: [] }));
+await assert.rejects(updatePieceManifest({ indexDir, mode: 'code', totalChunks: 1, dims: 4 }), /valid existing manifest/);
 
 console.log('embeddings manifest preserves non-embedding pieces test passed');

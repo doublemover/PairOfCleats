@@ -102,6 +102,7 @@ import {
 } from './embed.js';
 import { writeHnswBackends, writeLanceDbBackends } from './backends.js';
 import { updatePieceManifest } from './manifest.js';
+import { publishEmbeddingGeneration } from './publication.js';
 import { publishBackendGeneration } from './backend-publication.js';
 import { buildEmbeddingGeneration } from '../../../src/shared/embedding-generation.js';
 import { createFileEmbeddingsProcessor } from './pipeline.js';
@@ -3958,18 +3959,12 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           manifestWritten: refreshedBundles.manifestWritten === true
         };
         writerStatsByMode[mode] = writerQueue.stats();
-        await runtimeReceipts.ready(mode, { cacheHits, totalChunks, scheduler, writer: writerStatsByMode[mode], cacheRoot,
-          providerMeasurement: { execution: embedder.executionInfo(), stage3: {
-            batches: embeddingBatchesCompleted, paddedTokens: embeddingBatchPaddedTokens,
-            sourceTokens: embeddingBatchTokensProcessed, computeMs: embeddingBatchComputeMs,
-            textCache: embeddingTextCache.stats(), memory: effectiveMemory
-          } } });
         indexState.extensions = { ...indexState.extensions, runtimeAttemptId: runtimeReceipts.reference(mode), runtimeEmbeddingObservation: runtimeReceipts.observation(mode) };
         indexState.embeddings = {
           ...(indexState.embeddings || {}),
           enabled: true,
-          ready: true,
-          pending: false,
+          ready: false,
+          pending: true,
           mode: indexState.embeddings?.mode || resolvedEmbeddingMode,
           service: indexState.embeddings?.service ?? (normalizedEmbeddingMode === 'service'),
           embeddingIdentity: cacheIdentity || indexState.embeddings?.embeddingIdentity || null,
@@ -3998,24 +3993,33 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             stage: indexState.enrichment.stage || indexState.stage || 'stage2'
           };
         }
-        await scheduleIo(() => writeIndexState(statePath, indexState));
-
-        try {
-          await scheduleIo(() => updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims,
-            backendPieces: backendPublication.pieces, embeddingGeneration }));
-          void logArtifactLocation(mode, 'pieces_manifest', path.join(indexDir, 'pieces', 'manifest.json'));
-        } catch (error) {
-          throw new Error(`Embedding generation manifest publication failed: ${error.message}`, { cause: error });
-        }
-        logExpectedArtifacts(mode, indexDir, 'pre-validate');
-
-        const validation = await scheduleIo(() => validateIndexArtifacts({
-          root,
-          indexRoot: modeIndexRoot,
-          modes: [mode],
-          userConfig,
-          sqliteEnabled: false
-        }));
+        const validation = await publishEmbeddingGeneration({
+          statePath, indexState,
+          publishManifest: async () => {
+            try {
+              await scheduleIo(() => updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims,
+                backendPieces: backendPublication.pieces, embeddingGeneration }));
+              void logArtifactLocation(mode, 'pieces_manifest', path.join(indexDir, 'pieces', 'manifest.json'));
+            } catch (error) {
+              throw new Error(`Embedding generation manifest publication failed: ${error.message}`, { cause: error });
+            }
+          },
+          validate: () => {
+            logExpectedArtifacts(mode, indexDir, 'pre-validate');
+            return scheduleIo(() => validateIndexArtifacts({
+              root, indexRoot: modeIndexRoot, modes: [mode], userConfig, sqliteEnabled: false
+            }));
+          },
+          commitReceipt: async () => {
+            await runtimeReceipts.ready(mode, { cacheHits, totalChunks, scheduler, writer: writerStatsByMode[mode], cacheRoot,
+              providerMeasurement: { execution: embedder.executionInfo(), stage3: {
+                batches: embeddingBatchesCompleted, paddedTokens: embeddingBatchPaddedTokens,
+                sourceTokens: embeddingBatchTokensProcessed, computeMs: embeddingBatchComputeMs,
+                textCache: embeddingTextCache.stats(), memory: effectiveMemory
+              } } });
+            indexState.extensions.runtimeEmbeddingObservation = runtimeReceipts.observation(mode);
+          }
+        });
         backendTask.set(4, 5, { message: 'writing cache metadata + finalizing mode' });
         if (!validation.ok) {
           if (validation.issues?.length) {

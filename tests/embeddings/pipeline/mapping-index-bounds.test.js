@@ -41,4 +41,22 @@ const outOfRangeNumericFallback = resolveBundleChunkVectorIndex({
 assert.equal(outOfRangeNumericFallback.vectorIndex, null, 'expected numeric fallback to honor vector bounds');
 assert.equal(outOfRangeNumericFallback.reason, 'missingParent');
 
+const identical = file => ({ file, id: 0, kind: 'function', name: 'run', start: 0, end: 10 });
+const collisions = createIncrementalChunkMappingIndex(new Map([
+  ['a.js', [{ index: 0, chunk: { ...identical('a.js'), chunkId: 'duplicate' } }]],
+  ['b.js', [{ index: 1, chunk: { ...identical('b.js'), chunkId: 'duplicate' } }]]
+]));
+for (const chunk of [identical('c.js'), { id: 0 }, { chunkId: 'duplicate' }]) {
+  const result = resolveBundleChunkVectorIndex({ chunk, normalizedFile: 'c.js',
+    fileMapping: null, mappingIndex: collisions, fallbackState: { cursor: 0 }, vectorCount: 2 });
+  assert.deepEqual(result, { vectorIndex: null, reason: 'missingParent' },
+    'an unknown file cannot inherit a structural/numeric/ambiguous stable match');
+}
+const stable = createIncrementalChunkMappingIndex(new Map([
+  ['a.js', [{ index: 0, chunk: { ...identical('a.js'), chunkId: 'unique' } }]]
+]));
+assert.equal(resolveBundleChunkVectorIndex({ chunk: { chunkId: 'unique' }, normalizedFile: 'renamed.js',
+  fileMapping: null, mappingIndex: stable, fallbackState: { cursor: 0 }, vectorCount: 1 }).vectorIndex, 0,
+'a unique explicit stable identity remains an admissible cross-file recovery');
+
 console.log('embeddings mapping index bounds test passed');

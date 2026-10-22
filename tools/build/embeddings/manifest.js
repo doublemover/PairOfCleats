@@ -3,7 +3,8 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
 import { readJsonFile } from '../../../src/shared/artifact-io/json.js';
-import { ARTIFACT_SCHEMA_DEFS, MANIFEST_ONLY_ARTIFACT_NAMES } from '../../../src/contracts/artifact-schemas.js';
+import { ARTIFACT_SCHEMA_DEFS, MANIFEST_ONLY_ARTIFACT_NAMES, validateArtifact } from '../../../src/contracts/artifact-schemas.js';
+import { readBuffer } from '../../../src/shared/artifact-io/compression.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { checksumFile } from '../../../src/shared/hash.js';
@@ -44,12 +45,23 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims, b
   const manifestExists = fsSync.existsSync(manifestPath) || fsSync.existsSync(`${manifestPath}.bak`);
   let existing = null;
   if (manifestExists) {
-    try {
-      const sourcePath = fsSync.existsSync(manifestPath) ? manifestPath : manifestBakPath;
-      existing = readJsonFile(sourcePath, { maxBytes: MAX_JSON_BYTES }) || null;
-    } catch {
-      existing = null;
+    let loadError;
+    for (const sourcePath of [manifestPath, manifestBakPath]) {
+      try {
+        // Validate each candidate before trusting it or cleaning up recovery
+        // evidence; a syntactically valid but malformed primary is still corrupt.
+        const candidate = JSON.parse(readBuffer(sourcePath, MAX_JSON_BYTES).toString('utf8'));
+        if (!validateArtifact('pieces_manifest', candidate).ok
+          || candidate.artifactSurfaceVersion !== ARTIFACT_SURFACE_VERSION) {
+          throw new Error('Existing pieces manifest has an invalid shape or artifact surface version.');
+        }
+        existing = candidate;
+        break;
+      } catch (error) {
+        loadError = error;
+      }
     }
+    if (!existing) throw new Error(`Cannot refresh embedding pieces without a valid existing manifest: ${loadError.message}`, { cause: loadError });
   }
   if (!existing || typeof existing !== 'object') {
     existing = {
