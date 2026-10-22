@@ -4,6 +4,7 @@ import { toArray } from '../../../shared/iterables.js';
 import { configureWireMaterial } from './materials.js';
 import { parseEndpointKey, selectionEndpointMatcher } from './selection-endpoints.js';
 import { markInstanceRange } from './rendering/attribute-ranges.js';
+import { canonicalMemberId, lookupMemberIdentity } from './data/member-identity.js';
 
 const formatPrimitive = (value) => {
   if (value === null || value === undefined || value === '') return 'None';
@@ -158,12 +159,11 @@ const formatEdgeTargets = (edgeList, direction, limit = 8) => {
     let refType = '';
     let refId = '';
     if (endpoint.member != null) {
-      const memberKey = endpoint.member === 0 || endpoint.member ? String(endpoint.member) : null;
-      const member = memberKey ? (state.memberById.get(memberKey) || state.memberById.get(endpoint.member)) : null;
+      const member = state.sourceIndex?.member?.(endpoint.member)?.member || lookupMemberIdentity(state.memberById,endpoint.member,state.sourceIndex) || null;
       if (member) {
         label = `${member.name || endpoint.member} - ${member.file || ''}`.trim();
         refType = 'member';
-        refId = member.id || endpoint.member;
+        refId = member.id ?? endpoint.member;
       } else {
         label = endpoint.member;
         refType = 'member';
@@ -196,7 +196,7 @@ const formatListWithLimit = (values, limit = 10) => {
 
 const collectEdgesForSelection = (selectionInfo, member, node) => {
   if (!selectionInfo) return { incoming: [], outgoing: [] };
-  const touches = selectionEndpointMatcher(selectionInfo, { member, node, fileByMember: state.sourceIndex?.fileByMember||state.fileByMember });
+  const touches = selectionEndpointMatcher(selectionInfo, { member, node, fileByMember: state.sourceIndex?.fileByMember||state.fileByMember,sourceIndex:state.sourceIndex });
   const incoming = [];
   const outgoing = [];
   (state.sourceIndex?.relationships(selectionInfo) || state.edges).forEach((edge) => {
@@ -221,8 +221,8 @@ export const renderSelectionDetails = (info) => {
   const nameKey = buildMemberNameKey(fileKey, info.name || '');
   const rawMemberId = (info.type === 'member' ? (info.id ?? info.memberId ?? null) : (info.memberId ?? null));
   const memberId = rawMemberId !== null && rawMemberId !== undefined ? String(rawMemberId) : null;
-  const member = memberId
-    ? (state.sourceIndex?.members.get(memberId)?.member || memberById.get(memberId) || memberById.get(rawMemberId))
+  const member = rawMemberId!=null
+    ? (state.sourceIndex?.member?.(rawMemberId)?.member || state.sourceIndex?.members.get(memberId)?.member || lookupMemberIdentity(memberById,rawMemberId,state.sourceIndex))
     : (memberByKey.get(rangeKey) || memberByKey.get(nameKey) || null);
 
   if (info.type === 'file' || (!info.type && node)) {
@@ -308,9 +308,8 @@ const resolveHitInfo = (hit) => {
 };
 
 const setMemberInstanceTint = (memberId, color) => {
-  if (memberId == null || memberId === '') return;
-  const key = String(memberId);
-  const ref = state.memberInstanceById?.get(key) || null;
+  if (memberId == null) return;
+  const ref = lookupMemberIdentity(state.memberInstanceById,memberId,state.sourceIndex) || null;
   if (!ref || !ref.mesh || ref.instanceId == null) return;
 
   ref.mesh.setColorAt(ref.instanceId, color);
@@ -331,7 +330,7 @@ const resetMemberInstanceHighlights = () => {
 
   const white = new state.THREE.Color(0xffffff);
   for (const memberId of highlighted) {
-    const base = state.memberColorById?.get(memberId) || white;
+    const base = lookupMemberIdentity(state.memberColorById,memberId,state.sourceIndex) || white;
     setMemberInstanceTint(memberId, base);
   }
   highlighted.clear();
@@ -524,7 +523,7 @@ const applyHighlightsForKeys = (selectionKeys, intensity = 1) => {
       // Instanced members: tint the instance temporarily.
       const tint = color.clone().lerp(new state.THREE.Color(0xffffff), 0.2);
       setMemberInstanceTint(id, tint);
-      if (state.highlightedMemberIds) state.highlightedMemberIds.add(String(id));
+      if (state.highlightedMemberIds) state.highlightedMemberIds.add(canonicalMemberId(id,state.sourceIndex));
     }
   });
 };
@@ -554,10 +553,10 @@ export const applyHighlights = () => {
           boostWireframeByKey(fileKey, tint, 0.25);
         }
       } else {
-        const memberId = selectedInfo?.id != null ? String(selectedInfo.id) : null;
-        const base = (memberId && state.memberColorById?.get(memberId)) || selectedInfo?.baseColor || white;
+        const memberId = selectedInfo?.id ?? null;
+        const base = lookupMemberIdentity(state.memberColorById,memberId,state.sourceIndex) || selectedInfo?.baseColor || white;
         const tint = base.clone().lerp(white, 0.45);
-        if (memberId) {
+        if (memberId!==null) {
           setMemberInstanceTint(memberId, tint);
           state.highlightedMemberIds?.add(memberId);
         }
@@ -574,7 +573,7 @@ export const applyHighlights = () => {
 
   if (state.hoveredRef) {
     const hoverInfo = state.hoveredRef.refType === 'member'
-      ? { type: 'member', id: String(state.hoveredRef.refId), memberId: String(state.hoveredRef.refId) }
+      ? { type: 'member', id: state.hoveredRef.refId, memberId: state.hoveredRef.refId }
       : { type: 'file', file: state.hoveredRef.refId, name: state.hoveredRef.refId };
 
     const hoverKeys = buildSelectionKeys(hoverInfo);
@@ -592,8 +591,8 @@ export const applyHighlights = () => {
     }
 
     if (state.hoveredRef.refType === 'member') {
-      const memberId = String(state.hoveredRef.refId);
-      const base = state.memberColorById?.get(memberId) || white;
+      const memberId = canonicalMemberId(state.hoveredRef.refId,state.sourceIndex);
+      const base = lookupMemberIdentity(state.memberColorById,memberId,state.sourceIndex) || white;
       const tint = base.clone().lerp(white, 0.25);
       setMemberInstanceTint(memberId, tint);
       state.highlightedMemberIds?.add(memberId);
@@ -616,10 +615,10 @@ export const applyHighlights = () => {
             boostWireframeByKey(fileKey, tint, 0.2);
           }
         } else {
-          const memberId = hoverInfo?.id != null ? String(hoverInfo.id) : null;
-          const base = (memberId && state.memberColorById?.get(memberId)) || hoverInfo?.baseColor || white;
+          const memberId = hoverInfo?.id ?? null;
+          const base = lookupMemberIdentity(state.memberColorById,memberId,state.sourceIndex) || hoverInfo?.baseColor || white;
           const tint = base.clone().lerp(white, 0.25);
-          if (memberId) {
+          if (memberId!==null) {
             setMemberInstanceTint(memberId, tint);
             state.highlightedMemberIds?.add(memberId);
           }

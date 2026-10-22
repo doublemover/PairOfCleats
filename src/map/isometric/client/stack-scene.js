@@ -42,8 +42,8 @@ export function buildStackMeshes(){
       rows.forEach((row,index)=>{
         const point={x:file.x+row.x,y:row.y,z:file.z+row.z},color=new THREE.Color(row.color);
         dummy.position.set(point.x,point.y,point.z);dummy.scale.set(row.width,row.height,row.depth);dummy.updateMatrix();mesh.setMatrixAt(index,dummy.matrix);mesh.setColorAt(index,color);
-        mesh.userData.instanceInfo.push({type:'member',semanticKind:row.kind,file:file.key,id:row.id,name:row.member.name,range:row.member.range||null,baseColor:color.clone(),...point,footprint:row.width,height:row.height});
-        if(row.id!==null){state.memberInstanceById.set(row.id,{mesh,instanceId:index});state.memberColorById.set(row.id,color);state.memberClusterByMemberId.set(row.id,cluster);state.memberAnchors.set(row.id,point);}
+        mesh.userData.instanceInfo.push({type:'member',semanticKind:row.kind,file:file.key,id:row.member.id??null,address:row.member.address??null,name:row.member.name,range:row.member.range||null,baseColor:color.clone(),...point,footprint:row.width,height:row.height});
+        if(row.id!==null){state.memberInstanceById.set(row.member.id,{mesh,instanceId:index});state.memberColorById.set(row.member.id,color);state.memberClusterByMemberId.set(row.member.id,cluster);state.memberAnchors.set(row.member.id,point);}
         members++;
       });
       mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;mesh.computeBoundingSphere();mesh.computeBoundingBox();
@@ -125,7 +125,7 @@ export function updateStackVisibility(force=false){
       layer.geometryRows=layer.rows;layer.model=state.stackModel;layer.scale=state.scaleFactor||1;
     }
     const adjacent=tier==='segments'&&selected&&state.stackAllConnections!==true
-      ? state.stackModel.adjacency?.[tier]?.get(JSON.stringify([selected.type==='member'?'member':'file',selected.type==='member'?String(selected.id):selected.file])) : null;
+      ? state.stackModel.adjacency?.[tier]?.get(JSON.stringify([selected.type==='member'?'member':'file',selected.type==='member'?selected.id:selected.file])) : null;
     const sourceRows=adjacent?adjacent.filter(row=>row.type===layer.type):layer.rows;
     const topologyRows=projectPipeRows(sourceRows,{level:layer.level,tier,selected,allConnections:state.stackAllConnections===true});
     setPipeRows(layer,topologyRows);

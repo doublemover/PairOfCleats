@@ -102,7 +102,7 @@ export const initControls = () => {
     cullFrustum.setFromProjectionMatrix(cullMatrix);
 
     const selected = state.selectedInfo;
-    const selectedId = selected?.type === 'member' && selected.id != null ? String(selected.id) : null;
+    const selectedId = selected?.type === 'member' && selected.id != null ? selected.id : null;
     const selectedCluster = selectedId !== null ? state.memberClusterByMemberId?.get(selectedId) : null;
     for (const cluster of state.memberClusters) {
       if (!cluster?.group || !cluster?.sphere) continue;

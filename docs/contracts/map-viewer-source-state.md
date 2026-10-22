@@ -189,3 +189,12 @@ family, in addition to fencing publication. Cooperative worker messages and fetc
 therefore receive actual cancellation. Reveal preparation status has a separate
 request owner; a cancelled predecessor cannot restore its text over a newer
 request. A disposed revision owner rejects new work.
+
+Renderer lookup maps and structured-cloned layout maps now retain original scalar
+member IDs. Numeric zero stays numeric through mesh metadata, selection, culling,
+color/anchor maps, pipe endpoints, history and worker layout. Opaque numeric-looking
+strings stay strings. Source-qualified alias lookup is confined to an explicit
+legacy adapter; identity is never recovered from an instance slot or by parsing a
+semantic ID. Typed source indexes prefer exact identity before an unambiguous
+legacy text alias. Saved artifact admission still rejects String-equivalent
+duplicate member identities; this migration does not broaden that admission rule.

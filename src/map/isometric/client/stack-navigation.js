@@ -7,11 +7,11 @@ import { selectionEndpointMatcher, endpointFile } from './selection-endpoints.js
 import { fitOrthographicBounds, usableViewport, visibleWorldBounds } from './camera-fit.js';
 import { renderRemoteMembers, renderRemoteSourceDetails } from './remote-navigation.js';
 const makeButton=(label,callback)=>{const button=document.createElement('button');button.textContent=label;button.type='button';button.onclick=callback;return button;};
-const entityKey=info=>info?.type==='member'?`member:${info.id}`:info?.file?`file:${info.file}`:null;
+const entityKey=info=>info?.type==='member'?JSON.stringify(['member',typeof info.id,info.id]):info?.file?JSON.stringify(['file',info.file]):null;
 export function focusStack(info=null){
   state.cancelCameraMotion?.();
   if(!state.camera||!state.THREE)return;
-  const model=state.stackModel,file=model?.fileByPath.get(info?.file),member=info?.type==='member'?model?.memberById.get(String(info.id)):null;
+  const model=state.stackModel,file=model?.fileByPath.get(info?.file),member=info?.type==='member'?model?.memberById.get(info.id):null;
   if(info && !(info.type==='member'?member:file)) {
     state.selectionFocusAvailable=false;
     return;
@@ -29,7 +29,7 @@ export function focusStack(info=null){
 }
 export function navigateStack(info,prepared=false){
   if(state.remoteSource&&!prepared)return state.remoteSource.navigate(info,resolved=>navigateStack(resolved,true));
-  const ref=info.type==='member'?state.memberInstanceById?.get(String(info.id)):state.fileInstanceByKey?.get(info.file);
+  const ref=info.type==='member'?state.memberInstanceById?.get(info.id):state.fileInstanceByKey?.get(info.file);
   if(ref)setSelection({object:ref.mesh,instanceId:ref.instanceId});
   else setSemanticSelection(info);
   focusStack(info);
@@ -101,7 +101,7 @@ export function initStackNavigation(){
     if(!state.selectionFocusAvailable&&state.revealSourceSelection)state.dom.selectionBody.append(makeButton('Reveal in bounded render working set',()=>state.revealSourceSelection(info)));
     if(source){const all=document.createElement('details'),title=document.createElement('summary');title.textContent='All source fields · lazy inspector';all.append(title);let loaded=false;all.addEventListener('toggle',()=>{if(all.open&&!loaded){loaded=true;all.append(inspectValue(source));}});state.dom.selectionBody.append(all);}
     const heading=document.createElement('h3');heading.textContent='Directed relationships · admitted scope';state.dom.selectionBody.append(heading);
-    const touches=selectionEndpointMatcher(info,{fileByMember:state.sourceIndex?.fileByMember||state.fileByMember});
+    const touches=selectionEndpointMatcher(info,{fileByMember:state.sourceIndex?.fileByMember||state.fileByMember,sourceIndex:state.sourceIndex});
     const rows=state.sourceIndex?.relationships(info)||(state.edges||[]).filter(edge=>touches(edge.from)||touches(edge.to));let offset=0;const more=makeButton('More relationships',append);
     function append(){more.remove();for(const edge of rows.slice(offset,offset+40)){
       const out=touches(edge.from),other=out?edge.to:edge.from;

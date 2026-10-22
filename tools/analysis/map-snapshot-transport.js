@@ -1,5 +1,6 @@
 import { MAP_DATA_PROTOCOL, SNAPSHOT_PAGE_LIMITS, snapshotRequest, sourceEntityKey } from '../../src/map/isometric/client/data/protocol.js';
 import { createSnapshotSearchIndex } from '../../src/map/isometric/client/data/search-index.js';
+import { createMemberAliasIndex } from '../../src/map/isometric/client/data/member-identity.js';
 
 const compactMember=(member,file,ordinal)=>({id:member.id??null,name:member.name??null,kind:member.kind??member.type??null,
   type:member.type??null,range:member.range??null,exported:member.exported??null,file,ordinal});
@@ -13,6 +14,8 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
   let files=model.nodes||[],edges=model.edges||[];
   const metadata={...model};delete metadata.nodes;delete metadata.edges;
   const fileByPath=new Map(),memberById=new Map(),adjacency=new Map(),directories=new Map();
+  const memberAliases=createMemberAliasIndex();
+  const memberRecord=id=>memberById.get(sourceEntityKey('member',id))||memberAliases.get(id);
   let searchIndex=null;
   let members=0;
   const append=(key,row)=>{if(!adjacency.has(key))adjacency.set(key,[]);adjacency.get(key).push(row);};
@@ -20,14 +23,14 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
     const path=file.path||file.name;fileByPath.set(path,{file,row});
     const directory=path.replaceAll('\\','/').includes('/')?path.replaceAll('\\','/').split('/')[0]:'(root)';
     const aggregate=directories.get(directory)||{key:directory,label:directory,files:0,members:0};aggregate.files++;aggregate.members+=file.members?.length||0;directories.set(directory,aggregate);
-    (file.members||[]).forEach((member,ordinal)=>{members++;if(member.id!=null)memberById.set(sourceEntityKey('member',member.id),{file:path,member,ordinal});});
+    (file.members||[]).forEach((member,ordinal)=>{members++;if(member.id!=null){const value={file:path,member,ordinal};memberById.set(sourceEntityKey('member',member.id),value);memberAliases.set(member.id,value);}});
   });
   edges.forEach((edge,row)=>{
     const keys=new Set();
     for(const endpoint of [edge.from,edge.to]){
-      const owner=endpoint?.member!=null?memberById.get(sourceEntityKey('member',endpoint.member))?.file:null;
+      const owner=endpoint?.member!=null?memberRecord(endpoint.member)?.file:null;
       const file=endpoint?.file||owner;if(file)keys.add(sourceEntityKey('file',file));
-      if(endpoint?.member!=null)keys.add(sourceEntityKey('member',endpoint.member));
+      if(endpoint?.member!=null)keys.add(sourceEntityKey('member',memberRecord(endpoint.member)?.member.id??endpoint.member));
     }
     for(const key of keys)append(key,row);
   });
@@ -51,7 +54,7 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
       if(!Number.isSafeInteger(pointer.memberOrdinal)||pointer.memberOrdinal<0||pointer.memberOrdinal>=(file.members?.length||0))throw new Error('Invalid generation-local member address.');
       return {file:path,member:file.members[pointer.memberOrdinal],ordinal:pointer.memberOrdinal};
     }
-    return entity?.type==='member'?memberById.get(sourceEntityKey('member',entity.id)):fileByPath.get(entity?.file);
+    return entity?.type==='member'?memberRecord(entity.id):fileByPath.get(entity?.file);
   };
   const resolved=entity=>{
     const found=foundEntity(entity);
@@ -61,9 +64,9 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
     return {entity:entity.type==='member'?{...compactMember(found.member,found.file,found.ordinal),type:'member',address:pointer}
       :{type:'file',file:file.file.path||file.file.name,name:file.file.name||file.file.path,address:pointer},file:compactFile(file.file,file.row),ordinal:found.ordinal??null,found};
   };
-  const owner=endpoint=>endpoint?.file||(endpoint?.member!=null?memberById.get(sourceEntityKey('member',endpoint.member))?.file:null);
+  const owner=endpoint=>endpoint?.file||(endpoint?.member!=null?memberRecord(endpoint.member)?.file:null);
   const endpointAddress=endpoint=>{
-    if(endpoint?.member!=null){const found=memberById.get(sourceEntityKey('member',endpoint.member));if(!found||(endpoint.file&&endpoint.file!==found.file))return null;
+    if(endpoint?.member!=null){const found=memberRecord(endpoint.member);if(!found||(endpoint.file&&endpoint.file!==found.file))return null;
       return {type:'member',address:{fileRow:fileByPath.get(found.file).row,memberOrdinal:found.ordinal}};}
     const found=fileByPath.get(endpoint?.file);return found?{type:'file',address:{fileRow:found.row}}:null;
   };
@@ -96,7 +99,7 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
         const selected=resolved(request.entity).entity,key=sourceEntityKey(selected.type,selected.type==='member'?selected.id:selected.file),rows=adjacency.get(key)||[];
         if(request.kind==='adjacency-summary'){
           let incoming=0,outgoing=0;
-          const touches=endpoint=>selected.type==='member'?endpoint?.member===selected.id:owner(endpoint)===selected.file;
+          const touches=endpoint=>selected.type==='member'?(memberRecord(endpoint?.member)?.member.id??endpoint?.member)===selected.id:owner(endpoint)===selected.file;
           for(const row of rows){if(touches(edges[row].from))outgoing++;if(touches(edges[row].to))incoming++;}
           return encode(wrap(request,{incoming,outgoing,total:rows.length,complete:true}));
         }
@@ -130,6 +133,6 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
       }
       throw new Error('Unsupported map snapshot operation.');
     },
-    dispose(){retired=true;files=[];edges=[];fileByPath.clear();memberById.clear();adjacency.clear();directories.clear();searchIndex?.dispose();searchIndex=null;}
+    dispose(){retired=true;files=[];edges=[];fileByPath.clear();memberById.clear();memberAliases.clear();adjacency.clear();directories.clear();searchIndex?.dispose();searchIndex=null;}
   };
 };

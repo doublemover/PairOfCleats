@@ -22,12 +22,15 @@ export const createRemoteSource = config => {
   const registerSelection=record=>{
     if(selection&&!residentPaths.has(selection.file.path)){
       const path=selection.file.path;files.delete(path);
-      for(const [key,value]of members)if(value.file===path){members.delete(key);fileByMember.delete(key);typedMembers.delete(sourceEntityKey('member',value.member.id));}
+      if(selection.entity.type==='member'){
+        const id=selection.entity.id;members.delete(String(id));fileByMember.delete(String(id));typedMembers.delete(sourceEntityKey('member',id));
+      }
     }
     selection=record;const file={...record.file,members:files.get(record.file.path)?.members||[]};files.set(file.path,file);
     if(record.entity.type==='member')registerMember(file.path,record.entity);
   };
   const index={snapshot,counts:manifest.counts,files,members,fileByMember,remote:true,
+    member:id=>typedMembers.get(sourceEntityKey('member',id))||members.get(String(id)),
     resolve(info){
       if(!info)return null;
       if(info.type==='member'){const found=typedMembers.get(sourceEntityKey('member',info.id))||members.get(String(info.id));return found&&(!info.file||info.file===found.file)?{...info,...found.member,type:'member',file:found.file}:null;}

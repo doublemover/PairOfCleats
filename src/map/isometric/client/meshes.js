@@ -273,10 +273,10 @@ export const buildMeshes = () => {
         const footprint = Math.max(0.2, Math.min(rawFootprint, maxFootprint || rawFootprint));
 
         const rawMemberId = entry.member.id;
-        const memberId = rawMemberId === 0 || rawMemberId ? String(rawMemberId) : null;
-        const memberKey = memberId || entry.member.name || entry.member.file || '';
+        const memberId = rawMemberId == null ? null : rawMemberId;
+        const memberKey = memberId!==null ? String(memberId) : entry.member.name || entry.member.file || '';
         const mColor = state.scoreToColor(entry.score, memberKey);
-        if (memberId) state.memberColorById.set(memberId, mColor.clone());
+        if (memberId!==null) state.memberColorById.set(memberId, mColor.clone());
 
         placed.push({ entry, slot, height, footprint, color: mColor, memberId });
       }
@@ -360,7 +360,7 @@ export const buildMeshes = () => {
               height
             };
 
-            if (memberId) {
+            if (memberId!==null) {
               state.memberInstanceById.set(memberId, { mesh: instanced, instanceId: i });
               state.memberClusterByMemberId.set(memberId, cluster);
               state.memberAnchors.set(memberId, {

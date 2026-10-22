@@ -4,7 +4,7 @@ export const projectPipeRows = (rows, { level, tier, globalVisible = true, typeV
   if (tier !== 'segments' || allConnections) return rows;
   if (!selected) return [];
   return rows.filter(row => selected.type === 'member'
-    ? row.fromMember === String(selected.id) || row.toMember === String(selected.id)
+    ? row.fromMember === selected.id || row.toMember === selected.id
     : row.fromFile === selected.file || row.toFile === selected.file);
 };
 

@@ -62,7 +62,7 @@ export const commitResidentScene = (candidate,request) => {
   try{previous.stackPacketOwner?.dispose();}catch(error){state.sceneRetirementError=error.message;}
   state.hovered=null;state.hoveredRef=null;state.selected=null;
   try{
-    const selected=request.selected,reference=selected.type==='member'?state.memberInstanceById.get(String(selected.id)):state.fileInstanceByKey.get(selected.file);
+    const selected=request.selected,reference=selected.type==='member'?state.memberInstanceById.get(selected.id):state.fileInstanceByKey.get(selected.file);
     if(reference)setSelection({object:reference.mesh,instanceId:reference.instanceId});else setSemanticSelection(selected);
     if(state.appearance)applyViewerAppearance(state,state.appearance);
     updateStackVisibility(true);state.renderEdgeMenu?.();state.invalidateHover?.();state.invalidateRender?.();

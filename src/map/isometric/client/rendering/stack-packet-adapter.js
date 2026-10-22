@@ -18,14 +18,14 @@ export const buildSpatialStackMeshes = ({model,policy,geometry,material,fileColo
     : {type:'member',id:row.entity?.id??null,file:row.file.key,name:row.segment.member.name,semanticKind:row.segment.kind,
       range:row.segment.member.range??null,baseColor:appearance(row),x:row.position[0],y:row.position[1],z:row.position[2],footprint:row.scale[0],height:row.scale[1]};
   const references=row=>row.entity?.type==='file'?state.fileInstanceByKey:state.memberInstanceById;
-  const referenceKey=row=>row.entity?.type==='file'?row.entity.file:String(row.entity?.id);
+  const referenceKey=row=>row.entity?.type==='file'?row.entity.file:row.entity?.id;
   const install=(packet,row,slot)=>{
     if(!row.entity)return;
     references(row).set(referenceKey(row),{mesh:packet.mesh,instanceId:slot});
     if(row.entity.type==='file'){
       state.fileColorByPath.set(row.entity.file,appearance(row));state.fileAnchors.set(row.entity.file,{x:row.position[0],y:row.file.stackHeight,z:row.position[2]});
     }else{
-      const key=String(row.entity.id);state.memberColorById.set(key,appearance(row));state.memberAnchors.set(key,{x:row.position[0],y:row.position[1],z:row.position[2]});
+      const key=row.entity.id;state.memberColorById.set(key,appearance(row));state.memberAnchors.set(key,{x:row.position[0],y:row.position[1],z:row.position[2]});
       state.memberClusterByMemberId.set(key,packet.group);
     }
   };
@@ -88,7 +88,7 @@ export const buildSpatialStackMeshes = ({model,policy,geometry,material,fileColo
         if(JSON.stringify(cell)!==JSON.stringify(packet.cell)||(row.entity?.type==='file'?'file':'member')!==own.layer||(row.segment?.shape||'square')!==own.shape)throw new Error('Cross-cell or incompatible delta requires a new bounded packet transaction.');}
       const delta=apply(packet,rows);retirePicking();state.geometryRevision=(state.geometryRevision||0)+1;
       state.viewRevisions?.bump('residency');
-      const selected=state.selectedInfo;if(selected){const ref=selected.type==='member'?state.memberInstanceById.get(String(selected.id)):state.fileInstanceByKey.get(selected.file);if(ref)setSelection({object:ref.mesh,instanceId:ref.instanceId});else setSemanticSelection(selected);}
+      const selected=state.selectedInfo;if(selected){const ref=selected.type==='member'?state.memberInstanceById.get(selected.id):state.fileInstanceByKey.get(selected.file);if(ref)setSelection({object:ref.mesh,instanceId:ref.instanceId});else setSemanticSelection(selected);}
       state.invalidateHover?.();state.invalidateRender?.();return {revision:packet.slots.revision,changedSlots:delta.changed.length,metrics:{...metrics}};
     },
     setSurfaceOpacity(layer,opacity){for(const packet of packets.values())if(packet.compatibility.layer===layer){packet.compatibility.alphaMode=opacity<1?'blend':'opaque';packet.compatibility.opacity=opacity;}},

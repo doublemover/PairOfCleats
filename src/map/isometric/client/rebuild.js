@@ -256,7 +256,7 @@ export const rebuildScene = () => {
   }
   applyHighlights();
   if(state.layoutStyle==='stacks'){
-    if(previousSelection){const ref=previousSelection.type==='member'?state.memberInstanceById.get(String(previousSelection.id)):state.fileInstanceByKey.get(previousSelection.file);if(ref)setSelection({object:ref.mesh,instanceId:ref.instanceId});else setSemanticSelection(previousSelection);}
+    if(previousSelection){const ref=previousSelection.type==='member'?state.memberInstanceById.get(previousSelection.id):state.fileInstanceByKey.get(previousSelection.file);if(ref)setSelection({object:ref.mesh,instanceId:ref.instanceId});else setSemanticSelection(previousSelection);}
     else if(firstLayout) focusStack();
   } else if(previousSelection) setSemanticSelection(previousSelection);
   state.invalidateRender?.();
