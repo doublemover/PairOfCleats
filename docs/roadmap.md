@@ -105,7 +105,8 @@ without implying those new requirements are satisfied. Storage/category, native,
 editor, provisioning, bounded discovery and durable viewer preference releases
 now have durable partial mappings. Shared sourceChunking6/compilerBindings18/lspBindings22, callFlow20, graphRelations1
 and discoverySelection2/signature14 identify that producer meaning. The later
-checkpoint below uses sourceChunking9/importResolution6/typeNormalization3/lspBindings25.
+current source uses sourceChunking9/importResolution6/typeNormalization3,
+compilerBindings19/lspBindings28/cfgFlow19/callFlow21.
 
 Earlier source checkpoints through 0500f370a cover bounded SQLite/LMDB and vector
 ingestion/finalizers, complete lexical reuse, selective BM25 hydration, immutable
@@ -143,14 +144,29 @@ argument extraction and registered relations preserve literal dependency bytes.
 Python headers/local classes and parenthesized C/C++ prototypes retain their
 actual lexical/declarator roles. sourceChunking9/importResolution6 retire changed
 meaning. Immutable LSP request capture and atomic hierarchy-token admission use
-lspBindings25; typeNormalization3/compilerBindings18/cfgFlow18/callFlow20 remain
-current. Prior map byte admission, sparse Python columns, Sublime source geometry
+lspBindings25; typeNormalization3/compilerBindings18/cfgFlow18/callFlow20 identify
+that checkpoint. Prior map byte admission, sparse Python columns, Sublime source geometry
 and retained lens/motif evidence keep their durable mappings and limitations.
 
 Generic migration, fine-grained resume, independent source truth and actual
 native/editor/browser/model/resource qualification remain open. All new source
 and fixtures are unvalidated; no issue closure, current suite pass or measured
 speedup is claimed. The durable receipt preserves exact commits and acceptance.
+
+Further source through 7ebf32cb3 retains actual prepared-model components/tensors,
+PDF destruction promises and accepted late work, migration descriptor/exclusion
+owners, and exact Go SDK transaction identity. Frozen/falsey primary and secondary
+failures remain reachable through the latest reconciliation error. Original
+cache-writer closure observers gate lease invalidation independently of flags.
+Legacy/latest crash state/events sinks fail independently of attempt-owned copies;
+registry release errors preserve the operation failure. Map scene resources stay
+owned after detachment, with both original scene/cache observations required.
+LSP scalar/location/container admission and shared hierarchy budgets retire old
+request entries with rq4/lspBindings28. Prototype-named argument maps use own
+keys (callFlow21); class-property aliases remain conservative under checker
+identity (compilerBindings19/cfgFlow19). These are unvalidated source contracts,
+not native/GPU retry safety, full source-language completeness or performance
+evidence. Real-model/host acceptance, generated freshness and setup remain open.
 
 ## Environment and qualification boundaries
 
