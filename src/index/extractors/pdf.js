@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import { throwIfAborted } from '../../shared/abort.js';
-import { runWithTimeout } from '../../shared/promise-timeout.js';
+import { createPdfExtractionLifetime, isPendingPdfExtractionFailure } from './pdf-lifetime.js';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { tryImport } from '../../shared/optional-deps.js';
@@ -113,54 +113,56 @@ export async function loadPdfExtractorRuntime({ refresh = false } = {}) {
 
 /** Own pdf.js loading, page work and disposal across every extraction outcome. */
 export const readPdfPages = async ({ pdfjs, source, policy, standardFontDataUrl = null }) => {
-  let loadingTask = null, doc = null, primaryError = null;
-  const destroyed = new Set();
-  const cleanupTasks = new Map();
-  const dispose = async () => {
-    const jobs = [doc, loadingTask].filter(owner => owner && typeof owner.destroy === 'function').map(owner => {
-      if (cleanupTasks.has(owner)) return cleanupTasks.get(owner);
-      if (destroyed.has(owner)) return Promise.resolve();
-      const task = runWithTimeout(() => owner.destroy(), { timeoutMs: 2000 }).then(() => {
-        destroyed.add(owner);
-      }).finally(() => cleanupTasks.delete(owner));
-      cleanupTasks.set(owner, task);
-      return task;
-    });
-    const failures = (await Promise.allSettled(jobs)).filter(result => result.status === 'rejected').map(result => result.reason);
-    if (failures.length) throw new AggregateError(failures, 'PDF disposal was not confirmed.');
-  };
+  let primaryError = null;
+  const lifetime = createPdfExtractionLifetime();
   try {
     return await withTimeout(async signal => {
-      loadingTask = pdfjs.getDocument({ data: new Uint8Array(source), isEvalSupported: false,
-        useSystemFonts: false, ...(standardFontDataUrl ? { standardFontDataUrl } : {}) });
-      const cancel = () => { void dispose().catch(() => {}); };
-      signal?.addEventListener('abort', cancel, { once: true });
       try {
-        doc = await loadingTask.promise;
-        if (signal?.aborted) { await dispose(); throwIfAborted(signal); }
+        const loadingTask = pdfjs.getDocument({ data: new Uint8Array(source), isEvalSupported: false,
+          useSystemFonts: false, ...(standardFontDataUrl ? { standardFontDataUrl } : {}) });
+        lifetime.adopt(loadingTask);
+        const cancel = () => { void lifetime.dispose().catch(() => {}); };
+        signal?.addEventListener('abort', cancel, { once: true });
+        let doc;
+        try { doc = await loadingTask.promise; }
+        finally { signal?.removeEventListener('abort', cancel); }
+        lifetime.adopt(doc, { required: false });
+        throwIfAborted(signal);
         const numPages = Number(doc?.numPages) || 0;
         if (numPages > policy.maxPages) throw Object.assign(new Error('PDF page count exceeds extraction policy.'), { code: 'ERR_PDF_PAGE_LIMIT' });
         const pages = [];
         for (let pageNumber = 1; pageNumber <= numPages; pageNumber += 1) {
           throwIfAborted(signal);
           const page = await doc.getPage(pageNumber);
+          let pageError = null;
           try {
             throwIfAborted(signal);
             const content = await page.getTextContent();
             throwIfAborted(signal);
             pages.push({ pageNumber, text: normalizePageText(content?.items || []) });
-          } finally { page.cleanup?.(); }
+          } catch (value) {
+            pageError = value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+            lifetime.observe(pageError); throw pageError;
+          } finally {
+            try { await page.cleanup?.(); }
+            catch (value) {
+              const cleanupError = value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+              lifetime.observe(cleanupError);
+              throw lifetime.retain(pageError, [cleanupError]);
+            }
+          }
         }
         return pages;
-      } finally { signal?.removeEventListener('abort', cancel); }
+      } catch (error) { lifetime.observe(error); throw error; }
+      finally { lifetime.finishOperation(); }
     }, policy.extractTimeoutMs);
-  } catch (error) { primaryError = error; throw error; }
+  } catch (value) {
+    primaryError = value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+    lifetime.observe(primaryError); throw primaryError;
+  }
   finally {
-    try { await dispose(); }
-    catch (error) {
-      if (primaryError) primaryError.cleanupErrors = [...(primaryError.cleanupErrors || []), error];
-      else throw error;
-    }
+    const cleanupErrors = await lifetime.dispose();
+    if (cleanupErrors.length || !lifetime.isSettled()) throw lifetime.retain(primaryError, cleanupErrors);
   }
 };
 
@@ -261,6 +263,7 @@ export async function extractPdf({
         }
       };
   } catch (err) {
+    if (isPendingPdfExtractionFailure(err)) throw err;
     return buildFailedResult(resolvePdfFailureReason(err), [err?.message], {
       sourceType: 'pdf',
       policy: resolvedPolicy
