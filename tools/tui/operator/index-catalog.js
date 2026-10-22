@@ -1,5 +1,5 @@
 import { listCommandRegistry } from '../../../src/shared/command-registry-query.js';
-import { INDEX_BUILD_OPTIONS, SERVICE_API_OPTIONS, TOOLING_DETECT_OPTIONS, TOOLING_INSTALL_OPTIONS,
+import { INDEX_BUILD_OPTIONS, SERVICE_API_OPTIONS, SERVICE_INDEXER_OPTIONS, TOOLING_DETECT_OPTIONS, TOOLING_INSTALL_OPTIONS,
   CONTEXT_PACK_OPTIONS, COMPARE_MODELS_OPTIONS } from '../../../src/shared/cli-option-sets.js';
 import { TOOLING_DOCTOR_OPTIONS, SETUP_OPTIONS, BOOTSTRAP_OPTIONS, CACHE_MAINTENANCE_OPTIONS,
   SQLITE_COMPACT_OPTIONS, LMDB_BUILD_OPTIONS, ARCHITECTURE_CHECK_OPTIONS, SUGGEST_TESTS_OPTIONS,
@@ -10,6 +10,7 @@ import { buildGraphCliOptions } from '../../../src/integrations/tooling/cli-help
 import { getIndexDir, loadUserConfig } from '../../../src/shared/dict-utils.js';
 import { PRIMARY_INDEX_MODES } from '../../../src/integrations/core/build-index/stages/modes.js';
 import { SNAPSHOT_ID_SCHEMA } from '../../../src/contracts/schemas/artifacts/snapshots-diffs.js';
+import { STORAGE_OPTIONS } from '../../storage/options.js';
 import { INDEX_VALIDATE_OPTIONS, INDEX_REPORT_OPTIONS, INDEX_STATS_OPTIONS,
   SNAPSHOT_COMMANDS, WORKSPACE_BUILD_OPTIONS } from '../../../src/shared/index-tool-options.js';
 
@@ -30,7 +31,8 @@ const optionSchema = spec => ({ type: spec.type,
   ...(spec.type === 'string' ? { maxLength: 4096, pattern: '^[^\\u0000]*$' } : {}),
   ...(spec.type === 'array' ? { maxItems: 32, items: { type: 'string', maxLength: 256, pattern: '^[^\\u0000]*$' } } : {}) });
 const form = (entry, options, suffix = '', positional = {}) => {
-  const managed = key => OWNED_FIELDS.has(key) || (REQUEST_COMMANDS.has(entry.id) && ['all', 'operation'].includes(key))
+  const managed = key => (OWNED_FIELDS.has(key) && !(entry.id === 'service.indexer' && key === 'watch'))
+    || (REQUEST_COMMANDS.has(entry.id) && ['all', 'operation'].includes(key))
     || (entry.id === 'service.api' && ['host', 'allowed-hosts', 'cors-allowed-origins'].includes(key))
     || (entry.id === 'report.map' && ['serve', 'input', 'port', 'no-open', 'tls-key', 'tls-cert'].includes(key))
     || (['sqlite.compact', 'lmdb.build'].includes(entry.id) && key === 'index-root')
@@ -44,13 +46,22 @@ const form = (entry, options, suffix = '', positional = {}) => {
         ? { pattern: SNAPSHOT_ID_SCHEMA.pattern, minLength: 1 } : {}),
       ...(entry.id === 'service.api' && name === 'port' ? { pattern: '^[0-9]{1,5}$' } : {}),
       ...(entry.id === 'bench.micro' && ['runs', 'warmup'].includes(name) ? { minimum: 0, maximum: 10 } : {}),
+      ...(entry.id.startsWith('storage.') && name === 'max-entries' ? { type: 'integer', minimum: 1, maximum: 10000 } : {}),
+      ...(entry.id.startsWith('storage.') && name === 'max-duration-ms' ? { type: 'integer', minimum: 1, maximum: 5000 } : {}),
+      ...(entry.id === 'service.indexer' && name === 'command' ? { enum: ['status', 'work'] } : {}),
+      ...(entry.id === 'service.indexer' && name === 'concurrency' ? { type: 'integer', minimum: 1, maximum: 4 } : {}),
+      ...(entry.id === 'service.indexer' && name === 'interval' ? { type: 'integer', minimum: 100, maximum: 5000 } : {}),
       ...(entry.id === 'bench.micro' && name === 'components' ? { enum: ['sparse', 'dense', 'hybrid', 'sparse,dense,hybrid'] } : {}) },
     description: spec.describe || spec.description || '', ...(spec.default !== undefined ? { default: spec.default } : {}),
-    positional: Object.hasOwn(positional, name), required: spec.demandOption === true || REQUIRED_INPUTS[entry.id]?.includes(name) === true }));
+    ...(entry.id.startsWith('storage.') && name === 'max-entries' ? { default: 10000 } : {}),
+    ...(entry.id.startsWith('storage.') && name === 'max-duration-ms' ? { default: 5000 } : {}),
+    ...(entry.id === 'service.indexer' && name === 'command' ? { default: 'status' } : {}),
+    positional: Object.hasOwn(positional, name), required: spec.demandOption === true
+      || entry.id === 'service.indexer' && name === 'config' || REQUIRED_INPUTS[entry.id]?.includes(name) === true }));
   return { id: entry.id + (suffix ? `.${suffix}` : ''), registryId: entry.id,
     commandPath: [...entry.commandPath, ...(suffix ? [suffix] : [])],
     description: suffix ? SNAPSHOT_COMMANDS[suffix].description : entry.description,
-    supportTier: entry.supportTier, scopeKind: entry.id === 'workspace.build' ? 'workspace' : 'repo',
+    supportTier: entry.supportTier, scopeKind: ['workspace.build', 'service.indexer'].includes(entry.id) ? 'workspace' : 'repo',
     capture: TEXT_COMMANDS.has(entry.id) ? 'text' : 'json',
     requestFile: REQUEST_COMMANDS.has(entry.id),
     managedFields: Object.keys(options).filter(managed).map(name => ({ name,
@@ -67,7 +78,11 @@ const form = (entry, options, suffix = '', positional = {}) => {
 const OPTIONS = {
   setup: SETUP_OPTIONS, bootstrap: BOOTSTRAP_OPTIONS,
   'tooling.doctor': TOOLING_DOCTOR_OPTIONS, 'tooling.detect': TOOLING_DETECT_OPTIONS, 'tooling.install': TOOLING_INSTALL_OPTIONS,
-  'service.api': SERVICE_API_OPTIONS, 'cache.gc': CACHE_MAINTENANCE_OPTIONS,
+  'service.api': SERVICE_API_OPTIONS, 'service.mcp': {}, 'cache.gc': CACHE_MAINTENANCE_OPTIONS,
+  'service.indexer': Object.fromEntries(['config', 'command', 'watch', 'interval', 'concurrency'].map(key => [key, SERVICE_INDEXER_OPTIONS[key]])),
+  ...Object.fromEntries(['list', 'explain', 'doctor', 'cleanup-plan', 'cleanup-apply'].map(name => [`storage.${name}`,
+    Object.fromEntries(['max-entries', 'max-duration-ms'].map(key => [key, STORAGE_OPTIONS[key]]))])),
+  'storage.inspect': Object.fromEntries(['exact', 'max-entries', 'max-duration-ms'].map(key => [key, STORAGE_OPTIONS[key]])),
   'sqlite.compact': SQLITE_COMPACT_OPTIONS, 'lmdb.build': LMDB_BUILD_OPTIONS,
   'context-pack': CONTEXT_PACK_OPTIONS,
   'graph-context': buildGraphCliOptions({ seed: { type: 'string' }, includePaths: { type: 'boolean', default: false } }),
@@ -88,13 +103,7 @@ const UNSUPPORTED = {
   'workspace.validate': 'Workspace authoring validation is available through the canonical workspace validate CLI; this native status action observes index publication instead.',
   'tooling.lifecycle': 'Provider lifecycle verification/mutation blockers are owned by the canonical tooling lifecycle CLI; native lifecycle plan and consent adapters are not implemented.',
   'checkout.diagnose': 'Source-checkout diagnosis and opt-in prerequisite probes belong to the canonical onboarding CLI; this native session already requires a prepared installation.',
-  'storage.list': 'Storage-root inventory has no native typed root/lease adapter yet; use canonical storage list.',
-  'storage.inspect': 'Storage inspection needs native root and observation-identity selection; use canonical storage inspect.',
-  'storage.explain': 'Storage provenance explanation needs the canonical root/observation adapter; use canonical storage explain.',
-  'storage.doctor': 'Storage readiness diagnostics need a native root/lease adapter; use canonical storage doctor.',
   'storage.configure-plan': 'Storage configuration planning has no native exact-root/configuration revision preview; use canonical storage configure-plan.',
-  'storage.cleanup-plan': 'Storage cleanup planning owns category/protection/lease observations; its native typed plan viewer is not implemented.',
-  'storage.cleanup-apply': 'Storage cleanup requires the canonical reviewed plan file and exact plan ID; native plan consent and owned apply adapter are not implemented.',
   'storage.migration-plan': 'Storage migration planning requires native source/destination ownership and impact presentation; use canonical storage migration-plan.',
   'storage.migration-status': 'Storage migration status has no native plan identity/lease adapter; use canonical storage migration-status. Migration application remains unavailable.',
   'sqlite.compact': 'Native backend mutation cannot upgrade the supervisor\'s retained cache reader lease or transfer exclusive ownership to the canonical child. Use the canonical CLI with its required ownership scope until that handoff is implemented.',
@@ -111,8 +120,6 @@ const UNSUPPORTED = {
   'workspace.manifest': 'Workspace manifest creation needs a membership/file-write preview; not implemented.',
   'workspace.status': 'Use the workspace scope status action for published index observations.',
   'workspace.catalog': 'Workspace catalog mutation/selection adapter is not implemented.',
-  'service.mcp': 'MCP is a stdio protocol server; this TUI has no verified attached MCP client transport.',
-  'service.indexer': 'Indexer service configuration can own multiple registered repositories; native single-scope ownership is not implemented.',
   'ingest.ctags': 'External ingest input/provenance picker and overwrite preview are not implemented.',
   'ingest.gtags': 'External ingest input/provenance picker and overwrite preview are not implemented.',
   'ingest.lsif': 'External ingest input/provenance picker and overwrite preview are not implemented.',
@@ -125,7 +132,7 @@ const UNSUPPORTED = {
   'dispatch.describe': 'Use the typed command form and its canonical argv preview.',
   'tooling.navigate': 'Indexed navigation request adapter is not implemented; use canonical CLI or Repository Search source.',
   'tooling.uninstall': 'Uninstall can remove shared caches across repositories; native multi-root destructive authority is not implemented.',
-  'cache.clear': 'Whole shared-cache deletion lacks a native per-owner impact inventory; use bounded cache.gc instead.',
+  'cache.clear': 'Canonical clear-cache now uses reviewed category cleanup. Use native storage.cleanup-plan/storage.cleanup-apply; a separate legacy cache-root/all/force compatibility form is not admitted.',
   'report.throughput': 'Completed benchmark file selection adapter is not implemented.',
   'report.summary': 'Combined report input and output-file preview adapter is not implemented.',
   'report.parity': 'Broad parity evaluation requires an explicit backend/corpus qualification plan; not implemented natively.',
@@ -177,7 +184,7 @@ export const buildIndexWorkflowArgv = (command, values, scope, { env = process.e
       && typeof value === 'boolean') { if (value) argv.push(`--${field.name}`); continue; }
     for (const item of Array.isArray(value) ? value : [value]) argv.push(`--${field.name}=${item}`);
   }
-  if (!command.requestFile && command.registryId !== 'risk.explain') argv.push(`--${scope.kind === 'workspace' ? 'workspace' : 'repo'}=${scope.target}`);
+  if (!command.requestFile && !['risk.explain', 'service.indexer'].includes(command.registryId)) argv.push(`--${scope.kind === 'workspace' ? 'workspace' : 'repo'}=${scope.target}`);
   if (command.registryId === 'risk.explain') argv.push(`--index=${getIndexDir(scope.configRoot || scope.target, 'code', loadUserConfig(scope.configRoot || scope.target, { env }))}`);
   if (command.registryId === 'bench.micro') {
     argv.push('--build=false', '--clean=false');
@@ -185,8 +192,9 @@ export const buildIndexWorkflowArgv = (command, values, scope, { env = process.e
   }
   if (command.registryId === 'setup') argv.push('--non-interactive=true');
   if (command.registryId === 'service.api') argv.push('--host=127.0.0.1', '--json');
+  if (command.registryId === 'service.mcp') argv.push('--mcp-mode=legacy');
   if (['index.build', 'index.watch', 'workspace.build'].includes(command.registryId)) {
     argv.push('--progress=jsonl');
-  } else if (command.capture !== 'text' && !command.requestFile && command.registryId !== 'report.eval') argv.push('--json');
+  } else if (command.capture !== 'text' && !command.requestFile && !['report.eval', 'service.mcp'].includes(command.registryId)) argv.push('--json');
   return argv;
 };

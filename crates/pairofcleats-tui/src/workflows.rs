@@ -165,7 +165,9 @@ impl WorkflowUi {
                     self.request("describe", json!({"includeExperimental":self.experimental})); }
                 KeyCode::Esc => return true,
                 KeyCode::Char('s') => self.page = Page::Scope,
-                KeyCode::Char('t') => if let Some(scope) = &self.scope { self.request("status", json!({"scopeId":scope["id"]})); },
+                KeyCode::Char('t') => if self.continuation_params().is_some() {
+                    self.status = "Dispose the semantic continuation with Esc before replacing its result".into();
+                } else if let Some(scope) = &self.scope { self.request("status", json!({"scopeId":scope["id"]})); },
                 KeyCode::Down | KeyCode::Char('j') => self.selected = (self.selected + 1).min(self.commands().len().saturating_sub(1)),
                 KeyCode::Up | KeyCode::Char('k') => self.selected = self.selected.saturating_sub(1),
                 KeyCode::Enter => if let Some(command) = self.commands().get(self.selected) {
@@ -193,7 +195,7 @@ impl WorkflowUi {
                         self.status = "Item editor requires a string array; use advanced JSON for structured arrays".into(); return false;
                     }
                     let fallback = match field["schema"]["type"].as_str() {
-                        Some("boolean") => json!(false), Some("number") => json!(0),
+                        Some("boolean") => json!(false), Some("number") | Some("integer") => json!(0),
                         Some("array") => json!([]), _ => json!(""),
                     };
                     let value = self.values.get(field["name"].as_str().unwrap_or_default()).or_else(|| field.get("default")).unwrap_or(&fallback);
@@ -238,12 +240,18 @@ impl WorkflowUi {
                 _ => {}
             },
             Page::Result => match key.code {
-                KeyCode::Esc => { self.page = Page::Commands; self.selected = 0; }
+                KeyCode::Esc => {
+                    if let Some(params) = self.continuation_params() { self.request("close-continuation", params); }
+                    else { self.page = Page::Commands; self.selected = 0; }
+                }
+                KeyCode::Char('n') => if let Some(params) = self.continuation_params() { self.request("next", params); },
                 KeyCode::Char('c') => if let Some(id) = &self.owned_job {
                     self.outbox.push_back(json!({"proto":"poc.tui@1", "op":"job:cancel", "jobId":id, "reason":"user_cancel"}));
                     self.status = format!("Cancellation requested for owned job {id}");
                 },
-                KeyCode::Char('t') => if let Some(scope) = &self.scope { self.request("status", json!({"scopeId":scope["id"]})); },
+                KeyCode::Char('t') => if self.continuation_params().is_some() {
+                    self.status = "Dispose the semantic continuation with Esc before replacing its result".into();
+                } else if let Some(scope) = &self.scope { self.request("status", json!({"scopeId":scope["id"]})); },
                 KeyCode::Down => self.scroll.down(),
                 KeyCode::Up => self.scroll.up(),
                 _ => {}
@@ -260,6 +268,15 @@ impl WorkflowUi {
             if values.len() >= 32 { return serde_json::from_str("array editor limit exceeded"); }
             values.push(json!(self.draft)); Ok(json!(values))
         } else { crate::text_editor::input_value(&self.draft, &field["schema"], self.advanced) }
+    }
+
+    fn continuation_params(&self) -> Option<Value> {
+        let result = self.result.as_ref()?;
+        let continuation = if result["nativeContinuation"].is_object() { &result["nativeContinuation"] }
+            else { &result["result"]["nativeContinuation"] };
+        let scope = self.scope.as_ref()?;
+        if continuation["scopeId"] != scope["id"] || !continuation["id"].is_string() { return None; }
+        Some(json!({"scopeId":scope["id"], "continuationId":continuation["id"]}))
     }
 
     pub fn paste(&mut self, text: &str) {
@@ -396,6 +413,14 @@ impl WorkflowUi {
                 self.status =
                     "Published generation observation; independent of process success".into();
             }
+            "next" => {
+                self.result = Some(data.clone()); self.page = Page::Result; self.scroll.reset();
+                self.status = "Canonical semantic page received; n continues in the same owned process, Esc disposes".into();
+            }
+            "close-continuation" => {
+                self.result = None; self.page = Page::Commands; self.selected = 0;
+                self.status = "Semantic continuation disposed; no cursor persisted".into();
+            }
             "discard" => {
                 self.presentation.get_mut().clear(); self.preview = None;
                 self.page = Page::Fields;
@@ -448,12 +473,12 @@ impl WorkflowUi {
                 return self.scroll.lines(lines, &format!("Field: {name}\n{}", self.cursor.visible(&self.draft, width)), height, width);
             }
             Page::Preview | Page::Result => {
-                lines.push(if self.page == Page::Preview {"Review exact scope/argv/readiness | Enter confirms | Esc discards | arrows scroll"} else {"Owned job result | c cancels owned job | t refreshes published status | Esc catalog | arrows scroll"}.into());
+                lines.push(if self.page == Page::Preview {"Review exact scope/argv/readiness | Enter confirms | Esc discards | arrows scroll"} else {"Owned job result | n semantic next | c cancel | t status | Esc disposes continuation/catalog | arrows scroll"}.into());
                 if let Some(job) = &self.owned_job { lines.push(format!("Owned job: {job}")); }
                 if self.page == Page::Preview {
                     let empty = Value::Null;
                     let preview = self.preview.as_ref().unwrap_or(&empty);
-                    let projection: std::collections::BTreeMap<_, _> = ["canonicalArgv", "launchable", "errors", "effect", "observations"]
+                    let projection: std::collections::BTreeMap<_, _> = ["canonicalArgv", "executionOwner", "serviceReview", "storageReview", "launchable", "errors", "effect", "observations"]
                         .into_iter().map(|key| (key, &preview[key])).collect();
                     return self.presentation.borrow_mut().lines(1, self.scope.as_ref(), &projection,
                         &self.scroll, lines, height, width);

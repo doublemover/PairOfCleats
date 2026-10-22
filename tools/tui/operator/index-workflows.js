@@ -28,6 +28,10 @@ import { resolveModelSetupReadiness } from '../../setup/model-readiness.js';
 import { describeIndexWorkflows, describeWorkflowCoverage, buildIndexWorkflowArgv } from './index-catalog.js';
 import { inspectBootstrapReadiness } from '../../../src/shared/bootstrap-readiness.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
+import { createTuiMcpClients } from './mcp-client.js';
+import { createTuiSemanticPages, SEMANTIC_PAGED_COMMANDS } from './semantic-pages.js';
+import { prepareTuiStorage, NATIVE_STORAGE_COMMANDS } from './storage.js';
+import { createTuiIndexer } from './indexer.js';
 
 const MAX_REPOS = 32;
 const MAX_PLANS = 16;
@@ -36,7 +40,8 @@ const BUILDERS = new Set(['index.build', 'index.watch', 'workspace.build']);
 const SETUP = new Set(['setup', 'bootstrap', 'tooling.install']);
 const effects = command => SETUP.has(command.registryId)
   ? 'Setup can download/install dependencies, models, dictionaries or tooling, modify selected configuration and build indexes. Review every skip/scope field; credentials use the existing private environment/config handoff.'
-  : command.registryId === 'service.api' ? 'Start a session-owned API child bound to 127.0.0.1 only. Credentials come from the existing private API token environment; no token is accepted in this form. A running PID is not health evidence. Cancel stops only this owned job.'
+  : command.registryId === 'service.mcp' ? 'Start a session-owned framed MCP client/server pair for this repository. Health verifies initialize and tools/list responses only. No arbitrary tool execution or external attachment is admitted. Cancel settles the owned process tree.'
+    : command.registryId === 'service.api' ? 'Start a session-owned API child bound to 127.0.0.1 only. Credentials come from the existing private API token environment; no token is accepted in this form. A running PID is not health evidence. Cancel stops only this owned job.'
     : command.registryId === 'cache.gc' ? 'Canonical cache garbage collection can cover shared cache roots. apply=true mutates; review exact roots and retention limits. Existing active-owner exclusions remain enforced by the canonical GC.'
         : command.registryId.startsWith('report.') ? 'Generate a scoped report/evaluation. Explicit output paths may be written; build flags can start expensive work. Native result views retain bounded producer JSON, including uncertainty and partial coverage.'
           : 'Run the selected canonical command under supervisor ownership; review exact scope, inputs and argv. Exit success alone does not establish artifact readiness.';
@@ -97,6 +102,9 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
     if (disposed) fail('ERR_TUI_SESSION_CLOSED', 'The workflow session has closed.');
     return scopes.captureScope(id);
   };
+  const mcp = createTuiMcpClients({ toolRoot, requireScope });
+  const semantic = createTuiSemanticPages({ toolRoot, requireScope, now });
+  const indexer = createTuiIndexer({ toolRoot, requireScope, env });
   const targets = (scope, values = {}) => {
     if (scope.kind === 'repo') return [scope.configRoot];
     const repos = loadWorkspaceConfig(scope.target).repos.filter(repo => values['include-disabled'] || repo.enabled);
@@ -133,6 +141,9 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
           const request = JSON.parse(read.buffer.toString('utf8'));
           if (typeof request.repoRoot !== 'string' || !sameIdentityPath(path.resolve(scope.configRoot, request.repoRoot), repo)) {
             fail('ERR_TUI_WORKFLOW_SCOPE', 'The saved request must name the selected repository as repoRoot.');
+          }
+          if (SEMANTIC_PAGED_COMMANDS.has(command.registryId) && request.cursor) {
+            fail('ERR_TUI_SEMANTIC_REQUEST', 'Open a fresh request without a cursor; native continuation retains the issuing process.');
           }
         }
       }
@@ -205,28 +216,44 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
     if (argv.some(value => sanitizeRuntimeReceipt(value) !== value)) {
       return { launchable: false, errors: ['Use private Settings for credentials; command forms do not accept values that require redaction.'] };
     }
-    let observations;
+    let observations, storage = null, service = null;
     try { observations = await inspect(scope, command, values, signal); }
     catch (error) {
       throwIfAborted(signal);
       return { launchable: false, errors: [sanitizeRuntimeReceipt(error.message)],
         errorCode: error.code || 'ERR_TUI_WORKFLOW_PREFLIGHT' };
     }
+    if (NATIVE_STORAGE_COMMANDS.has(command.registryId)) {
+      try { storage = await prepareTuiStorage({ commandId: command.registryId, values, env, scope, requireScope, signal }); }
+      catch (error) { throwIfAborted(signal); return { launchable: false, errors: [sanitizeRuntimeReceipt(error.message)],
+        errorCode: error.code || 'ERR_TUI_STORAGE_PREVIEW' }; }
+    }
+    if (command.registryId === 'service.indexer') {
+      try { service = await indexer.prepare({ scope, values, signal }); }
+      catch (error) { throwIfAborted(signal); return { launchable: false, errors: [sanitizeRuntimeReceipt(error.message)],
+        errorCode: error.code || 'ERR_TUI_INDEXER_PREVIEW' }; }
+    }
     const errors = observations.flatMap(row => row.embeddings?.assets && !row.embeddings.assets.present
       ? [`${row.repo}: ${row.embeddings.assets.reason}`] : []);
-    const result = { scope, command, canonicalArgv: argv,
+    if (storage) errors.push(...storage.review.errors);
+    const result = { scope, command, canonicalArgv: storage || service ? null : argv,
+      ...(storage ? { storageReview: storage.review,
+        executionOwner: 'src/shared/storage: direct typed API; no serialized caller plan grants authority' } : {}),
+      ...(service ? { serviceReview: service.review,
+        executionOwner: 'Existing service queue claim/lease/executor/completion owners; scope-filtered claims and local cancellation.' } : {}),
       observations: observations.map(({ configFingerprint: _private, ...observation }) => observation), errors, launchable: errors.length === 0,
       effect: BUILDERS.has(command.registryId) ? 'Build selected indexes; watch remains running until cancelled.'
         : command.id.match(/snapshot\.(remove|gc|prune|freeze|create)$/) ? 'Snapshot operation; review dry-run, retention and force selections.'
           : effects(command) };
     if (result.launchable) {
-      if (Buffer.byteLength(JSON.stringify({ scope, command, values, argv, observations })) > 768 * 1024) {
+      if (Buffer.byteLength(JSON.stringify(result)) > 768 * 1024
+        || Buffer.byteLength(JSON.stringify({ scope, command, values, argv, observations })) > 768 * 1024) {
         return { launchable: false, errors: ['Narrow this scope; the launch preview exceeds its byte bound.'] };
       }
       const previewId = randomUUID();
       const jobId = `workflow-${randomUUID()}`;
       if (plans.size >= MAX_PLANS) plans.delete(plans.keys().next().value);
-      plans.set(previewId, { scope, command, values, argv, observations, jobId, createdAt: now() });
+      plans.set(previewId, { scope, command, values, argv, observations, storage, service, jobId, createdAt: now() });
       result.previewId = previewId;
       result.plannedJobId = jobId;
     }
@@ -265,6 +292,18 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
         operation: plan.command.id, correlation: { correlationId: jobId } })),
       resultPolicy: { captureStdout: BUILDERS.has(plan.command.registryId) ? 'text' : plan.command.capture || 'json', maxBytes: 768 * 1024 } }, {
       beforeRun: check,
+      ...(plan.storage ? { execute: plan.storage.execute } : plan.service ? { execute: plan.service.execute } : plan.command.registryId === 'service.mcp' ? {
+        execute: context => mcp.run({ scope: plan.scope, jobId }, context)
+      } : SEMANTIC_PAGED_COMMANDS.has(plan.command.registryId) ? {
+        execute: async context => {
+          const input = plan.observations[0].inputFiles.request;
+          const read = readVerifiedContainedFileSync(plan.scope.configRoot, input.path, { maxBytes: 768 * 1024 });
+          if (read.hash !== input.sha256) fail('ERR_TUI_WORKFLOW_STALE', 'The semantic request changed after preview.');
+          const result = await semantic.open({ scope: plan.scope, commandId: plan.command.registryId,
+            request: JSON.parse(read.buffer.toString('utf8')), requestSha256: read.hash }, context);
+          return { exitCode: 0, stdout: JSON.stringify(result), signal: null };
+        }
+      } : {}),
       afterRun: async ({ payload, signal }) => {
         let verification = null;
         if (SETUP.has(plan.command.registryId)) {
@@ -301,7 +340,8 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
           }) } };
       }
     });
-    return { launched: true, jobId, commandId: plan.command.id, canonicalArgv: plan.argv,
+    return { launched: true, jobId, commandId: plan.command.id, canonicalArgv: plan.storage || plan.service ? null : plan.argv,
+      ...(plan.storage || plan.service ? { executionOwner: plan.storage ? 'canonical-storage-api' : 'canonical-service-worker-owners' } : {}),
       note: 'Track this owned job for progress, cancellation, publication evidence and artifact references.' };
   };
   const discard = request => { assertTuiWorkflowRequest('discard', request); findPlan(request); plans.delete(request.previewId); return { discarded: true }; };
@@ -310,7 +350,14 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
     const scope = requireScope(request.scopeId);
     const publications = [];
     for (const repo of targets(scope)) publications.push(await observeIndexPublication(repo, loadUserConfig(repo, { env }), { signal }));
-    return { scope, publications };
+    return { scope, publications, services: mcp.status(scope.id), indexers: indexer.status(scope.id),
+      continuations: semantic.status(scope.id) };
   };
-  return { describe, preview, launch, discard, status, dispose: () => { disposed = true; plans.clear(); } };
+  const next = async (request, context) => { assertTuiWorkflowRequest('next', request); return semantic.next(request, context); };
+  const closeContinuation = async request => {
+    assertTuiWorkflowRequest('close-continuation', request); return semantic.discard(request);
+  };
+  const reset = async () => { plans.clear(); await Promise.all([mcp.dispose(), semantic.dispose(), indexer.dispose()]); };
+  return { describe, preview, launch, discard, status, next, 'close-continuation': closeContinuation, reset,
+    dispose: async () => { disposed = true; await reset(); } };
 };

@@ -1140,6 +1140,9 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
 }
 
 export async function claimNextJob(dirPath, queueName = null, options = {}) {
+  if (options.admitJob !== undefined && typeof options.admitJob !== 'function') {
+    throw new TypeError('Queue claim admission must be a trusted function.');
+  }
   const resolvedQueueName = resolveQueueName(queueName, null);
   const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
@@ -1159,6 +1162,10 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
     let job = null;
     for (const entry of queue.jobs) {
       if (entry.status !== 'queued') continue;
+      // Trusted embedded workers can restrict their ownership while this claim
+      // lock is held. Rejected jobs retain their state and duplicate metadata.
+      // The predicate is a source callback, never a serialized queue option.
+      if (options.admitJob && !options.admitJob(entry)) continue;
       if (entry.idempotencyKey) {
         const runningDuplicate = runningDuplicateFor(entry);
         if (runningDuplicate?.status === 'running') {

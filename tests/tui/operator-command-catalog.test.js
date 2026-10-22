@@ -43,9 +43,22 @@ const benchArgv = buildIndexWorkflowArgv(bench, {}, scope);
 assert.ok(benchArgv.includes('--build=false'));
 assert.ok(benchArgv.includes('--clean=false'));
 assert.ok(benchArgv.includes('--components=sparse,dense,hybrid'));
-for (const id of ['sqlite.compact', 'lmdb.build', 'service.mcp', 'service.indexer', 'cache.clear']) {
+for (const id of ['sqlite.compact', 'lmdb.build', 'cache.clear']) {
   assert.ok(catalog.find(command => command.id === id).unsupportedReason, `${id}: no implicit unimplemented ownership handoff`);
 }
+for (const id of ['service.mcp', 'service.indexer', 'storage.list', 'storage.explain', 'storage.inspect',
+  'storage.doctor', 'storage.cleanup-plan', 'storage.cleanup-apply']) {
+  assert.equal(catalog.find(command => command.id === id).unsupportedReason, undefined, `${id}: explicit owned adapter`);
+}
+const indexer = catalog.find(command => command.id === 'service.indexer');
+assert.equal(indexer.scopeKind, 'workspace');
+assert.equal(validateConfig(indexer.schema, { config: 'service.json', command: 'shutdown' }).ok, false);
+assert.equal(validateConfig(indexer.schema, { config: 'service.json', concurrency: 20 }).ok, false);
+const storage = catalog.find(command => command.id === 'storage.cleanup-apply');
+assert.equal(validateConfig(storage.schema, { plan: 'untrusted.json', 'plan-id': 'force' }).ok, false);
+assert.equal(validateConfig(storage.schema, { 'max-entries': 10001 }).ok, false);
+assertTuiWorkflowRequest('next', { scopeId: 'a'.repeat(8) + '-aaaa-aaaa-aaaa-' + 'a'.repeat(12),
+  continuationId: 'b'.repeat(8) + '-bbbb-bbbb-bbbb-' + 'b'.repeat(12) });
 assertTuiWorkflowRequest('describe', { includeExperimental: true });
 assert.throws(() => assertTuiWorkflowRequest('describe', { includeInternal: true }), { code: 'ERR_TUI_WORKFLOW_REQUEST' });
 console.log('Native command coverage, canonical options, bounded argv and unsupported ownership dispositions');

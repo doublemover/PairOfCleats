@@ -253,7 +253,8 @@ drafts/responses stay outside saved layout snapshots and foreground job selectio
 
 `[b]` opens the registry-backed command catalog for the selected repository or
 workspace. It exposes index/workspace workflows alongside setup/doctor/tooling,
-loopback API, cache GC, graph/context/impact, architecture/test suggestions, risk
+loopback API, owned MCP protocol health, scoped multi-repo indexer work/status,
+canonical storage observation/cleanup review, cache GC, graph/context/impact, architecture/test suggestions, risk
 and report adapters. Unsupported entries explain their concrete missing adapter.
 `[X]` deliberately enables experimental request-file semantic/runtime commands,
 model comparison and a restricted search microbenchmark. Internal commands stay
@@ -265,10 +266,18 @@ False, zero and repeated array values retain their types. Unset fields use CLI
 defaults. Scope, progress, result capture and diagnostic-only flags are managed
 explicitly; the catalog records why each managed field is unavailable for editing.
 
-`[p]` validates and prepares a launch preview. Review the exact canonical argv,
+`[p]` validates and prepares a launch preview. Review the canonical argv or named direct API owner,
 scope and selected embedding assets before `[Enter]` confirms; `[Esc]` discards
 the preview. Provider, embedding mode and model configuration use Settings and
 the existing build/setup contracts. There is no separate embeddings command.
+Semantic detail/trace/find/explain results accept `[n]` to continue in their
+original owned process; `[Esc]` disposes the volatile continuation before leaving
+that result. Producer cursors stay private, and query/generation scope cannot be
+replaced on continuation. Runtime-evidence forms still show one page.
+Indexer work requires a workspace and a contained service config whose inline
+registered repositories are all enabled members. Cancellation affects only its
+claimed executions. Storage cleanup apply reviews and retains the canonical
+exact plan; protected/incomplete plans stay blocked and existing leases apply.
 Asset presence is distinct from provider initialization and inference qualification.
 Previews expire after five minutes, are usable once, and are rechecked before a
 child starts. Scope replacement, workspace membership changes, configuration

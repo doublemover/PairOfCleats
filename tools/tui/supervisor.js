@@ -170,7 +170,10 @@ const runWorkflow = async (request, context) => {
   contracts.assertTuiWorkflowRequest(request.method, request.params);
   if (context.signal.aborted) throw Object.assign(new Error('Cancelled.'), { code: 'ABORT_ERR' });
   settingsSession ||= settings.createTuiSettingsSession({ toolRoot: ROOT });
-  if (request.method === 'select') return settingsSession.selectScope(request.params, context);
+  if (request.method === 'select') {
+    await indexWorkflows?.reset();
+    return settingsSession.selectScope(request.params, context);
+  }
   indexWorkflows ||= workflows.createTuiIndexWorkflows({ scopes: settingsSession, startJob, toolRoot: ROOT });
   return indexWorkflows[request.method](request.params, context);
 };
@@ -201,7 +204,7 @@ const shutdown = async (reason = 'shutdown', exitCode = 0) => {
     await sleep(50);
   }
   settingsSession?.dispose();
-  indexWorkflows?.dispose();
+  await indexWorkflows?.dispose();
   recordings?.dispose();
   await searchSession?.dispose();
   await artifactRegistry.dispose();
@@ -286,7 +289,8 @@ const handleRequest = async (request) => {
   if (op === 'workflow:run') {
     try {
       await startOperation({ jobId: request.jobId, method: request.method }, context => runWorkflow(request, context),
-        { title: 'Index workflow', isCommitted: data => data?.launched === true || typeof data?.id === 'string' });
+        { title: 'Index workflow', isCommitted: data => data?.launched === true || typeof data?.id === 'string'
+          || data?.nativePageCommitted === true || data?.discarded === true });
     } catch {
       emitLog(null, 'error', 'Workflow request was not admitted.');
     }

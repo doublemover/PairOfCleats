@@ -123,7 +123,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
    * @param {object} request
    * @returns {Promise<void>}
    */
-  const startJob = async (request, { beforeRun = null, afterRun = null } = {}) => {
+  const startJob = async (request, { beforeRun = null, afterRun = null, execute = null } = {}) => {
     assertAcceptingWork();
     const jobId = String(request?.jobId || '').trim();
     if (!jobId) {
@@ -248,7 +248,9 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
 
       try {
         if (beforeRun) await beforeRun({ signal: job.abortController.signal });
-        const result = await spawnSubprocess(command, args, {
+        // Only trusted workflow owners can supply this callback. Protocol JSON
+        // continues to select canonical argv and can never supply executable code.
+        const spawnOptions = {
           cwd,
           env,
           stdio: ['ignore', 'pipe', 'pipe'],
@@ -269,7 +271,14 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
           },
           onStdout: (chunk) => stdoutDecoder.push(chunk),
           onStderr: (chunk) => stderrDecoder.push(chunk)
-        });
+        };
+        const result = execute
+          ? await execute({ signal: job.abortController.signal, env, cwd,
+            onSpawn: spawnOptions.onSpawn, onActivity: payload => {
+              job.status = 'running';
+              markActivity(); emit('job:progress', payload, { jobId });
+            } })
+          : await spawnSubprocess(command, args, spawnOptions);
 
         stdoutDecoder.flush();
         stderrDecoder.flush();

@@ -52,6 +52,44 @@ fn passive_workflow_never_enqueues_launch_or_cancel() {
 }
 
 #[test]
+fn semantic_next_uses_owned_scope_capability_and_escape_disposes_before_replacing_result() {
+    let mut ui = WorkflowUi::default(); ui.available = true; ui.open("repo");
+    key(&mut ui, KeyCode::Enter);
+    let id = ui.outbox.pop_front().unwrap()["jobId"].clone();
+    ui.event(&json!({"event":"job:end","jobId":id,"status":"done","resultState":"complete",
+        "result":{"method":"select","data":{"id":"scope-a","kind":"repo"}}}));
+    let id = ui.outbox.pop_front().unwrap()["jobId"].clone();
+    ui.event(&json!({"event":"job:end","jobId":id,"status":"done","resultState":"complete",
+        "result":{"method":"describe","data":{"commands":[{"id":"semantic.trace","scopeKind":"repo","fields":[]}]}}}));
+    key(&mut ui, KeyCode::Enter); key(&mut ui, KeyCode::Char('p'));
+    let id = ui.outbox.pop_front().unwrap()["jobId"].clone();
+    ui.event(&json!({"event":"job:end","jobId":id,"status":"done","resultState":"complete",
+        "result":{"method":"preview","data":{"launchable":true,"previewId":"plan","plannedJobId":"workflow-page"}}}));
+    key(&mut ui, KeyCode::Enter);
+    let id = ui.outbox.pop_front().unwrap()["jobId"].clone();
+    ui.event(&json!({"event":"job:end","jobId":id,"status":"done","resultState":"complete",
+        "result":{"method":"launch","data":{"jobId":"workflow-page"}}}));
+    ui.event(&json!({"event":"job:end","jobId":"workflow-page","status":"done","resultState":"complete",
+        "result":{"rows":[1],"nativeContinuation":{"id":"private-session","scopeId":"scope-a"}}}));
+    key(&mut ui, KeyCode::Char('t'));
+    assert!(ui.outbox.is_empty(), "a status refresh cannot discard the only continuation capability");
+    key(&mut ui, KeyCode::Char('n'));
+    let next = ui.outbox.pop_front().unwrap();
+    assert_eq!(next["method"], "next");
+    assert_eq!(next["params"], json!({"scopeId":"scope-a","continuationId":"private-session"}));
+    assert!(next["params"].get("cursor").is_none());
+    ui.event(&json!({"event":"job:end","jobId":next["jobId"],"status":"done","resultState":"complete",
+        "result":{"method":"next","data":{"rows":[2],"nativeContinuation":{"id":"private-session","scopeId":"scope-a"}}}}));
+    key(&mut ui, KeyCode::Esc);
+    let close = ui.outbox.pop_front().unwrap();
+    assert_eq!(close["method"], "close-continuation");
+    ui.event(&json!({"event":"job:end","jobId":close["jobId"],"status":"done","resultState":"complete",
+        "result":{"method":"close-continuation","data":{"discarded":true}}}));
+    key(&mut ui, KeyCode::Char('n'));
+    assert!(ui.outbox.is_empty(), "a disposed continuation cannot be replayed by native input");
+}
+
+#[test]
 fn completion_before_admission_preserves_actual_failure_and_matching_job_identity() {
     let mut ui = WorkflowUi::default();
     ui.available = true;
