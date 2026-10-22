@@ -1,5 +1,5 @@
 import { readEffectiveMemory } from './effective-memory.js';
-import os from 'node:os';
+import { readEffectiveCpu } from './effective-cpu.js';
 
 /**
  * Resolve thread and queue concurrency limits used by indexing runtime stages.
@@ -58,7 +58,7 @@ export function resolveThreadLimits(input = {}) {
     uvThreadpoolSize = null,
     ioOversubscribe = false
   } = input;
-  const cpuCount = Number.isFinite(cpuCountInput) && cpuCountInput > 0 ? Math.floor(cpuCountInput) : os.cpus().length;
+  const cpuCount = Number.isFinite(cpuCountInput) && cpuCountInput > 0 ? Math.floor(cpuCountInput) : readEffectiveCpu().cpuCount;
   const totalMemBytes = Number.isFinite(totalMemBytesInput) && totalMemBytesInput > 0
     ? totalMemBytesInput
     : readEffectiveMemory().totalBytes;

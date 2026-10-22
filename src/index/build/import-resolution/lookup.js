@@ -108,6 +108,7 @@ export const createLookupSnapshot = ({ lookup, fileSetFingerprint, compatibility
     rootHash: sha1(lookup.rootAbs),
     fileSetFingerprint,
     hasTsconfig: lookup.hasTsconfig === true,
+    caseSensitive: lookup.caseSensitive !== false,
     fileSet,
     fileLower,
     pathTrie: serializePathTrie(lookup.pathTrie)
@@ -140,6 +141,7 @@ export const createLookupFromSnapshot = ({ root, snapshot }) => {
     fileSet,
     fileLower,
     hasTsconfig: snapshot.hasTsconfig === true,
+    caseSensitive: typeof snapshot.caseSensitive === 'boolean' ? snapshot.caseSensitive : process.platform !== 'win32',
     pathTrie,
     dirIndex
   };
@@ -161,7 +163,7 @@ export const collectEntryFileSet = ({ entries, root }) => {
   return { rootAbs, fileSet };
 };
 
-export const createFileLookup = ({ entries, root, fsMemo = null }) => {
+export const createFileLookup = ({ entries, root, fsMemo = null, caseSensitive = process.platform !== 'win32' }) => {
   const io = fsMemo || createFsMemo();
   const rootAbs = path.resolve(root);
   const fileSet = new Set();
@@ -202,7 +204,7 @@ export const createFileLookup = ({ entries, root, fsMemo = null }) => {
       }
     } catch {}
   }
-  return { rootAbs, fileSet, fileLower, hasTsconfig, pathTrie, dirIndex };
+  return { rootAbs, fileSet, fileLower, hasTsconfig, pathTrie, dirIndex, caseSensitive };
 };
 
 export const resolveFromLookup = (relPath, lookup) => {
@@ -210,7 +212,7 @@ export const resolveFromLookup = (relPath, lookup) => {
   const normalized = normalizeRelPath(relPath);
   if (lookup.fileSet.has(normalized)) return normalized;
   const lower = normalized.toLowerCase();
-  if (lookup.fileLower.has(lower)) return lookup.fileLower.get(lower);
+  if (lookup.caseSensitive === false && lookup.fileLower.has(lower)) return lookup.fileLower.get(lower);
   return null;
 };
 
@@ -220,7 +222,7 @@ export const resolveCandidate = (relPath, lookup) => {
   const trimmed = normalized.replace(/\/+$/, '');
   const ext = path.posix.extname(trimmed);
   const trieKey = stripImportExtension(trimmed);
-  if (!ext && lookup?.pathTrie && trieKey && !trieHasPrefix(lookup.pathTrie, trieKey)) {
+  if (!ext && lookup.caseSensitive !== false && lookup?.pathTrie && trieKey && !trieHasPrefix(lookup.pathTrie, trieKey)) {
     return null;
   }
   return resolveRelativeImportCandidate(trimmed, {

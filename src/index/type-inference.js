@@ -364,67 +364,29 @@ const addListEntry = (list, entry) => {
   return true;
 };
 
-const inferAssignments = (chunkText, languageId, knownTypes) => {
-  const locals = Object.create(null);
-  if (!chunkText) return { locals };
-  const lines = chunkText.split(/\r?\n/);
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('*')) continue;
-    if (trimmed.includes('==') || trimmed.includes('!=') || trimmed.includes('=>')) continue;
-    if (trimmed.includes('>=') || trimmed.includes('<=')) continue;
-    let match = trimmed.match(/^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
-    if (!match) {
-      match = trimmed.match(/^([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
+const inferAssignments = (chunkText,languageId,knownTypes) => {
+  const locals=Object.create(null);
+  if(!chunkText)return {locals};
+  for(const line of chunkText.split(/\r?\n/)){
+    const trimmed=line.trim();
+    if(!trimmed||trimmed.startsWith('//')||trimmed.startsWith('#')||trimmed.startsWith('*'))continue;
+    const match=trimmed.match(/^(?:(?:const|let|var)\s+)?([A-Za-z_$][\w$]*)\s*=(?!=|>)\s*(.+)$/);
+    if(!match)continue;
+    const name=match[1],value=match[2];
+    const inferred=inferLiteralType(value,languageId);
+    if(inferred){
+      addEntry(locals,name,{...inferred,source:TYPE_SOURCES.literal,confidence:CONFIDENCE.literal});
+      knownTypes?.set(name,[inferred.type]);
+      continue;
     }
-    if (!match) continue;
-    const name = match[1];
-    const value = match[2];
-    const inferred = inferLiteralType(value, languageId);
-    if (!inferred) continue;
-    addEntry(locals, name, {
-      ...inferred,
-      source: TYPE_SOURCES.literal,
-      confidence: CONFIDENCE.literal
-    });
+    const alias=/^([A-Za-z_$][\w$.]*)\s*;?$/.exec(value);
+    const types=alias&&knownTypes?.get(alias[1]);
+    if(types?.length){
+      for(const type of types)addEntry(locals,name,{type,source:TYPE_SOURCES.flow,confidence:CONFIDENCE.flow});
+      knownTypes.set(name,[...types]);
+    }else knownTypes?.delete(name);
   }
-  if (knownTypes && typeof knownTypes.get === 'function') {
-    for (const [name, entries] of Object.entries(locals)) {
-      const list = Array.isArray(entries) ? entries : [];
-      if (!list.length) continue;
-      const existing = knownTypes.get(name) || [];
-      for (const entry of list) {
-        if (!entry?.type) continue;
-        existing.push(entry.type);
-      }
-      knownTypes.set(name, existing);
-    }
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('*')) continue;
-      if (trimmed.includes('==') || trimmed.includes('!=') || trimmed.includes('=>')) continue;
-      if (trimmed.includes('>=') || trimmed.includes('<=')) continue;
-      let match = trimmed.match(/^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$.]*)\s*;?$/);
-      if (!match) {
-        match = trimmed.match(/^([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$.]*)\s*;?$/);
-      }
-      if (!match) continue;
-      const name = match[1];
-      const value = match[2];
-      const types = knownTypes.get(value);
-      if (!types || !types.length) continue;
-      for (const type of types) {
-        addEntry(locals, name, {
-          type,
-          source: TYPE_SOURCES.flow,
-          confidence: CONFIDENCE.flow
-        });
-      }
-    }
-  }
-  return { locals };
+  return {locals};
 };
 
 const inferConditionalTypes = (chunkText, languageId) => {

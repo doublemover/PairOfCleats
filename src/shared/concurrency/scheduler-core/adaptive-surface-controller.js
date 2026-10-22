@@ -63,8 +63,8 @@ export function createAdaptiveSurfaceController({
         && oldestWaitMs >= surfaceState.upWaitMs
         && cpuUtilization <= Math.max(1, surfaceState.targetUtilization + 0.15)
       ) {
-        action = 'up';
-        reason = 'backlog';
+        action = signals?.cpu?.externalLoadAvailable === false ? 'hold' : 'up';
+        reason = action === 'hold' ? 'external-cpu-pressure-unavailable' : 'backlog';
       } else if (
         backlogPerSlot <= surfaceState.downBacklogPerSlot
         && oldestWaitMs <= surfaceState.downWaitMs
@@ -76,7 +76,7 @@ export function createAdaptiveSurfaceController({
       let nextConcurrency = surfaceState.currentConcurrency;
       if (action === 'up') {
         const inUpCooldown = (at - surfaceState.lastScaleUpAt) < surfaceState.upCooldownMs;
-        const inOscillationGuard = surfaceState.lastAction === 'down'
+        const inOscillationGuard = (surfaceState.lastScaleDirection || surfaceState.lastAction) === 'down'
           && (at - surfaceState.lastScaleDownAt) < surfaceState.oscillationGuardMs;
         if (
           surfaceState.currentConcurrency < surfaceState.maxConcurrency
@@ -90,7 +90,7 @@ export function createAdaptiveSurfaceController({
         }
       } else if (action === 'down') {
         const inDownCooldown = (at - surfaceState.lastScaleDownAt) < surfaceState.downCooldownMs;
-        const inOscillationGuard = surfaceState.lastAction === 'up'
+        const inOscillationGuard = (surfaceState.lastScaleDirection || surfaceState.lastAction) === 'up'
           && (at - surfaceState.lastScaleUpAt) < surfaceState.oscillationGuardMs;
         if (
           surfaceState.currentConcurrency > surfaceState.minConcurrency
@@ -104,6 +104,7 @@ export function createAdaptiveSurfaceController({
         }
       }
       if (nextConcurrency !== surfaceState.currentConcurrency) {
+        surfaceState.lastScaleDirection = nextConcurrency > surfaceState.currentConcurrency ? 'up' : 'down';
         if (nextConcurrency > surfaceState.currentConcurrency) {
           surfaceState.lastScaleUpAt = at;
         } else {

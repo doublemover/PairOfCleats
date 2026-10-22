@@ -24,7 +24,9 @@ export function createAdaptiveSignalReader({ config, state }) {
     const defaultSignals = {
       cpu: {
         tokenUtilization: Math.max(cpuTokenUtilization, ioTokenUtilization),
-        loadRatio: 0
+        loadRatio: null,
+        externalLoadAvailable: false,
+        externalLoadSource: 'unavailable'
       },
       memory: {
         rssBytes: 0,
@@ -74,7 +76,9 @@ export function createAdaptiveSignalReader({ config, state }) {
           );
           defaultSignals.cpu = {
             tokenUtilization: cpuToken,
-            loadRatio: cpuLoad
+            loadRatio: typeof sampled?.cpu?.loadRatio === 'number' && Number.isFinite(sampled.cpu.loadRatio) ? cpuLoad : null,
+            externalLoadAvailable: typeof sampled?.cpu?.loadRatio === 'number' && Number.isFinite(sampled.cpu.loadRatio),
+            externalLoadSource: 'injected-sample'
           };
           defaultSignals.memory = {
             ...defaultSignals.memory,
@@ -129,9 +133,10 @@ export function createAdaptiveSignalReader({ config, state }) {
       ? Math.max(1, os.availableParallelism())
       : Math.max(1, os.cpus().length || 1);
     const loadAvg = typeof os.loadavg === 'function' ? os.loadavg() : null;
-    const loadRatio = Array.isArray(loadAvg) && Number.isFinite(loadAvg[0]) && cpuCount > 0
+    const externalLoadAvailable = process.platform !== 'win32' && Array.isArray(loadAvg) && Number.isFinite(loadAvg[0]) && cpuCount > 0;
+    const loadRatio = externalLoadAvailable
       ? Math.max(0, Math.min(2, Number(loadAvg[0]) / cpuCount))
-      : 0;
+      : null;
     let rssBytes = 0;
     let heapUsedBytes = 0;
     let heapTotalBytes = 0;
@@ -166,7 +171,9 @@ export function createAdaptiveSignalReader({ config, state }) {
     return {
       cpu: {
         tokenUtilization: Math.max(cpuTokenUtilization, ioTokenUtilization),
-        loadRatio
+        loadRatio,
+        externalLoadAvailable,
+        externalLoadSource: externalLoadAvailable ? 'system-load-average' : 'unavailable'
       },
       memory: {
         budget: memoryBudget,

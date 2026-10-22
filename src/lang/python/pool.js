@@ -8,6 +8,7 @@ import { attachCleanupSignalHandlers } from '../../shared/process-signals.js';
 import { registerChildProcessForCleanup } from '../../shared/subprocess/tracking-register.js';
 import { killChildProcessTree } from '../../shared/kill-tree.js';
 import { getEnvConfig } from '../../shared/env/runtime.js';
+import { runWithTimeout } from '../../shared/promise-timeout.js';
 
 const PYTHON_AST_DEFAULTS = {
   enabled: true,
@@ -154,7 +155,7 @@ function createPythonAstPool({ pythonBin, config, log }) {
 
   const shutdownWorkers = async () => {
     settlePendingJobs(new Error('python_ast_pool_shutdown'));
-    const workers = state.workers.splice(0, state.workers.length);
+    const workers = state.workers.slice();
     const stopTasks = [];
     for (const worker of workers) {
       worker.exited = true;
@@ -166,17 +167,24 @@ function createPythonAstPool({ pythonBin, config, log }) {
       try {
         worker.readline?.close?.();
       } catch {}
-      const killTask = killChildProcessTree(worker.proc, {
+      const killTask = (async () => {
+        await killChildProcessTree(worker.proc, {
         killTree: true,
         detached: false,
         graceMs: 100,
         awaitGrace: true
-      })
-        .catch(() => {})
-        .finally(() => finalizeWorkerRegistration(worker));
+        });
+        await runWithTimeout(() => worker.closed, { timeoutMs: 5000,
+          errorFactory: () => Object.assign(new Error('Python AST worker close was not confirmed.'),
+            { code: 'PYTHON_AST_SHUTDOWN_UNCONFIRMED' }) });
+        finalizeWorkerRegistration(worker);
+        state.workers = state.workers.filter(candidate => candidate !== worker);
+      })();
       stopTasks.push(killTask);
     }
-    await Promise.allSettled(stopTasks);
+    const results = await Promise.allSettled(stopTasks);
+    const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);
+    if (failures.length) throw new AggregateError(failures, 'Python AST worker shutdown was incomplete.');
   };
 
   const disablePool = (reason) => {
@@ -193,7 +201,7 @@ function createPythonAstPool({ pythonBin, config, log }) {
     state.crashWindowStart = 0;
     logOnce(`[python-ast] Crash loop detected; disabling pool for ${backoffMs}ms (${reasonText}).`, 'disabled');
     settlePendingJobs(reason);
-    void shutdownWorkers();
+    void shutdownWorkers().catch(error => logOnce(`[python-ast] Worker cleanup incomplete: ${error?.message || error}`, 'cleanup'));
   };
 
   const recordCrash = (reason) => {
@@ -318,6 +326,7 @@ function createPythonAstPool({ pythonBin, config, log }) {
       exited: false,
       readline: null
     };
+    worker.closed = new Promise(resolve => proc.once('close', resolve));
     state.workers.push(worker);
     const rl = createInterface({ input: proc.stdout, crlfDelay: Infinity });
     worker.readline = rl;
@@ -388,6 +397,7 @@ function createPythonAstPool({ pythonBin, config, log }) {
   return {
     request(text, { dataflow, controlFlow, path }) {
       return new Promise((resolve) => {
+        if (state.stopping) { resolve(null); return; }
         const maxTextBytes = Number.isFinite(config.maxTextBytes)
           ? config.maxTextBytes
           : null;
@@ -457,33 +467,45 @@ function createPythonAstPool({ pythonBin, config, log }) {
   };
 }
 
-export async function getPythonAstPool(log, config = {}) {
-  const normalized = normalizePythonAstConfig(config, config);
-  if (!normalized.enabled) return null;
-  const pythonBin = await findPythonExecutable(log);
-  if (!pythonBin) return null;
-  const signature = JSON.stringify(normalized);
-  if (!pythonPool || pythonPoolSignature !== signature) {
-    if (pythonPool) await pythonPool.shutdown();
-    pythonPool = createPythonAstPool({ pythonBin, config: normalized, log });
-    pythonPoolSignature = signature;
-  }
-  if (!pythonPoolHooked) {
-    pythonPoolHooked = true;
-    process.once('exit', () => pythonPool?.shutdown());
-    attachCleanupSignalHandlers({
-      cleanup: () => {
-        void pythonPool?.shutdown();
-      }
-    });
-  }
-  return pythonPool;
+let pythonLifecycleTail=Promise.resolve();
+let pythonGeneration=0;
+let pythonShutdownPending=0;
+const serializePythonLifecycle=task=>{
+  const pending=pythonLifecycleTail.then(task);
+  pythonLifecycleTail=pending.catch(()=>{});
+  return pending;
+};
+export async function getPythonAstPool(log,config={}){
+  const normalized=normalizePythonAstConfig(config,config);
+  if(!normalized.enabled||pythonShutdownPending>0)return null;
+  const generation=pythonGeneration;
+  return serializePythonLifecycle(async()=>{
+    if(generation!==pythonGeneration||pythonShutdownPending>0)return null;
+    const pythonBin=await findPythonExecutable(log);
+    if(!pythonBin||generation!==pythonGeneration||pythonShutdownPending>0)return null;
+    const signature=JSON.stringify(normalized);
+    if(!pythonPool||pythonPoolSignature!==signature){
+      const previous=pythonPool;
+      if(previous)await previous.shutdown();
+      if(pythonPool===previous){pythonPool=null;pythonPoolSignature=null;}
+      if(generation!==pythonGeneration||pythonShutdownPending>0)return null;
+      pythonPool=createPythonAstPool({pythonBin,config:normalized,log});
+      pythonPoolSignature=signature;
+    }
+    if(!pythonPoolHooked){
+      pythonPoolHooked=true;
+      process.once('exit',()=>{void shutdownPythonAstPool().catch(()=>{});});
+      attachCleanupSignalHandlers({cleanup:()=>{void shutdownPythonAstPool().catch(()=>{});}});
+    }
+    return pythonPool;
+  });
 }
-
-export async function shutdownPythonAstPool() {
-  if (pythonPool) {
-    await pythonPool.shutdown();
-    pythonPool = null;
-    pythonPoolSignature = null;
-  }
+export function shutdownPythonAstPool(){
+  pythonGeneration+=1;
+  pythonShutdownPending+=1;
+  return serializePythonLifecycle(async()=>{
+    const previous=pythonPool;
+    if(previous)await previous.shutdown();
+    if(pythonPool===previous){pythonPool=null;pythonPoolSignature=null;}
+  }).finally(()=>{pythonShutdownPending-=1;});
 }

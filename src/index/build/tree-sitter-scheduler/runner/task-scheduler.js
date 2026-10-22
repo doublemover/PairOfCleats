@@ -1,6 +1,7 @@
 import os from 'node:os';
 import { planWeightedBatches } from '../../../../shared/concurrency/weighted-batches.js';
 import { toArray } from '../../../../shared/iterables.js';
+import { readEffectiveMemory } from '../../../../shared/effective-memory.js';
 
 const DEFAULT_WARM_POOL_MIN_KEYS_FOR_SPLIT = 8;
 const DEFAULT_EXEC_CONCURRENCY_AUTO_CAP = 16;
@@ -17,7 +18,21 @@ const MAX_SCHEDULER_TASK_TIMEOUT_MS = 30 * 60 * 1000;
  * @param {{schedulerConfig?:object,grammarCount:number}} input
  * @returns {number}
  */
-export const resolveExecConcurrency = ({ schedulerConfig, grammarCount }) => {
+export const resolveParserExecutionBudget = runtime => {
+  if (!runtime) return null;
+  const cpu = Math.max(1, Math.floor(Number(runtime.cpuConcurrency
+    ?? runtime.envelope?.concurrency?.cpuConcurrency?.value) || 1));
+  const fd = Math.max(1, Math.floor(Number(runtime.workerPoolConfig?.fdPressure?.cap) || cpu));
+  const perChildMb = Math.max(128, Number(runtime.workerPoolConfig?.heapTargetMb
+    ?? runtime.memoryPolicy?.workerHeapPolicy?.targetPerWorkerMb) || 1024);
+  const memory = readEffectiveMemory({ configuredLimitBytes: runtime.envelope?.concurrency?.totalMemBytes });
+  const memoryCap = Math.max(1, Math.floor(memory.freeBytes / (perChildMb * 1024 * 1024)));
+  const effective = Math.min(cpu, fd, memoryCap);
+  return { cpu, fd, memory: memoryCap, perChildMb, effective,
+    limitingReason: effective === cpu ? 'cpu-envelope' : effective === fd ? 'fd-budget' : 'retained-memory-budget' };
+};
+
+export const resolveExecConcurrency = ({ schedulerConfig, grammarCount, executionBudget = null }) => {
   if (!Number.isFinite(grammarCount) || grammarCount <= 1) return 1;
   const configured = Number(
     schedulerConfig?.execConcurrency
@@ -25,13 +40,13 @@ export const resolveExecConcurrency = ({ schedulerConfig, grammarCount }) => {
       ?? schedulerConfig?.concurrency
   );
   if (Number.isFinite(configured) && configured > 0) {
-    return Math.max(1, Math.min(grammarCount, Math.floor(configured)));
+    return Math.max(1, Math.min(grammarCount, Math.floor(configured), executionBudget?.effective ?? Number.MAX_SAFE_INTEGER));
   }
   const available = typeof os.availableParallelism === 'function'
     ? os.availableParallelism()
     : 4;
   const auto = Math.max(1, Math.min(DEFAULT_EXEC_CONCURRENCY_AUTO_CAP, Math.floor((available || 1) / 2)));
-  return Math.max(1, Math.min(grammarCount, auto));
+  return Math.max(1, Math.min(grammarCount, auto, executionBudget?.effective ?? Number.MAX_SAFE_INTEGER));
 };
 
 /**

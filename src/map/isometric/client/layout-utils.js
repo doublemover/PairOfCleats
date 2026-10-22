@@ -357,42 +357,35 @@ const buildSccLanes = (keys, adjacency) => {
   const components = [];
   let index = 0;
 
-  const strongconnect = (v) => {
-    indexByKey.set(v, index);
-    lowlink.set(v, index);
-    index += 1;
-    stack.push(v);
-    onStack.add(v);
-
-    const neighbors = adjacency.get(v) || new Map();
-    for (const w of neighbors.keys()) {
-      if (!keySet.has(w)) continue;
-      if (!indexByKey.has(w)) {
-        strongconnect(w);
-        lowlink.set(v, min(lowlink.get(v), lowlink.get(w)));
-      } else if (onStack.has(w)) {
-        lowlink.set(v, min(lowlink.get(v), indexByKey.get(w)));
-      }
-    }
-
-    if (lowlink.get(v) === indexByKey.get(v)) {
-      const component = [];
-      while (stack.length) {
-        const w = stack.pop();
-        onStack.delete(w);
-        componentByKey.set(w, components.length);
-        component.push(w);
-        if (w === v) break;
-      }
-      components.push(component);
-    }
+  const enter=(key,parent=null)=>{
+    indexByKey.set(key,index);lowlink.set(key,index);index+=1;
+    stack.push(key);onStack.add(key);
+    return {key,parent,neighbors:(adjacency.get(key)||new Map()).keys()};
   };
-
-  const min = (a, b) => a < b ? a : b;
-
-  for (const key of keys) {
-    if (!indexByKey.has(key)) {
-      strongconnect(key);
+  for(const key of keys){
+    if(indexByKey.has(key))continue;
+    const frames=[enter(key)];
+    while(frames.length){
+      const frame=frames[frames.length-1];
+      const next=frame.neighbors.next();
+      if(!next.done){
+        const neighbor=next.value;
+        if(!keySet.has(neighbor))continue;
+        if(!indexByKey.has(neighbor)){frames.push(enter(neighbor,frame.key));continue;}
+        if(onStack.has(neighbor))lowlink.set(frame.key,Math.min(lowlink.get(frame.key),indexByKey.get(neighbor)));
+        continue;
+      }
+      frames.pop();
+      if(frame.parent!=null)lowlink.set(frame.parent,Math.min(lowlink.get(frame.parent),lowlink.get(frame.key)));
+      if(lowlink.get(frame.key)===indexByKey.get(frame.key)){
+        const component=[];
+        while(stack.length){
+          const member=stack.pop();onStack.delete(member);
+          componentByKey.set(member,components.length);component.push(member);
+          if(member===frame.key)break;
+        }
+        components.push(component);
+      }
     }
   }
 

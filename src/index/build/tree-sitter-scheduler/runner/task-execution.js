@@ -30,9 +30,11 @@ export const executeTreeSitterSchedulerTasks = async ({
     thresholdMs: 25
   };
   let lastTaskCompletedAt = 0;
+  let activeChildren = 0;
+  let peakActiveChildren = 0;
   const adaptiveSamples = [];
   if (!Array.isArray(plannedTasks) || !plannedTasks.length) {
-    return { adaptiveSamples, idleGapStats };
+    return { adaptiveSamples, idleGapStats, peakActiveChildren };
   }
   const streamLogs = typeof log === 'function'
     && (runtime?.argv?.verbose === true || runtime?.languageOptions?.treeSitter?.debugScheduler === true);
@@ -72,7 +74,10 @@ export const executeTreeSitterSchedulerTasks = async ({
         `.tree-sitter-scheduler-profile-${process.pid}-${ctx.index + 1}.json`
       );
       try {
-        await spawnSubprocess(
+        const launch = async () => {
+          activeChildren += 1;
+          peakActiveChildren = Math.max(peakActiveChildren, activeChildren);
+          try { return await spawnSubprocess(
           process.execPath,
           [
             schedulerExecPath,
@@ -92,7 +97,12 @@ export const executeTreeSitterSchedulerTasks = async ({
             onStdout: streamLogs ? (chunk) => stdoutBuffer.push(chunk) : null,
             onStderr: streamLogs ? (chunk) => stderrBuffer.push(chunk) : null
           }
-        );
+          ); } finally { activeChildren -= 1; }
+        };
+        if (runtime?.scheduler?.schedule) {
+          await runtime.scheduler.schedule('stage1.cpu', { cpu: 1, mem: 1, io: 1,
+            signal: effectiveAbortSignal }, launch);
+        } else await launch();
         const profileRows = await loadSubprocessProfile(profileOut);
         for (const row of profileRows) {
           adaptiveSamples.push(row);
@@ -165,5 +175,5 @@ export const executeTreeSitterSchedulerTasks = async ({
       signalLabel: 'build.tree-sitter.runner.runWithConcurrency'
     }
   );
-  return { adaptiveSamples, idleGapStats };
+  return { adaptiveSamples, idleGapStats, peakActiveChildren };
 };

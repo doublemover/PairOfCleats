@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { distanceToSimilarity } from './ann-similarity.js';
+import { distanceToSimilarity, withAnnScoreSpace } from './ann-similarity.js';
 
 const require = createRequire(import.meta.url);
 
@@ -203,7 +203,7 @@ export function rankHnswIndex({ index, space }, queryEmbedding, topN, candidateS
     const distance = distances[i];
     const sim = distanceToSimilarity(distance, space);
     if (!Number.isFinite(sim)) continue;
-    hits.push({ idx, sim });
+    hits.push(withAnnScoreSpace({ idx, sim }, { metric: space, kind: space === 'cosine' ? 'cosine' : 'negative-distance', backend: 'hnsw', distance }));
   }
   return hits.sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx));
 }

@@ -13,6 +13,7 @@ import {
   normalizeCandidateSetIds
 } from '../../src/retrieval/ann/candidate-set.js';
 import { normalizeEmbeddingDims } from '../../src/retrieval/ann/dims.js';
+import { withAnnScoreSpace } from '../../src/shared/ann-similarity.js';
 
 const DEFAULT_PROVIDER = 'sqlite-vec';
 const DEFAULT_MODULE = 'vec0';
@@ -532,7 +533,10 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
       const rowId = Number(row.rowid ?? row.id);
       const raw = row.distance ?? row.score ?? row.similarity ?? row.sim ?? 0;
       const sim = row.distance !== undefined ? -raw : raw;
-      return { idx: rowId, sim };
+      return withAnnScoreSpace({ idx: rowId, sim }, {
+        kind: row.distance !== undefined ? 'negative-distance' : 'dot-product',
+        metric: config.metric || 'l2', backend: 'sqlite-vector', distance: row.distance ?? null
+      });
     });
     if (candidateSize && !canInlinePushdown && !canTempPushdown) {
       hits = hits.filter((hit) => candidateSetHas(candidateSet, hit.idx));

@@ -3,6 +3,15 @@ import path from 'node:path';
 import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/file-paths.js';
 import { normalizeRelPath, sortStrings } from './path-utils.js';
 import { resolveCandidate, resolveFromLookup } from './lookup.js';
+import { sha1 } from '../../../shared/hash.js';
+
+export const fingerprintPackageDependency = file => {
+  try {
+    const stat = fs.statSync(file);
+    if (!stat.isFile() || stat.size > 2 * 1024 * 1024) return 'unavailable';
+    return sha1(fs.readFileSync(file));
+  } catch (error) { return error?.code === 'ENOENT' || error?.code === 'ENOTDIR' ? 'absent' : 'unavailable'; }
+};
 
 const PACKAGE_ENTRY_CONDITION_ORDER = [
   'import',
@@ -27,11 +36,12 @@ const normalizePackageEntryPath = (value) => {
   return normalized;
 };
 
-const selectPackageConditionalTarget = (value) => {
-  if (typeof value === 'string') return normalizePackageEntryPath(value);
+const selectPackageConditionalTarget = (value, relativeOnly = false) => {
+  if (typeof value === 'string') return relativeOnly && !value.startsWith('./')
+    ? null : normalizePackageEntryPath(value);
   if (Array.isArray(value)) {
     for (const entry of value) {
-      const picked = selectPackageConditionalTarget(entry);
+      const picked = selectPackageConditionalTarget(entry, relativeOnly);
       if (picked != null) return picked;
     }
     return null;
@@ -39,12 +49,12 @@ const selectPackageConditionalTarget = (value) => {
   if (!value || typeof value !== 'object') return null;
   for (const condition of PACKAGE_ENTRY_CONDITION_ORDER) {
     if (!Object.prototype.hasOwnProperty.call(value, condition)) continue;
-    const picked = selectPackageConditionalTarget(value[condition]);
+    const picked = selectPackageConditionalTarget(value[condition], relativeOnly);
     if (picked != null) return picked;
   }
   const keys = Object.keys(value).filter((key) => !key.startsWith('.')).sort(sortStrings);
   for (const key of keys) {
-    const picked = selectPackageConditionalTarget(value[key]);
+    const picked = selectPackageConditionalTarget(value[key], relativeOnly);
     if (picked != null) return picked;
   }
   return null;
@@ -77,7 +87,7 @@ const selectPackageRootEntry = (packageJson) => {
   return null;
 };
 
-export const createPackageDirectoryResolver = ({ lookup, rootAbs }) => {
+export const createPackageDirectoryResolver = ({ lookup, rootAbs, onDependency = null }) => {
   const cache = new Map();
   const packageEntryCache = new Map();
   const readPackageEntry = (cacheKey, packageJsonAbs) => {
@@ -104,12 +114,13 @@ export const createPackageDirectoryResolver = ({ lookup, rootAbs }) => {
   return (baseRelPath) => {
     const base = normalizeRelPath(baseRelPath);
     const cacheKey = base || '.';
-    if (cache.has(cacheKey)) return cache.get(cacheKey);
     const packageJsonCandidate = base ? `${base}/package.json` : 'package.json';
     const packageJsonRel = resolveFromLookup(packageJsonCandidate, lookup);
     const packageJsonAbs = packageJsonRel
       ? path.resolve(rootAbs, packageJsonRel)
       : path.resolve(rootAbs, packageJsonCandidate);
+    onDependency?.(packageJsonAbs, fingerprintPackageDependency(packageJsonAbs));
+    if (cache.has(cacheKey)) return cache.get(cacheKey);
     let hasPackageJson = !!packageJsonRel;
     if (!hasPackageJson) {
       try {
@@ -136,6 +147,47 @@ export const createPackageDirectoryResolver = ({ lookup, rootAbs }) => {
     cache.set(cacheKey, resolved);
     return resolved;
   };
+};
+
+/** Node package #imports preserve their scoped package identity and target order. */
+export const createPackageImportsResolver = ({ lookup, rootAbs, onDependency = null }) => (specifier, importerRel) => {
+  if (!specifier.startsWith('#')) return null;
+  let directory = path.dirname(path.resolve(rootAbs, importerRel));
+  for (;;) {
+    const packagePath = path.join(directory, 'package.json');
+    const signature = fingerprintPackageDependency(packagePath);
+    onDependency?.(packagePath, signature);
+    if (signature !== 'absent') {
+      if (signature === 'unavailable') return null;
+      let imports;
+      try { imports = JSON.parse(fs.readFileSync(packagePath, 'utf8')).imports; } catch { return null; }
+      if (!imports || typeof imports !== 'object') return null;
+      let value = imports[specifier], capture = null;
+      if (!Object.hasOwn(imports, specifier)) {
+        let best = null;
+        for (const pattern of Object.keys(imports)) {
+          const star = pattern.indexOf('*');
+          if (star < 0 || !specifier.startsWith(pattern.slice(0,star)) || !specifier.endsWith(pattern.slice(star+1))) continue;
+          if (!best || star > best.star || (star === best.star && pattern.length > best.pattern.length)) best = {pattern,star};
+        }
+        if (!best) return null;
+        capture = specifier.slice(best.star, specifier.length - (best.pattern.length-best.star-1));
+        value = imports[best.pattern];
+      }
+      const target = selectPackageConditionalTarget(value, true);
+      if (!target) return null;
+      const resolvedTarget = capture == null ? target : target.replaceAll('*', capture);
+      const absolute = path.resolve(directory, resolvedTarget);
+      if (isRelativePathEscape(path.relative(directory, absolute))) return null;
+      const relative = path.relative(rootAbs, absolute).split(path.sep).join('/');
+      if (isRelativePathEscape(relative) || isAbsolutePathNative(relative)) return null;
+      return resolveCandidate(relative, lookup);
+    }
+    if (directory === path.resolve(rootAbs)) return null;
+    const parent = path.dirname(directory);
+    if (parent === directory || isRelativePathEscape(path.relative(rootAbs,parent))) return null;
+    directory = parent;
+  }
 };
 
 export const parsePackageName = (spec) => {

@@ -5,13 +5,15 @@ import {
 import {
   buildWarmPoolTasks,
   resolveExecConcurrency,
+  resolveParserExecutionBudget,
   resolveExecutionOrder,
   resolveSchedulerTaskTimeoutMs
 } from './task-scheduler.js';
 
 export const prepareTreeSitterSchedulerTasks = ({
   planResult,
-  schedulerConfig = {}
+  schedulerConfig = {},
+  runtime = null
 } = {}) => {
   assertTreeSitterScheduledGroupsContract(planResult?.groups, { phase: 'scheduler-runner:groups' });
   const executionOrder = resolveExecutionOrder(planResult?.plan);
@@ -24,9 +26,11 @@ export const prepareTreeSitterSchedulerTasks = ({
     if (!group?.grammarKey) continue;
     groupByGrammarKey.set(group.grammarKey, group);
   }
+  const executionBudget = resolveParserExecutionBudget(runtime);
   const execConcurrency = resolveExecConcurrency({
     schedulerConfig,
-    grammarCount: executionOrder.length
+    grammarCount: executionOrder.length,
+    executionBudget
   });
   const plannedTasks = buildWarmPoolTasks({
     executionOrder,
@@ -52,6 +56,7 @@ export const prepareTreeSitterSchedulerTasks = ({
     groupMetaByGrammarKey,
     groupByGrammarKey,
     execConcurrency,
+    executionBudget,
     plannedTasks
   };
 };

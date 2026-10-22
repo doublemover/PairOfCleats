@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { inferTypeMetadata } from '../../../../src/index/type-inference.js';
+const infer = chunkText => inferTypeMetadata({ docmeta: {}, chunkText, languageId: 'javascript' });
+const types = (metadata, name) => (metadata?.locals?.[name] || []).map(entry => entry.type);
+const forward = infer('const before = later;\nconst later = 42;');
+assert.deepEqual(types(forward, 'before'), []);
+const chain = infer('const first = 42;\nconst second = first;\nconst third = second;');
+assert.ok(types(chain, 'second').includes('number'));
+assert.ok(types(chain, 'third').includes('number'));
+const reassigned = infer('let value = 42;\nvalue = unresolved();\nconst alias = value;');
+assert.deepEqual(types(reassigned, 'alias'), []);
+console.log('type assignment source ordering passed');

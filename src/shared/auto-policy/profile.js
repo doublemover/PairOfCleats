@@ -1,4 +1,5 @@
-import os from 'node:os';
+import { readEffectiveCpu } from '../effective-cpu.js';
+import { readEffectiveMemory } from '../effective-memory.js';
 
 const QUALITY_LEVELS = ['fast', 'balanced', 'max'];
 
@@ -78,10 +79,12 @@ export const resolveQuality = ({ requested, resources, repo }) => {
   return { value, source: 'auto' };
 };
 
-export const summarizeResources = () => {
-  const cpuCount = os.cpus().length;
-  const memoryGb = Math.round((os.totalmem() / (1024 ** 3)) * 10) / 10;
-  return { cpuCount, memoryGb };
+export const summarizeResources = (input = {}) => {
+  const cpu = readEffectiveCpu(input);
+  const memory = readEffectiveMemory(input);
+  const memoryGb = Math.round(((memory.totalBytes || 0) / (1024 ** 3)) * 10) / 10;
+  return { ...cpu, memoryGb, hostMemoryGb: Math.round(((memory.hostTotalBytes || 0) / (1024 ** 3)) * 10) / 10,
+    memorySource: memory.method };
 };
 
 export const formatBytes = (bytes) => {

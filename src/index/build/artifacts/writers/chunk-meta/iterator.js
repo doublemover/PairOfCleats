@@ -129,6 +129,7 @@ export const createChunkMetaIterator = ({
         weight: c.weight,
         headline: c.headline,
         phraseTokens: c.phraseTokens ?? null,
+        phraseTokensCasePreserved: c.phraseTokensCasePreserved === true,
         preContext: c.preContext,
         postContext: c.postContext,
         segment: c.segment || null,

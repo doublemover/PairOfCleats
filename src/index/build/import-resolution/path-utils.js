@@ -7,7 +7,8 @@ export const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
 export const stripSpecifier = (spec) => {
   if (typeof spec !== 'string') return '';
-  const raw = spec.split(/[?#]/)[0];
+  const input = spec.trim();
+  const raw = input.startsWith('#') ? input.split('?')[0] : input.split(/[?#]/)[0];
   return raw.trim();
 };
 

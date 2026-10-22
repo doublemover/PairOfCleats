@@ -182,16 +182,18 @@ export const discoverImportResolutionGraphReports = async ({
   const roots = (Array.isArray(scanRoots) ? scanRoots : DEFAULT_REPLAY_SCAN_ROOTS)
     .map((entry) => String(entry || '').trim())
     .filter(Boolean)
-    .map((entry) => path.join(rootDir, entry));
+    .map((entry) => path.join(rootDir, entry)).sort(sortStrings);
   const discovered = [];
   for (const scanRoot of roots) {
+    if (discovered.length >= limit) break;
     let dirEntries;
     try {
       dirEntries = await readdir(scanRoot, { withFileTypes: true });
     } catch {
       continue;
     }
-    const stack = dirEntries.map((entry) => ({ dir: scanRoot, entry }));
+    const descending = entries => entries.slice().sort((a,b) => sortStrings(b.name,a.name));
+    const stack = descending(dirEntries).map((entry) => ({ dir: scanRoot, entry }));
     while (stack.length > 0 && discovered.length < limit) {
       const { dir, entry } = stack.pop();
       const fullPath = path.join(dir, entry.name);
@@ -202,7 +204,7 @@ export const discoverImportResolutionGraphReports = async ({
         } catch {
           children = [];
         }
-        for (const child of children) {
+        for (const child of descending(children)) {
           stack.push({ dir: fullPath, entry: child });
         }
         continue;

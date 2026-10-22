@@ -171,7 +171,8 @@ export function projectOutput(envelope, { page = 0, relation = '', family = dete
   section('Complete original output', data, 'records');
   return { version: PROJECTION_VERSION, family, generation: data.generation ?? data.provenance?.indexSignature ?? null,
     nodes, edges, sections, page, hasNext: seen > start + VIEW_LIMITS.nodes,
-    cursor: data.cursor ?? data.nextCursor ?? null,
+    cursor: family === 'search' ? (data.pagination?.nextCursor ?? null) : (data.cursor ?? data.nextCursor ?? null),
+    continuation: family === 'search' ? (data.pagination || null) : null,
     coverage: { source: data.coverage ?? data.summary ?? null, sourceTotal: null,
       responseEntities: seen, admittedEntities: nodes.length, responseRelations: edgeCount,
       admittedRelations: edges.length, omittedEntities: Math.max(0, seen - nodes.length),

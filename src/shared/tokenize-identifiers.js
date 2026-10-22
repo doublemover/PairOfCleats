@@ -1,7 +1,7 @@
 import Snowball from 'snowball-stemmers';
 const stemmer = Snowball.newStemmer('english');
 const wordSegmenter = new Intl.Segmenter('und', { granularity: 'word' });
-export const SCORING_ANALYZER_VERSION = 'unicode-identifiers.v1:icu-' + process.versions.icu;
+export const SCORING_ANALYZER_VERSION = 'unicode-identifiers.v2:icu-' + process.versions.icu;
 export const stem = (w) => typeof w === 'string' ? (/^[a-z]+$/i.test(w) ? stemmer.stem(w) : w) : '';
 export const camel = (s) => s.replace(/([a-z])([A-Z])/g, '$1 $2');
 const splitIdentifiers = (value) => String(value ?? '').normalize('NFKC')

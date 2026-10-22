@@ -250,6 +250,7 @@ export const createFsExistsIndex = async ({
   let scannedFiles = 0;
   let truncated = false;
   let hadReadErrors = false;
+  const unknownPrefixes = new Set();
   let activeWorkers = 0;
 
   const workers = Array.from(
@@ -279,6 +280,10 @@ export const createFsExistsIndex = async ({
             throwIfAborted(abortSignal);
             if (truncated) break;
             const fullPath = path.join(current, entry.name);
+            if (entry.isSymbolicLink()) {
+              unknownPrefixes.add(normalizeRelPath(path.relative(rootAbs, fullPath)));
+              continue;
+            }
             if (entry.isDirectory()) {
               if (shouldIgnoreDirectory(entry.name, fullPath, rootAbs, ignoreDirs)) continue;
               pendingDirs.push(fullPath);
@@ -320,6 +325,9 @@ export const createFsExistsIndex = async ({
     lookup: (relPath) => {
       const normalized = normalizeRelPath(relPath);
       if (!normalized) return 'unknown';
+      for (let candidate = normalized; candidate && candidate !== '.'; candidate = path.posix.dirname(candidate)) {
+        if (unknownPrefixes.has(candidate)) return 'unknown';
+      }
       if (isRelPathInIgnoredDirectory(normalized, ignoreDirs)) return 'unknown';
       if (!bloom.mightContain(normalized)) return complete ? 'absent' : 'unknown';
       if (hasExactEntry(exactByHash, normalized)) return 'present';

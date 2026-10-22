@@ -491,7 +491,7 @@ const resolveDartPackageImport = ({ spec, lookup, dartPackageName }) => {
     `packages/${packageName}/${packagePath}`,
     `third_party/dart/${packageName}/${packagePath}`
   ];
-  if (!dartPackageName || packageName === dartPackageName) {
+  if (dartPackageName && packageName === dartPackageName) {
     candidates.unshift(`lib/${packagePath}`, packagePath, `src/${packagePath}`);
   }
   return resolveFromCandidateList(candidates, lookup);

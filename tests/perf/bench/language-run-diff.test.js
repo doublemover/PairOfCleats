@@ -86,5 +86,17 @@ assert.equal(diff.byRepo[0]?.sqliteRssMb?.delta, 512, 'expected sqlite rss delta
 assert.equal(diff.ownership?.byFamily?.length, 1, 'expected ownership diff family row');
 assert.equal(diff.ownership?.byFamily?.[0]?.family, 'scripting', 'expected scripting family ownership row');
 assert.equal(diff.ownership?.topRegressions?.[0]?.family, 'scripting', 'expected scripting family regression');
+const unknown = structuredClone(after);
+unknown.tasks[0].summary = {};
+const missing = buildBenchRunDiff({ before, after: unknown });
+assert.deepEqual(missing.byRepo[0].buildIndexMs, { before: 100, after: null, delta: null });
+assert.deepEqual(missing.byRepo[0].sqliteRssMb, { before: 512, after: null, delta: null });
+const allMissing = buildBenchRunDiff({ before: unknown, after: unknown });
+assert.equal(allMissing.byLanguage[0].buildIndexMs, null);
+assert.equal(allMissing.byLanguage[0].sqliteRssMb, null);
+const measuredZero = structuredClone(unknown);
+measuredZero.tasks[0].summary = { buildMs: { index: 0 } };
+assert.deepEqual(buildBenchRunDiff({ before, after: measuredZero }).byRepo[0].buildIndexMs,
+  { before: 100, after: 0, delta: -100 });
 
 console.log('bench language run diff test passed');

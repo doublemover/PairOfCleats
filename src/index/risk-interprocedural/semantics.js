@@ -25,9 +25,9 @@ const normalizeStringList = (values) => {
 
 const normalizeIndexList = (values) => {
   const normalized = Array.from(new Set(toArray(values)
+    .filter(entry => typeof entry === 'number' || (typeof entry === 'string' && entry.trim() !== ''))
     .map((entry) => Number(entry))
-    .filter((entry) => Number.isFinite(entry) && entry >= 0)
-    .map((entry) => Math.floor(entry))));
+    .filter((entry) => Number.isSafeInteger(entry) && entry >= 0)));
   normalized.sort((a, b) => a - b);
   return normalized;
 };

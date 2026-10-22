@@ -76,6 +76,7 @@ export const buildContinuousWaveExecutionOrder = (groups) => {
         if (candidateWaveIndex === waveIndex && candidate?.grammarKey) {
           order.push(candidate.grammarKey);
           cursor += 1;
+          continue;
         }
         break;
       }

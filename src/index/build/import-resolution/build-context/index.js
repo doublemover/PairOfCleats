@@ -74,7 +74,7 @@ export const createImportBuildContext = ({
   }
 
   if (isEnabled(buildContextConfig?.pathContext, true)) {
-    plugins.push(createPathContextPlugin());
+    plugins.push(createPathContextPlugin({ entries }));
   }
 
   if (isEnabled(buildContextConfig?.nixFlakeReferences, true)) {

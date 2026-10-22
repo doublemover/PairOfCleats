@@ -1,4 +1,5 @@
-import os from 'node:os';
+import { readEffectiveCpu } from '../../shared/effective-cpu.js';
+import { readEffectiveMemory } from '../../shared/effective-memory.js';
 import { fileURLToPath } from 'node:url';
 import { treeSitterState } from './state.js';
 import { destroyPiscinaPool } from '../../shared/piscina-cleanup.js';
@@ -9,7 +10,7 @@ import {
   parseMaxOldSpaceSizeMb
 } from '../../shared/workers/node-argv.js';
 
-const CPU_COUNT = os.cpus().length;
+const CPU_COUNT = readEffectiveCpu().cpuCount;
 
 export const normalizeTreeSitterWorkerConfig = (raw) => {
   if (raw === false) return { enabled: false };
@@ -71,7 +72,7 @@ const resolveWorkerResourceLimits = (maxWorkers) => {
   const workerCount = Math.max(1, Math.floor(Number(maxWorkers) || 0));
   if (!Number.isFinite(workerCount) || workerCount <= 0) return null;
 
-  const totalMemMb = Math.floor(os.totalmem() / 1024 / 1024);
+  const totalMemMb = Math.floor((readEffectiveMemory().totalBytes || 0) / 1024 / 1024);
   const maxOldMb = parseMaxOldSpaceSizeMb(collectNodeHeapArgv());
 
   // Tree-sitter workers can load multiple grammars. When indexing a repo
@@ -97,76 +98,77 @@ const resolveWorkerResourceLimits = (maxWorkers) => {
   return { maxOldGenerationSizeMb: oldGenMb };
 };
 
-export const getTreeSitterWorkerPool = async (rawConfig, options = {}) => {
-  const config = normalizeTreeSitterWorkerConfig(rawConfig);
-  if (!config.enabled) return null;
-  const signature = JSON.stringify(config);
-  const cleanupTimeoutMs = Number.isFinite(Number(options?.cleanupTimeoutMs))
-    ? Math.max(1000, Math.floor(Number(options.cleanupTimeoutMs)))
-    : 30000;
-  if (treeSitterState.treeSitterWorkerPool && treeSitterState.treeSitterWorkerConfigSignature === signature) {
-    return treeSitterState.treeSitterWorkerPool;
-  }
-  if (treeSitterState.treeSitterWorkerPool && treeSitterState.treeSitterWorkerPool.destroy) {
-    await destroyPiscinaPool(treeSitterState.treeSitterWorkerPool, {
-      label: 'tree-sitter.worker-pool',
-      log: options?.log,
-      destroyTimeoutMs: cleanupTimeoutMs
-    });
-    treeSitterState.treeSitterWorkerPool = null;
-  }
-  treeSitterState.treeSitterWorkerConfigSignature = signature;
-  let Piscina;
+let lifecycleTail=Promise.resolve();
+let lifecycleGeneration=0;
+let shutdownPending=0;
+let retirementError=null;
+const serializeLifecycle=task=>{
+  const pending=lifecycleTail.then(task);
+  lifecycleTail=pending.catch(()=>{});
+  return pending;
+};
+const retirePool=async(options,label)=>{
+  const pool=treeSitterState.treeSitterWorkerPool;
+  if(!pool)return;
   try {
-    Piscina = (await import('piscina')).default;
-  } catch (err) {
-    if (options?.log && !treeSitterState.loggedWorkerFailures.has('piscina')) {
-      options.log(`[tree-sitter] Worker pool unavailable (piscina missing): ${err?.message || err}.`);
-      treeSitterState.loggedWorkerFailures.add('piscina');
+    const result = await destroyPiscinaPool(pool,{label,log:options?.log,
+      destroyTimeoutMs:Number.isFinite(Number(options?.cleanupTimeoutMs))?Math.max(1000,Math.floor(Number(options.cleanupTimeoutMs))):30000});
+    if (result?.skipped || (result?.forced && result?.forcedSummary?.failed > 0)) {
+      throw Object.assign(new Error('Tree-sitter worker cleanup was not confirmed.'), { code: 'ERR_TREE_SITTER_WORKER_CLEANUP' });
     }
-    return null;
+  }catch(error){retirementError=error;throw error;}
+  if(treeSitterState.treeSitterWorkerPool===pool){
+    treeSitterState.treeSitterWorkerPool=null;
+    treeSitterState.treeSitterWorkerConfigSignature=null;
+    treeSitterState.treeSitterWorkerMaxQueue=null;
   }
-  try {
-    const execArgv = buildWorkerExecArgv();
-    const resourceLimits = resolveWorkerResourceLimits(config.maxWorkers);
-    treeSitterState.treeSitterWorkerPool = new Piscina({
-      filename: fileURLToPath(new URL('../workers/tree-sitter-worker.js', import.meta.url)),
-      maxThreads: config.maxWorkers,
-      maxQueue: config.maxQueue,
-      idleTimeout: config.idleTimeoutMs,
-      taskTimeout: config.taskTimeoutMs,
-      ...(execArgv.length ? { execArgv } : {}),
-      ...(resourceLimits ? { resourceLimits } : {})
-    });
-    treeSitterState.treeSitterWorkerMaxQueue = config.maxQueue;
-    return treeSitterState.treeSitterWorkerPool;
-  } catch (err) {
-    if (options?.log && !treeSitterState.loggedWorkerFailures.has('init')) {
-      options.log(`[tree-sitter] Worker pool init failed: ${err?.message || err}.`);
-      treeSitterState.loggedWorkerFailures.add('init');
-    }
-    treeSitterState.treeSitterWorkerPool = null;
-    treeSitterState.treeSitterWorkerMaxQueue = null;
-    return null;
-  }
+  retirementError=null;
 };
 
-export const shutdownTreeSitterWorkerPool = async (options = {}) => {
-  const cleanupTimeoutMs = Number.isFinite(Number(options?.cleanupTimeoutMs))
-    ? Math.max(1000, Math.floor(Number(options.cleanupTimeoutMs)))
-    : 30000;
-  if (treeSitterState.treeSitterWorkerPool && treeSitterState.treeSitterWorkerPool.destroy) {
-    try {
-      await destroyPiscinaPool(treeSitterState.treeSitterWorkerPool, {
-        label: 'tree-sitter.worker-pool.shutdown',
-        log: options?.log,
-        destroyTimeoutMs: cleanupTimeoutMs
-      });
-    } catch {
-      // ignore destroy failures
+export const getTreeSitterWorkerPool = async(rawConfig,options={})=>{
+  const config=normalizeTreeSitterWorkerConfig(rawConfig);
+  if(!config.enabled||shutdownPending>0)return null;
+  const generation=lifecycleGeneration;
+  const signature=JSON.stringify(config);
+  return serializeLifecycle(async()=>{
+    if(generation!==lifecycleGeneration||shutdownPending>0)return null;
+    if(retirementError)throw retirementError;
+    if(treeSitterState.treeSitterWorkerPool&&treeSitterState.treeSitterWorkerConfigSignature===signature)return treeSitterState.treeSitterWorkerPool;
+    await retirePool(options,'tree-sitter.worker-pool.reconfigure');
+    if(generation!==lifecycleGeneration||shutdownPending>0)return null;
+    let Piscina;
+    try{Piscina=(await import('piscina')).default;}
+    catch(error){
+      if(options?.log&&!treeSitterState.loggedWorkerFailures.has('piscina')){
+        options.log('[tree-sitter] Worker pool unavailable: '+(error?.message||error));
+        treeSitterState.loggedWorkerFailures.add('piscina');
+      }
+      return null;
     }
-  }
-  treeSitterState.treeSitterWorkerPool = null;
-  treeSitterState.treeSitterWorkerConfigSignature = null;
-  treeSitterState.treeSitterWorkerMaxQueue = null;
+    if(generation!==lifecycleGeneration||shutdownPending>0)return null;
+    try{
+      const execArgv=buildWorkerExecArgv();
+      const resourceLimits=resolveWorkerResourceLimits(config.maxWorkers);
+      const pool=new Piscina({filename:fileURLToPath(new URL('../workers/tree-sitter-worker.js',import.meta.url)),
+        maxThreads:config.maxWorkers,maxQueue:config.maxQueue,idleTimeout:config.idleTimeoutMs,taskTimeout:config.taskTimeoutMs,
+        ...(execArgv.length?{execArgv}:{}),...(resourceLimits?{resourceLimits}:{})});
+      treeSitterState.treeSitterWorkerPool=pool;
+      treeSitterState.treeSitterWorkerConfigSignature=signature;
+      treeSitterState.treeSitterWorkerMaxQueue=config.maxQueue;
+      return pool;
+    }catch(error){
+      if(options?.log&&!treeSitterState.loggedWorkerFailures.has('init')){
+        options.log('[tree-sitter] Worker pool init failed: '+(error?.message||error));
+        treeSitterState.loggedWorkerFailures.add('init');
+      }
+      return null;
+    }
+  });
+};
+
+export const shutdownTreeSitterWorkerPool = (options={})=>{
+  lifecycleGeneration+=1;
+  shutdownPending+=1;
+  return serializeLifecycle(()=>retirePool(options,'tree-sitter.worker-pool.shutdown'))
+    .finally(()=>{shutdownPending-=1;});
 };

@@ -39,7 +39,7 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
       type: 'object',
       required: ['ref', 'file', 'excerpt'],
       properties: {
-        ref: nodeRefSchema,
+        ref: { anyOf: [nodeRefSchema, { type: 'null' }] },
         file: nullableString,
         range: {
           type: ['object', 'null'],

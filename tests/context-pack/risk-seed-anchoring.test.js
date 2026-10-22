@@ -135,6 +135,7 @@ assert.equal(validateCompositeContextPack(anchoredPack).ok, true);
 
 const unresolvedPack = assembleCompositeContextPack({
   seed: {
+    v: 1,
     status: 'unresolved',
     candidates: [{ chunkUid: 'chunk-missing' }]
   },
@@ -155,6 +156,8 @@ assert.equal(unresolvedPack.risk?.status, 'missing');
 assert.equal(unresolvedPack.risk?.analysisStatus?.code, 'missing');
 assert.equal(unresolvedPack.risk?.anchor?.kind, 'unresolved');
 assert.ok(unresolvedPack.warnings?.some((entry) => entry?.code === 'MISSING_RISK'));
+assert.equal(unresolvedPack.primary.ref, null);
+assert.equal(validateCompositeContextPack(unresolvedPack).ok, true, 'unresolved envelope remains schema valid');
 
 const fileSeedPack = assembleCompositeContextPack({
   seed: { type: 'file', path: 'src/file.js' },

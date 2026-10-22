@@ -64,6 +64,8 @@ const WEB_RUNTIME_SURFACE_PATH_PARTS = Object.freeze([
 ]);
 const TS_EMIT_SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts']);
 const JS_EMIT_OUTPUT_EXTENSIONS = new Set(['.js', '.jsx', '.mjs', '.cjs', '.d.ts', '.d.mts', '.d.cts']);
+const SOURCE_MODULE_EXTENSIONS = new Set(['.js','.jsx','.mjs','.cjs','.ts','.tsx','.mts','.cts',
+  '.py','.pyi','.rb','.go','.rs','.java','.cs','.c','.cc','.cpp','.h','.hpp','.swift','.kt','.dart','.php','.lua','.sh']);
 const DART_PACKAGE_ROOT_PATH_PARTS = Object.freeze([
   '/lib/'
 ]);
@@ -201,6 +203,9 @@ const classifyFixtureReference = ({ importerRel = '', spec = '', rawSpec = '' } 
   if (!isFixtureSurfacePath(importerRel)) return null;
   const targetSpecifier = String(rawSpec || spec || '').trim();
   if (!targetSpecifier) return null;
+  const targetExtension = path.posix.extname(normalizeImportSpecifier(targetSpecifier)).toLowerCase();
+  // A test importer does not make a missing module into fixture evidence.
+  if (!targetExtension || SOURCE_MODULE_EXTENSIONS.has(targetExtension)) return null;
   if (
     targetSpecifier.startsWith('/')
     || targetSpecifier.startsWith('.')
@@ -224,6 +229,7 @@ const classifyBuildOutputReference = ({ importerRel = '', spec = '', rawSpec = '
   if (!isBuildScriptSurfacePath(importerRel)) return null;
   const targetSpecifier = String(rawSpec || spec || '').trim();
   if (!targetSpecifier) return null;
+  if (SOURCE_MODULE_EXTENSIONS.has(path.posix.extname(normalizeImportSpecifier(targetSpecifier)).toLowerCase())) return null;
   if (!looksLikeBuildOutputSpecifier(targetSpecifier)) return null;
   return {
     reasonCode: IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING,
@@ -238,7 +244,7 @@ const classifyBuildOutputReference = ({ importerRel = '', spec = '', rawSpec = '
   };
 };
 
-const classifyBuildScriptTypeScriptEmitReference = ({ importerRel = '', spec = '', rawSpec = '' } = {}) => {
+const classifyBuildScriptTypeScriptEmitReference = ({ importerRel = '', spec = '', rawSpec = '', indexedFiles = null } = {}) => {
   if (!isBuildScriptSurfacePath(importerRel)) return null;
   const importerExt = path.posix.extname(normalizeImporterRel(importerRel)).toLowerCase();
   if (!TS_EMIT_SOURCE_EXTENSIONS.has(importerExt)) return null;
@@ -246,6 +252,10 @@ const classifyBuildScriptTypeScriptEmitReference = ({ importerRel = '', spec = '
   if (!normalizedSpec || !normalizedSpec.startsWith('.')) return null;
   const specExt = path.posix.extname(normalizedSpec).toLowerCase();
   if (!JS_EMIT_OUTPUT_EXTENSIONS.has(specExt)) return null;
+  const target = path.posix.normalize(path.posix.join(path.posix.dirname(normalizeImporterRel(importerRel)), normalizedSpec));
+  const stem = target.slice(0, -specExt.length);
+  const hasCounterpart = indexedFiles instanceof Set && [...TS_EMIT_SOURCE_EXTENSIONS].some(extension => indexedFiles.has(`${stem}${extension}`));
+  if (!hasCounterpart) return null;
   return {
     reasonCode: IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING,
     pluginId: 'path-context',
@@ -336,11 +346,14 @@ const classifyOptionalDependency = ({ spec = '', rawSpec = '' } = {}) => {
   };
 };
 
-export const createPathContextPlugin = () => Object.freeze({
+export const createPathContextPlugin = ({ entries = [] } = {}) => {
+  const indexedFiles = new Set(entries.map(entry => normalizeImporterRel(typeof entry === 'string' ? entry : entry?.rel)));
+  return Object.freeze({
   id: 'path-context',
   priority: 12,
-  fingerprint: 'v5',
+  fingerprint: 'v6',
   classify(input = {}) {
+    input = { ...input, indexedFiles };
     return classifyBazelRootTraversal(input)
       || classifyOptionalDependency(input)
       || classifyDartPackageRootReference(input)
@@ -352,4 +365,5 @@ export const createPathContextPlugin = () => Object.freeze({
       || classifyConfigRootSentinel(input)
       || classifyConfigRootedSpecifier(input);
   }
-});
+  });
+};

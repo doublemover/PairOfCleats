@@ -51,7 +51,7 @@ export const addDictionaryWordsFromText = (
     if (line.endsWith('\r')) line = line.slice(0, -1);
     const trimmed = line.trim();
     if (trimmed) {
-      target.add(lowerCase ? trimmed.toLowerCase() : trimmed);
+      target.add(lowerCase ? trimmed.toLowerCase().normalize('NFKD') : trimmed);
     }
     lineStart = i + 1;
   }
@@ -69,7 +69,7 @@ export const addDictionaryWordsFromText = (
 const addDictionaryWordFromLine = (line, target, lowerCase) => {
   const trimmed = String(line || '').trim();
   if (!trimmed) return;
-  target.add(lowerCase ? trimmed.toLowerCase() : trimmed);
+  target.add(lowerCase ? trimmed.toLowerCase().normalize('NFKD') : trimmed);
 };
 
 /**

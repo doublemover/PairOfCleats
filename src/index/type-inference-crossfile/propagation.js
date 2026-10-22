@@ -269,6 +269,7 @@ export async function runCrossFilePropagation({
   }
 
   let linkedCalls = 0;
+  let linkedCallSummaries = 0;
   let linkedUsages = 0;
   let inferredReturns = 0;
   let riskFlows = 0;
@@ -289,7 +290,7 @@ export async function runCrossFilePropagation({
   const maxTotalUsageLinks = Number.isFinite(largeRepoBudget?.maxTotalUsageLinks)
     ? Math.max(0, Math.floor(largeRepoBudget.maxTotalUsageLinks))
     : null;
-  const isCallBudgetExhausted = () => maxTotalCallLinks != null && linkedCalls >= maxTotalCallLinks;
+  const isCallBudgetExhausted = () => maxTotalCallLinks != null && linkedCalls + linkedCallSummaries >= maxTotalCallLinks;
   const isUsageBudgetExhausted = () => maxTotalUsageLinks != null && linkedUsages >= maxTotalUsageLinks;
   const fileUsageFallbackApplied = new Set();
 
@@ -563,7 +564,7 @@ export async function runCrossFilePropagation({
         }
         for (let callIndex = 0; callIndex < maxCallLinkSource && !isCallBudgetExhausted(); callIndex += 1) {
           if (maxTotalCallLinks != null) {
-            const remaining = Math.max(0, maxTotalCallLinks - (linkedCalls + callLinks.length));
+            const remaining = Math.max(0, maxTotalCallLinks - (linkedCalls + linkedCallSummaries + callLinks.length));
             if (remaining <= 0) {
               droppedCallLinks += maxCallLinkSource - callIndex;
               break;
@@ -607,7 +608,7 @@ export async function runCrossFilePropagation({
         }
         for (let detailIndex = 0; detailIndex < maxCallSummarySource && !isCallBudgetExhausted(); detailIndex += 1) {
           if (maxTotalCallLinks != null) {
-            const remaining = Math.max(0, maxTotalCallLinks - (linkedCalls + callLinks.length));
+            const remaining = Math.max(0, maxTotalCallLinks - (linkedCalls + linkedCallSummaries + callLinks.length + callSummaries.length));
             if (remaining <= 0) {
               droppedCallSummaries += maxCallSummarySource - detailIndex;
               break;
@@ -720,6 +721,7 @@ export async function runCrossFilePropagation({
       }
       if (callSummaries.length) {
         relations.callSummaries = callSummaries;
+        linkedCallSummaries += callSummaries.length;
       }
       if (usageLinks.length) {
         relations.usageLinks = usageLinks;
@@ -908,6 +910,7 @@ export async function runCrossFilePropagation({
 
   return {
     linkedCalls,
+    linkedCallSummaries,
     linkedUsages,
     inferredReturns,
     riskFlows,
