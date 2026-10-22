@@ -27,7 +27,7 @@ try {
   assert.equal(external.ownership, 'external');
   assert.deepEqual(external.ownedPaths, []);
   writeToolInstallReceipt(managed, external);
-  const remove = planToolLifecycle({ toolingRoot: managed, id: 'external-server', operation: 'remove' });
+  const remove = await planToolLifecycle({ toolingRoot: managed, id: 'external-server', operation: 'remove' });
   assert.equal(remove.state, 'blocked');
   assert.ok(remove.blockers.some(blocker => blocker.code === 'external-install-not-owned'));
   assert.equal(await fs.readFile(outside, 'utf8'), 'external bytes');

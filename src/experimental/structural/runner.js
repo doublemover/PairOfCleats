@@ -19,7 +19,7 @@ const assertExitOk = (engine, result) => {
 };
 
 const runSemgrep = (repoRoot, pack, rules) => {
-  const cmd = resolveBinary('semgrep');
+  const cmd = resolveBinary('semgrep', { repoRoot });
   const args = ['--json'];
   for (const rulePath of rules) args.push('--config', rulePath);
   args.push('--quiet');
@@ -35,7 +35,7 @@ const runSemgrep = (repoRoot, pack, rules) => {
 };
 
 const runAstGrep = (repoRoot, pack, rules) => {
-  const cmd = resolveBinary('ast-grep');
+  const cmd = resolveBinary('ast-grep', { repoRoot });
   const results = [];
   for (const rulePath of rules) {
     const args = ['scan', '--json', '--rule', rulePath];
@@ -53,7 +53,7 @@ const runAstGrep = (repoRoot, pack, rules) => {
 };
 
 const runComby = (repoRoot, pack, rules) => {
-  const cmd = resolveBinary('comby');
+  const cmd = resolveBinary('comby', { repoRoot });
   const results = [];
   for (const rulePath of rules) {
     const rule = readCombyRule(rulePath);

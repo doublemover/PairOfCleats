@@ -9,6 +9,7 @@ import { validateConfig } from '../../src/config/validate.js';
 import { explainEffectiveConfiguration, formatEffectiveConfiguration } from './effective.js';
 import { CONFIG_VALIDATE_OPTIONS } from './options.js';
 
+const runValidation = async () => {
 const argv = createCli({
   scriptName: 'pairofcleats config validate',
   options: CONFIG_VALIDATE_OPTIONS
@@ -23,12 +24,12 @@ if (argv.effective) {
   const report = await explainEffectiveConfiguration({ repoRoot, configPath: argv.config ? configPath : null });
   if (argv.json) emitJson(report);
   else console.error(formatEffectiveConfiguration(report));
-  process.exit(report.ok ? 0 : 1);
+  return report.ok ? 0 : 1;
 }
 
 if (!fs.existsSync(schemaPath)) {
   console.error(`Config schema not found: ${schemaPath}`);
-  process.exit(1);
+  return 1;
 }
 
 if (!fs.existsSync(configPath)) {
@@ -38,7 +39,7 @@ if (!fs.existsSync(configPath)) {
   } else {
     console.error(message);
   }
-  process.exit(argv.config ? 1 : 0);
+  return argv.config ? 1 : 0;
 }
 
 let config;
@@ -51,7 +52,7 @@ try {
   } else {
     console.error(message);
   }
-  process.exit(1);
+  return 1;
 }
 
 if (!config || typeof config !== 'object' || Array.isArray(config)) {
@@ -61,7 +62,7 @@ if (!config || typeof config !== 'object' || Array.isArray(config)) {
   } else {
     console.error(message);
   }
-  process.exit(1);
+  return 1;
 }
 
 const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
@@ -77,4 +78,7 @@ if (argv.json) {
   }
 }
 
-process.exit(result.ok ? 0 : 1);
+return result.ok ? 0 : 1;
+};
+
+process.exitCode = await runValidation();

@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { explainEffectiveConfiguration, formatEffectiveConfiguration } from '../../../tools/config/effective.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
+import { loadUserConfig } from '../../../tools/dict-utils/config.js';
 
 const suite = path.join(process.cwd(), '.tmp', 'tasks', 'effective-explanation-authority');
 await fs.mkdir(suite, { recursive: true });
@@ -22,6 +23,11 @@ try {
     assert.ok(filtered.ignored.some(item => item.path === 'tooling.autoInstallOnDetect'));
     assert.match(formatEffectiveConfiguration(filtered), /tooling.autoInstallOnDetect/);
     assert.equal(filtered.validation.artifacts, 'not-probed');
+    const before = await fs.readFile(path.join(root, '.pairofcleats.json'), 'utf8');
+    const preview = loadUserConfig(root, { repositoryConfig: { threads: 1, tooling: { autoInstallOnDetect: true } } });
+    assert.equal(preview.threads, 1);
+    assert.equal(preview.tooling.autoInstallOnDetect, undefined, 'in-memory preview retains canonical repository authority filtering');
+    assert.equal(await fs.readFile(path.join(root, '.pairofcleats.json'), 'utf8'), before);
   });
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('Effective config explanation distinguishes authority and readiness.');

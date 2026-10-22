@@ -25,6 +25,7 @@ import { resolveClangdArchiveTarget, resolveManagedClangd } from '../../src/shar
 import { PHPACTOR_APPROVED_RELEASE } from './approved-artifacts.js';
 import { resolveManagedLuaLanguageServer } from '../../src/shared/managed-lua.js';
 import { normalizeToolProvisioningDeclaration } from './provisioning-plan.js';
+import { resolveManagedToolInstallation } from '../../src/shared/managed-installation.js';
 
 const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
@@ -692,7 +693,14 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       },
       docs: TOOL_DOCS.sqls
     }
-  ].map(tool => normalizeToolProvisioningDeclaration({ ...tool, authorityRepoRoot: repoRoot, toolingRoot: absoluteToolingRoot }));
+  ].map(tool => {
+    const managed = resolveManagedToolInstallation(absoluteToolingRoot, tool.id);
+    return normalizeToolProvisioningDeclaration({ ...tool,
+      ...(managed ? { managedInstallation: managed, detect: { ...tool.detect, cmd: managed.command,
+        args: [...managed.args, ...(tool.detect?.args || [])],
+        binDirs: [managed.binDir, ...(tool.detect?.binDirs || [])] } } : {}),
+      authorityRepoRoot: repoRoot, toolingRoot: absoluteToolingRoot });
+  });
 }
 
 export const getToolProviderAliases = (toolId) => {

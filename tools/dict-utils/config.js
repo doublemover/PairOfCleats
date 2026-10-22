@@ -85,7 +85,8 @@ export const readShippedConfigSchema = schemaPath => {
 };
 
 /** Optional source callback reports loader facts without changing the config value contract. */
-export function loadUserConfig(repoRoot, { env = process.env, onSources = null, configPath: selectedConfigPath = null } = {}) {
+export function loadUserConfig(repoRoot, { env = process.env, onSources = null, configPath: selectedConfigPath = null,
+  repositoryConfig = undefined } = {}) {
   const metadata = { version: 1, files: [], repoTrusted: isRepoTrusted(repoRoot, env),
     discardedAuthorityPaths: [], trustedMerge: false, testOverlay: { applied: false, source: 'test-environment' } };
   const readSource = (filename, source, optional = false) => {
@@ -106,7 +107,11 @@ export function loadUserConfig(repoRoot, { env = process.env, onSources = null, 
   };
   try {
     const configPath = selectedConfigPath ? path.resolve(selectedConfigPath) : path.join(repoRoot, '.pairofcleats.json');
-    const base = readSource(configPath, 'repository', !selectedConfigPath);
+    // Setup previews use the same validation/authority/trusted merge without a
+    // temporary repository file or an alternate defaults/precedence engine.
+    const base = repositoryConfig === undefined ? readSource(configPath, 'repository', !selectedConfigPath) : structuredClone(repositoryConfig);
+    if (repositoryConfig !== undefined) metadata.files.push({ path: configPath, source: 'repository', exists: true,
+      preview: true, contentHash: null, contentHashOmitted: 'in-memory-preview' });
     if (!isPlainObject(base)) throw new Error('Config root must be a JSON object.');
     const schemaPath = path.join(resolveToolRoot(), 'docs', 'config', 'schema.json');
     const schema = readShippedConfigSchema(schemaPath);

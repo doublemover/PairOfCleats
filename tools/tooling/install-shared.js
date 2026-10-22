@@ -71,26 +71,82 @@ export const downloadToBuffer = async ({
   createErrorMessage,
   headers,
   redirect = 'follow',
+  signal = null,
   maxBytes = null,
-  drainErrorBody = false
+  drainErrorBody = false,
+  fetchImpl = fetch
 }) => {
+  if (maxBytes !== null && (!Number.isSafeInteger(maxBytes) || maxBytes <= 0)) throw createInstallError('invalid_download_byte_bound', 'Download byte bound must be a positive safe integer.');
   const timeout = withTimeoutSignal(timeoutMs);
   const fetchOptions = {
     redirect,
-    signal: timeout.signal
+    signal: signal ? AbortSignal.any([timeout.signal, signal]) : timeout.signal
   };
   if (headers && typeof headers === 'object') {
     fetchOptions.headers = headers;
   }
+  let response = null;
+  let iterator = null;
+  let reader = null;
+  let bodyComplete = false;
+  const releaseReader = () => {
+    const owned = reader;
+    reader = null;
+    owned?.releaseLock?.();
+  };
+  const closeBody = async () => {
+    let failure = null;
+    if (!bodyComplete) {
+      // A reader/iterator owns a stream lock. Close through that owner before
+      // considering the unlocked body; cancelling the body while locked fails.
+      const close = reader ? () => reader.cancel(fetchOptions.signal.reason)
+        : typeof iterator?.return === 'function' ? () => iterator.return()
+          : typeof response?.body?.cancel === 'function' ? () => response.body.cancel(fetchOptions.signal.reason)
+            : typeof response?.body?.destroy === 'function' ? () => response.body.destroy() : null;
+      try { await close?.(); } catch (error) { failure = error; }
+    }
+    try { releaseReader(); } catch (error) { failure ||= error; }
+    if (failure) throw failure;
+  };
+  const readNext = async () => {
+    fetchOptions.signal.throwIfAborted();
+    let onAbort;
+    const interrupted = new Promise((_, reject) => {
+      onAbort = () => reject(fetchOptions.signal.reason);
+      fetchOptions.signal.addEventListener('abort', onAbort, { once: true });
+    });
+    try { return await Promise.race([reader ? reader.read() : iterator.next(), interrupted]); }
+    finally { fetchOptions.signal.removeEventListener('abort', onAbort); }
+  };
+  const consume = async ({ limit = maxBytes, discard = false } = {}) => {
+    if (typeof response.body?.getReader === 'function') reader = response.body.getReader();
+    else if (typeof response.body?.[Symbol.asyncIterator] === 'function') iterator = response.body[Symbol.asyncIterator]();
+    else {
+      if (limit) throw createInstallError('download_stream_unavailable', 'Bounded download requires an incrementally readable response body.', { retryable: false });
+      const body = Buffer.from(await response.arrayBuffer());
+      bodyComplete = true;
+      return body;
+    }
+    const chunks = [];
+    let bytes = 0;
+    while (true) {
+      const next = await readNext();
+      if (next.done) { bodyComplete = true; break; }
+      const chunk = next.value;
+      if (!(chunk instanceof Uint8Array)) throw createInstallError('download_invalid_chunk', 'Download transport produced a non-byte chunk.', { retryable: false });
+      bytes += chunk.byteLength;
+      if (limit && bytes > limit) throw createInstallError('download_too_large', `${label} exceeds the download byte limit.`, { retryable: false });
+      if (!discard) chunks.push(Buffer.from(chunk));
+    }
+    releaseReader();
+    return discard ? null : Buffer.concat(chunks, bytes);
+  };
   try {
-    const response = await fetch(url, fetchOptions);
+    response = await fetchImpl(url, fetchOptions);
     if (!response.ok) {
       if (drainErrorBody) {
-        try {
-          await response.arrayBuffer();
-        } catch {}
-      } else {
-        try { await response.body?.cancel?.(); } catch {}
+        // Legacy draining remains bounded and does not allocate an error body.
+        try { await consume({ limit: Math.min(maxBytes || 65536, 65536), discard: true }); } catch {}
       }
       throw createInstallError(
         'download_http_error',
@@ -107,20 +163,7 @@ export const downloadToBuffer = async ({
     if (maxBytes && Number.isFinite(declaredBytes) && declaredBytes > maxBytes) {
       throw createInstallError('download_too_large', `${label} exceeds the download byte limit.`, { retryable: false });
     }
-    let body;
-    if (maxBytes && response.body?.[Symbol.asyncIterator]) {
-      const chunks = [];
-      let bytes = 0;
-      for await (const chunk of response.body) {
-        bytes += chunk.length;
-        if (bytes > maxBytes) throw createInstallError('download_too_large', `${label} exceeds the download byte limit.`, { retryable: false });
-        chunks.push(Buffer.from(chunk));
-      }
-      body = Buffer.concat(chunks, bytes);
-    } else {
-      body = Buffer.from(await response.arrayBuffer());
-      if (maxBytes && body.length > maxBytes) throw createInstallError('download_too_large', `${label} exceeds the download byte limit.`, { retryable: false });
-    }
+    const body = await consume();
     if (!body.length) {
       throw createInstallError(
         'download_empty_payload',
@@ -134,6 +177,14 @@ export const downloadToBuffer = async ({
       sourceUrl: response.url || url
     };
   } catch (error) {
+    const primaryError = signal?.aborted ? signal.reason || error : error;
+    try { await closeBody(); }
+    catch (cleanupError) {
+      if (primaryError && typeof primaryError === 'object') {
+        try { Object.defineProperty(primaryError, 'downloadCleanupError', { value: cleanupError, configurable: true }); } catch {}
+      }
+    }
+    if (signal?.aborted) throw primaryError;
     if (error?.reason) throw error;
     const timeoutTriggered = timeout.signal?.aborted === true;
     const message = String(error?.message || '');

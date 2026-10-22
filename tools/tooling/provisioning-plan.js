@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { findBinaryOnPath } from '../../src/index/tooling/binary-utils.js';
 import { resolveInstallerRequirementProbeArgs, verifyInstallerRequirementProbe } from './install-requirements.js';
+import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
 
 const digest = value => createHash('sha256').update(value).digest('hex');
 export const identifyProvisioningExecutable = command => {
@@ -75,7 +76,8 @@ export const createToolProvisioningPlan = ({ tool, selection, probe = null, reso
       executable: identifyProvisioningExecutable(command) };
     let verification = null;
     for (const args of resolveInstallerRequirementProbeArgs(requirement.family || requirement.id)) {
-      const outcome = probe(command, args, { env, timeoutMs: 4000, maxOutputBytes: 65536, stdio: 'pipe', outputEncoding: 'utf8' });
+      const outcome = probe(command, args, { env: resolveNoProvisionToolingEnvironment(env, { command, providerId: requirement.id }),
+        timeoutMs: 4000, maxOutputBytes: 65536, stdio: 'pipe', outputEncoding: 'utf8' });
       verification = verifyInstallerRequirementProbe(requirement.family || requirement.id, outcome, requirement);
       if (verification.ok) return { ...requirement, command, args, state: 'verified', ...verification, executable: identifyProvisioningExecutable(command) };
     }

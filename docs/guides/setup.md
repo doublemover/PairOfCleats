@@ -36,6 +36,10 @@ application/target roots, minimal config patch, output locations and operations,
 then explicitly apply it. Applying preserves comments outside modified fields
 and unrelated settings. It rejects a changed target/config/effective policy,
 selected runtime or operation plan; generate a fresh plan after any such change.
+The preview uses the canonical repository-authority and trusted-policy merge.
+A trusted override that defeats a requested choice, or a selected tool without
+a qualified recipe, blocks apply before the config is written. Local model asset
+presence is reported separately from executable or inference verification.
 
 <!-- poc:recipe setup-apply shell=portable effects=target-config-and-derived-build -->
 ```sh

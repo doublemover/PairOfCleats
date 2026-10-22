@@ -1,0 +1,52 @@
+#!/usr/bin/env node
+// Source regression authored for the development batch; UNVALIDATED.
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { resolveDeclaredInstallAdmission, runToolInstallChild } from '../../../tools/tooling/install-execution.js';
+import { resolveStorageLayout } from '../../../src/shared/storage/layout.js';
+import { planManagedChildStorage } from '../../../src/shared/storage/child-environment.js';
+import { inspectStorageAccess } from '../../../src/shared/storage/access.js';
+
+const suite = path.join(process.cwd(), '.tmp', 'tasks', 'managed-child-storage-settlement');
+await fs.mkdir(suite, { recursive: true });
+const root = await fs.mkdtemp(path.join(suite, 'case-'));
+try {
+  const layout = resolveStorageLayout({ home: root, env: {} });
+  const plan = planManagedChildStorage({ baseEnv: {}, layout, family: 'npm', managed: true,
+    toolId: 'fixture', toolIdentity: 'fixture-pinned-identity', runId: 'fixture-run' });
+  let missingEstimateSpawns = 0;
+  const deferred = await runToolInstallChild({ command: 'fixture', args: [], options: {}, storagePlan: plan, layout,
+    spawn: async () => { missingEstimateSpawns++; } });
+  assert.equal(deferred.error.code, 'ERR_INSTALL_STORAGE_ESTIMATE_REQUIRED');
+  assert.equal(missingEstimateSpawns, 0);
+  await assert.rejects(fs.stat(plan.scratch), { code: 'ENOENT' });
+  assert.equal(resolveDeclaredInstallAdmission({ managedDescriptor: { archive: { bytes: 1024 } } }).requiredBytes, null,
+    'archive length cannot stand in for expanded/build allocation');
+  const admission = resolveDeclaredInstallAdmission({ storageEstimate: { complete: true, peakAdditionalBytes: 1024,
+    minimumFreeBytes: 0, hardBytes: 1024 * 1024 } });
+  assert.equal(admission.requiredBytes, 1024);
+  assert.throws(() => resolveDeclaredInstallAdmission({ storageEstimate: { minimumFreeBytes: -1 } }), /nonnegative/);
+  const normal = await runToolInstallChild({ command: 'fixture', args: [], options: {}, storagePlan: plan, layout,
+    admission,
+    spawn: async (_command, _args, options) => { options.onSpawn(); return { exitCode: 0, signal: null, stdout: '', stderr: '' }; } });
+  assert.equal(normal.settlement.settled, true);
+  const next = planManagedChildStorage({ baseEnv: {}, layout, family: 'npm', managed: true,
+    toolId: 'fixture', toolIdentity: 'fixture-pinned-identity', runId: 'pending-run' });
+  let pending;
+  try {
+    await runToolInstallChild({ command: 'fixture', args: [], options: {}, storagePlan: next, layout,
+      admission,
+      spawn: async (_command, _args, options) => {
+        options.onSpawn();
+        throw Object.assign(new Error('fixture teardown pending'), { cacheOwnershipPending: true,
+          result: { termination: { closeObserved: false, treeCleanupSettled: true, treeCleanupFailed: false } } });
+      } });
+  } catch (error) { pending = error; }
+  assert.equal(pending.cacheOwnershipPending, true);
+  const coordinationRoot = path.join(layout.descriptors.state.path, 'storage-access');
+  assert.equal((await inspectStorageAccess(next.scratch, { coordinationRoot })).protected, true);
+  pending.storageSession.releaseAfterSettlement({ resourceId: pending.storageSession.resourceId, settled: true, pending: false });
+  assert.equal((await inspectStorageAccess(next.scratch, { coordinationRoot })).protected, false);
+} finally { await fs.rm(root, { recursive: true, force: true }); }
+console.log('Installer storage leases follow exact child settlement.');

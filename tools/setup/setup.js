@@ -27,6 +27,7 @@ import { buildSetupReadiness } from './readiness.js';
 import { resolveDictionarySetupReadiness } from './dictionary-readiness.js';
 import { resolveModelSetupReadiness } from './model-readiness.js';
 import { applyFirstSearchPlan, createFirstSearchPlan } from './first-search-plan.js';
+import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 
 const argv = createCli({
   scriptName: 'setup',
@@ -39,9 +40,10 @@ const root = resolveRepoRootArg(explicitRoot);
 const toolRoot = resolveToolRoot();
 const jsonOutput = argv.json === true;
 if (argv.plan || argv['apply-plan']) {
+  let payload;
+  try {
   if (!explicitRoot) throw new Error('Plan/apply requires --repo <target> (or --root) so target selection is explicit.');
   if (argv.plan && argv['apply-plan']) throw new Error('Choose either --plan or --apply-plan.');
-  let payload;
   if (argv['apply-plan']) {
     const planPath = path.resolve(argv['apply-plan']);
     const stat = fs.lstatSync(planPath);
@@ -53,14 +55,21 @@ if (argv.plan || argv['apply-plan']) {
     payload = await createFirstSearchPlan({ repoRoot: root, profile: argv.profile, model: argv.model,
       backend: argv.backend, tools: String(argv.tools || '').split(',').map(value => value.trim()).filter(Boolean) });
   }
+  } catch (error) {
+    payload = { schemaVersion: 1, kind: 'setup-plan-result', repoRoot: root,
+      completed: [], pending: ['config'], state: 'blocked', ...(error.setupOutcome || {}),
+      error: { code: error.code || 'ERR_SETUP_PLAN', message: redactDiagnosticText(error.message, 2048) },
+      ...(error.setupPlanSession ? { settlement: { state: 'pending', resourceId: error.setupPlanSession.resourceId,
+        nextAction: 'Retain the active setup owner and lock until its actual child settlement is confirmed.' } } : {}) };
+  }
   if (jsonOutput) console.log(JSON.stringify(payload, null, 2));
   else {
     console.error(`${payload.kind}: ${payload.repoRoot}`);
     console.error(JSON.stringify(payload, null, 2));
     if (argv.plan) console.error('Review with --plan --json > setup-plan.json, then explicitly --apply-plan setup-plan.json --repo <same target>.');
   }
-  process.exit(payload.state && payload.state !== 'complete' ? 1 : 0);
-}
+  process.exitCode = payload.kind === 'first-search-plan' ? payload.blockers.length ? 1 : 0 : payload.state === 'complete' ? 0 : 1;
+} else {
 const nonInteractive = argv['non-interactive'] === true;
 const rl = nonInteractive ? null : readline.createInterface({ input: process.stdin, output: jsonOutput ? process.stderr : process.stdout });
 const stdoutGuard = createStdoutGuard({ enabled: jsonOutput, stream: process.stdout, label: 'setup stdout' });
@@ -559,3 +568,4 @@ if (rl) rl.close();
 
 finishSetup();
 log('Tip: run pairofcleats index validate to verify index artifacts.');
+}

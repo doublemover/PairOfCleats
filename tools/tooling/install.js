@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { TOOLING_INSTALL_OPTIONS } from '../../src/shared/cli-options.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
-import { exitLikeCommandResult, probeCommand, runCommand } from '../shared/cli-utils.js';
+import { exitLikeCommandResult, probeCommand } from '../shared/cli-utils.js';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
 import { getToolingConfig, resolveRepoRootArg, resolveToolRoot } from '../shared/dict-utils.js';
 import { buildToolInstallReadiness } from '../setup/readiness.js';
@@ -18,7 +18,9 @@ import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 import { bindProvisioningCommand, createToolProvisioningPlan } from './provisioning-plan.js';
 import { buildToolInstallReceipt, writeToolInstallReceipt } from './install-receipts.js';
 import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
-import { planManagedChildStorage, prepareManagedChildStorage } from '../../src/shared/storage/child-environment.js';
+import { planManagedChildStorage } from '../../src/shared/storage/child-environment.js';
+import { resolveDeclaredInstallAdmission, runToolInstallChild } from './install-execution.js';
+import { installPinnedManagedTool, validatePinnedInstallDescriptor } from './managed-install.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats tooling install',
@@ -38,25 +40,6 @@ const stdoutGuard = createStdoutGuard({
 });
 const languageOverride = normalizeLanguageList(argv.languages);
 const toolOverride = [...new Set(normalizeLanguageList(argv.tools))];
-
-const runInstallCommand = (command, args, options = {}) => {
-  try {
-    const result = runCommand(command, args, options);
-    return { ...result, error: null };
-  } catch (error) {
-    const output = error?.result && typeof error.result === 'object'
-      ? error.result
-      : null;
-    return {
-      ok: false,
-      status: Number.isInteger(output?.exitCode) ? Number(output.exitCode) : null,
-      signal: typeof output?.signal === 'string' ? output.signal : null,
-      stdout: typeof output?.stdout === 'string' ? output.stdout : '',
-      stderr: typeof output?.stderr === 'string' ? output.stderr : '',
-      error
-    };
-  }
-};
 
 const report = toolOverride.length
   ? { languages: {}, formats: {} }
@@ -99,6 +82,14 @@ for (const tool of tools) {
   const status = detectTool(tool);
   const verifiedPath = resolveVerifiedPath(status);
   const selection = selectInstallPlan(tool, scope, allowFallback);
+  const storageAdmission = selection.plan ? resolveDeclaredInstallAdmission(selection.plan) : null;
+  // Admission precedes prerequisite acquisition as well as the final package
+  // child. An unknown package build cannot first download an unrelated SDK.
+  if (!verifiedPath && selection.plan && selection.scope === 'cache' && storageAdmission.requiredBytes === null) {
+    results.push({ id: tool.id, status: 'missing-requirement', reason: 'storage-estimate-unavailable', storageAdmission,
+      error: 'Selected managed recipe has no complete artifact/build allocation estimate; writes are deferred without cleanup.' });
+    continue;
+  }
   // Launch requirements are checked even when server bytes already exist.
   const provisioning = createToolProvisioningPlan({ tool, selection: verifiedPath ? { ...selection, plan: null } : selection,
     probe: argv['dry-run'] ? null : (command, args, options) => probeCommand(command, args, { ...options, cwd: installationCwd }),
@@ -118,9 +109,31 @@ for (const tool of tools) {
     results.push({
       id: tool.id,
       status: 'manual',
+      reason: tool.provisioningBlocker || 'No selected managed recipe is declared for this platform/scope.',
       docs: tool.docs || null,
       probe: status.probe || null
     });
+    continue;
+  }
+  if (selection.plan.managedDescriptor) {
+    const pinned = validatePinnedInstallDescriptor(selection.plan.managedDescriptor, { approvedOrigins: selection.plan.approvedOrigins });
+    if (pinned.toolId !== tool.id) throw new Error('Canonical tool and managed descriptor identity disagree.');
+    if (argv['dry-run']) {
+      actions.push({ id: tool.id, kind: 'immutable-managed-archive', descriptor: pinned,
+        scope: selection.scope, provisioning, status: 'planned' });
+      continue;
+    }
+    try {
+      const installed = await installPinnedManagedTool({ toolingRoot: path.resolve(toolingConfig.dir),
+        descriptor: selection.plan.managedDescriptor, approvedOrigins: selection.plan.approvedOrigins,
+        verify: tool.verifyManagedInstall, onProgress: event => console.error(`[tooling-install] ${tool.id}: ${event.state}`) });
+      results.push({ id: tool.id, status: installed.ok ? installed.reused ? 'already-installed' : 'installed' : 'verification-failed',
+        path: installed.command || null, provisioning, managedInstallation: installed,
+        probe: { ok: installed.ok, verificationLevel: installed.verification?.level || 'canonical-recipe-verification' } });
+    } catch (error) {
+      if (error.cacheOwnershipPending) throw error;
+      results.push({ id: tool.id, status: 'failed', error: error.message, code: error.code || null, provisioning });
+    }
     continue;
   }
   const { cmd, args, env, requires } = selection.plan;
@@ -155,7 +168,8 @@ for (const tool of tools) {
           cwd: installationCwd,
           env: requires === 'go' ? resolveNoProvisionToolingEnvironment(candidate === managedGoSdk?.command
             ? applyManagedGoEnvironment(process.env, { toolingRoot: toolingConfig.dir, sdk: managedGoSdk }) : process.env,
-          { cwd: installationCwd, command: candidate, providerId: 'go-sdk' }) : process.env,
+          { cwd: installationCwd, command: candidate, providerId: 'go-sdk' }) : resolveNoProvisionToolingEnvironment(process.env,
+          { cwd: installationCwd, command: candidate, providerId: requires }),
           stdio: 'pipe',
           timeoutMs: 4000,
           maxOutputBytes: 64 * 1024,
@@ -242,6 +256,7 @@ for (const tool of tools) {
   const bound = bindProvisioningCommand({ ...selection.plan, cmd: requires && cmd === requires ? requirementCommand : cmd }, provisioning);
   actions.push({ id: tool.id, cmd: bound.command,
     args, env, requires, provisioning, ...(goPrerequisite ? { prerequisite: goPrerequisite } : {}),
+    storageAdmission,
     ...(minimumGoVersion ? { minimumGoVersion } : {}),
     scope: selection.scope, fallback: selection.fallback || false, docs: tool.docs || null });
 }
@@ -284,9 +299,6 @@ for (const action of actions) {
     family: action.requires === 'gem' ? 'ruby' : action.requires || null,
     managed: action.scope === 'cache', toolId: action.id,
     toolIdentity: action.provisioning.planId, projectIdentity: root });
-  action.storage = await prepareManagedChildStorage(storagePlan, {
-    authorizedRoots: Object.values(layout.descriptors).map(descriptor => descriptor.path)
-  });
   env = storagePlan.env;
   const spawnOpts = {
     cwd: installationCwd,
@@ -295,7 +307,9 @@ for (const action of actions) {
     // installer diagnostics through stderr only.
     stdio: argv.json ? ['inherit', 'ignore', 'inherit'] : 'inherit'
   };
-  const result = runInstallCommand(action.cmd, action.args, spawnOpts);
+  const result = await runToolInstallChild({ command: action.cmd, args: action.args,
+    options: spawnOpts, storagePlan, layout, admission: action.storageAdmission });
+  action.storage = result.storage;
   if (typeof result.signal === 'string' && result.signal.trim()) {
     exitLikeCommandResult({ status: null, signal: result.signal });
   }

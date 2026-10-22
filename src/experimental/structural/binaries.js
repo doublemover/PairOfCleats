@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getToolingConfig } from '../../shared/dict-utils.js';
+import { detectTool, resolveToolsById } from '../../../tools/tooling/utils.js';
+import { identifyProvisioningExecutable } from '../../../tools/tooling/provisioning-plan.js';
 import { resolveWindowsCmdInvocation } from '../../shared/subprocess/windows-cmd.js';
 import {
   DEFAULT_SYNC_COMMAND_TIMEOUT_MS,
@@ -117,7 +120,18 @@ export const verifyStructuralBinaryIdentity = (engine, result) => {
   return false;
 };
 
-export const resolveBinary = (engine) => {
+export const resolveBinary = (engine, { repoRoot = null } = {}) => {
+  if (repoRoot) {
+    const config = getToolingConfig(repoRoot);
+    const tool = resolveToolsById([engine], config.dir, repoRoot, config)[0];
+    const status = tool ? detectTool(tool) : null;
+    if (!status?.found || !status.path) return { command: engine, argsPrefix: [], checkedPaths: [], unavailable: true };
+    const command = path.isAbsolute(status.path) ? status.path : findOnPath(status.path).path;
+    if (!command) return { command: engine, argsPrefix: [], checkedPaths: [], unavailable: true };
+    const output = { command, argsPrefix: tool.managedInstallation?.args || [], checkedPaths: [command] };
+    if (!verifyStructuralBinaryIdentity(engine, runCommand(output, [engine === 'comby' ? '-version' : '--version'], { timeoutMs: DEFAULT_SYNC_COMMAND_TIMEOUT_MS }))) return { ...output, unavailable: true };
+    return { ...output, executableIdentity: identifyProvisioningExecutable(command) };
+  }
   const candidates = {
     semgrep: ['semgrep'],
     'ast-grep': ['ast-grep', 'sg'],
@@ -173,6 +187,8 @@ export const resolveBinary = (engine) => {
   return output;
 };
 
-export const runBinary = (resolved, args, options = {}) => resolved?.unavailable
-  ? { status: null, signal: null, stdout: '', stderr: '', error: Object.assign(new Error('No identified structural engine executable is available.'), { code: 'ENOENT' }) }
-  : runCommand(resolved, args, options);
+export const runBinary = (resolved, args, options = {}) => {
+  if (resolved?.unavailable) return { status: null, signal: null, stdout: '', stderr: '', error: Object.assign(new Error('No identified structural engine executable is available.'), { code: 'ENOENT' }) };
+  if (resolved.executableIdentity && identifyProvisioningExecutable(resolved.command).sha256 !== resolved.executableIdentity.sha256) throw new Error('Structural engine bytes changed after selection; resolve again.');
+  return runCommand(resolved, args, options);
+};

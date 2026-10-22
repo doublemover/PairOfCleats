@@ -7,11 +7,14 @@ import { mergeConfig } from '../../src/shared/config.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { validateConfig } from '../../src/config/validate.js';
 import { loadUserConfig, readShippedConfigSchema } from '../dict-utils/config.js';
-import { getToolingConfig, resolveRepoCacheRootPath, resolveToolRoot } from '../shared/dict-utils.js';
+import { getModelConfig, getToolingConfig, resolveRepoCacheRootPath, resolveToolRoot } from '../shared/dict-utils.js';
 import { buildToolingReport, resolveToolsById, selectInstallPlan } from '../tooling/utils.js';
-import { runCommand } from '../shared/cli-utils.js';
+import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { atomicWriteText } from '../../src/shared/io/atomic-write.js';
+import { acquireFileLock, releaseFileLockOrThrow } from '../../src/shared/locks/file-lock.js';
 import { createToolProvisioningPlan } from '../tooling/provisioning-plan.js';
+import { resolveModelSetupReadiness } from './model-readiness.js';
+import { resolveDeclaredInstallAdmission } from '../tooling/install-execution.js';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
 const readOptional = file => {
@@ -47,6 +50,39 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
   const schema = readShippedConfigSchema(path.join(toolRoot, 'docs/config/schema.json'));
   const validation = validateConfig(schema, candidate);
   if (!validation.ok) throw new Error('Proposed setup config is invalid:\n' + validation.errors.join('\n'));
+  let proposedSources;
+  const proposedEffective = loadUserConfig(repoRoot, { repositoryConfig: candidate, onSources: sources => { proposedSources = sources; } });
+  const blockers = [];
+  const effectivePatch = [];
+  const comparePatch = (value, prefix = []) => {
+    for (const [key, entry] of Object.entries(value)) {
+      const keys = [...prefix, key];
+      if (entry && typeof entry === 'object' && !Array.isArray(entry)) comparePatch(entry, keys);
+      else {
+        const selected = keys.reduce((parent, field) => parent?.[field], proposedEffective);
+        const accepted = stableStringify(selected) === stableStringify(entry);
+        effectivePatch.push({ path: keys.join('.'), requested: entry, effective: selected ?? null, accepted });
+        if (!accepted) blockers.push({ code: 'requested-choice-overridden', path: keys.join('.'),
+          nextAction: 'Review the winning user-owned configuration layer and generate a fresh plan.' });
+      }
+    }
+  };
+  comparePatch(patch);
+  const prerequisitePlans = tooling.map(tool => createToolProvisioningPlan({ tool, selection: selectInstallPlan(tool, 'cache', false) }));
+  for (const tool of tooling) {
+    const selected = selectInstallPlan(tool, 'cache', false);
+    if (!selected.plan) blockers.push({ code: 'selected-tool-recipe-unavailable', toolId: tool.id,
+      nextAction: tool.provisioningBlocker || 'Select a qualified cache-scoped recipe for this tool/platform before applying.' });
+    else if (resolveDeclaredInstallAdmission(selected.plan).requiredBytes === null) blockers.push({ code: 'selected-tool-storage-estimate-unavailable', toolId: tool.id,
+      nextAction: 'The canonical recipe must declare complete artifact/build peak allocation before managed writes can be admitted.' });
+  }
+  for (const prerequisite of prerequisitePlans) for (const step of prerequisite.steps) {
+    if (step.state === 'missing' && !step.recipe) blockers.push({ code: 'selected-prerequisite-recipe-unavailable', toolId: prerequisite.toolId,
+      requirement: step.id, nextAction: step.nextAction });
+  }
+  const selectedModel = getModelConfig(repoRoot, proposedEffective);
+  const modelReadiness = profile === 'semantic' ? resolveModelSetupReadiness({ root: repoRoot, modelConfig: selectedModel,
+    embeddingsConfig: proposedEffective.indexing?.embeddings || {} }) : { state: 'not-requested', runtime: 'not-probed' };
   const detected = await buildToolingReport(repoRoot, null, { skipToolDetection: true });
   const operations = [];
   if (profile === 'semantic') operations.push({ id: 'models', command: process.execPath,
@@ -67,12 +103,16 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
     schemaVersion: 1, kind: 'first-search-plan', applicationRoot: toolRoot, repoRoot,
     choices: { profile, model, backend, tools: selectedTools },
     configPath, configPatch: patch, languages: detected.languages,
-    cacheRoot: resolveRepoCacheRootPath(repoRoot, effective),
+    cacheRoot: resolveRepoCacheRootPath(repoRoot, proposedEffective),
+    state: blockers.length ? 'blocked' : 'planned', blockers,
+    configuration: { sources: proposedSources, requestedChoices: effectivePatch, runtime: 'not-probed' },
+    modelReadiness,
     inputIdentity: { config: currentText === null ? null : hash(currentText), effective: hash(stableStringify(effective)),
       runtime: process.version, executable: process.execPath, platform: process.platform, arch: process.arch,
-      setupInputs: ['package.json', 'package-lock.json', '.nvmrc', 'tools/setup/first-search-plan.js', 'tools/tooling/install.js']
+      setupInputs: ['package.json', 'package-lock.json', '.nvmrc', 'docs/config/schema.json', 'tools/setup/first-search-plan.js',
+        'tools/setup/model-readiness.js', 'tools/dict-utils/config.js', 'tools/tooling/install.js', 'tools/tooling/utils.js', 'tools/tooling/provisioning-plan.js']
         .map(relative => [relative, hash(fs.readFileSync(path.join(toolRoot, relative)))]) },
-    prerequisites: tooling.map(tool => createToolProvisioningPlan({ tool, selection: selectInstallPlan(tool, 'cache', false) })),
+    prerequisites: prerequisitePlans,
     operations, readiness: 'not-probed',
     commands: { validate: ['node', 'bin/pairofcleats.js', 'index', 'validate', '--repo', repoRoot, '--mode', 'code'],
       search: ['node', 'bin/pairofcleats.js', 'search', '--repo', repoRoot, '--mode', 'code', '--backend', backend, '--top', '5', '--', '<query from your project>'] },
@@ -82,15 +122,26 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
 };
 
 /** Re-plan from supported choices, never execute commands supplied by a saved file. */
-export const applyFirstSearchPlan = async (approved, { execute = runCommand, signal = null, jsonOutput = false } = {}) => {
+const executeSetupStep = async (command, args, options) => {
+  const result = await spawnResolvedSubprocess(command, args, { ...options, outputEncoding: 'utf8',
+    maxOutputBytes: 1024 * 1024, rejectOnNonZeroExit: false });
+  return { ok: result.exitCode === 0, status: result.exitCode, signal: result.signal };
+};
+
+export const applyFirstSearchPlan = async (approved, { execute = executeSetupStep, signal = null, jsonOutput = false } = {}) => {
   const current = await createFirstSearchPlan({ repoRoot: approved.repoRoot, ...approved.choices });
   if (approved.schemaVersion !== 1 || current.planId !== approved.planId) throw Object.assign(new Error('Setup plan is stale or changed. Generate and review a new plan.'), { code: 'ERR_SETUP_PLAN_STALE' });
-  const lock = `${current.configPath}.setup-lock`;
-  const lockFd = fs.openSync(lock, 'wx', 0o600);
+  if (current.blockers.length) return { schemaVersion: 1, kind: 'setup-plan-result', planId: current.planId,
+    repoRoot: current.repoRoot, state: 'blocked', blockers: current.blockers, completed: [], pending: ['config', ...current.operations.map(step => step.id)] };
   const outcome = { schemaVersion: 1, kind: 'setup-plan-result', planId: current.planId,
-    repoRoot: current.repoRoot, completed: [], pending: current.operations.map(step => step.id), state: 'applying' };
+    repoRoot: current.repoRoot, completed: [], pending: ['config', ...current.operations.map(step => step.id)], state: 'applying' };
+  if (signal?.aborted) return { ...outcome, state: 'cancelled' };
+  const lock = await acquireFileLock({ lockPath: `${current.configPath}.setup-lock`, waitMs: 0, signal,
+    metadata: { scope: 'first-search-setup', planId: current.planId } });
+  if (!lock) return { ...outcome, state: 'blocked', blockers: [{ code: 'another-setup-owner', nextAction: 'Wait for the active setup owner to settle, then re-plan.' }] };
+  let pendingSettlement = false;
+  let primaryError = null;
   try {
-    fs.writeFileSync(lockFd, JSON.stringify({ pid: process.pid, planId: current.planId }));
     const before = readOptional(current.configPath);
     if ((before === null ? null : hash(before)) !== current.inputIdentity.config) throw new Error('Target config changed before apply; re-plan.');
     let next = before || '{}\n';
@@ -103,14 +154,16 @@ export const applyFirstSearchPlan = async (approved, { execute = runCommand, sig
     patchLeaves(current.configPatch);
     await atomicWriteText(current.configPath, next, { mkdir: false, mode: 0o600, createOnly: before === null,
       beforeCommit: () => {
+        signal?.throwIfAborted();
         const latest = readOptional(current.configPath);
         if ((latest === null ? null : hash(latest)) !== current.inputIdentity.config) throw new Error('Target config changed while staging; re-plan.');
       } });
     outcome.completed.push('config');
+    outcome.pending.shift();
     for (const step of current.operations) {
       if (signal?.aborted) { outcome.state = 'cancelled'; break; }
       const result = await execute(step.command, step.args, { cwd: current.applicationRoot,
-        stdio: jsonOutput ? ['ignore', 'ignore', 'inherit'] : 'inherit', env: process.env });
+        stdio: jsonOutput ? ['ignore', 'ignore', 'inherit'] : 'inherit', env: process.env, signal });
       if (result.ok !== true) {
         outcome.state = 'blocked';
         outcome.failed = { id: step.id, status: result.status ?? null, signal: result.signal || null };
@@ -121,8 +174,30 @@ export const applyFirstSearchPlan = async (approved, { execute = runCommand, sig
     }
     if (outcome.pending.length === 0) outcome.state = 'complete';
     return { ...outcome, commands: current.commands, qualification: 'Index validation completed only when listed; protocol/project/model inference readiness is not inferred.' };
+  } catch (error) {
+    primaryError = error;
+    outcome.state = signal?.aborted ? 'cancelled' : 'blocked';
+    outcome.failed = { id: outcome.pending[0] || 'config', code: error.code || null };
+    if (error.cacheOwnershipPending) {
+      pendingSettlement = true;
+      outcome.state = 'settlement-pending';
+      Object.defineProperty(error, 'setupPlanSession', { configurable: true, value: { resourceId: lock.payload.lockId,
+        releaseAfterSettlement: receipt => {
+          if (receipt?.resourceId !== lock.payload.lockId || receipt.settled !== true || receipt.pending === true) throw new Error('Setup child settlement remains unconfirmed.');
+          return releaseFileLockOrThrow(lock);
+        } } });
+      error.setupOutcome = outcome;
+      throw error;
+    }
+    return { ...outcome, commands: current.commands };
   } finally {
-    fs.closeSync(lockFd);
-    fs.rmSync(lock, { force: true });
+    if (!pendingSettlement) {
+      try { await releaseFileLockOrThrow(lock); }
+      catch (error) {
+        if (!primaryError) throw error;
+        primaryError.setupCleanupError = error;
+        throw primaryError;
+      }
+    }
   }
 };

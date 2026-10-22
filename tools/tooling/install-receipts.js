@@ -39,7 +39,7 @@ export const buildToolInstallReceipt = ({ tool, action = null, result, toolingRo
     ownership, managedRoot: ownership === 'managed' ? root : null,
     requestedVersion: tool.version || null, resolvedVersion: result.probe?.identity?.version || null,
     source: { kind: recipe ? 'observed-package-manager-or-archive-recipe' : 'external-or-prior-install', immutable: !floating, recipe },
-    consumer: { command: consumer.path, args: [], executable: consumer },
+    consumer: { command: consumer.path, args: result.managedInstallation?.args || [], executable: consumer },
     ownedPaths: ownership === 'managed' ? [{ path: consumer.path, sha256: consumer.sha256, kind: 'consumer-file' }] : [],
     prerequisites: action?.provisioning?.steps || result.provisioning?.steps || [],
     verification: { bytes: 'identified', executable: result.probe?.ok ? 'probe-passed' : 'not-probed',
