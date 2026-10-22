@@ -1,7 +1,8 @@
 export const REMOVED_FLAGS = [
-  { flag: '--human', replacement: '--json' },
-  { flag: '--headline', replacement: '--filter' },
-  { flag: '--context', replacement: 'search.contextExpansion.* (no CLI flag)' }
+  { flag: '--human', kind: 'default', remedy: 'Remove --human; readable output is the default. Use --json only for machine-readable output.' },
+  { flag: '--headline', kind: 'workflow', remedy: 'Remove --headline; use the readable hit heading. For a literal path constraint, use --path src/example.js. There is no equivalent headline-only flag.' },
+  { flag: '--context', kind: 'config', configPath: 'retrieval.contextExpansion',
+    remedy: 'Remove --context and its value; configure retrieval.contextExpansion.enabled=true in repository configuration, or select --preset investigate for bounded investigation defaults.' }
 ];
 
 export const SEARCH_OPTIONS = {

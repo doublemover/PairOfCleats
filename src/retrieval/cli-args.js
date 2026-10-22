@@ -50,10 +50,12 @@ export function parseSearchArgs(rawArgs) {
   );
   if (removed.length) {
     const details = removed
-      .map((entry) => `${entry.flag} was removed (use ${entry.replacement}).`)
+      .map((entry) => `${entry.flag} was removed. ${entry.remedy} See pairofcleats search --help --all --json.`)
       .join(' ');
     const error = new Error(details);
     error.code = 'REMOVED_FLAG';
+    error.remedies = removed.map(({ flag, kind, remedy, configPath }) => ({ flag, kind, remedy,
+      ...(configPath ? { configPath } : {}) }));
     throw error;
   }
 
