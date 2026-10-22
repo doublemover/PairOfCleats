@@ -8,6 +8,7 @@ import { installPinnedManagedTool, inspectManagedInstallation, retainManagedTool
 import { resolveManagedToolInstallation, retainManagedToolInstallationSync } from '../../../src/shared/managed-installation.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 import { inspectStorageAccess } from '../../../src/shared/storage/access.js';
+import { applyToolLifecyclePlan } from '../../../tools/tooling/lifecycle.js';
 
 const suite = path.join(process.cwd(), '.tmp', 'tasks', 'managed-install-publication-lifetime');
 await fs.mkdir(suite, { recursive: true });
@@ -38,6 +39,42 @@ try {
     'unknown retention semantics cannot be adopted as a canonical installation recipe');
     const first = await installPinnedManagedTool({ toolingRoot, descriptor: descriptor('1.0.0'), ...dependencies });
     assert.equal(first.ok, true);
+    assert.equal(resolveManagedToolInstallation(toolingRoot, 'fixture-tool').command, first.command);
+    const cancelled = new AbortController();
+    const cancellation = new Error('fixture lifecycle cancelled before execution');
+    cancelled.abort(cancellation);
+    await assert.rejects(inspectManagedInstallation({ toolingRoot, toolId: 'fixture-tool', signal: cancelled.signal }),
+      error => error === cancellation, 'cancellation must not be flattened to repair-required');
+    await assert.rejects(installPinnedManagedTool({ toolingRoot, descriptor: descriptor('2.0.0'), ...dependencies, signal: cancelled.signal }),
+      error => error === cancellation);
+    await assert.rejects(applyToolLifecyclePlan({}, { signal: cancelled.signal }), error => error === cancellation,
+      'an already-cancelled lifecycle apply cannot even start target re-planning');
+    const cancellableRemoval = await inspectManagedToolRemoval({ toolingRoot, toolId: 'fixture-tool' });
+    await assert.rejects(removePinnedManagedTool(cancellableRemoval, { signal: cancelled.signal }), error => error === cancellation);
+    assert.equal(downloads, 1, 'cancelled operations acquire no replacement archives');
+    const readCancellation = new AbortController();
+    const readFailure = new Error('fixture cancellation during actual managed file read');
+    const originalOpen = fs.open;
+    let readClosed = false;
+    fs.open = async (...args) => {
+      const handle = await originalOpen(...args);
+      if (args[0] !== path.join(first.root, 'lib', 'data')) return handle;
+      return new Proxy(handle, { get(target, property) {
+        if (property === 'read') return async (...readArgs) => {
+          const value = await target.read(...readArgs);
+          readCancellation.abort(readFailure);
+          return value;
+        };
+        if (property === 'close') return async () => { await target.close(); readClosed = true; };
+        const value = Reflect.get(target, property, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      } });
+    };
+    try {
+      await assert.rejects(inspectManagedInstallation({ toolingRoot, toolId: 'fixture-tool', signal: readCancellation.signal }),
+        error => error === readFailure);
+      assert.equal(readClosed, true, 'cancellation returns only after the actual owned file handle closes');
+    } finally { fs.open = originalOpen; }
     assert.equal(resolveManagedToolInstallation(toolingRoot, 'fixture-tool').command, first.command);
     await installPinnedManagedTool({ toolingRoot, descriptor: descriptor('1.0.0'), ...dependencies });
     assert.equal(downloads, 1, 'compatible existing managed generation performs zero downloads');

@@ -182,6 +182,35 @@ try {
   incompleteClosed = true;
   assert.equal(await incompleteFailure.goSdkInstallSession.releaseAfterClosure(), true);
   assert.deepEqual(await fs.readdir(path.join(incompleteRoot, 'sdk/go')), []);
+  const pointer = path.join(toolingRoot, 'sdk', 'go', 'current.json');
+  const selectedReceipt = await fs.readFile(pointer);
+  const newerVersion = 'go1.27.2';
+  const newerFilename = `${newerVersion}.linux-amd64.tar.gz`;
+  const newerReleases = [{ stable: true, version: newerVersion, files: [{ filename: newerFilename, version: newerVersion,
+    os: 'linux', arch: 'amd64', kind: 'archive', size: bytes.length, sha256: checksum }] }];
+  const fixtureExtract = createDependencies().extract;
+  const changedReceipt = Buffer.from(JSON.stringify({ schemaVersion: 1, pinned: 'fixture in-place selection change' }));
+  const pointerIdentity = await fs.stat(pointer);
+  try {
+    await assert.rejects(ensureManagedGoSdk({ toolingRoot, storageEstimate, cwd: root, version: newerVersion,
+      platform: 'linux', arch: 'x64', dependencies: createDependencies({
+        download: async ({ url }) => ({ sourceUrl: url,
+          body: url === GO_RELEASE_INDEX_URL ? Buffer.from(JSON.stringify(newerReleases)) : bytes }),
+        extract: async (...args) => {
+          await fixtureExtract(...args);
+          await fs.writeFile(path.join(args[1], 'go', 'VERSION'), newerVersion);
+        },
+        probe: async (_command, { resourceId }) => {
+          await fs.writeFile(pointer, changedReceipt);
+          assert.equal((await fs.stat(pointer)).ino, pointerIdentity.ino, 'fixture exercises in-place mutation with unchanged file object');
+          return { ok: true, stdout: `go version ${newerVersion} linux/amd64`, settlement: { resourceId, settled: true, pending: false } };
+        }
+      }) }), error => error.reason === 'go_sdk_cache_changed' && error.recovery?.currentSelectionPreserved === true);
+    assert.deepEqual(await fs.readFile(pointer), changedReceipt, 'SDK publication cannot overwrite a concurrently edited receipt with the same inode');
+    assert.equal((await fs.stat(path.join(toolingRoot, 'sdk', 'go', `${newerVersion}-linux-amd64`, 'go', 'bin', 'go'))).isFile(), true,
+      'verified unselected replacement is retained for explicit recovery');
+    assert.deepEqual(await fs.readFile(sdk.command), bytes, 'the prior SDK remains intact');
+  } finally { await fs.writeFile(pointer, selectedReceipt); }
   const runtimeMarker = path.join(sdk.goRoot, 'src/runtime/runtime.go');
   await fs.rm(runtimeMarker);
   assert.equal(resolveManagedGoSdk(toolingRoot, { platform: 'linux', arch: 'x64' }), null,

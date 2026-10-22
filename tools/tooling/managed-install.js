@@ -80,18 +80,20 @@ const resolveOwner = async (toolingRoot, toolId, { create = false } = {}) => {
   return owner;
 };
 
-const captureFiles = async (root, limits = DEFAULT_LIMITS) => {
+const captureFiles = async (root, limits = DEFAULT_LIMITS, { signal = null } = {}) => {
   const rows = [];
   const pending = [''];
   let bytes = 0;
   let entries = 0;
   while (pending.length) {
+    signal?.throwIfAborted();
     const relative = pending.pop();
     const directory = path.join(root, relative);
     assertNoSymlinkPath(root, directory);
     const handle = await fs.opendir(directory);
     try {
       for (let entry = await handle.read(); entry; entry = await handle.read()) {
+        signal?.throwIfAborted();
         if (++entries > limits.maxEntries) throw new Error('Managed package inventory exceeds its entry limit.');
         const child = relative ? `${relative}/${entry.name}` : entry.name;
         if (!relativePath(child)) throw new Error('Unsafe managed installation file path.');
@@ -102,7 +104,7 @@ const captureFiles = async (root, limits = DEFAULT_LIMITS) => {
           if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1n || stat.size > BigInt(limits.maxEntryBytes)) throw new Error('Managed package contains an unsupported linked/oversized file.');
           bytes += Number(stat.size);
           if (bytes > limits.maxBytes || rows.length >= limits.maxEntries) throw new Error('Managed package inventory exceeds its byte/entry limit.');
-          const verified = await verifyStorageFile({ root, file, identity: storageFileIdentity(stat), maxBytes: limits.maxEntryBytes });
+          const verified = await verifyStorageFile({ root, file, identity: storageFileIdentity(stat), maxBytes: limits.maxEntryBytes, signal });
           rows.push({ path: child, bytes: verified.bytes, sha256: verified.sha256 });
         }
       }
@@ -111,7 +113,8 @@ const captureFiles = async (root, limits = DEFAULT_LIMITS) => {
   return rows.sort((left, right) => left.path.localeCompare(right.path));
 };
 
-const inspectGeneration = async (owner, toolId, installId) => {
+const inspectGeneration = async (owner, toolId, installId, { signal = null } = {}) => {
+  signal?.throwIfAborted();
   if (!/^[a-f0-9]{64}$/.test(installId || '')) throw new Error('Managed generation requires its exact physical installation identity.');
   const receiptPath = path.join(owner, 'receipts', installId + '.json');
   assertNoSymlinkPath(owner, receiptPath);
@@ -125,14 +128,18 @@ const inspectGeneration = async (owner, toolId, installId) => {
     || !relativePath(receipt.descriptor.command) || !Array.isArray(receipt.descriptor.args || [])
     || (receipt.descriptor.args || []).some(argument => typeof argument !== 'string')) throw new Error('Managed generation/receipt ownership disagrees.');
   let files;
-  try { assertNoSymlinkPath(owner, root); files = await captureFiles(root); }
-  catch (error) { return { ok: false, state: 'repair-required', reason: error.code || error.message, receipt }; }
+  try { assertNoSymlinkPath(owner, root); files = await captureFiles(root, DEFAULT_LIMITS, { signal }); }
+  catch (error) {
+    if (signal?.aborted) throw error;
+    return { ok: false, state: 'repair-required', reason: error.code || error.message, receipt };
+  }
   if (identity(files) !== receipt.filesIdentity) return { ok: false, state: 'repair-required', reason: 'managed-file-bytes-drift', receipt };
   return { ok: true, state: 'bytes-intact', owner, root, command: path.join(root, receipt.descriptor.command),
     args: receipt.descriptor.args || [], receipt, protocol: 'not-reprobed' };
 };
 
-const findRetainedGeneration = async (owner, toolId, descriptorId) => {
+const findRetainedGeneration = async (owner, toolId, descriptorId, { signal = null } = {}) => {
+  signal?.throwIfAborted();
   const directory = path.join(owner, 'receipts');
   let names;
   try { names = await fs.readdir(directory); }
@@ -140,27 +147,30 @@ const findRetainedGeneration = async (owner, toolId, descriptorId) => {
   if (names.length > 1024) throw new Error('Managed receipt inventory exceeds its bound.');
   const candidates = [];
   for (const name of names.filter(name => /^[a-f0-9]{64}\.json$/.test(name))) {
+    signal?.throwIfAborted();
     const receipt = await boundedJson(path.join(directory, name));
     if (receipt.descriptorId === descriptorId && receipt.toolId === toolId) candidates.push(receipt);
   }
   candidates.sort((left, right) => String(right.installedAt).localeCompare(String(left.installedAt)));
   for (const candidate of candidates) {
-    const result = await inspectGeneration(owner, toolId, candidate.installId);
+    const result = await inspectGeneration(owner, toolId, candidate.installId, { signal });
     if (result.ok) return result;
   }
   return null;
 };
 
-export const inspectManagedInstallation = async ({ toolingRoot, toolId, descriptorId = null } = {}) => {
+export const inspectManagedInstallation = async ({ toolingRoot, toolId, descriptorId = null, signal = null } = {}) => {
   try {
+    signal?.throwIfAborted();
     const owner = await resolveOwner(toolingRoot, toolId);
     const selector = await boundedJson(path.join(owner, 'current.json'));
     if (selector.schemaVersion !== MANAGED_INSTALL_VERSION || !/^[a-f0-9]{64}$/.test(selector.descriptorId || '')
       || !/^[a-f0-9]{64}$/.test(selector.installId || '')
       || (descriptorId && descriptorId !== selector.descriptorId)) return { ok: false, state: 'different-selected-version', selector };
     if (identity(selector) !== identity({ schemaVersion: MANAGED_INSTALL_VERSION, toolId, descriptorId: selector.descriptorId, installId: selector.installId })) throw new Error('Managed selector has unknown ownership fields.');
-    return await inspectGeneration(owner, toolId, selector.installId);
+    return await inspectGeneration(owner, toolId, selector.installId, { signal });
   } catch (error) {
+    if (signal?.aborted) throw error;
     return { ok: false, state: error.code === 'ENOENT' ? 'missing' : 'repair-required', reason: error.code || error.message };
   }
 };
@@ -171,7 +181,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
   const pinned = validatePinnedInstallDescriptor(descriptor, { approvedOrigins });
   if (typeof verify !== 'function') throw new Error('The canonical recipe must provide executable/runtime/capability verification.');
   signal?.throwIfAborted();
-  const reused = await inspectManagedInstallation({ toolingRoot, toolId: pinned.toolId, descriptorId: pinned.descriptorId });
+  const reused = await inspectManagedInstallation({ toolingRoot, toolId: pinned.toolId, descriptorId: pinned.descriptorId, signal });
   if (!repair && !reused.ok && reused.receipt?.descriptorId === pinned.descriptorId) throw new Error('Selected immutable installation drifted; use explicit owned repair to publish a sibling while preserving its evidence.');
   if (reused.ok) {
     const held = await retainManagedToolInstallation({ toolingRoot, toolId: pinned.toolId, descriptorId: pinned.descriptorId });
@@ -180,6 +190,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     let primaryError = null;
     try {
       const verification = await verifyOwnedInstallation(verify, { root: held.root, command: held.command, args: held.args, descriptor: pinned, signal }, resourceId);
+      signal?.throwIfAborted();
       return { ...reused, reused: true, downloadedBytes: 0, verification };
     } catch (error) {
       primaryError = error;
@@ -243,18 +254,18 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     onProgress({ toolId: pinned.toolId, transactionId, state, ...extra });
   };
   try {
-    const resumable = await findRetainedGeneration(owner, pinned.toolId, pinned.descriptorId);
+    const resumable = await findRetainedGeneration(owner, pinned.toolId, pinned.descriptorId, { signal });
     if (resumable?.ok) {
       verificationLease = acquireRepoCacheAccessLease(owner, { ...accessOptions(toolingRoot),
         scope: 'managed-retained-generation-verifier', resourceId: transactionId, requireSettlement: true });
-      const retained = await inspectGeneration(owner, pinned.toolId, resumable.receipt.installId);
+      const retained = await inspectGeneration(owner, pinned.toolId, resumable.receipt.installId, { signal });
       if (!retained.ok) throw new Error('Retained managed generation changed before verification admission.');
       const verification = await verifyOwnedInstallation(verify, { root: retained.root, command: retained.command, args: retained.args, descriptor: pinned, signal }, transactionId);
       if (!verificationLease.release()) throw new Error('Retained-generation verification lease changed before publication.');
       verificationLease = null;
       const publication = await withExclusiveStorageAccess(owner, async () => {
         signal?.throwIfAborted();
-        if (!(await inspectGeneration(owner, pinned.toolId, retained.receipt.installId)).ok) throw new Error('Retained managed generation changed before publication.');
+        if (!(await inspectGeneration(owner, pinned.toolId, retained.receipt.installId, { signal })).ok) throw new Error('Retained managed generation changed before publication.');
         await atomicWriteJson(path.join(owner, 'current.json'), { schemaVersion: MANAGED_INSTALL_VERSION,
           toolId: pinned.toolId, descriptorId: pinned.descriptorId, installId: retained.receipt.installId }, { mkdir: false });
       }, accessOptions(toolingRoot));
@@ -290,12 +301,12 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
       if (!relativePath(relative)) throw new Error('Unsafe executable mode path.');
       await fs.chmod(path.join(packageRoot, relative), 0o755);
     }
-    const files = await captureFiles(packageRoot);
+    const files = await captureFiles(packageRoot, DEFAULT_LIMITS, { signal });
     state = 'verifying';
     await checkpoint({ files: files.length });
     const verification = await verifyOwnedInstallation(verify, { root: packageRoot, command: path.join(packageRoot, pinned.command),
       args: pinned.args || [], descriptor: pinned, signal }, transactionId);
-    if (identity(await captureFiles(packageRoot)) !== identity(files)) throw new Error('Tool verification mutated immutable installation bytes.');
+    if (identity(await captureFiles(packageRoot, DEFAULT_LIMITS, { signal })) !== identity(files)) throw new Error('Tool verification mutated immutable installation bytes.');
     signal?.throwIfAborted();
     await fs.mkdir(path.join(owner, 'generations'), { recursive: true });
     const destination = path.join(owner, 'generations', installId);
@@ -351,8 +362,9 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
 };
 
 export const installPinnedManagedTool = async options => {
+  options.signal?.throwIfAborted();
   const pinned = validatePinnedInstallDescriptor(options.descriptor, { approvedOrigins: options.approvedOrigins });
-  const selected = await inspectManagedInstallation({ toolingRoot: options.toolingRoot, toolId: pinned.toolId, descriptorId: pinned.descriptorId });
+  const selected = await inspectManagedInstallation({ toolingRoot: options.toolingRoot, toolId: pinned.toolId, descriptorId: pinned.descriptorId, signal: options.signal });
   if (selected.ok) return installPinnedManagedToolOwned(options);
   const publication = await runInstallWithStorageAdmission({ toolingRoot: options.toolingRoot,
     storageEstimate: options.descriptor.storageEstimate, scope: 'managed-tool-archive-publication' }, () => installPinnedManagedToolOwned(options));
@@ -362,6 +374,7 @@ export const installPinnedManagedTool = async options => {
 export const inspectManagedToolRemoval = async options => {
   const selected = await inspectManagedInstallation(options);
   const access = selected.ok ? await inspectStorageAccess(selected.owner, accessOptions(options.toolingRoot)) : null;
+  options.signal?.throwIfAborted();
   const body = { schemaVersion: 1, kind: 'managed-tool-removal-plan', toolId: options.toolId, toolingRoot: path.resolve(options.toolingRoot),
     descriptorId: selected.receipt?.descriptorId || null, root: selected.root || null,
     installId: selected.receipt?.installId || null,
@@ -371,12 +384,13 @@ export const inspectManagedToolRemoval = async options => {
   return { ...body, planId: identity(body) };
 };
 
-const removeOwnedManagedTool = async approved => {
-  const current = await inspectManagedToolRemoval({ toolingRoot: approved.toolingRoot, toolId: approved.toolId });
+const removeOwnedManagedTool = async (approved, { signal = null } = {}) => {
+  signal?.throwIfAborted();
+  const current = await inspectManagedToolRemoval({ toolingRoot: approved.toolingRoot, toolId: approved.toolId, signal });
   if (current.planId !== approved.planId || current.state !== 'owned-and-idle') throw new Error('Managed tool removal plan changed or has an active/unknown owner.');
-  const selected = await inspectManagedInstallation({ toolingRoot: approved.toolingRoot, toolId: approved.toolId });
+  const selected = await inspectManagedInstallation({ toolingRoot: approved.toolingRoot, toolId: approved.toolId, signal });
   const result = await withExclusiveStorageAccess(selected.owner, async () => {
-    const verified = await inspectManagedInstallation({ toolingRoot: approved.toolingRoot, toolId: approved.toolId, descriptorId: approved.descriptorId });
+    const verified = await inspectManagedInstallation({ toolingRoot: approved.toolingRoot, toolId: approved.toolId, descriptorId: approved.descriptorId, signal });
     if (!verified.ok || verified.root !== approved.root) throw new Error('Managed removal identity changed under exclusion.');
     assertNoSymlinkPath(selected.owner, verified.root);
     if (!isPathWithinRoot(verified.root, path.join(selected.owner, 'generations'))) throw new Error('Managed removal target is outside its versioned owner.');
@@ -384,8 +398,12 @@ const removeOwnedManagedTool = async approved => {
     const retired = path.join(selected.owner, '.retired-' + operationId);
     const retainedSelector = path.join(selected.owner, 'removed-selector-' + operationId + '.json');
     const journal = path.join(selected.owner, 'transactions', operationId + '.json');
+    signal?.throwIfAborted();
     await atomicWriteJson(journal, { schemaVersion: 1, operation: 'remove', planId: approved.planId,
       descriptorId: approved.descriptorId, original: verified.root, retired, state: 'approved-owned-removal' }, { mkdir: true });
+    signal?.throwIfAborted();
+    // After retirement starts, finish this admitted critical section. Aborting
+    // between selector and generation renames would manufacture a broken tool.
     await fs.rename(path.join(selected.owner, 'current.json'), retainedSelector);
     try { await fs.rename(verified.root, retired); }
     catch (error) { await fs.rename(retainedSelector, path.join(selected.owner, 'current.json')); throw error; }
@@ -400,11 +418,12 @@ const removeOwnedManagedTool = async approved => {
   return result.protected ? { ok: false, ...result } : result.result;
 };
 
-export const removePinnedManagedTool = async approved => {
+export const removePinnedManagedTool = async (approved, { signal = null } = {}) => {
+  signal?.throwIfAborted();
   if (!path.isAbsolute(approved?.toolingRoot || '')) throw new Error('Managed removal requires its absolute tooling owner.');
   const categoryLease = acquireRepoCacheAccessLease(approved.toolingRoot, accessOptions(approved.toolingRoot));
   let primaryError = null;
-  try { return await removeOwnedManagedTool(approved); }
+  try { return await removeOwnedManagedTool(approved, { signal }); }
   catch (error) { primaryError = error; throw error; }
   finally {
     if (!categoryLease.release()) {

@@ -113,6 +113,7 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
   const cache = await ensureChildDirectory(sdkParent, 'go');
   const pointer = path.join(cache, 'current.json');
   const pointerStat = await fs.lstat(pointer).catch((error) => { if (error.code !== 'ENOENT') throw error; return null; });
+  const pointerHash = pointerStat ? hashManagedGoFile(pointer, 64 * 1024) : null;
   if (pointerStat && !cached) {
     throw createInstallError('go_sdk_cache_unverified', 'Existing Go SDK cache is unverified; it was preserved instead of overwritten.');
   }
@@ -134,7 +135,7 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
   const resourceId = randomUUID();
   const cleanupTransaction = async () => {
     if (pointerTemp) await fs.rm(pointerTemp, { force: true });
-    const current = await fs.lstat(transaction).catch(() => null);
+    const current = await fs.lstat(transaction).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
     if (current?.isDirectory() && current.dev === transactionIdentity.dev && current.ino === transactionIdentity.ino) {
       await fs.rm(transaction, { recursive: true, force: true });
     }
@@ -191,8 +192,12 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
     await fs.writeFile(pointerTemp, `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
     const nowPointer = await fs.lstat(pointer).catch((error) => { if (error.code !== 'ENOENT') throw error; return null; });
     if ((pointerStat == null) !== (nowPointer == null) || (pointerStat &&
-      (!nowPointer.isFile() || nowPointer.dev !== pointerStat.dev || nowPointer.ino !== pointerStat.ino))) {
-      throw createInstallError('go_sdk_cache_changed', 'Go SDK active receipt changed during installation; the new SDK is retained without activation.');
+      (!nowPointer.isFile() || nowPointer.isSymbolicLink() || nowPointer.dev !== pointerStat.dev || nowPointer.ino !== pointerStat.ino
+        || hashManagedGoFile(pointer, 64 * 1024) !== pointerHash))) {
+      const changed = createInstallError('go_sdk_cache_changed', 'Go SDK active receipt changed during installation; the new SDK is retained without activation.');
+      changed.recovery = { currentPointer: pointer, retainedGeneration: destination,
+        currentSelectionPreserved: true, deletionAuthority: false };
+      throw changed;
     }
     await fs.rename(pointerTemp, pointer);
     pointerTemp = null;

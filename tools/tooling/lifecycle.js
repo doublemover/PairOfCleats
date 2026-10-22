@@ -11,14 +11,15 @@ import { inspectManagedInstallation, inspectManagedToolRemoval, installPinnedMan
 import { resolveToolsById, selectInstallPlan } from './utils.js';
 
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
-export const planToolLifecycle = async ({ toolingRoot, id, operation = 'verify', receiptId = null, tool = null } = {}) => {
+export const planToolLifecycle = async ({ toolingRoot, id, operation = 'verify', receiptId = null, tool = null, signal = null } = {}) => {
+  signal?.throwIfAborted();
   if (!['install', 'verify', 'update', 'repair', 'remove'].includes(operation)) throw new Error('Unknown tool lifecycle operation.');
   const receipts = readToolInstallReceipts(toolingRoot, id);
   const receipt = receiptId ? receipts.find(entry => entry.receiptId === receiptId)
     : receipts.sort((left, right) => right.observedAt.localeCompare(left.observedAt))[0];
   const verification = receipt ? verifyToolInstallReceipt(receipt) : null;
   const blockers = [];
-  const managed = await inspectManagedInstallation({ toolingRoot, toolId: id });
+  const managed = await inspectManagedInstallation({ toolingRoot, toolId: id, signal });
   const selection = tool ? selectInstallPlan(tool, 'cache', false) : null;
   const descriptor = selection?.plan?.managedDescriptor;
   if (managed.ok || descriptor) {
@@ -26,7 +27,7 @@ export const planToolLifecycle = async ({ toolingRoot, id, operation = 'verify',
     if (descriptor) pinned = validatePinnedInstallDescriptor(descriptor, { approvedOrigins: selection.plan.approvedOrigins });
     if (pinned && pinned.toolId !== id) throw new Error('Canonical tool and managed recipe identity disagree.');
     if (['install', 'update', 'repair'].includes(operation) && (!pinned || typeof tool.verifyManagedInstall !== 'function')) blockers.push({ code: 'canonical-pinned-recipe-verifier-required', nextAction: 'Select a canonical approved profile with a pinned source and exact resource-settlement verifier.' });
-    const removal = operation === 'remove' ? await inspectManagedToolRemoval({ toolingRoot, toolId: id }) : null;
+    const removal = operation === 'remove' ? await inspectManagedToolRemoval({ toolingRoot, toolId: id, signal }) : null;
     if (removal && removal.state !== 'owned-and-idle') blockers.push({ code: 'active-or-unknown-managed-owner', nextAction: 'Wait for exact consumers to settle, then re-plan removal.' });
     if (operation === 'verify' && !managed.ok) blockers.push({ code: 'managed-generation-not-ready', nextAction: 'Inspect the selected owned generation; no external bytes are adopted.' });
     const body = { schemaVersion: 1, kind: 'tool-lifecycle-plan', toolId: id, operation, toolingRoot: path.resolve(toolingRoot),
@@ -51,17 +52,19 @@ export const planToolLifecycle = async ({ toolingRoot, id, operation = 'verify',
   return { ...body, planId: digest(body) };
 };
 
-export const applyToolLifecyclePlan = async (approved, { tool = null } = {}) => {
+export const applyToolLifecyclePlan = async (approved, { tool = null, signal = null } = {}) => {
+  signal?.throwIfAborted();
   const current = await planToolLifecycle({ toolingRoot: approved.toolingRoot, id: approved.toolId,
-    operation: approved.operation, receiptId: approved.receiptId, tool });
+    operation: approved.operation, receiptId: approved.receiptId, tool, signal });
   if (approved.planId !== current.planId) throw new Error('Tool lifecycle plan changed; review a new plan.');
   if (current.state === 'blocked') return { ...current, ok: false, applied: false };
-  if (current.removal) return { ...await removePinnedManagedTool(current.removal), applied: true };
+  signal?.throwIfAborted();
+  if (current.removal) return { ...await removePinnedManagedTool(current.removal, { signal }), applied: true };
   if (['install', 'update', 'repair'].includes(current.operation) && current.desiredDescriptorId) {
     const selection = selectInstallPlan(tool, 'cache', false);
     return { ...await installPinnedManagedTool({ toolingRoot: approved.toolingRoot,
       descriptor: selection.plan.managedDescriptor, approvedOrigins: selection.plan.approvedOrigins,
-      verify: tool.verifyManagedInstall, repair: current.operation === 'repair' }), applied: true };
+      verify: tool.verifyManagedInstall, repair: current.operation === 'repair', signal }), applied: true };
   }
   // Verification does not execute or adopt the tool. Mutating operations fail
   // closed until the owning versioned recipe exposes publication and leases.
@@ -74,6 +77,12 @@ export const runToolLifecycleCli = async () => {
     operation: { type: 'string', choices: ['install', 'verify', 'update', 'repair', 'remove'], default: 'verify' },
     receipt: { type: 'string' }, 'apply-plan': { type: 'string' }, json: { type: 'boolean', default: false }
   } }).strictOptions().parse();
+  const cancellation = new AbortController();
+  const onInterrupt = () => { process.exitCode = 130; cancellation.abort(new Error('Tool lifecycle interrupted.')); };
+  const onTerminate = () => { process.exitCode = 143; cancellation.abort(new Error('Tool lifecycle terminated.')); };
+  process.once('SIGINT', onInterrupt);
+  process.once('SIGTERM', onTerminate);
+  try {
   const root = resolveRepoRootArg(argv.repo);
   const tooling = getToolingConfig(root);
   const tool = resolveToolsById([argv.tool], tooling.dir, root, tooling)[0] || null;
@@ -84,11 +93,16 @@ export const runToolLifecycleCli = async () => {
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024 * 1024) throw new Error('Lifecycle plan must be a bounded regular JSON file.');
     const approved = JSON.parse(fs.readFileSync(file, 'utf8'));
     if (path.resolve(approved.toolingRoot) !== path.resolve(tooling.dir) || approved.toolId !== argv.tool) throw new Error('Lifecycle plan target does not match selected configuration/tool.');
-    payload = await applyToolLifecyclePlan(approved, { tool });
-  } else payload = await planToolLifecycle({ toolingRoot: tooling.dir, id: argv.tool, operation: argv.operation, receiptId: argv.receipt, tool });
+    payload = await applyToolLifecyclePlan(approved, { tool, signal: cancellation.signal });
+  } else payload = await planToolLifecycle({ toolingRoot: tooling.dir, id: argv.tool, operation: argv.operation, receiptId: argv.receipt, tool,
+    signal: cancellation.signal });
   if (argv.json) console.log(JSON.stringify(payload, null, 2));
   else console.error(JSON.stringify(payload, null, 2));
-  process.exitCode = payload.state === 'blocked' || payload.ok === false ? 1 : 0;
+  if (!process.exitCode) process.exitCode = payload.state === 'blocked' || payload.ok === false ? 1 : 0;
+  } finally {
+    process.removeListener('SIGINT', onInterrupt);
+    process.removeListener('SIGTERM', onTerminate);
+  }
 };
 
-if (isDirectExecution(import.meta.url)) runToolLifecycleCli().catch(error => { console.error(error.message); process.exitCode = 1; });
+if (isDirectExecution(import.meta.url)) runToolLifecycleCli().catch(error => { console.error(error.message); if (!process.exitCode) process.exitCode = 1; });

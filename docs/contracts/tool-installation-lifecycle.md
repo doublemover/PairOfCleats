@@ -140,3 +140,18 @@ still match. Recording an unknown `pinned` or forensic field cannot make that
 evidence disposable. The actual async inventory hashes bounded files through
 the shared contained-descriptor verifier, rather than reopening an unchecked
 pathname after a metadata observation.
+
+Lifecycle planning/apply, full byte inspection and actual installer acquisition
+accept the same cancellation signal. A cancelled inspection closes its owned
+file handle and propagates the cancellation instead of classifying the tool as
+damaged. The lifecycle CLI owns `SIGINT`/`SIGTERM` through settlement and retains
+their exit status. Removal checks cancellation before retirement; once the
+selector/generation retirement starts, it finishes that admitted critical
+section rather than stopping between its two renames.
+
+The portable Go writer also pins the active receipt's bytes before acquisition.
+It rechecks that digest and file object before activation, so an in-place edit
+cannot be overwritten merely because the inode stayed the same. On conflict it
+preserves the current receipt and verified unselected replacement and reports
+both recovery paths without granting deletion authority. Permission or other
+transaction-cleanup errors remain visible instead of being treated as absence.
