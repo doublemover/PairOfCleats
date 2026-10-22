@@ -86,6 +86,7 @@ const validateHunks = (lines) => {
     previousBody = true;
   }
   if (!hunks || oldLeft || newLeft) throw new Error('Incomplete patch hunks.');
+  return hunks;
 };
 
 const parsePatch = (name, buffer) => {
@@ -111,11 +112,11 @@ const parsePatch = (name, buffer) => {
       || section[2] !== `--- a/${relative}` || section[3] !== `+++ b/${relative}`) {
       throw new Error(`Unsupported or malformed existing-file text patch: ${name}`);
     }
-    validateHunks(section.slice(4));
+    const hunks = validateHunks(section.slice(4));
     section[0] = 'diff --git a/target b/target';
     section[2] = '--- a/target';
     section[3] = '+++ b/target';
-    return { name, packageName, version: match[3], relative, patch: `${section.join('\n')}\n` };
+    return { name, packageName, version: match[3], relative, hunks, patch: `${section.join('\n')}\n` };
   });
 };
 
@@ -229,7 +230,7 @@ function* preparePatch(input, stage, verifyOnly) {
   return { ...input, after };
 }
 
-const publishPatches = (root, prepared) => {
+const publishPatches = (root, prepared, { verifyOnly, verbose, log, started }) => {
   // Validate all patches first, then recheck paths and bytes before publishing.
   for (const item of prepared) {
     checkedPath(root, item.relative);
@@ -237,21 +238,42 @@ const publishPatches = (root, prepared) => {
       throw new Error('Package file changed during patch validation: ' + item.target);
     }
   }
+  let published = 0;
   for (const item of prepared) {
-    if (item.after) {
+    try {
+      if (item.after) {
       const temporary = fs.mkdtempSync(path.join(path.dirname(item.target), '.poc-patch-'));
       try {
         const staged = path.join(temporary, 'target');
         fs.writeFileSync(staged, item.after, { mode: fs.statSync(item.target).mode & 0o777 });
         fs.renameSync(staged, item.target);
+        published++;
       } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
+      }
+    } catch (cause) {
+      throw Object.assign(new Error(`Patch publication failed for ${item.name} (${item.relative}); ${published} target files changed before failure. Re-run verified bootstrap to repair partial completion.`, { cause }), {
+        code: 'ERR_PATCH_PARTIAL_PUBLICATION', publishedFiles: published, patch: item.name, target: item.relative
+      });
     }
-    console.log('[patches] ' + item.name + ': ' + (item.after ? 'applied' : 'already applied'));
+    if (verbose) log(`[patches] ${item.name}: ${item.relative}: ${item.after ? 'applied' : 'verified already applied'} (${item.hunks} hunks)`);
   }
+  const packages = new Map();
+  for (const item of prepared) {
+    const counts = packages.get(item.name) || { applied: 0, unchanged: 0, hunks: 0 };
+    counts[item.after ? 'applied' : 'unchanged']++;
+    counts.hunks += item.hunks;
+    packages.set(item.name, counts);
+  }
+  for (const [name, counts] of packages) {
+    log(`[patches] ${name}: ${verifyOnly ? 'verified' : 'complete'}; ${counts.applied} applied files, ${counts.unchanged} already-applied files, ${counts.hunks} hunks`);
+  }
+  const hunks = prepared.reduce((total, item) => total + item.hunks, 0);
+  log(`[patches] ${verifyOnly ? 'verify-only' : 'apply'}: ${packages.size} packages, ${prepared.length} target files, ${hunks} hunks; ${published} files changed; ${Math.max(0, performance.now() - started).toFixed(0)}ms`);
   return prepared.length;
 };
 
-export const applyPatches = (cwd = process.cwd(), { verifyOnly = false } = {}) => {
+export const applyPatches = (cwd = process.cwd(), { verifyOnly = false, verbose = false, log = console.log } = {}) => {
+  const started = performance.now();
   const { root, inputs } = collectPatchInputs(cwd);
   const prepared = inputs.map(input => {
     const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-package-patches-'));
@@ -262,11 +284,13 @@ export const applyPatches = (cwd = process.cwd(), { verifyOnly = false } = {}) =
       return step.value;
     } finally { fs.rmSync(stage, { recursive: true, force: true }); }
   });
-  return publishPatches(root, prepared);
+  return publishPatches(root, prepared, { verifyOnly, verbose, log, started });
 };
 
 export const applyPatchesAsync = async (cwd = process.cwd(), { verifyOnly = false, signal = null,
+  verbose = false, log = console.log,
   budget = resolveBootstrapBudget({ bytesPerJob: 128 * 1024 * 1024 }) } = {}) => {
+  const started = performance.now();
   const { root, inputs } = collectPatchInputs(cwd);
   if (!inputs.length) return 0;
   const outcome = await runBootstrapTasks(inputs.map((input, index) => ({
@@ -285,7 +309,7 @@ export const applyPatchesAsync = async (cwd = process.cwd(), { verifyOnly = fals
   const failure = outcome.results.find(row => row.status === 'failed');
   if (failure) throw failure.error;
   if (!outcome.ok || signal?.aborted) throw signal?.reason || new Error('Package patch preparation cancelled.');
-  return publishPatches(root, outcome.results.map(row => row.result));
+  return publishPatches(root, outcome.results.map(row => row.result), { verifyOnly, verbose, log, started });
 };
 
 export const exitPatchFailure = (error) => {
@@ -296,7 +320,8 @@ export const exitPatchFailure = (error) => {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   try {
-    if (process.argv.length !== 2) throw new Error('Usage: node tools/setup/apply-patches.js');
-    if (!await applyPatchesAsync()) console.log('[patches] no patch files found; skipping patch step.');
+    const args = process.argv.slice(2);
+    if (args.some(arg => !['--verify', '--verbose'].includes(arg))) throw new Error('Usage: node tools/setup/apply-patches.js [--verify] [--verbose]');
+    if (!await applyPatchesAsync(process.cwd(), { verifyOnly: args.includes('--verify'), verbose: args.includes('--verbose') })) console.log('[patches] no patch files found; skipping patch step.');
   } catch (error) { exitPatchFailure(error); }
 }

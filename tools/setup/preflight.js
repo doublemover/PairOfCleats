@@ -34,18 +34,18 @@ export const runSetupPreflight = ({ nodeVersion = process.versions.node, platfor
   const git = probe('git', ['--version']);
   if (!git || !/^git version\s/.test(git)) fail('Git is missing or cannot run. Install Git and make it available on PATH.');
   const forcedPython = env.NODE_GYP_FORCE_PYTHON;
-  const pythonCandidates = forcedPython ? [[forcedPython, []]] : [
-    ...(env.npm_config_python ? [[env.npm_config_python, []]] : []),
-    ...(env.PYTHON ? [[env.PYTHON, []]] : []),
-    ...(platform === 'win32' ? [['py', ['-3']]] : []), ['python3', []], ['python', []]
+  const pythonCandidates = forcedPython ? [[forcedPython, [], 'NODE_GYP_FORCE_PYTHON']] : [
+    ...(env.npm_config_python ? [[env.npm_config_python, [], 'npm_config_python']] : []),
+    ...(env.PYTHON ? [[env.PYTHON, [], 'PYTHON']] : []),
+    ...(platform === 'win32' ? [['py', ['-3'], 'py-launcher']] : []), ['python3', [], 'PATH'], ['python', [], 'PATH']
   ];
   let python = null;
-  for (const [command, prefix] of pythonCandidates) {
+  for (const [command, prefix, source] of pythonCandidates) {
     const output = probe(command, [...prefix, '-c', 'import json,sys; print(json.dumps({"version": list(sys.version_info[:3]), "executable": sys.executable}))']);
     try {
       const value = JSON.parse(output);
       if (value?.version?.[0] === 3 && value.version[1] >= 6 && typeof value.executable === 'string' && value.executable) {
-        python = value; break;
+        python = { ...value, command, args: prefix, source }; break;
       }
     } catch { /* Try the next node-gyp Python discovery candidate. */ }
   }
@@ -76,7 +76,9 @@ export const runSetupPreflight = ({ nodeVersion = process.versions.node, platfor
       for (const version of directories(tools).filter(value => /^\d+(?:\.\d+)+$/.test(value)).sort(versionOrder).reverse()) {
         const hosts = arch === 'arm64' ? ['Hostarm64', 'Hostx64'] : ['Hostx64'];
         const executable = hosts.map(host => join(tools, version, 'bin', host, arch, 'cl.exe')).find(exists);
-        if (executable) { compiler = { installationPath: base, version, executable, msbuild }; break; }
+        if (executable) { compiler = { installationPath: base, installationVersion: instance.installationVersion,
+          productId: instance.productId || null, source: configuredRoot ? 'explicit-path' : configuredYear ? 'explicit-version' : 'vswhere',
+          version, executable, msbuild }; break; }
       }
       if (compiler) break;
     }
@@ -102,21 +104,47 @@ export const runSetupPreflight = ({ nodeVersion = process.versions.node, platfor
     const make = probe('make', ['--version']);
     if (!make) fail('Make is required for native source builds. Install the platform build tools.');
     let compiler = null;
-    for (const command of ['c++', 'clang++', 'g++']) {
+    for (const command of [...new Set([env.CXX, 'c++', 'clang++', 'g++'].filter(Boolean))]) {
       const version = probe(command, ['--version']);
-      if (version) { compiler = { command, version: version.split(/\r?\n/)[0] }; break; }
+      if (version) { compiler = { command, source: command === env.CXX ? 'CXX' : 'PATH', version: version.split(/\r?\n/)[0] }; break; }
+      if (command === env.CXX) fail('The explicitly selected CXX compiler cannot run; repair the override before bootstrap.');
     }
     if (!compiler) fail('A supported C/C++ compiler is required for mandatory native source builds. Install the platform build tools.');
     toolchain = { make: make.split(/\r?\n/)[0], compiler };
   }
-  return { nodeVersion, platform, arch, git, python, toolchain };
+  const childEnv = { NODE_GYP_FORCE_PYTHON: python.executable, npm_config_python: python.executable };
+  if (platform === 'win32') {
+    childEnv.GYP_MSVS_VERSION = toolchain.compiler.installationPath;
+    childEnv.npm_config_msvs_version = toolchain.compiler.installationPath;
+    childEnv.WindowsSdkDir = toolchain.sdk.root;
+    childEnv.WindowsSDKVersion = toolchain.sdk.version + '\\';
+  } else if (env.CXX) childEnv.CXX = toolchain.compiler.command;
+  return { nodeVersion, nodeExecutable: process.execPath, platform, arch, git, python, toolchain,
+    childEnv, verificationLevel: 'prerequisite-discovery-only' };
 };
+
+export const formatSetupPreflight = report => [
+  `[bootstrap preflight] Node ${report.nodeVersion} (${report.nodeExecutable}); target ${report.platform}/${report.arch}`,
+  `[bootstrap preflight] Python ${report.python.version.join('.')} (${report.python.executable}; selected by ${report.python.source})`,
+  ...(report.platform === 'win32' ? [
+    `[bootstrap preflight] Visual Studio ${report.toolchain.compiler.installationVersion}; MSVC ${report.toolchain.compiler.version} (${report.toolchain.compiler.source})`,
+    `[bootstrap preflight] C++: ${report.toolchain.compiler.executable}`,
+    `[bootstrap preflight] MSBuild: ${report.toolchain.compiler.msbuild}`,
+    `[bootstrap preflight] Windows SDK ${report.toolchain.sdk.version}: ${report.toolchain.sdk.root}`
+  ] : [`[bootstrap preflight] C++: ${report.toolchain.compiler.command} (${report.toolchain.compiler.source}); ${report.toolchain.compiler.version}`]),
+  '[bootstrap preflight] Discovery only. Native build, actual child selection and activation verification remain required.'
+].join('\n');
 
 if (isDirectExecution(import.meta.url)) {
   try {
-    if (process.argv.length > 2) fail('This prerequisite diagnostic accepts no arguments.');
+    const args = process.argv.slice(2);
+    if (args.some(arg => arg !== '--json')) fail('Usage: node tools/setup/preflight.js [--json]');
     const report = runSetupPreflight();
-    console.error(`[bootstrap preflight] Node ${report.nodeVersion}, Git, Python ${report.python.version.join('.')} and native build prerequisites located.`);
-    console.error('[bootstrap preflight] Native builds and readiness verification still run after dependency installation.');
-  } catch (error) { console.error(error.message); process.exitCode = 1; }
+    if (args.includes('--json')) console.log(JSON.stringify({ ok: true, ...report }));
+    else console.error(formatSetupPreflight(report));
+  } catch (error) {
+    if (process.argv.includes('--json')) console.log(JSON.stringify({ ok: false, verificationLevel: 'prerequisite-discovery-only', message: error.message }));
+    else console.error(error.message);
+    process.exitCode = 1;
+  }
 }

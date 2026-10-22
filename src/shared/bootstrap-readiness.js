@@ -104,32 +104,63 @@ export const recordBootstrapReadiness = (root, verifiedPackages, { nativeCapabil
   return receipt;
 };
 
-export const inspectBootstrapReadiness = async ({ root = ROOT } = {}) => {
+/** Report identity differences independently; executable location is context, not receipt identity. */
+export const compareBootstrapIdentity = (receipt, { root, runtime: actual = runtime() }) => {
+  const mismatches = [];
+  const check = (field, expected, observed) => {
+    if (expected !== observed) mismatches.push({ field, expected, observed: observed ?? null });
+  };
+  check('schemaVersion', 1, receipt?.schemaVersion);
+  check('root', root, receipt?.root);
+  for (const field of ['node', 'abi', 'platform', 'arch']) check(`runtime.${field}`, actual[field], receipt?.runtime?.[field]);
+  return mismatches;
+};
+
+export const inspectBootstrapReadiness = async ({ root = ROOT, probeNatives = true } = {}) => {
+  let code = 'ERR_BOOTSTRAP_INSPECTION';
+  let mismatches = [];
   try {
     root = fs.realpathSync(root);
+    code = 'ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED';
     if (!supportedNodeRuntime()) throw new Error('This checkout requires Node.js >=26.12.1 <27.');
     const file = path.join(root, BOOTSTRAP_RECEIPT);
+    code = 'ERR_BOOTSTRAP_RECEIPT_MISSING';
     if (!fs.existsSync(file)) throw new Error('Verified bootstrap receipt is missing; installation is incomplete or has not been verified.');
+    code = 'ERR_BOOTSTRAP_RECEIPT_INVALID';
+    const receiptSignature = JSON.stringify(signature(file));
     const receipt = JSON.parse(readBounded(file));
-    if (receipt.schemaVersion !== 1 || receipt.root !== root
-      || JSON.stringify(receipt.runtime) !== JSON.stringify(runtime())) throw new Error('Bootstrap belongs to a different checkout, Node runtime or native ABI.');
+    mismatches = compareBootstrapIdentity(receipt, { root });
+    code = 'ERR_BOOTSTRAP_IDENTITY_MISMATCH';
+    if (mismatches.length) throw new Error('Bootstrap identity differs: ' + mismatches.map(item => item.field).join(', ') + '.');
+    code = 'ERR_BOOTSTRAP_INPUT_DRIFT';
     if (JSON.stringify(receipt.inputs) !== JSON.stringify(inputHashes(root))) throw new Error('Bootstrap setup inputs, package lock or required patches have changed.');
+    code = 'ERR_BOOTSTRAP_EVIDENCE_INCOMPLETE';
     if (!Array.isArray(receipt.artifacts) || !receipt.artifacts.length || receipt.artifacts.length > 10000
       || !Array.isArray(receipt.verifiedPackages) || !receipt.verifiedPackages.includes('tree-sitter')
       || !receipt.verifiedPackages.includes('better-sqlite3')) throw new Error('Bootstrap verification evidence is incomplete.');
     for (const [relative, expected] of receipt.artifacts) {
+      code = 'ERR_BOOTSTRAP_ARTIFACT_DRIFT';
       if (JSON.stringify(signature(safeFile(root, relative))) !== JSON.stringify(expected)) {
         throw new Error(`Verified dependency artifact changed: ${relative}`);
       }
     }
     // Load success alone does not detect lazy SQLite binding failures or an
     // unusable tree-sitter grammar. Reuse the actual native activation probes.
-    for (const name of ['better-sqlite3', 'tree-sitter']) {
+    for (const name of probeNatives ? ['better-sqlite3', 'tree-sitter'] : []) {
+      code = 'ERR_BOOTSTRAP_NATIVE_UNUSABLE';
       const result = await probeNativePackage(root, name);
       if (!result.ok) throw new Error(`${name} is not usable: ${result.message}`);
     }
-    return readiness(true);
-  } catch (error) { return readiness(false, error?.message || String(error)); }
+    code = 'ERR_BOOTSTRAP_RECEIPT_REPLACED';
+    if (JSON.stringify(signature(file)) !== receiptSignature) throw new Error('Bootstrap receipt changed during inspection; retry after the active verifier finishes.');
+    return { ...readiness(true), code: null, mismatches: [], nativeProbes: probeNatives ? 'passed' : 'not-run' };
+  } catch (error) {
+    return { ...readiness(false, error?.message || String(error)), code, mismatches,
+      nativeProbes: probeNatives ? 'incomplete' : 'not-run',
+      nextAction: code === 'ERR_BOOTSTRAP_RECEIPT_REPLACED' ? 'retry-after-verifier'
+        : code === 'ERR_BOOTSTRAP_IDENTITY_MISMATCH' && mismatches.every(item => item.field.startsWith('runtime.'))
+          ? 'verify-natives-and-patches-under-selected-runtime' : 'locked-bootstrap' };
+  }
 };
 
 export const formatBootstrapRequired = (reason, root = ROOT) => [

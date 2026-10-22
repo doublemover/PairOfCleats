@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../src/shared/bootstrap-readiness.js';
-await guardBootstrapEntry(import.meta.url);
-const { projectIndexFormatError } = await import('../src/shared/index-format-error.js');
+import { handleCheckoutInformation } from '../tools/setup/checkout-diagnose.js';
+import { isDirectExecution } from '../src/shared/direct-execution.js';
+const checkoutInformationHandled = isDirectExecution(import.meta.url) && await handleCheckoutInformation(process.argv.slice(2));
+if (!checkoutInformationHandled) await guardBootstrapEntry(import.meta.url);
+const loadRuntimeModule = specifier => checkoutInformationHandled ? Promise.resolve({}) : import(specifier);
+const { projectIndexFormatError } = await loadRuntimeModule('../src/shared/index-format-error.js');
 import fs from 'node:fs';
 import path from 'node:path';
-const { getToolVersion, resolveRepoRoot, resolveToolRoot } = await import('../tools/shared/dict-utils.js');
+const { getToolVersion, resolveRepoRoot, resolveToolRoot } = await loadRuntimeModule('../tools/shared/dict-utils.js');
 const {
   CONTEXT_PACK_OPTIONS,
   INDEX_BUILD_OPTIONS,
@@ -13,33 +17,32 @@ const {
   TOOLING_DETECT_OPTIONS,
   TOOLING_INSTALL_OPTIONS,
   resolveCliOptionFlagSets
-} = await import('../src/shared/cli-options.js');
+} = await loadRuntimeModule('../src/shared/cli-options.js');
 const {
   COMMAND_SUPPORT_TIER_LABELS,
   DEFAULT_HELP_SUPPORT_TIERS
-} = await import('../src/shared/command-registry-data.js');
+} = await loadRuntimeModule('../src/shared/command-registry-data.js');
 const {
   describeCommandRegistryEntry,
   listCommandRegistry,
   listCommonWorkflowExamples,
   listHelpSections
-} = await import('../src/shared/command-registry-query.js');
-const { spawnSubprocess } = await import('../src/shared/subprocess/runner.js');
-const { exitLikeChild } = await import('../src/tui/wrapper-exit.js');
-const { buildErrorPayload, ERROR_CODES, isErrorCode } = await import('../src/shared/error-codes.js');
+} = await loadRuntimeModule('../src/shared/command-registry-query.js');
+const { spawnSubprocess } = await loadRuntimeModule('../src/shared/subprocess/runner.js');
+const { exitLikeChild } = await loadRuntimeModule('../src/tui/wrapper-exit.js');
+const { buildErrorPayload, ERROR_CODES, isErrorCode } = await loadRuntimeModule('../src/shared/error-codes.js');
 const {
   getSearchHelp,
   SEARCH_OPTION_NAMES,
   SEARCH_SHORT_VALUE_FLAG_NAMES,
   SEARCH_VALUE_FLAG_NAMES
-} = await import('../src/retrieval/cli-args.js');
-const { resolveDispatchRuntimeEnv } = await import('./dispatch-runtime-env.js');
-const { isDirectExecution } = await import('../src/shared/direct-execution.js');
-const { readFlagValue } = await import('../src/shared/cli/argv.js');
-const { isStrictDispatchEnvEnabled } = await import('../src/shared/env/runtime.js');
+} = await loadRuntimeModule('../src/retrieval/cli-args.js');
+const { resolveDispatchRuntimeEnv } = await loadRuntimeModule('./dispatch-runtime-env.js');
+const { readFlagValue } = await loadRuntimeModule('../src/shared/cli/argv.js');
+const { isStrictDispatchEnvEnabled } = await loadRuntimeModule('../src/shared/env/runtime.js');
 
-const ROOT = resolveToolRoot();
-const WORKSPACE_BUILD_FLAGS = Object.keys(INDEX_BUILD_OPTIONS).filter((flag) => flag !== 'repo');
+const ROOT = checkoutInformationHandled ? null : resolveToolRoot();
+const WORKSPACE_BUILD_FLAGS = Object.keys(INDEX_BUILD_OPTIONS || {}).filter((flag) => flag !== 'repo');
 const WORKSPACE_BUILD_ALLOWED_FLAGS = Array.from(new Set([
   'workspace',
   'concurrency',
@@ -853,7 +856,8 @@ function resolveCommand(primary, rest) {
       return { script: 'tools/tooling/install.js', extraArgs: [], args: rest };
     }
     if (sub === 'navigate') {
-      validateArgs(rest, ['repo', 'kind', 'symbol', 'file', 'top', 'json'], ['repo', 'kind', 'symbol', 'file', 'top']);
+      validateArgs(rest, ['repo', 'kind', 'symbol', 'file', 'top', 'json', 'source-hash', 'source-version', 'line', 'column', 'coordinate-unit', 'include-declaration'],
+        ['repo', 'kind', 'symbol', 'file', 'top', 'source-hash', 'source-version', 'line', 'column', 'coordinate-unit', 'include-declaration']);
       return { script: 'tools/tooling/navigation.js', extraArgs: [], args: rest };
     }
     if (sub === 'uninstall') {
@@ -1197,7 +1201,7 @@ function isHelpAllCommand(value) {
   return value === '--help-all' || value === 'help-all';
 }
 
-if (isDirectExecution(import.meta.url)) {
+if (!checkoutInformationHandled && isDirectExecution(import.meta.url)) {
   main().catch((err) => {
     const format = projectIndexFormatError(err);
     if (format) {
