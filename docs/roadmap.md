@@ -103,7 +103,7 @@ The refreshed inventory adds ten Other research/features (#1531–#1540) and
 expands modern viewer/semantic acceptance; prior source repairs retain credit
 without implying those new requirements are satisfied. Storage/category, native,
 editor, provisioning, bounded discovery and durable viewer preference releases
-now have durable partial mappings. Shared sourceChunking6/compilerBindings17/lspBindings21, callFlow20, graphRelations1
+now have durable partial mappings. Shared sourceChunking6/compilerBindings17/lspBindings22, callFlow20, graphRelations1
 and discoverySelection2/signature14 identify the new producer meaning.
 
 Source checkpoints through 101f3641f add local loaded-response find, source-qualified
@@ -141,18 +141,19 @@ cooperative map search and reproducible fusion/reranker owners have further repa
 All remain unvalidated; fine-grained semantic resume, legacy graph quota coverage,
 real service/editor/model hosts and performance qualification remain open.
 
-Source continuation through 5d441a305 closes further ownership gaps: tracked
-termination now requires the exact child close, and native API/MCP/semantic owners
-retain pending failures instead of treating rejection as closure. Supervisor jobs
-retain unknown resources through terminal events, refuse retries/new work and block
-backend exclusion; status and stop remain available. Service controls reserve
-capacity before asynchronous job admission. Setup/bootstrap share the async child
-owner and explicit target; meaningful CLI JSON and large-stream tail controls are
-preserved. Exact embedded source maps, per-key inherited dispatch, retained lexical
-lenses, checked motif bags and physical-work receipts have further consumers.
-Opt-in count-aware ANN and shadow routing preserve explicit qualification limits.
-All new source/fixtures remain unvalidated; this adds no final-tree green or
-measured speedup claim.
+Source continuation through 002afeb5c preserves exact tracked child close,
+required closeout and durable writer exclusion across parent exit. Shared stale
+and benchmark recovery cannot erase unknown resource settlement; process-only
+recovery remains covered. Dictionary failures retain every pending owner and
+reservation release coalesces/retries the exact coordinator. Setup evidence,
+Unicode-scalar provider admission, SCIP adapter2/lspBindings22, finite retained
+relation models, symbolic cancellation, actual cooperative map initialization and
+source-pinned task-span/paired-quality reports have further source consumers.
+Whole-cache/category writer lifetime adoption, live source-qualified telemetry,
+independent source/label truth, external hosts and empirical qualification remain
+open. All new source/fixtures are unvalidated; no final-tree green, issue closure
+or speedup follows from these checkpoints. See the durable receipt for commits,
+coverage mappings and exact limits.
 
 ## Environment and qualification boundaries
 

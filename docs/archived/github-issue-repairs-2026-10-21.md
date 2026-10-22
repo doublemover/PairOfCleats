@@ -916,7 +916,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1128](https://github.com/doublemover/PairOfCleats/issues/1128) | other | Add dependency-aware context rendering order independent of rank | pending |
 | [#1129](https://github.com/doublemover/PairOfCleats/issues/1129) | other | Validate restored evidence against source and dependency state | pending |
 | [#1130](https://github.com/doublemover/PairOfCleats/issues/1130) | other | Expose context selection provenance and bounded next-evidence annotations | pending |
-| [#1131](https://github.com/doublemover/PairOfCleats/issues/1131) | other | Add retrieval-to-use span telemetry and atomic citation evaluation | pending |
+| [#1131](https://github.com/doublemover/PairOfCleats/issues/1131) | other | Add retrieval-to-use span telemetry and atomic citation evaluation | partial source-pinned saved span/citation evaluation 66b9f758b; live producers/source and label truth qualification open |
 | [#1132](https://github.com/doublemover/PairOfCleats/issues/1132) | other | Prototype per-summary dependency manifests and deletion-safe SCC reuse | pending |
 | [#1133](https://github.com/doublemover/PairOfCleats/issues/1133) | other | Prototype demand-directed refinement through existing semantic frontiers | pending |
 | [#1134](https://github.com/doublemover/PairOfCleats/issues/1134) | other | Add feature-conformance adapters for existing call-target producers | pending |
@@ -929,7 +929,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1141](https://github.com/doublemover/PairOfCleats/issues/1141) | other | Shadow cost-aware scheduler choices using existing trace and admission owners | pending |
 | [#1142](https://github.com/doublemover/PairOfCleats/issues/1142) | other | Prototype versioned vector quantization with original-vector reranking | pending |
 | [#1143](https://github.com/doublemover/PairOfCleats/issues/1143) | other | Add bounded cross-generation declaration correspondence without changing immutable source identity | pending |
-| [#1144](https://github.com/doublemover/PairOfCleats/issues/1144) | other | Add paired repository-cluster quality comparisons to existing evaluation reports | pending |
+| [#1144](https://github.com/doublemover/PairOfCleats/issues/1144) | other | Add paired repository-cluster quality comparisons to existing evaluation reports | partial shared paired repository quality reports fa3c1d44c/66b9f758b; independent population and empirical qualification open |
 | [#1145](https://github.com/doublemover/PairOfCleats/issues/1145) | other | Route validated provider semantic facts through one canonical durable sink | partial source authored; integration/qualification open |
 | [#1146](https://github.com/doublemover/PairOfCleats/issues/1146) | other | Bind provider tool profiles to observed executable and project identities | partial source authored; integration/qualification open |
 | [#1147](https://github.com/doublemover/PairOfCleats/issues/1147) | other | Publish provider and consumer declarations with a conformance SDK | partial declaration SDK source; concrete recipes/qualification open |
@@ -1183,7 +1183,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1394](https://github.com/doublemover/PairOfCleats/issues/1394) | perf | [Performance] Bound recorded-session seeks instead of replaying the entire prefix on the UI thread | source repair and regression authored; unvalidated |
 | [#1395](https://github.com/doublemover/PairOfCleats/issues/1395) | other | [Docs] Document state-preserving source upgrades and required artifact rebuilds | source state-preserving upgrade journey authored; operational proof open |
 | [#1396](https://github.com/doublemover/PairOfCleats/issues/1396) | perf | [Perf] Shard persistent tree-sitter chunks by digest instead of constant namespace prefix | source repair and regression authored; unvalidated |
-| [#1397](https://github.com/doublemover/PairOfCleats/issues/1397) | P1 | [P1] Preserve pending subprocess cleanup before releasing the build cache-writer lock | source barriers plus exact tracked-child close fac945c93; delayed-close/cache-release regressions authored, unvalidated |
+| [#1397](https://github.com/doublemover/PairOfCleats/issues/1397) | P1 | [P1] Preserve pending subprocess cleanup before releasing the build cache-writer lock | exact tracked close plus required closeout/durable writer fence b9e21009b/3f7aa30b3; regressions authored, unvalidated; whole-cache/category lifetime adoption open |
 | [#1398](https://github.com/doublemover/PairOfCleats/issues/1398) | P2 | [P2] Preserve exclusion and quoted-phrase gates under --match any | source repair and regression authored; unvalidated |
 | [#1399](https://github.com/doublemover/PairOfCleats/issues/1399) | P2 | [P2] Bind inlay type hints to their declaration role before assigning function returns | source repair and regression authored; unvalidated |
 | [#1400](https://github.com/doublemover/PairOfCleats/issues/1400) | P2 | [P2] Resolve CI export sources after child builds publish their generations | source repair and regression authored; unvalidated |
@@ -2228,3 +2228,71 @@ checkout. No worktrees, elevation, security changes or physical symlinks are use
 Current generated-surface freshness, locked dependency preparation and Windows
 cohort acceptance still require their planned later batch. No new issue closure,
 benchmark result or final-tree pass is claimed by this continuation.
+
+
+### Writer exit fencing, source coordinates and evaluation consumers through 002afeb5c
+
+This is an **unvalidated development checkpoint** on the existing branch and PR.
+No tests, syntax/lint/format, bootstrap, native or child operations, builds,
+GUI/model hosts or benchmarks were executed. The user explicitly deferred those
+checks while the lead and three Sol6.1/xhigh agents implement independent real-file
+spans. The last qualified production/test source remains
+`d4dcba4134f6103e3a59703d90fdbde5ca54d09e`. Changed setup inputs still need a fresh
+locked bootstrap. No new issue closure or measured speedup is claimed.
+
+- **Required closeout and durable writer exclusion:** b9e21009b attempts remaining
+  cleanup but blocks cache-lock release after any prior required heartbeat,
+  build-state or runtime failure. Generic timeouts and combined failures preserve
+  unknown settlement. Source 3f7aa30b3 closes the subsequent parent-exit hole:
+  indexing, watch and embedding admission publish an internal settlement marker
+  on the existing index lock before work. Exit/signal handlers and shared stale
+  recovery cannot erase it based on age, PID death or forced stale cleanup.
+  PID-only/force removal cannot unlink a settlement-marked lock; cache-writer
+  capabilities require the exact durable identity. The benchmark now preserves
+  live/unknown writers instead of deleting an old live lock. Process-only
+  recovery stays covered. Actual fresh-process, delayed-close and exact-owner
+  regressions are authored, not run. A lost resource owner remains blocked;
+  arbitrary descendant proof and whole-cache/category lifetime adoption remain
+  separate obligations.
+- **Storage and setup:** 03fba2196 pins canonical prerequisite evidence and
+  post-install rediscovery while preserving cancellation outcomes. Source
+  a68971010 bounds contained Windows capability snapshots and COFF/PE inspection
+  without executing a candidate binary. Source 4a3051db2 preserves original and
+  frozen dictionary failures together with every pending cleanup/sibling owner;
+  release requires all captured exact observers, with missing/throwing observers
+  false. Source 002afeb5c coalesces actual reservation release and retains the
+  exact coordinator handle for retry after unlink succeeded but lock release
+  failed. Creation-side recovery and actual installation/platform qualification
+  remain open. No user cache, installation or migration was touched.
+- **Semantic source meaning and consumers:** fa06bf1de carries operation
+  cancellation through published symbolic queries. Source 4bf4ab51d checks a
+  finite identity-transfer upper-summary model over retained canonical relations;
+  it does not prove source-language transfer or missing-world closure. Source
+  69125583b checks selected retained provider/source/target spans at scalar
+  boundaries during existing bounded source verification, including split UTF8
+  reads. Source 9f70b9c61 rejects split-scalar producer coordinates and binds SCIP
+  adapter2 to shared lspBindings22; compilerBindings17 and callFlow20 remain
+  current. SemanticDB already independently rejected those endpoints, so its
+  accepted span set and meaning are unchanged. External producer execution and
+  public/runtime qualification remain open.
+- **Actual map initialization:** 5517f2b1a makes the default snapshot generator
+  cooperate and cancel while ingesting file/member/edge rows and directed summary
+  work; failed initializations discard unpublished state. The synchronous path
+  consumes the same steps. The full server/source model is still materialized;
+  this change does not establish streaming memory, browser/GPU or latency proof.
+- **Evaluation:** fa3c1d44c shares bounded paired repository-macro/task-micro
+  comparisons across vector and fusion reports, retaining missing/failed/censored
+  outcomes and null intervals without sufficient independent clusters. Source
+  66b9f758b adds canonical source/task/run/generation/rubric-pinned saved traces,
+  original UTF8 byte-span unions, independent observation stages, explicit used
+  attribution and deterministic citation validity before support credit. Raw
+  human/model labels stay separate and no model is called. Existing evaluation
+  consumes optional saved traces through the same quality owner. Live source-
+  qualified CLI/MCP/editor events, independent source-byte and label truth,
+  representative task populations and empirical cost/quality proof remain open.
+
+Authored fixture replacements preserve meaningful positive, negative and ordered
+coverage obligations; none is a passing observation. Generated-surface refresh,
+locked setup and the eventual affected/front-gate/Windows cohorts must run against
+the resulting candidate. Ignored `.tmp/tasks/` hashes are historical staging
+bookkeeping, not clean-checkout evidence or acceptance artifacts.
