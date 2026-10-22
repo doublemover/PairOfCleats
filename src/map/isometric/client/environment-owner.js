@@ -17,16 +17,20 @@ export const createEnvironmentOwner = ({ THREE, renderer, scene }) => {
     catch (error) { errors.push(error); }
     if (!owner.pending) resources.delete(owner);
   };
+  const discard = texture => {
+    if (!texture) return false;
+    const errors = [];
+    release(adopt(texture, 'environment input texture'), errors);
+    const failure = preserveSceneCleanupFailures(null, errors); if (failure) throw failure;
+    return false;
+  };
   return {
     get pendingOwners() { return Object.freeze([...resources].filter(owner => owner.pending)); },
+    discard,
     replace(texture) {
       if (!texture) return false;
+      if (retired) return discard(texture);
       const input = adopt(texture, 'environment input texture'), errors = [];
-      if (retired) {
-        release(input, errors);
-        const failure = preserveSceneCleanupFailures(null, errors); if (failure) throw failure;
-        return false;
-      }
       let generator = null, next = null, primary, hasPrimary = false, published = false;
       try {
         texture.mapping = THREE.EquirectangularReflectionMapping;

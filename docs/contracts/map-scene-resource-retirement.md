@@ -220,3 +220,28 @@ async joining, fallback and actual inert `initScene` prerequisite controls are
 authored and **UNVALIDATED**. They establish no browser/native/GPU acceptance,
 hidden allocation coverage, complete native-work observation, cancellation,
 driver retry safety, quiescence, memory bounds or performance claim.
+
+Actual context-loss/restoration listeners now require their original live scene,
+renderer and disposer before each action. Retired listeners and a reentrant
+replacement cannot cancel, invalidate or overwrite a sibling scene's state.
+Independent callback failures, including falsey values and a later status failure,
+retain the first original cause plus diagnostic inspection outcomes through the
+existing snapshot owner. Their observed original native-work prerequisites also
+reach that scene's construction/disposer guard. Current-scene context diagnostics
+are retained separately; new scene publication initializes its own context state.
+
+HDR callbacks use that same scene authority for invalidation and diagnostics.
+Late inputs for a stale scene are discarded through the environment owner's
+original input capability without creating another PMREM conversion. Repeated
+late input retirement remembers successful disposal and reports an existing
+failed close without automatically retrying it. Loader/conversion falsey or
+throwing-message failures retain exact causes and inspection observations without
+rereading the original message or publishing over newer environment diagnostics.
+
+Additional actual inert listener/HDR controls are authored and **UNVALIDATED**,
+including stale listeners, reentrant replacement, independent falsey failures,
+original throwing diagnostics, native-work shutdown prerequisites and late input
+deduplication. This covers callback authority and observed work only; complete
+picking/cancellation teardown, browser context restoration, loader cancellation,
+native/GPU release or retry safety and resource/performance acceptance remain
+separate.

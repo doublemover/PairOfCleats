@@ -8,6 +8,7 @@ import { captureSceneResource, getPendingSceneResourceOwners, preserveSceneClean
 import { createSceneConstructionOwner } from './rendering/scene-construction-owner.js';
 import { retireNormalMapState } from './normal-map-owner.js';
 import { createSceneDisposerGuard } from './rendering/scene-disposer-guard.js';
+import { createSceneContextCallbacks } from './rendering/scene-context-callbacks.js';
 
 export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
   if(!isCurrent())return null;
@@ -118,28 +119,16 @@ export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
   };
 
   const environment = createEnvironmentOwner({ THREE, renderer, scene });
-  let disposed = false;
-  const lost = event => {
-    event.preventDefault();
-    state.contextLost=true;
-    state.cancelResidentPreparation?.();
-    retirePicking();
-    state.cancelCameraMotion?.();
-    state.onRendererStatus?.('3D context lost. Source evidence remains available; waiting for restoration.');
-  };
-  const restored = () => {
-    if(disposed)return;
-    state.contextLost=false;
-    try { state.rebuildAfterContextRestore?.(); state.invalidateRender?.(); }
-    catch(error){state.onRendererStatus?.(`3D restore failed: ${error.message}. Source evidence remains available.`);}
-  };
+  let disposed = false, disposeScene = null;
+  const current = () => !disposed && state.scene === scene && state.renderer === renderer && state.disposeScene === disposeScene;
+  const { lost, restored } = createSceneContextCallbacks({ state, isCurrent: current, retainFailure: construction.retainFailure, retirePicking });
   const listenerOwners=[];
   for(const [event,callback,label] of [['webglcontextlost',lost,'scene lost-context listener'],['webglcontextrestored',restored,'scene restored-context listener']]){
     const owner=construction.capture(canvas,label,'removeEventListener',[event,callback]);
     listenerOwners.push(owner);canvas.addEventListener(event,callback);
   }
   let disposalFailure = null;
-  const disposeScene = createSceneDisposerGuard({receiver:state,
+  disposeScene = createSceneDisposerGuard({receiver:state,
     beforeDispose:()=>{if(!disposed)construction.assertReady();},retainFailure:construction.retainFailure,dispose:() => {
     if (disposed) {
       if (disposalFailure && !disposalFailure.sceneOwnershipReleased?.()) throw disposalFailure;
@@ -181,7 +170,7 @@ export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
   }});
   if(!isCurrent())throw Object.assign(new Error('Renderer enhancement superseded before scene publication'),{name:'AbortError',code:'ABORT_ERR'});
   construction.install(disposeScene,state);
-  Object.assign(state,{scene,renderer,disposeScene,contextLost:false});
+  Object.assign(state,{scene,renderer,disposeScene,contextLost:false,rendererContextFailure:null,rendererContextError:null});
   onSceneOwner?.({scene,renderer,disposeScene});
 
   const envCanvas = document.createElement('canvas');
@@ -197,13 +186,25 @@ export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
   const fallbackEnv = new THREE.CanvasTexture(envCanvas);
   environment.replace(fallbackEnv);
 
+  const reportEnvironmentFailure = error => {
+    const failure = preserveSceneCleanupFailures(error, [], { hasPrimary: true, forceAggregate: true });
+    construction.retainFailure(failure);
+    if (current()) {
+      state.environmentError = failure.message; state.environmentFailure = failure;
+      state.sceneRetirementOwners = getPendingSceneResourceOwners();
+    }
+    return failure;
+  };
   if (RGBELoader && assets.hdrEnvUrl) {
     const rgbe = new RGBELoader();
     rgbe.load(assets.hdrEnvUrl, (hdrTexture) => {
-      try { environment.replace(hdrTexture); if(!disposed)state.invalidateRender?.(); }
-      catch (error) { if (state.scene === scene) { state.environmentError = error.message;state.environmentFailure=error;state.sceneRetirementOwners=getPendingSceneResourceOwners(); } }
+      try {
+        if (!current()) return environment.discard(hdrTexture);
+        environment.replace(hdrTexture); if(current())state.invalidateRender?.();
+      }
+      catch (error) { return reportEnvironmentFailure(error); }
     }, undefined, (error) => {
-      if (!disposed) state.environmentError = error?.message || 'Optional environment unavailable; using local lighting.';
+      return reportEnvironmentFailure(error);
     });
   }
 
