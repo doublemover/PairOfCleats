@@ -78,17 +78,21 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
     const classMember = (definition,names,staticMember,visited=new Set()) => {
       if(visited.has(definition)||visited.size>=16||--budget<0) { incomplete=true; reasons.add('class_heritage_candidate_budget'); return; }
       visited=new Set(visited).add(definition);
-      let matched=false;
+      const shadowed=new Set();
       for(const member of structural.members(definition,names,staticMember,reasons)) {
-        matched=true;
-        if(ts.isMethodDeclaration(member))add(member);
+        const memberKeys=compilerPropertyKeys({ts,checker,node:member.name,reasons});
+        const runtimeMember=Boolean(member.body || ts.isPropertyDeclaration(member)&&member.initializer);
+        if(runtimeMember&&memberKeys.length===1&&memberKeys[0]!==null)shadowed.add(canonicalSemanticJson(memberKeys[0]));
+        else reasons.add(runtimeMember?'class_member_key_shadowing_conservative':'class_member_runtime_presence_unobserved');
+        if(ts.isMethodDeclaration(member)&&member.body)add(member);
         else if(ts.isPropertyDeclaration(member)&&member.initializer)visit(member.initializer);
         else if(ts.isGetAccessorDeclaration(member)){for(const value of structural.returns(member,reasons))visit(value);}
         else { incomplete=true; reasons.add('accessor_returned_callable_unresolved'); }
       }
       if(definition.name)patch(definition.name,names,!staticMember);
-      if(!matched || names.includes(null)) for(const clause of definition.heritageClauses||[]) if(clause.token===ts.SyntaxKind.ExtendsKeyword) for(const type of clause.types) {
-        for(const parent of structural.classes(type.expression,reasons))classMember(parent,names,staticMember,visited);
+      const inheritedNames=names.filter(name=>name===null||!shadowed.has(canonicalSemanticJson(name)));
+      if(inheritedNames.length) for(const clause of definition.heritageClauses||[]) if(clause.token===ts.SyntaxKind.ExtendsKeyword) for(const type of clause.types) {
+        for(const parent of structural.classes(type.expression,reasons))classMember(parent,inheritedNames,staticMember,visited);
       }
     };
     const property = (receiver,names,visited=new Set()) => {
@@ -129,7 +133,7 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
         const staticMember=Boolean(member?.modifiers?.some(modifier=>modifier.kind===ts.SyntaxKind.StaticKeyword));
         if(owner) {
           if(receiver.kind===ts.SyntaxKind.ThisKeyword)classMember(owner,names,staticMember);
-          else for(const clause of owner.heritageClauses||[]) for(const type of clause.types) for(const parent of declarations(type.expression))classMember(parent,names,staticMember);
+          else for(const clause of owner.heritageClauses||[]) if(clause.token===ts.SyntaxKind.ExtendsKeyword) for(const type of clause.types) for(const parent of structural.classes(type.expression,reasons))classMember(parent,names,staticMember);
         }
       } else incomplete=true;
     };
