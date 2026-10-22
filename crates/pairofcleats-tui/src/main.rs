@@ -1899,6 +1899,7 @@ fn footer_hint_text(model: &AppModel, width: usize) -> String {
     fit_text(text, width)
 }
 
+#[cfg(test)]
 fn list_viewport<T>(rows: Vec<T>, scroll: usize, height: usize) -> Vec<T> {
     let start = scroll.min(rows.len().saturating_sub(height));
     rows.into_iter().skip(start).take(height).collect()
@@ -1914,13 +1915,14 @@ fn job_row_text(model: &AppModel, id: &str, status: &str) -> String {
 }
 
 fn visible_job_ids(model: &AppModel) -> Vec<&str> {
+    let query = model.search_jobs.trim().to_lowercase();
     model
         .job_order
         .iter()
         .filter_map(|id| {
             let status = model.job_status.get(id)?;
             (matches_job_filter(status, model.job_filter)
-                && contains_query(&job_row_text(model, id, status), &model.search_jobs))
+                && (query.is_empty() || job_row_text(model, id, status).to_lowercase().contains(&query)))
             .then_some(id.as_str())
         })
         .collect()
@@ -1995,27 +1997,29 @@ fn selected_job_cancel_request(model: &mut AppModel) -> Option<Value> {
     Some(json!({"proto":"poc.tui@1", "op":"job:cancel", "jobId":id, "reason":"user_cancel"}))
 }
 
-fn build_job_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListItem<'static>> {
-    let mut rows = Vec::new();
-    if model.job_order.is_empty() {
-        rows.push(ListItem::new(fit_text(&jobs_empty_reason(model), width)));
-        return list_viewport(rows, model.job_scroll, height);
+#[cfg(test)]
+thread_local! { static ROW_PRESENTATIONS: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) }; }
+
+fn build_job_rows(model: &AppModel, width: usize, height: usize) -> (Vec<ListItem<'static>>, Option<usize>) {
+    if height == 0 { return (Vec::new(), None); }
+    let ids = visible_job_ids(model);
+    if ids.is_empty() {
+        return (vec![ListItem::new(fit_text(&jobs_empty_reason(model), width))], None);
     }
-    for job_id in &model.job_order {
-        let Some(status) = model.job_status.get(job_id) else {
-            continue;
-        };
-        if !matches_job_filter(status, model.job_filter) {
-            continue;
-        }
+    let start = model.job_scroll.min(ids.len().saturating_sub(height));
+    let selected_row = if model.selected_job_expired { None } else {
+        ids.iter().position(|id| Some(*id) == model.selected_job.as_deref())
+            .filter(|index| *index >= start && *index < start + height).map(|index| index - start)
+    };
+    let mut rows = Vec::with_capacity(height.min(ids.len()));
+    for job_id in ids.into_iter().skip(start).take(height) {
+        let status = &model.job_status[job_id];
         let rendered = job_row_text(model, job_id, status);
-        if !contains_query(&rendered, &model.search_jobs) {
-            continue;
-        }
+        #[cfg(test)] ROW_PRESENTATIONS.with(|count| { let (jobs, tasks) = count.get(); count.set((jobs + 1, tasks)); });
         let style = if !model.terminal_caps.color {
             Style::default()
         } else if !model.selected_job_expired
-            && model.selected_job.as_deref() == Some(job_id.as_str())
+            && model.selected_job.as_deref() == Some(job_id)
         {
             Style::default()
                 .fg(Color::Cyan)
@@ -2033,20 +2037,14 @@ fn build_job_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListItem
         };
         rows.push(ListItem::new(fit_text(&rendered, width)).style(style));
     }
-    if rows.is_empty() {
-        rows.push(ListItem::new(fit_text(&jobs_empty_reason(model), width)));
-    }
-    list_viewport(rows, model.job_scroll, height)
+    (rows, selected_row)
 }
 
 fn render_job_panel(frame: &mut ratatui::Frame<'_>, model: &AppModel, area: ratatui::layout::Rect) {
     let height = area.height.saturating_sub(2) as usize;
     let query = model.search_jobs.trim();
-    let list = List::new(build_job_rows(
-        model,
-        area.width.saturating_sub(2) as usize,
-        height,
-    ))
+    let (rows, selected_row) = build_job_rows(model, area.width.saturating_sub(2) as usize, height);
+    let list = List::new(rows)
     .block(panel_block(
         block_title(
             "Jobs",
@@ -2067,61 +2065,42 @@ fn render_job_panel(frame: &mut ratatui::Frame<'_>, model: &AppModel, area: rata
     if model.selected_job_expired || area.width < 2 || height == 0 {
         return;
     }
-    let ids = visible_job_ids(model);
-    let start = model.job_scroll.min(ids.len().saturating_sub(height));
-    if let Some(index) = ids
-        .iter()
-        .position(|id| Some(*id) == model.selected_job.as_deref())
-    {
-        if index >= start && index < start + height {
-            // Mark the border, preserving the existing interior text/column budget.
-            frame.buffer_mut()[(area.x, area.y + 1 + (index - start) as u16)].set_symbol(">");
-        }
+    if let Some(row) = selected_row {
+        // Marker and visible rows share the exact same filtered sequence.
+        frame.buffer_mut()[(area.x, area.y + 1 + row as u16)].set_symbol(">");
     }
 }
 
 fn build_task_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListItem<'static>> {
+    if height == 0 { return Vec::new(); }
     if model.selected_job_expired {
         return vec![ListItem::new(fit_text(
-            "Selected job instance expired; reselect a visible job",
-            width,
-        ))];
+            "Selected job instance expired; reselect a visible job", width))];
     }
-    let selected_job = model.selected_job.clone().unwrap_or_default();
-    let mut rows = Vec::new();
-    for key in &model.task_order {
-        let identity = model.task_identity.get(key);
-        if !selected_job.is_empty()
-            && identity.map(|(owner, _)| owner.as_str()) != Some(selected_job.as_str())
-        {
-            continue;
-        }
-        let Some(status) = model.task_status.get(key) else {
-            continue;
-        };
-        if !matches_task_filter(&status.status, model.task_filter) {
-            continue;
-        }
-        let task_name = identity.map(|(_, id)| id.as_str()).unwrap_or(key);
-        let rendered = format!("{task_name} | {status}");
-        if !contains_query(&rendered, &model.search_tasks) {
-            continue;
-        }
-        let style = if !model.terminal_caps.color {
-            Style::default()
-        } else if status.lifecycle().is_problem() {
-            Style::default().fg(Color::Red)
-        } else if status.lifecycle() == Lifecycle::Done {
-            Style::default().fg(Color::Green)
-        } else {
-            Style::default().fg(Color::Yellow)
-        };
-        rows.push(ListItem::new(fit_text(&rendered, width)).style(style));
-    }
-    if rows.is_empty() {
-        rows.push(ListItem::new(fit_text(&tasks_empty_reason(model), width)));
-    }
-    list_viewport(rows, model.task_scroll, height)
+    let selected = model.selected_job.as_deref().unwrap_or("");
+    let query = model.search_tasks.trim().to_lowercase();
+    let keys: Vec<_> = model.task_order.iter().filter(|key| {
+        let identity = model.task_identity.get(*key);
+        if !selected.is_empty() && identity.map(|(owner, _)| owner.as_str()) != Some(selected) { return false; }
+        let Some(task) = model.task_status.get(*key) else { return false; };
+        if !matches_task_filter(&task.status, model.task_filter) { return false; }
+        if query.is_empty() { return true; }
+        let name = identity.map(|(_, id)| id.as_str()).unwrap_or(key);
+        format!("{name} | {task}").to_lowercase().contains(&query)
+    }).collect();
+    if keys.is_empty() { return vec![ListItem::new(fit_text(&tasks_empty_reason(model), width))]; }
+    let start = model.task_scroll.min(keys.len().saturating_sub(height));
+    keys.into_iter().skip(start).take(height).map(|key| {
+        let task = &model.task_status[key];
+        let name = model.task_identity.get(key).map(|(_, id)| id.as_str()).unwrap_or(key);
+        let rendered = format!("{name} | {task}");
+        #[cfg(test)] ROW_PRESENTATIONS.with(|count| { let (jobs, tasks) = count.get(); count.set((jobs, tasks + 1)); });
+        let style = if !model.terminal_caps.color { Style::default() }
+            else if task.lifecycle().is_problem() { Style::default().fg(Color::Red) }
+            else if task.lifecycle() == Lifecycle::Done { Style::default().fg(Color::Green) }
+            else { Style::default().fg(Color::Yellow) };
+        ListItem::new(fit_text(&rendered, width)).style(style)
+    }).collect()
 }
 
 fn render_log_entry(entry: &LogEntry) -> String {

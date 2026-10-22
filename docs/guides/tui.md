@@ -405,3 +405,9 @@ collections. Render-duration feedback, clocks, credits and input bookkeeping do
 not invalidate it. Source regressions cover a full 2,048-entry log ring and
 same-count replacements; buffer parity and allocation/latency measurements remain
 unqualified until the deferred Windows validation pass.
+
+Job/task panes filter identities first, clamp one viewport and only then build
+formatted/styled rows. The job selection marker shares the same filtered sequence.
+Empty searches avoid candidate row-text construction; nonempty searches normalize
+the query once and still inspect eligible text. This bounds presentation work by
+visible rows without claiming arbitrary uncached search is viewport-only work.

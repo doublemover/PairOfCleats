@@ -205,3 +205,48 @@ fn compact_frame_keys_exclude_retained_text_and_track_same_count_mutations() {
     model.terminal_caps.color = !model.terminal_caps.color;
     assert_ne!(before, frame_signature(&model));
 }
+
+#[test]
+fn job_and_task_presentation_is_bounded_by_the_admitted_viewport() {
+    let mut model = model();
+    for index in 0..JOB_RING_LIMIT {
+        model.update_job_status(&format!("job-{index:04}"), "running", Some("日本語 work"));
+    }
+    model.selected_job = Some("job-0400".into()); model.selected_job_pinned = true;
+    for index in 0..TASK_RING_LIMIT {
+        model.update_task_status("job-0400", &format!("task-{index:04}"), "running", Some("work 😀"));
+    }
+    for query in ["", "日本語", "job-04", "absent"] {
+        model.search_jobs = query.into();
+        for scroll in [0, 250, usize::MAX] {
+            model.job_scroll = scroll;
+            ROW_PRESENTATIONS.with(|count| count.set((0,0)));
+            let ids = visible_job_ids(&model);
+            let start = scroll.min(ids.len().saturating_sub(20));
+            let expected_selected = ids.iter().position(|id| Some(*id) == model.selected_job.as_deref())
+                .filter(|index| *index >= start && *index < start + 20).map(|index| index-start);
+            let (rows, marker) = build_job_rows(&model, 80, 20);
+            assert!(rows.len() <= 20);
+            assert_eq!(marker, expected_selected);
+            assert_eq!(ROW_PRESENTATIONS.with(|count| count.get().0), ids.len().saturating_sub(start).min(20));
+        }
+    }
+    for query in ["", "work 😀", "task-10", "absent"] {
+        model.search_tasks = query.into();
+        for scroll in [0, 1000, usize::MAX] {
+            model.task_scroll = scroll;
+            ROW_PRESENTATIONS.with(|count| count.set((0,0)));
+            let rows = build_task_rows(&model, 80, 20);
+            assert!(rows.len() <= 20);
+            let rendered = ROW_PRESENTATIONS.with(|count| count.get().1);
+            assert!(rendered <= 20);
+            if query != "absent" { assert_eq!(rendered, 20); }
+        }
+    }
+    model.selected_job_expired = true;
+    ROW_PRESENTATIONS.with(|count| count.set((0,0)));
+    assert_eq!(build_task_rows(&model, 80, 20).len(), 1);
+    assert_eq!(ROW_PRESENTATIONS.with(|count| count.get()), (0,0));
+    assert!(build_task_rows(&model, 80, 0).is_empty());
+    assert!(build_job_rows(&model, 80, 0).0.is_empty());
+}
