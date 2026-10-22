@@ -54,7 +54,6 @@ const normalizeTypeName = (value, languageId) => {
   if (languageId === 'typescript' || languageId === 'tsx') {
     return normalized;
   }
-  const lowered = normalized.toLowerCase();
   if (languageId === 'python') {
     const pyMap = {
       integer: 'int',
@@ -64,11 +63,14 @@ const normalizeTypeName = (value, languageId) => {
       array: 'list',
       object: 'dict'
     };
-    return pyMap[lowered] || normalized;
+    return Object.hasOwn(pyMap, normalized) ? pyMap[normalized] : normalized;
   }
   const jsMap = {
     integer: 'number',
     float: 'number',
+    String: 'string',
+    Boolean: 'boolean',
+    Number: 'number',
     bool: 'boolean',
     string: 'string',
     array: 'array',
@@ -76,27 +78,56 @@ const normalizeTypeName = (value, languageId) => {
     dict: 'object',
     list: 'array'
   };
-  return jsMap[lowered] || normalized;
+  return Object.hasOwn(jsMap, normalized) ? jsMap[normalized] : normalized;
+};
+
+// Candidate expansion is a lexical projection, not a type checker. Preserve the
+// full annotation when quoting/nesting is malformed or exceeds this allowance.
+const inspectTypeExpression = value => {
+  if (!value || value.length > 65536 || value.includes('\u0000')) return null;
+  const matching = { '<': '>', '[': ']', '(': ')', '{': '}' };
+  const closers = new Set(Object.values(matching)), stack = [], pairs = new Map();
+  const separators = new Map([['|', []], [',', []]]);
+  let quote = null, outerOpen = -1;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (quote) {
+      if (char === '\\') index += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'" || char === '`') { quote = char; continue; }
+    // An unparenthesized function return or conditional branch owns later
+    // unions. Preserve that unsupported outer grammar rather than flatten it.
+    if (!stack.length && (char === '=' && value[index + 1] === '>' || char === '?' && index < value.length - 1)) return null;
+    if (Object.hasOwn(matching, char)) {
+      if (stack.length >= 128) return null;
+      if (!stack.length && outerOpen < 0) outerOpen = index;
+      stack.push(index);
+    } else if (closers.has(char)) {
+      if (char === '>' && value[index - 1] === '=') continue;
+      const open = stack.pop();
+      if (open == null || matching[value[open]] !== char) return null;
+      pairs.set(open, index);
+    } else if (!stack.length && separators.has(char)) separators.get(char).push(index);
+  }
+  if (quote || stack.length) return null;
+  const split = delimiter => {
+    const parts = [], cuts = separators.get(delimiter) || [];
+    let start = 0;
+    for (const end of [...cuts, value.length]) { parts.push(value.slice(start, end).trim()); start = end + 1; }
+    return parts.every(Boolean) ? parts : [];
+  };
+  let generic = null;
+  if (outerOpen >= 0 && ['<', '['].includes(value[outerOpen]) && pairs.get(outerOpen) === value.length - 1) {
+    const outer = value.slice(0, outerOpen).trim(), inner = value.slice(outerOpen + 1, -1).trim();
+    if (inner && /^[\p{ID_Start}_$][\p{ID_Continue}$]*(?:(?:\.|::)[\p{ID_Start}_$][\p{ID_Continue}$]*)*$/u.test(outer)) generic = { outer, inner, opener: value[outerOpen] };
+  }
+  return { split, generic };
 };
 
 const splitTopLevel = (value, delimiter) => {
-  const parts = [];
-  if (!value) return parts;
-  let current = '';
-  let depth = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    const ch = value[i];
-    if (ch === '<' || ch === '[' || ch === '(') depth += 1;
-    if (ch === '>' || ch === ']' || ch === ')') depth = Math.max(0, depth - 1);
-    if (ch === delimiter && depth === 0) {
-      parts.push(current.trim());
-      current = '';
-      continue;
-    }
-    current += ch;
-  }
-  if (current.trim()) parts.push(current.trim());
-  return parts;
+  return inspectTypeExpression(value)?.split(delimiter) || [];
 };
 
 const splitLiteralTopLevel = (value) => {
@@ -127,37 +158,23 @@ const splitLiteralTopLevel = (value) => {
 
 const stripOptionalSuffix = (value) => {
   if (!value) return value;
-  if (value.endsWith('?')) return value.slice(0, -1).trim();
+  if (value.endsWith('?') && inspectTypeExpression(value)) return value.slice(0, -1).trim();
   return value;
 };
 
 const parseGeneric = (value) => {
-  if (!value) return null;
-  const ltIndex = value.indexOf('<');
-  const lbIndex = value.indexOf('[');
-  const index = ltIndex >= 0 && (lbIndex < 0 || ltIndex < lbIndex) ? ltIndex : lbIndex;
-  if (index < 0) return null;
-  const closer = value[index] === '<' ? '>' : ']';
-  const closeIndex = value.lastIndexOf(closer);
-  if (closeIndex <= index) return null;
-  const outer = value.slice(0, index).trim();
-  const inner = value.slice(index + 1, closeIndex).trim();
-  if (!outer || !inner) return null;
-  return { outer, inner };
+  return inspectTypeExpression(value)?.generic || null;
 };
 
 const expandUnionTypes = (value, languageId) => {
   const normalized = normalizeText(value);
   if (!normalized) return [];
   if (languageId === 'python') {
-    const optionalMatch = normalized.match(/^(?:typing\.)?Optional\[(.+)\]$/);
-    if (optionalMatch) {
-      const inner = optionalMatch[1];
-      return splitTopLevel(inner, ',').concat(PYTHON_TYPES.null);
-    }
-    const unionMatch = normalized.match(/^(?:typing\.)?Union\[(.+)\]$/);
-    if (unionMatch) {
-      return splitTopLevel(unionMatch[1], ',');
+    const generic = parseGeneric(normalized), argumentsList = generic ? splitTopLevel(generic.inner, ',') : [];
+    if (generic?.opener === '[' && ['Optional', 'typing.Optional', 'typing_extensions.Optional'].includes(generic.outer)
+      && argumentsList.length === 1) return [...argumentsList, PYTHON_TYPES.null];
+    if (generic?.opener === '[' && ['Union', 'typing.Union', 'typing_extensions.Union'].includes(generic.outer)) {
+      return argumentsList;
     }
   }
   const parts = splitTopLevel(normalized, '|');
@@ -183,11 +200,8 @@ const expandTypeCandidates = (raw, languageId) => {
     if (unions.length) {
       unions.forEach((entry) => queue.push(entry));
     }
-    const generic = parseGeneric(current);
-    if (generic) {
-      if (generic.outer) queue.push(generic.outer);
-      splitTopLevel(generic.inner, ',').forEach((entry) => queue.push(entry));
-    }
+    // A generic's arguments describe its contained values, not additional
+    // types of this parameter/return/field. Keep their ownership in the type.
   }
   return Array.from(seen).filter(Boolean);
 };
