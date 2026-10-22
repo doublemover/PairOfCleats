@@ -33,6 +33,7 @@ import { createTuiSemanticPages, SEMANTIC_PAGED_COMMANDS } from './semantic-page
 import { prepareTuiStorage, NATIVE_STORAGE_COMMANDS } from './storage.js';
 import { createTuiIndexer } from './indexer.js';
 import { createTuiApiServices } from './api-service.js';
+import { createTuiCacheMaintenance, NATIVE_BACKEND_MAINTENANCE } from './cache-maintenance.js';
 
 const MAX_REPOS = 32;
 const MAX_PLANS = 16;
@@ -94,10 +95,12 @@ export const observeIndexPublication = async (repo, config, { signal, validateCu
 };
 
 /** Private, expiring typed plans. Reuses scope, build/config/model, and job owners. */
-export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.cwd(), env = process.env, now = Date.now } = {}) => {
+export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.cwd(), env = process.env, now = Date.now,
+  drainLocalReaders = null, backendDelegationEnabled = false } = {}) => {
   const plans = new Map();
+  const backendEnabled = backendDelegationEnabled === true && typeof drainLocalReaders === 'function';
   let experimentalEnabled = false;
-  let commands = describeIndexWorkflows();
+  let commands = describeIndexWorkflows({ backendDelegationEnabled: backendEnabled });
   let disposed = false;
   const requireScope = id => {
     if (disposed) fail('ERR_TUI_SESSION_CLOSED', 'The workflow session has closed.');
@@ -107,6 +110,12 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
   const semantic = createTuiSemanticPages({ toolRoot, requireScope, now });
   const indexer = createTuiIndexer({ toolRoot, requireScope, env });
   const api = createTuiApiServices({ toolRoot, requireScope });
+  const maintenance = createTuiCacheMaintenance({ toolRoot, requireScope, env, delegationEnabled: backendEnabled,
+    drainLocalReaders: drainLocalReaders ? async input => {
+      const drained = await drainLocalReaders(input);
+      await semantic.dispose();
+      return drained;
+    } : null });
   const targets = (scope, values = {}) => {
     if (scope.kind === 'repo') return [scope.configRoot];
     const repos = loadWorkspaceConfig(scope.target).repos.filter(repo => values['include-disabled'] || repo.enabled);
@@ -199,8 +208,8 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
   const describe = request => {
     assertTuiWorkflowRequest('describe', request);
     experimentalEnabled = request.includeExperimental === true;
-    commands = describeIndexWorkflows({ includeExperimental: experimentalEnabled });
-    return { commands: structuredClone(commands), coverage: describeWorkflowCoverage(), experimentalEnabled,
+    commands = describeIndexWorkflows({ includeExperimental: experimentalEnabled, backendDelegationEnabled: backendEnabled });
+    return { commands: structuredClone(commands), coverage: describeWorkflowCoverage({ backendDelegationEnabled: backendEnabled }), experimentalEnabled,
       limits: { maxRepos: MAX_REPOS, maxPreviews: MAX_PLANS, previewTtlMs: TTL_MS },
       embeddingSettings: ['indexing.embeddings.provider', 'indexing.embeddings.mode', 'indexing.embeddings.onnx', 'models'],
       note: 'Model/provider configuration uses the canonical settings schema; embeddings run within index build/watch. All launches require a fresh explicit preview.' };
@@ -218,7 +227,7 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
     if (argv.some(value => sanitizeRuntimeReceipt(value) !== value)) {
       return { launchable: false, errors: ['Use private Settings for credentials; command forms do not accept values that require redaction.'] };
     }
-    let observations, storage = null, service = null;
+    let observations, storage = null, service = null, backend = null;
     try { observations = await inspect(scope, command, values, signal); }
     catch (error) {
       throwIfAborted(signal);
@@ -235,14 +244,20 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
       catch (error) { throwIfAborted(signal); return { launchable: false, errors: [sanitizeRuntimeReceipt(error.message)],
         errorCode: error.code || 'ERR_TUI_INDEXER_PREVIEW' }; }
     }
+    if (NATIVE_BACKEND_MAINTENANCE.has(command.registryId)) {
+      try { backend = await maintenance.prepare({ scope, command, values, argv, signal }); }
+      catch (error) { throwIfAborted(signal); return { launchable: false, errors: [sanitizeRuntimeReceipt(error.message)],
+        errorCode: error.code || 'ERR_TUI_BACKEND_PREVIEW' }; }
+    }
     const errors = observations.flatMap(row => row.embeddings?.assets && !row.embeddings.assets.present
       ? [`${row.repo}: ${row.embeddings.assets.reason}`] : []);
     if (storage) errors.push(...storage.review.errors);
-    const result = { scope, command, canonicalArgv: storage || service ? null : argv,
+    const result = { scope, command, canonicalArgv: storage || service || backend ? null : argv,
       ...(storage ? { storageReview: storage.review,
         executionOwner: 'src/shared/storage: direct typed API; no serialized caller plan grants authority' } : {}),
       ...(service ? { serviceReview: service.review,
         executionOwner: 'Existing service queue claim/lease/executor/completion owners; scope-filtered claims and local cancellation.' } : {}),
+      ...(backend ? { backendReview: backend.review, executionOwner: 'authenticated canonical exclusive child delegation' } : {}),
       observations: observations.map(({ configFingerprint: _private, ...observation }) => observation), errors, launchable: errors.length === 0,
       effect: BUILDERS.has(command.registryId) ? 'Build selected indexes; watch remains running until cancelled.'
         : command.id.match(/snapshot\.(remove|gc|prune|freeze|create)$/) ? 'Snapshot operation; review dry-run, retention and force selections.'
@@ -255,7 +270,7 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
       const previewId = randomUUID();
       const jobId = `workflow-${randomUUID()}`;
       if (plans.size >= MAX_PLANS) plans.delete(plans.keys().next().value);
-      plans.set(previewId, { scope, command, values, argv, observations, storage, service, jobId, createdAt: now() });
+      plans.set(previewId, { scope, command, values, argv, observations, storage, service, backend, jobId, createdAt: now() });
       result.previewId = previewId;
       result.plannedJobId = jobId;
     }
@@ -270,7 +285,7 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
     }
     return plan;
   };
-  const launch = async (request, { signal } = {}) => {
+  const launch = async (request, { signal, operationOwner } = {}) => {
     assertTuiWorkflowRequest('launch', request);
     const plan = findPlan(request);
     plans.delete(request.previewId);
@@ -294,7 +309,8 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
         operation: plan.command.id, correlation: { correlationId: jobId } })),
       resultPolicy: { captureStdout: BUILDERS.has(plan.command.registryId) ? 'text' : plan.command.capture || 'json', maxBytes: 768 * 1024 } }, {
       beforeRun: check,
-      ...(plan.storage ? { execute: plan.storage.execute } : plan.service ? { execute: plan.service.execute }
+      ...(plan.backend ? { execute: context => plan.backend.execute({ ...context, launcherJob: operationOwner }) }
+        : plan.storage ? { execute: plan.storage.execute } : plan.service ? { execute: plan.service.execute }
         : plan.command.registryId === 'service.api' ? {
           execute: context => api.run({ scope: plan.scope, jobId, argv: plan.argv }, context)
         } : plan.command.registryId === 'service.mcp' ? {
@@ -310,6 +326,9 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
         }
       } : {}),
       afterRun: async ({ payload, signal }) => {
+        const backendState = maintenance.status();
+        if (plan.backend && backendState?.blocked) return { workflow: { commandId: plan.command.id,
+          processStatus: payload.status, maintenance: backendState, publications: [], observed: false } };
         let verification = null;
         if (SETUP.has(plan.command.registryId)) {
           const bootstrap = await inspectBootstrapReadiness({ root: toolRoot });
@@ -337,6 +356,7 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
             { signal: observationSignal, validateCurrent }));
         }
         return { workflow: { commandId: plan.command.id, processStatus: payload.status, verification,
+          ...(plan.backend ? { maintenance: backendState } : {}),
           publications: publications.map((row, index) => {
             const changed = row.generation?.generationKey !== plan.observations[index]?.publication.generation?.generationKey;
             return { ...row, changedSincePreview: changed,
@@ -345,17 +365,22 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
           }) } };
       }
     });
-    return { launched: true, jobId, commandId: plan.command.id, canonicalArgv: plan.storage || plan.service ? null : plan.argv,
-      ...(plan.storage || plan.service ? { executionOwner: plan.storage ? 'canonical-storage-api' : 'canonical-service-worker-owners' } : {}),
+    return { launched: true, jobId, commandId: plan.command.id, canonicalArgv: plan.storage || plan.service || plan.backend ? null : plan.argv,
+      ...(plan.storage || plan.service || plan.backend ? { executionOwner: plan.backend ? 'authenticated-canonical-cache-child'
+        : plan.storage ? 'canonical-storage-api' : 'canonical-service-worker-owners' } : {}),
       note: 'Track this owned job for progress, cancellation, publication evidence and artifact references.' };
   };
   const discard = request => { assertTuiWorkflowRequest('discard', request); findPlan(request); plans.delete(request.previewId); return { discarded: true }; };
   const status = async (request, { signal } = {}) => {
     assertTuiWorkflowRequest('status', request);
     const scope = requireScope(request.scopeId);
+    if (maintenance.status()?.blocked) return { scope, maintenance: maintenance.status(), publications: [],
+      note: 'Cache admission is fenced; no published/backend artifact reads were attempted.' };
     const publications = [];
     for (const repo of targets(scope)) publications.push(await observeIndexPublication(repo, loadUserConfig(repo, { env }), { signal }));
-    return { scope, publications, services: [...mcp.status(scope.id), ...api.status(scope.id)], indexers: indexer.status(scope.id),
+    const backendState = maintenance.status();
+    return { scope, publications, maintenance: backendState?.scopeId === scope.id ? backendState : null,
+      services: [...mcp.status(scope.id), ...api.status(scope.id)], indexers: indexer.status(scope.id),
       continuations: semantic.status(scope.id) };
   };
   const next = async (request, context) => { assertTuiWorkflowRequest('next', request); return semantic.next(request, context); };
@@ -364,5 +389,6 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
   };
   const reset = async () => { plans.clear(); await Promise.all([mcp.dispose(), api.dispose(), semantic.dispose(), indexer.dispose()]); };
   return { describe, preview, launch, discard, status, next, 'close-continuation': closeContinuation, reset,
-    dispose: async () => { disposed = true; await reset(); } };
+    assertCacheAdmission: maintenance.assertAdmission, cacheMaintenanceStatus: maintenance.status,
+    dispose: async () => { disposed = true; await maintenance.dispose(); await reset(); } };
 };

@@ -51,6 +51,7 @@ const form = (entry, options, suffix = '', positional = {}) => {
       ...(entry.id === 'service.indexer' && name === 'command' ? { enum: ['status', 'work'] } : {}),
       ...(entry.id === 'service.indexer' && name === 'concurrency' ? { type: 'integer', minimum: 1, maximum: 4 } : {}),
       ...(entry.id === 'service.indexer' && name === 'interval' ? { type: 'integer', minimum: 100, maximum: 5000 } : {}),
+      ...(['sqlite.compact', 'lmdb.build'].includes(entry.id) && name === 'mode' ? { enum: ['all', 'code', 'prose'] } : {}),
       ...(entry.id === 'bench.micro' && name === 'components' ? { enum: ['sparse', 'dense', 'hybrid', 'sparse,dense,hybrid'] } : {}) },
     description: spec.describe || spec.description || '', ...(spec.default !== undefined ? { default: spec.default } : {}),
     ...(entry.id.startsWith('storage.') && name === 'max-entries' ? { default: 10000 } : {}),
@@ -104,10 +105,13 @@ const UNSUPPORTED = {
   'tooling.lifecycle': 'Provider lifecycle verification/mutation blockers are owned by the canonical tooling lifecycle CLI; native lifecycle plan and consent adapters are not implemented.',
   'checkout.diagnose': 'Source-checkout diagnosis and opt-in prerequisite probes belong to the canonical onboarding CLI; this native session already requires a prepared installation.',
   'storage.configure-plan': 'Storage configuration planning has no native exact-root/configuration revision preview; use canonical storage configure-plan.',
+  'storage.configure-apply': 'Storage configuration application needs a native retained exact-root/configuration revision plan and explicit selection receipt; use canonical storage configure-apply.',
   'storage.migration-plan': 'Storage migration planning requires native source/destination ownership and impact presentation; use canonical storage migration-plan.',
-  'storage.migration-status': 'Storage migration status has no native plan identity/lease adapter; use canonical storage migration-status. Migration application remains unavailable.',
-  'sqlite.compact': 'Native backend mutation cannot upgrade the supervisor\'s retained cache reader lease or transfer exclusive ownership to the canonical child. Use the canonical CLI with its required ownership scope until that handoff is implemented.',
-  'lmdb.build': 'Native backend mutation cannot upgrade the supervisor\'s retained cache reader lease or transfer exclusive ownership to the canonical child. Use the canonical CLI with its required ownership scope until that handoff is implemented.',
+  'storage.migration-apply': 'Storage migration application needs a native retained exact source/destination plan, lease authority and pending-state recovery view; use canonical storage migration-apply.',
+  'storage.migration-rollback': 'Storage migration rollback needs a native exact retained migration identity, recovery journal and source/destination ownership review; use canonical storage migration-rollback.',
+  'storage.migration-status': 'Storage migration status has no native plan identity/lease adapter; use canonical storage migration-status. Native migration application remains unavailable.',
+  'sqlite.compact': 'This catalog owner has no enabled native reader-drain and authenticated canonical-child bridge. SQLite maintenance requires that code-owned integration; ordinary parent exclusion is not child authority.',
+  'lmdb.build': 'This catalog owner has no enabled native reader-drain and authenticated canonical-child bridge. LMDB maintenance requires that code-owned integration; ordinary parent exclusion is not child authority.',
   'cli.completions': 'Shell completion output belongs in the target shell; use the canonical CLI.',
   'cli.audit': 'Developer command-surface checks are outside native operator workflows.',
   'config.dump': 'Use Settings provenance and effective configuration.',
@@ -145,7 +149,7 @@ const UNSUPPORTED = {
 };
 
 /** Registry identity/support tiers and the CLI's own option definitions own this catalog. */
-export const describeIndexWorkflows = ({ includeExperimental = false } = {}) => listCommandRegistry({
+export const describeIndexWorkflows = ({ includeExperimental = false, backendDelegationEnabled = false } = {}) => listCommandRegistry({
   supportTiers: ['stable', 'operator', ...(includeExperimental ? ['experimental'] : [])] }).flatMap(entry => {
   if (entry.id === 'index.snapshot') return Object.entries(SNAPSHOT_COMMANDS)
     .map(([name, spec]) => form(entry, spec.options, name, spec.positional));
@@ -154,13 +158,13 @@ export const describeIndexWorkflows = ({ includeExperimental = false } = {}) => 
     'index.stats': INDEX_STATS_OPTIONS,
     'workspace.build': { ...INDEX_BUILD_OPTIONS, ...WORKSPACE_BUILD_OPTIONS }, ...OPTIONS }[entry.id];
   if (options) return [{ ...form(entry, options),
-    ...(['sqlite.compact', 'lmdb.build'].includes(entry.id) ? { unsupportedReason: UNSUPPORTED[entry.id] } : {}) }];
+    ...(['sqlite.compact', 'lmdb.build'].includes(entry.id) && !backendDelegationEnabled ? { unsupportedReason: UNSUPPORTED[entry.id] } : {}) }];
   if (!UNSUPPORTED[entry.id]) throw Object.assign(new Error(`Native command disposition missing: ${entry.id}`), { code: 'ERR_TUI_COMMAND_COVERAGE' });
   return [{ id: entry.id, registryId: entry.id, commandPath: entry.commandPath, supportTier: entry.supportTier,
     scopeKind: 'repo', description: entry.description, unsupportedReason: UNSUPPORTED[entry.id], fields: [] }];
 });
 
-export const describeWorkflowCoverage = () => describeIndexWorkflows({ includeExperimental: true })
+export const describeWorkflowCoverage = ({ backendDelegationEnabled = false } = {}) => describeIndexWorkflows({ includeExperimental: true, backendDelegationEnabled })
   .map(command => ({ id: command.id, registryId: command.registryId, supportTier: command.supportTier,
     disposition: command.unsupportedReason ? 'unsupported' : 'typed-adapter', reason: command.unsupportedReason || null }));
 

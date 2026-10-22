@@ -8,6 +8,7 @@ import { normalizeLineBreaks, sleep } from './supervisor/request-utils.js';
 import { createCli } from '../../src/shared/cli.js';
 import { assertTuiControlReason } from '../../src/contracts/validators/tui-request.js';
 import { createTuiArtifactRegistry } from './operator/artifact-registry.js';
+import { drainTuiBackendReaders } from './operator/backend-reader-drain.js';
 
 createCli({
   scriptName: 'pairofcleats tui supervisor',
@@ -91,7 +92,7 @@ const buildSessionDescriptor = () => ({
   controllable: true
 });
 
-const artifactRegistry = createTuiArtifactRegistry();
+let artifactRegistry = createTuiArtifactRegistry();
 
 const {
   startJob,
@@ -106,7 +107,11 @@ const {
   emitLog,
   buildFlowSnapshot,
   beginArtifactJob: id => /^[a-zA-Z0-9_-]{1,128}$/.test(id) ? artifactRegistry.beginJob(id) : null,
-  captureArtifactInventory: artifactRegistry.capture
+  captureArtifactInventory: input => artifactRegistry.capture(input),
+  assertWorkAdmission: ({ kind, method }) => {
+    if (kind === 'operation' && ['status', 'describe'].includes(method)) return;
+    indexWorkflows?.assertCacheAdmission();
+  }
 });
 
 let runtimeMetricsTimer = null;
@@ -151,6 +156,14 @@ const runArtifact = async (request, context) => {
 };
 
 let indexWorkflows = null, workflowModules = null;
+const drainBackendReaders = input => drainTuiBackendReaders({ ...input, jobs: state.jobs,
+  closeSearch: async () => { const selected = searchSession; searchSession = null; await selected?.dispose(); },
+  closeArtifactActions: async () => { const selected = artifactActions; artifactActions = null; await selected?.dispose(); },
+  resetArtifactRegistry: async () => {
+    await artifactRegistry.dispose();
+    artifactRegistry = createTuiArtifactRegistry();
+    return artifactRegistry;
+  } });
 let recordings = null, recordingModules = null;
 const runRecording = async (request, context) => {
   recordingModules ||= Promise.all([import('./operator/recordings.js'),
@@ -174,7 +187,10 @@ const runWorkflow = async (request, context) => {
     await indexWorkflows?.reset();
     return settingsSession.selectScope(request.params, context);
   }
-  indexWorkflows ||= workflows.createTuiIndexWorkflows({ scopes: settingsSession, startJob, toolRoot: ROOT });
+  indexWorkflows ||= workflows.createTuiIndexWorkflows({ scopes: settingsSession, startJob, toolRoot: ROOT,
+    drainLocalReaders: drainBackendReaders,
+    // Enabled only together with actual canonical SQLite/LMDB closure hooks.
+    backendDelegationEnabled: true });
   return indexWorkflows[request.method](request.params, context);
 };
 

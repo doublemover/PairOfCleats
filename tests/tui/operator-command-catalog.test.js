@@ -46,6 +46,17 @@ assert.ok(benchArgv.includes('--components=sparse,dense,hybrid'));
 for (const id of ['sqlite.compact', 'lmdb.build', 'cache.clear']) {
   assert.ok(catalog.find(command => command.id === id).unsupportedReason, `${id}: no implicit unimplemented ownership handoff`);
 }
+for (const command of describeIndexWorkflows({ backendDelegationEnabled: true })
+  .filter(command => ['sqlite.compact', 'lmdb.build'].includes(command.id))) {
+  assert.equal(command.unsupportedReason, undefined, 'only an explicitly integrated code owner admits delegated backend maintenance');
+  assert.equal(command.fields.some(field => field.name === 'index-root'), false, 'the reviewed current generation supplies the explicit root');
+  assert.equal(validateConfig(command.schema, { mode: 'records' }).ok, false);
+}
+for (const id of ['storage.configure-plan', 'storage.configure-apply', 'storage.migration-plan',
+  'storage.migration-apply', 'storage.migration-rollback', 'storage.migration-status']) {
+  assert.ok(catalog.find(command => command.id === id).unsupportedReason,
+    `${id}: explicit native root/plan/lease integration remains required`);
+}
 for (const id of ['service.mcp', 'service.indexer', 'storage.list', 'storage.explain', 'storage.inspect',
   'storage.doctor', 'storage.cleanup-plan', 'storage.cleanup-apply']) {
   assert.equal(catalog.find(command => command.id === id).unsupportedReason, undefined, `${id}: explicit owned adapter`);

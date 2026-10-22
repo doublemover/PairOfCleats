@@ -36,7 +36,7 @@ import { createJobWatchdogController, resolveWatchdogPolicy } from './watchdog.j
  * }}
  */
 export const createJobController = ({ state, runId, root, emit, emitLog, buildFlowSnapshot,
-  beginArtifactJob = null, captureArtifactInventory = null }) => {
+  beginArtifactJob = null, captureArtifactInventory = null, assertWorkAdmission = null }) => {
   const assertAcceptingWork = () => {
     if (state.shuttingDown) throw Object.assign(new Error('Supervisor is shutting down.'),
       { code: 'ERR_TUI_SHUTTING_DOWN' });
@@ -89,6 +89,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
    */
   const emitArtifacts = async (job, request, { cwd } = {}) => {
     try {
+      assertWorkAdmission?.({ kind: 'artifacts', request });
       const artifacts = await collectJobArtifacts({ request, cwd });
       const inventory = job.artifactGeneration && captureArtifactInventory
         ? await captureArtifactInventory({ sourceJobId: job.id, generation: job.artifactGeneration, artifacts })
@@ -125,6 +126,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
    */
   const startJob = async (request, { beforeRun = null, afterRun = null, execute = null } = {}) => {
     assertAcceptingWork();
+    assertWorkAdmission?.({ kind: 'job', request });
     const jobId = String(request?.jobId || '').trim();
     if (!jobId) {
       throw new Error('job:run requires jobId.');
@@ -166,7 +168,9 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
         }
       }
       if (job.nativeTaskStarted) emit('task:end', { taskId: 'native-owner', status: payload.status,
-        message: 'Owned workflow execution settled.' }, { jobId });
+        message: payload.workflow?.maintenance?.pending === true
+          ? 'Owned child closed with unresolved backend ownership; cache admission remains fenced.'
+          : 'Owned workflow execution settled.' }, { jobId });
       finalizeJob(job, payload);
     };
 
@@ -275,8 +279,8 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
           onStderr: (chunk) => stderrDecoder.push(chunk)
         };
         const result = execute
-          ? await execute({ signal: job.abortController.signal, env, cwd,
-            onSpawn: spawnOptions.onSpawn, onActivity: payload => {
+          ? await execute({ signal: job.abortController.signal, env, cwd, jobId,
+            onSpawn: spawnOptions.onSpawn, onStdout: spawnOptions.onStdout, onStderr: spawnOptions.onStderr, onActivity: payload => {
               job.status = 'running';
               markActivity();
               if (!job.nativeTaskStarted) {
@@ -337,7 +341,9 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
           resultCapture: error?.result?.outputCapture?.stdout || null,
           error: {
             message: error?.message || String(error),
-            code: cancelled ? (cancelReason || 'CANCELLED') : beforeRun ? (error.code || 'SPAWN_FAILED') : 'SPAWN_FAILED'
+            code: error?.cacheOwnershipPending === true || error?.code === 'ERR_TUI_BACKEND_OWNERSHIP_PENDING'
+              ? 'ERR_TUI_BACKEND_OWNERSHIP_PENDING'
+              : cancelled ? (cancelReason || 'CANCELLED') : beforeRun ? (error.code || 'SPAWN_FAILED') : 'SPAWN_FAILED'
           }
         };
         if (!cancelled && attempt < retryPolicy.maxAttempts) {
@@ -436,6 +442,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
   const startOperation = async ({ jobId, method }, execute,
     { timeoutMs = 15000, title = 'Settings', isCommitted = data => data?.saved === true } = {}) => {
     assertAcceptingWork();
+    assertWorkAdmission?.({ kind: 'operation', method });
     if (typeof jobId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(jobId)) {
       throw new Error('Internal operation requires a bounded jobId.');
     }
@@ -450,7 +457,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
     }, timeoutMs);
     const finish = payload => finalizeJob(job, { internal: true, durationMs: Date.now() - job.startedAt,
       signal: null, ...payload });
-    Promise.resolve().then(() => execute({ signal: job.abortController.signal, onSpawn: child => {
+    Promise.resolve().then(() => execute({ signal: job.abortController.signal, operationJobId: jobId, operationOwner: job, onSpawn: child => {
       emit('job:spawn', { pid: child.pid, internal: true }, { jobId });
     } })).then(data => {
       const committed = isCommitted(data);

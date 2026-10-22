@@ -84,13 +84,38 @@ identity/content and its existing exclusions. Only its producer-marked command
 probe adapter is eligible; durable evidence and unregistered data stay preserved.
 Incomplete/protected plans cannot launch apply; later protection produces skipped
 or failed canonical results. Physical reclaimed bytes remain unknown.
+Storage configure plan/apply and migration plan/apply/rollback/status each retain
+an explicit native unsupported reason until their exact root/configuration,
+retained plan, lease and recovery views exist; their canonical CLI owners remain
+the available surface.
 
-Cache GC retains its canonical scope and active-owner exclusions. Whole-root
-cache clear, SQLite compaction and LMDB mutation remain
-unavailable until their canonical owners provide the required native plan or
-exclusive child handoff. The supervisor's process-lifetime reader lease cannot
-be upgraded by ignoring itself, and a parent-held exclusion cannot be treated as
-permission for an unrelated child to read that cache.
+Cache GC retains its canonical scope and active-owner exclusions. The legacy
+whole-root clear form directs operators to canonical storage cleanup. SQLite
+compaction and LMDB build use the canonical authenticated child-delegation owner.
+Their preview pins the current published generation, pointer bytes, selected
+backend paths and observed metadata, exact realpath entry bytes and arguments.
+Only code/prose modes with canonical default backend paths are admitted;
+historical/snapshot inputs, path overrides, legacy cache-root generations and
+`NODE_OPTIONS` remain blocked. Metadata observations are not database checksums
+or backend readiness evidence.
+
+Other active supervised jobs block maintenance. The exact in-memory launcher
+instance is excluded from that check; a reused job ID cannot exclude another
+job. New work is fenced before search, artifact and semantic continuation owners
+are actually disposed and the exact retained-reader lease receipt is issued.
+That private receipt enters the existing repo-access exclusion and authenticated
+IPC admission before the child entry's readers. The canonical command independently
+rechecks its command digest, effective cache root and contained generation/targets
+before opening native databases; every native handle joins its closure owner.
+
+Only successful canonical ownership completion after authenticated handle and
+descendant closure plus actual child close resumes admission. A cancellation or
+kill request does not establish settlement. Unknown or failed closure keeps the
+existing exclusion and local cache fence pending, including after the job ends.
+Status then reports ownership metadata without reading publication artifacts,
+and artifact collection is fenced too. There is no native force-unlock action.
+Owners without this explicit reader-drain integration keep these catalog entries
+unsupported.
 
 The experimental microbenchmark adapter uses only sparse/dense/hybrid search,
 forces build/clean off, and bounds run/warmup counts to ten. Full index/corpus/
@@ -112,3 +137,7 @@ acceptance remain deferred; this document is not a qualification receipt.
 Source-only fixtures also cover pre-startup protocol admission, canonical task
 activity events, API startup/occupied-port isolation, private semantic
 continuations, exact storage plans and scoped queue cancellation/suppression.
+Delegated-maintenance sources cover exact command digests, current-generation
+and target changes, actual asynchronous drain, reused launcher IDs, pre-child
+conflicts, cancellation and unresolved closure. Injected owners do not qualify
+real IPC, SQLite/LMDB handle teardown, hard-kill recovery or native host behavior.

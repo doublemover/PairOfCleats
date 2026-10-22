@@ -278,6 +278,15 @@ Indexer work requires a workspace and a contained service config whose inline
 registered repositories are all enabled members. Cancellation affects only its
 claimed executions. Storage cleanup apply reviews and retains the canonical
 exact plan; protected/incomplete plans stay blocked and existing leases apply.
+SQLite compaction and LMDB build preview the exact current generation and
+canonical backend targets. They reject historical/snapshot and configured-path
+overrides, legacy cache-root generations and `NODE_OPTIONS`. Finish or cancel
+other active jobs first. Confirmation drains search/artifact/semantic owners and
+uses the existing authenticated canonical child owner under exclusive cache
+ownership. Old volatile inspection and continuation capabilities become stale.
+Cancellation stops only that owned child. Cache admission resumes only after
+authenticated native closure and actual child exit; unresolved closure remains
+pending and fenced, and status reports that state without reading index files.
 API status records a bounded loopback health response only after the owned
 child's verified listen event. MCP status verifies protocol initialize and tool
 inventory responses. Neither observation claims that a repository index is ready.

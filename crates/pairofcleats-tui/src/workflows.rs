@@ -291,7 +291,11 @@ impl WorkflowUi {
             json!({"jobId":event["jobId"], "processStatus":event["status"],
                 "resultState":event["resultState"], "error":event["error"], "publicationEvidence":event["workflow"], "result":event["result"]}),
         );
-        self.status = "Process ended; inspect publication evidence separately. Artifacts remain in Job inspection.".into();
+        self.status = if event["workflow"]["maintenance"]["pending"] == true {
+            "Backend ownership unresolved; cache admission remains fenced. Status reads do not inspect cache artifacts.".into()
+        } else {
+            "Process ended; inspect publication evidence separately. Artifacts remain in Job inspection.".into()
+        };
         self.scroll.reset();
         self.revision += 1;
     }
@@ -410,8 +414,11 @@ impl WorkflowUi {
                 self.presentation.get_mut().clear(); self.result = Some(data.clone());
                 self.page = Page::Result;
                 self.scroll.reset();
-                self.status =
-                    "Published generation observation; independent of process success".into();
+                self.status = if data["maintenance"]["blocked"] == true {
+                    "Backend maintenance fences cache admission; no publication artifacts were read".into()
+                } else {
+                    "Published generation observation; independent of process success".into()
+                };
             }
             "next" => {
                 self.result = Some(data.clone()); self.page = Page::Result; self.scroll.reset();
@@ -480,7 +487,7 @@ impl WorkflowUi {
                 if self.page == Page::Preview {
                     let empty = Value::Null;
                     let preview = self.preview.as_ref().unwrap_or(&empty);
-                    let projection: std::collections::BTreeMap<_, _> = ["canonicalArgv", "executionOwner", "serviceReview", "storageReview", "launchable", "errors", "effect", "observations"]
+                    let projection: std::collections::BTreeMap<_, _> = ["canonicalArgv", "executionOwner", "backendReview", "serviceReview", "storageReview", "launchable", "errors", "effect", "observations"]
                         .into_iter().map(|key| (key, &preview[key])).collect();
                     return self.presentation.borrow_mut().lines(1, self.scope.as_ref(), &projection,
                         &self.scroll, lines, height, width);
@@ -524,5 +531,18 @@ mod presentation_tests {
         assert!(ui.lines(24, 80).join("\n").contains("REFRESHED-STATUS"));
         assert_eq!(ui.presentation.borrow().builds, builds + 1);
         assert!(ui.preview.is_none());
+    }
+    #[test]
+    fn pending_backend_owner_is_presented_without_a_publication_read_claim() {
+        let mut ui = WorkflowUi { available: true, scope: Some(json!({"id":"scope","target":"repo"})),
+            ..WorkflowUi::default() };
+        ui.request("status", json!({}));
+        end(&mut ui, json!({"maintenance":{"blocked":true,"pending":true},"publications":[]}));
+        assert!(ui.status.contains("no publication artifacts were read"));
+        ui.completed(&json!({"jobId":"workflow-backend","status":"cancelled",
+            "error":{"code":"ERR_TUI_BACKEND_OWNERSHIP_PENDING"},
+            "workflow":{"maintenance":{"blocked":true,"pending":true},"publications":[]}}));
+        assert!(ui.status.contains("ownership unresolved"));
+        assert_eq!(ui.result.as_ref().unwrap()["publicationEvidence"]["maintenance"]["pending"], true);
     }
 }

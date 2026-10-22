@@ -35,4 +35,36 @@ assert.equal(frames.find(frame => frame.event === 'task:end').status, 'cancelled
 assert.equal(frames.findIndex(frame => frame.event === 'task:end') < frames.findIndex(frame => frame.event === 'job:end'), true);
 await turn();
 assert.equal(state.jobs.has('owned-operation'), false);
+{
+  const pendingState = { jobs: new Map(), shuttingDown: false }, pendingFrames = [];
+  let ended, settle;
+  const terminal = new Promise(resolve => { ended = resolve; });
+  const closing = new Promise(resolve => { settle = resolve; });
+  let blocked = false;
+  const actor = createJobController({ state: pendingState, runId: 'pending', root: process.cwd(),
+    emit: (name, payload) => { pendingFrames.push({ name, payload }); if (name === 'job:end') ended(payload); },
+    emitLog: () => {}, buildFlowSnapshot: () => ({}), assertWorkAdmission: () => {
+      if (blocked) throw Object.assign(new Error('Cache ownership pending.'), { code: 'ERR_TUI_BACKEND_OWNERSHIP_PENDING' });
+    } });
+  await actor.startJob({ jobId: 'pending-backend', argv: ['--version'], retry: { maxAttempts: 1 } }, {
+    execute: async ({ signal, onActivity }) => {
+      onActivity({ stage: 'running' });
+      await closing;
+      assert.equal(signal.aborted, true);
+      blocked = true;
+      throw Object.assign(new Error('Child closed without native closure receipt.'),
+        { code: 'ERR_TUI_BACKEND_OWNERSHIP_PENDING', cacheOwnershipPending: true });
+    }, afterRun: async () => ({ workflow: { maintenance: { pending: true, blocked: true } } }) });
+  await turn(); actor.cancelJob('pending-backend', 'user_cancel'); settle();
+  const result = await terminal;
+  assert.equal(result.status, 'cancelled');
+  assert.equal(result.error.code, 'ERR_TUI_BACKEND_OWNERSHIP_PENDING', 'late cancellation preserves the unresolved ownership diagnosis');
+  assert.match(pendingFrames.find(frame => frame.name === 'task:end').payload.message, /unresolved backend ownership/);
+  await turn();
+  assert.equal(pendingFrames.find(frame => frame.name === 'job:artifacts').payload.artifactsIndexed, false,
+    'artifact collection is fenced before it can probe cache paths');
+  await assert.rejects(actor.startOperation({ jobId: 'foreign-work', method: 'query' }, () => {}),
+    { code: 'ERR_TUI_BACKEND_OWNERSHIP_PENDING' });
+  assert.equal(pendingState.jobs.has('foreign-work'), false);
+}
 console.log('Trusted owned operations use canonical task progress and retain cancellation until actual settlement');
