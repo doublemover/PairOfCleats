@@ -27,6 +27,11 @@ try {
   assert.equal(observation.navigationCandidates[0].sourceHash, f.source.byteHash);
   assert.deepEqual(observation.navigationCandidates[0].span, [0, 5]);
   assert.equal(observation.observation.state, 'partial', 'initialized transport does not prove project analysis readiness');
+  const projected = await createSemanticDetailService()({ store, request: { repoRoot: f.root,
+    generation: f.generation, refs: [ref], include: ['providerEvidence'] } });
+  assert.equal(projected.providerEvidence[0].qualification, 'provider-observation');
+  assert.equal(projected.providerEvidence[0].target, undefined, 'captured target is not independently qualified published navigation');
+  assert.deepEqual(projected.providerEvidence[0].observedTarget.span, [0, 5]);
   await assert.rejects(readLspObservationDetail({ store: { ...store, generation: { baseBuildId: 'wrong', semanticRevision: 0 } }, ref }), { code: 'ERR_LSP_OBSERVATION_IDENTITY' });
   console.log('retained structured LSP evidence through canonical semantic detail and source-qualified navigation candidates');
 } finally { await f.cleanup(); }

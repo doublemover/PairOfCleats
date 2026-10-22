@@ -9,16 +9,18 @@ const fail = message => Object.assign(new Error(message), { code: 'ERR_SOURCE_LI
  * caller supplies stores from the same published generation for cross-source
  * target hydration; unverified targets remain explicit and non-navigable. */
 export const readSourceLinkedEvidenceDetail = async ({ store, ref, evidenceRoot = store.storeId,
-  targetStoreForSource = null, maxBytes = 1024 * 1024, maxReferences = 256, signal = null }) => {
+  targetStoreForSource = null, maxBytes = 1024 * 1024, maxReferences = 256, referenceOffset = 0, budget = null, signal = null }) => {
   throwIfAborted(signal);
   if (store.backend !== 'artifact' || path.resolve(evidenceRoot) !== path.resolve(store.storeId)
     || !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1024 * 1024
-    || !Number.isSafeInteger(maxReferences) || maxReferences < 1 || maxReferences > 4096) throw fail('Evidence root or detail bounds are not admitted.');
+    || !Number.isSafeInteger(maxReferences) || maxReferences < 1 || maxReferences > 4096
+    || !Number.isSafeInteger(referenceOffset) || referenceOffset < 0 || referenceOffset > 4096) throw fail('Evidence root or detail bounds are not admitted.');
   const [record] = await store.getRecords([ref], ['data'], { signal });
   if (record?.kind !== 'evidence' || !['graphql-schema-references', 'configuration-local-references', 'template-local-references', 'proto-descriptor-references', 'shellcheck-diagnostics', 'sql-catalog-references', 'scala-semanticdb-references', 'astro-generated-references'].includes(record.data.evidenceKind)) throw fail('Record is not source-linked schema/configuration/template/diagnostic evidence.');
   const match = /^semantic-evidence\/([a-f0-9]{64})\.json$/u.exec(record.data.artifactRef || '');
   if (!match) throw fail('Invalid source-linked evidence reference.');
   const { buffer } = await readVerifiedContainedFile(evidenceRoot, path.join(evidenceRoot, record.data.artifactRef), { expectedHash: match[1], maxBytes, signal });
+  budget?.consumeBytes(buffer.length);
   const sidecar = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(buffer));
   const report = sidecar.report;
   if (sidecar.schemaVersion !== 1 || sidecar.kind !== 'source-linked-evidence-sidecar' || !report
@@ -30,7 +32,8 @@ export const readSourceLinkedEvidenceDetail = async ({ store, ref, evidenceRoot 
   if (results.length !== 1) throw fail('Source-linked evidence does not uniquely identify its source.');
   const result = results[0], sourcePartitions = new Map();
   for (const item of sidecar.sourcePartitions) {
-    if (sourcePartitions.has(item.sourceUnitId) || typeof item.partitionId !== 'string') throw fail('Invalid target partition inventory.');
+    if (!item || sourcePartitions.has(item.sourceUnitId) || !/^su1:[a-f0-9]{64}$/u.test(item.sourceUnitId)
+      || !/^[a-f0-9]{64}$/u.test(item.sourceHash) || !/^sy1:[a-f0-9]{64}$/u.test(item.partitionId)) throw fail('Invalid target partition inventory.');
     sourcePartitions.set(item.sourceUnitId, item);
   }
   let source = null;
@@ -39,13 +42,15 @@ export const readSourceLinkedEvidenceDetail = async ({ store, ref, evidenceRoot 
     source = manifest;
   }
   if (!source || report.schemaVersion !== 1 || report.kind !== 'source-linked-evidence'
-    || !Array.isArray(result.references) || record.data.sourceRef !== source.sourceUnitId || result.sourceHash !== source.byteHash
+    || !Array.isArray(result.references) || result.references.length > 4096
+    || !Array.isArray(result.diagnostics) || result.diagnostics.length > 32
+    || result.path !== source.path || record.data.sourceRef !== source.sourceUnitId || result.sourceHash !== source.byteHash
     || report.method !== record.data.method || report.evidenceKind !== record.data.evidenceKind
     || report.producerId !== record.data.producerId || report.adapterVersion !== record.data.producerVersion
     || canonicalSemanticJson(report.generation) !== canonicalSemanticJson(store.generation)) throw fail('Evidence source/generation identity differs from its canonical record.');
   await store.verifySource(source, { signal });
   const navigationCandidates = [], unresolvedTargets = [], verified = new Set();
-  for (const reference of result.references.slice(0, maxReferences)) {
+  for (const reference of result.references.slice(referenceOffset, referenceOffset + maxReferences)) {
     throwIfAborted(signal);
     if (reference.state !== 'resolved' || !reference.target) continue;
     const target = reference.target, targetStore = targetStoreForSource ? await targetStoreForSource(target.sourceUnitId)
@@ -55,7 +60,7 @@ export const readSourceLinkedEvidenceDetail = async ({ store, ref, evidenceRoot 
     }
     let targetSource = null;
     const targetPartition = sourcePartitions.get(target.sourceUnitId);
-    if (targetPartition?.sourceHash !== target.sourceHash) throw fail('Source-linked target identity differs from its host partition inventory.');
+    if (!targetPartition || targetPartition.sourceHash !== target.sourceHash) throw fail('Source-linked target identity differs from its host partition inventory.');
     for await (const candidate of targetStore.iterateRows(targetPartition.partitionId, 'semantic_sources', { signal })) {
       if (targetSource) throw fail('Conflicting target manifests.');
       targetSource = candidate;
@@ -69,7 +74,7 @@ export const readSourceLinkedEvidenceDetail = async ({ store, ref, evidenceRoot 
     navigationCandidates.push({ ...target, evidenceRef: ref, family: reference.family, fromSpan: reference.span,
       coverage: 'source_qualified_observation' });
   }
-  return { recordRef: ref, generation: store.generation, report, result, navigationCandidates, unresolvedTargets,
-    partial: result.state !== 'complete' || result.references.length > maxReferences || unresolvedTargets.length > 0,
-    omittedReferences: Math.max(0, result.references.length - maxReferences) };
+  return { recordRef: ref, generation: store.generation, source, report, result, navigationCandidates, unresolvedTargets,
+    partial: result.state !== 'complete' || referenceOffset > 0 || result.references.length > referenceOffset + maxReferences || unresolvedTargets.length > 0,
+    omittedReferences: Math.max(0, result.references.length - referenceOffset - maxReferences) };
 };

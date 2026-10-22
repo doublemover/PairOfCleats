@@ -1,5 +1,5 @@
 export { classifySemanticDetailError } from './semantic-errors.js';
-import { createSemanticDetailService } from '../../semantic/detail.js';
+import { createSemanticDetailService, getSemanticDetailBudgetUsage } from '../../semantic/detail.js';
 import { openPublishedSemanticStore } from '../../semantic/published-store.js';
 import { normalizeSemanticConfig } from '../../index/semantic/config.js';
 import { assertSemanticQuery } from '../../contracts/validators/semantic-query.js';
@@ -40,17 +40,18 @@ export const createSemanticDetailRunner = ({ openStore = openPublishedSemanticSt
     let result;
     if (request.refs.length || !request.typeQueries) {
       const { store } = await openStore({ indexDir, repoRoot: request.repoRoot, generation: request.generation,
-        requireQueryIndex: Boolean(request.include?.length) });
+        requireQueryIndex: Boolean(request.include?.some(value => ['operands', 'names', 'ownership'].includes(value))) });
       throwIfAborted(signal);
       result = await service({ store, request, signal });
     } else result = { schemaVersion: 1, generation: request.generation, status: 'complete', records: [],
       edges: [], operands: [], ownership: [], names: [], evidenceRefs: [], frontier: [], cursor: null, warnings: [],
       coverage: { extraction: [], analysis: [], response: { state: 'complete', returnedCount: 0, hydratedCount: 0 } } };
+    if (request.include?.includes('providerEvidence') && !result.providerEvidence) result.providerEvidence = [];
     if (request.typeQueries) {
       if (request.cursor) throw Object.assign(new Error('Type queries cannot be combined with semantic detail continuations.'), { code: 'ERR_SEMANTIC_QUERY_CONTRACT' });
       if (result.cursor) throw Object.assign(new Error('Mixed type/detail response requires pagination; query types separately.'), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
       result.typeResults = [];
-      const outputLimit = request.limits?.bytes || options.maxBytes;
+      const outputLimit = (request.limits?.bytes || options.maxBytes) - getSemanticDetailBudgetUsage(result).retainedEvidenceBytes;
       let responseBytes = measureSymbolicResponseBytes(result, outputLimit);
       const typeStore = await openTypeStore({ indexDir, repoRoot: request.repoRoot, generation: request.generation, signal });
       for (const typeQuery of request.typeQueries) {
