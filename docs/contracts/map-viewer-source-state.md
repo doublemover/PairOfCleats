@@ -127,3 +127,50 @@ overview, demand-driven compact-page eviction, indexed substring acceleration,
 streaming canonical artifact ingestion and retirement of eager paths are open;
 this slice does not establish bounded total heap or complete-index consumption.
 No browser/worker-host or latency/resource acceptance has been run.
+
+An optional spatial draw-packet candidate is now implemented behind the renderer
+boundary. It requires an explicit finite cell/instance/packet/attribute-byte policy;
+there is no selected default policy or public settings knob. Compatible bases and
+semantic shapes can batch across nearby files, with separate file/member surface,
+alpha/depth and geometry groups. Pipes, labels and directory trays retain their
+separate owners. Each packet records canonical typed source key, snapshot-local
+row and mutable slot separately; anonymous legacy geometry remains render-only.
+Packets retain attribute capacity, transact slot maps, update dirty ranges and
+invalidate picking on residency changes. Cross-cell/incompatible movement or
+membership/eviction changes require a new bounded scene transaction so pipes and
+coverage cannot outlive their represented endpoint geometry. Slot compaction is
+implemented as a pure transaction contract; in-place scene membership adoption
+remains open. Shared materials have one packet owner, distinct
+from instance buffers and scene-owned common geometry.
+
+The authored 20/200/500-file packet fixtures exercise identity/capacity/disposal,
+not renderer submissions or performance. The candidate's requested upload bytes,
+allocation counts and churn are operation counters; draw/GPU cost is unavailable.
+Policy selection, incremental spatial-index repair, background upload scheduling,
+backend comparison and physical path/capture semantics remain unqualified/open.
+
+Worker substring search now has optional bounded trigram acceleration over cached
+keys. Postings use snapshot-local row addresses, while results retain canonical
+typed identities. An 8 MiB posting/key-byte budget and long-field fallback bound
+the acceleration representation; overflow rows stay queryable through cooperative
+exact matching. Short queries also use that fallback. Candidate iteration merges
+stable source order without allocating a full result-candidate array. This
+supersedes the earlier linear-only search limitation, but does not establish total
+heap bounds or latency acceptance. Index bytes exclude JavaScript map/array heap
+overhead, which remains explicitly unmeasured.
+
+Search result pages also obey the 256 KiB response budget with exact continuation;
+large names cannot turn a nominal 80-row result into an unbounded worker message.
+Worker phase reporting queues at most one message per row family during loading,
+followed by the final accepted-store statistics. This avoids page-count growth in
+progress messages when the main document is suspended. Bounded resident layout
+still crosses as a structured model; columnar transfer, buffer recycling and
+scheduled GPU upload remain open. Typed protocol identities are preserved by the
+worker, while the legacy renderer's string-key compatibility maps remain a
+separate migration boundary for type-colliding legacy IDs.
+
+View revision changes now abort pending controllers that depend on the changed
+family, in addition to fencing publication. Cooperative worker messages and fetches
+therefore receive actual cancellation. Reveal preparation status has a separate
+request owner; a cancelled predecessor cannot restore its text over a newer
+request. A disposed revision owner rejects new work.

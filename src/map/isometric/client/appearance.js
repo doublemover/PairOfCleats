@@ -15,11 +15,12 @@ export const applyViewerAppearance = (state, requested = state.appearance || TRO
   const material=(mesh,color)=>{
     const value=mesh.material;if(!value?.isMeshStandardMaterial)return;
     value.roughness=resolved.material.roughness;value.metalness=resolved.material.metalness;
-    value.emissive.set(color);value.emissiveIntensity=resolved.material.emissive;
+    value.emissive.set(value.userData?.packetOwned?'#ffffff':color);value.emissiveIntensity=resolved.material.emissive;
   };
   if(state.layoutStyle==='stacks'){
     for(const mesh of [...state.fileInstancedMeshes,...state.memberInstancedMeshes]){
       for(const [index,info]of (mesh.userData.instanceInfo||[]).entries()){
+        if(!info)continue;
         const source=state.sourceIndex?.files.get(info.file),member=state.sourceIndex?.members.get(String(info.id))?.member;
         const color=info.type==='member'?resolved.palette.kinds[member?segmentKind(member):info.semanticKind||'other']:resolved.palette.files[source?.category]||resolved.palette.files.other;
         const value=new THREE.Color(color);mesh.setColorAt(index,value);info.baseColor=value.clone();

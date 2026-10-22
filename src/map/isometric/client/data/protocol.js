@@ -19,13 +19,14 @@ export const acceptSnapshotResponse = (response,request) => {
 };
 
 export const readBoundedJsonResponse = async(response,{signal,maxBytes=SNAPSHOT_PAGE_LIMITS.responseBytes}={}) => {
-  if(!response.ok)throw new Error(`Snapshot transport returned ${response.status}.`);
   if(!/^application\/json(?:;|$)/i.test(response.headers.get('content-type')||''))throw new Error('Snapshot transport requires JSON.');
   const reader=response.body.getReader(),chunks=[];let bytes=0;
   try{
     for(;;){signal?.throwIfAborted();const result=await reader.read();if(result.done)break;bytes+=result.value.byteLength;
       if(bytes>maxBytes)throw new Error('Snapshot response exceeds its byte budget.');chunks.push(result.value);}
     const merged=new Uint8Array(bytes);let offset=0;for(const chunk of chunks){merged.set(chunk,offset);offset+=chunk.byteLength;}
-    return JSON.parse(new TextDecoder().decode(merged));
+    const value=JSON.parse(new TextDecoder().decode(merged));
+    if(!response.ok)throw new Error(value.error||`Snapshot transport returned ${response.status}.`);
+    return value;
   }finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
 };

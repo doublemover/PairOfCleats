@@ -7,8 +7,10 @@ const compactFile=(file,row)=>({id:file.id??null,path:file.path||file.name,name:
 
 /** Pages an already admitted immutable map; never reads live artifacts or expands its query. */
 export const createMapSnapshotTransport = ({model,snapshotId,identity,maxResponseBytes=SNAPSHOT_PAGE_LIMITS.responseBytes}) => {
+  if(!Number.isSafeInteger(maxResponseBytes)||maxResponseBytes<1024||maxResponseBytes>SNAPSHOT_PAGE_LIMITS.responseBytes)throw new Error('Snapshot responses require a finite budget up to 256 KiB.');
   let retired=false;
-  const files=model.nodes||[],edges=model.edges||[],fileByPath=new Map(),memberById=new Map(),adjacency=new Map();
+  let files=model.nodes||[],edges=model.edges||[];
+  const fileByPath=new Map(),memberById=new Map(),adjacency=new Map();
   let members=0;
   const append=(key,row)=>{if(!adjacency.has(key))adjacency.set(key,[]);adjacency.get(key).push(row);};
   files.forEach((file,row)=>{
@@ -35,6 +37,7 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
   const wrap=(request,value)=>({protocol:MAP_DATA_PROTOCOL,snapshot:snapshotId,request:request.request,revision:request.revision,kind:request.kind,...value});
   const encode=value=>{const bytes=Buffer.from(JSON.stringify(value));if(bytes.length>maxResponseBytes)throw new Error('A map record exceeds the snapshot response budget; use the admitted compatibility artifact for this detail.');return bytes;};
   const page=(request,rows,project=row=>row)=>{
+    if(request.cursor>rows.length)throw new Error('Snapshot cursor exceeds the pinned page total.');
     const result=[],end=Math.min(rows.length,request.cursor+request.limit);let next=request.cursor;
     while(next<end){const candidate=project(rows[next],next),trial=wrap(request,{cursor:request.cursor,next:next+1<rows.length?next+1:null,total:rows.length,rows:[...result,candidate]});
       if(Buffer.byteLength(JSON.stringify(trial))>maxResponseBytes){if(!result.length)encode(trial);break;}
@@ -56,7 +59,7 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
       if(request.kind==='edges')return encode(wrap(request,page(request,edges,(edge,row)=>({row,from:edge.from,to:edge.to,type:edge.type||'unknown'}))));
       if(request.kind==='adjacency'){
         const key=sourceEntityKey(request.entity?.type==='member'?'member':'file',request.entity?.type==='member'?request.entity.id:request.entity?.file);
-        return encode(wrap(request,page(request,adjacency.get(key)||[],row=>({row,...edges[row]}))));
+        return encode(wrap(request,page(request,adjacency.get(key)||[],row=>({row,evidence:edges[row]}))));
       }
       if(request.kind==='detail'){
         const entity=request.entity,found=entity?.type==='member'?memberById.get(sourceEntityKey('member',entity.id)):fileByPath.get(entity?.file);
@@ -65,6 +68,6 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
       }
       throw new Error('Unsupported map snapshot operation.');
     },
-    dispose(){retired=true;fileByPath.clear();memberById.clear();adjacency.clear();}
+    dispose(){retired=true;files=[];edges=[];fileByPath.clear();memberById.clear();adjacency.clear();}
   };
 };

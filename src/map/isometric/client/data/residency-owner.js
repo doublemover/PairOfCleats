@@ -11,12 +11,14 @@ export const initResidencyOwner = () => {
   const source=state.sourceIndex;
   const revisions=createViewRevisions(source.snapshot);
   const boundary=createRendererBoundary({prepare:prepareResidentScene,commit:commitResidentScene,retire:retireResidentScene,
-    capabilities:rendererCapabilities({renderer:state.renderer})});
+    capabilities:rendererCapabilities({renderer:state.renderer,packetPolicy:state.stackPacketPolicy})});
   state.viewRevisions=revisions;state.rendererBoundary=boundary;
+  let statusOwner=null;
   const reveal=async(selection=state.selectedInfo)=>{
     const owned=revisions.begin('resident-reveal',['source','layout','residency','selection','camera']);
     const operation={...owned,current:()=>owned.current()&&state.sourceIndex===source&&state.layoutStyle==='stacks'};
-    const oldStatus=state.dom.summary.textContent;
+    const status={baseline:statusOwner?.baseline||state.dom.summary.textContent};statusOwner=status;
+    const ownsStatus=()=>statusOwner===status;
     state.dom.summary.textContent='Preparing selected source evidence in the bounded render working set…';
     try{
       const plan=planSourceResidency(source,selection,{current:state.stackModel?.files.map(file=>file.key)||[],
@@ -31,18 +33,21 @@ export const initResidencyOwner = () => {
       }
       if(state.sourceIndex!==source)throw new Error('Source snapshot changed before reveal.');
       const result=await boundary.transact(operation,plan);
-      if(result.committed){revisions.bump('residency');focusStack(plan.selected);state.dom.summary.textContent=`Available snapshot ${source.counts.files} files / ${source.counts.members} members. Resident ${plan.coverage.resident.files} files / ${plan.coverage.resident.members} members; nonresident evidence remains searchable.`;}
-      else if(state.dom.summary.textContent.startsWith('Preparing selected'))state.dom.summary.textContent=oldStatus;
+      if(result.committed){revisions.bump('residency');focusStack(plan.selected);if(ownsStatus())state.dom.summary.textContent=`Available snapshot ${source.counts.files} files / ${source.counts.members} members. Resident ${plan.coverage.resident.files} files / ${plan.coverage.resident.members} members; nonresident evidence remains searchable.`;}
+      else if(ownsStatus()&&state.dom.summary.textContent.startsWith('Preparing selected'))state.dom.summary.textContent=status.baseline;
       return result;
     }catch(error){
-      if(!operation.signal.aborted)state.dom.summary.textContent=`Reveal did not replace the prior scene: ${error.message}`;
+      if(ownsStatus()&&!operation.signal.aborted)state.dom.summary.textContent=`Reveal did not replace the prior scene: ${error.message}`;
       return {committed:false,reason:operation.signal.aborted?'cancelled':error.message};
-    }finally{if(operation.signal.aborted&&state.dom.summary.textContent.startsWith('Preparing selected'))state.dom.summary.textContent=oldStatus;operation.finish();}
+    }finally{
+      if(ownsStatus()){if(state.dom.summary.textContent.startsWith('Preparing selected'))state.dom.summary.textContent=status.baseline;statusOwner=null;}
+      operation.finish();
+    }
   };
   state.revealSourceSelection=reveal;
   state.cancelResidentPreparation=()=>{revisions.bump('layout');};
   state.resetResidency=()=>{revisions.bump('residency');state.residentFiles=null;state.residentEdges=null;state.residencyCoverage=null;};
-  state.disposeResidency=()=>{boundary.dispose();revisions.dispose();if(state.viewRevisions===revisions){state.viewRevisions=null;state.revealSourceSelection=null;state.cancelResidentPreparation=null;state.resetResidency=null;}};
+  state.disposeResidency=()=>{statusOwner=null;boundary.dispose();revisions.dispose();if(state.viewRevisions===revisions){state.viewRevisions=null;state.revealSourceSelection=null;state.cancelResidentPreparation=null;state.resetResidency=null;}};
   state.rendererCapabilities=boundary.capabilities;
   if(state.selectedInfo){const info=state.selectedInfo;state.onSelectionChanged?.(info);}
   return {reveal,dispose:state.disposeResidency,revisions,boundary};

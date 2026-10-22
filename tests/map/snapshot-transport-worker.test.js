@@ -23,7 +23,12 @@ assert.throws(()=>transport.respond({...first,snapshot:'other'}),/generation/);
 const detail=JSON.parse(transport.respond(request('detail',{entity:{type:'member',id:'last:1000:日本語'}})));
 assert.equal(detail.detail.name,'tail1000');
 const messages=[];
-const owner=createSnapshotWorkerOwner({post:message=>messages.push(message),fetchPage:async(query,signal)=>{signal.throwIfAborted();return JSON.parse(transport.respond(query));}});
+const replacement=createMapSnapshotTransport({model,snapshotId:'pinned:b',identity:{selectedIndex:{manifest:'generation:b'}},maxResponseBytes:8192});
+const owner=createSnapshotWorkerOwner({post:message=>messages.push(message),fetchPage:async(query,signal)=>{
+  signal.throwIfAborted();const result=JSON.parse((query.snapshot==='pinned:b'?replacement:transport).respond(query));
+  if(query.snapshot==='pinned:b'&&query.kind==='files')result.next=query.cursor+1;
+  return result;
+}});
 await owner.handle({protocol:MAP_DATA_PROTOCOL,snapshot:'pinned:a',request:1,revision:0,kind:'init'});
 const overview=messages.findIndex(message=>message.event==='overview'),ready=messages.findIndex(message=>message.event==='ready');
 assert.ok(overview>=0&&ready>overview);assert.equal(messages[ready].stats.complete,true);
@@ -44,5 +49,10 @@ await owner.handle({protocol:MAP_DATA_PROTOCOL,snapshot:'unavailable:b',request:
 assert.equal(messages.find(message=>message.request===6&&message.event==='error').retainedSnapshot,'pinned:a');
 await owner.handle({protocol:MAP_DATA_PROTOCOL,snapshot:'pinned:a',request:7,revision:6,kind:'detail',payload:{entity:{type:'member',id:'last:1000:日本語'}}});
 assert.equal(messages.find(message=>message.request===7).value.detail.name,'tail1000','failed generation keeps prior accepted store usable');
-owner.dispose();transport.dispose();assert.throws(()=>transport.respond(first),/retired/);
+await owner.handle({protocol:MAP_DATA_PROTOCOL,snapshot:'pinned:b',request:8,revision:7,kind:'init'});
+assert.match(messages.find(message=>message.request===8&&message.event==='error').error,/continuation/);
+assert.equal(messages.find(message=>message.request===8&&message.event==='error').retainedSnapshot,'pinned:a');
+await owner.handle({protocol:MAP_DATA_PROTOCOL,snapshot:'pinned:a',request:9,revision:8,kind:'search',payload:{query:'tail1000'}});
+assert.equal(messages.find(message=>message.request===9).value.rows[0].id,'last:1000:日本語');
+owner.dispose();transport.dispose();replacement.dispose();assert.throws(()=>transport.respond(first),/retired/);
 console.log('Generation-qualified pages, worker search/layout, original evidence hydration and last-good store retirement authored.');

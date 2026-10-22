@@ -3,11 +3,13 @@ import { createShapeGeometry } from './layout.js';
 import { createTextPlane, applyHeightFog } from './materials.js';
 import { resolveStackTier, STACK_KINDS } from './stack-model.js';
 import { projectPipeRows, projectViewerCoverage } from './coverage.js';
+import { buildSpatialStackMeshes } from './rendering/stack-packet-adapter.js';
 const categoryColors={source:'#426b90',test:'#8667b1',config:'#388b80',docs:'#b8884f',generated:'#596477',other:'#4a5c70'};
 const edgeColors={import:'#76a9f0',export:'#b49bf4',call:'#61dbcf',usage:'#f3bd71',dataflow:'#ee8faa',alias:'#adb8cc'};
 const material=color=>{const value=new state.THREE.MeshStandardMaterial({color,roughness:0.7,metalness:0.12});applyHeightFog(value);state.stackMaterials.push(value);return value;};
 export function buildStackMeshes(){
   state.stackMaterials=[];
+  state.stackPacketOwner=null;
   const {THREE,stackModel:model}=state,scale=state.scaleFactor||1,dummy=new THREE.Object3D();
   let members=0,labels=0;
   const label=(text,anchor,size,level)=>{
@@ -19,6 +21,12 @@ export function buildStackMeshes(){
     const tray=new THREE.Mesh(createShapeGeometry('square'),material('#1c2d40'));
     tray.position.set(group.x,-0.18*scale,group.z);tray.scale.set(group.width,0.16*scale,group.depth);tray.userData={type:'directory',group:group.key,skipPick:true};state.fileGroup.add(tray);
     label(group.key,{x:group.x,y:0.5*scale,z:group.z-group.depth/2},Math.min(group.width,8*scale),'pipeline');
+  }
+  if(state.stackPacketPolicy){
+    state.stackPacketOwner=buildSpatialStackMeshes({model,policy:state.stackPacketPolicy,geometry:createShapeGeometry,material,
+      fileColor:file=>new THREE.Color(categoryColors[file.node.category]||categoryColors.other)});
+    for(const file of model.files)label(file.node.name||file.key.split('/').at(-1),{x:file.x,y:file.stackHeight+1.2*scale,z:file.z},Math.min(file.width,5*scale),'stacks');
+    members=model.files.reduce((sum,file)=>sum+file.members.length,0);state.drawCounts={files:model.files.length,members,edges:0,labels};return;
   }
   for(const file of model.files){
     const color=new THREE.Color(categoryColors[file.node.category]||categoryColors.other);

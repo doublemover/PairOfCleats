@@ -45,6 +45,7 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
     signal?.removeEventListener('abort', onAbort);
     if (server?.listening) await new Promise((resolve, reject) => { server.close(error => error ? reject(error) : resolve()); server.closeAllConnections(); });
     session?.assets.clear();
+    if(session)session.html=Buffer.alloc(0);
     snapshotTransport?.dispose();
   };
   controller.signal.addEventListener('abort', () => { if (server?.listening) close().catch(error => stderr.write(`${error.message}\n`)); }, { once: true });

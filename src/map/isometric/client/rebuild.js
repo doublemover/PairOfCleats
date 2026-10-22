@@ -18,6 +18,7 @@ const resetScene = () => {
   clearGroup(state.labelGroup);
   clearGroup(state.edgeGroup);
   clearGroup(state.wireGroup);
+  state.stackPacketOwner?.dispose();state.stackPacketOwner=null;
   state.fileMeshes = [];
   state.fileInstancedMeshes = [];
   state.fileInstancedInnerMeshes = [];

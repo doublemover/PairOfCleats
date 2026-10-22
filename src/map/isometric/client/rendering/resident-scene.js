@@ -10,7 +10,7 @@ import { retirePicking } from './picking-owner.js';
 const groups=['fileGroup','memberGroup','labelGroup','edgeGroup','wireGroup'];
 const arrays=['fileMeshes','fileInstancedMeshes','fileInstancedInnerMeshes','memberMeshes','memberInstancedMeshes','memberInnerInstancedMeshes','chunkMeshes','memberClusters','fileBuckets','pickTargets','edgeMeshes','edgeSegments','edgeCullingTargets','edgeTypes','stackPipeLayers','stackVisibleRows','labelMaterials','stackMaterials'];
 const maps=['memberInstanceById','memberClusterByMemberId','fileInstanceByKey','fileBucketByKey','fileAnchors','memberAnchors','fileMeshByKey','fileWireByKey','memberMeshById','fileColorByPath','memberColorById','wireByMesh','edgeTypeGroups'];
-const metadata=['stackModel','allFiles','groups','bounds','layoutMetrics','drawCounts','stackVisibilityKey','stackVisibilityModel','stackTier','viewerCoverage','residentFiles','residentEdges','residencyCoverage','preparingScene'];
+const metadata=['stackModel','allFiles','groups','bounds','layoutMetrics','drawCounts','stackVisibilityKey','stackVisibilityModel','stackTier','viewerCoverage','residentFiles','residentEdges','residencyCoverage','preparingScene','stackPacketOwner'];
 const keys=[...groups,...arrays,...maps,...metadata,'highlightedMemberIds','highlightedFileKeys'];
 const capture=()=>Object.fromEntries(keys.map(key=>[key,state[key]]));
 
@@ -18,6 +18,7 @@ export const retireResidentScene = candidate => {
   if(candidate.retired||candidate.published)return;
   candidate.retired=true;
   for(const key of groups)clearGroup(candidate.values[key]);
+  candidate.values.stackPacketOwner?.dispose();
 };
 
 /** Build into detached groups; no await while the singleton builder is borrowed. */
@@ -28,9 +29,12 @@ export const prepareResidentScene = async (request, operation) => {
   const model=request.model||buildStackModel(request.nodes,request.edges,{scale:state.scaleFactor||1,groupDepth:state.layout.groupDepth||1,
     maxFiles:request.limits.files,maxMembers:request.limits.members,maxEdges:request.limits.edges,fileByMember:state.sourceIndex.fileByMember});
   operation.signal.throwIfAborted();
-  const previous=capture(),stage={retired:false,published:false,values:{}};
+  const previous=capture(),stage={retired:false,published:false,values:{}},preparedGroups={};
   try{
-    for(const key of groups){const group=new state.THREE.Group();group.visible=previous[key]?.visible!==false;group.userData={...previous[key]?.userData};group.renderOrder=previous[key]?.renderOrder||0;state[key]=group;}
+    for(const key of groups){const group=new state.THREE.Group();preparedGroups[key]=group;group.visible=previous[key]?.visible!==false;group.userData={...previous[key]?.userData};group.renderOrder=previous[key]?.renderOrder||0;}
+  }catch(error){for(const group of Object.values(preparedGroups))clearGroup(group);throw error;}
+  try{
+    Object.assign(state,preparedGroups);state.stackPacketOwner=null;
     for(const key of arrays)state[key]=[];
     for(const key of maps)state[key]=new Map();
     state.highlightedMemberIds=new Set();state.highlightedFileKeys=new Set();
@@ -54,6 +58,7 @@ export const commitResidentScene = (candidate,request) => {
   retirePicking();
   state.geometryRevision=(state.geometryRevision||0)+1;
   for(const key of groups){state.scene.remove(previous[key]);try{clearGroup(previous[key]);}catch(error){state.sceneRetirementError=error.message;}}
+  try{previous.stackPacketOwner?.dispose();}catch(error){state.sceneRetirementError=error.message;}
   state.hovered=null;state.hoveredRef=null;state.selected=null;
   try{
     const selected=request.selected,reference=selected.type==='member'?state.memberInstanceById.get(String(selected.id)):state.fileInstanceByKey.get(selected.file);

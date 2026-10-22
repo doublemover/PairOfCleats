@@ -353,6 +353,7 @@ export const applyGlassSettings = () => {
 export const updateFileOpacity = () => {
   const { visuals, visualDefaults, fileMeshes, fileInstancedMeshes, fileInstancedInnerMeshes } = state;
   const opacity = clamp(numberValue(visuals.fileOpacity, visualDefaults.fileOpacity), 0.1, 1);
+  state.stackPacketOwner?.setSurfaceOpacity('file',opacity);
   for (const mesh of fileMeshes) {
     setMaterialOpacity(mesh.material, opacity);
     setShellInnerOpacity(mesh, opacity);
@@ -368,6 +369,7 @@ export const updateFileOpacity = () => {
 export const updateMemberOpacity = () => {
   const { visuals, visualDefaults, memberMeshes, chunkMeshes, memberInstancedMeshes, instancedMemberMaterials, instancedChunkMaterial } = state;
   const opacity = clamp(numberValue(visuals.memberOpacity, visualDefaults.memberOpacity), 0.1, 1);
+  state.stackPacketOwner?.setSurfaceOpacity('member',opacity);
 
   // Instanced members/chunks use shared materials (huge perf win). Update those directly.
   const instancedMemberMat = instancedMemberMaterials?.member || null;

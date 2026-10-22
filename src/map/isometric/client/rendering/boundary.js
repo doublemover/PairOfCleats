@@ -1,13 +1,13 @@
 export const RENDERER_BOUNDARY_VERSION = 1;
 
 /** Runtime availability is separate from measured backend/default acceptance. */
-export const rendererCapabilities = ({renderer=null,sourceOnly=false}={}) => ({
+export const rendererCapabilities = ({renderer=null,sourceOnly=false,packetPolicy=null}={}) => ({
   version:RENDERER_BOUNDARY_VERSION,
   backend:sourceOnly||!renderer?'source-only':'three-webgl2',
   sourceNavigation:true,semanticSelection:true,
   worldGeometry:Boolean(renderer)&&!sourceOnly,
   residentTransactions:Boolean(renderer)&&!sourceOnly,
-  spatialDrawPackets:false,asynchronousGpuPicking:false,
+  spatialDrawPackets:Boolean(renderer)&&!sourceOnly&&Boolean(packetPolicy),spatialDrawPacketCandidate:true,asynchronousGpuPicking:false,
   physicalPathCapture:false,selectiveBloom:false,
   measuredAcceptance:'not-qualified',modernBackendDecision:'pending'
 });

@@ -23,6 +23,7 @@ assert.equal(model.coverage.nonresidentMemberEdges,1);assert.strictEqual(model.l
 const revisions=createViewRevisions(source);let release,commits=0,retired=0;
 const boundary=createRendererBoundary({capabilities:{},prepare:()=>new Promise(resolve=>{release=()=>resolve({});}),commit:()=>commits++,retire:()=>retired++});
 const operation=revisions.begin('reveal',['source','selection']);const pending=boundary.transact(operation,{});
-revisions.bump('selection');release();assert.equal((await pending).committed,false);assert.equal(commits,0);assert.equal(retired,1);
+revisions.bump('selection');assert.equal(operation.signal.aborted,true,'dependency changes abort owned work rather than only rejecting late output');release();assert.equal((await pending).committed,false);assert.equal(commits,0);assert.equal(retired,1);
 boundary.dispose();revisions.dispose();
+assert.throws(()=>revisions.begin('after-dispose',['source']),/retired/);
 console.log('Source identities beyond old prefixes reveal through bounded windows; stale scene candidates never publish.');

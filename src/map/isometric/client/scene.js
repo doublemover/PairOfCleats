@@ -135,6 +135,7 @@ export const initScene = async () => {
     environment.dispose();
     scene.traverse(object=>object.shadow?.dispose?.());
     clearGroup(scene);
+    state.stackPacketOwner?.dispose();state.stackPacketOwner=null;
     for (const geometry of state.shapeGeometryCache?.values?.() || []) geometry.dispose?.();
     state.shapeGeometryCache?.clear?.();
     state.normalMapState?.texture?.dispose?.();

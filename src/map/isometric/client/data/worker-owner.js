@@ -10,7 +10,7 @@ export const createSnapshotWorkerOwner = ({fetchPage,post}) => {
   const reply=(request,value)=>post({protocol:MAP_DATA_PROTOCOL,snapshot:request.snapshot,request:request.request,revision:request.revision,kind:request.kind,...value});
   const stopLane=lane=>{lanes.get(lane)?.abort();lanes.delete(lane);};
   const load=async request=>{
-    loading?.abort();const controller=new AbortController();loading=controller;const ownEpoch=++epoch;let candidate=null;
+    loading?.abort();const controller=new AbortController();loading=controller;const ownEpoch=++epoch,reportedPhases=new Set();let candidate=null;
     const fetch=async(kind,fields={})=>{
       controller.signal.throwIfAborted();
       const query=snapshotRequest({snapshot:request.snapshot,request:++serial,revision:request.revision,kind,...fields});
@@ -23,12 +23,16 @@ export const createSnapshotWorkerOwner = ({fetchPage,post}) => {
         if(result.total!==total||!Number.isSafeInteger(total)||total<0||result.cursor!==cursor||!Array.isArray(result.rows)
           ||cursor+result.rows.length>total||(result.next===null?cursor+result.rows.length!==total:result.next!==cursor+result.rows.length||result.next<=cursor))throw new Error('Invalid map page continuation.');
         candidate.admit(kind,result.rows,new TextEncoder().encode(JSON.stringify(result.rows)).length);
-        reply(request,{phase:kind,progress:candidate.stats(),event:'progress'});
+        // At most one queued phase message per row family. Full progress is in
+        // the final accepted-store receipt; page count cannot flood a hidden UI.
+        if(!reportedPhases.has(kind)){reportedPhases.add(kind);reply(request,{phase:kind,progress:candidate.stats(),event:'progress'});}
         if(result.next===null)break;cursor=result.next;
       }
     };
     try{
-      const result=await fetch('manifest');candidate=createGraphStore(result.manifest);
+      const result=await fetch('manifest'),manifest=result.manifest;
+      if(manifest?.protocol!==MAP_DATA_PROTOCOL||manifest.snapshot!==request.snapshot||['files','members','edges'].some(key=>!Number.isSafeInteger(manifest.counts?.[key])||manifest.counts[key]<0))throw new Error('Pinned map manifest identity/counts are invalid.');
+      candidate=createGraphStore(manifest);
       reply(request,{event:'overview',manifest:result.manifest});
       await pages('files');
       for(const file of candidate.files.values())if(file.memberCount)await pages('members',{file:file.path});

@@ -67,3 +67,12 @@ never rewrites repository configuration or source files.
 The [viewer workflow guide](viewer-workflows.md) connects preview/export with the
 API evidence workspace and explains their distinct source and qualification
 boundaries. It is self-contained and requires no private planning Page.
+
+Search in a local preview moves to a generation-scoped module worker once its
+bounded compact pages are ready. The source browser remains usable through the
+compatibility snapshot if that worker is unavailable. An inspected entity outside
+the current scene offers an explicit bounded reveal action; failed or superseded
+preparation keeps the prior scene. This does not recover evidence omitted from
+the original export. Paged transport and worker layout are source implementations
+awaiting browser qualification, and the eager compatibility payload is still
+retained during this migration.

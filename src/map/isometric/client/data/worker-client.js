@@ -8,10 +8,10 @@ export const createGraphWorkerClient = ({snapshot,endpoint,token,onProgress=()=>
   const retireRequest=(request,error)=>{
     const entry=pending.get(request);if(!entry)return;pending.delete(request);if(lanes.get(entry.kind)===request)lanes.delete(entry.kind);entry.cleanup();entry.reject(error);
   };
-  const failure=error=>{ready=false;for(const request of [...pending.keys()])retireRequest(request,error);onFailure(error);};
+  const failure=error=>{ready=false;if(!retired){retired=true;worker.terminate();}for(const request of [...pending.keys()])retireRequest(request,error);onFailure(error);};
   worker.onmessage=event=>{
     const message=event.data;if(retired||message.protocol!==MAP_DATA_PROTOCOL||message.snapshot!==snapshot)return;
-    if(message.kind==='init'){if(message.event==='ready')ready=true;if(message.event==='error')onFailure(new Error(message.error));onProgress(message);return;}
+    if(message.kind==='init'){if(message.event==='ready')ready=true;if(message.event==='error')failure(new Error(message.error));onProgress(message);return;}
     const entry=pending.get(message.request);if(!entry||entry.kind!==message.kind||entry.revision!==message.revision)return;
     pending.delete(message.request);if(lanes.get(entry.kind)===message.request)lanes.delete(entry.kind);entry.cleanup();
     if(message.event==='error')entry.reject(new Error(message.error));else entry.resolve(message.value);
