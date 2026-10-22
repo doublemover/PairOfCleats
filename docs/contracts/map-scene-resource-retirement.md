@@ -167,3 +167,23 @@ controls are authored and **UNVALIDATED**. They use inert boundaries only. This
 does not establish cancellation of image loading, native/GPU quiescence,
 constructor-internal allocation coverage, driver retry safety, browser delivery,
 raster appearance, memory/resource bounds or performance acceptance.
+
+Scene diagnostic projection now captures original message/name/code, scoped owner
+fields and transaction fields once. It requests individual remaining descriptors
+after skipping `stack`, so a lazy Error stack cannot reread a throwing original
+message. Display, partial-construction prerequisites, exact resource failures and
+source fallback share this snapshot. Frozen and falsey operation/inspection
+values remain exact causes or `sceneInspectionErrors` entries. Cleanup lists
+continue to contain actual cleanup outcomes separately.
+
+Independent getter/own-key/descriptor and ownership-inspection failures retain
+their original scene/cache observations alongside the original operation.
+Original channel functions and receivers remain captured; absent channels may
+receive their first actual evidence later. A throwing ownership getter remains
+unknown even if the separately thrown inspection value later settles. Inspection
+chains exceeding the local 128-observation bound report `sceneInspectionOverflow`
+and remain unconfirmed. Snapshotting does not adopt any copied owner property as
+closure authority. The additional inert actual construction/resource/fallback
+and lazy-stack/proxy/falsey/nested aggregate controls are authored and unrun.
+Native/environment post-installation work semantics, retry safety and real
+host/GPU resource and performance acceptance remain unqualified.

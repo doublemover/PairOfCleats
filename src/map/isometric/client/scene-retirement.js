@@ -1,37 +1,18 @@
+import { captureSceneFailure, projectSceneFailure, observeSceneFailureOwnership as observe } from './scene-failure-inspection.js';
+
 const pending = new Set();
-const ownershipObservers = new WeakMap();
 const objectLike = value => value && (typeof value === 'object' || typeof value === 'function');
-const describe = error => { try { return error?.message || 'Scene resource retirement remains pending.'; } catch { return 'Scene resource retirement remains pending.'; } };
-const observe = error => {
-  if (!objectLike(error)) return null;
-  let captured = ownershipObservers.get(error);
-  if (!captured) {
-    const observers = new Map();
-    captured = { observers, released: () => [...observers.values()].map(check => check()).every(Boolean) };
-    ownershipObservers.set(error, captured);
-  }
-  for (const [marker, released] of [['sceneOwnershipPending', 'sceneOwnershipReleased'], ['cacheOwnershipPending', 'cacheOwnershipReleased']]) {
-    if (captured.observers.has(marker)) continue;
-    try {
-      const method = error[released];
-      if (error[marker] !== true && typeof method !== 'function') continue;
-      captured.observers.set(marker, () => { try { return typeof method === 'function' && method.call(error) === true; } catch { return false; } });
-    } catch { captured.observers.set(marker, () => false); }
-  }
-  // Absence is not settlement; a later actual owner may attach its first
-  // observation on either channel. Captured original functions never change.
-  return captured.observers.size ? captured.released : null;
-};
 export { observe as observeSceneOwnership };
-const failure = (primary, errors) => {
-  const result = new AggregateError(errors, describe(primary), { cause: primary });
-  if (objectLike(primary)) {
-    const descriptors = Object.getOwnPropertyDescriptors(primary);
-    const reserved = new Set(['cause', 'errors', 'message', 'stack', 'sceneResourceOwner', 'sceneResourceOwners',
-      'sceneCleanupErrors', 'sceneOwnershipPending', 'sceneOwnershipReleased', 'cacheOwnershipPending', 'cacheOwnershipReleased',
-      'rendererTransactionCommitted', 'rendererTransactionStamp', 'rendererTransactionPhase', 'rendererTransactionCleanupFailed']);
-    for (const key of Reflect.ownKeys(descriptors)) if (!reserved.has(key)) Object.defineProperty(result, key, descriptors[key]);
-  }
+const failure = (primary, errors, captured = captureSceneFailure(primary),
+  inspectionErrors = captured.inspectionErrors, overflow = captured.overflow) => {
+  const result = new AggregateError([...errors, ...inspectionErrors], captured.message, { cause: primary });
+  const reserved = new Set(['cause', 'errors', 'message', 'stack', 'sceneResourceOwner', 'sceneResourceOwners',
+    'sceneCleanupErrors', 'sceneOwnershipPending', 'sceneOwnershipReleased', 'cacheOwnershipPending', 'cacheOwnershipReleased',
+    'sceneInspectionErrors', 'sceneInspectionOverflow',
+    'rendererTransactionCommitted', 'rendererTransactionStamp', 'rendererTransactionPhase', 'rendererTransactionCleanupFailed']);
+  projectSceneFailure(result, captured, reserved);
+  Object.defineProperties(result, { sceneInspectionErrors: { value: Object.freeze([...inspectionErrors]) },
+    sceneInspectionOverflow: { value: overflow } });
   return result;
 };
 
@@ -39,10 +20,15 @@ const failure = (primary, errors) => {
 export const preserveSceneCleanupFailures = (primary, cleanupErrors, { hasPrimary = primary !== null && primary !== undefined, forceAggregate = false } = {}) => {
   const errors = hasPrimary ? [primary, ...cleanupErrors] : cleanupErrors;
   if (!errors.length) return null;
-  if (!hasPrimary && !forceAggregate && errors.length === 1 && objectLike(errors[0])) return errors[0];
-  const result = failure(hasPrimary ? primary : errors[0], errors), observers = errors.map(observe).filter(Boolean);
+  const captured = errors.map(captureSceneFailure);
+  if (!hasPrimary && !forceAggregate && errors.length === 1 && objectLike(errors[0])
+    && !captured[0].inspectionErrors.length && !captured[0].overflow) return errors[0];
+  const inspectionErrors = captured.flatMap(snapshot => snapshot.inspectionErrors);
+  const result = failure(hasPrimary ? primary : errors[0], errors, captured[0], inspectionErrors,
+    captured.some(snapshot => snapshot.overflow));
+  const observers = captured.filter(snapshot => snapshot.hasOwnership).map(snapshot => snapshot.released);
   const released = () => observers.every(check => check());
-  const owners = errors.flatMap(error => error?.sceneResourceOwners || (error?.sceneResourceOwner ? [error.sceneResourceOwner] : []));
+  const owners = captured.flatMap(snapshot => snapshot.owners);
   Object.defineProperties(result, { sceneCleanupErrors: { value: Object.freeze([...cleanupErrors]) },
     sceneResourceOwners: { value: Object.freeze([...new Set(owners)]) },
     sceneOwnershipPending: { get: () => !released() }, sceneOwnershipReleased: { value: released } });

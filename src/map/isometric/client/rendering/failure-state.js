@@ -1,11 +1,12 @@
 import { getPendingSceneResourceOwners, preserveSceneCleanupFailures } from '../scene-retirement.js';
 import { rendererCapabilities } from './boundary.js';
+import { captureSceneFailure } from '../scene-failure-inspection.js';
 
 const fallbacks=new WeakMap();
 export const invalidateRendererFallback = state => { fallbacks.delete(state); };
 
 export const describeRendererFailure = error => {
-  try{if(typeof error?.message==='string'&&error.message)return error.message;}catch{}
+  const captured=captureSceneFailure(error);if(captured.hasMessage)return captured.message;
   return 'Renderer operation failed.';
 };
 
