@@ -470,6 +470,9 @@ export const CORE_POST_VFS_ARTIFACT_SCHEMA_DEFS = {
         name: { type: 'string' },
         kind: nullableString,
         signature: nullableString,
+        chunkUid: nullableString,
+        symbolId: nullableString,
+        virtualPath: nullableString,
         exported: { type: ['boolean', 'null'] }
       },
       additionalProperties: true

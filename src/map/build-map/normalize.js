@@ -24,12 +24,17 @@ export const normalizeDataflow = (dataflow, intern) => {
   const writes = normalizeArray(dataflow.writes, intern);
   const metadata = normalizeArray(dataflow.metadata, intern);
   const mutations = normalizeArray(dataflow.mutations || dataflow.mutates, intern);
-  if (!reads && !writes && !metadata && !mutations) return null;
+  // The producer records assignment evidence as strings. Unsupported structured
+  // values must not become misleading "[object Object]" alias annotations.
+  const aliases = normalizeArray(Array.isArray(dataflow.aliases)
+    ? dataflow.aliases.filter(value => typeof value === 'string') : null, intern);
+  if (!reads && !writes && !metadata && !mutations && !aliases) return null;
   return {
     reads,
     writes,
     metadata,
-    mutations
+    mutations,
+    aliases
   };
 };
 

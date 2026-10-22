@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { clamp } from './utils.js';
 import { toArray } from '../../../shared/iterables.js';
 import { configureWireMaterial } from './materials.js';
-import { selectionEndpointMatcher } from './selection-endpoints.js';
+import { parseEndpointKey, selectionEndpointMatcher } from './selection-endpoints.js';
 
 const formatPrimitive = (value) => {
   if (value === null || value === undefined || value === '') return 'None';
@@ -289,7 +289,7 @@ const resolveHitInfo = (hit) => {
 };
 
 const setMemberInstanceTint = (memberId, color) => {
-  if (!memberId) return;
+  if (memberId == null || memberId === '') return;
   const key = String(memberId);
   const ref = state.memberInstanceById?.get(key) || null;
   if (!ref || !ref.mesh || ref.instanceId == null) return;
@@ -488,7 +488,9 @@ const applyHighlightsForKeys = (selectionKeys, intensity = 1) => {
   connected.forEach((entry, endpointKey) => {
     if (!entry.weight) return;
     const color = entry.color.multiplyScalar(1 / entry.weight);
-    const [type, id] = endpointKey.split(':');
+    const endpoint = parseEndpointKey(endpointKey);
+    if (!endpoint) return;
+    const { type, id } = endpoint;
     if (type === 'file') {
       if (state.fileInstanceByKey?.has(id)) {
         const tint = color.clone().lerp(new state.THREE.Color(0xffffff), 0.2);
@@ -532,7 +534,7 @@ export const applyHighlights = () => {
           boostWireframeByKey(fileKey, tint, 0.25);
         }
       } else {
-        const memberId = selectedInfo?.id ? String(selectedInfo.id) : null;
+        const memberId = selectedInfo?.id != null ? String(selectedInfo.id) : null;
         const base = (memberId && state.memberColorById?.get(memberId)) || selectedInfo?.baseColor || white;
         const tint = base.clone().lerp(white, 0.45);
         if (memberId) {
@@ -594,7 +596,7 @@ export const applyHighlights = () => {
             boostWireframeByKey(fileKey, tint, 0.2);
           }
         } else {
-          const memberId = hoverInfo?.id ? String(hoverInfo.id) : null;
+          const memberId = hoverInfo?.id != null ? String(hoverInfo.id) : null;
           const base = (memberId && state.memberColorById?.get(memberId)) || hoverInfo?.baseColor || white;
           const tint = base.clone().lerp(white, 0.25);
           if (memberId) {

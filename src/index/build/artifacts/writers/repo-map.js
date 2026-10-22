@@ -31,6 +31,9 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
         signature: c.docmeta?.signature || null,
         startLine: c.startLine,
         endLine: c.endLine,
+        chunkUid: c.metaV2?.chunkUid || c.chunkUid || null,
+        symbolId: c.metaV2?.symbol?.symbolId || null,
+        virtualPath: c.metaV2?.virtualPath || c.virtualPath || c.segment?.virtualPath || null,
         exported
       };
       entries.push(entry);
@@ -46,7 +49,9 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
         nameKey,
         kindKey,
         entry.signature == null ? '' : String(entry.signature),
-        Number.isFinite(entry.startLine) ? entry.startLine : ''
+        Number.isFinite(entry.startLine) ? entry.startLine : '',
+        entry.chunkUid, entry.symbolId, entry.virtualPath,
+        Number.isFinite(entry.endLine) ? entry.endLine : ''
       ]);
       if (dedupeKey === lastDedupeKey) continue;
       lastDedupeKey = dedupeKey;

@@ -5,7 +5,7 @@ import {
   ISOMETRIC_VISUAL_DEFAULTS
 } from './isometric/client/default-values.js';
 
-export const MAP_MODEL_VERSION = '1.0.0';
+export const MAP_MODEL_VERSION = '1.1.0';
 
 export const DEFAULT_LIMITS = {
   maxFiles: 200,
