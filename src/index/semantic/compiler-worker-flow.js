@@ -7,6 +7,7 @@ import { createSemanticFactsRef } from './file-ref.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { createCompilerPortPeerIndex } from './compiler-port-peer-index.js';
+import { compilerRuntimeParameters } from './compiler-invocation.js';
 const keyPath = file => { const value = path.resolve(file); return process.platform === 'win32' ? value.toLowerCase() : value; };
 const library = node => node?.getSourceFile().fileName.replaceAll('\\', '/').split('/').pop();
 const ownerName = node => { let parent = node; while (parent && !parent.name && parent.parent) parent = parent.parent; return parent?.name?.text || ''; };
@@ -131,7 +132,7 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
         }
       }
       if (!callback || !site) continue;
-      const parameter = callback.parameters[0]; if (!parameter || !ts.isIdentifier(parameter.name)) { ledgers.get(doc).reasons.add('message_parameter_binding_pattern_unsupported'); continue; }
+      const parameter = compilerRuntimeParameters(ts,callback)[0]; if (!parameter || !ts.isIdentifier(parameter.name) || parameter.dotDotDotToken) { ledgers.get(doc).reasons.add('message_parameter_binding_pattern_unsupported'); continue; }
       const symbol = checker.getSymbolAtLocation(parameter.name), invocation = doc.expressionFor(site); if (!symbol || !invocation) continue;
       const data = (dataBySymbol.get(symbol) || []).filter(value => value.node.pos >= callback.pos && value.node.end <= callback.end).map(value => value.ref);
       found.push({ doc,site,invocation,data,receiverWorker,receiverPort,receiverNode,parameterSymbol:symbol });
