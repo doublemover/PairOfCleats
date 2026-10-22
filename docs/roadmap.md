@@ -30,10 +30,10 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `cf3248e6d` preserves suspended finally return
-origins under bounded completion tracking (cfgFlow26), and owns lazy binary frame
-reads across yields through confirmed close and normal-only witness publication.
-External iterator protocol and broader native/recovery qualification remain open.
+Latest source continuation: `4469436cf` pins captured editor parent/publication
+authority, owns SCIP artifact/receipt/compile context before callbacks (SCIP3),
+and retains actual positioned varint resources before per-file scan fallback.
+Shared cfgFlow26 and local report adapter identities remain replay-qualified inputs.
 Dispositions: 141 historical, 555 source, 164 partial, 97 pending.
 All authored checks remain unvalidated; durable failed-job cleanup recovery is open.
 
@@ -84,7 +84,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `cf3248e6d` repairs watch/pointer and queue authority,
+Current source through `4469436cf` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
@@ -126,7 +126,8 @@ retain evaluation/conversion order and creation-context captures. Current versio
 sourceChunking11/importResolution7/typeNormalization7/compilerBindings21/
 lspBindings40/rq10/cfgFlow26/callFlow27/valueSlice9/boundaryFlow9/workerFlow8. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
-Proto/SemanticDB/ShellCheck report adapters are3; the other five remain2.
+Proto/SemanticDB/ShellCheck report adapters and SCIP importer are3; the other five
+report adapters remain2.
 
 The rollout gate now requires explicit coherent benchmark counts and diagnostic
 parity, rejects empty/unsupported evidence and keeps unknown timing deltas null
