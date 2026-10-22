@@ -14,9 +14,10 @@ export const resolveRecordsRoot = (root, recordsDir) => {
 };
 
 export const readRecordSample = async (absPath, maxBytes) => {
-  const limit = Number.isFinite(Number(maxBytes)) && Number(maxBytes) > 0
+  const limit = maxBytes != null && Number.isFinite(Number(maxBytes)) && Number(maxBytes) >= 0
     ? Math.floor(Number(maxBytes))
     : 16384;
+  if (limit === 0) return '';
   try {
     const handle = await fs.open(absPath, 'r');
     try {

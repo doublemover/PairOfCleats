@@ -130,7 +130,7 @@ export const createRecordsClassifier = ({ root, config }) => {
         reason: pathResult.reason
       };
     }
-    if (!normalized.detect) return null;
+    if (!normalized.detect || normalized.sniffBytes === 0) return null;
     if (!shouldSniffRecordContent(ext)) return null;
     const contentResult = detectRecordByContent(sampleText || '');
     if (!contentResult.match) return null;
