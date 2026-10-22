@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { once } from 'node:events';
 import { createHash } from 'node:crypto';
+import { sha256File } from './hash.js';
 import { createJsonlBatchWriter } from './json-stream/jsonl-batch.js';
 import { writeJsonObjectFile } from './json-stream/json-writers.js';
 import { atomicWriteJson } from './io/atomic-write.js';
@@ -340,11 +341,7 @@ const writeCheckpoint = async (checkpointPath, payload) => {
   await atomicWriteJson(checkpointPath, payload, { spaces: 2, newline: false });
 };
 
-const hashRunFile = async (runPath) => {
-  const hash = createHash('sha256');
-  for await (const bytes of fs.createReadStream(runPath)) hash.update(bytes);
-  return hash.digest('hex');
-};
+const hashRunFile = sha256File;
 
 const identifyMergeInputs = async (runs, options) => {
   const identities = [];

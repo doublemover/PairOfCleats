@@ -29,6 +29,9 @@ export function sha1(str) {
 
 const withFileHashStream = async (filePath, compute) => {
   const stream = fs.createReadStream(filePath);
+  // The owner may need to dispose before the consumer attaches its listeners.
+  // Consumers still propagate read failures; cleanup must not emit unhandled errors.
+  stream.on('error', () => {});
   const closed = new Promise(resolve => stream.once('close', resolve));
   try {
     return await compute(stream);
@@ -44,12 +47,18 @@ const withFileHashStream = async (filePath, compute) => {
  * @returns {Promise<string>}
  */
 export function sha1File(filePath) {
-  return withFileHashStream(filePath, stream => new Promise((resolve, reject) => {
-    const hash = crypto.createHash('sha1');
-    stream.on('error', reject);
-    stream.on('data', (chunk) => hash.update(chunk));
-    stream.on('end', () => resolve(hash.digest('hex')));
-  }));
+  return digestFile(filePath, 'sha1');
+}
+
+const digestFile = (filePath, algorithm) => withFileHashStream(filePath, async stream => {
+  const hash = crypto.createHash(algorithm);
+  for await (const bytes of stream) hash.update(bytes);
+  return hash.digest('hex');
+});
+
+/** Compute SHA256 and settle only after the owned descriptor has closed. */
+export function sha256File(filePath) {
+  return digestFile(filePath, 'sha256');
 }
 
 export async function checksumString(input) {
