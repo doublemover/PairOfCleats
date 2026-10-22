@@ -419,8 +419,8 @@ export function createFileProcessor(options) {
       bytes: Math.max(64 * 1024, Number(fileStat?.size || 0) * 4) }) : (fn) => fn();
     // Known waits release only parent compute. Child compute obtains its own
     // permit; source/AST/window and all retained-byte ownership stay admitted.
-    const runEmbedding = fn => embeddingQueue
-      ? withSchedulerCpuSuspended(() => embeddingQueue.add(fn, { signal })) : fn();
+    const runEmbedding = (fn, { signal: operationSignal = signal } = {}) => embeddingQueue
+      ? withSchedulerCpuSuspended(() => embeddingQueue.add(fn, { signal: operationSignal })) : fn();
     const runProc = (fn, { cpu = 1 } = {}) => procQueue
       ? withSchedulerCpuSuspended(() => procQueue.add(fn, { signal, cpu })) : fn();
     throwIfAborted();
