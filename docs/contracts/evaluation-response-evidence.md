@@ -1,5 +1,17 @@
 # Judged evaluation response evidence
 
+Selected dataset cases are admitted before the first search. Each requires a
+nonempty query string. Every explicitly present `relevant`, legacy `expect` and
+`gold` field must be a dense passive array of valid judgment rows. Null, falsey,
+malformed, inherited and accessor containers cannot disappear into unjudged
+metrics. Valid explicit empty `relevant` retains precedence over a valid legacy
+alias; absent labels remain unjudged. Queries, modes and scalar label snapshots
+are captured before asynchronous search work. Invalid/empty datasets throw inside
+the existing resource scope so cache/display cleanup precedes failure propagation.
+Dataset, actual runner/no-search and legacy-alias controls are authored and
+**UNVALIDATED**; whole dataset memory, source provenance and real retrieval quality
+remain separate qualifications.
+
 The evaluation runner scores each selected result cohort separately. A selected
 cohort must be an explicitly present array of actual hit objects. An empty array
 is a genuine observed zero-hit result; missing/null/malformed cohorts, sparse hit

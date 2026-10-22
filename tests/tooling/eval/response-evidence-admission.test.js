@@ -81,6 +81,19 @@ try {
   await assert.rejects(cleanup.report, value => value === cleanupError);
   assert.deepEqual(cleanup.fixture.lines, [], 'cleanup must finish before metrics can be published');
   assert.equal(cleanup.fixture.cacheClosed, 1); assert.equal(cleanup.fixture.displayClosed, 1);
+  for (const invalidDataset of [null, {}, [], [null], [{ query: '' }],
+    ...['relevant', 'expect', 'gold'].flatMap(key => [null, false, {}, 'labels'].map(value => ({ query: 'fixture', [key]: value }))).map(entry => [entry]),
+    [{ query: 'first valid', relevant: [] }, { query: 'second invalid', relevant: null }]]) {
+    const rejected = await execute('records', { records: [] }, [], { dataset: invalidDataset });
+    await assert.rejects(rejected.report, value => value.code === 'ERR_EVAL_DATASET');
+    assert.equal(rejected.fixture.calls.length, 0, 'all selected cases must be admitted before the first search');
+    assert.deepEqual(rejected.fixture.lines, []);
+    assert.equal(rejected.fixture.cacheClosed, 1); assert.equal(rejected.fixture.displayClosed, 1);
+  }
+  const legacy = await execute('records', { records: [hit] }, [], {
+    dataset: [{ query: 'legacy alias', mode: 'records', expect: [{ file: hit.file }] }]
+  });
+  await legacy.report; assert.equal(JSON.parse(legacy.fixture.lines[0]).summary.recallAtK[1], 1);
 } finally {
   hooks.deregister(); console.log = originalLog; delete globalThis.evalResponseFixture;
 }

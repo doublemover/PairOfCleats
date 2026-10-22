@@ -14,6 +14,7 @@ import { evaluateDatasetFusionReplay } from './fusion-replay.js';
 import { evaluateDatasetShadowRouting } from './shadow-routing.js';
 import { evaluateDatasetTaskSpans } from './task-spans.js';
 import { runEvaluationResourceScope } from './resource-scope.js';
+import { captureEvaluationDatasetCases } from './dataset-admission.js';
 
 const argv = createCli({
   scriptName: 'eval-run',
@@ -53,7 +54,7 @@ const matchMode = (() => {
 const loadDataset = () => {
   const raw = fs.readFileSync(datasetPath, 'utf8');
   const data = JSON.parse(raw);
-  if (!Array.isArray(data)) return [];
+  if (!Array.isArray(data)) throw Object.assign(new Error('Evaluation dataset must be an array of cases.'), { code: 'ERR_EVAL_DATASET' });
   return data;
 };
 
@@ -86,23 +87,15 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
 const allCases = loadDataset();
 const cases = limit > 0 ? allCases.slice(0, limit) : allCases;
 if (!cases.length) {
-  fail(`No eval cases found at ${datasetPath}`);
+  throw Object.assign(new Error(`No eval cases found at ${datasetPath}`), { code: 'ERR_EVAL_DATASET' });
 }
 
-for (const entry of cases) resolveEvaluationCohorts(entry.mode ?? null, [...(entry.relevant || entry.expect || []), ...(entry.gold || [])]);
+const admittedCases = captureEvaluationDatasetCases(cases).map(admitted => ({ ...admitted,
+  selection: resolveEvaluationCohorts(admitted.mode, [...admitted.silver, ...admitted.gold]) }));
 const results = [];
 const queryTask = display.task('Queries', { total: cases.length, stage: 'queries' });
 let processedCases = 0;
-for (const entry of cases) {
-  const query = String(entry?.query || '').trim();
-  if (!query) continue;
-  const mode = entry.mode ?? null;
-  const silver = Array.isArray(entry.relevant)
-    ? entry.relevant
-    : (Array.isArray(entry.expect) ? entry.expect : []);
-  const gold = Array.isArray(entry.gold) ? entry.gold : [];
-
-  const selection = resolveEvaluationCohorts(mode, [...silver, ...gold]);
+for (const { entry, query, silver, gold, selection } of admittedCases) {
   const payload = await runSearch(query, selection.requestMode);
   const cohorts = selection.modes.map(cohortMode => {
     const hits = selectEvaluationCohort(payload, cohortMode);

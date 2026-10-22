@@ -24,6 +24,13 @@ Options:
 
 Each entry uses a query plus expected hits. `relevant` is the silver label set; `gold` is an optional stricter subset.
 
+Every selected case needs a nonempty query string. Explicit `relevant`, legacy
+`expect` and `gold` containers must be arrays of valid judgments; malformed or
+null containers are rejected before any search. Absent labels stay unjudged.
+A valid empty `relevant` array takes precedence over a valid `expect` alias.
+The runner validates all selected cases and retains their scalar judgments before
+asynchronous search work. The current admission controls are authored and unrun.
+
 ```json
 [
   {
