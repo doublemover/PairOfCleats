@@ -3,6 +3,7 @@ import time
 import sublime
 
 from . import ui
+from . import operations
 
 TASK_PANEL = 'pairofcleats-progress'
 _ACTIVE_TASKS = {}
@@ -51,6 +52,7 @@ def start_task(window, title, kind='task', repo_root=None, cancellable=False, ca
         'lastActivityAt': _now(),
         'lastWatchdogAt': None,
         'watchdogCount': 0,
+        '_scope': operations.capture(window),
     }
     _ACTIVE_TASKS.setdefault(task['windowId'], []).append(task)
     _render(window, show_panel=show_panel)
@@ -88,6 +90,8 @@ def mark_cancelling(window, task, details=None):
 
 def complete_task(window, task, status='done', details=None):
     if not task:
+        return
+    if task.get('completedAt') is not None:
         return
     task['status'] = status
     task['completedAt'] = _now()
@@ -127,13 +131,21 @@ def cancel_active(window):
 
 
 def clear_window(window):
+    confirmed = operations.shutdown(window)
     window_id = _window_id(window)
-    _ACTIVE_TASKS.pop(window_id, None)
+    if confirmed:
+        _ACTIVE_TASKS.pop(window_id, None)
     _RECENT_TASKS.pop(window_id, None)
 
 
 def clear_all():
-    _ACTIVE_TASKS.clear()
+    for active in _ACTIVE_TASKS.values():
+        for task in active:
+            task['status'] = 'interrupted'
+            task['details'] = 'Editor disposed; owned operation settlement remains tracked.'
+            cancel = task.get('cancel')
+            if callable(cancel):
+                cancel()
     _RECENT_TASKS.clear()
 
 
@@ -151,6 +163,8 @@ def _render(window, show_panel=False):
     if window is None:
         window = sublime.active_window()
     if window is None:
+        return
+    if not operations.is_current(operations.capture(window)):
         return
     now = _now()
     lines = ['PairOfCleats task progress', '']

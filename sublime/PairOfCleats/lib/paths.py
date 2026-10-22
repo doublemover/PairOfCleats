@@ -1,4 +1,5 @@
 import os
+from . import operations
 
 
 def _normalize_config_path(value):
@@ -51,6 +52,11 @@ def has_repo_root(window, path_hint=None, allow_fallback=True):
 
 
 def resolve_repo_root_interactive(window, on_done, path_hint=None, allow_fallback=True, prompt='PairOfCleats repo'):
+    scope = operations.capture(window)
+    callback = on_done
+    def on_done(root, reason):
+        if operations.is_current(scope):
+            callback(root, reason)
     resolution = _describe_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
     selected_root = resolution.get('selected_root')
     if selected_root:

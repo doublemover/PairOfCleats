@@ -303,6 +303,7 @@ export function createVsCodeRuntimeHarness({
   const clipboardWrites = [];
   const editorHandlers = [];
   const workspaceHandlers = [];
+  const documentHandlers = new Map();
   const originalFetch = globalThis.fetch;
   const fakeFetch = createFakeFetch(fetchCalls, queuedFetchResults, fetchImpl);
   globalThis.fetch = fakeFetch;
@@ -650,6 +651,14 @@ export function createVsCodeRuntimeHarness({
     TextEditorRevealType: { InCenter: 1 }
   };
 
+  for (const event of ['onDidChangeTextDocument', 'onDidSaveTextDocument', 'onDidCloseTextDocument', 'onDidChangeConfiguration']) {
+    const handlers = new Set();
+    documentHandlers.set(event, handlers);
+    fakeVscode.workspace[event] = (handler) => {
+      handlers.add(handler);
+      return { dispose: () => handlers.delete(handler) };
+    };
+  }
   const extension = loadExtensionWithMocks({
     fakeVscode,
     fakeChildProcess: createFakeSpawn(spawnCalls, queuedResults, killCalls, nodeProbeCalls, nodeProbeResult)
@@ -713,6 +722,13 @@ export function createVsCodeRuntimeHarness({
       const normalizedEditor = normalizeEditor(editor, decorationApplications);
       fakeVscode.window.activeTextEditor = normalizedEditor;
       for (const handler of editorHandlers) handler(normalizedEditor);
+    },
+    setConfiguration(values) {
+      Object.assign(normalizedConfig, values);
+      for (const handler of documentHandlers.get('onDidChangeConfiguration')) handler({ affectsConfiguration: () => true });
+    },
+    fireDocumentEvent(event, document) {
+      for (const handler of documentHandlers.get(event) || []) handler(event === 'onDidChangeTextDocument' ? { document } : document);
     },
     setActiveFile(filePath) {
       const nextEditor = filePath

@@ -91,6 +91,8 @@ def _run_api(window, title, panel_name, request_fn, render_fn, success_message, 
         request_fn,
         on_done,
         on_progress=lambda message: tasks.note_progress(window, task, details=message),
+        window=window,
+        task=task,
     )
 
 

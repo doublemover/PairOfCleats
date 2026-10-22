@@ -9,6 +9,7 @@ import sublime
 
 from . import config
 from . import tasks
+from . import operations
 
 
 class ProcessResult(object):
@@ -48,6 +49,8 @@ class ProcessHandle(object):
         self._request_stop = request_stop
         self._task = task
         self._window = window
+        self._stopper = None
+        self._cleanup_failures = []
 
     def cancel(self):
         if self.process is None or self.process.poll() is not None:
@@ -56,6 +59,18 @@ class ProcessHandle(object):
             tasks.mark_cancelling(self._window, self._task, details='Cancellation requested.')
         if self._request_stop:
             self._request_stop('cancelled')
+
+    def wait(self, timeout):
+        deadline = time.monotonic() + timeout
+        if self.thread is not None:
+            self.thread.join(timeout)
+            if self.thread.is_alive():
+                return False
+        if self._stopper is not None:
+            self._stopper.join(max(0.0, deadline - time.monotonic()))
+            if self._stopper.is_alive():
+                return False
+        return not self._cleanup_failures
 
 
 DEFAULT_WATCHDOG_MS = 15000
@@ -77,7 +92,7 @@ def _build_spawn_kwargs():
 
 def _terminate_process_tree(process, force=False):
     if process is None or process.poll() is not None:
-        return
+        return True
     if os.name == 'nt':
         pid = getattr(process, 'pid', None)
         if pid:
@@ -95,7 +110,7 @@ def _terminate_process_tree(process, force=False):
                     timeout=2,
                 )
                 if status == 0:
-                    return
+                    return True
             except (OSError, subprocess.TimeoutExpired):
                 pass
     else:
@@ -108,7 +123,7 @@ def _terminate_process_tree(process, force=False):
             if pgid is not None:
                 try:
                     os.killpg(pgid, signal.SIGKILL if force else signal.SIGTERM)
-                    return
+                    return True
                 except Exception:
                     pass
     try:
@@ -118,6 +133,8 @@ def _terminate_process_tree(process, force=False):
             process.terminate()
     except Exception:
         pass
+    # A direct-process fallback cannot certify the descendant tree on Windows.
+    return os.name != 'nt'
 
 
 def _append_bounded(parts, text, max_chars, truncation_state):
@@ -151,9 +168,12 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
                 capture_json=False, on_done=None, stream_output=True,
                 panel_name='pairofcleats', watchdog_ms=None, show_progress_panel=None,
                 spawn_process=None, timeout_ms=DEFAULT_TIMEOUT_MS,
-                output_cap_chars=DEFAULT_OUTPUT_CAP_CHARS):
+                output_cap_chars=DEFAULT_OUTPUT_CAP_CHARS, operation_scope=None):
     if window is None:
         window = sublime.active_window()
+    scope = operation_scope or operations.capture(window)
+    if not operations.is_current(scope):
+        return ProcessHandle(None, None)
     settings = config.get_settings(window) if window is not None else {}
     if show_progress_panel is None:
         show_progress_panel = bool(settings.get('progress_panel_on_start', True))
@@ -190,7 +210,7 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
             state='spawn_failed',
         )
         if on_done:
-            sublime.set_timeout(lambda: on_done(result), 0)
+            sublime.set_timeout(lambda: on_done(result) if operations.is_current(scope) else None, 0)
         return ProcessHandle(None, None)
     task = tasks.start_task(
         window,
@@ -226,17 +246,17 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
             _append_bounded(sink_state['parts'], line, output_cap_chars, sink_state['state'])
         with activity_lock:
             state['last_activity_at'] = time.time()
-        if task and window:
+        if task and window and operations.is_current(scope):
             detail = line.strip() or 'Output received.'
             tasks.note_progress(window, task, details=detail[:200])
-        if panel is not None:
+        if panel is not None and operations.is_current(scope):
             panel_text = []
             _append_bounded(panel_text, line, output_cap_chars, state['panel'])
             if panel_text:
-                _append_panel(panel, ''.join(panel_text))
+                _append_panel(panel, ''.join(panel_text), scope=scope)
 
     def done_callback(result):
-        if on_done:
+        if on_done and operations.is_current(scope):
             on_done(result)
 
     def read_stream(stream, sink):
@@ -254,10 +274,13 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
             if state['done'] or state['stop_reason'] is not None:
                 return
             state['stop_reason'] = reason
-        _terminate_process_tree(proc, force=False)
-        timer = threading.Timer(1.5, lambda: _terminate_process_tree(proc, force=True))
-        timer.daemon = True
-        timer.start()
+        def terminate():
+            if not _terminate_process_tree(proc, force=True):
+                handle._cleanup_failures.append('Owned descendant termination was not confirmed.')
+        stopper = threading.Thread(target=terminate)
+        handle._stopper = stopper
+        stopper.daemon = True
+        stopper.start()
 
     def worker():
         stdout_sink = {'parts': stdout_lines, 'state': state['stdout']}
@@ -327,6 +350,10 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
                 detail = 'Completed successfully.' if proc.returncode == 0 else (output.strip() or 'Process failed.')
             tasks.complete_task(window, task, status=final_status, details=detail[:240])
         sublime.set_timeout(lambda: done_callback(result), 0)
+        if handle._stopper is not None:
+            handle._stopper.join(2.1)
+        if not handle._cleanup_failures and (handle._stopper is None or not handle._stopper.is_alive()):
+            operations.release(handle)
 
     def watchdog():
         timeout_seconds = (watchdog_ms or 0) / 1000.0
@@ -346,7 +373,8 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
                 details = 'No new output for {0:.0f}s.'.format(idle_seconds)
                 tasks.note_watchdog(window, task, details=details)
                 ui_message = 'PairOfCleats: {0} is still running ({1})'.format(title, details.lower())
-                sublime.set_timeout(lambda message=ui_message: sublime.status_message(message), 0)
+                sublime.set_timeout(lambda message=ui_message: sublime.status_message(message)
+                                    if operations.is_current(scope) else None, 0)
 
     def timeout_watchdog():
         if not isinstance(timeout_ms, int) or timeout_ms <= 0:
@@ -365,6 +393,10 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
 
     thread = threading.Thread(target=worker)
     thread.daemon = True
+    handle = ProcessHandle(proc, thread, request_stop=request_stop, task=task, window=window)
+    operations.track(scope, handle)
+    if task:
+        task['cancel'] = handle.cancel
     thread.start()
     watchdog_thread = threading.Thread(target=watchdog)
     watchdog_thread.daemon = True
@@ -373,9 +405,6 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
     timeout_thread.daemon = True
     timeout_thread.start()
 
-    handle = ProcessHandle(proc, thread, request_stop=request_stop, task=task, window=window)
-    if task:
-        task['cancel'] = handle.cancel
     return handle
 
 
@@ -391,8 +420,10 @@ def _show_panel(window, name):
     window.run_command('show_panel', {'panel': 'output.{0}'.format(name)})
 
 
-def _append_panel(panel, text):
+def _append_panel(panel, text, scope=None):
     def append():
+        if scope is not None and not operations.is_current(scope):
+            return
         panel.run_command('append', {
             'characters': text,
             'force': True,

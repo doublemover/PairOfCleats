@@ -1,7 +1,10 @@
-const vscode = require('vscode');
+const { createEditorOperations } = require('./editor-operations.js');
+const operations = createEditorOperations({ spawn: (...args) => cp.spawn(...args) });
+const vscode = operations.wrapVscode(require('vscode'));
 const cp = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { EventEmitter: NodeEventEmitter } = require('node:events');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
 const {
@@ -40,8 +43,11 @@ const { boundedFacts, captureSearchExplanation, renderSearchExplanation, normali
 // Check immediately at each sink, including after async prompts/probes and
 // saved/background workflows. Trust may change while a command is pending.
 function spawnBufferedProcess(...args) {
+  if (!operations.isCurrent()) return { ok: false, error: new Error('PairOfCleats operation was cancelled.') };
   if (vscode.workspace.isTrusted !== true) return { ok: false, error: workspaceTrustError() };
-  return spawnBufferedProcessUnchecked(...args);
+  const result = spawnBufferedProcessUnchecked(...args);
+  if (result.ok) operations.trackChild(result.child);
+  return result;
 }
 
 async function requestApiJson(baseUrl, requestPath, options = {}) {
@@ -52,7 +58,7 @@ async function requestApiJson(baseUrl, requestPath, options = {}) {
   delete headers.Authorization;
   delete headers.authorization;
   Object.assign(headers, buildApiHeaders(getExtensionConfiguration(), baseUrl));
-  return requestApiJsonUnchecked(baseUrl, requestPath, { ...options, headers });
+  return operations.request((signal) => requestApiJsonUnchecked(baseUrl, requestPath, { ...options, headers, signal }));
 }
 const EDITOR_CONFIG_CONTRACT = Object.freeze(require('./editor-config-contract.json'));
 const DEFAULT_EDITOR_CONFIG_CONTRACT = EDITOR_CONFIG_CONTRACT;
@@ -293,7 +299,8 @@ async function getCachedApiCapabilities(baseUrl, timeoutMs, headers = null) {
   if (cached && (Date.now() - cached.timestamp) < API_CAPABILITY_CACHE_TTL_MS) {
     return cached.result;
   }
-  const probe = await probeApiCapabilitiesRequest(baseUrl, timeoutMs, headers);
+  const probe = await operations.request((signal) => probeApiCapabilitiesRequest(baseUrl, timeoutMs, headers, signal));
+  if (!operations.isCurrent()) return operations.cancelled();
   const result = probe.ok
     ? {
       ok: true,
@@ -884,8 +891,16 @@ function readWorkspaceState(key, fallback) {
 }
 
 async function writeWorkspaceState(key, value) {
+  if (!operations.isCurrent()) return;
   if (typeof extensionContext?.workspaceState?.update !== 'function') return;
-  await extensionContext.workspaceState.update(key, value);
+  const scope = operations.current();
+  const previous = workspaceWrites.get(key) || Promise.resolve();
+  const next = previous.catch(() => {}).then(() => {
+    if (operations.isCurrent(scope)) return extensionContext.workspaceState.update(key, value);
+  });
+  operations.trackPromise(next);
+  workspaceWrites.set(key, next);
+  try { await next; } finally { if (workspaceWrites.get(key) === next) workspaceWrites.delete(key); }
 }
 
 async function persistWorkflowSessions() {
@@ -1053,11 +1068,13 @@ async function selectRepo() {
       placeHolder: 'Select the repository root to use for subsequent commands'
     });
   if (!picked) return;
+  operations.invalidate('repository-selected', { preserveCurrent: true });
   await persistSelectedRepoCandidate(picked);
   vscode.window.showInformationMessage(`PairOfCleats will use ${picked.repoLabel} until you clear the selection.`);
 }
 
 async function clearSelectedRepo() {
+  operations.invalidate('repository-selection-cleared', { preserveCurrent: true });
   await persistSelectedRepoCandidate(null);
   vscode.window.showInformationMessage('PairOfCleats cleared the explicit repository selection.');
 }
@@ -1464,6 +1481,7 @@ async function recordSearchResultSet({
   payload = null,
   explain = false
 }) {
+  if (!operations.isCurrent()) return null;
   const resultSet = normalizeSearchResultSet({
     resultSetId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     query,
@@ -1772,17 +1790,35 @@ function buildInlineFileSeed(document, repoContext) {
 }
 
 function buildInlineSeed(document, position, repoContext) {
-  const query = getWordQueryAtPosition(document, position);
-  if (query) return `symbol:${query}`;
+  // A spelling is not a canonical symbol identity. Until navigation supplies
+  // one, hover consumes an explicitly labelled file-level indexed summary.
   return buildInlineFileSeed(document, repoContext);
 }
 
-function createInlineCacheKey(repoRoot, seed) {
-  return `${repoRoot}::${seed}`;
+function captureInlineIdentity(document, repoContext, position = null) {
+  const config = getExtensionConfiguration();
+  const hash = (value) => createHash('sha256').update(value).digest('hex');
+  return {
+    repoRoot: repoContext.repoRoot,
+    uri: document?.uri?.toString?.() || getDocumentFilePath(document),
+    version: document?.version ?? null,
+    sourceHash: hash(String(document?.getText?.() || '')),
+    dirty: document?.isDirty === true,
+    position: position ? [position.line, position.character] : null,
+    policy: hash(JSON.stringify(Object.values(VSCODE_SETTINGS).map((key) => config.get(key) ?? null))),
+    // The editor does not own index generation resolution. Missing generation
+    // authority prohibits cross-request reuse, including inside the old TTL.
+    generation: null
+  };
 }
 
-function getCachedInlineSignalPayload(repoRoot, seed) {
-  const key = createInlineCacheKey(repoRoot, seed);
+function createInlineCacheKey(repoRoot, seed, identity) {
+  return JSON.stringify([repoRoot, seed, identity]);
+}
+
+function getCachedInlineSignalPayload(repoRoot, seed, identity) {
+  if (!identity?.generation) return null;
+  const key = createInlineCacheKey(repoRoot, seed, identity);
   const cached = inlineSignalCache.get(key);
   if (!cached) return null;
   if ((Date.now() - cached.timestamp) > INLINE_SIGNAL_CACHE_TTL_MS) {
@@ -1792,11 +1828,15 @@ function getCachedInlineSignalPayload(repoRoot, seed) {
   return cached.payload;
 }
 
-function setCachedInlineSignalPayload(repoRoot, seed, payload) {
-  inlineSignalCache.set(createInlineCacheKey(repoRoot, seed), {
+function setCachedInlineSignalPayload(repoRoot, seed, payload, identity) {
+  if (!identity?.generation || !operations.isCurrent()) return;
+  const key = createInlineCacheKey(repoRoot, seed, identity);
+  inlineSignalCache.delete(key);
+  inlineSignalCache.set(key, {
     timestamp: Date.now(),
     payload
   });
+  while (inlineSignalCache.size > 64) inlineSignalCache.delete(inlineSignalCache.keys().next().value);
 }
 
 function countInlineWarnings(payload) {
@@ -1835,9 +1875,11 @@ function buildInlineSignalSummary(payload) {
   return parts.join(', ');
 }
 
-function buildInlineHoverMarkdown(payload, { seed, maxItems }) {
+function buildInlineHoverMarkdown(payload, { seed, maxItems, dirty = false }) {
   const lines = [
-    '### PairOfCleats inline context',
+    '### PairOfCleats indexed file summary',
+    '- Scope: indexed snapshot; aggregate counts are not precise findings in the current buffer.',
+    ...(dirty ? ['- Unsaved buffer: indexed facts may differ from the current text.'] : []),
     `- seed: \`${seed}\``
   ];
   const riskStatus = String(payload?.risk?.analysisStatus?.code || payload?.risk?.status || '').trim();
@@ -1889,15 +1931,15 @@ function buildInlineHoverMarkdown(payload, { seed, maxItems }) {
 function createInlineDiagnostic(document, payload) {
   const summary = buildInlineSignalSummary(payload);
   if (!summary) return null;
-  const severity = countInlineRiskFlows(payload) > 0 || countInlineWarnings(payload) > 0
-    ? vscode.DiagnosticSeverity.Warning
-    : vscode.DiagnosticSeverity.Information;
+  if (document?.isDirty === true) return null;
+  const severity = vscode.DiagnosticSeverity.Information;
   const diagnostic = new vscode.Diagnostic(
     createFallbackLineRange(0),
-    `PairOfCleats inline signal: ${summary}`,
+    `PairOfCleats indexed file summary (aggregate, not a finding at this line): ${summary}`,
     severity
   );
   diagnostic.source = 'PairOfCleats';
+  diagnostic.code = 'indexed-file-summary';
   return diagnostic;
 }
 
@@ -1911,6 +1953,13 @@ function clearInlineDecorations(editor = null) {
   inlineRiskDecorationType = null;
 }
 
+function invalidateInlineSignals() {
+  operations.cancelKey('inline-refresh');
+  inlineSignalCache.clear();
+  inlineRiskDiagnostics?.clear?.();
+  clearInlineDecorations(vscode.window.activeTextEditor || null);
+}
+
 function applyInlineDecorations(editor, payload) {
   if (!editor?.setDecorations || typeof vscode.window?.createTextEditorDecorationType !== 'function') return;
   const summary = buildInlineSignalSummary(payload);
@@ -1919,7 +1968,7 @@ function applyInlineDecorations(editor, payload) {
   inlineRiskDecorationType = vscode.window.createTextEditorDecorationType({
     isWholeLine: true,
     after: {
-      contentText: ` PairOfCleats: ${summary}`,
+      contentText: ` PairOfCleats indexed file summary${editor.document?.isDirty ? ' (unsaved buffer differs)' : ''}: ${summary}`,
       color: 'rgba(120, 120, 120, 0.9)',
       margin: '0 0 0 1rem'
     }
@@ -2020,6 +2069,7 @@ async function runNavigationCommand({
   filePath = '',
   limit = NAVIGATION_RESULT_LIMIT
 }) {
+  if (!operations.isCurrent()) return [];
   const config = getExtensionConfiguration();
   const apiSettings = readApiSettings(config);
   if (apiSettings.mode === 'require') {
@@ -2075,7 +2125,7 @@ async function runNavigationCommand({
     const timeout = setTimeout(() => {
       timedOut = true;
       try {
-        child.kill('SIGKILL');
+        killChildProcess(child);
       } catch {}
     }, NAVIGATION_PROVIDER_TIMEOUT_MS);
     timeout.unref?.();
@@ -2114,6 +2164,7 @@ async function runNavigationCommand({
       resolve({ ok: true, payload: parsed.payload });
     });
   });
+  if (!operations.isCurrent()) return [];
   if (!result.ok) {
     appendRuntimeFailure(output, '[navigate]', result);
     return [];
@@ -2127,11 +2178,10 @@ async function runNavigationCommand({
 
 async function runInlineContextCommand({
   repoContext,
-  seed
+  seed,
+  identity = null
 }) {
-  if (!repoContext?.repoRoot || !seed) return null;
-  const cached = getCachedInlineSignalPayload(repoContext.repoRoot, seed);
-  if (cached) return cached;
+  if (!repoContext?.repoRoot || !seed || !operations.isCurrent()) return null;
   const config = getExtensionConfiguration();
   const apiSettings = readApiSettings(config);
   if (apiSettings.mode === 'require') {
@@ -2142,6 +2192,8 @@ async function runInlineContextCommand({
     );
     return null;
   }
+  const cached = getCachedInlineSignalPayload(repoContext.repoRoot, seed, identity);
+  if (cached) return cached;
   const cliResolution = resolveCli(repoContext.repoRoot, config);
   if (!cliResolution.ok) {
     noteInlineSignalDegraded('cli-invalid', cliResolution.message, cliResolution.detail || null);
@@ -2185,7 +2237,7 @@ async function runInlineContextCommand({
     const timeout = setTimeout(() => {
       timedOut = true;
       try {
-        child.kill('SIGKILL');
+        killChildProcess(child);
       } catch {}
     }, INLINE_SIGNAL_TIMEOUT_MS);
     timeout.unref?.();
@@ -2224,21 +2276,26 @@ async function runInlineContextCommand({
       resolve({ ok: true, payload: parsed.payload });
     });
   });
+  if (!operations.isCurrent()) return null;
   if (!result.ok || !result.payload || !hasInlineSignals(result.payload)) {
     if (!result.ok) {
       noteInlineSignalDegraded(`inline-${result.kind || 'failed'}`, result.message || 'PairOfCleats inline context failed.', result.detail || null);
     }
     return null;
   }
-  setCachedInlineSignalPayload(repoContext.repoRoot, seed, result.payload);
+  setCachedInlineSignalPayload(repoContext.repoRoot, seed, result.payload, identity);
   return result.payload;
 }
 
-async function provideDefinitionsAtPosition(document, position) {
+function provideDefinitionsAtPosition(document, position, token) {
+  return operations.run('definitions', () => provideOwnedDefinitions(document, position), { token });
+}
+
+async function provideOwnedDefinitions(document, position) {
   const query = getWordQueryAtPosition(document, position);
   if (!query) return [];
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
-  if (!repoContext.ok) return [];
+  if (!repoContext.ok || !operations.isCurrent()) return [];
   const rows = await runNavigationCommand({
     kind: 'definitions',
     repoContext,
@@ -2249,11 +2306,15 @@ async function provideDefinitionsAtPosition(document, position) {
   return rows.map((entry) => createNavigationLocation(repoContext, entry)).filter(Boolean);
 }
 
-async function provideReferencesAtPosition(document, position) {
+function provideReferencesAtPosition(document, position, context, token) {
+  return operations.run('references', () => provideOwnedReferences(document, position), { token });
+}
+
+async function provideOwnedReferences(document, position) {
   const query = getWordQueryAtPosition(document, position);
   if (!query) return [];
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
-  if (!repoContext.ok) return [];
+  if (!repoContext.ok || !operations.isCurrent()) return [];
   const rows = await runNavigationCommand({
     kind: 'references',
     repoContext,
@@ -2264,9 +2325,13 @@ async function provideReferencesAtPosition(document, position) {
   return rows.map((entry) => createNavigationLocation(repoContext, entry)).filter(Boolean);
 }
 
-async function provideDocumentSymbolsForDocument(document) {
+function provideDocumentSymbolsForDocument(document, token) {
+  return operations.run('document-symbols', () => provideOwnedDocumentSymbols(document), { token });
+}
+
+async function provideOwnedDocumentSymbols(document) {
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
-  if (!repoContext.ok) return [];
+  if (!repoContext.ok || !operations.isCurrent()) return [];
   const filePath = getDocumentFilePath(document);
   if (!filePath) return [];
   const rows = await runNavigationCommand({
@@ -2278,11 +2343,15 @@ async function provideDocumentSymbolsForDocument(document) {
   return rows.map((entry) => createDocumentSymbol(entry));
 }
 
-async function provideCompletionItemsAtPosition(document, position) {
+function provideCompletionItemsAtPosition(document, position, token) {
+  return operations.run('completions', () => provideOwnedCompletions(document, position), { token });
+}
+
+async function provideOwnedCompletions(document, position) {
   const query = getWordPrefixQueryAtPosition(document, position);
   if (!query || query.length < MIN_COMPLETION_QUERY_LENGTH) return [];
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
-  if (!repoContext.ok) return [];
+  if (!repoContext.ok || !operations.isCurrent()) return [];
   const rows = await runNavigationCommand({
     kind: 'completions',
     repoContext,
@@ -2293,36 +2362,50 @@ async function provideCompletionItemsAtPosition(document, position) {
   return rows.map((entry) => createCompletionItem(entry)).filter(Boolean);
 }
 
-async function provideInlineHoverAtPosition(document, position) {
+function provideInlineHoverAtPosition(document, position, token) {
+  return operations.run('inline-hover', () => provideOwnedInlineHover(document, position), { token });
+}
+
+async function provideOwnedInlineHover(document, position) {
   const config = getExtensionConfiguration();
   const inlineSettings = readInlineSettings(config);
   if (!inlineSettings.inlineHoverEnabled) return null;
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
-  if (!repoContext.ok) return null;
+  if (!repoContext.ok || !operations.isCurrent()) return null;
   const seed = buildInlineSeed(document, position, repoContext);
   if (!seed) return null;
+  const identity = captureInlineIdentity(document, repoContext, position);
   const payload = await runInlineContextCommand({
     repoContext,
-    seed
+    seed,
+    identity
   });
-  if (!payload) return null;
+  if (!payload || !operations.isCurrent()
+    || JSON.stringify(identity) !== JSON.stringify(captureInlineIdentity(document, repoContext, position))) return null;
   const range = typeof document?.getWordRangeAtPosition === 'function'
     ? (document.getWordRangeAtPosition(position) || createFallbackLineRange(position?.line || 0))
     : createFallbackLineRange(position?.line || 0);
   return new vscode.Hover(
     buildInlineHoverMarkdown(payload, {
       seed,
-      maxItems: inlineSettings.maxItems
+      maxItems: inlineSettings.maxItems,
+      dirty: document?.isDirty === true
     }),
     range
   );
 }
 
-async function refreshInlineSignalsForEditor(editor = null) {
+function refreshInlineSignalsForEditor(editor = null) {
+  return operations.run('inline-refresh', () => refreshOwnedInlineSignals(editor), { key: 'inline-refresh' });
+}
+
+async function refreshOwnedInlineSignals(editor = null) {
   const targetEditor = editor || vscode.window.activeTextEditor || null;
   const config = getExtensionConfiguration();
   const inlineSettings = readInlineSettings(config);
   const targetDocument = targetEditor?.document || null;
+  inlineRiskDiagnostics?.clear?.();
+  clearInlineDecorations(targetEditor);
   if (!targetDocument || targetDocument?.uri?.scheme !== 'file') {
     inlineRiskDiagnostics?.clear?.();
     clearInlineDecorations(targetEditor);
@@ -2334,6 +2417,7 @@ async function refreshInlineSignalsForEditor(editor = null) {
     return;
   }
   const repoContext = await resolveRepoContext({ pathHint: targetDocument.uri, allowPrompt: false });
+  if (!operations.isCurrent()) return;
   if (!repoContext.ok) {
     inlineRiskDiagnostics?.clear?.();
     clearInlineDecorations(targetEditor);
@@ -2345,10 +2429,15 @@ async function refreshInlineSignalsForEditor(editor = null) {
     clearInlineDecorations(targetEditor);
     return;
   }
+  const identity = captureInlineIdentity(targetDocument, repoContext);
   const payload = await runInlineContextCommand({
     repoContext,
-    seed
+    seed,
+    identity
   });
+  if (!operations.isCurrent() || targetDocument.isClosed === true
+    || vscode.window.activeTextEditor !== targetEditor
+    || JSON.stringify(identity) !== JSON.stringify(captureInlineIdentity(targetDocument, repoContext))) return;
   if (!payload) {
     inlineRiskDiagnostics?.set?.(targetDocument.uri, []);
     clearInlineDecorations(targetEditor);
@@ -2725,7 +2814,7 @@ async function presentOperatorPayload(spec, payload, repoContext, inputContext, 
   const presentationMode = inputContext?.presentationMode || 'both';
   if (presentationMode === 'output') return null;
   const rendered = await buildOperatorPresentation(spec, payload, inputContext);
-  if (!rendered) return null;
+  if (!rendered || !operations.isCurrent()) return null;
   const exportDir = ensureOperatorExportDir(repoContext.repoRoot, spec);
   const baseName = buildPresentationExportBase(spec, payload, inputContext);
   const jsonPath = path.join(exportDir, `${baseName}.json`);
@@ -3631,14 +3720,14 @@ async function runBufferedJsonCommand({
         timedOut = true;
         output.appendLine(`[command] timeout after ${spec.timeoutMs}ms`);
         try {
-          child.kill('SIGKILL');
+          killChildProcess(child);
         } catch {}
       }, spec.timeoutMs);
       timeout.unref?.();
       const cancelSub = token.onCancellationRequested(() => {
         output.appendLine('[command] cancellation requested');
         try {
-          child.kill('SIGKILL');
+          killChildProcess(child);
         } catch {}
       });
       child.stdout?.on('data', (chunk) => {
@@ -3951,15 +4040,7 @@ function flushStreamChunk(output, prefix, chunkState) {
 }
 
 function killChildProcess(child) {
-  if (!child || typeof child.kill !== 'function') return;
-  try {
-    child.kill('SIGTERM');
-  } catch {}
-  setTimeout(() => {
-    try {
-      child.kill('SIGKILL');
-    } catch {}
-  }, 5000).unref?.();
+  void operations.stopChild(child);
 }
 
 function appendRuntimeFailure(output, prefix, failure) {
@@ -4203,7 +4284,11 @@ async function promptSearchQuery({ prompt, placeHolder }) {
   return query && query.trim() ? query.trim() : null;
 }
 
-async function executeSearchCommand({
+function executeSearchCommand(options = {}) {
+  return operations.run('foreground-search', () => executeOwnedSearchCommand(options), { key: 'foreground-search' });
+}
+
+async function executeOwnedSearchCommand({
   query,
   explain = false,
   workflow = 'search',
@@ -4212,6 +4297,7 @@ async function executeSearchCommand({
 } = {}) {
   const config = getExtensionConfiguration();
   const execution = await resolveExecutionMode(config, explain ? 'explain-search' : workflow);
+  if (!operations.isCurrent()) return;
   if (!execution.ok) {
     const output = getOutputChannel();
     output.appendLine(execution.detail || execution.message);
@@ -4220,12 +4306,12 @@ async function executeSearchCommand({
     return;
   }
   const repoContext = await resolveSearchRepoContext({ allowRemote: execution.mode === 'api' });
-  if (!repoContext) return;
+  if (!repoContext || !operations.isCurrent()) return;
   const { repoRoot } = repoContext;
   const resolvedQuery = query && String(query).trim()
     ? String(query).trim()
     : await promptSearchQuery({ prompt, placeHolder });
-  if (!resolvedQuery) return;
+  if (!resolvedQuery || !operations.isCurrent()) return;
 
   const cliResolution = resolveCli(repoRoot, config);
   if (execution.mode === 'cli' && !cliResolution.ok) {
@@ -4273,17 +4359,26 @@ async function executeSearchCommand({
     {
       location: vscode.ProgressLocation.Notification,
       title: 'PairOfCleats search',
-      cancellable: execution.mode !== 'api'
+      cancellable: true
     },
     async (_, token) => {
       if (execution.mode === 'api') {
-        const result = await requestApiJson(execution.baseUrl, '/search', {
-          method: 'POST',
-          payload: searchPayload,
-          headers: execution.headers || null,
-          timeoutMs: execution.timeoutMs,
-          label: 'PairOfCleats search'
-        });
+        const scope = operations.current();
+        const cancelSub = token.onCancellationRequested(() => operations.cancelScope(scope));
+        if (token.isCancellationRequested) operations.cancelScope(scope);
+        let result;
+        try {
+          result = await requestApiJson(execution.baseUrl, '/search', {
+            method: 'POST',
+            payload: searchPayload,
+            headers: execution.headers || null,
+            timeoutMs: execution.timeoutMs,
+            label: 'PairOfCleats search'
+          });
+        } finally {
+          cancelSub.dispose();
+        }
+        if (!operations.isCurrent()) return;
         if (!result.ok) {
           appendRuntimeFailure(output, '[search api]', result);
           output.show?.(true);
@@ -4368,14 +4463,14 @@ async function executeSearchCommand({
           timedOut = true;
           output.appendLine(`[search] timeout after ${searchTimeoutMs}ms`);
           try {
-            child.kill('SIGKILL');
+            killChildProcess(child);
           } catch {}
         }, searchTimeoutMs);
         timeout.unref?.();
         const cancelSub = token.onCancellationRequested(() => {
           output.appendLine('[search] cancellation requested');
           try {
-            child.kill('SIGKILL');
+            killChildProcess(child);
           } catch {}
         });
         child.stdout?.on('data', (chunk) => {
@@ -4395,6 +4490,7 @@ async function executeSearchCommand({
         child.once('close', async (code) => {
           clearTimeout(timeout);
           cancelSub.dispose();
+          if (!operations.isCurrent()) { resolve(); return; }
           if (token.isCancellationRequested) {
             output.appendLine('[search] cancelled by user');
             vscode.window.showInformationMessage('PairOfCleats search was cancelled.');
@@ -4542,7 +4638,11 @@ async function runExplainSearch() {
   });
 }
 
-async function runSavedSearchInvocation(resultSet, repoContext) {
+function runSavedSearchInvocation(resultSet, repoContext) {
+  return operations.run('foreground-search', () => runOwnedSavedSearch(resultSet, repoContext), { key: 'foreground-search' });
+}
+
+async function runOwnedSavedSearch(resultSet, repoContext) {
   const output = getOutputChannel();
   const invocation = resultSet?.invocation || null;
   let hits = [];
@@ -4724,9 +4824,27 @@ function activate(context) {
   }
   if (typeof vscode.workspace.onDidChangeWorkspaceFolders === 'function') {
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      operations.invalidate('workspace-folders-changed');
+      invalidateInlineSignals();
       updateWorkflowStatusBar();
       void refreshInlineSignalsForActiveEditor();
     }));
+  }
+  for (const event of ['onDidChangeTextDocument', 'onDidSaveTextDocument', 'onDidCloseTextDocument', 'onDidChangeConfiguration']) {
+    if (typeof vscode.workspace[event] !== 'function') continue;
+    context.subscriptions.push(vscode.workspace[event](() => {
+      invalidateInlineSignals();
+      void refreshInlineSignalsForActiveEditor();
+    }));
+  }
+  if (typeof vscode.workspace.createFileSystemWatcher === 'function') {
+    const watcher = vscode.workspace.createFileSystemWatcher('**/{current.json,artifacts.manifest.json}');
+    const refresh = () => { invalidateInlineSignals(); void refreshInlineSignalsForActiveEditor(); };
+    context.subscriptions.push(watcher);
+    for (const event of ['onDidCreate', 'onDidChange', 'onDidDelete']) {
+      const subscription = watcher[event]?.(refresh);
+      if (subscription) context.subscriptions.push(subscription);
+    }
   }
   void restoreWorkflowSessions();
   refreshResultsExplorer();
@@ -4738,16 +4856,19 @@ function activate(context) {
  *
  * @returns {void}
  */
-function deactivate() {
-  for (const entry of managedProcesses.values()) {
-    killChildProcess(entry.child);
-  }
-  managedProcesses.clear();
+async function deactivate() {
   inlineRiskDiagnostics?.clear?.();
   clearInlineDecorations(vscode.window.activeTextEditor || null);
+  inlineSignalCache.clear();
+  apiCapabilityCache.clear();
+  const result = await operations.dispose();
+  if (result.ok) managedProcesses.clear();
+  else console.error('[PairOfCleats] Owned editor work did not finish shutdown:', result);
+  return result;
 }
 
 let outputChannel = null;
+const workspaceWrites = new Map();
 let extensionContext = null;
 let workflowSessions = [];
 let workflowStatusBar = null;
@@ -4762,6 +4883,7 @@ let inlineRiskDiagnostics = null;
 let inlineRiskDecorationType = null;
 
 function getOutputChannel() {
+  if (!operations.isCurrent()) return { appendLine() {}, show() {}, clear() {} };
   if (!outputChannel) {
     outputChannel = vscode.window.createOutputChannel('PairOfCleats');
   }

@@ -172,6 +172,14 @@ Use `PairOfCleats: Project Settings Template` to open a copy/paste starter paylo
 
 ## CLI output contract
 
+Subprocess and API requests belong to their source window. Closing a window,
+unloading the plugin or changing project context cancels owned work and prevents
+late panels, history updates and navigation. Shutdown waits for bounded resource
+settlement and reports unconfirmed cleanup instead of equating cleared task UI
+with terminated processes. A newer foreground search supersedes earlier work
+only in the same window. Native host disable/update/uninstall and process-tree
+qualification remain separate from the authored lifecycle fixtures.
+
 The Sublime integration is designed to use `--json` output so it can access full
 metadata when available. It does not assume the compact JSON contract used by
 other editors.

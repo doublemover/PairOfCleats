@@ -102,11 +102,12 @@ try {
   const diagnostics = harness.diagnosticCollections[0].entries.get(document.uri.toString());
   assert.equal(Array.isArray(diagnostics), true, 'expected diagnostics for active file');
   assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0].severity, harness.fakeVscode.DiagnosticSeverity.Warning);
+  assert.equal(diagnostics[0].severity, harness.fakeVscode.DiagnosticSeverity.Information);
+  assert.match(diagnostics[0].message, /indexed file summary \(aggregate, not a finding at this line\)/i);
   assert.match(diagnostics[0].message, /3 risk flows/i);
   assert.equal(harness.decorationTypes.length, 1, 'expected inline decoration type');
   assert.equal(harness.decorationApplications.length > 0, true, 'expected decoration application');
-  assert.match(harness.decorationTypes[0].options.after.contentText, /PairOfCleats: 3 risk flows/i);
+  assert.match(harness.decorationTypes[0].options.after.contentText, /PairOfCleats indexed file summary: 3 risk flows/i);
 
   queueInlineSignalsContextPackResult(harness);
 
@@ -116,7 +117,8 @@ try {
     {}
   );
   assert.ok(hover, 'expected bounded inline hover');
-  assert.match(hover.contents.value, /seed: `symbol:WidgetBuilder`/i);
+  assert.match(hover.contents.value, /seed: `file:src\/app.ts`/i);
+  assert.match(hover.contents.value, /indexed snapshot; aggregate counts are not precise findings/i);
   assert.match(hover.contents.value, /\*\*Risk flows\*\*/);
   assert.match(hover.contents.value, /flow-a/);
   assert.match(hover.contents.value, /flow-b/);
@@ -135,7 +137,7 @@ try {
     '--repo',
     workspace.root,
     '--seed',
-    'symbol:WidgetBuilder',
+    'file:src/app.ts',
     '--hops',
     '0',
     '--includeRisk',

@@ -4,6 +4,9 @@ import threading
 import urllib.parse
 import urllib.request
 import urllib.error
+from . import operations
+
+_REQUEST_CONTEXT = threading.local()
 
 
 class ApiResult(object):
@@ -14,15 +17,36 @@ class ApiResult(object):
 
 
 class ApiHandle(object):
-    def __init__(self, thread):
+    def __init__(self, thread, scope=None):
         self.thread = thread
         self._cancelled = False
+        self.scope = scope
+        self.response = None
+        self.response_lock = threading.Lock()
+        self.on_cancel = None
 
     def cancel(self):
+        if self._cancelled:
+            return
         self._cancelled = True
+        if callable(self.on_cancel):
+            self.on_cancel()
+        with self.response_lock:
+            response = self.response
+        if response is not None:
+            try:
+                response.close()
+            except Exception:
+                pass
 
     def is_cancelled(self):
-        return self._cancelled
+        return self._cancelled or (self.scope is not None and not operations.is_current(self.scope))
+
+    def wait(self, timeout):
+        if self.thread is not None:
+            self.thread.join(timeout)
+            return not self.thread.is_alive()
+        return True
 
 
 def normalize_base_url(value):
@@ -78,6 +102,9 @@ class _CredentialRedirectGuard(urllib.request.HTTPRedirectHandler):
 
 
 def _open_url(url, timeout_ms=5000, method='GET', payload=None, headers=None):
+    handle = getattr(_REQUEST_CONTEXT, 'handle', None)
+    if handle is not None and handle.is_cancelled():
+        raise RuntimeError('API request cancelled.')
     timeout = float(timeout_ms or 5000) / 1000.0
     if timeout <= 0:
         timeout = 5.0
@@ -90,11 +117,19 @@ def _open_url(url, timeout_ms=5000, method='GET', payload=None, headers=None):
     try:
         opener = urllib.request.build_opener(_CredentialRedirectGuard())
         resp = opener.open(request, timeout=timeout)
+        if handle is not None:
+            with handle.response_lock:
+                handle.response = resp
         try:
+            if handle is not None and handle.is_cancelled():
+                raise RuntimeError('API request cancelled.')
             status = resp.getcode() or 0
             headers = dict(resp.headers.items())
             data = resp.read()
         finally:
+            if handle is not None:
+                with handle.response_lock:
+                    handle.response = None
             try:
                 resp.close()
             except Exception:
@@ -132,6 +167,9 @@ def request_text(url, timeout_ms=5000, method='GET', payload=None, headers=None)
 
 
 def _ensure_parent_dir(path_value):
+    handle = getattr(_REQUEST_CONTEXT, 'handle', None)
+    if handle is not None and handle.is_cancelled():
+        raise RuntimeError('API export cancelled.')
     if not path_value:
         return
     parent = os.path.dirname(path_value)
@@ -157,13 +195,22 @@ def _write_json(path_value, payload):
         json.dump(payload, handle, indent=2, sort_keys=True)
 
 
-def run_async(request_fn, on_done, on_progress=None):
+def run_async(request_fn, on_done, on_progress=None, window=None, scope=None, task=None):
     import sublime
-    handle = ApiHandle(None)
+    scope = scope or operations.capture(window or sublime.active_window())
+    handle = ApiHandle(None, scope=scope)
+    if task is not None:
+        from . import tasks
+        handle.on_cancel = lambda: tasks.complete_task(window, task, status='cancelled', details='Cancelled.')
+        task['cancellable'] = True
+        task['cancel'] = handle.cancel
 
     def worker():
+        _REQUEST_CONTEXT.handle = handle
         try:
-            if callable(on_progress):
+            if handle.is_cancelled():
+                return
+            if callable(on_progress) and not handle.is_cancelled():
                 on_progress('Request started.')
             response = request_fn()
             if handle.is_cancelled():
@@ -177,14 +224,18 @@ def run_async(request_fn, on_done, on_progress=None):
             if handle.is_cancelled():
                 return
             result = ApiResult(error=str(exc))
+        finally:
+            _REQUEST_CONTEXT.handle = None
+            operations.release(handle)
         if handle.is_cancelled():
             return
-        sublime.set_timeout(lambda: on_done(result), 0)
+        sublime.set_timeout(lambda: on_done(result) if not handle.is_cancelled() else None, 0)
 
     thread = threading.Thread(target=worker)
     thread.daemon = True
-    thread.start()
     handle.thread = thread
+    operations.track(scope, handle)
+    thread.start()
     return handle
 
 

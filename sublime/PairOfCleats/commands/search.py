@@ -11,6 +11,7 @@ from ..lib import results_state
 from ..lib import runner
 from ..lib import search as search_lib
 from ..lib import tasks
+from ..lib import operations
 from ..lib import ui
 from ..lib import views
 from ..lib.saved_search import normalize_saved_options
@@ -325,6 +326,9 @@ def _execute_search(window, query, overrides=None, explain=False):
         return
     if not query:
         return
+    scope = operations.capture(window, key='foreground-search')
+    if not operations.is_current(scope):
+        return
 
     settings = config.get_settings(window)
     saved_root = overrides.get('repoRoot') if isinstance(overrides, dict) else None
@@ -351,6 +355,8 @@ def _execute_search(window, query, overrides=None, explain=False):
         return
 
     def handle_payload(result):
+        if not operations.is_current(scope):
+            return
         if result.returncode != 0:
             message = result.output.strip() or 'PairOfCleats search failed.'
             ui.show_error(message)
@@ -413,7 +419,7 @@ def _execute_search(window, query, overrides=None, explain=False):
         items = [results.format_quick_panel_item(hit) for hit in hits]
 
         def on_select(index):
-            if index < 0:
+            if index < 0 or not operations.is_current(scope):
                 return
             results.open_hit(window, hits[index], repo_root)
 
@@ -432,11 +438,13 @@ def _execute_search(window, query, overrides=None, explain=False):
         )
 
         def on_api_done(result):
+            if not operations.is_current(scope):
+                return
             if result.error:
                 tasks.complete_task(window, task, status='failed', details=result.error)
                 if execution.get('allow_fallback'):
                     ui.show_status('PairOfCleats: API search failed; falling back to CLI.')
-                    _execute_search_cli(window, query, repo_root, settings, resolved, explain, handle_payload)
+                    _execute_search_cli(window, query, repo_root, settings, resolved, explain, handle_payload, scope=scope)
                     return
                 ui.show_error(result.error)
                 return
@@ -454,11 +462,14 @@ def _execute_search(window, query, overrides=None, explain=False):
             ),
             on_api_done,
             on_progress=lambda message: tasks.note_progress(window, task, details=message),
+            window=window,
+            scope=scope,
+            task=task,
         )
         return
 
     ui.show_status('PairOfCleats: searching...')
-    _execute_search_cli(window, query, repo_root, settings, resolved, explain, handle_payload)
+    _execute_search_cli(window, query, repo_root, settings, resolved, explain, handle_payload, scope=scope)
 
 
 class _ApiProcessResult(object):
@@ -469,7 +480,7 @@ class _ApiProcessResult(object):
         self.payload = payload
 
 
-def _execute_search_cli(window, query, repo_root, settings, resolved, explain, on_done):
+def _execute_search_cli(window, query, repo_root, settings, resolved, explain, on_done, scope=None):
     args = search_lib.build_search_args(
         query,
         repo_root=repo_root,
@@ -481,7 +492,7 @@ def _execute_search_cli(window, query, repo_root, settings, resolved, explain, o
     command = cli['command']
     full_args = list(cli.get('args_prefix') or []) + args
     env = config.build_env(settings)
-    runner.run_process(
+    return runner.run_process(
         command,
         full_args,
         cwd=repo_root,
@@ -490,7 +501,8 @@ def _execute_search_cli(window, query, repo_root, settings, resolved, explain, o
         title='PairOfCleats search',
         capture_json=True,
         on_done=on_done,
-        stream_output=False
+        stream_output=False,
+        operation_scope=scope,
     )
 
 
@@ -575,6 +587,8 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
             ),
             on_api_done,
             on_progress=lambda message: tasks.note_progress(window, task, details=message),
+            window=window,
+            task=task,
         )
         return
 

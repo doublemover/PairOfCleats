@@ -230,8 +230,10 @@ async function requestApiJson(baseUrl, requestPath, {
   payload = null,
   headers = null,
   timeoutMs = DEFAULT_API_TIMEOUT_MS,
-  label = 'PairOfCleats API request'
+  label = 'PairOfCleats API request',
+  signal = null
 } = {}) {
+  if (signal?.aborted) return { ok: false, kind: 'cancelled', message: `${label} was cancelled.` };
   const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
   if (!normalizedBaseUrl) {
     return {
@@ -251,6 +253,9 @@ async function requestApiJson(baseUrl, requestPath, {
     };
   }
   const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const abort = () => controller?.abort?.(signal?.reason);
+  if (signal?.aborted) abort();
+  else signal?.addEventListener?.('abort', abort, { once: true });
   const timeout = setTimeout(() => controller?.abort?.(), normalizeApiTimeoutMs(timeoutMs));
   timeout.unref?.();
   try {
@@ -296,14 +301,15 @@ async function requestApiJson(baseUrl, requestPath, {
     const isAbort = error?.name === 'AbortError';
     return {
       ok: false,
-      kind: isAbort ? 'api-timeout' : 'api-request-error',
-      message: isAbort
+      kind: signal?.aborted ? 'cancelled' : isAbort ? 'api-timeout' : 'api-request-error',
+      message: signal?.aborted ? `${label} was cancelled.` : isAbort
         ? `${label} timed out after ${normalizeApiTimeoutMs(timeoutMs)}ms.`
         : `${label} failed: ${error?.message || error}`,
       detail: String(error?.stack || error?.message || error)
     };
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener?.('abort', abort);
   }
 }
 
@@ -316,10 +322,11 @@ async function probeApiHealth(baseUrl, timeoutMs = DEFAULT_API_TIMEOUT_MS, heade
   });
 }
 
-async function probeApiCapabilities(baseUrl, timeoutMs = DEFAULT_API_TIMEOUT_MS, headers = null) {
+async function probeApiCapabilities(baseUrl, timeoutMs = DEFAULT_API_TIMEOUT_MS, headers = null, signal = null) {
   const response = await requestApiJson(baseUrl, '/capabilities', {
     method: 'GET',
     headers,
+    signal,
     timeoutMs,
     label: 'PairOfCleats API capability probe'
   });

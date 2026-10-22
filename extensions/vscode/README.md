@@ -32,6 +32,22 @@ Saved searches populate the `PairOfCleats Results` explorer view. From there you
 
 Long-running workflows stream into the `PairOfCleats` output channel.
 
+Search, operators, navigation, inline requests and managed services belong to
+the extension host. New foreground searches cancel superseded owned work;
+late replies cannot replace current results. Deactivation cancels and waits for
+owned resources with a bounded deadline. An unconfirmed process-tree shutdown
+is reported as such. Windows teardown uses the current user's process ownership
+and does not request elevation.
+
+Inline context currently describes an indexed file summary. A word spelling is
+not treated as a canonical symbol identity, aggregate warnings are not precise
+source findings, and dirty buffers are labelled as differing from indexed text.
+Source edits, settings and workspace changes invalidate publication authority.
+Cross-request payload reuse requires authoritative index-generation identity;
+without that identity the extension requests fresh context instead of using TTL
+as evidence of freshness. Editor-host lifecycle qualification remains separate
+from the authored fixture coverage.
+
 - `Setup`, `Bootstrap`, `Tooling Doctor`, `Config Dump`, and `Index Health` emit structured summaries with explicit next actions.
 - `Index Build` runs an indexed build against the active repo context.
 - `Start Index Watch` starts watch mode and leaves it running until `Stop Index Watch`.
