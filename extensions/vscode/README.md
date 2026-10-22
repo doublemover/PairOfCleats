@@ -54,6 +54,8 @@ API policy remains **cli / prefer / require**. Prefer may report an allowed CLI 
 
 A connection display or readiness observation does not authorize different binds, remote installation, credentials from workspace files or setup mutation. Success/error HTTP bodies and CLI capture have a 20 MiB byte limit; HTTP previews retain at most 4,096 characters. Narrow oversized requests before retrying. Owned task raw-log display is bounded separately; structured progress stays indeterminate when the producer has no authoritative stage/readiness fact.
 
+Index watch consumes the canonical typed lifecycle. **idle-watch** requires watcher admission and quiescence with no queued/replay work. **degraded** shows the producer's reason/code and keeps the last publication witness separately. A committed publication and its build ID qualify that observed promotion only; search/backend readiness remains unknown. Nested build logs cannot clear a typed degraded watcher. Terminal teardown failure or pending ownership remains failure through cancellation/zero exit and prevents replacement; its observation never grants permission to signal a saved PID.
+
 ## References
 
 The installed package includes the [settings/runtime contract](editor-config-contract.json), [first-search walkthrough](walkthroughs/first-search.md) and [operations walkthrough](walkthroughs/operations.md). The [PairOfCleats repository](https://github.com/doublemover/PairOfCleats) contains the canonical CLI, configuration, packaging and search-diagnostics contracts under `docs/`; the README and walkthrough above remain usable without those repository files installed.

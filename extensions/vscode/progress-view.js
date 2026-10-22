@@ -1,5 +1,6 @@
 const { StringDecoder } = require('node:string_decoder');
 const path = require('node:path');
+const { readWatchProgress, describeWatchProgress } = require('./watch-progress.js');
 const EVENTS = new Set(['hello', 'job:start', 'job:spawn', 'job:end', 'job:artifacts',
   'runtime:metrics', 'event:chunk', 'task:start', 'task:progress', 'task:end', 'log']);
 
@@ -38,12 +39,20 @@ function createEditorProgressDecoder({ onEvent, onText, maxLineBytes = 65536 }) 
 function applyProgressEvent(state, event, now = Date.now()) {
   if (!event || !EVENTS.has(event.event) || event.proto !== 'poc.progress@2') return state;
   const next = { ...state, lastActivityAt: now };
+  if (event.taskId === 'watch:monitor') {
+    const watch = readWatchProgress(event, state.watch);
+    if (!watch) return next;
+    return { ...next, watch, stage: 'watch', phase: event.event === 'task:end' && !watch.ownershipPending
+      && event.status !== 'failed' ? 'settling' : watch.phase,
+    message: String(event.message || state.message || '').slice(0, 1024), current: null, total: null };
+  }
   next.stage = String(event.stage || event.name || state.stage || 'indeterminate').slice(0, 256);
   next.message = String(event.message || event.text || state.message || '').slice(0, 1024);
   next.current = Number.isFinite(event.current) && event.current >= 0 ? event.current : null;
   next.total = Number.isFinite(event.total) && event.total >= 0 ? event.total : null;
   if (event.event === 'task:start' || event.event === 'task:progress') next.phase = 'indexing';
   if (event.event === 'job:end') next.phase = event.status === 'failed' ? 'failed' : 'settling';
+  if (state.watch?.phase === 'degraded') next.phase = 'degraded';
   return next;
 }
 
@@ -73,6 +82,7 @@ function describeTask(entry, now = Date.now()) {
     `Counters: ${progress.current ?? 'unknown'} / ${progress.total ?? 'unknown'}`,
     progress.message || 'No structured progress observed.',
     ...(progress.endpoint ? [`Endpoint (readiness observed): ${progress.endpoint}`] : []),
+    ...describeWatchProgress(progress.watch),
     ...(entry.observedOnly ? ['Read-only completed task observation; no process/PID authority is retained.'] : []),
     'No percentage or ETA is inferred from unstructured logs.'].join('\n');
 }

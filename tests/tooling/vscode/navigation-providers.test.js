@@ -195,4 +195,18 @@ assert.equal(normalized[0].range.start.character, 2);
 assert.equal(normalized[0].range.end.character, 15,
   'native provider uses the actual opened BOM-stripped target buffer rather than retained raw columns');
 
+harness.queuedResults.push({ persistent: true });
+const pendingSource = harness.definitionProviders[0].provider.provideDefinition(document, start, {});
+await new Promise(setImmediate);
+const delayedChild = harness.spawnCalls[harness.spawnCalls.length - 1].child;
+try {
+  fs.writeFileSync(activeFile, sourceText + 'external disk replacement');
+  delayedChild.stdout.emit('data', Buffer.from(JSON.stringify({ ...boundResult,
+    results: [{ file: 'src/defs.js', sourceHash: hashFile(bomTarget), coordinateUnit: 'utf16',
+      startLine: 1, startCol: 4, endLine: 1, endCol: 17 }] })));
+  delayedChild.emit('close', 0);
+  assert.deepEqual(await pendingSource, [],
+    'a still-clean old buffer cannot qualify a source binding after its saved file changes during the CLI request');
+} finally { fs.writeFileSync(activeFile, sourceText); }
+
 console.log('vscode navigation providers test passed');

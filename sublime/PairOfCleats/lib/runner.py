@@ -10,6 +10,7 @@ import sublime
 from . import config
 from . import tasks
 from . import operations
+from .watch_progress import read_watch_progress
 
 
 class ProcessResult(object):
@@ -248,6 +249,17 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
             _append_bounded(sink_state['parts'], line, output_cap_chars, sink_state['state'])
         with activity_lock:
             state['last_activity_at'] = time.time()
+        # Resource failure evidence survives revoked UI publication. Never
+        # revive the old scope to render it or replay a command.
+        if task and len(line.encode('utf-8')) <= 65536:
+            try:
+                event = json.loads(line)
+                observation = read_watch_progress(event)
+                if observation and event['event'] == 'task:end':
+                    state['watch_failure'] = bool(state.get('watch_failure') or event.get('status') == 'failed' or observation['ownershipPending'])
+                    state['watch_ownership_pending'] = bool(state.get('watch_ownership_pending') or observation['ownershipPending'])
+            except (ValueError, TypeError):
+                pass
         if task and window and operations.is_current(scope):
             tasks.note_log(task, line)
             if not tasks.note_structured_progress(window, task, line):
@@ -341,10 +353,15 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
             state['done'] = True
         if handle._stopper is not None:
             handle._stopper.join(2.1)
+        if state.get('watch_ownership_pending') or task and (task.get('watch') or {}).get('ownershipPending'):
+            handle._cleanup_failures.append('Canonical watch teardown ownership remains pending.')
         cleanup_unconfirmed = bool(handle._cleanup_failures or (handle._stopper is not None and handle._stopper.is_alive()))
         if cleanup_unconfirmed:
             result.error = 'Owned process-tree settlement remains unconfirmed.'
             result.state = 'cleanup_unconfirmed'
+        elif state.get('watch_failure') or task and task.get('watchFailure'):
+            result.error = 'Canonical watch teardown reported failure; cancellation does not prove success.'
+            result.state = 'failed'
         if task and window:
             task['cleanupUnconfirmed'] = cleanup_unconfirmed
             if cleanup_unconfirmed:

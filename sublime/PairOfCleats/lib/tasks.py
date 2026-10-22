@@ -7,6 +7,7 @@ import sublime
 
 from . import ui
 from . import operations
+from .watch_progress import read_watch_progress, describe_watch_progress
 
 TASK_PANEL = 'pairofcleats-progress'
 _ACTIVE_TASKS = {}
@@ -112,6 +113,13 @@ def note_structured_progress(window, task, line):
             return False
     except (ValueError, KeyError, TypeError):
         return False
+    watch = read_watch_progress(event, task.get('watch')) if event.get('taskId') == 'watch:monitor' else None
+    if event.get('taskId') == 'watch:monitor':
+        if watch is None:
+            return False
+        task['watch'] = watch
+        if event['event'] == 'task:end' and (event.get('status') == 'failed' or watch['ownershipPending']):
+            task['watchFailure'] = True
     if task.get('status') == 'cancelling':
         task['lastActivityAt'] = _now()
         _render(window)
@@ -121,10 +129,15 @@ def note_structured_progress(window, task, line):
     for field in ('current', 'total'):
         value = event.get(field)
         task[field] = value if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0 else None
-    if event['event'] in ('task:start', 'task:progress'):
+    if watch:
+        task['status'] = ('settling' if event['event'] == 'task:end' and event.get('status') != 'failed'
+                          and not watch['ownershipPending'] else watch['phase'])
+    elif event['event'] in ('task:start', 'task:progress'):
         task['status'] = 'indexing'
     elif event['event'] == 'job:end':
         task['status'] = 'failed' if event.get('status') == 'failed' else 'settling'
+    if not watch and (task.get('watch') or {}).get('phase') == 'degraded':
+        task['status'] = 'degraded'
     task['lastActivityAt'] = _now()
     _render(window)
     return True
@@ -263,6 +276,7 @@ def _render(window, show_panel=False):
                 task.get('total') if task.get('total') is not None else 'unknown'))
             if task.get('details'):
                 lines.append('  detail: {0}'.format(task['details']))
+            lines.extend('  ' + line for line in describe_watch_progress(task.get('watch')))
             if task.get('watchdogCount'):
                 lines.append('  watchdog: {0} warning(s)'.format(task['watchdogCount']))
         lines.append('')
@@ -276,8 +290,11 @@ def _render(window, show_panel=False):
                 task.get('title') or task.get('kind') or 'task',
                 duration,
             ))
+            lines.append('  repo: {0}; operation: {1}; stage: {2}'.format(
+                task.get('repoRoot') or 'unavailable', task['id'], task.get('stage', 'indeterminate')))
             if task.get('details'):
                 lines.append('  detail: {0}'.format(task['details']))
+            lines.extend('  ' + line for line in describe_watch_progress(task.get('watch')))
             if task.get('watchdogCount'):
                 lines.append('  watchdog: {0} warning(s)'.format(task['watchdogCount']))
         lines.append('')

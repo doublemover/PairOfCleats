@@ -21,6 +21,7 @@ const { sourceNavigationArgs, qualifiedNavigationRows } = require('./source-navi
 const { readGitHead, validateServiceRoot, mapServicePayload, verifyServiceRevision } = require('./service-repository.js');
 const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask,
   boundedLogLine, retainTaskLog } = require('./progress-view.js');
+const { readWatchProgress } = require('./watch-progress.js');
 const { collectEvidenceSources, createEvidenceCollection } = require('./evidence-collection.js');
 let latestAnalysisEvidence = null;
 const { resolveRiskSource, validateRiskSource } = require('./risk-source.js');
@@ -4360,13 +4361,18 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     entry.stderrDecoder?.flush();
     const termination = entry.termination ? await entry.termination : null;
     const stopUnconfirmed = entry.stopping && termination?.ok !== true;
-    entry.cleanupUnconfirmed = stopUnconfirmed;
-    if (!stopUnconfirmed && managedProcesses.get(key) === entry) managedProcesses.delete(key);
+    const watchOwnershipPending = entry.watchOwnershipPending === true;
+    entry.cleanupUnconfirmed = stopUnconfirmed || watchOwnershipPending;
+    if (!entry.cleanupUnconfirmed && managedProcesses.get(key) === entry) managedProcesses.delete(key);
     const stoppedByUser = entry.stopReason === 'cancelled';
-    const failed = Boolean(error) || timedOut || stopUnconfirmed || (!stoppedByUser && code !== 0);
+    const failed = Boolean(error) || timedOut || entry.cleanupUnconfirmed || entry.watchFailure === true || (!stoppedByUser && code !== 0);
     const status = failed ? 'failed' : stoppedByUser ? 'cancelled' : 'succeeded';
-    const summaryLine = stopUnconfirmed
+    const summaryLine = watchOwnershipPending
+      ? `${spec.title} canonical watch teardown ownership remains pending. Inspect Tasks before any deliberate recovery.`
+      : stopUnconfirmed
       ? `${spec.title} stop remains unconfirmed: ${termination?.message || 'owned termination did not settle successfully'}`
+      : entry.watchFailure
+      ? `${spec.title} canonical watch teardown reported failure; cancellation does not prove success.`
       : stoppedByUser
       ? (entry.stopSummaryLine || `${spec.title} stopped.`)
       : failed
@@ -4377,7 +4383,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     entry.progress = { ...entry.progress, phase: stopUnconfirmed ? 'stop-unconfirmed' : status, message: summaryLine };
     taskObservations.remember(entry, { status, summaryLine });
     await finishWorkflowSession(session.sessionId, { status, summaryLine });
-    if (!stoppedByUser || stopUnconfirmed) {
+    if (!stoppedByUser || failed) {
       if (failed) {
         output.appendLine(`[managed] ${summaryLine}`);
         vscode.window.showErrorMessage(`${summaryLine} See PairOfCleats output for details.`);
@@ -4432,9 +4438,16 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
   for (const [stream, prefix] of [[child.stdout, '[stdout] '], [child.stderr, '[stderr] ']]) {
     const decoder = createEditorProgressDecoder({
       onEvent: event => {
-        if (entry.stopping || entry.settling || managedProcesses.get(key) !== entry) return;
+        if (managedProcesses.get(key) !== entry) return;
+        const watch = spec.id === 'pairofcleats.indexWatchStart' ? readWatchProgress(event, entry.progress.watch) : null;
+        if (watch && event.event === 'task:end') {
+          entry.watchFailure = entry.watchFailure === true || event.status === 'failed' || watch.ownershipPending;
+          entry.watchOwnershipPending = entry.watchOwnershipPending === true || watch.ownershipPending;
+          if (entry.stopping || entry.settling) entry.progress = { ...entry.progress, watch };
+        }
+        if (entry.stopping || entry.settling) return;
         entry.progress = applyProgressEvent(entry.progress, event);
-        entry.progressReporter?.report?.({ message: `${entry.progress.stage}: ${entry.progress.message}` });
+        if (operations.isCurrent()) entry.progressReporter?.report?.({ message: `${entry.progress.stage}: ${entry.progress.message}` });
       },
       onText: (line, truncated) => taskText(prefix, line, truncated)
     });
@@ -5506,6 +5519,11 @@ async function deactivate() {
   inlineSignalCache.clear();
   apiCapabilityCache.clear();
   const result = await operations.dispose();
+  const pendingOwners = [...managedProcesses.values()].filter(entry => entry.cleanupUnconfirmed);
+  if (pendingOwners.length) {
+    result.ok = false;
+    result.pendingOwners = pendingOwners.map(entry => ({ sessionId: entry.sessionId, repoRoot: entry.repoRoot }));
+  }
   if (result.ok) managedProcesses.clear();
   else console.error('[PairOfCleats] Owned editor work did not finish shutdown:', result);
   taskObservations.clear();
