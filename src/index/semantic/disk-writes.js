@@ -42,14 +42,28 @@ export const writeSemanticJson = async ({ filename, value, diskAccount, signal =
  */
 export const retainSemanticBytes = async ({ filename, bytes, diskAccount, signal = null }) => {
   const verify = async () => {
-    const stat = await fs.lstat(filename);
-    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Semantic immutable storage must be a regular file.');
-    if (!(await fs.readFile(filename)).equals(Buffer.from(bytes))) {
-      throw Object.assign(new Error('Conflicting immutable semantic bytes.'), { code: 'ERR_SEMANTIC_INTEGRITY' });
+    const listed = await fs.lstat(filename, { bigint: true });
+    if (!listed.isFile() || listed.isSymbolicLink()) throw new Error('Semantic immutable storage must be a regular file.');
+    const handle = await fs.open(filename, 'r');
+    let primaryError = null;
+    try {
+      const before = await handle.stat({ bigint: true });
+      if (before.dev !== listed.dev || before.ino !== listed.ino || before.size !== BigInt(bytes.byteLength)) throw new Error('Semantic immutable storage authority changed.');
+      const actual = await handle.readFile();
+      const expected = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      if (!actual.equals(expected)) throw Object.assign(new Error('Conflicting immutable semantic bytes.'), { code: 'ERR_SEMANTIC_INTEGRITY' });
+      const after = await handle.stat({ bigint: true }), current = await fs.lstat(filename, { bigint: true });
+      const stable = stat => stat.isFile() && !stat.isSymbolicLink() && stat.dev === before.dev && stat.ino === before.ino
+        && stat.size === before.size && stat.mtimeNs === before.mtimeNs && stat.ctimeNs === before.ctimeNs;
+      if (!stable(after) || !stable(current)) throw new Error('Semantic immutable storage changed during verification.');
+      return after;
+    } catch (error) { primaryError = error; throw error; }
+    finally {
+      try { await handle.close(); } catch (error) { if (primaryError) primaryError.cleanupError = error; else throw error; }
     }
   };
   throwIfAborted(signal);
-  try { await verify(); return; } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  try { return await verify(); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   await fs.mkdir(path.dirname(filename), { recursive: true });
   diskAccount.reserve(bytes.length);
   const temporary = path.join(path.dirname(filename), '.pending-' + randomUUID());
@@ -62,6 +76,7 @@ export const retainSemanticBytes = async ({ filename, bytes, diskAccount, signal
     catch (error) { if (error.code !== 'EEXIST') throw error; await verify(); }
     await syncParentDirectory(filename);
     await syncParentDirectory(path.dirname(filename));
+    return await verify();
   } finally {
     await fs.rm(temporary, { force: true });
     if (!retained) diskAccount.release(bytes.length);

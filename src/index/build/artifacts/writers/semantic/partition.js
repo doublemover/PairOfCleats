@@ -48,7 +48,7 @@ export const createSemanticDiskAccount = (limit) => {
  * owns promotion; this sink never changes a live pointer or overwrites a part.
  */
 export const createSemanticPartitionSink = async ({
-  stagingRoot, source, sourceBytes, partitionId, producerHash, contextHash = null, policyHash,
+  stagingRoot, source, sourceBytes, sourceCapability = null, partitionId, producerHash, contextHash = null, policyHash,
   structuralSlots = [], diskAccount, batchRows = 4096, batchBytes = 1048576,
   signal = null, byteAdmission = null, scheduleIo = (fn) => fn()
 }) => {
@@ -201,7 +201,7 @@ export const createSemanticPartitionSink = async ({
     if (maxLocalReference >= counts.semantic_records) throw fail('Dangling local semantic reference.');
     busy = true;
     try {
-      await retainSemanticSource({ root: stagingRoot, source, bytes: sourceBytes, diskAccount, signal });
+      await retainSemanticSource({ root: stagingRoot, source, bytes: sourceBytes, sourceCapability, diskAccount, signal });
       await writePart('semantic_sources', [Buffer.from(canonicalSemanticJson(source), 'utf8')]);
       const memberHashes = Object.fromEntries(SEMANTIC_MEMBER_NAMES.map((name) => [name, hashes[name].digest('hex')]));
       const descriptor = {

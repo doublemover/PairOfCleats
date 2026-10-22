@@ -38,7 +38,7 @@ export const collectSemanticOwnership = async ({ facts, chunks, bytes,
   const partitionId = createAnalysisPartitionId({ pass: { name: 'chunk-ownership', version: SEMANTIC_OWNERSHIP_VERSION },
     inputPartitionHashes: [facts.partition.canonicalHash], compilerContext: null,
     dependencySummaryHashes: [], analysisPolicy: { policyHash } });
-  const sink = await createSemanticPartitionSink({ stagingRoot, source, sourceBytes: bytes, partitionId,
+  const sink = await createSemanticPartitionSink({ stagingRoot, source, sourceBytes: bytes, sourceCapability: facts.sourceCapability || null, partitionId,
     producerHash: SEMANTIC_OWNERSHIP_PRODUCER_HASH, policyHash,
     diskAccount, signal, scheduleIo, batchRows: policy.storage.batchRows, batchBytes: policy.storage.batchBytes });
   const store = createArtifactSemanticStore({ root: stagingRoot, repoRoot: repositoryNamespace,

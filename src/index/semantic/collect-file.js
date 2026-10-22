@@ -35,7 +35,7 @@ export const collectFileSemanticFacts = async ({ bytes, text, ast, ts, language,
     const createCollector = native ? createNativeSemanticCollector : language === 'typescript' ? createTypeScriptSemanticCollector : createSemanticCollector;
     const collector = createCollector({ ts, syntax, ast: unavailable ? null : ast, unavailable, source: snapshot.manifest, partitionId, signal, analysisPolicy: policy.enrichment }, policy.storage);
     sink = await createSemanticPartitionSink({ stagingRoot, source: snapshot.manifest,
-      sourceBytes: bytes, partitionId,
+      sourceBytes: bytes, sourceCapability: snapshot.sourceCapability, partitionId,
       producerHash: semanticHash('semantic.syntax-producer.v1', parserIdentity),
       policyHash: semanticHash('semantic.structural-policy.v1', structuralPolicy),
       structuralSlots: collector.structuralSlots, diskAccount, signal, scheduleIo,
@@ -53,7 +53,7 @@ export const collectFileSemanticFacts = async ({ bytes, text, ast, ts, language,
       if (flow.partition) analysisPartitions.push(flow.partition);
       coverage.splice(0, coverage.length, ...coverage.filter(row => row.phase !== 'localFlow'), flow.coverage);
     }
-    return { source: snapshot.manifest, root: stagingRoot, partition, analysisPartitions, summary: collector.summary, coverage };
+    return { source: snapshot.manifest, sourceCapability: snapshot.sourceCapability, root: stagingRoot, partition, analysisPartitions, summary: collector.summary, coverage };
   } catch (error) { await sink?.abort(); throw error; }
   finally { syntax?.close?.(); }
 };

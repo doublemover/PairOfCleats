@@ -82,3 +82,24 @@ and let the sink validate schema/sequence/references without serializing the row
 again. Lookalike objects and arbitrary encoded JSON cannot forge a receipt. Mutable
 input callers continue through the checked sink path. Prepared objects are weakly
 owned and released with their bounded producer batch.
+
+## Build-owned source retention receipts
+
+UTF-8 source snapshots mint an opaque capability over immutable decoded text and
+its exact original-byte identity. Valid UTF-8 roundtrip equality is checked while
+snapshotting. Syntax and ownership partitions can retain that capability without
+rehashing or copying a borrowed mutable source buffer for every partition. Raw
+byte callers remain copied and SHA-256 validated on each request.
+
+Retention is serialized by the existing per-account disk writer. At most 256
+receipt entries retain finalized path, source digest/length and verified physical
+authority; they retain no source buffers and do not cross disk accounts. A complete
+opened-file verification compares stable identity/timestamps before and after the
+read and checks that the pathname still names that object. Reuse requires a regular
+file with meaningful device/inode and nanosecond change identity. Unsupported
+identity information, replacement or mutation returns to full verification.
+Cancellation, conflicting contents, EEXIST winner checks, disk credits and fsync
+boundaries remain authoritative; publication validation independently checks final
+artifacts. External same-size/mtime mutations must invalidate the receipt through
+the physical change identity. Runtime and storage-platform qualification remains
+deferred for this implementation.

@@ -51,14 +51,14 @@ export const collectEmbeddedSemanticSources = async ({ parentFacts, segments, te
     const unavailable = !policy.languages.includes(language) ? { state: 'disabled', reason: 'language_policy_disabled' }
       : !languages[segment.languageId] ? { state: 'unsupported', reason: 'embedded_syntax_adapter_pending' } : null;
     const collector = (language === 'typescript' ? createTypeScriptSemanticCollector : createSemanticCollector)({ ts, ast: unavailable ? null : ast, unavailable, source: snapshot.manifest, partitionId, signal }, policy.storage);
-    const sink = await createSemanticPartitionSink({ stagingRoot, source: snapshot.manifest, sourceBytes: bytes, partitionId,
+    const sink = await createSemanticPartitionSink({ stagingRoot, source: snapshot.manifest, sourceBytes: bytes, sourceCapability: snapshot.sourceCapability, partitionId,
       producerHash: semanticHash('semantic.syntax-producer.v1', parser), policyHash: semanticHash('semantic.structural-policy.v1', structuralPolicy), structuralSlots: collector.structuralSlots,
       diskAccount, signal, scheduleIo, byteAdmission: semanticByteAdmissionFor(diskAccount, policy.storage.maxQueuedBytes), batchRows: policy.storage.batchRows, batchBytes: policy.storage.batchBytes });
     const coverage = [];
     try {
       for (const batch of collector.batches) { for (const entry of batch.rows) if (entry.family === 'coverage') coverage.push(entry.row); await sink.appendBatch(batch); }
       const partition = await sink.finalizeSource();
-      sourceFacts.push({ segment, bytes, facts: { source: snapshot.manifest, partition, coverage } });
+      sourceFacts.push({ segment, bytes, facts: { source: snapshot.manifest, sourceCapability: snapshot.sourceCapability, partition, coverage } });
       segmentFactsRefs.push({ segmentUid: segment.segmentUid, factsRef: createSemanticFactsRef({ source: snapshot.manifest, syntaxPartitionId: partitionId, storage, partitions: [partition], coverage }) });
     } catch (error) { await sink.abort(); throw error; }
   }
