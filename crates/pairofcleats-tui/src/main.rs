@@ -142,7 +142,7 @@ struct SessionSnapshot {
     final_job_statuses: BTreeMap<String, String>,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct RuntimeTelemetry {
     event_lag_ms_ewma: Option<f64>,
     render_ms_ewma: f64,
@@ -167,7 +167,7 @@ impl RuntimeTelemetry {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct SessionState {
     mode: String,
     source: String,
@@ -354,7 +354,7 @@ impl WorkloadKind {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct BenchSummary {
     lane: String,
     tier: String,
@@ -367,7 +367,7 @@ struct BenchSummary {
     timeout_state: String,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct IndexingSummary {
     repo: String,
     stage: String,
@@ -379,7 +379,7 @@ struct IndexingSummary {
     promotion_state: String,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct ServiceSummary {
     service: String,
     active_workers: Option<u64>,
@@ -431,6 +431,7 @@ impl PaletteAction {
     }
 }
 
+#[derive(Clone)]
 struct ChunkAssembly {
     chunk_count: usize,
     parts: Vec<Option<String>>,
@@ -3239,7 +3240,9 @@ fn handle_chunk_event(model: &mut AppModel, event: &Value) -> Option<Value> {
     }
 
     if count_mismatch {
-        model.chunk_assemblies.remove(&chunk_id);
+        if let Some(removed) = model.chunk_assemblies.remove(&chunk_id) {
+            model.chunk_assembly_bytes = model.chunk_assembly_bytes.saturating_sub(removed.bytes);
+        }
         model.telemetry.dropped_chunks += 1;
         return None;
     }

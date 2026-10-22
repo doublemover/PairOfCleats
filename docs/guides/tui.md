@@ -370,3 +370,23 @@ recordings UI. The 25 ms dispatch bound does not reinterpret queued text as a
 global shortcut. Ctrl+C still clears pending interaction and enters the existing
 owned shutdown path. Source/Rust/producer regressions for these changes are
 authored; build, clippy, capture and ConPTY qualification remain deferred.
+
+Saved-session seeks reconstruct at most 128 recorded transport frames per UI tick,
+with a cooperative 4 ms reduction budget. Superseded targets coalesce, identical
+positions do no reconstruction, and the session note shows the processed position
+and pending target. Live-channel draining and input/render dispatch get their normal
+turns between reconstruction ticks. Individual event decoding and checkpoint copying
+remain bounded operations, not preemptible work or a hard 4 ms frame guarantee.
+
+Replay checkpoints occur every 256 processed frames. At most eight are retained,
+with an 8 MiB conservative allocation charge; an oversized state is not cached.
+They retain only reducer-derived state, never full AppModel objects, file handles,
+input queues, control outboxes or a duplicate recording event vector. Immutable
+inspection result records are shared and copied only on later record mutation.
+User filters, viewport offsets and selected job identity remain outside checkpoint
+restoration. Missing selected jobs remain explicitly unavailable. Detach restores
+the separate live model and drops all replay checkpoints. The original 32,768-event
+and 8 MiB recording admission bounds are unchanged.
+
+These source bounds and authored maximum-recording/reducer controls still require
+Windows Rust, ConPTY, real input/live-channel and measured memory qualification.

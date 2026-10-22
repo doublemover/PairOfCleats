@@ -1,6 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 
 const MAX_RECORDS: usize = 8;
 const MAX_RESULT_BYTES: usize = 256 * 1024;
@@ -51,6 +52,7 @@ enum Page {
     Artifacts,
 }
 
+#[derive(Clone)]
 struct Artifact {
     id: String,
     actions: Vec<String>,
@@ -73,6 +75,7 @@ impl Artifact {
     }
 }
 
+#[derive(Clone)]
 struct Record {
     generation: u64,
     title: String,
@@ -320,11 +323,45 @@ impl Record {
     }
 }
 
+/// Replay checkpoints share immutable retained records. A later lifecycle
+/// mutation copies only that record, never all recorded event payloads.
+#[derive(Clone)]
+pub(crate) struct ReplayHistory {
+    records: HashMap<String, Arc<Record>>,
+    order: VecDeque<String>,
+    next_generation: u64,
+}
+
+impl ReplayHistory {
+    pub(crate) fn retained_bytes(&self) -> usize {
+        self.order.capacity() * std::mem::size_of::<String>()
+            + self.order.iter().map(String::capacity).sum::<usize>()
+            + self.records.iter().map(|(key, record)| {
+                key.capacity() + std::mem::size_of::<Record>() + 128
+                    + [&record.title, &record.status, &record.cwd, &record.started,
+                       &record.signal, &record.termination, &record.cancel_reason,
+                       &record.error_code, &record.error_message, &record.capture_kind,
+                       &record.result_state, &record.result_capture, &record.result_notice,
+                       &record.artifact_notice, &record.artifact_source,
+                       &record.artifact_observed, &record.inventory_id]
+                       .iter().map(|value| value.capacity()).sum::<usize>()
+                    + record.result_body.as_ref().map_or(0, String::capacity)
+                    + record.artifacts.capacity() * std::mem::size_of::<Artifact>()
+                    + record.artifacts.iter().map(|item| {
+                        [&item.id, &item.label, &item.kind, &item.path, &item.modified]
+                            .iter().map(|value| value.capacity()).sum::<usize>()
+                            + item.actions.capacity() * std::mem::size_of::<String>()
+                            + item.actions.iter().map(String::capacity).sum::<usize>()
+                    }).sum::<usize>()
+            }).sum::<usize>()
+    }
+}
+
 pub struct InspectionUi {
     pub revision: u64,
     pub available: bool,
     pub outbox: VecDeque<Value>,
-    records: HashMap<String, Record>,
+    records: HashMap<String, Arc<Record>>,
     order: VecDeque<String>,
     next_generation: u64,
     current: Option<(String, u64)>,
@@ -363,6 +400,23 @@ impl Default for InspectionUi {
 }
 
 impl InspectionUi {
+    pub(crate) fn replay_history(&self) -> ReplayHistory {
+        ReplayHistory { records: self.records.clone(), order: self.order.clone(),
+            next_generation: self.next_generation }
+    }
+
+    pub(crate) fn restore_replay_history(&mut self, history: &ReplayHistory) {
+        self.records = history.records.clone();
+        self.order = history.order.clone();
+        self.next_generation = history.next_generation;
+        self.available = false;
+        self.outbox.clear();
+        self.pending = None;
+        self.prompt = None;
+        self.cancel_requested = false;
+        self.revision += 1;
+    }
+
     pub fn record(&mut self, event: &Value) {
         if event["internal"] == true {
             return;
@@ -398,10 +452,10 @@ impl InspectionUi {
             }
             self.next_generation += 1;
             self.records
-                .insert(id.to_owned(), Record::new(self.next_generation));
+                .insert(id.to_owned(), Arc::new(Record::new(self.next_generation)));
             self.order.push_back(id.to_owned());
         }
-        let record = self.records.get_mut(id).unwrap();
+        let record = Arc::make_mut(self.records.get_mut(id).unwrap());
         match name {
             "job:start" => {
                 record.title = text(&event["title"], 256);
@@ -443,6 +497,7 @@ impl InspectionUi {
         self.records
             .get(id)
             .filter(|record| record.generation == *generation)
+            .map(Arc::as_ref)
     }
 
     fn selection(&self, method: &str) -> Option<Value> {

@@ -1,3 +1,5 @@
+mod replay_state;
+use replay_state::ReplayState;
 use std::collections::VecDeque;
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -8,6 +10,17 @@ use serde_json::{json, Value};
 
 const MAX_EVENTS: usize = 32768;
 const MAX_BYTES: usize = 8 * 1024 * 1024;
+const SEEK_EVENTS_PER_TICK: usize = 128;
+const SEEK_TICK_BUDGET: Duration = Duration::from_millis(4);
+const CHECKPOINT_INTERVAL: usize = 256;
+const MAX_CHECKPOINTS: usize = 8;
+const MAX_CHECKPOINT_BYTES: usize = 8 * 1024 * 1024;
+
+struct ReplayCheckpoint {
+    position: usize,
+    state: ReplayState,
+    bytes: usize,
+}
 
 #[derive(PartialEq, Eq)]
 enum Page {
@@ -21,6 +34,7 @@ pub(crate) struct Recording {
     pub events: Vec<Value>,
     pub position: usize,
     pub playing: bool,
+    seek_target: Option<usize>,
     last_tick: Instant,
 }
 
@@ -46,6 +60,9 @@ pub(crate) struct RecordingUi {
     loaded_bytes: usize,
     status: String,
     next_id: u64,
+    checkpoints: VecDeque<ReplayCheckpoint>,
+    checkpoint_bytes: usize,
+    last_seek_reductions: usize,
 }
 
 impl Default for RecordingUi {
@@ -70,6 +87,9 @@ impl Default for RecordingUi {
             loaded_bytes: 0,
             status: String::new(),
             next_id: 1,
+            checkpoints: VecDeque::new(),
+            checkpoint_bytes: 0,
+            last_seek_reductions: 0,
         }
     }
 }
@@ -302,8 +322,11 @@ impl RecordingUi {
                         events: std::mem::take(&mut self.loaded),
                         position: 0,
                         playing: false,
+                        seek_target: None,
                         last_tick: Instant::now(),
                     });
+                    self.checkpoints.clear();
+                    self.checkpoint_bytes = 0;
                     self.attach_requested = true;
                     self.seek_requested = None;
                     self.page = Page::Path;
@@ -324,11 +347,12 @@ impl RecordingUi {
         let Some(recording) = &mut self.active else {
             return false;
         };
+        let requested = self.seek_requested.or(recording.seek_target).unwrap_or(recording.position);
         let seek = match key.code {
-            KeyCode::Left => Some(recording.position.saturating_sub(1)),
-            KeyCode::Right => Some((recording.position + 1).min(recording.events.len())),
-            KeyCode::PageUp => Some(recording.position.saturating_sub(64)),
-            KeyCode::PageDown => Some((recording.position + 64).min(recording.events.len())),
+            KeyCode::Left => Some(requested.saturating_sub(1)),
+            KeyCode::Right => Some((requested + 1).min(recording.events.len())),
+            KeyCode::PageUp => Some(requested.saturating_sub(64)),
+            KeyCode::PageDown => Some((requested + 64).min(recording.events.len())),
             KeyCode::Home => Some(0),
             KeyCode::End => Some(recording.events.len()),
             KeyCode::Char(' ') => {
@@ -357,7 +381,8 @@ impl RecordingUi {
         let Some(recording) = &mut self.active else {
             return;
         };
-        if recording.playing && recording.last_tick.elapsed() >= Duration::from_millis(50) {
+        if recording.playing && recording.seek_target.is_none() && self.seek_requested.is_none()
+            && recording.last_tick.elapsed() >= Duration::from_millis(50) {
             recording.last_tick = Instant::now();
             if recording.position < recording.events.len() {
                 self.seek_requested = Some(recording.position + 1);
@@ -381,10 +406,24 @@ impl RecordingUi {
         self.detach_requested = false;
         self.seek_requested = None;
         self.attach_requested = false;
+        self.checkpoints.clear();
+        self.checkpoint_bytes = 0;
         self.revision += 1;
     }
 
+    #[cfg(test)]
+    pub(crate) fn replay_limits() -> (usize, usize, usize, usize) {
+        (MAX_EVENTS, SEEK_EVENTS_PER_TICK, MAX_CHECKPOINTS, MAX_CHECKPOINT_BYTES)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn replay_work(&self) -> (usize, usize, usize, Option<usize>) {
+        (self.last_seek_reductions, self.checkpoints.len(), self.checkpoint_bytes,
+            self.active.as_ref().and_then(|recording| recording.seek_target))
+    }
+
     pub fn update_view(&mut self, model: &mut AppModel) {
+        self.last_seek_reductions = 0;
         if self.detach_requested {
             if let Some(live) = self.live_model.take() {
                 *model = *live;
@@ -421,37 +460,60 @@ impl RecordingUi {
         };
         if let Some(position) = self.seek_requested.take() {
             let position = position.min(recording.events.len());
-            if position == recording.position + 1 {
-                apply_protocol_event(model, recording.events[recording.position].clone(), 0);
-                Self::force_passive(model, recording);
-            } else {
-                let mut passive = AppModel::new(
-                    recording.summary["runId"]
-                        .as_str()
-                        .unwrap_or("saved-session")
-                        .into(),
-                    model.terminal_caps.clone(),
-                    None,
-                );
-                passive.session.scope = "recorded scope not reached".into();
-                // View filters belong to this recording; the live model stays separate.
-                passive.focus_panel = model.focus_panel;
-                passive.job_filter = model.job_filter;
-                passive.task_filter = model.task_filter;
-                passive.log_level_filter = model.log_level_filter;
-                passive.log_source_filter = model.log_source_filter;
-                passive.search_jobs = model.search_jobs.clone();
-                passive.search_tasks = model.search_tasks.clone();
-                passive.search_logs = model.search_logs.clone();
-                passive.follow_updates = model.follow_updates;
-                for event in recording.events.iter().take(position) {
-                    apply_protocol_event(&mut passive, event.clone(), 0);
-                    Self::force_passive(&mut passive, recording);
+            if position != recording.seek_target.unwrap_or(recording.position) {
+                recording.seek_target = (position != recording.position).then_some(position);
+                if position < recording.position {
+                    if let Some(checkpoint) = self.checkpoints.iter()
+                        .filter(|checkpoint| checkpoint.position <= position)
+                        .max_by_key(|checkpoint| checkpoint.position) {
+                        checkpoint.state.restore(model);
+                        recording.position = checkpoint.position;
+                    } else {
+                        let mut empty = AppModel::new(
+                            recording.summary["runId"].as_str().unwrap_or("saved-session").into(),
+                            model.terminal_caps.clone(), None);
+                        empty.session.scope = "recorded scope not reached".into();
+                        ReplayState::capture(&empty).restore(model);
+                        recording.position = 0;
+                    }
                 }
-                *model = passive;
             }
-            recording.position = position;
         }
+        let selected = model.selected_job.clone();
+        let pinned = model.selected_job_pinned;
+        if selected.is_some() { model.selected_job_pinned = true; }
+        let started = Instant::now();
+        while recording.seek_target.is_some_and(|target| recording.position < target)
+            && self.last_seek_reductions < SEEK_EVENTS_PER_TICK
+            && (self.last_seek_reductions == 0 || started.elapsed() < SEEK_TICK_BUDGET) {
+            apply_protocol_event(model, recording.events[recording.position].clone(), 0);
+            recording.position += 1;
+            self.last_seek_reductions += 1;
+            Self::force_passive(model, recording);
+            if recording.position % CHECKPOINT_INTERVAL == 0
+                && !self.checkpoints.iter().any(|checkpoint| checkpoint.position == recording.position) {
+                let charge = ReplayState::retained_bytes(model);
+                if charge <= MAX_CHECKPOINT_BYTES {
+                    while self.checkpoints.len() >= MAX_CHECKPOINTS
+                        || self.checkpoint_bytes + charge > MAX_CHECKPOINT_BYTES {
+                        if let Some(old) = self.checkpoints.pop_front() { self.checkpoint_bytes -= old.bytes; }
+                        else { break; }
+                    }
+                    self.checkpoints.push_back(ReplayCheckpoint { position: recording.position,
+                        state: ReplayState::capture(model), bytes: charge });
+                    self.checkpoint_bytes += charge;
+                }
+            }
+        }
+        if let Some(id) = selected {
+            model.selected_job_expired = !model.job_status.contains_key(&id);
+            model.selected_job = Some(id);
+            model.selected_job_pinned = pinned;
+        }
+        if recording.seek_target == Some(recording.position) {
+            recording.seek_target = None;
+        }
+        if self.last_seek_reductions > 0 { self.revision += 1; model.dirty = true; }
         Self::force_passive(model, recording);
     }
 
@@ -464,13 +526,10 @@ impl RecordingUi {
             .into();
         model.session.connection = "offline".into();
         model.session.controllable = false;
+        let progress = recording.seek_target.map(|target| format!("seeking {} -> {}", recording.position, target));
         let note = format!(
             "Saved {} {}/{} | Space play/pause; arrows step; Home/End seek; Esc detach",
-            if recording.playing {
-                "playing"
-            } else {
-                "paused"
-            },
+            progress.as_deref().unwrap_or(if recording.playing { "playing" } else { "paused" }),
             recording.position,
             recording.events.len()
         );
