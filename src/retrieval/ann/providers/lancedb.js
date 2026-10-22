@@ -20,7 +20,7 @@ export function createLanceDbAnnProvider({
   return {
     id: ANN_PROVIDER_IDS.LANCEDB,
     capabilities: Object.freeze({ predicate: 'partitioned-candidate-id-pushdown', exhaustiveStored: false,
-      progressiveEffort: true, cancellation: 'before-after-native-call', scoreSpace: 'metadata-declared-distance' }),
+      progressiveEffort: true, cancellation: 'between-native-partitions-and-materialized-row-groups', scoreSpace: 'metadata-declared-distance' }),
     isAvailable: ({ idx, mode, embedding }) => isAnnProviderAvailable({
       embedding,
       enabled: isEnabled,
@@ -42,7 +42,8 @@ export function createLanceDbAnnProvider({
         queryEmbedding: embedding,
         topN: resolvedTopN,
         candidateSet,
-        config: lancedbConfig
+        config: lancedbConfig,
+        signal
       });
       if (signal?.aborted) return [];
       if (hits.length && lanceAnnUsed && mode in lanceAnnUsed) {

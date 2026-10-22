@@ -52,6 +52,19 @@ lifetime; the planner cannot preempt it or release its resources early. Caller
 cancellation propagates, and planner deadline expiration does not mark a healthy
 provider failed. Exact deadline interruption publishes no partial exact heap.
 
+The actual LanceDB owner now receives the existing request signal, checks it
+between candidate-ID partitions and count/query calls, and cooperatively checks
+materialized source rows, including excluded rows. In-flight native calls remain
+awaited until settlement before lease release; cancellation cannot publish a
+partial result or poison provider health. Per-partition projected hits enter the
+existing shared top-k reducer immediately rather than accumulating every batch's
+top-N rows and a second full hit projection. Returned IDs are checked against the
+original eligible domain even when the native builder accepted a predicate.
+This bounds the retained result heap
+by requested N; candidate-ID admission and native result materialization retain
+their existing bounds and the no-pushdown path still requests a complete table
+scan for filtering correctness. No native memory or speedup claim follows.
+
 The stage receipt includes versioned policy key, route/reason, actual known count,
 provider attempts, requested effort, stored scalar work, omissions and exactness.
 There is no new result cache or automatic replay activation. Programmatic callers

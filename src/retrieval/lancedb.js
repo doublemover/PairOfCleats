@@ -10,6 +10,9 @@ import {
   normalizeCandidateSetIds
 } from './ann/candidate-set.js';
 import { normalizeEmbeddingDims } from './ann/dims.js';
+import { createTopKReducer } from './pipeline/topk.js';
+import { throwIfAborted } from '../shared/abort.js';
+import { setImmediate as yieldImmediate } from 'node:timers/promises';
 
 const CANDIDATE_PUSH_LIMIT = 500;
 const CONNECTION_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -194,27 +197,6 @@ const readRowScore = (row, metric) => {
   return Number.isFinite(score) ? score : null;
 };
 
-const rowsToHits = (rows, idColumn, metric) => {
-  const hits = [];
-  for (const row of rows || []) {
-    const idx = readRowId(row, idColumn);
-    if (idx == null) continue;
-    const sim = readRowScore(row, metric);
-    if (sim == null) continue;
-    hits.push(withAnnScoreSpace({ idx, sim }, { metric, kind: metric === 'cosine' ? 'cosine' : 'negative-distance', backend: 'lancedb', distance: row?._distance ?? row?.distance ?? null }));
-  }
-  return hits;
-};
-
-const filterSortLimitHits = ({ hits, candidateCount, canPushdown, candidateSet, limitBase }) => {
-  const filtered = !candidateCount || canPushdown
-    ? hits
-    : hits.filter((hit) => candidateSetHas(candidateSet, hit.idx));
-  return filtered
-    .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
-    .slice(0, limitBase);
-};
-
 const isSafeIdColumn = (value) => (
   typeof value === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(value)
 );
@@ -224,8 +206,10 @@ export async function rankLanceDb({
   queryEmbedding,
   topN,
   candidateSet,
-  config
+  config,
+  signal = null
 }) {
+  throwIfAborted(signal);
   const candidateCount = getCandidateSetSize(candidateSet);
   if (candidateSet != null && candidateCount === 0) return [];
   if (!lancedbInfo?.available) return [];
@@ -256,6 +240,7 @@ export async function rankLanceDb({
   try {
     tableLease = await getTable(dir, tableName);
   } catch (err) {
+    throwIfAborted(signal);
     warnOnce(
       'lancedb-table-load',
       `[ann] LanceDB table load failed; falling back to other ANN backends. ${err?.message || err}`
@@ -265,10 +250,12 @@ export async function rankLanceDb({
   const table = tableLease?.table;
   if (!table || typeof table.search !== 'function') {
     await tableLease?.release();
+    throwIfAborted(signal);
     return [];
   }
 
   try {
+    throwIfAborted(signal);
     const limitBase = normalizePositiveInt(topN, 1) || 1;
     const candidateIds = (candidateCount && isSafeIdColumn(idColumn))
       ? normalizeCandidateSetIds(candidateSet)
@@ -288,12 +275,12 @@ export async function rankLanceDb({
       return query;
     };
 
-    const supportsWhere = Boolean(candidateIds.length) && typeof createBaseQuery()?.where === 'function';
-    const canPushdown = Boolean(candidateIds.length && supportsWhere);
+    let firstQuery = null, canPushdown = false;
 
     const buildQuery = (limit, ids = candidateIds) => {
-      let query = createBaseQuery();
-      if (canPushdown && typeof query?.where === 'function') {
+      let query = firstQuery || createBaseQuery(); firstQuery = null;
+      if (canPushdown) {
+        if (typeof query?.where !== 'function') throw new Error('LanceDB query builder lost candidate predicate support.');
         query = query.where(`${idColumn} IN (${ids.join(',')})`);
       }
       if (typeof query?.limit === 'function') {
@@ -306,25 +293,47 @@ export async function rankLanceDb({
       return query;
     };
 
+    const reducer = createTopKReducer({ k: limitBase, score: hit => hit.sim, id: hit => hit.idx });
+    let visited = 0;
+    const admitRows = async rows => {
+      for (const row of rows || []) {
+        if (++visited % 512 === 0) { await yieldImmediate(); throwIfAborted(signal); }
+        const idx = readRowId(row, idColumn);
+        if (idx == null || (candidateCount && !candidateSetHas(candidateSet, idx))) continue;
+        const sim = readRowScore(row, metric);
+        if (sim == null) continue;
+        reducer.push(withAnnScoreSpace({ idx, sim }, { metric, kind: metric === 'cosine' ? 'cosine' : 'negative-distance',
+          backend: 'lancedb', distance: row?._distance ?? row?.distance ?? null }));
+      }
+    };
+
     try {
-      let rows = [];
+      firstQuery = createBaseQuery();
+      canPushdown = Boolean(candidateIds.length && typeof firstQuery?.where === 'function');
       if (canPushdown) {
-      // Every candidate batch contributes its top N. Their union therefore
-      // contains the global filtered top N, regardless of global ANN position.
+      // Preserve every candidate partition's native head, then retain the best
+      // observed eligible hits. This does not certify native ANN recall.
         for (let start = 0; start < candidateIds.length; start += CANDIDATE_PUSH_LIMIT) {
-          rows.push(...await toArray(buildQuery(limitBase, candidateIds.slice(start, start + CANDIDATE_PUSH_LIMIT))));
+          if (start && start % (CANDIDATE_PUSH_LIMIT * 16) === 0) await yieldImmediate();
+          throwIfAborted(signal);
+          const rows = await toArray(buildQuery(limitBase, candidateIds.slice(start, start + CANDIDATE_PUSH_LIMIT)));
+          throwIfAborted(signal);
+          await admitRows(rows);
         }
       } else {
       // Without backend filtering, a complete scan is required. A multiplier
       // based on candidate count cannot bound the nearest allowed row's rank.
         const limit = candidateCount ? Number(await table.countRows?.()) : limitBase;
+        throwIfAborted(signal);
         if (!Number.isSafeInteger(limit) || limit <= 0) return [];
-        rows = await toArray(buildQuery(limit));
+        const rows = await toArray(buildQuery(limit));
+        throwIfAborted(signal);
+        await admitRows(rows);
       }
-      return filterSortLimitHits({
-        hits: rowsToHits(rows, idColumn, metric), candidateCount, canPushdown, candidateSet, limitBase
-      });
+      throwIfAborted(signal);
+      return reducer.finish({ limit: limitBase });
     } catch (err) {
+      throwIfAborted(signal);
       warnOnce('lancedb-query', `[ann] LanceDB query failed; falling back to other ANN backends. ${err?.message || err}`);
       return [];
     }

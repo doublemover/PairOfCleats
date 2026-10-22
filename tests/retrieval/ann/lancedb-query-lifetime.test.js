@@ -73,9 +73,9 @@ const fixture = async name => {
   states.set(dir, {});
   return dir;
 };
-const query = (dir, candidateSet = null) => rankLanceDb({ lancedbInfo: { available: true, dir,
+const query = (dir, candidateSet = null, signal = null) => rankLanceDb({ lancedbInfo: { available: true, dir,
   meta: { table: 'vectors', dims: 2, metric: 'l2', idColumn: 'id' } }, queryEmbedding: [0, 0],
-candidateSet, topN: 1, config: {} });
+candidateSet, topN: 1, config: {}, signal });
 try {
   const late = await fixture('late-connect');
   const lateState = states.get(late);
@@ -132,6 +132,22 @@ try {
   assert.equal((await query(retry))[0].idx, 0, 'failed table opens can be retried');
   assert.equal(states.get(retry).opens, 2);
   await clearLanceDbConnectionCache();
+  const cancelled = await fixture('cancelled-native-query'), cancelledState = states.get(cancelled);
+  cancelledState.queryGate = deferred(); cancelledState.entered = deferred();
+  const controller = new AbortController(); let settled = false;
+  const aborted = query(cancelled, new Set([0, 1]), controller.signal);
+  aborted.then(() => { settled = true; }, () => { settled = true; });
+  await cancelledState.entered.promise; controller.abort();
+  await clearLanceDbConnectionCache();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(settled, false, 'cancellation cannot abandon native work or release its table while it is pending');
+  assert.equal(cancelledState.table.closed, false);
+  cancelledState.queryGate.resolve();
+  await assert.rejects(aborted, { name: 'AbortError' });
+  assert.equal(cancelledState.table.closed, true); assert.equal(cancelledState.connection.closed, true);
+  const beforeCancelled = connections, pre = new AbortController(); pre.abort();
+  await assert.rejects(query(cancelled, null, pre.signal), { name: 'AbortError' });
+  assert.equal(connections, beforeCancelled, 'pre-cancelled requests do not acquire native connections');
   assert.equal(closes, connections, 'all acquired connection handles close exactly once');
   assert.equal(tableCloses, tableCreates, 'all successful table handles remain tracked until close');
   assert.equal(warnings.length, 1);
