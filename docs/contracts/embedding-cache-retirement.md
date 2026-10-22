@@ -9,8 +9,11 @@ namespace, storage session or automatic native failure retry.
 
 Each entry captures the exact acquired adapter/pipeline object and its original
 optional `dispose` method once. A fulfilled captured method is the existing
-outer disposal contract; JavaScript stubs may have no disposer. Reported pending
-child ownership still prevents closure. A child marker without its original
+outer disposal contract; JavaScript stubs may have no disposer. An explicitly
+false disposer result is
+unconfirmed, retains that exact entry and follows the existing no-automatic-retry
+policy. Void fulfillment and the optional absent disposer keep their prior
+contract. Reported pending child ownership still prevents closure. A child marker without its original
 release observer remains unknown. A throwing observer also remains pending.
 Returning a fulfilled outer disposer cannot erase that evidence. Successful
 disposal is remembered, so later child-observer reconciliation does not repeat

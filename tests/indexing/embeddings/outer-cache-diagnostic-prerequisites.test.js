@@ -9,14 +9,27 @@ const rejected = async work => {
   try { await work; } catch (error) { rejected = true; failure = error; }
   assert.equal(rejected, true); return failure;
 };
-const controlled = () => {
+const controlled = (onDispose = () => undefined) => {
   const cache = new Map(), lifetime = createEmbeddingCacheLifetime({ cache, kind: 'inert-diagnostic-prerequisite' });
   const entry = lifetime.adopt({ key: 'actual-entry', references: 0 });
   let closes = 0;
-  const resource = { dispose() { assert.equal(this, resource); closes++; } };
+  const resource = { dispose() { assert.equal(this, resource); closes++; return onDispose(); } };
   lifetime.loaded(entry, resource); entry.promise = Promise.resolve(resource); cache.set(entry.key, entry);
   return { lifetime, entry, resource, get closes() { return closes; } };
 };
+
+{
+  let confirmed = false;
+  const owner = controlled(() => confirmed);
+  const failure = await rejected(owner.lifetime.retire(owner.entry));
+  assert.equal(failure.code, 'ERR_EMBEDDING_CACHE_DISPOSAL_UNCONFIRMED');
+  assert.equal(owner.entry.owner.pending, true); assert.equal(owner.closes, 1);
+  assert.equal(await rejected(owner.lifetime.retire(owner.entry)), failure);
+  assert.equal(owner.closes, 1, 'an explicitly false disposer is not retried by ordinary retirement');
+  owner.resource.dispose = () => assert.fail('explicit reconciliation retains the original method');
+  confirmed = true; await owner.entry.owner.release(); await owner.entry.owner.release();
+  assert.equal(owner.closes, 2); assert.equal(failure.cacheOwnershipReleased(), true);
+}
 
 {
   const owner = controlled();

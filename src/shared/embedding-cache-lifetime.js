@@ -106,7 +106,11 @@ export const createEmbeddingCacheLifetime = ({ cache, kind }) => {
       for (const [error, released] of entry.diagnosticFailures) if (!released()) throw error;
       if (entry.resource && !entry.disposeCompleted) {
         if (entry.disposeCaptureFailed) throw entry.disposeError;
-        if (entry.dispose) await entry.dispose.call(entry.resource);
+        if (entry.dispose) {
+          const disposed = await entry.dispose.call(entry.resource);
+          if (disposed === false) throw Object.assign(new Error('Embedding cache disposal was explicitly unconfirmed.'),
+            { code: 'ERR_EMBEDDING_CACHE_DISPOSAL_UNCONFIRMED' });
+        }
         entry.disposeCompleted = true;
       }
       const pending = pendingFailure(entry);
