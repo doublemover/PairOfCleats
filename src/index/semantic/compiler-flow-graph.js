@@ -96,10 +96,17 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     if (!node) return next;
     admit();
     if (ts.isClassExpression(node)) return classDefinition(node, next, context);
+    if (ts.isComputedPropertyName(node)) {
+      // PropertyName evaluation includes ToPropertyKey before the initializer
+      // or function creation, and conversion can invoke user code or throw.
+      return expression(node.expression, eventBlock(node, {
+        kind: 'operation', target: node, mayThrow: true
+      }, next, context), context);
+    }
     if (ts.isFunctionLike(node)) {
       const creation=eventBlock(node,{kind:'creation'},next,context);
       if(ts.isObjectLiteralExpression(node.parent) && node.name && ts.isComputedPropertyName(node.name)) {
-        return expression(node.name.expression,eventBlock(node.name,{kind:'operation',target:node.name,mayThrow:true},creation,context),context);
+        return expression(node.name,creation,context);
       }
       return creation;
     }
@@ -201,10 +208,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     for (let i = members.length - 1; i >= 0; i -= 1) {
       const name = members[i].name;
       if (name && ts.isComputedPropertyName(name)) {
-        // ToPropertyKey itself can throw, even when evaluating its input cannot.
-        head = expression(name.expression, eventBlock(name, {
-          kind: 'operation', target: name, mayThrow: true
-        }, head, context), context);
+        head = expression(name, head, context);
       }
     }
     head = eventBlock(node, { kind: 'creation', mayThrow: true }, head, context);

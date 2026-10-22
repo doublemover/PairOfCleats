@@ -12,6 +12,8 @@ export const compilerOperationDependencies = (ts, node) => {
   if (ts.isTemplateExpression(node)) return result(node.templateSpans.map(span => input(span.expression, 'flowsTo', 'modeled')),
     { mayThrow: true });
   if (ts.isTemplateSpan(node)) return result([input(node.expression)]);
+  if (ts.isComputedPropertyName(node)) return result([input(node.expression, 'flowsTo', 'modeled')],
+    { reason: 'property_key_coercion_effects_unresolved', mayThrow: true });
   if (ts.isAwaitExpression(node) || ts.isYieldExpression(node)) return result(node.expression ? [input(node.expression, 'flowsTo', 'modeled')] : [],
     { reason: 'suspension_shared_effects_unresolved', mayThrow: ts.isAwaitExpression(node) });
   if (ts.isObjectLiteralExpression(node)) return result(node.properties.map(member => input(
