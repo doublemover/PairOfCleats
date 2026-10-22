@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const { createHash } = require('node:crypto');
 const path = require('node:path');
-const { readCurrentSource, sourceRangeOffsets } = require('./document-authority.js');
+const { readCurrentSource, sourceRangeOffsets, sourceDocumentForm } = require('./document-authority.js');
 
 function sourceNavigationArgs(document, position, includeDeclaration = true, repoRoot = null) {
   if (!document?.uri?.fsPath || !position || document.isDirty) {
@@ -10,14 +10,13 @@ function sourceNavigationArgs(document, position, includeDeclaration = true, rep
   const captured = readCurrentSource({ repoRoot: repoRoot || path.dirname(document.uri.fsPath), file: document.uri.fsPath });
   const disk = captured.sourceText;
   const text = document.getText();
-  const normalized = disk.replace(/\r\n/g, '\n');
-  const removedBom = disk.startsWith('\ufeff') && (text === disk.slice(1) || text === normalized.slice(1));
-  if (text !== disk && text !== normalized && !removedBom) {
+  const form = sourceDocumentForm(disk, text);
+  if (!form) {
     throw new Error('The document differs from disk. Save it before indexed navigation.');
   }
   if (!Number.isSafeInteger(position.line) || !Number.isSafeInteger(position.character)
     || position.line < 0 || position.character < 0) throw new Error('Invalid navigation cursor.');
-  const line = position.line + 1, column = position.character + 1 + (removedBom && position.line === 0 ? 1 : 0);
+  const line = position.line + 1, column = position.character + 1 + (form.bom && position.line === 0 ? 1 : 0);
   const span = sourceRangeOffsets(disk, { startLine: line, startCol: column, endLine: line, endCol: column });
   const left = disk.charCodeAt(span.start - 1), right = disk.charCodeAt(span.start);
   if (left >= 0xd800 && left <= 0xdbff && right >= 0xdc00 && right <= 0xdfff) throw new Error('Navigation cursor splits a UTF-16 surrogate pair.');

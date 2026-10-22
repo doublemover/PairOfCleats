@@ -40,7 +40,7 @@ node tools/package-vscode.js --smoke
 Packaging behavior is deterministic:
 
 - stable file ordering
-- normalized archive roots (`PairOfCleats/`, `extension/`)
+- Sublime resources directly at the ZIP root; VS Code resources under `extension/`
 - fixed archive metadata (`mtime`, mode bits)
 - per-archive SHA-256 output and JSON manifest
 

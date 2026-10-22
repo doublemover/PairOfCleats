@@ -5,7 +5,8 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { createDocumentAuthority, readVerifiedSource } = require('../../../extensions/vscode/document-authority.js');
+const { createDocumentAuthority, readVerifiedSource, sourceRangeOffsets, documentOffsets } = require('../../../extensions/vscode/document-authority.js');
+const { sourceNavigationArgs } = require('../../../extensions/vscode/source-navigation.js');
 const { generationFromContextPack, contextDiscoveryRequest, contextDiscoveryCliArgs } = require('../../../extensions/vscode/semantic-discovery.js');
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-opened-document-authority-'));
@@ -21,6 +22,9 @@ try {
   const authority = createDocumentAuthority({ workspace: { async openTextDocument() { opened += 1; return document; } } });
   const first = await authority.qualify({ repoRoot: root, file, uri: { path: file }, sourceHash, range });
   assert.deepEqual(first.offsets, { start: 5, end: 11 });
+  assert.deepEqual(first.originalSource, { file: 'snow 雪.js', contentDigest: sourceHash, byteLength: Buffer.byteLength(raw),
+    span: { start: 11, end: 17, unit: 'utf8-byte' } }, 'metadata-only original-byte witness retains BOM/astral/CRLF bytes without buffer-offset relabeling');
+  assert(Object.isFrozen(first.originalSource)); assert(Object.isFrozen(first.originalSource.span));
   await authority.qualify({ repoRoot: root, file, uri: { path: file }, sourceHash, range });
   assert.equal(opened, 1, 'one provider request opens each exact file/hash once');
   await authority.assertCurrent();
@@ -52,6 +56,24 @@ try {
   } } });
   await assert.rejects(malformed.qualify({ repoRoot: root, file, uri: {}, sourceHash,
     range: { startLine: 1, startCol: 4, endLine: 1, endCol: 5 } }), /surrogate/);
+  const mixed = 'one\rsecond\r\nthird\nfourth\r', normalizedMixed = 'one\nsecond\nthird\nfourth\n';
+  assert.deepEqual(sourceRangeOffsets(mixed, { startLine: 4, startCol: 1, endLine: 4, endCol: 7 }), { start: 18, end: 24 });
+  assert.deepEqual(sourceRangeOffsets(mixed, { startLine: 5, startCol: 1, endLine: 5, endCol: 1 }), { start: 25, end: 25 });
+  assert.throws(() => sourceRangeOffsets(mixed, { startLine: 2, startCol: 8, endLine: 2, endCol: 8 }), /column/);
+  assert.deepEqual(documentOffsets({ isDirty: false, getText: () => normalizedMixed }, { sourceText: mixed, start: 18, end: 24 }), { start: 17, end: 23 });
+  assert.throws(() => documentOffsets({ isDirty: false, getText: () => mixed }, { sourceText: mixed, start: 11, end: 11 }), /boundary/,
+    'a CRLF interior cannot become a native protocol position even when the host retained raw line endings');
+  assert.throws(() => documentOffsets({ isDirty: false, getText: () => normalizedMixed + 'other edit' }, { sourceText: mixed, start: 18, end: 24 }), /differs/);
+  fs.writeFileSync(file, mixed);
+  const mixedDocument = { uri: { fsPath: file }, version: 2, isDirty: false, getText: () => normalizedMixed };
+  const mixedAuthority = createDocumentAuthority({ workspace: { async openTextDocument() { return mixedDocument; } } });
+  const mixedQualified = await mixedAuthority.qualify({ repoRoot: root, file, uri: {}, sourceHash: hash(mixed),
+    range: { startLine: 4, startCol: 1, endLine: 4, endCol: 7 } });
+  assert.deepEqual(mixedQualified.offsets, { start: 17, end: 23 });
+  assert.deepEqual(mixedQualified.originalSource.span, { start: 18, end: 24, unit: 'utf8-byte' });
+  const cursorArgs = sourceNavigationArgs(mixedDocument, { line: 3, character: 0 }, true, root);
+  assert.equal(cursorArgs[cursorArgs.indexOf('--line') + 1], '4'); assert.equal(cursorArgs[cursorArgs.indexOf('--column') + 1], '1');
+  await mixedAuthority.assertCurrent(); fs.writeFileSync(file, raw);
   assert.throws(() => readVerifiedSource({ repoRoot: path.join(root, 'missing'), file, sourceHash }));
 
   const generation = { baseBuildId: 'retained-build', semanticRevision: 0 };

@@ -195,6 +195,20 @@ assert.equal(normalized[0].range.start.character, 2);
 assert.equal(normalized[0].range.end.character, 15,
   'native provider uses the actual opened BOM-stripped target buffer rather than retained raw columns');
 
+fs.writeFileSync(bomTarget, 'one\rWidgetBuilder\r\nlast\r');
+const mixedText = 'one\nWidgetBuilder\nlast\n';
+harness.fakeVscode.workspace.textDocuments = [{ uri: harness.fakeVscode.Uri.file(bomTarget), version: 1, isDirty: false,
+  getText: () => mixedText, positionAt(offset) { const lines = mixedText.slice(0, offset).split('\n');
+    return new harness.fakeVscode.Position(lines.length - 1, lines.at(-1).length); } }];
+harness.queuedResults.push({ code: 0, stdout: JSON.stringify({ ...boundResult,
+  results: [{ file: 'src/defs.js', sourceHash: hashFile(bomTarget), coordinateUnit: 'utf16',
+    startLine: 2, startCol: 1, endLine: 2, endCol: 14 }] }) });
+const mixedLocation = await harness.definitionProviders[0].provider.provideDefinition(document, start, {});
+assert.equal(mixedLocation.length, 1); assert.equal(mixedLocation[0].range.start.line, 1);
+assert.equal(mixedLocation[0].range.start.character, 0); assert.equal(mixedLocation[0].range.end.character, 13,
+  'actual registered native provider maps bare-CR source lines through the observed normalized target buffer');
+fs.writeFileSync(bomTarget, '\ufeff  WidgetBuilder\r\nnext\r\n'); harness.fakeVscode.workspace.textDocuments = [];
+
 harness.queuedResults.push({ persistent: true });
 const pendingSource = harness.definitionProviders[0].provider.provideDefinition(document, start, {});
 await new Promise(setImmediate);

@@ -35,7 +35,7 @@ function readCurrentSource({ repoRoot, file }) {
       throw new Error('Source changed while its exact bytes were being verified.');
     }
     const admitted = bytes.subarray(0, size);
-    return { repoRoot: root, file: real, sourceHash: createHash('sha256').update(admitted).digest('hex'), sourceText: decodeSource(admitted) };
+    return { repoRoot: root, file: real, sourceHash: createHash('sha256').update(admitted).digest('hex'), byteLength: size, sourceText: decodeSource(admitted) };
   } finally { fs.closeSync(descriptor); }
 }
 
@@ -47,13 +47,18 @@ function readVerifiedSource(options) {
 }
 
 function sourceRangeOffsets(sourceText, range) {
-  const starts = [0];
-  for (let offset = sourceText.indexOf('\n'); offset >= 0; offset = sourceText.indexOf('\n', offset + 1)) starts.push(offset + 1);
+  const starts = [0], ends = [];
+  for (let offset = 0; offset < sourceText.length; offset++) {
+    if (sourceText[offset] !== '\r' && sourceText[offset] !== '\n') continue;
+    ends.push(offset);
+    if (sourceText[offset] === '\r' && sourceText[offset + 1] === '\n') offset++;
+    starts.push(offset + 1);
+  }
+  ends.push(sourceText.length);
   const at = (line, column) => {
     if (!Number.isSafeInteger(line) || line < 1 || line > starts.length
       || !Number.isSafeInteger(column) || column < 1) throw new Error('Indexed line/column is outside the qualified source.');
-    let end = line < starts.length ? starts[line] - 1 : sourceText.length;
-    if (sourceText[end - 1] === '\r' && sourceText[end] === '\n') end -= 1;
+    const end = ends[line - 1];
     const offset = starts[line - 1] + column - 1;
     if (offset > end) throw new Error('Indexed column exceeds its qualified source line.');
     return offset;
@@ -63,24 +68,29 @@ function sourceRangeOffsets(sourceText, range) {
   return { start, end };
 }
 
-/** Qualify the actual buffer, then invert only observed BOM/CRLF changes. */
+/** Accept only an actually observed exact BOM/newline projection. Bare CR
+ * replacement preserves length; removing CR from a CRLF pair does not. */
+function sourceDocumentForm(sourceText, actual) {
+  for (const bom of sourceText.startsWith('\ufeff') ? [0, 1] : [0]) {
+    const text = sourceText.slice(bom);
+    if (actual === text || actual === text.replace(/\r(?!\n)/g, '\n')) return { bom, crlf: false };
+    if (actual === text.replace(/\r\n/g, '\n') || actual === text.replace(/\r\n?/g, '\n')) return { bom, crlf: true };
+  }
+  return null;
+}
+
+/** Qualify the actual buffer, then invert only observed BOM/newline changes. */
 function documentOffsets(document, { sourceText, start, end }) {
   if (document.isDirty) throw new Error('The opened target buffer is dirty. Indexed ranges remain unavailable.');
   if (![start, end].every(Number.isSafeInteger) || start < 0 || end < start || end > sourceText.length) {
     throw new Error('Indexed span exceeds the exact source coordinate length.');
   }
-  const actual = document.getText();
-  let bom = 0, crlf = false;
-  if (actual !== sourceText) {
-    if (sourceText.startsWith('\ufeff') && actual === sourceText.slice(1)) bom = 1;
-    else if (actual === sourceText.replace(/\r\n/g, '\n')) crlf = true;
-    else if (sourceText.startsWith('\ufeff') && actual === sourceText.slice(1).replace(/\r\n/g, '\n')) {
-      bom = 1; crlf = true;
-    } else throw new Error('Opened target text differs beyond supported BOM/CRLF normalization.');
-  }
+  const form = sourceDocumentForm(sourceText, document.getText());
+  if (!form) throw new Error('Opened target text differs beyond supported BOM/newline normalization.');
+  const { bom, crlf } = form;
   const map = offset => {
-    if (offset < bom || (crlf && sourceText[offset - 1] === '\r' && sourceText[offset] === '\n')) {
-      throw new Error('Indexed boundary intersects a character removed by document normalization.');
+    if (offset < bom || (sourceText[offset - 1] === '\r' && sourceText[offset] === '\n')) {
+      throw new Error('Indexed boundary intersects a removed BOM or splits a CRLF line ending.');
     }
     const left = sourceText.charCodeAt(offset - 1), right = sourceText.charCodeAt(offset);
     if (left >= 0xd800 && left <= 0xdbff && right >= 0xdc00 && right <= 0xdfff) throw new Error('Indexed boundary splits a UTF-16 surrogate pair.');
@@ -115,7 +125,11 @@ function createDocumentAuthority({ workspace, isCurrent = () => true, maxDocumen
     if (source.document.version !== source.version) throw new Error('Opened target version changed before location publication.');
     const sourceSpan = span || sourceRangeOffsets(source.sourceText, range);
     const offsets = documentOffsets(source.document, { ...source, ...sourceSpan });
-    return { document: source.document, version: source.version, offsets, file: source.file };
+    const originalSource = Object.freeze({ file: path.relative(source.repoRoot, source.file).split(path.sep).join('/'),
+      contentDigest: source.sourceHash, byteLength: source.byteLength,
+      span: Object.freeze({ start: Buffer.byteLength(source.sourceText.slice(0, sourceSpan.start)),
+        end: Buffer.byteLength(source.sourceText.slice(0, sourceSpan.end)), unit: 'utf8-byte' }) });
+    return { document: source.document, version: source.version, offsets, file: source.file, originalSource };
   }
   async function assertCurrent() {
     if (!isCurrent()) throw new Error('Navigation operation no longer owns publication.');
@@ -132,4 +146,4 @@ function createDocumentAuthority({ workspace, isCurrent = () => true, maxDocumen
 }
 
 module.exports = { MAX_SOURCE_BYTES, decodeSource, readCurrentSource, readVerifiedSource, sourceRangeOffsets,
-  documentOffsets, createDocumentAuthority };
+  sourceDocumentForm, documentOffsets, createDocumentAuthority };
