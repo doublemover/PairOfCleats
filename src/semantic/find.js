@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { attachSemanticSourceReferences } from './source-references.js';
 import { semanticHash, canonicalSemanticJson } from '../index/semantic/identity.js';
 import { assertSemanticFind } from '../contracts/validators/semantic-find.js';
 import { fingerprintSemanticOperation } from './operation-fingerprint.js';
@@ -70,6 +71,7 @@ export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWork
     const complete=result.coverage.extraction.length>0&&result.coverage.extraction.every(row=>row.state==='complete')&&result.coverage.analysis.length>0&&result.coverage.analysis.every(row=>row.state==='complete');
     if(!complete)result.warnings.push('Requested analysis coverage is incomplete or unavailable; absence of candidates is not proof of absence.');
     result.status=done&&complete?'complete':'partial';
+    await attachSemanticSourceReferences({ store, result, signal, began: deadline - limits.workMs, limits });
     let pendingContinuation = null;
     if(!done){if(!progressed)throw fail('ERR_SEMANTIC_OUTPUT_LIMIT','Selected operation evidence exceeds output allowance.');result.cursor=randomUUID();pendingContinuation={key,offset,seed,expires:Date.now()+ttlMs};result.frontier.push({reason:'response_budget',remainingCount:1});}
     if(Buffer.byteLength(JSON.stringify(result))>limits.bytes)throw fail('ERR_SEMANTIC_OUTPUT_LIMIT','Semantic response exceeds output budget.');

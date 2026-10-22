@@ -1,4 +1,5 @@
 import { createArtifactOperationReader } from './operation-reader.js';
+import { createSourceReferenceReader } from './source-references.js';
 import { createNeighborReader } from './neighbors.js';
 import { resolvePublishedSemanticCoverage } from './coverage-resolution.js';
 import { assertSemanticQueryIndex } from '../contracts/validators/semantic-query-index.js';
@@ -234,6 +235,9 @@ export const createArtifactSemanticStore = ({
       } finally { await reader.close(); }
     }
   };
+  const getSourceReference = createSourceReferenceReader({
+    sourceUnitForPartition: id => inventory.get(id)?.sourceUnitId, iterateRows
+  });
   const getSourceSpans = async (refs, { signal = null, maxBytes = 65536 } = {}) => {
     const records = await getRecords(refs, ['span'], { signal });
     const sourceByPartition = new Map();
@@ -457,6 +461,6 @@ export const createArtifactSemanticStore = ({
       throw error('Retained semantic source hash or length mismatch.');
     }
   };
-  return { withReadScope, findOperations: createArtifactOperationReader({ index: operationIndex, inventory, generation, readPieceRows, getReadScope: currentReadScope }), backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
+  return { withReadScope, findOperations: createArtifactOperationReader({ index: operationIndex, inventory, generation, readPieceRows, getReadScope: currentReadScope }), backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceReference, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
 
 };

@@ -37,6 +37,14 @@ const project = async ({ store, manifest, request, result, signal, maxMs }) => {
       if (!source || source.sourceUnitId !== partition.sourceUnitId) throw new Error('Explanation source identity mismatch.');
       sources.set(source.sourceUnitId, source);
     }
+    if (source.mapping !== null || !row.span) {
+      reasons.push('Retained source has no qualified direct coordinate mapping for this record.');
+      continue;
+    }
+    const coordinateLength = source.coordinateUnit === 'byte' ? source.byteLength : source.textLength;
+    if (row.span[0] < 0 || row.span[1] < row.span[0] || row.span[1] > coordinateLength) {
+      throw Object.assign(new Error('Explanation span exceeds retained source coordinates.'), { code: 'ERR_SEMANTIC_INTEGRITY' });
+    }
     sourceRefs.push({ ref: row.ref, sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash,
       path: source.path, coordinateUnit: source.coordinateUnit });
   }
@@ -82,7 +90,7 @@ export const projectExplainEnrichment = async input => {
   try { return await project({ ...input, signal, maxMs }); }
   catch (error) {
     throwIfAborted(input.signal);
-    if (!deadline.aborted) throw error;
+    if (!deadline.aborted || !(error === deadline.reason || ['AbortError', 'TimeoutError'].includes(error?.name))) throw error;
     return { sourceRefs: [], enrichment: { status: 'partial', suggestions: [],
       reasons: ['Source/frontier projection exhausted its work allowance; no task suggestion was inferred.'] } };
   }

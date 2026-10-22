@@ -1,4 +1,5 @@
 import { validateOperationSelector } from './operation-reader.js';
+import { createSourceReferenceReader } from './source-references.js';
 import { createNeighborReader } from './neighbors.js';
 import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.js';
 import { assertCurrentIndexFormat } from '../contracts/index-format.js';
@@ -104,6 +105,12 @@ export const createSqliteSemanticStore = ({
       }
     }
   };
+  const getSourceReference = createSourceReferenceReader({
+    sourceUnitForPartition: id => {
+      const stored = partition.get(id);
+      return stored ? JSON.parse(stored.descriptor).sourceUnitId : null;
+    }, iterateRows
+  });
   const getExplainInventory=()=>manifest||{generation,partitions:descriptors,completedTasks:null};
   const incident = 'SELECT rowid, payload FROM semantic_edges INDEXED BY semantic_edges_forward WHERE partition_id = ? AND from_partition = ? AND from_id = ? UNION SELECT rowid, payload FROM semantic_edges INDEXED BY semantic_edges_reverse WHERE partition_id = ? AND to_partition = ? AND to_id = ?';
   const relatedQueries = {
@@ -172,5 +179,5 @@ export const createSqliteSemanticStore = ({
     const rows = db.prepare(sql).all(selector.value,limit+1,offset);
     return { refs: rows.slice(0,limit).map(row => ({partitionId:row.partition_id,localId:row.local_id})),offset:offset+Math.min(limit,rows.length),done:rows.length<=limit };
   };
-  return { findOperations, iterateRows, getExplainInventory, backend: 'sqlite', storeId: indexPath, cursorScope: semanticHash('semantic.store-inventory.v1', physicalPartitions.map(entry => { const descriptor = JSON.parse(entry.descriptor); return { partitionId: descriptor.partitionId, canonicalHash: descriptor.canonicalHash }; })), repoRoot, generation: { ...generation }, getRecords, getCoverage, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
+  return { findOperations, iterateRows, getExplainInventory, backend: 'sqlite', storeId: indexPath, cursorScope: semanticHash('semantic.store-inventory.v1', physicalPartitions.map(entry => { const descriptor = JSON.parse(entry.descriptor); return { partitionId: descriptor.partitionId, canonicalHash: descriptor.canonicalHash }; })), repoRoot, generation: { ...generation }, getRecords, getSourceReference, getCoverage, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
 };

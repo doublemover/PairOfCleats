@@ -1,4 +1,5 @@
 import { advanceTraceContext } from './trace-context.js';
+import { attachSemanticSourceReferences } from './source-references.js';
 import { randomUUID } from 'node:crypto';
 import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.js';
 import { assertSemanticTrace } from '../contracts/validators/semantic-trace.js';
@@ -122,6 +123,7 @@ export const createSemanticTraceService = ({ maxRecords = 128, maxEdges = 512, m
       && result.coverage.analysis.length > 0 && result.coverage.analysis.every(row => row.state === 'complete');
     if (!complete || state.analysisIncomplete) { result.warnings.push('Source analysis includes unavailable or incomplete phases; coverage retains every physical partition.'); result.frontier.push({ reason: 'analysis_incomplete' }); }
     result.status = done && !state.truncated && !state.analysisIncomplete && complete && !result.frontier.length ? 'complete' : 'partial';
+    await attachSemanticSourceReferences({ store, result, signal, began, limits });
     if (!done) {
       if (!progressed) throw fail('ERR_SEMANTIC_OUTPUT_LIMIT', 'Selected trace row cannot fit the response budget.');
       const now = Date.now();

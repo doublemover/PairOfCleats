@@ -1,6 +1,11 @@
 import { SEMANTIC_RECORD_REF_SCHEMA, SEMANTIC_NODE_SCHEMA, SEMANTIC_COVERAGE_SCHEMA, SEMANTIC_EDGE_SCHEMA, SEMANTIC_OPERAND_SCHEMA, SEMANTIC_OWNERSHIP_SCHEMA } from './semantic.js';
 import { SYMBOLIC_TYPE_QUERY_SCHEMA, SYMBOLIC_TYPE_QUERY_RESULT_SCHEMA } from './symbolic-types.js';
-import { SEMANTIC_GENERATION_SCHEMA, semanticObject as object, semanticText as text, semanticInteger as integer, semanticNullable as nullable } from './semantic-envelopes.js';
+import { SEMANTIC_GENERATION_SCHEMA, SEMANTIC_SOURCE_SCHEMA, semanticObject as object, semanticText as text, semanticInteger as integer, semanticNullable as nullable } from './semantic-envelopes.js';
+export const SEMANTIC_SOURCE_REFERENCES_SCHEMA = { type: 'array', maxItems: 128, items: object({
+  ref: SEMANTIC_RECORD_REF_SCHEMA, sourceUnitId: SEMANTIC_SOURCE_SCHEMA.properties.sourceUnitId,
+  sourceHash: SEMANTIC_SOURCE_SCHEMA.properties.byteHash, path: SEMANTIC_SOURCE_SCHEMA.properties.path,
+  coordinateUnit: SEMANTIC_SOURCE_SCHEMA.properties.coordinateUnit
+}) };
 export const SEMANTIC_COVERAGE_PROJECTION_SCHEMA = { ...SEMANTIC_COVERAGE_SCHEMA, properties: { ...SEMANTIC_COVERAGE_SCHEMA.properties, partitionId: SEMANTIC_RECORD_REF_SCHEMA.properties.partitionId } };
 const fields = { type: 'array', uniqueItems: true, items: { enum: ['span', 'scope', 'data'] } };
 const bounded = (maximum) => ({ type: 'integer', minimum: 1, maximum });
@@ -34,4 +39,4 @@ export const SEMANTIC_DETAIL_RESULT_SCHEMA = object({
     object({ ref: SEMANTIC_RECORD_REF_SCHEMA, reason: { const: 'record_not_found' } }),
     object({ reason: { const: 'response_budget' }, remainingCount: integer })
   ] } }, cursor: nullable(text), warnings: { type: 'array', items: text }
-}, { typeResults: { type: 'array', maxItems: 16, items: SYMBOLIC_TYPE_QUERY_RESULT_SCHEMA } });
+}, { typeResults: { type: 'array', maxItems: 16, items: SYMBOLIC_TYPE_QUERY_RESULT_SCHEMA }, sourceRefs: SEMANTIC_SOURCE_REFERENCES_SCHEMA });

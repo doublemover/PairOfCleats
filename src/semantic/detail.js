@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { attachSemanticSourceReferences } from './source-references.js';
 import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.js';
 import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelopes.js';
 import { assertSemanticQuery } from '../contracts/validators/semantic-query.js';
@@ -130,6 +131,7 @@ export const createSemanticDetailService = ({ maxContinuations = 64, ttlMs = 300
     const analysisComplete = result.coverage.analysis.length > 0 && result.coverage.analysis.every((row) => row.state === 'complete');
     const extractionComplete = result.coverage.extraction.length > 0 && result.coverage.extraction.every((row) => row.state === 'complete');
     result.status = done && analysisComplete && extractionComplete && !result.frontier.length ? 'complete' : 'partial';
+    await attachSemanticSourceReferences({ store, result, signal, began, limits });
     if (!done) {
       if (!progressed) throw fail('ERR_SEMANTIC_OUTPUT_LIMIT', 'Selected semantic row cannot fit the output budget; select fewer field groups.');
       const cursor = randomUUID(), now = Date.now();
