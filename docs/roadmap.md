@@ -30,9 +30,9 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `79e4d6422` bounds actual lifecycle approval reads,
-preserves policy publication/release failures and all original normal-map work,
-retains Unicode guard bindings and rejects malformed successful job exit statuses.
+Latest source continuation: `0c6106048` preserves runtime callback/iteration
+payload roles, whole cross-file argument facts, original editor/picker resources,
+bounded checker snapshots and independent embedding/storage diagnostic work.
 Dispositions: 141 historical, 555 source, 163 partial, 98 pending.
 All authored checks remain unvalidated; durable failed-job cleanup recovery is open.
 
@@ -83,7 +83,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `79e4d6422` repairs watch/pointer and queue authority,
+Current source through `0c6106048` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
@@ -123,7 +123,7 @@ consumers. Complete source-checked semantic tokens and iterative symbols preserv
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
 sourceChunking11/importResolution7/typeNormalization7/compilerBindings21/
-lspBindings40/rq10/cfgFlow25/callFlow25/valueSlice9. VSCode and Sublime retain
+lspBindings40/rq10/cfgFlow25/callFlow27/valueSlice9/boundaryFlow9/workerFlow8. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 
 The rollout gate now requires explicit coherent benchmark counts and diagnostic
