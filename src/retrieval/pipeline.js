@@ -22,6 +22,7 @@ import { createScoreBufferPool } from './pipeline/score-buffer.js';
 import { compileFtsMatchQuery } from './fts-query.js';
 import { resolveSparseRequiredTables, RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from './sparse/requirements.js';
 import { rerankEvidence } from './pipeline/evidence-reranker.js';
+import { capRerankCandidates, resolveRerankPoolPolicy } from './pipeline/rerank-policy.js';
 import { getGenerationProviderRuntime } from './pipeline/provider-runtime.js';
 import { resolveFileRelations } from './pipeline/relations.js';
 import { runCandidateStage } from './pipeline/candidate-stage.js';
@@ -256,6 +257,8 @@ export function createSearchPipeline(context) {
     graphRankingConfig,
     stageTracker,
     reranker = null,
+    rerankPolicy = null,
+    rerankSourceContext = null,
     candidatePool: candidatePoolInput,
     scoreBufferPool: scoreBufferPoolInput,
     createAnnProviders: createAnnProvidersInput
@@ -312,7 +315,10 @@ export function createSearchPipeline(context) {
     ? null
     : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
   const searchTopN = normalizePositiveInt(topN, 1) || 1;
-  const expandedTopN = searchTopN * 3;
+  const modelRerankPolicy = resolveRerankPoolPolicy({ adapter: reranker, policy: rerankPolicy, finalOutputCap: searchTopN });
+  const rankOutputCap = modelRerankPolicy.poolCap;
+  const expandedTopN = modelRerankPolicy.enabled
+    ? Math.min(modelRerankPolicy.candidateCap, rankOutputCap * 3) : searchTopN * 3;
   const baseTopkSlack = Math.max(8, Math.min(100, Math.ceil(searchTopN * 0.5)));
   const maxCandidateCap = Number.isFinite(Number(maxCandidates)) && Number(maxCandidates) > 0
     ? Math.floor(Number(maxCandidates))
@@ -632,7 +638,7 @@ export function createSearchPipeline(context) {
           meta,
           queryEmbedding,
           queryTokens,
-          searchTopN,
+          searchTopN: rankOutputCap,
           expandedTopN,
           annEnabledForMode,
           vectorOnlyProfile,
@@ -669,7 +675,7 @@ export function createSearchPipeline(context) {
       candidates = annResult.candidates;
       let { annHits, annSource, annCandidatePolicy } = annResult;
       const rerankBudget = resolveAdaptiveRerankBudget({
-        searchTopN,
+        searchTopN: rankOutputCap,
         baseTopkSlack,
         queryTokens,
         sparseHits: bmHits,
@@ -708,21 +714,19 @@ export function createSearchPipeline(context) {
         })
       ));
       const { scored: fusedScores, useRrf } = fusionResult;
+      const admittedScores = capRerankCandidates(fusedScores, modelRerankPolicy);
 
       if (idx.loadChunkMetaByIds) {
         const seen = new Set();
         const missing = [];
-        for (const hit of bmHits) {
-          const id = hit?.idx;
-          if (!Number.isFinite(id) || seen.has(id)) continue;
-          seen.add(id);
-          if (!meta[id]) missing.push(id);
-        }
-        for (const hit of annHits) {
-          const id = hit?.idx;
-          if (!Number.isFinite(id) || seen.has(id)) continue;
-          seen.add(id);
-          if (!meta[id]) missing.push(id);
+        const metadataSources = modelRerankPolicy.enabled ? [admittedScores] : [bmHits, annHits];
+        for (const source of metadataSources) {
+          for (const hit of source) {
+            const id = hit?.idx;
+            if (!Number.isFinite(id) || seen.has(id)) continue;
+            seen.add(id);
+            if (!meta[id]) missing.push(id);
+          }
         }
         if (missing.length) idx.loadChunkMetaByIds(mode, missing, meta);
       }
@@ -734,16 +738,17 @@ export function createSearchPipeline(context) {
 
       const rankMetrics = {};
       rankMetrics.rerankBudget = rerankBudget;
+      rankMetrics.modelRerankPolicy = modelRerankPolicy;
       const ranked = runStage('rank', rankMetrics, () => (
         runRankStage({
           idx,
           meta,
-          fusedScores,
+          fusedScores: admittedScores,
           useRrf,
           allowedIdx,
           hasAllowedId,
           abortIfNeeded,
-          searchTopN,
+          searchTopN: rankOutputCap,
           topkSlack,
           poolSnapshotStart: poolStatsStart,
           poolSnapshot,
@@ -780,7 +785,16 @@ export function createSearchPipeline(context) {
         })
       ));
 
-      return await rerankEvidence({adapter:reranker,query,hits:ranked,signal});
+      return await rerankEvidence({ adapter: reranker, query, hits: ranked, signal,
+        finalOutputCap: searchTopN, maxMs: modelRerankPolicy.maxMs,
+        fallback: modelRerankPolicy.enabled, policyKey: modelRerankPolicy.key,
+        sourceContext: { mode, generation: rerankSourceContext?.generation || idx.generationTag?.buildGenerationKey
+          || idx.generationTag?.buildId || idx.state?.buildId || idx.state?.embeddings?.embeddingGeneration || null,
+        repoScope: rerankSourceContext?.repoScope || context.repoRoot || null,
+        selection: modelRerankPolicy.enabled ? { filters: filters || null, queryAst: queryAst || null,
+          scoreBlend: scoreBlend || null, symbolBoost: symbolBoost || null, relationBoost: relationBoost || null,
+          graphRankingConfig: graphRankingConfig || null } : null },
+        onDiagnostic: value => { rankMetrics.modelReranker = value; } });
     } finally {
       for (const set of releaseSets) {
         candidatePool.release(set);

@@ -159,6 +159,12 @@ See:
 
 Bundle rankScore is the sum of 1/(60 + native rank) contributions, not a sum of native backend scores. Each hit retains its native score/type. Federated hits label their score federated_rrf and preserve sourceScore/sourceScoreType. A supplied createSearchPipeline reranker adapter (id and rerank) may score at most 64 existing members within two seconds; it must return one finite score per index and cannot add evidence. No model is acquired automatically. Overlapping source spans may yield to a comparable alternative within the bounded rerank window before graph ranking fixes membership.
 
+The opt-in [local reranker pool contract](experimental-local-reranker.md) separates
+candidate, model-pool and final-output caps. It preserves production eligibility
+and membership, immutable request/fallback snapshots, source scores and explicit
+late-work ownership. Its caller-pinned local BERT adapter and authored regressions
+remain unvalidated; no quality/resource promotion or default change is implied.
+
 Search CLI presets: --preset fast disables ANN and context expansion; hybrid uses independent ANN discovery; investigate enables at most ten context hits (two per primary hit) with bounded work/time. --match auto preserves ordinary semantic intent, all enforces implicit conjunctions, and any widens only ordinary positive terms within an implicit adjacency region; phrases, exclusions, authored groups and explicit Boolean expressions retain their gates. --candidates limits the candidate window separately from --top. --deadline-ms supplies cooperative cancellation across supported providers; synchronous native work may finish before cancellation is observed. --output-bytes bounds JSON packets, reports omitted hits, and fails explicitly if required identity metadata alone cannot fit. Compact output retains chunk/segment/repository/generation identities, source spans and declared followup actions.
 
 Bundle schema 3 uses JSON tuple identities: `["file", path]` for a real path and
