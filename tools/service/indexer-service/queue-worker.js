@@ -89,6 +89,7 @@ export const createQueueWorker = ({
   const activeJobControls = new Map();
   let currentShutdownState = { ...DEFAULT_SHUTDOWN_STATE };
   let shutdownMonitor = null;
+  let shutdownRefreshPromise = null;
   let escalatedDeadlineAt = null;
 
   /**
@@ -232,9 +233,10 @@ export const createQueueWorker = ({
    * @param {{processed:number,succeeded:number,failed:number,retried:number}} metrics
    * @returns {Promise<boolean>} true when a job was claimed; false when queue is empty.
    */
-  const processQueueOnce = async (metrics) => {
+  const processQueueOnce = async (metrics, batchState = null) => {
+    if (batchState?.failed) return false;
     await ensureStaleSweep();
-    if (currentShutdownState?.stopClaiming) {
+    if (currentShutdownState?.stopClaiming || batchState?.failed) {
       return false;
     }
     const queueLeasePolicy = resolveLeasePolicy({ job: null, queueName: resolvedQueueName });
@@ -256,9 +258,25 @@ export const createQueueWorker = ({
     };
     try {
       activeJobControls.set(job.id, { abortController });
-      const { logPath } = startJobLifecycle(job, jobLifecycle);
-      await syncWorkerShutdownState();
-      execution = await executeClaimedJob({ job, jobLifecycle, logPath, abortSignal: abortController.signal });
+      if (batchState?.failed) {
+        // A claim already in flight still belongs to this batch. Settle its
+        // completion policy without starting new work after the fatal lane.
+        abortController.abort(batchState.error);
+        execution.runResult = {
+          ...execution.runResult, exitCode: 130, cancelled: true, shutdownMode: 'cancel'
+        };
+      } else {
+        const { logPath } = startJobLifecycle(job, jobLifecycle);
+        await syncWorkerShutdownState();
+        if (batchState?.failed) {
+          abortController.abort(batchState.error);
+          execution.runResult = {
+            ...execution.runResult, exitCode: 130, cancelled: true, shutdownMode: 'cancel'
+          };
+        } else {
+          execution = await executeClaimedJob({ job, jobLifecycle, logPath, abortSignal: abortController.signal });
+        }
+      }
     } catch (err) {
       const message = err?.message || String(err);
       console.error(`[indexer] job ${job.id} execution failed before completion: ${message}`);
@@ -315,13 +333,30 @@ export const createQueueWorker = ({
    */
   const runBatch = async (concurrency) => {
     const metrics = { processed: 0, succeeded: 0, failed: 0, retried: 0 };
+    const batchState = { failed: false, error: null };
     const workers = Array.from({ length: concurrency }, async () => {
-      let worked = !currentShutdownState?.stopClaiming;
-      while (worked && !currentShutdownState?.stopClaiming) {
-        worked = await processQueueOnce(metrics);
+      try {
+        let worked = !currentShutdownState?.stopClaiming;
+        while (worked && !currentShutdownState?.stopClaiming && !batchState.failed) {
+          worked = await processQueueOnce(metrics, batchState);
+        }
+      } catch (error) {
+        if (!batchState.failed) {
+          batchState.failed = true;
+          batchState.error = error;
+          abortActiveJobs('cancel');
+        }
+        throw error;
       }
     });
-    await Promise.all(workers);
+    const settled = await Promise.allSettled(workers);
+    if (batchState.failed) {
+      const errors = [batchState.error, ...settled
+        .filter(result => result.status === 'rejected' && result.reason !== batchState.error)
+        .map(result => result.reason)];
+      if (errors.length === 1) throw batchState.error;
+      throw new AggregateError(errors, 'Queue batch failed; all owned lanes have settled.', { cause: batchState.error });
+    }
     if (metrics.processed) {
       const backpressure = await summarizeBackpressure();
       const envelope = await describeOperationalEnvelope();
@@ -352,8 +387,11 @@ export const createQueueWorker = ({
       console.error(`[indexer] daemon execution enforces concurrency=1 (requested=${requestedConcurrency}).`);
     }
     shutdownMonitor = setInterval(() => {
-      void refreshShutdownState().catch((err) => {
+      if (shutdownRefreshPromise) return;
+      shutdownRefreshPromise = refreshShutdownState().catch((err) => {
         console.error(`[indexer] shutdown monitor failed: ${err?.message || err}`);
+      }).finally(() => {
+        shutdownRefreshPromise = null;
       });
     }, Math.max(100, shutdownPollIntervalMs));
     try {
@@ -381,6 +419,7 @@ export const createQueueWorker = ({
         clearInterval(shutdownMonitor);
         shutdownMonitor = null;
       }
+      await shutdownRefreshPromise;
       await syncWorkerShutdownState('stopped').catch(() => {});
     }
   };
