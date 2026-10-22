@@ -11,6 +11,7 @@ import {
   recordTrimStats
 } from '../helpers.js';
 import { buildTrimMetadata, TRIM_REASONS } from '../trim-policy.js';
+import { createPreparedJsonlRows } from '../../../../shared/json-stream/prepared-row.js';
 import {
   buildJsonlVariantPaths,
   buildShardedPartEntries,
@@ -21,9 +22,6 @@ import {
 } from './_common.js';
 
 const MAX_ROW_BYTES = 32768;
-const measureRowBytes = (row) => (
-  Buffer.byteLength(JSON.stringify(row), 'utf8') + 1
-);
 
 const normalizePathIdentity = value => typeof value === 'string' && value.length ? value : null;
 
@@ -33,9 +31,10 @@ const normalizeText = (value) => {
   return text ? text : null;
 };
 
-const maybeTrimRow = (row) => {
-  const fits = (value) => measureRowBytes(value) <= MAX_ROW_BYTES;
-  if (fits(row)) return { row, trimmed: false, trimReasons: [] };
+const maybeTrimRow = (row, preparedRows) => {
+  const prepare = value => preparedRows.prepare(value, { maxLineBytes: MAX_ROW_BYTES });
+  const initial = prepare(row);
+  if (initial.lineBytes <= MAX_ROW_BYTES) return { ...initial, trimmed: false, trimReasons: [] };
   const trimReasons = [TRIM_REASONS.rowOversize];
   const trimmed = { ...row };
   if (trimmed.signature) {
@@ -58,7 +57,8 @@ const maybeTrimRow = (row) => {
     delete trimmed.extensions;
     trimReasons.push(TRIM_REASONS.symbolsDropExtensions);
   }
-  if (fits(trimmed)) return { row: trimmed, trimmed: true, trimReasons };
+  const compacted = prepare(trimmed);
+  if (compacted.lineBytes <= MAX_ROW_BYTES) return { ...compacted, trimmed: true, trimReasons };
   return {
     row: null,
     trimmed: false,
@@ -66,7 +66,7 @@ const maybeTrimRow = (row) => {
   };
 };
 
-const buildSymbolRow = (chunk, stats) => {
+const buildSymbolRow = (chunk, stats, preparedRows) => {
   if (!chunk) return null;
   const meta = chunk.metaV2 || {};
   const symbol = meta.symbol || null;
@@ -102,13 +102,13 @@ const buildSymbolRow = (chunk, stats) => {
     exported: typeof chunk.docmeta?.exported === 'boolean' ? chunk.docmeta.exported : null,
     exportNames: Array.isArray(chunk.docmeta?.exportNames) ? [...chunk.docmeta.exportNames] : []
   };
-  const trimmedResult = maybeTrimRow(row);
+  const trimmedResult = maybeTrimRow(row, preparedRows);
   if (!trimmedResult.row) {
     recordTrimStats(stats, { dropped: true, trimReasons: trimmedResult.trimReasons });
     return null;
   }
   recordTrimStats(stats, {
-    rowBytes: measureRowBytes(trimmedResult.row),
+    rowBytes: trimmedResult.lineBytes,
     trimmed: trimmedResult.trimmed,
     trimReasons: trimmedResult.trimReasons
   });
@@ -117,8 +117,9 @@ const buildSymbolRow = (chunk, stats) => {
 
 const buildRows = (chunks, stats = null) => {
   const rows = [];
+  const preparedRows = createPreparedJsonlRows();
   for (const chunk of chunks || []) {
-    const row = buildSymbolRow(chunk, stats);
+    const row = buildSymbolRow(chunk, stats, preparedRows);
     if (row) rows.push(row);
   }
   rows.sort((a, b) => {
