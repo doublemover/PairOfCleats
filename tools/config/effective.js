@@ -11,7 +11,7 @@ export const explainEffectiveConfiguration = async ({ repoRoot, configPath = nul
   try {
     const userConfig = loadUserConfig(repoRoot, { env, configPath, onSources: value => { configSources = value; } });
     const policy = await getAutoPolicy(repoRoot, userConfig);
-    const preview = await createRuntimePreview({ repoRoot, userConfig, policy, configSources,
+    const preview = await createRuntimePreview({ repoRoot, userConfig, policy, configSources, env,
       envelope: resolveCurrentProcessRuntimeEnvelope({ userConfig, autoPolicy: policy, env }) });
     let provider;
     try { provider = normalizeEmbeddingProvider(userConfig.indexing?.embeddings?.provider, { strict: true }); }
@@ -23,7 +23,7 @@ export const explainEffectiveConfiguration = async ({ repoRoot, configPath = nul
       schemaVersion: 1, kind: 'effective-configuration', ok: true,
       repoRoot, configPath: configPath ? path.resolve(configPath) : path.join(repoRoot, '.pairofcleats.json'),
       validation: { schema: 'accepted', effective: 'accepted', runtime: 'not-probed', artifacts: 'not-probed' },
-      configSources, userConfig, preview,
+      configSources, userConfig, policy, preview,
       selected: { quality: policy.quality,
         embeddingProvider: { value: provider, source: userConfig.indexing?.embeddings?.provider ? 'effective-config.indexing.embeddings.provider' : 'canonical-provider-default' },
         backend: { state: 'selection-deferred', reason: 'Search CLI options, admitted generation and backend policy determine the actual backend; artifacts were not probed.' } },

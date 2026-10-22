@@ -5,6 +5,7 @@ import path from 'node:path';
 import { explainEffectiveConfiguration, formatEffectiveConfiguration } from '../../../tools/config/effective.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 import { loadUserConfig } from '../../../tools/dict-utils/config.js';
+import { buildConfigurationDump } from '../../../tools/config/dump-payload.js';
 
 const suite = path.join(process.cwd(), '.tmp', 'tasks', 'effective-explanation-authority');
 await fs.mkdir(suite, { recursive: true });
@@ -38,6 +39,25 @@ try {
     assert.equal(invalid.errorCode, 'ERR_REPO_CONFIG_INVALID');
     assert.equal(invalid.errors[0].path, '/threads');
     assert.equal(JSON.stringify(invalid).includes('secret-looking-invalid-type'), false, 'schema errors retain path/code without source values');
+    const selected = path.join(root, 'selected.json');
+    await fs.writeFile(selected, JSON.stringify({ quality: 'fast', indexing: { embeddings: { enabled: true, model: 'fixture-selected-model' } } }));
+    const selectedEnv = { PAIROFCLEATS_TRUSTED_REPOS: '', PAIROFCLEATS_TRUSTED_CONFIG: '',
+      PAIROFCLEATS_EMBEDDINGS: 'off', PAIROFCLEATS_MODELS_DIR: path.join(root, 'selected-models'),
+      PAIROFCLEATS_CACHE_ROOT: path.join(root, 'selected-cache'), PAIROFCLEATS_MCP_MODE: 'stdio' };
+    const dump = await buildConfigurationDump({ repoRoot: root, configPath: selected, env: selectedEnv });
+    assert.equal(dump.ok, true, 'explicit selected config does not read invalid repository default');
+    assert.equal(dump.configSources.files[0].path, selected);
+    assert.equal(dump.policy.quality.value, 'fast');
+    assert.equal(dump.selected.quality.value, 'fast');
+    assert.equal(dump.embeddings.selectedModel, 'fixture-selected-model');
+    assert.equal(dump.embeddings.resolvedEmbeddingMode, 'off');
+    assert.equal(dump.paths.models.selected, selectedEnv.PAIROFCLEATS_MODELS_DIR);
+    assert.ok(dump.derived.repoCacheRoot.startsWith(selectedEnv.PAIROFCLEATS_CACHE_ROOT));
+    assert.equal(dump.derived.mcp.mode, 'stdio');
+    assert.equal(dump.derived.mcp.sdkAvailable, null, 'unrequested capability probe cannot be labeled missing');
+    assert.equal(dump.diagnostic.environmentScope, 'explicit-preview-input');
+    assert.equal(dump.diagnostic.liveRunReceipt, false);
+    assert.equal((await buildConfigurationDump({ repoRoot: root, configPath: path.join(root, 'missing-dump.json') })).ok, false);
   });
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('Effective config explanation distinguishes authority and readiness.');

@@ -23,6 +23,13 @@ merge. Its source/ignored-path report explains why a schema-valid repository
 setting may not take effect. It does not start language tools, verify a model,
 download anything or establish index readiness. Human `config dump` also lists
 the selected source layers and discarded authority paths.
+Both effective validation and dump accept an explicit `--config <file>` with
+the same selected-file and authority rules; a missing selected file is an error.
+Dump keeps the runtime preview, policy and derived path fields and also reports
+normalized selected provider/backend policy. Without `--capabilities`, its MCP
+SDK availability is unknown rather than labeled missing. Diagnostic environment
+inputs apply to embedding intent and canonical model/cache path selection;
+observed process/startup values still describe the current process.
 
 Defaults and automatic policy are followed by repository settings allowed by
 repository trust, then separately selected user-owned trusted policy. Supported

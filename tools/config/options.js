@@ -4,5 +4,6 @@ export const CONFIG_VALIDATE_OPTIONS = {
 };
 export const CONFIG_DUMP_OPTIONS = {
   repo: { type: 'string' }, json: { type: 'boolean', default: false },
+  config: { type: 'string' },
   capabilities: { type: 'boolean', default: false }
 };

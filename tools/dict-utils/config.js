@@ -209,8 +209,8 @@ function normalizeUserConfig(baseConfig, repoRoot = null) {
  * Resolve the cache root directory.
  * @returns {string}
  */
-export function getCacheRoot() {
-  return getResolvedCacheRoot();
+export function getCacheRoot(options = {}) {
+  return getResolvedCacheRoot(options);
 }
 
 /**

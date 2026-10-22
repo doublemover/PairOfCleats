@@ -42,8 +42,9 @@ export function getRepoCacheRoot(repoRoot, userConfig = null) {
   return getRepoCacheRootShared(repoRoot, userConfig, REPO_PATH_OPTIONS);
 }
 
-export function resolveRepoCacheRootPath(repoRoot, userConfig = null) {
-  return resolveRepoCacheRootPathShared(repoRoot, userConfig, REPO_PATH_OPTIONS);
+export function resolveRepoCacheRootPath(repoRoot, userConfig = null, { env = process.env } = {}) {
+  return resolveRepoCacheRootPathShared(repoRoot, userConfig, { ...REPO_PATH_OPTIONS,
+    getCacheRoot: () => getCacheRoot({ env }), loadUserConfig: root => loadUserConfig(root, { env }) });
 }
 
 export function getBuildsRoot(repoRoot, userConfig = null) {
