@@ -99,3 +99,72 @@ fn actual_javascript_flow_keeps_terminal_task_state_while_its_job_remains_active
     apply_protocol_event(&mut model, json!({"event":"runtime:metrics","flow":{"lifecycleDropped":1}}), 0);
     assert_eq!(model.task_status[&key].lifecycle(), Lifecycle::Unknown);
 }
+
+#[test]
+fn sustained_ingress_yields_to_quit_and_render_without_backlog_idle_waits() {
+    let now = Instant::now();
+    let mut model = model();
+    let produced = std::cell::Cell::new(0);
+    let mut consumed = Vec::new();
+    let count = drain_ingress_turn(|| {
+        let index = produced.get(); produced.set(index + 1);
+        Some(event_ingress::InboundEvent { value: json!({"event":"log","message":index.to_string()}),
+            received_at: now, pending_at_dispatch: 4096 })
+    }, |event| { consumed.push(event.value["message"].as_str().unwrap().parse::<usize>().unwrap());
+        apply_ingress_event_at(&mut model, event, now); }, || Duration::ZERO);
+    assert_eq!(count, INGRESS_EVENTS_PER_TURN);
+    assert_eq!(produced.get(), INGRESS_EVENTS_PER_TURN as usize);
+    assert_eq!(consumed, (0..count as usize).collect::<Vec<_>>());
+    // The producer still has data. A UI turn reaches input and due drawing now,
+    // rather than waiting for this deliberately inexhaustible source to empty.
+    enqueue_terminal_key(&mut model, KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+    assert!(matches!(model.input_queue.front(), Some((_, InputCommand::Quit))));
+    assert!(model.dirty);
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    terminal.draw(|frame| render_ui(frame, &model)).unwrap();
+    assert!(terminal.backend().buffer().content().iter().any(|cell| cell.symbol() != " "));
+    let mut child = InputChild(Command::new("node").args(["-e", "process.stdin.resume()"])
+        .stdin(Stdio::piped()).spawn().unwrap());
+    let mut job = 0;
+    assert!(dispatch_input_with_recordings_at(&mut model, &mut child, &mut job, None, now).unwrap(),
+        "queued quit dispatches while the producer remains nonempty");
+    assert_eq!(input_poll_wait(4096, false), Duration::ZERO);
+    assert_eq!(input_poll_wait(0, true), Duration::ZERO);
+    assert_eq!(input_poll_wait(0, false), INPUT_POLL_INTERVAL);
+
+    let elapsed = std::cell::Cell::new(Duration::ZERO);
+    let mut applications = 0;
+    let consumed = drain_ingress_turn(|| Some(event_ingress::InboundEvent {
+        value: json!({"event":"runtime:metrics"}), received_at: now, pending_at_dispatch: 1 }),
+        |_| { applications += 1; elapsed.set(INGRESS_TURN_BUDGET); }, || elapsed.get());
+    assert_eq!(consumed, 1, "elapsed-time admission also yields before the count cap");
+    assert_eq!(applications, 1);
+}
+
+#[test]
+fn bounded_turns_preserve_finite_channel_order_and_charge_only_consumed_frames() {
+    let now = Instant::now();
+    let (sender, receiver) = event_ingress::channel();
+    let mut actual = model();
+    let mut reference = model();
+    for index in 0..300 {
+        let value = if index == 0 { json!({"event":"job:start","jobId":"owned"}) }
+            else if index == 299 { json!({"event":"job:end","jobId":"owned","status":"done"}) }
+            else { json!({"event":"log","jobId":"owned","message":format!("event {index}")}) };
+        apply_protocol_event(&mut reference, value.clone(), 0);
+        sender.send_at(value, now).unwrap();
+    }
+    let mut credits = 0;
+    while receiver.pending() > 0 {
+        let before = receiver.pending();
+        let count = drain_ingress_turn(|| receiver.try_recv().ok(),
+            |event| apply_ingress_event_at(&mut actual, event, now), || Duration::ZERO);
+        assert_eq!(before - receiver.pending(), count as usize);
+        assert!(count <= INGRESS_EVENTS_PER_TURN);
+        credits += count;
+    }
+    assert_eq!(credits, 300);
+    assert_eq!(actual.job_status, reference.job_status);
+    assert_eq!(actual.logs.iter().map(|entry| &entry.text).collect::<Vec<_>>(),
+        reference.logs.iter().map(|entry| &entry.text).collect::<Vec<_>>());
+}

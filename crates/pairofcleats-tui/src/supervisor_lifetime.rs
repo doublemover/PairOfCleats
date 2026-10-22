@@ -95,6 +95,10 @@ pub struct SupervisorLifetime {
 }
 
 impl SupervisorLifetime {
+    pub fn pending_events(&self) -> usize {
+        self.events.pending()
+    }
+
     pub fn new(mut child: Child, events: Receiver) -> anyhow::Result<Self> {
         #[cfg(windows)]
         let job = match windows::Job::attach(&child) {

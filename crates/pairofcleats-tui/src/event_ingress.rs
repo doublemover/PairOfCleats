@@ -41,6 +41,10 @@ impl Sender {
 }
 
 impl Receiver {
+    pub fn pending(&self) -> usize {
+        self.pending.load(Ordering::Acquire)
+    }
+
     pub fn try_recv(&self) -> Result<InboundEvent, mpsc::TryRecvError> {
         let (value, received_at) = self.receiver.try_recv()?;
         let pending_at_dispatch = self.pending.fetch_sub(1, Ordering::AcqRel).saturating_sub(1);

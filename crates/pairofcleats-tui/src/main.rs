@@ -3713,6 +3713,28 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, _queue_depth: usize)
     );
 }
 
+const INGRESS_EVENTS_PER_TURN: u64 = 128;
+const INGRESS_TURN_BUDGET: Duration = Duration::from_millis(4);
+
+fn drain_ingress_turn(
+    mut poll: impl FnMut() -> Option<event_ingress::InboundEvent>,
+    mut apply: impl FnMut(event_ingress::InboundEvent),
+    mut elapsed: impl FnMut() -> Duration,
+) -> u64 {
+    let mut consumed = 0;
+    while consumed < INGRESS_EVENTS_PER_TURN
+        && (consumed == 0 || elapsed() < INGRESS_TURN_BUDGET) {
+        let Some(event) = poll() else { break; };
+        apply(event);
+        consumed += 1;
+    }
+    consumed
+}
+
+fn input_poll_wait(inbound_pending: usize, replay_pending: bool) -> Duration {
+    if inbound_pending > 0 || replay_pending { Duration::ZERO } else { INPUT_POLL_INTERVAL }
+}
+
 fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
     if key.kind == KeyEventKind::Release {
         return;
@@ -4125,10 +4147,8 @@ fn main() -> anyhow::Result<()> {
 
     let execution = (|| -> anyhow::Result<()> {
         loop {
-            let mut processed = 0u64;
             let ingress_started = Instant::now();
-            while processed < 128 && ingress_started.elapsed() < Duration::from_millis(4) {
-                let Ok(received) = supervisor.poll() else { break; };
+            let processed = drain_ingress_turn(|| supervisor.poll().ok(), |received| {
                 let owned_channel = recordings
                     .live_model
                     .as_ref()
@@ -4137,8 +4157,7 @@ fn main() -> anyhow::Result<()> {
                 recordings.supervisor_event(&received.value, owned_channel);
                 let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
                 apply_ingress_event_at(live, received, Instant::now());
-                processed += 1;
-            }
+            }, || ingress_started.elapsed());
             if processed > 0 {
                 let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
                 live.flow_credit_pending = live.flow_credit_pending.saturating_add(processed);
@@ -4184,7 +4203,7 @@ fn main() -> anyhow::Result<()> {
                 last_frame = Instant::now();
             }
 
-            if event::poll(INPUT_POLL_INTERVAL)? {
+            if event::poll(input_poll_wait(supervisor.pending_events(), recordings.reconstruction_pending()))? {
                 let terminal_event = event::read()?;
                 if matches!(terminal_event, CEvent::Resize(_, _)) {
                     // Terminal::draw performs autoresize through the normal backend.

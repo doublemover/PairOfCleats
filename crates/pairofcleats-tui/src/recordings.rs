@@ -393,6 +393,10 @@ impl RecordingUi {
         }
     }
 
+    pub fn reconstruction_pending(&self) -> bool {
+        self.seek_requested.is_some() || self.active.as_ref().is_some_and(|recording| recording.seek_target.is_some())
+    }
+
     pub fn detach(&mut self) {
         if let Some(recording) = self.active.take() {
             if self.available {

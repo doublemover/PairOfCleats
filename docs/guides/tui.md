@@ -390,3 +390,9 @@ and 8 MiB recording admission bounds are unchanged.
 
 These source bounds and authored maximum-recording/reducer controls still require
 Windows Rust, ConPTY, real input/live-channel and measured memory qualification.
+
+The live ingress turn uses the same 128-frame/4-ms cooperative admission bound
+before recordings, due drawing and input dispatch. Credits count consumed frames
+only. Known native backlog or pending replay reconstruction selects a zero-time
+terminal poll; the 20-ms idle wait applies only when both are absent. This avoids
+an artificial idle delay between sustained batches without reordering events.
