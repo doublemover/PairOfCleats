@@ -122,7 +122,9 @@ changed dependency bootstrap and the final Windows validation batch are deferred
 Latest source-only continuation adds exact semantic navigation pins, reviewed
 category destination selection, retained native-child authority, bounded complete
 lexical reuse, selective SQLite BM25 hydration, owned setup/download lifetimes
-and map snapshot workers. Astra has staged internal slices for #1504-#1507;
+and map snapshot workers. Actual SQLite/LMDB finalizers, guarded delegated
+opens, declared write admission and ordinal vector spooling now have source
+checkpoints. Astra has staged internal slices for #1504-#1510;
 public/operational integration and all new qualification remain open. See the
 current repair receipt for exact commits and remaining obligations. No current
 source suite or speedup is claimed.
