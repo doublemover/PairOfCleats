@@ -2,6 +2,10 @@
 
 Status: **real Chromium/service/Worker qualification passed; software WebGL only** (2026-10-12).
 
+That status describes the historical qualification below. The October 22 loaded-response
+find and page-aware history source changes are **unvalidated**; they do not inherit
+browser, responsiveness or performance qualification from that earlier receipt.
+
 The initial workspace checkpoint was based on `codex/semantic-resume-campaign-20261010`
 at `91b3c48968d3453d051bd41e23a70d98eca4f697`. The October 12 interface repairs use
 the audited `bb9901ac808a24629c8004ddd2479006716498be` baseline.
@@ -63,6 +67,22 @@ Unknown totals/values remain unknown. Missing artifacts and partial responses ar
 The inspector exposes convenient identity/source/certainty fields plus every original field via
 lazy expansion (40 entries at a time, nesting cap 32). Only one response is retained; there is
 no accumulated expanded-path graph cache.
+
+Find offers **This page** and **Loaded response** scopes with the same name/kind/identity
+matching. Loaded response find indexes scalar labels and original locators once when a
+response is accepted; it does not hydrate every detail on each keystroke. Work yields
+cooperatively and new input/response replacement cancels stale find authority. At most
+50 previews show identity, supplied file/mode and original rank; Next/Previous match
+navigates all local matches in original order, selecting the matching existing page.
+The 200-node/400-edge projection limits remain unchanged. Back/Forward restores both
+page and selected identity. A new response clears old find results even when its
+generation label is unchanged. Non-graph evidence lists use the same local locators.
+
+Zero find matches means absence from the selected loaded scope only. Unloaded server
+pages and source/query gaps remain explicit; **Next response page** and canonical index
+queries are separate deliberate actions. Find never fetches, rebuilds or reranks data.
+Input responsiveness near the 2 MiB ceiling and actual browser/frame parity are deferred
+qualification; source visit/admission bounds are not measured latency or RSS evidence.
 
 ## Bounds and lifecycle
 

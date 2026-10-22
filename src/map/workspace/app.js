@@ -3,18 +3,21 @@ import { authorProjection, createCompileController } from './reladraw.js';
 import { createRequestController, semanticDetailInput, OPERATIONS } from './request.js';
 import { mountDiagram } from './svg.js';
 import { inspectValue, button, download } from './inspect.js';
+import { createResponseFindController, entityFindText, FIND_PREVIEW_LIMIT } from './find.js';
 const $ = id => document.getElementById(id);
 const compiler = createCompileController(), requests = createRequestController();
+const finder = createResponseFindController();
 let output = null, projection = null, story = null, compiled = null, diagram = null;
 let diagramMode = true, validSource = '', zoom = 1;
 const expanded = new Set();
 let selected = null, page = 0, loadId = 0, compileEpoch = 0, history = [], historyAt = -1, activeRequest = null;
+let responseIdentity = 0, found = null, findAt = -1;
 const notice = (text, error = false) => { $('notice').textContent = text; $('notice').classList.toggle('error', error); };
 function selection(id, remember = true) {
   const node = projection?.nodes.find(item => item.id === id);
   if (!node) { notice('Selected identity is unavailable in this admitted page.'); return; }
   selected = id;
-  if (remember && history[historyAt] !== id) { history = history.slice(0, historyAt + 1); history.push(id); if (history.length > 100) history.shift(); historyAt = history.length - 1; }
+  if (remember && (history[historyAt]?.id !== id || history[historyAt]?.page !== page)) { history = history.slice(0, historyAt + 1); history.push({ id, page }); if (history.length > 100) history.shift(); historyAt = history.length - 1; }
   $('back').disabled = historyAt < 1; $('forward').disabled = historyAt >= history.length - 1;
   $('selection').textContent = node.label; $('detail').replaceChildren(entityOverview(node));
   const heading = document.createElement('h2'); heading.textContent = 'Directed relationships in this page'; $('detail').append(heading);
@@ -89,8 +92,39 @@ function renderTree() {
       descendants.forEach(child => add(child, group)); host.append(group);
     } else host.append(row);
   };
-  if (filter) nodes.filter(node => `${node.label} ${node.kind} ${node.id}`.toLocaleLowerCase().includes(filter)).forEach(node => add(node, $('tree')));
+  if (filter) nodes.filter(node => entityFindText(node).includes(filter)).forEach(node => add(node, $('tree')));
   else { (children.get(null) || []).forEach(node => add(node, $('tree'))); nodes.filter(node => !visited.has(node.id)).forEach(node => add(node, $('tree'))); }
+}
+function findStatus() {
+  const scope = $('find-scope').value === 'loaded' ? 'loaded response' : 'this admitted page';
+  const count = found?.isCurrent() ? found.count : 0;
+  const position = findAt >= 0 && count ? `Match ${findAt + 1} of ${count}. ` : '';
+  $('find-status').textContent = `${position}${count} matches in ${scope} only. Index matches are unknown.${count > FIND_PREVIEW_LIMIT ? ` First ${FIND_PREVIEW_LIMIT} previews shown; next/previous navigate all matches.` : ''}${projection?.cursor ? ' Unloaded server pages are not searched; Next response page is a separate action.' : ''}`;
+  $('find-next').disabled = !count; $('find-previous').disabled = !count;
+}
+function goToMatch(position) {
+  if (!found?.isCurrent() || found.responseIdentity !== responseIdentity) return;
+  const target = found.at(position); if (!target) return;
+  findAt = position;
+  if (page !== target.page) { page = target.page; rebuild(); }
+  selection(target.id); findStatus();
+}
+async function updateFind() {
+  finder.cancel(); found = null; findAt = -1; $('find-matches').replaceChildren();
+  const query = $('filter').value;
+  renderTree();
+  if (!output || !query) { $('find-status').textContent = 'Find searches loaded evidence only.'; $('find-next').disabled = true; $('find-previous').disabled = true; return; }
+  $('find-status').textContent = 'Finding within loaded evidence…';
+  const result = await finder.find(query, { scope: $('find-scope').value, page });
+  if (!result?.isCurrent() || result.responseIdentity !== responseIdentity) return;
+  found = result;
+  result.preview.forEach((node, index) => {
+    const preview = button(node.label, () => goToMatch(index), 'find-match');
+    const detail = document.createElement('small');
+    detail.textContent = `${node.kind} · ${node.id} · ${node.file || 'file not supplied'}${node.mode ? ` · ${node.mode}` : ''} · page ${node.page + 1}${node.originalRank ? ` · original rank ${node.originalRank}` : ''}`;
+    preview.append(detail); $('find-matches').append(preview);
+  });
+  findStatus();
 }
 function renderEvidenceList() {
   const host = $('diagram'); host.replaceChildren();
@@ -144,10 +178,15 @@ function rebuild(initialProjection = null) {
     if (projection.nodes.some(node => node.id === selected)) selection(selected, false);
     else { $('selection').textContent = 'Selected identity is outside this page'; $('detail').replaceChildren(document.createTextNode(selected)); }
   }
+  if ($('filter').value && $('find-scope').value === 'page') updateFind();
+  else if (found) findStatus();
 }
 function accept(data, name) {
   // Validate projection before replacing any usable state.
   const next = projectOutput(data);
+  finder.replace(data, responseIdentity + 1); responseIdentity++;
+  found = null; findAt = -1; $('filter').value = ''; $('find-matches').replaceChildren();
+  $('find-next').disabled = true; $('find-previous').disabled = true; $('find-status').textContent = 'Find searches loaded evidence only.';
   diagramMode = ['map', 'graph', 'semantic', 'context', 'symbolic'].includes(next.family);
   expanded.clear(); output = data; projection = next; page = 0; selected = null; history = []; historyAt = -1;
   $('detail').replaceChildren(); $('selection').textContent = 'Select an entity or evidence surface';
@@ -187,19 +226,27 @@ $('cancel').onclick = () => { requests.cancel(); notice('Request cancelled. Prev
 $('previous').onclick = () => { if (page > 0) { page--; rebuild(); } };
 $('next').onclick = () => { if (projection?.hasNext) { page++; rebuild(); } };
 $('relation').onchange = () => { if (output) rebuild(); };
-$('filter').oninput = renderTree;
+$('filter').oninput = updateFind; $('find-scope').onchange = updateFind;
+$('find-next').onclick = () => { if (found?.count) goToMatch((findAt + 1) % found.count); };
+$('find-previous').onclick = () => { if (found?.count) goToMatch(findAt < 0 ? found.count - 1 : (findAt + found.count - 1) % found.count); };
 $('compile').onclick = () => { diagramMode = true; compileSource(); };
 $('reset-source').onclick = () => { if (story) { $('source').value = story.source; compileSource(); } };
 $('zoom-in').onclick = () => { zoom = Math.min(3, zoom * 1.25); diagram?.zoom(zoom); };
 $('zoom-out').onclick = () => { zoom = Math.max(0.2, zoom / 1.25); diagram?.zoom(zoom); };
 $('fit').onclick = () => { $('diagram').scrollTo({ top: 0, left: 0 }); if (diagram) { diagram.svg.style.width = '100%'; diagram.svg.style.height = '100%'; } };
 $('close-detail').onclick = () => { $('detail').replaceChildren(); $('selection').textContent = 'Inspector closed · selection retained'; };
-$('back').onclick = () => { if (historyAt > 0) selection(history[--historyAt], false); };
-$('forward').onclick = () => { if (historyAt < history.length - 1) selection(history[++historyAt], false); };
+function followHistory(position) {
+  const entry = history[position]; if (!entry) return;
+  historyAt = position;
+  if (page !== entry.page) { page = entry.page; rebuild(); }
+  selection(entry.id, false);
+}
+$('back').onclick = () => { if (historyAt > 0) followHistory(historyAt - 1); };
+$('forward').onclick = () => { if (historyAt < history.length - 1) followHistory(historyAt + 1); };
 $('export-svg').onclick = () => { if (diagram) download('pairofcleats-story.svg', new XMLSerializer().serializeToString(diagram.svg), 'image/svg+xml'); };
 $('export-story').onclick = () => download('pairofcleats-story.json', JSON.stringify({ ...story, source: validSource, coverage: projection.coverage }, null, 2));
 $('export-evidence').onclick = () => download('pairofcleats-output.json', JSON.stringify(output, null, 2));
-window.addEventListener('pagehide', () => { compiler.cancel(); requests.cancel(); });
+window.addEventListener('pagehide', () => { compiler.cancel(); requests.cancel(); finder.dispose(); });
 // Served reports can hand in one bounded initial model; API workspace starts empty.
 const initial = document.getElementById('map-data');
 if (initial) { try { accept(JSON.parse(initial.textContent), 'Code map report'); } catch (error) { notice(error.message, true); } }

@@ -34,15 +34,23 @@ export const detectFamily = input => {
 };
 
 /** Projection is one replaceable page, never an accumulating expanded-path cache. */
-export function projectOutput(envelope, { page = 0, relation = '', family = detectFamily(envelope) } = {}) {
+export function projectOutput(envelope, { page = 0, relation = '', family = detectFamily(envelope), onEntity = null, metadataOnly = false } = {}) {
   const data = unwrapOutput(envelope);
   if (!data || typeof data !== 'object') throw new TypeError('Expected a JSON output object.');
   if (!Number.isSafeInteger(page) || page < 0) throw new RangeError('Invalid projection page.');
   const nodes = [], edges = [], sections = [], byId = new Map(), relationKinds = new Set();
   const start = page * VIEW_LIMITS.nodes;
   let seen = 0, edgeCount = 0;
-  const add = (id, label, kind, detail, ref = null, parentId = null) => {
+  const add = (id, label, kind, detail, ref = null, parentId = null, searchHint = null) => {
     const ordinal = seen++;
+    if (onEntity) {
+      const value = typeof detail === 'function' ? null : detail;
+      onEntity({ id, label: String(label ?? id), kind, ordinal, parentId,
+        file: searchHint?.file ?? value?.file ?? value?.path ?? value?.source?.path ?? ref?.path
+          ?? (typeof parentId === 'string' && parentId.startsWith('file:') ? parentId.slice(5) : null),
+        mode: searchHint?.mode ?? value?.mode ?? null, originalRank: searchHint?.originalRank ?? value?.originalRank ?? null });
+    }
+    if (metadataOnly) return;
     if (ordinal < start || nodes.length >= VIEW_LIMITS.nodes) return;
     if (byId.has(id)) return;
     const node = { id, label: String(label ?? id), kind, ref, parentId,
@@ -50,6 +58,7 @@ export function projectOutput(envelope, { page = 0, relation = '', family = dete
     nodes.push(node); byId.set(id, node);
   };
   const edge = (from, to, kind, detail) => {
+    if (metadataOnly) return;
     kind = kind || 'relation';
     relationKinds.add(kind);
     if (relation && kind !== relation) return;
@@ -58,6 +67,7 @@ export function projectOutput(envelope, { page = 0, relation = '', family = dete
     edges.push({ id: `edge:${edges.length}`, from, to, kind: kind || 'relation', detail });
   };
   const section = (title, value, presentation = 'records') => {
+    if (metadataOnly) return;
     if (value != null) sections.push({ title, value, presentation });
   };
   const graph = pack => {
@@ -126,7 +136,8 @@ export function projectOutput(envelope, { page = 0, relation = '', family = dete
     for (const mode of ['code', 'prose', 'extractedProse', 'records', 'hits', 'results']) {
       const rows = array(data[mode]);
       section(`${mode} · original ranking`, rows, 'ranked');
-      rows.forEach((row, rank) => add(`hit:${mode}:${rank}`, `${rank + 1}. ${row.name ?? row.file ?? row.path ?? row.id ?? 'hit'}`, mode, () => ({ ...row, originalRank: rank + 1, mode }), row.ref || (row.chunkUid ? { type: 'chunk', chunkUid: row.chunkUid } : null)));
+      rows.forEach((row, rank) => add(`hit:${mode}:${rank}`, `${rank + 1}. ${row.name ?? row.file ?? row.path ?? row.id ?? 'hit'}`, mode, () => ({ ...row, originalRank: rank + 1, mode }), row.ref || (row.chunkUid ? { type: 'chunk', chunkUid: row.chunkUid } : null), null,
+        { file: row.file ?? row.path ?? null, mode, originalRank: rank + 1 }));
     }
     section('Query and ranking metadata', data.stats ?? data.meta ?? data.query);
   } else if (family === 'enrichment') {

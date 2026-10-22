@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const client = path.join(root, 'src/map/workspace');
 const vendor = path.join(root, 'node_modules/reladraw/dist');
-const files = new Set(['index.html', 'style.css', 'app.js', 'projection.js', 'reladraw.js', 'reladraw-worker.js', 'request.js', 'inspect.js', 'svg.js']);
+const files = new Set(['index.html', 'style.css', 'app.js', 'projection.js', 'find.js', 'reladraw.js', 'reladraw-worker.js', 'request.js', 'inspect.js', 'svg.js']);
 /** Static application assets contain no repository data; origin guard runs first. Data routes retain authentication. */
 export async function handleMapWorkspaceRoute(req, res, url, headers = {}) {
   if (req.method !== 'GET' || !(url.pathname === '/map/workspace' || url.pathname.startsWith('/map/workspace/') || url.pathname.startsWith('/map/vendor/reladraw/'))) return false;
