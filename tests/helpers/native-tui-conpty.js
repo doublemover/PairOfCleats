@@ -80,8 +80,12 @@ export const verifyNativeTuiConpty = async (mode, { binaryPath = null } = {}) =>
       assert.notEqual(receipt.exitCode, 0, 'broken output must exercise native error return');
       assert.match(receipt.stderr, /os error (109|232)/, 'the deliberately closed pipe owns the expected diagnostic');
     }
+    if (mode === 'event-transport-error') {
+      assert.notEqual(receipt.exitCode, 0, 'event EOF while the owned supervisor is alive must propagate native failure');
+      assert.match(receipt.stderr, /supervisor event transport closed while the owned child remained active/);
+    }
     const rows = await readPids();
-    if (mode === 'interrupt') {
+    if (mode === 'interrupt' || mode === 'event-transport-error') {
       assert.equal(rows.filter(row => row.request === 'eof').length, 1, 'Ctrl+C uses the existing single graceful supervisor EOF');
       assert.equal(rows.filter(row => row.request === 'job:cancel').length, 0, 'Ctrl+C cannot submit selected-job cancellation');
     }
@@ -94,7 +98,7 @@ export const verifyNativeTuiConpty = async (mode, { binaryPath = null } = {}) =>
     const snapshot = JSON.parse(await fs.readFile(path.join(dir, 'state.json'), 'utf8'));
     const statuses = Object.values(snapshot.final_job_statuses);
     assert.ok(statuses.length && statuses.every(status => ['cancelled', 'failed', 'done'].includes(status)));
-    if (mode !== 'supervisor-error') assert.deepEqual(statuses, ['cancelled']);
+    if (!['supervisor-error', 'event-transport-error'].includes(mode)) assert.deepEqual(statuses, ['cancelled']);
     else assert.deepEqual(statuses, ['failed']);
     const summary = { ...receipt, binary, binarySha256, ownedPids: pids, finalStatuses: statuses,
       allReaped: true, capture: capture.outputDir };

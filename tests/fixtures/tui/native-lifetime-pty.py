@@ -109,19 +109,24 @@ with tempfile.TemporaryDirectory(prefix='poc-native-lifetime-') as directory:
             assert 'supervisor exited before TUI shutdown' in child.stderr.read().decode()
         elif mode == 'terminal-error':
             assert code != 0, 'closed real output terminal must exercise the error return'
+        elif mode == 'event-transport-error':
+            assert code != 0, 'event pipe EOF while the owned supervisor is alive must fail'
+            assert 'supervisor event transport closed while the owned child remained active' in child.stderr.read().decode()
         assert termios.tcgetattr(input_slave) == original, 'raw terminal settings must be restored'
         pids = {value for row in rows for key, value in row.items()
                 if key in ('proxy', 'supervisor', 'job', 'descendant')}
         wait_until(lambda: all(not pathlib.Path('/proc/' + str(pid)).exists() for pid in pids), 2, require_alive=False)
         state = json.loads(snapshot.read_text())
         statuses = list(state['final_job_statuses'].values())
-        if mode == 'interrupt':
+        if mode in ('interrupt', 'event-transport-error'):
             requests = [row.get('request') for row in read_rows()]
             assert requests.count('eof') == 1, 'Ctrl+C must use the existing single graceful supervisor EOF'
             assert 'job:cancel' not in requests, 'Ctrl+C cannot submit selected-job cancellation'
         assert statuses and all(status in ('cancelled', 'failed', 'done') for status in statuses), state
-        if mode != 'supervisor-error':
+        if mode not in ('supervisor-error', 'event-transport-error'):
             assert statuses == ['cancelled'], state
+        else:
+            assert statuses == ['failed'], state
         print(json.dumps(dict(mode=mode, exitCode=code, ownedPids=sorted(pids),
                               allReaped=True, terminalRestored=True, finalStatuses=statuses)))
     finally:
