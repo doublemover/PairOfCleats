@@ -195,8 +195,12 @@ export function spawnSubprocess(command, args, options = {}) {
       detached,
       windowsVerbatimArguments: options.windowsVerbatimArguments === true
     });
-    let closeObserved = false;
-    const closed = new Promise(resolve => child.once('close', () => { closeObserved = true; resolve(); }));
+    let closeObserved = false, stdinErrorHandler = null;
+    const closed = new Promise(resolve => child.once('close', () => {
+      closeObserved = true;
+      if (stdinErrorHandler && child.stdin) child.stdin.off('error', stdinErrorHandler);
+      resolve();
+    }));
     let unregisterTrackedChild = () => {};
     if (cleanupOnParentExit) {
       unregisterTrackedChild = registerChildProcessForCleanup(child, {
@@ -211,17 +215,6 @@ export function spawnSubprocess(command, args, options = {}) {
         name: options.name || null,
         startedAtMs: startedAt
       });
-    }
-    if (options.input != null && child.stdin) {
-      try {
-        child.stdin.write(options.input);
-        child.stdin.end();
-      } catch {}
-    }
-    if (typeof options.onSpawn === 'function') {
-      try {
-        options.onSpawn(child);
-      } catch {}
     }
     if (options.unref === true) {
       child.unref();
@@ -275,6 +268,11 @@ export function spawnSubprocess(command, args, options = {}) {
       wasCloseObserved: () => closeObserved,
       reject
     });
+    const failOwnedOperation = (message, error) => {
+      if (settled) return;
+      settled = true;
+      void terminateAndReject(result => new SubprocessError(message, result, error));
+    };
     const onOutputHandlerError = (streamName, error) => {
       if (settled) return;
       settled = true;
@@ -331,19 +329,9 @@ export function spawnSubprocess(command, args, options = {}) {
       abortSignal.addEventListener('abort', abortHandler, { once: true });
     }
     child.on('error', (err) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      const result = buildResult({
-        pid: child.pid,
-        exitCode: null,
-        signal: null,
-        startedAt,
-        stdout: stdoutCollector.toOutput(outputMode),
-        stderr: stderrCollector.toOutput(outputMode),
-        outputCapture: { stdout: stdoutCollector.stats(), stderr: stderrCollector.stats() }
-      });
-      reject(new SubprocessError(err?.message || 'Subprocess failed', result, err));
+      // `error` can occur after a successful spawn. It never substitutes for
+      // the exact child's close or releases its cleanup registration early.
+      failOwnedOperation(err?.message || 'Subprocess failed', err);
     });
     child.on('close', (code, signal) => {
       if (settled) return;
@@ -354,7 +342,17 @@ export function spawnSubprocess(command, args, options = {}) {
       cleanup();
       finalize(code, signal);
     });
-    // onSpawn is user code and can synchronously cancel before listener setup.
+    stdinErrorHandler = error => failOwnedOperation('Subprocess stdin failed', error);
+    if (child.stdin) child.stdin.on('error', stdinErrorHandler);
+    // All owners/listeners exist before caller hooks or input can fail/cancel.
+    if (typeof options.onSpawn === 'function') {
+      try { options.onSpawn(child); }
+      catch (error) { failOwnedOperation('Subprocess onSpawn callback failed', error); }
+    }
     if (abortSignal?.aborted) abortHandler();
+    if (!settled && options.input != null && child.stdin) {
+      try { child.stdin.end(options.input); }
+      catch (error) { failOwnedOperation('Subprocess stdin failed', error); }
+    }
   });
 }
