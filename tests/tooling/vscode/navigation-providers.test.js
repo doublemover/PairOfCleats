@@ -57,7 +57,8 @@ const document = {
 harness.queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
-    ok: true, status: 'resolved', binding: { status: 'resolved' },
+    ok: true, status: 'resolved', binding: { status: 'resolved' }, sourceHash: hashFile(activeFile),
+    sourceVersion: '1', coordinateUnit: 'utf16',
     results: [
       {
         file: 'src/defs.js', coordinateUnit: 'utf16', sourceHash: hashFile(workspace.resolvePath('src', 'defs.js')),
@@ -82,7 +83,8 @@ assert.equal(definitions[0].range.start.character, 2);
 harness.queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
-    ok: true, status: 'resolved', binding: { status: 'resolved' },
+    ok: true, status: 'resolved', binding: { status: 'resolved' }, sourceHash: hashFile(activeFile),
+    sourceVersion: '1', coordinateUnit: 'utf16',
     results: [
       {
         file: 'src/app.ts', coordinateUnit: 'utf16', sourceHash: hashFile(activeFile),
@@ -168,5 +170,18 @@ assert.equal(harness.spawnCalls[1].args[4], '--json');
 assert.equal(harness.spawnCalls[1].args[8], 'references');
 assert.equal(harness.spawnCalls[1].args[harness.spawnCalls[1].args.indexOf('--include-declaration') + 1], 'false');
 assert.equal(harness.spawnCalls[2].args[8], 'document-symbols');
+
+const boundResult = { ok: true, status: 'resolved', binding: { status: 'resolved' },
+  sourceHash: hashFile(activeFile), sourceVersion: '1', coordinateUnit: 'utf16', results: [{
+    file: 'src/defs.js', sourceHash: hashFile(workspace.resolvePath('src', 'defs.js')),
+    coordinateUnit: 'utf16', startLine: 12, endLine: 12, startCol: 3, endCol: 16 }] };
+harness.queuedResults.push({ code: 0, stdout: JSON.stringify({ ...boundResult, sourceVersion: 'older-document' }) });
+assert.deepEqual(await harness.definitionProviders[0].provider.provideDefinition(document, start, {}), [],
+  'a response for another document version cannot publish native locations');
+harness.fakeVscode.workspace.textDocuments = [{ uri: { fsPath: workspace.resolvePath('src', 'defs.js') },
+  isDirty: true, getText: () => 'unsaved target buffer' }];
+harness.queuedResults.push({ code: 0, stdout: JSON.stringify(boundResult) });
+assert.deepEqual(await harness.definitionProviders[0].provider.provideDefinition(document, start, {}), [],
+  'a matching disk hash cannot qualify a dirty target buffer');
 
 console.log('vscode navigation providers test passed');

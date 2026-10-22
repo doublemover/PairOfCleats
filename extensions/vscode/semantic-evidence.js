@@ -1,10 +1,24 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
+const { TextDecoder } = require('node:util');
 
 const LIMITS = Object.freeze({ records: 128, bytes: 65536, workMs: 250 });
 const sameGeneration = (left, right) => left?.baseBuildId === right?.baseBuildId
   && left?.semanticRevision === right?.semanticRevision;
+
+function qualifiedBindingSeed(payload) {
+  if (payload?.status !== 'resolved' || payload.binding?.status !== 'resolved'
+    || typeof payload.generation?.baseBuildId !== 'string' || !payload.generation.baseBuildId
+    || payload.generation.semanticRevision !== 0 || typeof payload.binding.targetId !== 'string'
+    || payload.binding.targetId.length > 256) return null;
+  let target;
+  try { target = JSON.parse(payload.binding.targetId); } catch { return null; }
+  if (!target || !/^(?:sy1|sa1):[a-f0-9]{64}$/.test(target.partitionId || '')
+    || !Number.isSafeInteger(target.localId) || target.localId < 0
+    || Object.keys(target).some(key => !['partitionId', 'localId'].includes(key))) return null;
+  return { generation: { ...payload.generation }, selector: { target } };
+}
 
 function scalarLiteralSelector(type, value = '') {
   let representation = String(value);
@@ -65,17 +79,42 @@ function sourceQualifiedSelection(repoContext, source, record) {
   const bytes = fs.readFileSync(real);
   if (createHash('sha256').update(bytes).digest('hex') !== source.sourceHash) throw new Error('Source differs from indexed evidence. Re-select a current generation.');
   const span = record?.span;
-  if (!Array.isArray(span) || !Number.isSafeInteger(span[0]) || !Number.isSafeInteger(span[1]) || span[0] < 0 || span[1] < span[0]) {
+  if (!Array.isArray(span) || span.length !== 2 || !Number.isSafeInteger(span[0]) || !Number.isSafeInteger(span[1]) || span[0] < 0 || span[1] < span[0]) {
     throw new Error('This record has no exact source span.');
   }
-  const text = bytes.toString('utf8');
+  const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   if (span[1] > text.length) throw new Error('Indexed source range exceeds its qualified document.');
-  return { file: real, start: span[0], end: span[1] };
+  return { file: real, start: span[0], end: span[1], sourceText: text };
+}
+
+function qualifiedDocumentOffsets(document, target) {
+  if (document.isDirty) throw new Error('The source buffer is dirty. Save or compare it before opening indexed ranges.');
+  const actual = document.getText();
+  const source = target.sourceText;
+  let bom = 0, crlf = false;
+  if (actual !== source) {
+    if (source.startsWith('\ufeff') && actual === source.slice(1)) bom = 1;
+    else if (actual === source.replace(/\r\n/g, '\n')) crlf = true;
+    else if (source.startsWith('\ufeff') && actual === source.slice(1).replace(/\r\n/g, '\n')) {
+      bom = 1; crlf = true;
+    } else throw new Error('Open document differs from the exact indexed source beyond supported BOM/CRLF normalization.');
+  }
+  const map = offset => {
+    if (offset < bom || (crlf && source[offset - 1] === '\r' && source[offset] === '\n')) {
+      throw new Error('Indexed range boundary intersects a character removed by host normalization.');
+    }
+    const left = source.charCodeAt(offset - 1), right = source.charCodeAt(offset);
+    if (left >= 0xd800 && left <= 0xdbff && right >= 0xdc00 && right <= 0xdfff) {
+      throw new Error('Indexed range boundary splits a UTF-16 surrogate pair.');
+    }
+    return offset - bom - (crlf ? (source.slice(0, offset).match(/\r\n/g) || []).length : 0);
+  };
+  return { start: map(target.start), end: map(target.end) };
 }
 
 /** Native commands only. Every operation calls the existing typed consumer;
  * suggestions are displayed as data and never executed as response commands. */
-function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execute, chooseTransport }) {
+function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execute, chooseTransport, getCursorSeed = null }) {
   let last = null;
   async function show(payload, state) {
     const document = await vscode.workspace.openTextDocument({
@@ -140,10 +179,9 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
         const source = (payload.sourceRefs || []).find(item => JSON.stringify(item.ref) === JSON.stringify(choice.record.ref));
         const target = sourceQualifiedSelection(state.repoContext, source, choice.record);
         const document = await vscode.workspace.openTextDocument(vscode.Uri.file(target.file));
-        if (document.isDirty) throw new Error('The source buffer is dirty. Save or compare it before opening indexed ranges.');
-        if (createHash('sha256').update(document.getText()).digest('hex') !== source.sourceHash) throw new Error('Open document differs from indexed source.');
+        const offsets = qualifiedDocumentOffsets(document, target);
         const editor = await vscode.window.showTextDocument(document);
-        editor.selection = new vscode.Selection(document.positionAt(target.start), document.positionAt(target.end));
+        editor.selection = new vscode.Selection(document.positionAt(offsets.start), document.positionAt(offsets.end));
         editor.revealRange(editor.selection);
       } else {
         let extra = { direction: action.direction };
@@ -180,6 +218,21 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
         if (!repoContext) return;
         const transport = await chooseTransport(repoContext);
         if (!transport) return;
+        const cursorSeed = !seedNode && transport.transport === 'cli' ? getCursorSeed?.(repoContext) : null;
+        if (cursorSeed) {
+          const route = await vscode.window.showQuickPick([
+            { label: 'Use current source-qualified cursor binding', value: 'cursor' },
+            { label: 'Choose selector / immutable generation', value: 'manual' }
+          ], { title: 'Semantic seed: canonical binding identity or explicit selector' });
+          if (!route) return;
+          if (route.value === 'cursor') {
+            const fresh = getCursorSeed(repoContext);
+            if (!fresh || JSON.stringify(fresh) !== JSON.stringify(cursorSeed)) throw new Error('Qualified cursor identity changed. Navigate again or choose an explicit selector.');
+            await runOperation('find', fresh.selector, { repoContext, generation: fresh.generation, ...transport });
+            if (last) await inspect(last);
+            return;
+          }
+        }
         const buildId = await vscode.window.showInputBox({ prompt: 'Exact semantic baseBuildId (from indexed evidence/manifest)',
           value: last?.repoContext.repoRoot === repoContext.repoRoot ? last.generation.baseBuildId : '' });
         if (!buildId?.trim()) return;
@@ -234,5 +287,5 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
   };
 }
 
-module.exports = { LIMITS, buildSemanticRequest, scalarLiteralSelector, sameGeneration, describeSemanticEvidence,
-  sourceQualifiedSelection, createSemanticEvidenceWorkflow };
+module.exports = { LIMITS, buildSemanticRequest, scalarLiteralSelector, qualifiedBindingSeed, sameGeneration, describeSemanticEvidence,
+  sourceQualifiedSelection, qualifiedDocumentOffsets, createSemanticEvidenceWorkflow };

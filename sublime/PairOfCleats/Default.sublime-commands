@@ -352,41 +352,41 @@
   },
   {
     "caption": "PairOfCleats: Select Repository",
-    "command": "pairofcleats_select_repo"
+    "command": "pair_of_cleats_select_repo"
   },
   {
     "caption": "PairOfCleats: Clear Selected Repository",
-    "command": "pairofcleats_select_repo",
+    "command": "pair_of_cleats_select_repo",
     "args": {
       "clear": true
     }
   },
   {
     "caption": "PairOfCleats: Browse Indexed Matches",
-    "command": "pairofcleats_browse_indexed_matches"
+    "command": "pair_of_cleats_browse_indexed_matches"
   },
   {
     "caption": "PairOfCleats: Load More Indexed Matches",
-    "command": "pairofcleats_load_more_results"
+    "command": "pair_of_cleats_load_more_results"
   },
   {
     "caption": "PairOfCleats: Semantic Evidence (Experimental)",
-    "command": "pairofcleats_semantic_evidence"
+    "command": "pair_of_cleats_semantic_evidence"
   },
   {
     "caption": "PairOfCleats: Related Search (Approximate)",
-    "command": "pairofcleats_search_symbol_under_cursor"
+    "command": "pair_of_cleats_search_symbol_under_cursor"
   },
   {
     "caption": "PairOfCleats: Select Service Repository",
-    "command": "pairofcleats_select_service_repository"
+    "command": "pair_of_cleats_select_service_repository"
   },
   {
     "caption": "PairOfCleats: Copy / Export Selected Context",
-    "command": "pairofcleats_copy_context"
+    "command": "pair_of_cleats_copy_context"
   },
   {
     "caption": "PairOfCleats: Inspect Tasks",
-    "command": "pairofcleats_inspect_tasks"
+    "command": "pair_of_cleats_inspect_tasks"
   }
 ]

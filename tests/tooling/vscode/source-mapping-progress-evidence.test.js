@@ -10,6 +10,7 @@ const { readGitHead, serviceRelativeFile, validateServiceRoot, verifyServiceRevi
 const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask,
   boundedLogLine, retainTaskLog } = require('../../../extensions/vscode/progress-view.js');
 const { collectEvidenceSources, evidenceSeed, renderEvidencePreview } = require('../../../extensions/vscode/evidence-collection.js');
+const { sourceQualifiedSelection, qualifiedDocumentOffsets } = require('../../../extensions/vscode/semantic-evidence.js');
 
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-editor-source-contract-'));
 try {
@@ -27,6 +28,27 @@ try {
   assert.throws(() => sourceNavigationArgs({ ...document, isDirty: true }, { line: 1, character: 0 }), /saved source/);
   assert.throws(() => sourceNavigationArgs({ ...document, getText: () => 'changed' }, { line: 0, character: 0 }), /differs from disk/);
   assert.equal(verifyLocationSource(file, hash), true);
+  const bomFile = path.join(temporary, 'bom.js');
+  fs.writeFileSync(bomFile, '\ufeff' + text);
+  const bomArgs = sourceNavigationArgs({ ...document, uri: { fsPath: bomFile } }, { line: 0, character: 0 });
+  assert.equal(bomArgs[bomArgs.indexOf('--column') + 1], '2', 'host-stripped BOM is restored in source cursor coordinates');
+  assert.equal(verifyLocationSource(bomFile, createHash('sha256').update(fs.readFileSync(bomFile)).digest('hex')), false,
+    'native target ranges require an actual host normalization witness before BOM opening');
+  const retained = '\ufeffa😀z\r\nsecond\r\n';
+  const normalizedFile = path.join(temporary, 'host-normalized.js');
+  fs.writeFileSync(normalizedFile, retained);
+  const sourceRef = { ref: { partitionId: 'sy1:' + 'a'.repeat(64), localId: 1 }, sourceUnitId: 'su1:' + 'b'.repeat(64),
+    sourceHash: createHash('sha256').update(fs.readFileSync(normalizedFile)).digest('hex'),
+    path: 'host-normalized.js', coordinateUnit: 'utf16' };
+  const target = sourceQualifiedSelection({ repoRoot: temporary }, sourceRef, { span: [7, 13] });
+  const observedDocument = { isDirty: false, getText: () => 'a😀z\nsecond\n' };
+  assert.deepEqual(qualifiedDocumentOffsets(observedDocument, target), { start: 5, end: 11 },
+    'exact canonical byte identity plus actual BOM/CRLF host normalization gives adjusted UTF16 offsets');
+  assert.throws(() => qualifiedDocumentOffsets({ ...observedDocument, isDirty: true }, target), /dirty/);
+  assert.throws(() => qualifiedDocumentOffsets({ getText: () => 'changed' }, target), /differs/);
+  assert.throws(() => qualifiedDocumentOffsets(observedDocument, { ...target, start: 6 }), /normalization/);
+  assert.throws(() => qualifiedDocumentOffsets(observedDocument, { ...target, start: 3 }), /surrogate/);
+  assert.throws(() => sourceQualifiedSelection({ repoRoot: temporary }, { ...sourceRef, coordinateUnit: 'byte' }, { span: [1, 2] }), /UTF-16/);
   fs.appendFileSync(file, 'changed');
   assert.equal(verifyLocationSource(file, hash), false, 'stale offsets are never joined to changed source');
   const exact = { sourceHash: hash, coordinateUnit: 'utf16', startLine: 1, startCol: 1, endLine: 2, endCol: 3 };

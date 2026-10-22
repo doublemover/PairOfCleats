@@ -8,6 +8,7 @@ from ..lib import config
 from ..lib import ui
 from ..lib import paths
 from ..lib import service_repository
+from ..lib import installation_evidence, operations
 
 SETTINGS_PANEL = 'pairofcleats-settings'
 
@@ -81,10 +82,30 @@ class PairOfCleatsShowEffectiveSettingsCommand(sublime_plugin.WindowCommand):
             cli = paths.resolve_cli(settings, root)
             text += '\nCLI/runtime command: {0}; argument count: {1}\n'.format(
                 cli.get('command') or 'unavailable', len(cli.get('args_prefix') or []))
+            prefix = cli.get('args_prefix') or []
+            text += 'CLI installation: {0}\n'.format(prefix[0] if prefix and str(prefix[0]).lower().endswith('.js')
+                else cli.get('command') or 'unresolved')
+            text += installation_evidence.render({})
             errors = config.validate_settings(settings, root)
             if errors:
                 text += '\nCorrections:\n- {0}\n'.format('\n- '.join(errors))
             ui.write_output_panel(self.window, SETTINGS_PANEL, text)
+            scope = operations.capture(self.window, key='effective-settings')
+            def action(index):
+                if index < 0 or not operations.is_current(scope):
+                    return
+                if index == 0:
+                    if errors:
+                        ui.show_error('Correct the effective-settings errors before observing this installation.')
+                        return
+                    installation_evidence.inspect(self.window, settings, root, cli, scope,
+                        lambda facts: ui.write_output_panel(self.window, SETTINGS_PANEL, text + installation_evidence.render(facts)))
+                elif index == 1:
+                    self.window.run_command('pair_of_cleats_open_settings')
+                elif index == 2:
+                    self.window.run_command('pair_of_cleats_tooling_doctor')
+            self.window.show_quick_panel(['Inspect Installation / Transport Evidence', 'Open User Settings',
+                                          'Tooling Doctor', 'Done'], action)
         paths.resolve_repo_root_interactive(self.window, show)
 
 

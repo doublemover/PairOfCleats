@@ -43,12 +43,20 @@ function snapshotConfiguration(configuration, keys) {
   });
 }
 
-function renderEffectiveSettings({ snapshot, repoContext, remoteName = '', cli = null, api = null }) {
+function renderEffectiveSettings({ snapshot, repoContext, remoteName = '', cli = null, api = null,
+  installation = null, capability = null }) {
   return ['PairOfCleats effective settings', '', `Repository: ${repoContext.repoRoot}`,
     `Editor URI: ${repoContext.repoUri?.toString?.() || ''}`,
     `Execution host: ${remoteName || 'local workspace host'}`,
     `CLI: ${cli?.command || 'unresolved'}`,
+    `CLI installation: ${cli?.installationPath || 'PATH command / opaque executable; inspect installation to observe its version'}`,
+    `CLI version: ${installation?.version || 'unobserved'}${installation?.reason ? ` (${installation.reason})` : ''}`,
+    `External runtime: ${cli?.runtime?.command || 'unobserved for this CLI dispatch'}`,
+    `External runtime version: ${cli?.runtime?.version || 'unobserved; editor-host version is separate'}`,
     `Transport policy: ${api?.mode || 'cli'}`,
+    `Service capabilities: ${capability?.state || 'unobserved'}${capability?.names?.length ? ` (${capability.names.join(', ')})` : ''}`,
+    ...(capability?.reason ? [`Capability observation: ${capability.reason}`] : []),
+    ...(cli?.ok === false ? [`CLI correction: ${cli.message}`] : []),
     ...(api?.error ? [`Correction: ${api.error}`] : []),
     'Credentials and environment values are redacted.', '',
     ...snapshot.evidence.map(row => `${row.key} = ${JSON.stringify(row.value)} [${row.source}]${

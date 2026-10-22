@@ -547,7 +547,9 @@ def get_workflow_transport(workflow):
 def resolve_execution_mode(settings, workflow, requested_mode=None):
     mode = str((settings or {}).get('api_execution_mode') or 'cli').strip().lower()
     if mode not in VALID_API_EXECUTION_MODES:
-        mode = 'cli'
+        return {'mode': None, 'allow_fallback': False,
+                'base_url': str((settings or {}).get('api_server_url') or '').strip(),
+                'error': 'PairOfCleats: api_execution_mode must be cli, prefer, or require. Correct User Settings.'}
     base_url = str((settings or {}).get('api_server_url') or '').strip()
     transport = get_workflow_transport(workflow)
     workflow_label = transport['label']

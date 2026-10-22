@@ -64,9 +64,9 @@ class PairOfCleatsInspectTasksCommand(sublime_plugin.WindowCommand):
                     if not tasks.cancel_task(self.window, task['id']):
                         ui.show_status('PairOfCleats: selected task already settled or is not cancellable.')
                 elif chosen == 2:
-                    self.window.run_command('pairofcleats_show_effective_settings')
+                    self.window.run_command('pair_of_cleats_show_effective_settings')
                 elif chosen == 3:
-                    self.window.run_command('pairofcleats_tooling_doctor')
+                    self.window.run_command('pair_of_cleats_tooling_doctor')
             self.window.show_quick_panel(actions, action)
         self.window.show_quick_panel([[task.get('title'), task.get('repoRoot'),
             'Operation {0}: {1}'.format(task['id'], task.get('status'))] for task in active], selected)

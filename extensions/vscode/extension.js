@@ -8,8 +8,9 @@ const { createHash } = require('node:crypto');
 const { EventEmitter: NodeEventEmitter } = require('node:events');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
 const { snapshotConfiguration, renderEffectiveSettings } = require('./effective-settings.js');
+const { inspectCliVersion } = require('./installation-evidence.js');
 const { normalizeFilterPagination, mergeFilterPage, continuationInvocation } = require('./filter-pagination.js');
-const { createSemanticEvidenceWorkflow, sourceQualifiedSelection } = require('./semantic-evidence.js');
+const { createSemanticEvidenceWorkflow, sourceQualifiedSelection, qualifiedDocumentOffsets, qualifiedBindingSeed } = require('./semantic-evidence.js');
 let latestNavigationEvidence = null;
 const { sourceNavigationArgs, qualifiedNavigationRows, verifyLocationSource } = require('./source-navigation.js');
 const { readGitHead, validateServiceRoot, mapServicePayload, verifyServiceRevision } = require('./service-repository.js');
@@ -270,11 +271,43 @@ async function showEffectiveSettings() {
   const repoContext = await resolveSearchRepoContext({ allowRemote: true });
   if (!repoContext) return;
   const snapshot = getExtensionConfiguration(repoContext);
-  const text = renderEffectiveSettings({ snapshot, repoContext,
-    remoteName: vscode.env?.remoteName, cli: resolveCli(repoContext.repoRoot, snapshot),
-    api: readApiSettings(snapshot) });
-  const document = await vscode.workspace.openTextDocument({ content: text, language: 'plaintext' });
-  await vscode.window.showTextDocument(document, { preview: true });
+  const cli = resolveCli(repoContext.repoRoot, snapshot);
+  const api = readApiSettings(snapshot);
+  const present = async facts => {
+    const text = renderEffectiveSettings({ snapshot, repoContext,
+      remoteName: vscode.env?.remoteName, cli, api, ...facts });
+    const document = await vscode.workspace.openTextDocument({ content: text, language: 'plaintext' });
+    await vscode.window.showTextDocument(document, { preview: true });
+  };
+  await present();
+  const action = await vscode.window.showQuickPick(['Inspect Installation / Transport Evidence',
+    'Open User Settings', 'Tooling Doctor', 'Done'], { title: 'Effective settings recovery and observations',
+    placeHolder: 'Version/capability observations are read-only and bounded; they do not install or build' });
+  if (action === 'Open User Settings') {
+    await vscode.commands.executeCommand('workbench.action.openSettings', 'pairofcleats');
+  } else if (action === 'Tooling Doctor') {
+    await vscode.commands.executeCommand('pairofcleats.doctor');
+  } else if (action === 'Inspect Installation / Transport Evidence') {
+    const args = [...(cli.argsPrefix || []), '--version'];
+    const invocation = process.platform === 'win32' && /\.(cmd|bat)$/i.test(cli.command || '')
+      ? resolveWindowsCmdInvocation(cli.command, args) : { command: cli.command, args };
+    const env = buildSpawnEnv(snapshot);
+    const installation = cli.ok ? await inspectCliVersion({
+      spawn: (command, values, options) => spawnBufferedProcess(cp, command, values, { ...options,
+        env: invocation.env ? { ...env, ...invocation.env } : env,
+        windowsVerbatimArguments: invocation.windowsVerbatimArguments === true }),
+      stop: child => operations.stopChild(child), command: invocation.command, args: invocation.args,
+      cwd: repoContext.repoRoot, env
+    }) : { state: 'unobserved', reason: 'Correct the configured CLI/runtime path first.' };
+    let capability = { state: 'unobserved', reason: 'CLI policy does not contact a service.' };
+    if (!api.error && api.mode !== 'cli' && api.baseUrl && operations.isCurrent()) {
+      const response = await getCachedApiCapabilities(api.baseUrl, api.timeoutMs);
+      capability = response.ok ? { state: 'observed', names: Object.entries(response.capabilities || {})
+        .filter(([, enabled]) => enabled === true).map(([name]) => name.slice(0, 128)).sort().slice(0, 64) }
+        : { state: 'unavailable', reason: 'The configured service did not supply admitted capability evidence; inspect User Settings / Tooling Doctor.' };
+    }
+    if (operations.isCurrent()) await present({ installation, capability });
+  }
 }
 
 function getWorkflowTransport(workflow) {
@@ -777,11 +810,16 @@ function resolveCli(repoRoot, config) {
   const extraArgs = normalizeStringArray(config.get(VSCODE_SETTINGS.cliArgsKey));
 
   if (configuredPath) {
-    return resolveConfiguredCli(repoRoot, configuredPath, extraArgs, {
+    let runtime = null;
+    const resolved = resolveConfiguredCli(repoRoot, configuredPath, extraArgs, {
       command: CLI_DEFAULT_COMMAND,
       jsExtension: CLI_JS_EXTENSION,
-      resolveNode: () => resolveNodeRuntime(config)
+      resolveNode: () => { runtime = resolveNodeRuntime(config); return runtime; }
     });
+    const installationPath = runtime?.ok ? resolved.argsPrefix?.[0]
+      : path.isAbsolute(resolved.command || '') ? resolved.command : null;
+    return { ...resolved, ...(runtime?.ok ? { runtime: { command: runtime.command, version: runtime.version } } : {}),
+      ...(installationPath ? { installationPath } : {}) };
   }
 
   return { ok: true, command: CLI_DEFAULT_COMMAND, argsPrefix: extraArgs };
@@ -2073,6 +2111,12 @@ function createNavigationLocation(repoContext, entry) {
     file: entry?.file || entry?.virtualPath || ''
   });
   if (!target.ok) return null;
+  const openDocument = vscode.workspace.textDocuments?.find(document => document.uri?.fsPath === target.filePath);
+  if (entry?.sourceHash && openDocument && (openDocument.isDirty
+    || createHash('sha256').update(openDocument.getText()).digest('hex') !== entry.sourceHash)) {
+    noteNavigationDegraded('changed-target-buffer', 'Indexed target buffer differs from its source witness; its precise range was not published.');
+    return null;
+  }
   if (entry?.sourceHash && !verifyLocationSource(target.filePath, entry.sourceHash)) {
     noteNavigationDegraded('changed-target', 'Indexed target source changed; its precise range was not published.');
     return null;
@@ -2264,7 +2308,15 @@ async function runNavigationCommand({
   }
   if (kind === 'definitions' || kind === 'references') {
     if (sourceDocument?.isDirty || sourceDocument?.version !== requestedSourceVersion) return [];
-    latestNavigationEvidence = { payload: result.payload, repoContext };
+    const expectedHash = args[args.indexOf('--source-hash') + 1];
+    if (result.payload?.sourceHash !== expectedHash
+      || result.payload?.sourceVersion !== String(requestedSourceVersion ?? 0)
+      || result.payload?.coordinateUnit !== 'utf16') {
+      noteNavigationDegraded('source-echo', 'Indexed navigation did not retain the requested source identity/version.');
+      return [];
+    }
+    latestNavigationEvidence = { payload: result.payload, repoContext, sourceFile: sourceDocument.uri.fsPath,
+      position: { line: position.line, character: position.character } };
     const rows = qualifiedNavigationRows(result.payload);
     if (!rows.length) noteNavigationDegraded(`binding-${result.payload?.status || 'unknown'}`,
       `Indexed navigation: ${result.payload?.status || 'unqualified'}. Use PairOfCleats Related Search for approximate matches.`,
@@ -4750,6 +4802,21 @@ async function executeOwnedSearchCommand({
  */
 const runSemanticEvidence = createSemanticEvidenceWorkflow({
   vscode, operations,
+  getCursorSeed: repoContext => {
+    const captured = latestNavigationEvidence;
+    const editor = vscode.window.activeTextEditor;
+    const document = editor?.document;
+    const position = editor?.selection?.active;
+    if (!captured || captured.repoContext.repoRoot !== repoContext.repoRoot
+      || document?.uri?.fsPath !== captured.sourceFile || !position
+      || position.line !== captured.position.line || position.character !== captured.position.character) return null;
+    try {
+      const args = sourceNavigationArgs(document, position);
+      if (args[args.indexOf('--source-hash') + 1] !== captured.payload.sourceHash
+        || args[args.indexOf('--source-version') + 1] !== captured.payload.sourceVersion) return null;
+      return qualifiedBindingSeed(captured.payload);
+    } catch { return null; }
+  },
   resolveRepo: node => node?.resultSet ? Promise.resolve(createStoredRepoContext(node.resultSet)) : resolveSearchRepoContext(),
   chooseTransport: async repoContext => {
     const config = getExtensionConfiguration(repoContext);
@@ -4879,9 +4946,9 @@ async function inspectIndexedNavigation(kind) {
       const target = sourceQualifiedSelection(evidence.repoContext, { path: value.file, sourceHash: value.sourceHash,
         coordinateUnit: value.coordinateUnit }, { span: value.span });
       const document = await vscode.workspace.openTextDocument(vscode.Uri.file(target.file));
-      if (document.isDirty) throw new Error('Candidate source buffer is dirty.');
+      const offsets = qualifiedDocumentOffsets(document, target);
       const editor = await vscode.window.showTextDocument(document);
-      editor.selection = new vscode.Selection(document.positionAt(target.start), document.positionAt(target.end));
+      editor.selection = new vscode.Selection(document.positionAt(offsets.start), document.positionAt(offsets.end));
       editor.revealRange(editor.selection);
       vscode.window.showInformationMessage('Opened candidate evidence. The indexed binding remains ambiguous; references were not pooled.');
     } catch (error) { vscode.window.showErrorMessage(error.message); }

@@ -3,6 +3,7 @@ import importlib
 import json
 import os
 import threading
+from unittest.mock import patch
 
 from runtime_harness import FakeRegion, FakeWindow, install_fake_modules, isolated_temp_directory
 
@@ -18,6 +19,9 @@ tasks = importlib.import_module('PairOfCleats.lib.tasks')
 operations = importlib.import_module('PairOfCleats.lib.operations')
 service = importlib.import_module('PairOfCleats.lib.service_repository')
 api = importlib.import_module('PairOfCleats.lib.api_client')
+installation = importlib.import_module('PairOfCleats.lib.installation_evidence')
+runner = importlib.import_module('PairOfCleats.lib.runner')
+search_commands = importlib.import_module('PairOfCleats.commands.search')
 operations.activate()
 window = FakeWindow()
 sublime.set_active_window(window)
@@ -53,6 +57,39 @@ settings.update({'env': {'TOKEN': 'never-print-secret'},
 rendered = settings_commands._render_effective_settings(settings, {})
 assert 'never-print-secret' not in rendered
 assert '[redacted]' in rendered
+assert results.qualified_source_buffer('\ufeffa😀z\r\nsecond\r\n', 'a😀z\nsecond\n') == {'removedBom': True}
+assert results.qualified_source_buffer('a😀z\r\nsecond\r\n', 'a😀z\nsecond\n') == {'removedBom': False}
+assert results.qualified_source_buffer('a\r\nb\r\n', 'a\nchanged\n') is None
+dispatch_hit = {'file': 'selected.py', 'chunkUid': 'selected-record'}
+results.apply_hit_action(window, dispatch_hit, '/selected-target', 'inspect_semantic')
+results.apply_hit_action(window, dispatch_hit, '/selected-target', 'create_context')
+assert window.commands[-2:] == [
+    {'name': 'pair_of_cleats_semantic_evidence', 'args': {'hit': dispatch_hit, 'repo_root': '/selected-target'}},
+    {'name': 'pair_of_cleats_copy_context', 'args': {'hits': [dispatch_hit], 'repo_root': '/selected-target'}}]
+assert installation.parse_cli_version('', 'PairOfCleats v1.2.3\n') == '1.2.3'
+assert installation.parse_cli_version('1.2.3\nsecret diagnostic', '') is None
+assert config.resolve_execution_mode({'api_execution_mode': 'invented'}, 'search')['mode'] is None
+installation_calls, installation_facts = [], []
+
+
+def observe_installation(command, args, **options):
+    installation_calls.append((command, args, options))
+    if args[0] == '-p':
+        response = runner.ProcessResult(0, '', payload={'version': '26.12.1', 'execPath': os.path.abspath('/trusted/node')})
+    else:
+        response = runner.ProcessResult(0, '', stderr='1.2.3\n')
+    options['on_done'](response)
+
+
+with patch.object(installation.runner, 'run_process', side_effect=observe_installation):
+    installation.inspect(window, {'api_execution_mode': 'cli'}, '/selected-target',
+        {'command': '/trusted/node', 'args_prefix': ['/trusted/app/bin/pairofcleats.js']},
+        operations.capture(window, key='effective-settings'), lambda value: installation_facts.append(value))
+assert [call[1] for call in installation_calls] == [
+    ['-p', 'JSON.stringify({version:process.versions.node,execPath:process.execPath})'],
+    ['/trusted/app/bin/pairofcleats.js', '--version']]
+assert all(call[2]['cwd'] == '/selected-target' and call[2]['output_cap_chars'] == 8192 for call in installation_calls)
+assert installation_facts[0]['cliVersion'] == '1.2.3' and installation_facts[0]['nodeVersion'] == '26.12.1'
 
 args = search.build_search_args('', repo_root='/repo', mode='records', advanced={'modified_since': 0}, cursor='opaque')
 assert args[-2:] == ['--', '']
@@ -69,6 +106,20 @@ except ValueError:
 
 generation = {'baseBuildId': 'build-a', 'semanticRevision': 0}
 ref = {'partitionId': 'sy1:' + 'a' * 64, 'localId': 1}
+bound = {'status': 'resolved', 'generation': generation,
+         'binding': {'status': 'resolved', 'targetId': json.dumps(ref)}}
+assert semantic.qualified_binding_seed(bound) == {'generation': generation, 'selector': {'target': ref}}
+assert semantic.qualified_binding_seed(dict(bound, status='partial')) is None
+assert semantic.qualified_binding_seed(dict(bound, binding={'status': 'ambiguous', 'targetId': json.dumps(ref)})) is None
+assert semantic.qualified_binding_seed(dict(bound, binding={'status': 'resolved', 'targetId': 'spelling-only'})) is None
+seed_requests = []
+with patch.object(search_commands, 'qualified_navigation_evidence', return_value=bound), \
+        patch.object(semantic, 'execute', side_effect=lambda target_window, operation, request, context, done: seed_requests.append((operation, request))):
+    semantic.PairOfCleatsSemanticEvidenceCommand(window).run(repo_root='/selected-target')
+    assert window.quick_panel_items[0] == 'Use Current Source-qualified Cursor Binding'
+    window.quick_panel_callback(0)
+assert seed_requests[0][0] == 'find'
+assert seed_requests[0][1]['selector'] == {'target': ref} and seed_requests[0][1]['generation'] == generation
 detail = semantic.request_for('detail', '/repo', generation, ref)
 assert detail['refs'] == [ref]
 assert detail['limits'] == {'records': 128, 'bytes': 65536, 'workMs': 250, 'rows': 512}

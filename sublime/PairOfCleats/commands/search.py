@@ -21,6 +21,26 @@ from ..lib.saved_search import normalize_saved_options
 from ..lib.completion_target import capture_target, target_is_current, apply_target
 
 LIMIT_CHOICES = [10, 25, 50, 100, 200]
+_QUALIFIED_NAVIGATION = {}
+
+
+def qualified_navigation_evidence(window, repo_root):
+    captured = _QUALIFIED_NAVIGATION.get(window.id())
+    view = window.active_view()
+    if (not captured or not view or not operations.is_current(captured['scope'])
+            or captured['root'] != repo_root or view.file_name() != captured['file']
+            or view.is_dirty() or str(view.change_count()) != captured['version']
+            or not list(view.sel()) or view.sel()[0].begin() != captured['point']):
+        return None
+    try:
+        with open(captured['file'], 'rb') as handle:
+            raw = handle.read(4194305)
+        if (len(raw) > 4194304 or hashlib.sha256(raw).hexdigest() != captured['payload'].get('sourceHash')
+                or results.qualified_source_buffer(raw.decode('utf-8'), view.substr(sublime.Region(0, view.size()))) is None):
+            return None
+    except (OSError, UnicodeError):
+        return None
+    return captured['payload']
 
 
 def _resolve_repo_root(window):
@@ -774,7 +794,8 @@ def _execute_qualified_navigation(view, query, kind, on_hits, limit, title, incl
         return
     text = view.substr(sublime.Region(0, view.size()))
     disk = raw.decode('utf-8')
-    if text != disk and not (disk.startswith('\ufeff') and text == disk[1:]):
+    normalization = results.qualified_source_buffer(disk, text)
+    if normalization is None:
         ui.show_error('PairOfCleats: source buffer differs from disk. Save before indexed navigation.')
         return
     selections = list(view.sel())
@@ -784,6 +805,8 @@ def _execute_qualified_navigation(view, query, kind, on_hits, limit, title, incl
     row, _column = view.rowcol(point)
     prefix = view.substr(sublime.Region(view.text_point(row, 0), point))
     column = len(prefix.encode('utf-16-le')) // 2
+    if row == 0 and normalization['removedBom']:
+        column += 1
     source_hash = hashlib.sha256(raw).hexdigest()
     version = str(view.change_count())
     args = ['tooling', 'navigate', '--json', '--repo', repo_root, '--kind', kind,
@@ -799,6 +822,12 @@ def _execute_qualified_navigation(view, query, kind, on_hits, limit, title, incl
             ui.show_error(result.error or result.output or 'Indexed navigation failed.')
             return
         payload = result.payload or {}
+        if (payload.get('sourceHash') != source_hash or payload.get('sourceVersion') != version
+                or payload.get('coordinateUnit') != 'utf16'):
+            ui.show_error('PairOfCleats: navigation did not retain the requested source identity/version.')
+            return
+        _QUALIFIED_NAVIGATION[window.id()] = {'payload': payload, 'scope': scope, 'root': repo_root,
+            'file': file_name, 'version': version, 'point': point}
         if payload.get('status') == 'ambiguous' and (payload.get('binding') or {}).get('candidates'):
             candidates = payload['binding']['candidates']
             def chosen(index):

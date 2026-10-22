@@ -183,10 +183,10 @@ def apply_hit_action(window, hit, repo_root=None, action='open', rerun=None):
             sublime.set_clipboard(file_path)
         return file_path
     if action == 'inspect_semantic':
-        window.run_command('pairofcleats_semantic_evidence', {'hit': hit, 'repo_root': repo_root})
+        window.run_command('pair_of_cleats_semantic_evidence', {'hit': hit, 'repo_root': repo_root})
         return hit
     if action == 'create_context':
-        window.run_command('pairofcleats_copy_context', {'hits': [hit], 'repo_root': repo_root})
+        window.run_command('pair_of_cleats_copy_context', {'hits': [hit], 'repo_root': repo_root})
         return hit
     if action == 'rerun_context':
         query = resolve_hit_context_query(hit)
@@ -313,6 +313,16 @@ def resolve_hit_context_query(hit):
     return ''
 
 
+def qualified_source_buffer(source_text, buffer_text):
+    """Only actually observed BOM removal/CRLF normalization is reversible."""
+    if buffer_text == source_text or buffer_text == source_text.replace('\r\n', '\n'):
+        return {'removedBom': False}
+    if source_text.startswith('\ufeff') and (buffer_text == source_text[1:]
+            or buffer_text == source_text[1:].replace('\r\n', '\n')):
+        return {'removedBom': True}
+    return None
+
+
 def highlight_hit(view, hit):
     if view is None or not isinstance(hit, dict):
         return
@@ -324,6 +334,7 @@ def highlight_hit(view, hit):
         end_line = start_line
 
     def apply():
+        removed_bom = False
         if view.is_loading():
             sublime.set_timeout(apply, 10)
             return
@@ -337,15 +348,22 @@ def highlight_hit(view, hit):
                     raw = handle.read(4194305)
                 text = raw.decode('utf-8')
                 buffer_text = view.substr(sublime.Region(0, view.size()))
-                if (hashlib.sha256(raw).hexdigest() != hit['sourceHash']
-                        or (buffer_text != text and not (text.startswith('\ufeff') and buffer_text == text[1:]))):
+                normalization = qualified_source_buffer(text, buffer_text)
+                if hashlib.sha256(raw).hexdigest() != hit['sourceHash'] or normalization is None:
                     sublime.status_message('PairOfCleats: source changed; indexed selection was not applied.')
                     return
+                removed_bom = normalization['removedBom']
             except (OSError, UnicodeError):
                 return
         start_col = hit.get('startCol')
         end_col = hit.get('endCol')
         if isinstance(start_col, int) and start_col > 0 and isinstance(end_col, int) and end_col > 0:
+            if removed_bom:
+                start_col -= 1 if start_line == 1 else 0
+                end_col -= 1 if end_line == 1 else 0
+                if start_col < 1 or end_col < 1:
+                    sublime.status_message('PairOfCleats: indexed span includes a BOM removed by the host; selection unavailable.')
+                    return
             start_pt = _utf16_point(view, start_line - 1, start_col - 1)
             end_pt = _utf16_point(view, end_line - 1, end_col - 1)
             region = sublime.Region(start_pt, end_pt)

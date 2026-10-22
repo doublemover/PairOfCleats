@@ -18,6 +18,30 @@ TRACE_KINDS = ('flowsTo', 'defines', 'reads', 'writes', 'callTarget', 'construct
 TRACE_SLOTS = ('input', 'output', 'argument', 'receiver', 'parameter', 'returnValue', 'propertyValue', 'element')
 
 
+def qualified_binding_seed(payload):
+    if not isinstance(payload, dict) or payload.get('status') != 'resolved':
+        return None
+    binding = payload.get('binding')
+    if not isinstance(binding, dict) or binding.get('status') != 'resolved':
+        return None
+    generation = payload.get('generation') or {}
+    if (not isinstance(generation, dict) or not isinstance(generation.get('baseBuildId'), str)
+            or not generation['baseBuildId'] or generation.get('semanticRevision') != 0
+            or isinstance(generation.get('semanticRevision'), bool)
+            or not isinstance(binding.get('targetId'), str) or len(binding['targetId']) > 256):
+        return None
+    try:
+        target = json.loads(payload['binding'].get('targetId'))
+    except (ValueError, TypeError):
+        return None
+    if (not isinstance(target, dict) or set(target) != {'partitionId', 'localId'}
+            or not re.match(r'^(?:sy1|sa1):[a-f0-9]{64}\Z', str(target.get('partitionId') or ''))
+            or not isinstance(target.get('localId'), int) or isinstance(target.get('localId'), bool)
+            or not 0 <= target['localId'] <= 9007199254740991):
+        return None
+    return {'generation': dict(generation), 'selector': {'target': target}}
+
+
 def scalar_literal_selector(type_name, value=''):
     representation = str(value)
     if type_name == 'string':
@@ -261,12 +285,15 @@ def open_source(window, state, record):
         raise ValueError('Source differs from indexed evidence. Re-select the current generation.')
     text = raw.decode('utf-8')
     span = record.get('span')
-    if (not isinstance(span, list) or len(span) != 2 or any(not isinstance(value, int) for value in span)
+    if (not isinstance(span, list) or len(span) != 2 or any(not isinstance(value, int) or isinstance(value, bool) for value in span)
             or span[0] < 0 or span[1] < span[0]):
         raise ValueError('Record has no exact source span.')
     encoded = text.encode('utf-16-le')
     if span[1] * 2 > len(encoded):
         raise ValueError('Record span exceeds its qualified source.')
+    for offset in span:
+        if encoded[max(0, offset * 2 - 2):offset * 2 + 2] == b'\r\x00\n\x00':
+            raise ValueError('Record boundary intersects a CRLF pair that the host may normalize.')
     def position(offset):
         before = encoded[:offset * 2].decode('utf-16-le')
         line = before.count('\n') + 1
@@ -437,7 +464,28 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
                     execute(self.window, 'find', request_for('find', root, pinned, selected), context,
                             lambda state: inspect(self.window, state))
                 self.window.show_quick_panel(selectors, selector)
-            self.window.show_input_panel('Exact semantic baseBuildId (from indexed evidence/manifest)', '', generation, None, None)
+            def manual():
+                self.window.show_input_panel('Exact semantic baseBuildId (from indexed evidence/manifest)', '', generation, None, None)
+            from . import search
+            execution = config.resolve_execution_mode(settings, 'semantic-find')
+            captured = qualified_binding_seed(search.qualified_navigation_evidence(self.window, root)) if not hit and execution.get('mode') == 'cli' else None
+            if captured:
+                def route(index):
+                    if not operations.is_current(context['scope']):
+                        return
+                    if index == 0:
+                        fresh = qualified_binding_seed(search.qualified_navigation_evidence(self.window, root))
+                        if not fresh or fresh != captured:
+                            ui.show_error('Qualified cursor identity changed. Navigate again or choose an explicit selector.')
+                            return
+                        execute(self.window, 'find', request_for('find', root, captured['generation'], captured['selector']),
+                            context, lambda state: inspect(self.window, state))
+                    elif index == 1:
+                        manual()
+                self.window.show_quick_panel(['Use Current Source-qualified Cursor Binding',
+                                              'Choose Selector / Immutable Generation'], route)
+            else:
+                manual()
         if repo_root:
             chosen(repo_root, None)
         else:
