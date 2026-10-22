@@ -105,44 +105,24 @@ without implying those new requirements are satisfied. Storage/category, native,
 editor, provisioning, bounded discovery and durable viewer preference releases
 now have durable partial mappings. Shared sourceChunking6/compilerBindings18/lspBindings22, callFlow20, graphRelations1
 and discoverySelection2/signature14 identify that producer meaning. The later
-checkpoint below uses importResolution4 and lspBindings23.
+checkpoint below uses importResolution4, typeNormalization3 and lspBindings24.
 
-Source checkpoints through 101f3641f add local loaded-response find, source-qualified
-semantic navigation, bounded SQLite bundle ingestion, incremental embedding cache
-index deltas, binary vector streaming, immutable coverage receipts and coalesced
-artifact verification. Map exports now have per-deliverable publication receipts
-and immutable loopback preview sessions; focus/visibility retire idle work. Reviewed
-first-search plans, explicit config explanations, terminal cell-width progress and
-checkout diagnosis have source owners. Structured provider evidence reaches the
-semantic sink with shared meaning versions advanced. Navigation mappings, full
-provider onboarding, cache migration, native service ownership and representative
-performance remain partial. Every new regression is unexecuted; generated surfaces,
-changed dependency bootstrap and the final Windows validation batch are deferred.
+Earlier source checkpoints through 0500f370a cover bounded SQLite/LMDB and vector
+ingestion/finalizers, complete lexical reuse, selective BM25 hydration, immutable
+coverage/artifact receipts, delegated opens and build-owned filter pages. Exact
+retained graph pages reach CLI/API/MCP, provider evidence and source lenses;
+graph spill/merge accounting and ordinal vector spooling have source owners.
+Reviewed category/first-search plans, strict managed metadata and setup/download
+lifetimes share explicit authority. Native jobs, subprocess input/error paths,
+watch evidence, editor opens and map snapshot workers retain their actual owners.
+Map exports/previews, cooperative search, terminal widths and reproducible fusion/
+rerankers have authored controls. Research #1504–#1520 has internal slices.
+The durable receipt preserves exact commits, mappings and limitations. All remain
+unvalidated; public research integration, full provider onboarding, fine-grained
+resume, generic migration, native service/editor/model hosts, generated freshness,
+locked setup and representative resource/performance qualification remain open.
 
-Latest source-only continuation adds exact semantic navigation pins, reviewed
-category destination selection, retained native-child authority, bounded complete
-lexical reuse, selective SQLite BM25 hydration, owned setup/download lifetimes
-and map snapshot workers. Actual SQLite/LMDB finalizers, guarded delegated
-opens, declared write admission and ordinal vector spooling now have source
-checkpoints. Build-owned SQLite filter pages, typed watch evidence, exact editor
-opening and native event/session lifetimes now have authored controls. Research
-has committed internal slices for #1504-#1520;
-public/operational integration and all new qualification remain open. See the
-current repair receipt for exact commits and remaining obligations. No current
-source suite or speedup is claimed.
-
-Further source integration through 0500f370a exposes exact retained graph pages
-through CLI/API/MCP, connects provider evidence and retained source lenses, and
-accounts actual graph spill/merge working sets. Pending resource leases survive
-parent exit; category migrations honor authorized active descendant roots. Native
-service controls bind the exact owned job and require actual resource closure.
-Subprocess error, stdin and spawn-callback failures retain cleanup ownership until
-close. Dictionary integrity, strict managed metadata, editor initial admission,
-cooperative map search and reproducible fusion/reranker owners have further repairs.
-All remain unvalidated; fine-grained semantic resume, legacy graph quota coverage,
-real service/editor/model hosts and performance qualification remain open.
-
-Source continuation through cddadde65 adds exact refused-admission rollback and
+Source continuation through c1e9ae3fb adds exact refused-admission rollback and
 canonical launch-selected category sessions for actual index writers/runtime.
 Category release follows exact writer removal, full teardown or initialization
 unwind plus failure recording. Only the owned metadata deadline observes its
@@ -154,7 +134,16 @@ Provisioning probes bind physical path/size/digest before and after execution;
 source checks do not provide OS-atomic launch of mutable external executables.
 TypeScript prefix ties now preserve declaration order; local cache fingerprints
 and shared importResolution4 retire old meaning. Balanced source-backed inlay
-roles advance lspBindings23; compilerBindings18/cfgFlow18/callFlow20 remain current.
+roles and selection/container joins advance lspBindings24; typeNormalization3
+preserves qualified and Unicode aliases. compilerBindings18/cfgFlow18/callFlow20
+remain current. Managed installation, command/LSP, detector and structural owners
+retain exact rollback handles and frozen causes. Producer identity permits their
+own metadata retries without circularly blocking on those retries; independent
+native observers stay required. Configuration/migration observations drain before
+lock release and retain actual failed metadata locks. Map pages avoid repeated
+prefix serialization; Python AST columns use sparse scalar checkpoints; no
+measured speedup or host acceptance follows. Sublime cursors/ranges use original
+source geometry through observed buffer normalization.
 Retained lexical rename, paired motifs and exact-source lenses preserve owned
 worlds, source selection, uncertainty and response limits without edit authority.
 Supplied graph/shard accounting, source/newline mapping and saved-map exact close
