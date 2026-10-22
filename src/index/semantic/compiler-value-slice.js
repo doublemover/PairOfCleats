@@ -20,7 +20,15 @@ export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes
   const ownerOf = node => {
     const pending = [];
     let current = node;
-    while (current && !functionOwners.has(current) && !ts.isFunctionLike(current)) { pending.push(current); current = current.parent; }
+    while (current && !functionOwners.has(current) && !ts.isFunctionLike(current)) {
+      pending.push(current);
+      const parent = current.parent;
+      // A method/accessor key is evaluated while creating its enclosing object
+      // or class. Skip that method boundary only from its computed name; its
+      // parameters/defaults and body still belong to the invoked function.
+      current = ts.isComputedPropertyName(current) && parent && ts.isFunctionLike(parent) && parent.name === current
+        ? parent.parent : parent;
+    }
     const owner = current ? (functionOwners.has(current) ? functionOwners.get(current) : current) : null;
     for (const child of pending) functionOwners.set(child, owner);
     return owner;
