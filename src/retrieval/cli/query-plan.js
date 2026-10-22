@@ -95,7 +95,7 @@ export function buildQueryPlan({
     : null;
   const phraseScoringTokens = tokenizeQueryTerms(parsedQuery.phrases, dict, { ...tokenizationOptions, caseSensitive: false });
   const queryTokens = [...includeTokens, ...phraseScoringTokens];
-  const rx = buildHighlightRegex(queryTokens);
+  const rx = buildHighlightRegex(queryTokens, { caseSensitive: caseTokens });
   const embeddingQueryText = [...parsedQuery.includeTerms, ...parsedQuery.phrases]
     .join(' ')
     .trim() || query;

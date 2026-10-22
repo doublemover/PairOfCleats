@@ -10,7 +10,7 @@ import { loadPiecesManifest, resolveArtifactPresence } from '../../src/shared/ar
 import { loadJsonObjectArtifact } from '../../src/shared/artifact-io/loaders.js';
 import { assertKnownIndexProfileId } from '../../src/contracts/index-profile.js';
 import { resolveRequiredArtifactsForProfile } from '../../src/contracts/index-profile.js';
-import { buildPrefixedPieceStats, missingRequiredStatsFamilies } from './stats-artifacts.js';
+import { accumulateManifestBytes, summarizeManifestBytes, buildPrefixedPieceStats, missingRequiredStatsFamilies } from './stats-artifacts.js';
 import { fromPosix, isRelativePathEscape } from '../../src/shared/file-paths.js';
 import { getRepoId, loadUserConfig, resolveIndexRoot, resolveRepoRootArg } from '../shared/dict-utils.js';
 
@@ -233,16 +233,21 @@ const aggregateTotals = (modeReports) => {
       sum + mode.embeddings.denseVectors.bytes + mode.embeddings.hnsw.bytes + mode.embeddings.lancedb.bytes
     ), 0)
   };
-  const totalBytes = Object.values(bytesByFamily).reduce((sum, value) => sum + value, 0);
+  const selectedFamilyBytes = Object.values(bytesByFamily).reduce((sum, value) => sum + value, 0);
+  const manifestBytes = summarizeManifestBytes(allPhysicalPieces);
   return {
     chunkCount: totalChunkCount,
     fileCount: totalFileCount,
     bytesByFamily,
-    totalBytes
+    selectedFamilyBytes,
+    totalBytes: manifestBytes.bytes,
+    manifestPieces: manifestBytes.pieces,
+    unknownPieceBytes: manifestBytes.unknownPieces
   };
 };
 
 const modeReports = [];
+const allPhysicalPieces = new Map();
 const verifyErrors = [];
 const verifyWarnings = [];
 let buildId = null;
@@ -254,6 +259,7 @@ const selected = selectModeDirs();
 for (const { mode, dir } of selected.modes) {
   const manifest = loadPiecesManifest(dir, { strict: true });
   const pieces = Array.isArray(manifest?.pieces) ? manifest.pieces : [];
+  accumulateManifestBytes(allPhysicalPieces, dir, pieces);
   if (!buildId && manifest?.buildId) buildId = manifest.buildId;
   if (!compatibilityKey && manifest?.compatibilityKey) compatibilityKey = manifest.compatibilityKey;
   if (!artifactSurfaceVersion && manifest?.artifactSurfaceVersion) artifactSurfaceVersion = manifest.artifactSurfaceVersion;
@@ -262,6 +268,7 @@ for (const { mode, dir } of selected.modes) {
   const report = {
     mode,
     indexDir: dir,
+    manifestBytes: summarizeManifestBytes(accumulateManifestBytes(new Map(), dir, pieces)),
     chunkMeta: buildChunkStats(pieces),
     tokenPostings: buildTokenStats(pieces),
     phraseNgrams: buildFamilyStats(pieces, { names: ['phrase_ngrams'], countFromName: 'phrase_ngrams' }),
@@ -339,7 +346,7 @@ if (argv.json) {
       )}`
     );
   }
-  console.error(`total bytes: ${formatBytes(payload.totals.totalBytes)}`);
+  console.error(`total bytes: ${payload.totals.totalBytes == null ? 'unknown (manifest byte counts missing)' : formatBytes(payload.totals.totalBytes)}`);
   if (payload.verify) {
     console.error(`verify: ${payload.verify.ok ? 'ok' : 'errors'}`);
     for (const warning of payload.verify.warnings) console.error(`warn: ${warning}`);

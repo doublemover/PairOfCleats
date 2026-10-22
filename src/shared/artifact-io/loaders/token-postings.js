@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { admitSortedPostings } from '../../posting-order.js';
 import { openContainedFileSync, verifyContainedFileHandle } from '../../contained-file.js';
 import { readBuffer } from '../compression.js';
 import path from 'node:path';
@@ -183,7 +184,7 @@ const tryLoadTokenPostingsBinaryColumnar = (
  * }} [options]
  * @returns {any}
  */
-export const loadTokenPostings = (
+const loadTokenPostingsRaw = (
   dir,
   {
     maxBytes = MAX_JSON_BYTES,
@@ -449,3 +450,5 @@ export const loadTokenPostings = (
   }
   throw new Error(`Unsupported token_postings format: ${sources.format}`);
 };
+
+export const loadTokenPostings = (...args) => admitSortedPostings(loadTokenPostingsRaw(...args));

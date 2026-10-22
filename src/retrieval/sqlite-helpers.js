@@ -1,4 +1,5 @@
 import { compileFtsMatchFromAst } from './fts-query.js';
+import { admitSortedPostings } from '../shared/posting-order.js';
 import { assertCasePreservedPhraseEvidence, createQueryAstHelpers, hasCaseSensitivePhrase, matchesLiteralPhraseTokens, requiresBooleanUniverse } from './pipeline/query-ast.js';
 import { FTS_VARIANT_TABLES } from '../storage/sqlite/fts-variants.js';
 import { extractNgrams, tri } from '../shared/tokenize.js';
@@ -496,14 +497,8 @@ export function createSqliteHelpers(options) {
     const stats = loadTokenStats(mode);
     const docLengths = loadDocLengths(mode, stats.totalDocs);
 
-    return {
-      vocab,
-      postings,
-      docLengths,
-      avgDocLen: stats.avgDocLen,
-      totalDocs: stats.totalDocs,
-      vocabIndex
-    };
+    return admitSortedPostings({ vocab, postings, docLengths,
+      avgDocLen: stats.avgDocLen, totalDocs: stats.totalDocs, vocabIndex });
   }
 
   /**

@@ -46,9 +46,9 @@ export const createCacheIndex = (identityKey) => {
     updatedAt: now,
     nextShardId: 0,
     currentShard: null,
-    entries: {},
-    files: {},
-    shards: {}
+    entries: Object.create(null),
+    files: Object.create(null),
+    shards: Object.create(null)
   };
 };
 
@@ -87,9 +87,9 @@ export const normalizeCacheIndex = (index, identityKey) => {
   if (index.version !== CACHE_INDEX_VERSION) return createCacheIndex(identityKey);
   const normalized = { ...index };
   normalized.identityKey = normalized.identityKey || identityKey || null;
-  normalized.entries = { ...(normalized.entries || {}) };
+  normalized.entries = Object.assign(Object.create(null), normalized.entries || {});
   normalized.files = buildCacheIndexFileMap(normalized.entries);
-  normalized.shards = { ...(normalized.shards || {}) };
+  normalized.shards = Object.assign(Object.create(null), normalized.shards || {});
   const configuredNextShardId = Number.isFinite(Number(normalized.nextShardId))
     ? Math.max(0, Math.floor(Number(normalized.nextShardId)))
     : 0;
@@ -145,7 +145,7 @@ const compareFileKeyCandidates = (left, right) => {
  * @returns {Record<string,string>}
  */
 export const buildCacheIndexFileMap = (entries = {}) => {
-  const fileMap = {};
+  const fileMap = Object.create(null);
   const selected = new Map();
   for (const [key, entry] of Object.entries(entries || {})) {
     const file = toCanonicalFileString(entry?.file);
@@ -270,8 +270,8 @@ export const mergeCacheIndex = (base, incoming) => {
   if (!base || typeof base !== 'object') return base;
   if (!incoming || typeof incoming !== 'object') return base;
 
-  base.entries = { ...(base.entries || {}) };
-  base.shards = { ...(base.shards || {}) };
+  base.entries = Object.assign(Object.create(null), base.entries || {});
+  base.shards = Object.assign(Object.create(null), base.shards || {});
 
   for (const [key, entry] of Object.entries(incoming.entries || {})) {
     const existing = base.entries[key] || null;

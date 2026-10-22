@@ -3,6 +3,7 @@ import { loadHnswIndex } from '../shared/hnsw.js';
 import { createVocabIndex } from './vocab-index.js';
 import path from 'node:path';
 import { embeddingBindingMismatches } from '../shared/embedding-generation.js';
+import { admitSortedPostings } from '../shared/posting-order.js';
 
 const CHUNK_FILE_META_FIELDS = Object.freeze([
   ['file', 'missing'],
@@ -77,6 +78,7 @@ export const hydrateSearchIndexPostProcessing = (
   if (idx?.fieldPostings?.fields) {
     for (const field of Object.keys(idx.fieldPostings.fields)) {
       ensureVocabIndex(idx.fieldPostings.fields[field]);
+      admitSortedPostings(idx.fieldPostings.fields[field]);
     }
   }
   idx.filterIndex = includeFilterIndex

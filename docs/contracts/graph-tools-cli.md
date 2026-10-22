@@ -287,3 +287,17 @@ pairofcleats suggest-tests --repo . --changed src/a.ts --changed src/b.ts --max 
 - MD: deterministic:
   - list of suggested tests with rationale + witness path summaries
 
+
+Prepared graph indexes admit CSR independently per family. A family must match
+normalized node IDs and have complete offsets and unique ascending edge rows.
+Rejected or absent CSR is derived from ordinary graph data. Once equivalent CSR
+exists, temporary ordinary outgoing rows are released; metadata and ID tables
+remain available. Bounded fanout counts all qualifying candidates while creating
+edge descriptors only for the admitted prefix. Reverse-CSR setup remains a
+separate cold cost. Sorted edge windows merge through stable heap heads.
+
+Suggest-tests retains one predecessor and distance per discovered node. It ranks
+all lightweight matches before applying the suggestion cap, then reconstructs
+witness paths only for returned graph suggestions. Matched and omitted counts
+still describe the full admitted traversal. Structural tuple keys preserve literal
+delimiters in edges, candidate envelopes and witness paths.

@@ -225,7 +225,7 @@ export const createTopKReducer = ({
     statsRef.usedSort = false;
     const sortedHeap = heap.slice().sort(compareTopKEntries);
     const capped = Number.isFinite(Number(finalLimit)) ? Math.max(0, Math.floor(Number(finalLimit))) : k;
-    const sliced = capped && sortedHeap.length > capped
+    const sliced = sortedHeap.length > capped
       ? sortedHeap.slice(0, capped)
       : sortedHeap;
     const output = sliced.map((entry) => payloadBuilder(entry));

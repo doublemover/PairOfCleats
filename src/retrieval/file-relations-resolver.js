@@ -55,14 +55,12 @@ export const resolveFileRelations = (relationsStore, filePath, caseSensitiveFile
     const direct = relationsStore.get(filePath) || relationsStore.get(normalizedFilePath);
     if (direct) return direct;
     if (caseSensitiveFile) return null;
-    let normalized = lowerCaseRelationLookupCache.get(relationsStore);
-    if (!normalized) {
-      normalized = new Map();
+    // A Map can mutate even when Object.freeze(map) is true. Rebuild mutable
+    // input here; query-scoped prepared ranking evidence owns repeated reuse.
+    const normalized = new Map();
       for (const [key, value] of relationsStore.entries()) {
         addCaseInsensitiveLookupEntry(normalized, key, value);
       }
-      lowerCaseRelationLookupCache.set(relationsStore, normalized);
-    }
     return getCaseInsensitiveLookupValue(normalized, filePath);
   }
   if (Object.prototype.hasOwnProperty.call(relationsStore, filePath)) {
@@ -75,13 +73,13 @@ export const resolveFileRelations = (relationsStore, filePath, caseSensitiveFile
     return relationsStore[normalizedFilePath];
   }
   if (caseSensitiveFile) return null;
-  let normalized = lowerCaseRelationLookupCache.get(relationsStore);
+  let normalized = Object.isFrozen(relationsStore) ? lowerCaseRelationLookupCache.get(relationsStore) : null;
   if (!normalized) {
     normalized = new Map();
     for (const [key, value] of Object.entries(relationsStore)) {
       addCaseInsensitiveLookupEntry(normalized, key, value);
     }
-    lowerCaseRelationLookupCache.set(relationsStore, normalized);
+    if (Object.isFrozen(relationsStore)) lowerCaseRelationLookupCache.set(relationsStore, normalized);
   }
   return getCaseInsensitiveLookupValue(normalized, filePath);
 };

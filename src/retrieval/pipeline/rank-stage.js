@@ -2,7 +2,7 @@ import { selectDiverseEvidence } from './evidence-selection.js';
 import { createTopKReducer } from './topk.js';
 import { applyGraphRanking } from './graph-ranking.js';
 import { createScoreBreakdown } from '../output/score-breakdown.js';
-import { computeRelationBoost } from '../scoring/relation-boost.js';
+import { createRelationBoostEvaluator } from '../scoring/relation-boost.js';
 import { resolveAnnType } from './provider-runtime.js';
 import { exactLookupIntent } from '../scoring/exact-intent.js';
 
@@ -66,6 +66,8 @@ export const runRankStage = ({
 
   const relationsByFile = new Map();
   const enrichedChunkByIdx = new Map();
+  const evaluateRelationBoost = relationBoostEnabled
+    ? createRelationBoostEvaluator({ queryTokens, config: relationBoostConfig }) : null;
   const getFileRelations = (filePath) => {
     if (relationsByFile.has(filePath)) return relationsByFile.get(filePath);
     const resolved = resolveFileRelations(
@@ -181,11 +183,9 @@ export const runRankStage = ({
     }
     let relationInfo = null;
     if (relationBoostEnabled) {
-      relationInfo = computeRelationBoost({
+      relationInfo = evaluateRelationBoost({
         chunk: enrichedChunk,
-        fileRelations,
-        queryTokens,
-        config: relationBoostConfig
+        fileRelations
       });
       if (Number.isFinite(relationInfo?.boost) && relationInfo.boost > 0) {
         score += relationInfo.boost;

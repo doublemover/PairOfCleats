@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { isValidBm25Parameters } from '../bm25-policy.js';
 
 /**
  * Validate value-bearing CLI flags and produce actionable error text for any
@@ -228,9 +229,10 @@ export function resolveBm25Defaults(metricsRoot, modeFlags) {
     if (!fs.existsSync(metricsPath)) continue;
     try {
       const raw = JSON.parse(fs.readFileSync(metricsPath, 'utf8'));
-      const k1 = Number(raw?.bm25?.k1);
-      const b = Number(raw?.bm25?.b);
-      if (Number.isFinite(k1) && Number.isFinite(b)) values.push({ k1, b });
+      const k1 = raw?.bm25?.k1;
+      const b = raw?.bm25?.b;
+      if (isValidBm25Parameters(k1, b)) values.push({ k1, b });
+      else if (raw?.bm25) console.warn(`[search] Ignoring invalid stored BM25 recommendation for ${mode}; using valid recommendations or defaults.`);
     } catch {
       // ignore
     }

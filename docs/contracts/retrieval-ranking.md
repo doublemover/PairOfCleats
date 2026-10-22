@@ -181,3 +181,18 @@ reports and retrieval-parity thresholds use this same comparison owner.
 
 
 Literal quotes preserve order, repeated words and stopwords independently of scoring expansions. Full phrase streams are retained in chunk metadata and SQLite. Sparse Boolean eligibility is applied before provider top-N selection; vector candidates retain implicit-term relaxation while quotes and exclusions stay hard. Truncated literal evidence fails quoted eligibility closed.
+
+BM25 parameters require finite `k1 >= 0` and `0 <= b <= 1`; zero is a valid
+explicit value. Invalid stored recommendations are ignored with a diagnostic.
+Selective scoring may seek only posting arrays whose strictly increasing numeric
+document order was validated at generation admission. Unrecognized or unsorted
+representations use linear scoring. Eligibility ordering is prepared once per
+ranking call; corpus document frequency and normalization are unchanged.
+
+Relation-boost preparation belongs to one ranking request. Query/lexicon facts
+are reused per effective language, and token sets are reused by the effective
+relation-array identities. Chunk overrides, file fallback, case policy and zero
+weights retain their ordinary scoring meaning. Graph node maps are weakly owned
+by immutable admitted `graphRelations`; new generations replace that identity.
+These changes reduce particular preparation/traversal operations. They do not
+establish measured Node26 latency, allocations or whole-query performance.

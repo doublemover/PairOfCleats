@@ -52,21 +52,26 @@ const resolveUsageSource = (chunk, fileRelations) => {
 };
 
 const resolveCallSources = (chunk, fileRelations) => {
-  const callPairs = [];
-  const callDetails = [];
-  if (Array.isArray(chunk?.codeRelations?.calls)) callPairs.push(...chunk.codeRelations.calls);
-  if (Array.isArray(chunk?.codeRelations?.callDetails)) callDetails.push(...chunk.codeRelations.callDetails);
-  if (Array.isArray(chunk?.codeRelations?.callDetailsWithRange)) {
-    callDetails.push(...chunk.codeRelations.callDetailsWithRange);
-  }
-  if (!callPairs.length && Array.isArray(fileRelations?.calls)) callPairs.push(...fileRelations.calls);
-  if (!callDetails.length && Array.isArray(fileRelations?.callDetails)) {
-    callDetails.push(...fileRelations.callDetails);
-  }
-  if (!callDetails.length && Array.isArray(fileRelations?.callDetailsWithRange)) {
-    callDetails.push(...fileRelations.callDetailsWithRange);
+  const chunkPairs = chunk?.codeRelations?.calls;
+  const callPairs = Array.isArray(chunkPairs) && chunkPairs.length ? chunkPairs
+    : (Array.isArray(fileRelations?.calls) ? fileRelations.calls : EMPTY_RELATIONS);
+  let callDetails = [chunk?.codeRelations?.callDetails, chunk?.codeRelations?.callDetailsWithRange]
+    .filter(source => Array.isArray(source) && source.length);
+  if (!callDetails.length) {
+    const fallback = [fileRelations?.callDetails, fileRelations?.callDetailsWithRange]
+      .find(source => Array.isArray(source) && source.length);
+    callDetails = fallback ? [fallback] : [];
   }
   return { callPairs, callDetails };
+};
+
+const EMPTY_RELATIONS = Object.freeze([]);
+
+/** Memoization is confined to this ranking request and its immutable relation sources. */
+export const createRelationBoostEvaluator = ({ queryTokens = [], config = null, lexicon = null } = {}) => {
+  const prepared = { languages: new Map(), relations: new WeakMap(),
+    cfg: { ...DEFAULT_RELATION_BOOST, ...(config || {}) } };
+  return input => computeRelationBoost({ ...input, queryTokens, config, lexicon, prepared });
 };
 
 const toSortedLimitedList = (set, maxItems) => {
@@ -127,9 +132,10 @@ export const computeRelationBoost = ({
   fileRelations = null,
   queryTokens = [],
   lexicon = null,
-  config = null
+  config = null,
+  prepared = null
 } = {}) => {
-  const cfg = {
+  const cfg = prepared?.cfg || {
     ...DEFAULT_RELATION_BOOST,
     ...(config && typeof config === 'object' ? config : {})
   };
@@ -146,9 +152,10 @@ export const computeRelationBoost = ({
   )));
   const languageId = resolveLanguageId(chunk);
   const hasInjectedLexicon = lexicon != null;
+  const cachedLanguage = prepared?.languages.get(languageId);
 
-  let resolvedLexicon = null;
-  if (lexiconEnabled) {
+  let resolvedLexicon = cachedLanguage?.resolvedLexicon ?? null;
+  if (!cachedLanguage && lexiconEnabled) {
     try {
       resolvedLexicon = resolveLexicon(languageId, lexicon);
     } catch {
@@ -156,9 +163,9 @@ export const computeRelationBoost = ({
     }
   }
 
-  const queryTokenSet = new Set();
+  const queryTokenSet = cachedLanguage?.queryTokenSet || new Set();
   const rawQueryTokens = Array.isArray(queryTokens) ? queryTokens : [];
-  for (const rawToken of rawQueryTokens) {
+  for (const rawToken of cachedLanguage ? [] : rawQueryTokens) {
     const normalized = normalizeToken(rawToken, caseTokens);
     if (!normalized) continue;
     if (lexiconEnabled && isRankingStopword({
@@ -170,29 +177,44 @@ export const computeRelationBoost = ({
     })) continue;
     queryTokenSet.add(normalized);
   }
+  if (prepared && !cachedLanguage) prepared.languages.set(languageId, { resolvedLexicon, queryTokenSet });
 
-  const callTokenSet = new Set();
-  const usageTokenSet = new Set();
   const { callPairs, callDetails } = resolveCallSources(chunk, fileRelations);
+  const usageSource = resolveUsageSource(chunk, fileRelations);
+  let owner = prepared?.relations;
+  if (owner) {
+    for (const source of [callPairs, callDetails[0] || EMPTY_RELATIONS,
+      callDetails[1] || EMPTY_RELATIONS, usageSource.length ? usageSource : EMPTY_RELATIONS]) {
+      let next = owner.get(source);
+      if (!next) { next = new WeakMap(); owner.set(source, next); }
+      owner = next;
+    }
+  }
+  const cachedRelations = owner?.get(EMPTY_RELATIONS);
+  const callTokenSet = cachedRelations?.callTokenSet || new Set();
+  const usageTokenSet = cachedRelations?.usageTokenSet || new Set();
 
-  for (const entry of callPairs) {
+  for (const entry of cachedRelations ? [] : callPairs) {
     if (!Array.isArray(entry) || entry.length < 2) continue;
     const base = extractSymbolBaseName(entry[1]);
     const normalized = normalizeToken(base, caseTokens);
     if (!normalized) continue;
     callTokenSet.add(normalized);
   }
-  for (const detail of callDetails) {
+  for (const source of cachedRelations ? [] : callDetails) {
+    for (const detail of source) {
     const base = extractSymbolBaseName(detail?.callee || '');
     const normalized = normalizeToken(base, caseTokens);
     if (!normalized) continue;
     callTokenSet.add(normalized);
+    }
   }
-  for (const entry of resolveUsageSource(chunk, fileRelations)) {
+  for (const entry of cachedRelations ? [] : usageSource) {
     const normalized = normalizeToken(entry, caseTokens);
     if (!normalized) continue;
     usageTokenSet.add(normalized);
   }
+  owner?.set(EMPTY_RELATIONS, { callTokenSet, usageTokenSet });
 
   const matchedCalls = new Set();
   const matchedUsages = new Set();

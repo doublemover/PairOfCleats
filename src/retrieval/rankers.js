@@ -5,6 +5,8 @@ import { normalizeEmbeddingDims } from './ann/dims.js';
 import { createVocabIndex } from './vocab-index.js';
 import { isDenseVectorRowPresent } from '../shared/dense-vector-validity.js';
 import { withAnnScoreSpace } from '../shared/ann-similarity.js';
+import { assertBm25Parameters } from './bm25-policy.js';
+import { hasAdmittedPostingOrder } from '../shared/posting-order.js';
 
 /**
  * Legacy BM25-like scoring using chunk metadata fields directly.
@@ -79,6 +81,7 @@ const accumulateBm25Scores = ({
   index,
   qtf,
   allowedIdx,
+  allowedIds,
   docLengths,
   avgDocLen,
   totalDocs,
@@ -96,8 +99,22 @@ const accumulateBm25Scores = ({
     if (!df) continue;
     const idf = Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5));
 
-    for (const [docId, tf] of posting) {
-      if (allowedIdx && !bitmapHas(allowedIdx, docId)) continue;
+    const seek = allowedIds && posting.length >= 64
+      && allowedIds.length * Math.ceil(Math.log2(posting.length + 1)) < posting.length / 2
+      && hasAdmittedPostingOrder(posting);
+    const eligibleRows = seek ? (function* () {
+      for (const id of allowedIds) {
+        let low = 0, high = posting.length;
+        while (low < high) {
+          const middle = (low + high) >>> 1;
+          if (posting[middle][0] < id) low = middle + 1;
+          else high = middle;
+        }
+        if (low < posting.length && posting[low][0] === id) yield posting[low];
+      }
+    })() : posting;
+    for (const [docId, tf] of eligibleRows) {
+      if (!seek && allowedIdx && !bitmapHas(allowedIdx, docId)) continue;
       const dl = docLengths[docId] || 0;
       const denom = tf + k1 * (1 - b + b * (dl / avgDocLen));
       const score = idf * ((tf * (k1 + 1)) / denom) * qCount * scoreMultiplier;
@@ -105,6 +122,10 @@ const accumulateBm25Scores = ({
     }
   }
 };
+
+const prepareAllowedIds = allowedIdx => allowedIdx
+  ? bitmapToArray(allowedIdx).filter(id => Number.isSafeInteger(id) && id >= 0).sort((a, b) => a - b)
+  : null;
 
 const finishWeightedScores = ({ idx, scores, topN, includeZeroScores = false, zeroScoreIds = null }) => {
   const reducer = createTopKReducer({
@@ -154,6 +175,7 @@ export function rankBM25({
   b = 0.75,
   includeZeroScores = false
 }) {
+  assertBm25Parameters(k1, b);
   const tokenIndex = tokenIndexOverride || getTokenIndex(idx);
   if (!tokenIndex || !tokenIndex.vocab || !tokenIndex.postings) {
     return rankBM25Legacy(idx, tokens, topN, allowedIdx, includeZeroScores);
@@ -170,6 +192,7 @@ export function rankBM25({
     index: tokenIndex,
     qtf: buildQueryTermFrequency(tokens),
     allowedIdx,
+    allowedIds: prepareAllowedIds(allowedIdx),
     docLengths,
     avgDocLen,
     totalDocs,
@@ -202,6 +225,7 @@ export function rankBM25Fields({
   b = 0.75,
   includeZeroScores = false
 }) {
+  assertBm25Parameters(k1, b);
   const fields = idx.fieldPostings?.fields || {};
   if (!fieldWeights) {
     return rankBM25({ idx, tokens, topN, k1, b, allowedIdx, tokenIndexOverride, includeZeroScores });
@@ -217,6 +241,7 @@ export function rankBM25Fields({
   const tokenIndex = tokenIndexOverride || getTokenIndex(idx);
 
   const qtf = buildQueryTermFrequency(tokens);
+  const allowedIds = prepareAllowedIds(allowedIdx);
 
   const scores = new Map();
   for (const [field, weight] of Object.entries(fieldWeights)) {
@@ -245,6 +270,7 @@ export function rankBM25Fields({
       index,
       qtf,
       allowedIdx,
+      allowedIds,
       docLengths,
       avgDocLen,
       totalDocs,

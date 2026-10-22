@@ -1,4 +1,5 @@
 import { sanitizeTerminalMetadata, readSourcePreview, formatSourcePreview } from './source.js';
+import { highlightText } from '../../cli/highlight.js';
 import { formatScoreBreakdown } from '../explain.js';
 import { getFormatShortCache } from '../cache.js';
 import {
@@ -115,7 +116,7 @@ export function formatShortChunk({
   }
   if (fullExplain && chunk.last_author) out += color.green(` by ${chunk.last_author}`);
   const highlightSnippet = (text) => (
-    rx ? String(text || '').replace(rx, (m) => color.bold(color.yellow(m))) : String(text || '')
+    highlightText(text, rx, (m) => color.bold(color.yellow(m)))
   );
   const rawSnippet = mode === 'records'
     ? normalizeSnippet(chunk.docmeta?.doc || chunk.headline)

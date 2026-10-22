@@ -38,3 +38,10 @@ complete cross-piece result.
 - `src/contracts/schemas/analysis.js`
 - `src/contracts/validators/analysis.js`
 - `tests/context-pack/public-risk-contract.test.js`
+
+Complete-response budgeting keeps an exact request-local pretty-JSON byte count
+until a section or evidence/warning field changes. Absent and protected optional
+sections reuse that count. Omission order, strict required evidence and the byte
+limit remain unchanged. Risk edge callsite samples are memoized only within one
+propagation run by caller, callee, file and sampling cap; taint and witness state
+remain specific to each traversal state.

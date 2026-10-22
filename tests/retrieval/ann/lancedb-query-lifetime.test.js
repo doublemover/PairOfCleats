@@ -31,6 +31,8 @@ globalThis[key] = async dir => {
   connections++;
   const state = states.get(dir), connection = { closed: false };
   state.connection = connection;
+  state.connectEntered?.resolve();
+  if (state.connectGate) await state.connectGate.promise;
   return {
     async close() { assert.equal(connection.closed, false); connection.closed = true; closes++; },
     async openTable() {
@@ -74,6 +76,22 @@ const query = (dir, candidateSet = null) => rankLanceDb({ lancedbInfo: { availab
   meta: { table: 'vectors', dims: 2, metric: 'l2', idColumn: 'id' } }, queryEmbedding: [0, 0],
 candidateSet, topN: 1, config: {} });
 try {
+  const late = await fixture('late-connect');
+  const lateState = states.get(late);
+  lateState.connectEntered = deferred(); lateState.connectGate = deferred();
+  const lateQuery = query(late);
+  await lateState.connectEntered.promise;
+  const retiredConnection = lateState.connection;
+  await clearLanceDbConnectionCache();
+  assert.equal(retiredConnection.closed, false, 'a pending connect remains owned by the active query lease');
+  lateState.connectGate.resolve();
+  assert.equal((await lateQuery)[0].idx, 0);
+  assert.equal(retiredConnection.closed, true, 'a late connection is closed when its retired lease drains');
+  assert.equal(lateState.table.closed, true);
+  const afterLate = connections;
+  await query(late);
+  assert.equal(connections, afterLate + 1, 'clear prevents a late retired connection from re-entering lookup ownership');
+  await clearLanceDbConnectionCache();
   const shared = await fixture('shared');
   const openGate = deferred(); states.get(shared).openGate = openGate;
   const pending = Array.from({ length: 4 }, () => query(shared));

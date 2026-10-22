@@ -17,6 +17,7 @@ import {
 } from '../filters.js';
 import { resolveSearchMode } from '../cli-args.js';
 import { getMissingFlagMessages, resolveBm25Defaults } from './options.js';
+import { assertBm25Parameters } from '../bm25-policy.js';
 import { normalizeNonNegativeNumber, normalizeOptionalNumber, normalizePositiveInt } from '../../shared/limits.js';
 import { normalizeOptionalBoolean } from '../../shared/env/core.js';
 import { getEnvConfig } from '../../shared/env/runtime.js';
@@ -187,6 +188,9 @@ export function normalizeSearchOptions({
 
   const bm25K1Arg = normalizeOptionalNumber(argv['bm25-k1']);
   const bm25BArg = normalizeOptionalNumber(argv['bm25-b']);
+  if (argv['bm25-k1'] != null && bm25K1Arg == null || argv['bm25-b'] != null && bm25BArg == null) {
+    throw new Error('BM25 parameters must be finite numbers.');
+  }
   const bm25Defaults = resolveBm25Defaults(metricsDir, { runCode, runProse, runExtractedProse });
   const bm25K1 = bm25K1Arg
     ?? (bm25Defaults ? bm25Defaults.k1 : null)
@@ -194,6 +198,7 @@ export function normalizeSearchOptions({
   const bm25B = bm25BArg
     ?? (bm25Defaults ? bm25Defaults.b : null)
     ?? 0.75;
+  assertBm25Parameters(bm25K1, bm25B);
 
   const branchesMin = normalizeOptionalNumber(argv.branches);
   const loopsMin = normalizeOptionalNumber(argv.loops);

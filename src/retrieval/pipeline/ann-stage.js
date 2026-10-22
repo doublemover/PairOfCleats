@@ -314,7 +314,7 @@ export const runAnnStage = async ({
   const bypassedToSparse = effectiveRoute === ANN_ADAPTIVE_ROUTE.SPARSE;
 
   throwIfAborted(signal);
-  if (annEnabledForMode && !annHits.length && !bypassedToSparse) {
+  if (annEnabledForMode && !vectorOnlyProfile && !annHits.length && !bypassedToSparse) {
     const adaptiveTopN = Number.isFinite(Number(annAdaptiveStrategy?.budget?.topN))
       ? Math.max(1, Math.floor(Number(annAdaptiveStrategy.budget.topN)))
       : expandedTopN;
@@ -384,7 +384,7 @@ export const runAnnStage = async ({
 
   const annCapabilityUnavailable = !vectorActive || !providerAvailable;
   const emptyIndex = !Array.isArray(meta) || meta.length === 0;
-  if (vectorOnlyProfile && !emptyIndex && annCapabilityUnavailable && !annHits.length) {
+  if (vectorOnlyProfile && !emptyIndex && annCapabilityUnavailable) {
     const capabilityReason = !vectorActive ? 'ann_capability_unavailable' : 'ann_provider_unavailable';
     throw createError(
       ERROR_CODES.CAPABILITY_MISSING,

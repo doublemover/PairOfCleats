@@ -255,9 +255,16 @@ export async function getStatus(input = {}) {
   return payload;
 }
 
-export async function status(input = {}) {
+/**
+ * @typedef {{repoRoot?:string,includeAll?:boolean}} StatusRequest
+ * @typedef {{repo:object,health:object,overall:object,allRepos?:{root:string,repos:object[],totalBytes:number}}} StatusResult
+ * @param {StatusRequest|string} [input]
+ * @param {StatusRequest} [options] Options for the string overload.
+ * @returns {Promise<StatusResult>}
+ */
+export async function status(input = {}, options = {}) {
   if (typeof input === 'string') {
-    return getStatus({ repoRoot: input });
+    return getStatus({ ...options, repoRoot: input });
   }
   return getStatus(input);
 }

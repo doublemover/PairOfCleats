@@ -31,6 +31,8 @@ PairOfCleats exposes a lightweight programmatic API for build/search/status. Imp
 - `status(repoRoot, options)`
   - Returns artifact sizes and health hints (core status payload from `src/integrations/core/status.js`).
   - Options: `includeAll` to include all cached repos.
+  - The object form is `status({ repoRoot, includeAll })`. In the string form,
+    the first `repoRoot` argument takes precedence over `options.repoRoot`.
 
 ## Example
 

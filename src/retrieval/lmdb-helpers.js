@@ -1,5 +1,6 @@
 import { normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
 import { assertMinhashHashIdentity } from '../index/minhash.js';
+import { admitSortedPostings } from '../shared/posting-order.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS } from '../storage/lmdb/schema.js';
 import { decodeLmdbValue } from '../storage/lmdb/utils.js';
 import {
@@ -149,7 +150,7 @@ export function createLmdbHelpers(options) {
       filterIndexRaw,
       includeFilterIndex
     });
-    idx.tokenIndex = includeTokenIndex ? getArtifact(db, LMDB_ARTIFACT_KEYS.tokenPostings) : null;
+    idx.tokenIndex = includeTokenIndex ? admitSortedPostings(getArtifact(db, LMDB_ARTIFACT_KEYS.tokenPostings)) : null;
     return idx;
   }
 

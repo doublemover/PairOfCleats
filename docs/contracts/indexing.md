@@ -124,3 +124,10 @@ Key requirements:
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/scm-provider-contract.md`
 - `docs/sqlite/index-schema.md`
+
+`index stats` reports `totalBytes` across every unique physical manifest path,
+including file metadata and families outside the category breakdown. It reports
+`null` when any manifested byte count is unknown or conflicting. The prior category
+sum remains available as `selectedFamilyBytes`; category totals can overlap and
+must not be interpreted as physical artifact size. Duplicate aliases do not add
+another copy to the physical total.

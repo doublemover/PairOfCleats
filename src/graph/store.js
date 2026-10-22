@@ -16,6 +16,7 @@ import {
 } from './indexes.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { compareStrings } from '../shared/sort.js';
+import { admitCsrFamily } from './csr-order.js';
 
 const GRAPH_INDEX_CACHE_MAX = 3;
 const graphIndexCache = new Map();
@@ -221,28 +222,38 @@ export const buildGraphIndex = ({
   const callGraphIndex = buildGraphNodeIndex(graphRelationsMeta?.callGraph);
   const usageGraphIndex = buildGraphNodeIndex(graphRelationsMeta?.usageGraph);
   const importGraphIndex = buildImportGraphIndex(graphRelationsMeta?.importGraph, repoRoot);
-  const callGraphAdjacency = buildAdjacencyIndex(graphRelations?.callGraph, { includeBoth: !includeCsr, includeIn: !includeCsr });
-  const usageGraphAdjacency = buildAdjacencyIndex(graphRelations?.usageGraph, { includeBoth: !includeCsr, includeIn: !includeCsr });
-  const importGraphAdjacency = buildAdjacencyIndex(graphRelations?.importGraph, {
-    normalizeNeighborId: normalizeImportPathCached,
-    normalizeNodeId: normalizeImportPathCached,
-    includeBoth: !includeCsr,
-    includeIn: !includeCsr
-  });
   const callGraphIds = buildIdTable(callGraphIndex);
   const usageGraphIds = buildIdTable(usageGraphIndex);
   const importGraphIds = buildIdTable(importGraphIndex);
   const importGraphPathTable = buildPrefixTable(importGraphIds.ids || []);
+  const prepareFamily = (family, ids, normalization = {}) => {
+    const supplied = graphRelationsCsr?.[family];
+    if (includeCsr && admitCsrFamily(supplied, ids)) return { csr: supplied, adjacency: null };
+    const adjacency = buildAdjacencyIndex(graphRelations?.[family], {
+      ...normalization, includeBoth: !includeCsr, includeIn: !includeCsr
+    });
+    // Derived outgoing rows are temporary. CSR handles all traversal directions.
+    if (!includeCsr) return { csr: null, adjacency };
+    const csr = buildAdjacencyCsr(adjacency, ids);
+    admitCsrFamily(csr, ids);
+    return { csr, adjacency: null };
+  };
+  const call = prepareFamily('callGraph', callGraphIds);
+  const usage = prepareFamily('usageGraph', usageGraphIds);
+  const imports = prepareFamily('importGraph', importGraphIds, {
+    normalizeNeighborId: normalizeImportPathCached, normalizeNodeId: normalizeImportPathCached
+  });
+  const callGraphAdjacency = call.adjacency;
+  const usageGraphAdjacency = usage.adjacency;
+  const importGraphAdjacency = imports.adjacency;
   const resolvedCsr = includeCsr
-    ? (graphRelationsCsr && typeof graphRelationsCsr === 'object'
-      ? graphRelationsCsr
-      : {
+    ? {
         version: Number.isFinite(graphRelations?.version) ? graphRelations.version : 1,
         generatedAt: typeof graphRelations?.generatedAt === 'string' ? graphRelations.generatedAt : null,
-        callGraph: buildAdjacencyCsr(callGraphAdjacency, callGraphIds),
-        usageGraph: buildAdjacencyCsr(usageGraphAdjacency, usageGraphIds),
-        importGraph: buildAdjacencyCsr(importGraphAdjacency, importGraphIds)
-      })
+        callGraph: call.csr,
+        usageGraph: usage.csr,
+        importGraph: imports.csr
+      }
     : null;
   if (!includeCsr) {
     importGraphIds.ids = null;
@@ -256,6 +267,7 @@ export const buildGraphIndex = ({
     normalizeImportPath: normalizeImportPathCached,
     graphRelations: graphRelationsMeta,
     graphRelationsCsr: resolvedCsr,
+    adjacencyOrder: 'sorted-unique',
     callGraphIndex,
     usageGraphIndex,
     importGraphIndex,

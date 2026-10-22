@@ -4,7 +4,8 @@ import { parseIndexRef, resolveIndexRef } from './index-ref.js';
 const invalidRequest = (message, details = null) => createError(ERROR_CODES.INVALID_REQUEST, message, details);
 
 const normalizeString = (value) => {
-  if (typeof value !== 'string') return null;
+  if (value == null) return null;
+  if (typeof value !== 'string' || !value.trim()) throw invalidRequest('Historical selector must be a nonblank string.');
   const trimmed = value.trim();
   return trimmed || null;
 };

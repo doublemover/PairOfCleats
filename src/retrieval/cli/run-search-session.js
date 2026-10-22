@@ -19,7 +19,8 @@ import {
 } from './run-search-session/persist.js';
 import {
   attachCommentExcerpts,
-  buildCommentLookup
+  buildCommentLookup,
+  needsCommentExcerpts
 } from './run-search-session/comment-excerpts.js';
 import { normalizeDenseVectorMode } from '../../shared/dense-vector-mode.js';
 import { isDenseVectorPayloadAvailable } from '../../shared/dense-vector-artifacts.js';
@@ -712,16 +713,6 @@ export async function runSearchSession({
 
   const joinComments = commentsEnabled && runCode && extractedProseLoaded;
 
-  const commentLookup = buildCommentLookup({
-    joinComments,
-    extractedChunkMeta: idxExtractedProse?.chunkMeta || null
-  });
-
-  attachCommentExcerpts({
-    hits: codeHits,
-    commentLookup
-  });
-
   const {
     contextExpansionStats,
     expandModeHits
@@ -751,6 +742,10 @@ export async function runSearchSession({
   const codeExpanded = expandedByMode.code;
   const recordExpanded = expandedByMode.records;
 
+  const commentLookup = buildCommentLookup({
+    joinComments: joinComments && needsCommentExcerpts(codeExpanded.hits),
+    extractedChunkMeta: idxExtractedProse?.chunkMeta || null
+  });
   attachCommentExcerpts({
     hits: codeExpanded.hits,
     commentLookup

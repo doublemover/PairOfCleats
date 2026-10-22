@@ -1,4 +1,5 @@
 import { sanitizeTerminalMetadata, sanitizeTerminalText, readSourcePreview, formatSourcePreview } from './source.js';
+import { highlightText } from '../../cli/highlight.js';
 import { collectDeclaredReturnTypes } from '../../../index/metadata/docmeta.js';
 import { formatScoreBreakdown } from '../explain.js';
 import { getBodySummary } from '../summary.js';
@@ -225,7 +226,7 @@ export function formatFullChunk({
   const highlightHeadline = (text) => {
     const raw = String(text || '').trim();
     if (!raw) return '';
-    return rx ? raw.replace(rx, (match) => c.bold(c.yellow(match))) : raw;
+    return highlightText(raw, rx, (match) => c.bold(c.yellow(match)));
   };
   const excerptInfo = normalizeExcerptInfo({ chunk, mode, primaryTitle, displayName });
   if (excerptInfo?.text) {

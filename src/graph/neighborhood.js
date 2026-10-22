@@ -14,6 +14,8 @@ import {
   snapshotProcessMemory
 } from '../shared/ops/resource-visibility.js';
 import { compareStrings } from '../shared/sort.js';
+import { MinHeap } from '../shared/min-heap.js';
+import { hasAdmittedCsrOrder } from './csr-order.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
 import {
   compareGraphEdges,
@@ -279,8 +281,8 @@ export const buildGraphNeighborhood = ({
   const queue = [];
   const edgeCandidates = [];
   let observedCandidateCount = 0;
-  const admitCandidate = () => {
-    observedCandidateCount += 1;
+  const admitCandidate = (count = true) => {
+    if (count) observedCandidateCount += 1;
     return normalizedCaps.maxFanoutPerNode == null
       || edgeCandidates.length < normalizedCaps.maxFanoutPerNode;
   };
@@ -387,6 +389,11 @@ export const buildGraphNeighborhood = ({
     });
   }
   const resolveGraphNeighbors = createDirectedGraphNeighborResolver({ graphIndex: graphIndexEffective, iterableCsr: true });
+  const candidateControls = () => ({
+    limit: normalizedCaps.maxFanoutPerNode == null ? Infinity
+      : Math.max(0, normalizedCaps.maxFanoutPerNode - edgeCandidates.length),
+    onCount: count => { observedCandidateCount += count; }
+  });
 
   const missingImportFiles = new Set();
   const resolveImportSourceId = (ref) => {
@@ -418,19 +425,19 @@ export const buildGraphNeighborhood = ({
     edgeCandidates.length = 0;
     observedCandidateCount = 0;
 
-    if (includeGraph('callGraph') && currentRef.type === GRAPH_NODE_TYPES.callGraph && callGraphIndex.size) {
+    if (includeGraph('callGraph') && currentRef.type === GRAPH_NODE_TYPES.callGraph && callGraphIndex.size
+      && allowEdge({ graph: 'callGraph', edgeType: GRAPH_EDGE_TYPES.callGraph, confidence: null })) {
       const neighbors = resolveGraphNeighbors(
         callGraphIndex,
         currentRef.chunkUid,
         normalizedDirection,
         null,
         callGraphAdjacency,
-        'callGraph'
+        'callGraph', candidateControls()
       );
       for (const { neighborId, fromId, toId } of neighbors) {
         const edgeType = GRAPH_EDGE_TYPES.callGraph;
-        if (!allowEdge({ graph: 'callGraph', edgeType, confidence: null })) continue;
-        if (!admitCandidate()) continue;
+        if (!admitCandidate(false)) continue;
         const toRef = { type: 'chunk', chunkUid: toId };
         const fromRef = { type: 'chunk', chunkUid: fromId };
         const evidence = formatEvidence(edgeType, fromRef, toRef, callSiteIndex);
@@ -448,19 +455,19 @@ export const buildGraphNeighborhood = ({
       }
     }
 
-    if (includeGraph('usageGraph') && currentRef.type === GRAPH_NODE_TYPES.usageGraph && usageGraphIndex.size) {
+    if (includeGraph('usageGraph') && currentRef.type === GRAPH_NODE_TYPES.usageGraph && usageGraphIndex.size
+      && allowEdge({ graph: 'usageGraph', edgeType: GRAPH_EDGE_TYPES.usageGraph, confidence: null })) {
       const neighbors = resolveGraphNeighbors(
         usageGraphIndex,
         currentRef.chunkUid,
         normalizedDirection,
         null,
         usageGraphAdjacency,
-        'usageGraph'
+        'usageGraph', candidateControls()
       );
       for (const { neighborId, fromId, toId } of neighbors) {
         const edgeType = GRAPH_EDGE_TYPES.usageGraph;
-        if (!allowEdge({ graph: 'usageGraph', edgeType, confidence: null })) continue;
-        if (!admitCandidate()) continue;
+        if (!admitCandidate(false)) continue;
         const toRef = { type: 'chunk', chunkUid: toId };
         edgeCandidates.push({
           edge: {
@@ -476,7 +483,8 @@ export const buildGraphNeighborhood = ({
       }
     }
 
-    if (includeGraph('importGraph') && importGraphIndex.size) {
+    if (includeGraph('importGraph') && importGraphIndex.size
+      && allowEdge({ graph: 'importGraph', edgeType: GRAPH_EDGE_TYPES.importGraph, confidence: null })) {
       const sourceId = resolveImportSourceId(currentRef);
       if (sourceId) {
         if (!importGraphIndex.has(sourceId)) {
@@ -486,14 +494,13 @@ export const buildGraphNeighborhood = ({
           importGraphIndex,
           sourceId,
           normalizedDirection,
-          normalizeImportId,
+          hasAdmittedCsrOrder(graphIndexEffective?.graphRelationsCsr?.importGraph) ? null : normalizeImportId,
           importGraphAdjacency,
-          'importGraph'
+          'importGraph', candidateControls()
         );
         for (const { neighborId, fromId, toId } of neighbors) {
           const edgeType = GRAPH_EDGE_TYPES.importGraph;
-          if (!allowEdge({ graph: 'importGraph', edgeType, confidence: null })) continue;
-          if (!admitCandidate()) continue;
+          if (!admitCandidate(false)) continue;
           const endpoint = id => id === sourceId && currentRef.type === 'chunk'
             ? currentRef : { type: 'file', path: id };
           const toRef = endpoint(toId);
@@ -615,24 +622,18 @@ export const buildGraphNeighborhood = ({
   if (edgeWindows.length) {
     edges.sort(compareGraphEdges);
     edgeWindows.push(edges.slice());
-    const indices = new Array(edgeWindows.length).fill(0);
+    const heap = new MinHeap((left, right) => compareGraphEdges(left.edge, right.edge) || left.window - right.window);
+    for (let window = 0; window < edgeWindows.length; window += 1) {
+      if (edgeWindows[window].length) heap.push({ edge: edgeWindows[window][0], window, offset: 0 });
+    }
     const merged = [];
-    while (true) {
-      let bestEdge = null;
-      let bestIndex = -1;
-      for (let i = 0; i < edgeWindows.length; i += 1) {
-        const idx = indices[i];
-        const window = edgeWindows[i];
-        if (!window || idx >= window.length) continue;
-        const candidate = window[idx];
-        if (!bestEdge || compareGraphEdges(candidate, bestEdge) < 0) {
-          bestEdge = candidate;
-          bestIndex = i;
-        }
-      }
-      if (bestIndex === -1) break;
-      merged.push(bestEdge);
-      indices[bestIndex] += 1;
+    while (heap.size) {
+      const next = heap.pop();
+      merged.push(next.edge);
+      const offset = next.offset + 1;
+      if (offset < edgeWindows[next.window].length) heap.push({
+        edge: edgeWindows[next.window][offset], window: next.window, offset
+      });
     }
     mergedEdges = merged;
   } else {

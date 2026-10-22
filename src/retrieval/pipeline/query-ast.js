@@ -155,7 +155,7 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange, t
     if (requiresLiteral && (chunkRecord?.phraseTokensComplete === false
       || chunkRecord?.phraseTokens === null)) return false;
     const tokens = resolveChunkTokens(idx, chunkId, chunkRecord);
-    const tokenSet = getCachedTokenSet(chunkRecord, chunkId, tokens);
+    let tokenSet;
     const evalNode = (node, relaxTerms = semantic && allowSemanticTerms) => {
       if (!node) return true;
       switch (node.type) {
@@ -163,6 +163,7 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange, t
           if (relaxTerms) return true;
           if (termMatches) return termMatches(node, chunkId);
           if (!node.tokens || !node.tokens.length) return false;
+          tokenSet ??= getCachedTokenSet(chunkRecord, chunkId, tokens);
           if (!tokenSet) return false;
           return node.tokens.some((tok) => tokenSet.has(tok));
         }

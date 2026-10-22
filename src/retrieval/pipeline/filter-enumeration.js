@@ -19,6 +19,9 @@ const metadataId = meta => {
   return metadataIds.get(meta);
 };
 const admitMatches = (key, ids) => {
+  const existing = matchesCache.get(key);
+  if (existing) { cachedBytes -= existing.byteLength; matchesCache.delete(key); }
+  if (ids.byteLength > CACHE_BYTES) return;
   while (matchesCache.size >= 32 || cachedBytes + ids.byteLength > CACHE_BYTES) {
     const oldest = matchesCache.keys().next().value;
     if (!oldest) break;

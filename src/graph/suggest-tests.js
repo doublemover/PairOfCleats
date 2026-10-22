@@ -415,6 +415,7 @@ export const buildSuggestTestsReport = ({
   let edgesVisited = 0;
   let workUnits = 0;
   let visitedNodeCount = 0;
+  let predecessors = null;
 
   if (graphAvailable && seeds.length && testList.length) {
     graphUsed = true;
@@ -424,10 +425,10 @@ export const buildSuggestTestsReport = ({
     const indexedNodes = graphIndex?.importGraphIndex || new Map();
     const queue = [];
     const visited = new Map();
+    predecessors = visited;
     for (const seed of seeds) {
-      const trail = [seed];
-      visited.set(seed, { distance: 0, trail });
-      queue.push({ path: seed, distance: 0, trail });
+      visited.set(seed, { distance: 0, parent: null });
+      queue.push({ path: seed, distance: 0 });
     }
     let queueIndex = 0;
     let stopTraversal = false;
@@ -470,10 +471,9 @@ export const buildSuggestTestsReport = ({
           stopTraversal = true;
           break;
         }
-        const trail = current.trail.concat([neighbor]);
         const nextDistance = distance + 1;
-        visited.set(neighbor, { distance: nextDistance, trail });
-        queue.push({ path: neighbor, distance: nextDistance, trail });
+        visited.set(neighbor, { distance: nextDistance, parent: current.path });
+        queue.push({ path: neighbor, distance: nextDistance });
       }
     }
 
@@ -485,7 +485,7 @@ export const buildSuggestTestsReport = ({
         testPath,
         score,
         reason: `graph distance ${entry.distance}`,
-        witnessPath: buildWitnessPath(entry.trail),
+        witnessPath: null,
         fidelity: {
           source: 'graph',
           state: 'complete',
@@ -579,6 +579,18 @@ export const buildSuggestTestsReport = ({
       omitted: suggestions.length - capsNormalized.maxSuggestions
     });
     suggestions = suggestions.slice(0, capsNormalized.maxSuggestions);
+  }
+
+  for (const suggestion of suggestions) {
+    if (suggestion.fidelity?.source !== 'graph') continue;
+    const trail = [];
+    let current = suggestion.testPath;
+    while (current != null) {
+      trail.push(current);
+      current = predecessors.get(current)?.parent ?? null;
+    }
+    trail.reverse();
+    suggestion.witnessPath = buildWitnessPath(trail);
   }
 
   const resolvedProvenance = resolveProvenance({

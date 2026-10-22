@@ -1,3 +1,5 @@
+import { MinHeap } from '../../shared/min-heap.js';
+
 const MODE_TO_PAYLOAD_KEY = Object.freeze({
   code: 'code',
   prose: 'prose',
@@ -51,32 +53,73 @@ export const mergeFederatedResults = ({
     records: []
   };
 
+  const limit = Math.trunc(Math.max(0, topN)) || 0;
+  if (!limit) return output;
+
   for (const [mode, payloadKey] of Object.entries(MODE_TO_PAYLOAD_KEY)) {
-    const merged = [];
+    const streams = [];
     let insertIndex = 0;
     for (const repoResult of perRepoResults) {
       const hits = Array.isArray(repoResult?.result?.[payloadKey])
-        ? repoResult.result[payloadKey].slice(0, Math.max(0, perRepoTop))
+        ? repoResult.result[payloadKey]
         : [];
-      for (let i = 0; i < hits.length; i += 1) {
-        const hit = hits[i];
-        const rrfScore = 1 / (rrfK + (i + 1));
-        merged.push({
+      const length = Math.min(hits.length, Math.trunc(Math.max(0, perRepoTop)) || 0);
+      if (length) streams.push({ hits, repoResult, length, offset: insertIndex });
+      insertIndex += length;
+    }
+    const describe = (stream, rank) => {
+      const hit = stream.hits[rank];
+      return {
+          hit, stream, rank,
+          id: hit.id, file: hit.file, start: hit.start,
+          repoId: stream.repoResult.repoId,
+          repoPriority: stream.repoResult.priority ?? 0,
+          rrfScore: 1 / (rrfK + (rank + 1)),
+          __insertIndex: stream.offset + rank
+      };
+    };
+    // Rounding can tie adjacent RRF contributions at large accepted k values.
+    // Prove complete local comparator order before using a head-only merge.
+    let ordered = true;
+    for (const stream of streams) {
+      let previous = describe(stream, 0);
+      for (let rank = 1; rank < stream.length; rank += 1) {
+        const next = describe(stream, rank);
+        if (compareMergedHits(previous, next) > 0) { ordered = false; break; }
+        previous = next;
+      }
+      if (!ordered) break;
+    }
+    const selected = [];
+    if (ordered) {
+      const heap = new MinHeap(compareMergedHits);
+      for (const stream of streams) heap.push(describe(stream, 0));
+      while (heap.size && selected.length < limit) {
+        const next = heap.pop();
+        selected.push(next);
+        if (next.rank + 1 < next.stream.length) heap.push(describe(next.stream, next.rank + 1));
+      }
+    } else {
+      const descriptors = [];
+      for (const stream of streams) {
+        for (let rank = 0; rank < stream.length; rank += 1) descriptors.push(describe(stream, rank));
+      }
+      descriptors.sort(compareMergedHits);
+      selected.push(...descriptors.slice(0, limit));
+    }
+    output[payloadKey] = selected.map((entry) => {
+      const { hit, stream, rrfScore, __insertIndex } = entry;
+      const { repoResult } = stream;
+      return compactMergedHit({
           ...hit,
           repoId: repoResult.repoId,
           repoAlias: repoResult.repoAlias || null,
           globalId: `${repoResult.repoId}:${hit.id}`,
           repoPriority: repoResult.priority ?? 0,
           rrfScore,
-          __insertIndex: insertIndex
-        });
-        insertIndex += 1;
-      }
-    }
-    merged.sort(compareMergedHits);
-    output[payloadKey] = merged
-      .slice(0, Math.max(0, topN))
-      .map((entry) => compactMergedHit(entry));
+          __insertIndex
+      });
+    });
   }
 
   return output;

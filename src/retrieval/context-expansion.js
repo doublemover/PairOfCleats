@@ -1,5 +1,5 @@
 import { compareGraphEdges } from '../graph/ordering.js';
-import { buildGraphNodeIndex } from '../graph/indexes.js';
+import { resolveGraphNodeIndexes } from '../graph/prepared-node-indexes.js';
 import { createWorkBudget } from '../graph/work-budget.js';
 import { normalizeLimit as normalizeLimitValue, normalizeOptionalLimit as normalizeOptionalLimitValue } from '../shared/limits.js';
 import { compareStrings } from '../shared/sort.js';
@@ -11,7 +11,6 @@ const DEFAULT_MAX_REASONS = 3;
 
 const REASON_PRIORITY_ORDER = ['call', 'usage', 'export', 'import', 'nameFallback'];
 const REASON_PRIORITY = new Map(REASON_PRIORITY_ORDER.map((reason, index) => [reason, index]));
-const GRAPH_INDEX_CACHE = new WeakMap();
 const normalizeLimit = (value, fallback) => value == null ? fallback : normalizeLimitValue(value, fallback);
 const normalizeOptionalLimit = value => value == null ? null : normalizeOptionalLimitValue(value);
 
@@ -64,16 +63,7 @@ const buildNameRef = (name) => ({
 });
 
 const resolveGraphIndexes = (graphRelations) => {
-  if (!graphRelations || typeof graphRelations !== 'object') return null;
-  const cached = GRAPH_INDEX_CACHE.get(graphRelations);
-  if (cached) return cached;
-  const next = {
-    callGraph: buildGraphNodeIndex(graphRelations.callGraph),
-    usageGraph: buildGraphNodeIndex(graphRelations.usageGraph),
-    importGraph: buildGraphNodeIndex(graphRelations.importGraph)
-  };
-  GRAPH_INDEX_CACHE.set(graphRelations, next);
-  return next;
+  return resolveGraphNodeIndexes(graphRelations);
 };
 
 const collectEdges = ({
@@ -118,32 +108,35 @@ const collectEdges = ({
 
 const resolveChunkUid = (chunk) => chunk?.chunkUid || chunk?.metaV2?.chunkUid || null;
 
+const fillChunkLookups = (chunkMeta, { byName, byFile, byDocId, byChunkUid }) => {
+  if (!Array.isArray(chunkMeta)) return;
+  for (let index = 0; index < chunkMeta.length; index += 1) {
+    const chunk = chunkMeta[index];
+    if (!chunk) continue;
+    const docId = chunk.id != null ? chunk.id : index;
+    byDocId?.set(docId, chunk);
+    const chunkUid = resolveChunkUid(chunk);
+    if (chunkUid) byChunkUid?.set(chunkUid, docId);
+    if (byName && chunk.name) {
+      const list = byName.get(chunk.name) || [];
+      list.push(docId);
+      byName.set(chunk.name, list);
+    }
+    if (byFile && chunk.file) {
+      const list = byFile.get(chunk.file) || [];
+      list.push(docId);
+      byFile.set(chunk.file, list);
+    }
+  }
+};
+
 export function buildContextIndex({ chunkMeta, repoMap }) {
   const byName = new Map();
   const byFile = new Map();
   const byDocId = new Map();
   const byChunkUid = new Map();
 
-  if (Array.isArray(chunkMeta)) {
-    for (let index = 0; index < chunkMeta.length; index += 1) {
-      const chunk = chunkMeta[index];
-      if (!chunk) continue;
-      const docId = chunk.id != null ? chunk.id : index;
-      byDocId.set(docId, chunk);
-      const chunkUid = resolveChunkUid(chunk);
-      if (chunkUid) byChunkUid.set(chunkUid, docId);
-      if (chunk.name) {
-        const list = byName.get(chunk.name) || [];
-        list.push(docId);
-        byName.set(chunk.name, list);
-      }
-      if (chunk.file) {
-        const list = byFile.get(chunk.file) || [];
-        list.push(docId);
-        byFile.set(chunk.file, list);
-      }
-    }
-  }
+  fillChunkLookups(chunkMeta, { byName, byFile, byDocId, byChunkUid });
 
   for (const [key, list] of byName.entries()) {
     byName.set(key, dedupeSort(list));
@@ -206,14 +199,20 @@ export function hydrateContextIndex(raw) {
   };
 }
 
-const ensureChunkLookups = (contextIndex, chunkMeta) => {
+export const ensureChunkLookups = (contextIndex, chunkMeta) => {
   if (contextIndex.byDocId && contextIndex.byChunkUid) return contextIndex;
-  const next = buildContextIndex({ chunkMeta, repoMap: contextIndex.repoMap || null });
-  contextIndex.byDocId = next.byDocId;
-  contextIndex.byChunkUid = next.byChunkUid;
-  if (!contextIndex.byName) contextIndex.byName = next.byName;
-  if (!contextIndex.byFile) contextIndex.byFile = next.byFile;
-  if (!contextIndex.repoMapByName) contextIndex.repoMapByName = next.repoMapByName;
+  const missing = {};
+  if (!contextIndex.byDocId) missing.byDocId = contextIndex.byDocId = new Map();
+  if (!contextIndex.byChunkUid) missing.byChunkUid = contextIndex.byChunkUid = new Map();
+  fillChunkLookups(chunkMeta, missing);
+  // Persisted name/file/repo maps retain their admitted identity and ordering.
+  // Non-hydrated partial callers still receive the legacy missing families.
+  if (!contextIndex.byName || !contextIndex.byFile || !contextIndex.repoMapByName) {
+    const names = buildContextIndex({ chunkMeta, repoMap: contextIndex.repoMap || null });
+    contextIndex.byName ||= names.byName;
+    contextIndex.byFile ||= names.byFile;
+    contextIndex.repoMapByName ||= names.repoMapByName;
+  }
   return contextIndex;
 };
 

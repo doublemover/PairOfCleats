@@ -126,7 +126,8 @@ const createIndexStatsRepoFixture = async (prefix, {
   assert.equal(payload.totals.bytesByFamily.symbols, 222);
   assert.equal(payload.totals.bytesByFamily.relations, 208);
   assert.equal(payload.totals.bytesByFamily.embeddings, 402);
-  assert.equal(payload.totals.totalBytes, 960);
+  assert.equal(payload.totals.selectedFamilyBytes, 960);
+  assert.equal(payload.totals.totalBytes, 976, 'physical total includes file metadata');
 }
 
 {
