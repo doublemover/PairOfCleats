@@ -16,6 +16,7 @@ import { retainManagedToolInstallation } from '../../src/shared/managed-installa
 import { isKnownManagedInstallationDescriptor, isKnownManagedInstallationReceipt } from '../../src/shared/managed-installation-contract.js';
 import { storageFileIdentity } from '../../src/shared/storage/inventory.js';
 import { verifyStorageFile } from '../../src/shared/storage/transfer.js';
+import { verifyOwnedInstallation, verifyRetainedManagedInstallation } from './managed-verification.js';
 export { retainManagedToolInstallation, retainManagedToolInstallationSync } from '../../src/shared/managed-installation.js';
 
 export const MANAGED_INSTALL_VERSION = 1;
@@ -27,22 +28,6 @@ const accessOptions = toolingRoot => ({ coordinationRoot: path.join(resolveStora
 const safeId = value => typeof value === 'string' && /^[a-z0-9][a-z0-9.-]{0,100}$/.test(value);
 const relativePath = value => typeof value === 'string' && value.length <= 4096 && value.split('/').every(part => part && part !== '.' && part !== '..'
   && !/[\\:\x00-\x1f]/.test(part)) && !path.posix.isAbsolute(value);
-const verifyOwnedInstallation = async (verify, input, resourceId) => {
-  let result;
-  try { result = await verify({ ...input, resourceId }); }
-  catch (cause) {
-    const error = cause && typeof cause === 'object' ? cause : new Error(String(cause));
-    if (error?.settlement?.resourceId !== resourceId || error.settlement.settled !== true || error.settlement.pending !== false) {
-      error.cacheOwnershipPending = true;
-    }
-    throw error;
-  }
-  if (result?.settlement?.resourceId !== resourceId || result.settlement.settled !== true || result.settlement.pending !== false) {
-    throw Object.assign(new Error('Managed recipe verification did not confirm exact child/resource settlement.'), { code: 'ERR_MANAGED_VERIFY_PENDING', cacheOwnershipPending: true });
-  }
-  if (result.ok !== true) throw new Error('Pinned tool executable/runtime/capability verification failed.');
-  return result;
-};
 const boundedJson = async file => {
   const read = await readVerifiedContainedFile(path.parse(file).root, file, { maxBytes: MAX_MANIFEST_BYTES });
   return JSON.parse(read.buffer.toString('utf8'));
@@ -186,30 +171,9 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
   if (reused.ok) {
     const held = await retainManagedToolInstallation({ toolingRoot, toolId: pinned.toolId, descriptorId: pinned.descriptorId });
     const resourceId = randomUUID();
-    let pending = false;
-    let primaryError = null;
-    try {
-      const verification = await verifyOwnedInstallation(verify, { root: held.root, command: held.command, args: held.args, descriptor: pinned, signal }, resourceId);
-      signal?.throwIfAborted();
-      return { ...reused, reused: true, downloadedBytes: 0, verification };
-    } catch (error) {
-      primaryError = error;
-      if (error.cacheOwnershipPending) {
-        pending = true;
-        Object.defineProperty(error, 'managedInstallSession', { value: { resourceId,
-          releaseAfterSettlement: receipt => {
-            if (receipt?.resourceId !== resourceId || receipt.settled !== true || receipt.pending !== false) throw new Error('Managed verification remains pending.');
-            return held.release();
-          } }, configurable: true });
-      }
-      throw error;
-    } finally {
-      if (!pending && !held.release()) {
-        const cleanupError = new Error('Managed tool verification lease could not be released.');
-        if (!primaryError) throw cleanupError;
-        primaryError.managedCleanupError = cleanupError;
-      }
-    }
+    const verification = await verifyRetainedManagedInstallation(held, verify,
+      { root: held.root, command: held.command, args: held.args, descriptor: pinned, signal }, resourceId);
+    return { ...reused, reused: true, downloadedBytes: 0, verification };
   }
   const owner = await resolveOwner(toolingRoot, pinned.toolId, { create: true });
   const transactionId = randomUUID();

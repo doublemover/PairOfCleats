@@ -300,3 +300,21 @@ codes or session properties supply no authority. Missing/throwing observers stay
 unconfirmed even with successful close flags. Authored inert-child/actual-file
 and category-session controls, including injected unlink failure and exact retry,
 remain UNVALIDATED.
+
+Re-verifying the selected existing managed installation now retains its original
+generation handle until both recipe resource settlement and exact metadata
+removal succeed. A missing recipe receipt is not confirmation; reconciliation
+requires that invocation's exact resource ID, settled:true and pending:false on
+every call. Unknown receipt fields also prevent settlement. Existing native
+pending observers remain independent, keep their original receiver, and cannot
+be overridden by a contradictory recipe receipt. Frozen errors preserve their
+exact cause and earlier nonenumerable capabilities.
+
+Failed actual retained-session unlink exposes `managedInstallSession` for the
+same metadata retry and keeps its outward failure pending until the original
+handle explicitly confirms release. Only the actual session producer identity
+permits this retry without self-blocking. The existing-generation path performs
+zero downloads or publication. Authored actual strict-receipt/file/category
+controls include frozen and nested primary failures, exact unlink failure and
+retry, unsuccessful-but-settled verification, cancellation, contradictory
+native markers and missing/throwing observers. They remain UNVALIDATED.
