@@ -15,14 +15,20 @@ import { acquireStorageSession } from '../../shared/storage/session.js';
 import { validateLocalCrossEncoderProfile } from '../../contracts/validators/reranker.js';
 import { LOCAL_RERANKER_VERSION } from '../../contracts/schemas/reranker.js';
 import { scoreLocalCrossEncoderPairs } from './cross-encoder-scoring.js';
+import { createCrossEncoderSessionOwner, crossEncoderCleanupFailure } from './local-resource-owner.js';
+import { preserveRerankerFailure } from './failure-ownership.js';
 
 export { decodeCrossEncoderLogit } from './cross-encoder-scoring.js';
 
 const require = createRequire(import.meta.url);
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const invalid = message => Object.assign(new Error(message), { code: 'ERR_LOCAL_RERANKER_PROFILE' });
-const unavailable = error => Object.assign(new Error(`Pinned local cross-encoder runtime/model is unavailable: ${error?.message || error}`, { cause: error }),
-  { code: 'ERR_RERANK_UNAVAILABLE', capability: 'local-bert-cross-encoder', measuredModelFailure: false });
+const unavailable = error => {
+  const failure = preserveRerankerFailure(error, { code: { value: 'ERR_RERANK_UNAVAILABLE' },
+    capability: { value: 'local-bert-cross-encoder' }, measuredModelFailure: { value: false } });
+  failure.message = `Pinned local cross-encoder runtime/model is unavailable: ${failure.message}`;
+  return failure;
+};
 const runtimeIdentity = () => {
   let directory = path.dirname(require.resolve('@huggingface/transformers')), version = null;
   for (let depth = 0; depth < 8; depth++) {
@@ -61,48 +67,15 @@ export const createLocalOnnxCrossEncoder = async ({ profile: input, modelRoot, s
   const sessionLease = acquireStorageSession({ ...storage, roots: [root], scope: 'local-cross-encoder-session' });
   const queue = createRunQueue({ maxQueued: 0 });
   let artifactLease = null, tokenizer = null, session = null, Tensor = null, observedRuntime = null;
-  let stopped = false, closePromise = null, tokenizerClosed = false, sessionClosed = false, storageClosed = false;
-  const owner = { resourceId: sessionLease.resourceId, queue, sessionLease, session: null, tokenizer: null, pendingTensors: new Set() };
-  const close = async () => {
-    stopped = true;
-    if (closePromise) return closePromise;
-    closePromise = (async () => {
-      await queue.close();
-      const failures = [];
-      for (const tensor of [...owner.pendingTensors]) {
-        try { tensor.dispose?.(); owner.pendingTensors.delete(tensor); } catch (error) { failures.push(error); }
-      }
-      if (session && !sessionClosed) {
-        try { await session.release(); sessionClosed = true; } catch (error) { failures.push(error); }
-      }
-      if (tokenizer && !tokenizerClosed) {
-        try { await tokenizer.dispose?.(); tokenizerClosed = true; } catch (error) { failures.push(error); }
-      }
-      if (failures.length) {
-        const error = failures[0];
-        Object.assign(error, { cacheOwnershipPending: true, rerankerOwner: owner, cleanupErrors: failures.slice(1), storageSession: sessionLease });
-        throw error;
-      }
-      artifactLease?.release();
-      if (!storageClosed) {
-        sessionLease.releaseAfterSettlement({ resourceId: sessionLease.resourceId, settled: true, pending: false });
-        storageClosed = true;
-      }
-      return { resourceId: sessionLease.resourceId, settled: true };
-    })();
-    try { return await closePromise; } catch (error) {
-      closePromise = null;
-      Object.assign(error, { cacheOwnershipPending: true, rerankerOwner: owner, storageSession: sessionLease });
-      throw error;
-    }
-  };
-  owner.close = close;
+  const owner = createCrossEncoderSessionOwner({ queue, sessionLease });
+  const close = owner.close;
   try {
     observedRuntime = runtimeIdentity();
     if (stableStringify(observedRuntime) !== stableStringify(profile.runtime)) throw invalid('Pinned cross-encoder runtime versions do not match.');
     const artifactOptions = { provider: 'onnx', modelId: root, modelsDir: null, rootDir: root,
       onnx: { modelPath: graph, tokenizerId: root } };
     artifactLease = await acquireEmbeddingArtifactLease(artifactOptions, { signal });
+    owner.adoptArtifact(artifactLease);
     const artifact = artifactLease.artifact;
     if (artifact.status !== 'verified' || artifact.digest !== profile.artifactDigest
       || artifact.inventory.reduce((sum, row) => sum + row.bytes, 0) > 512 * 1024 * 1024
@@ -119,27 +92,29 @@ export const createLocalOnnxCrossEncoder = async ({ profile: input, modelRoot, s
       || config.id2label != null && Object.keys(config.id2label).length !== 1) throw invalid('Only a single-logit BERT sequence-classification export is admitted.');
     const [{ AutoTokenizer }, runtime] = await Promise.all([import('@huggingface/transformers'), import('onnxruntime-node')]);
     tokenizer = await AutoTokenizer.from_pretrained(root, { local_files_only: true, revision: profile.tokenizerRevision });
-    owner.tokenizer = tokenizer;
+    owner.adoptTokenizer(tokenizer);
     throwIfAborted(signal);
     Tensor = runtime.Tensor;
     session = await runtime.InferenceSession.create(graph, { executionProviders: [{ name: 'cpu', useArena: false }],
       executionMode: 'sequential', intraOpNumThreads: 1, interOpNumThreads: 1,
       graphOptimizationLevel: 'basic', enableCpuMemArena: false, enableMemPattern: false });
-    owner.session = session;
+    owner.adoptSession(session);
     if (!Array.isArray(session.inputNames) || !session.inputNames.includes('input_ids')
       || !session.inputNames.includes('attention_mask') || session.inputNames.some(name => !['input_ids', 'attention_mask', 'token_type_ids'].includes(name))
       || !session.outputNames?.includes('logits')) throw invalid('Cross-encoder graph input/output capability is incompatible.');
     await artifactLease.verifyLoaded();
     throwIfAborted(signal);
   } catch (cause) {
-    const error = cause?.code?.startsWith('ERR_LOCAL_') || cause?.name === 'AbortError' ? cause : unavailable(cause);
+    const error = typeof cause?.code === 'string' && cause.code.startsWith('ERR_LOCAL_')
+      || cause?.name === 'AbortError' ? cause : unavailable(cause);
     if (cause?.cacheOwnershipPending) {
-      Object.assign(error, { cacheOwnershipPending: true, rerankerOwner: owner, nativeOwner: cause.rerankerOwner || cause.onnxSessionOwner || cause,
-        storageSession: sessionLease });
-      throw error;
+      owner.retainFailure(cause);
+      throw crossEncoderCleanupFailure({ owner, hasPrimary: true, primaryError: error,
+        properties: { nativeOwner: { value: cause.rerankerOwner || cause.onnxSessionOwner || cause }, storageSession: { value: sessionLease } } });
     }
-    try { await close(); } catch (cleanupError) { Object.assign(error, { cacheOwnershipPending: true, rerankerOwner: owner,
-      storageSession: sessionLease, cleanupErrors: [cleanupError] }); }
+    try { await close(); }
+    catch (cleanupError) { throw crossEncoderCleanupFailure({ owner, hasPrimary: true, primaryError: error,
+      cleanupErrors: [cleanupError], properties: { storageSession: { value: sessionLease } } }); }
     throw error;
   }
   const identity = { schemaVersion: LOCAL_RERANKER_VERSION, profile, runtime: Object.freeze(observedRuntime),
@@ -150,7 +125,12 @@ export const createLocalOnnxCrossEncoder = async ({ profile: input, modelRoot, s
     scoreRange: Object.freeze({ min: 0, max: 1 }), dispose: close,
     execution: Object.freeze({ provider: 'onnx-cpu', sessions: 1, passedIntraOpNumThreads: 1, actualNativeThreads: null, qualified: false }),
     rerank: async ({ query, hits, signal: operationSignal = null, sourceContext }) => {
-      if (stopped) throw invalid('Cross-encoder is disposed.');
+      if (owner.stopped) {
+        const error = invalid('Cross-encoder admission is closed.');
+        if (owner.pending) throw crossEncoderCleanupFailure({ owner, hasPrimary: true, primaryError: error,
+          properties: { storageSession: { value: sessionLease } } });
+        throw error;
+      }
       if (typeof query !== 'string' || !query || query.length > profile.maxQueryChars || !Array.isArray(hits)
         || hits.length > 64 || typeof sourceContext?.generation !== 'string' || !sourceContext.generation
         || sourceContext.generation.length > 4096) throw invalid('Cross-encoder request exceeds its source/pair/pool contract.');
@@ -159,9 +139,14 @@ export const createLocalOnnxCrossEncoder = async ({ profile: input, modelRoot, s
       return queue(async () => {
         try {
           return await scoreLocalCrossEncoderPairs({ profile, query, members, sourceContext: selectedSourceContext,
-            loadSource, tokenizer, session, Tensor, pendingTensors: owner.pendingTensors, signal: operationSignal });
+            loadSource, tokenizer, session, Tensor, pendingTensors: owner.pendingTensors,
+            pendingTensorOwners: owner.pendingTensorOwners, signal: operationSignal });
         } catch (error) {
-          if (error?.cacheOwnershipPending) Object.assign(error, { rerankerOwner: owner });
+          if (error?.cacheOwnershipPending) {
+            owner.retainFailure(error);
+            throw crossEncoderCleanupFailure({ owner, hasPrimary: true, primaryError: error,
+              properties: { nativeOwner: { value: error.rerankerOwner || error }, storageSession: { value: sessionLease } } });
+          }
           throw error;
         }
       }, { signal: operationSignal });

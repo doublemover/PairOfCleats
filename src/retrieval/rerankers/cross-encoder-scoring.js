@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { throwIfAborted } from '../../shared/abort.js';
 import { buildRetrievalHitKey } from '../hit-comparison.js';
+import { createCrossEncoderTensorScope, crossEncoderCleanupFailure } from './local-resource-owner.js';
 
 const invalid = message => Object.assign(new Error(message), { code: 'ERR_LOCAL_RERANKER_PROFILE' });
 
@@ -17,7 +18,7 @@ export const decodeCrossEncoderLogit = tensor => {
  * failed disposal. No runtime/model/source acquisition happens in this owner.
  */
 export const scoreLocalCrossEncoderPairs = async ({ profile, query, members, sourceContext,
-  loadSource, tokenizer, session, Tensor, pendingTensors, signal }) => {
+  loadSource, tokenizer, session, Tensor, pendingTensors, pendingTensorOwners, signal }) => {
   throwIfAborted(signal);
   const queryTokens = tokenizer.encode(query, { add_special_tokens: false });
   if (!Array.isArray(queryTokens) || queryTokens.length > profile.maxQueryTokens) throw invalid('Cross-encoder query token allowance exceeded; truncation is disabled.');
@@ -46,28 +47,31 @@ export const scoreLocalCrossEncoderPairs = async ({ profile, query, members, sou
     tokens += width || 0;
     if (!Number.isSafeInteger(width) || width < 1 || width > profile.maxPairTokens || tokens > profile.maxTotalTokens) throw invalid('Cross-encoder pair/total token allowance exceeded; truncation is disabled.');
     const feeds = {};
-    let outputs, primaryError = null;
+    const tensors = createCrossEncoderTensorScope({ pendingTensors, pendingTensorOwners });
+    let outputs, primaryError, hasPrimary = false;
     try {
       for (const name of session.inputNames) {
         const row = encoded[name];
         if (!Array.isArray(row) || row.length !== width || row.some(value => !Number.isSafeInteger(value) || value < 0
           || name !== 'input_ids' && value > 1)) throw invalid('Cross-encoder input tensor is malformed.');
-        feeds[name] = new Tensor('int64', BigInt64Array.from(row, BigInt), [1, width]);
+        feeds[name] = tensors.add(new Tensor('int64', BigInt64Array.from(row, BigInt), [1, width]));
       }
       outputs = await session.run(feeds, ['logits']);
+      for (const tensor of Object.values(outputs || {})) tensors.add(tensor);
       throwIfAborted(signal);
       scores.push({ index, score: decodeCrossEncoderLogit(outputs.logits) });
-    } catch (error) { primaryError = error; throw error;
+    } catch (error) { primaryError = error; hasPrimary = true; throw error;
     } finally {
-      const failures = [];
-      for (const tensor of new Set([...Object.values(feeds), ...Object.values(outputs || {})].reverse())) {
-        try { tensor.dispose?.(); } catch (error) { failures.push(error); pendingTensors.add(tensor); }
+      try { await tensors.close(); }
+      catch (cleanupError) {
+        if (!hasPrimary && signal?.aborted) {
+          try { throwIfAborted(signal); } catch (error) { primaryError = error; hasPrimary = true; }
+        }
+        if (hasPrimary) throw crossEncoderCleanupFailure({ owner: tensors, hasPrimary, primaryError,
+          cleanupErrors: [cleanupError] });
+        throw cleanupError;
       }
-      if (failures.length) {
-        const error = primaryError || failures[0];
-        Object.assign(error, { cacheOwnershipPending: true, cleanupErrors: failures.filter(value => value !== error) });
-        throw error;
-      }
+      throwIfAborted(signal);
     }
   }
   return scores;

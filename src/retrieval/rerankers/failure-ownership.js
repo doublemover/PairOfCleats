@@ -4,7 +4,13 @@ export const preserveRerankerFailure = (primary, properties = {}) => {
   let message = 'Reranker operation failed';
   try { message = String(primary?.message || primary); } catch {}
   const failure = new Error(message, { cause: primary });
-  const reserved = new Set(['cause', 'message', 'stack', ...Reflect.ownKeys(properties)]);
+  const originalObserver = releaseObserver(primary);
+  const inheritedOwnership = originalObserver && !Object.hasOwn(properties, 'cacheOwnershipPending')
+    && !Object.hasOwn(properties, 'cacheOwnershipReleased') ? {
+      cacheOwnershipPending: { get: () => !originalObserver() },
+      cacheOwnershipReleased: { value: originalObserver }
+    } : {};
+  const reserved = new Set(['cause', 'message', 'stack', ...Reflect.ownKeys(properties), ...Reflect.ownKeys(inheritedOwnership)]);
   if (primary && (typeof primary === 'object' || typeof primary === 'function')) {
     const descriptors = Object.getOwnPropertyDescriptors(primary);
     for (const key of Reflect.ownKeys(descriptors)) {
@@ -14,7 +20,7 @@ export const preserveRerankerFailure = (primary, properties = {}) => {
       try { if (typeof primary.name === 'string') failure.name = primary.name; } catch {}
     }
   }
-  Object.defineProperties(failure, properties);
+  Object.defineProperties(failure, { ...inheritedOwnership, ...properties });
   return failure;
 };
 

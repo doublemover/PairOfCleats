@@ -59,6 +59,10 @@ pending native owner. Without an explicit original release observer, that
 ownership stays pending. A receipt with `pending:false` proves only the tracked
 work and any reported nested ownership settled; it does not dispose a reusable
 adapter's session on the caller's behalf.
+The actual local scorer/adapter now captures tensor and session cleanup methods,
+awaits disposal, retains failed tensor dependencies and closes scoring admission
+after a pending cleanup failure. See [local cross-encoder cleanup](local-cross-encoder-cleanup.md)
+for exact reconciliation and storage settlement behavior and its unvalidated limits.
 
 Policy/result identities include adapter/model/tokenizer/profile/runtime,
 formatting, source generation/selection, raw member scores and all candidate,
