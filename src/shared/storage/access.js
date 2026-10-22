@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
 import { repoAccessPaths, retainRepoCacheAccess, withExclusiveRepoCacheCleanup } from '../cache/repo-access.js';
-import { isProcessAlive } from '../locks/file-lock-owner.js';
+import { isLocalProcessDefinitelyDead } from '../locks/file-lock-info.js';
 import { readVerifiedContainedFile } from '../contained-file.js';
 import { inspectRepoCacheDelegation } from '../cache/repo-access-delegation-guard.js';
+import { isKnownRepoAccessOwner } from '../cache/repo-access-owner.js';
 
 /** Use the existing admission/exclusion handshake for adopted assets as well. */
 export const retainStorageAssetAccess = (root, options = {}) => retainRepoCacheAccess(root, options);
@@ -22,10 +22,12 @@ export const inspectStorageAccess = async (root, options = {}) => {
     try {
       const { buffer } = await readVerifiedContainedFile(path.parse(file).root, file, { maxBytes: 64 * 1024 });
       const value = JSON.parse(buffer.toString('utf8'));
-      const valid = value && value.hostname === os.hostname() && Number.isSafeInteger(value.pid) && value.pid > 0;
+      const valid = isKnownRepoAccessOwner(value)
+        && (file === paths.lockPath || path.basename(file) === `${value.lockId}.json`);
+      const dead = Boolean(valid && isLocalProcessDefinitelyDead(value.pid));
       return { path: file, pid: value?.pid ?? null, lockId: value?.lockId ?? null,
-        status: !valid ? 'unknown-owner' : isProcessAlive(value.pid) ? 'live-or-pid-reused' : 'dead-local-owner',
-        protected: !valid || isProcessAlive(value.pid) };
+        status: !valid ? 'unknown-owner' : dead ? 'dead-local-owner' : 'live-or-unknown-or-pid-reused',
+        protected: !dead };
     } catch (error) {
       if (error.code === 'ENOENT') return null;
       complete = false;

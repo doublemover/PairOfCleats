@@ -7,6 +7,7 @@ import { createLockPayload, readLockInfoSync, isLocalProcessDefinitelyDead,
 import { toRealPathSync } from '../../workspace/identity.js';
 import { assertNoSymlinkPath } from '../contained-file.js';
 import { assertNoRepoCacheDelegation } from './repo-access-delegation-guard.js';
+import { isKnownRepoAccessOwner } from './repo-access-owner.js';
 
 const held = new Map();
 const scoped = new Map();
@@ -39,7 +40,8 @@ export const repoAccessPaths = (repoCacheRoot, { coordinationRoot = null } = {})
 /** Admission precedes any cache access; leases cover retained handles until process exit. */
 const createAccessLease = (paths, options = {}) => {
   assertNoRepoCacheDelegation(paths);
-  if (options.coordinationRoot) assertNoSymlinkPath(path.parse(paths.directory).root, paths.directory, { allowMissing: true });
+  try { assertNoSymlinkPath(path.parse(paths.directory).root, paths.lockPath, { allowMissing: true }); }
+  catch (error) { throw Object.assign(new Error('Storage access coordination path is unsafe or unknown.', { cause: error }), { code: 'ERR_REPO_CACHE_ACCESS_UNSAFE' }); }
   fs.mkdirSync(paths.leases, { recursive: true });
   const payload = createLockPayload({ scope: options.scope || 'repo-cache-access', hostname: os.hostname(),
     ...(typeof options.resourceId === 'string' ? { resourceId: options.resourceId } : {}) });
@@ -53,8 +55,7 @@ const createAccessLease = (paths, options = {}) => {
     // delegated child outlives the parent's PID and must keep readers fenced.
     try { assertNoRepoCacheDelegation(paths); }
     catch (error) { removeLockFileSyncIfOwned(file, payload); throw error; }
-    if (owner?.hostname === os.hostname() && Number.isSafeInteger(owner.pid)
-      && owner.pid > 0 && isLocalProcessDefinitelyDead(owner.pid)) {
+    if (isKnownRepoAccessOwner(owner) && isLocalProcessDefinitelyDead(owner.pid)) {
       removeLockFileSyncIfOwned(paths.lockPath, owner);
     }
   }
