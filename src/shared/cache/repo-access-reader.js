@@ -6,10 +6,12 @@ import { createLockPayload, readLockInfoSync, isLocalProcessDefinitelyDead,
   removeLockFileSyncIfOwned } from '../locks/file-lock-info.js';
 import { toRealPathSync } from '../../workspace/identity.js';
 import { assertNoSymlinkPath } from '../contained-file.js';
+import { assertNoRepoCacheDelegation } from './repo-access-delegation-guard.js';
 
 const held = new Map();
 const scoped = new Map();
 const handoffs = new WeakMap();
+const delegated = new Map();
 let exitHookInstalled = false;
 
 const installExitHook = () => {
@@ -36,6 +38,7 @@ export const repoAccessPaths = (repoCacheRoot, { coordinationRoot = null } = {})
 
 /** Admission precedes any cache access; leases cover retained handles until process exit. */
 const createAccessLease = (paths, options = {}) => {
+  assertNoRepoCacheDelegation(paths);
   if (options.coordinationRoot) assertNoSymlinkPath(path.parse(paths.directory).root, paths.directory, { allowMissing: true });
   fs.mkdirSync(paths.leases, { recursive: true });
   const payload = createLockPayload({ scope: options.scope || 'repo-cache-access', hostname: os.hostname(),
@@ -46,6 +49,10 @@ const createAccessLease = (paths, options = {}) => {
   // either it observes our lease, or we observe its lock before touching data.
   if (fs.existsSync(paths.lockPath)) {
     const owner = readLockInfoSync(paths.lockPath);
+    // Recheck before stale-parent recovery, not only before collection. A
+    // delegated child outlives the parent's PID and must keep readers fenced.
+    try { assertNoRepoCacheDelegation(paths); }
+    catch (error) { removeLockFileSyncIfOwned(file, payload); throw error; }
     if (owner?.hostname === os.hostname() && Number.isSafeInteger(owner.pid)
       && owner.pid > 0 && isLocalProcessDefinitelyDead(owner.pid)) {
       removeLockFileSyncIfOwned(paths.lockPath, owner);
@@ -57,12 +64,15 @@ const createAccessLease = (paths, options = {}) => {
       code: 'ERR_REPO_CACHE_CLEANUP_BUSY'
     });
   }
+  try { assertNoRepoCacheDelegation(paths); }
+  catch (error) { removeLockFileSyncIfOwned(file, payload); throw error; }
   installExitHook();
   return { file, payload, paths, suspended: false };
 };
 
 export const retainRepoCacheAccess = (repoCacheRoot, options = {}) => {
   const paths = repoAccessPaths(repoCacheRoot, options);
+  if (delegated.has(paths.directory)) { delegated.get(paths.directory).assertAdmission(); return; }
   const current = held.get(paths.directory);
   if (current?.suspended) throw Object.assign(new Error('Local cache readers are drained for an exclusive owner handoff.'), {
     code: 'ERR_REPO_CACHE_ACCESS_SUSPENDED'
@@ -76,6 +86,7 @@ export const retainRepoCacheAccess = (repoCacheRoot, options = {}) => {
  */
 export const acquireRepoCacheAccessLease = (repoCacheRoot, options = {}) => {
   const paths = repoAccessPaths(repoCacheRoot, options);
+  if (delegated.has(paths.directory)) throw new Error('A delegated native owner cannot create independent scoped readers before settlement.');
   if (held.get(paths.directory)?.suspended) throw Object.assign(new Error('Local cache access is suspended for an exclusive handoff.'), {
     code: 'ERR_REPO_CACHE_ACCESS_SUSPENDED'
   });
@@ -131,11 +142,27 @@ export const consumeRepoCacheAccessHandoff = (token, paths) => {
   }
   if (!removeLockFileSyncIfOwned(handoff.lease.file, handoff.lease.payload)) throw new Error('Retained reader lease identity changed before handoff.');
   handoff.consumed = true;
-  return () => {
-    fs.writeFileSync(handoff.lease.file, JSON.stringify(handoff.lease.payload), { flag: 'wx' });
-    handoff.lease.suspended = false;
-    handoffs.delete(token);
+  let restored = false;
+  return ({ resume = true } = {}) => {
+    if (!restored) {
+      fs.writeFileSync(handoff.lease.file, JSON.stringify(handoff.lease.payload), { flag: 'wx' });
+      restored = true;
+    } else if (readLockInfoSync(handoff.lease.file)?.lockId !== handoff.lease.payload.lockId) {
+      throw new Error('Restored parent reader lease changed before settlement.');
+    }
+    handoff.lease.suspended = !resume;
+    if (resume) handoffs.delete(token);
   };
+};
+
+// Internal admission owner registers a process-local closure after the IPC
+// capability is claimed. Serialized metadata cannot reconstruct this closure.
+export const registerDelegatedRepoCacheReader = (paths, admission) => {
+  if (held.has(paths.directory) || delegated.has(paths.directory) || typeof admission?.assertAdmission !== 'function') {
+    throw new Error('Delegated admission must precede every canonical cache reader.');
+  }
+  delegated.set(paths.directory, admission);
+  return () => delegated.delete(paths.directory);
 };
 
 /** Explicit artifact/database paths still participate in the standard repos/<id> layout. */

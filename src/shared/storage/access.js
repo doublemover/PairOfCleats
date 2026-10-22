@@ -4,6 +4,7 @@ import os from 'node:os';
 import { repoAccessPaths, retainRepoCacheAccess, withExclusiveRepoCacheCleanup } from '../cache/repo-access.js';
 import { isProcessAlive } from '../locks/file-lock-owner.js';
 import { readVerifiedContainedFile } from '../contained-file.js';
+import { inspectRepoCacheDelegation } from '../cache/repo-access-delegation-guard.js';
 
 /** Use the existing admission/exclusion handshake for adopted assets as well. */
 export const retainStorageAssetAccess = (root, options = {}) => retainRepoCacheAccess(root, options);
@@ -13,6 +14,9 @@ export const withExclusiveStorageAccess = (root, action, options = {}) => withEx
 export const inspectStorageAccess = async (root, options = {}) => {
   const paths = repoAccessPaths(root, options);
   const owners = [];
+  const delegation = inspectRepoCacheDelegation(paths);
+  if (delegation.protected) owners.push({ role: 'delegated-exclusive-owner', protected: true, reason: delegation.reason,
+    path: delegation.file, status: delegation.value ? 'owner-settlement-required' : 'unknown-owner' });
   let complete = true;
   const readOwner = async file => {
     try {

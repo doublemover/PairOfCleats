@@ -5,6 +5,7 @@ import { isProcessAlive, removeLockFileSyncIfOwned } from '../locks/file-lock-ow
 import { readJsonFileSyncSafe } from '../file-read.js';
 import { repoAccessPaths, consumeRepoCacheAccessHandoff } from './repo-access-reader.js';
 import { assertNoSymlinkPath } from '../contained-file.js';
+import { inspectRepoCacheDelegation } from './repo-access-delegation-guard.js';
 export { repoAccessPaths, retainRepoCacheAccess, retainCachePathAccess,
   prepareRepoCacheAccessHandoff, cancelRepoCacheAccessHandoff,
   acquireRepoCacheAccessLease } from './repo-access-reader.js';
@@ -14,6 +15,8 @@ const readOwner = file => readJsonFileSyncSafe(file, { maxBytes: 64 * 1024 });
 /** Unknown/foreign owners stay protected; elapsed time never evicts a live reader. */
 export const inspectRepoCacheAccess = (repoCacheRoot, options = {}) => {
   const paths = repoAccessPaths(repoCacheRoot, options);
+  const delegation = inspectRepoCacheDelegation(paths);
+  if (delegation.protected) return [{ reason: delegation.reason }];
   let entries;
   try { entries = fs.readdirSync(paths.leases); } catch (error) {
     return error.code === 'ENOENT' ? [] : [{ reason: 'unreadable-leases' }];
@@ -34,6 +37,8 @@ export const inspectRepoCacheAccess = (repoCacheRoot, options = {}) => {
 export const withExclusiveRepoCacheCleanup = async (repoCacheRoot, action, options = {}) => {
   const { acquireFileLock, releaseFileLockOrThrow } = await import('../locks/file-lock.js');
   const paths = repoAccessPaths(repoCacheRoot, options);
+  const delegation = inspectRepoCacheDelegation(paths);
+  if (delegation.protected) return { protected: true, reason: delegation.reason };
   if (options.coordinationRoot) assertNoSymlinkPath(path.parse(paths.directory).root, paths.directory, { allowMissing: true });
   if (fs.existsSync(paths.lockPath)) {
     const owner = readOwner(paths.lockPath);
@@ -45,15 +50,19 @@ export const withExclusiveRepoCacheCleanup = async (repoCacheRoot, action, optio
     staleMs: Number.MAX_SAFE_INTEGER, metadata: { scope: 'repo-cache-cleanup', hostname: os.hostname() } });
   if (!lock) return { protected: true, reason: 'cleanup-in-progress' };
   let restoreLocalReader = null;
+  let retained = false;
   try {
+    const currentDelegation = inspectRepoCacheDelegation(paths);
+    if (currentDelegation.protected) return { protected: true, reason: currentDelegation.reason };
     if (options.localAccessHandoff) restoreLocalReader = consumeRepoCacheAccessHandoff(options.localAccessHandoff, paths);
     const owners = inspectRepoCacheAccess(repoCacheRoot, options);
     if (owners.length) return { protected: true, reason: 'active-process-lease', owners };
-    return { protected: false, result: await action() };
+    return { protected: false, result: await action({ paths, lock,
+      retainExclusion: () => { retained = true; } }) };
   } finally {
     // A failed restoration retains exclusion; releasing it would lose the
     // process-lifetime reader's protection while its resources may remain live.
-    if (restoreLocalReader) restoreLocalReader();
-    await releaseFileLockOrThrow(lock);
+    if (restoreLocalReader) restoreLocalReader({ resume: !retained });
+    if (!retained) await releaseFileLockOrThrow(lock);
   }
 };
