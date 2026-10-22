@@ -6,9 +6,11 @@ globalThis.__routeLifetimeOperation = async signal => { globalThis.__routeLifeti
 const validators = {
   'semantic-query.js': 'assertSemanticQuery', 'semantic-find.js': 'assertSemanticFind',
   'semantic-trace.js': 'assertSemanticTrace', 'semantic-explain.js': 'assertSemanticExplain',
-  'semantic-enrichment.js': 'assertSemanticEnrichment', 'runtime-query.js': 'assertRuntimeQuery', 'runtime-claims.js': 'assertRuntimeClaims'
+  'semantic-enrichment.js': 'assertSemanticEnrichment', 'runtime-query.js': 'assertRuntimeQuery', 'runtime-claims.js': 'assertRuntimeClaims',
+  'graph-evidence.js': 'assertGraphEvidence'
 };
 const runners = {
+  'graph-evidence.js': ['runGraphEvidence', 'classifyGraphEvidenceError'],
   'semantic-detail.js': ['runSemanticDetail', 'classifySemanticDetailError'],
   'semantic-find.js': ['runSemanticFind'], 'semantic-trace.js': ['runSemanticTrace'],
   'semantic-explain.js': ['runSemanticExplain'], 'semantic-enrichment.js': ['runSemanticEnrichment', 'classifySemanticEnrichmentError'],
@@ -27,6 +29,7 @@ const hooks = registerHooks({ load(url, context, next) {
 } });
 try {
   const specs = [['semantic', 'handleSemanticDetailRoute'], ['semantic-find', 'handleSemanticFindRoute'],
+    ['graph-evidence', 'handleGraphEvidenceRoute'],
     ['semantic-trace', 'handleSemanticTraceRoute'], ['semantic-explain', 'handleSemanticExplainRoute'],
     ['semantic-enrichment', 'handleSemanticEnrichmentRoute'], ['runtime-evidence', 'handleRuntimeEvidenceRoute']];
   for (const [file, exported] of specs) {

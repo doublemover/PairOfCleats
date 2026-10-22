@@ -160,6 +160,11 @@ export const SEMANTIC_DETAIL_OPTIONS = {
       all: { type: 'boolean', default: false, description: 'Stream every bounded page as JSONL in this process.' }
     };
 
+export const GRAPH_EVIDENCE_OPTIONS = {
+  request: { type: 'string', demandOption: true, description: 'Pinned graph evidence request JSON file (at most 64 KiB).' },
+  all: { type: 'boolean', default: false, description: 'Stream bounded retained-family pages as JSONL.' }
+};
+
 export const SEMANTIC_TRACE_OPTIONS = {
       request: { type: 'string', demandOption: true, description: 'Semantic trace request JSON file (at most 1 MiB).' },
       all: { type: 'boolean', default: false, description: 'Stream every bounded page as JSONL in this process.' }

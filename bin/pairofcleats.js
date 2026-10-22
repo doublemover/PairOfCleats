@@ -782,6 +782,10 @@ function resolveCommand(primary, rest) {
     validateArgs(rest, ['request', 'all'], ['request']);
     return { script: 'tools/analysis/semantic-' + sub + '.js', extraArgs: [], args: rest };
   }
+  if (primary === 'graph-evidence') {
+    validateArgs(rest, ['request', 'all'], ['request']);
+    return { script: 'tools/analysis/graph-evidence.js', extraArgs: [], args: rest };
+  }
   if (primary === 'context-pack') {
     const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(CONTEXT_PACK_OPTIONS);
     validateArgs(rest, optionNames, valueOptionNames);

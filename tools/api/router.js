@@ -7,6 +7,7 @@ const handleSemanticExplainRoute = async (...args) => (await import('./router/se
 const handleSemanticEnrichmentRoute = async (...args) => (await import('./router/semantic-enrichment.js')).handleSemanticEnrichmentRoute(...args);
 const handleRuntimeEvidenceRoute = async (...args) => (await import('./router/runtime-evidence.js')).handleRuntimeEvidenceRoute(...args);
 const handleSemanticDetailRoute = async (...args) => (await import('./router/semantic.js')).handleSemanticDetailRoute(...args);
+const handleGraphEvidenceRoute = async (...args) => (await import('./router/graph-evidence.js')).handleGraphEvidenceRoute(...args);
 import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
 import path from 'node:path';
 const search = async (...args) => (await import('../../src/integrations/core/search.js')).search(...args);
@@ -416,6 +417,10 @@ export const createApiRouter = ({
 
       if (requestUrl.pathname === '/analysis/semantic-detail' && req.method === 'POST') {
         await handleSemanticDetailRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo });
+        return;
+      }
+      if (requestUrl.pathname === '/analysis/graph-evidence' && req.method === 'POST') {
+        await handleGraphEvidenceRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo });
         return;
       }
 

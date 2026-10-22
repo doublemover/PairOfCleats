@@ -19,10 +19,12 @@ const required = ['better-sqlite3', 'tree-sitter', 'tree-sitter-javascript'];
 const inputs = ['.nvmrc', 'tools/setup/preflight.js', 'src/shared/direct-execution.js', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
   'tools/setup/bootstrap-tasks.js', 'tools/setup/native-build-plan.js',
+  'tools/setup/windows-capability.js',
   'src/shared/bootstrap-readiness.js', 'src/lang/tree-sitter/native-runtime.js',
   'src/lang/tree-sitter/native-grammar-binding.js',
   'tools/setup/rebuild-native-exit.js'];
 const entries = ['bin/pairofcleats.js', 'tests/run.js', 'tools/bench/bench-runner.js', 'tools/bench/micro/hash.js'];
+entries.push('tools/analysis/graph-evidence.js');
 // Every guarded cache-path consumer must reject an incomplete checkout before
 // linking even its lightweight repository helpers.
 entries.push('tools/ci/run-suite.js');
@@ -108,6 +110,12 @@ try {
   write('tools/setup/preflight.js', `${preflight}\n// changed prerequisite policy\n`);
   assert.equal((await inspectBootstrapReadiness({ root })).ready, false, 'changed prerequisite policy invalidates setup evidence');
   write('tools/setup/preflight.js', preflight);
+  record();
+  const capability = fs.readFileSync(path.join(root, 'tools/setup/windows-capability.js'), 'utf8');
+  write('tools/setup/windows-capability.js', `${capability}\n// changed selected compiler capability policy\n`);
+  assert.equal((await inspectBootstrapReadiness({ root })).ready, false,
+    'changing the actual Windows capability owner invalidates prior bootstrap evidence');
+  write('tools/setup/windows-capability.js', capability);
   record();
   const directExecution = fs.readFileSync(path.join(root, 'src/shared/direct-execution.js'), 'utf8');
   write('src/shared/direct-execution.js', `${directExecution}\n// changed entry detection policy\n`);

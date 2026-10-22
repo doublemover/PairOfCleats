@@ -1,5 +1,11 @@
 # Minimal API Server
 
+Experimental `POST /analysis/graph-evidence` pages retained occurrences or resolved
+adjacency from an explicit immutable build. It shares authorized repository and
+request cancellation owners. See [the bounded request/result contract](../contracts/graph-evidence-pages.md).
+Its source and transport regressions remain unvalidated; retained-family completion
+does not establish upstream analysis completeness.
+
 ## Overview
 The API server is a lightweight local HTTP JSON wrapper around the core search/status
 handlers. It is intended for local developer tooling (or local agent orchestration),

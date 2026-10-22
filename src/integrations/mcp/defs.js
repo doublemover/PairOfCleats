@@ -5,10 +5,11 @@ import { SEMANTIC_ENRICHMENT_REQUEST_SCHEMA } from '../../contracts/schemas/sema
 import { RUNTIME_LOOKUP_SERVICE_REQUEST_SCHEMA, RUNTIME_DISCOVERY_SERVICE_REQUEST_SCHEMA } from '../../contracts/schemas/runtime-query.js';
 import { RUNTIME_COMPARE_SERVICE_SCHEMA, RUNTIME_CLAIMS_SERVICE_SCHEMA } from '../../contracts/schemas/runtime-claims.js';
 import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-query.js';
+import { GRAPH_EVIDENCE_REQUEST_SCHEMA } from '../../contracts/schemas/graph-evidence.js';
 import { getToolVersion } from '../../../tools/dict-utils/tool.js';
 import { SEARCH_REQUEST_REQUIREMENT } from '../../shared/search-request.js';
 
-export const MCP_SCHEMA_VERSION = '1.7.0';
+export const MCP_SCHEMA_VERSION = '1.8.0';
 
 const STRING_OR_STRING_ARRAY_SCHEMA = Object.freeze({
   anyOf: [
@@ -62,6 +63,7 @@ const buildWorkspaceToolProperties = ({
  */
 export function getToolDefs(defaultModelId) {
   return [
+    { name: 'graph_evidence', description: 'Experimental, qualification pending: page retained call occurrences or resolved adjacency in an explicit immutable build. Bounded retained-family coverage does not establish upstream semantic completeness.', inputSchema: GRAPH_EVIDENCE_REQUEST_SCHEMA },
     {name:'semantic_find',description:'Experimental, qualification pending: discover pinned structural/compiler-target candidates, exact type-expression facts by source and role, or parser-established scalar literal occurrences. Bounded indexed coverage; no assignability, alias expansion, behavioral equivalence or universal runtime-value claim.',inputSchema:SEMANTIC_FIND_REQUEST_SCHEMA},
     {name:'semantic_explain',description:'Experimental, qualification pending: explain a pinned static witness and suggest exact source/task plan or enqueue requests. Never executes suggested work automatically.',inputSchema:SEMANTIC_EXPLAIN_REQUEST_SCHEMA},
     {name:'semantic_enrichment',description:'Experimental, qualification pending: plan by default; explicit enqueue persists pending tasks, explicit drain requires verified dependency authority and whole-generation publication. No live retrieval overlays.',inputSchema:SEMANTIC_ENRICHMENT_REQUEST_SCHEMA},
