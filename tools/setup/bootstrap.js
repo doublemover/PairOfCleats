@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { BOOTSTRAP_OPTIONS } from '../shared/operator-cli-options.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
@@ -11,18 +12,7 @@ import { resolveDictionarySetupReadiness } from './dictionary-readiness.js';
 
 const argv = createCli({
   scriptName: 'bootstrap',
-  options: {
-    'skip-install': { type: 'boolean', default: false },
-    'skip-dicts': { type: 'boolean', default: false },
-    'skip-index': { type: 'boolean', default: false },
-    'with-sqlite': { type: 'boolean', default: false },
-    incremental: { type: 'boolean', default: false },
-    'skip-artifacts': { type: 'boolean', default: false },
-    'skip-tooling': { type: 'boolean', default: false },
-    'validate-config': { type: 'boolean', default: false },
-    json: { type: 'boolean', default: false },
-    repo: { type: 'string' }
-  },
+  options: BOOTSTRAP_OPTIONS,
   aliases: { s: 'with-sqlite', i: 'incremental' }
 }).strictOptions().parse();
 

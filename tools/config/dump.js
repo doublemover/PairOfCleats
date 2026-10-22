@@ -7,6 +7,7 @@ import { getCapabilities } from '../../src/shared/capabilities.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
 import { formatEffectiveConfiguration } from './effective.js';
+import { CONFIG_DUMP_OPTIONS } from './options.js';
 import {
   getCacheRoot,
   getAutoPolicy,
@@ -16,11 +17,7 @@ import {
 
 const argv = createCli({
   scriptName: 'pairofcleats config dump',
-  options: {
-    repo: { type: 'string' },
-    json: { type: 'boolean', default: false },
-    capabilities: { type: 'boolean', default: false }
-  }
+  options: CONFIG_DUMP_OPTIONS
 }).parse();
 
 let configSources = null;

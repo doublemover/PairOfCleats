@@ -24,6 +24,7 @@ import { getToolingConfig, resolveToolRoot } from '../shared/dict-utils.js';
 import { resolveClangdArchiveTarget, resolveManagedClangd } from '../../src/shared/managed-clangd.js';
 import { PHPACTOR_APPROVED_RELEASE } from './approved-artifacts.js';
 import { resolveManagedLuaLanguageServer } from '../../src/shared/managed-lua.js';
+import { normalizeToolProvisioningDeclaration } from './provisioning-plan.js';
 
 const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
@@ -374,6 +375,42 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
 
   return [
     {
+      id: 'ast-grep', label: 'ast-grep CLI', languages: [], capabilities: ['structural.ast-grep'],
+      detect: { cmd: 'ast-grep', args: ['--version'], binDirs: [nodeBin] },
+      install: { cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, '@ast-grep/cli@0.40.4'] } },
+      docs: 'https://ast-grep.github.io/guide/quick-start'
+    },
+    {
+      id: 'semgrep', label: 'Semgrep local structural engine', languages: [], capabilities: ['structural.semgrep'],
+      detect: { cmd: 'semgrep', args: ['--version'], binDirs: [binDir] },
+      prerequisites: [{ id: 'python3', command: 'python3', family: 'python3', kind: 'runtime', phase: 'launch', dependsOn: [] }],
+      install: {}, docs: 'https://semgrep.dev/docs/getting-started/quickstart',
+      provisioningBlocker: 'A qualified pinned Semgrep/Python virtual-environment recipe is required; local rules only, no cloud/login side effect.'
+    },
+    {
+      id: 'comby', label: 'Comby structural engine', languages: [], capabilities: ['structural.comby'],
+      detect: { cmd: 'comby', args: ['-version'], binDirs: [binDir] }, install: {},
+      docs: 'https://comby.dev/docs/get-started',
+      provisioningBlocker: process.platform === 'win32' ? 'No qualified native Windows recipe. WSL/container setup requires a separate explicit system choice.' : 'Select and approve an official platform archive/package recipe.'
+    },
+    {
+      id: 'graphviz', label: 'Graphviz SVG renderer', languages: [], capabilities: ['report.map.svg'],
+      detect: { cmd: 'dot', args: ['-V'], binDirs: [binDir] }, install: {},
+      docs: 'https://graphviz.org/download/',
+      provisioningBlocker: 'A selected platform package/archive and tiny DOT-to-SVG verification are required; DOT export alone requires no Graphviz.'
+    },
+    ...[
+      ['cargo', 'Rust Cargo build tool', 'tui.source-build', ['--version']],
+      ['cargo-cyclonedx', 'Cargo CycloneDX producer', 'release.sbom', ['--version']],
+      ['git-lfs', 'Git LFS', 'benchmark.lfs', ['version']],
+      ['ripgrep', 'ripgrep accelerator', 'dictionary.scan.acceleration', ['--version']],
+      ['universal-ctags', 'Universal Ctags producer', 'ingest.ctags.execute', ['--version']],
+      ['gnu-global', 'GNU Global producer', 'ingest.gtags.execute', ['--version']],
+      ['scip', 'SCIP producer', 'ingest.scip.execute', ['--version']]
+    ].map(([id, label, capability, args]) => ({ id, label, languages: [], capabilities: [capability],
+      detect: { cmd: ({ ripgrep: 'rg', 'universal-ctags': 'ctags', 'gnu-global': 'global' })[id] || id, args, binDirs: [binDir] },
+      install: {}, provisioningBlocker: 'Selected producer capability needs an approved platform/version recipe and consumer-specific verification. Reading file/stdin reports does not require a producer.' })),
+    {
       id: 'tsserver',
       label: 'TypeScript server',
       languages: ['typescript'],
@@ -449,6 +486,10 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
     },
     {
       id: 'jdtls',
+      prerequisites: [
+        { id: 'java', command: 'java', family: 'java', kind: 'runtime', phase: 'launch', dependsOn: [] },
+        { id: 'javac', command: 'javac', family: 'javac', kind: 'sdk-component', phase: 'launch', dependsOn: ['java'] }
+      ],
       label: 'jdtls',
       languages: ['java'],
       detect: { cmd: 'jdtls', args: ['--help'], binDirs: [binDir] },
@@ -459,6 +500,10 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
     },
     {
       id: 'elixir-ls',
+      prerequisites: [
+        { id: 'elixir', command: 'elixir', family: 'elixir', kind: 'runtime', phase: 'launch', dependsOn: [] },
+        { id: 'mix', command: 'mix', family: 'mix', kind: 'package-manager', phase: 'launch', dependsOn: ['elixir'] }
+      ],
       label: 'elixir-ls',
       languages: ['elixir'],
       detect: { cmd: 'elixir-ls', args: ['--help'], binDirs: [binDir] },
@@ -469,6 +514,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
     },
     {
       id: 'haskell-language-server',
+      prerequisites: [{ id: 'ghc', command: 'ghc', family: 'ghc', kind: 'project-sdk', phase: 'analysis', dependsOn: [] }],
       label: 'haskell-language-server',
       languages: ['haskell'],
       detect: { cmd: 'haskell-language-server', args: ['--version'], binDirs: [binDir] },
@@ -531,6 +577,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
     },
     {
       id: 'ruby-lsp',
+      prerequisites: [{ id: 'ruby', command: 'ruby', family: 'ruby', kind: 'runtime', phase: 'launch', dependsOn: [] }],
       label: 'Ruby LSP',
       languages: ['ruby'],
       detect: { cmd: 'ruby-lsp', args: ['--version'], binDirs: [binDir, ...globalGemBins] },
@@ -542,6 +589,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
     },
     {
       id: 'solargraph',
+      prerequisites: [{ id: 'ruby', command: 'ruby', family: 'ruby', kind: 'runtime', phase: 'launch', dependsOn: [] }],
       label: 'Solargraph',
       languages: ['ruby'],
       detect: { cmd: 'solargraph', args: ['--version'], binDirs: [binDir, ...globalGemBins] },
@@ -553,6 +601,8 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
     },
     {
       id: 'phpactor',
+      prerequisites: [{ id: 'php', command: 'php', family: 'php', kind: 'runtime', phase: 'launch', dependsOn: [],
+        requiredComponents: ['json', 'mbstring', 'tokenizer', 'phar'] }],
       label: 'phpactor',
       languages: ['php'],
       detect: { cmd: 'phpactor', args: ['--version'], binDirs: [binDir, composerBin, ...globalComposerBins, ...globalPhpactorBins] },
@@ -642,7 +692,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       },
       docs: TOOL_DOCS.sqls
     }
-  ].map((tool) => ({ ...tool, authorityRepoRoot: repoRoot, toolingRoot: absoluteToolingRoot }));
+  ].map(tool => normalizeToolProvisioningDeclaration({ ...tool, authorityRepoRoot: repoRoot, toolingRoot: absoluteToolingRoot }));
 }
 
 export const getToolProviderAliases = (toolId) => {
@@ -757,6 +807,7 @@ export function selectInstallPlan(tool, scope, allowFallback) {
   if (!allowFallback) return { scope: normalizedScope, plan: null };
   const fallbackScope = install.cache ? 'cache' : (install.user ? 'user' : (install.system ? 'system' : null));
   if (!fallbackScope) return { scope: normalizedScope, plan: null };
+  if (fallbackScope === 'system') return { scope: normalizedScope, plan: null, reason: 'System scope requires explicit selection and review.' };
   return { scope: fallbackScope, plan: install[fallbackScope], fallback: true };
 }
 

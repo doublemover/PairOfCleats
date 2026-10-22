@@ -1,4 +1,5 @@
 import { SEARCH_DISPATCH_METADATA } from '../retrieval/cli-options.js';
+import { STORAGE_ACTIONS } from '../../tools/storage/options.js';
 
 const entry = (id, commandPath, script, description, extras = {}) => Object.freeze({
   id,
@@ -33,6 +34,7 @@ export const COMMAND_HELP_GROUP_ORDER = Object.freeze([
   'Dispatch',
   'Tooling',
   'Cache',
+  'Storage',
   'LMDB',
   'Report',
   'Graph',
@@ -77,6 +79,10 @@ export const cloneCommandRegistryEntry = (entry) => ({
 });
 
 export const COMMAND_REGISTRY = Object.freeze([
+  entry('checkout.diagnose', ['checkout', 'diagnose'], 'tools/setup/checkout-diagnose.js', 'Inspect source-checkout readiness metadata without activating native dependencies.', {
+    helpGroup: 'Core', supportTier: 'operator', capability: false,
+    helpExamples: ['pairofcleats checkout diagnose --json']
+  }),
   entry('setup', ['setup'], 'tools/setup/setup.js', 'Guided setup flow.', {
     helpGroup: 'Core',
     expectedArtifacts: ['config:file', 'cache:dicts', 'cache:models']
@@ -169,6 +175,13 @@ export const COMMAND_REGISTRY = Object.freeze([
   entry('workspace.manifest', ['workspace', 'manifest'], 'tools/workspace/manifest.js', 'Generate workspace manifest.', {
     helpGroup: 'Workspace'
   }),
+  ...['init', 'add', 'validate'].map(operation => entry(`workspace.${operation}`, ['workspace', operation],
+    'tools/workspace/author.js', operation === 'validate' ? 'Validate workspace configuration without probing indexes.'
+      : `${operation === 'init' ? 'Plan a new workspace' : 'Plan added workspace members'}; write only with --apply.`, {
+      helpGroup: 'Workspace', supportTier: 'operator', capability: false,
+      extraArgs: ['--operation', operation],
+      helpExamples: [`pairofcleats workspace ${operation} --workspace workspace.jsonc${operation === 'validate' ? '' : ' --repo .'} --json`]
+    })),
   entry('workspace.status', ['workspace', 'status'], 'tools/workspace/status.js', 'Show workspace status.', {
     helpGroup: 'Workspace'
   }),
@@ -274,11 +287,22 @@ export const COMMAND_REGISTRY = Object.freeze([
     capability: false,
     supportTier: 'operator'
   }),
+  entry('tooling.lifecycle', ['tooling', 'lifecycle'], 'tools/tooling/lifecycle.js', 'Inspect tool installation receipts and lifecycle plans; unsupported mutations report blockers.', {
+    helpGroup: 'Tooling', supportTier: 'operator', capability: false,
+    helpExamples: ['pairofcleats tooling lifecycle --repo . --tool typescript --operation verify --json']
+  }),
   entry('tooling.uninstall', ['tooling', 'uninstall'], 'tools/tooling/uninstall.js', 'Remove installed PairOfCleats caches and tooling payloads.', {
     helpGroup: 'Tooling',
     capability: false,
     supportTier: 'operator'
   }),
+  ...STORAGE_ACTIONS.map(action => entry(`storage.${action}`, ['storage', action], 'tools/storage/cli.js',
+    action === 'cleanup-apply' ? 'Apply an exact reviewed disposable-cache plan through the cleanup owner.'
+      : `Inspect or plan storage ${action}; read-only unless explicitly applying cleanup.`, {
+      helpGroup: 'Storage', supportTier: 'operator', capability: false, extraArgs: [action],
+      helpExamples: ['list', 'inspect', 'explain', 'doctor'].includes(action)
+        ? [`pairofcleats storage ${action} --json`] : []
+    })),
   entry('cache.clear', ['cache', 'clear'], 'tools/cache/clear-cache.js', 'Clear shared caches.', {
     helpGroup: 'Cache',
     supportTier: 'operator'

@@ -26,6 +26,12 @@ export async function runWorkspaceStatusCli() {
 
   const workspaceConfig = loadWorkspaceConfig(argv.workspace);
   const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: false });
+  const nextActions = manifest.repos.flatMap(repo => WORKSPACE_INDEX_MODES.map(mode => ({
+    repoId: repo.repoId, alias: repo.alias || null, mode,
+    state: repo.enabled === false ? 'disabled' : repo.indexes[mode]?.availabilityReason || 'missing-index-dir',
+    command: repo.enabled === false ? null : ['node', 'bin/pairofcleats.js', 'index', 'build', '--repo', repo.repoRootCanonical, '--mode', mode],
+    consequence: repo.enabled === false ? 'Excluded by workspace membership.' : 'Unavailable/incompatible members may make search partial; inspect per-repo diagnostics.'
+  })));
 
   if (argv.json) {
     console.log(JSON.stringify({
@@ -34,7 +40,8 @@ export async function runWorkspaceStatusCli() {
       manifestPath,
       repoSetId: manifest.repoSetId,
       manifestHash: manifest.manifestHash,
-      repos: manifest.repos
+      repos: manifest.repos,
+      nextActions
     }, null, 2));
     return;
   }
@@ -50,6 +57,9 @@ export async function runWorkspaceStatusCli() {
     console.error(`- ${label}`);
     console.error(`  root=${repo.repoRootCanonical}`);
     console.error(`  ${modeSummary}`);
+  }
+  for (const action of nextActions.filter(entry => entry.command && !['ready', 'available'].includes(entry.state))) {
+    console.error(`  next (${action.alias || action.repoId}/${action.mode}): ${action.command.map(value => JSON.stringify(value)).join(' ')}`);
   }
 }
 

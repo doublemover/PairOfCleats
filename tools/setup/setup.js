@@ -48,7 +48,7 @@ if (argv.plan || argv['apply-plan']) {
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024 * 1024) throw new Error('Setup plan must be a bounded regular JSON file.');
     const approved = JSON.parse(fs.readFileSync(planPath, 'utf8'));
     if (fs.realpathSync(approved.repoRoot) !== fs.realpathSync(root)) throw new Error('The selected --repo differs from the approved plan.');
-    payload = await applyFirstSearchPlan(approved);
+    payload = await applyFirstSearchPlan(approved, { jsonOutput });
   } else {
     payload = await createFirstSearchPlan({ repoRoot: root, profile: argv.profile, model: argv.model,
       backend: argv.backend, tools: String(argv.tools || '').split(',').map(value => value.trim()).filter(Boolean) });

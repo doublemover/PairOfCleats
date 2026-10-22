@@ -483,6 +483,12 @@ export const loadWorkspaceConfig = (workspacePath, {
     ]);
   }
 
+  return resolveWorkspaceConfig(parsed, { workspacePath: targetPath, platform });
+};
+
+/** Resolve an in-memory authoring preview through the same canonical validation. */
+export const resolveWorkspaceConfig = (parsed, { workspacePath, platform = process.platform } = {}) => {
+  const targetPath = path.resolve(workspacePath);
   if (!isPlainObject(parsed)) {
     throwWorkspaceIssues([
       createWorkspaceIssue(

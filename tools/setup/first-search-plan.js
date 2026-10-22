@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { modify, applyEdits } from 'jsonc-parser';
 import { parseJsoncText } from '../../src/shared/jsonc.js';
 import { mergeConfig } from '../../src/shared/config.js';
@@ -10,6 +10,8 @@ import { loadUserConfig, readShippedConfigSchema } from '../dict-utils/config.js
 import { getToolingConfig, resolveRepoCacheRootPath, resolveToolRoot } from '../shared/dict-utils.js';
 import { buildToolingReport, resolveToolsById, selectInstallPlan } from '../tooling/utils.js';
 import { runCommand } from '../shared/cli-utils.js';
+import { atomicWriteText } from '../../src/shared/io/atomic-write.js';
+import { createToolProvisioningPlan } from '../tooling/provisioning-plan.js';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
 const readOptional = file => {
@@ -67,7 +69,10 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
     configPath, configPatch: patch, languages: detected.languages,
     cacheRoot: resolveRepoCacheRootPath(repoRoot, effective),
     inputIdentity: { config: currentText === null ? null : hash(currentText), effective: hash(stableStringify(effective)),
-      runtime: process.version, executable: process.execPath, platform: process.platform, arch: process.arch },
+      runtime: process.version, executable: process.execPath, platform: process.platform, arch: process.arch,
+      setupInputs: ['package.json', 'package-lock.json', '.nvmrc', 'tools/setup/first-search-plan.js', 'tools/tooling/install.js']
+        .map(relative => [relative, hash(fs.readFileSync(path.join(toolRoot, relative)))]) },
+    prerequisites: tooling.map(tool => createToolProvisioningPlan({ tool, selection: selectInstallPlan(tool, 'cache', false) })),
     operations, readiness: 'not-probed',
     commands: { validate: ['node', 'bin/pairofcleats.js', 'index', 'validate', '--repo', repoRoot, '--mode', 'code'],
       search: ['node', 'bin/pairofcleats.js', 'search', '--repo', repoRoot, '--mode', 'code', '--backend', backend, '--top', '5', '--', '<query from your project>'] },
@@ -77,14 +82,13 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
 };
 
 /** Re-plan from supported choices, never execute commands supplied by a saved file. */
-export const applyFirstSearchPlan = async (approved, { execute = runCommand, signal = null } = {}) => {
+export const applyFirstSearchPlan = async (approved, { execute = runCommand, signal = null, jsonOutput = false } = {}) => {
   const current = await createFirstSearchPlan({ repoRoot: approved.repoRoot, ...approved.choices });
   if (approved.schemaVersion !== 1 || current.planId !== approved.planId) throw Object.assign(new Error('Setup plan is stale or changed. Generate and review a new plan.'), { code: 'ERR_SETUP_PLAN_STALE' });
   const lock = `${current.configPath}.setup-lock`;
   const lockFd = fs.openSync(lock, 'wx', 0o600);
   const outcome = { schemaVersion: 1, kind: 'setup-plan-result', planId: current.planId,
     repoRoot: current.repoRoot, completed: [], pending: current.operations.map(step => step.id), state: 'applying' };
-  let temporary = null;
   try {
     fs.writeFileSync(lockFd, JSON.stringify({ pid: process.pid, planId: current.planId }));
     const before = readOptional(current.configPath);
@@ -97,20 +101,16 @@ export const applyFirstSearchPlan = async (approved, { execute = runCommand, sig
       }
     };
     patchLeaves(current.configPatch);
-    temporary = `${current.configPath}.${randomUUID()}.tmp`;
-    fs.writeFileSync(temporary, next, { flag: 'wx', mode: 0o600 });
-    if (before === null) {
-      // Exclusive creation refuses a target introduced after planning.
-      fs.copyFileSync(temporary, current.configPath, fs.constants.COPYFILE_EXCL);
-    } else {
-      if (hash(readOptional(current.configPath)) !== current.inputIdentity.config) throw new Error('Target config changed while staging; re-plan.');
-      fs.renameSync(temporary, current.configPath);
-      temporary = null;
-    }
+    await atomicWriteText(current.configPath, next, { mkdir: false, mode: 0o600, createOnly: before === null,
+      beforeCommit: () => {
+        const latest = readOptional(current.configPath);
+        if ((latest === null ? null : hash(latest)) !== current.inputIdentity.config) throw new Error('Target config changed while staging; re-plan.');
+      } });
     outcome.completed.push('config');
     for (const step of current.operations) {
       if (signal?.aborted) { outcome.state = 'cancelled'; break; }
-      const result = await execute(step.command, step.args, { cwd: current.applicationRoot, stdio: 'inherit', env: process.env });
+      const result = await execute(step.command, step.args, { cwd: current.applicationRoot,
+        stdio: jsonOutput ? ['ignore', 'ignore', 'inherit'] : 'inherit', env: process.env });
       if (result.ok !== true) {
         outcome.state = 'blocked';
         outcome.failed = { id: step.id, status: result.status ?? null, signal: result.signal || null };
@@ -122,7 +122,6 @@ export const applyFirstSearchPlan = async (approved, { execute = runCommand, sig
     if (outcome.pending.length === 0) outcome.state = 'complete';
     return { ...outcome, commands: current.commands, qualification: 'Index validation completed only when listed; protocol/project/model inference readiness is not inferred.' };
   } finally {
-    if (temporary) fs.rmSync(temporary, { force: true });
     fs.closeSync(lockFd);
     fs.rmSync(lock, { force: true });
   }

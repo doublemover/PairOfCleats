@@ -39,6 +39,7 @@ const {
 } = await loadRuntimeModule('../src/retrieval/cli-args.js');
 const { resolveDispatchRuntimeEnv } = await loadRuntimeModule('./dispatch-runtime-env.js');
 const { readFlagValue } = await loadRuntimeModule('../src/shared/cli/argv.js');
+const { STORAGE_ACTIONS, STORAGE_OPTIONS } = await loadRuntimeModule('../tools/storage/options.js');
 const { isStrictDispatchEnvEnabled } = await loadRuntimeModule('../src/shared/env/runtime.js');
 
 const ROOT = checkoutInformationHandled ? null : resolveToolRoot();
@@ -309,10 +310,15 @@ function resolveCommand(primary, rest) {
   if (primary === 'workspace') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      failCli('workspace requires a subcommand: manifest, status, build, catalog', {
+      failCli('workspace requires a subcommand: init, add, validate, manifest, status, build, catalog', {
         code: ERROR_CODES.INVALID_REQUEST,
         showHelp: true
       });
+    }
+    if (['init', 'add', 'validate'].includes(sub)) {
+      const allowed = sub === 'validate' ? ['workspace', 'json'] : ['workspace', 'repo', 'alias', 'apply', 'json'];
+      validateArgs(rest, allowed, ['workspace', ...(sub === 'validate' ? [] : ['repo', 'alias'])]);
+      return { script: 'tools/workspace/author.js', extraArgs: ['--operation', sub], args: rest };
     }
     if (sub === 'manifest') {
       validateArgs(rest, ['workspace', 'json'], ['workspace']);
@@ -337,8 +343,23 @@ function resolveCommand(primary, rest) {
   if (primary === 'setup') {
     return { script: 'tools/setup/setup.js', extraArgs: [], args: rest };
   }
+  if (primary === 'checkout') {
+    const sub = rest.shift();
+    if (sub !== 'diagnose') failCli('checkout requires the diagnose subcommand', { code: ERROR_CODES.INVALID_REQUEST });
+    validateArgs(rest, ['json', 'prerequisites'], []);
+    return { script: 'tools/setup/checkout-diagnose.js', extraArgs: [], args: rest };
+  }
   if (primary === 'bootstrap') {
     return { script: 'tools/setup/bootstrap.js', extraArgs: [], args: rest };
+  }
+  if (primary === 'storage') {
+    const action = rest.shift();
+    if (!STORAGE_ACTIONS.includes(action)) failCli(`storage requires an action: ${STORAGE_ACTIONS.join(', ')}`, {
+      code: ERROR_CODES.INVALID_REQUEST, showHelp: true
+    });
+    const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(STORAGE_OPTIONS);
+    validateArgs(rest, optionNames, valueOptionNames);
+    return { script: 'tools/storage/cli.js', extraArgs: [action], args: rest };
   }
   if (primary === 'cache') {
     const sub = rest.shift();
@@ -349,7 +370,7 @@ function resolveCommand(primary, rest) {
       });
     }
     if (sub === 'clear') {
-      validateArgs(rest, ['all', 'force', 'cache-root'], ['cache-root']);
+      validateArgs(rest, ['all', 'force', 'cache-root', 'apply', 'plan', 'plan-id', 'json'], ['cache-root', 'plan', 'plan-id']);
       return { script: 'tools/cache/clear-cache.js', extraArgs: [], args: rest };
     }
     if (sub === 'gc') {
@@ -836,7 +857,7 @@ function resolveCommand(primary, rest) {
   if (primary === 'tooling') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      failCli('tooling requires a subcommand: doctor, detect, install, navigate, uninstall', {
+      failCli('tooling requires a subcommand: doctor, detect, install, lifecycle, navigate, uninstall', {
         code: ERROR_CODES.INVALID_REQUEST,
         showHelp: true
       });
@@ -859,6 +880,11 @@ function resolveCommand(primary, rest) {
       validateArgs(rest, ['repo', 'kind', 'symbol', 'file', 'top', 'json', 'source-hash', 'source-version', 'line', 'column', 'coordinate-unit', 'include-declaration'],
         ['repo', 'kind', 'symbol', 'file', 'top', 'source-hash', 'source-version', 'line', 'column', 'coordinate-unit', 'include-declaration']);
       return { script: 'tools/tooling/navigation.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'lifecycle') {
+      validateArgs(rest, ['repo', 'tool', 'operation', 'receipt', 'apply-plan', 'json'],
+        ['repo', 'tool', 'operation', 'receipt', 'apply-plan']);
+      return { script: 'tools/tooling/lifecycle.js', extraArgs: [], args: rest };
     }
     if (sub === 'uninstall') {
       validateArgs(rest, ['yes', 'dry-run', 'repo'], ['repo']);
@@ -1171,6 +1197,10 @@ function shouldSkipDispatchRuntimeEnvResolution(scriptPath, restArgs = []) {
   const normalized = String(scriptPath || '').trim().replace(/\\/g, '/');
   return normalized.startsWith('tools/config/')
     || normalized.startsWith('tools/cli/')
+    || normalized === 'tools/workspace/author.js'
+    || normalized === 'tools/setup/checkout-diagnose.js'
+    || normalized === 'tools/storage/cli.js'
+    || normalized === 'tools/cache/clear-cache.js'
     || (
       normalized === 'tools/mcp/cli-entry.js'
       && restArgs.some((arg) => isHelpCommand(arg) || isVersionCommand(arg))

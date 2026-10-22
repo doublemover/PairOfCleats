@@ -10,6 +10,7 @@ const { spawnSubprocess } = await import('../../src/shared/subprocess/runner.js'
 const { resolveRepoRootArg, getCacheRoot, resolveToolRoot } = await import('../shared/dict-utils.js');
 const { exitLikeCommandResult } = await import('../shared/cli-utils.js');
 const { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } = await import('./config.js');
+const { assertServiceIndexerSelection } = await import('./cli-contract.js');
 const {
   compactQueueState,
   describeQueueBackpressure,
@@ -408,9 +409,8 @@ const handleRepairQuarantine = async () => {
 const handleRepairPurge = async () => {
   const jobId = typeof argv.job === 'string' && argv.job.trim() ? argv.job.trim() : null;
   const purgeAll = argv.all === true;
-  if (!jobId && !purgeAll) {
-    exitWithCommandError('Provide --job <id> or --all for purge.');
-  }
+  try { assertServiceIndexerSelection({ command: 'purge', job: jobId, all: purgeAll }); }
+  catch (error) { exitWithCommandError(error.message); }
   const result = await purgeRepairJobs(queueDir, resolvedQueueName, {
     jobId,
     purgeAll,

@@ -15,6 +15,10 @@ import { ensureManagedGoSdk } from './install-go-sdk.js';
 import { applyManagedGoEnvironment, resolveManagedGoSdk } from '../../src/shared/managed-go.js';
 import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
+import { bindProvisioningCommand, createToolProvisioningPlan } from './provisioning-plan.js';
+import { buildToolInstallReceipt, writeToolInstallReceipt } from './install-receipts.js';
+import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
+import { planManagedChildStorage, prepareManagedChildStorage } from '../../src/shared/storage/child-environment.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats tooling install',
@@ -94,16 +98,22 @@ const isAllowedRequirementCommand = (command) => {
 for (const tool of tools) {
   const status = detectTool(tool);
   const verifiedPath = resolveVerifiedPath(status);
-  if (verifiedPath && !['gopls', 'sqls'].includes(tool.id)) {
-    results.push({
-      id: tool.id,
-      status: 'already-installed',
-      path: verifiedPath,
-      probe: status.probe || null
-    });
+  const selection = selectInstallPlan(tool, scope, allowFallback);
+  // Launch requirements are checked even when server bytes already exist.
+  const provisioning = createToolProvisioningPlan({ tool, selection: verifiedPath ? { ...selection, plan: null } : selection,
+    probe: argv['dry-run'] ? null : (command, args, options) => probeCommand(command, args, { ...options, cwd: installationCwd }),
+    isAllowed: isAllowedRequirementCommand });
+  const blockedPrerequisites = provisioning.steps.filter(step => ['missing', 'incompatible'].includes(step.state)
+    && step.id !== 'go');
+  if (blockedPrerequisites.length && !argv['dry-run']) {
+    results.push({ id: tool.id, status: 'missing-requirement', provisioning,
+      error: blockedPrerequisites.map(step => `${step.id}: ${step.reason || 'not ready'}`).join('; ') });
     continue;
   }
-  const selection = selectInstallPlan(tool, scope, allowFallback);
+  if (verifiedPath && !selection.plan) {
+    results.push({ id: tool.id, status: 'already-installed', path: verifiedPath, probe: status.probe || null, provisioning });
+    continue;
+  }
   if (!selection.plan) {
     results.push({
       id: tool.id,
@@ -225,11 +235,13 @@ for (const tool of tools) {
   }
   if (verifiedPath) {
     results.push({ id: tool.id, status: 'already-installed', path: verifiedPath, probe: status.probe || null,
+      provisioning,
       ...(goPrerequisite ? { prerequisite: goPrerequisite } : {}) });
     continue;
   }
-  actions.push({ id: tool.id, cmd: requires === 'go' && cmd === 'go' ? requirementCommand : cmd,
-    args, env, requires, ...(goPrerequisite ? { prerequisite: goPrerequisite } : {}),
+  const bound = bindProvisioningCommand({ ...selection.plan, cmd: requires && cmd === requires ? requirementCommand : cmd }, provisioning);
+  actions.push({ id: tool.id, cmd: bound.command,
+    args, env, requires, provisioning, ...(goPrerequisite ? { prerequisite: goPrerequisite } : {}),
     ...(minimumGoVersion ? { minimumGoVersion } : {}),
     scope: selection.scope, fallback: selection.fallback || false, docs: tool.docs || null });
 }
@@ -250,13 +262,14 @@ if (argv['dry-run']) {
 }
 
 for (const action of actions) {
-  if (action.requires === 'go' && !isAllowedRequirementCommand(action.cmd)) {
+  if (action.requires && !isAllowedRequirementCommand(action.cmd)) {
     results.push({ id: action.id, status: 'failed', error: 'Go installer command is unavailable or no longer authorized for this repository.',
       ...(action.prerequisite ? { prerequisite: action.prerequisite } : {}) });
     continue;
   }
   console.error(`[tooling-install] Installing ${action.id} (${action.scope})...`);
-  let env = action.env ? { ...process.env, ...action.env } : process.env;
+  const bound = bindProvisioningCommand({ cmd: action.cmd, args: action.args, env: action.env, requires: action.requires }, action.provisioning);
+  let env = bound.env;
   if (action.requires === 'go') {
     if (managedGoSdk && action.cmd === managedGoSdk.command) {
       env = applyManagedGoEnvironment(env, { toolingRoot: toolingConfig.dir, sdk: managedGoSdk });
@@ -266,6 +279,15 @@ for (const action of actions) {
     env = resolveNoProvisionToolingEnvironment(env, { cwd: installationCwd, command: action.cmd, providerId: 'go-sdk' });
     if (!/(?:^|\s)-p(?:=|\s)/.test(env.GOFLAGS || '')) env.GOFLAGS = `${env.GOFLAGS || ''} -p=1`.trim();
   }
+  const layout = resolveStorageLayout({ overrides: { tooling: toolingConfig.dir } });
+  const storagePlan = planManagedChildStorage({ baseEnv: env, layout, command: action.cmd,
+    family: action.requires === 'gem' ? 'ruby' : action.requires || null,
+    managed: action.scope === 'cache', toolId: action.id,
+    toolIdentity: action.provisioning.planId, projectIdentity: root });
+  action.storage = await prepareManagedChildStorage(storagePlan, {
+    authorizedRoots: Object.values(layout.descriptors).map(descriptor => descriptor.path)
+  });
+  env = storagePlan.env;
   const spawnOpts = {
     cwd: installationCwd,
     env,
@@ -309,6 +331,21 @@ for (const action of actions) {
       ...(action.prerequisite ? { prerequisite: action.prerequisite } : {}) });
 }
 
+for (const result of results) {
+  if (!['installed', 'already-installed'].includes(result.status) || !result.path) continue;
+  const tool = tools.find(entry => entry.id === result.id);
+  try {
+    // Explicit installer execution may persist evidence; detect/doctor never do.
+    fs.mkdirSync(toolingConfig.dir, { recursive: true });
+    const receipt = buildToolInstallReceipt({ tool, action: actions.find(entry => entry.id === result.id), result, toolingRoot: toolingConfig.dir });
+    result.receiptPath = writeToolInstallReceipt(toolingConfig.dir, receipt);
+    result.receiptId = receipt.receiptId;
+    result.verification = receipt.verification;
+  } catch (error) {
+    result.status = 'verification-failed';
+    result.error = 'Tool executable was observed, but durable install evidence could not be published: ' + error.message;
+  }
+}
 const readiness = buildToolInstallReadiness(results);
 const payload = { root, scope, allowFallback, actions, results, readiness };
 const hasFailedInstalls = readiness.state === 'blocked';

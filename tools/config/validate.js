@@ -7,15 +7,11 @@ import { resolveRepoConfigPath, resolveRepoRootArg, resolveToolRoot } from '../s
 import { emitJson } from '../shared/cli-utils.js';
 import { validateConfig } from '../../src/config/validate.js';
 import { explainEffectiveConfiguration, formatEffectiveConfiguration } from './effective.js';
+import { CONFIG_VALIDATE_OPTIONS } from './options.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats config validate',
-  options: {
-    json: { type: 'boolean', default: false },
-    repo: { type: 'string' },
-    config: { type: 'string' },
-    effective: { type: 'boolean', default: false }
-  }
+  options: CONFIG_VALIDATE_OPTIONS
 }).parse();
 
 const repoRoot = resolveRepoRootArg(argv.repo);
