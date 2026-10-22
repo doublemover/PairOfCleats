@@ -4,7 +4,7 @@ import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { ensureChunkCache, loadCachedChunks, resolveChunkCacheKey, resolvePersistentChunkCacheRoot, storeCachedChunks } from '../../../src/lang/tree-sitter/chunking/cache.js';
+import { ensureChunkCache, loadCachedChunks, resolveChunkCacheKey, resolvePersistentChunkCacheRoot, resolvePersistentChunkCachePaths, storeCachedChunks } from '../../../src/lang/tree-sitter/chunking/cache.js';
 import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-parser-memo-bounds-'));
@@ -14,10 +14,7 @@ const { cache, maxEntries } = ensureChunkCache(options);
 const keyFor = (key) => resolveChunkCacheKey({ ...options, treeSitterCacheKey: key }, 'javascript');
 const keys = Array.from({ length: 8 }, (_, id) => keyFor(`source-${id}`));
 const chunksFor = (id) => [{ start: id, end: id + 1, kind: 'function', name: `fn${id}`, meta: { label: `original-${id}` } }];
-const fileFor = (key) => {
-  const safe = key.replace(/[^a-zA-Z0-9._-]/g, '_');
-  return path.join(cacheRoot, safe.slice(0, 2), `${safe}.json`);
-};
+const fileFor = key => resolvePersistentChunkCachePaths(cacheRoot, key).canonical;
 const originalRead = fsSync.readFileSync;
 let reads = 0;
 fsSync.readFileSync = function (input, ...args) {

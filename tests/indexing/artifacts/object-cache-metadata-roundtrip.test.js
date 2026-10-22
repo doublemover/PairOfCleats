@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
-import { ensureChunkCache, resolveChunkCacheKey, resolvePersistentChunkCacheRoot, storeCachedChunks, loadCachedChunks } from '../../../src/lang/tree-sitter/chunking/cache.js';
+import { ensureChunkCache, resolveChunkCacheKey, resolvePersistentChunkCacheRoot, resolvePersistentChunkCachePaths, storeCachedChunks, loadCachedChunks } from '../../../src/lang/tree-sitter/chunking/cache.js';
 import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
 import { loadImportResolutionCache, saveImportResolutionCache } from '../../../src/index/build/import-resolution-cache.js';
 import { buildLspRequestCacheKey, loadLspRequestCache, persistLspRequestCache } from '../../../src/integrations/tooling/providers/lsp/hover-types/cache.js';
@@ -32,8 +32,7 @@ try {
   const { cache, maxEntries } = ensureChunkCache(options);
   const chunks = [{ start: 0, end: 12, text: 'const x = 1;', meta: { signature: 'x' } }];
   storeCachedChunks({ cache, maxEntries, key, chunks, cacheRoot });
-  const safeKey = key.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const chunkFile = path.join(cacheRoot, safeKey.slice(0, 2), `${safeKey}.json`);
+  const chunkFile = resolvePersistentChunkCachePaths(cacheRoot, key).canonical;
   const chunkPayload = await inspect(chunkFile, 'tree-sitter-chunks');
   for (const legacy of [false, true]) {
     if (legacy) await makeLegacy(chunkFile, chunkPayload);
