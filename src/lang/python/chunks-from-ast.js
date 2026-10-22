@@ -1,40 +1,5 @@
 import { buildLineIndex, offsetToLine } from './normalize.js';
-
-// CPython columns count UTF-8 bytes; published source ranges count UTF-16 units.
-// Cache a bounded column table only for requested non-ASCII lines. A zero table
-// entry marks the middle of a multibyte code point, never an admissible boundary.
-const createByteColumnResolver = (text, lineIndex) => {
-  const lines = new Map();
-  return (line, column = 0) => {
-    if (!Number.isSafeInteger(line) || line < 1 || line > lineIndex.length
-      || !Number.isSafeInteger(column) || column < 0) throw new RangeError('Invalid Python AST source coordinate.');
-    let info = lines.get(line);
-    if (!info) {
-      const start = lineIndex[line - 1];
-      let end = line < lineIndex.length ? lineIndex[line] - 1 : text.length;
-      if (end > start && text[end - 1] === '\r') end -= 1;
-      const source = text.slice(start, end), byteLength = Buffer.byteLength(source, 'utf8');
-      let columns = null;
-      if (byteLength !== source.length) {
-        columns = new Uint32Array(byteLength + 1);
-        columns[0] = 1;
-        let bytes = 0, units = 0;
-        for (const character of source) {
-          const code = character.codePointAt(0);
-          bytes += code <= 0x7f ? 1 : code <= 0x7ff ? 2 : code <= 0xffff ? 3 : 4;
-          units += character.length;
-          columns[bytes] = units + 1;
-        }
-      }
-      info = { start, byteLength, columns };
-      lines.set(line, info);
-    }
-    if (column > info.byteLength || info.columns && !info.columns[column]) {
-      throw new RangeError('Python AST column is outside the line or splits a UTF-8 code point.');
-    }
-    return info.start + (info.columns ? info.columns[column] - 1 : column);
-  };
-};
+import { createPythonByteColumnResolver } from './byte-columns.js';
 
 /**
  * Build chunk metadata from Python AST metadata.
@@ -46,7 +11,7 @@ const createByteColumnResolver = (text, lineIndex) => {
 export function buildPythonChunksFromAst(text, astData) {
   if (!astData || !Array.isArray(astData.defs) || !astData.defs.length) return null;
   const lineIndex = buildLineIndex(text);
-  const resolveByteColumn = createByteColumnResolver(text, lineIndex);
+  const resolveByteColumn = createPythonByteColumnResolver(text, lineIndex);
   const defs = astData.defs
     .filter((def) => Number.isFinite(def.startLine))
     .map((def) => ({
