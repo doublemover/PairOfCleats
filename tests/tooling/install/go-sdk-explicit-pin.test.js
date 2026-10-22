@@ -17,7 +17,8 @@ const bytes = Buffer.from('inert SDK contract fixture, never executed');
 const filename = `${version}.${target.os}-${target.arch}.${target.archiveType}`;
 const releases = [{ version, stable: true, files: [{ version, filename, ...target, kind: 'archive',
   size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }] }];
-const sdk = await ensureManagedGoSdk({ toolingRoot: dir, cwd: dir, dependencies: {
+const sdk = await ensureManagedGoSdk({ toolingRoot: dir, cwd: dir,
+  storageEstimate: { complete: true, writes: [{ destination: 'artifacts', requiredBytes: 1024 * 1024 }] }, dependencies: {
   download: async ({ url }) => ({ sourceUrl: url, body: url === GO_RELEASE_INDEX_URL
     ? Buffer.from(JSON.stringify(releases)) : bytes }),
   extract: async (_archive, destination) => {

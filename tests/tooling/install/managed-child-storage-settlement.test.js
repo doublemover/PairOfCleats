@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { resolveDeclaredInstallAdmission, runToolInstallChild } from '../../../tools/tooling/install-execution.js';
+import { bindDeclaredInstallAdmission, resolveDeclaredInstallAdmission, runToolInstallChild } from '../../../tools/tooling/install-execution.js';
 import { resolveStorageLayout } from '../../../src/shared/storage/layout.js';
 import { planManagedChildStorage } from '../../../src/shared/storage/child-environment.js';
 import { inspectStorageAccess } from '../../../src/shared/storage/access.js';
@@ -21,14 +21,21 @@ try {
   assert.equal(deferred.error.code, 'ERR_INSTALL_STORAGE_ESTIMATE_REQUIRED');
   assert.equal(missingEstimateSpawns, 0);
   await assert.rejects(fs.stat(plan.scratch), { code: 'ENOENT' });
-  assert.equal(resolveDeclaredInstallAdmission({ managedDescriptor: { archive: { bytes: 1024 } } }).requiredBytes, null,
+  assert.equal(resolveDeclaredInstallAdmission({ managedDescriptor: { archive: { bytes: 1024 } } }).writes, null,
     'archive length cannot stand in for expanded/build allocation');
-  const admission = resolveDeclaredInstallAdmission({ storageEstimate: { complete: true, peakAdditionalBytes: 1024,
-    minimumFreeBytes: 0, hardBytes: 1024 * 1024 } });
-  assert.equal(admission.requiredBytes, 1024);
-  assert.throws(() => resolveDeclaredInstallAdmission({ storageEstimate: { minimumFreeBytes: -1 } }), /nonnegative/);
+  const declared = resolveDeclaredInstallAdmission({ storageEstimate: { complete: true, writes: [
+    { destination: 'artifacts', requiredBytes: 1024 }, { environmentKey: 'npm_config_cache', requiredBytes: 256 },
+    { destination: 'scratch', requiredBytes: 64 }
+  ] } });
+  const admission = bindDeclaredInstallAdmission(declared, { storagePlan: plan, artifactRoot: layout.descriptors.tooling.path });
+  assert.ok(admission.writes.some(write => write.root === layout.descriptors.tooling.path && write.requiredBytes === 1024));
+  assert.equal(bindDeclaredInstallAdmission(resolveDeclaredInstallAdmission({ storageEstimate: { complete: true,
+    writes: [{ destination: 'scratch', requiredBytes: 64 }] } }), { storagePlan: plan, artifactRoot: layout.descriptors.tooling.path }), null,
+  'secondary scratch coverage cannot omit the actual installed artifact root');
+  assert.throws(() => resolveDeclaredInstallAdmission({ storageEstimate: { complete: true,
+    writes: [{ destination: 'artifacts', requiredBytes: 1, minimumFreeBytes: -1 }] } }), /nonnegative/);
   const normal = await runToolInstallChild({ command: 'fixture', args: [], options: {}, storagePlan: plan, layout,
-    admission,
+    admission, artifactRoot: layout.descriptors.tooling.path,
     spawn: async (_command, _args, options) => { options.onSpawn(); return { exitCode: 0, signal: null, stdout: '', stderr: '' }; } });
   assert.equal(normal.settlement.settled, true);
   const next = planManagedChildStorage({ baseEnv: {}, layout, family: 'npm', managed: true,
@@ -36,7 +43,8 @@ try {
   let pending;
   try {
     await runToolInstallChild({ command: 'fixture', args: [], options: {}, storagePlan: next, layout,
-      admission,
+      admission: bindDeclaredInstallAdmission(declared, { storagePlan: next, artifactRoot: layout.descriptors.tooling.path }),
+      artifactRoot: layout.descriptors.tooling.path,
       spawn: async (_command, _args, options) => {
         options.onSpawn();
         throw Object.assign(new Error('fixture teardown pending'), { cacheOwnershipPending: true,

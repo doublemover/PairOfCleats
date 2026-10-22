@@ -19,7 +19,7 @@ import { bindProvisioningCommand, createToolProvisioningPlan } from './provision
 import { buildToolInstallReceipt, writeToolInstallReceipt } from './install-receipts.js';
 import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 import { planManagedChildStorage } from '../../src/shared/storage/child-environment.js';
-import { resolveDeclaredInstallAdmission, runToolInstallChild } from './install-execution.js';
+import { bindDeclaredInstallAdmission, resolveDeclaredInstallAdmission, runToolInstallChild } from './install-execution.js';
 import { installPinnedManagedTool, validatePinnedInstallDescriptor } from './managed-install.js';
 
 const argv = createCli({
@@ -85,7 +85,7 @@ for (const tool of tools) {
   const storageAdmission = selection.plan ? resolveDeclaredInstallAdmission(selection.plan) : null;
   // Admission precedes prerequisite acquisition as well as the final package
   // child. An unknown package build cannot first download an unrelated SDK.
-  if (!verifiedPath && selection.plan && selection.scope === 'cache' && storageAdmission.requiredBytes === null) {
+  if (!verifiedPath && selection.plan && selection.scope === 'cache' && storageAdmission.state !== 'estimate-declared') {
     results.push({ id: tool.id, status: 'missing-requirement', reason: 'storage-estimate-unavailable', storageAdmission,
       error: 'Selected managed recipe has no complete artifact/build allocation estimate; writes are deferred without cleanup.' });
     continue;
@@ -211,7 +211,8 @@ for (const tool of tools) {
       } else {
         try {
           if (goBootstrapFailure) throw goBootstrapFailure;
-          managedGoSdk = await ensureManagedGoSdk({ toolingRoot: path.resolve(toolingConfig.dir), cwd: installationCwd });
+          managedGoSdk = await ensureManagedGoSdk({ toolingRoot: path.resolve(toolingConfig.dir), cwd: installationCwd,
+            storageEstimate: selection.plan.goSdkStorageEstimate });
           if (minimumGoVersion && !isGoSdkVersionAtLeast(managedGoSdk.version, minimumGoVersion)) {
             throw Object.assign(new Error(`The verified SDK ${managedGoSdk.version} does not meet ${minimumGoVersion}.`),
               { reason: 'unsupported_go_sdk_version' });
@@ -300,6 +301,8 @@ for (const action of actions) {
     managed: action.scope === 'cache', toolId: action.id,
     toolIdentity: action.provisioning.planId, projectIdentity: root });
   env = storagePlan.env;
+  const admission = action.scope === 'cache' ? bindDeclaredInstallAdmission(action.storageAdmission,
+    { storagePlan, artifactRoot: path.resolve(toolingConfig.dir) }) : null;
   const spawnOpts = {
     cwd: installationCwd,
     env,
@@ -308,7 +311,7 @@ for (const action of actions) {
     stdio: argv.json ? ['inherit', 'ignore', 'inherit'] : 'inherit'
   };
   const result = await runToolInstallChild({ command: action.cmd, args: action.args,
-    options: spawnOpts, storagePlan, layout, admission: action.storageAdmission });
+    options: spawnOpts, storagePlan, layout, artifactRoot: path.resolve(toolingConfig.dir), admission });
   action.storage = result.storage;
   if (typeof result.signal === 'string' && result.signal.trim()) {
     exitLikeCommandResult({ status: null, signal: result.signal });

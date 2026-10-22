@@ -9,6 +9,7 @@ import {
 import { extractArchive } from '../shared/archive-extraction.js';
 import { computeSha256, createInstallError, downloadToBuffer } from './install-shared.js';
 import { verifyInstallerRequirementProbe } from './install-requirements.js';
+import { runInstallWithStorageAdmission } from './install-storage.js';
 
 export const GO_SDK_ARCHIVE_LIMITS = Object.freeze({
   maxBytes: 512 * 1024 * 1024, maxEntryBytes: 64 * 1024 * 1024, maxEntries: 50_000
@@ -83,7 +84,7 @@ const checkSdkLayout = async (goRoot, archive) => {
  * No fetched checkout scripts, package-manager elevation or global PATH writes.
  * Dependencies support inert fixtures; production URLs and provenance are fixed.
  */
-export const ensureManagedGoSdk = async ({ toolingRoot, cwd, baseEnv = process.env,
+const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env,
   platform = process.platform, arch = process.arch, version = '', timeoutMs = 120_000,
   dependencies = {} } = {}) => {
   const target = resolveGoSdkTarget({ platform, arch });
@@ -166,4 +167,14 @@ export const ensureManagedGoSdk = async ({ toolingRoot, cwd, baseEnv = process.e
       await fs.rm(transaction, { recursive: true, force: true });
     }
   }
+};
+
+export const ensureManagedGoSdk = async (options = {}) => {
+  if (!resolveGoSdkTarget({ platform: options.platform || process.platform, arch: options.arch || process.arch })) throw createInstallError('go_sdk_unsupported_target', 'No portable Go SDK recipe for this platform/architecture.');
+  if (!options.toolingRoot || !path.isAbsolute(options.toolingRoot)) throw createInstallError('go_sdk_cache_path_invalid', 'Managed Go SDK installation requires an absolute tooling directory.');
+  const cached = resolveManagedGoSdk(options.toolingRoot, { platform: options.platform || process.platform, arch: options.arch || process.arch });
+  if (cached && (!options.version || cached.version === options.version)) return { ...cached, reused: true };
+  const publication = await runInstallWithStorageAdmission({ toolingRoot: options.toolingRoot,
+    storageEstimate: options.storageEstimate, scope: 'managed-go-sdk-publication' }, () => ensureManagedGoSdkOwned(options));
+  return publication.value;
 };

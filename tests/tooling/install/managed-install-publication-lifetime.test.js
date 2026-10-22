@@ -19,6 +19,7 @@ try {
     let downloads = 0;
     const descriptor = version => ({ schemaVersion: 1, toolId: 'fixture-tool', recipeId: 'fixture-archive', version,
       platform: process.platform, arch: process.arch, archive: { url: `https://official.example.test/tool-${version}.zip`, type: 'zip', bytes: archive.length, sha256: checksum },
+      storageEstimate: { complete: true, writes: [{ destination: 'artifacts', requiredBytes: 1024 * 1024 }] },
       root: 'package', command: 'bin/tool', args: [], requiredFiles: ['bin/tool', 'lib/data'] });
     const dependencies = {
       approvedOrigins: ['https://official.example.test'],

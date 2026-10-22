@@ -11,6 +11,7 @@ import { stableStringify } from '../../src/shared/stable-json.js';
 import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 import { extractArchive } from '../shared/archive-extraction.js';
 import { computeSha256, downloadToBuffer } from './install-shared.js';
+import { runInstallWithStorageAdmission } from './install-storage.js';
 
 export const MANAGED_INSTALL_VERSION = 1;
 const MAX_MANIFEST_BYTES = 8 * 1024 * 1024;
@@ -163,7 +164,7 @@ export const inspectManagedInstallation = async ({ toolingRoot, toolId, descript
 };
 
 /** Explicit selected provisioning only. Prior generations and unowned assets are never adopted. */
-export const installPinnedManagedTool = async ({ toolingRoot, descriptor, approvedOrigins,
+const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approvedOrigins,
   verify, repair = false, signal = null, download = downloadToBuffer, extract = extractArchive, onProgress = () => {} } = {}) => {
   const pinned = validatePinnedInstallDescriptor(descriptor, { approvedOrigins });
   if (typeof verify !== 'function') throw new Error('The canonical recipe must provide executable/runtime/capability verification.');
@@ -343,6 +344,15 @@ export const installPinnedManagedTool = async ({ toolingRoot, descriptor, approv
       }
     }
   }
+};
+
+export const installPinnedManagedTool = async options => {
+  const pinned = validatePinnedInstallDescriptor(options.descriptor, { approvedOrigins: options.approvedOrigins });
+  const selected = await inspectManagedInstallation({ toolingRoot: options.toolingRoot, toolId: pinned.toolId, descriptorId: pinned.descriptorId });
+  if (selected.ok) return installPinnedManagedToolOwned(options);
+  const publication = await runInstallWithStorageAdmission({ toolingRoot: options.toolingRoot,
+    storageEstimate: options.descriptor.storageEstimate, scope: 'managed-tool-archive-publication' }, () => installPinnedManagedToolOwned(options));
+  return publication.value;
 };
 
 /** Consumers pin the exact selected generation until all owned children settle. */

@@ -78,7 +78,8 @@ try {
   assert.throws(() => selectOfficialGoSdkArchive(traversal, linux), /metadata/);
 
   const toolingRoot = path.join(root, 'shared tooling');
-  const sdk = await ensureManagedGoSdk({ toolingRoot, cwd: root, baseEnv: {},
+  const storageEstimate = { complete: true, writes: [{ destination: 'artifacts', requiredBytes: 1024 * 1024 }] };
+  const sdk = await ensureManagedGoSdk({ toolingRoot, storageEstimate, cwd: root, baseEnv: {},
     platform: 'linux', arch: 'x64', dependencies: createDependencies() });
   assert.equal(downloads, 2);
   assert.equal(extracts, 1);
@@ -137,7 +138,7 @@ try {
   const beforeExtracts = extracts;
   const beforeProbes = probes;
   const corruptRoot = path.join(root, 'bad-checksum');
-  await assert.rejects(ensureManagedGoSdk({ toolingRoot: corruptRoot, cwd: root, platform: 'linux', arch: 'x64',
+  await assert.rejects(ensureManagedGoSdk({ toolingRoot: corruptRoot, storageEstimate, cwd: root, platform: 'linux', arch: 'x64',
     dependencies: createDependencies({ download: async (request) => ({ sourceUrl: request.url,
       body: request.url === GO_RELEASE_INDEX_URL ? Buffer.from(JSON.stringify(releases)) : Buffer.from('bad') }) }) }),
   (error) => error.reason === 'go_sdk_checksum_mismatch');
@@ -146,7 +147,7 @@ try {
   assert.deepEqual(await fs.readdir(path.join(corruptRoot, 'sdk/go')), []);
 
   const probeRoot = path.join(root, 'bad-probe');
-  await assert.rejects(ensureManagedGoSdk({ toolingRoot: probeRoot, cwd: root, platform: 'linux', arch: 'x64',
+  await assert.rejects(ensureManagedGoSdk({ toolingRoot: probeRoot, storageEstimate, cwd: root, platform: 'linux', arch: 'x64',
     dependencies: createDependencies({ probe: async () => ({ ok: true, stdout: 'go version go1.26.8 linux/amd64' }) }) }),
   (error) => error.reason === 'go_sdk_probe_failed');
   assert.deepEqual(await fs.readdir(path.join(probeRoot, 'sdk/go')), []);
@@ -158,7 +159,7 @@ try {
   assert.ok(resolveManagedGoSdk(toolingRoot, { platform: 'linux', arch: 'x64' }));
   await fs.writeFile(sdk.command, Buffer.from('changed SDK artifact'));
   assert.equal(resolveManagedGoSdk(toolingRoot, { platform: 'linux', arch: 'x64' }), null);
-  await assert.rejects(ensureManagedGoSdk({ toolingRoot, cwd: root, platform: 'linux', arch: 'x64',
+  await assert.rejects(ensureManagedGoSdk({ toolingRoot, storageEstimate, cwd: root, platform: 'linux', arch: 'x64',
     dependencies: { download: () => { throw new Error('unverified cache must be preserved'); } } }),
   (error) => error.reason === 'go_sdk_cache_unverified');
 } finally {

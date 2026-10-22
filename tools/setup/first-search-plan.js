@@ -73,7 +73,7 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
     const selected = selectInstallPlan(tool, 'cache', false);
     if (!selected.plan) blockers.push({ code: 'selected-tool-recipe-unavailable', toolId: tool.id,
       nextAction: tool.provisioningBlocker || 'Select a qualified cache-scoped recipe for this tool/platform before applying.' });
-    else if (resolveDeclaredInstallAdmission(selected.plan).requiredBytes === null) blockers.push({ code: 'selected-tool-storage-estimate-unavailable', toolId: tool.id,
+    else if (resolveDeclaredInstallAdmission(selected.plan).state !== 'estimate-declared') blockers.push({ code: 'selected-tool-storage-estimate-unavailable', toolId: tool.id,
       nextAction: 'The canonical recipe must declare complete artifact/build peak allocation before managed writes can be admitted.' });
   }
   for (const prerequisite of prerequisitePlans) for (const step of prerequisite.steps) {
@@ -110,7 +110,8 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
     inputIdentity: { config: currentText === null ? null : hash(currentText), effective: hash(stableStringify(effective)),
       runtime: process.version, executable: process.execPath, platform: process.platform, arch: process.arch,
       setupInputs: ['package.json', 'package-lock.json', '.nvmrc', 'docs/config/schema.json', 'tools/setup/first-search-plan.js',
-        'tools/setup/model-readiness.js', 'tools/dict-utils/config.js', 'tools/tooling/install.js', 'tools/tooling/utils.js', 'tools/tooling/provisioning-plan.js']
+        'tools/setup/model-readiness.js', 'tools/dict-utils/config.js', 'tools/tooling/install.js', 'tools/tooling/utils.js', 'tools/tooling/provisioning-plan.js',
+        'tools/tooling/install-execution.js', 'tools/tooling/install-storage.js', 'tools/tooling/managed-install.js', 'tools/tooling/install-go-sdk.js']
         .map(relative => [relative, hash(fs.readFileSync(path.join(toolRoot, relative)))]) },
     prerequisites: prerequisitePlans,
     operations, readiness: 'not-probed',
