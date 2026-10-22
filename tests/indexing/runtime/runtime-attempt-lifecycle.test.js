@@ -72,9 +72,14 @@ try {
   await assert.rejects(failing.getChunkEmbedding('blocked result'), { code: 'ENOSPC' });
   assert.equal(failing.getEmbeddingObservation().state, 'failed');
   let observedDims = 7;
+  const modelRoot = path.join(dir, 'models/fixture/recording');
+  await fs.mkdir(path.join(modelRoot, 'onnx'), { recursive: true });
+  await fs.writeFile(path.join(modelRoot, 'onnx/model_quantized.onnx'), 'recording graph bytes');
+  await fs.writeFile(path.join(modelRoot, 'tokenizer.json'), '{}');
+  const recordingConfig = { models: { id: 'fixture/recording', dir: path.join(dir, 'models') } };
   __setAdapterFactoryForTests(() => ({ provider: 'xenova', embedOne: async () => new Float32Array(observedDims), embedderPromise: null }));
   try {
-    const unknownDims = await resolveEmbeddingRuntime({ rootDir: repo, userConfig: {}, indexingConfig: { embeddings: { provider: 'xenova', mode: 'inline' } }, envConfig: {}, argv: {}, cpuConcurrency: 1 });
+    const unknownDims = await resolveEmbeddingRuntime({ rootDir: repo, userConfig: recordingConfig, indexingConfig: { embeddings: { provider: 'xenova', mode: 'inline' } }, envConfig: {}, argv: {}, cpuConcurrency: 1 });
     const selectedKey = unknownDims.embeddingIdentityKey;
     assert.equal(unknownDims.embeddingIdentity.dims, null);
     assert.equal((await unknownDims.getChunkEmbedding('undeclared dimensions')).length, 7);
@@ -93,7 +98,7 @@ try {
   }));
   try {
     const failures = [];
-    const fallback = await resolveEmbeddingRuntime({ rootDir: repo, userConfig: {}, indexingConfig: { embeddings: { provider: 'onnx', mode: 'inline' } }, envConfig: {}, argv: { dims: 8 }, cpuConcurrency: 1,
+    const fallback = await resolveEmbeddingRuntime({ rootDir: repo, userConfig: recordingConfig, indexingConfig: { embeddings: { provider: 'onnx', mode: 'inline' } }, envConfig: {}, argv: { dims: 8 }, cpuConcurrency: 1,
       onEmbeddingObservation: async (record) => failures.push(structuredClone(record)) });
     const signatureIdentityBeforeInference = fallback.embeddingIdentityKey;
     let published = 0;

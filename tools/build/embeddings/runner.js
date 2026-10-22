@@ -24,6 +24,7 @@ import { readTextFile, readTextFileWithHash } from '../../../src/shared/encoding
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { writeDenseVectorArtifacts } from '../../../src/shared/dense-vector-artifacts.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
+import { createCrashEvidenceOwner } from '../../../src/index/build/crash-evidence.js';
 import { resolveHnswPaths, resolveHnswTarget } from '../../../src/shared/hnsw.js';
 import { normalizeLanceDbConfig, resolveLanceDbTarget } from '../../../src/shared/lancedb.js';
 import { DEFAULT_STUB_DIMS, resolveStubDims } from '../../../src/shared/embedding.js';
@@ -1263,6 +1264,17 @@ export async function runBuildEmbeddingsWithConfig(config) {
   try { return await runBuildEmbeddingsImpl(config, value => { receipts = value; }, value => { cleanup = value; }); }
   catch (error) {
     primaryFailure = error;
+    if (!error.diagnosticEvidence) {
+      try {
+        const context = receipts?.diagnosticContext?.(error.mode || null) || {};
+        const evidence = createCrashEvidenceOwner({ repoCacheRoot: config.repoCacheRoot || getRepoCacheRoot(config.root, config.userConfig),
+          buildId: config.executionPlan?.buildId || null, mode: error.mode || null, stage: 'stage3', ...context });
+        error.diagnosticEvidence = evidence.writeTerminal({ message: error.message, stack: error.stack, code: error.code }, { phase: 'stage3:boundary' });
+      } catch (evidenceError) {
+        error.diagnosticEvidence = { written: false, evidencePath: null,
+          writeError: { code: evidenceError.code || 'ERR_CRASH_EVIDENCE_WRITE', message: evidenceError.message } };
+      }
+    }
     try { await receipts?.fail(error); } catch { /* Preserve the original failure. */ }
     throw error;
   } finally {
@@ -1647,10 +1659,22 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
   const crashLogger = await createCrashLogger({
     repoCacheRoot,
     enabled: true,
+    ...runtimeReceipts.diagnosticContext(),
     log
   });
   crashLogger.updatePhase('stage3:init');
   let embedder;
+  let cleanupScheduler = null;
+  onCleanup(async () => {
+    try { await cleanupScheduler?.shutdown?.({ awaitRunning: true, timeoutMs: 5000 }); }
+    finally {
+      try { await embedder?.dispose?.(); }
+      finally {
+        try { await crashLogger.close?.(); }
+        finally { finalize(); }
+      }
+    }
+  });
   try {
     embedder = createEmbedder({
       rootDir: root,
@@ -1665,7 +1689,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
       modelArtifact
     });
   } catch (err) {
-    crashLogger.logError({
+    err.diagnosticEvidence = crashLogger.logError({
       phase: 'stage3:init',
       stage: 'embedder',
       message: err?.message || String(err),
@@ -1674,14 +1698,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
     try { await runtimeReceipts.fail(err); } catch { /* Preserve adapter construction failure. */ }
     throw err;
   }
-  let cleanupScheduler = null;
-  onCleanup(async () => {
-    try { await cleanupScheduler?.shutdown?.({ awaitRunning: true, timeoutMs: 5000 }); }
-    finally {
-      try { await embedder?.dispose?.(); }
-      finally { finalize(); }
-    }
-  });
   const getChunkEmbeddings = async (texts) => {
     if (!Array.isArray(texts) || !texts.length) return [];
     await runtimeReceipts.loading(activeReceiptMode);
@@ -1707,7 +1723,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
       }
       cacheDims = probeDims;
     } catch (err) {
-      crashLogger.logError({
+      err.diagnosticEvidence = crashLogger.logError({
         phase: 'stage3:init',
         stage: 'embedder-probe',
         message: err?.message || String(err),
@@ -2899,7 +2915,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
               continue;
             }
             const embedCode = isVectorLike(fileCodeEmbeds[i]) ? fileCodeEmbeds[i] : [];
-            const embedDoc = isVectorLike(docVectorsRaw[i]) ? docVectorsRaw[i] : zeroVec;
+            const embedDoc = isVectorLike(docVectorsRaw[i]) ? docVectorsRaw[i] : [];
             const quantized = buildQuantizedVectors({
               codeVector: embedCode,
               docVector: embedDoc,
@@ -4230,7 +4246,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
     return { modes, scheduler: scheduler?.stats?.(), writer: writerStatsByMode };
   } catch (err) {
     try { await runtimeReceipts.fail(err); } catch { /* Preserve the original failure. */ }
-    crashLogger.logError({
+    err.diagnosticEvidence = crashLogger.logError({
       phase: 'stage3',
       stage: 'embeddings',
       message: err?.message || String(err),

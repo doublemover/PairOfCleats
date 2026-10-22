@@ -7,6 +7,7 @@ export {
   loadDenseVectorBinaryFromMetaAsync,
   loadDenseVectorBinaryFromMetaSync,
   resolveDenseVectorBinaryArtifact,
+  resolveDenseVectorBinaryPayloadPath,
   writeDenseVectorBinaryFile
 } from './dense-vector-binary.js';
 export {
@@ -15,6 +16,7 @@ export {
   normalizeDenseVectorMeta
 } from './dense-vector-meta.js';
 import { writeDenseVectorBinaryFile } from './dense-vector-binary.js';
+import { buildDenseVectorValidity } from './dense-vector-validity.js';
 
 /**
  * Write dense-vector artifacts in JSONL-sharded and optional binary form.
@@ -40,6 +42,7 @@ export const writeDenseVectorArtifacts = async ({
   shardMaxBytes = 8 * 1024 * 1024,
   writeBinary = false
 }) => {
+  vectorFields = { ...vectorFields, validity: buildDenseVectorValidity(vectors) };
   const rowIterable = {
     [Symbol.iterator]: function* iterateRows() {
       for (let i = 0; i < vectors.length; i += 1) {

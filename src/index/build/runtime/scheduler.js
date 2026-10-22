@@ -3,6 +3,8 @@ import {
   coercePositiveInt,
   coerceUnitFraction
 } from '../../../shared/number-coerce.js';
+import { stableStringify } from '../../../shared/stable-json.js';
+import { sha1 } from '../../../shared/hash.js';
 
 /**
  * Normalize permissive boolean input used by CLI/env flags.
@@ -499,7 +501,13 @@ export const resolveSchedulerConfig = ({
     fallback: true
   });
 
-  const autoTuneProfileState = autoTuneProfile && typeof autoTuneProfile === 'object'
+  const resourceIdentity = sha1(stableStringify({ cpu: defaultCpu, io: defaultIo,
+    totalMemBytes: Number.isFinite(totalMemBytes) ? totalMemBytes : null, memoryTokens: defaultMem,
+    lowResourceMode, schedulerConfig }));
+  const profileAgeMs = Date.now() - Date.parse(autoTuneProfile?.generatedAt || '');
+  const profileEligible = autoTuneProfile?.version === 2 && autoTuneProfile.resourceIdentity === resourceIdentity
+    && Number.isFinite(profileAgeMs) && profileAgeMs >= 0 && profileAgeMs <= 7 * 24 * 60 * 60 * 1000;
+  const autoTuneProfileState = profileEligible && autoTuneProfile && typeof autoTuneProfile === 'object'
     ? autoTuneProfile
     : null;
   const autoTuneConfig = schedulerConfig?.autoTune && typeof schedulerConfig.autoTune === 'object'
@@ -597,6 +605,7 @@ export const resolveSchedulerConfig = ({
 
   return {
     enabled,
+    resourceIdentity,
     lowResourceMode,
     cpuTokens: Math.max(1, cpuTokens || 1),
     ioTokens: Math.max(1, ioTokens || 1),
@@ -617,6 +626,8 @@ export const resolveSchedulerConfig = ({
     adaptiveSurfaces,
     autoTune: {
       enabled: autoTuneEnabled,
+      profileEligible,
+      profileReason: profileEligible ? 'matching-resource-envelope' : autoTuneProfile ? 'stale-or-mismatched-resource-envelope' : 'absent',
       sourceBuildId: typeof autoTuneProfileState?.sourceBuildId === 'string'
         ? autoTuneProfileState.sourceBuildId
         : null

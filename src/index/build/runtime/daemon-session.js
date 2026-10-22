@@ -18,6 +18,7 @@ const DEFAULT_DAEMON_HEALTH = Object.freeze({
 });
 
 const daemonSessions = new Map();
+const retiredDaemonSessions = new Set();
 
 /**
  * Return current timestamp in ISO-8601 format.
@@ -139,6 +140,9 @@ const trimDaemonSessions = () => {
     const oldest = daemonSessions.entries().next().value;
     if (!oldest) return;
     daemonSessions.delete(oldest[0]);
+    retiredDaemonSessions.add(oldest[1]);
+    clearRuntimeDaemonWarmCaches(oldest[1]);
+    if (!oldest[1].embeddingLeaseRetirements?.size && !oldest[1].embeddingLeaseErrors?.length) retiredDaemonSessions.delete(oldest[1]);
   }
 };
 
@@ -166,13 +170,45 @@ const trimMapLru = (cache, maxEntries) => {
  * @param {number} maxEntries
  * @returns {void}
  */
-const trimSetLru = (cache, maxEntries) => {
+const trimSetLru = (cache, maxEntries, onEvict = null) => {
   if (!(cache instanceof Set)) return;
   const capped = toPositiveInt(maxEntries, 1);
   while (cache.size > capped) {
     const oldest = cache.values().next().value;
     if (oldest === undefined) return;
     cache.delete(oldest);
+    onEvict?.(oldest);
+  }
+};
+
+const retireEmbeddingLease = (session, key) => {
+  const lease = session.embeddingWarmLeases?.get(key);
+  if (!lease) return;
+  session.embeddingWarmLeases.delete(key);
+  session.embeddingLeaseRetirements ||= new Set();
+  session.embeddingLeaseErrors ||= [];
+  const retirement = Promise.resolve().then(() => lease.dispose?.());
+  session.embeddingLeaseRetirements.add(retirement);
+  retirement.then(() => {
+    session.embeddingLeaseRetirements.delete(retirement);
+    if (!session.embeddingLeaseRetirements.size && !session.embeddingLeaseErrors.length) retiredDaemonSessions.delete(session);
+  }, error => {
+    session.embeddingLeaseRetirements.delete(retirement);
+    session.embeddingLeaseErrors.push(error);
+  });
+};
+const trimEmbeddingWarmSet = (session, warmSet, maxEntries) => (
+  trimSetLru(warmSet, maxEntries, key => retireEmbeddingLease(session, key))
+);
+
+/** Join deterministic lease releases scheduled by eviction or recycling. */
+export const drainDaemonEmbeddingLeases = async (session) => {
+  if (!session) return;
+  while (session.embeddingLeaseRetirements?.size) {
+    await Promise.allSettled([...session.embeddingLeaseRetirements]);
+  }
+  if (session.embeddingLeaseErrors?.length) {
+    throw new AggregateError(session.embeddingLeaseErrors.splice(0), 'Daemon embedding lease disposal failed.');
   }
 };
 
@@ -233,7 +269,8 @@ const clearRuntimeDaemonWarmCaches = (session) => {
   if (!session || typeof session !== 'object') return;
   getDaemonDictionaryCache(session)?.clear();
   getDaemonTreeSitterCache(session)?.clear();
-  getDaemonEmbeddingWarmSet(session)?.clear();
+  for (const key of session.embeddingWarmLeases?.keys() || []) retireEmbeddingLease(session, key);
+  session.embeddingWarmKeys?.clear();
 };
 
 /**
@@ -291,7 +328,7 @@ export const probeRuntimeDaemonSessionHealth = (session, { force = false } = {})
   const embeddingWarmSet = getDaemonEmbeddingWarmSet(session);
   trimMapLru(dictCache, health.maxDictionaryEntries);
   trimMapLru(treeCache, health.maxTreeSitterEntries);
-  trimSetLru(embeddingWarmSet, health.maxEmbeddingWarmEntries);
+  trimEmbeddingWarmSet(session, embeddingWarmSet, health.maxEmbeddingWarmEntries);
   const reasons = [];
   if (
     health.maxJobsBeforeRecycle > 0
@@ -388,7 +425,10 @@ export const acquireRuntimeDaemonSession = ({
     health: normalizeDaemonHealthConfig(health),
     dictCache: new Map(),
     treeSitterPreloadCache: new Map(),
-    embeddingWarmKeys: new Set()
+    embeddingWarmKeys: new Set(),
+    embeddingWarmLeases: new Map(),
+    embeddingLeaseRetirements: new Set(),
+    embeddingLeaseErrors: []
   };
   daemonSessions.set(key, session);
   trimDaemonSessions();
@@ -466,7 +506,7 @@ export const getDaemonEmbeddingWarmSet = (session) => {
     session.embeddingWarmKeys = new Set();
   }
   const health = ensureHealthConfig(session);
-  trimSetLru(session.embeddingWarmKeys, health.maxEmbeddingWarmEntries);
+  trimEmbeddingWarmSet(session, session.embeddingWarmKeys, health.maxEmbeddingWarmEntries);
   return session.embeddingWarmKeys;
 };
 
@@ -559,16 +599,43 @@ export const hasDaemonEmbeddingWarmKey = (session, key) => {
  * @param {string} key
  * @returns {void}
  */
-export const addDaemonEmbeddingWarmKey = (session, key) => {
+export const addDaemonEmbeddingWarmKey = (session, key, lease = null) => {
   const warmSet = getDaemonEmbeddingWarmSet(session);
   if (!warmSet || !key) return;
+  if (lease) {
+    session.embeddingWarmLeases ||= new Map();
+    if (session.embeddingWarmLeases.get(key) !== lease) retireEmbeddingLease(session, key);
+    session.embeddingWarmLeases.set(key, lease);
+  }
   warmSet.delete(key);
   warmSet.add(key);
-  trimSetLru(warmSet, ensureHealthConfig(session).maxEmbeddingWarmEntries);
+  trimEmbeddingWarmSet(session, warmSet, ensureHealthConfig(session).maxEmbeddingWarmEntries);
+};
+
+export const removeDaemonEmbeddingWarmKey = async (session, key, expectedLease = null) => {
+  if (!session || (expectedLease && session.embeddingWarmLeases?.get(key) !== expectedLease)) return;
+  session.embeddingWarmKeys?.delete(key);
+  retireEmbeddingLease(session, key);
+  await drainDaemonEmbeddingLeases(session);
+};
+
+export const closeRuntimeDaemonSession = async (session) => {
+  if (!session) return;
+  if (daemonSessions.get(session.key) === session) daemonSessions.delete(session.key);
+  clearRuntimeDaemonWarmCaches(session);
+  await drainDaemonEmbeddingLeases(session);
+  retiredDaemonSessions.delete(session);
+};
+
+export const disposeRuntimeDaemonSessions = async () => {
+  const sessions = new Set([...daemonSessions.values(), ...retiredDaemonSessions]);
+  const results = await Promise.allSettled([...sessions].map(closeRuntimeDaemonSession));
+  const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
+  if (errors.length) throw new AggregateError(errors, 'Daemon session shutdown failed.');
 };
 
 export const __testRuntimeDaemonSessions = Object.freeze({
-  reset: () => daemonSessions.clear(),
+  reset: () => disposeRuntimeDaemonSessions(),
   getSize: () => daemonSessions.size,
   normalizeDaemonHealthConfig,
   probeRuntimeDaemonSessionHealth

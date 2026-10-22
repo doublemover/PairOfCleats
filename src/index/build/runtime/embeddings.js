@@ -1,4 +1,4 @@
-import { resolveEmbeddingArtifactIdentity } from '../../../shared/embedding-artifact-identity.js';
+import { embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from '../../../shared/embedding-artifact-identity.js';
 import fs from 'node:fs/promises';
 import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
 import { DEFAULT_MODEL_ID, getModelConfig } from '../../../shared/dict-utils.js';
@@ -90,7 +90,9 @@ export const resolveEmbeddingRuntime = async ({
   const modelConfig = getModelConfig(rootDir, userConfig);
   const modelId = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
   const modelProfile = resolveEmbeddingModelProfile(modelId, embeddingsConfig.embeddinggemma2);
-  validateEmbeddingModelProfile(modelProfile, { provider: embeddingProvider, normalize: embeddingNormalize });
+  if (embeddingEnabled) {
+    validateEmbeddingModelProfile(modelProfile, { provider: embeddingProvider, normalize: embeddingNormalize });
+  }
   const embeddingInputFormatting = resolveEmbeddingInputFormatting(modelId);
   const modelsDir = modelConfig.dir;
   if (modelsDir && embeddingEnabled) {
@@ -102,6 +104,11 @@ export const resolveEmbeddingRuntime = async ({
   const modelArtifact = embeddingEnabled ? resolveEmbeddingArtifactIdentity({
     provider: embeddingProvider, modelId, modelsDir, rootDir, onnx: embeddingOnnx, modelProfile, stub: useStubEmbeddings
   }) : null;
+  if (embeddingEnabled && !embeddingArtifactReusable(modelArtifact)) {
+    throw Object.assign(new Error('Inline embeddings require verified model artifacts before cache/signature selection. Download/verify the selected model, then retry the build.'), {
+      code: 'ERR_EMBEDDING_ARTIFACT_UNVERIFIED'
+    });
+  }
   let observation = { state: 'not-started', provider: null, dims: null, device: null, dtype: null, observedAt: null, method: null };
   let embeddingIdentity = null;
   let embeddingIdentityKey = null;
@@ -133,8 +140,22 @@ export const resolveEmbeddingRuntime = async ({
   };
   let getChunkEmbedding = async () => [];
   let getChunkEmbeddings = async () => [];
+  let embedder = null;
+  let closed = false;
+  let closing = null;
+  const operations = new Set();
+  const closeEmbeddingRuntime = () => {
+    if (!closing) {
+      closed = true;
+      closing = (async () => {
+        await Promise.allSettled([...operations]);
+        await observationWrite;
+        await embedder?.dispose?.();
+      })();
+    }
+    return closing;
+  };
   if (embeddingEnabled) {
-    let embedder = null;
     const ensureEmbedder = () => {
       if (!embedder) {
         embedder = createEmbedder({
@@ -187,11 +208,18 @@ export const resolveEmbeddingRuntime = async ({
         throw error;
       }
     };
-    getChunkEmbedding = (text) => execute(text, false);
-    getChunkEmbeddings = (texts) => execute(texts, true);
+    const admit = (input, batch) => {
+      if (closed) return Promise.reject(Object.assign(new Error('Inline embedding runtime is closed.'), { code: 'ERR_EMBEDDING_RUNTIME_CLOSED' }));
+      const work = execute(input, batch);
+      operations.add(work);
+      work.then(() => operations.delete(work), () => operations.delete(work));
+      return work;
+    };
+    getChunkEmbedding = (text) => admit(text, false);
+    getChunkEmbeddings = (texts) => admit(texts, true);
   }
 
-  const resolvedOnnxModelPath = embeddingProvider === 'onnx'
+  const resolvedOnnxModelPath = embeddingEnabled && embeddingProvider === 'onnx'
     ? resolveOnnxModelPath({
       rootDir,
       modelPath: embeddingOnnx.modelPath,
@@ -256,6 +284,7 @@ export const resolveEmbeddingRuntime = async ({
     modelId,
     modelsDir,
     getChunkEmbedding,
-    getChunkEmbeddings
+    getChunkEmbeddings,
+    closeEmbeddingRuntime
   };
 };

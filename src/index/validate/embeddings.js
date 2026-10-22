@@ -5,8 +5,7 @@ import {
   resolveBinaryArtifactPath,
   resolveDirArtifactPath
 } from '../../shared/artifact-io/manifest.js';
-import { normalizeDenseVectorMeta } from '../../shared/dense-vector-artifacts.js';
-import { joinPathSafe } from '../../shared/path-normalize.js';
+import { normalizeDenseVectorMeta, resolveDenseVectorBinaryPayloadPath } from '../../shared/dense-vector-artifacts.js';
 import { assertLanceDbPayload, resolveLanceDbPaths } from '../../shared/lancedb.js';
 import { addIssue } from './issues.js';
 import { validateSchema } from './schema.js';
@@ -99,21 +98,13 @@ export const validateEmbeddingArtifacts = ({
       addIssue(report, mode, `${target.label} dims missing from binary metadata`, 'Rebuild embeddings for this mode.');
       continue;
     }
-    const binPathFromMeta = (() => {
-      const relPath = typeof denseMeta?.path === 'string' && denseMeta.path
-        ? denseMeta.path
-        : `${target.baseName}.bin`;
-      return joinPathSafe(dir, [relPath]);
-    })();
-    if (typeof denseMeta?.path === 'string' && denseMeta.path && !binPathFromMeta) {
-      addIssue(report, mode, `${target.label} binary path invalid`, 'Rebuild embeddings for this mode.');
+    let denseBinPath;
+    try {
+      denseBinPath = resolveDenseVectorBinaryPayloadPath({ dir, baseName: target.baseName, meta: denseMeta, manifest, strict });
+    } catch (error) {
+      addIssue(report, mode, `${target.label} binary path invalid: ${error.message}`, 'Rebuild embeddings for this mode.');
       continue;
     }
-    const denseBinPath = binPathFromMeta || resolveBinaryArtifactPath(dir, target.binName, {
-      manifest,
-      strict,
-      fallbackPath: target.binPath
-    });
     if (!denseBinPath || !fs.existsSync(denseBinPath)) {
       addIssue(report, mode, `${target.label} binary payload missing`, 'Rebuild embeddings for this mode.');
       continue;

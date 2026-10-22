@@ -110,6 +110,7 @@ export const teardownRuntime = async (runtime) => {
       });
     }
   );
+  await runTeardownStepWithTimeout('runtime.embeddings.close', () => runtime.closeEmbeddingRuntime?.());
   await runTeardownStepWithTimeout(
     'runtime.preflight-subprocesses.terminate',
     () => terminateTrackedSubprocesses({
@@ -132,6 +133,7 @@ export const teardownRuntime = async (runtime) => {
   );
   await runTeardownStepWithTimeout('runtime.cache-writers.drain', () => runtime.cacheWriterDrain?.());
   runtime.semanticReplayVerification?.clear();
+  await runTeardownStepWithTimeout('runtime.logger.close', () => runtime.closeLogger?.());
   if (teardownErrors.length === 1) {
     throw teardownErrors[0];
   }

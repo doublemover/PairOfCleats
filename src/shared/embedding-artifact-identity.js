@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveOnnxModelPath } from './onnx-embeddings/config.js';
+import { readOnnxInstallationReceipt } from './onnx-installation.js';
 
 const TOKENIZER_FILES = new Set([
   'config.json', 'tokenizer.json', 'tokenizer_config.json', 'special_tokens_map.json',
@@ -60,11 +61,11 @@ const inventoryFiles = (root, prefix = '', depth = 0) => {
 // Match the pinned Transformers.js loader's repository-ID/direct-path split
 // without initializing a provider. Invalid repository IDs (including bare local
 // paths with multiple slashes) are direct paths, not cache-relative model IDs.
-const isRepositoryId = id => /^(\b[\w.-]+\b\/)?\b[\w.-]{1,96}\b$/u.test(id)
+export const isEmbeddingModelRepositoryId = id => /^(\b[\w.-]+\b\/)?\b[\w.-]{1,96}\b$/u.test(id)
   && !id.includes('..') && !id.includes('--') && !/\.(?:git|ipynb)$/u.test(id);
 export const resolveEmbeddingArtifactRoot = (id, modelsDir) => {
   if (typeof id !== 'string' || !id) return null;
-  if (!isRepositoryId(id)) {
+  if (!isEmbeddingModelRepositoryId(id)) {
     const directRoot = path.resolve(id);
     const cacheRoot = modelsDir ? path.resolve(path.join(modelsDir, id)) : null;
     // Transformers checks its filesystem cache before direct local files. A
@@ -91,11 +92,13 @@ export const resolveEmbeddingArtifactIdentity = ({ provider, modelId, modelsDir,
   const rootFiles = inventoryFiles(provider === 'onnx' ? tokenizerRoot : modelRoot);
   const tokenizerFiles = rootFiles.filter(({ rel, filePath }) => !rel.includes('/')
     && TOKENIZER_FILES.has(path.basename(filePath)));
+  const installation = provider === 'onnx' && modelPath ? readOnnxInstallationReceipt(path.dirname(modelPath)) : null;
+  const weightFiles = installation ? installation.files.map(row => ({ rel: row.path,
+    filePath: path.join(path.dirname(modelPath), ...row.path.split('/')), expected: row }))
+    : modelPath ? [{ rel: 'model.onnx', filePath: modelPath }, ...inventoryFiles(path.dirname(modelPath))
+      .filter(({ filePath }) => filePath !== modelPath && !TOKENIZER_FILES.has(path.basename(filePath)))] : [];
   const files = provider === 'onnx' && modelPath
-    ? [{ rel: 'weights/model.onnx', filePath: modelPath },
-      ...inventoryFiles(path.dirname(modelPath)).filter(({ filePath }) => filePath !== modelPath
-        && !TOKENIZER_FILES.has(path.basename(filePath)))
-        .map(({ rel, filePath }) => ({ rel: `weights/${rel}`, filePath })),
+    ? [...weightFiles.map(row => ({ ...row, rel: `weights/${row.rel}` })),
       ...tokenizerFiles.map(({ rel, filePath }) => ({ rel: `tokenizer/${rel}`, filePath }))]
     : rootFiles;
   const hasWeights = files.some(({ filePath }) => /\.onnx$/u.test(filePath));
@@ -104,7 +107,13 @@ export const resolveEmbeddingArtifactIdentity = ({ provider, modelId, modelsDir,
   const seen = new Set();
   const inventory = files.filter(({ rel }) => !seen.has(rel) && seen.add(rel))
     .sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0))
-    .map(({ rel, filePath }) => ({ path: rel, ...fingerprintFile(filePath) }));
+    .map(({ rel, filePath, expected }) => {
+      const identity = fingerprintFile(filePath);
+      if (expected && (identity.bytes !== expected.bytes || identity.sha256 !== expected.sha256)) {
+        throw Object.assign(new Error('Selected ONNX closure bytes disagree with their installation identity.'), { code: 'ERR_ONNX_ARTIFACT_INTEGRITY' });
+      }
+      return { path: rel, ...identity };
+    });
   if (inventory.length > 128) throw new Error('Embedding artifact inventory exceeds its bounded file count.');
   return { status: 'verified', reuse: 'allow', revision: null, method: 'opened-local-artifacts-sha256',
     digest: crypto.createHash('sha256').update(JSON.stringify(inventory)).digest('hex'), inventory };

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { resolveInstalledOnnxPath } from '../onnx-installation.js';
 import path from 'node:path';
 import { isAbsolutePathNative } from '../file-paths.js';
 
@@ -172,9 +173,17 @@ export function normalizeEmbeddingProvider(raw, { strict = false } = {}) {
 export function resolveOnnxModelPath({ rootDir, modelPath, modelsDir, modelId }) {
   const root = rootDir ? path.resolve(rootDir) : process.cwd();
   const trimmed = typeof modelPath === 'string' ? modelPath.trim() : '';
-  const tryPath = (candidate) => {
-    if (!candidate || !fs.existsSync(candidate)) return null;
+  const readableFile = (candidate) => {
+    const stat = fs.statSync(candidate);
+    if (!stat.isFile() || stat.size === 0) throw new Error('Expected a nonempty regular ONNX file.');
+    fs.accessSync(candidate, fs.constants.R_OK);
+    return candidate;
+  };
+  const tryPath = (candidate, authoritative = false) => {
+    if (!candidate) return null;
     try {
+      const installed = resolveInstalledOnnxPath(candidate);
+      if (installed) return readableFile(installed);
       const stat = fs.statSync(candidate);
       if (stat.isDirectory()) {
         const nested = [
@@ -184,19 +193,23 @@ export function resolveOnnxModelPath({ rootDir, modelPath, modelsDir, modelId })
           path.join(candidate, 'onnx', 'model_quantized.onnx')
         ];
         for (const entry of nested) {
-          if (fs.existsSync(entry)) return entry;
+          try { return readableFile(entry); } catch { /* Continue selected directory candidates. */ }
         }
-        return null;
+        throw new Error('The selected directory has no readable nonempty ONNX graph.');
       }
-    } catch {
+      return readableFile(candidate);
+    } catch (cause) {
+      if (authoritative) {
+        throw Object.assign(new Error(`Selected ONNX model path "${candidate}" is unavailable or unusable. Download/verify that graph or correct indexing.embeddings.onnx.modelPath.`, { cause }), {
+          code: 'ERR_EMBEDDING_MODEL_PATH', modelPath: candidate
+        });
+      }
       return null;
     }
-    return candidate;
   };
   if (trimmed) {
     const resolved = isAbsolutePathNative(trimmed) ? trimmed : path.join(root, trimmed);
-    const stat = tryPath(resolved);
-    if (stat) return stat;
+    return tryPath(resolved, true);
   }
   const modelRoot = modelId && modelsDir ? path.join(modelsDir, modelId) : null;
   const candidates = [

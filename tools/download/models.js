@@ -3,10 +3,13 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { pipeline, env } from '@huggingface/transformers';
+import * as transformers from '@huggingface/transformers';
 import { normalizeEmbeddingProvider, resolveOnnxConfig, resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
 import { isAbsolutePathNative } from '../../src/shared/file-paths.js';
 import { DEFAULT_MODEL_ID, getModelConfig, resolveRepoConfig } from '../shared/dict-utils.js';
+import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile } from '../../src/shared/embedding-model-profile.js';
+import { EMBEDDING_ACQUISITION_RECEIPT, loadEmbeddingModelComponents, resolveEmbeddingAcquisitionRoot } from '../../src/shared/embedding-model-loading.js';
+import { installOnnxArtifactClosure } from '../../src/shared/onnx-model-install.js';
 
 const argv = createCli({
   scriptName: 'download-models',
@@ -30,18 +33,38 @@ const cacheDir = argv['cache-dir']
 const modelId = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
 const wantsOnnx = argv.onnx === true || embeddingProvider === 'onnx';
 const onnxPathOverride = argv['onnx-path'] ? path.resolve(argv['onnx-path']) : null;
+const modelProfile = resolveEmbeddingModelProfile(modelId, embeddingsConfig.embeddinggemma2);
+validateEmbeddingModelProfile(modelProfile, { provider: embeddingProvider, normalize: embeddingsConfig.normalize !== false });
 
 await fs.mkdir(cacheDir, { recursive: true });
-env.cacheDir = cacheDir;
+transformers.env.cacheDir = cacheDir;
 
 // Preserve the quantized model filename used by existing model caches.
-await pipeline('feature-extraction', modelId, { dtype: 'q8' });
+const acquired = await loadEmbeddingModelComponents(transformers, { modelId, modelsDir: cacheDir, modelProfile });
+try {
+  if (modelProfile) {
+    // Ask the pinned upstream registry for graph/external-data components using
+    // the same text-only config and precision that inference just loaded.
+    const files = await transformers.ModelRegistry.get_model_files(modelId, {
+      config: acquired.config, dtype: modelProfile.dtype, device: 'cpu'
+    });
+    const assetRoot = resolveEmbeddingAcquisitionRoot(modelId, cacheDir, modelProfile);
+    if (!assetRoot) throw new Error('Selected model acquisition has no unambiguous local asset root.');
+    const requiredFiles = [...new Set([...files, 'tokenizer.json', 'tokenizer_config.json'])];
+    const receiptPath = path.join(assetRoot, EMBEDDING_ACQUISITION_RECEIPT);
+    await fs.writeFile(receiptPath, JSON.stringify({ plan: acquired.plan, files: requiredFiles }));
+  }
+} finally {
+  await (acquired.model || acquired.pipeline)?.dispose?.();
+}
 
 let onnxResolvedPath = null;
 if (wantsOnnx) {
   onnxResolvedPath = resolveOnnxModelPath({
     rootDir: root,
-    modelPath: embeddingOnnx.modelPath,
+    // A configured output may not exist yet. Discover downloaded source assets
+    // independently; runtime selection remains authoritative.
+    modelPath: null,
     modelsDir: cacheDir,
     modelId
   });
@@ -64,13 +87,8 @@ if (wantsOnnx) {
     const finalTarget = targetIsDir
       ? path.join(onnxTarget, path.basename(onnxResolvedPath))
       : onnxTarget;
-    const resolvedFinal = path.resolve(finalTarget);
-    const resolvedSource = path.resolve(onnxResolvedPath);
-    if (!fsSync.existsSync(resolvedFinal) && resolvedFinal !== resolvedSource) {
-      await fs.mkdir(path.dirname(finalTarget), { recursive: true });
-      await fs.copyFile(onnxResolvedPath, finalTarget);
-      onnxResolvedPath = finalTarget;
-    }
+    await installOnnxArtifactClosure({ sourceGraph: onnxResolvedPath, targetGraph: finalTarget });
+    onnxResolvedPath = resolveOnnxModelPath({ rootDir: root, modelPath: finalTarget, modelsDir: cacheDir, modelId });
   }
 }
 

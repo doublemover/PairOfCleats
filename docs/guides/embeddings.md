@@ -7,6 +7,14 @@ Status: Contract notes for implementation and validation. This document compleme
 
 ## 1) Identity and compatibility
 
+Model downloads publish a verified ONNX graph and its referenced external tensor
+files as one immutable installation. The logical target has a bounded selector
+file (`.pairofcleats-model.json`) admitting a complete generation under its
+`.assets` directory. Runtime selection verifies the receipt, relative paths and
+file identities. Interrupted copies cannot replace the active selection. Prior
+generations are retained so existing readers keep their complete closure; this
+does not establish a whole-cache quota or reader-aware garbage collection policy.
+
 The `xenova` provider uses `@huggingface/transformers` 4.x. Its public provider
 name and model IDs (including `Xenova/all-MiniLM-L12-v2`) remain unchanged.
 Existing generic model downloads and inference explicitly select `dtype: 'q8'`, preserving existing
@@ -38,6 +46,26 @@ These fields MUST be recorded in:
 - `index_state.json.embeddings`
 - service embedding queue payloads (when used)
 - optionally ANN meta files (HNSW, LanceDB, sqlite dense_meta) for redundancy
+
+Identity version 5 includes `vectorValidityVersion: 1`. Each dense channel carries
+a versioned validity bitset, independently of its fixed-width binary padding.
+Missing channels keep their document ordinals but never enter dense, HNSW,
+LanceDB or SQLite ANN scoring. Actual zero and small nonzero vectors remain
+valid; byte values alone do not establish absence. Backend counts describe
+inserted valid rows; `rowCount` describes the full ordinal space.
+
+Inline embedding runtimes verify reusable model provenance before selecting
+cache identities. An unavailable local artifact set fails with
+`ERR_EMBEDDING_ARTIFACT_UNVERIFIED` and must be acquired before retrying.
+Embedding-disabled and service-only stages do not initialize or validate inactive
+model execution requirements. An explicit ONNX path must select a readable,
+nonempty regular graph; a missing explicit path cannot fall back to another model.
+
+Prefetch and inference share the same revision, precision and text-only component
+plan. Qualified readiness verifies the acquisition receipt and its required local
+components without running inference. Shared text encoders serialize admitted
+queries and prepared batches; queued cancellation does not evict a healthy warm
+adapter. Runtime and daemon owners release their embedding leases during teardown.
 
 ### 1.2 Optional EmbeddingGemma 2 text/code embeddings
 

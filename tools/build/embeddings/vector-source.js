@@ -9,6 +9,8 @@ import {
 import {
   loadJsonArrayArtifactRows
 } from '../../../src/shared/artifact-io/loaders.js';
+import { materializeDenseVectorRows } from '../../../src/shared/dense-vector-artifacts.js';
+import { decodeDenseVectorValidity, isDenseVectorRowPresent } from '../../../src/shared/dense-vector-validity.js';
 
 export const toCanonicalArtifactBase = (base) => {
   if (!base || typeof base !== 'string') return '';
@@ -73,10 +75,21 @@ export const resolveShardCount = (meta) => {
 
 const readVectorsPayload = (filePath) => {
   const data = readJsonFile(filePath, { maxBytes: Number.POSITIVE_INFINITY });
-  return Array.isArray(data?.arrays?.vectors)
+  const vectors = Array.isArray(data?.arrays?.vectors)
     ? data.arrays.vectors
     : (Array.isArray(data?.vectors) ? data.vectors : null);
+  return vectors ? materializeDenseVectorRows({ ...(data.fields || data), vectors }) : null;
 };
+
+const applyValidity = (rows, meta) => ({
+  async *[Symbol.asyncIterator]() {
+    decodeDenseVectorValidity(meta);
+    let id = 0;
+    for await (const row of rows) {
+      yield isDenseVectorRowPresent(meta, id++) ? row : { vector: [] };
+    }
+  }
+});
 
 const collectManifestNames = (manifest) => new Set(
   Array.isArray(manifest?.pieces)
@@ -119,12 +132,12 @@ export const resolveVectorsSource = (vectorsPath, {
       return {
         count,
         vectors: null,
-        rows: loadJsonArrayArtifactRows(dir, artifactBase, {
+        rows: applyValidity(loadJsonArrayArtifactRows(dir, artifactBase, {
           maxBytes: Number.POSITIVE_INFINITY,
           manifest: shardManifest,
           strict: false,
           materialize: true
-        })
+        }), meta)
       };
     } catch {}
   }

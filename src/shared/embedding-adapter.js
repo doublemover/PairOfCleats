@@ -7,6 +7,8 @@ import {
   touchEntry
 } from './embedding-adapter-helpers.js';
 import { createEmbeddingProviderAdapter } from './embedding-provider-adapters.js';
+import { loadEmbeddingModelComponents } from './embedding-model-loading.js';
+import { isAbortError } from './abort.js';
 import {
   resolveEmbeddingModelProfile,
   validateEmbeddingModelProfile
@@ -123,9 +125,11 @@ const leaseAdapter = (entry) => {
         if (disposed) return Promise.reject(new Error('Embedding adapter lease is disposed.'));
         const work = Promise.resolve().then(() => value.apply(target, args));
         operations.add(work);
-        work.then(() => operations.delete(work), () => {
+        work.then(() => operations.delete(work), (error) => {
           operations.delete(work);
-          if (entry.cacheOwned) void retireAdapterEntry(entry);
+          const admissionRejected = isAbortError(error)
+            || ['ERR_EMBEDDING_QUEUE_FULL', 'ERR_EMBEDDING_QUEUE_CLOSED'].includes(error?.code);
+          if (entry.cacheOwned && !admissionRejected) void retireAdapterEntry(entry);
         });
         return work;
       });
@@ -197,27 +201,11 @@ async function loadPipeline(modelId, modelsDir, modelProfile = null, localFilesO
       // v2 selected model_quantized.onnx by default. Keep the same weights and
       // cache identity after the Transformers.js migration (Node defaults to fp32).
       .then(async (mod) => {
-        if (!modelProfile) return mod.pipeline('feature-extraction', modelId, { dtype: 'q8', ...(localFilesOnly ? { local_files_only: true } : {}), ...(modelsDir ? { cache_dir: modelsDir } : {}) });
-        const { AutoConfig, AutoTokenizer, AutoModel } = mod;
-        if (!mod.EmbeddingGemma2Model || !AutoConfig || !AutoTokenizer || !AutoModel) {
-          throw new Error('EmbeddingGemma 2 requires the qualified Transformers.js 4.3.1 dependency.');
-        }
-        if (`transformers.js@${mod.env?.version}` !== modelProfile.runtime) {
-          throw new Error('EmbeddingGemma 2 runtime differs from its qualified cache identity. Rebuild with the pinned dependency.');
-        }
-        const options = { ...(localFilesOnly ? { local_files_only: true } : {}), revision: modelProfile.revision, ...(modelsDir ? { cache_dir: modelsDir } : {}) };
-        const config = await AutoConfig.from_pretrained(modelId, options);
-        if (config.model_type !== 'embedding_gemma2') {
-          throw new Error('EmbeddingGemma 2 model configuration has an unexpected model_type.');
-        }
-        // Only the text encoder is required for code search. Do not load media encoders.
-        config.vision_config = null;
-        config.audio_config = null;
-        const tokenizer = await AutoTokenizer.from_pretrained(modelId, options);
-        const model = await AutoModel.from_pretrained(modelId, {
-          ...options, config, device: 'cpu', dtype: modelProfile.dtype, session_options: sessionOptions,
-          ...(modelFileName ? { model_file_name: modelFileName } : {})
+        const components = await loadEmbeddingModelComponents(mod, {
+          modelId, modelsDir, modelProfile, localFilesOnly, sessionOptions, modelFileName
         });
+        if (components.pipeline) return components.pipeline;
+        const { tokenizer, model } = components;
         return createPreparedTextEncoder({ tokenizer, model, Tensor: mod.Tensor, profile: modelProfile, sessionOptions, modelFileName });
       })
       .catch((err) => {
@@ -341,6 +329,12 @@ export const warmEmbeddingAdapter = async (options = {}) => {
         texts: normalizeAdapterPrewarmTexts(options?.prewarmTexts)
       });
     }
-  } catch {}
+  } catch (error) {
+    try { await adapter.dispose?.(); } catch (cleanupError) {
+      if (error && typeof error === 'object') error.cleanupErrors = [...(error.cleanupErrors || []), cleanupError];
+    }
+    if (options.throwOnError === true) throw error;
+    return null;
+  }
   return adapter;
 };

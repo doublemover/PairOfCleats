@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { normalizeEmbeddingGemma2Output } from './embedding-model-profile.js';
+import { createRunQueue } from './onnx-embeddings/run-queue.js';
 
 const INTEGER_OPTIONS = new Set(['intraOpNumThreads', 'interOpNumThreads']);
 const BOOLEAN_OPTIONS = new Set(['enableCpuMemArena', 'enableMemPattern', 'enableProfiling']);
@@ -64,8 +65,9 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
   let lastBatch = null;
   let profilingEnded = false;
   let disposed = false;
-  let disposalError = null;
   let active = false;
+  const admission = createRunQueue({ maxQueued: 64 });
+  let disposing = null;
   const assertAvailable = () => {
     if (disposed) throw new Error('EG2 session has been explicitly disposed.');
   };
@@ -164,9 +166,10 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
     metrics.preparationMs += performance.now() - started;
     return run(inputs, texts.length, { count: texts.length, prepared: false });
   };
-  embed.prepare = prepare;
-  embed.embedPrepared = embedPrepared;
-  embed.executionInfo = () => ({
+  const admittedEmbed = (texts, options = {}) => admission(() => embed(texts), options);
+  admittedEmbed.prepare = (texts, options = {}) => admission(() => prepare(texts), options);
+  admittedEmbed.embedPrepared = (items, options = {}) => admission(() => embedPrepared(items), options);
+  admittedEmbed.executionInfo = () => ({
     device: 'cpu', executionProviders: ['cpu'], modelFileName, requestedSessionOptions: structuredClone(sessionOptions),
     effectiveNativeThreads: null, effectiveGraphExecutionMode: null,
     sessions: Object.keys(model.sessions ?? {}), maxLength: profile.maxLength, maxConcurrentInference: 1,
@@ -174,7 +177,7 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
     optimizedModelFilePath: sessionOptions.optimizedModelFilePath ?? null,
     metrics: { ...metrics }, lastBatch: lastBatch ? { ...lastBatch } : null
   });
-  embed.endProfiling = async () => {
+  admittedEmbed.endProfiling = async () => {
     assertAvailable();
     if (active) throw new Error('Cannot end profiling while inference is active.');
     if (!sessionOptions.enableProfiling) return { enabled: false, sessions: [] };
@@ -195,17 +198,15 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
     }
     return { enabled: true, profileFilePrefix: sessionOptions.profileFilePrefix ?? null, sessions: results };
   };
-  embed.dispose = async () => {
-    if (active) throw new Error('Cannot dispose while inference is active.');
-    if (disposalError) throw disposalError;
-    if (disposed) return;
-    disposed = true;
-    try {
-      await model.dispose?.();
-    } catch (error) {
-      disposalError = error;
-      throw error;
+  admittedEmbed.dispose = () => {
+    if (!disposing) {
+      disposing = (async () => {
+        await admission.close();
+        disposed = true;
+        await model.dispose?.();
+      })();
     }
+    return disposing;
   };
-  return embed;
+  return admittedEmbed;
 };

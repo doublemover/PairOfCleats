@@ -1,3 +1,4 @@
+import { decodeDenseVectorValidity, isDenseVectorRowPresent } from './dense-vector-validity.js';
 const toPositiveInteger = (value) => {
   const number = Number(value);
   return Number.isFinite(number) && number > 0
@@ -41,6 +42,10 @@ export const resolveDenseVectorCountFromBuffer = (meta, bufferLength) => {
  * @returns {boolean}
  */
 export const isDenseVectorPayloadAvailable = (denseVec) => {
+  if (denseVec?.validity) {
+    decodeDenseVectorValidity(denseVec);
+    if (!denseVec.validity.validCount) return false;
+  }
   if (Array.isArray(denseVec?.vectors) && denseVec.vectors.length > 0) return true;
   const buffer = denseVec?.buffer;
   if (!ArrayBuffer.isView(buffer) || buffer.BYTES_PER_ELEMENT !== 1) return false;
@@ -55,7 +60,12 @@ export const isDenseVectorPayloadAvailable = (denseVec) => {
  * @returns {Array<Uint8Array|number[]>}
  */
 export const materializeDenseVectorRows = (denseVec) => {
-  if (Array.isArray(denseVec?.vectors)) return denseVec.vectors;
+  if (Array.isArray(denseVec?.vectors)) {
+    decodeDenseVectorValidity(denseVec);
+    return denseVec.validity && denseVec.validity.validCount !== denseVec.vectors.length
+      ? denseVec.vectors.map((vector, id) => isDenseVectorRowPresent(denseVec, id) ? vector : new Uint8Array(0))
+      : denseVec.vectors;
+  }
   const buffer = denseVec?.buffer;
   if (!ArrayBuffer.isView(buffer) || buffer.BYTES_PER_ELEMENT !== 1) return [];
   const { dims, count, requiredBytes } = resolveDenseVectorCountFromBuffer(denseVec, buffer.length);
@@ -63,7 +73,7 @@ export const materializeDenseVectorRows = (denseVec) => {
   const rows = new Array(count);
   for (let row = 0; row < count; row += 1) {
     const start = row * dims;
-    rows[row] = buffer.subarray(start, start + dims);
+    rows[row] = isDenseVectorRowPresent(denseVec, row) ? buffer.subarray(start, start + dims) : new Uint8Array(0);
   }
   return rows;
 };

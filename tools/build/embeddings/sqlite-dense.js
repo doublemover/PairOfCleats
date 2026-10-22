@@ -65,7 +65,8 @@ const resolveSqliteDenseArtifactRows = ({ vectorsPath, modelId = null, dims = nu
     if (fsSync.existsSync(binaryMetaPath)) {
       const binaryMeta = normalizeDenseVectorMeta(JSON.parse(fsSync.readFileSync(binaryMetaPath, 'utf8')));
       if (!binaryMeta || binaryMeta.count !== meta.count || binaryMeta.dims !== meta.dims
-        || binaryMeta.model !== meta.model || (binaryMeta.bytes != null && binaryMeta.bytes !== meta.count * meta.dims)) {
+        || binaryMeta.model !== meta.model || JSON.stringify(binaryMeta.validity ?? null) !== JSON.stringify(meta.validity ?? null)
+        || (binaryMeta.bytes != null && binaryMeta.bytes !== meta.count * meta.dims)) {
         throw new Error('Binary and sharded vector metadata disagree.');
       }
       if (binaryMeta.path != null) meta.path = binaryMeta.path;
@@ -371,7 +372,7 @@ export const updateSqliteDense = ({
 
         const hasExisting = Boolean(current) && Number(current.doc_id) === docId;
         const vec = vectorRows[docId];
-        const hasVector = Array.isArray(vec) || (ArrayBuffer.isView(vec) && !(vec instanceof DataView));
+        const hasVector = (Array.isArray(vec) || (ArrayBuffer.isView(vec) && !(vec instanceof DataView))) && vec.length > 0;
 
         if (!hasVector) {
           if (hasExisting) {
@@ -432,6 +433,8 @@ export const updateSqliteDense = ({
     return {
       skipped: false,
       count: vectorRows.length,
+      rowCount: vectorRows.length,
+      validCount: vectorRows.filter(vector => vector?.length > 0).length,
       vectorAnn: vectorAnnState,
       ingestEncoding,
       pragmas: pragmaState?.applied || null

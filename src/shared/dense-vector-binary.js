@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { pathExists } from './file-read.js';
 import { createTempPath, replaceFile } from './json-stream/atomic.js';
 import { joinPathSafe } from './path-normalize.js';
+import { resolveBinaryArtifactPath } from './artifact-io/manifest.js';
+import { decodeDenseVectorValidity } from './dense-vector-validity.js';
 import {
   normalizeDenseVectorMeta,
   resolveDenseVectorCountFromBuffer
@@ -46,6 +47,31 @@ const toPositiveInteger = (value) => {
 };
 
 const DENSE_BINARY_WRITE_CHUNK_BYTES = 1024 * 1024;
+
+/** Bind metadata-selected bytes to the strict manifest's binary authority. */
+export const resolveDenseVectorBinaryPayloadPath = ({ dir, baseName, meta, manifest = null, strict = false }) => {
+  const relPath = typeof meta?.path === 'string' && meta.path ? meta.path : `${baseName}.bin`;
+  const selectedPath = joinPathSafe(dir, [relPath]);
+  if (!selectedPath) {
+    if (strict) throw Object.assign(new Error(`Invalid dense vector binary path: ${relPath}`), { code: 'ERR_MANIFEST_PATH' });
+    return null;
+  }
+  if (!strict) return selectedPath;
+  const descriptor = Object.values(DENSE_VECTOR_BINARY_ARTIFACTS).find(entry => entry.baseName === baseName);
+  if (!descriptor) throw new Error(`Unknown strict dense vector binary family: ${baseName}`);
+  const declaredPath = resolveBinaryArtifactPath(dir, descriptor.binName, { manifest, strict: true });
+  const canonical = file => {
+    let result = path.resolve(file);
+    try { result = fs.realpathSync(result); } catch { /* The read reports missing/unreadable payloads. */ }
+    return process.platform === 'win32' ? result.toLowerCase() : result;
+  };
+  if (!declaredPath || canonical(selectedPath) !== canonical(declaredPath)) {
+    throw Object.assign(new Error(`Dense vector metadata path ${relPath} disagrees with the manifested binary for ${descriptor.binName}.`), {
+      code: 'ERR_DENSE_VECTOR_PATH_MISMATCH'
+    });
+  }
+  return declaredPath;
+};
 
 const fillDenseBinaryRow = (buffer, offset, rowWidth, vec) => {
   buffer.fill(0, offset, offset + rowWidth);
@@ -141,6 +167,7 @@ const hydrateDenseVectorFromBinaryBuffer = ({
 }) => {
   const normalizedMeta = normalizeDenseVectorMeta(meta);
   if (!normalizedMeta) return null;
+  decodeDenseVectorValidity(normalizedMeta);
   const relPath = typeof normalizedMeta.path === 'string' && normalizedMeta.path
     ? normalizedMeta.path
     : `${baseName}.bin`;
@@ -172,25 +199,31 @@ export const loadDenseVectorBinaryFromMetaAsync = async ({
   dir,
   baseName,
   meta,
-  modelId = null
+  modelId = null,
+  manifest = null,
+  strict = false
 }) => {
   const normalizedMeta = normalizeDenseVectorMeta(meta);
-  if (!dir || !baseName || !normalizedMeta) return null;
-  const relPath = typeof normalizedMeta.path === 'string' && normalizedMeta.path
-    ? normalizedMeta.path
-    : `${baseName}.bin`;
-  const absPath = joinPathSafe(dir, [relPath]);
+  if (!dir || !baseName || !normalizedMeta) {
+    if (strict) throw Object.assign(new Error('Invalid declared dense vector binary metadata.'), { code: 'ERR_DENSE_VECTOR_INVALID' });
+    return null;
+  }
+  const absPath = resolveDenseVectorBinaryPayloadPath({ dir, baseName, meta: normalizedMeta, manifest, strict });
   if (!absPath) return null;
-  if (!await pathExists(absPath)) return null;
   try {
     const buffer = await fsPromises.readFile(absPath);
-    return hydrateDenseVectorFromBinaryBuffer({
+    const loaded = hydrateDenseVectorFromBinaryBuffer({
       buffer,
       meta: normalizedMeta,
       baseName,
       modelId
     });
-  } catch {
+    if (!loaded && strict && normalizedMeta.count !== 0) {
+      throw Object.assign(new Error(`Declared dense vector binary payload is truncated or invalid: ${absPath}`), { code: 'ERR_DENSE_VECTOR_INVALID' });
+    }
+    return loaded;
+  } catch (error) {
+    if (strict) throw error;
     return null;
   }
 };
@@ -210,24 +243,31 @@ export const loadDenseVectorBinaryFromMetaSync = ({
   dir,
   baseName,
   meta,
-  modelId = null
+  modelId = null,
+  manifest = null,
+  strict = false
 }) => {
   const normalizedMeta = normalizeDenseVectorMeta(meta);
-  if (!dir || !baseName || !normalizedMeta) return null;
-  const relPath = typeof normalizedMeta.path === 'string' && normalizedMeta.path
-    ? normalizedMeta.path
-    : `${baseName}.bin`;
-  const absPath = joinPathSafe(dir, [relPath]);
-  if (!absPath || !fs.existsSync(absPath)) return null;
+  if (!dir || !baseName || !normalizedMeta) {
+    if (strict) throw Object.assign(new Error('Invalid declared dense vector binary metadata.'), { code: 'ERR_DENSE_VECTOR_INVALID' });
+    return null;
+  }
+  const absPath = resolveDenseVectorBinaryPayloadPath({ dir, baseName, meta: normalizedMeta, manifest, strict });
+  if (!absPath) return null;
   try {
     const buffer = fs.readFileSync(absPath);
-    return hydrateDenseVectorFromBinaryBuffer({
+    const loaded = hydrateDenseVectorFromBinaryBuffer({
       buffer,
       meta: normalizedMeta,
       baseName,
       modelId
     });
-  } catch {
+    if (!loaded && strict && normalizedMeta.count !== 0) {
+      throw Object.assign(new Error(`Declared dense vector binary payload is truncated or invalid: ${absPath}`), { code: 'ERR_DENSE_VECTOR_INVALID' });
+    }
+    return loaded;
+  } catch (error) {
+    if (strict) throw error;
     return null;
   }
 };

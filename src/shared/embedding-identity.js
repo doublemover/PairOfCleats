@@ -2,9 +2,9 @@ import { sha1 } from './hash.js';
 import { resolveEmbeddingModelProfile } from './embedding-model-profile.js';
 
 /** Embedding identity schema version. */
-export const EMBEDDING_IDENTITY_VERSION = 4;
+export const EMBEDDING_IDENTITY_VERSION = 5;
 /** Embedding identity fingerprint tag used in cache keys. */
-export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v4';
+export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v5';
 
 const normalizeString = (value) => {
   if (typeof value !== 'string') return null;
@@ -91,6 +91,7 @@ export const buildEmbeddingIdentity = ({
   const identity = {
     version: EMBEDDING_IDENTITY_VERSION,
     fingerprint: EMBEDDING_IDENTITY_FINGERPRINT,
+    vectorValidityVersion: 1,
     modelId: normalizeString(modelId),
     provider: normalizeString(provider),
     mode: normalizeString(mode),

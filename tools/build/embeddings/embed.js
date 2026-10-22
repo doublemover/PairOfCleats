@@ -191,12 +191,11 @@ export const validateCachedDims = ({ vectors, expectedDims, mode }) => {
 export const buildQuantizedVectors = ({
   codeVector,
   docVector,
-  zeroVector,
   quantization,
   normalize = true
 }) => {
   const embedCode = isVectorLike(codeVector) ? codeVector : [];
-  const embedDoc = isVectorLike(docVector) ? docVector : zeroVector;
+  const embedDoc = isVectorLike(docVector) ? docVector : [];
   const resolved = resolveQuantizationParams(quantization);
   const merged = mergeEmbeddingVectors({ codeVector: embedCode, docVector: embedDoc });
   const shouldNormalize = normalize !== false;
@@ -221,8 +220,11 @@ export const buildQuantizedVectors = ({
 
 export const fillMissingVectors = (vectorList, dims) => {
   for (let i = 0; i < vectorList.length; i += 1) {
-    if (!isVectorLike(vectorList[i]) || vectorList[i].length !== dims) {
-      vectorList[i] = new Uint8Array(dims);
+    if (isVectorLike(vectorList[i]) && vectorList[i].length && vectorList[i].length !== dims) {
+      throw new Error(`Embedding row ${i} has ${vectorList[i].length} dimensions; expected ${dims}.`);
+    }
+    if (!isVectorLike(vectorList[i]) || !vectorList[i].length) {
+      vectorList[i] = new Uint8Array(0);
     }
   }
 };

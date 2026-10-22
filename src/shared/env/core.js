@@ -37,6 +37,7 @@ export const normalizeProgressContext = (value) => {
 };
 
 export const normalizeNumber = (value) => {
+  if (value == null || (typeof value === 'string' && !value.trim())) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };

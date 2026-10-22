@@ -45,6 +45,8 @@ htmlcov/
 venv/
 ENV/
 env/
+# This is a source-code owner, not a Python environment directory.
+!src/shared/env/
 env.bak/
 venv.bak/
 *.egg

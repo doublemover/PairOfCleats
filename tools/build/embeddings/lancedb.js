@@ -63,7 +63,7 @@ const buildBatch = (vectors, start, end, idColumn, embeddingColumn, quantization
   const rows = [];
   for (let i = start; i < end; i += 1) {
     const vec = vectors[i];
-    if (!vec || typeof vec.length !== 'number') continue;
+    if (!vec || typeof vec.length !== 'number' || !vec.length) continue;
     const floatVec = dequantizeUint8ToFloat32(
       vec,
       quantization?.minVal,
@@ -242,7 +242,7 @@ export async function writeLanceDbIndex({
           const vec = (entry && typeof entry === 'object' && !Array.isArray(entry))
             ? (entry.vector ?? entry.values ?? null)
             : entry;
-          if (vec && typeof vec.length === 'number') {
+          if (vec && typeof vec.length === 'number' && vec.length) {
             const floatVec = dequantizeUint8ToFloat32(
               vec,
               quantization?.minVal,
@@ -275,7 +275,7 @@ export async function writeLanceDbIndex({
             batch = [];
           }
         }
-        if (!table) {
+        if (!table && batch.length) {
           firstBatch = batch;
           table = await createTable(db, tableName, firstBatch);
           if (!table && typeof db.openTable === 'function') {
@@ -287,22 +287,7 @@ export async function writeLanceDbIndex({
         }
       } else {
         const resolvedVectors = vectorsSource.vectors;
-        const firstBatch = buildBatch(
-          resolvedVectors,
-          0,
-          Math.min(batchSize, resolvedVectors.length),
-          idColumn,
-          embeddingColumn,
-          quantization,
-          normalize
-        );
-        writtenCount += firstBatch.length;
-        table = await createTable(db, tableName, firstBatch);
-        if (!table && typeof db.openTable === 'function') {
-          table = await db.openTable(tableName);
-          if (firstBatch.length) await addRows(table, firstBatch);
-        }
-        for (let start = batchSize; start < resolvedVectors.length; start += batchSize) {
+        for (let start = 0; start < resolvedVectors.length; start += batchSize) {
           const rows = buildBatch(
             resolvedVectors,
             start,
@@ -313,11 +298,14 @@ export async function writeLanceDbIndex({
             normalize
           );
           if (rows.length) {
-            await addRows(table, rows);
+            if (!table) table = await createTable(db, tableName, rows);
+            else await addRows(table, rows);
+            if (!table) throw new Error('LanceDB could not create a nonempty table.');
             writtenCount += rows.length;
           }
         }
       }
+      if (!writtenCount) return { skipped: true, reason: 'empty', count: 0, rowCount: vectorsSource.count };
       actualCount = table ? await table.countRows() : 0;
       if (actualCount !== writtenCount) throw new Error(`LanceDB insert count mismatch (${actualCount} of ${writtenCount}).`);
     } catch (error) {
@@ -339,6 +327,7 @@ export async function writeLanceDbIndex({
       dims: Number.isFinite(Number(dims)) ? Number(dims) : null,
       count: writtenCount,
       expectedCount: writtenCount,
+      rowCount: vectorsSource.count,
       metric: resolvedConfig.metric,
       table: tableName,
       embeddingColumn,

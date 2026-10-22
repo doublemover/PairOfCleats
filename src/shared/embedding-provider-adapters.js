@@ -43,34 +43,34 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
     pooling: DEFAULT_EMBEDDING_POOLING,
     normalize: normalize !== false
   };
-  const embed = async (texts) => {
+  const embed = async (texts, options = {}) => {
     const list = Array.isArray(texts) ? texts : [];
     if (!list.length) return [];
     const embedder = await ensureEmbedder();
     const startedAt = performance.now();
     measurements.runs++; measurements.active++; measurements.peakActive = Math.max(measurements.peakActive, measurements.active);
     try {
-      const output = await embedder(list, pipelineOptions);
+      const output = await embedder(list, modelProfile ? options : pipelineOptions);
       return normalizeEmbeddingBatchOutput(output, list.length);
     } catch (error) { measurements.failures++; throw error; }
     finally { measurements.active--; measurements.providerBusyMs += performance.now() - startedAt; }
   };
-  const embedOne = async (text) => {
-    const list = await embed([text]);
+  const embedOne = async (text, options = {}) => {
+    const list = await embed([text], options);
     return list[0] || new Float32Array(0);
   };
   return {
     embed,
     embedOne,
-    prepare: async (texts) => {
+    prepare: async (texts, options = {}) => {
       const embedder = await ensureEmbedder();
       if (!embedder.prepare) throw new Error('Prepared token inputs require the EG2 adapter.');
-      return embedder.prepare(texts);
+      return embedder.prepare(texts, options);
     },
-    embedPrepared: async (items) => {
+    embedPrepared: async (items, options = {}) => {
       const embedder = await ensureEmbedder();
       if (!embedder.embedPrepared) throw new Error('Prepared token inputs require the EG2 adapter.');
-      return embedder.embedPrepared(items);
+      return embedder.embedPrepared(items, options);
     },
     executionInfo: () => ({
       provider: 'xenova', requestedProvider: 'xenova', stub: false, measurements: { ...measurements },
