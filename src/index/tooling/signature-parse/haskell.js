@@ -1,26 +1,22 @@
-const normalizeType = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+import { normalizeTypeWhitespace } from '../../../shared/type-normalization.js';
 
-const splitTopLevelArrows = (value) => {
+const normalizeType = (value) => normalizeTypeWhitespace(String(value ?? '').trim());
+// A tick can promote a constructor/list/tuple or continue an identifier. Only
+// a complete character token starts a character literal. GHC's type-level
+// literals use the ordinary character/string escape spelling.
+const characterLiteral = /'(?:\\(?:[0-9]+|o[0-7]+|x[0-9a-fA-F]+|\^[^\r\n]|[A-Z]+|[^\r\n])|[^'\\\r\n])'/uy;
+const typeSeparators = (value, separator) => {
   const text = String(value || '');
-  const parts = [];
-  let current = '';
+  const positions = [];
   let depthParen = 0;
   let depthBracket = 0;
   let depthBrace = 0;
   let quote = null;
   let escaped = false;
 
-  const pushCurrent = () => {
-    const trimmed = normalizeType(current);
-    if (trimmed) parts.push(trimmed);
-    current = '';
-  };
-
   for (let i = 0; i < text.length; i += 1) {
     const ch = text[i];
-    const next = text[i + 1] || '';
     if (quote) {
-      current += ch;
       if (escaped) {
         escaped = false;
       } else if (ch === '\\') {
@@ -31,9 +27,10 @@ const splitTopLevelArrows = (value) => {
       continue;
     }
 
-    if (ch === '\'' || ch === '"' || ch === '`') {
+    characterLiteral.lastIndex = i;
+    const character = ch === '\'' && !/[\p{L}\p{N}_']/u.test(text[i - 1] || '') && characterLiteral.test(text);
+    if (character || ch === '"' || ch === '`') {
       quote = ch;
-      current += ch;
       continue;
     }
 
@@ -45,30 +42,36 @@ const splitTopLevelArrows = (value) => {
     else if (ch === '}' && depthBrace > 0) depthBrace -= 1;
 
     if (
-      ch === '-'
-      && next === '>'
+      text.startsWith(separator, i)
       && depthParen === 0
       && depthBracket === 0
       && depthBrace === 0
     ) {
-      pushCurrent();
-      i += 1;
+      positions.push(i);
+      i += separator.length - 1;
       continue;
     }
-
-    current += ch;
   }
+  return positions;
+};
 
-  pushCurrent();
-  return parts;
+const splitTopLevelArrows = (value) => {
+  const text = String(value || ''), parts = [];
+  let start = 0;
+  for (const index of typeSeparators(text, '->')) {
+    parts.push(normalizeType(text.slice(start, index)));
+    start = index + 2;
+  }
+  parts.push(normalizeType(text.slice(start)));
+  return parts.filter(Boolean);
 };
 
 const stripLeadingContext = (value) => {
   const text = normalizeType(value);
   if (!text) return '';
-  const forallMatch = /^forall\s+[^.]+\.\s*(.+)$/u.exec(text);
-  const noForall = forallMatch ? normalizeType(forallMatch[1]) : text;
-  const contextIdx = noForall.indexOf('=>');
+  const forallEnd = /^forall\s/u.test(text) ? typeSeparators(text, '.')[0] : undefined;
+  const noForall = forallEnd === undefined ? text : normalizeType(text.slice(forallEnd + 1));
+  const contextIdx = typeSeparators(noForall, '=>')[0] ?? -1;
   if (contextIdx === -1) return noForall;
   return normalizeType(noForall.slice(contextIdx + 2));
 };

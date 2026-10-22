@@ -13,7 +13,7 @@ through the existing shared literal owner. This remains the existing
 provider signature approximation; it does not establish a complete language
 parser, comment grammar or arbitrary default-expression grammar.
 
-Request cache policy `rq8` and shared LSP producer identity retire the changed
+Request cache policy `rq9` and shared LSP producer identity retire the changed
 parameter/return metadata. The authored parser-dispatch and actual controlled
 document enrichment regressions remain unrun. Native, real-server, whole-index
 and runtime qualification remain pending.
