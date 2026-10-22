@@ -54,6 +54,18 @@ export const writeSourceLinkedEvidence = async ({ report, sources, state, policy
   let referenceCount = 0;
   for (const result of report.results) {
     const item = items.get(result.sourceUnitId);
+    for (const diagnostic of result.diagnostics) {
+      if (!diagnostic || typeof diagnostic !== 'object') throw fail('Invalid source-linked diagnostic.');
+      if (Object.hasOwn(diagnostic, 'span') && diagnostic.span !== null && !validSpan(diagnostic.span, item)) throw fail('Diagnostic range differs from its source snapshot.');
+      if (Object.hasOwn(diagnostic, 'spans')) {
+        if (!Array.isArray(diagnostic.spans) || diagnostic.spans.length > 8) throw fail('Diagnostic source span budget exhausted.');
+        for (const witness of diagnostic.spans) {
+          const targetItem = items.get(witness?.sourceUnitId);
+          if (!targetItem || witness.path !== targetItem.source.path || witness.sourceHash !== targetItem.source.byteHash
+            || !validSpan(witness.span, targetItem)) throw fail('Diagnostic witness differs from its dependency source snapshot.');
+        }
+      }
+    }
     for (const reference of result.references) {
       if (++referenceCount > maxReferences || !validSpan(reference.span, item) || !text(reference.family)
         || !['resolved', 'unresolved'].includes(reference.state)) throw fail('Invalid source-linked reference or reference budget.');

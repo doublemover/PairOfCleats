@@ -1,5 +1,6 @@
 import { awaitToolingProviderPreflight } from '../preflight-manager.js';
 import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { admitScriptLspInputs } from '../script-lsp-profiles.js';
 import {
   mergePreflightChecks,
   resolveCommandProfilePreflightResult,
@@ -109,10 +110,12 @@ export const createConfiguredLspProvider = (server) => {
           diagnostics: appendDiagnosticChecks(null, preChecks)
         };
       }
+      const admittedInputs = admitScriptLspInputs({ serverId: server.scriptProfileId || server.id, inputs });
       const preparedInputs = prepareConfiguredProviderInputs({
         providerId,
-        inputs
+        inputs: admittedInputs
       });
+      preChecks.push(...admittedInputs.checks);
       if (!preparedInputs.documents.length || (!preparedInputs.targets.length && !ctx.semanticLspSession?.hasTargetedWork)) {
         return {
           provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
@@ -262,7 +265,8 @@ export const createConfiguredLspProvider = (server) => {
       });
     },
     preparePreflightInputs(_ctx, inputs) {
-      return prepareConfiguredProviderInputs({ providerId, inputs });
+      return prepareConfiguredProviderInputs({ providerId,
+        inputs: admitScriptLspInputs({ serverId: server.scriptProfileId || server.id, inputs }) });
     }
   };
   provider.preflightId = server.workspaceMarkerOptions && server.requireWorkspaceModel !== false
@@ -278,6 +282,11 @@ export const createConfiguredLspProvider = (server) => {
   provider.preflight = async (ctx, inputs = {}) => {
     const executionAuthority = executionAuthorityFor(ctx);
     if (executionAuthority) return executionAuthority;
+    const admittedInputs = admitScriptLspInputs({ serverId: server.scriptProfileId || server.id, inputs });
+    if ((server.scriptProfileId || server.id) === 'bash-language-server' && !admittedInputs.documents.length) return {
+      state: 'blocked', blockProvider: true, reasonCode: 'bash_lsp_no_admitted_dialect', checks: admittedInputs.checks
+    };
+    inputs = admittedInputs;
     const commandPreflight = runCommandProfilePreflight(ctx);
     const luaLibraryPreflight = resolveLuaWorkspaceLibraryPreflight({
       server,

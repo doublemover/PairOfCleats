@@ -8,6 +8,7 @@ import {
   PREFLIGHT_POLICY
 } from '../provider-contract.js';
 import { listLspServerPresets, resolveLspServerPreset } from '../lsp-presets.js';
+import { SCRIPT_LSP_PRESET_DEFINITIONS } from '../script-lsp-profiles.js';
 import { isRepoTrusted } from '../../../shared/config-authority.js';
 import { isWorkspaceBuildExecution } from '../../../shared/workspace-execution-authority.js';
 import {
@@ -232,6 +233,7 @@ export const normalizeServerConfig = (server, index) => {
   );
   return {
     id,
+    ...(preset && Object.hasOwn(SCRIPT_LSP_PRESET_DEFINITIONS, preset.id) ? { scriptProfileId: preset.id } : {}),
     profileContractVersion: preset?.profileContractVersion || null,
     exclusiveLanguageGroup: preset?.exclusiveLanguageGroup || null,
     replacesProviderIds: Array.isArray(preset?.replacesProviderIds) ? [...preset.replacesProviderIds] : [],

@@ -9,6 +9,8 @@ const workspaceExecutionLanguage = ({ providerId, server, languages = [] } = {})
   const selectedLanguages = [...(Array.isArray(server?.languages) ? server.languages : []),
     ...(Array.isArray(languages) ? languages : [])].map((language) => String(language || '').trim().toLowerCase());
   if (server?.requiresWorkspaceExecution === true && (id === 'ruby-lsp' || command === 'ruby-lsp')) return 'ruby';
+  if (server?.requiresWorkspaceExecution === true && (server.scriptProfileId === 'perl-navigator'
+    || id === 'perl-navigator' || command === 'perlnavigator')) return 'perl';
   if (id === 'rust' || id.includes('rust-analyzer') || command === 'rust-analyzer' || selectedLanguages.includes('rust')) return 'rust';
   if (id === 'zig' || id === 'zls' || id.endsWith('-zls') || command === 'zls' || selectedLanguages.includes('zig')) return 'zig';
   if (id === 'java' || /(^|-)jdtls($|-)/u.test(id) || id.includes('eclipse.jdt.ls')
@@ -39,6 +41,8 @@ export const resolveWorkspaceExecutionAuthority = ({ repoRoot, workspaceRoot = r
     ? 'Rust workspace tooling requires an exact launch-owned repository trust grant; native Rust AST analysis remains available.'
     : language === 'ruby'
       ? 'Ruby LSP requires an exact launch-owned repository trust grant before Bundler, composed bundles or project add-ons can run.'
+      : language === 'perl'
+      ? 'Perl Navigator requires an exact launch-owned repository trust grant before interpreter checks can execute BEGIN, use or project dependencies.'
       : language === 'java'
       ? 'Java workspace tooling requires an exact launch-owned repository trust grant; native Java AST analysis remains available.'
       : 'Zig workspace tooling requires an exact launch-owned repository trust grant; Zig is currently a tooling-only route.';
