@@ -451,4 +451,4 @@ const loadTokenPostingsRaw = (
   throw new Error(`Unsupported token_postings format: ${sources.format}`);
 };
 
-export const loadTokenPostings = (...args) => admitSortedPostings(loadTokenPostingsRaw(...args));
+export const loadTokenPostings = (...args) => admitSortedPostings(loadTokenPostingsRaw(...args), { completeVocabulary: true });

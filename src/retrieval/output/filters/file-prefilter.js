@@ -24,13 +24,11 @@ export const collectFilePrefilterMatches = ({
     for (let offset = 0; offset <= needle.length - fileChargramN; offset++) {
       grams.push(needle.slice(offset, offset + fileChargramN));
     }
+    const buckets = [...new Set(grams)].map(gram => filterIndex.fileChargrams.get(gram));
+    if (buckets.some(bucket => !bucket || !bucket.size)) continue;
+    buckets.sort((a, b) => a.size - b.size);
     let candidateFiles = null;
-    for (const gram of grams) {
-      const bucket = filterIndex.fileChargrams.get(gram);
-      if (!bucket) {
-        candidateFiles = new Set();
-        break;
-      }
+    for (const bucket of buckets) {
       candidateFiles = candidateFiles ? intersectTwoSets(candidateFiles, bucket) : new Set(bucket);
       if (!candidateFiles.size) break;
     }

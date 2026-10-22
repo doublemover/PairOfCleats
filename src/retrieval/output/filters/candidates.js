@@ -134,9 +134,10 @@ export const createCandidateHelpers = (deps) => {
 
   const intersectSets = (sets) => {
     if (!sets.length) return null;
-    let acc = sets[0];
-    for (let i = 1; i < sets.length; i += 1) {
-      const next = sets[i];
+    const ordered = sets.slice().sort((left, right) => left.size - right.size);
+    let acc = ordered[0];
+    for (let i = 1; i < ordered.length; i += 1) {
+      const next = ordered[i];
       const merged = new Set();
       for (const id of acc) {
         if (next.has(id)) merged.add(id);
@@ -144,16 +145,18 @@ export const createCandidateHelpers = (deps) => {
       acc = merged;
       if (!acc.size) break;
     }
-    return acc;
+    return ordered.length > 1 ? new Set([...acc].sort((a, b) => a - b)) : acc;
   };
 
   const intersectTwoSets = (left, right) => {
     if (!left || !right) return new Set();
     const out = new Set();
-    for (const id of left) {
-      if (right.has(id)) out.add(id);
+    const smaller = left.size <= right.size ? left : right;
+    const larger = smaller === left ? right : left;
+    for (const id of smaller) {
+      if (larger.has(id)) out.add(id);
     }
-    return out;
+    return new Set([...out].sort((a, b) => a - b));
   };
 
   const intersectCandidates = (candidates) => {
@@ -181,6 +184,8 @@ export const createCandidateHelpers = (deps) => {
         if (!setIntersection || !setIntersection.size) {
           return new Set();
         }
+        if (setIntersection.size < (resolvedBitmapMinSize || 256)
+          && setIntersection.size < getBitmapSize(bitmap)) return intersectSetWithBitmap(setIntersection, bitmap);
         const setBitmap = createBitmapFromIds(setIntersection, {
           force: true,
           minSize: resolvedBitmapMinSize ?? undefined

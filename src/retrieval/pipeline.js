@@ -25,6 +25,7 @@ import { rerankEvidence } from './pipeline/evidence-reranker.js';
 import { getGenerationProviderRuntime } from './pipeline/provider-runtime.js';
 import { resolveFileRelations } from './pipeline/relations.js';
 import { runCandidateStage } from './pipeline/candidate-stage.js';
+import { createEligibilityPlan } from './pipeline/eligibility-plan.js';
 import { runAnnStage } from './pipeline/ann-stage.js';
 import { runRankStage } from './pipeline/rank-stage.js';
 import {
@@ -552,6 +553,7 @@ export function createSearchPipeline(context) {
 
       // Main search: BM25 token match (with optional SQLite FTS first pass)
       const candidateMetrics = {};
+      const eligibilityPlan = createEligibilityPlan({ idx, mode, queryAst, allowedIdx, matchesQueryAst, throwIfAborted: abortIfNeeded });
       const candidateResult = runStage('candidates', candidateMetrics, () => (
         runCandidateStage({
           idx,
@@ -586,6 +588,10 @@ export function createSearchPipeline(context) {
           bm25B,
           getTokenIndexForQuery,
           candidateMetrics,
+            eligibilityPlan,
+            throwIfAborted: abortIfNeeded,
+            needLexicalCandidates: annDiscovery === 'lexical-rerank'
+              && (annEnabled || modeProfilePolicy?.allowSparseFallback === true),
           queryAst,
           matchesQueryAst: queryAst ? matchesQueryAst : null
         })
@@ -648,6 +654,7 @@ export function createSearchPipeline(context) {
           annDiscovery,
           matchesQueryAst,
           hasHardSemanticConstraints,
+          eligibilityPlan,
           minhashLimit,
           hasAllowedId,
           ensureAllowedSet,

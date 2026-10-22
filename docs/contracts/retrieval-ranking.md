@@ -196,3 +196,13 @@ weights retain their ordinary scoring meaning. Graph node maps are weakly owned
 by immutable admitted `graphRelations`; new generations replace that identity.
 These changes reduce particular preparation/traversal operations. They do not
 establish measured Node26 latency, allocations or whole-query performance.
+
+Request eligibility first applies admitted filter IDs. Exact lexical posting domains
+require the current scoring-analyzer identity and validated posting rows; unknown
+vocabulary completeness, phrases and unsupported predicates retain conservative
+supersets. The existing exact metadata/literal predicate verifies every surviving
+candidate after bounded hydration. Sparse and semantic predicate identities remain
+separate when free-text terms are relaxed. Cancellation checkpoints and preparation
+counts include this work. Independent ANN and sparse-only routes omit unused lexical
+candidate unions; required gram unions visit each posting once in first-seen order.
+Computed Set intersections use known cardinality and canonical ascending document IDs.

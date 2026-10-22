@@ -56,7 +56,7 @@ const runInstallCommand = (command, args, options = {}) => {
 
 const report = toolOverride.length
   ? { languages: {}, formats: {} }
-  : await buildToolingReport(root, languageOverride, { skipScan: languageOverride.length > 0 });
+  : await buildToolingReport(root, languageOverride, { skipScan: languageOverride.length > 0, skipToolDetection: true });
 const languageList = languageOverride.length ? languageOverride : Object.keys(report.languages || {});
 const tools = toolOverride.length
   ? resolveToolsById(toolOverride, toolingConfig.dir, root, toolingConfig)

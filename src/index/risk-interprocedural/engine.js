@@ -510,6 +510,9 @@ export const computeInterproceduralRisk = ({
   const callSiteIdsReferenced = new Set();
   const capsHit = new Set(stats.inputCoverage.reasons.map(reason => `upstream:${reason}`));
   const sampledEdges = new Map();
+  const preparedSinks = new Map(), preparedCallees = new Map(), preparedEdgeMetadata = new Map();
+  let preparedEdgeBytes = 0;
+  const MAX_PREPARED_EDGE_BYTES = 8 * 1024 * 1024;
   const maxDepth = Number.isFinite(caps.maxDepth) ? Math.max(1, caps.maxDepth) : 1;
   const maxPathsPerPair = Number.isFinite(caps.maxPathsPerPair) ? Math.max(1, caps.maxPathsPerPair) : 1;
   const maxTotalFlows = Number.isFinite(caps.maxTotalFlows) ? Math.max(0, caps.maxTotalFlows) : null;
@@ -669,7 +672,11 @@ export const computeInterproceduralRisk = ({
     }
     const state = queue.pop();
     const summary = summaryByUid.get(state.chunkUid);
-    const sinkSignals = sortSinks(summary?.signals?.sinks || []);
+    let sinkSignals = preparedSinks.get(state.chunkUid);
+    if (!sinkSignals) {
+      sinkSignals = sortSinks(summary?.signals?.sinks || []);
+      preparedSinks.set(state.chunkUid, sinkSignals);
+    }
     if (sinkSignals.length && state.chunkUid !== state.rootSource.chunkUid) {
       for (const sink of sinkSignals) {
         if (!sink?.ruleId) continue;
@@ -784,7 +791,11 @@ export const computeInterproceduralRisk = ({
       });
       continue;
     }
-    const calleeList = Array.from(callees).sort(sortByKey);
+    let calleeList = preparedCallees.get(state.chunkUid);
+    if (!calleeList) {
+      calleeList = Array.from(callees).sort(sortByKey);
+      preparedCallees.set(state.chunkUid, calleeList);
+    }
     let expandedAny = false;
     const blockedExpansions = [];
     let hitExpansionCap = false;
@@ -831,15 +842,22 @@ export const computeInterproceduralRisk = ({
         }
       }
 
-      const calleeChunk = chunkByUid.get(calleeUid);
-      const edgeParams = paramNamesByEdge.get(edgeKey(state.chunkUid, calleeUid)) || null;
-      const paramNames = resolveParamNames({ edgeParamNames: edgeParams, calleeChunk });
-      const matchedSemantics = resolveEdgeSemantics({
-        semantics,
-        callerChunk: chunkByUid.get(state.chunkUid),
-        calleeChunk,
-        details
-      });
+      const metadataKey = JSON.stringify([state.chunkUid, calleeUid]);
+      let preparedEdge = preparedEdgeMetadata.get(metadataKey);
+      if (!preparedEdge) {
+        const calleeChunk = chunkByUid.get(calleeUid);
+        const edgeParams = paramNamesByEdge.get(edgeKey(state.chunkUid, calleeUid)) || null;
+        const paramNames = resolveParamNames({ edgeParamNames: edgeParams, calleeChunk });
+        const matchedSemantics = resolveEdgeSemantics({ semantics,
+          callerChunk: chunkByUid.get(state.chunkUid), calleeChunk, details });
+        preparedEdge = { paramNames, matchedSemantics };
+        const bytes = metadataKey.length * 2 + paramNames.reduce((sum, name) => sum + String(name).length * 2, 0)
+          + matchedSemantics.length * 32 + 96;
+        if (preparedEdgeBytes + bytes <= MAX_PREPARED_EDGE_BYTES) {
+          preparedEdgeMetadata.set(metadataKey, preparedEdge); preparedEdgeBytes += bytes;
+        }
+      }
+      const { paramNames, matchedSemantics } = preparedEdge;
       const nextTaint = [];
       let appliedSemantics = [];
       if (strictness === 'argAware') {

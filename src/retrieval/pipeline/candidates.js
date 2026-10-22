@@ -30,6 +30,7 @@ export const createCandidateSetBuilder = ({
     }
 
     const candidates = candidatePool?.acquire ? candidatePool.acquire() : new Set();
+    try {
     let matched = false;
     const addCandidate = (id) => {
       candidates.add(id);
@@ -40,7 +41,7 @@ export const createCandidateSetBuilder = ({
       const vocabIndex = idx.phraseNgrams.vocabIndex
         || (idx.phraseNgrams.vocabIndex = createVocabIndex(idx.phraseNgrams.vocab));
       const ngrams = extractNgrams(tokens, postingsConfig.phraseMinN, postingsConfig.phraseMaxN);
-      for (const ng of ngrams) {
+      for (const ng of new Set(ngrams)) {
         const hit = vocabIndex.get(ng);
         if (hit === undefined) continue;
         const posting = idx.phraseNgrams.postings[hit] || [];
@@ -61,7 +62,8 @@ export const createCandidateSetBuilder = ({
       const hashedChargrams = typeof idx.chargrams?.fields?.hash?.prefix === 'string'
         || (typeof sample === 'string' && sample.startsWith('h64:'));
       if (hashedChargrams) assertChargramHashIdentity(idx.chargrams?.fields?.hash);
-      for (const token of tokens) {
+      const visitedPostings = new Set();
+      for (const token of new Set(tokens)) {
         if (chargramMaxTokenLength && token.length > chargramMaxTokenLength) continue;
         if (hashedChargrams) {
           let stopEarly = false;
@@ -72,7 +74,8 @@ export const createCandidateSetBuilder = ({
             { maxTokenLength: chargramMaxTokenLength },
             (gram) => {
               const hit = vocabIndex.get(gram);
-              if (hit === undefined) return true;
+              if (hit === undefined || visitedPostings.has(hit)) return true;
+              visitedPostings.add(hit);
               const posting = idx.chargrams.postings[hit] || [];
               for (const id of posting) {
                 if (addCandidate(id)) {
@@ -90,7 +93,8 @@ export const createCandidateSetBuilder = ({
           for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; n++) {
             for (const gram of tri(token, n)) {
               const hit = vocabIndex.get(gram);
-              if (hit === undefined) continue;
+              if (hit === undefined || visitedPostings.has(hit)) continue;
+              visitedPostings.add(hit);
               const posting = idx.chargrams.postings[hit] || [];
               for (const id of posting) {
                 if (addCandidate(id)) {
@@ -110,6 +114,10 @@ export const createCandidateSetBuilder = ({
       return null;
     }
     return candidates;
+    } catch (error) {
+      candidatePool?.release?.(candidates);
+      throw error;
+    }
   };
 };
 

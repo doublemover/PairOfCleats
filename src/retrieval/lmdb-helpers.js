@@ -150,7 +150,7 @@ export function createLmdbHelpers(options) {
       filterIndexRaw,
       includeFilterIndex
     });
-    idx.tokenIndex = includeTokenIndex ? admitSortedPostings(getArtifact(db, LMDB_ARTIFACT_KEYS.tokenPostings)) : null;
+    idx.tokenIndex = includeTokenIndex ? admitSortedPostings(getArtifact(db, LMDB_ARTIFACT_KEYS.tokenPostings), { completeVocabulary: true }) : null;
     return idx;
   }
 

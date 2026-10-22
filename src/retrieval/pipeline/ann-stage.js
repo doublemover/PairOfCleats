@@ -10,6 +10,7 @@ import {
 } from '../scoring/ann-candidate-policy.js';
 import { VECTOR_REQUIRED_CODE } from './constants.js';
 import { isAbortError, throwIfAborted } from '../../shared/abort.js';
+import { createEligibilityPlan } from './eligibility-plan.js';
 
 const normalizeAnnHits = (hits) => {
   if (!Array.isArray(hits)) return [];
@@ -51,6 +52,7 @@ export const runAnnStage = async ({
   annDiscovery = 'independent',
   matchesQueryAst,
   hasHardSemanticConstraints = false,
+  eligibilityPlan = null,
   minhashLimit,
   hasAllowedId,
   ensureAllowedSet,
@@ -107,11 +109,10 @@ export const runAnnStage = async ({
   const independentDiscovery = annDiscovery === 'independent';
   let eligibleIds = allowedIdx;
   if (hasHardSemanticConstraints) {
-    eligibleIds = new Set();
-    for (let id = 0; id < meta.length; id++) {
-      const chunk = meta[id];
-      if (chunk && (!allowedIdx || hasAllowedId(allowedIdx,id)) && matchesQueryAst(idx,id,chunk,true)) eligibleIds.add(id);
-    }
+    const eligibility = eligibilityPlan || createEligibilityPlan({ idx, meta, mode, queryAst: null,
+      allowedIdx, matchesQueryAst, throwIfAborted: () => throwIfAborted(signal) });
+    eligibleIds = eligibility.evaluate({ semantic: true });
+    annMetrics.eligibility = eligibility.statistics;
   }
   const eligibilityActive = filtersEnabled || hasHardSemanticConstraints;
   const annCandidateBase = independentDiscovery ? null : ensureCandidateBase();

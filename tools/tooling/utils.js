@@ -779,8 +779,8 @@ export async function buildToolingReport(root, languageOverride = null, options 
       return acc;
     }, {})
     : languages;
-  const tools = resolveToolsForLanguages(languageList, toolingConfig.dir, root, toolingConfig).map((tool) => {
-    const status = detectTool(tool);
+  const tools = options.skipToolDetection === true ? [] : resolveToolsForLanguages(languageList, toolingConfig.dir, root, toolingConfig).map((tool) => {
+    const status = (options.detectTool || detectTool)(tool);
     return {
       id: tool.id,
       label: tool.label,

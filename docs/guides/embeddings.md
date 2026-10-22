@@ -299,3 +299,8 @@ leases through the same cleanup path. Cancellation stops waiting/admitted writer
 encoding before allocation; terminal Stage3 cleanup drains owned writers and
 records failure state with the current attempt even after ordinary admission
 has stopped.
+
+History archive refresh retains an interval index inside each bounded immutable
+source run. Fragment lookup visits intersecting spans, preserving original span
+order and duplicate-range policy. The index is discarded with the existing source
+plan. This changes span-selection work, without establishing model-throughput gains.

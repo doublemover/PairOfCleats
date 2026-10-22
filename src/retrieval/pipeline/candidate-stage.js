@@ -1,7 +1,8 @@
 import { RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from '../sparse/requirements.js';
-import { bitmapHas } from '../bitmap.js';
+import { isAbortError } from '../../shared/abort.js';
 import { FTS_UNAVAILABLE_CODE } from './constants.js';
 import { requiresBooleanUniverse } from './query-ast.js';
+import { createEligibilityPlan } from './eligibility-plan.js';
 
 const emitSparseUnavailable = (diagnostics, reason, mode, extra = {}) => {
   if (!Array.isArray(diagnostics)) return;
@@ -51,21 +52,18 @@ export const runCandidateStage = ({
   bm25B,
   getTokenIndexForQuery,
   candidateMetrics,
+  needLexicalCandidates = true,
+  eligibilityPlan = null,
+  throwIfAborted = null,
   matchesQueryAst = null,
   queryAst = null
 }) => {
   let sparseAllowedIds = allowedIdx;
   const needsUniverse = requiresBooleanUniverse(queryAst);
   const nativeFtsGate = sqliteEnabledForMode && sqliteFtsDesiredForMode;
-  if (typeof matchesQueryAst === 'function' && !nativeFtsGate) {
-    sparseAllowedIds = new Set();
-    for (let id = 0; id < idx.chunkMeta.length; id++) {
-      const chunk = idx.chunkMeta[id];
-      if (chunk && (!allowedIdx || bitmapHas(allowedIdx, id)) && matchesQueryAst(idx, id, chunk, false)) {
-        sparseAllowedIds.add(id);
-      }
-    }
-  }
+  const eligibility = eligibilityPlan || createEligibilityPlan({ idx, mode, queryAst, allowedIdx, matchesQueryAst, throwIfAborted });
+  if (vectorOnlyProfile !== true && typeof matchesQueryAst === 'function' && !nativeFtsGate)
+    sparseAllowedIds = eligibility.evaluate({ semantic: false });
   const sparseFiltersEnabled = filtersEnabled || sparseAllowedIds !== allowedIdx;
   let sparseAllowedCount = sparseAllowedIds instanceof Set ? sparseAllowedIds.size : allowedCount;
   let candidates = null;
@@ -111,6 +109,7 @@ export const runCandidateStage = ({
   }
 
   const buildCandidatesFromHits = (hits) => {
+    if (!needLexicalCandidates) return null;
     if (!hits || !hits.length) return null;
     const set = candidatePool.acquire();
     for (const hit of hits) {
@@ -181,34 +180,12 @@ export const runCandidateStage = ({
     } else {
       try {
         const tokenIndexOverride = sqliteEnabledForMode ? getTokenIndexForQuery(queryTokens, mode) : null;
-        candidates = buildCandidateSet(idx, queryTokens, mode);
-        trackReleaseSet(candidates);
+        if (needLexicalCandidates) {
+          candidates = buildCandidateSet(idx, queryTokens, mode);
+          trackReleaseSet(candidates);
+        }
         if (nativeFtsGate && typeof matchesQueryAst === 'function') {
-          if (needsUniverse && idx.loadChunkMetaByIds) {
-            // A degraded FTS route must evaluate negative branches against
-            // real metadata, not treat unloaded rows as negative matches.
-            for (let start = 0; start < idx.chunkMeta.length; start += 512) {
-              const missing = [];
-              for (let id = start; id < Math.min(start + 512, idx.chunkMeta.length); id++) {
-                if (!idx.chunkMeta[id] && (!allowedIdx || bitmapHas(allowedIdx, id))) missing.push(id);
-              }
-              if (missing.length) idx.loadChunkMetaByIds(mode, missing, idx.chunkMeta);
-            }
-          }
-          if (idx.loadChunkMetaByIds && tokenIndexOverride?.postings) {
-            const missing = new Set();
-            for (const posting of tokenIndexOverride.postings) {
-              for (const [id] of posting) {
-                if (!idx.chunkMeta[id] && (!allowedIdx || bitmapHas(allowedIdx, id))) missing.add(id);
-              }
-            }
-            if (missing.size) idx.loadChunkMetaByIds(mode, Array.from(missing), idx.chunkMeta);
-          }
-          sparseAllowedIds = new Set();
-          for (let id = 0; id < idx.chunkMeta.length; id++) {
-            const chunk = idx.chunkMeta[id];
-            if (chunk && (!allowedIdx || bitmapHas(allowedIdx, id)) && matchesQueryAst(idx, id, chunk, false)) sparseAllowedIds.add(id);
-          }
+          sparseAllowedIds = eligibility.evaluate({ semantic: false, tokenIndex: tokenIndexOverride });
           sparseAllowedCount = sparseAllowedIds.size;
         }
         const bm25Result = bm25Provider.search({
@@ -227,6 +204,7 @@ export const runCandidateStage = ({
         sparseType = bm25Result.type;
         sqliteFtsUsed = false;
       } catch (error) {
+        if (isAbortError(error)) throw error;
         emitSparseUnavailable(sqliteFtsDiagnostics, 'provider_error', mode, {
           provider: bm25Provider.id || 'js-bm25',
           message: String(error?.message || error)
@@ -237,11 +215,13 @@ export const runCandidateStage = ({
   }
 
   candidateMetrics.counts = {
+    lexicalCandidatesBuilt: needLexicalCandidates,
     allowed: allowedIdx ? allowedCount : null,
     candidates: candidates ? candidates.size : null,
     bmHits: bmHits.length,
     eligibleSparse: sparseAllowedCount
   };
+  candidateMetrics.eligibility = eligibility.statistics;
   const unavailableDiagnostic = sqliteFtsDiagnostics.find(
     (entry) => entry?.code === FTS_UNAVAILABLE_CODE
   );

@@ -385,7 +385,8 @@ if (argv['skip-tooling']) {
         if (shouldInstall) {
           const scopeDefault = argv['tooling-scope'] || toolingConfig.installScope || 'cache';
           const scope = await promptChoice('Install tooling scope', ['cache', 'global'], scopeDefault);
-          const installArgs = [path.join(toolRoot, 'tools', 'tooling', 'install.js'), '--root', root, '--scope', scope, '--json'];
+          const installArgs = [path.join(toolRoot, 'tools', 'tooling', 'install.js'), '--root', root, '--scope', scope,
+            '--tools', toolingMissing.map(tool => tool.id).join(','), '--json'];
           if (!toolingConfig.allowGlobalFallback) installArgs.push('--no-fallback');
           const result = runCommand(process.execPath, installArgs, { encoding: 'utf8', stdio: 'pipe' });
           let installedReport;

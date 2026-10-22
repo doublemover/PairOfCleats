@@ -159,3 +159,8 @@ receipts.
 - Use `node tools/index/compact-pieces.js --repo <repo>` to compact chunk_meta parts and token_postings shards.
 - After setup, run `pairofcleats index validate` to confirm index artifacts are healthy.
 - If you prefer a fast, no-prompts path, use `pairofcleats bootstrap`.
+
+Installer language planning omits its discarded executable-probe pass. The installer
+performs its own initial command validation, and actual installation still requires
+post-install verification. Guided setup passes the selected missing tool IDs across
+the process boundary; the child revalidates current configuration and commands.

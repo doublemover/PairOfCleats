@@ -206,7 +206,8 @@ export const queryNavigationData = async ({
   filePath = '',
   limit = DEFAULT_LIMIT,
   symbolLimit = DEFAULT_SYMBOL_LIMIT,
-  completionLimit = DEFAULT_COMPLETION_LIMIT
+  completionLimit = DEFAULT_COMPLETION_LIMIT,
+  artifactReader = null
 }) => {
   const userConfig = loadUserConfig(repoRoot);
   const indexDir = getIndexDir(repoRoot, 'code', userConfig);
@@ -228,6 +229,7 @@ export const queryNavigationData = async ({
     results: []
   };
   const readArtifact = async (name) => {
+    if (typeof artifactReader === 'function') return artifactReader(name);
     const legacyJsonPath = path.join(indexDir, `${name}.json`);
     if (fs.existsSync(legacyJsonPath)) {
       try {
@@ -281,7 +283,6 @@ export const queryNavigationData = async ({
     const resolvedCompletionLimit = toPositiveInt(completionLimit, DEFAULT_COMPLETION_LIMIT);
     for (const row of scoredRows.slice(0, resolvedCompletionLimit * 4)) {
       selectedSymbols.push(row);
-      if (row.chunkUid) wantedChunkUids.add(String(row.chunkUid));
     }
   } else {
     for (const row of symbolRows) {
@@ -293,7 +294,7 @@ export const queryNavigationData = async ({
   }
 
   const chunkByUid = new Map();
-  if (wantedChunkUids.size) {
+  if (normalizedKind !== 'completions' && wantedChunkUids.size) {
     for (const row of await readArtifact('chunk_meta')) {
       const chunkUid = normalizeText(row?.chunkUid);
       if (!chunkUid || !wantedChunkUids.has(chunkUid)) continue;

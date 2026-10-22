@@ -45,3 +45,8 @@ sections reuse that count. Omission order, strict required evidence and the byte
 limit remain unchanged. Risk edge callsite samples are memoized only within one
 propagation run by caller, callee, file and sampling cap; taint and witness state
 remain specific to each traversal state.
+
+Within one risk propagation run, sink/callee order and immutable edge parameter and
+framework-rule matches are prepared lazily. Edge preparation has an 8 MiB accounted
+cache budget and falls back to recomputation when full. Tainted arguments, semantic
+transitions, confidence, watch steps and witness admission remain state-specific.
