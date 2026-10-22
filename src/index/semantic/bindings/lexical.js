@@ -12,7 +12,7 @@ const invalid = message => { throw Object.assign(new TypeError(message), { code:
 
 /** Closed lexical pilot. Imports/type-dependent and access-sensitive path order are unsupported. */
 export const resolveLexicalBinding = ({ world, profile, scopes, declarations, query,
-  maxVisits = 4096, signal }) => {
+  maxVisits = 4096, maxCandidates = 128, maxWitnessRefs = 16384, signal }) => {
   if (!world || !validateSemanticEnvelope('generation', world.generation).ok
     || !['repositoryNamespace', 'sourceSnapshotId', 'contextKey'].every(name => validText(world[name]))) invalid('Immutable binding world required.');
   if (profile?.id !== 'lexical-local-first-v1' || profile.version !== 1
@@ -22,7 +22,9 @@ export const resolveLexicalBinding = ({ world, profile, scopes, declarations, qu
   if (!validRef(query?.startScope) || !validRef(query.occurrence)
     || !profile.namespaces.includes(query.namespace) || !validText(query.datumKey)) invalid('Invalid binding query.');
   if (!Array.isArray(scopes) || scopes.length > 16384 || !Array.isArray(declarations)
-    || declarations.length > 65536 || !Number.isSafeInteger(maxVisits) || maxVisits < 0) invalid('Invalid binding input or work allowance.');
+    || declarations.length > 65536 || !Number.isSafeInteger(maxVisits) || maxVisits < 0 || maxVisits > 16384
+    || !Number.isSafeInteger(maxCandidates) || maxCandidates < 1 || maxCandidates > 128
+    || !Number.isSafeInteger(maxWitnessRefs) || maxWitnessRefs < 1 || maxWitnessRefs > 16384) invalid('Invalid binding input or work allowance.');
   const scopeMap = new Map();
   const byScope = new Map();
   for (const scope of scopes) {
@@ -75,6 +77,8 @@ export const resolveLexicalBinding = ({ world, profile, scopes, declarations, qu
     if (scope.unsupported.length) return defer('unsupported-scope-feature');
     if (!scope.declarationsClosed) return defer('declaration-frontier-open');
     if (candidates.length) {
+      if (candidates.length > maxCandidates) return defer('candidate-budget');
+      if (candidates.length * path.length > maxWitnessRefs) return defer('witness-budget');
       // Local declarations shadow outer scopes even when inaccessible in this profile.
       for (const candidate of candidates) {
         answer.paths.push({ target: structuredClone(candidate.ref), scopes: structuredClone(path) });

@@ -29,6 +29,8 @@ openScopes[1].declarationsClosed = false;
 assert.equal(run([], { scopes: openScopes }).status, 'unknown', 'partial graph never proves absence');
 assert.equal(run([decl(3, 1)], { scopes: openScopes }).completeInProfile, false, 'partial local inventory cannot exclude ambiguity');
 assert.equal(run([], { maxVisits: 1 }).frontier[0].reason, 'work-budget');
+assert.equal(run([decl(3, 1), decl(4, 1)], { maxCandidates: 1 }).frontier[0].reason, 'candidate-budget');
+assert.equal(run([decl(2, 0)], { maxWitnessRefs: 1 }).frontier[0].reason, 'witness-budget');
 const controller = new AbortController(); controller.abort();
 assert.equal(run([], { signal: controller.signal }).frontier[0].reason, 'cancelled');
 const cycle = [scope(0, 1), scope(1, 0)];

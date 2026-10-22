@@ -6,6 +6,8 @@ declarations shadow outer scopes even when inaccessible. Duplicate accessible
 declarations remain ambiguous. Unknown access, open inventories, unsupported
 features, missing scopes, cycles, work limits and cancellation retain an explicit
 frontier. A completed lookup does not certify whole-program well-formedness.
+Candidate counts and expanded path witness references have independent bounds;
+either limit retains an unknown frontier instead of slicing a complete answer.
 
 `src/semantic/lexical-binding.js` consumes existing canonical scope/declaration
 records and requires upstream admitted closure receipts plus explicit profile
@@ -19,6 +21,24 @@ same immutable world/profile and unchanged direct footprints; new generations
 require re-resolution. It does not implement cross-file residual confirmation or
 claim cyclic incremental reuse. Upstream facts/receipts are trusted admitted
 inputs; this seam must not accept unchecked caller assertions as public proof.
+
+The retained consumer in `src/semantic/retained-lexical-binding.js` reads the
+selected syntax partition through the existing pinned artifact store. It checks
+the actual occurrence and starting scope, captures canonical source bytes once,
+checks source coordinates, and derives the source snapshot identity from the
+retained manifest and store inventory. Namespace/datum/access annotations and
+closure receipts remain trusted upstream profile inputs; physical inventory
+completion does not supply them. Imports, mapped sources and cross-partition
+scope parents are outside this file-local adapter.
+
+The input scan has row, retained metadata and source byte limits. A row prefix,
+including one that exactly reaches its allowance, forces declaration/parent
+closure open; it cannot prove a missing or unique target. The optional task-lens
+consumer reuses that same captured source with the existing exact-source lens.
+Every ambiguity candidate is mandatory, so presentation overflow remains
+explicit. Source witnesses and a completed declared-model lookup grant no edit
+authority or native-language binding proof. The canonical writer/store/query/lens
+regression source is authored and unrun.
 
 Remaining work includes canonical public schemas, real language profile
 extraction, compiler differential qualification, a second distinct adapter,
