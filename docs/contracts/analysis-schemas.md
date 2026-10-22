@@ -190,3 +190,17 @@ Minimum fields:
 
 - Schemas allow `additionalProperties` so fields may be extended; only documented keys are relied upon by core logic.
 - Any schema change that affects `compatibilityKey` inputs is a hard break for mixing indexes.
+
+Complexity metadata uses the arithmetic mean of measured function cyclomatic
+values; independent module-level branches do not change that mean. A successfully
+analyzed file with no functions reports functions=0 and averageCyclomatic=0.
+Measured metadata carries status=measured and analyzerVersion=2. Unsupported AST
+kinds or parse/provider failures carry status=unavailable with a bounded reason,
+without publishing a numeric complexity as if it were measured.
+
+ESM is parsed as a real module when script parsing fails. Export wrappers retain
+their actual declaration ASTs and original locations for the provider walker;
+imports/re-exports do not invent executable branches. Unsupported modern syntax
+remains explicitly unmeasured. This is bounded syntax support, not a claim that
+escomplex accepts every admitted JavaScript/TypeScript construct. File-local
+complexity caches and incremental producer identity include the new semantics.

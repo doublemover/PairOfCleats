@@ -108,6 +108,7 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       controlFlowEnabled: runtime.controlFlowEnabled,
       lintEnabled: runtime.lintEnabled,
       complexityEnabled: runtime.complexityEnabled,
+      complexityAnalyzer: '2',
       riskAnalysisEnabled,
       riskAnalysisCrossFileEnabled,
       riskInterproceduralEnabled: modeRiskInterproceduralEnabled,

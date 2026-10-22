@@ -3,7 +3,7 @@ import { MINHASH_HASH_IDENTITY } from '../../../minhash.js';
 import util from 'node:util';
 import { isAbortError, throwIfAborted } from '../../../../shared/abort.js';
 import { recordTokenizationRoute } from '../tokenization-evidence.js';
-import { analyzeComplexity, lintChunk } from '../../../analysis.js';
+import { analyzeComplexity, COMPLEXITY_ANALYZER_VERSION, lintChunk } from '../../../analysis.js';
 import { getLanguageForFile } from '../../../language-registry.js';
 import { getChunkAuthorsFromLines } from '../../../scm/annotate.js';
 import { isJsLike } from '../../../constants.js';
@@ -426,7 +426,7 @@ export const processChunks = async (context) => {
     const effectiveComplexityEnabled = complexityEnabled && !heavyFileDownshift && parserIsAstFull;
     const effectiveLintEnabled = lintEnabled && !heavyFileDownshift && parserIsAstFull;
     if (effectiveComplexityEnabled) {
-      const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
+      const cacheKey = `complexity:${COMPLEXITY_ANALYZER_VERSION}:${rel}:${fileHash || 'unhashed'}`;
       let cachedComplexity = complexityCache.get(cacheKey);
       if (!cachedComplexity) {
         const enrichStart = Date.now();
