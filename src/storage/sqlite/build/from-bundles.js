@@ -1,3 +1,4 @@
+import { readEffectiveMemory } from '../../../shared/effective-memory.js';
 import { performance } from 'node:perf_hooks';
 import { assertMinhashHashIdentity } from '../../../index/minhash.js';
 import { writeSqliteMinhashHeader } from '../minhash.js';
@@ -700,70 +701,67 @@ export async function buildDatabaseFromBundles({
     let successfulFiles = 0;
     const bundleFailures = [];
     let fatalBundleFailure = null;
-    let bundleFailureAbort = false;
     // Delay worker allocation until the database and insert path are ready,
     // then own the loader immediately so every later failure closes it.
-    let bundleLoader = null;
+    let bundleLoader = null, loaderError = null;
     try {
       bundleLoader = createBundleLoader({ bundleThreads, workerPath, repoRoot, signal });
       const useBundleWorkers = bundleLoader.useWorkers;
       if (emitOutput && useBundleWorkers) {
-        log(`[sqlite] Bundle parser workers: ${bundleThreads}.`);
+        log(`[sqlite] Bundle parser workers: ${bundleLoader.maxThreads} (requested ${bundleThreads}).`);
       }
-      const maxInFlightBundles = useBundleWorkers
-        ? Math.max(1, Math.min(totalFiles, Math.max(1, bundleThreads), 32))
-        : 1;
-      const batchSize = maxInFlightBundles;
-      for (let i = 0; i < manifestEntries.length; i += batchSize) {
+      if (emitOutput && bundleLoader.workerAdmissionReason) {
+        log(`[sqlite] Bundle decode admission: ${bundleLoader.workerAdmissionReason}; execution=${useBundleWorkers ? 'workers' : 'ordered-inline'}.`);
+      }
+      const memory = readEffectiveMemory({ configuredLimitBytes: threadLimits?.totalMemBytes });
+      const decodeWindowBytes = Math.max(16 * 1024 * 1024, Math.min(256 * 1024 * 1024,
+        Math.floor(memory.freeBytes / 8)));
+      const pipelineMetrics = { byteAllowance: decodeWindowBytes, decodedProjectionFactor: 64,
+        execution: useBundleWorkers ? 'workers' : 'ordered-inline', workerAdmissionReason: bundleLoader.workerAdmissionReason || null };
+      if (batchStats) batchStats.bundlePipeline = pipelineMetrics;
+      for await (const result of bundleLoader.iterateBundleShards(manifestEntries, {
+        bundleDir: incrementalData.bundleDir, maxBytes: decodeWindowBytes, metrics: pipelineMetrics
+      })) {
         throwIfAborted(signal);
-        const batch = manifestEntries.slice(i, i + batchSize);
-        const tasks = batch.map((record) => bundleLoader.loadBundle({
-          bundleDir: incrementalData.bundleDir,
-          entry: record.entry,
-          file: record.file
-        }));
-        const results = await Promise.all(tasks);
-        throwIfAborted(signal);
-        for (const result of results) {
-          processedFiles += 1;
-          if (!result.ok) {
-            bundleFailures.push(`${result.reason} for ${result.file}`);
-            logBundleProgress(result.file, processedFiles === totalFiles);
-            bundleFailureAbort = true;
-            break;
+        if (!result.ok) {
+          processedFiles++;
+          bundleFailures.push(`${result.reason} for ${result.file}`);
+          logBundleProgress(result.file, processedFiles === totalFiles);
+          break;
+        }
+        const shardBundles = Array.isArray(result.bundleShards) ? result.bundleShards : [];
+        if (!shardBundles.length) {
+          bundleFailures.push(`invalid bundle shards for ${result.file}`);
+          logBundleProgress(result.file, processedFiles === totalFiles);
+          break;
+        }
+        let chunkCount = 0;
+        try {
+          for (const shardBundle of shardBundles) {
+            insertBundle(shardBundle, result.file);
+            chunkCount += Array.isArray(shardBundle?.chunks) ? shardBundle.chunks.length : 0;
           }
-          const shardBundles = Array.isArray(result.bundleShards) ? result.bundleShards : [];
-          if (!shardBundles.length) {
-            bundleFailures.push(`invalid bundle shards for ${result.file}`);
-            logBundleProgress(result.file, processedFiles === totalFiles);
-            bundleFailureAbort = true;
-            break;
-          }
-          let chunkCount = 0;
-          try {
-            for (const shardBundle of shardBundles) {
-              insertBundle(shardBundle, result.file);
-              chunkCount += Array.isArray(shardBundle?.chunks) ? shardBundle.chunks.length : 0;
-            }
-          } catch (err) {
-            if (isAbortError(err)) throw err;
-            const reason = `${err?.message || 'bundle insert failed'} for ${result.file}`;
-            bundleFailures.push(reason);
-            if (/dense vector dims mismatch/i.test(String(err?.message || ''))) {
-              fatalBundleFailure = reason;
-            }
-            logBundleProgress(result.file, processedFiles === totalFiles);
-            bundleFailureAbort = true;
-            break;
-          }
-          count += chunkCount;
-          successfulFiles += 1;
+        } catch (err) {
+          if (isAbortError(err)) throw err;
+          const reason = `${err?.message || 'bundle insert failed'} for ${result.file}`;
+          bundleFailures.push(reason);
+          if (/dense vector dims mismatch/i.test(String(err?.message || ''))) fatalBundleFailure = reason;
+          logBundleProgress(result.file, processedFiles === totalFiles);
+          break;
+        }
+        count += chunkCount;
+        if (result.finalShard) {
+          processedFiles++; successfulFiles++;
           logBundleProgress(result.file, processedFiles === totalFiles);
         }
-        if (fatalBundleFailure || bundleFailureAbort) break;
       }
-    } finally {
-      await bundleLoader?.close();
+    } catch (error) { loaderError = error; throw error; }
+    finally {
+      try { await bundleLoader?.close(); }
+      catch (error) {
+        if (loaderError) { try { loaderError.bundleLoaderTeardownError = error; } catch {} }
+        else throw error;
+      }
     }
 
     validationStats.chunks = count;

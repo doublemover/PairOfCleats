@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { readVerifiedContainedFile } from '../contained-file.js';
+import { throwIfAborted } from '../abort.js';
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fs from 'node:fs/promises';
 import { atomicWriteJson, atomicWriteText } from '../io/atomic-write.js';
@@ -161,12 +164,15 @@ const countPatchEntries = (raw) => {
   return count;
 };
 
-export const readBundlePatches = async (bundlePath, { repoRoot = process.cwd() } = {}) => {
+export const readBundlePatches = async (bundlePath, { repoRoot = process.cwd(), signal = null, expectedBytes = null } = {}) => {
   const patchPath = resolveBundlePatchPath(bundlePath);
   let stat = null;
   try {
     stat = await fs.stat(patchPath);
-  } catch {
+  } catch (error) {
+    throwIfAborted(signal);
+    if (error.code !== 'ENOENT') throw error;
+    if (expectedBytes > 0) return { ok: false, reason: 'selected bundle patch missing' };
     return { ok: true, patches: [] };
   }
   if (stat.size > MAX_BUNDLE_PATCH_BYTES) {
@@ -174,8 +180,12 @@ export const readBundlePatches = async (bundlePath, { repoRoot = process.cwd() }
   }
   let raw = '';
   try {
-    raw = await fs.readFile(patchPath, 'utf8');
-  } catch {
+    const read = await readVerifiedContainedFile(path.dirname(patchPath), patchPath, {
+      maxBytes: MAX_BUNDLE_PATCH_BYTES, expectedBytes, signal });
+    raw = read.buffer.toString('utf8');
+  } catch (error) {
+    throwIfAborted(signal);
+    if (['EACCES', 'EPERM'].includes(error.code)) throw error;
     return { ok: false, reason: 'failed to read bundle patch' };
   }
   const entryCount = countPatchEntries(raw);

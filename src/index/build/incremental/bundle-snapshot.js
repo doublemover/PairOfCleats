@@ -17,6 +17,22 @@ const same = (left, right) => JSON.stringify(canonicalizeBundlePayloadForChecksu
   === JSON.stringify(canonicalizeBundlePayloadForChecksum(right ?? null));
 const snapshotPattern = /^(resume|snapshot)-([a-f0-9]{64})\.(json|mpk)$/;
 
+/** Shared per-shard authority check for index replay and ordered SQLite decode.
+ * A shard's own checksum cannot substitute for its selected manifest identity. */
+export const validateIncrementalBundleShardAuthority = ({ relKey, sourceHash, sourceSize,
+  dependencySignatures, bundleName, part, index, count, format, bundle }) => {
+  const match = snapshotPattern.exec(bundleName || '');
+  const resolved = normalizeBundleFormat(format);
+  if (!match || path.basename(bundleName) !== bundleName || part?.name !== bundleName
+    || part.index !== index || part.count !== count || part.hash !== match[2]
+    || (resolved === 'json' ? 'json' : 'mpk') !== match[3]) return false;
+  return canonicalBundleSourceKey(bundle?.file) === canonicalBundleSourceKey(relKey)
+    && bundle.hash === sourceHash && bundle.size === sourceSize
+    && same(bundle.dependencySignatures, dependencySignatures)
+    && bundle.bundleShardIndex === index && bundle.bundleShardCount === count
+    && digest(bundle, resolved) === part.hash;
+};
+
 /** Admit all shards against one selected manifest entry, never just their own checksum. */
 export const readIncrementalBundleSnapshot = async ({ repoRoot = process.cwd(), bundleDir,
   relKey, entry, fallbackFormat = 'json', signal = null }) => {
@@ -39,11 +55,9 @@ export const readIncrementalBundleSnapshot = async ({ repoRoot = process.cwd(), 
       const result = await readBundleFile(filename, { format, repoRoot });
       if (!result.ok) return null;
       const bundle = result.bundle;
-      if (canonicalBundleSourceKey(bundle.file) !== file || bundle.hash !== entry.hash
-        || bundle.size !== entry.size
-        || !same(bundle.dependencySignatures, entry.dependencySignatures)
-        || bundle.bundleShardIndex !== index || bundle.bundleShardCount !== names.length
-        || digest(bundle, format) !== part.hash) return null;
+      if (!validateIncrementalBundleShardAuthority({ relKey: file, sourceHash: entry.hash, sourceSize: entry.size,
+        dependencySignatures: entry.dependencySignatures, bundleName: name, part, index,
+        count: names.length, format, bundle })) return null;
       shards.push({ bundleName: name, bundlePath: filename, bundleFormat: format, bundle });
     }
     const first = shards[0].bundle;

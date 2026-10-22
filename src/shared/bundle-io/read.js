@@ -1,5 +1,7 @@
+import { throwIfAborted } from '../abort.js';
+import path from 'node:path';
+import { readVerifiedContainedFile } from '../contained-file.js';
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
-import fs from 'node:fs/promises';
 import { Unpackr } from 'msgpackr';
 import {
   BUNDLE_CHECKSUM_SCHEMA_VERSION,
@@ -24,23 +26,26 @@ import { applyBundlePatch, readBundlePatches } from './patch.js';
 import { normalizeBundleSourceKeys } from '../bundle-source-key.js';
 
 const unpackr = new Unpackr({ useRecords: false });
-const normalizeRead = result => {
+const normalizeRead = (result, signal = null) => {
+  throwIfAborted(signal);
   if (!result.ok) return result;
   try { return { ...result, bundle: normalizeBundleSourceKeys(result.bundle) }; }
   catch { return { ok: false, reason: 'invalid bundle source key' }; }
 };
 
-export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX_BUNDLE_BYTES, repoRoot = process.cwd() } = {}) {
+export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX_BUNDLE_BYTES, repoRoot = process.cwd(), signal = null, expectedEncodedBytes = null, expectedPatchBytes = null } = {}) {
   const gate = (value, component) => assertCurrentIndexFormat({
     operation: 'import', component, foundVersion: value?.artifactSurfaceVersion, repoRoot, indexPath: bundlePath
   });
-  const stat = await fs.stat(bundlePath);
-  if (Number.isFinite(maxBytes) && maxBytes > 0 && stat.size > maxBytes) {
-    return { ok: false, reason: 'bundle too large' };
-  }
+  const boundedBytes = Number.isSafeInteger(maxBytes) && maxBytes > 0 ? Math.min(maxBytes, MAX_BUNDLE_BYTES) : MAX_BUNDLE_BYTES;
+  let encoded;
+  try { encoded = await readVerifiedContainedFile(path.dirname(bundlePath), bundlePath, {
+    maxBytes: boundedBytes, expectedBytes: expectedEncodedBytes, signal }); }
+  catch (error) { if (error.code === 'ERR_FILE_TOO_LARGE') return { ok: false, reason: 'bundle too large' }; throw error; }
+  throwIfAborted(signal);
   const resolvedFormat = format || resolveBundleFormatFromName(bundlePath);
   if (resolvedFormat === 'msgpack') {
-    const buffer = await fs.readFile(bundlePath);
+    const buffer = encoded.buffer;
     const envelope = unpackr.unpack(buffer);
     if (!envelope || typeof envelope !== 'object') {
       return { ok: false, reason: 'invalid bundle envelope' };
@@ -72,11 +77,11 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
         supportedVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
         maxChecksumBytes: MAX_BUNDLE_CHECKSUM_BYTES,
         checksumBundlePayload
-      }));
+      }), signal);
     }
-    return normalizeRead({ ok: true, bundle: payload });
+    return normalizeRead({ ok: true, bundle: payload }, signal);
   }
-  const raw = await fs.readFile(bundlePath, 'utf8');
+  const raw = encoded.buffer.toString('utf8');
   let bundle = null;
   try {
     bundle = JSON.parse(raw);
@@ -87,7 +92,8 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
   if (!bundle || !Array.isArray(bundle.chunks)) {
     return { ok: false, reason: 'invalid bundle' };
   }
-  const patches = await readBundlePatches(bundlePath, { repoRoot });
+  const patches = await readBundlePatches(bundlePath, { repoRoot, signal, expectedBytes: expectedPatchBytes });
+  throwIfAborted(signal);
   if (!patches.ok) {
     return { ok: false, reason: 'invalid bundle patch' };
   }
@@ -108,7 +114,8 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
   }
   try {
     const checksumPath = resolveBundleJsonChecksumPath(bundlePath);
-    const rawChecksum = await fs.readFile(checksumPath, 'utf8');
+    const checksumRead = await readVerifiedContainedFile(path.dirname(checksumPath), checksumPath, { maxBytes: 65536, signal });
+    const rawChecksum = checksumRead.buffer.toString('utf8');
     const parsedChecksum = JSON.parse(rawChecksum);
     const checksum = parsedChecksum?.checksum;
     if (!isSupportedChecksumSchemaVersion(
@@ -132,9 +139,11 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
       return verified;
     }
   } catch (err) {
+    throwIfAborted(signal);
+    if (['EACCES', 'EPERM'].includes(err?.code)) throw err;
     if (err?.code !== 'ENOENT') {
       return { ok: false, reason: 'invalid bundle checksum' };
     }
   }
-  return normalizeRead({ ok: true, bundle });
+  return normalizeRead({ ok: true, bundle }, signal);
 }

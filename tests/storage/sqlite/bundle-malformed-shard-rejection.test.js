@@ -10,7 +10,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-malformed-shard-'));
 // Simulate a parser worker response that passed its transport envelope while
 // exercising the real exported importer, SQLite transaction, and failure result.
-const loader = `export const createBundleLoader=()=>({useWorkers:false,close:async()=>{},loadBundle:async({file})=>({ok:true,file,bundleShards:[{}]})});`;
+const loader = `export const createBundleLoader=()=>({useWorkers:false,close:async()=>{},async *iterateBundleShards(records){for(const {file} of records)yield {ok:true,file,finalShard:true,bundleShards:[{}]};}});`;
 const hook = registerHooks({ resolve(specifier, context, next) {
   if (context.parentURL?.endsWith('/from-bundles.js') && specifier === './bundle-loader.js') {
     return { url: `data:text/javascript,${encodeURIComponent(loader)}`, shortCircuit: true };
