@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { MAP_REPORT_OPTIONS } from '../shared/operator-cli-options.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -18,29 +19,19 @@ import { readJsonFile } from '../../src/shared/artifact-io/json.js';
 import { assertPiecesManifestFormat } from '../../src/shared/artifact-io/manifest-read.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { emitJson } from '../shared/cli-utils.js';
+import { publishMapOutput } from './map-output-publication.js';
+import { runMapPreview } from '../analysis/map-iso-preview.js';
 
 const argv = createCli({
   scriptName: 'report map',
-  options: {
-    ...MAP_BENCH_BUILD_OPTIONS,
-    format: { type: 'string', default: 'json' },
-    out: { type: 'string' },
-    'model-out': { type: 'string' },
-    'node-list-out': { type: 'string' },
-    json: { type: 'boolean', default: false },
-    pretty: { type: 'boolean', default: false },
-    'open-uri-template': { type: 'string' },
-    'three-url': { type: 'string' },
-    'wasd-sensitivity': { type: 'number' },
-    'wasd-acceleration': { type: 'number' },
-    'wasd-max-speed': { type: 'number' },
-    'wasd-drag': { type: 'number' },
-    'zoom-sensitivity': { type: 'number' },
-    'cache-dir': { type: 'string' },
-    refresh: { type: 'boolean', default: false }
-  }
+  options: MAP_REPORT_OPTIONS
 }).parse();
 
+if (argv.serve) {
+  try { await runMapPreview(argv); }
+  catch (error) { console.error(`Map preview failed: ${error.message}`); process.exitCode = 1; }
+} else {
+if (argv.input) throw new Error('--input opens saved evidence with --serve. It is not an output or a live-index override.');
 const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const mode = String(argv.mode || 'code').toLowerCase();
 const indexDir = toRealPathSync(getIndexDir(repoRoot, mode, userConfig, {
@@ -111,14 +102,9 @@ const cacheDir = argv['cache-dir']
 const cacheIdentity = generatedMapCacheIdentity(cacheKey);
 const cachePath = path.join(cacheDir, cacheIdentity.fileName);
 
-const ensureDir = (targetPath) => {
-  if (!targetPath) return;
-  const dir = path.dirname(targetPath);
-  fs.mkdirSync(dir, { recursive: true });
-};
-
 let mapModel = null;
 const warnings = [];
+const outputs = [];
 
 if (!argv.refresh && fs.existsSync(cachePath)) {
   try {
@@ -149,25 +135,22 @@ if (mapModel) {
   mapModel.root.path = repoRoot;
   mapModel.root.id = mapModel.root.id || getRepoId(repoRoot);
   warnings.push(...(mapModel.warnings || []));
+  mapModel.provenance = {
+    ...(mapModel.provenance || {}),
+    kind: 'live-index-export',
+    selectedIndex: { mode, indexDir, manifest: indexIdentity.manifest },
+    exportedAt: new Date().toISOString()
+  };
 }
 
 const modelOut = argv['model-out'] ? path.resolve(argv['model-out']) : null;
 if (modelOut) {
-  try {
-    writeJsonFileSyncResolved(modelOut, mapModel);
-  } catch (err) {
-    warnings.push(`model output failed: ${err?.message || err}`);
-  }
+  outputs.push(await publishMapOutput({ kind: 'model', target: modelOut, content: JSON.stringify(mapModel, null, 2) }));
 }
 
 const nodeListOut = argv['node-list-out'] ? path.resolve(argv['node-list-out']) : null;
 if (nodeListOut) {
-  try {
-    const list = buildNodeList(mapModel);
-    writeJsonFileSyncResolved(nodeListOut, list);
-  } catch (err) {
-    warnings.push(`node list output failed: ${err?.message || err}`);
-  }
+  outputs.push(await publishMapOutput({ kind: 'node-list', target: nodeListOut, content: JSON.stringify(buildNodeList(mapModel), null, 2) }));
 }
 
 const resolveThreeUrl = (targetPath) => {
@@ -237,40 +220,37 @@ if (format === 'json') {
 }
 
 if (outputPath) {
-  try {
-    if (resolvedFormat === 'json') {
-      writeJsonFileSyncResolved(outputPath, mapModel, { spaces: argv.pretty ? 2 : 0 });
-    } else {
-      ensureDir(outputPath);
-      fs.writeFileSync(outputPath, output);
-    }
-  } catch (err) {
-    warnings.push(`output write failed: ${err?.message || err}`);
-  }
+  outputs.push(await publishMapOutput({ kind: 'report', target: outputPath, content: output }));
 }
 
 const report = {
-  ok: true,
+  ok: outputs.every(entry => entry.ok),
+  partial: outputs.some(entry => entry.ok) && outputs.some(entry => !entry.ok),
   format: resolvedFormat,
   outPath: outputPath,
   modelPath: modelOut || null,
   nodeListPath: nodeListOut || null,
   cacheKey,
   summary: mapModel.summary || null,
+  identity: { repo: mapModel.root, selectedIndex: mapModel.provenance.selectedIndex, producer: mapModel.version, options: mapModel.options },
+  outputs,
   warnings: Array.from(new Set(warnings.filter(Boolean)))
 };
 
 if (argv.json) {
   emitJson(report, process.stdout, { spaces: argv.pretty ? 2 : 0 });
-  process.exit(0);
-}
-
-if (!outputPath) {
+  process.exitCode = report.ok ? 0 : 1;
+} else if (!outputPath) {
   if (resolvedFormat === 'json') {
     process.stdout.write(output);
   } else {
     process.stderr.write(output);
   }
-} else if (!argv.json) {
+} else if (outputs.find(entry => entry.kind === 'report')?.ok) {
   console.error(`Wrote ${resolvedFormat} map to ${outputPath}`);
+}
+if (!report.ok && !argv.json) {
+  for (const entry of outputs.filter(item => !item.ok)) console.error(`Failed ${entry.kind} output ${entry.path}: ${entry.error.code}: ${entry.error.message}`);
+  process.exitCode = 1;
+}
 }

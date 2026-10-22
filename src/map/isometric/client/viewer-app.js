@@ -130,14 +130,15 @@ const initViewer = async () => {
     flowMaterials: [],
     normalMapState: { texture: null },
     drawCounts: { files: 0, members: 0, edges: 0, labels: 0 },
-    perfStats: { fps: 0, droppedFrames: 0, frameMs: 0, heapUsed: null },
+    perfStats: { fps: null, slowCallbacks: 0, callbackIntervalMs: null, heapUsed: null },
     displayLimits: limits
   });
 
   const renderSummary = () => {
-    const counts = state.map?.summary?.counts || { files: 0, members: 0, edges: 0 };
+    const counts = state.sourceIndex?.counts || { files: 0, members: 0, edges: 0 };
+    const displayed=state.map?.summary?.counts||{};
     const truncated = state.map?.summary?.truncated ? ' | truncated' : '';
-    dom.summary.textContent = `files: ${counts.files || 0} | members: ${counts.members || 0} | edges: ${counts.edges || 0}${truncated}`;
+    dom.summary.textContent = `Available snapshot: ${counts.files} files / ${counts.members} members / ${counts.edges} edges. Display: ${displayed.files||0} / ${displayed.members||0} / ${displayed.edges||0}${truncated}`;
   };
   renderSummary();
 
@@ -158,6 +159,8 @@ const initViewer = async () => {
   initStackNavigation();
   const retry=document.createElement('button');retry.type='button';retry.textContent='Retry 3D assets';
   retry.onclick=()=>enhance();
+  state.onRendererStatus=message=>{dom.summary.textContent=message;dom.summary.append(retry);};
+  state.rebuildAfterContextRestore=()=>{rebuildScene();initControls();renderSummary();};
   const enhance=async()=>{
     retry.remove();
     dom.summary.textContent='Source browser ready · loading local 3D assets…';

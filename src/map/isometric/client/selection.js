@@ -12,6 +12,14 @@ const formatPrimitive = (value) => {
 };
 
 const isRefItem = (value) => value && typeof value === 'object' && value.__ref;
+const wireReference = (pill, entry) => {
+  pill.tabIndex=0; pill.setAttribute('role','button');
+  pill.addEventListener('focus',()=>setHoverRef(entry));
+  pill.addEventListener('blur',()=>setHoverRef(null));
+  const inspect=()=>state.inspectSourceReference?.(entry.refType==='member'?{type:'member',id:entry.refId}:{type:'file',file:entry.refId});
+  pill.addEventListener('click',inspect);
+  pill.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();inspect();}});
+};
 
 export const setHoverRef = (ref) => {
   state.hoveredRef = ref;
@@ -41,6 +49,7 @@ const renderValueNode = (value) => {
         pill.textContent = entry.label;
         pill.dataset.refType = entry.refType;
         pill.dataset.refId = entry.refId;
+        wireReference(pill,entry);
         pill.addEventListener('mouseenter', () => setHoverRef(entry));
         pill.addEventListener('mouseleave', () => setHoverRef(null));
       } else {
@@ -57,6 +66,7 @@ const renderValueNode = (value) => {
       pill.textContent = value.label;
       pill.dataset.refType = value.refType;
       pill.dataset.refId = value.refId;
+      wireReference(pill,value);
       pill.addEventListener('mouseenter', () => setHoverRef(value));
       pill.addEventListener('mouseleave', () => setHoverRef(null));
       return pill;
@@ -178,7 +188,7 @@ const formatListWithLimit = (values, limit = 10) => {
 
 const collectEdgesForSelection = (selectionInfo, member, node) => {
   if (!selectionInfo) return { incoming: [], outgoing: [] };
-  const touches = selectionEndpointMatcher(selectionInfo, { member, node, fileByMember: state.fileByMember });
+  const touches = selectionEndpointMatcher(selectionInfo, { member, node, fileByMember: state.sourceIndex?.fileByMember||state.fileByMember });
   const incoming = [];
   const outgoing = [];
   (state.sourceIndex?.relationships(selectionInfo) || state.edges).forEach((edge) => {

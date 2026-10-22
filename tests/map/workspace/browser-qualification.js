@@ -243,11 +243,12 @@ try {
   record('desktop/mobile portrait/mobile landscape rendered layout receipts');
 
   // The independent real Three.js CLI/server remains a separate viewer authority.
-  isoController = new AbortController(); let readyResolve, launcherLog = '';
+  isoController = new AbortController(); let readyResolve, launcherLog = '', launcherOutput = '';
   const ready = new Promise(resolve => { readyResolve = resolve; });
-  isoResult = spawnSubprocess(process.execPath, ['tools/analysis/map-iso-serve.js', '--repo', witness.repoRoot, '--no-open', '--cert-dir', path.join(root, 'viewer-tls')],
+  isoResult = spawnSubprocess(process.execPath, ['bin/pairofcleats.js', 'report', 'map', '--serve', '--repo', witness.repoRoot, '--no-open'],
     { cwd: process.cwd(), env: process.env, signal: isoController.signal, timeoutMs: 30000, outputMode: 'string',
-      onStderr: chunk => { launcherLog += String(chunk); const match = launcherLog.match(/Serving map: (https:\/\/localhost:\d+\/map.iso.html)/); if (match) readyResolve(match[1]); } })
+      onStderr: chunk => { launcherLog += String(chunk); },
+      onStdout: chunk => { launcherOutput += String(chunk); for (const line of launcherOutput.split('\n').slice(0,-1)) { const event = JSON.parse(line); if(event.type==='map-preview-ready')readyResolve(event.url); } } })
     .then(result => ({ result }), error => ({ error }));
   const isoUrl = await Promise.race([ready, isoResult.then(result => { throw new Error('Three.js launcher ended before readiness: ' + launcherLog + ' ' + (result.error?.message || '')); })]);
   diagnostics.begin('three-desktop');

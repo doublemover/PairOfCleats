@@ -16,6 +16,9 @@ import { scheduleRebuild } from './rebuild.js';
 import { renderSelectionDetails } from './selection.js';
 import { clearGroup } from './scene-utils.js';
 import { displayDefaults } from './defaults.js';
+import { settingSupported, controlSupported } from './setting-capabilities.js';
+import { updateStackVisibility } from './stack-scene.js';
+let sliderSequence = 0;
 
 const getNested = (obj, path) => {
   const parts = path.split('.');
@@ -39,6 +42,7 @@ const setNested = (obj, path, value) => {
 };
 
 const createToggle = (container, options) => {
+  if(!controlSupported(options.label,state.layout.style))return;
   const wrapper = document.createElement('label');
   const input = document.createElement('input');
   input.type = 'checkbox';
@@ -53,6 +57,7 @@ const createToggle = (container, options) => {
 };
 
 const createSelect = (container, options) => {
+  if(!controlSupported(options.label,state.layout.style))return;
   const wrapper = document.createElement('label');
   const text = document.createElement('span');
   text.textContent = options.label;
@@ -74,12 +79,16 @@ const createSelect = (container, options) => {
 };
 
 const createSlider = (container, options) => {
-  const label = document.createElement('div');
+  if(!settingSupported(options.path,state.layout.style))return;
+  const label = document.createElement('label');
   label.textContent = options.label;
   const row = document.createElement('div');
   row.className = 'slider-row';
   const input = document.createElement('input');
   input.type = 'range';
+  input.id=`isomap-setting-${++sliderSequence}`;
+  label.htmlFor=input.id;
+  input.title=`${options.label}. ${options.rebuild===false?'Updates the current scene.':'Rebuilds the bounded scene after input settles.'}`;
   input.min = String(options.min);
   input.max = String(options.max);
   input.step = String(options.step || 0.1);
@@ -102,7 +111,7 @@ const createSlider = (container, options) => {
     persistPanelState();
   };
   input.addEventListener('input', updateValue);
-  updateValue();
+  valueLabel.textContent=options.format?options.format(Number(input.value)):input.value;
   row.appendChild(input);
   row.appendChild(valueLabel);
   container.appendChild(label);
@@ -195,6 +204,7 @@ export const renderEdgeMenu = () => {
         const group = edgeTypeGroups.get(type);
         if (group) group.visible = value;
         edgeVisibility.set(type, value);
+        updateStackVisibility(true);
       }
     });
   });
@@ -247,6 +257,8 @@ export const initUi = () => {
 
   state.edgeVisibility = state.edgeVisibility || new Map();
   state.gridVisible = state.gridVisible ?? true;
+  createSelect(dom.menuView,{label:'Motion',value:state.motionOverride||'system',options:[{label:'Follow system',value:'system'},{label:'Off · static effects',value:'off'},{label:'On',value:'on'}],
+    onChange:value=>{state.motionOverride=value;state.cancelCameraMotion?.();state.invalidateRender?.();}});
 
   createToggle(dom.menuView, {
     label: 'Grid',
@@ -257,10 +269,10 @@ export const initUi = () => {
     }
   });
   createToggle(dom.menuView, { label: 'Files', onChange: (value) => { fileGroup.visible = value; } });
-  createToggle(dom.menuView, { label: 'Members', onChange: (value) => { memberGroup.visible = value; } });
+  createToggle(dom.menuView, { label: 'Members', checked:memberGroup.visible, onChange: (value) => { memberGroup.visible = value; memberGroup.userData.userHidden=!value; updateStackVisibility(true); } });
   createToggle(dom.menuView, {
     label: 'Labels',
-    checked: false,
+    checked: labelGroup.visible,
     onChange: (value) => {
       labelGroup.visible = value;
       labelGroup.userData = labelGroup.userData || {};
@@ -280,6 +292,7 @@ export const initUi = () => {
       edgeGroup.visible = value;
       edgeGroup.userData = edgeGroup.userData || {};
       edgeGroup.userData.userHidden = !value;
+      updateStackVisibility(true);
     }
   });
 
@@ -598,5 +611,8 @@ export const initUi = () => {
 
   state.syncStateFromPanel = syncStateFromPanel;
   state.renderEdgeMenu = renderEdgeMenu;
-  renderSelectionDetails(state.selected?.userData || null);
+  renderSelectionDetails(state.selectedInfo || null);
+  for(const container of [dom.menuScore,dom.menuColors,dom.menuColorMode]){
+    if(state.layout.style==='stacks'){container.replaceChildren();container.textContent='Semantic stacks retain their documented kind shapes and colors.';}
+  }
 };

@@ -106,9 +106,25 @@ export const initScene = async () => {
 
   const environment = createEnvironmentOwner({ THREE, renderer, scene });
   let disposed = false;
+  const lost = event => {
+    event.preventDefault();
+    state.contextLost=true;
+    state.cancelCameraMotion?.();
+    state.onRendererStatus?.('3D context lost. Source evidence remains available; waiting for restoration.');
+  };
+  const restored = () => {
+    if(disposed)return;
+    state.contextLost=false;
+    try { state.rebuildAfterContextRestore?.(); state.invalidateRender?.(); }
+    catch(error){state.onRendererStatus?.(`3D restore failed: ${error.message}. Source evidence remains available.`);}
+  };
+  renderer.domElement.addEventListener('webglcontextlost',lost);
+  renderer.domElement.addEventListener('webglcontextrestored',restored);
   const disposeScene = () => {
     if (disposed) return;
     disposed = true;
+    renderer.domElement.removeEventListener('webglcontextlost',lost);
+    renderer.domElement.removeEventListener('webglcontextrestored',restored);
     state.disposeControls?.();
     if (state.rebuildTimer) clearTimeout(state.rebuildTimer);
     state.rebuildTimer = null;
@@ -122,6 +138,7 @@ export const initScene = async () => {
     renderer.domElement.remove();
     if (state.disposeScene === disposeScene) state.disposeScene = null;
   };
+  Object.assign(state,{scene,renderer,disposeScene,contextLost:false});
 
   const envCanvas = document.createElement('canvas');
   envCanvas.width = 32;
@@ -139,7 +156,7 @@ export const initScene = async () => {
   if (RGBELoader && assets.hdrEnvUrl) {
     const rgbe = new RGBELoader();
     rgbe.load(assets.hdrEnvUrl, (hdrTexture) => {
-      try { environment.replace(hdrTexture); }
+      try { environment.replace(hdrTexture); if(!disposed)state.invalidateRender?.(); }
       catch (error) { if (!disposed) state.environmentError = error.message; }
     }, undefined, (error) => {
       if (!disposed) state.environmentError = error?.message || 'Optional environment unavailable; using local lighting.';

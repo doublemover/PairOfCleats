@@ -1,11 +1,13 @@
 import { state } from './state.js';
 import { createShapeGeometry } from './layout.js';
-import { createTextPlane } from './materials.js';
+import { createTextPlane, applyHeightFog } from './materials.js';
 import { resolveStackTier, STACK_KINDS } from './stack-model.js';
+import { projectPipeRows, projectViewerCoverage } from './coverage.js';
 const categoryColors={source:'#426b90',test:'#8667b1',config:'#388b80',docs:'#b8884f',generated:'#596477',other:'#4a5c70'};
 const edgeColors={import:'#76a9f0',export:'#b49bf4',call:'#61dbcf',usage:'#f3bd71',dataflow:'#ee8faa',alias:'#adb8cc'};
-const material=color=>new state.THREE.MeshStandardMaterial({color,roughness:0.7,metalness:0.12});
+const material=color=>{const value=new state.THREE.MeshStandardMaterial({color,roughness:0.7,metalness:0.12});applyHeightFog(value);state.stackMaterials.push(value);return value;};
 export function buildStackMeshes(){
+  state.stackMaterials=[];
   const {THREE,stackModel:model}=state,scale=state.scaleFactor||1,dummy=new THREE.Object3D();
   let members=0,labels=0;
   const label=(text,anchor,size,level)=>{
@@ -95,13 +97,14 @@ export function updateStackVisibility(force=false){
   const pixels=sample*width*state.camera.zoom/Math.max(1,state.camera.right-state.camera.left);
   const tier=resolveStackTier({projectedFilePixels:pixels,mode:state.stackMode||'auto',previous:state.stackTier});
   const selected=state.selectedInfo,focus=selected?.file||null,member=selected?.type==='member'?String(selected.id):null;
-  const key=JSON.stringify([tier,focus,member,state.stackAllConnections===true,state.scaleFactor||1]);
+  const key=JSON.stringify([tier,focus,member,state.stackAllConnections===true,state.scaleFactor||1,
+    state.edgeGroup.userData?.userHidden,state.memberGroup.userData?.userHidden,state.labelGroup.userData?.userHidden,[...state.edgeVisibility.entries()]]);
   if(!force&&key===state.stackVisibilityKey&&state.stackVisibilityModel===state.stackModel)return;
   state.stackVisibilityKey=key;state.stackVisibilityModel=state.stackModel;state.stackTier=tier;
   state.edgeGroup.visible=state.edgeGroup.userData?.userHidden!==true;
   const memberHidden=state.memberGroup.userData?.userHidden===true;state.memberGroup.visible=!memberHidden;
   // Keep the stack silhouette at every scale; only connections and labels change semantic resolution.
-  let admitted=0,represented=0;
+  let admitted=0,represented=0;const visibleRows=[];
   for(const layer of state.stackPipeLayers||[]){
     layer.mesh.visible=layer.level===tier;
     if(!layer.mesh.visible)continue;
@@ -113,11 +116,14 @@ export function updateStackVisibility(force=false){
       layer.mesh.geometry=layer.fullGeometry;layer.mesh.userData.ownedGeometries.add(layer.fullGeometry);
       layer.geometryRows=layer.rows;layer.model=state.stackModel;layer.scale=state.scaleFactor||1;
     }
-    const rows=tier==='segments'&&!state.stackAllConnections
-      ?layer.rows.filter(row=>member!==null?row.fromMember===member||row.toMember===member:focus?row.fromFile===focus||row.toFile===focus:false)
-      :layer.rows;
+    const rows=projectPipeRows(layer.rows,{level:layer.level,tier,selected,allConnections:state.stackAllConnections===true,
+      globalVisible:state.edgeGroup.visible,typeVisible:layer.mesh.parent?.visible!==false&&state.edgeVisibility.get(layer.type)!==false});
     setPipeRows(layer,rows);admitted+=rows.length;represented+=rows.reduce((sum,row)=>sum+row.count,0);
+    visibleRows.push(...rows);
   }
   for(const label of state.labelGroup.children)label.visible=label.userData.stackLabelLevel==='pipeline'||tier!=='pipeline';
-  const status=document.getElementById('stack-status');if(status)status.textContent=`${tier} · ${admitted} pipes / ${represented} source relations · ${state.stackModel.coverage.unresolvedEdges} unresolved · display scope only${tier==='segments'&&!focus?' · select a segment or stack to trace connections':''}`;
+  state.stackVisibleRows=visibleRows;
+  state.viewerCoverage=projectViewerCoverage(state,{pipes:admitted,relations:represented});
+  const omitted=state.stackModel.coverage;
+  const status=document.getElementById('stack-status');if(status){status.textContent=`${tier} · ${admitted} visible pipes / ${represented} source relations · drawn ${state.drawCounts.files} files / ${state.drawCounts.members} members · draw omitted ${omitted.omittedFiles} files / ${omitted.omittedMembers} members / ${omitted.omittedEdges} edges · ${omitted.unresolvedEdges} unresolved · available snapshot only`;status.title=JSON.stringify(state.viewerCoverage);}
 }

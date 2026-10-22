@@ -29,6 +29,7 @@ export const initMaterials = () => {
       texture.userData = { ...(texture.userData || {}), shared: true };
       state.normalMapState.texture = texture;
       applyGlassSettings();
+      state.invalidateRender?.();
     });
   }
 };
@@ -49,6 +50,7 @@ export const applyHeightFog = (material) => {
     shader.uniforms.fogHeight = { value: visuals.fogHeight };
     shader.uniforms.fogHeightRange = { value: visuals.fogHeightRange };
     shader.uniforms.fogHeightEnabled = { value: visuals.enableHeightFog ? 1 : 0 };
+    shader.uniforms.fogDistanceEnabled = { value: visuals.enableFog ? 1 : 0 };
     injectWorldFogPosition(shader, { wideLine });
     if (!shader.fragmentShader.includes(`varying vec3 ${fogVarying}`)) {
       if (shader.fragmentShader.includes('#include <common>')) {
@@ -62,14 +64,14 @@ export const applyHeightFog = (material) => {
       if (shader.fragmentShader.includes('#include <fog_pars_fragment>')) {
         shader.fragmentShader = shader.fragmentShader.replace(
           '#include <fog_pars_fragment>',
-          '#include <fog_pars_fragment>\n  uniform float fogHeight;\n  uniform float fogHeightRange;\n  uniform float fogHeightEnabled;'
+          '#include <fog_pars_fragment>\n  uniform float fogHeight;\n  uniform float fogHeightRange;\n  uniform float fogHeightEnabled;\n  uniform float fogDistanceEnabled;'
         );
       }
     }
     if (shader.fragmentShader.includes('#include <fog_fragment>')) {
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <fog_fragment>',
-        `#ifdef USE_FOG\n  float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);\n  float heightFactor = fogHeightEnabled * clamp((fogHeight - ${fogVarying}.y) / max(0.001, fogHeightRange), 0.0, 1.0);\n  float combinedFog = max(fogFactor, heightFactor);\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, combinedFog);\n#endif`
+        `#ifdef USE_FOG\n  float fogFactor = fogDistanceEnabled * smoothstep(fogNear, fogFar, vFogDepth);\n  float heightFactor = fogHeightEnabled * clamp((fogHeight - ${fogVarying}.y) / max(0.001, fogHeightRange), 0.0, 1.0);\n  float combinedFog = max(fogFactor, heightFactor);\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, combinedFog);\n#endif`
       );
     }
     material.userData.fogUniforms = shader.uniforms;
@@ -94,11 +96,16 @@ const updateHeightFogUniforms = (material, visuals) => {
   if ('fogHeightEnabled' in material.userData.fogUniforms) {
     material.userData.fogUniforms.fogHeightEnabled.value = visuals.enableHeightFog ? 1 : 0;
   }
+  if(material.userData.fogUniforms.fogDistanceEnabled)material.userData.fogUniforms.fogDistanceEnabled.value=visuals.enableFog?1:0;
 };
 
 const setMaterialOpacity = (material, opacity, { ensureUserData = false } = {}) => {
   if (!material) return;
   material.opacity = opacity;
+  if(material.isMeshStandardMaterial&&!material.isMeshPhysicalMaterial){
+    if(material.transparent!==(opacity<1))material.needsUpdate=true;
+    material.transparent=opacity<1;
+  }
   if (ensureUserData) material.userData = material.userData || {};
   if (material.userData) material.userData.baseOpacity = opacity;
 };
@@ -437,7 +444,7 @@ export const updateFog = (maxSpanOverride) => {
     fogBounds.maxSpan = maxSpanOverride;
   }
   const maxSpan = fogBounds.maxSpan || 120;
-  if (!visuals.enableFog) {
+  if (!visuals.enableFog && !visuals.enableHeightFog) {
     scene.fog = null;
     return;
   }
@@ -447,7 +454,7 @@ export const updateFog = (maxSpanOverride) => {
   const fogNear = maxSpan * 0.9;
   const fogFar = maxSpan * Math.max(1.1, distance);
   scene.fog = new THREE.Fog(fogColor.getHex(), fogNear, fogFar);
-  [...glassMaterials, ...labelMaterials, ...flowMaterials, ...wireMaterials, ...gridLineMaterials]
+  [...glassMaterials, ...labelMaterials, ...flowMaterials, ...wireMaterials, ...gridLineMaterials, ...toArray(state.stackMaterials)]
     .forEach((material) => updateHeightFogUniforms(material, visuals));
   if (grid?.material) updateHeightFogUniforms(grid.material, visuals);
 };

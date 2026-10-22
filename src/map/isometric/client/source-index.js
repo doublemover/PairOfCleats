@@ -3,13 +3,15 @@ const key = (type, value) => JSON.stringify([type, String(value)]);
 // This indexes the available saved payload, independently of display/draw caps.
 // It does not infer entities missing from that payload or fetch more evidence.
 export const createSourceIndex = (map) => {
-  const files = new Map(), members = new Map(), adjacency = new Map();
+  const files = new Map(), members = new Map(), adjacency = new Map(), fileByMember = new Map();
+  let memberCount=0;
   for (const file of Array.isArray(map?.nodes) ? map.nodes : []) {
     const path = file.path || file.name;
     if (!path) continue;
     files.set(path, file);
     for (const member of file.members || []) {
-      if (member.id != null) members.set(String(member.id), { file: path, member });
+      memberCount++;
+      if (member.id != null) {members.set(String(member.id), { file: path, member });fileByMember.set(String(member.id),path);}
     }
   }
   for (const edge of Array.isArray(map?.edges) ? map.edges : []) {
@@ -27,8 +29,10 @@ export const createSourceIndex = (map) => {
   }
   return {
     snapshot: map,
+    counts: { files:files.size,members:memberCount,edges:Array.isArray(map?.edges)?map.edges.length:0 },
     files,
     members,
+    fileByMember,
     resolve(info) {
       if (!info) return null;
       if (info.type === 'member') {

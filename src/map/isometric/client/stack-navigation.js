@@ -30,6 +30,7 @@ export function navigateStack(info){
   focusStack(info);
 }
 export function initStackNavigation(){
+  state.inspectSourceReference=navigateStack;
   const tree=document.getElementById('stack-tree'),filter=document.getElementById('stack-search'),back=document.getElementById('stack-back'),forward=document.getElementById('stack-forward');
   if(!tree)return;
   let history=[],at=-1,replaying=false,treeOffset=0;
@@ -57,16 +58,17 @@ export function initStackNavigation(){
   const sourceDetails=info=>{
     const file=state.sourceIndex?.files.get(info.file)||state.nodeByPath?.get(info.file),source=info.type==='member'?state.sourceIndex?.members.get(String(info.id))?.member||(file?.members||[]).find(row=>String(row.id)===String(info.id)):file;
     if(state.config.openUriTemplate)state.dom.selectionBody.append(makeButton('Open inspected source',openSelection));
+    else if(state.config.sourceNavigation?.available===false)state.dom.selectionBody.append(document.createTextNode(state.config.sourceNavigation.reason));
     if(source){const all=document.createElement('details'),title=document.createElement('summary');title.textContent='All source fields · lazy inspector';all.append(title);let loaded=false;all.addEventListener('toggle',()=>{if(all.open&&!loaded){loaded=true;all.append(inspectValue(source));}});state.dom.selectionBody.append(all);}
     const heading=document.createElement('h3');heading.textContent='Directed relationships · admitted scope';state.dom.selectionBody.append(heading);
-    const touches=selectionEndpointMatcher(info,{fileByMember:state.fileByMember});
+    const touches=selectionEndpointMatcher(info,{fileByMember:state.sourceIndex?.fileByMember||state.fileByMember});
     const rows=state.sourceIndex?.relationships(info)||(state.edges||[]).filter(edge=>touches(edge.from)||touches(edge.to));let offset=0;const more=makeButton('More relationships',append);
     function append(){more.remove();for(const edge of rows.slice(offset,offset+40)){
       const out=touches(edge.from),other=out?edge.to:edge.from;
       state.dom.selectionBody.append(makeButton(`${out?'→':'←'} ${edge.type} · ${other?.member??other?.file??'unresolved'}`,()=>{
         const host=state.dom.selectionBody;host.replaceChildren(inspectValue(edge));
         for(const [label,endpoint] of [['Source',edge.from],['Target',edge.to]]){
-          const file=endpointFile(endpoint,state.fileByMember);
+          const file=endpointFile(endpoint,state.sourceIndex?.fileByMember||state.fileByMember);
           const candidate={type:endpoint.member!=null?'member':'file',file,id:endpoint.member};
           const available=Boolean(state.sourceIndex?.resolve(candidate));
           const action=makeButton(`Inspect ${label.toLowerCase()}${available?'':' · unavailable in saved payload'}`,()=>navigateStack(candidate));action.disabled=!available;host.append(action);
@@ -86,8 +88,8 @@ export function initStackNavigation(){
   document.getElementById('stack-mode').onchange=event=>{state.stackMode=event.target.value;updateStackVisibility(true);};
   document.getElementById('stack-all-edges').onchange=event=>{state.stackAllConnections=event.target.checked;updateStackVisibility(true);};
   document.getElementById('stack-plumbing').onclick=()=>{
-    const host=state.dom.selectionBody;host.replaceChildren();const tier=state.stackTier||'stacks',rows=state.stackModel?.levels[tier]||[];
-    const heading=document.createElement('h3');heading.textContent=`${tier} dependency plumbing · admitted scope`;host.append(heading);
+    const host=state.dom.selectionBody;host.replaceChildren();const tier=state.stackTier||'stacks',rows=state.stackVisibleRows||[];
+    const heading=document.createElement('h3');heading.textContent=`${tier} dependency plumbing · currently visible filters`;host.append(heading);
     let offset=0;const more=makeButton('More pipes',append);
     function append(){more.remove();for(const row of rows.slice(offset,offset+40)){
       host.append(makeButton(`${row.type} · ${row.fromGroup||row.fromFile} → ${row.toGroup||row.toFile} · ${row.count} source relations`,()=>{
