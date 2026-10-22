@@ -30,10 +30,10 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `fda82b27d` adds source-bound Python chunk reuse,
-original Dir/transfer close prerequisites, local type containment, wrapped
-compiler/LSP targets, qualified provider joins and editor continuation progress.
-Dispositions: 141 historical, 555 source, 161 partial, 100 pending.
+Latest source continuation: `9364b68fb` adds direct owned vector fill, complete
+local literal facts, iteration reference order, immutable LSP target/response
+handoff and original diagnostic/receipt resource prerequisites.
+Dispositions: 141 historical, 555 source, 162 partial, 99 pending.
 All authored checks remain unvalidated.
 
 ### Execution order
@@ -83,7 +83,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `fda82b27d` repairs watch/pointer and queue authority,
+Current source through `9364b68fb` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
@@ -122,8 +122,8 @@ Unicode type roots and own parameter/argument names reach parser/cache/public
 consumers. Complete source-checked semantic tokens and iterative symbols preserve
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
-sourceChunking11/importResolution7/typeNormalization5/compilerBindings20/
-lspBindings37/rq10/cfgFlow23/callFlow25/valueSlice8. VSCode and Sublime retain
+sourceChunking11/importResolution7/typeNormalization6/compilerBindings20/
+lspBindings38/rq10/cfgFlow24/callFlow25/valueSlice8. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 
 The rollout gate now requires explicit coherent benchmark counts and diagnostic
@@ -139,25 +139,13 @@ xhigh agents continue independent real-file spans while the lead owns Git and
 publication. Unreleased edits are excluded; no new issue closure, deep pass or
 measured speedup is claimed.
 
-The latest owner continuation preserves original reranker diagnostic/cancellation
-observations through pending fallback. Lua archive/stage/temp/lock recovery reuses
-existing owners; independent write/stat work gates actual lock descriptor close.
-All eight source-linked reports bound complete identity-bearing UTF-8 output.
-Wrapped writes/delete references, Rust quoted const text and returned normal-map
-textures have authored controls. #1238 reuses bounded original raw directories
-with fresh identity checks and delta scans; removed selected files cannot revive
-through old seeds. No latency or heap improvement is qualified. Full details and
-limits remain in the archived receipt. All new source and assertions are unvalidated.
-
-
-Python preparation now reaches dispatch without repeating chunk conversion,
-preserving native priority, observed empty outcomes, current limits and slice
-boundaries. Original Dir/transfer work gates native close. Local generic/literal
-types, transparent compiler aliases and retained LSP/provider join evidence have
-new producer identities. VSCode/Sublime reject cyclic/nonprogressing continuations
-while retaining prior native views and original operation-owned progress. Map
-diagnostics retain independent original inspection owners. All authored controls
-remain unrun; real native/editor/Python/resource/latency acceptance is separate.
+Current development also preserves actual Lua/archive/lock and receipt cleanup
+owners, source-bound Python preparation, bounded raw-directory reuse and original
+map/editor continuation evidence. Direct vector fill removes one row allocation;
+IPC/native copies and whole-process memory/performance proof remain open (#1216).
+Complete literal envelopes and original retained LSP handoffs have new semantic
+versions; full canonical capture does not establish memory admission. All detailed
+chronology and limits live in the archived receipt. Authored controls remain unrun.
 
 ## Environment and qualification boundaries
 
