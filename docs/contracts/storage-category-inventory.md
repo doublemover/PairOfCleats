@@ -77,3 +77,20 @@ scopes; adding languages cannot multiply simultaneously open native streams.
 An admission failure stops new work and drains already-started reads through
 actual stream close before rejecting, so no dictionary mutation or owned read
 continues after the failed load returns.
+
+Doctor reads the existing access protocol at each exact registered descriptor
+and compatibility root, rather than only the model descriptor. Repository class
+locations carry their exact repository access root from the existing path owner;
+they share one diagnosis row. Root-local repository/command-probe coordination
+and the actual fixed `<home>/state/storage-access` asset coordinator remain
+distinct. A future state descriptor does not silently move that coordinator.
+No parent discovery, PID census, lease recovery or metadata creation is used.
+
+Metadata inspection honors entry/time/cancellation admission between registered
+roots, retaining uninspected locations with unknown bytes. Lease diagnosis also
+stops admitting roots on its bounds and exposes `leaseInspectionComplete`,
+`leaseStopReason` and per-root `leaseInventory`. Each existing per-root owner
+reader retains its own bounded lease-entry scan; diagnosis does not claim an
+interruptible syscall or instantaneous filesystem snapshot. CAS-specific and
+unadopted owner protocols remain outside this exact protocol coverage. These
+source changes and authored read-only fixtures remain **UNVALIDATED**.

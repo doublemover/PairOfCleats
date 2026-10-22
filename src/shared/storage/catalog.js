@@ -58,18 +58,23 @@ export const resolveLegacyStorageLocations = ({ home, cacheRoot, repoRoots = [],
     ['legacy-tooling', toolingRoot || path.join(home, 'tooling'), 'tooling', 'downloadable'],
     ['legacy-extensions', extensionsRoot || path.join(home, 'extensions'), 'extensions', 'downloadable'],
     ['legacy-dictionaries', dictionariesRoot || path.join(home, 'dictionaries'), 'dictionaries', 'downloadable'],
-    ['legacy-command-probes', path.join(cacheRoot, 'tooling', 'command-probes'), 'shared', 'derived'],
+    ['legacy-command-probes', path.join(cacheRoot, 'tooling', 'command-probes'), 'shared', 'derived',
+      { root: path.resolve(cacheRoot, 'tooling', 'command-probes'), coordinationRoot: null }],
     ['legacy-scratch', path.join(cacheRoot, 'tmp'), 'tmp', 'temporary']
   ];
   for (const root of repoRoots) {
+    // The repository path owner supplied this exact root. Child locations do
+    // not authorize discovering parents or enumerating a process tree.
+    const access = { root: path.resolve(root), coordinationRoot: null };
     entries.push([`legacy-repo-${path.basename(root)}-preprocess-snapshot`,
-      path.join(root, ...PREPROCESS_STORAGE_SURFACE.relativePath.split('/')), 'repos', 'derived']);
+      path.join(root, ...PREPROCESS_STORAGE_SURFACE.relativePath.split('/')), 'repos', 'derived', access]);
     for (const [child, retention] of [['triage', 'evidence'], ['snapshots', 'evidence'], ['diffs', 'evidence'],
       ['metrics', 'evidence'], ['builds', 'referenced'], ['query-cache', 'derived']]) {
       entries.push([`legacy-repo-${path.basename(root)}-${child}`, path.join(root, child),
-        ['evidence'].includes(retention) ? 'reports' : 'repos', retention]);
+        ['evidence'].includes(retention) ? 'reports' : 'repos', retention, access]);
     }
   }
-  return entries.map(([id, location, category, retention]) => ({ id, path: path.resolve(location), category,
+  return entries.map(([id, location, category, retention, access]) => ({ id, path: path.resolve(location), category,
+    access: access || { root: path.resolve(location), coordinationRoot: path.join(path.resolve(home), 'state', 'storage-access') },
     retention, provenance: 'known-legacy-location', deletionAuthority: false, adoptionRequired: true }));
 };
