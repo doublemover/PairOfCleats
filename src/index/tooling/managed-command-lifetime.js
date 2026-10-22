@@ -45,7 +45,7 @@ const wrapRetainedInstallation = (selected, held) => {
     assertHeld() { if (released) throw fail('Managed command installation was released before spawn.'); },
     releaseAfterSettlement(evidence) {
       if (released) return true;
-      if (evidence?.settled !== true || evidence.pending === true) return false;
+      if (evidence?.settled !== true || evidence.pending !== false) return false;
       if (held.release() !== true) throw Object.assign(fail('Managed command owner could not release its exact lease.'), { cacheOwnershipPending: true });
       released = true;
       pendingInstallations.delete(lease);

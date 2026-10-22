@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { runWithManagedCommandInstallation, runWithManagedCommandInstallationSync, resolveManagedCommandSelection } from '../../../src/index/tooling/managed-command-lifetime.js';
+import { runWithManagedCommandInstallation, runWithManagedCommandInstallationSync, resolveManagedCommandSelection,
+  retainManagedCommandInstallation } from '../../../src/index/tooling/managed-command-lifetime.js';
 import { createManagedCommandFixture } from '../../helpers/managed-command-fixture.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 
@@ -18,6 +19,14 @@ try {
       assert.equal(resolveManagedCommandSelection({ command: f.command }).installId, f.installId,
         'default canonical tooling selection is retained even when the caller omits an explicit root');
     });
+    const exactLease = await retainManagedCommandInstallation(options);
+    assert.equal(exactLease.releaseAfterSettlement({ settled: true }), false,
+      'missing pending flag is not exact owner settlement');
+    assert.equal(exactLease.releaseAfterSettlement({ settled: true, pending: null }), false);
+    assert.equal(exactLease.releaseAfterSettlement({ settled: true, pending: true }), false);
+    assert.equal(await f.protected(), true, 'incomplete evidence keeps the physical generation leased');
+    assert.equal(exactLease.releaseAfterSettlement({ settled: true, pending: false }), true);
+    assert.equal(await f.protected(), false);
     const normal = await runWithManagedCommandInstallation(options, async ({ onSpawn }) => {
       assert.equal(await f.protected(), true);
       const child = new EventEmitter(); onSpawn(child); child.emit('close', 0, null);

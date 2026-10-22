@@ -14,6 +14,9 @@ An omitted explicit tooling root resolves through the canonical storage layout;
 it does not turn a default managed installation into an unleased system command.
 Unmanaged commands retain the existing execution/trust policy.
 
+Release requires both `settled: true` and `pending: false` from the actual
+execution owner. A missing or null pending flag cannot authorize retirement.
+
 Pooled and unpooled LSP sessions and initialize probes retain the selected
 installation before creating their runtime client. A pooled session keeps the
 lease through idle reuse and transport restarts. The client records every
