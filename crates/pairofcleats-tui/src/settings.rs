@@ -26,6 +26,8 @@ pub(crate) struct SettingsUi {
     target: String,
     query: String,
     draft: String,
+    draft_binding: Option<Value>,
+    draft_needs_reload: bool,
     inspection: Option<Value>,
     preview: Option<Value>,
     reset: bool,
@@ -48,6 +50,8 @@ impl Default for SettingsUi {
             target: String::new(),
             query: String::new(),
             draft: String::new(),
+            draft_binding: None,
+            draft_needs_reload: false,
             inspection: None,
             preview: None,
             reset: false,
@@ -135,9 +139,22 @@ impl SettingsUi {
         let mut params = json!({"scopeId":info["scope"]["id"], "revision":info["revision"],
             "schemaRevision":info["schemaRevision"], "operation":if reset {"reset"} else {"edit"}});
         if !reset {
+            if self.draft_needs_reload {
+                self.status = "Unsaved draft retained; Ctrl-r reloads before revalidation".into();
+                return;
+            }
             let Some(field) = self.selected_field() else {
                 return;
             };
+            let valid_binding = self.draft_binding.as_ref().map(|binding| {
+                binding["scopeId"] == info["scope"]["id"] && binding["path"] == field["path"]
+                    && binding["revision"] == info["revision"] && binding["schemaRevision"] == info["schemaRevision"]
+            }).unwrap_or(false);
+            if !valid_binding {
+                self.draft_needs_reload = true;
+                self.status = "Unsaved draft has stale field authority; Ctrl-r reloads before revalidation".into();
+                return;
+            }
             let Ok(value) = serde_json::from_str::<Value>(&self.draft) else {
                 self.status = "Invalid JSON value; nothing saved".into();
                 return;
@@ -146,7 +163,10 @@ impl SettingsUi {
             params["value"] = value;
         }
         self.reset = reset;
-        self.draft.clear();
+        if reset {
+            self.draft.clear();
+            self.draft_binding = None;
+        }
         self.preview = None;
         self.request("preview", params);
     }
@@ -166,6 +186,11 @@ impl SettingsUi {
                     "jobId":id, "reason":"user_cancel"}));
                 self.status = "Cancellation requested; waiting for the actual outcome".into();
             }
+            return false;
+        }
+        if self.page == Page::Edit && key.modifiers.contains(KeyModifiers::CONTROL)
+            && key.code == KeyCode::Char('r') {
+            self.inspect();
             return false;
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('u') {
@@ -210,8 +235,14 @@ impl SettingsUi {
                 _ => {}
             },
             Page::Fields => match key.code {
-                KeyCode::Esc => return true,
-                KeyCode::Char('s') => self.page = Page::Scope,
+                KeyCode::Esc => {
+                    self.draft.clear(); self.draft_binding = None;
+                    return true;
+                },
+                KeyCode::Char('s') => {
+                    self.draft.clear(); self.draft_binding = None;
+                    self.page = Page::Scope;
+                },
                 KeyCode::Char('r') => self.inspect(),
                 KeyCode::Char('R') => self.preview(true),
                 KeyCode::Char('p') => {
@@ -231,7 +262,7 @@ impl SettingsUi {
                                 .unwrap_or("Read only")
                                 .into();
                         } else {
-                            self.draft = if field["requestedPresent"].as_bool() == Some(true) {
+                            let draft = if field["requestedPresent"].as_bool() == Some(true) {
                                 field["requested"].to_string()
                             } else if field["effectiveRecorded"].as_bool() == Some(true) {
                                 field["effective"].to_string()
@@ -240,6 +271,16 @@ impl SettingsUi {
                             } else {
                                 String::new()
                             };
+                            if draft.len() > 4096 {
+                                self.status = "Value exceeds the bounded editor; use a private editor".into();
+                                return false;
+                            }
+                            let binding = json!({"scopeId":self.inspection.as_ref().unwrap()["scope"]["id"],
+                                "path":field["path"], "revision":self.inspection.as_ref().unwrap()["revision"],
+                                "schemaRevision":self.inspection.as_ref().unwrap()["schemaRevision"]});
+                            self.draft = draft;
+                            self.draft_binding = Some(binding);
+                            self.draft_needs_reload = false;
                             self.page = Page::Edit;
                             self.status =
                                 "Edit a JSON value; Enter validates and previews; Esc discards"
@@ -274,6 +315,7 @@ impl SettingsUi {
                 KeyCode::Up => self.scroll.up(),
                 KeyCode::Esc => {
                     self.draft.clear();
+                    self.draft_binding = None;
                     self.page = Page::Fields;
                     self.status = "Edit discarded; nothing saved".into();
                 }
@@ -338,9 +380,14 @@ impl SettingsUi {
         self.pending = None;
         self.revision += 1;
         if event["status"] != "done" || event["resultState"] != "complete" {
-            self.draft.clear();
             self.preview = None;
-            self.page = if self.scope.is_some() {
+            let code = event["error"]["code"].as_str().unwrap_or("ERR_TUI_OPERATION_FAILED");
+            let keep_draft = self.draft_binding.is_some() && (method == "preview" || method == "commit" || method == "inspect");
+            self.draft_needs_reload = keep_draft && (method == "commit" || method == "inspect"
+                || code.contains("STALE") || code.contains("REVISION") || code.contains("CONFLICT"));
+            self.page = if keep_draft {
+                Page::Edit
+            } else if self.scope.is_some() {
                 Page::Fields
             } else {
                 Page::Scope
@@ -356,6 +403,11 @@ impl SettingsUi {
         }
         let data = &event["result"]["data"];
         if event["result"]["method"] != method {
+            self.preview = None;
+            if self.draft_binding.is_some() {
+                self.draft_needs_reload = true;
+                self.page = Page::Edit;
+            }
             self.status = "Mismatched settings response; reload required".into();
             return true;
         }
@@ -366,6 +418,8 @@ impl SettingsUi {
                 self.inspection = None;
                 self.preview = None;
                 self.draft.clear();
+                self.draft_binding = None;
+                self.draft_needs_reload = false;
                 self.query.clear();
                 self.selected = 0;
                 self.page = Page::Fields;
@@ -381,6 +435,24 @@ impl SettingsUi {
                     } else {
                         format!("Invalid configuration: {}", compact(&data["validation"]))
                     };
+                    if let Some(binding) = self.draft_binding.as_ref() {
+                        let matching = self.fields().iter().position(|field| field["path"] == binding["path"]
+                            && field["editable"] == true);
+                        if binding["scopeId"] == data["scope"]["id"] {
+                            if let Some(index) = matching {
+                                self.selected = index;
+                                self.draft_binding = Some(json!({"scopeId":data["scope"]["id"],
+                                    "path":binding["path"], "revision":data["revision"], "schemaRevision":data["schemaRevision"]}));
+                                self.draft_needs_reload = false;
+                                self.page = Page::Edit;
+                                self.status = "Unsaved draft retained against reloaded scope; Enter revalidates".into();
+                            } else {
+                                self.draft_needs_reload = true;
+                                self.page = Page::Edit;
+                                self.status = "Unsaved draft retained; original field is no longer editable; Esc discards".into();
+                            }
+                        }
+                    }
                 }
             }
             "preview" => {
@@ -390,7 +462,8 @@ impl SettingsUi {
                     self.scroll.reset();
                     self.status = "Validated preview; no file has been changed".into();
                 } else {
-                    self.page = Page::Fields;
+                    self.preview = None;
+                    self.page = if self.draft_binding.is_some() { Page::Edit } else { Page::Fields };
                     self.status = format!(
                         "Invalid value; nothing saved: {}",
                         compact(&data["validation"])
@@ -400,6 +473,8 @@ impl SettingsUi {
             "commit" => {
                 self.preview = None;
                 self.draft.clear();
+                self.draft_binding = None;
+                self.draft_needs_reload = false;
                 self.page = Page::Fields;
                 self.status = "Saved; loading the next canonical configuration invocation".into();
                 self.inspect();
@@ -407,6 +482,8 @@ impl SettingsUi {
             "cancel" => {
                 self.preview = None;
                 self.draft.clear();
+                self.draft_binding = None;
+                self.draft_needs_reload = false;
                 self.page = Page::Fields;
                 self.status = "Preview cancelled; nothing saved".into();
             }
@@ -635,6 +712,56 @@ mod tests {
         key(&mut ui, KeyCode::Esc);
         assert!(ui.draft.is_empty());
         assert!(ui.page == Page::Fields);
+    }
+
+    #[test]
+    fn schema_rejection_and_transient_failure_retain_correctable_private_draft() {
+        let mut ui = selected();
+        key(&mut ui, KeyCode::Enter);
+        ui.draft = "\"wrong-enum\"".into();
+        key(&mut ui, KeyCode::Enter);
+        end(&mut ui, json!({"ok":false,"validation":{"ok":false,"errors":["expected integer"]}}));
+        assert!(ui.page == Page::Edit);
+        assert_eq!(ui.draft, "\"wrong-enum\"");
+        assert!(ui.preview.is_none());
+        ui.draft = "3".into();
+        key(&mut ui, KeyCode::Enter);
+        let id = ui.pending.as_ref().unwrap().0.clone();
+        ui.event(&json!({"event":"job:end","jobId":id,"status":"failed","error":{"code":"ERR_TEMPORARY"}}));
+        assert!(ui.page == Page::Edit);
+        assert_eq!(ui.draft, "3");
+        key(&mut ui, KeyCode::Enter);
+        end(&mut ui, json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"corrected","diff":[]}));
+        key(&mut ui, KeyCode::Enter);
+        end(&mut ui, json!({"saved":true}));
+        assert!(ui.draft.is_empty());
+        assert!(ui.draft_binding.is_none());
+    }
+
+    #[test]
+    fn stale_edit_requires_reload_and_new_preview_without_losing_input() {
+        let mut ui = selected();
+        key(&mut ui, KeyCode::Enter);
+        ui.draft = "4".into();
+        key(&mut ui, KeyCode::Enter);
+        let id = ui.pending.as_ref().unwrap().0.clone();
+        ui.event(&json!({"event":"job:end","jobId":id,"status":"failed","error":{"code":"ERR_SETTINGS_STALE_REVISION"}}));
+        assert_eq!(ui.draft, "4");
+        assert!(ui.draft_needs_reload && ui.preview.is_none());
+        let count = ui.outbox.len();
+        key(&mut ui, KeyCode::Enter);
+        assert_eq!(ui.outbox.len(), count, "stale drafts cannot acquire write authority");
+        ui.key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL));
+        end(&mut ui, json!({"scope":{"id":"scope-1"},"revision":"revision-2","schemaRevision":"schema-2",
+            "validation":{"ok":true},"fields":[{"path":["threads"],"editable":true,"requestedPresent":true,"requested":2}]}));
+        assert!(ui.page == Page::Edit && !ui.draft_needs_reload);
+        assert_eq!(ui.draft, "4");
+        key(&mut ui, KeyCode::Enter);
+        assert_eq!(ui.outbox.back().unwrap()["params"]["revision"], "revision-2");
+        assert_eq!(ui.outbox.back().unwrap()["params"]["schemaRevision"], "schema-2");
+        end(&mut ui, json!({"ok":false,"validation":{"ok":false}}));
+        key(&mut ui, KeyCode::Esc);
+        assert!(ui.draft.is_empty() && ui.draft_binding.is_none());
     }
 
     #[test]
