@@ -104,8 +104,8 @@ The refreshed inventory adds ten Other research/features (#1531–#1540) and
 expands modern viewer/semantic acceptance; prior source repairs retain credit
 without implying those new requirements are satisfied. Storage/category, native,
 editor, provisioning, bounded discovery and durable viewer preference releases
-now have durable partial mappings. Shared compilerBindings13/lspBindings17 and
-discoverySelection2/signature14 identify the new acquisition/selection meaning.
+now have durable partial mappings. Shared sourceChunking6/compilerBindings15/lspBindings19, callFlow19, graphRelations1
+and discoverySelection2/signature14 identify the new producer meaning.
 
 Source checkpoints through 101f3641f add local loaded-response find, source-qualified
 semantic navigation, bounded SQLite bundle ingestion, incremental embedding cache
@@ -124,7 +124,9 @@ category destination selection, retained native-child authority, bounded complet
 lexical reuse, selective SQLite BM25 hydration, owned setup/download lifetimes
 and map snapshot workers. Actual SQLite/LMDB finalizers, guarded delegated
 opens, declared write admission and ordinal vector spooling now have source
-checkpoints. Astra has staged internal slices for #1504-#1510;
+checkpoints. Build-owned SQLite filter pages, typed watch evidence, exact editor
+opening and native event/session lifetimes now have authored controls. Astra has
+staged internal slices for #1504-#1520;
 public/operational integration and all new qualification remain open. See the
 current repair receipt for exact commits and remaining obligations. No current
 source suite or speedup is claimed.
