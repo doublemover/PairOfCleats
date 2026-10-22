@@ -49,9 +49,6 @@ class JsonlCompressionPool {
     this.error = null;
     this.nextId = 0;
     this.idleWaiters = [];
-    for (let i = 0; i < this.size; i += 1) {
-      this.workers.push(this._createWorker());
-    }
   }
 
   _createWorker() {
@@ -119,6 +116,8 @@ class JsonlCompressionPool {
 
   _dispatch() {
     if (this.closed || this.error) return;
+    const demand = Math.min(this.size, this.queue.length + this.pending.size);
+    while (this.workers.length < demand) this.workers.push(this._createWorker());
     for (const worker of this.workers) {
       if (worker.busy) continue;
       const task = this.queue.shift();

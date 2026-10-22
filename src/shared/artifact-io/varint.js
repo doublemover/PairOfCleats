@@ -47,6 +47,17 @@ export const encodeVarint64 = (value) => {
   return Buffer.from(output);
 };
 
+/** Write the same unsigned varint into caller-owned bounded storage. */
+export const encodeVarint64Into = (value,buffer,offset=0) => {
+  let next=toNonNegativeBigInt(value),cursor=offset;
+  do {
+    if(cursor>=buffer.length)throw new RangeError('Varint output storage is full.');
+    const byte=Number(next&0x7fn);next>>=7n;
+    buffer[cursor++]=next>0n?byte|0x80:byte;
+  }while(next>0n);
+  return cursor-offset;
+};
+
 export const encodeVarintDeltas = (values) => {
   if (!Array.isArray(values) || values.length === 0) {
     return Buffer.alloc(0);

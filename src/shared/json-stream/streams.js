@@ -94,10 +94,17 @@ export const waitForStreamEvent = async (stream, event, options = {}) => {
  * @param {string|Buffer|Uint8Array} chunk
  * @returns {Promise<void>}
  */
-export const writeChunk = async (stream, chunk) => {
+export const writeChunkIfNeeded = (stream, chunk) => {
   if (!stream.write(chunk)) {
-    await waitForStreamEvent(stream, 'drain', { label: 'writeChunk.drain' });
+    return waitForStreamEvent(stream, 'drain', { label: 'writeChunk.drain' });
   }
+  return null;
+};
+
+/** Compatibility wrapper for callers requiring a Promise on accepted writes. */
+export const writeChunk = async (stream, chunk) => {
+  const pending = writeChunkIfNeeded(stream, chunk);
+  if (pending) await pending;
 };
 
 /**

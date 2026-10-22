@@ -1,6 +1,6 @@
 import { estimateJsonBytes } from '../../../shared/cache/size.js';
 import { createRowSpillCollector } from '../artifacts/helpers.js';
-import { maybeYield, sortStrings } from './constants.js';
+import { requestCooperativeYield, sortStrings } from './constants.js';
 import { mergeIdListsWithNormalizedLeft, normalizeIdList } from './id-lists.js';
 
 const phraseSeparator = '\u0001';
@@ -50,17 +50,20 @@ const collectPhraseEntriesFromHashBuckets = async ({
     if (bucket.kind === 'single') {
       const phrase = resolvePhraseFromIds(bucket.ids, tokenIdMap);
       if (phrase) rows.push([phrase, bucket.posting]);
-      await maybeYield(requestYield);
+      const pendingYield1 = requestCooperativeYield(requestYield);
+      if (pendingYield1) await pendingYield1;
       continue;
     }
     if (Array.isArray(bucket.entries)) {
       for (const entry of bucket.entries) {
         const phrase = resolvePhraseFromIds(entry?.ids, tokenIdMap);
         if (phrase) rows.push([phrase, entry?.posting]);
-        await maybeYield(requestYield);
+        const pendingYield2 = requestCooperativeYield(requestYield);
+      if (pendingYield2) await pendingYield2;
       }
     }
-    await maybeYield(requestYield);
+    const pendingYield3 = requestCooperativeYield(requestYield);
+      if (pendingYield3) await pendingYield3;
   }
   return rows;
 };
@@ -218,13 +221,15 @@ const collectRowsWithAdaptiveSpill = async ({
           collector = createPostingCollector({ buildRoot, runPrefix, compare });
           for (const bufferedRow of bufferedRows) {
             await collector.append(bufferedRow);
-            await maybeYield(requestYield);
+            const pendingYield4 = requestCooperativeYield(requestYield);
+      if (pendingYield4) await pendingYield4;
           }
           bufferedRows = null;
         }
       }
     }
-    await maybeYield(requestYield);
+    const pendingYield5 = requestCooperativeYield(requestYield);
+      if (pendingYield5) await pendingYield5;
   }
   if (typeof map.clear === 'function') map.clear();
 
@@ -309,12 +314,14 @@ const foldSortedRows = async ({
     if (asyncItems) {
       for await (const row of items) {
         processRow(row);
-        await maybeYield(requestYield);
+        const pendingYield6 = requestCooperativeYield(requestYield);
+      if (pendingYield6) await pendingYield6;
       }
     } else {
       for (const row of items) {
         processRow(row);
-        await maybeYield(requestYield);
+        const pendingYield7 = requestCooperativeYield(requestYield);
+      if (pendingYield7) await pendingYield7;
       }
     }
   }
@@ -517,7 +524,8 @@ export const buildPhraseAndChargramPostings = async ({
       const [key, posting] = entries[i];
       phraseVocab[i] = key;
       phrasePostings[i] = normalizeIdList(posting);
-      await maybeYield(requestYield);
+      const pendingYield8 = requestCooperativeYield(requestYield);
+      if (pendingYield8) await pendingYield8;
     }
     if (typeof phrasePostHashBuckets.clear === 'function') phrasePostHashBuckets.clear();
   } else if (phraseEnabled && phrasePost && typeof phrasePost.keys === 'function') {

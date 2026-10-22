@@ -7,7 +7,7 @@ import {
   mergeSortedRuns,
   readJsonlRows
 } from '../../../shared/merge.js';
-import { maybeYield, sortStrings } from './constants.js';
+import { requestCooperativeYield, sortStrings } from './constants.js';
 
 /**
  * Build a stable cache key for merge planner hints from run identity metadata.
@@ -30,7 +30,8 @@ const buildPlannerInputKey = async (label, runs, { requestYield } = {}) => {
     hash.update(':');
     hash.update(String(Number.isFinite(stat?.size) ? stat.size : -1));
     hash.update('\n');
-    await maybeYield(requestYield);
+    const pendingYield1 = requestCooperativeYield(requestYield);
+      if (pendingYield1) await pendingYield1;
   }
   return hash.digest('hex');
 };

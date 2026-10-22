@@ -147,3 +147,8 @@ export const normalizeLaneArgs = (values) => {
   }
   return { requested: normalized, includeDestructive, includeAll };
 };
+
+/** Resolve explicit jobs without performing a discarded platform probe. */
+export const resolveTestJobs = (jobs, resolveCores = resolvePhysicalCores) => (
+  Number.isFinite(jobs) ? Math.max(1, Math.floor(jobs)) : Math.max(1, resolveCores())
+);

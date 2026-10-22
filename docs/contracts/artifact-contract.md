@@ -335,3 +335,30 @@ Failures are categorized as:
 - **SQLite table issues**: rebuild SQLite indexes.
 
 Use `pairofcleats index build` for file-backed artifacts and `pairofcleats sqlite build` for SQLite indexes.
+
+## Bounded producer writes
+
+Binary row-frame writers consume synchronous and asynchronous iterables lazily. They
+copy ordinary rows into at most a 1 MiB data block and 256-row sidecar blocks; a
+single larger row is consumed directly before advancing its producer. Positive
+short writes are completed, invalid progress fails, and cancellation or close
+failure cannot publish a completed descriptor. The three files retain their
+existing staging, fsync and publication boundaries.
+
+Packed token postings retain their delta-varint wire format and block resets. The
+production writer encodes into 64 KiB slabs, writes bounded uint64 offset blocks,
+and records SHA-256/byte receipts while consuming those same bytes. Data and
+offsets use the shared durable atomic-write primitive; metadata follows their
+completion. Manifest/generation publication remains the set-visibility authority.
+The small-input in-memory codec remains available to callers requiring a Buffer.
+
+Generic JSON output accumulates bounded chunks and awaits actual writable
+backpressure or a cooperative event-loop yield. Chunk boundaries preserve UTF-16
+surrogate pairs before UTF-8 encoding. Normalization, omitted object properties,
+array null substitution, typed arrays, circular rejection and BigInt errors retain
+the existing encoding contract. Compression workers start on admitted demand;
+gzip sharded output does not construct an unused zstd-worker pool.
+
+These implementation bounds have authored regressions. Throughput, allocation,
+platform and cancellation qualification remain separate measurement obligations;
+no performance improvement is asserted by this contract.

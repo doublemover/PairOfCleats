@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 
-import { decodeVarint64List, encodeVarint64, encodeVarint64List } from './varint.js';
-import { toArray } from '../iterables.js';
+import { decodeVarint64List, encodeVarint64Into, encodeVarint64List } from './varint.js';
+import { throwIfAborted } from '../abort.js';
 
 const OFFSET_BYTES = 8;
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
@@ -114,7 +114,8 @@ export const encodeBinaryRowFrames = (rowBuffers) => {
 const toAsyncIterable = (rows) => {
   if (rows && typeof rows[Symbol.asyncIterator] === 'function') return rows;
   return (async function* rowIterator() {
-    for (const row of toArray(rows)) {
+    const iterable = rows && typeof rows[Symbol.iterator] === 'function' ? rows : [];
+    for (const row of iterable) {
       yield row;
     }
   })();
@@ -130,7 +131,7 @@ const writeAllToHandle = async (handle, payload, position) => {
       Number.isFinite(position) ? position + offset : null
     );
     const bytesWritten = Number(result?.bytesWritten || 0);
-    if (bytesWritten <= 0) {
+    if (!Number.isSafeInteger(bytesWritten) || bytesWritten <= 0 || bytesWritten > payload.length-offset) {
       const err = new Error('Failed to write full binary payload: zero-byte write.');
       err.code = 'ERR_BINARY_COLUMNAR_SHORT_WRITE';
       throw err;
@@ -167,7 +168,8 @@ export const writeBinaryRowFrames = async ({
   offsetsPath,
   lengthsPath,
   preallocateBytes = null,
-  writeHints = null
+  writeHints = null,
+  signal = null
 }) => {
   const { createTempPath } = await import('../io/temp-path.js');
   const resolvedPreallocateBytes = toBoundedNonNegativeInt(
@@ -182,35 +184,46 @@ export const writeBinaryRowFrames = async ({
   const tempDataPath = createTempPath(dataPath);
   const tempOffsetsPath = createTempPath(offsetsPath);
   const tempLengthsPath = createTempPath(lengthsPath);
-  const [dataHandle, offsetsHandle, lengthsHandle] = await Promise.all([
-    fs.open(tempDataPath, 'wx'),
-    fs.open(tempOffsetsPath, 'wx'),
-    fs.open(tempLengthsPath, 'wx')
-  ]);
+  let dataHandle=null,offsetsHandle=null,lengthsHandle=null,primaryError=null;
   let wrotePayload = false;
   try {
+    throwIfAborted(signal);
+    dataHandle=await fs.open(tempDataPath,'wx');
+    offsetsHandle=await fs.open(tempOffsetsPath,'wx');
+    lengthsHandle=await fs.open(tempLengthsPath,'wx');
     if (resolvedPreallocateBytes > 0) {
       await dataHandle.truncate(resolvedPreallocateBytes);
     }
+    const dataBlock=Buffer.allocUnsafe(1024*1024),offsetBlock=Buffer.allocUnsafe(256*OFFSET_BYTES),lengthBlock=Buffer.allocUnsafe(256*10);
+    let dataUsed=0,batchRows=0,lengthUsed=0,batchStart=0;
+    const flush=async()=>{
+      if(!batchRows)return;
+      throwIfAborted(signal);
+      const started=Date.now();
+      if(dataUsed)await writeAllToHandle(dataHandle,dataBlock.subarray(0,dataUsed),batchStart);
+      await writeAllToHandle(offsetsHandle,offsetBlock.subarray(0,batchRows*OFFSET_BYTES),null);
+      await writeAllToHandle(lengthsHandle,lengthBlock.subarray(0,lengthUsed),null);
+      flushMs+=Math.max(0,Date.now()-started);
+      dataUsed=0;batchRows=0;lengthUsed=0;batchStart=cursor;
+    };
     for await (const row of toAsyncIterable(rowBuffers)) {
+      throwIfAborted(signal);
       const payload = Buffer.isBuffer(row) ? row : Buffer.from(row || '');
+      if(batchRows && (batchRows===256 || dataUsed+payload.length>dataBlock.length))await flush();
       const rowOffset = cursor;
       cursor += payload.length;
-      if (payload.length) {
+      if (payload.length>dataBlock.length) {
         const payloadWriteStartedAt = Date.now();
         await writeAllToHandle(dataHandle, payload, rowOffset);
         flushMs += Math.max(0, Date.now() - payloadWriteStartedAt);
-      }
-      const offsetBuffer = Buffer.allocUnsafe(OFFSET_BYTES);
-      offsetBuffer.writeBigUInt64LE(BigInt(rowOffset));
-      const offsetWriteStartedAt = Date.now();
-      await writeAllToHandle(offsetsHandle, offsetBuffer, null);
-      flushMs += Math.max(0, Date.now() - offsetWriteStartedAt);
-      const lengthWriteStartedAt = Date.now();
-      await writeAllToHandle(lengthsHandle, encodeVarint64(payload.length), null);
-      flushMs += Math.max(0, Date.now() - lengthWriteStartedAt);
+      }else{payload.copy(dataBlock,dataUsed);dataUsed+=payload.length;}
+      offsetBlock.writeBigUInt64LE(BigInt(rowOffset),batchRows*OFFSET_BYTES);
+      lengthUsed+=encodeVarint64Into(payload.length,lengthBlock,lengthUsed);
+      batchRows+=1;
       count += 1;
+      if(payload.length>dataBlock.length)await flush();
     }
+    await flush();
     if (resolvedPreallocateBytes > 0 && cursor !== resolvedPreallocateBytes) {
       await dataHandle.truncate(cursor);
     }
@@ -222,20 +235,20 @@ export const writeBinaryRowFrames = async ({
       lengthsHandle.sync()
     ]);
     fsyncMs += Math.max(0, Date.now() - syncStartedAt);
-  } finally {
-    await Promise.allSettled([
-      dataHandle.close(),
-      offsetsHandle.close(),
-      lengthsHandle.close()
-    ]);
+  } catch(error) { primaryError=error; }
+  finally {
+    const closed=await Promise.allSettled([dataHandle,offsetsHandle,lengthsHandle].filter(Boolean).map(handle=>handle.close()));
+    const closeErrors=closed.filter(result=>result.status==='rejected').map(result=>result.reason);
+    if(closeErrors.length){if(primaryError)primaryError.cleanupErrors=[...(primaryError.cleanupErrors||[]),...closeErrors];
+      else primaryError=new AggregateError(closeErrors,'Binary row frame close failed.');}
   }
-  if (!wrotePayload) {
+  if (primaryError || !wrotePayload) {
     await Promise.allSettled([
       removeTempPathIfPresent(tempDataPath),
       removeTempPathIfPresent(tempOffsetsPath),
       removeTempPathIfPresent(tempLengthsPath)
     ]);
-    throw new Error('Failed to materialize binary-columnar payload.');
+    throw primaryError || new Error('Failed to materialize binary-columnar payload.');
   }
   try {
     const publishStartedAt = Date.now();

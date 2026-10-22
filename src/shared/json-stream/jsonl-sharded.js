@@ -221,7 +221,7 @@ const runShardedWrite = async (input, useAsyncIterable) => {
     await compressionPool.close();
     compressionPool = null;
   };
-  if (resolvedCompression) {
+  if (resolvedCompression === 'zstd') {
     compressionPool = createJsonlCompressionPool({
       compression: resolvedCompression,
       gzipOptions

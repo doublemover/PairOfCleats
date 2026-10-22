@@ -153,7 +153,8 @@ const writeAtomicPayload = async (targetPath, payload, {
   createOnly = false,
   verifyStaging = null,
   beforeCommit = null,
-  verifyPublished = null
+  verifyPublished = null,
+  writePayload = null
 } = {}) => {
   throwIfAborted(signal);
   const resolvedTarget = resolveAtomicWriteTarget(targetPath);
@@ -172,7 +173,9 @@ const writeAtomicPayload = async (targetPath, payload, {
     handle = await openWithRetry(tempPath, 'wx', mode);
     await verifyStaging?.(handle, tempPath);
     throwIfAborted(signal);
-    if (Buffer.isBuffer(payload)) {
+    if (writePayload) {
+      await writePayload(handle);
+    } else if (Buffer.isBuffer(payload)) {
       await handle.writeFile(payload);
     } else {
       await handle.writeFile(String(payload), { encoding });
@@ -341,6 +344,34 @@ export const atomicWriteText = async (targetPath, text, options = {}) => {
   } = options;
   const payload = buildAtomicTextPayload(text, { newline });
   return writeAtomicPayload(targetPath, payload, { ...options, encoding });
+};
+
+/**
+ * Stream bounded chunks through the same durable temp/fsync/publication owner.
+ * A producer callback must await each write and may not retain the writer after
+ * returning. Borrowed buffers are consumed before the write promise resolves.
+ */
+export const atomicWriteChunks = async (targetPath, chunks, options = {}) => {
+  return writeAtomicPayload(targetPath, null, {
+    ...options,
+    writePayload: async (handle) => {
+      const write = async (chunk) => {
+        throwIfAborted(options.signal);
+        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        let offset = 0;
+        while (offset < buffer.length) {
+          throwIfAborted(options.signal);
+          const { bytesWritten } = await handle.write(buffer, offset, buffer.length - offset, null);
+          if (!Number.isSafeInteger(bytesWritten) || bytesWritten <= 0 || bytesWritten > buffer.length - offset) {
+            throw new Error('Atomic chunk write made invalid progress.');
+          }
+          offset += bytesWritten;
+        }
+      };
+      if (typeof chunks === 'function') await chunks(write);
+      else for await (const chunk of chunks) await write(chunk);
+    }
+  });
 };
 
 /**

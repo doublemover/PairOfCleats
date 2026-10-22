@@ -227,8 +227,13 @@ export class IndexerProcessPool extends EventEmitter {
 
   pump() {
     if (this.closed) return;
-    while (this.pending.length && this.children.size < this.maxThreads) this.start();
-    if (this.pending.length > 1 && [...this.children].some(slot => !slot.ready && !slot.stopping)) return;
+    // Initializing children already satisfy pending demand; busy/stopping
+    // children do not. Independently ready children remain eligible below.
+    let available = [...this.children].filter(slot => !slot.stopping && !slot.task).length;
+    while (available < this.pending.length && this.children.size < this.maxThreads) {
+      this.start();
+      available += 1;
+    }
     for (const slot of this.children) {
       if (!slot.ready || slot.stopping || slot.task || !this.pending.length) continue;
       const task = this.pending.shift();

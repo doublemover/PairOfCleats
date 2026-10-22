@@ -1,11 +1,11 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
 import { TOKEN_ID_META } from '../../../shared/token-id.js';
-import { atomicWriteText } from '../../../shared/io/atomic-write.js';
-import { DEFAULT_PACKED_BLOCK_SIZE, encodePackedOffsets, packTfPostings } from '../../../shared/packed-postings.js';
+import { DEFAULT_PACKED_BLOCK_SIZE } from '../../../shared/packed-postings.js';
+import { writePackedTfPostings } from '../../../shared/packed-postings-write.js';
 import { encodeVarint64List } from '../../../shared/artifact-io/varint.js';
 import { writeBinaryRowFrames } from '../../../shared/artifact-io/binary-columnar.js';
 import { removePathWithRetry } from '../../../shared/io/remove-path-with-retry.js';
@@ -195,12 +195,9 @@ export async function enqueueTokenPostingsArtifacts({
     enqueueWrite(
       formatArtifactLabel(packedPath),
       async () => {
-        const packed = packTfPostings(postings.tokenPostingsList, {
+        const packed = await writePackedTfPostings(packedPath, offsetsPath, postings.tokenPostingsList, {
           blockSize: DEFAULT_PACKED_BLOCK_SIZE
         });
-        const offsetsBuffer = encodePackedOffsets(packed.offsets);
-        await atomicWriteText(packedPath, packed.buffer, { newline: false });
-        await atomicWriteText(offsetsPath, offsetsBuffer, { newline: false });
         const metaWrite = await writeJsonObjectFile(metaPath, {
           fields: {
             avgDocLen: postings.avgDocLen,
@@ -220,8 +217,8 @@ export async function enqueueTokenPostingsArtifacts({
           atomic: true,
           checksumAlgo: 'sha256'
         });
-        updatePieceMetadata(formatArtifactLabel(packedPath), {bytes:packed.buffer.length, checksumHash:'sha256:'+createHash('sha256').update(packed.buffer).digest('hex')});
-        updatePieceMetadata(formatArtifactLabel(offsetsPath), {bytes:offsetsBuffer.length, checksumHash:'sha256:'+createHash('sha256').update(offsetsBuffer).digest('hex')});
+        updatePieceMetadata(formatArtifactLabel(packedPath), packed.data);
+        updatePieceMetadata(formatArtifactLabel(offsetsPath), packed.offsets);
         updatePieceMetadata(formatArtifactLabel(metaPath), metaWrite);
       },
       {

@@ -5,6 +5,7 @@ import { markAsUntransferable } from 'node:worker_threads';
 import { createJsonlCompressionPool } from '../../../src/shared/json-stream/jsonl-compression-pool.js';
 
 const pool = createJsonlCompressionPool({ compression: 'gzip', workerCount: 1 });
+assert.equal(pool.workers.length, 0, 'idle pools do not start workers');
 try {
   const pooled = Buffer.from('small pooled JSONL block\n');
   const backing = Buffer.alloc(128, 65);
@@ -28,7 +29,12 @@ try {
 
 const failingPool = createJsonlCompressionPool({ compression: 'gzip', workerCount: 1 });
 const dispatchError = new Error('synthetic postMessage failure');
-failingPool.workers[0].postMessage = () => { throw dispatchError; };
+const createFailingWorker = failingPool._createWorker.bind(failingPool);
+failingPool._createWorker = () => {
+  const worker = createFailingWorker();
+  worker.postMessage = () => { throw dispatchError; };
+  return worker;
+};
 try {
   await assert.rejects(failingPool.compress(Buffer.alloc(32)), (err) => err === dispatchError);
   await assert.rejects(failingPool.waitForIdle(), (err) => err === dispatchError);
@@ -40,7 +46,12 @@ try {
 
 const exitingPool = createJsonlCompressionPool({ compression: 'gzip', workerCount: 1 });
 try {
-  exitingPool.workers[0].postMessage = () => {};
+  const createExitingWorker = exitingPool._createWorker.bind(exitingPool);
+  exitingPool._createWorker = () => {
+    const worker = createExitingWorker();
+    worker.postMessage = () => {};
+    return worker;
+  };
   const pending = exitingPool.compress(Buffer.alloc(32));
   const queued = exitingPool.compress(Buffer.alloc(32));
   const idle = exitingPool.waitForIdle();

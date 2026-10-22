@@ -33,7 +33,7 @@ const {
   mergeNodeOptions,
   normalizeLaneArgs,
   resolveLogDir,
-  resolvePhysicalCores,
+  resolveTestJobs,
   resolveRetries,
   resolveTimeout
 } = await import('./runner/run-helpers.js');
@@ -570,10 +570,7 @@ const main = async () => {
   const watchdogMs = Number.isFinite(argv['watchdog-ms'])
     ? Math.max(0, Math.floor(argv['watchdog-ms']))
     : (Number.isFinite(envWatchdog) ? Math.max(0, Math.floor(envWatchdog)) : 0);
-  const defaultJobs = Math.max(1, resolvePhysicalCores());
-  const jobs = Number.isFinite(argv.jobs)
-    ? Math.max(1, Math.floor(argv.jobs))
-    : defaultJobs;
+  const jobs = resolveTestJobs(argv.jobs);
   const passThrough = Array.isArray(argv['--']) ? argv['--'].map(String) : [];
 
   if (runLogDir) {

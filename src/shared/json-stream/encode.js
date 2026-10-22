@@ -1,4 +1,4 @@
-import { writeChunk } from './streams.js';
+import { writeChunk, writeChunkIfNeeded } from './streams.js';
 import { createCooperativeYielder, throwIfAborted } from './runtime.js';
 
 export const normalizeJsonValue = (value) => {
@@ -33,7 +33,6 @@ const untrackJsonTraversal = (value, seen, tracked) => {
 };
 
 const TYPED_ARRAY_JSON_BATCH = 2048;
-const PRIMITIVE_ARRAY_JSON_BATCH = 2048;
 
 const serializeTypedArraySlice = (array, start, end) => {
   const size = end - start;
@@ -43,25 +42,6 @@ const serializeTypedArraySlice = (array, start, end) => {
     parts[i] = JSON.stringify(array[start + i]);
   }
   return parts.join(',');
-};
-
-const writeTypedArrayJson = async (stream, array, cooperate = null) => {
-  await writeChunk(stream, '[');
-  if (!array.length) {
-    await writeChunk(stream, ']');
-    return;
-  }
-  let first = true;
-  for (let i = 0; i < array.length; i += TYPED_ARRAY_JSON_BATCH) {
-    if (cooperate) await cooperate();
-    const end = Math.min(array.length, i + TYPED_ARRAY_JSON_BATCH);
-    const chunk = serializeTypedArraySlice(array, i, end);
-    if (chunk.length) {
-      await writeChunk(stream, first ? chunk : `,${chunk}`);
-      first = false;
-    }
-  }
-  await writeChunk(stream, ']');
 };
 
 const stringifyTypedArrayJson = (array) => {
@@ -74,95 +54,95 @@ const stringifyTypedArrayJson = (array) => {
   return `[${parts.join(',')}]`;
 };
 
-const isFastJsonPrimitive = (value) => (
-  value === null
-  || typeof value === 'string'
-  || typeof value === 'number'
-  || typeof value === 'boolean'
-);
-
-const writeJsonValueInternal = async (stream, value, seen, cooperate = null) => {
-  const normalized = normalizeJsonValue(value);
-  if (normalized === null || typeof normalized !== 'object') {
-    if (normalized === undefined || typeof normalized === 'function' || typeof normalized === 'symbol') {
-      await writeChunk(stream, 'null');
-      return;
+/** Synchronous traversal suspends only at bounded output/yield boundaries. */
+function* iterateJsonFragments(value, seen) {
+  const stack = [{ kind: 'value', value }];
+  while (stack.length) {
+    const frame = stack.pop();
+    if (frame.kind === 'end') {
+      seen.delete(frame.value);
+      yield frame.array ? ']' : '}';
+      continue;
     }
-    await writeChunk(stream, JSON.stringify(normalized));
-    return;
-  }
-  if (ArrayBuffer.isView(normalized) && !(normalized instanceof DataView)) {
-    await writeTypedArrayJson(stream, normalized, cooperate);
-    return;
-  }
-
-  const tracked = trackJsonTraversal(normalized, seen);
-  try {
-    if (Array.isArray(normalized)) {
-      await writeChunk(stream, '[');
-      let first = true;
-      let primitiveBatch = [];
-      const flushPrimitiveBatch = async () => {
-        if (!primitiveBatch.length) return;
-        const chunk = primitiveBatch.join(',');
-        await writeChunk(stream, first ? chunk : `,${chunk}`);
-        primitiveBatch = [];
-        first = false;
-      };
-      for (const item of normalized) {
-        const itemValue = normalizeJsonValue(item);
-        if (itemValue === undefined || typeof itemValue === 'function' || typeof itemValue === 'symbol') {
-          primitiveBatch.push('null');
-          if (primitiveBatch.length >= PRIMITIVE_ARRAY_JSON_BATCH) {
-            await flushPrimitiveBatch();
-            if (cooperate) await cooperate();
-          }
-          continue;
-        }
-        if (isFastJsonPrimitive(itemValue)) {
-          primitiveBatch.push(JSON.stringify(itemValue));
-          if (primitiveBatch.length >= PRIMITIVE_ARRAY_JSON_BATCH) {
-            await flushPrimitiveBatch();
-            if (cooperate) await cooperate();
-          }
-          continue;
-        }
-        await flushPrimitiveBatch();
-        if (!first) await writeChunk(stream, ',');
-        await writeJsonValueInternal(stream, itemValue, seen, cooperate);
-        if (cooperate) await cooperate();
-        first = false;
-      }
-      if (primitiveBatch.length) {
-        await flushPrimitiveBatch();
-      }
-      await writeChunk(stream, ']');
-      return;
+    if (frame.kind === 'array') {
+      if (frame.index >= frame.value.length) continue;
+      const item = normalizeJsonValue(frame.value[frame.index]);
+      stack.push({ ...frame, index: frame.index + 1 });
+      stack.push({ kind: 'value', value: item });
+      if (frame.index) yield ',';
+      continue;
     }
-    await writeChunk(stream, '{');
-    let first = true;
-    for (const [key, entry] of Object.entries(normalized)) {
-      const entryValue = normalizeJsonValue(entry);
-      if (entryValue === undefined || typeof entryValue === 'function' || typeof entryValue === 'symbol') {
-        continue;
+    if (frame.kind === 'object') {
+      let selected = false;
+      while (frame.index < frame.entries.length) {
+        const [key, rawEntry] = frame.entries[frame.index++];
+        const entry = normalizeJsonValue(rawEntry);
+        if (entry === undefined || typeof entry === 'function' || typeof entry === 'symbol') continue;
+        stack.push({ ...frame, first: false });
+        stack.push({ kind: 'value', value: entry });
+        yield `${frame.first ? '' : ','}${JSON.stringify(key)}:`;
+        selected = true;
+        break;
       }
-      if (!first) await writeChunk(stream, ',');
-      await writeChunk(stream, `${JSON.stringify(key)}:`);
-      await writeJsonValueInternal(stream, entryValue, seen, cooperate);
-      if (cooperate) await cooperate();
-      first = false;
+      if (selected) continue;
+      continue;
     }
-    await writeChunk(stream, '}');
-  } finally {
-    untrackJsonTraversal(normalized, seen, tracked);
+    const normalized = normalizeJsonValue(frame.value);
+    if (normalized === null || typeof normalized !== 'object') {
+      yield normalized === undefined || typeof normalized === 'function' || typeof normalized === 'symbol'
+        ? 'null' : JSON.stringify(normalized);
+      continue;
+    }
+    if (ArrayBuffer.isView(normalized) && !(normalized instanceof DataView)) {
+      yield '[';
+      for (let index = 0; index < normalized.length; index += TYPED_ARRAY_JSON_BATCH) {
+        yield `${index ? ',' : ''}${serializeTypedArraySlice(normalized, index, Math.min(normalized.length, index + TYPED_ARRAY_JSON_BATCH))}`;
+      }
+      yield ']';
+      continue;
+    }
+    trackJsonTraversal(normalized, seen);
+    const array = Array.isArray(normalized);
+    stack.push({ kind: 'end', value: normalized, array });
+    stack.push(array
+      ? { kind: 'array', value: normalized, index: 0 }
+      : { kind: 'object', value: normalized, entries: Object.entries(normalized), index: 0, first: true });
+    yield array ? '[' : '{';
   }
-};
+}
 
 export const writeJsonValue = async (stream, value, options = {}) => {
-  const cooperate = typeof options?.cooperate === 'function'
-    ? options.cooperate
-    : createCooperativeYielder();
-  await writeJsonValueInternal(stream, value, new WeakSet(), cooperate);
+  const cooperate = typeof options?.cooperate === 'function' ? options.cooperate : createCooperativeYielder();
+  const maxChunkChars = 64 * 1024;
+  let parts = [], chars = 0;
+  const flush = () => {
+    const chunk = parts.join('');
+    parts = []; chars = 0;
+    return writeChunkIfNeeded(stream, chunk);
+  };
+  for (const fragment of iterateJsonFragments(value, new WeakSet())) {
+    throwIfAborted(options.signal);
+    for (let offset = 0; offset < fragment.length;) {
+      let length = Math.min(maxChunkChars - chars, fragment.length - offset);
+      const last = fragment.charCodeAt(offset + length - 1);
+      const next = fragment.charCodeAt(offset + length);
+      if (last >= 0xd800 && last <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) length -= 1;
+      if (!length) {
+        const pending = flush();
+        if (pending) await pending;
+        continue;
+      }
+      parts.push(fragment.slice(offset, offset + length));
+      chars += length; offset += length;
+      if (chars === maxChunkChars) {
+        const pending = flush();
+        if (pending) await pending;
+      }
+    }
+    const pending = cooperate();
+    if (pending) await pending;
+  }
+  if (chars) { const pending = flush(); if (pending) await pending; }
 };
 
 const stringifyJsonValueInternal = (value, seen) => {
