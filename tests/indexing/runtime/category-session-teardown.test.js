@@ -85,5 +85,36 @@ try {
     assert.equal(failedRelease.cacheOwnershipReleased(), true, 'actual metadata retry satisfies the old outward observer without self-blocking');
     assert.equal((await inspectStorageAccess(metadataCache, { coordinationRoot: metadataCoordination })).protected, false);
   } finally { fsSync.rmSync = syncRemove; }
+
+  let index = 0;
+  for (const value of [undefined, null, false, 0, '']) {
+    const home = path.join(temporary, `clear-${index}`, 'home'), cache = path.join(temporary, `clear-${index++}`, 'cache');
+    const coordinationRoot = path.join(home, 'state', 'storage-access');
+    const owner = await withTemporaryEnv({ PAIROFCLEATS_HOME: home },
+      () => acquireBuildRuntimeStorage(repo, { cache: { root: cache } }));
+    let loggerCloses = 0;
+    try {
+      const failure = await teardownRuntime({ root: repo, log() {}, indexRuntimeStorage: owner,
+        semanticReplayVerification: { clear() { throw value; } }, closeLogger() { loggerCloses++; }
+      }).then(() => assert.fail('replay cleanup failed'), error => error);
+      assert.equal(failure.cause, value, 'the actual teardown retains exact falsey replay cleanup failure');
+      assert.equal(loggerCloses, 1, 'replay cleanup failure cannot bypass the logger cleanup step');
+      assert.equal(failure.cacheOwnershipReleased(), false);
+      assert.equal((await inspectStorageAccess(cache, { coordinationRoot })).protected, true);
+    } finally {
+      // Inert fixture metadata disposal does not prove resource recovery.
+      owner.session.releaseAfterSettlement({ resourceId: owner.session.resourceId, settled: true, pending: false });
+    }
+  }
+  const unhandled = [], diagnosticFailure = new Error('async cleanup presentation failed');
+  const onUnhandled = error => { unhandled.push(error); };
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    let loggerCloses = 0;
+    await teardownRuntime({ async log() { throw diagnosticFailure; }, closeLogger() { loggerCloses++; } });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(loggerCloses, 1);
+    assert.deepEqual(unhandled, [], 'best-effort async presentation remains observed without changing cleanup success');
+  } finally { process.off('unhandledRejection', onUnhandled); }
 } finally { hooks.deregister(); await rmDirRecursive(temporary); }
 console.log('Runtime teardown retains independent pending owners through category settlement.');

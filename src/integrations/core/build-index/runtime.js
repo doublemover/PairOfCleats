@@ -25,36 +25,25 @@ export const teardownRuntime = async (runtime) => {
   const log = typeof runtime?.log === 'function'
     ? runtime.log
     : defaultLog;
+  const report = line => {
+    if (typeof log !== 'function') return;
+    try { Promise.resolve(log(line)).catch(() => {}); } catch {}
+  };
   const teardownErrors = [];
   const runTeardownStepWithTimeout = async (label, cleanup, timeoutMs = cleanupTimeoutMs) => {
     const startedAtMs = Date.now();
-    if (typeof log === 'function') {
-      try {
-        log(`[cleanup] ${label} start`);
-      } catch {}
-    }
+    report(`[cleanup] ${label} start`);
     try {
       await runBuildCleanupWithTimeout({
         label,
         cleanup,
         timeoutMs,
-        log,
+        log: report,
         swallowTimeout: false
       });
-      if (typeof log === 'function') {
-        try {
-          log(`[cleanup] ${label} done (${Math.max(0, Date.now() - startedAtMs)}ms)`);
-        } catch {}
-      }
+      report(`[cleanup] ${label} done (${Math.max(0, Date.now() - startedAtMs)}ms)`);
     } catch (error) {
-      if (typeof log === 'function') {
-        try {
-          log(
-            `[cleanup] ${label} failed after ${Math.max(0, Date.now() - startedAtMs)}ms: `
-            + `${error?.message || error}`
-          );
-        } catch {}
-      }
+      try { report(`[cleanup] ${label} failed after ${Math.max(0, Date.now() - startedAtMs)}ms: ${error?.message || error}`); } catch {}
       teardownErrors.push(error);
     }
   };
@@ -63,7 +52,7 @@ export const teardownRuntime = async (runtime) => {
     async () => {
       const drainResult = await drainLspSessionPool({
         timeoutMs: cleanupTimeoutMs,
-        log
+        log: report
       });
       if (drainResult?.timedOut) {
         throw new Error(
@@ -125,7 +114,7 @@ export const teardownRuntime = async (runtime) => {
     'runtime.tree-sitter-worker-pool.shutdown',
     () => shutdownTreeSitterWorkerPool({
       cleanupTimeoutMs: Math.max(1000, cleanupTimeoutMs - 5000),
-      log
+      log: report
     }),
     cleanupTimeoutMs + 10000
   );
@@ -134,7 +123,7 @@ export const teardownRuntime = async (runtime) => {
     () => Promise.resolve(shutdownPythonAstPool())
   );
   await runTeardownStepWithTimeout('runtime.cache-writers.drain', () => runtime.cacheWriterDrain?.());
-  runtime.semanticReplayVerification?.clear();
+  await runTeardownStepWithTimeout('runtime.semantic-replay.clear', () => runtime.semanticReplayVerification?.clear());
   await runTeardownStepWithTimeout('runtime.logger.close', () => runtime.closeLogger?.());
   if (teardownErrors.length === 1) {
     throw retainBuildRuntimeStorageFailure(runtime, teardownErrors[0]);

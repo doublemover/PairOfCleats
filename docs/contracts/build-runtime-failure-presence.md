@@ -24,3 +24,12 @@ The actual receipt/finalizer and disposable category controls are authored and
 **UNVALIDATED**. Tests, syntax, formatting, bootstrap and Windows resource
 qualification remain deferred. Fixture-only metadata disposal is not a
 production resource-settlement claim.
+
+Replay-verification clearing now runs as an independent bounded teardown step.
+Its rejection cannot bypass logger closure or the existing category failure
+retention, including falsey rejection values. Best-effort progress diagnostics
+consume asynchronous rejections through the same reporting callback supplied to
+cleanup/LSP/parser owners; diagnostic completion is not resource settlement.
+These actual inert teardown controls are also authored and unrun. Method/getter
+admission, full multi-error teardown projection and real native/child lifetime
+qualification remain separate work.
