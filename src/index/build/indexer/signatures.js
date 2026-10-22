@@ -15,11 +15,12 @@ import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
 import { MODULE_EXPORTS_VERSION } from '../../../lang/js-ts-exports.js';
 import { TREE_SITTER_CHUNK_VERSION } from '../../../lang/tree-sitter/config.js';
 import { MINHASH_HASH_IDENTITY } from '../../minhash.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../../semantic/analysis-versions.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
-// v12 retires polynomial MinHash signatures and unlabelled cached chunk data.
-export const SIGNATURE_VERSION = 13;
+// v14 binds capped discovery to its deterministic accepted-source ordering.
+export const SIGNATURE_VERSION = 14;
 
 const normalizeRegex = (value) => (value instanceof RegExp ? value : (value || null));
 
@@ -98,6 +99,7 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
     literalAnalyzer: TEXT_ANALYZER_VERSION,
     moduleExportsProducer: MODULE_EXPORTS_VERSION,
     nativeChunkProducer: TREE_SITTER_CHUNK_VERSION,
+    discoverySelectionProducer: SEMANTIC_ANALYSIS_VERSIONS.discoverySelection,
     minhashHashIdentity: MINHASH_HASH_IDENTITY,
     mode,
     tokenizationKey,
