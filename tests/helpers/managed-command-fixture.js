@@ -13,13 +13,16 @@ export const createManagedCommandFixture = async root => {
   const owner = path.join(toolingRoot, 'installs', toolId), generationRoot = path.join(owner, 'generations', installId);
   const command = path.join(generationRoot, 'bin', 'tool');
   const bytes = Buffer.from('inert managed command fixture');
+  const archive = { url: 'https://fixture.invalid/managed-command.zip', type: 'zip', bytes: 1, sha256: 'b'.repeat(64) };
   const descriptor = { schemaVersion: 1, toolId, recipeId: 'fixture', version: '1.0.0',
-    platform: process.platform, arch: process.arch, command: 'bin/tool', args: [], requiredFiles: ['bin/tool'] };
+    platform: process.platform, arch: process.arch, archive, root: 'package', command: 'bin/tool', args: [], requiredFiles: ['bin/tool'] };
   const descriptorId = identity(descriptor);
   const files = [{ path: 'bin/tool', bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }];
   const selector = { schemaVersion: 1, toolId, descriptorId, installId };
   const receipt = { schemaVersion: 1, application: 'pairofcleats', toolId, descriptorId, installId,
-    root: generationRoot, descriptor, files, filesIdentity: identity(files), selectorIdentity: identity(selector) };
+    root: generationRoot, descriptor, source: archive, files, filesIdentity: identity(files), selectorIdentity: identity(selector),
+    verification: { ok: true, settlement: { resourceId: 'fixture-only', settled: true, pending: false } },
+    installedAt: '2026-10-22T00:00:00.000Z', ownership: 'managed', leaseProtocol: 'storage-asset-access-v1' };
   await fs.mkdir(path.dirname(command), { recursive: true });
   await fs.mkdir(path.join(owner, 'receipts'));
   await fs.writeFile(command, bytes);

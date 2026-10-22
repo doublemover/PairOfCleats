@@ -12,7 +12,8 @@ export const createRetainedLspClient = async options => {
     client = createLspClient({ ...options,
       beforeSpawn: () => installation?.assertHeld() });
   } catch (error) {
-    installation?.releaseAfterSettlement({ settled: true, pending: false });
+    try { installation?.releaseAfterSettlement({ settled: true, pending: false }); }
+    catch (cleanupError) { throw retainPendingManagedCommand(installation, error, { cleanupError }); }
     throw error;
   }
   let releaseRequested = false, installationReleased = false;
@@ -22,7 +23,11 @@ export const createRetainedLspClient = async options => {
     if (installationReleased) unsubscribe();
     return installationReleased;
   };
-  const unsubscribe = client.onResourcesSettled(releaseIfSettled);
+  let releaseFailure = null;
+  const unsubscribe = client.onResourcesSettled(() => {
+    try { releaseIfSettled(); }
+    catch (error) { releaseFailure = retainPendingManagedCommand(installation, error); }
+  });
   return { ...client,
     managedInstallation: installation ? { toolId: installation.toolId,
       descriptorId: installation.descriptorId, installId: installation.installId } : null,
@@ -36,10 +41,16 @@ export const createRetainedLspClient = async options => {
           code: 'ERR_LSP_DISPOSAL_UNCONFIRMED', termination: evidence, cacheOwnershipPending: true
         });
         Object.defineProperty(error, 'cacheOwnershipReleased', { value: () => installationReleased });
-        retainPendingManagedCommand(installation, error);
+        throw retainPendingManagedCommand(installation, error);
+      }
+      if (releaseFailure) {
+        const error = releaseFailure;
+        releaseFailure = null;
         throw error;
       }
-      return releaseIfSettled() || installationReleased;
+      try { return releaseIfSettled() || installationReleased; }
+      catch (error) { throw retainPendingManagedCommand(installation, error,
+        { ...(releaseFailure ? { cleanupError: releaseFailure } : {}) }); }
     }
   };
 };

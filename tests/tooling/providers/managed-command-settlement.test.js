@@ -34,24 +34,33 @@ try {
     });
     assert.equal(normal.exitCode, 0);
     assert.equal(await f.protected(), false);
-    let child, observed = false, pendingError;
+    let child, observed = false, pendingError, retained;
     await assert.rejects(runWithManagedCommandInstallation(options, async ({ onSpawn }) => {
       child = new EventEmitter(); onSpawn(child);
       pendingError = Object.assign(new Error('cancelled with close pending'), { code: 'ABORT_ERR', cacheOwnershipPending: true });
       Object.defineProperty(pendingError, 'cacheOwnershipReleased', { value: () => observed });
       throw pendingError;
-    }), error => error === pendingError);
-    assert.equal(pendingError.managedCommandInstallation.installId, f.installId);
+    }), error => { retained = error; return error.cause === pendingError; });
+    assert.equal(retained.managedCommandInstallation.installId, f.installId);
+    assert.equal(retained.cacheOwnershipReleased(), false);
     assert.equal(await f.protected(), true, 'cancelled invocation is still owned');
     observed = true; child.emit('close', null, 'SIGTERM');
     assert.equal(await f.protected(), false, 'delayed exact close reconciles retained lease');
+    assert.equal(retained.cacheOwnershipReleased(), true);
     assert.equal(runWithManagedCommandInstallationSync(options, () => ({ exitCode: 1, signal: null })).exitCode, 1);
     assert.equal(await f.protected(), false);
     const timeout = Object.assign(new Error('sync tree cleanup unconfirmed'), { code: 'SUBPROCESS_TIMEOUT',
       result: { pid: 123, exitCode: null, signal: 'SIGTERM' } });
-    assert.throws(() => runWithManagedCommandInstallationSync(options, () => { throw timeout; }), error => error === timeout);
-    assert.equal(timeout.cacheOwnershipPending, true);
+    let syncPending;
+    assert.throws(() => runWithManagedCommandInstallationSync(options, () => { throw timeout; }), error => {
+      syncPending = error; return error.cause === timeout;
+    });
+    assert.equal(syncPending.cacheOwnershipPending, true);
     assert.equal(await f.protected(), true, 'sync timeout signal is not child-tree settlement');
+    // This callback spawned no process; explicit fixture owner confirmation
+    // cleans its exact metadata after the unconfirmed-tree negative above.
+    syncPending.managedCommandLease.releaseAfterSettlement({ settled: true, pending: false });
+    assert.equal(await f.protected(), false);
   });
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('Managed provider leases follow exact subprocess closure and retain unresolved sync timeout');
