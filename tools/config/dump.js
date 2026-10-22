@@ -6,6 +6,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
+import { formatEffectiveConfiguration } from './effective.js';
 import {
   getCacheRoot,
   getAutoPolicy,
@@ -55,6 +56,9 @@ const payload = sanitizeRuntimeReceipt({
 if (argv.json) {
   console.log(JSON.stringify(payload, null, 2));
 } else {
+  console.error(formatEffectiveConfiguration({ ok: true, repoRoot, configSources,
+    preview, ignored: (configSources?.discardedAuthorityPaths || []).map(field => ({ path: field,
+      reason: 'repository-owned-execution-or-storage-authority-discarded', nextAction: 'Review user-owned trusted policy or explicitly review repository trust.' })) }));
   console.error('Configuration preview (not a live-run receipt)');
   console.error(`- repo: ${repoRoot}`);
   console.error(`- cache root: ${payload.derived.cacheRoot}`);

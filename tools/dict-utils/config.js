@@ -85,7 +85,7 @@ export const readShippedConfigSchema = schemaPath => {
 };
 
 /** Optional source callback reports loader facts without changing the config value contract. */
-export function loadUserConfig(repoRoot, { env = process.env, onSources = null } = {}) {
+export function loadUserConfig(repoRoot, { env = process.env, onSources = null, configPath: selectedConfigPath = null } = {}) {
   const metadata = { version: 1, files: [], repoTrusted: isRepoTrusted(repoRoot, env),
     discardedAuthorityPaths: [], trustedMerge: false, testOverlay: { applied: false, source: 'test-environment' } };
   const readSource = (filename, source, optional = false) => {
@@ -105,8 +105,8 @@ export function loadUserConfig(repoRoot, { env = process.env, onSources = null }
     return value;
   };
   try {
-    const configPath = path.join(repoRoot, '.pairofcleats.json');
-    const base = readSource(configPath, 'repository', true);
+    const configPath = selectedConfigPath ? path.resolve(selectedConfigPath) : path.join(repoRoot, '.pairofcleats.json');
+    const base = readSource(configPath, 'repository', !selectedConfigPath);
     if (!isPlainObject(base)) throw new Error('Config root must be a JSON object.');
     const schemaPath = path.join(resolveToolRoot(), 'docs', 'config', 'schema.json');
     const schema = readShippedConfigSchema(schemaPath);
@@ -118,7 +118,11 @@ export function loadUserConfig(repoRoot, { env = process.env, onSources = null }
     const trustedPath = resolveTrustedConfigPath(repoRoot, env);
     const trusted = trustedPath ? readSource(trustedPath, 'trusted-external') : {};
     const trustedResult = validateConfig(schema, trusted);
-    if (!trustedResult.ok) throw new Error('Invalid user-owned trusted configuration.');
+    if (!trustedResult.ok) throw Object.assign(new Error('Invalid user-owned trusted configuration:\n'
+      + trustedResult.errors.map(error => `- ${error}`).join('\n')), {
+      code: 'ERR_TRUSTED_CONFIG_INVALID', configPath: trustedPath,
+      errors: trustedResult.errors.map(message => ({ code: 'schema', message }))
+    });
     const safe = applyRepoConfigAuthority(base, repoRoot, env);
     metadata.discardedAuthorityPaths = discardedConfigPaths(base, safe);
     metadata.trustedMerge = Boolean(trustedPath);

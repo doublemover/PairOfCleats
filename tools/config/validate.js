@@ -6,13 +6,15 @@ import { readJsoncFile } from '../../src/shared/jsonc.js';
 import { resolveRepoConfigPath, resolveRepoRootArg, resolveToolRoot } from '../shared/dict-utils.js';
 import { emitJson } from '../shared/cli-utils.js';
 import { validateConfig } from '../../src/config/validate.js';
+import { explainEffectiveConfiguration, formatEffectiveConfiguration } from './effective.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats config validate',
   options: {
     json: { type: 'boolean', default: false },
     repo: { type: 'string' },
-    config: { type: 'string' }
+    config: { type: 'string' },
+    effective: { type: 'boolean', default: false }
   }
 }).parse();
 
@@ -20,6 +22,13 @@ const repoRoot = resolveRepoRootArg(argv.repo);
 const configPath = resolveRepoConfigPath(repoRoot, argv.config);
 const toolRoot = resolveToolRoot();
 const schemaPath = path.join(toolRoot, 'docs', 'config', 'schema.json');
+
+if (argv.effective) {
+  const report = await explainEffectiveConfiguration({ repoRoot, configPath: argv.config ? configPath : null });
+  if (argv.json) emitJson(report);
+  else console.error(formatEffectiveConfiguration(report));
+  process.exit(report.ok ? 0 : 1);
+}
 
 if (!fs.existsSync(schemaPath)) {
   console.error(`Config schema not found: ${schemaPath}`);
@@ -29,11 +38,11 @@ if (!fs.existsSync(schemaPath)) {
 if (!fs.existsSync(configPath)) {
   const message = `Config file not found: ${configPath}`;
   if (argv.json) {
-    emitJson({ ok: true, found: false, configPath, message });
+    emitJson({ ok: !argv.config, found: false, configPath, message, validation: 'raw-schema', errorCode: argv.config ? 'ERR_CONFIG_FILE_MISSING' : null });
   } else {
     console.error(message);
   }
-  process.exit(0);
+  process.exit(argv.config ? 1 : 0);
 }
 
 let config;
@@ -62,9 +71,9 @@ if (!config || typeof config !== 'object' || Array.isArray(config)) {
 const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
 const result = validateConfig(schema, config);
 if (argv.json) {
-  emitJson({ ok: result.ok, found: true, configPath, errors: result.errors });
+  emitJson({ ok: result.ok, found: true, configPath, errors: result.errors, validation: 'raw-schema', runtime: 'not-probed' });
 } else if (result.ok) {
-  console.error(`Config OK: ${configPath}`);
+  console.error(`Config schema OK: ${configPath}. Effective settings/runtime not checked; use --effective.`);
 } else {
   console.error(`Config errors in ${configPath}:`);
   for (const error of result.errors) {

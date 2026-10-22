@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { SETUP_OPTIONS } from '../shared/operator-cli-options.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
@@ -25,29 +26,11 @@ import { verifyVectorExtensionArtifact } from '../sqlite/extension-trust.js';
 import { buildSetupReadiness } from './readiness.js';
 import { resolveDictionarySetupReadiness } from './dictionary-readiness.js';
 import { resolveModelSetupReadiness } from './model-readiness.js';
+import { applyFirstSearchPlan, createFirstSearchPlan } from './first-search-plan.js';
 
 const argv = createCli({
   scriptName: 'setup',
-  options: {
-    json: { type: 'boolean', default: false },
-    'non-interactive': { type: 'boolean', default: false },
-    'validate-config': { type: 'boolean', default: false },
-    'skip-validate': { type: 'boolean', default: false },
-    'skip-install': { type: 'boolean', default: false },
-    'skip-dicts': { type: 'boolean', default: false },
-    'skip-models': { type: 'boolean', default: false },
-    'skip-extensions': { type: 'boolean', default: false },
-    'skip-tooling': { type: 'boolean', default: false },
-    'skip-index': { type: 'boolean', default: false },
-    'skip-sqlite': { type: 'boolean', default: false },
-    'skip-artifacts': { type: 'boolean', default: false },
-    'with-sqlite': { type: 'boolean', default: false },
-    incremental: { type: 'boolean', default: false },
-    root: { type: 'string' },
-    repo: { type: 'string' },
-    'tooling-scope': { type: 'string' },
-    'require-steps': { type: 'string' }
-  },
+  options: SETUP_OPTIONS,
   aliases: { ci: 'non-interactive', s: 'with-sqlite', i: 'incremental' }
 }).strictOptions().parse();
 
@@ -55,6 +38,29 @@ const explicitRoot = argv.root || argv.repo;
 const root = resolveRepoRootArg(explicitRoot);
 const toolRoot = resolveToolRoot();
 const jsonOutput = argv.json === true;
+if (argv.plan || argv['apply-plan']) {
+  if (!explicitRoot) throw new Error('Plan/apply requires --repo <target> (or --root) so target selection is explicit.');
+  if (argv.plan && argv['apply-plan']) throw new Error('Choose either --plan or --apply-plan.');
+  let payload;
+  if (argv['apply-plan']) {
+    const planPath = path.resolve(argv['apply-plan']);
+    const stat = fs.lstatSync(planPath);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024 * 1024) throw new Error('Setup plan must be a bounded regular JSON file.');
+    const approved = JSON.parse(fs.readFileSync(planPath, 'utf8'));
+    if (fs.realpathSync(approved.repoRoot) !== fs.realpathSync(root)) throw new Error('The selected --repo differs from the approved plan.');
+    payload = await applyFirstSearchPlan(approved);
+  } else {
+    payload = await createFirstSearchPlan({ repoRoot: root, profile: argv.profile, model: argv.model,
+      backend: argv.backend, tools: String(argv.tools || '').split(',').map(value => value.trim()).filter(Boolean) });
+  }
+  if (jsonOutput) console.log(JSON.stringify(payload, null, 2));
+  else {
+    console.error(`${payload.kind}: ${payload.repoRoot}`);
+    console.error(JSON.stringify(payload, null, 2));
+    if (argv.plan) console.error('Review with --plan --json > setup-plan.json, then explicitly --apply-plan setup-plan.json --repo <same target>.');
+  }
+  process.exit(payload.state && payload.state !== 'complete' ? 1 : 0);
+}
 const nonInteractive = argv['non-interactive'] === true;
 const rl = nonInteractive ? null : readline.createInterface({ input: process.stdin, output: jsonOutput ? process.stderr : process.stdout });
 const stdoutGuard = createStdoutGuard({ enabled: jsonOutput, stream: process.stdout, label: 'setup stdout' });
