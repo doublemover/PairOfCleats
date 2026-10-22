@@ -16,7 +16,7 @@ flattening. Source candidate ranges use exclusive ends without extra characters
 or clamping. These checks qualify the existing heuristic signature consumer;
 they do not prove runtime call targets or provider completeness.
 
-The local request cache policy is `rq9`, retiring signatures admitted by the
+The local request cache policy is `rq10`, retiring signatures admitted by the
 previous coordinate/shape rules. Shared LSP producer identity also changes.
 The authored actual document-processing regression remains unrun; real-server,
 native and end-to-end qualification are pending.

@@ -1,9 +1,10 @@
-import { splitTopLevel, findTopLevelIndex } from './shared.js';
+import { splitTopLevel, findTopLevelIndex, findTopLevelWord } from './shared.js';
 import { setOwn } from '../../../shared/object-record.js';
+import { normalizeTypeWhitespace } from '../../../shared/type-normalization.js';
 
 const RUST_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-const normalizeType = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+const normalizeType = (value) => normalizeTypeWhitespace(String(value ?? '').trim());
 
 const RUST_NESTING = Object.freeze({ rustLifetimes: true });
 const splitParams = (value) => splitTopLevel(value, ',', RUST_NESTING);
@@ -48,8 +49,9 @@ export const parseRustSignature = (detail) => {
   const paramsText = tail.slice(1, close);
   const suffix = tail.slice(close + 1).trim();
   const returnsRaw = normalizeType(suffix.startsWith('->') ? suffix.slice(2) : '');
+  const whereIndex = findTopLevelWord(returnsRaw, 'where', RUST_NESTING);
   const returnType = returnsRaw
-    ? normalizeType(returnsRaw.replace(/\s+where\s+[\s\S]*$/u, ''))
+    ? normalizeType(whereIndex < 0 ? returnsRaw : returnsRaw.slice(0, whereIndex))
     : null;
   const paramTypes = {};
   const paramNames = [];

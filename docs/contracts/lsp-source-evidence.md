@@ -31,7 +31,7 @@ the insertion to a parameter binding or the return position. Local variables,
 nested declarations and argument-name hints cannot supply an enclosing callable's
 return or parameter types. Qualified type hints retain `lsp_inlay` provenance and
 cannot by themselves mark a callable's return evidence complete or suppress a
-richer signature request. The hover request cache identity is `rq9`.
+richer signature request. The hover request cache identity is `rq10`.
 
 Header ownership balances parentheses, arrays and object delimiters, so commas
 inside default expressions cannot invent parameter boundaries. Only a simple

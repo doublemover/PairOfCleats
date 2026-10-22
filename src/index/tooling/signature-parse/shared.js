@@ -107,6 +107,28 @@ export const findTopLevelIndex = (value, targetChar, options = {}) => {
   return found;
 };
 
+/** Locate a standalone syntax word without interpreting quoted or nested type
+ * contents. Qualified/raw identifiers cannot supply a clause keyword. */
+export const findTopLevelWord = (value, word, options = {}) => {
+  const source = normalizeInput(value);
+  if (typeof word !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(word)) throw new TypeError('A syntax word is required.');
+  const continuesWord = character => /[\p{ID_Continue}$#:.]/u.test(character || '');
+  const previousCharacter = index => {
+    let start = index - 1;
+    if (start < 0) return '';
+    const last = source.charCodeAt(start), first = source.charCodeAt(start - 1);
+    if (last >= 0xdc00 && last <= 0xdfff && first >= 0xd800 && first <= 0xdbff) start -= 1;
+    return source.slice(start, index);
+  };
+  const nextCharacter = index => index < source.length ? String.fromCodePoint(source.codePointAt(index)) : '';
+  let found = -1;
+  walkTopLevel(source, (ch, index, state) => {
+    if (found !== -1 || ch !== word[0] || !isTopLevel(state) || !source.startsWith(word, index)) return;
+    if (!continuesWord(previousCharacter(index)) && !continuesWord(nextCharacter(index + word.length))) found = index;
+  }, options);
+  return found;
+};
+
 /** Parameter enclosures depend on quote-aware paired punctuation. Angle
  * operators in default expressions cannot hide the matching parenthesis. */
 export const findMatchingParen = (value, open, options = {}) => {
