@@ -2,7 +2,9 @@ import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifac
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonLinesSharded, writeJsonLinesShardedAsync } from '../../../shared/json-stream/jsonl-sharded.js';
-import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
+import { stringifyJsonValue } from '../../../shared/json-stream/encode.js';
+import { atomicWriteText } from '../../../shared/io/atomic-write.js';
+import { beginMergeDiskOutput } from '../../../shared/merge-disk.js';
 import { GRAPH_RELATION_EDGES_VERSION } from '../../../contracts/schemas/graph-relation-edges.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
 import { fromPosix } from '../../../shared/file-paths.js';
@@ -12,7 +14,7 @@ import { mergeRunsWithPlanner, readJsonlRows } from '../../../shared/merge.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { buildShardedJsonlMetaFields } from './writers/_common.js';
 import { writeSemanticQueryIndex } from './writers/semantic/query-index.js';
-import { writeSemanticJson } from '../../semantic/disk-writes.js';
+import { withSemanticDiskWriter } from '../../semantic/disk-writes.js';
 import { normalizeSemanticConfig } from '../../semantic/config.js';
 import { reopenSemanticDiskAccount } from '../incremental/working-set.js';
 import { compareStrings } from '../../../shared/sort.js';
@@ -33,6 +35,22 @@ const GRAPH_RELATION_VERSION = 2;
 const GRAPH_MAX_NODES = 200000;
 const GRAPH_MAX_EDGES = 500000;
 const GRAPH_SAMPLE_LIMIT = 5;
+
+// Preserve the existing JSON encoder's typed-array meaning, while pinning one
+// encoded output before admitting disk bytes. Atomic cross-device file fallback
+// can hold a second new copy, so its headroom remains charged until settlement.
+const writeGraphJsonWithDiskAdmission = async ({ filename, value, diskAccount, signal }) =>
+  withSemanticDiskWriter(diskAccount, filename, async () => {
+    throwIfAborted(signal);
+    const encoded = stringifyJsonValue(value) + '\n', bytes = Buffer.byteLength(encoded);
+    const output = await beginMergeDiskOutput(filename, diskAccount);
+    output.reserve(bytes);
+    try { diskAccount.reserve(bytes); }
+    catch (error) { diskAccount.release(bytes); throw error; }
+    await atomicWriteText(filename, encoded, { newline: false, signal });
+    await output.commit();
+    diskAccount.release(bytes);
+  });
 
 const resolveCaps = (caps) => ({
   maxNodes: normalizeCap(caps?.maxNodes, GRAPH_MAX_NODES),
@@ -551,7 +569,6 @@ export async function enqueueGraphRelationsArtifacts({
             totalBytes += lineBytes;
           }
           orderingHasher.update(line);
-          retainedDiskAccount.reserve(lineBytes + 8);
           yield row;
         }
       }
@@ -581,7 +598,8 @@ export async function enqueueGraphRelationsArtifacts({
       maxBytes: maxJsonBytes,
       atomic: true,
       offsets: offsetsConfig,
-      signal: abortSignal
+      signal: abortSignal,
+      diskAccount: retainedDiskAccount
     }));
 
     const parts = result.parts.map((part, index) => ({
@@ -595,7 +613,7 @@ export async function enqueueGraphRelationsArtifacts({
       compression: 'none'
     });
 
-    await schedule(() => writeSemanticJson({ filename: graphMetaPath,
+    await schedule(() => writeGraphJsonWithDiskAdmission({ filename: graphMetaPath,
       diskAccount: retainedDiskAccount, signal: abortSignal,
       value: withGeneratedArtifactMetadata({
         schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
@@ -713,7 +731,9 @@ export async function enqueueGraphRelationsArtifacts({
       formatArtifactLabel(graphPath),
       async () => {
         const payload = { ...materializeGraphRelationsPayload(graphRelations), upstreamCoverage };
-        await writeJsonObjectFile(graphPath, { fields: payload, atomic: true });
+        const account = diskAccount || (await reopenSemanticDiskAccount({ roots: [outDir],
+          limit: diskLimit ?? normalizeSemanticConfig().storage.maxDiskWorkingSetBytes, signal: abortSignal })).account;
+        await writeGraphJsonWithDiskAdmission({ filename: graphPath, value: payload, diskAccount: account, signal: abortSignal });
       }
     );
     addPieceFile({ type: 'relations', name: 'graph_relations', format: 'json' }, graphPath);
@@ -725,6 +745,8 @@ export async function enqueueGraphRelationsArtifacts({
     enqueueWrite(
       formatArtifactLabel(graphMetaPath),
       async () => {
+        const account = diskAccount || (await reopenSemanticDiskAccount({ roots: [outDir],
+          limit: diskLimit ?? normalizeSemanticConfig().storage.maxDiskWorkingSetBytes, signal: abortSignal })).account;
         const byteBudget = Number.isFinite(graphRelations?.caps?.maxBytes)
           ? Math.max(0, Math.floor(Number(graphRelations.caps.maxBytes)))
           : null;
@@ -736,7 +758,9 @@ export async function enqueueGraphRelationsArtifacts({
           items: createGraphRelationsIterator(graphRelations, { byteBudget, stats: capStats })(),
           maxBytes: maxJsonBytes,
           atomic: true,
-          offsets: offsetsConfig
+          offsets: offsetsConfig,
+          signal: abortSignal,
+          diskAccount: account
         });
         const parts = result.parts.map((part, index) => ({
           path: part,
@@ -748,8 +772,8 @@ export async function enqueueGraphRelationsArtifacts({
           parts: result.offsets,
           compression: 'none'
         });
-        await writeJsonObjectFile(graphMetaPath, {
-          fields: withGeneratedArtifactMetadata({
+        await writeGraphJsonWithDiskAdmission({ filename: graphMetaPath, diskAccount: account, signal: abortSignal,
+          value: withGeneratedArtifactMetadata({
             schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
             artifact: 'graph_relations',
             format: 'jsonl-sharded',
@@ -769,8 +793,7 @@ export async function enqueueGraphRelationsArtifacts({
               ...(capStats ? { byteCaps: capStats } : {}),
               ...(offsetsMeta ? { offsets: offsetsMeta } : {})
             }
-          }, 'sharded-meta', 'graph_relations'),
-          atomic: true
+          }, 'sharded-meta', 'graph_relations')
         });
         for (let i = 0; i < result.parts.length; i += 1) {
           const relPath = result.parts[i];
@@ -798,7 +821,7 @@ export async function enqueueGraphRelationsArtifacts({
         addPieceFile({ type: 'relations', name: 'graph_relations_meta', format: 'json' }, graphMetaPath);
         const csrPayload = buildGraphRelationsCsr(graphRelations);
         if (csrPayload) {
-          await writeJsonObjectFile(csrPath, { fields: csrPayload, atomic: true });
+          await writeGraphJsonWithDiskAdmission({ filename: csrPath, value: csrPayload, diskAccount: account, signal: abortSignal });
           addPieceFile({ type: 'relations', name: 'graph_relations_csr', format: 'json' }, csrPath);
         }
       }

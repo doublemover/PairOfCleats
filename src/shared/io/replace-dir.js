@@ -140,7 +140,9 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
         try { await fs.rm(bakPath, { recursive: true, force: true }); } catch {}
       }
     } catch (renameErr) {
-      if (await copyDirFallback()) {
+      // A quota owner may admit only the existing staged bytes. Its caller can
+      // fail and restore the backup instead of allocating a second directory.
+      if (options.allowCopyFallback !== false && await copyDirFallback()) {
         if (!keepBackup && backupAvailable) {
           try { await fs.rm(bakPath, { recursive: true, force: true }); } catch {}
         }

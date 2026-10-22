@@ -16,6 +16,21 @@ physical length agrees with admitted bytes. Metadata uses the same rule. An
 uncertain writer failure keeps conservative credits until the existing physical
 inventory is reopened. This adds no disk store, scheduler or independent quota.
 
+The existing uncompressed shard writer now owns row/offset admission for both
+streaming and supplied graph paths. With a supplied disk account it disables
+automatic large-part preallocation, retains the previous shard directory until
+the new one closes, and retires that backup through the existing accounted
+deletion owner. Failed rename promotion rolls back instead of making an
+unreserved directory copy. Other callers keep their existing default behavior.
+
+Pre-materialized supplied graphs also use the shared account for compact JSON,
+shards, offsets, display metadata and legacy CSR. JSON uses the existing encoder
+to pin one output before disk admission, preserving typed-array serialization.
+Atomic file writes conservatively reserve a possible second new copy until
+settlement. This legacy path still receives an already materialized input and
+now retains one encoded JSON output; it does not claim bounded input heap/RSS or
+create uncapped retained adjacency from the supplied display payload.
+
 Closed merge intermediates and collector directories return credits only after
 successful task-owned deletion. A missing file returns no imagined credits;
 multiple hard links are conservatively retained. Cleanup errors remain visible
@@ -35,3 +50,10 @@ merge/checkpoint overlap, exact physical accounting, repeated output replacement
 closed-file retirement, and complete retained edges under small display caps.
 They are unexecuted. Crash/disk-full, operational Windows/native lifetime and
 equal-evidence performance qualification remain open.
+
+Additional authored controls cover a small row under a large shard capacity,
+replacement byte equality, input closure under quota/cleanup failure, refusal of
+unreserved directory-copy fallback, supplied compact/sharded/CSR quota, and
+preservation of prior compact output when overlap credits are insufficient.
+They remain unexecuted. Generic semantic metadata/index owners outside this graph
+JSON path still require their own cross-device copy-headroom qualification.
