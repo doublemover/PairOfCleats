@@ -1,13 +1,15 @@
 const fs = require('node:fs');
 const { createHash } = require('node:crypto');
 const path = require('node:path');
-const { readCurrentSource, sourceRangeOffsets, sourceDocumentForm } = require('./document-authority.js');
+const { readCurrentSource, assertSourceUri, sourceRangeOffsets, sourceDocumentForm } = require('./document-authority.js');
 
 function sourceNavigationArgs(document, position, includeDeclaration = true, repoRoot = null) {
   if (!document?.uri?.fsPath || !position || document.isDirty) {
     throw new Error('PairOfCleats indexed navigation requires a saved source document. Use Related Search for approximate matches.');
   }
   const captured = readCurrentSource({ repoRoot: repoRoot || path.dirname(document.uri.fsPath), file: document.uri.fsPath });
+  assertSourceUri(captured, document.uri);
+  if (document.isClosed === true) throw new Error('Indexed navigation requires an opened saved source document.');
   const disk = captured.sourceText;
   const text = document.getText();
   const form = sourceDocumentForm(disk, text);

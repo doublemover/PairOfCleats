@@ -68,6 +68,13 @@ scope require a new explicit search. Escape in an options picker cancels before
 dispatch. Indexed completions retain the original buffer, change count, request
 and replacement range; stale or superseded responses cannot edit another word.
 
+VS Code exact source locations bind both the requested URI and the actually
+opened document URI to the verified local file. Equal text in a sibling or
+virtual document cannot establish that binding; closed documents cannot supply
+native ranges. Final publication rechecks the actual document URI and the
+per-request cache includes the selected repository root. These source assertions
+are authored and unrun, with supported editor-host acceptance still separate.
+
 Repository discovery selects the nearest `.pairofcleats.json`, `.git` directory,
 or `.git` file. This keeps a linked Git worktree or submodule rooted at its working
 directory when its metadata lives elsewhere, including inside an enclosing repo.

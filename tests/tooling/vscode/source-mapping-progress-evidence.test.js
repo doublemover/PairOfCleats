@@ -18,7 +18,7 @@ try {
   const text = 'const value = "😀";\nvalue();\n';
   fs.writeFileSync(file, text);
   const hash = createHash('sha256').update(Buffer.from(text)).digest('hex');
-  const document = { uri: { fsPath: file }, version: 7, isDirty: false, getText: () => text };
+  const document = { uri: { scheme: 'file', fsPath: file }, version: 7, isDirty: false, getText: () => text };
   const args = sourceNavigationArgs(document, { line: 1, character: 2 }, false);
   assert.equal(args[args.indexOf('--source-hash') + 1], hash);
   assert.equal(args[args.indexOf('--source-version') + 1], '7');
@@ -29,17 +29,19 @@ try {
   assert.throws(() => sourceNavigationArgs({ ...document, getText: () => 'changed' }, { line: 0, character: 0 }), /differs from disk/);
   assert.throws(() => sourceNavigationArgs(document, { line: 99, character: 0 }), /outside/);
   assert.throws(() => sourceNavigationArgs(document, { line: 0, character: 9999 }), /exceeds/);
+  assert.throws(() => sourceNavigationArgs({ ...document, uri: { scheme: 'untitled', fsPath: file } }, { line: 0, character: 0 }), /URI|source file/);
+  assert.throws(() => sourceNavigationArgs({ ...document, isClosed: true }, { line: 0, character: 0 }), /opened saved/);
   assert.equal(verifyLocationSource(file, hash), true);
   const bomFile = path.join(temporary, 'bom.js');
   fs.writeFileSync(bomFile, '\ufeff' + text);
-  const bomArgs = sourceNavigationArgs({ ...document, uri: { fsPath: bomFile } }, { line: 0, character: 0 });
+  const bomArgs = sourceNavigationArgs({ ...document, uri: { scheme: 'file', fsPath: bomFile } }, { line: 0, character: 0 });
   assert.equal(bomArgs[bomArgs.indexOf('--column') + 1], '2', 'host-stripped BOM is restored in source cursor coordinates');
   assert.equal(verifyLocationSource(bomFile, createHash('sha256').update(fs.readFileSync(bomFile)).digest('hex')), false,
     'native target ranges require an actual host normalization witness before BOM opening');
   const retained = '\ufeffa😀z\r\nsecond\r\n';
   const normalizedFile = path.join(temporary, 'host-normalized.js');
   fs.writeFileSync(normalizedFile, retained);
-  assert.throws(() => sourceNavigationArgs({ ...document, uri: { fsPath: normalizedFile }, getText: () => retained },
+  assert.throws(() => sourceNavigationArgs({ ...document, uri: { scheme: 'file', fsPath: normalizedFile }, getText: () => retained },
     { line: 0, character: 3 }), /surrogate/);
   const sourceRef = { ref: { partitionId: 'sy1:' + 'a'.repeat(64), localId: 1 }, sourceUnitId: 'su1:' + 'b'.repeat(64),
     sourceHash: createHash('sha256').update(fs.readFileSync(normalizedFile)).digest('hex'),

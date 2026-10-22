@@ -46,6 +46,14 @@ function readVerifiedSource(options) {
   return source;
 }
 
+/** Text equality cannot bind a sibling/virtual document to an indexed file. */
+function assertSourceUri(source, uri) {
+  if (uri?.scheme !== 'file' || typeof uri.fsPath !== 'string' || !path.isAbsolute(uri.fsPath)
+    || fs.realpathSync(uri.fsPath) !== source.file) {
+    throw new Error('Opened document URI does not identify the qualified local source file.');
+  }
+}
+
 function sourceRangeOffsets(sourceText, range) {
   const starts = [0], ends = [];
   for (let offset = 0; offset < sourceText.length; offset++) {
@@ -105,13 +113,17 @@ function createDocumentAuthority({ workspace, isCurrent = () => true, maxDocumen
   const sources = new Map();
   async function qualify({ repoRoot, file, uri, sourceHash, range, span = null }) {
     if (!isCurrent()) return null;
-    const key = `${file}\0${sourceHash}`;
+    const root = fs.realpathSync(repoRoot);
+    const key = JSON.stringify([root, file, sourceHash]);
     if (!sources.has(key)) {
       if (sources.size >= maxDocuments) throw new Error('Native navigation document bound reached. Inspect the bounded indexed evidence instead.');
       sources.set(key, (async () => {
-        const source = readVerifiedSource({ repoRoot, file, sourceHash });
+        const source = readVerifiedSource({ repoRoot: root, file, sourceHash });
+        assertSourceUri(source, uri);
         const document = await workspace.openTextDocument(uri);
         if (!isCurrent()) return null;
+        assertSourceUri(source, document.uri);
+        if (document.isClosed === true) throw new Error('Opened target document closed before location publication.');
         const version = document.version;
         // Re-read through the same contained-byte authority after the await.
         readVerifiedSource({ repoRoot, file, sourceHash });
@@ -122,6 +134,9 @@ function createDocumentAuthority({ workspace, isCurrent = () => true, maxDocumen
     }
     const source = await sources.get(key);
     if (!source || !isCurrent()) return null;
+    assertSourceUri(source, uri);
+    assertSourceUri(source, source.document.uri);
+    if (source.document.isClosed === true) throw new Error('Opened target document closed before location publication.');
     if (source.document.version !== source.version) throw new Error('Opened target version changed before location publication.');
     const sourceSpan = span || sourceRangeOffsets(source.sourceText, range);
     const offsets = documentOffsets(source.document, { ...source, ...sourceSpan });
@@ -136,6 +151,8 @@ function createDocumentAuthority({ workspace, isCurrent = () => true, maxDocumen
     await Promise.all([...sources.values()].map(async pending => {
       const source = await pending;
       if (source) {
+        assertSourceUri(source, source.document.uri);
+        if (source.document.isClosed === true) throw new Error('Opened target document closed before locations were published.');
         if (source.document.isDirty || source.document.version !== source.version) throw new Error('Target document changed before locations were published.');
         readVerifiedSource(source);
       }
@@ -145,5 +162,5 @@ function createDocumentAuthority({ workspace, isCurrent = () => true, maxDocumen
   return { qualify, assertCurrent };
 }
 
-module.exports = { MAX_SOURCE_BYTES, decodeSource, readCurrentSource, readVerifiedSource, sourceRangeOffsets,
+module.exports = { MAX_SOURCE_BYTES, decodeSource, readCurrentSource, readVerifiedSource, assertSourceUri, sourceRangeOffsets,
   sourceDocumentForm, documentOffsets, createDocumentAuthority };

@@ -178,7 +178,7 @@ const boundResult = { ok: true, status: 'resolved', binding: { status: 'resolved
 harness.queuedResults.push({ code: 0, stdout: JSON.stringify({ ...boundResult, sourceVersion: 'older-document' }) });
 assert.deepEqual(await harness.definitionProviders[0].provider.provideDefinition(document, start, {}), [],
   'a response for another document version cannot publish native locations');
-harness.fakeVscode.workspace.textDocuments = [{ uri: { fsPath: workspace.resolvePath('src', 'defs.js') },
+harness.fakeVscode.workspace.textDocuments = [{ uri: harness.fakeVscode.Uri.file(workspace.resolvePath('src', 'defs.js')),
   isDirty: true, getText: () => 'unsaved target buffer' }];
 harness.queuedResults.push({ code: 0, stdout: JSON.stringify(boundResult) });
 assert.deepEqual(await harness.definitionProviders[0].provider.provideDefinition(document, start, {}), [],
@@ -194,6 +194,21 @@ assert.equal(normalized.length, 1);
 assert.equal(normalized[0].range.start.character, 2);
 assert.equal(normalized[0].range.end.character, 15,
   'native provider uses the actual opened BOM-stripped target buffer rather than retained raw columns');
+
+const siblingTarget = workspace.resolvePath('src', 'same-bytes-sibling.js');
+fs.writeFileSync(siblingTarget, fs.readFileSync(bomTarget));
+const originalOpenTextDocument = harness.fakeVscode.workspace.openTextDocument;
+try {
+  harness.fakeVscode.workspace.openTextDocument = async function(uri) {
+    const opened = await originalOpenTextDocument.call(this, uri);
+    return { ...opened, uri: harness.fakeVscode.Uri.file(siblingTarget) };
+  };
+  harness.queuedResults.push({ code: 0, stdout: JSON.stringify({ ...boundResult,
+    results: [{ file: 'src/defs.js', sourceHash: hashFile(bomTarget), coordinateUnit: 'utf16',
+      startLine: 1, startCol: 4, endLine: 1, endCol: 17 }] }) });
+  assert.deepEqual(await harness.definitionProviders[0].provider.provideDefinition(document, start, {}), [],
+    'actual native provider refuses an identical-text sibling returned by document opening');
+} finally { harness.fakeVscode.workspace.openTextDocument = originalOpenTextDocument; }
 
 fs.writeFileSync(bomTarget, 'one\rWidgetBuilder\r\nlast\r');
 const mixedText = 'one\nWidgetBuilder\nlast\n';
