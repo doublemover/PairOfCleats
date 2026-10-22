@@ -1,19 +1,20 @@
 import { createHash } from 'node:crypto';
-import { canonicalSemanticJson, semanticHash } from '../semantic/identity.js';
+import { canonicalSemanticJson } from '../semantic/identity.js';
 import { exactLspRange } from '../semantic/lsp-locations.js';
 import { decodeSemanticdbEvidenceWire } from './semanticdb-wire.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { finalizeSourceLinkedReport } from './source-linked-report.js';
+import { captureSourceLinkedInput } from './source-linked-input.js';
 
 const fail = message => Object.assign(new Error(message), { code: 'ERR_SEMANTICDB_EVIDENCE' });
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
-const same = (a, b) => canonicalSemanticJson(a) === canonicalSemanticJson(b);
+const same = (a, b) => canonicalSemanticJson(a, { maxBytes: 1024 * 1024 }) === canonicalSemanticJson(b, { maxBytes: 1024 * 1024 });
 const label = value => typeof value === 'string' && value.length > 0 && value.length <= 4096 && !/[\x00-\x1f]/u.test(value);
 const safePath = value => label(value) && !/[\\:]/u.test(value) && !value.startsWith('/')
   && value.split('/').every(part => part && part !== '.' && part !== '..');
 
 export const SEMANTICDB_PROVIDER_DECLARATION = Object.freeze({ schemaVersion: 1,
-  providerId: 'scala-semanticdb-import', adapterVersion: '2', execution: 'report',
+  providerId: 'scala-semanticdb-import', adapterVersion: '3', execution: 'report',
   languages: [{ id: 'scala', dialect: null }],
   facts: [{ family: 'references', evidence: 'source-qualified' }, { family: 'symbols', evidence: 'provider-observation' },
     { family: 'diagnostics', evidence: 'provider-observation' }],
@@ -36,14 +37,20 @@ export const prepareSemanticdbReferenceEvidence = ({ bytes, producingReceipt, ex
     || !Number.isSafeInteger(maxDepth) || maxDepth < 1 || maxDepth > 32
     || !Number.isSafeInteger(maxMs) || maxMs < 1 || maxMs > 1000) throw fail('Invalid SemanticDB import inputs or bounds.');
   const started = performance.now();
-  const check = () => { throwIfAborted(signal); if (performance.now() - started >= maxMs) throw fail('SemanticDB import time budget exhausted.'); };
-  check();
+  const checkTime = () => { if (performance.now() - started >= maxMs) throw fail('SemanticDB import time budget exhausted.'); };
+  const check = () => { throwIfAborted(signal); checkTime(); };
+  checkTime();
   bytes = Buffer.from(bytes);
   const artifactHash = createHash('sha256').update(bytes).digest('hex');
-  if (!producingReceipt || !digest(expectedReceiptHash)) return { status: 'non-authoritative',
-    reason: 'producing_source_receipt_unavailable', artifactHash, report: null };
-  const receipt = JSON.parse(canonicalSemanticJson(producingReceipt));
-  if (receipt.schemaVersion !== 1 || semanticHash('tooling.semanticdb-producing-receipt.v1', receipt) !== expectedReceiptHash
+  if (!producingReceipt || !digest(expectedReceiptHash)) { check(); return { status: 'non-authoritative',
+    reason: 'producing_source_receipt_unavailable', artifactHash, report: null }; }
+  const admission = { maxBytes: SEMANTICDB_PROVIDER_DECLARATION.limits.maxBytes, fail, check: checkTime,
+    message: 'SemanticDB producing receipt/context byte budget exhausted.' };
+  const { value: receipt, identity: receiptHash } = captureSourceLinkedInput(producingReceipt,
+    { ...admission, domain: 'tooling.semanticdb-producing-receipt.v1' });
+  generation = captureSourceLinkedInput(generation, admission).value;
+  check();
+  if (receipt.schemaVersion !== 1 || receiptHash !== expectedReceiptHash
     || receipt.artifactHash !== artifactHash || !same(receipt.generation, generation)
     || !digest(receipt.profileHash) || !digest(receipt.configHash) || !digest(receipt.dependencyHash)
     || !digest(receipt.classpathHash) || !label(receipt.buildTarget) || !label(receipt.targetPlatform)
@@ -165,8 +172,8 @@ export const prepareSemanticdbReferenceEvidence = ({ bytes, producingReceipt, ex
       reason: target ? null : candidates.length ? 'ambiguous_symbol_in_build_target' : 'external_or_missing_definition',
       evidence: entry.family === 'semanticdbSyntheticApplication' ? 'compiler-synthetic' : 'compiler-occurrence' });
   }
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'scala-semanticdb-import', adapterVersion: '2',
-    method: 'scala/semanticdb4', evidenceKind: 'scala-semanticdb-references', generation: JSON.parse(canonicalSemanticJson(generation)),
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'scala-semanticdb-import', adapterVersion: '3',
+    method: 'scala/semanticdb4', evidenceKind: 'scala-semanticdb-references', generation,
     runtime: { family: receipt.tool.family, version: receipt.tool.version, profileHash: receipt.profileHash,
       qualification: 'producing-receipt-and-application-decoder-unqualified', compilerVersion: receipt.tool.compilerVersion,
       decoderVersion: decoded.runtimeVersion },

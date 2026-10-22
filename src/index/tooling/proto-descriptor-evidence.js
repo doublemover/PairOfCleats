@@ -1,8 +1,9 @@
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
-import { canonicalSemanticJson, semanticHash } from '../semantic/identity.js';
+import { canonicalSemanticJson } from '../semantic/identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { finalizeSourceLinkedReport } from './source-linked-report.js';
+import { captureSourceLinkedInput } from './source-linked-input.js';
 
 const require = createRequire(import.meta.url);
 const fail = message => Object.assign(new Error(message), { code: 'ERR_PROTO_DESCRIPTOR_EVIDENCE' });
@@ -10,10 +11,10 @@ const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(valu
 const safePath = value => typeof value === 'string' && value && value.length <= 4096 && !/[\\:\x00-\x1f]/u.test(value)
   && !value.startsWith('/') && value.split('/').every(part => part && part !== '.' && part !== '..');
 const name = value => typeof value === 'string' && value.length <= 256 && /^[A-Za-z_][A-Za-z_0-9]*$/u.test(value);
-const same = (left, right) => canonicalSemanticJson(left) === canonicalSemanticJson(right);
+const same = (left, right) => canonicalSemanticJson(left, { maxBytes: 1024 * 1024 }) === canonicalSemanticJson(right, { maxBytes: 1024 * 1024 });
 
 export const PROTO_DESCRIPTOR_PROVIDER_DECLARATION = Object.freeze({ schemaVersion: 1,
-  providerId: 'proto-descriptor-import', adapterVersion: '2', execution: 'report',
+  providerId: 'proto-descriptor-import', adapterVersion: '3', execution: 'report',
   languages: [{ id: 'proto', dialect: null }],
   facts: [{ family: 'references', evidence: 'source-qualified' }, { family: 'symbols', evidence: 'provider-observation' },
     { family: 'diagnostics', evidence: 'provider-observation' }],
@@ -70,13 +71,19 @@ export const prepareProtoDescriptorEvidence = ({ bytes, producingReceipt, expect
     || !Number.isSafeInteger(maxDepth) || maxDepth < 1 || maxDepth > 64
     || !Number.isSafeInteger(maxMs) || maxMs < 1 || maxMs > 1000) throw fail('Invalid Proto descriptor input or bounds.');
   const started = performance.now();
-  const check = () => { throwIfAborted(signal); if (performance.now() - started >= maxMs) throw fail('Proto descriptor time budget exhausted.'); };
-  check();
+  const checkTime = () => { if (performance.now() - started >= maxMs) throw fail('Proto descriptor time budget exhausted.'); };
+  const check = () => { throwIfAborted(signal); checkTime(); };
+  checkTime();
   bytes = Buffer.from(bytes);
   const artifactHash = createHash('sha256').update(bytes).digest('hex');
-  if (!producingReceipt || !digest(expectedReceiptHash)) return { status: 'non-authoritative', reason: 'producing_source_receipt_unavailable', artifactHash, report: null };
-  producingReceipt = JSON.parse(canonicalSemanticJson(producingReceipt));
-  if (producingReceipt.schemaVersion !== 1 || semanticHash('tooling.proto-descriptor-producing-receipt.v1', producingReceipt) !== expectedReceiptHash
+  if (!producingReceipt || !digest(expectedReceiptHash)) { check(); return { status: 'non-authoritative', reason: 'producing_source_receipt_unavailable', artifactHash, report: null }; }
+  const admission = { maxBytes: PROTO_DESCRIPTOR_PROVIDER_DECLARATION.limits.maxBytes, fail, check: checkTime,
+    message: 'Proto producing receipt/context byte budget exhausted.' };
+  const captured = captureSourceLinkedInput(producingReceipt, { ...admission, domain: 'tooling.proto-descriptor-producing-receipt.v1' });
+  producingReceipt = captured.value;
+  generation = captureSourceLinkedInput(generation, admission).value;
+  check();
+  if (producingReceipt.schemaVersion !== 1 || captured.identity !== expectedReceiptHash
     || producingReceipt.artifactHash !== artifactHash || !same(producingReceipt.generation, generation)
     || !digest(producingReceipt.profileHash) || !digest(producingReceipt.configHash) || !digest(producingReceipt.dependencyHash)
     || !digest(producingReceipt.dependencyLockHash) || !digest(producingReceipt.customOptionIdentity)
@@ -268,8 +275,8 @@ export const prepareProtoDescriptorEvidence = ({ bytes, producingReceipt, expect
           : candidate && !admitted ? 'type_not_visible_through_imports' : 'descriptor_target_source_unavailable' });
     }
   }
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'proto-descriptor-import', adapterVersion: '2',
-    method: 'proto/descriptor-set', evidenceKind: 'proto-descriptor-references', generation: JSON.parse(canonicalSemanticJson(generation)),
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'proto-descriptor-import', adapterVersion: '3',
+    method: 'proto/descriptor-set', evidenceKind: 'proto-descriptor-references', generation,
     runtime: { family: 'protobufjs-descriptor', version, profileHash: producingReceipt.profileHash, qualification: 'application-library-unqualified' },
     project: { configHash: producingReceipt.configHash, dependencyHash: producingReceipt.dependencyHash,
       dependencyLockHash: producingReceipt.dependencyLockHash, customOptionIdentity: producingReceipt.customOptionIdentity },

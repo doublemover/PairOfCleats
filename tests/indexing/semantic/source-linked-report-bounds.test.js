@@ -60,7 +60,7 @@ try {
     sources: [...proto.sources].map(([filename, item]) => ({ descriptorPath: filename, sourcePath: filename,
       sourceUnitId: item.source.sourceUnitId, byteHash: item.source.byteHash, syntaxPartitionId: item.syntax.partitionId,
       syntaxHash: item.syntax.canonicalHash, mappingIdentity: item.source.mapping?.identity ?? null })) };
-  assert.equal(PROTO_DESCRIPTOR_PROVIDER_DECLARATION.adapterVersion, '2');
+  assert.equal(PROTO_DESCRIPTOR_PROVIDER_DECLARATION.adapterVersion, '3');
   assert.throws(() => prepareProtoDescriptorEvidence({ bytes, producingReceipt,
     expectedReceiptHash: semanticHash('tooling.proto-descriptor-producing-receipt.v1', producingReceipt),
     generation: proto.generation, documents: proto.sources }), /Proto descriptor output byte budget/,

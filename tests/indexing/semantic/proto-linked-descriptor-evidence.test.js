@@ -75,5 +75,18 @@ try {
   const edition = structuredClone(set); edition.file[0].syntax = 'editions'; edition.file[0].edition = 1000;
   assert.equal(prepareProtoDescriptorEvidence(prepare(edition)).report.results.find(value => value.path === 'dep.proto').reason, 'unsupported_edition');
   assert.throws(() => prepareProtoDescriptorEvidence({ ...options, maxSymbols: 1 }), { code: 'ERR_PROTO_DESCRIPTOR_EVIDENCE' });
+  const mutable = prepare(); mutable.generation = { ...f.generation };
+  mutable.producingReceipt = JSON.parse(JSON.stringify(mutable.producingReceipt));
+  const originalGeneration = { ...mutable.generation }, originalBytes = Buffer.from(mutable.bytes);
+  let inspected = false;
+  const pinned = prepareProtoDescriptorEvidence({ ...mutable, signal: { get aborted() {
+    if (!inspected) {
+      inspected = true; mutable.generation.semanticRevision++; mutable.producingReceipt.tool.version = 'caller-replaced'; mutable.bytes.fill(0);
+    }
+    return false;
+  } } }).report;
+  assert.ok(inspected); assert.deepEqual(pinned.generation, originalGeneration);
+  assert.equal(pinned.producingTool.version, 'fixture-not-executed');
+  assert.deepEqual(Buffer.from(pinned.descriptorArtifact.base64, 'base64'), originalBytes);
   console.log('binary linked Proto descriptor source/receipt identity, tab/Unicode mapping and canonical source detail');
 } finally { await f.cleanup(); }

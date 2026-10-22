@@ -1,16 +1,17 @@
 import { createHash } from 'node:crypto';
-import { canonicalSemanticJson, semanticHash } from '../semantic/identity.js';
+import { canonicalSemanticJson } from '../semantic/identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { finalizeSourceLinkedReport } from './source-linked-report.js';
+import { captureSourceLinkedInput } from './source-linked-input.js';
 
 const fail = message => Object.assign(new Error(message), { code: 'ERR_SHELLCHECK_REPORT_EVIDENCE' });
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
-const same = (left, right) => canonicalSemanticJson(left) === canonicalSemanticJson(right);
+const same = (left, right) => canonicalSemanticJson(left, { maxBytes: 1024 * 1024 }) === canonicalSemanticJson(right, { maxBytes: 1024 * 1024 });
 const safePath = value => typeof value === 'string' && value.length > 0 && value.length <= 4096
   && !/[\\:\x00-\x1f]/u.test(value) && !value.startsWith('/') && value.split('/').every(part => part && part !== '.' && part !== '..');
 
 export const SHELLCHECK_REPORT_PROVIDER_DECLARATION = Object.freeze({ schemaVersion: 1,
-  providerId: 'shellcheck-json1-import', adapterVersion: '2', execution: 'report', languages: [{ id: 'shell', dialect: 'bash-posix' }],
+  providerId: 'shellcheck-json1-import', adapterVersion: '3', execution: 'report', languages: [{ id: 'shell', dialect: 'bash-posix' }],
   facts: [{ family: 'diagnostics', evidence: 'source-qualified' }],
   consumers: [{ id: 'semanticDetail', families: ['diagnostics'], partialPolicy: 'qualified', fallback: 'parser' }],
   contextRequirements: ['source-snapshot', 'observed-tool', 'dependency-closure'],
@@ -42,12 +43,18 @@ export const prepareShellcheckReportEvidence = ({ bytes, producingReceipt, expec
     || !Number.isSafeInteger(maxComments) || maxComments < 1 || maxComments > 4096
     || !Number.isSafeInteger(maxMs) || maxMs < 1 || maxMs > 1000) throw fail('Invalid bounded ShellCheck report inputs.');
   const started = performance.now();
-  const check = () => { throwIfAborted(signal); if (performance.now() - started >= maxMs) throw fail('ShellCheck import time budget exhausted.'); };
-  check(); bytes = Buffer.from(bytes);
+  const checkTime = () => { if (performance.now() - started >= maxMs) throw fail('ShellCheck import time budget exhausted.'); };
+  const check = () => { throwIfAborted(signal); checkTime(); };
+  checkTime(); bytes = Buffer.from(bytes);
   const artifactHash = createHash('sha256').update(bytes).digest('hex');
-  if (!producingReceipt || !digest(expectedReceiptHash)) return { status: 'non-authoritative', reason: 'producing_source_receipt_unavailable', artifactHash, report: null };
-  producingReceipt = JSON.parse(canonicalSemanticJson(producingReceipt));
-  if (producingReceipt.schemaVersion !== 1 || semanticHash('tooling.shellcheck-producing-receipt.v1', producingReceipt) !== expectedReceiptHash
+  if (!producingReceipt || !digest(expectedReceiptHash)) { check(); return { status: 'non-authoritative', reason: 'producing_source_receipt_unavailable', artifactHash, report: null }; }
+  const admission = { maxBytes: SHELLCHECK_REPORT_PROVIDER_DECLARATION.limits.maxBytes, fail, check: checkTime,
+    message: 'ShellCheck producing receipt/context byte budget exhausted.' };
+  const captured = captureSourceLinkedInput(producingReceipt, { ...admission, domain: 'tooling.shellcheck-producing-receipt.v1' });
+  producingReceipt = captured.value;
+  generation = captureSourceLinkedInput(generation, admission).value;
+  check();
+  if (producingReceipt.schemaVersion !== 1 || captured.identity !== expectedReceiptHash
     || producingReceipt.artifactHash !== artifactHash || !same(producingReceipt.generation, generation)
     || !digest(producingReceipt.profileHash) || !digest(producingReceipt.configHash) || !digest(producingReceipt.dependencyHash)
     || producingReceipt.format !== 'json1' || producingReceipt.coordinateEncoding !== 'unicode-codepoints-onebased-tab1'
@@ -93,8 +100,8 @@ export const prepareShellcheckReportEvidence = ({ bytes, producingReceipt, expec
       mapping: span ? 'exact' : 'unmapped', reason: span ? null : 'invalid_original_source_range',
       fix: comment.fix || null, fixApplicationAllowed: false });
   }
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'shellcheck-json1-import', adapterVersion: '2',
-    method: 'shellcheck/json1', evidenceKind: 'shellcheck-diagnostics', generation: JSON.parse(canonicalSemanticJson(generation)),
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'shellcheck-json1-import', adapterVersion: '3',
+    method: 'shellcheck/json1', evidenceKind: 'shellcheck-diagnostics', generation,
     runtime: { family: 'shellcheck', version: producingReceipt.toolVersion, profileHash: producingReceipt.profileHash,
       qualification: 'producing-receipt-observation' }, project: { configHash: producingReceipt.configHash, dependencyHash: producingReceipt.dependencyHash },
     producingReceiptHash: expectedReceiptHash, reportArtifact: { hash: artifactHash, bytes: bytes.length, base64: bytes.toString('base64') },

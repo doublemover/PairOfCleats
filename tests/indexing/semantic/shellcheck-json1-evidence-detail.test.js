@@ -41,6 +41,19 @@ try {
   assert.throws(() => prepareShellcheckReportEvidence(prepare([comment], { exitCode: 2 })), { code: 'ERR_SHELLCHECK_REPORT_EVIDENCE' });
   assert.throws(() => prepareShellcheckReportEvidence(prepare([{ ...comment, file: '../unknown.sh' }])), { code: 'ERR_SHELLCHECK_REPORT_EVIDENCE' });
   assert.throws(() => prepareShellcheckReportEvidence({ ...options, generation: { baseBuildId: 'stale', semanticRevision: 0 } }), { code: 'ERR_SHELLCHECK_REPORT_EVIDENCE' });
+  const mutable = prepare([comment]); mutable.generation = { ...f.generation };
+  mutable.producingReceipt = JSON.parse(JSON.stringify(mutable.producingReceipt));
+  const originalGeneration = { ...mutable.generation }, originalBytes = Buffer.from(mutable.bytes);
+  let inspected = false;
+  const pinned = prepareShellcheckReportEvidence({ ...mutable, signal: { get aborted() {
+    if (!inspected) {
+      inspected = true; mutable.generation.semanticRevision++; mutable.producingReceipt.toolVersion = 'caller-replaced'; mutable.bytes.fill(0);
+    }
+    return false;
+  } } }).report;
+  assert.ok(inspected); assert.deepEqual(pinned.generation, originalGeneration);
+  assert.equal(pinned.runtime.version, 'fixture-not-executed');
+  assert.deepEqual(Buffer.from(pinned.reportArtifact.base64, 'base64'), originalBytes);
   const written = await writeSourceLinkedEvidence({ report, sources: f.sources, state: f.state, policy: f.policy,
     semanticSink: createSemanticProviderResultSink({ state: f.state, runtime: f.runtime }) });
   const store = f.store([...f.syntaxPartitions, ...written.output.partitions]);

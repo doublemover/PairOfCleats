@@ -84,6 +84,25 @@ try {
   assert.equal(ambiguous.target, null); assert.equal(ambiguous.candidates.length, 2);
   assert.throws(() => prepareSemanticdbReferenceEvidence({ ...options, maxReferences: 1 }), /reference budget/);
   assert.throws(() => prepareSemanticdbReferenceEvidence({ ...options, maxNodes: 1 }), /message\/depth budget/);
+  const mutable = prepare();
+  mutable.generation = { ...f.generation };
+  mutable.producingReceipt = JSON.parse(JSON.stringify(mutable.producingReceipt));
+  const originalBytes = Buffer.from(mutable.bytes), originalGeneration = { ...mutable.generation };
+  const originalTool = mutable.producingReceipt.tool.version;
+  let callbacks = 0;
+  const pinned = prepareSemanticdbReferenceEvidence({ ...mutable, signal: { get aborted() {
+    if (++callbacks === 1) {
+      mutable.generation.semanticRevision++;
+      mutable.producingReceipt.tool.version = 'changed-during-cancellation-inspection';
+      mutable.bytes.fill(0);
+    }
+    return false;
+  } } }).report;
+  assert.ok(callbacks > 0);
+  assert.deepEqual(pinned.generation, originalGeneration);
+  assert.equal(pinned.runtime.version, originalTool);
+  assert.deepEqual(Buffer.from(pinned.artifact.base64, 'base64'), originalBytes,
+    'receipt, generation and artifact ownership precede external cancellation callbacks');
   const abort = new AbortController(); abort.abort();
   assert.throws(() => prepareSemanticdbReferenceEvidence({ ...options, signal: abort.signal }), { name: 'AbortError' });
   console.log('Source/build-target pinned SemanticDB occurrences and synthetic applications reach canonical detail');

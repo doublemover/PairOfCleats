@@ -1,4 +1,5 @@
-import { canonicalSemanticJson, semanticHash } from '../semantic/identity.js';
+import { createHash } from 'node:crypto';
+import { canonicalSemanticJson } from '../semantic/identity.js';
 
 const identityEntryBytes = Buffer.byteLength(',"identity":"' + '0'.repeat(64) + '"');
 
@@ -19,7 +20,8 @@ export const finalizeSourceLinkedReport = (report, { maxBytes, fail, message, ch
   try { encoded = canonicalSemanticJson(report, { maxBytes: maxBytes - identityEntryBytes, check }); }
   catch (error) { if (error?.code === 'ERR_SEMANTIC_JSON_BUDGET') throw fail(message); throw error; }
   const owned = JSON.parse(encoded);
-  const result = { ...owned, identity: semanticHash('tooling.source-linked-evidence.v1', owned) };
+  const result = { ...owned, identity: createHash('sha256').update('tooling.source-linked-evidence.v1\0', 'utf8')
+    .update(encoded, 'utf8').digest('hex') };
   check?.();
   return result;
 };
