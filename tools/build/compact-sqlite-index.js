@@ -11,7 +11,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { createToolDisplayLogger } from '../shared/cli-display.js';
 import { ensureDiskSpace } from '../../src/shared/disk-space.js';
-import { getIndexDir, resolveRepoConfig, resolveSqlitePaths } from '../shared/dict-utils.js';
+import { getIndexDir, resolveRepoCacheRootPath, resolveRepoConfig, resolveSqlitePaths } from '../shared/dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from '../sqlite/vector-extension.js';
 import { CREATE_SEMANTIC_TABLES_SQL } from '../../src/storage/sqlite/semantic/schema.js';
 import { CREATE_INDEX_FORMAT_META_SQL } from '../../src/storage/sqlite/index-format.js';
@@ -140,7 +140,7 @@ export async function compactDatabase(input, resources = null) {
     label: `sqlite compact ${mode}`
   });
 
-  const sourceDb = resources.own(new Database(dbPath, { readonly: true }));
+  const sourceDb = resources.open(() => new Database(dbPath, { readonly: true }));
   assertSqliteIndexFormat({ db: sourceDb, repoRoot: input.repoRoot || process.cwd(), indexPath: dbPath, operation: 'compact' });
   if (!hasRequiredTables(sourceDb, REQUIRED_TABLES)) {
     throw new Error(`[compact] ${mode} db missing required tables. Rebuild first.`);
@@ -202,7 +202,7 @@ export async function compactDatabase(input, resources = null) {
   const reservation = await fsPromises.open(tempPath, 'wx');
   await reservation.close();
 
-  const outDb = resources.own(new Database(tempPath));
+  const outDb = resources.open(() => new Database(tempPath));
   let pragmaState = null;
   let afterStats;
   try {
@@ -602,6 +602,9 @@ if (isDirectRun) {
   if (modeArg === 'all' || modeArg === 'prose') {
     targets.push({ mode: 'prose', path: sqlitePaths.prosePath });
   }
+
+  resources.admitScope({ repoCacheRoot: resolveRepoCacheRootPath(root, userConfig), indexRoot,
+    userConfig, targets: targets.map(target => target.path) });
 
   const modeTask = display.task('SQLite compact', { total: targets.length, stage: 'sqlite' });
   let completed = 0;

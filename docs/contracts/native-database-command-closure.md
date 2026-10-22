@@ -19,6 +19,12 @@ subprocess descendants. The parent still requires actual child close. A failed
 operation may report failed status while proving database closure; a failed close
 or missing settlement keeps the existing pending exclusion.
 
+Before constructing a native handle, delegated entries recheck the effective
+repository cache root, explicit contained generation root and selected target
+paths. Backend path overrides are refused. The reviewed command digest binds
+the canonical command ID, real entry path, exact entry bytes and exact arguments;
+ordinary CLI path overrides keep their existing behavior.
+
 No public cleanup override, command flag, receipt file or serialized boolean can
 grant the child this authority. The internal IPC/import owner remains required.
 

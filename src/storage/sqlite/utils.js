@@ -969,8 +969,8 @@ const settleSqliteForPublication = async (dbPath, nativeResources = null) => {
       { code: 'ERR_SQLITE_RECOVERY_REQUIRED' });
   }
   const { default: Database } = await import('better-sqlite3');
-  const opened = new Database(dbPath, { fileMustExist: true, timeout: 0 });
-  const db = nativeResources ? nativeResources.own(opened) : opened;
+  const open = () => new Database(dbPath, { fileMustExist: true, timeout: 0 });
+  const db = nativeResources ? nativeResources.open(open) : open();
   let primary = null;
   try {
     checkpointSqliteWithTelemetry(db, { dbPath, mode: 'TRUNCATE' });

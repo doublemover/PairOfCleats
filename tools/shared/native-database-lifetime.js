@@ -1,5 +1,6 @@
 import { createLifecycleRegistry } from '../../src/shared/lifecycle/registry.js';
 import { getDelegatedRepoCacheOwner, settleDelegatedRepoCacheOwner } from '../../src/shared/cache/repo-access-delegation.js';
+import { assertDelegatedNativeCommandIdentity, assertDelegatedNativeDatabaseScope } from './native-database-authority.js';
 
 const commands = new Set(['sqlite.compact', 'lmdb.build']);
 
@@ -10,13 +11,21 @@ const commands = new Set(['sqlite.compact', 'lmdb.build']);
 export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = false }, operation) => {
   if (!commands.has(commandIdentity) || typeof operation !== 'function') throw new TypeError('Unknown native database command.');
   const owner = delegated ? getDelegatedRepoCacheOwner() : null;
-  if (owner && (owner.settled || owner.commandIdentity !== commandIdentity)) {
-    throw new Error('Delegated native command differs from its admitted canonical entry.');
-  }
+  if (owner) assertDelegatedNativeCommandIdentity(owner, commandIdentity);
+  let scopeAdmitted = !owner;
   const lifecycle = createLifecycleRegistry({ name: commandIdentity });
   const handles = new WeakMap();
   const resources = Object.freeze({
+    admitScope(scope) {
+      if (owner) assertDelegatedNativeDatabaseScope(owner, { ...scope, commandId: commandIdentity });
+      scopeAdmitted = true;
+    },
+    open(factory) {
+      if (!scopeAdmitted || typeof factory !== 'function') throw new Error('Delegated database paths must be admitted before opening native handles.');
+      return resources.own(factory());
+    },
     own(handle) {
+      if (!scopeAdmitted) throw new Error('Delegated database paths must be admitted before opening native handles.');
       if (!handle || typeof handle.close !== 'function' || handles.has(handle)) throw new TypeError('A new owned native database handle is required.');
       const state = { phase: 'open', promise: null };
       const close = () => {

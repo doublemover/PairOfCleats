@@ -26,7 +26,7 @@ import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../s
 import { loadLmdbMinhashArtifact } from '../../src/storage/lmdb/minhash.js';
 import { replaceLmdbEntries } from '../../src/storage/lmdb/replace.js';
 import { loadLmdbOptionalArray } from '../../src/storage/lmdb/optional-arrays.js';
-import { getIndexDir, getMetricsDir, resolveIndexRoot, resolveLmdbPaths, resolveRepoConfig } from '../shared/dict-utils.js';
+import { getIndexDir, getMetricsDir, resolveRepoCacheRootPath, resolveIndexRoot, resolveLmdbPaths, resolveRepoConfig } from '../shared/dict-utils.js';
 import { resolveAsOfContext, resolveSingleRootForModes } from '../../src/index/as-of.js';
 import { createIndexBuildToolCli } from './index-tool-cli.js';
 import { Packr } from 'msgpackr';
@@ -87,6 +87,9 @@ const indexRoot = argv['index-root']
   ? path.resolve(argv['index-root'])
   : (asOfRootSelection.root ? path.resolve(asOfRootSelection.root) : resolveIndexRoot(root, userConfig));
 const lmdbPaths = resolveLmdbPaths(root, userConfig, { indexRoot });
+resources.admitScope({ repoCacheRoot: resolveRepoCacheRootPath(root, userConfig),
+  indexRoot: argv['index-root'] ? indexRoot : null, userConfig,
+  targets: modes.map(mode => mode === 'code' ? lmdbPaths.codePath : lmdbPaths.prosePath) });
 const metricsDir = getMetricsDir(root, userConfig);
 
 /**
@@ -407,7 +410,7 @@ for (const mode of modes) {
   meta.pageSize = LMDB_PAGE_SIZE;
   const readMs = Date.now() - readStart;
   const writeStart = Date.now();
-  const db = resources.own(open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes }));
+  const db = resources.open(() => open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes }));
   await resources.use(db, () => storeArtifacts(db, meta, artifacts));
   const writeMs = Date.now() - writeStart;
 
@@ -421,7 +424,7 @@ for (const mode of modes) {
     mapSizeBytes,
     mapSizeEstimatedBytes: estimatedBytes
   });
-  const finalDb = resources.own(open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes }));
+  const finalDb = resources.open(() => open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes }));
   await resources.use(finalDb, () => storeValue(finalDb, LMDB_ARTIFACT_KEYS.indexState, finalState));
 
   const totalMs = Date.now() - buildStart;
