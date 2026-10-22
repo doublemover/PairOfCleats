@@ -1,3 +1,5 @@
+import { observeEmbeddingOwnership as releaseObserver } from '../../shared/embedding-cache-lifetime.js';
+
 /** Decorate a new error without mutating frozen original causes or discarding
  * their nonenumerable resource reconciliation capabilities. */
 export const preserveRerankerFailure = (primary, properties = {}) => {
@@ -22,15 +24,6 @@ export const preserveRerankerFailure = (primary, properties = {}) => {
   }
   Object.defineProperties(failure, { ...inheritedOwnership, ...properties });
   return failure;
-};
-
-const releaseObserver = error => {
-  if (!error || (typeof error !== 'object' && typeof error !== 'function')) return null;
-  try {
-    const observe = error.cacheOwnershipReleased;
-    if (error.cacheOwnershipPending !== true && typeof observe !== 'function') return null;
-    return () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } };
-  } catch { return () => false; }
 };
 
 /** Work completion and resource release are separate observations. A late

@@ -16,8 +16,9 @@ The first pending scoring cleanup closes further model admission. Reconciliation
 can retry those same tensors through `error.rerankerOwner.close()`, without
 adopting a replacement tensor/session/tokenizer method or reopening model paths.
 
-After queued work drains, session release and an observed tokenizer disposal are
-attempted independently. Successful closes are remembered across retries. The
+After queued work drains and original tensor/native-work prerequisites settle,
+session release and an observed tokenizer disposal are attempted independently.
+Successful closes are remembered across retries. The
 pinned Transformers JavaScript tokenizer permits absence of `dispose`; when a
 method exists, it is captured and awaited, and a throwing getter remains pending.
 Artifact release and the existing storage-session settlement follow confirmed
@@ -43,3 +44,27 @@ They are not model pins, legal provenance, compatibility evidence, or measured
 model/quality/resource failures. Real local export and runtime qualification,
 native disposal retry safety, thread/memory limits and held-out gains remain
 separate work.
+
+The scorer now retains an original pending native-work observer on its exact
+input/output tensor capabilities before attempting cleanup. A rejected native
+operation does not authorize disposing inputs still used by that operation.
+Original observers, including an observer without a pending marker, keep their
+original receiver/function after later property replacement. Session cleanup
+drains its accepted queue, then reconciles captured tensors, and checks original
+pending work before closing the session or tokenizer. Startup failures also
+retain the tokenizer until their original native owner reports settlement.
+
+An explicitly false child close result is unconfirmed. A fulfilled captured
+native close is remembered while an independently retained observer remains
+pending, so later reconciliation does not repeat that successful native close.
+Existing explicit ordinary failed-close retry behavior remains; this does not
+qualify native retry safety. A later cancellation during successful cleanup does
+not replace an already caught inference failure, including a falsey value.
+
+Private original cleanup-producer records identify a failure made by this owner;
+copied `rerankerOwner`/`storageSession` fields cannot suppress an unrelated
+original observer. Only a failure observed directly at the exact storage release
+call receives that release's existing retry handling. Actual adapter/scorer and
+inert resource controls for these paths are authored and **UNVALIDATED**. No
+native runtime/model/thread/resource/memory/quality or performance qualification
+was executed, and no model/tokenizer/license/revision/default policy changed.

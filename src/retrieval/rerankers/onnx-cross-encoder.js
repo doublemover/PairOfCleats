@@ -17,6 +17,7 @@ import { LOCAL_RERANKER_VERSION } from '../../contracts/schemas/reranker.js';
 import { scoreLocalCrossEncoderPairs } from './cross-encoder-scoring.js';
 import { createCrossEncoderSessionOwner, crossEncoderCleanupFailure } from './local-resource-owner.js';
 import { preserveRerankerFailure } from './failure-ownership.js';
+import { observeEmbeddingOwnership } from '../../shared/embedding-cache-lifetime.js';
 
 export { decodeCrossEncoderLogit } from './cross-encoder-scoring.js';
 
@@ -107,7 +108,8 @@ export const createLocalOnnxCrossEncoder = async ({ profile: input, modelRoot, s
   } catch (cause) {
     const error = typeof cause?.code === 'string' && cause.code.startsWith('ERR_LOCAL_')
       || cause?.name === 'AbortError' ? cause : unavailable(cause);
-    if (cause?.cacheOwnershipPending) {
+    const observe=observeEmbeddingOwnership(cause);
+    if (observe&&!observe()) {
       owner.retainFailure(cause);
       throw crossEncoderCleanupFailure({ owner, hasPrimary: true, primaryError: error,
         properties: { nativeOwner: { value: cause.rerankerOwner || cause.onnxSessionOwner || cause }, storageSession: { value: sessionLease } } });
@@ -142,7 +144,8 @@ export const createLocalOnnxCrossEncoder = async ({ profile: input, modelRoot, s
             loadSource, tokenizer, session, Tensor, pendingTensors: owner.pendingTensors,
             pendingTensorOwners: owner.pendingTensorOwners, signal: operationSignal });
         } catch (error) {
-          if (error?.cacheOwnershipPending) {
+          const observe=observeEmbeddingOwnership(error);
+          if (observe&&!observe()) {
             owner.retainFailure(error);
             throw crossEncoderCleanupFailure({ owner, hasPrimary: true, primaryError: error,
               properties: { nativeOwner: { value: error.rerankerOwner || error }, storageSession: { value: sessionLease } } });

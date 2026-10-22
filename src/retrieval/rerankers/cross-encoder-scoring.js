@@ -60,7 +60,7 @@ export const scoreLocalCrossEncoderPairs = async ({ profile, query, members, sou
       for (const tensor of Object.values(outputs || {})) tensors.add(tensor);
       throwIfAborted(signal);
       scores.push({ index, score: decodeCrossEncoderLogit(outputs.logits) });
-    } catch (error) { primaryError = error; hasPrimary = true; throw error;
+    } catch (error) { primaryError = error; hasPrimary = true; tensors.retainFailure(error); throw error;
     } finally {
       try { await tensors.close(); }
       catch (cleanupError) {
@@ -71,7 +71,7 @@ export const scoreLocalCrossEncoderPairs = async ({ profile, query, members, sou
           cleanupErrors: [cleanupError] });
         throw cleanupError;
       }
-      throwIfAborted(signal);
+      if(!hasPrimary)throwIfAborted(signal);
     }
   }
   return scores;

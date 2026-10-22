@@ -1,14 +1,11 @@
-const pendingObserver = error => {
-  if (!error || (typeof error !== 'object' && typeof error !== 'function')) return null;
-  try {
-    const observe = error.cacheOwnershipReleased;
-    if (error.cacheOwnershipPending !== true && typeof observe !== 'function') return null;
-    return () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } };
-  } catch { return () => false; }
-};
+import { observeEmbeddingOwnership as pendingObserver } from '../../shared/embedding-cache-lifetime.js';
+
+const failureOwners=new WeakMap();
 
 export const captureCrossEncoderResource = (resource, methodName, { optional = false } = {}) => {
-  let owned = resource, method = null, captureError = null, captureFailed = false, closed = false, flight = null;
+  let owned = resource, method = null, captureError = null, captureFailed = false, closed = false, disposed = false, flight = null;
+  const blockers=new Map();
+  const retainFailure=error=>{const observe=pendingObserver(error);if(observe&&!blockers.has(error))blockers.set(error,observe);};
   try {
     method = resource[methodName];
     if (typeof method !== 'function') {
@@ -20,14 +17,22 @@ export const captureCrossEncoderResource = (resource, methodName, { optional = f
   const close = () => {
     if (closed) return Promise.resolve(Object.freeze({ settled: true, pending: false }));
     if (flight) return flight;
-    flight = Promise.resolve().then(() => {
+    flight = Promise.resolve().then(async () => {
       if (captureFailed) throw captureError;
-      return Reflect.apply(method, owned, []);
-    }).then(() => { closed = true; owned = null; method = null; return Object.freeze({ settled: true, pending: false }); })
+      for(const [error,observe] of blockers)if(!observe())throw error;
+      if(!disposed){
+        const result=await Reflect.apply(method, owned, []);
+        if(result===false)throw Object.assign(new Error('Local cross-encoder resource close was explicitly unconfirmed.'),
+          {code:'ERR_LOCAL_RERANKER_RESOURCE_UNCONFIRMED'});
+        disposed=true;
+      }
+      for(const [error,observe] of blockers)if(!observe())throw error;
+      closed = true; owned = null; method = null; return Object.freeze({ settled: true, pending: false });
+    }).catch(error=>{retainFailure(error);throw error;})
       .finally(() => { flight = null; });
     return flight;
   };
-  return Object.freeze({ get pending() { return !closed; }, close });
+  return Object.freeze({ get pending() { return !closed; }, retainFailure, close });
 };
 
 export const crossEncoderCleanupFailure = ({ owner, cleanupErrors = [], hasPrimary = false, primaryError, properties = {} }) => {
@@ -56,22 +61,33 @@ export const crossEncoderCleanupFailure = ({ owner, cleanupErrors = [], hasPrima
     cacheOwnershipReleased: { value: released },
     ...properties
   });
+  failureOwners.set(failure,owner);
   return failure;
 };
 
 export const createCrossEncoderTensorScope = ({ pendingTensors, pendingTensorOwners = new Map() }) => {
-  const resources = new Map();
+  const resources = new Map(),blockers=new Map();
   const owner = Object.freeze({ kind: 'local-cross-encoder-tensors',
-    get pending() { return [...resources.values()].some(resource => resource.pending); },
+    get pending() { return [...resources.values()].some(resource => resource.pending)||[...blockers.values()].some(observe=>!observe()); },
+    retainFailure:error=>{
+      const observe=pendingObserver(error);if(observe&&!blockers.has(error))blockers.set(error,observe);
+      for(const resource of resources.values())resource.retainFailure(error);
+    },
     add: tensor => {
       if (!resources.has(tensor)) {
         const resource = pendingTensorOwners.get(tensor) || captureCrossEncoderResource(tensor, 'dispose');
         resources.set(tensor, resource); pendingTensorOwners.set(tensor, resource);
+        for(const error of blockers.keys())resource.retainFailure(error);
       }
       return tensor;
     },
     close: async () => {
       const failures = [];
+      for(const [error,observe] of blockers)if(!observe())failures.push(error);
+      if(failures.length){
+        for(const tensor of resources.keys())pendingTensors.add(tensor);
+        throw crossEncoderCleanupFailure({owner,cleanupErrors:failures});
+      }
       for (const [tensor, resource] of [...resources].reverse()) {
         try { await resource.close(); pendingTensors.delete(tensor); pendingTensorOwners.delete(tensor); }
         catch (error) { pendingTensors.add(tensor); failures.push(error); }
@@ -117,6 +133,7 @@ export const createCrossEncoderSessionOwner = ({ queue, sessionLease }) => {
     close: () => {
       stopped = true;
       if (flight) return flight;
+      let storageFailure,hasStorageFailure=false;
       flight = (async () => {
         await queue.close();
         const failures = [];
@@ -125,6 +142,9 @@ export const createCrossEncoderSessionOwner = ({ queue, sessionLease }) => {
           catch (error) { failures.push(error); retainFailure(error); }
         }
         if (pendingTensors.size && !failures.length) failures.push(new Error('A local cross-encoder tensor has no confirmed captured disposal.'));
+        const unresolved = [...blockers].filter(([, observe]) => !observe()).map(([error]) => error);
+        if(unresolved.length)throw crossEncoderCleanupFailure({owner,cleanupErrors:[...failures,...unresolved],
+          properties:{storageSession:{value:sessionLease}}});
         // Failed tensor disposal keeps its original inference session alive.
         if (!pendingTensors.size && !pendingTensorOwners.size) {
           for (const resource of [session, tokenizer]) {
@@ -134,12 +154,11 @@ export const createCrossEncoderSessionOwner = ({ queue, sessionLease }) => {
         }
         if (failures.length) throw crossEncoderCleanupFailure({ owner, cleanupErrors: failures,
           properties: { storageSession: { value: sessionLease } } });
-        const unresolved = [...blockers].filter(([, observe]) => !observe()).map(([error]) => error);
-        if (unresolved.length) throw crossEncoderCleanupFailure({ owner, cleanupErrors: unresolved,
-          properties: { storageSession: { value: sessionLease } } });
         await artifact?.close();
         if (!storageClosed) {
-          const confirmed = await sessionLease.releaseAfterSettlement({ resourceId: sessionLease.resourceId, settled: true, pending: false });
+          let confirmed;
+          try{confirmed=await sessionLease.releaseAfterSettlement({ resourceId: sessionLease.resourceId, settled: true, pending: false });}
+          catch(error){hasStorageFailure=true;storageFailure=error;throw error;}
           if (confirmed !== true) throw Object.assign(new Error('Local cross-encoder storage release was not confirmed.'),
             { code: 'ERR_LOCAL_RERANKER_STORAGE_UNCONFIRMED' });
           storageClosed = true;
@@ -147,10 +166,10 @@ export const createCrossEncoderSessionOwner = ({ queue, sessionLease }) => {
         return Object.freeze({ resourceId: sessionLease.resourceId, settled: true, pending: false });
       })().catch(error => {
         flight = null;
-        if (error?.rerankerOwner === owner) throw error;
+        if (failureOwners.get(error) === owner) throw error;
         // The exact storage-session release is itself retried below; retaining
         // its observer as a prerequisite would prevent that same retry.
-        if (error?.storageSession !== sessionLease) retainFailure(error);
+        if (!hasStorageFailure||error !== storageFailure) retainFailure(error);
         throw crossEncoderCleanupFailure({ owner, cleanupErrors: [error], properties: { storageSession: { value: sessionLease } } });
       });
       return flight;

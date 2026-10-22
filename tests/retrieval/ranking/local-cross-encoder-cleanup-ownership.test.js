@@ -57,7 +57,7 @@ const profile = { schemaVersion: LOCAL_RERANKER_VERSION, kind: 'pinned-local-ber
 const sourceContext = { generation: 'fixture-generation', repoScope: 'fixture', mode: 'code' };
 const text = '😀', sourceDigest = createHash('sha256').update(text).digest('hex');
 const hits = [{ file: 'a.js', chunkUid: 'a', start: 0, end: 2 }];
-const fixtures = [];
+const fixtures = [],retainedOwners=new Set(),releaseNativeGates=[];
 const deferred = () => {
   let resolve;
   const promise = new Promise(yes => { resolve = yes; });
@@ -96,22 +96,27 @@ const fixture = () => {
   value.tokenizer.encode = () => [7];
   value.tokenizer.dispose = async () => { value.tokenizerCloses++; if (value.tokenizerFailures.length) throw value.tokenizerFailures.shift(); };
   value.session = { inputNames: ['input_ids', 'attention_mask', 'token_type_ids'], outputNames: ['logits'],
-    release: async () => { value.sessionCloses++; if (value.sessionFailures.length) throw value.sessionFailures.shift(); },
+    release: async () => { value.sessionCloses++; if (value.sessionFailures.length) throw value.sessionFailures.shift();
+      if(value.unconfirmedSession){value.unconfirmedSession=false;return false;} },
     run: async () => {
       value.runs++;
-      if (value.runError) throw value.runError;
+      if (value.runFailurePresent||value.runError) throw value.runError;
       return { logits: new value.Tensor('float32', new Float32Array([0]), [1, 1]) };
     } };
   state.current = value; fixtures.push(value); return value;
 };
 const { createLocalOnnxCrossEncoder } = await import('../../../src/retrieval/rerankers/onnx-cross-encoder.js');
-const create = () => createLocalOnnxCrossEncoder({ profile, modelRoot: path.join(root, 'model'), storage: {},
-  loadSource: async ({ key, generation, hit }) => ({ key, generation, start: hit.start, end: hit.end,
-    offsetUnit: 'utf16-code-unit', complete: true, text, contentDigest: sourceDigest }) });
+const create = async () => {
+  const selected=state.current;
+  const adapter=await createLocalOnnxCrossEncoder({ profile, modelRoot: path.join(root, 'model'), storage: {},
+    loadSource: async ({ key, generation, hit }) => ({ key, generation, start: hit.start, end: hit.end,
+      offsetUnit: 'utf16-code-unit', complete: true, text, contentDigest: sourceDigest }) });
+  selected.adapter=adapter;return adapter;
+};
 const rank = (adapter, signal = null) => adapter.rerank({ query: 'query', hits, sourceContext, signal });
 const pendingFailure = async operation => {
   try { await operation; assert.fail('expected pending cleanup'); }
-  catch (error) { assert.equal(error.cacheOwnershipPending, true); return error; }
+  catch (error) { assert.equal(error.cacheOwnershipPending, true);retainedOwners.add(error.rerankerOwner);return error; }
 };
 try {
   const normal = fixture(), normalAdapter = await create();
@@ -155,6 +160,14 @@ try {
   assert.equal(closing.sessionCloses, 2); assert.equal(closing.tokenizerCloses, 2);
   assert.equal(closing.artifactCloses, 1); assert.equal(closing.storageCloses, 1);
 
+  const falseSession=fixture(),falseSessionAdapter=await create();falseSession.unconfirmedSession=true;
+  const falseSessionFailure=await pendingFailure(falseSessionAdapter.dispose());
+  assert.equal(falseSessionFailure.cleanupErrors[0].code,'ERR_LOCAL_RERANKER_RESOURCE_UNCONFIRMED');
+  assert.equal(falseSession.sessionCloses,1);assert.equal(falseSession.tokenizerCloses,1);assert.equal(falseSession.artifactCloses,0);assert.equal(falseSession.storageCloses,0);
+  await falseSessionFailure.rerankerOwner.close();
+  assert.equal(falseSession.sessionCloses,2);assert.equal(falseSession.tokenizerCloses,1);assert.equal(falseSession.storageCloses,1);
+  assert.equal(falseSessionFailure.cacheOwnershipReleased(),true);
+
   const storage = fixture(), storageAdapter = await create(); storage.failStorage = true;
   const failedStorage = await pendingFailure(storageAdapter.dispose());
   assert.equal(storage.artifactCloses, 1); assert.equal(storage.storageCloses, 1);
@@ -172,6 +185,7 @@ try {
   assert.equal(unconfirmed.sessionCloses, 1); assert.equal(unconfirmed.tokenizerCloses, 1); assert.equal(unconfirmed.artifactCloses, 1);
 
   const acquisition = fixture(); let nativeReleased = false;
+  releaseNativeGates.push(()=>{nativeReleased=true;});
   const nativeOwner = Object.freeze({ close: async () => { nativeReleased = true; } });
   const acquisitionFailure = new Error('native create retained ownership');
   Object.defineProperties(acquisitionFailure, { cacheOwnershipPending: { value: true }, onnxSessionOwner: { value: nativeOwner },
@@ -181,10 +195,52 @@ try {
   assert.equal(failedAcquisition.code, 'ERR_RERANK_UNAVAILABLE'); assert.equal(failedAcquisition.measuredModelFailure, false);
   assert.equal(failedAcquisition.nativeOwner, nativeOwner);
   await assert.rejects(failedAcquisition.rerankerOwner.close(), error => error.cacheOwnershipPending === true);
-  assert.equal(acquisition.tokenizerCloses, 1); assert.equal(acquisition.artifactCloses, 0); assert.equal(acquisition.storageCloses, 0);
+  assert.equal(acquisition.tokenizerCloses, 0); assert.equal(acquisition.artifactCloses, 0); assert.equal(acquisition.storageCloses, 0);
   await nativeOwner.close(); await failedAcquisition.rerankerOwner.close();
   assert.equal(failedAcquisition.cacheOwnershipReleased(), true);
   assert.equal(acquisition.artifactCloses, 1); assert.equal(acquisition.storageReleased, true);
+  assert.equal(acquisition.tokenizerCloses,1,'unknown native startup work retains its tokenizer until the original owner settles');
+
+  const active = fixture(), activeAdapter=await create();let nativeSettled=false,replaceNativeObserver=false;
+  releaseNativeGates.push(()=>{nativeSettled=true;});
+  const nativeFailure=new Error('original observer-only native inference remains pending');
+  const originalNativeObserver=function(){assert.equal(this,nativeFailure);return nativeSettled;};
+  Object.defineProperty(nativeFailure,'cacheOwnershipReleased',{get(){return replaceNativeObserver?()=>true:originalNativeObserver;}});
+  active.runError=Object.freeze(nativeFailure);
+  const activeFailure=await pendingFailure(rank(activeAdapter));
+  assert.equal(activeFailure.primaryError.primaryError,nativeFailure);assert.equal(activeFailure.rerankerOwner.pendingTensors.size,3);
+  assert.deepEqual(active.tensors.map(tensor=>tensor.closes),[0,0,0]);
+  await pendingFailure(activeAdapter.dispose());
+  assert.equal(active.sessionCloses,0);assert.equal(active.tokenizerCloses,0);assert.equal(active.storageCloses,0);
+  replaceNativeObserver=true;await pendingFailure(activeAdapter.dispose());
+  assert.deepEqual(active.tensors.map(tensor=>tensor.closes),[0,0,0],'replaced observer cannot authorize native input disposal');
+  let changedMethods=0;
+  for(const tensor of active.tensors)tensor.dispose=()=>{changedMethods++;};
+  active.session.release=()=>{changedMethods++;};
+  nativeSettled=true;await activeFailure.rerankerOwner.close();
+  assert.deepEqual(active.tensors.map(tensor=>tensor.closes),[1,1,1]);assert.equal(changedMethods,0);
+  assert.equal(active.sessionCloses,1);assert.equal(active.tokenizerCloses,1);assert.equal(active.storageCloses,1);
+  assert.equal(activeFailure.cacheOwnershipReleased(),true);
+
+  const observerOnly=fixture();let startupSettled=false,startupObserverReads=0;
+  releaseNativeGates.push(()=>{startupSettled=true;});
+  const startupOriginal=function(){assert.equal(this,startupFailure);return startupSettled;};
+  const startupFailure=Object.freeze(Object.defineProperty(new Error('startup observer without marker'),'cacheOwnershipReleased',
+    {get(){return startupObserverReads++===0?startupOriginal:()=>true;}}));
+  observerOnly.createError=startupFailure;
+  const observerOnlyFailure=await pendingFailure(create());await pendingFailure(observerOnlyFailure.rerankerOwner.close());
+  assert.equal(observerOnly.tokenizerCloses,0);assert.equal(observerOnly.storageCloses,0);
+  assert.equal(startupObserverReads,1,'unavailable wrapping, adapter admission and parent owner share the first original observer');
+  startupSettled=true;await observerOnlyFailure.rerankerOwner.close();assert.equal(observerOnly.tokenizerCloses,1);assert.equal(observerOnly.storageCloses,1);
+
+  for(const value of [undefined,null,false,0,'']){
+    const falsey=fixture(),falseyAdapter=await create(),falseyController=new AbortController();
+    falsey.runFailurePresent=true;falsey.runError=value;falsey.tensorGate=deferred();falsey.tensorDisposeEntered=deferred();
+    const originalFailure=rank(falseyAdapter,falseyController.signal).then(()=>assert.fail('expected original falsey inference failure'),error=>({error}));
+    await falsey.tensorDisposeEntered.promise;falseyController.abort();falsey.tensorGate.resolve();
+    assert.equal((await originalFailure).error,value,'later cleanup-time cancellation cannot replace the exact earlier inference failure');
+    await falseyAdapter.dispose();assert.equal(falsey.storageReleased,true);
+  }
 
   const cancelled = fixture(), cancelledAdapter = await create(), controller = new AbortController();
   cancelled.tensorGate = deferred(); cancelled.tensorDisposeEntered = deferred();
@@ -203,6 +259,10 @@ try {
   const copied = preserveRerankerFailure(original);
   assert.equal(copied.cacheOwnershipReleased(), false); observed = true; assert.equal(copied.cacheOwnershipReleased(), true);
 } finally {
+  for(const release of releaseNativeGates)release();
+  for(const value of fixtures)value.tensorGate?.resolve();
+  for(const value of fixtures)await value.adapter?.dispose().catch(()=>{});
+  for(const owner of retainedOwners)await owner?.close().catch(()=>{});
   hooks.deregister(); delete globalThis[key]; await fs.rm(root, { recursive: true, force: true });
 }
 console.log('Actual local adapter/scorer frozen cleanup and retained storage controls authored; all model/runtime execution deferred.');
