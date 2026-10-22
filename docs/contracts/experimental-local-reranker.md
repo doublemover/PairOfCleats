@@ -49,6 +49,17 @@ successful fallback. Callers retain and settle/dispose that owner before releasi
 its resources. Adapter disposal closes admission, drains active work, retries
 failed tensor/session/tokenizer cleanup, then releases artifact/storage leases.
 
+Frozen immediate pending errors retain their original identity and nonenumerable
+reconciliation capabilities. Late work receipts distinguish completed work
+(`settled:true`) from pending native cleanup (`pending:true`), preserve the exact
+late cause as nonenumerable `primaryError`, and retain its original release
+observer. Cancellation errors expose the same dynamic `cacheOwnershipReleased()`
+observation. A rejection or a plain resolved work promise cannot clear a nested
+pending native owner. Without an explicit original release observer, that
+ownership stays pending. A receipt with `pending:false` proves only the tracked
+work and any reported nested ownership settled; it does not dispose a reusable
+adapter's session on the caller's behalf.
+
 Policy/result identities include adapter/model/tokenizer/profile/runtime,
 formatting, source generation/selection, raw member scores and all candidate,
 pool/output/deadline choices. This prototype adds no result cache. Source-authored

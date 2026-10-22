@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { stableStringify } from '../../shared/stable-json.js';
 import { createAbortError, isAbortError, throwIfAborted } from '../../shared/abort.js';
 import { buildRetrievalHitKey } from '../hit-comparison.js';
+import { pendingRerankerWorkFailure, preserveRerankerFailure, trackRerankerWork } from '../rerankers/failure-ownership.js';
 
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const freeze = (value, depth = 0) => {
@@ -25,7 +26,7 @@ export const rerankEvidence = async ({ adapter, query, hits, signal, maxMs = 200
   if (!Number.isSafeInteger(finalOutputCap) || finalOutputCap < 0 || finalOutputCap > 64
     || !Number.isSafeInteger(maxMs) || maxMs < 1 || maxMs > 10000) throw new RangeError('Invalid reranker output/deadline cap.');
   const controller = new AbortController();
-  let timer, rejectCancelled, settled = false, work = null, timedOut = false, members = null;
+  let timer, rejectCancelled, work = null, tracked = null, timedOut = false, members = null;
   const cancel = () => { controller.abort(signal?.reason); rejectCancelled?.(cancelled()); };
   const cancellation = new Promise((_, reject) => { rejectCancelled = reject; });
   signal?.addEventListener('abort', cancel, { once: true });
@@ -55,9 +56,7 @@ export const rerankEvidence = async ({ adapter, query, hits, signal, maxMs = 200
       throwIfAborted(controller.signal);
       return adapter.rerank({ query: requestQuery, hits: borrowed, signal: controller.signal, sourceContext: requestSource });
     });
-    const settlement = work.then(() => { settled = true; return { settled: true }; }, error => {
-      settled = true; return { settled: true, error: { code: error?.code || null, message: String(error?.message || error) } };
-    });
+    tracked = trackRerankerWork(work);
     const result = await Promise.race([work, cancellation, new Promise((_, reject) => {
       timer = setTimeout(() => {
         timedOut = true;
@@ -82,26 +81,26 @@ export const rerankEvidence = async ({ adapter, query, hits, signal, maxMs = 200
         generation: requestSource?.generation ?? null, sourceIdentity: identities[index], sourceRank: index + 1,
         poolCap: members.length, finalOutputCap }, __rank: index }))
       .sort((a, b) => b.score - a.score || a.__rank - b.__rank).slice(0, finalOutputCap).map(({ __rank, ...hit }) => hit);
-    return attach(ranked, settled ? null : settlement);
+    return attach(ranked, tracked.pending ? tracked.promise : null);
   } catch (error) {
-    if (!error || typeof error !== 'object' || !Object.isExtensible(error)) error = new Error(String(error?.message || error), { cause: error });
-    if (error.cacheOwnershipPending) throw error;
+    // Inspect original ownership before any normalization: a frozen error may
+    // carry the only capability that can reconcile an actual native resource.
+    if (error?.cacheOwnershipPending) throw error;
+    if (!error || typeof error !== 'object') error = preserveRerankerFailure(error);
     if (timedOut && !signal?.aborted && isAbortError(error)) error = Object.assign(new Error('Reranker deadline exceeded', { cause: error }), { code: 'ERR_RERANK_DEADLINE' });
     if (signal?.aborted || isAbortError(error) || error?.cancelled) {
       const cancellationError = signal?.aborted ? cancelled() : error;
-      if (work && !settled) Object.assign(cancellationError, { cacheOwnershipPending: true, rerankerOwner: adapter,
-        rerankerSettlement: work.then(() => ({ settled: true }), () => ({ settled: true })) });
+      if (tracked?.pending) throw pendingRerankerWorkFailure(cancellationError, adapter, tracked);
       throw cancellationError;
     }
     diagnostic.status = fallback ? 'fallback' : 'failed'; diagnostic.reason = error?.code || error?.message || 'adapter-error';
-    diagnostic.pending = Boolean(work && !settled);
+    diagnostic.pending = tracked?.pending === true;
     if (!fallback) {
-      if (diagnostic.pending) Object.assign(error, { cacheOwnershipPending: true, rerankerOwner: adapter,
-        rerankerSettlement: work.then(() => ({ settled: true }), () => ({ settled: true })) });
+      if (diagnostic.pending) throw pendingRerankerWorkFailure(error, adapter, tracked);
       throw error;
     }
     return attach((members || hits).slice(0, finalOutputCap).map(hit => ({ ...hit, rerankProvenance: {
       schemaVersion: 1, identity: diagnostic.resultIdentity, policyKey, status: 'pre-rerank-fallback', reason: diagnostic.reason } })),
-    diagnostic.pending ? work.then(() => ({ settled: true }), () => ({ settled: true })) : null);
+    diagnostic.pending ? tracked.promise : null);
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); }
 };
