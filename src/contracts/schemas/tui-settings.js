@@ -16,6 +16,8 @@ export const TUI_SETTINGS_REQUEST_SCHEMAS = {
   preview: { oneOf: [
     record({ ...previewBase, operation: { const: 'edit' },
       path: { type: 'array', minItems: 1, maxItems: 32, items: { type: 'string', minLength: 1, maxLength: 128 } }, value: {} }),
+    record({ ...previewBase, operation: { const: 'remove' },
+      path: { type: 'array', minItems: 1, maxItems: 32, items: { type: 'string', minLength: 1, maxLength: 128 } } }),
     record({ ...previewBase, operation: { const: 'reset' } })
   ] },
   commit: record({ scopeId: id, previewId: id, confirmed: { type: 'boolean' },

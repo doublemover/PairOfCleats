@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { CACHE_MAINTENANCE_OPTIONS } from '../shared/operator-cli-options.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -37,20 +38,7 @@ import { resolveRepoCacheRootPath } from '../../src/shared/repo-paths.js';
 
 const argv = createCli({
   scriptName: 'cache-gc',
-  options: {
-    apply: { type: 'boolean', default: false },
-    'dry-run': { type: 'boolean', default: false },
-    'allow-unmarked-cache': { type: 'boolean', default: false },
-    json: { type: 'boolean', default: false },
-    'cache-root': { type: 'string' },
-    'grace-days': { type: 'number' },
-    'max-deletes': { type: 'number' },
-    concurrency: { type: 'number' },
-    'max-bytes': { type: 'number' },
-    'max-gb': { type: 'number' },
-    'max-age-days': { type: 'number' },
-    repo: { type: 'string' }
-  }
+  options: CACHE_MAINTENANCE_OPTIONS
 }).parse();
 
 const parseNumber = (value) => {

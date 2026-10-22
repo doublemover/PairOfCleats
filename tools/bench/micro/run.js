@@ -1,3 +1,4 @@
+import { createMicrobenchOptions } from '../../shared/operator-cli-options.js';
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
@@ -14,87 +15,7 @@ const defaultRepo = path.resolve(toolRoot, 'tests', 'fixtures', 'sample');
 const rawArgs = process.argv.slice(2);
 const argv = createCli({
   scriptName: 'pairofcleats bench micro',
-  options: {
-    repo: {
-      type: 'string',
-      describe: 'Repo root to benchmark',
-      default: defaultRepo
-    },
-    'repo-current': {
-      type: 'boolean',
-      describe: 'Use current working repo root instead of the fixture default',
-      default: false
-    },
-    mode: {
-      type: 'string',
-      describe: 'Index/search mode (code|prose)',
-      default: 'code'
-    },
-    query: {
-      type: 'string',
-      describe: 'Search query for microbench runs',
-      default: 'function'
-    },
-    backend: {
-      type: 'string',
-      describe: 'Search backend (memory|sqlite|sqlite-fts)',
-      default: 'memory'
-    },
-    'ann-backends': {
-      type: 'string',
-      describe: 'Comma-separated ANN backends for ann-backends component (sqlite-vector,lancedb,hnsw,js)',
-      default: 'sqlite-vector,lancedb'
-    },
-    runs: {
-      type: 'number',
-      describe: 'Warm run count per component',
-      default: 5
-    },
-    warmup: {
-      type: 'number',
-      describe: 'Warmup runs discarded before measuring warm stats',
-      default: 1
-    },
-    threads: {
-      type: 'number',
-      describe: 'Index build worker threads',
-      default: 0
-    },
-    build: {
-      type: 'boolean',
-      describe: 'Build indexes before search benchmarks',
-      default: true
-    },
-    clean: {
-      type: 'boolean',
-      describe: 'Clean repo cache before cold index build',
-      default: true
-    },
-    sqlite: {
-      type: 'boolean',
-      describe: 'Enable SQLite builds during index benchmark',
-      default: false
-    },
-    'stub-embeddings': {
-      type: 'boolean',
-      describe: 'Use stub embeddings for index build',
-      default: true
-    },
-    components: {
-      type: 'string',
-      describe: 'Comma-separated component list: index-build,sparse,dense,hybrid,ann-backends',
-      default: 'index-build,sparse,dense,hybrid'
-    },
-    json: {
-      type: 'boolean',
-      describe: 'Emit JSON output only',
-      default: false
-    },
-    out: {
-      type: 'string',
-      describe: 'Write JSON results to a file'
-    }
-  }
+  options: createMicrobenchOptions(defaultRepo)
 }).strictOptions().parse();
 
 // Reject invalid options and serve help before initializing the workflow runtime.

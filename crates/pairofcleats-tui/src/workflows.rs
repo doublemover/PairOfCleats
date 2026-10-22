@@ -30,6 +30,9 @@ pub(crate) struct WorkflowUi {
     values: Map<String, Value>,
     selected: usize,
     draft: String,
+    cursor: crate::text_editor::TextCursor,
+    advanced: bool,
+    array_item: bool,
     preview: Option<Value>,
     result: Option<Value>,
     owned_job: Option<String>,
@@ -39,6 +42,7 @@ pub(crate) struct WorkflowUi {
     presentation: RefCell<ReviewPresentation>,
     next_id: u64,
     early_completion: Option<Value>,
+    experimental: bool,
 }
 
 impl Default for WorkflowUi {
@@ -56,6 +60,9 @@ impl Default for WorkflowUi {
             values: Map::new(),
             selected: 0,
             draft: String::new(),
+            cursor: crate::text_editor::TextCursor::default(),
+            advanced: false,
+            array_item: false,
             preview: None,
             result: None,
             owned_job: None,
@@ -65,6 +72,7 @@ impl Default for WorkflowUi {
             presentation: RefCell::new(ReviewPresentation::default()),
             next_id: 1,
             early_completion: None,
+            experimental: false,
         }
     }
 }
@@ -125,6 +133,7 @@ impl WorkflowUi {
             return false;
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('u') {
+            self.cursor.reset();
             self.scroll.reset();
             if self.page == Page::Scope {
                 self.target.clear();
@@ -137,6 +146,9 @@ impl WorkflowUi {
         if matches!(self.page, Page::Edit | Page::Scope) && matches!(key.code, KeyCode::Char(_) | KeyCode::Backspace) {
             self.scroll.tail();
         }
+        let editing = match self.page { Page::Scope => Some(&mut self.target),
+            Page::Edit => Some(&mut self.draft), _ => None };
+        if editing.is_some_and(|text| self.cursor.key(text, key, 4096)) { return false; }
         match self.page {
             Page::Scope => match key.code {
                 KeyCode::Down => self.scroll.down(),
@@ -149,29 +161,44 @@ impl WorkflowUi {
                 _ => {}
             },
             Page::Commands => match key.code {
+                KeyCode::Char('X') => { self.experimental = !self.experimental; self.selected = 0;
+                    self.request("describe", json!({"includeExperimental":self.experimental})); }
                 KeyCode::Esc => return true,
                 KeyCode::Char('s') => self.page = Page::Scope,
                 KeyCode::Char('t') => if let Some(scope) = &self.scope { self.request("status", json!({"scopeId":scope["id"]})); },
                 KeyCode::Down | KeyCode::Char('j') => self.selected = (self.selected + 1).min(self.commands().len().saturating_sub(1)),
                 KeyCode::Up | KeyCode::Char('k') => self.selected = self.selected.saturating_sub(1),
                 KeyCode::Enter => if let Some(command) = self.commands().get(self.selected) {
+                    if let Some(reason) = command["unsupportedReason"].as_str() { self.status = reason.into(); return false; }
                     self.command = Some((*command).clone()); self.values.clear(); self.selected = 0;
                     self.page = Page::Fields; self.status = "Unset fields use canonical CLI defaults; review scope before launch".into();
                 },
                 _ => {}
             },
             Page::Fields => match key.code {
+                KeyCode::Char(' ') => if let Some(field) = self.fields().get(self.selected) {
+                    let name = field["name"].as_str().unwrap_or_default().to_owned();
+                    if let Some(value) = crate::text_editor::next_choice(&field["schema"], self.values.get(&name).or_else(|| field.get("default"))) {
+                        self.values.insert(name, value);
+                    }
+                },
                 KeyCode::Esc => { self.page = Page::Commands; self.selected = 0; }
                 KeyCode::Down | KeyCode::Char('j') => self.selected = (self.selected + 1).min(self.fields().len().saturating_sub(1)),
                 KeyCode::Up | KeyCode::Char('k') => self.selected = self.selected.saturating_sub(1),
                 KeyCode::Delete => if let Some(name) = self.fields().get(self.selected).and_then(|field| field["name"].as_str()).map(str::to_owned) { self.values.remove(&name); },
-                KeyCode::Enter | KeyCode::Char('e') => if let Some(field) = self.fields().get(self.selected) {
+                KeyCode::Enter | KeyCode::Char('e') | KeyCode::Char('a') => if let Some(field) = self.fields().get(self.selected) {
+                    let advanced = key.code == KeyCode::Char('e');
+                    let array_item = key.code == KeyCode::Char('a');
+                    if array_item && (field["schema"]["type"] != "array" || field["schema"]["items"]["type"] != "string") {
+                        self.status = "Item editor requires a string array; use advanced JSON for structured arrays".into(); return false;
+                    }
                     let fallback = match field["schema"]["type"].as_str() {
                         Some("boolean") => json!(false), Some("number") => json!(0),
                         Some("array") => json!([]), _ => json!(""),
                     };
-                    self.draft = self.values.get(field["name"].as_str().unwrap_or_default())
-                        .or_else(|| field.get("default")).unwrap_or(&fallback).to_string(); self.page = Page::Edit;
+                    let value = self.values.get(field["name"].as_str().unwrap_or_default()).or_else(|| field.get("default")).unwrap_or(&fallback);
+                    self.draft = if array_item { String::new() } else { crate::text_editor::input_text(value, &field["schema"], advanced) };
+                    self.advanced = advanced; self.array_item = array_item; self.cursor.reset(); self.page = Page::Edit;
                 },
                 KeyCode::Char('p') => if let (Some(scope), Some(command)) = (&self.scope, &self.command) {
                     self.request("preview", json!({"scopeId":scope["id"], "commandId":command["id"], "values":self.values}));
@@ -184,7 +211,7 @@ impl WorkflowUi {
                 KeyCode::Esc => { self.draft.clear(); self.page = Page::Fields; }
                 KeyCode::Backspace => { self.draft.pop(); }
                 KeyCode::Char(ch) if !ch.is_control() && self.draft.len() < 4096 => self.draft.push(ch),
-                KeyCode::Enter => match serde_json::from_str::<Value>(&self.draft) {
+                KeyCode::Enter => match self.edited_value() {
                     Ok(value) => {
                         if let Some(name) = self.fields().get(self.selected).and_then(|field| field["name"].as_str()).map(str::to_owned) { self.values.insert(name, value); }
                         self.draft.clear(); self.page = Page::Fields; self.status = "Draft updated; p validates and previews without launching".into();
@@ -223,6 +250,23 @@ impl WorkflowUi {
             },
         }
         false
+    }
+
+    fn edited_value(&self) -> Result<Value, serde_json::Error> {
+        let field = self.fields().get(self.selected).unwrap_or(&Value::Null);
+        if self.array_item {
+            let mut values = field["name"].as_str().and_then(|name| self.values.get(name)).or_else(|| field.get("default"))
+                .and_then(Value::as_array).cloned().unwrap_or_default();
+            if values.len() >= 32 { return serde_json::from_str("array editor limit exceeded"); }
+            values.push(json!(self.draft)); Ok(json!(values))
+        } else { crate::text_editor::input_value(&self.draft, &field["schema"], self.advanced) }
+    }
+
+    pub fn paste(&mut self, text: &str) {
+        if !self.available || self.pending.is_some() { return; }
+        let field = match self.page { Page::Scope => Some(&mut self.target),
+            Page::Edit => Some(&mut self.draft), _ => None };
+        if let Some(field) = field { self.cursor.paste(field, text, 4096); self.revision += 1; }
     }
 
     fn completed(&mut self, event: &Value) {
@@ -307,7 +351,7 @@ impl WorkflowUi {
             "describe" => {
                 self.commands = data["commands"].as_array().cloned().unwrap_or_default();
                 self.page = Page::Commands;
-                self.status = "Canonical index/workspace catalog loaded; no work started".into();
+                self.status = "Canonical command catalog loaded; no work started. Unsupported rows explain the missing adapter.".into();
             }
             "preview" => {
                 self.presentation.get_mut().clear(); self.preview = Some(data.clone());
@@ -381,15 +425,15 @@ impl WorkflowUi {
         match self.page {
             Page::Scope => {
                 lines.push(format!("Workflow scope: {} | Tab kind | Enter selects | Esc closes | arrows review", if self.workspace {"workspace file"} else {"repository directory"}));
-                return self.scroll.lines(lines, &self.target, height, width);
+                return self.scroll.lines(lines, &self.cursor.visible(&self.target, width), height, width);
             }
             Page::Commands => {
-                lines.push("Arrows select | Enter opens typed form | t published status | s scope | Esc closes".into());
+                lines.push(format!("Arrows select | Enter form/reason | X experimental {} | t status | s scope | Esc closes", self.experimental));
                 let rows = self.commands().iter().enumerate().map(|(i, command)| format!("{} {} [{}] {}", if i == self.selected {">"} else {" "}, command["id"].as_str().unwrap_or_default(), command["supportTier"].as_str().unwrap_or_default(), command["description"].as_str().unwrap_or_default())).collect();
                 return selected_rows(lines, rows, self.selected, height, width);
             }
             Page::Fields => {
-                lines.push(format!("Typed form: {} | arrows select | Enter edit JSON | Delete unsets | p preview | Esc catalog", self.command.as_ref().and_then(|command| command["id"].as_str()).unwrap_or_default()));
+                lines.push(format!("Typed form: {} | Enter literal | Space choice | e JSON | a item | Delete unset | p preview | Esc catalog", self.command.as_ref().and_then(|command| command["id"].as_str()).unwrap_or_default()));
                 let count = height.saturating_sub(lines.len() + 2).max(1); let start = self.selected.saturating_sub(count / 2).min(self.fields().len().saturating_sub(count));
                 lines.extend(self.fields().iter().enumerate().skip(start).take(count).map(|(i, field)| {
                     let name = field["name"].as_str().unwrap_or_default();
@@ -399,9 +443,9 @@ impl WorkflowUi {
                 lines.push("Provider/mode and model assets use Settings and canonical build contracts; no separate embeddings command.".into());
             }
             Page::Edit => {
-                lines.push("Edit JSON | Ctrl+U clears | Enter applies | Esc discards | arrows review".into());
+                lines.push(format!("Edit {} | Ctrl+U clear | Enter applies | Esc discards | cursor/Home/End", if self.array_item { "array item" } else if self.advanced { "advanced JSON" } else { "schema literal" }));
                 let name = self.fields().get(self.selected).and_then(|field| field["name"].as_str()).unwrap_or_default();
-                return self.scroll.lines(lines, &format!("Field: {name}\n{}", self.draft), height, width);
+                return self.scroll.lines(lines, &format!("Field: {name}\n{}", self.cursor.visible(&self.draft, width)), height, width);
             }
             Page::Preview | Page::Result => {
                 lines.push(if self.page == Page::Preview {"Review exact scope/argv/readiness | Enter confirms | Esc discards | arrows scroll"} else {"Owned job result | c cancels owned job | t refreshes published status | Esc catalog | arrows scroll"}.into());

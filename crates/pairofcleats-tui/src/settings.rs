@@ -28,6 +28,9 @@ pub(crate) struct SettingsUi {
     target: String,
     query: String,
     draft: String,
+    cursor: crate::text_editor::TextCursor,
+    advanced: bool,
+    array_item: bool,
     draft_binding: Option<Value>,
     draft_needs_reload: bool,
     inspection: Option<Value>,
@@ -53,6 +56,9 @@ impl Default for SettingsUi {
             target: String::new(),
             query: String::new(),
             draft: String::new(),
+            cursor: crate::text_editor::TextCursor::default(),
+            advanced: false,
+            array_item: false,
             draft_binding: None,
             draft_needs_reload: false,
             inspection: None,
@@ -160,7 +166,14 @@ impl SettingsUi {
                 self.status = "Unsaved draft has stale field authority; Ctrl-r reloads before revalidation".into();
                 return;
             }
-            let Ok(value) = serde_json::from_str::<Value>(&self.draft) else {
+            let parsed = if self.array_item {
+                let mut values = if field["requestedPresent"] == true { field["requested"].as_array() }
+                    else if field["effectiveRecorded"] == true { field["effective"].as_array() }
+                    else { field["schema"]["default"].as_array() }.cloned().unwrap_or_default();
+                if values.len() >= 32 { self.status = "Array item editor is bounded to 32 items; use advanced JSON or a private editor".into(); return; }
+                values.push(json!(self.draft)); Ok(json!(values))
+            } else { crate::text_editor::input_value(&self.draft, &field["schema"], self.advanced) };
+            let Ok(value) = parsed else {
                 self.status = "Invalid JSON value; nothing saved".into();
                 return;
             };
@@ -173,6 +186,19 @@ impl SettingsUi {
             self.draft_binding = None;
         }
         self.presentation.get_mut().clear(); self.preview = None;
+        self.request("preview", params);
+    }
+
+    fn remove_override(&mut self) {
+        let (Some(info), Some(field)) = (&self.inspection, self.selected_field()) else { return; };
+        if field["editable"] != true {
+            self.status = field["readOnlyReason"].as_str().unwrap_or("Read only").into();
+            return;
+        }
+        let params = json!({"scopeId":info["scope"]["id"], "revision":info["revision"],
+            "schemaRevision":info["schemaRevision"], "operation":"remove", "path":field["path"]});
+        self.draft.clear(); self.draft_binding = None; self.reset = false;
+        self.preview = None;
         self.request("preview", params);
     }
 
@@ -200,6 +226,7 @@ impl SettingsUi {
             return false;
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('u') {
+            self.cursor.reset();
             self.scroll.reset();
             match self.page {
                 Page::Scope => self.target.clear(),
@@ -215,6 +242,11 @@ impl SettingsUi {
         if matches!(self.page, Page::Edit | Page::Scope) && matches!(key.code, KeyCode::Char(_) | KeyCode::Backspace) {
             self.scroll.tail();
         }
+        let editing = match self.page {
+            Page::Scope => Some(&mut self.target), Page::Edit => Some(&mut self.draft),
+            Page::Filter => Some(&mut self.query), _ => None,
+        };
+        if editing.is_some_and(|text| self.cursor.key(text, key, 4096)) { return false; }
         match self.page {
             Page::Scope => match key.code {
                 KeyCode::Down => self.scroll.down(),
@@ -241,6 +273,18 @@ impl SettingsUi {
                 _ => {}
             },
             Page::Fields => match key.code {
+                KeyCode::Delete => self.remove_override(),
+                KeyCode::Char(' ') => {
+                    let choice = self.selected_field().and_then(|field| crate::text_editor::next_choice(&field["schema"],
+                        if field["requestedPresent"] == true { field.get("requested") } else { field.get("effective") }));
+                    if let Some(choice) = choice {
+                        self.key(KeyCode::Enter.into());
+                        if self.page == Page::Edit {
+                            self.draft = crate::text_editor::input_text(&choice, &self.selected_field().unwrap()["schema"], false);
+                            self.preview(false);
+                        }
+                    } else { self.status = "Space cycles enums and booleans; Enter edits a literal; e opens advanced JSON".into(); }
+                }
                 KeyCode::Esc => {
                     self.draft.clear(); self.draft_binding = None;
                     return true;
@@ -260,7 +304,7 @@ impl SettingsUi {
                     self.selected = (self.selected + 1).min(self.fields().len().saturating_sub(1))
                 }
                 KeyCode::Up => self.selected = self.selected.saturating_sub(1),
-                KeyCode::Enter | KeyCode::Char('e') => {
+                KeyCode::Enter | KeyCode::Char('e') | KeyCode::Char('a') => {
                     if let Some(field) = self.selected_field() {
                         if field["editable"].as_bool() != Some(true) {
                             self.status = field["readOnlyReason"]
@@ -268,15 +312,21 @@ impl SettingsUi {
                                 .unwrap_or("Read only")
                                 .into();
                         } else {
-                            let draft = if field["requestedPresent"].as_bool() == Some(true) {
-                                field["requested"].to_string()
+                            let advanced = key.code == KeyCode::Char('e');
+                            let array_item = key.code == KeyCode::Char('a');
+                            if array_item && (field["schema"]["type"] != "array" || field["schema"]["items"]["type"] != "string") {
+                                self.status = "Item editor requires a string array; use advanced JSON for structured arrays".into(); return false;
+                            }
+                            let value = if field["requestedPresent"].as_bool() == Some(true) {
+                                field["requested"].clone()
                             } else if field["effectiveRecorded"].as_bool() == Some(true) {
-                                field["effective"].to_string()
+                                field["effective"].clone()
                             } else if let Some(default) = field["schema"].get("default") {
-                                default.to_string()
+                                default.clone()
                             } else {
-                                String::new()
+                                Value::Null
                             };
+                            let draft = if array_item { String::new() } else { crate::text_editor::input_text(&value, &field["schema"], advanced) };
                             if draft.len() > 4096 {
                                 self.status = "Value exceeds the bounded editor; use a private editor".into();
                                 return false;
@@ -285,11 +335,13 @@ impl SettingsUi {
                                 "path":field["path"], "revision":self.inspection.as_ref().unwrap()["revision"],
                                 "schemaRevision":self.inspection.as_ref().unwrap()["schemaRevision"]});
                             self.draft = draft;
+                            self.advanced = advanced; self.array_item = array_item;
+                            self.cursor.reset();
                             self.draft_binding = Some(binding);
                             self.draft_needs_reload = false;
                             self.page = Page::Edit;
                             self.status =
-                                "Edit a JSON value; Enter validates and previews; Esc discards"
+                                "Edit literal value; e on field list opens advanced JSON; Enter previews; Esc discards"
                                     .into();
                         }
                     }
@@ -369,6 +421,13 @@ impl SettingsUi {
             },
         }
         false
+    }
+
+    pub fn paste(&mut self, text: &str) {
+        if !self.available || self.pending.is_some() { return; }
+        let field = match self.page { Page::Scope => Some(&mut self.target),
+            Page::Edit => Some(&mut self.draft), Page::Filter => Some(&mut self.query), _ => None };
+        if let Some(field) = field { self.cursor.paste(field, text, 4096); self.revision += 1; }
     }
 
     /// Consume only this view's request IDs, before foreground job routing.
@@ -531,10 +590,10 @@ impl SettingsUi {
                         "repository directory"
                     }
                 ));
-                return self.scroll.lines(lines, &self.target, height, width);
+                return self.scroll.lines(lines, &self.cursor.visible(&self.target, width), height, width);
             }
             Page::Fields | Page::Filter => {
-                lines.push(format!("Filter: {} | / filter | arrows select | Enter edit | r reload | R reset | s scope | p provenance | Esc close", self.query));
+                lines.push(format!("Filter: {} | arrows | Enter literal | Space choice | e JSON | a item | Delete unset | r reload | R reset | Esc close", self.query));
                 let fields = self.fields();
                 let count = height.saturating_sub(lines.len() + 4).max(1);
                 let start = self
@@ -589,9 +648,9 @@ impl SettingsUi {
                 }
             }
             Page::Edit => {
-                lines.push("Edit JSON | Enter validates preview | Esc discards | arrows review".into());
+                lines.push(format!("Edit {} | Enter previews | Esc discards | cursor/Home/End", if self.array_item { "array string item" } else if self.advanced { "advanced JSON" } else { "schema literal" }));
                 let name = self.selected_field().map(field_name).unwrap_or_default();
-                return self.scroll.lines(lines, &format!("Field: {name}\n{}", self.draft), height, width);
+                return self.scroll.lines(lines, &format!("Field: {name}\n{}", self.cursor.visible(&self.draft, width)), height, width);
             }
             Page::Preview => {
                 let preview = self.preview.as_ref().unwrap_or(&Value::Null);
@@ -601,7 +660,7 @@ impl SettingsUi {
                         self.draft
                     )
                 } else {
-                    "EDIT preview | Enter confirms save | Esc cancels | arrows scroll".into()
+                    "CHANGE preview | Enter confirms save | Esc cancels | arrows scroll".into()
                 });
                 if self.reset {
                     lines.push(format!(
@@ -630,6 +689,38 @@ impl SettingsUi {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_override_removal_previews_absence_and_requires_a_second_commit() {
+        let mut ui = selected();
+        key(&mut ui, KeyCode::Delete);
+        let request = ui.outbox.back().unwrap();
+        assert_eq!(request["params"]["operation"], "remove");
+        assert_eq!(request["params"]["path"], json!(["threads"]));
+        assert!(request["params"].get("value").is_none());
+        end(&mut ui, json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"remove-plan",
+            "diff":[{"before":2,"beforePresent":true,"afterPresent":false}]}));
+        assert!(ui.page == Page::Preview);
+        assert!(!ui.outbox.iter().any(|request| request["method"] == "commit"));
+        key(&mut ui, KeyCode::Enter);
+        assert_eq!(ui.outbox.back().unwrap()["method"], "commit");
+        assert_eq!(ui.outbox.back().unwrap()["params"]["previewId"], "remove-plan");
+    }
+
+    #[test]
+    fn literal_string_paste_stays_inert_until_explicit_preview() {
+        let mut ui = selected();
+        let field = &mut ui.inspection.as_mut().unwrap()["fields"][0];
+        field["schema"] = json!({"type":"string"}); field["requested"] = json!("before");
+        key(&mut ui, KeyCode::Enter);
+        assert_eq!(ui.draft, "before");
+        ui.key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
+        ui.paste("false\n\u{1b}\u{3}");
+        assert_eq!(ui.draft, "false "); assert!(ui.outbox.is_empty());
+        key(&mut ui, KeyCode::Enter);
+        assert_eq!(ui.outbox.back().unwrap()["params"]["value"], json!("false "));
+        assert_eq!(ui.outbox.back().unwrap()["method"], "preview");
+    }
 
     #[test]
     fn rendered_settings_keep_confirmation_visible_and_scroll_wrapped_json() {

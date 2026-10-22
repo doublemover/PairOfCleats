@@ -21,19 +21,9 @@ import {
 } from '../../src/shared/risk-filters.js';
 import { projectCliRiskExplainRequest } from './risk-request.js';
 import { emitCliError, emitCliOutput, resolveFormat } from '../../src/integrations/tooling/cli-helpers.js';
-import {
-  REPORT_FORMAT_OPTIONS,
-  RISK_FILTER_OPTIONS,
-  RISK_PARTIAL_FLOW_OPTIONS,
-  mergeCliOptions
-} from '../../src/shared/cli-options.js';
+import { RISK_EXPLAIN_OPTIONS } from '../shared/operator-cli-options.js';
 
-const RISK_EXPLAIN_OPTIONS = Object.freeze(mergeCliOptions({
-  index: { type: 'string' },
-  chunk: { type: 'string' },
-  max: { type: 'number', default: 20 },
-  maxPartialFlows: { type: 'number', default: 20 }
-}, RISK_PARTIAL_FLOW_OPTIONS, RISK_FILTER_OPTIONS, REPORT_FORMAT_OPTIONS));
+
 
 const buildCliErrorDetails = (canonicalCode, reason = null) => {
   const details = {

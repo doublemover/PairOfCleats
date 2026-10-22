@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { bindArtifactScope } from '../operator/artifact-registry.js';
 import { resolveDispatchRequest } from '../../../src/shared/dispatch/resolve.js';
+import { assertNoSymlinkPath } from '../../../src/shared/contained-file.js';
 import {
   getIndexDir,
   getMetricsDir,
@@ -180,10 +181,29 @@ export const collectJobArtifacts = async ({ request, cwd }) => {
   if (typeof collectArtifacts === 'function') {
     await collectArtifacts({ artifacts, repoRoot, userConfig });
   }
+  // Known report commands explicitly name these output files. Child stdout or
+  // arbitrary protocol rows never grant file authority. The registry rechecks
+  // containment, bytes and exact identity before offering its existing actions.
+  if (['report.map', 'report.eval', 'report.compare-models', 'bench.micro'].includes(dispatch?.id)) {
+    for (const name of ['out', ...(dispatch.id === 'report.map' ? ['model-out', 'node-list-out'] : [])]) {
+      let value = null;
+      for (let index = 0; index < argv.length; index++) {
+        if (argv[index] === '--') break;
+        if (argv[index] === `--${name}`) value = argv[index + 1];
+        else if (argv[index].startsWith(`--${name}=`)) value = argv[index].slice(name.length + 3);
+      }
+      if (typeof value !== 'string' || !value.trim() || value.length > 4096) continue;
+      const artifactPath = path.resolve(request?.cwd || cwd || repoRoot, value);
+      try {
+        assertNoSymlinkPath(repoRoot, artifactPath, { allowMissing: true });
+        artifacts.push(await statArtifact({ kind: 'report:output', label: `${dispatch.id} ${name}`, artifactPath }));
+      } catch { /* An out-of-scope output never acquires native action authority. */ }
+    }
+  }
 
   return artifacts
     .slice()
     .sort((a, b) => `${a.kind}|${a.path}`.localeCompare(`${b.kind}|${b.path}`))
     .map(row => bindArtifactScope(row, { repoRoot,
-      root: row.kind === 'config:file' ? repoRoot : getRepoCacheRoot(repoRoot, userConfig) }));
+      root: ['config:file', 'report:output'].includes(row.kind) ? repoRoot : getRepoCacheRoot(repoRoot, userConfig) }));
 };

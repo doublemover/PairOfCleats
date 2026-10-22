@@ -19,6 +19,9 @@ for (const [kind, request] of Object.entries(valid)) {
 }
 assertTuiSettingsRequest('select', { kind: 'workspace', target: 'workspace.jsonc' });
 assertTuiSettingsRequest('preview', { scopeId, revision, schemaRevision, operation: 'reset' });
+assertTuiSettingsRequest('preview', { scopeId, revision, schemaRevision, operation: 'remove', path: ['search', 'annDefault'] });
+assert.throws(() => assertTuiSettingsRequest('preview', { scopeId, revision, schemaRevision,
+  operation: 'remove', path: ['search', 'annDefault'], value: null }), { code: 'ERR_TUI_SETTINGS_REQUEST' });
 for (const [kind, request] of [
   ['unknown', {}], ['select', { kind: 'shell', target: 'cmd.exe' }],
   ['dispatch', { ...valid.dispatch, method: 'shell' }],

@@ -370,27 +370,25 @@ fn screen(model: &AppModel, width: u16, height: u16) -> String {
 
 #[test]
 fn rendered_viewports_scroll_independently_in_both_layouts() {
-    for (width, height) in [(140, 24), (90, 36)] {
+    for (width, height) in [(140, 32), (90, 18)] {
         let mut model = model();
         let baseline = screen(&model, width, height);
         assert!(baseline.contains("JMARK00"));
-        assert!(baseline.contains("TMARK00"));
         assert!(!baseline.contains("JMARK19"));
-        assert!(!baseline.contains("TMARK19"));
         apply_local_input(&mut model, "jobs_up");
         let jobs = screen(&model, width, height);
         assert!(!jobs.contains("JMARK00"));
         assert!(jobs.contains("JMARK01"));
-        assert!(jobs.contains("TMARK00"));
+        model.focus_panel = FocusPanel::Tasks;
+        assert!(screen(&model, width, height).contains("TMARK00"));
         apply_local_input(&mut model, "tasks_up");
         let tasks = screen(&model, width, height);
         assert!(!tasks.contains("TMARK00"));
         assert!(tasks.contains("TMARK01"));
-        assert!(
-            tasks.contains("LMARK19"),
-            "Live view must contain newest log"
-        );
-        assert!(!tasks.contains("LMARK00"));
+        model.focus_panel = FocusPanel::Logs;
+        let latest_logs = screen(&model, width, height);
+        assert!(latest_logs.contains("LMARK19"), "Focused live log view must contain newest log");
+        assert!(!latest_logs.contains("LMARK00"));
         apply_local_input(&mut model, "logs_up");
         let logs = screen(&model, width, height);
         assert!(!logs.contains("LMARK19"));
@@ -398,6 +396,7 @@ fn rendered_viewports_scroll_independently_in_both_layouts() {
         for command in ["jobs_down", "tasks_down", "logs_down"] {
             apply_local_input(&mut model, command);
         }
+        model.focus_panel = FocusPanel::Jobs;
         assert_eq!(screen(&model, width, height), baseline);
     }
 }
@@ -409,14 +408,14 @@ fn filters_and_stale_list_offsets_keep_matching_rows_visible() {
     model.task_scroll = usize::MAX;
     model.search_jobs = "JMARK19".into();
     model.search_tasks = "TMARK19".into();
-    let rendered = screen(&model, 140, 24);
+    let rendered = screen(&model, 140, 32);
     assert!(rendered.contains("JMARK19 | running"));
     assert!(rendered.contains("TMARK19 | running"));
     assert!(!rendered.contains("JMARK00"));
     assert!(!rendered.contains("TMARK00"));
     model.job_filter = JobFilter::Failed;
     model.task_filter = TaskFilter::Failed;
-    let rendered = screen(&model, 140, 24);
+    let rendered = screen(&model, 140, 32);
     assert!(!rendered.contains("JMARK19 | running"));
     assert!(!rendered.contains("TMARK19 | running"));
     assert!(rendered.contains("no jobs match"));
@@ -456,7 +455,7 @@ fn selected_job_scope_precedes_task_viewport_and_overscroll_is_bounded() {
     model.selected_job = Some("owner".into());
     model.task_scroll = usize::MAX;
     model.job_scroll = usize::MAX;
-    let rendered = screen(&model, 140, 24);
+    let rendered = screen(&model, 140, 32);
     assert!(!rendered.contains("PRIVATE"));
     assert!(rendered.contains("TMARK19"));
     assert!(rendered.contains("JMARK19"));
@@ -482,6 +481,7 @@ fn paused_filtered_log_anchor_survives_matching_and_unmatched_arrivals() {
     assert_eq!(build_log_lines(&model, 60, 3), paused);
     apply_local_input(&mut model, "toggle_follow");
     assert!(build_log_lines(&model, 60, 3).contains("LMARK10"));
+    model.focus_panel = FocusPanel::Logs;
     assert!(screen(&model, 140, 24).contains("LMARK10"));
 }
 

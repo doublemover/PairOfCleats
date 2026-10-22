@@ -5,7 +5,7 @@ export const TUI_WORKFLOW_REQUEST_SCHEMAS = {
     jobId: { type: 'string', pattern: '^[a-zA-Z0-9_-]{1,128}$' },
     method: { enum: ['select', 'describe', 'preview', 'launch', 'discard', 'status'] }, params: { type: 'object' } }),
   select: record({ kind: { enum: ['repo', 'workspace'] }, target: { type: 'string', minLength: 1, maxLength: 4096 } }),
-  describe: record({}),
+  describe: { ...record({ includeExperimental: { type: 'boolean' } }), required: [] },
   preview: record({ scopeId: id, commandId: { type: 'string', minLength: 1, maxLength: 128 },
     values: { type: 'object', maxProperties: 64 } }),
   launch: record({ scopeId: id, previewId: id, confirmed: { const: true } }),

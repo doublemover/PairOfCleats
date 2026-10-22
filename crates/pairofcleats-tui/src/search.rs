@@ -13,6 +13,9 @@ enum Page {
     OpenConfirm,
 }
 
+#[derive(Clone)]
+enum ClickTarget { Field(usize), Result(String) }
+
 /// Volatile query/source data stays outside layout snapshots and telemetry.
 pub(crate) struct SearchUi {
     pub available: bool,
@@ -21,6 +24,9 @@ pub(crate) struct SearchUi {
     page: Page,
     fields: Vec<String>,
     field: usize,
+    cursor: crate::text_editor::TextCursor,
+    rendered_clicks: std::cell::RefCell<Vec<(usize, ClickTarget)>>,
+    rendered_revision: std::cell::Cell<Option<u64>>,
     schema: Option<Value>,
     modes: Vec<String>,
     rows: Vec<Value>,
@@ -55,6 +61,9 @@ impl Default for SearchUi {
                 "{}".into(),
             ],
             field: 1,
+            cursor: crate::text_editor::TextCursor::default(),
+            rendered_clicks: std::cell::RefCell::new(vec![]),
+            rendered_revision: std::cell::Cell::new(None),
             schema: None,
             modes: Vec::new(),
             rows: Vec::new(),
@@ -237,11 +246,26 @@ impl SearchUi {
             }
             return true;
         }
+        if self.page == Page::Composer && self.cursor.key(&mut self.fields[self.field], key, 8192) {
+            return false;
+        }
         match self.page {
             Page::Composer => match key.code {
-                KeyCode::Tab => self.field = (self.field + 1) % self.fields.len(),
+                KeyCode::Down | KeyCode::Up if matches!(self.field, 2 | 3) => {
+                    let name = if self.field == 2 { "mode" } else { "backend" };
+                    if let Some(choices) = self.schema.as_ref().and_then(|schema| schema["properties"][name]["enum"].as_array()) {
+                        if !choices.is_empty() {
+                            let current = choices.iter().position(|value| value.as_str() == Some(self.fields[self.field].as_str())).unwrap_or(0);
+                            let next = if key.code == KeyCode::Down { (current + 1) % choices.len() }
+                                else { (current + choices.len() - 1) % choices.len() };
+                            if let Some(value) = choices[next].as_str() { self.fields[self.field] = value.into(); self.cursor.reset(); }
+                        }
+                    }
+                }
+                KeyCode::Tab => { self.field = (self.field + 1) % self.fields.len(); self.cursor.reset(); }
                 KeyCode::BackTab => {
                     self.field = (self.field + self.fields.len() - 1) % self.fields.len()
+                    ; self.cursor.reset();
                 }
                 KeyCode::Enter => self.submit(),
                 KeyCode::Backspace => {
@@ -349,6 +373,26 @@ impl SearchUi {
             },
         }
         false
+    }
+
+    pub fn paste(&mut self, text: &str) {
+        if self.available && self.pending.is_none() && self.page == Page::Composer {
+            self.cursor.paste(&mut self.fields[self.field], text, 8192);
+            self.revision += 1;
+        }
+    }
+
+    pub fn click(&mut self, row: usize) {
+        if !self.available || self.rendered_revision.get() != Some(self.revision) { return; }
+        let target = self.rendered_clicks.borrow().iter().find(|(line, _)| *line == row).map(|(_, target)| target.clone());
+        match target {
+            Some(ClickTarget::Field(field)) if self.page == Page::Composer => { self.field = field; self.cursor.reset(); }
+            Some(ClickTarget::Result(id)) if self.page == Page::Results => {
+                if let Some(index) = self.rows.iter().position(|hit| hit["hitId"].as_str() == Some(id.as_str())) { self.selected = index; }
+            }
+            _ => return,
+        }
+        self.revision += 1;
     }
 
     pub fn event(&mut self, event: &Value) -> bool {
@@ -491,6 +535,8 @@ impl SearchUi {
     }
 
     pub fn lines(&self, height: usize, width: usize) -> Vec<String> {
+        let mut click_targets = self.rendered_clicks.borrow_mut();
+        click_targets.clear(); self.rendered_revision.set(Some(self.revision));
         let mut lines = vec![self.status.clone()];
         if !self.available {
             lines.push("Read only: repository search requires a controllable local supervisor. Esc closes.".into());
@@ -499,13 +545,14 @@ impl SearchUi {
         match self.page {
             Page::Composer => {
                 lines.push(
-                    "Tab/Shift+Tab choose field; Ctrl+U clear; Enter search; Esc close".into(),
+                    "Tab field; mode/backend Up/Down choices; Ctrl+U clear; Enter search; Esc close".into(),
                 );
                 for (i, label) in LABELS.iter().enumerate() {
+                    if lines.len() < height { click_targets.push((lines.len(), ClickTarget::Field(i))); }
                     lines.push(format!(
                         "{} {label}: {}",
                         if self.field == i { ">" } else { " " },
-                        self.fields[i]
+                        if self.field == i { self.cursor.visible(&self.fields[i], width.saturating_sub(label.len() + 5)) } else { self.fields[i].clone() }
                     ));
                 }
                 if let Some(schema) = &self.schema {
@@ -535,6 +582,9 @@ impl SearchUi {
                 let budget = height.saturating_sub(lines.len()).max(1);
                 let offset = self.selected.saturating_sub(budget - 1);
                 for (i, hit) in self.rows.iter().enumerate().skip(offset).take(budget) {
+                    if lines.len() < height {
+                        if let Some(id) = hit["hitId"].as_str() { click_targets.push((lines.len(), ClickTarget::Result(id.to_owned()))); }
+                    }
                     let text = format!(
                         "{} {} #{} score={} {}:{}-{} {}",
                         if i == self.selected { ">" } else { " " },
@@ -636,6 +686,26 @@ impl SearchUi {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pasted_middle_query_and_rendered_result_click_never_submit_or_open_implicitly() {
+        let mut ui = ready(); ui.outbox.clear();
+        ui.fields[1] = "ab界e\u{301}😀".into();
+        ui.key(KeyCode::Left.into()); ui.key(KeyCode::Backspace.into());
+        ui.paste("echo q\n\u{1b}\u{3}");
+        assert_eq!(ui.fields[1], "ab界echo q 😀");
+        assert!(ui.outbox.is_empty());
+        ui.page = Page::Results; ui.rows = vec![hit("code",1,"first"), hit("code",2,"second")];
+        ui.result = Some(page(ui.rows.clone())); ui.selected = 0;
+        let rows = ui.lines(20,76);
+        let second = rows.iter().position(|row| row.contains("#2")).unwrap();
+        ui.click(second);
+        assert_eq!(ui.rows[ui.selected]["hitId"], "second");
+        assert!(ui.outbox.is_empty(), "click selects; Enter alone requests source");
+        ui.key(KeyCode::Enter.into());
+        assert_eq!(ui.outbox.back().unwrap()["params"]["hitId"], "second");
+        assert_eq!(ui.outbox.back().unwrap()["method"], "source");
+    }
 
     #[test]
     fn diagnostics_are_recorded_read_only_and_bound_to_the_current_response() {

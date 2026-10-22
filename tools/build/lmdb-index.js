@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { LMDB_BUILD_OPTIONS } from '../shared/operator-cli-options.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -37,17 +38,7 @@ try {
 
 const { argv, display, log, warn, fail } = createIndexBuildToolCli({
   scriptName: 'build-lmdb-index',
-  options: {
-    mode: { type: 'string', default: 'all' },
-    repo: { type: 'string' },
-    'index-root': { type: 'string' },
-    'as-of': { type: 'string' },
-    snapshot: { type: 'string' },
-    validate: { type: 'boolean', default: false },
-    progress: { type: 'string', default: 'auto' },
-    verbose: { type: 'boolean', default: false },
-    quiet: { type: 'boolean', default: false }
-  }
+  options: LMDB_BUILD_OPTIONS
 });
 
 if (!open) {

@@ -1,3 +1,4 @@
+import { ARCHITECTURE_CHECK_OPTIONS } from '../../../tools/shared/operator-cli-options.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
@@ -39,15 +40,7 @@ export async function runArchitectureCheckCli(rawArgs = process.argv.slice(2)) {
   const cli = createCli({
     scriptName: 'architecture-check',
     argv: ['node', 'architecture-check', ...rawArgs],
-    options: {
-      repo: { type: 'string' },
-      rules: { type: 'string' },
-      format: { type: 'string' },
-      json: { type: 'boolean', default: false },
-      failOnViolation: { type: 'boolean', default: false },
-      maxViolations: { type: 'number' },
-      maxEdgesExamined: { type: 'number' }
-    },
+    options: ARCHITECTURE_CHECK_OPTIONS,
     aliases: {
       'fail-on-violation': 'failOnViolation'
     }

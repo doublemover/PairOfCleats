@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { SQLITE_COMPACT_OPTIONS } from '../shared/operator-cli-options.js';
 import { assertSqliteIndexFormat } from '../../src/storage/sqlite/index-format.js';
 import { createOptionalFtsTables, listOptionalFtsTables, createFtsInserter } from '../../src/storage/sqlite/fts-variants.js';
 import fs from 'node:fs';
@@ -566,16 +567,7 @@ const isDirectRun = isDirectExecution(import.meta.url);
 if (isDirectRun) {
   const argv = createCli({
     scriptName: 'pairofcleats sqlite compact',
-    options: {
-      mode: { type: 'string', default: 'all' },
-      repo: { type: 'string' },
-      'index-root': { type: 'string' },
-      'dry-run': { type: 'boolean', default: false },
-      'keep-backup': { type: 'boolean', default: false },
-      progress: { type: 'string', default: 'auto' },
-      verbose: { type: 'boolean', default: false },
-      quiet: { type: 'boolean', default: false }
-    }
+    options: SQLITE_COMPACT_OPTIONS
   }).strictOptions().parse();
 
   const { display, logger } = createToolDisplayLogger({ argv, stream: process.stderr });

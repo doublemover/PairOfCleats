@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { TOOLING_DOCTOR_OPTIONS } from '../shared/operator-cli-options.js';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
@@ -12,12 +13,7 @@ const formatSummaryLine = (label, value) => `- ${label}: ${value}`;
 async function runCli() {
   const argv = createCli({
     scriptName: 'tooling-doctor',
-    options: {
-      json: { type: 'boolean', default: false },
-      repo: { type: 'string' },
-      strict: { type: 'boolean', describe: 'Require strict checks (enabled unless --non-strict).' },
-      'non-strict': { type: 'boolean', default: false }
-    }
+    options: TOOLING_DOCTOR_OPTIONS
   }).parse();
 
   if (argv.strict && argv['non-strict']) {

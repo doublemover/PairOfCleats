@@ -3,7 +3,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { assertTuiWorkflowRequest } from '../../../src/contracts/validators/tui-workflow.js';
 import { validateConfig } from '../../../src/config/validate.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
-import { loadUserConfig, getModelConfig, getRepoCacheRoot } from '../../../src/shared/dict-utils.js';
+import { loadUserConfig, getModelConfig, getRepoCacheRoot, getCacheRoot } from '../../../src/shared/dict-utils.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { mergeConfig } from '../../../src/shared/config.js';
 import { getEnvConfig } from '../../../src/shared/env/runtime.js';
@@ -18,19 +18,28 @@ import { normalizeIndexBuildStage } from '../../../src/shared/indexing/stages.js
 import { parseBuildArgs } from '../../../src/index/build/args.js';
 import { readCurrentBuildGeneration } from '../../../src/shared/indexing/build-generation.js';
 import { sameIdentityPath } from '../../../src/shared/indexing/build-pointer-roots.js';
-import { readVerifiedContainedFileSync } from '../../../src/shared/contained-file.js';
+import { readVerifiedContainedFileSync, assertNoSymlinkPath } from '../../../src/shared/contained-file.js';
 import { BUILD_STATE_SCHEMA } from '../../../src/contracts/schemas/build-state.js';
 import { sanitizeRuntimeReceipt } from '../../../src/shared/runtime-envelope/receipt.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
 import { createObservabilityEnvelope, applyObservabilityContextEnv } from '../../../src/shared/observability.js';
 import { loadWorkspaceConfig } from '../../../src/workspace/config.js';
 import { resolveModelSetupReadiness } from '../../setup/model-readiness.js';
-import { describeIndexWorkflows, buildIndexWorkflowArgv } from './index-catalog.js';
+import { describeIndexWorkflows, describeWorkflowCoverage, buildIndexWorkflowArgv } from './index-catalog.js';
+import { inspectBootstrapReadiness } from '../../../src/shared/bootstrap-readiness.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 
 const MAX_REPOS = 32;
 const MAX_PLANS = 16;
 const TTL_MS = 5 * 60 * 1000;
 const BUILDERS = new Set(['index.build', 'index.watch', 'workspace.build']);
+const SETUP = new Set(['setup', 'bootstrap', 'tooling.install']);
+const effects = command => SETUP.has(command.registryId)
+  ? 'Setup can download/install dependencies, models, dictionaries or tooling, modify selected configuration and build indexes. Review every skip/scope field; credentials use the existing private environment/config handoff.'
+  : command.registryId === 'service.api' ? 'Start a session-owned API child bound to 127.0.0.1 only. Credentials come from the existing private API token environment; no token is accepted in this form. A running PID is not health evidence. Cancel stops only this owned job.'
+    : command.registryId === 'cache.gc' ? 'Canonical cache garbage collection can cover shared cache roots. apply=true mutates; review exact roots and retention limits. Existing active-owner exclusions remain enforced by the canonical GC.'
+        : command.registryId.startsWith('report.') ? 'Generate a scoped report/evaluation. Explicit output paths may be written; build flags can start expensive work. Native result views retain bounded producer JSON, including uncertainty and partial coverage.'
+          : 'Run the selected canonical command under supervisor ownership; review exact scope, inputs and argv. Exit success alone does not establish artifact readiness.';
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
 const fingerprint = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 
@@ -79,9 +88,10 @@ export const observeIndexPublication = async (repo, config, { signal, validateCu
 };
 
 /** Private, expiring typed plans. Reuses scope, build/config/model, and job owners. */
-export const createTuiIndexWorkflows = ({ scopes, startJob, env = process.env, now = Date.now } = {}) => {
+export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.cwd(), env = process.env, now = Date.now } = {}) => {
   const plans = new Map();
-  const commands = describeIndexWorkflows();
+  let experimentalEnabled = false;
+  let commands = describeIndexWorkflows();
   let disposed = false;
   const requireScope = id => {
     if (disposed) fail('ERR_TUI_SESSION_CLOSED', 'The workflow session has closed.');
@@ -94,6 +104,7 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, env = process.env, n
     return repos.map(repo => repo.repoRootCanonical);
   };
   const inspect = async (scope, command, values, signal) => {
+    if (command.unsupportedReason) fail('ERR_TUI_WORKFLOW_UNSUPPORTED', command.unsupportedReason);
     if (command.registryId === 'index.validate') assertIndexValidationFlags(values);
     if (command.registryId === 'workspace.build' && values.concurrency !== undefined) resolveWorkspaceBuildConcurrency(values.concurrency);
     if (BUILDERS.has(command.registryId)) {
@@ -107,6 +118,33 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, env = process.env, n
       const config = loadUserConfig(repo, { env, onSources: value => { sources = value; } });
       const observation = { repo, configFingerprint: fingerprint({ config, sources }),
         publication: await observeIndexPublication(repo, config, { signal, validateCurrent: false }) };
+      observation.scopeImpact = { repository: repo, repoCacheRoot: getRepoCacheRoot(repo, config),
+        ...(command.registryId === 'cache.gc' || SETUP.has(command.registryId) ? { sharedCacheRoot: getCacheRoot() } : {}) };
+      if (command.registryId === 'tooling.doctor' || SETUP.has(command.registryId)) {
+        observation.runtime = { executable: process.execPath, version: process.version, abi: process.versions.modules,
+          platform: process.platform, architecture: process.arch, bootstrap: await inspectBootstrapReadiness({ root: toolRoot }) };
+      }
+      const inputs = {};
+      for (const name of ['request', 'rules', 'changedFile', 'dataset', 'queries']) if (typeof values[name] === 'string' && values[name]) {
+        const file = path.resolve(scope.configRoot, values[name]);
+        const read = readVerifiedContainedFileSync(scope.configRoot, file, { maxBytes: 1024 * 1024 });
+        inputs[name] = { path: file, sha256: read.hash };
+        if (name === 'request' && command.requestFile) {
+          const request = JSON.parse(read.buffer.toString('utf8'));
+          if (typeof request.repoRoot !== 'string' || !sameIdentityPath(path.resolve(scope.configRoot, request.repoRoot), repo)) {
+            fail('ERR_TUI_WORKFLOW_SCOPE', 'The saved request must name the selected repository as repoRoot.');
+          }
+        }
+      }
+      observation.inputFiles = inputs;
+      const outputs = {};
+      for (const name of ['out', 'model-out', 'node-list-out', 'log-file']) if (typeof values[name] === 'string' && values[name]) {
+        const file = path.resolve(scope.configRoot, values[name]);
+        assertNoSymlinkPath(scope.configRoot, file, { allowMissing: true });
+        try { outputs[name] = { path: file, before: readVerifiedContainedFileSync(scope.configRoot, file, { maxBytes: 1024 * 1024 }).hash }; }
+        catch (error) { if (error.code !== 'ENOENT') throw error; outputs[name] = { path: file, before: 'missing' }; }
+      }
+      observation.outputFiles = outputs;
       if (BUILDERS.has(command.registryId)) {
         // Canonical argument validation also owns modes, stages and conflicts.
         const buildValues = Object.fromEntries(Object.entries(values)
@@ -147,7 +185,10 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, env = process.env, n
   };
   const describe = request => {
     assertTuiWorkflowRequest('describe', request);
-    return { commands: structuredClone(commands), limits: { maxRepos: MAX_REPOS, maxPreviews: MAX_PLANS, previewTtlMs: TTL_MS },
+    experimentalEnabled = request.includeExperimental === true;
+    commands = describeIndexWorkflows({ includeExperimental: experimentalEnabled });
+    return { commands: structuredClone(commands), coverage: describeWorkflowCoverage(), experimentalEnabled,
+      limits: { maxRepos: MAX_REPOS, maxPreviews: MAX_PLANS, previewTtlMs: TTL_MS },
       embeddingSettings: ['indexing.embeddings.provider', 'indexing.embeddings.mode', 'indexing.embeddings.onnx', 'models'],
       note: 'Model/provider configuration uses the canonical settings schema; embeddings run within index build/watch. All launches require a fresh explicit preview.' };
   };
@@ -156,10 +197,11 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, env = process.env, n
     const scope = requireScope(request.scopeId);
     const command = commands.find(command => command.id === request.commandId);
     if (!command || command.scopeKind !== scope.kind) fail('ERR_TUI_WORKFLOW_COMMAND', 'Choose a command for the selected scope.');
+    if (command.unsupportedReason) return { launchable: false, errors: [command.unsupportedReason], errorCode: 'ERR_TUI_WORKFLOW_UNSUPPORTED' };
     const validation = validateConfig(command.schema, request.values);
     if (!validation.ok) return { launchable: false, errors: validation.errors };
     const values = structuredClone(request.values);
-    const argv = buildIndexWorkflowArgv(command, values, scope);
+    const argv = buildIndexWorkflowArgv(command, values, scope, { env });
     if (argv.some(value => sanitizeRuntimeReceipt(value) !== value)) {
       return { launchable: false, errors: ['Use private Settings for credentials; command forms do not accept values that require redaction.'] };
     }
@@ -176,7 +218,7 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, env = process.env, n
       observations: observations.map(({ configFingerprint: _private, ...observation }) => observation), errors, launchable: errors.length === 0,
       effect: BUILDERS.has(command.registryId) ? 'Build selected indexes; watch remains running until cancelled.'
         : command.id.match(/snapshot\.(remove|gc|prune|freeze|create)$/) ? 'Snapshot operation; review dry-run, retention and force selections.'
-          : 'Read index information. Process success does not establish generation readiness.' };
+          : effects(command) };
     if (result.launchable) {
       if (Buffer.byteLength(JSON.stringify({ scope, command, values, argv, observations })) > 768 * 1024) {
         return { launchable: false, errors: ['Narrow this scope; the launch preview exceeds its byte bound.'] };
@@ -192,7 +234,8 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, env = process.env, n
   };
   const findPlan = request => {
     const scope = requireScope(request.scopeId), plan = plans.get(request.previewId);
-    if (!plan || plan.scope.id !== scope.id || now() - plan.createdAt > TTL_MS) {
+    if (!plan || plan.scope.id !== scope.id || now() - plan.createdAt > TTL_MS
+      || (plan.command.supportTier === 'experimental' && !experimentalEnabled)) {
       plans.delete(request.previewId);
       fail('ERR_TUI_WORKFLOW_STALE', 'The preview expired or the scope changed. Preview again.');
     }
@@ -209,6 +252,8 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, env = process.env, n
       const current = await inspect(plan.scope, plan.command, plan.values, signal);
       if (current.some((row, index) => row.repo !== plan.observations[index]?.repo
         || row.configFingerprint !== plan.observations[index]?.configFingerprint
+        || fingerprint(row.inputFiles) !== fingerprint(plan.observations[index]?.inputFiles)
+        || fingerprint(row.outputFiles) !== fingerprint(plan.observations[index]?.outputFiles)
         || (row.embeddings?.assets && !row.embeddings.assets.present))) {
         fail('ERR_TUI_WORKFLOW_STALE', 'Configuration, model readiness or workspace membership changed. Preview again.');
       }
@@ -218,9 +263,25 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, env = process.env, n
       cwd: plan.scope.configRoot, retry: { maxAttempts: 1, delayMs: 0 },
       envPatch: applyObservabilityContextEnv({}, createObservabilityEnvelope({ surface: 'tui',
         operation: plan.command.id, correlation: { correlationId: jobId } })),
-      resultPolicy: { captureStdout: BUILDERS.has(plan.command.registryId) ? 'text' : 'json', maxBytes: 768 * 1024 } }, {
+      resultPolicy: { captureStdout: BUILDERS.has(plan.command.registryId) ? 'text' : plan.command.capture || 'json', maxBytes: 768 * 1024 } }, {
       beforeRun: check,
       afterRun: async ({ payload, signal }) => {
+        let verification = null;
+        if (SETUP.has(plan.command.registryId)) {
+          const bootstrap = await inspectBootstrapReadiness({ root: toolRoot });
+          try {
+            const child = await spawnSubprocess(process.execPath, [path.join(toolRoot, 'bin/pairofcleats.js'),
+              'tooling', 'doctor', `--repo=${plan.scope.configRoot}`, '--json'], {
+              cwd: plan.scope.configRoot, env, signal, timeoutMs: 10000, maxOutputBytes: 512 * 1024,
+              stdio: ['ignore', 'pipe', 'pipe'], rejectOnNonZeroExit: false });
+            const complete = !child.outputCapture?.stdout?.truncated && !child.outputCapture?.stdout?.encodingLoss;
+            const doctor = complete ? JSON.parse(child.stdout) : null;
+            verification = { bootstrap, doctor: sanitizeRuntimeReceipt(doctor), processExitCode: child.exitCode,
+              ready: bootstrap.ready === true && child.exitCode === 0 && doctor?.summary?.status === 'ok',
+              note: 'Fresh bootstrap and canonical doctor observations; install process exit is not readiness.' };
+          } catch (error) { verification = { bootstrap, ready: false, errorCode: error.code || 'ERR_TUI_SETUP_VERIFICATION',
+            note: 'Post-install verification did not complete; readiness remains unverified.' }; }
+        }
         const publications = [];
         // Read-only commands and snapshot maintenance do not produce a ready
         // index. Their process results remain distinct from an explicit status
@@ -231,7 +292,7 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, env = process.env, n
           publications.push(await observeIndexPublication(repo, loadUserConfig(repo, { env }),
             { signal: observationSignal, validateCurrent }));
         }
-        return { workflow: { commandId: plan.command.id, processStatus: payload.status,
+        return { workflow: { commandId: plan.command.id, processStatus: payload.status, verification,
           publications: publications.map((row, index) => {
             const changed = row.generation?.generationKey !== plan.observations[index]?.publication.generation?.generationKey;
             return { ...row, changedSincePreview: changed,

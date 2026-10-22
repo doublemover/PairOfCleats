@@ -50,7 +50,7 @@ await assert.rejects(session.preview({ ...edit(inspected), path: ['cache', 'root
   { code: 'ERR_TUI_SETTINGS_AUTHORITY' });
 const prepared = await session.preview(edit(inspected));
 assert.equal(prepared.ok, true);
-assert.deepEqual(prepared.diff, [{ path: ['threads'], before: 2, after: 1 }]);
+assert.deepEqual(prepared.diff, [{ path: ['threads'], before: 2, after: 1, beforePresent: true, afterPresent: true }]);
 assert.equal(JSON.stringify(prepared).includes(secret), false);
 await assert.rejects(session.commit({ scopeId: selected.id, previewId: prepared.previewId }),
   { code: 'ERR_TUI_SETTINGS_CONFIRMATION' });

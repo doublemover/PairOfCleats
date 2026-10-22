@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { EVAL_OPTIONS } from '../shared/operator-cli-options.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
@@ -11,20 +12,7 @@ import { collectExpectedJudgments, computeMRR, computeNDCG, computeRecallAtK } f
 
 const argv = createCli({
   scriptName: 'eval-run',
-  options: {
-    repo: { type: 'string' },
-    dataset: { type: 'string' },
-    backend: { type: 'string', default: 'auto' },
-    top: { type: 'number', default: 10 },
-    limit: { type: 'number', default: 0 },
-    ann: { type: 'boolean' },
-    out: { type: 'string' },
-    pretty: { type: 'boolean', default: false },
-    'match-mode': { type: 'string' },
-    progress: { type: 'string', default: 'auto' },
-    verbose: { type: 'boolean', default: false },
-    quiet: { type: 'boolean', default: false }
-  },
+  options: EVAL_OPTIONS,
   aliases: { n: 'top' }
 }).parse();
 

@@ -24,6 +24,7 @@ pub(super) struct ReplayState {
     chunk_assemblies: HashMap<String, ChunkAssembly>,
     chunk_assembly_bytes: usize,
     telemetry: RuntimeTelemetry,
+    recorded_ms: Option<u64>,
     inspection: inspection::ReplayHistory,
 }
 
@@ -47,6 +48,7 @@ impl ReplayState {
             chunk_assemblies: model.chunk_assemblies.clone(),
             chunk_assembly_bytes: model.chunk_assembly_bytes,
             telemetry: model.telemetry.clone(),
+            recorded_ms: model.recorded_ms,
             inspection: model.job_inspection.replay_history(),
         }
     }
@@ -71,6 +73,7 @@ impl ReplayState {
         model.chunk_assemblies = self.chunk_assemblies.clone();
         model.chunk_assembly_bytes = self.chunk_assembly_bytes;
         model.telemetry = self.telemetry.clone();
+        model.recorded_ms = self.recorded_ms;
         model.job_inspection.restore_replay_history(&self.inspection);
         model.content_changed();
         model.last_render_signature.clear();
@@ -90,7 +93,8 @@ impl ReplayState {
             + string_queue(&model.job_order) + string_queue(&model.task_order)
             + model.task_status.len() * (size_of::<(String, TaskState)>() + 128)
             + model.task_status.iter().map(|(key, value)| key.capacity() + value.status.capacity()
-                + value.message.as_ref().map_or(0, String::capacity)).sum::<usize>()
+                + value.message.as_ref().map_or(0, String::capacity)
+                + value.unit.as_ref().map_or(0, String::capacity) + value.stage.as_ref().map_or(0, String::capacity)).sum::<usize>()
             + model.task_identity.len() * (size_of::<(String, (String, String))>() + 128)
             + model.task_identity.iter().map(|(key, (job, task))| key.capacity() + job.capacity() + task.capacity()).sum::<usize>()
             + model.logs.capacity() * size_of::<LogEntry>()

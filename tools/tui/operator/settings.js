@@ -214,7 +214,8 @@ export const createTuiSettingsSession = ({ toolRoot, schemaPath = path.join(tool
     } else {
       if (!document.encodingValid) fail('ERR_TUI_SETTINGS_ENCODING', 'Configuration cannot be edited as UTF-8.');
       const field = collectFields(schema.schema).find(entry => JSON.stringify(entry.path) === JSON.stringify(request.path));
-      if (!field || request.operation !== 'edit') fail('ERR_TUI_SETTINGS_FIELD', 'Choose a setting from the current schema.');
+      const removing = request.operation === 'remove';
+      if (!field || !['edit', 'remove'].includes(request.operation)) fail('ERR_TUI_SETTINGS_FIELD', 'Choose a setting from the current schema.');
       const old = parseJsoncText(document.raw);
       const probe = wrappedValue(field.path, 'editable-probe');
       if (atPath(applyRepoConfigAuthority(probe, selected.configRoot, env), field.path) !== 'editable-probe') {
@@ -223,13 +224,15 @@ export const createTuiSettingsSession = ({ toolRoot, schemaPath = path.join(tool
       if (!unchangedByRedaction(field.path, atPath(old, field.path)) || !unchangedByRedaction(field.path, request.value)) {
         fail('ERR_TUI_SETTINGS_SENSITIVE', 'Use your private configuration editor for sensitive values.');
       }
-      if (Buffer.byteLength(JSON.stringify(request.value) ?? '') > 64 * 1024 || request.value === undefined) {
+      if (!removing && (Buffer.byteLength(JSON.stringify(request.value) ?? '') > 64 * 1024 || request.value === undefined)) {
         fail('ERR_TUI_SETTINGS_VALUE', 'The selected value is missing or exceeds the editor limit.');
       }
       raw = applyEdits(document.raw, modify(document.raw, field.path, request.value,
         { formattingOptions: { insertSpaces: true, tabSize: 2 } }));
       diff = [{ path: field.path, before: safeValue(field.path, atPath(old, field.path)),
-        after: safeValue(field.path, request.value) }];
+        after: safeValue(field.path, request.value), beforePresent: atPath(old, field.path) !== undefined,
+        afterPresent: !removing,
+        ...(removing ? { action: 'remove', description: 'Remove only this override. The next effective configuration layer or policy applies; it may differ from the schema default.' } : {}) }];
     }
     if (Buffer.byteLength(raw) > MAX_CONFIG_BYTES) fail('ERR_TUI_SETTINGS_VALUE', 'Configuration exceeds the editor limit.');
     const validation = validateConfig(schema.schema, parseJsoncText(raw));

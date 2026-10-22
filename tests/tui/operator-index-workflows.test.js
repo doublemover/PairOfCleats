@@ -23,11 +23,12 @@ const launches = [];
 const actor = createTuiIndexWorkflows({ scopes, env, now: () => clock, startJob: async (...args) => { launches.push(args); } });
 const scope = await scopes.selectScope({ kind: 'repo', target: repo });
 const catalog = actor.describe({}).commands;
-assert.equal(catalog.length, 6 + Object.keys(SNAPSHOT_COMMANDS).length);
+assert.equal(catalog.filter(command => command.registryId.startsWith('index.') && command.registryId !== 'index.diff'
+  || command.registryId === 'workspace.build').length, 6 + Object.keys(SNAPSHOT_COMMANDS).length);
 for (const command of catalog) {
   const registered = describeCommandRegistryEntry(command.registryId);
   assert.equal(command.supportTier, registered.supportTier);
-  assert.deepEqual(command.commandPath.slice(0, 2), registered.commandPath);
+  assert.deepEqual(command.commandPath.slice(0, registered.commandPath.length), registered.commandPath);
 }
 const builder = catalog.find(command => command.id === 'index.build');
 for (const field of builder.fields) assert.equal(field.schema.type, INDEX_BUILD_OPTIONS[field.name].type);

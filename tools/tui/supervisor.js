@@ -171,7 +171,7 @@ const runWorkflow = async (request, context) => {
   if (context.signal.aborted) throw Object.assign(new Error('Cancelled.'), { code: 'ABORT_ERR' });
   settingsSession ||= settings.createTuiSettingsSession({ toolRoot: ROOT });
   if (request.method === 'select') return settingsSession.selectScope(request.params, context);
-  indexWorkflows ||= workflows.createTuiIndexWorkflows({ scopes: settingsSession, startJob });
+  indexWorkflows ||= workflows.createTuiIndexWorkflows({ scopes: settingsSession, startJob, toolRoot: ROOT });
   return indexWorkflows[request.method](request.params, context);
 };
 

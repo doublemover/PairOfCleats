@@ -1,7 +1,62 @@
 # TUI Guide
 
 Status: active  
-Last updated: 2026-10-20T00:00:00Z
+Last updated: 2026-10-22T00:00:00Z
+
+## Install and first use from a source checkout
+
+The application checkout contains the CLI and native build sources. Your target
+repository contains the code you want to index and search; it may be elsewhere.
+You do not need a globally installed `pairofcleats` command for this recipe.
+
+Install the Node 26 version in `.nvmrc`, Python 3 and the platform C/C++ build
+tools required by the native dependencies, then run `npm run bootstrap:ci` in
+the application checkout. Native TUI builds additionally require rustup and
+Rust **1.88.0** (the crate's `rust-toolchain.toml`), plus the target platform's
+linker/SDK. On Windows use the MSVC C++ build tools and Windows SDK; on Linux
+use a C/C++ linker toolchain; on macOS install the Xcode command line tools.
+Install/build may download dependencies and toolchain components. A missing
+staged host binary triggers a native build, so arrange these prerequisites first.
+
+These commands use forward slashes and work in PowerShell and POSIX shells.
+Start in the **application checkout**, replacing the absolute target path:
+
+```text
+node --version
+npm run bootstrap:ci
+node bin/pairofcleats.js tui install
+node bin/pairofcleats.js index build --repo /absolute/path/to/target --mode code
+node bin/pairofcleats.js index validate --repo /absolute/path/to/target --mode code --json
+node bin/pairofcleats-tui.js
+```
+
+For Windows, the repo argument can be `"C:/Projects/My target"`. Keep quotes
+around paths containing spaces. Launch from the application checkout even when
+the target is elsewhere; the native wrapper selects its installed host binary
+and Node supervisor. `pairofcleats tui install` and `pairofcleats-tui` are the
+equivalent short forms only when those wrappers are on PATH. Installation does
+not make an unrelated Node executable on PATH the supported runtime.
+
+In the TUI press `R`, select the absolute target repository in the Repository
+field, and use Tab to enter a query, Mode `code`, and Top per mode `5`. Press
+Enter to search. Arrows select a result; Enter shows source for that exact
+result. `o` previews an external editor open, and Enter explicitly confirms
+that preview. The trusted editor launcher must be available; source inspection
+works independently. Esc returns to results. Press `q` outside overlays or
+Ctrl+C anywhere for graceful shutdown; the supervisor drains and reaps owned
+work before the terminal is restored.
+
+Use `b` for a scoped index workflow when you need to build from the application:
+choose the target directory, choose `index.build`, set the desired mode, press
+`p` to inspect the scope/argv preview, then Enter to launch. Check the actual
+validation/publication result before treating an index as ready. Opening a form
+does not launch a build. Saved-session replay is passive and cannot run these
+commands. Provider credentials belong in the existing trusted private handoff,
+never in a query or command field.
+
+This recipe and the interaction changes below are authored instructions.
+Clean-checkout/package, native frame, Paste, ConPTY and platform qualification
+must be recorded separately; source review is not an installation receipt.
 
 ## Commands
 
@@ -10,11 +65,6 @@ Last updated: 2026-10-20T00:00:00Z
 - Run supervisor directly: `pairofcleats tui supervisor`
 - Launch native TUI wrapper: `pairofcleats-tui`
 
-## Typical flow
-
-1. `pairofcleats tui install`
-2. `pairofcleats-tui`
-
 Use `pairofcleats tui build --smoke` when you want to validate or restage the host artifact explicitly without installing it yet.
 
 Runtime controls:
@@ -22,7 +72,7 @@ Runtime controls:
 - `[R]` search a repository and inspect results/source
 - `[r]` run the search command's help as a job
 - `[s]` select a repository/workspace and inspect or edit settings
-- `[b]` open typed index/workspace workflows, inspect readiness and preview a launch
+- `[b]` open the typed command catalog, inspect readiness and preview a launch
 - `[c]` cancel selected job
 - `[v]` inspect the selected job's outcome, captured result and recorded artifacts
 - `[q]` graceful shutdown
@@ -39,9 +89,34 @@ Runtime controls:
 - `[p]` toggle live log follow / pause the log viewport
 - `[:]` or `[a]` open the action palette
 - `[?]` open the in-app help overlay
+- `[F1]` open contextual help from any form/overlay; Esc or F1 returns to it
+- `[z]` maximize the focused pane / restore automatic density; narrow or short
+  terminals automatically show one focused work pane, with Tab/1/2/3 access to all panes
 - `[j]/[k]` log viewport scroll
 - `[n]/[m]` job viewport scroll
 - `[u]/[i]` task viewport scroll
+
+Help scrolls with arrows, PageUp/PageDown and Home/End. The action palette accepts
+a text filter and shows shortcut hints and disabled reasons. Use arrows to
+select within the filtered list. Mouse capture remains opt-in; clicking focuses
+a visible pane or pins a rendered job, and the wheel scrolls the hovered pane.
+Modal overlays consume mouse gestures before the panes behind them. Clicking
+does not confirm a write, launch or external open.
+
+Search and form text supports grapheme cursor editing with Left/Right, Home/End,
+Backspace/Delete and Ctrl+U. Bracketed paste inserts data in the active editor;
+newlines/tabs become spaces, other control characters are discarded, and
+oversized input is rejected atomically. Paste cannot submit or confirm a form.
+Settings/workflow fields are bounded to 4096 bytes; repository search fields to
+8192. Settings Delete on the field list previews removal of only that override;
+Enter still confirms the canonical diff. Removal restores the next effective
+configuration layer or policy, which can differ from a static schema default.
+
+The selected activity line retains canonical producer `current`, `total`, `unit`
+and stage facts when supplied. Unknown totals remain indeterminate. Live elapsed
+and last-progress ages update at one second intervals while selected work is
+active; terminal outcomes freeze timing. Replay displays recorded observations
+without live aging. Silence alone is not proof of a stall, useful work or readiness.
 
 Jobs and tasks scroll through their filtered rows with `[n]/[u]` and return with
 `[m]/[i]`; offsets clamp to the available window. Logs show the newest wrapped
@@ -155,8 +230,10 @@ preview does not establish that a model, provider or runtime operation is ready.
 Workspace configuration edits apply to the workspace directory's repository
 configuration, rather than rewriting the workspace membership file.
 
-Use `[/]` to filter field names, arrows to select and `[Enter]` to edit a JSON
-value. `[Ctrl+U]` clears the draft. `[Enter]` validates and displays a diff; a second
+Use `[/]` to filter field names, arrows to select and `[Enter]` to edit a schema
+literal. Strings need no JSON quotes; `[e]` explicitly opens advanced JSON.
+`[Space]` cycles an enum or toggles a boolean and opens its review; `[a]` adds a
+bounded string-array item. `[Ctrl+U]` clears the draft. `[Enter]` validates and displays a diff; a second
 `[Enter]` confirms publication. `[Esc]` discards the draft or cancels its preview.
 `[r]` reloads actual configuration. Invalid values and stale file/schema revisions
 cannot be saved; reload after an external edit. Unrelated fields and comments
@@ -174,10 +251,16 @@ uses global graceful shutdown. Settings require a controllable supervisor advert
 `supportsSettings`; passive/replay sessions cannot execute these actions. Settings
 drafts/responses stay outside saved layout snapshots and foreground job selection.
 
-`[b]` opens the registry-backed index catalog for the selected repository or
-workspace. It exposes build, watch, validation, reports, statistics, all snapshot
-subcommands and workspace builds with their stable/operator support tiers. Select
-a command, edit its fields as JSON, and use `[Delete]` to restore an unset value.
+`[b]` opens the registry-backed command catalog for the selected repository or
+workspace. It exposes index/workspace workflows alongside setup/doctor/tooling,
+loopback API, cache GC, graph/context/impact, architecture/test suggestions, risk
+and report adapters. Unsupported entries explain their concrete missing adapter.
+`[X]` deliberately enables experimental request-file semantic/runtime commands,
+model comparison and a restricted search microbenchmark. Internal commands stay
+hidden. See the [catalog contract](../contracts/tui-command-catalog.md) for ownership
+limits and the machine-readable coverage owner. Select a command, edit literals
+with Enter, toggle/cycle with Space, use `[e]` for advanced JSON or `[a]` for a
+string-array item, and use `[Delete]` to restore an unset draft value.
 False, zero and repeated array values retain their types. Unset fields use CLI
 defaults. Scope, progress, result capture and diagnostic-only flags are managed
 explicitly; the catalog records why each managed field is unavailable for editing.
@@ -220,7 +303,7 @@ The live UI now exposes an explicit session header so operators can tell:
 
 Presentation behavior:
 
-- narrow terminals stack jobs, tasks, and logs vertically instead of squeezing three unreadable columns
+- narrow or short terminals show one focused work pane with direct pane switching; larger terminals show three columns
 - runtime events are summarized into operator-facing text instead of raw JSON by default
 - workload-specific summaries sit above the main panes so bench, indexing, and service sessions show the active repo, stage/queue state, and degraded conditions without log-reading first
 - logs wrap/truncate to pane width, while job/task rows use concise status summaries
