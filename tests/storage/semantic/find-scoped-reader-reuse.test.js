@@ -59,7 +59,8 @@ try {
   const concurrent = await Promise.all([find({ store, request }), find({ store, request })]);
   assert.equal(opens.get(operationFile), 2, 'independent concurrent requests verify independently');
   assert.equal(active.size, 0);
-  assert.deepEqual(concurrent[0].records, concurrent[1].records);
+  for (const page of concurrent) assert.deepEqual(page.records.map(record => record.id),
+    Array.from({ length: page.records.length }, (_, id) => id));
 
   const original = await fs.readFile(operationFile);
   const replacement = Buffer.from(original.toString('utf8').replace('Identifier', 'Xdentifier'));

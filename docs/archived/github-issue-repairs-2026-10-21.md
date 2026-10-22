@@ -1165,12 +1165,12 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1376](https://github.com/doublemover/PairOfCleats/issues/1376) | P3 | [P3] Preserve opaque IDs when resolving connected-entity highlights | source repair and regression authored; unvalidated |
 | [#1377](https://github.com/doublemover/PairOfCleats/issues/1377) | other | [Viewer] Compute height fog from actual instance and line world positions | pending |
 | [#1378](https://github.com/doublemover/PairOfCleats/issues/1378) | P2 | [P2] Resolve editor risk explain against the selected code generation instead of repo-local index-code | source repair and regression authored; unvalidated |
-| [#1379](https://github.com/doublemover/PairOfCleats/issues/1379) | P2 | [P2] Discover validation modes from the explicit index root rather than the current generation | pending |
-| [#1380](https://github.com/doublemover/PairOfCleats/issues/1380) | P2 | [P2] Resolve index stats from every published mode root instead of one latest build | pending |
+| [#1379](https://github.com/doublemover/PairOfCleats/issues/1379) | P2 | [P2] Discover validation modes from the explicit index root rather than the current generation | source repair and regression authored; unvalidated |
+| [#1380](https://github.com/doublemover/PairOfCleats/issues/1380) | P2 | [P2] Resolve index stats from every published mode root instead of one latest build | source repair and regression authored; unvalidated |
 | [#1381](https://github.com/doublemover/PairOfCleats/issues/1381) | other | [Viewer] Stream generation-pinned graph data through a worker-owned incremental scene pipeline | pending |
-| [#1382](https://github.com/doublemover/PairOfCleats/issues/1382) | perf | [Perf] Replace cubic map adjacency ordering with incremental candidate scores | pending |
-| [#1383](https://github.com/doublemover/PairOfCleats/issues/1383) | P2 | [P2] Preserve setup's explicit repository target across index and artifact-restore children | pending |
-| [#1384](https://github.com/doublemover/PairOfCleats/issues/1384) | P2 | [P2] Make index health honor selected modes and intentionally absent optional backends | pending |
+| [#1382](https://github.com/doublemover/PairOfCleats/issues/1382) | perf | [Perf] Replace cubic map adjacency ordering with incremental candidate scores | source repair and regression authored; unvalidated |
+| [#1383](https://github.com/doublemover/PairOfCleats/issues/1383) | P2 | [P2] Preserve setup's explicit repository target across index and artifact-restore children | source repair and regression authored; unvalidated |
+| [#1384](https://github.com/doublemover/PairOfCleats/issues/1384) | P2 | [P2] Make index health honor selected modes and intentionally absent optional backends | source repair and regression authored; unvalidated |
 | [#1385](https://github.com/doublemover/PairOfCleats/issues/1385) | P2 | [P2] Keep the TUI flow queue hard-bounded when no queued log can be evicted | source repair and regression authored; unvalidated |
 | [#1386](https://github.com/doublemover/PairOfCleats/issues/1386) | P2 | [P2] Preserve task terminal events under TUI progress backpressure | source repair and regression authored; unvalidated |
 | [#1387](https://github.com/doublemover/PairOfCleats/issues/1387) | perf | [Perf] Partition persistent embedding indexes by complete identity to preserve warm profiles | pending |
@@ -1194,7 +1194,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1405](https://github.com/doublemover/PairOfCleats/issues/1405) | P2 | [P2] Preserve false and zero values in metadata search predicates | pending |
 | [#1406](https://github.com/doublemover/PairOfCleats/issues/1406) | P2 | [P2] Preserve repeated ignore rules instead of changing last-match-wins order | pending |
 | [#1407](https://github.com/doublemover/PairOfCleats/issues/1407) | P2 | [P2] Keep ignored siblings excluded when expanding a nested include | pending |
-| [#1408](https://github.com/doublemover/PairOfCleats/issues/1408) | P2 | [P2] Parse Git changed-file output with NUL framing before metadata invalidation | pending |
+| [#1408](https://github.com/doublemover/PairOfCleats/issues/1408) | P2 | [P2] Parse Git changed-file output with NUL framing before metadata invalidation | source repair and regression authored; unvalidated |
 | [#1409](https://github.com/doublemover/PairOfCleats/issues/1409) | P2 | [P2] Respect exclusive source ends when assigning LSP symbols and diagnostics to chunks | pending |
 | [#1410](https://github.com/doublemover/PairOfCleats/issues/1410) | P2 | [P2] Preserve PDF.js end-of-line markers after their text items | pending |
 | [#1411](https://github.com/doublemover/PairOfCleats/issues/1411) | P2 | [P2] Retain tabs and breaks between DOCX fallback text runs | pending |
@@ -1202,21 +1202,21 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1413](https://github.com/doublemover/PairOfCleats/issues/1413) | P2 | [P2] Preserve omitted architecture caps instead of silently skipping every rule check | source repair and regression authored; unvalidated |
 | [#1414](https://github.com/doublemover/PairOfCleats/issues/1414) | P2 | [P2] Preserve significant whitespace and escapes in ignore-rule text | pending |
 | [#1415](https://github.com/doublemover/PairOfCleats/issues/1415) | P2 | [P2] Populate literal phrase evidence in records index chunks | pending |
-| [#1416](https://github.com/doublemover/PairOfCleats/issues/1416) | P2 | [P2] Preserve per-mode build identity when freezing mixed-generation snapshots | pending |
+| [#1416](https://github.com/doublemover/PairOfCleats/issues/1416) | P2 | [P2] Preserve per-mode build identity when freezing mixed-generation snapshots | source repair and regression authored; unvalidated |
 | [#1417](https://github.com/doublemover/PairOfCleats/issues/1417) | P2 | [P2] Encode the inlay request EOF using the negotiated LSP position units | pending |
 | [#1418](https://github.com/doublemover/PairOfCleats/issues/1418) | P2 | [P2] Preserve DOCX source paragraphs and headings in the preferred Mammoth path | pending |
 | [#1419](https://github.com/doublemover/PairOfCleats/issues/1419) | P2 | [P2] Enforce strict completeness for manifest-ineligible ranked federation members | pending |
 | [#1420](https://github.com/doublemover/PairOfCleats/issues/1420) | P2 | [P2] Use protocol line boundaries for LSP source mapping instead of parser or LF-only indexes | pending |
 | [#1421](https://github.com/doublemover/PairOfCleats/issues/1421) | P2 | [P2] Preserve ambiguous symbol candidates across graph lookup and traversal caps | pending |
-| [#1422](https://github.com/doublemover/PairOfCleats/issues/1422) | P2 | [P2] Mark watchdog-killed test attempts as interrupted instead of passed | pending |
-| [#1423](https://github.com/doublemover/PairOfCleats/issues/1423) | P2 | [P2] Reject malformed benchmark waivers instead of granting indefinite global exceptions | pending |
+| [#1422](https://github.com/doublemover/PairOfCleats/issues/1422) | P2 | [P2] Mark watchdog-killed test attempts as interrupted instead of passed | source repair and regression authored; unvalidated |
+| [#1423](https://github.com/doublemover/PairOfCleats/issues/1423) | P2 | [P2] Reject malformed benchmark waivers instead of granting indefinite global exceptions | source repair and regression authored; unvalidated |
 | [#1424](https://github.com/doublemover/PairOfCleats/issues/1424) | P2 | [P2] Preserve domain classification and structured evidence in MCP tool errors | source repair and regression authored; unvalidated |
 | [#1425](https://github.com/doublemover/PairOfCleats/issues/1425) | P3 | [P3] Enforce semantic-find response bytes when no records survive filtering | source repair and regression authored; unvalidated |
 | [#1426](https://github.com/doublemover/PairOfCleats/issues/1426) | P2 | [P2] Report mean function cyclomatic complexity instead of the module aggregate | source repair and regression authored; unvalidated |
 | [#1427](https://github.com/doublemover/PairOfCleats/issues/1427) | P2 | [P2] Stop silently dropping complexity metadata for valid ESM imports and exports | source repair and regression authored; unvalidated |
 | [#1428](https://github.com/doublemover/PairOfCleats/issues/1428) | P2 | [P2] Keep changed files without coverage observations visible in policy reports | pending |
 | [#1429](https://github.com/doublemover/PairOfCleats/issues/1429) | P2 | [P2] Preserve configured LanceDB vector columns with an explicit queryable schema | pending |
-| [#1430](https://github.com/doublemover/PairOfCleats/issues/1430) | perf | [Perf] Reuse verified operation-index reads within semantic-find pages | pending |
+| [#1430](https://github.com/doublemover/PairOfCleats/issues/1430) | perf | [Perf] Reuse verified operation-index reads within semantic-find pages | source repair and regression authored; unvalidated |
 | [#1431](https://github.com/doublemover/PairOfCleats/issues/1431) | P2 | [P2] Convert indexed UTF-16 spans before slicing context excerpts from UTF-8 source | source repair and regression authored; unvalidated |
 | [#1432](https://github.com/doublemover/PairOfCleats/issues/1432) | P2 | [P2] Enforce context-pack response bytes after JSON and SARIF rendering | source repair and regression authored; unvalidated |
 | [#1433](https://github.com/doublemover/PairOfCleats/issues/1433) | P3 | [P3] Hydrate call sites only after risk-flow budget admission | source repair and regression authored; unvalidated |
@@ -1225,9 +1225,9 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1436](https://github.com/doublemover/PairOfCleats/issues/1436) | P2 | [P2] Preserve Julia bang-suffixed names in native declaration chunks | pending |
 | [#1437](https://github.com/doublemover/PairOfCleats/issues/1437) | P2 | [P2] Do not emit Go grouped type containers as duplicate first-type declarations | pending |
 | [#1438](https://github.com/doublemover/PairOfCleats/issues/1438) | P2 | [P2] Preserve explicit equals-form ANN booleans through search option resolution | pending |
-| [#1439](https://github.com/doublemover/PairOfCleats/issues/1439) | P2 | [P2] Resolve huge-repo profile intent from one accepted configuration namespace | pending |
-| [#1440](https://github.com/doublemover/PairOfCleats/issues/1440) | P2 | [P2] Preserve selected records and extracted-prose hits in retrieval evaluation | pending |
-| [#1441](https://github.com/doublemover/PairOfCleats/issues/1441) | P2 | [P2] Invalidate bakeoff resume when evaluation dataset contents change | pending |
+| [#1439](https://github.com/doublemover/PairOfCleats/issues/1439) | P2 | [P2] Resolve huge-repo profile intent from one accepted configuration namespace | source repair and regression authored; unvalidated |
+| [#1440](https://github.com/doublemover/PairOfCleats/issues/1440) | P2 | [P2] Preserve selected records and extracted-prose hits in retrieval evaluation | source repair and regression authored; unvalidated |
+| [#1441](https://github.com/doublemover/PairOfCleats/issues/1441) | P2 | [P2] Invalidate bakeoff resume when evaluation dataset contents change | source repair and regression authored; unvalidated |
 | [#1442](https://github.com/doublemover/PairOfCleats/issues/1442) | P2 | [P2] Validate paired input contracts before saving offline EG2 quality receipts | pending |
 | [#1443](https://github.com/doublemover/PairOfCleats/issues/1443) | P3 | [P3] Keep prototype-named document IDs from corrupting judged nDCG | pending |
 | [#1444](https://github.com/doublemover/PairOfCleats/issues/1444) | P2 | [P2] Normalize AWS Inspector wire timestamps as seconds, not milliseconds | pending |
@@ -1396,3 +1396,27 @@ interruption/resume; attribution fixes alone do not complete that report.
 
 No tests, syntax checks, formatter, bootstrap, native commands or measurements ran.
 The installation remains stale and d4dcba413 remains the last qualified source.
+
+### Selected-mode and serving-work continuation
+
+Source-only checkpoints 9537c6bcd/b798cec72/2b5b21b42/9e789c259 cover
+#1379/#1380/#1383/#1384/#1408/#1416/#1422/#1423/#1439/#1440/#1441.
+They capture explicit selected roots, preserve per-mode frozen provenance and
+backend selection, retain NUL-framed Git paths, distinguish watchdog interruption
+from exit success, reject malformed waivers, and bind evaluation/resume to dataset
+content and independently judged mode cohorts. Eleven authored report mappings do
+not qualify mixed-root native execution, actual watchdog-close-zero behavior or
+full evaluation CLI output. The agent receipt retains those concrete obligations.
+
+Map adjacency source 25fc5df2c (#1382) updates directed candidate-to-placed sums
+once per edge and preserves the existing total-weight bonus and lexical ties.
+Candidate selection is quadratic; the >300 lexical-only policy discontinuity is
+removed. Authored reference/operation-count cases are unexecuted; no measured
+browser or production latency improvement is claimed.
+
+Semantic-find source 57d014ebb (#1430) batches at most 32 candidate refs and
+shares request-local verified operation/node/query-index readers. Four reader
+pairs, a 1-MiB retention admission budget and sixteen selector ranges bound reuse.
+Every new page/request rehashes content, and cursor progress advances only for
+processed candidates. Records remain incrementally hydrated. Authored real-reader
+open/byte/disposal/corruption/continuation controls are not passing measurements.
