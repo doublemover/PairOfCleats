@@ -52,8 +52,8 @@ Update SQLite indexes in-place by touching only the files that changed since the
 
 ## Usage
 - Build incremental cache: `pairofcleats index build --incremental`.
-- Update SQLite in place: `pairofcleats sqlite build --incremental`.
-- Override target build root: `pairofcleats sqlite build --incremental --index-root <path>`.
+- Update SQLite in place: `pairofcleats index build --sqlite --incremental`.
+- Override target build root: `pairofcleats index build --sqlite --incremental --index-root <path>`.
 - `pairofcleats bootstrap --incremental --with-sqlite` runs both.
 - `--validate <off|smoke|full>` controls post-build SQLite validation (default: `smoke`).
 

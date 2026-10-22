@@ -1,4 +1,4 @@
-# Test Runner Entrypoint -- Interface Sketch
+# Test Runner Entrypoint
 
 Test-report validators compile lazily on first use, retaining strict schema
 validation for actual report producers. Help and discovery commands do not
@@ -217,9 +217,9 @@ The runner injects `tests/helpers/test-env.js` via `NODE_OPTIONS` and merges in 
 
 ## Discovery model
 
-The runner needs a stable way to know "what tests exist." Two compatible approaches:
+The shipped runner uses convention-based discovery and the existing lane rules.
 
-### A) Convention-based discovery (recommended initially)
+### Convention-based discovery
 
 - Discover tests as executable Node scripts under `tests/`, e.g. `tests/**/*.test.js`, excluding dirs/files from `tests/run.rules.jsonc`:
   - `tests/fixtures/**`
@@ -229,22 +229,7 @@ The runner needs a stable way to know "what tests exist." Two compatible approac
 
 Test **id** is the relative path from `tests/` without `.test.js`, e.g. `storage/sqlite/incremental/file-manifest-updates`.
 
-### B) Manifest-based discovery (recommended long-term)
-
-Maintain `tests/manifest.json` (or `tests/manifest.js`) containing metadata per test:
-
-```json
-{
-  "tests": [
-    {"id": "storage/sqlite/incremental/file-manifest-updates.test", "path": "tests/storage/sqlite/incremental/file-manifest-updates.test.js", "tags": ["sqlite","integration"]}
-  ]
-}
-```
-
-Benefits:
-- Eliminates heuristics.
-- Supports stable ids even after refactors.
-- Allows lane membership to be defined explicitly.
+The former alternative `tests/manifest.json`/`tests/manifest.js` design was not implemented and is not a second active discovery owner. Follow the [bounded contributor workflow](../guides/contributing.md) and current runner/rules instead.
 
 ## Lanes
 

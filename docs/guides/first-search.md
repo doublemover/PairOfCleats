@@ -5,6 +5,10 @@ helps you choose a first build, validate its configuration and search the result
 Commands are run from the PairOfCleats checkout; replace
 `"path/to/your-project"` with your target repository.
 
+For an executable read-only profile/operation preview, use
+[setup planning](setup.md#review-a-first-search-plan). Existing installations use
+the [state-preserving upgrade runbook](upgrades.md).
+
 ## Choose what to index
 
 Build `code` first to search source files. Use `prose` for documentation,

@@ -3,20 +3,22 @@
 ## Goal
 Provide an optional persistent cache of search results to speed up repeated queries.
 
-## Config
-Enable via `.pairofcleats.json`:
+## Configuration and effective policy
+
+The current result-cache enablement follows effective quality policy; it is off
+for `fast` and enabled for other resolved quality modes. Use the supported
+high-level choice, for example this complete schema-valid config:
+
+<!-- poc:recipe query-cache-config kind=config effects=read-only -->
 ```json
-{
-  "search": {
-    "queryCache": {
-      "enabled": true,
-      "maxEntries": 200,
-      "ttlMs": 0
-    }
-  }
-}
+{ "quality": "balanced" }
 ```
 
+Inspect `config dump --repo <target> --json` and the current retrieval consumer.
+`search.queryCache` is not accepted by the current schema; merely renaming it to
+`retrieval.queryCache` does not create a supported public knob. Entry limits/TTL
+are runtime-owned defaults, not the old copied `enabled/maxEntries/ttlMs` recipe.
+See [configuration](configuration.md) before adding a proposed setting.
 ## Behavior
 - Cache entries are keyed by query + filters + backend + ANN setting.
 - Entries are invalidated when index signatures change (mtime/size for index or SQLite db files).

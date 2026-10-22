@@ -12,7 +12,7 @@ includes node-gyp 13.1.0.
 
 Install [Python 3](https://www.python.org/downloads/windows/),
 [Git for Windows](https://git-scm.com/download/win), and Visual Studio 2022/2026
-or its [Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022).
+or its [Build Tools](https://visualstudio.microsoft.com/downloads/).
 In Visual Studio Installer select **Desktop development with C++**, MSVC tools
 for your target (x64 or ARM64), MSBuild and a **Windows 11 SDK**. This is a user
 setup step; bootstrap does not alter security settings or install machine tools.
@@ -51,6 +51,15 @@ discoverable as `python3`/`python`, through the Windows `py -3` launcher, or an
 existing node-gyp Python selection.
 
 ## Check, install, verify
+
+Python selection follows `NODE_GYP_FORCE_PYTHON`, `npm_config_python`, `PYTHON`,
+then the Windows `py -3` launcher and PATH candidates. VS selection respects
+`VCINSTALLDIR`, `npm_config_msvs_version` and `GYP_MSVS_VERSION`; POSIX respects
+explicit `CXX`. Preflight reports the selected executable/version/source, MSVC,
+MSBuild, target architecture and Windows SDK. Its qualified child-local selection
+is rediscovered and carried by the native rebuild owner; it does not modify
+global PATH, Python associations or machine defaults. Discovery alone does not
+prove which nested package compiler ran or qualify every modern stable toolchain.
 
 From the checkout root, `node tools/setup/preflight.js` performs a bounded,
 dependency-free prerequisite check. Both `npm run bootstrap:ci` (locked install)

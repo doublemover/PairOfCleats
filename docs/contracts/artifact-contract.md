@@ -334,7 +334,7 @@ Failures are categorized as:
 - **Cross-reference errors**: artifacts are inconsistent; rebuild the index.    
 - **SQLite table issues**: rebuild SQLite indexes.
 
-Use `pairofcleats index build` for file-backed artifacts and `pairofcleats sqlite build` for SQLite indexes.
+Use `pairofcleats index build` for file-backed artifacts and the SQLite stage of `pairofcleats index build --sqlite` for SQLite indexes.
 
 ## Bounded producer writes
 

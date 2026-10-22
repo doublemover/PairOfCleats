@@ -5,6 +5,9 @@ Reconciled with the checked-in package, bootstrap guard and workflows on
 
 ## Application runtime
 
+For an existing indexed checkout, follow [source upgrades](upgrades.md) before
+changing runtime/dependencies or rebuilding derived artifacts.
+
 - `package.json` and the lockfile require **Node >=26.12.1 <27**. The bootstrap
   readiness guard enforces that minimum; older Node releases cannot run this
   checkout normally.

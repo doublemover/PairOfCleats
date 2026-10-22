@@ -1,44 +1,71 @@
-# External Backends
+# Choose and prepare a backend
 
-This document captures an evaluation of external sparse/vector backends and
-notes current integration status plus current backend-selection behavior.
+Start with [first search](first-search.md) and a verified application checkout.
+Sparse search backend, vector provider and artifact storage are different choices.
+Installed package bytes, selectable adapters, built representations and qualified
+workloads are separate states.
 
-Sparse backends
-- SQLite: supported today and the default backend for most repos (auto selects SQLite when indexes are available).
-- Tantivy (Rust, Lucene-like): optional/experimental sparse backend. The live builder is
-  `tools/build/tantivy-index.js`; search uses `src/retrieval/sparse/providers/tantivy.js`
-  when `--backend tantivy` or config requests Tantivy and the optional module/artifacts
-  are available.
-  Its adapter retrieves a bounded global candidate list and then applies allowed-ID
-  filters. Empty allowed sets produce no native query; a small nonempty allowed set
-  does not reduce the global overfetch budget. Selective filters can still return
-  fewer than the requested results when eligible documents lie beyond that budget.
+| Sparse route | Required selected artifacts | Behavior |
+| --- | --- | --- |
+| `memory` | File-backed postings and metadata for the selected mode | Supported by the canonical search wrapper; bypasses SQLite/LMDB |
+| `sqlite` / `sqlite-fts` | Compatible SQLite representation for the selected build | Forced selection fails if unavailable; no silent backend fallback |
+| `lmdb` | Compatible LMDB representation | Forced selection fails if unavailable; separate LMDB build owner |
+| `auto` | Available representations and current selection thresholds | Uses the current backend-selection owner; inspect the observed backend |
+| `tantivy` | Optional external module with the adapter's expected API and built Tantivy artifacts | Experimental; the root package does not declare/install the module |
 
-Vector backends
-- LanceDB: implemented for local ANN search (optional dependency). Artifacts
-  live alongside `dense_vectors*` in each index directory and are selected via
-  `search.annBackend` + `indexing.embeddings.lancedb`.
-- SQLite-based ANN: supported via the vector extension and/or dense vectors.
+`auto` selection considers `search.sqliteAutoChunkThreshold` and
+`search.sqliteAutoArtifactBytes`; accepted zero values disable the respective
+threshold. Records-only search uses file-backed records and reports its forced-
+backend limitation. Review the current [selection owner](../../src/retrieval/cli/normalize-options.js)
+and provider diagnostics instead of assuming a package or directory is ready.
 
-Search UI backends
-- Meilisearch: simple API, great for autocomplete and UI suggestions.
-- Typesense: similar to Meilisearch, stronger schema controls.
+## Bounded sparse recipes
 
-Backend selection
-- `pairofcleats search` accepts `--backend auto|sqlite|sqlite-fts|lmdb|memory|tantivy` (the wrapper passes flags through).
-- `--backend auto` (default) uses SQLite when indexes are available; if SQLite is unavailable and LMDB is available, it uses LMDB; otherwise it runs file-backed search.
-- Auto SQLite gating uses `search.sqliteAutoChunkThreshold` and
-  `search.sqliteAutoArtifactBytes`; set either to `0` to disable that threshold.
-- `--backend sqlite` / `sqlite-fts` require SQLite indexes; if missing, the search fails (no fallback).
-- `--backend lmdb` requires LMDB indexes; if missing, the search fails (no fallback).
-- `--backend memory` (core CLI only) bypasses SQLite/LMDB and uses file-backed artifacts.
-- Records-only mode always uses the file-backed records index, even when a
-  backend is forced (a warning is emitted).
+<!-- poc:recipe backend-memory-build shell=portable effects=derived-build -->
+```sh
+node bin/pairofcleats.js index build --repo "path/to/your-project" --mode code --threads 1 --no-sqlite
+node bin/pairofcleats.js index validate --repo "path/to/your-project" --mode code
+node bin/pairofcleats.js search --repo "path/to/your-project" --mode code --backend memory --top 5 -- "cache"
+```
 
-Recommendation
-1. Prefer LanceDB for ANN-heavy workloads; keep SQLite vector extension as a
-   fallback for small repos or environments without LanceDB.
-2. Treat Tantivy as the large-scale sparse option for environments that can
-   install the optional Rust-backed dependency and build its sparse artifacts.
-3. For UI-heavy use cases, evaluate Meilisearch or Typesense as a parallel
-   suggestion index while retaining PairOfCleats for code-aware search.
+To deliberately include SQLite, use the current index-build owner and validate
+the selected mode before forcing it:
+
+<!-- poc:recipe backend-sqlite-build shell=portable effects=derived-build -->
+```sh
+node bin/pairofcleats.js index build --repo "path/to/your-project" --mode code --threads 1 --sqlite
+node bin/pairofcleats.js index validate --repo "path/to/your-project" --mode code
+node bin/pairofcleats.js search --repo "path/to/your-project" --mode code --backend sqlite --top 5 -- "cache"
+```
+
+There is no `pairofcleats sqlite build` route. The current direct LMDB builder is
+`node tools/build/lmdb-index.js --repo <target> --mode code`; build it only against
+a compatible selected file-backed generation, then deliberately search with
+`--backend lmdb`. Its native prerequisite is not established by a file-backed pass.
+See [SQLite incremental behavior](../sqlite/incremental-updates.md) and the
+[artifact contract](../contracts/artifact-contract.md).
+
+## Vectors and ANN
+
+LanceDB is a declared root dependency whose use is optional; it is not listed as
+an `optionalDependency`. Its artifacts and configured ANN selection still need
+validation. SQLite vector extensions, HNSW and file-backed dense representations
+have their own runtime/artifact requirements. Follow
+[embeddings](embeddings.md) for provider/model/dimensions/precision/format identity
+and explicit acquisition. Never substitute another model/provider or treat missing
+native activation as an empty successful query.
+
+Exact versus approximate candidates, bounded overfetch and selective filters can
+limit recall. The Tantivy adapter obtains a bounded global candidate list before
+allowed-ID filtering; small eligible sets can underfill requested results. A
+larger-scale or ANN-heavy recommendation needs measured, matching workload
+qualification; these choices alone do not establish faster or better retrieval.
+
+## Evaluation-only alternatives
+
+Meilisearch and Typesense are research alternatives, not integrated product
+backends. Their dependency research sheets are background material, not installation
+recipes or current package recommendations. Planned retrieval experiments do not
+change shipped selection behavior until their consuming implementation and
+qualification land. The recipes above and optional-native platform coverage are
+**UNVALIDATED** in the current development batch.

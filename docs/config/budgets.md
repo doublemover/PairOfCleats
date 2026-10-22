@@ -6,21 +6,7 @@ inventory checks.
 
 ## Repo config keys
 
-Allowlist: align with `docs/config/schema.json` top-level namespaces:
-- `cache`
-- `quality`
-- `threads`
-- `runtime`
-- `tooling`
-- `mcp`
-- `indexing`
-- `retrieval`
-- `search`
-
-Subkeys must exist in the schema; unknown keys are rejected. Supported config
-names in the inventory derive from that schema, not a second manual allowlist.
-See [the edit workflow](inventory-notes.md#editing-supported-configuration) for
-adding a declaration and regenerating its reports.
+Accepted namespaces and keys come from `docs/config/schema.json` and runtime consumers, not a duplicated namespace list. Public-budget keys are a reviewed subset of that accepted surface. Permissive schema extension areas still need an actual consumer. See [the edit workflow](inventory-notes.md#editing-supported-configuration) for declarations and registered generation.
 
 ## Env vars (public)
 

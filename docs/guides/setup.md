@@ -1,183 +1,116 @@
-# Unified Setup
+# Set up the checkout and a target
 
-Selecting `--repo` never authorizes installing that repository's dependencies.
-Guided setup and fast bootstrap leave both consumer and prepared tool dependency
-graphs unchanged. Prepare the tool checkout explicitly with `npm run bootstrap:ci`.
-Optional dictionaries use selected-file readiness and download only missing assets
-with a supported recipe. Tool provisioning respects `autoInstallOnDetect` and
-detected languages; Pyright is included only through that single applicable plan.
-`tooling install --no-fallback` keeps the requested installation scope for bare,
-equals and separated boolean forms.
+Run application commands from the PairOfCleats checkout. Every target command
+below includes `--repo`; that selects source to index and never authorizes
+installing that project's dependencies.
 
-Lua language-server updates stage and validate a complete immutable generation,
-then atomically admit its selector. Failed copies or selector publication retain
-the previous selected installation; older generations remain available to readers.
+## Prepare the application checkout
 
-Bootstrap evidence separates package loadability, per-language parser activation,
-provider initialization, and project qualification. Required registered native
-grammars activate in isolated bounded processes using the production binding
-resolver and a tiny language-specific sample. The readiness receipt records
-language, package/version, Node version and ABI for activated routes. Parsing a
-sample does not certify a compiler/LSP project or full language semantics. A
-loadable grammar that fails `setLanguage` is not parser-activated.
+Use the exact Node 26.12.1 pin in `.nvmrc` and the current
+[native prerequisites](bootstrap-prerequisites.md). The normal application,
+tests and benchmarks require verified readiness.
 
-Bootstrap retains its preflight → locked install → patches → native verification
-barriers. Patch targets prepare in independent bounded staging directories; every
-target must validate and its original bytes must still match before any publication.
-The existing scheduler admits a finite setup dependency graph from effective CPU
-and available-memory budgets. `npm_config_jobs=1` also limits nested compiler work
-to one job. Header preparation is exclusive in ignored `.cache/native-build/headers/`;
-reviewed package-local grammar builds then use those headers as read-only inputs.
-Changed package versions, lifecycle hooks or reviewed GYP/helper hashes fall back
-to serial root npm operations. Patched runtime, Perl and Swift bindings compile
-from source. SQLite retains exclusive build, real-query validation, promotion and
-rollback. Isolated read-only probes run only after the build barrier, and readiness
-is recorded only after all required native and patch verification succeeds.
-Unknown package scripts retain their own internal compiler policy under exclusive
-admission; they are not counted as qualified parallel adapters. This scheduling
-change still requires clean/cached Windows execution and resource/timing evidence;
-it does not establish a measured bootstrap speedup.
+```sh
+node tools/setup/preflight.js --json
+npm run bootstrap:ci
+```
 
-Locked checkout bootstrap requires Node 26.12.1 or newer within 26.x and includes
-development dependencies. Its required native
-verification now also creates two real node-pty sessions, checks child output and
-waits for natural process exit so a leaked ConPTY connection worker cannot hide
-behind a forced probe exit. The required node-pty 1.1.0 patch closes that worker
-and its input socket after natural-exit output flush. The output bridge stops
-forwarding to a closed reader while continuing to drain the native console,
-closes its listening endpoint, and preserves unexpected transport failures.
-Cancellation captures the console process list before closing the console so
-its helper can attach and settle its timer. The focused lifecycle owners also
-exercise a queued peer-FIN race, fresh-process cancellation and exact patch
-application from original package blobs. This bounded disposal
-check does not replace native TUI supervisor/process-family qualification. The
-worker-teardown access violation is attributed to Node 26.8.1 itself; see the
-[runtime policy](node-runtime.md).
+The first command only discovers prerequisites. The second performs the locked
+application install, required package patches, native builds/probes and readiness
+receipt. `npm run bootstrap` uses dependency resolution and belongs to an
+intentional dependency update. It is different from target provisioning with
+`node bin/pairofcleats.js bootstrap --repo ...`.
 
-The required `docx` 9.5.3 patch keeps its bundled deprecation helper on Node's
-process flags instead of reading browser localStorage. Both official Node
-exports generate real DOCX documents without the experimental-storage warning;
-the browser distribution retains its existing behavior. Locked bootstrap applies
-and verifies this patch alongside the native dependency patches.
+## Review a first-search plan
 
-The same node-pty patch corrects the macOS prebuilt `spawn-helper` execute bits
-during its rebuild script. The locked 1.1.0 tarball ships both Darwin helpers at
-0644, so an import alone succeeds while a real PTY spawn fails. Setup requires
-a regular helper file before changing its executable bits; verify-only probes
-do not repair it. This changes the installed dependency artifact, not host
-security policy. A successful bounded spawn/disposal probe remains required.
+Prepared checkouts can preview a sparse code-first plan without downloads,
+provider execution, file writes or target dependency installation:
 
-The unified setup script (`pairofcleats setup`) guides you through installing optional dependencies and building indexes in one flow. It is interactive by default.
+<!-- poc:recipe setup-plan shell=portable effects=read-only -->
+```sh
+node bin/pairofcleats.js setup --repo "path/to/your-project" --plan --profile sparse --backend memory --json
+```
 
-First prepare the source checkout with Node >=26.12.1 <27 and `npm run bootstrap:ci`.
-The normal CLI requires verified bootstrap before it can start guided setup.
-Use `--skip-install` below to retain that locked dependency graph while selecting
-optional assets and index steps. The setup script's explicit install step uses
-`npm install` and can change dependency resolution; it is not a replacement for
-checkout bootstrap. See the [runtime policy](node-runtime.md).
+Save that JSON to a file with your shell's ordinary UTF-8 redirection, inspect its
+application/target roots, minimal config patch, output locations and operations,
+then explicitly apply it. Applying preserves comments outside modified fields
+and unrelated settings. It rejects a changed target/config/effective policy,
+selected runtime or operation plan; generate a fresh plan after any such change.
 
-## Contributor workspace files
+<!-- poc:recipe setup-apply shell=portable effects=target-config-and-derived-build -->
+```sh
+node bin/pairofcleats.js setup --repo "path/to/your-project" --apply-plan "setup-plan.json" --json
+```
 
-Disposable development outputs use `.tmp/dev/`, resolved by
-`tools/shared/dev-artifacts.js`. Test fixtures use `tests/helpers/test-cache.js`
-instead of constructing their own cache directory. Do not place generated
-inputs inside the checked-in `tests/fixtures` trees.
-Import-resolution replay discovery scans the current test/benchmark roots
-first and retains the legacy roots for historical inputs, under its existing
-report-count bound.
+Semantic planning requires `--profile semantic --model <selected-model>`.
+`--tools <id,id>` provisions only explicitly selected tools. Review their runtime
+requirements, immutable sources, trusted policy and platform blockers first.
+Unknown download sizes remain unknown. A requested tool with an unsupported
+recipe remains blocked; installed bytes, version output, protocol initialization,
+model inference and project qualification are separate evidence.
 
-| Location | Owner and lifetime |
-| --- | --- |
-| `.tmp/dev/tests/cache/` | Disposable fixture inputs and indexes; each test owns its named or isolated child. |
-| `.tmp/dev/tests/coverage/` | Runner V8 coverage data and merged reports. |
-| `.tmp/dev/benchmarks/` | Disposable benchmark workspaces. Measured result artifacts use the benchmark's explicit output. |
-| `.tmp/dev/ci/cache/`, `.tmp/dev/ci/home/` | Isolated CI-suite cache and home defaults. |
-| `.testLogs/` | Runner receipts, latest pointer and CI artifacts; retain original failure evidence until its audit closes. |
-| `.diagnostics/` | Existing CI diagnostic artifact interface; workflows upload these receipts. |
-| `.tmp/tasks/<task>/` | Task-scoped dumps, dependency evidence and working receipts; retain provenance. |
-| OS application cache | Product models, tools and indexes, resolved by `src/shared/cache-roots.js`; contributor cleanup does not purge it. |
+## Existing interactive and unattended setup
 
-All these workspace outputs are ignored by Git. `.git/` and `.github/` are
-repository metadata/source, not disposable caches. The legacy `.testCache/`,
-`tests/.cache/`, `.benchCache/`, `.c8/` and `temp/` ignore rules remain so old
-tools cannot accidentally stage generated files. Hosted workflows can still
-explicitly select ignored `.ci-cache/` roots for their cache actions. Old author caches are not
-clean-checkout test inputs. Stop their owning processes before cleanup and
-resolve every target within the intended workspace; retain logs and task
-receipts separately from disposable cache data. A task-local archival move
-should record each original and new path rather than silently rewriting old
-receipts.
+The existing prompted path remains available for selected optional assets:
 
-## Usage
+<!-- poc:recipe setup-interactive shell=portable effects=selected-provision-and-build -->
+```sh
+node bin/pairofcleats.js setup --repo "path/to/your-project" --skip-install
+```
 
-- Interactive (recommended):
-  - `node bin/pairofcleats.js setup --skip-install`
-- Non-interactive:
-  - `node tools/setup/setup.js --non-interactive --skip-install`
-- Non-interactive with JSON summary:
-  - `node tools/setup/setup.js --non-interactive --skip-install --json`
+For unattended use, state omitted work explicitly. This example validates only
+and omits optional acquisition/build work:
 
-## What it can do
+<!-- poc:recipe setup-unattended shell=portable effects=read-only -->
+```sh
+node bin/pairofcleats.js setup --repo "path/to/your-project" --non-interactive --validate-config --skip-install --skip-dicts --skip-models --skip-extensions --skip-tooling --skip-artifacts --skip-index --skip-sqlite --json
+```
 
-- Install Node dependencies (`npm install`).
-- Download dictionaries (English wordlist by default).
-- Download embedding models.
-- Download the SQLite ANN extension when available.
-- Detect and optionally install tooling.
-- Restore CI artifacts when present.
-- Build file-backed indexes (optionally incremental).
-- Build SQLite indexes (default unless `--skip-sqlite`).
+Unattended prompt defaults are choices, not consent inferred from a previous
+interactive run. JSON mode emits one final stdout object; prompts, diagnostics
+and child progress use stderr. `--require-steps <csv>` makes named prerequisites
+required but does not enable a skipped operation. Read the readiness summary:
+`ready`, limited/degraded scope and blocked prerequisites mean different things.
+A skipped requested capability is not complete.
 
-## Flags
+Dictionaries download selected supported missing wordlists; models acquire the
+selected model; tooling can execute installers; extensions acquire approved
+native assets; builds write target cache artifacts. Review each capability's
+configuration, trust and storage location before opting in. Guided setup leaves
+application and consumer dependency graphs to their explicit owners.
 
-- Flags below apply to the direct script (`node tools/setup/setup.js`):
-  - `--non-interactive` / `--ci`: Skip prompts and use defaults.
-  - `--json`: Emit a summary report to stdout (logs go to stderr).
-  - `--with-sqlite`: Force SQLite build on (default behavior).
-  - `--incremental`: Use incremental indexing if available.
-  - `--validate-config`: Validate `.pairofcleats.json` before running setup.
-  - `--skip-validate`: Skip config validation prompts.
-  - `--tooling-scope cache|global`: Override tooling install scope.
-  - `--require-steps <csv>`: Treat the named checks as prerequisites, for example `dictionaries,tooling`. Missing, skipped, declined or failed prerequisites produce a nonzero exit; this does not enable a skipped operation.
-  - `--skip-install`: Skip `npm install`.
-  - `--skip-dicts`: Skip dictionary download.
-  - `--skip-models`: Skip model download.
-  - `--skip-extensions`: Skip SQLite extension download.
-  - `--skip-tooling`: Skip tooling detection/install.
-  - `--skip-artifacts`: Skip CI artifact restore.
-  - `--skip-index`: Skip file-backed index build.
-  - `--skip-sqlite`: Skip SQLite index build.
+## Validate and search
 
-## Notes
+Follow the [first-search guide](first-search.md) for a bounded code build, selected
+mode validation and a query chosen from your project. The plan prints target-
+qualified validation/search argument vectors; its example query is a placeholder,
+not fabricated proof that your repository contains a symbol.
 
-- Cached Solargraph/Ruby LSP launchers bind the same gem repository used by their cache installation. This applies only to the selected absolute launcher in that cache's `bin` directory; external commands retain their environment. Explicit gem homes and search paths remain available, and an absent search override retains RubyGems defaults. Installation, executable detection and actual protocol startup still require separate evidence.
-- Command-probe caches bind the effective child environment and Node/ABI/platform identity as well as command, arguments and working directory. Only an environment digest is stored. Older cache entries without that context cannot establish readiness; raw environment values are not written to cache metadata. A different SDK or gem environment must obtain its own probe result. LSP semantic producer 13 also prevents derived replay from reusing the earlier launch meaning.
-- The gopls install recipe selects v0.24.0 and requires Go 1.27.0 or newer to build it. An older recognized SDK, an unavailable explicit `GOROOT`, or an unsatisfied `GOTOOLCHAIN` version pin blocks installation without silently replacing that selection. Probes and installation retain the existing no-download toolchain policy. Automatic managed SDK discovery also honors those explicit launcher pins. CI explicitly selects Go 1.27.3, binds and records its actual SDK root, then requires a real gopls initialize/shutdown exchange on each platform. These startup receipts do not qualify project semantics or latency.
-- The C# recipe selects csharp-ls 0.28.0. CI explicitly installs .NET SDK 10.0.113 into a job-owned directory and verifies its .NET 10.0.13 runtime, PATH selection, architecture-specific root and host path before installing the server. First-use development-certificate generation is disabled for these jobs. The server must report that same physical SDK during a real initialize/shutdown exchange. Go and C# startup qualification uses a fresh Node process, requires acknowledged shutdown, natural zero-status exit and reaping, and retains bounded diagnostics. Version/help detection alone remains separate from runtime qualification and semantic precision.
-- The stock PHPactor PHAR requires Linux/macOS with PHP 8.2+, POSIX and its declared extensions; Windows users must run that installation inside WSL. A native Windows install request reports the unsupported platform before probing/downloading, while an already available custom launcher remains separate. The recipe pins release 2026.12.17.0 and its reviewed publisher digest. Custom PHAR downloads still require an explicit digest and immutable source. Delivery uses the shared HTTPS/DNS/redirect owner, a single deadline across redirects and the existing 32 MiB cap. A redirect to a different origin still requires the existing launch-time `PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS` approval; the installer does not grant it automatically. Downloaded bytes and process success do not establish protocol readiness.
-- Linux/macOS CI explicitly selects PHP 8.4.26, verifies its required loaded extensions and records the physical executable/hash. Only the optional-install step grants the known GitHub asset origin; subsequent startup receives task-owned XDG directories. The runtime qualifier verifies the exact installed launcher and current PHAR digest before executing even its version probe, then requires matching protocol identity, acknowledged shutdown and natural exit. The pinned server's one informational startup line is retained; duplicate or unclassified diagnostics fail. Native Windows records the unsupported stock-package scope and its guard owner separately. Local Linux qualification with Ubuntu's PHP 8.3.6 is evidence for that supported runtime, separate from CI's 8.4.26 target.
-- The JSON summary includes a readiness receipt for the selected checks: `ready`, `degraded` for optional omissions, or `blocked` for required failures. Failed requested dependency/config/index/SQLite steps block completion. Optional download/tooling failures remain visible and no longer print an unconditional success message.
-- Interactive `--json` keeps questions on stderr and consumes answers from stdin; stdout contains one JSON summary. Ordinary interactive prompts remain on stdout.
-- Model setup checks nonempty readable assets for the selected model/provider, including a configured ONNX weights path and tokenizer identity. Unrelated cache entries and partial models do not satisfy `--require-steps models`. The receipt records the identity, paths and missing assets; this presence check does not qualify inference. Model prefetch resolves explicit `--model`, `indexing.embeddings.model`, legacy `models.id`, then the default.
-- Dictionary `--update` sends validators only for the same source with usable local bytes and compatible hash evidence. Missing or empty wordlists are fetched again; an unexpected 304 without usable bytes fails visibly.
-- Tool installation rechecks executable resolution, the command probe and package layout after the installer exits. A successful installer process without a working executable is a failure; manual-only tools remain explicit prerequisites requiring action. The receipt identifies this verification level. It does not claim an LSP initialize/workspace check, complete model validation or native-extension loading from a presence/probe check alone; those capabilities require their own admission checks.
-- Command probes retain actual exit status, signal and underlying launch error codes. Default output capture is bounded to 16 KiB per stream; explicit capture/cap choices remain authoritative. Failed tooling argument candidates include bounded, redacted `stdoutExcerpt` and `stderrExcerpt` diagnostics. Missing prerequisites, timeouts and unrecognized nonzero exits remain failures; these records do not establish successful protocol startup.
-- Detection reuses the canonical provider policy for recognized transport-usage responses. Pyright's missing-transport response remains an explicit nonzero attempt with `acceptance: recognized-transport-usage`; it establishes command availability, not an LSP handshake. A real initialize/shutdown check is separate. Bundled Node binaries use the existing application-command authority; indexed child repositories do not inherit it. A missing PATH fallback cannot replace a known executable's actual failure diagnostic.
+## Diagnose readiness
 
-- Defaults follow `.pairofcleats.json` where applicable.
-- Tree-sitter grammars load via native `tree-sitter` language modules.
-- SQLite builds use file-backed indexes by default, and will stream from piece artifacts or incremental bundles when available.
-- `build_index.js` can be run from any working directory; it resolves SQLite build tooling from the install root.
-- Index builds write `preprocess.json` under the repo cache root with scan and skip statistics.
-- Default ignore patterns can be overridden by adding negated entries (e.g. `!dist/allow.js`) in `extraIgnore`.
-- Ignore files configured via `ignoreFiles` must resolve inside the repo root; outside paths are skipped with a warning.
-- Index builds write `pieces/manifest.json` in each index directory to list artifact pieces and checksums.
-- Use `node tools/index/assemble-pieces.js --input <indexDir> --out <dest>` to merge piece outputs into a single index directory.
-- Use `node tools/index/compact-pieces.js --repo <repo>` to compact chunk_meta parts and token_postings shards.
-- After setup, run `pairofcleats index validate` to confirm index artifacts are healthy.
-- If you prefer a fast, no-prompts path, use `pairofcleats bootstrap`.
+Before bootstrap, the dependency-free front door is available:
 
-Installer language planning omits its discarded executable-probe pass. The installer
-performs its own initial command validation, and actual installation still requires
-post-install verification. Guided setup passes the selected missing tool IDs across
-the process boundary; the child revalidates current configuration and commands.
+```sh
+node bin/pairofcleats.js checkout diagnose --json
+node bin/pairofcleats.js checkout diagnose --prerequisites --json
+```
+
+The report names runtime, executable, ABI, physical checkout and individual
+receipt mismatch fields. Metadata inspection does not activate native packages.
+For intact dependencies and patches under the selected runtime,
+`node tools/setup/rebuild-native.js --verify` can verify and refresh readiness;
+it cannot repair missing patches. Input/lock/patch drift needs locked bootstrap.
+Never copy or rewrite receipt identity as a repair.
+
+If a selected provider/model fails, retain its exact path/identity and bounded
+stderr. Re-plan after fixing the stated prerequisite. If work is quiet, use
+structured progress and owned activity timestamps; elapsed time alone does not
+prove a stall. Cancellation/partial results list completed and pending operations.
+Inspect active readers/writers before recovery; do not remove locks or entire
+cache roots as a generic fix.
+
+The [source-upgrade guide](upgrades.md) covers existing installations. Contributor
+scratch conventions belong in [contributing](contributing.md). The
+[archived setup account](../archived/setup-2026-10-22.md) preserves dated
+node-pty/docx/Perl, scheduler and platform evidence and its limitations. This
+reorganization does not claim new native/platform qualification.

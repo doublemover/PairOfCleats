@@ -2,7 +2,33 @@
 
 This document defines the analysis-related schemas used across indexing, validation, and retrieval. Schema validation is enforced by `src/contracts/validators/analysis.js`.
 
-> Note: Phase 11 introduces several **analysis output** schemas (JSON-first) intended for CLI today and API/MCP consumers later. These outputs are not index artifacts unless explicitly stated.
+Analysis outputs are consumed by current CLI and supported API/MCP routes;
+see [the public transport contract](mcp-api.md). A schema is not proof that every
+transport admits every option or uses the same envelope. These outputs are not
+index artifacts unless explicitly stated. Runtime validators are authoritative;
+old phase numbers do not establish current implementation or qualification.
+
+## Small report example
+
+The existing `tests/shared/contracts/analysis-schemas-validate.test.js` fixture
+uses the following bounded graph context shape:
+
+```json
+{
+  "version": "1.0.0",
+  "seed": { "type": "chunk", "chunkUid": "chunk-1" },
+  "provenance": { "generatedAt": "2026-02-01T00:00:00Z", "indexSignature": "sig-0001", "capsUsed": {} },
+  "nodes": [],
+  "edges": []
+}
+```
+
+Its sample identities/timestamp are fixture values. Omitting required `seed` or
+`provenance` is invalid; an empty bounded graph does not assert project-wide
+absence of relations. This excerpt documents the existing validator fixture;
+no final-head execution is claimed by this consolidation. New provider facts
+must update the canonical schema/consumer and retain source identity and explicit
+unsupported state before being documented as available.
 
 ## Metadata v2 (per chunk)
 

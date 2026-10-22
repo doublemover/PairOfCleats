@@ -29,7 +29,7 @@ node tools/bench/embeddings/model-bakeoff.js \
   --out .testLogs/embedding-bakeoff.json
 ```
 
-NPM alias:
+Direct source invocation:
 
 ```bash
 node tools/bench/embeddings/model-bakeoff.js

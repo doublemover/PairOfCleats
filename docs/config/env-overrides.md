@@ -3,7 +3,7 @@
 This document lists the environment variables currently read by PairOfCleats.
 Canonical sources:
 - `src/shared/env.js` (runtime config + secrets)
-- `src/shared/runtime-envelope.js` (process-level runtime tuning)
+- `src/shared/runtime-envelope/` (process-level runtime tuning)
 - `docs/config/inventory.md` (generated inventory of all `PAIROFCLEATS_*` usage)
 
 Note: Several env vars are non-secret toggles used by dev tools, benchmarks, or
@@ -63,7 +63,7 @@ and compatibility changes.
 - `PAIROFCLEATS_MCP_MAX_BUFFER_BYTES`
 - `PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS`
 
-## Runtime envelope overrides (`src/shared/runtime-envelope.js`)
+## Runtime envelope overrides (`src/shared/runtime-envelope/`)
 - `PAIROFCLEATS_NODE_OPTIONS` (extra Node options appended at runtime)
 - `PAIROFCLEATS_MAX_OLD_SPACE_MB`
 - `PAIROFCLEATS_UV_THREADPOOL_SIZE`
