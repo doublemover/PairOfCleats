@@ -5,6 +5,12 @@ import { getFailedRepoCacheAccessLease } from '../cache/repo-access-reader.js';
 import { assertNoSymlinkPath } from '../contained-file.js';
 import { isPathWithinRoot } from '../file-paths.js';
 
+const leaseReleaseFailures = new WeakMap();
+/** Distinguish our exact failed metadata release from independent resource
+ * failures. Codes, copied properties and serialized handles grant no authority. */
+export const isStorageSessionReleaseFailure = (error, session) => Boolean(session)
+  && leaseReleaseFailures.get(error) === session;
+
 const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
 const capturePendingClosure = error => {
   if (!error) return null;
@@ -94,6 +100,7 @@ export const acquireStorageSession = ({ roots, coordinationRoot, authorizedRoots
           code: 'ERR_STORAGE_SESSION_LEASE_CHANGED', cacheOwnershipPending: true, cacheOwnershipReleased: () => released
         });
         Object.defineProperty(error, 'storageSession', { value: session, configurable: true });
+        leaseReleaseFailures.set(error, session);
         throw error;
       }
       released = true;

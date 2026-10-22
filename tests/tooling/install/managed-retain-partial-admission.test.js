@@ -8,6 +8,7 @@ import { stableStringify } from '../../../src/shared/stable-json.js';
 import { inspectManagedInstallationSync, retainManagedToolInstallationSync } from '../../../src/shared/managed-installation-retain.js';
 import { repoAccessPaths, withExclusiveRepoCacheCleanup } from '../../../src/shared/cache/repo-access.js';
 import { inspectStorageAccess } from '../../../src/shared/storage/access.js';
+import { isStorageSessionReleaseFailure } from '../../../src/shared/storage/session.js';
 
 // Synthetic canonical receipt and inert ordinary files, never an installation or
 // executable probe. Actual inspection, exclusion, leases and rollback owners.
@@ -71,6 +72,9 @@ try {
     let failedRelease;
     assert.throws(() => held.release(), error => { failedRelease = error; return error.cacheOwnershipPending === true; });
     assert.equal(failedRelease.storageSession, held.storageSession);
+    assert.equal(isStorageSessionReleaseFailure(failedRelease, held.storageSession), true);
+    assert.equal(isStorageSessionReleaseFailure({ ...failedRelease, storageSession: held.storageSession }, held.storageSession), false);
+    assert.equal(isStorageSessionReleaseFailure(JSON.parse(JSON.stringify(failedRelease)), held.storageSession), false);
     assert.equal((await inspectStorageAccess(toolingRoot, { coordinationRoot })).protected, true);
     assert.equal((await inspectStorageAccess(owner, { coordinationRoot })).protected, false,
       'one failed lease must not prevent an independent later release attempt');
