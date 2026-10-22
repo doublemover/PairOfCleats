@@ -7,6 +7,7 @@ import { resolveInstallerRequirementProbeArgs, verifyInstallerRequirementProbe }
 import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { readVerifiedContainedFileSync } from '../../src/shared/contained-file.js';
+import { describeProvisioningFailure, isProvisioningObservationFailure, observeProvisioningResource } from './provisioning-failure.js';
 
 const digest = value => createHash('sha256').update(value).digest('hex');
 export const identifyProvisioningExecutable = (command, { signal = null } = {}) => {
@@ -79,9 +80,9 @@ export const createToolProvisioningPlan = ({ tool, selection, probe = null, reso
     let executable;
     try { executable = identifyProvisioningExecutable(command, { signal }); }
     catch (error) {
-      if (signal?.aborted || error.cacheOwnershipPending === true) throw error;
+      const diagnostic = describeProvisioningFailure(error, { signal });
       return { ...requirement, command, state: 'missing', reason: 'command-bytes-unavailable',
-        errorCode: error.code || 'ERR_PREREQUISITE_BYTES', nextAction: 'Repair the exact selected command path, then re-plan; no fallback was executed.' };
+        errorCode: diagnostic.code || 'ERR_PREREQUISITE_BYTES', nextAction: 'Repair the exact selected command path, then re-plan; no fallback was executed.' };
     }
     const selected = executable.path;
     if (!isAllowed(selected)) return { ...requirement, command: selected, state: 'missing', reason: 'command-missing-or-untrusted',
@@ -93,9 +94,21 @@ export const createToolProvisioningPlan = ({ tool, selection, probe = null, reso
       if (!sameExecutable(identifyProvisioningExecutable(selected, { signal }), executable)) throw new Error('Prerequisite bytes changed before verification: ' + requirement.id);
       const outcome = probe(selected, args, { signal, env: resolveNoProvisionToolingEnvironment(env, { command: selected, providerId: requirement.id }),
         timeoutMs: 4000, maxOutputBytes: 65536, stdio: 'pipe', outputEncoding: 'utf8' });
-      signal?.throwIfAborted();
-      if (!sameExecutable(identifyProvisioningExecutable(selected, { signal }), executable)) throw new Error('Prerequisite bytes changed during verification: ' + requirement.id);
-      verification = verifyInstallerRequirementProbe(requirement.family || requirement.id, outcome, requirement);
+      const observation = observeProvisioningResource(outcome, { phase: 'synchronous-prerequisite-probe' });
+      observation.requireSettled();
+      let then;
+      try { then = outcome?.then; }
+      catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+      if (typeof then === 'function') throw observation.retain(Object.assign(new Error('Synchronous prerequisite probe returned unknown asynchronous work.'), {
+        cacheOwnershipPending: true
+      }), { inspectionPresent: true });
+      try {
+        signal?.throwIfAborted();
+        if (!sameExecutable(identifyProvisioningExecutable(selected, { signal }), executable)) throw new Error('Prerequisite bytes changed during verification: ' + requirement.id);
+      } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true, inspectionPrimary: true }); }
+      try { verification = verifyInstallerRequirementProbe(requirement.family || requirement.id, outcome, requirement); }
+      catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+      observation.requireSettled();
       if (verification.ok) return { ...requirement, command: selected, args, state: 'verified', ...verification, executable };
     }
     return { ...requirement, command: selected, state: 'incompatible', ...verification,
@@ -128,14 +141,25 @@ export const probeProvisioningCommand = async (command, args, { spawn = spawnRes
   try {
     const result = await spawn(command, args, { ...options, outputEncoding: 'utf8',
       timeoutMs: options.timeoutMs || 4000, maxOutputBytes: options.maxOutputBytes || 65536, rejectOnNonZeroExit: false });
-    const truncated = result.outputCapture?.stdout?.truncated || result.outputCapture?.stderr?.truncated;
-    return { ok: result.exitCode === 0 && !truncated, outcome: truncated ? 'output-limit' : result.exitCode === 0 ? 'ok' : 'nonzero',
-      status: result.exitCode, signal: result.signal || null, errorCode: null, stdout: result.stdout || '', stderr: result.stderr || '' };
+    const observation = observeProvisioningResource(result, { phase: 'prerequisite-probe-result' });
+    observation.requireSettled();
+    try { options.signal?.throwIfAborted(); }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true, inspectionPrimary: true }); }
+    let report;
+    try {
+      const capture = result.outputCapture, stdoutCapture = capture?.stdout, stderrCapture = capture?.stderr;
+      const truncated = stdoutCapture?.truncated || stderrCapture?.truncated;
+      const status = result.exitCode, childSignal = result.signal, stdout = result.stdout, stderr = result.stderr;
+      report = { ok: status === 0 && !truncated, outcome: truncated ? 'output-limit' : status === 0 ? 'ok' : 'nonzero',
+        status, signal: childSignal || null, errorCode: null, stdout: stdout || '', stderr: stderr || '' };
+    } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled(); return report;
   } catch (error) {
-    if (error.cacheOwnershipPending || options.signal?.aborted) throw error;
-    return { ok: false, outcome: error.name === 'SubprocessTimeoutError' ? 'timeout' : error.code === 'ENOENT' ? 'missing' : 'spawn-error',
-      status: error.result?.exitCode ?? null, signal: error.result?.signal || null, errorCode: error.code || null,
-      stdout: error.result?.stdout || '', stderr: error.result?.stderr || '' };
+    if (isProvisioningObservationFailure(error)) throw error;
+    const diagnostic = describeProvisioningFailure(error, { signal: options.signal, includeResult: true });
+    return { ok: false, outcome: diagnostic.name === 'SubprocessTimeoutError' ? 'timeout' : diagnostic.code === 'ENOENT' ? 'missing' : 'spawn-error',
+      status: diagnostic.status, signal: diagnostic.signal, errorCode: diagnostic.code,
+      stdout: diagnostic.stdout, stderr: diagnostic.stderr };
   }
 };
 
@@ -151,9 +175,15 @@ export const verifyToolProvisioningPlan = async (plan, { env = process.env, sign
       const command = step.executable.path;
       const result = await probe(command, args, { cwd, signal, env: resolveNoProvisionToolingEnvironment(env, { command, providerId: step.id }),
         timeoutMs: 4000, maxOutputBytes: 65536 });
-      signal?.throwIfAborted();
-      if (!sameExecutable(identifyProvisioningExecutable(command, { signal }), step.executable)) throw new Error('Prerequisite bytes changed during async verification: ' + step.id);
-      verification = verifyInstallerRequirementProbe(step.family || step.id, result, step);
+      const observation = observeProvisioningResource(result, { phase: 'asynchronous-prerequisite-probe' });
+      observation.requireSettled();
+      try {
+        signal?.throwIfAborted();
+        if (!sameExecutable(identifyProvisioningExecutable(command, { signal }), step.executable)) throw new Error('Prerequisite bytes changed during async verification: ' + step.id);
+      } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true, inspectionPrimary: true }); }
+      try { verification = verifyInstallerRequirementProbe(step.family || step.id, result, step); }
+      catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+      observation.requireSettled();
       if (verification.ok) { acceptedArgs = args; break; }
     }
     steps.push({ ...step, command: step.executable.path, ...verification, state: verification?.ok ? 'verified' : 'incompatible',
