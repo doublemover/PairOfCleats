@@ -2,6 +2,27 @@ import PQueue from 'p-queue';
 import { createAbortError, isAbortSignal, throwIfAborted } from '../abort.js';
 import { awaitWithKeepalive } from '../promise-keepalive.js';
 
+const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
+const captureQueueOwnership = error => {
+  if (!objectLike(error)) return null;
+  try {
+    const observe = error.cacheOwnershipReleased;
+    if (error.cacheOwnershipPending !== true && typeof observe !== 'function') return null;
+    return () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } };
+  } catch { return () => false; }
+};
+const aggregateQueueFailures = (errors, message, originalObservers = []) => {
+  const failure = new AggregateError(errors, message, { cause: errors[0] });
+  const observers = [...originalObservers, ...errors.map(captureQueueOwnership)].filter(Boolean);
+  if (observers.length) Object.defineProperties(failure, {
+    cacheOwnershipPending: { get: () => !observers.every(observe => observe()) },
+    cacheOwnershipReleased: { value: () => observers.every(observe => observe()) },
+    retryable: { value: false }
+  });
+  else if (errors[0]?.retryable === false) failure.retryable = false;
+  return failure;
+};
+
 /**
  * Run async work over items using a shared queue.
  * @param {PQueue} queue
@@ -97,13 +118,21 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     aborted = true;
   };
   const recordError = async (err, ctx) => {
-    let error = err || new Error('Queue task failed');
+    const primary = objectLike(err) ? err : new Error('Queue task failed', { cause: err });
+    let error = primary;
     if (onError) {
+      const originalObserver = captureQueueOwnership(primary);
+      let callbackError, callbackFailed = false;
       try {
-        await onError(error, ctx);
+        await onError(primary, ctx);
       } catch (callbackErr) {
-        error = callbackErr;
+        callbackFailed = true; callbackError = callbackErr;
       }
+      if (callbackFailed || originalObserver) error = aggregateQueueFailures(
+        callbackFailed ? [primary, callbackError] : [primary],
+        callbackFailed ? 'Queue task and error handler failed' : 'Queue task retained resource ownership',
+        [originalObserver]
+      );
     }
     if (bestEffort) {
       errors.push(error);
@@ -343,7 +372,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     if (signal?.aborted) throw abortError;
     if (firstError) throw firstError;
     if (bestEffort && errors.length) {
-      throw new AggregateError(errors, 'runWithQueue best-effort failures');
+      throw aggregateQueueFailures(errors, 'runWithQueue best-effort failures');
     }
     return results;
   } finally {
