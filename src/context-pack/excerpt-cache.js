@@ -28,7 +28,6 @@ const trimUtf8Buffer = (buffer) => {
 const EXCERPT_CACHE_MAX = 128;
 const FILE_RANGE_CACHE_MAX = 64;
 const EXCERPT_HASH_CACHE_MAX = 256;
-const UTF8_TRUNCATION_DETECTION_SLACK_BYTES = 4;
 const CACHE_BYTE_CAP = 8 * 1024 * 1024;
 const excerptCache = new Map();
 const fileRangeCache = new Map();
@@ -77,6 +76,16 @@ const setCachedValue = (cache, key, value, maxSize) => {
 
 const SOURCE_SNAPSHOT_BYTE_CAP = 64 * 1024 * 1024;
 const sourceContexts = new WeakMap();
+const decodedSnapshots = new WeakMap();
+const sourceText = snapshot => {
+  let text = decodedSnapshots.get(snapshot);
+  if (text === undefined) {
+    text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(snapshot.buffer);
+    decodedSnapshots.set(snapshot, text);
+  }
+  return text;
+};
+const retainedSnapshotBytes = snapshot => snapshot.buffer.length * 3;
 
 /** One assembly owns a bounded point-in-time source view; later requests reverify. */
 export const createExcerptSourceContext = ({ maxBytes = SOURCE_SNAPSHOT_BYTE_CAP } = {}) => {
@@ -103,24 +112,33 @@ const readSourceSnapshot = (filePath, repoRoot, hashAlgorithm = 'sha1', sourceCo
   const snapshot = readVerifiedContainedFileSync(repoRoot, filePath, {
     maxBytes: SOURCE_SNAPSHOT_BYTE_CAP, hashAlgorithm
   });
-  if (state && snapshot.buffer.length <= state.maxBytes) {
-    while (state.entries.size && (state.bytes + snapshot.buffer.length > state.maxBytes
+  const retainedBytes = retainedSnapshotBytes(snapshot);
+  if (state && retainedBytes <= state.maxBytes) {
+    while (state.entries.size && (state.bytes + retainedBytes > state.maxBytes
       || state.entries.size >= FILE_RANGE_CACHE_MAX)) {
       const oldest = state.entries.keys().next().value;
-      state.bytes -= state.entries.get(oldest).buffer.length;
+      state.bytes -= retainedSnapshotBytes(state.entries.get(oldest));
       state.entries.delete(oldest);
     }
-    state.entries.set(key, snapshot); state.bytes += snapshot.buffer.length;
+    state.entries.set(key, snapshot); state.bytes += retainedBytes;
   }
   return snapshot;
 };
-const rangeKey = (filePath, cacheScope, start, end) => `${filePath}|${cacheScope}|${start}|${end}`;
+const rangeKey = (filePath, cacheScope, start, end) => `utf16-v2|${filePath}|${cacheScope}|${start}|${end}`;
 const readSnapshotRange = (snapshot, filePath, start, end, cacheScope) => {
   const key = rangeKey(filePath, cacheScope, start, end);
   const cached = getCachedValue(fileRangeCache, key);
   if (cached !== null) return cached;
-  const text = trimUtf8Buffer(snapshot.buffer.subarray(Math.max(0, Math.floor(start)),
-    Math.max(0, Math.floor(end)))).toString('utf8');
+  const source = sourceText(snapshot);
+  const splitSurrogate = index => index > 0 && index < source.length
+    && source.charCodeAt(index) >= 0xDC00 && source.charCodeAt(index) <= 0xDFFF
+    && source.charCodeAt(index - 1) >= 0xD800 && source.charCodeAt(index - 1) <= 0xDBFF;
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start
+    || end > source.length || splitSurrogate(start) || splitSurrogate(end)) {
+    throw Object.assign(new Error('Indexed source range is not a valid UTF-16 span in the verified UTF-8 snapshot.'),
+      { code: 'ERR_CONTEXT_PACK_SOURCE_RANGE' });
+  }
+  const text = source.slice(start, end);
   setCachedValue(fileRangeCache, key, text, FILE_RANGE_CACHE_MAX);
   return text;
 };
@@ -215,15 +233,10 @@ export const resolveExcerpt = ({
   const cached = getCachedValue(excerptCache, cacheKeyInfo.key);
   if (cached) return cached;
   let text = '';
-  if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-    const safeMaxBytes = normalizeOptionalNumber(maxBytes);
-    const readEnd = safeMaxBytes
-      ? Math.min(end, start + safeMaxBytes + UTF8_TRUNCATION_DETECTION_SLACK_BYTES)
-      : end;
-    text = readSnapshotRange(snapshot, filePath, start, readEnd, cacheScope);
+  if (start != null || end != null) {
+    text = readSnapshotRange(snapshot, filePath, start, end, cacheScope);
   } else {
-    const limit = normalizeOptionalNumber(maxBytes) || snapshot.buffer.length;
-    text = trimUtf8Buffer(snapshot.buffer.subarray(0, limit + UTF8_TRUNCATION_DETECTION_SLACK_BYTES)).toString('utf8');
+    text = sourceText(snapshot);
   }
   const { excerpt, truncated, truncatedBytes, truncatedTokens } = sliceExcerpt(text, maxBytes, maxTokens);
   const excerptHash = excerpt ? `sha1:${sha1(excerpt)}` : null;
@@ -304,7 +317,7 @@ export const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, inde
       sourceIdentity = resolvedExcerpt.sourceIdentity || null;
       if (sourceIdentity && sourceIdentity.drift !== 'unchanged') {
         pushWarning(sourceIdentity.drift === 'changed' ? 'PRIMARY_SOURCE_DRIFT' : 'PRIMARY_SOURCE_UNVERIFIED',
-          'Working-tree preview is not verified against the indexed source; indexed line and byte coordinates may have drifted.');
+          'Working-tree preview is not verified against the indexed source; indexed line and UTF-16 coordinates may have drifted.');
       }
       excerpt = resolvedExcerpt.excerpt || '';
       truncated = resolvedExcerpt.truncated;

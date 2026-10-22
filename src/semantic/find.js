@@ -57,7 +57,11 @@ export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWork
     const complete=result.coverage.extraction.length>0&&result.coverage.extraction.every(row=>row.state==='complete')&&result.coverage.analysis.length>0&&result.coverage.analysis.every(row=>row.state==='complete');
     if(!complete)result.warnings.push('Requested analysis coverage is incomplete or unavailable; absence of candidates is not proof of absence.');
     result.status=done&&complete?'complete':'partial';
-    if(!done){if(!progressed)throw fail('ERR_SEMANTIC_OUTPUT_LIMIT','Selected operation evidence exceeds output allowance.');const now=Date.now();for(const [token,saved]of continuations)if(saved.expires<=now)continuations.delete(token);result.cursor=randomUUID();continuations.set(result.cursor,{key,offset,seed,expires:now+ttlMs});while(continuations.size>maxContinuations)continuations.delete(continuations.keys().next().value);result.frontier.push({reason:'response_budget',remainingCount:1});}
-    return assertSemanticFind('result',result);
+    let pendingContinuation = null;
+    if(!done){if(!progressed)throw fail('ERR_SEMANTIC_OUTPUT_LIMIT','Selected operation evidence exceeds output allowance.');result.cursor=randomUUID();pendingContinuation={key,offset,seed,expires:Date.now()+ttlMs};result.frontier.push({reason:'response_budget',remainingCount:1});}
+    if(Buffer.byteLength(JSON.stringify(result))>limits.bytes)throw fail('ERR_SEMANTIC_OUTPUT_LIMIT','Semantic response exceeds output budget.');
+    assertSemanticFind('result',result);
+    if(pendingContinuation){const now=Date.now();for(const [token,saved]of continuations)if(saved.expires<=now)continuations.delete(token);continuations.set(result.cursor,pendingContinuation);while(continuations.size>maxContinuations)continuations.delete(continuations.keys().next().value);}
+    return result;
   };
 };

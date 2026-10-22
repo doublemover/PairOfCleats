@@ -3,6 +3,8 @@ import { enforceContextPackResponseBudget, CONTEXT_PACK_RESPONSE_MAX_BYTES } fro
 import { assembleCompositeContextPack } from '../../src/context-pack/assemble.js';
 import { validateCompositeContextPack } from '../../src/contracts/validators/analysis.js';
 import { attachSemanticContextSection } from '../../src/context-pack/assemble/finalize.js';
+import { renderCompositeContextPackJson } from '../../src/retrieval/output/composite-context-pack.js';
+import { emitCliOutput } from '../../src/integrations/tooling/cli-helpers.js';
 
 const payload = { primary: { excerpt: 'export function sum(a, b) { return a + b; }' },
   graph: { nodes: [{ id: 'sum' }] }, risk: { detail: 'x'.repeat(CONTEXT_PACK_RESPONSE_MAX_BYTES) } };
@@ -22,6 +24,21 @@ const bounded = enforceContextPackResponseBudget(assembled);
 assert.ok(!Object.hasOwn(bounded, 'semantic'));
 const validation = validateCompositeContextPack(bounded);
 assert.ok(validation.ok, JSON.stringify(validation.errors));
+
+const primaryOnly = structuredClone(assembled);
+primaryOnly.primary.excerpt = '界😀"\\\n'.repeat(10000);
+const beforeRender = JSON.stringify(primaryOnly);
+assert.throws(() => renderCompositeContextPackJson(primaryOnly), { code: 'ERR_CONTEXT_PACK_RESPONSE_BUDGET' },
+  'mandatory primary plus derived public companions must fit, even when risk is absent');
+assert.equal(JSON.stringify(primaryOnly), beforeRender, 'render budgeting must not mutate the native caller payload');
+let output = '';
+const originalLog = console.log;
+try {
+  console.log = text => { output += text + '\n'; };
+  emitCliOutput({ format: 'json', payload: assembled, renderJson: renderCompositeContextPackJson });
+} finally { console.log = originalLog; }
+assert.ok(Buffer.byteLength(output) <= CONTEXT_PACK_RESPONSE_MAX_BYTES, 'assert actual final stdout including pretty JSON/newline');
+assert.equal(validateCompositeContextPack(JSON.parse(output)).ok, true);
 
 const semantic = status => ({ schemaVersion: 1, repoRoot: process.cwd(), generation: null, status,
   selector: null, discovery: null, detail: null, trace: null, excerpts: [], followUps: [], warnings: [] });

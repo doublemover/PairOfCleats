@@ -49,7 +49,7 @@ const cases = [
         const filePath = path.join(srcDir, 'gamma.txt');
         fs.writeFileSync(filePath, 'alpha beta gamma');
         const chunkMeta = [
-          { chunkUid: 'chunk-g', file: 'src/gamma.txt', start: 0, end: 18 }
+          { chunkUid: 'chunk-g', file: 'src/gamma.txt', start: 0, end: 16 }
         ];
         const first = buildPack({
           repoRoot,

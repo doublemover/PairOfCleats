@@ -4,6 +4,7 @@ import {
 } from './risk-explain.js';
 import { renderGraphContextPack } from './graph-context-pack.js';
 import { renderCompositeContextPackSarif } from './risk-sarif.js';
+import { enforceContextPackResponseBudget } from '../../context-pack/response-budget.js';
 
 const renderPrimary = (primary) => {
   const lines = [];
@@ -165,7 +166,7 @@ const renderEvidence = (payload) => {
   return lines.join('\n');
 };
 
-export const renderCompositeContextPackJson = (payload) => ({
+const projectCompositeContextPackJson = (payload) => ({
   ...payload,
   rendered: {
     risk: renderRiskJson(payload),
@@ -175,6 +176,21 @@ export const renderCompositeContextPackJson = (payload) => ({
     warnings: Array.isArray(payload?.warnings) ? payload.warnings.slice() : []
   }
 });
+
+export const renderCompositeContextPackJson = (payload, options = {}) => {
+  const bounded = structuredClone(payload);
+  let projected;
+  enforceContextPackResponseBudget(bounded, {
+    strictEvidence: options.strictEvidence ?? (payload?.evidence?.policy?.strictEvidence === true),
+    strictRisk: options.strictRisk === true,
+    measure: value => {
+      projected = projectCompositeContextPackJson(value);
+      // emitCliOutput uses console.log, so the final newline is part of stdout.
+      return Buffer.byteLength(JSON.stringify(projected, null, 2)) + 1;
+    }
+  });
+  return projected;
+};
 
 export const renderCompositeContextPack = (payload) => {
   const sections = [];

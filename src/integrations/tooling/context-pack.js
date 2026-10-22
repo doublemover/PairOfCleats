@@ -581,15 +581,14 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
   const format = resolveFormat(argv);
 
   try {
-    const payload = await buildCompositeContextPackPayload(
-      buildCliContextPackRequestInput(argv, { repoRoot })
-    );
+    const request = buildCliContextPackRequestInput(argv, { repoRoot });
+    const payload = await buildCompositeContextPackPayload(request);
 
     return emitCliOutput({
       format,
       payload,
       renderMarkdown: renderCompositeContextPack,
-      renderJson: renderCompositeContextPackJson
+      renderJson: value => renderCompositeContextPackJson(value, request)
     });
   } catch (err) {
     const message = err?.message || String(err);

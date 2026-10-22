@@ -1,8 +1,9 @@
 export const CONTEXT_PACK_RESPONSE_MAX_BYTES = 128 * 1024;
 
 /** Bound the complete JSON report, preserving primary evidence ahead of optional sections. */
-export const enforceContextPackResponseBudget = (payload, { strictEvidence = false, strictRisk = false } = {}) => {
-  const size = () => Buffer.byteLength(JSON.stringify(payload, null, 2));
+export const enforceContextPackResponseBudget = (payload, { strictEvidence = false, strictRisk = false,
+  measure = value => Buffer.byteLength(JSON.stringify(value, null, 2)) } = {}) => {
+  const size = () => measure(payload);
   const before = size();
   if (before <= CONTEXT_PACK_RESPONSE_MAX_BYTES) return payload;
   const omitted = [];
