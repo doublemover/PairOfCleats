@@ -8,7 +8,7 @@ const compiler = createCompileController(), requests = createRequestController()
 let output = null, projection = null, story = null, compiled = null, diagram = null;
 let diagramMode = true, validSource = '', zoom = 1;
 const expanded = new Set();
-let selected = null, page = 0, loadId = 0, history = [], historyAt = -1, activeRequest = null;
+let selected = null, page = 0, loadId = 0, compileEpoch = 0, history = [], historyAt = -1, activeRequest = null;
 const notice = (text, error = false) => { $('notice').textContent = text; $('notice').classList.toggle('error', error); };
 function selection(id, remember = true) {
   const node = projection?.nodes.find(item => item.id === id);
@@ -105,16 +105,20 @@ function renderEvidenceList() {
 }
 async function compileSource() {
   const current = loadId;
+  const requestEpoch = ++compileEpoch;
+  const submittedSource = $('source').value;
   $('compile-status').textContent = 'Compiling bounded story…';
   try {
-    const result = await compiler.compile($('source').value);
-    if (current !== loadId) return;
+    const result = await compiler.compile(submittedSource);
+    if (current !== loadId || requestEpoch !== compileEpoch) return;
     if (!diagramMode) return;
-    validSource = $('source').value; compiled = result; diagram = mountDiagram($('diagram'), compiled, story.bindings, selection);
+    const mounted = mountDiagram($('diagram'), result, story.bindings, selection);
+    validSource = submittedSource; compiled = result; diagram = mounted;
     if (selected) diagram.select(selected);
     $('compile-status').textContent = `${compiled.layout.nodes.length} shapes · ${compiled.layout.nodes.filter(node => story.bindings[node.name]).length} bound identities · Reladraw 0.16.0`;
     $('export-svg').disabled = false; $('export-story').disabled = false;
   } catch (error) {
+    if (current !== loadId || requestEpoch !== compileEpoch) return;
     if (error.name !== 'AbortError') { $('compile-status').textContent = error.message; notice(error.message, true); }
   }
 }
