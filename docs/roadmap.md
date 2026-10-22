@@ -30,6 +30,9 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
+Latest source continuation: `6cb8cf1b7` adds renderer enhancement-generation
+ownership and original worker callbacks; authored checks remain unvalidated.
+
 ### Execution order
 
 1. Snapshot/diff registry authority, retention, GC dry runs and frozen-byte

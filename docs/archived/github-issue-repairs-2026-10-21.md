@@ -490,7 +490,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#702](https://github.com/doublemover/PairOfCleats/issues/702) | P2 | [P2] Preserve the selected search hit when continuation inserts earlier-mode results | development implemented; validation deferred |
 | [#703](https://github.com/doublemover/PairOfCleats/issues/703) | P3 | [P3] Fill hydrated context-index ID lookups without rebuilding discarded name and file maps | development implemented; integration/validation deferred |
 | [#704](https://github.com/doublemover/PairOfCleats/issues/704) | P2 | [P2] Bind exported story source to the exact successful compile input | development implemented; validation deferred |
-| [#705](https://github.com/doublemover/PairOfCleats/issues/705) | P2 | [P2] Dispose instanced mesh resources when rebuilding the map scene | exact scene retirement plus committed renderer/fallback/source ownership ac9091018; authored inert transaction/reveal controls unvalidated; full enhancement/browser/GPU acceptance open |
+| [#705](https://github.com/doublemover/PairOfCleats/issues/705) | P2 | [P2] Dispose instanced mesh resources when rebuilding the map scene | exact scene retirement, committed renderer/fallback and enhancement-generation ownership through6cb8cf1b7; authored inert actual scene controls unvalidated; partial construction and browser/GPU acceptance open |
 | [#706](https://github.com/doublemover/PairOfCleats/issues/706) | P3 | [P3] Avoid retaining duplicate string adjacency when graph assembly already has admitted CSR | development implemented; integration/validation deferred |
 | [#707](https://github.com/doublemover/PairOfCleats/issues/707) | P2 | [P2] Share width-aware viewports for TUI settings and workflow review screens | development implemented; validation deferred |
 | [#708](https://github.com/doublemover/PairOfCleats/issues/708) | P2 | [P2] Resolve VS Code diagnostics through the configured CLI, not scripts inside the target repository | development implemented; validation deferred |
@@ -1081,7 +1081,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1293](https://github.com/doublemover/PairOfCleats/issues/1293) | other | [Enhancement] Resolve and explain editor settings for the selected repository | partial editor authority source; host qualification open |
 | [#1294](https://github.com/doublemover/PairOfCleats/issues/1294) | other | [TUI] Prioritize the focused work pane with a height-aware compact layout | source compact layout authored; native qualification open |
 | [#1295](https://github.com/doublemover/PairOfCleats/issues/1295) | other | [Viewer] Replace the settings wall with a scene-first, capability-aware control workspace | partial source authored; integration/qualification open |
-| [#1296](https://github.com/doublemover/PairOfCleats/issues/1296) | other | [Viewer] Ship a striking Tron-inspired default with composable glass, light and motion presets | partial source-first fallback/renderer transaction ownership ac9091018 with original cleanup causes; full renderer/backend/default and measured acceptance remain open |
+| [#1296](https://github.com/doublemover/PairOfCleats/issues/1296) | other | [Viewer] Ship a striking Tron-inspired default with composable glass, light and motion presets | exact scene publication, source fallback and enhancement-generation ownership6cb8cf1b7; authored controls unvalidated; broader renderer/reentrant/native qualification open |
 | [#1297](https://github.com/doublemover/PairOfCleats/issues/1297) | other | [Viewer] Replace hidden cap stacks with progressive detail and truthful coverage | partial source authored; integration/qualification open |
 | [#1298](https://github.com/doublemover/PairOfCleats/issues/1298) | other | [Viewer] Make keyboard camera control focus-safe and expose an accessible navigation surface | source authored; unvalidated |
 | [#1299](https://github.com/doublemover/PairOfCleats/issues/1299) | other | [Viewer] Add reduced-motion and idle-aware rendering with trustworthy frame telemetry | partial source authored; integration/qualification open |
@@ -1158,7 +1158,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1369](https://github.com/doublemover/PairOfCleats/issues/1369) | perf | [Perf] Reuse dependency-qualified artifact families during partial rebuilds | source repair and regression authored; unvalidated |
 | [#1370](https://github.com/doublemover/PairOfCleats/issues/1370) | other | [Viewer] Keep semantic selection, highlight and source actions coherent outside drawn scope | source authored; unvalidated |
 | [#1371](https://github.com/doublemover/PairOfCleats/issues/1371) | P2 | [P2] Serve the complete viewer module graph in FPS and LOD benchmark previews | source repair and regression authored; unvalidated |
-| [#1372](https://github.com/doublemover/PairOfCleats/issues/1372) | P2 | [P2] Gate Three.js browser qualification on phase-local errors and a rendered scene | original resource owners plus post-publication cleanup and stale fallback fences ac9091018; authored controls unvalidated; full enhancement/Three/GPU/resource proof open |
+| [#1372](https://github.com/doublemover/PairOfCleats/issues/1372) | P2 | [P2] Gate Three.js browser qualification on phase-local errors and a rendered scene | actual enhancement request/source/document generation and captured original scene disposer6cb8cf1b7; authored overlapping import/construction controls unvalidated; partial construction and actual browser/GPU qualification open |
 | [#1373](https://github.com/doublemover/PairOfCleats/issues/1373) | P2 | [P2] Reconcile repo-map and canonical chunk identities before building map members | source repair and regression authored; unvalidated |
 | [#1374](https://github.com/doublemover/PairOfCleats/issues/1374) | P2 | [P2] Keep indexed files and import edges when a file has no named map member | source repair and regression authored; unvalidated |
 | [#1375](https://github.com/doublemover/PairOfCleats/issues/1375) | P2 | [P2] Preserve alias dataflow evidence through code-map normalization | source repair and regression authored; unvalidated |
@@ -2868,3 +2868,33 @@ Unreleased generic lock, enhancement and compiler/provider edits are excluded.
 Locked setup, generated freshness, fail-before/after proof, format/front gate,
 actual hosts and final Windows cohort reconciliation remain deferred. Source
 contracts and hosted policy status are not suite, resource or latency acceptance.
+
+### Enhancement generation and worker callback continuation
+
+Source interval: afterfe5f1f9ae through6cb8cf1b7, two implementation commits.
+Both remain **UNVALIDATED**. No tests, syntax/lint/format, bootstrap, native/child/
+IPC, editor/browser/GPU/model, physical links or performance checks ran. Last
+qualified production/test source remains d4dcba4134f6103e3a59703d90fdbde5ca54d09e.
+
+- 595ce9632 captures simple worker terminate/kill/close methods and receivers at
+  registry admission. Replacing their properties later cannot redirect cleanup.
+  Best-effort async diagnostic rejections are consumed. Authored inert registry
+  controls preserve the existing unregister policy; numeric-PID tree teardown and
+  real descendant settlement are not qualified by this slice.
+- 6cb8cf1b7 fences viewer module/environment and scene construction awaits by
+  exact enhancement/source/document generation. The actual scene producer reports
+  its installed scene/renderer/disposer synchronously, and cleanup retains that
+  original method/receiver. Stale imports cannot mutate the current modules or
+  retire a shared scene they never acquired; old construction failures cannot
+  dispose a newer successful scene or replace its fallback/status. Page retirement
+  stops later publication without claiming import cancellation. Actual inert
+  scene and async generation controls are authored. Partial construction before
+  shutdown-owner installation, reentrant callbacks and GPU/native closure remain
+  separate active work.
+
+The PR description is being rewritten around current behavior, historical evidence
+and compact issue groups from this complete disposition table. Historical closing
+references remain unchanged; later source and partial mappings gain no closing
+keywords or acceptance claim. The live inventory remains 957 open reports, and
+three Sol6.1/xhigh agents continue independent real-file implementation. Pending
+lock/compiler/renderer edits remain outside this checkpoint.
