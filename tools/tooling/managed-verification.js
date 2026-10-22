@@ -16,7 +16,8 @@ const exactSettlement = (receipt, resourceId) => receipt && typeof receipt === '
 const withPendingContext = (primary, descriptors, secondary = null) => {
   const additional = secondary && secondary !== primary ? secondary : null;
   try {
-    if (additional || Object.hasOwn(primary, 'managedInstallSession')) throw new Error('Keep original verification context.');
+    if (additional || Object.hasOwn(primary, 'managedInstallSession') || Object.hasOwn(primary, 'managedRemovalSession')
+      || Object.hasOwn(primary, 'downloadSession')) throw new Error('Keep original verification context.');
     Object.defineProperties(primary, descriptors);
     return primary;
   } catch {
@@ -29,6 +30,22 @@ const withPendingContext = (primary, descriptors, secondary = null) => {
     Object.defineProperties(failure, descriptors);
     return failure;
   }
+};
+
+export const captureManagedVerificationFailure = (error, resourceId) => {
+  const owned = verificationFailures.get(error);
+  return { owned: owned?.resourceId === resourceId,
+    observe: owned?.resourceId === resourceId ? owned.observe : observePending(error) };
+};
+
+export const retainManagedResourceFailure = (value, { session, released, cleanupError = null, field = 'managedInstallSession' }) => {
+  const primary = asError(value);
+  return withPendingContext(primary, {
+    cacheOwnershipPending: { value: true, configurable: true },
+    cacheOwnershipReleased: { value: released, configurable: true },
+    [field]: { value: session, configurable: true },
+    ...(cleanupError && cleanupError !== primary ? { managedCleanupError: { value: cleanupError, configurable: true } } : {})
+  }, cleanupError);
 };
 
 /** Missing recipe settlement is owned by this invocation, while pre-existing
@@ -107,12 +124,7 @@ export const verifyRetainedManagedInstallation = async (held, verify, input, res
     const primary = asError(value);
     firstFailure ||= primary;
     const additional = secondary && secondary !== primary ? secondary : null;
-    const failure = withPendingContext(primary, {
-      cacheOwnershipPending: { value: true, configurable: true },
-      cacheOwnershipReleased: { value: () => released && settled(), configurable: true },
-      managedInstallSession: { value: session, configurable: true },
-      ...(additional ? { managedCleanupError: { value: additional, configurable: true } } : {})
-    }, additional);
+    const failure = retainManagedResourceFailure(primary, { session, released: () => released && settled(), cleanupError: additional });
     described.add(failure);
     return failure;
   };

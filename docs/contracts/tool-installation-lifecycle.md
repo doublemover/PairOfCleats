@@ -284,6 +284,30 @@ closure, and repeated settled reconciliation is idempotent. Missing or throwing
 independent observers stay unconfirmed. These actual-owner source changes and
 inert-child/real-file/category-lease controls remain UNVALIDATED.
 
+New managed archive transactions and removals also use the existing durable
+storage session owner for category admission. Both retained-sibling and new-stage
+native verification pin the physical installation owner through exact resource
+settlement, then release that verifier before publication exclusion. A failed
+verification admission adopts its actual partial metadata session when the
+session producer identifies that release failure. No parent-path discovery or
+alternate lease namespace is involved.
+
+Transaction recovery retains frozen primary, journal and cleanup failures as
+exact causes. It captures every original pending native/response observer before
+attaching its own handle, and an explicit recipe receipt cannot override any
+unknown or throwing observer. Its own exact session metadata errors remain
+retryable without joining those independent blockers. Cleanup checks the actual
+staging directory identity and reports unknown/unreadable evidence instead of
+claiming it was removed. Metadata retries coalesce only original handles.
+
+Removal preserves both generation-retirement and failed selector-rollback
+errors, with retained selector/journal paths for explicit repair. Failed category
+metadata removal exposes an exact `managedRemovalSession`; it does not retry
+filesystem retirement or grant new removal authority. Authored actual small
+archive/receipt/staging/category/removal fixtures with inert verifiers and injected
+unlink/rename failures remain UNVALIDATED. No download, native tool, physical
+link, real installation or user-cache mutation was performed during authoring.
+
 Structural execution binds each identity probe and rule invocation to the same
 identified physical path, digest and byte count, checking again after actual
 child completion. Successful output cannot qualify changed executable bytes.

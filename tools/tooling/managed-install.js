@@ -6,7 +6,8 @@ import { acquireFileLock, releaseFileLockOrThrow } from '../../src/shared/locks/
 import { assertNoSymlinkPath, readVerifiedContainedFile } from '../../src/shared/contained-file.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 import { inspectStorageAccess, withExclusiveStorageAccess } from '../../src/shared/storage/access.js';
-import { acquireRepoCacheAccessLease } from '../../src/shared/cache/repo-access.js';
+import { acquireStorageSession, isStorageSessionReleaseFailure } from '../../src/shared/storage/session.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 import { extractArchive } from '../shared/archive-extraction.js';
@@ -16,7 +17,8 @@ import { retainManagedToolInstallation } from '../../src/shared/managed-installa
 import { isKnownManagedInstallationDescriptor, isKnownManagedInstallationReceipt } from '../../src/shared/managed-installation-contract.js';
 import { storageFileIdentity } from '../../src/shared/storage/inventory.js';
 import { verifyStorageFile } from '../../src/shared/storage/transfer.js';
-import { verifyOwnedInstallation, verifyRetainedManagedInstallation } from './managed-verification.js';
+import { verifyOwnedInstallation, verifyRetainedManagedInstallation, captureManagedVerificationFailure,
+  retainManagedResourceFailure } from './managed-verification.js';
 export { retainManagedToolInstallation, retainManagedToolInstallationSync } from '../../src/shared/managed-installation.js';
 
 export const MANAGED_INSTALL_VERSION = 1;
@@ -25,6 +27,15 @@ const DEFAULT_LIMITS = Object.freeze({ maxBytes: 1024 * 1024 * 1024, maxEntryByt
 const hash = value => createHash('sha256').update(value).digest('hex');
 const identity = value => hash(stableStringify(value));
 const accessOptions = toolingRoot => ({ coordinationRoot: path.join(resolveStorageLayout({ overrides: { tooling: toolingRoot } }).descriptors.state.path, 'storage-access') });
+const acquireManagedStorage = (toolingRoot, roots, scope, resourceId) => {
+  const layout = resolveStorageLayout({ overrides: { tooling: toolingRoot } });
+  return acquireStorageSession({ roots, scope, resourceId,
+    authorizedRoots: [layout.descriptors.tooling.path, layout.descriptors.state.path],
+    coordinationRoot: path.join(layout.descriptors.state.path, 'storage-access') });
+};
+const exactResourceReceipt = (receipt, resourceId) => receipt && typeof receipt === 'object' && !Array.isArray(receipt)
+  && Object.keys(receipt).sort().join(',') === 'pending,resourceId,settled' && receipt.resourceId === resourceId
+  && receipt.settled === true && receipt.pending === false;
 const safeId = value => typeof value === 'string' && /^[a-z0-9][a-z0-9.-]{0,100}$/.test(value);
 const relativePath = value => typeof value === 'string' && value.length <= 4096 && value.split('/').every(part => part && part !== '.' && part !== '..'
   && !/[\\:\x00-\x1f]/.test(part)) && !path.posix.isAbsolute(value);
@@ -177,14 +188,8 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
   }
   const owner = await resolveOwner(toolingRoot, pinned.toolId, { create: true });
   const transactionId = randomUUID();
-  const categoryLease = acquireRepoCacheAccessLease(toolingRoot, { ...accessOptions(toolingRoot),
-    scope: 'managed-tool-install-resource', resourceId: transactionId, requireSettlement: true });
-  let lock;
-  try {
-    lock = await acquireFileLock({ lockPath: path.join(owner, 'install.lock'), waitMs: 0, signal,
-      metadata: { scope: 'managed-tool-install', toolId: pinned.toolId, descriptorId: pinned.descriptorId } });
-  } catch (error) { categoryLease.release(); throw error; }
-  if (!lock) { categoryLease.release(); throw new Error('Another managed installer owns this tool; retry after it settles.'); }
+  const categorySession = acquireManagedStorage(toolingRoot, [toolingRoot], 'managed-tool-install-resource', transactionId);
+  let lock = null;
   const installId = identity({ descriptorId: pinned.descriptorId, transactionId });
   const stage = path.join(owner, '.stage-' + transactionId);
   const journal = path.join(owner, 'transactions', transactionId + '.json');
@@ -195,22 +200,72 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
   let released = false;
   let primaryError = null;
   let verificationLease = null;
+  let resourcePending = false, reconciling = null, observerOverflow = false;
+  const observers = [], observed = new WeakSet(), described = new WeakSet(), ownedMetadataFailures = new WeakSet();
+  const observeFailure = error => {
+    if (!error || typeof error !== 'object' || observed.has(error) || described.has(error) || ownedMetadataFailures.has(error)) return;
+    observed.add(error);
+    const captured = captureManagedVerificationFailure(error, transactionId);
+    if (captured.observe) {
+      if (observers.length < 128) observers.push(captured.observe);
+      else observerOverflow = true;
+    }
+    if (captured.owned || captured.observe && !captured.observe()) resourcePending = true;
+  };
+  const resourcesSettled = () => !observerOverflow && !resourcePending && observers.every(observe => observe());
+  const releaseSession = session => {
+    try { return session.releaseAfterSettlement({ resourceId: session.resourceId, settled: true, pending: false }); }
+    catch (error) { if (isStorageSessionReleaseFailure(error, session)) ownedMetadataFailures.add(error); throw error; }
+  };
+  const admitVerification = (scope = 'managed-retained-generation-verifier') => {
+    try { verificationLease = acquireManagedStorage(toolingRoot, [owner], scope, transactionId); }
+    catch (error) {
+      const partial = error.storageSession;
+      if (partial && (isStorageSessionReleaseFailure(error, partial) || isStorageSessionReleaseFailure(error.storageSettlementError, partial))) {
+        verificationLease = partial;
+        ownedMetadataFailures.add(error);
+      }
+      throw error;
+    }
+  };
   const releaseResources = async () => {
+    if (!resourcesSettled()) throw new Error('Managed install child/resource settlement is still pending.');
     if (released) return true;
     if (verificationLease) {
-      if (!verificationLease.release()) throw new Error('Managed retained-generation verification lease changed before release.');
+      if (releaseSession(verificationLease) !== true) throw new Error('Managed retained-generation verification lease changed before release.');
       verificationLease = null;
     }
     if (stageIdentity) {
-      const actual = await fs.lstat(stage, { bigint: true }).catch(() => null);
-      if (actual && !actual.isSymbolicLink() && actual.dev === stageIdentity.dev && actual.ino === stageIdentity.ino
-        && isPathWithinRoot(stage, owner)) await fs.rm(stage, { recursive: true, force: true });
+      let actual;
+      try { actual = await fs.lstat(stage, { bigint: true }); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+      if (actual) {
+        if (actual.isSymbolicLink() || actual.dev !== stageIdentity.dev || actual.ino !== stageIdentity.ino || !isPathWithinRoot(stage, owner)) {
+          throw new Error('Managed installer staging identity changed; unknown evidence is preserved.');
+        }
+        await fs.rm(stage, { recursive: true, force: false });
+      }
     }
     if (lock) { await releaseFileLockOrThrow(lock); lock = null; }
-    if (!categoryLease.release()) throw new Error('Managed installer category lease changed before release.');
+    if (releaseSession(categorySession) !== true) throw new Error('Managed installer category lease changed before release.');
     released = true;
     return true;
   };
+  const recovery = Object.freeze({ resourceId: transactionId, stage, journal, releaseAfterSettlement: async receipt => {
+    if (!exactResourceReceipt(receipt, transactionId)) throw new Error('Managed install child settlement is still pending.');
+    if (!reconciling) reconciling = (async () => {
+      if (primaryError?.downloadSession) await settleInstallDownload(primaryError);
+      if (observerOverflow || observers.some(observe => !observe())) throw new Error('Actual managed install native/resource observer remains pending.');
+      resourcePending = false;
+      return releaseResources();
+    })().finally(() => { reconciling = null; });
+    try { return await reconciling; }
+    catch (cleanupError) {
+      observeFailure(cleanupError);
+      const failure = retainManagedResourceFailure(primaryError || cleanupError, { session: recovery,
+        released: () => released && resourcesSettled(), cleanupError });
+      described.add(failure); throw failure;
+    }
+  } });
   const checkpoint = async extra => {
     await atomicWriteJson(journal, { schemaVersion: MANAGED_INSTALL_VERSION, application: 'pairofcleats',
       toolId: pinned.toolId, descriptorId: pinned.descriptorId, transactionId, state, previousPreserved: true,
@@ -218,14 +273,16 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     onProgress({ toolId: pinned.toolId, transactionId, state, ...extra });
   };
   try {
+    lock = await acquireFileLock({ lockPath: path.join(owner, 'install.lock'), waitMs: 0, signal,
+      metadata: { scope: 'managed-tool-install', toolId: pinned.toolId, descriptorId: pinned.descriptorId } });
+    if (!lock) throw new Error('Another managed installer owns this tool; retry after it settles.');
     const resumable = await findRetainedGeneration(owner, pinned.toolId, pinned.descriptorId, { signal });
     if (resumable?.ok) {
-      verificationLease = acquireRepoCacheAccessLease(owner, { ...accessOptions(toolingRoot),
-        scope: 'managed-retained-generation-verifier', resourceId: transactionId, requireSettlement: true });
+      admitVerification();
       const retained = await inspectGeneration(owner, pinned.toolId, resumable.receipt.installId, { signal });
       if (!retained.ok) throw new Error('Retained managed generation changed before verification admission.');
       const verification = await verifyOwnedInstallation(verify, { root: retained.root, command: retained.command, args: retained.args, descriptor: pinned, signal }, transactionId);
-      if (!verificationLease.release()) throw new Error('Retained-generation verification lease changed before publication.');
+      if (releaseSession(verificationLease) !== true) throw new Error('Retained-generation verification lease changed before publication.');
       verificationLease = null;
       const publication = await withExclusiveStorageAccess(owner, async () => {
         signal?.throwIfAborted();
@@ -268,9 +325,12 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     const files = await captureFiles(packageRoot, DEFAULT_LIMITS, { signal });
     state = 'verifying';
     await checkpoint({ files: files.length });
+    admitVerification('managed-new-generation-verifier');
     const verification = await verifyOwnedInstallation(verify, { root: packageRoot, command: path.join(packageRoot, pinned.command),
       args: pinned.args || [], descriptor: pinned, signal }, transactionId);
     if (identity(await captureFiles(packageRoot, DEFAULT_LIMITS, { signal })) !== identity(files)) throw new Error('Tool verification mutated immutable installation bytes.');
+    if (releaseSession(verificationLease) !== true) throw new Error('New-generation verification lease changed before publication.');
+    verificationLease = null;
     signal?.throwIfAborted();
     await fs.mkdir(path.join(owner, 'generations'), { recursive: true });
     const destination = path.join(owner, 'generations', installId);
@@ -304,23 +364,30 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
       downloadedBytes: fetched.body.length, verification, previousPreserved: true };
   } catch (error) {
     primaryError = error;
-    pending = error.cacheOwnershipPending === true;
+    observeFailure(error);
+    pending = !resourcesSettled();
     state = signal?.aborted ? 'cancelled' : 'failed';
-    await checkpoint({ code: error.code || null, message: error.message, promotedRoot: promoted }).catch(() => {});
-    if (pending) Object.defineProperty(error, 'managedInstallSession', { value: { resourceId: transactionId, stage, journal,
-      releaseAfterSettlement: async receipt => {
-        if (receipt?.resourceId !== transactionId || receipt.settled !== true || receipt.pending !== false) throw new Error('Managed install child settlement is still pending.');
-        if (error.downloadSession) await settleInstallDownload(error);
-        return releaseResources();
-      } }, configurable: true });
-    throw error;
+    if (lock) {
+      try { await checkpoint({ code: error.code || null, message: error.message, promotedRoot: promoted }); }
+      catch (journalError) {
+        observeFailure(journalError);
+        primaryError = addStorageFailureContext(error, { managedJournalError: journalError }, journalError);
+      }
+    }
+    pending = !resourcesSettled();
+    if (pending) {
+      const failure = retainManagedResourceFailure(primaryError, { session: recovery, released: () => released && resourcesSettled() });
+      described.add(failure); throw failure;
+    }
+    throw primaryError;
   } finally {
     if (!pending) {
       try { await releaseResources(); }
       catch (error) {
-        if (!primaryError) throw error;
-        primaryError.managedCleanupError = error;
-        throw primaryError;
+        observeFailure(error);
+        const failure = retainManagedResourceFailure(primaryError || error, { session: recovery,
+          released: () => released && resourcesSettled(), cleanupError: primaryError ? error : null });
+        described.add(failure); throw failure;
       }
     }
   }
@@ -371,7 +438,11 @@ const removeOwnedManagedTool = async (approved, { signal = null } = {}) => {
     // between selector and generation renames would manufacture a broken tool.
     await fs.rename(path.join(selected.owner, 'current.json'), retainedSelector);
     try { await fs.rename(verified.root, retired); }
-    catch (error) { await fs.rename(retainedSelector, path.join(selected.owner, 'current.json')); throw error; }
+    catch (error) {
+      try { await fs.rename(retainedSelector, path.join(selected.owner, 'current.json')); }
+      catch (rollbackError) { throw addStorageFailureContext(error, { managedRemovalRollback: { journal, retainedSelector, retired } }, rollbackError); }
+      throw error;
+    }
     // Exclusion, verified full inventory and the exact retained generation grant
     // deletion authority for this one directory only. Other versions/evidence stay.
     assertNoSymlinkPath(selected.owner, retired);
@@ -386,15 +457,29 @@ const removeOwnedManagedTool = async (approved, { signal = null } = {}) => {
 export const removePinnedManagedTool = async (approved, { signal = null } = {}) => {
   signal?.throwIfAborted();
   if (!path.isAbsolute(approved?.toolingRoot || '')) throw new Error('Managed removal requires its absolute tooling owner.');
-  const categoryLease = acquireRepoCacheAccessLease(approved.toolingRoot, accessOptions(approved.toolingRoot));
-  let primaryError = null;
-  try { return await removeOwnedManagedTool(approved, { signal }); }
-  catch (error) { primaryError = error; throw error; }
-  finally {
-    if (!categoryLease.release()) {
-      const cleanupError = new Error('Managed removal category lease changed before release.');
-      if (!primaryError) throw cleanupError;
-      primaryError.managedCleanupError = cleanupError;
+  const resourceId = randomUUID();
+  const categorySession = acquireManagedStorage(approved.toolingRoot, [approved.toolingRoot], 'managed-tool-removal-resource', resourceId);
+  let primaryError = null, released = false, observe = null;
+  const release = () => {
+    if (observe && !observe()) throw new Error('Actual managed removal resource remains pending.');
+    if (released) return true;
+    if (categorySession.releaseAfterSettlement({ resourceId, settled: true, pending: false }) !== true) {
+      throw new Error('Managed removal category lease changed before release.');
     }
+    released = true;
+    return true;
+  };
+  const retainFailure = (primary, cleanupError = null) => retainManagedResourceFailure(primary, { session: recovery,
+    field: 'managedRemovalSession', released: () => released && (!observe || observe()), cleanupError });
+  const recovery = Object.freeze({ resourceId, releaseAfterSettlement: receipt => {
+    if (!exactResourceReceipt(receipt, resourceId)) throw new Error('Managed removal requires its exact resource receipt and explicit pending:false.');
+    try { return release(); }
+    catch (cleanupError) { throw retainFailure(primaryError || cleanupError, cleanupError); }
+  } });
+  try { return await removeOwnedManagedTool(approved, { signal }); }
+  catch (error) { primaryError = error; observe = captureManagedVerificationFailure(error, resourceId).observe; throw error; }
+  finally {
+    try { release(); }
+    catch (cleanupError) { throw retainFailure(primaryError || cleanupError, primaryError ? cleanupError : null); }
   }
 };
