@@ -7,6 +7,14 @@ It is the canonical contract for Git/JJ/none providers.
 
 Each provider must implement these functions with the listed shapes.
 All paths must be repo-relative and POSIX normalized.
+Filename whitespace and case remain significant according to the repository's
+path contract. Normalize separators/dot segments without display trimming;
+leading-space filenames remain distinct from their unspaced counterparts in
+requests, batch parsing, snapshots, invalidation and lookup.
+
+Metadata prefetch identity includes whether churn is requested. Historical
+annotations pass a validated commit ID to the blame command. Unpinned blame
+does not reuse a cached working-tree result across subsequent edits/commits.
 
 ### detect
 

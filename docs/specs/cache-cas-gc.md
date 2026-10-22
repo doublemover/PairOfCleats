@@ -118,6 +118,15 @@ Fields:
 
 GC must skip objects with active leases.
 
+A lease inventory is complete only when its directory can be enumerated and
+every present, hash-named lease is an ordinary contained file with valid JSON,
+`startedAt` and a positive finite numeric `ttlMs`. A genuinely missing lease or
+a successfully parsed expired lease is inactive. Permission errors, IO errors,
+malformed data and linked entries do not prove inactivity. They defer the whole
+destructive run with `ERR_CAS_LEASE_INCOMPLETE`; JSON output includes the failed
+lease path/hash/code and reports zero planned and deleted bytes. `--apply` does
+not override this refusal.
+
 ---
 
 ## 6. Commands

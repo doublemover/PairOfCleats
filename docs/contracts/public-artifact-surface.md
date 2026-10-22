@@ -13,6 +13,19 @@ This document is the **canonical** contract for PairOfCleats public artifacts. I
 - Readers must resolve artifacts **only** via the manifest in strict mode (default).
 - Tools must not guess filenames or silently scan directories.
 
+Strict readers reject linked path components, including junctions, and verify
+that opened descriptors still identify the admitted contained ordinary files.
+This applies to payloads and sidecars. Declared SHA-1, SHA-256 and xxh64 checksums
+must have the exact supported encoding and match bytes; unsupported or malformed
+strict checksums cannot be ignored.
+
+Replacement sharded families use immutable generation paths and one enclosing
+manifest commit. Existing readers retain their selected generation until their
+normal lifetime ends. Writers and compaction do not delete old selected payloads
+as part of publication. Publication records require explicit successful
+validation evidence and matching mode/build-root authority, family membership
+and committed piece identity. Missing evidence and unknown statuses fail closed.
+
 ## Required public artifacts
 
 These artifacts define the public surface and must be present when referenced:
@@ -121,4 +134,15 @@ Artifacts that truncate content must include:
 - enabled mode set
 
 Readers must hard-fail if compatibility keys differ.
+
+## Lexical producer evidence
+
+Phrase and chargram per-chunk limits are shared across configured fields.
+`indexing.postings.chargramMaxTokenLength` defaults to 48 when absent; explicit
+`null`, `0` or `false` disables that token-length limit. Repeated normalization
+retains the uncapped meaning. Independent per-chunk/unique-term guards still
+apply. Rebuild affected postings after producer meaning changes; existing
+artifacts cannot acquire previously omitted long-token evidence by relabelling.
+Synonym expansion accepts only own string-valued synonym entries, so reserved
+object-property names remain ordinary string tokens.
 

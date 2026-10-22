@@ -14,6 +14,31 @@
 - Dense vectors and ANN rows must stay in sync with chunk counts.
 - If a schema bump occurs, rebuild SQLite indexes; incremental updates do not attempt migrations.
 
+## Selected roots and empty sources
+
+Default all-mode builds resolve each published mode independently. If code and
+prose point at different retained builds, each mode reads its own source root,
+writes its own SQLite target and records progress/checkpoints in that root. An
+explicit `--index-root` selects one root for every requested mode. A missing
+mode authority fails planning before any database is changed; a later mode may
+not replace an earlier mode's configured shared output database.
+
+An empty source can waive the database requirement only through a verified
+zero-state marker. The marker binds mode, output path, index directory, build
+identity, artifact surface version and checksums of the selected empty source
+artifacts. Mere marker existence, a malformed marker or stale source bytes never
+prove emptiness. Updating mutable index-state progress does not invalidate an
+otherwise unchanged source proof.
+
+## Replacement and recovery
+
+SQLite replacement preserves the committed database and committed WAL until the
+new database has been validated and promoted. Recovery settles retained backups
+before admitting a new replacement attempt. Failures reading a fingerprint other
+than genuine absence remain failures; permission/IO errors cannot establish that
+there is no prior authority. Incremental dense replacement stages its ANN table
+and validates/backfills it before replacing the prior table in the transaction.
+
 ## ANN extension
 - Vector extension usage is optional and configuration-driven.
 - When the extension is missing, search falls back to non-extension ANN and reports availability accordingly.
