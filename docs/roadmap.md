@@ -53,9 +53,14 @@ do not assume issue-number order or turn feature requests into duplicate engines
 6. Final candidate-wide Windows discovery/cohort reconciliation and relevant
    qualification. Keep release/real-model/optional-backend claims separate.
 
-Frontload implementation within each coherent batch. Run small fail-before
-regressions where needed to establish cause, then affected checks and the full
-required pre-push gate once before publication. Do not run repeated broad suites,
+The user's latest direction defers validation until the broad backlog development
+pass is complete. Both agents and the lead edit real repository files and author
+regressions without executing tests, syntax campaigns or formatting. Publish
+completed owner groups as explicitly **unvalidated development checkpoints**;
+these commits do not replace the last qualified source identified above. After
+the development pass, prepare the changed dependency installation, establish
+fail-before controls where required, run affected checks and the complete front
+gate, then reconcile Windows cohorts. Do not run repeated broad suites,
 raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
