@@ -64,7 +64,9 @@ risk requests. Recent source also shares bounded codec admission, repairs immuta
 occurrence handoff and bounds compiler construction with replay-safe identities.
 The fidelity/occurrence checkpoint adds explicit admission, durable omission
 receipts and bounded call-site spill; full semantic resume/capability sealing
-remain open. Their regressions remain unexecuted. After
+remain open. Native log/review presentation, profile/reference caches and timestamp retention
+now have source checkpoints; whole-app cache migration/quota and shared transform
+CPU-lifetime integration remain open. Their regressions remain unexecuted. After
 the development pass, prepare the changed dependency installation, establish
 fail-before controls where required, run affected checks and the complete front
 gate, then reconcile Windows cohorts. Do not run repeated broad suites,
