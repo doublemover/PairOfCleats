@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { canonicalSemanticJson, semanticHash } from '../semantic/identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { qualifySqlSelectRanges } from './sql-source-qualifier.js';
+import { finalizeSourceLinkedReport } from './source-linked-report.js';
 
 const require = createRequire(import.meta.url);
 const fail = message => Object.assign(new Error(message), { code: 'ERR_SQL_CATALOG_EVIDENCE' });
@@ -13,7 +14,7 @@ const safePath = value => typeof value === 'string' && value && !/[\\:\x00-\x1f]
   && !value.startsWith('/') && value.split('/').every(part => part && part !== '.' && part !== '..');
 
 export const SQL_CATALOG_PROVIDER_DECLARATION = Object.freeze({ schemaVersion: 1,
-  providerId: 'sql-offline-catalog', adapterVersion: '1', execution: 'trusted-inprocess', languages: [{ id: 'sql', dialect: 'postgresql' }],
+  providerId: 'sql-offline-catalog', adapterVersion: '2', execution: 'trusted-inprocess', languages: [{ id: 'sql', dialect: 'postgresql' }],
   facts: [{ family: 'references', evidence: 'source-qualified' }, { family: 'diagnostics', evidence: 'provider-observation' }],
   consumers: [{ id: 'navigation', families: ['references'], partialPolicy: 'qualified', fallback: 'parser' },
     { id: 'semanticDetail', families: ['references', 'diagnostics'], partialPolicy: 'qualified', fallback: 'parser' }],
@@ -189,7 +190,7 @@ export const collectOfflineSqlCatalogEvidence = ({ catalog, expectedCatalogIdent
         && result.diagnostics.length < 32) result.diagnostics.push({ code: 'non_projection_column_ranges_unavailable', span: null });
     }
   }
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'sql-offline-catalog', adapterVersion: '1',
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'sql-offline-catalog', adapterVersion: '2',
     method: 'sql/offline-catalog', evidenceKind: 'sql-catalog-references', generation: JSON.parse(canonicalSemanticJson(generation)),
     runtime: { family: 'node-sql-parser', version, profileHash, qualification: 'application-library-unqualified' },
     project: { configHash, dependencyHash, catalogIdentity: identity, catalogContext: catalog.context },
@@ -197,6 +198,6 @@ export const collectOfflineSqlCatalogEvidence = ({ catalog, expectedCatalogIdent
       functionOverloads: false, proceduralSql: false, temporaryObjects: false },
     metrics: { sourceBytes, nodeCount, referenceCount, columnCount, candidateCount, retainedReferenceBytes } };
   check();
-  if (Buffer.byteLength(canonicalSemanticJson(report)) > 1024 * 1024) throw fail('SQL report output byte budget exhausted.');
-  return { ...report, identity: semanticHash('tooling.source-linked-evidence.v1', report) };
+  return finalizeSourceLinkedReport(report, { maxBytes: SQL_CATALOG_PROVIDER_DECLARATION.limits.maxBytes,
+    fail, message: 'SQL report output byte budget exhausted.', check });
 };

@@ -7,6 +7,7 @@ import { parseHandlebarsStructure } from '../../shared/handlebars-ast.js';
 import { parseMustacheStructure } from '../../shared/mustache-structure.js';
 import { canonicalSemanticJson, semanticHash } from '../semantic/identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { finalizeSourceLinkedReport } from './source-linked-report.js';
 
 const require = createRequire(import.meta.url);
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
@@ -16,7 +17,7 @@ const fail = message => Object.assign(new Error(message), { code: 'ERR_TEMPLATE_
 const simpleName = value => typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\x00-\x1f]/u.test(value);
 
 export const TEMPLATE_REFERENCE_PROVIDER_DECLARATION = Object.freeze({ schemaVersion: 1,
-  providerId: 'template-local-registry', adapterVersion: '1', execution: 'trusted-inprocess',
+  providerId: 'template-local-registry', adapterVersion: '2', execution: 'trusted-inprocess',
   languages: [{ id: 'handlebars', dialect: null }, { id: 'mustache', dialect: null }],
   facts: [{ family: 'references', evidence: 'source-qualified' }, { family: 'diagnostics', evidence: 'provider-observation' }],
   consumers: [{ id: 'navigation', families: ['references'], partialPolicy: 'qualified', fallback: 'parser' },
@@ -145,7 +146,7 @@ export const collectTemplateReferenceEvidence = ({ documents, templates, helpers
       }
     }
   }
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'template-local-registry', adapterVersion: '1',
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'template-local-registry', adapterVersion: '2',
     method: 'template/local-registry', evidenceKind: 'template-local-references', generation: JSON.parse(canonicalSemanticJson(generation)),
     runtime: { family: 'template-parse-only', version: `handlebars-${handlebarsVersion}+mustache-${mustacheVersion}`,
       profileHash, qualification: 'application-library-unqualified' },
@@ -155,5 +156,6 @@ export const collectTemplateReferenceEvidence = ({ documents, templates, helpers
     coverage: { explicitRegistryOnly: true, rendered: false, loaderExecuted: false, runtimeContextBindings: false },
     metrics: { sourceBytes, referenceCount } };
   check();
-  return { ...report, identity: semanticHash('tooling.source-linked-evidence.v1', report) };
+  return finalizeSourceLinkedReport(report, { maxBytes: TEMPLATE_REFERENCE_PROVIDER_DECLARATION.limits.maxBytes,
+    fail, message: 'Template report output byte budget exhausted.', check });
 };

@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { parseJsoncStructure } from '../../shared/jsonc-structure.js';
 import { canonicalSemanticJson, semanticHash } from '../semantic/identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { finalizeSourceLinkedReport } from './source-linked-report.js';
 
 const require = createRequire(import.meta.url);
 const parserVersion = require('jsonc-parser/package.json').version;
@@ -141,7 +142,7 @@ export const createJsonReferenceEvidenceReport = ({ evidence, generation, config
   if (evidence?.schemaVersion !== 1 || !Array.isArray(evidence.results) || !evidence.results.length
     || evidence.results.length > 20 || semanticHash('tooling.offline-config-evidence.v1', evidence.results) !== evidence.identity
     || !generation || !digest(configHash) || !digest(dependencyHash) || (profileHash !== null && !digest(profileHash))) throw fail('Invalid configuration evidence report identity.');
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'configuration-local-references', adapterVersion: '1',
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'configuration-local-references', adapterVersion: '2',
     method: 'configuration/local-references', evidenceKind: 'configuration-local-references', generation: structuredClone(generation),
     runtime: { family: 'jsonc-parser', version: parserVersion, profileHash, qualification: 'application-library-unqualified' },
     project: { configHash, dependencyHash },
@@ -150,5 +151,6 @@ export const createJsonReferenceEvidenceReport = ({ evidence, generation, config
       omittedDiagnostics: Math.max(0, result.diagnostics.length - 32),
       references: result.references.map(reference => ({ ...reference, family: 'jsonPointer', state: reference.status })) })),
     coverage: { localReferences: true, schemaValidation: false, networkAllowed: false }, metrics: structuredClone(evidence.metrics) };
-  return { ...report, identity: semanticHash('tooling.source-linked-evidence.v1', report) };
+  return finalizeSourceLinkedReport(report, { maxBytes: 1024 * 1024,
+    fail, message: 'Configuration report output byte budget exhausted.' });
 };

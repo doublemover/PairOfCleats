@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { canonicalSemanticJson, semanticHash } from '../semantic/identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { finalizeSourceLinkedReport } from './source-linked-report.js';
 
 const require = createRequire(import.meta.url);
 const fail = message => Object.assign(new Error(message), { code: 'ERR_PROTO_DESCRIPTOR_EVIDENCE' });
@@ -12,7 +13,7 @@ const name = value => typeof value === 'string' && value.length <= 256 && /^[A-Z
 const same = (left, right) => canonicalSemanticJson(left) === canonicalSemanticJson(right);
 
 export const PROTO_DESCRIPTOR_PROVIDER_DECLARATION = Object.freeze({ schemaVersion: 1,
-  providerId: 'proto-descriptor-import', adapterVersion: '1', execution: 'report',
+  providerId: 'proto-descriptor-import', adapterVersion: '2', execution: 'report',
   languages: [{ id: 'proto', dialect: null }],
   facts: [{ family: 'references', evidence: 'source-qualified' }, { family: 'symbols', evidence: 'provider-observation' },
     { family: 'diagnostics', evidence: 'provider-observation' }],
@@ -267,7 +268,7 @@ export const prepareProtoDescriptorEvidence = ({ bytes, producingReceipt, expect
           : candidate && !admitted ? 'type_not_visible_through_imports' : 'descriptor_target_source_unavailable' });
     }
   }
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'proto-descriptor-import', adapterVersion: '1',
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'proto-descriptor-import', adapterVersion: '2',
     method: 'proto/descriptor-set', evidenceKind: 'proto-descriptor-references', generation: JSON.parse(canonicalSemanticJson(generation)),
     runtime: { family: 'protobufjs-descriptor', version, profileHash: producingReceipt.profileHash, qualification: 'application-library-unqualified' },
     project: { configHash: producingReceipt.configHash, dependencyHash: producingReceipt.dependencyHash,
@@ -281,5 +282,6 @@ export const prepareProtoDescriptorEvidence = ({ bytes, producingReceipt, expect
       generatedRuntimeCallFlow: false, editionsQualified: false }, metrics: { sourceBytes, symbolCount, locationCount, referenceCount } };
   check();
   return { status: 'partial', reason: 'descriptor_features_and_runtime_unqualified', artifactHash,
-    report: { ...report, identity: semanticHash('tooling.source-linked-evidence.v1', report) } };
+    report: finalizeSourceLinkedReport(report, { maxBytes: PROTO_DESCRIPTOR_PROVIDER_DECLARATION.limits.maxBytes,
+      fail, message: 'Proto descriptor output byte budget exhausted.', check }) };
 };

@@ -3,6 +3,7 @@ import { canonicalSemanticJson, semanticHash } from '../semantic/identity.js';
 import { exactLspRange } from '../semantic/lsp-locations.js';
 import { decodeSemanticdbEvidenceWire } from './semanticdb-wire.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { finalizeSourceLinkedReport } from './source-linked-report.js';
 
 const fail = message => Object.assign(new Error(message), { code: 'ERR_SEMANTICDB_EVIDENCE' });
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
@@ -12,7 +13,7 @@ const safePath = value => label(value) && !/[\\:]/u.test(value) && !value.starts
   && value.split('/').every(part => part && part !== '.' && part !== '..');
 
 export const SEMANTICDB_PROVIDER_DECLARATION = Object.freeze({ schemaVersion: 1,
-  providerId: 'scala-semanticdb-import', adapterVersion: '1', execution: 'report',
+  providerId: 'scala-semanticdb-import', adapterVersion: '2', execution: 'report',
   languages: [{ id: 'scala', dialect: null }],
   facts: [{ family: 'references', evidence: 'source-qualified' }, { family: 'symbols', evidence: 'provider-observation' },
     { family: 'diagnostics', evidence: 'provider-observation' }],
@@ -164,7 +165,7 @@ export const prepareSemanticdbReferenceEvidence = ({ bytes, producingReceipt, ex
       reason: target ? null : candidates.length ? 'ambiguous_symbol_in_build_target' : 'external_or_missing_definition',
       evidence: entry.family === 'semanticdbSyntheticApplication' ? 'compiler-synthetic' : 'compiler-occurrence' });
   }
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'scala-semanticdb-import', adapterVersion: '1',
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'scala-semanticdb-import', adapterVersion: '2',
     method: 'scala/semanticdb4', evidenceKind: 'scala-semanticdb-references', generation: JSON.parse(canonicalSemanticJson(generation)),
     runtime: { family: receipt.tool.family, version: receipt.tool.version, profileHash: receipt.profileHash,
       qualification: 'producing-receipt-and-application-decoder-unqualified', compilerVersion: receipt.tool.compilerVersion,
@@ -176,7 +177,7 @@ export const prepareSemanticdbReferenceEvidence = ({ bytes, producingReceipt, ex
       structuredSignatures: false, opaqueSignaturesRetained: true, tasty: false, compilerExecution: false,
       normalScalaSyntaxAdmission: false, metalsRuntime: false },
     metrics: { sourceBytes, referenceCount, decodedNodes: decoded.nodes, wireFields: decoded.fieldCount } };
-  if (Buffer.byteLength(canonicalSemanticJson(report)) > 1024 * 1024) throw fail('SemanticDB evidence output byte budget exhausted.');
   check();
-  return { status: 'partial', artifactHash, report: { ...report, identity: semanticHash('tooling.source-linked-evidence.v1', report) } };
+  return { status: 'partial', artifactHash, report: finalizeSourceLinkedReport(report,
+    { maxBytes: SEMANTICDB_PROVIDER_DECLARATION.limits.maxBytes, fail, message: 'SemanticDB evidence output byte budget exhausted.', check }) };
 };

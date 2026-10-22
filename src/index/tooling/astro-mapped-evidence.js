@@ -1,13 +1,14 @@
 import { canonicalSemanticJson, semanticHash } from '../semantic/identity.js';
 import { mapAstroGeneratedRange, isAdmittedAstroGeneratedDocument } from './vfs/astro-generated-document.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { finalizeSourceLinkedReport } from './source-linked-report.js';
 
 const fail = message => Object.assign(new Error(message), { code: 'ERR_ASTRO_GENERATED_MAPPING' });
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
 const same = (a, b) => canonicalSemanticJson(a) === canonicalSemanticJson(b);
 
 export const ASTRO_MAPPED_PROVIDER_DECLARATION = Object.freeze({ schemaVersion: 1,
-  providerId: 'astro-generated-observations', adapterVersion: '1', execution: 'report',
+  providerId: 'astro-generated-observations', adapterVersion: '2', execution: 'report',
   languages: [{ id: 'astro', dialect: null }],
   facts: [{ family: 'references', evidence: 'source-qualified' }, { family: 'diagnostics', evidence: 'provider-observation' }],
   consumers: [{ id: 'navigation', families: ['references'], partialPolicy: 'qualified', fallback: 'parser' },
@@ -59,7 +60,7 @@ export const prepareAstroMappedEvidence = ({ document, observations, producingRe
     if (seen.has(key)) seen.get(key).producerObservations++;
     else { reference.ownershipKey = key; seen.set(key, reference); references.push(reference); }
   }
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'astro-generated-observations', adapterVersion: '1',
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'astro-generated-observations', adapterVersion: '2',
     method: 'astro/generated-service-observations', evidenceKind: 'astro-generated-references', generation: document.generation,
     runtime: { family: receipt.tool.family, version: receipt.tool.version, profileHash: receipt.serviceProfileHash,
       qualification: 'captured-observations-and-application-compiler-unqualified', compilerVersion: document.runtime.version },
@@ -69,6 +70,6 @@ export const prepareAstroMappedEvidence = ({ document, observations, producingRe
     generatedDocument: document, observations,
     coverage: { mappedOriginalWitnesses: true, componentContracts: false, frameworkServiceAcquisition: false,
       parserReplacement: false, executableConfiguration: false, completeBindings: false } };
-  if (Buffer.byteLength(canonicalSemanticJson(report)) > 1024 * 1024) throw fail('Astro mapped evidence byte budget exhausted.');
-  return { status: 'partial', report: { ...report, identity: semanticHash('tooling.source-linked-evidence.v1', report) } };
+  return { status: 'partial', report: finalizeSourceLinkedReport(report, { maxBytes: ASTRO_MAPPED_PROVIDER_DECLARATION.limits.maxBytes,
+    fail, message: 'Astro mapped evidence byte budget exhausted.', check: () => throwIfAborted(signal) }) };
 };
