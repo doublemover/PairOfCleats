@@ -232,3 +232,13 @@ retires queued and pending requests with the original failure; direct manifest
 initialization can be retried after a failed attempt. These bounds concern
 requests and retained queue entries, not total source admission or measured
 network/worker/browser latency. Host integration and regressions remain unrun.
+
+Renderer failures preserve source browsing even when scene cleanup also fails.
+The full original enhancement failure and independently observed cleanup owners
+remain in state behind the display message. A resident transaction distinguishes
+failure before publication from failure in callbacks after publication; the
+reveal result retains the actual committed state and original error. Previous
+scene retirement still runs after publication callbacks fail. Boundary cleanup
+and operation completion failures are both retained. These source contracts and
+inert regressions are authored and unrun; no browser/GPU/resource or latency
+qualification follows from them.

@@ -18,17 +18,18 @@ const failure = (primary, errors) => {
   if (objectLike(primary)) {
     const descriptors = Object.getOwnPropertyDescriptors(primary);
     const reserved = new Set(['cause', 'errors', 'message', 'stack', 'sceneResourceOwner', 'sceneResourceOwners',
-      'sceneCleanupErrors', 'sceneOwnershipPending', 'sceneOwnershipReleased', 'cacheOwnershipPending', 'cacheOwnershipReleased']);
+      'sceneCleanupErrors', 'sceneOwnershipPending', 'sceneOwnershipReleased', 'cacheOwnershipPending', 'cacheOwnershipReleased',
+      'rendererTransactionCommitted', 'rendererTransactionStamp', 'rendererTransactionPhase', 'rendererTransactionCleanupFailed']);
     for (const key of Reflect.ownKeys(descriptors)) if (!reserved.has(key)) Object.defineProperty(result, key, descriptors[key]);
   }
   return result;
 };
 
 /** Keep the exact primary and every independently attempted cleanup outcome. */
-export const preserveSceneCleanupFailures = (primary, cleanupErrors, { hasPrimary = primary !== null && primary !== undefined } = {}) => {
+export const preserveSceneCleanupFailures = (primary, cleanupErrors, { hasPrimary = primary !== null && primary !== undefined, forceAggregate = false } = {}) => {
   const errors = hasPrimary ? [primary, ...cleanupErrors] : cleanupErrors;
   if (!errors.length) return null;
-  if (!hasPrimary && errors.length === 1 && objectLike(errors[0])) return errors[0];
+  if (!hasPrimary && !forceAggregate && errors.length === 1 && objectLike(errors[0])) return errors[0];
   const result = failure(hasPrimary ? primary : errors[0], errors), observers = errors.map(observe).filter(Boolean);
   const released = () => observers.every(check => check());
   const owners = errors.flatMap(error => error?.sceneResourceOwners || (error?.sceneResourceOwner ? [error.sceneResourceOwner] : []));

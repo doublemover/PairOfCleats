@@ -24,7 +24,7 @@ import { initViewerShell } from './workspace-shell.js';
 import { loadViewerSettingsSession } from './settings-client.js';
 import { applyViewerAppearance, initAppearanceEditor } from './appearance.js';
 import { initResidencyOwner } from './data/residency-owner.js';
-import { rendererCapabilities } from './rendering/boundary.js';
+import { enterSourceRendererFallback, invalidateRendererFallback } from './rendering/failure-state.js';
 import { initSnapshotData } from './data/session-owner.js';
 import { createRemoteSource } from './data/remote-source.js';
 import { buildSnapshotOverview } from './rendering/snapshot-overview.js';
@@ -202,6 +202,7 @@ const initViewer = async () => {
     initUi();rebuildScene();applyViewerAppearance(state,fresh.appearance);initAppearanceEditor(state,document,dom.menuVisuals);renderSummary();
   };
   const enhance=async()=>{
+    invalidateRendererFallback(state);
     retry.remove();
     dom.summary.textContent='Source browser ready · loading local 3D assets…';
     try {
@@ -221,10 +222,7 @@ const initViewer = async () => {
       state.scheduleRebuild=scheduleRebuild;
       renderSummary();
     } catch(error) {
-      state.disposeScene?.();
-      state.rendererCapabilities=rendererCapabilities({sourceOnly:true});
-      dom.summary.textContent=`3D unavailable: ${error.message}. Source hierarchy and inspection remain usable.`;
-      dom.summary.append(retry);
+      await enterSourceRendererFallback({state,summary:dom.summary,retry,error});
     }
   };
   await enhance();

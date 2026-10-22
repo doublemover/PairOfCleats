@@ -62,8 +62,9 @@ export const commitResidentScene = (candidate,request) => {
     Object.assign(state,candidate.values);
   }catch(error){const cleanupErrors=[];for(const group of added)try{state.scene.remove(group);}catch(cleanup){cleanupErrors.push(cleanup);}Object.assign(state,previous);throw preserveSceneCleanupFailures(error,cleanupErrors,{hasPrimary:true});}
   candidate.published=true;
-  state.remoteSource?.registerPlan(request);
-  retirePicking();
+  const postPublishErrors=[];
+  try{state.remoteSource?.registerPlan(request);}catch(error){postPublishErrors.push(error);}
+  try{retirePicking();}catch(error){postPublishErrors.push(error);}
   state.geometryRevision=(state.geometryRevision||0)+1;
   const retirementErrors=[];
   for(const key of groups){try{state.scene.remove(previous[key]);}catch(error){retirementErrors.push(error);}try{clearGroup(previous[key]);}catch(error){retirementErrors.push(error);}}
@@ -78,5 +79,9 @@ export const commitResidentScene = (candidate,request) => {
     if(reference)setSelection({object:reference.mesh,instanceId:reference.instanceId});else setSemanticSelection(selected);
     if(state.appearance)applyViewerAppearance(state,state.appearance);
     updateStackVisibility(true);state.renderEdgeMenu?.();state.invalidateHover?.();state.invalidateRender?.();
-  }catch(error){state.onRendererStatus?.(`Resident evidence committed; presentation refresh failed: ${error.message}`);}
+  }catch(error){postPublishErrors.push(error);}
+  if(postPublishErrors.length||retirementErrors.length){
+    throw preserveSceneCleanupFailures(postPublishErrors[0],postPublishErrors.length?[...postPublishErrors.slice(1),...retirementErrors]:retirementErrors,
+      {hasPrimary:postPublishErrors.length>0,forceAggregate:true});
+  }
 };

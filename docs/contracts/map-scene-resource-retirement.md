@@ -62,3 +62,40 @@ observers, both original functions/receivers are retained independently and
 both must report release. Copying an observer onto a wrapper with a different
 receiver cannot establish settlement. The additional falsey/observer fixture is
 also authored and unrun.
+
+Renderer transactions preserve their original prepare/commit failure separately
+from candidate retirement and operation completion failures. Each independent
+cleanup is attempted even when another throws, including falsey throws. Async
+candidate retirement settles before the accepted operation is finished. Boundary
+disposal attempts cancellation for every currently pending operation; it is a
+cancellation request and does not itself assert that detached preparation or GPU
+work has drained.
+
+The resident producer marks a candidate published before follow-up callbacks.
+Failure after that point retains the published scene and still attempts previous
+groups and buffer retirement. Transaction failures carry the observed committed
+state, phase and original revision stamp. The reveal consumer keeps that state,
+the full error and pending scoped owners instead of reporting that publication
+did not happen. Its revision and callback retirement run independently when
+boundary cancellation fails. Late failures from a prior source/revision owner
+remain in their operation result and cannot overwrite the current scene's
+status, failure or callbacks. Wrapper transaction metadata belongs to the current
+transaction even when its original cause is an immutable older transaction.
+
+The actual viewer failure path attempts the captured current scene disposer and
+preserves its failure alongside the original construction/enhancement error.
+Source capabilities and source-fallback status are restored before awaiting
+cleanup, including when it later fails; failed owners remain available through
+their existing exact capabilities.
+Displaying fallback or retry does not itself retry an observed failed native
+close. The boundary, actual resident commit, reveal consumer and source fallback
+fixtures use inert objects and remain **UNVALIDATED**. No host, Three, GPU,
+allocator, retry-safety, latency or quiescence acceptance was performed.
+
+A source fallback owns only its original source, scene, renderer and captured
+disposer. A new enhancement invalidates that fallback before loading assets, and
+overlapping fallbacks have separate publication owners even when they share a
+source/disposer. After cleanup awaits, a superseded fallback returns its full old
+failure and retains existing pending resource capabilities without replacing the
+current renderer's failure, retirement state or status. Gated sibling replacement
+and overlapping fallback controls are also authored and unrun.
