@@ -67,15 +67,15 @@ const mockClient = {
     }
     if (method === 'textDocument/inlayHint') {
       return [{
-        position: { line: 0, character: aIndex },
+        position: { line: 0, character: aIndex + 1 },
         label: 'a: integer',
         kind: 1
       }, {
-        position: { line: 0, character: bIndex },
+        position: { line: 0, character: bIndex + 1 },
         label: 'b: integer',
         kind: 1
       }, {
-        position: { line: 0, character: closeParenIndex },
+        position: { line: 0, character: closeParenIndex + 1 },
         label: '-> integer',
         kind: 1
       }];

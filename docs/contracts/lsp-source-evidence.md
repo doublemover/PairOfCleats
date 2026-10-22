@@ -14,6 +14,20 @@ return or parameter types. Qualified type hints retain `lsp_inlay` provenance an
 cannot by themselves mark a callable's return evidence complete or suppress a
 richer signature request. The hover request cache identity is `rq3`.
 
+Header ownership balances parentheses, arrays and object delimiters, so commas
+inside default expressions cannot invent parameter boundaries. Only a simple
+identifier/rest binding head can own a parameter slot; matching a supplied name
+inside a destructuring pattern or default initializer is insufficient. Quoted
+strings and comments retain their existing bounded scan. Generic angle syntax,
+regex/division ambiguity, malformed delimiters, invalid name anchors and an
+unfinished 16 KiB header remain unqualified observations. Unsupported headers do
+not acquire return ownership from an earlier nested close parenthesis. Type hints
+at identifier starts or at the closing parenthesis are not insertion slots;
+positive fixtures use the name end or the position after the closing parenthesis.
+These source-role changes require the shared LSP producer version increment.
+Inlay acquisition remains request-local; this change does not add hint-derived
+values to the persisted hover request cache.
+
 An object method's computed key evaluates when the object is created and may
 throw. Its parameter defaults and body evaluate only on invocation. A bare `var`
 redeclaration performs no runtime assignment and cannot overwrite a parameter
