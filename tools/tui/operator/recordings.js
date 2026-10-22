@@ -21,6 +21,14 @@ const filenamePattern = /^[^/\\\u0000-\u001f<>:"|?*]{1,200}\.jsonl$/u;
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
 const digest = value => createHash('sha256').update(value).digest('hex');
 const validTime = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
+const objectIdentity = stat => ({ dev: String(stat.dev), ino: String(stat.ino) });
+const sameObject = (stat, identity) => String(stat.dev) === identity.dev && String(stat.ino) === identity.ino;
+const requireDirectory = async selected => {
+  const stat = await fs.lstat(selected.directory, { bigint: true });
+  if (!stat.isDirectory() || stat.isSymbolicLink() || !sameObject(stat, selected.identity)) {
+    fail('ERR_TUI_RECORDING_STALE', 'The selected recording directory changed. Choose it again.');
+  }
+};
 
 const readMetadata = async (directory, filename, signal) => {
   const file = path.join(directory, filename.replace(/\.jsonl$/, '.meta.json'));
@@ -121,7 +129,7 @@ export const createTuiRecordings = () => {
     if (typeof directory !== 'string' || !path.isAbsolute(directory) || directory.includes('\0') || directory.length > 4096) {
       fail('ERR_TUI_RECORDING_DIRECTORY', 'Choose an absolute recording directory.');
     }
-    const canonical = await fs.realpath(directory), stat = await fs.lstat(canonical);
+    const canonical = await fs.realpath(directory), stat = await fs.lstat(canonical, { bigint: true });
     if (!stat.isDirectory() || stat.isSymbolicLink()) fail('ERR_TUI_RECORDING_DIRECTORY', 'Choose a regular recording directory.');
     if (filename !== null && (typeof filename !== 'string' || !filenamePattern.test(filename))) {
       fail('ERR_TUI_RECORDING_FILE', 'Choose a single recorded JSONL filename.');
@@ -143,19 +151,26 @@ export const createTuiRecordings = () => {
     }
     const privateEntries = new Map();
     for (const filename of names.sort()) {
-      const id = randomUUID(); privateEntries.set(id, filename);
+      const id = randomUUID();
       try {
-        const { metadata } = await readMetadata(canonical, filename, signal);
+        const { metadata, hash } = await readMetadata(canonical, filename, signal);
+        const log = await fs.lstat(path.join(canonical, filename), { bigint: true });
+        if (!log.isFile() || log.isSymbolicLink()) fail('ERR_TUI_RECORDING_FILE', 'Choose a regular recording file.');
+        privateEntries.set(id, { filename, metadataHash: hash, fileIdentity: objectIdentity(log) });
         entries.push({ id, filename, valid: true, ...metadata });
       } catch (error) {
         throwIfAborted(signal);
-        entries.push({ id, filename, valid: false, errorCode: error.code || 'ERR_TUI_RECORDING_METADATA' });
+        const errorCode = error.code || 'ERR_TUI_RECORDING_METADATA';
+        privateEntries.set(id, { filename, invalidCode: errorCode });
+        entries.push({ id, filename, valid: false, errorCode });
       }
     }
     active(); throwIfAborted(signal);
+    const selected = { directory: canonical, identity: objectIdentity(stat), entries: privateEntries };
+    await requireDirectory(selected);
     const directoryId = randomUUID();
     if (directories.size >= MAX_SESSIONS) directories.delete(directories.keys().next().value);
-    directories.set(directoryId, { directory: canonical, entries: privateEntries });
+    directories.set(directoryId, selected);
     return { directoryId, directory: canonical, entries, limits: { maxEntries: MAX_ENTRIES, maxLogBytes: MAX_LOG_BYTES,
       maxFrames: MAX_FRAMES, maxSessions: MAX_SESSIONS, maxDepth: MAX_DEPTH, maxValueNodes: MAX_VALUE_NODES,
       maxEventBytes: MAX_EVENT_BYTES, maxPageBytes: MAX_PAGE_BYTES },
@@ -163,14 +178,21 @@ export const createTuiRecordings = () => {
   };
   const load = async ({ directoryId, entryId }, { signal } = {}) => {
     active(); throwIfAborted(signal);
-    const selected = directories.get(directoryId), filename = selected?.entries.get(entryId);
-    if (!filename) fail('ERR_TUI_RECORDING_STALE', 'Choose an entry from the current recording picker.');
+    const selected = directories.get(directoryId), entry = selected?.entries.get(entryId);
+    if (!entry) fail('ERR_TUI_RECORDING_STALE', 'Choose a valid entry from the current recording picker.');
+    if (entry.invalidCode) fail(entry.invalidCode, 'The listed recording is invalid. Choose it again after repair.');
+    const { filename } = entry;
+    await requireDirectory(selected);
     const before = await readMetadata(selected.directory, filename, signal);
+    if (before.hash !== entry.metadataHash) fail('ERR_TUI_RECORDING_STALE', 'The selected metadata changed after listing. Choose it again.');
     const source = path.join(selected.directory, filename);
-    const log = await readVerifiedContainedFile(selected.directory, source, { maxBytes: MAX_LOG_BYTES, signal });
+    const log = await readVerifiedContainedFile(selected.directory, source,
+      { maxBytes: MAX_LOG_BYTES, expectedFileIdentity: entry.fileIdentity, signal });
     const decoded = decodeEvents(log.buffer, before.metadata.runId, signal);
     const after = await readMetadata(selected.directory, filename, signal);
     if (before.hash !== after.hash) fail('ERR_TUI_RECORDING_STALE', 'Recording metadata changed while loading. Choose it again.');
+    await requireDirectory(selected);
+    if (directories.get(directoryId) !== selected) fail('ERR_TUI_RECORDING_STALE', 'The recording directory capability expired during loading. Choose it again.');
     active(); throwIfAborted(signal);
     const recordingId = randomUUID(), identity = digest(`${source}\0${before.hash}\0${log.hash}`);
     if (sessions.size >= MAX_SESSIONS) sessions.delete(sessions.keys().next().value);

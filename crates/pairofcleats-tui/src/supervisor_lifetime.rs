@@ -8,6 +8,16 @@ use std::time::{Duration, Instant};
 
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(10);
 
+/// Keep the original terminal/transport/supervisor error as the source while
+/// reporting a simultaneous containment failure instead of silently hiding it.
+pub fn combine_session_outcomes(execution: anyhow::Result<()>, shutdown: anyhow::Result<()>) -> anyhow::Result<()> {
+    match (execution, shutdown) {
+        (Err(primary), Err(cleanup)) => Err(primary.context(format!("Owned supervisor shutdown also failed: {cleanup:#}"))),
+        (Err(primary), Ok(())) => Err(primary),
+        (Ok(()), shutdown) => shutdown,
+    }
+}
+
 #[cfg(target_os = "linux")]
 fn process_identity(pid: u32) -> std::io::Result<(u32, u64)> {
     use std::io::Read;
@@ -255,7 +265,7 @@ impl SupervisorLifetime {
             let _ = unsafe { kill(-(self.child.id() as i32), 9) };
         }
         #[cfg(windows)]
-        self.job.terminate();
+        self.job.terminate()?;
         #[cfg(not(target_os = "linux"))]
         Ok(())
     }
@@ -283,11 +293,27 @@ impl Drop for SupervisorLifetime {
     }
 }
 
+#[cfg(test)]
+mod outcome_tests {
+    use super::*;
+    #[test]
+    fn original_failure_and_unknown_containment_are_both_reported() {
+        let error = combine_session_outcomes(Err(anyhow::anyhow!("original terminal transport failure")),
+            Err(anyhow::anyhow!("owned Windows job termination remains pending"))).unwrap_err();
+        let displayed = format!("{error:#}");
+        assert!(displayed.contains("owned Windows job termination remains pending"));
+        assert_eq!(error.root_cause().to_string(), "original terminal transport failure");
+        assert!(combine_session_outcomes(Ok(()), Err(anyhow::anyhow!("cleanup failure"))).is_err());
+        assert!(combine_session_outcomes(Ok(()), Ok(())).is_ok());
+    }
+}
+
 #[cfg(windows)]
 mod windows {
     use std::ffi::c_void;
     use std::os::windows::io::AsRawHandle;
     use std::process::Child;
+    use std::time::{Duration, Instant};
     type Handle = *mut c_void;
     #[repr(C)]
     #[derive(Default)]
@@ -312,6 +338,15 @@ mod windows {
         peak_process_memory: usize,
         peak_job_memory: usize,
     }
+    #[repr(C)]
+    #[derive(Default)]
+    struct Accounting {
+        times: [i64; 4],
+        page_faults: u32,
+        total_processes: u32,
+        active_processes: u32,
+        terminated_processes: u32,
+    }
     #[link(name = "kernel32")]
     unsafe extern "system" {
         fn CreateJobObjectW(attributes: *mut c_void, name: *const u16) -> Handle;
@@ -323,6 +358,8 @@ mod windows {
         ) -> i32;
         fn AssignProcessToJobObject(job: Handle, process: Handle) -> i32;
         fn TerminateJobObject(job: Handle, exit_code: u32) -> i32;
+        fn QueryInformationJobObject(job: Handle, class: u32, info: *mut c_void,
+            length: u32, returned: *mut u32) -> i32;
         fn CloseHandle(handle: Handle) -> i32;
     }
     pub struct Job(Handle);
@@ -349,8 +386,26 @@ mod windows {
             }
             Ok(job)
         }
-        pub fn terminate(&self) {
-            let _ = unsafe { TerminateJobObject(self.0, 130) };
+        pub fn terminate(&self) -> std::io::Result<()> {
+            if unsafe { TerminateJobObject(self.0, 130) } == 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            // TerminateJobObject requests termination asynchronously. The exact
+            // owned job's active-process count, not a PID lookup or request result,
+            // witnesses quiescence before the lifetime owner reports settlement.
+            let deadline = Instant::now() + Duration::from_millis(500);
+            loop {
+                let mut accounting = Accounting::default();
+                if unsafe { QueryInformationJobObject(self.0, 1, &mut accounting as *mut _ as *mut c_void,
+                    std::mem::size_of::<Accounting>() as u32, std::ptr::null_mut()) } == 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                if accounting.active_processes == 0 { return Ok(()); }
+                if Instant::now() >= deadline {
+                    return Err(std::io::Error::other("Owned Windows job termination remains pending"));
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
         }
     }
     impl Drop for Job {

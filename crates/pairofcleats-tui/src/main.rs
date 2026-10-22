@@ -10,6 +10,7 @@ mod recordings;
 mod search;
 mod settings;
 mod supervisor_lifetime;
+mod supervisor_transport;
 #[cfg(test)]
 mod viewport_tests;
 #[cfg(test)]
@@ -24,7 +25,7 @@ mod task_state;
 mod overlay_viewport;
 use task_state::{Lifecycle, TaskState};
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -1223,23 +1224,9 @@ fn spawn_supervisor(
         .ok_or_else(|| anyhow::anyhow!("missing supervisor stdout"))?;
     let (tx, rx) = event_ingress::channel();
     std::thread::spawn(move || {
-        let reader = BufReader::new(stdout);
-        let mut parse_failures = 0usize;
-        for line in reader.lines().map_while(Result::ok) {
-            if line.trim().is_empty() {
-                continue;
-            }
-            match serde_json::from_str::<Value>(&line) {
-                Ok(value) => { let _ = tx.send(value); }
-                Err(error) => {
-                    parse_failures += 1;
-                    if parse_failures <= 8 {
-                        let _ = tx.send(json!({"event":"log", "level":"warn", "source":"tui-transport",
-                            "message":format!("Supervisor frame JSON rejected at line {}, column {} (diagnostic {}/8)",
-                                error.line(), error.column(), parse_failures)}));
-                    }
-                }
-            }
+        if let Err(error) = supervisor_transport::read_events(BufReader::new(stdout), &tx) {
+            let _ = tx.send(json!({"event":"log", "level":"error", "source":"tui-transport",
+                "message":format!("Supervisor output transport failed ({:?}); owned shutdown is required", error.kind())}));
         }
     });
 
@@ -3190,26 +3177,27 @@ fn enqueue_input(model: &mut AppModel, command: InputCommand, _token: &str) {
     model.input_queue.push_back((seq, command));
 }
 
-fn flush_flow_credits(model: &mut AppModel, supervisor: &mut std::process::Child) {
+fn flush_flow_credits(model: &mut AppModel, supervisor: &mut std::process::Child) -> anyhow::Result<()> {
     if model.flow_credit_pending == 0 {
-        return;
+        return Ok(());
     }
     if model.flow_credit_pending < FLOW_CREDIT_BATCH
         && model.last_credit_flush.elapsed() < FLOW_CREDIT_FLUSH_INTERVAL
     {
-        return;
+        return Ok(());
     }
     let credits = model.flow_credit_pending;
-    let _ = send_request(
+    send_request(
         supervisor,
         json!({
             "proto": "poc.tui@1",
             "op": "flow:credit",
             "credits": credits
         }),
-    );
+    )?;
     model.flow_credit_pending = 0;
     model.last_credit_flush = Instant::now();
+    Ok(())
 }
 
 fn append_runtime_metrics(model: &mut AppModel) {
@@ -3943,7 +3931,11 @@ fn dispatch_input_with_recordings_at(
     model.last_input_at = now;
     match cmd {
         InputCommand::ContextHelp => interaction::context_help(model),
-        InputCommand::Paste(text) => interaction::paste(model, &text),
+        InputCommand::Paste(text) => {
+            if model.overlay == OverlayMode::Recordings {
+                if let Some(recordings) = recordings.as_mut() { recordings.paste(&text); model.dirty = true; }
+            } else { interaction::paste(model, &text); }
+        },
         InputCommand::Mouse(input) => interaction::apply_mouse(model, input),
         InputCommand::TerminalKey(_) => unreachable!("raw key must be interpreted before command dispatch"),
         InputCommand::InspectJob => open_job_inspection(model),
@@ -4157,22 +4149,20 @@ fn main() -> anyhow::Result<()> {
     model.owns_control_channel = true;
     let mut recordings = recordings::RecordingUi::default();
 
-    let _ = send_request(
-        &mut supervisor,
-        json!({
-            "proto": "poc.tui@1",
-            "op": "flow:credit",
-            "credits": FLOW_CREDIT_BATCH * 4
-        }),
-    );
-
     let mut next_job_idx: u64 = 1;
     let mut last_frame = Instant::now();
 
     let execution = (|| -> anyhow::Result<()> {
+        send_request(&mut supervisor, json!({"proto":"poc.tui@1", "op":"flow:credit",
+            "credits":FLOW_CREDIT_BATCH * 4}))?;
         loop {
             let ingress_started = Instant::now();
-            let processed = drain_ingress_turn(|| supervisor.poll().ok(), |received| {
+            let mut transport_closed = false;
+            let processed = drain_ingress_turn(|| match supervisor.poll() {
+                Ok(event) => Some(event),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => { transport_closed = true; None },
+                Err(std::sync::mpsc::TryRecvError::Empty) => None,
+            }, |received| {
                 let owned_channel = recordings
                     .live_model
                     .as_ref()
@@ -4185,7 +4175,7 @@ fn main() -> anyhow::Result<()> {
             if processed > 0 {
                 let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
                 live.flow_credit_pending = live.flow_credit_pending.saturating_add(processed);
-                flush_flow_credits(live, &mut supervisor);
+                flush_flow_credits(live, &mut supervisor)?;
             }
 
             append_runtime_metrics(recordings.live_model.as_deref_mut().unwrap_or(&mut model));
@@ -4194,6 +4184,9 @@ fn main() -> anyhow::Result<()> {
                 return Err(anyhow::anyhow!(
                     "supervisor exited before TUI shutdown: {status}"
                 ));
+            }
+            if transport_closed {
+                return Err(anyhow::anyhow!("supervisor event transport closed while the owned child remained active"));
             }
 
             recordings.tick();
@@ -4205,7 +4198,10 @@ fn main() -> anyhow::Result<()> {
             }
             if model.recording_revision != recordings.revision {
                 model.recording_revision = recordings.revision;
-                model.recording_overlay_text = recordings.lines().join("\n");
+                let size = terminal.size()?;
+                let area = centered_rect(96, 94, ratatui::layout::Rect::new(0, 0, size.width, size.height));
+                model.recording_overlay_text = recordings.lines(area.height.saturating_sub(2) as usize,
+                    area.width.saturating_sub(2) as usize).join("\n");
                 model.dirty = true;
             }
 
@@ -4235,6 +4231,7 @@ fn main() -> anyhow::Result<()> {
                     // An unchanged model still needs a new layout after SIGWINCH.
                     invalidate_frame(&mut model);
                     *model.hit_map.borrow_mut() = interaction::HitMap::default();
+                    recordings.revision += 1;
                 } else if let CEvent::Key(key) = terminal_event {
                     enqueue_terminal_key(&mut model, key);
                 } else if let CEvent::Paste(text) = terminal_event {
@@ -4270,7 +4267,7 @@ fn main() -> anyhow::Result<()> {
         live.reconcile_terminal_tasks(&id, "failed");
     }
     save_snapshot(&snapshot_path, live);
-    execution.and(shutdown)
+    supervisor_lifetime::combine_session_outcomes(execution, shutdown)
 }
 
 #[cfg(test)]

@@ -5,8 +5,10 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use super::{apply_protocol_event, AppModel};
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use serde_json::{json, Value};
+use crate::text_editor::TextCursor;
+use crate::overlay_viewport::selected_rows;
 
 const MAX_EVENTS: usize = 32768;
 const MAX_BYTES: usize = 8 * 1024 * 1024;
@@ -51,6 +53,7 @@ pub(crate) struct RecordingUi {
     available: bool,
     page: Page,
     draft: String,
+    cursor: TextCursor,
     entries: Vec<Value>,
     directory_id: String,
     selected: usize,
@@ -78,6 +81,7 @@ impl Default for RecordingUi {
             available: false,
             page: Page::Path,
             draft: String::new(),
+            cursor: TextCursor::default(),
             entries: vec![],
             directory_id: String::new(),
             selected: 0,
@@ -120,6 +124,20 @@ impl RecordingUi {
         self.revision += 1;
     }
 
+    fn discard_cached(&mut self, recording_id: Value) {
+        if self.available && recording_id.is_string() {
+            self.outbox.push_back(json!({"proto":"poc.tui@1","op":"recording:run",
+                "jobId":format!("native-recording-{}", self.next_id), "method":"discard",
+                "params":{"recordingId":recording_id}}));
+            self.next_id += 1;
+        }
+    }
+
+    pub fn paste(&mut self, text: &str) {
+        if !self.available || self.pending.is_some() || self.page != Page::Path { return; }
+        if self.cursor.paste(&mut self.draft, text, 4096) { self.revision += 1; }
+    }
+
     pub fn key(&mut self, key: KeyEvent) -> bool {
         if key.kind == crossterm::event::KeyEventKind::Release {
             return false;
@@ -131,7 +149,8 @@ impl RecordingUi {
                     .push_back(json!({"proto":"poc.tui@1","op":"job:cancel",
                     "jobId":job,"reason":"recording_read_cancelled"}));
                 self.loaded.clear();
-                self.summary = None;
+                self.loaded_bytes = 0;
+                if let Some(summary) = self.summary.take() { self.discard_cached(summary["recordingId"].clone()); }
                 self.page = Page::Path;
                 self.status = "Recording read cancelled; live work continues".into();
                 return false;
@@ -145,17 +164,11 @@ impl RecordingUi {
         if self.pending.is_some() {
             return false;
         }
+        if self.page == Page::Path && key.code != KeyCode::Enter && self.cursor.key(&mut self.draft, key, 4096) {
+            return false;
+        }
         match self.page {
             Page::Path => match key.code {
-                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    self.draft.clear()
-                }
-                KeyCode::Backspace => {
-                    self.draft.pop();
-                }
-                KeyCode::Char(ch) if !ch.is_control() && self.draft.len() < 4096 => {
-                    self.draft.push(ch)
-                }
                 KeyCode::Enter => {
                     let selected = self.draft.trim().to_owned();
                     let path = Path::new(&selected);
@@ -200,7 +213,7 @@ impl RecordingUi {
 
     fn fail(&mut self, message: &str) {
         self.pending = None;
-        self.summary = None;
+        if let Some(summary) = self.summary.take() { self.discard_cached(summary["recordingId"].clone()); }
         self.loaded.clear();
         self.loaded_bytes = 0;
         self.page = Page::Path;
@@ -317,6 +330,7 @@ impl RecordingUi {
                 }
                 self.loaded.extend(events.iter().cloned());
                 if self.loaded.len() == total && data["nextOffset"].is_null() {
+                    if let Some(previous) = self.active.take() { self.discard_cached(previous.summary["recordingId"].clone()); }
                     self.active = Some(Recording {
                         summary,
                         events: std::mem::take(&mut self.loaded),
@@ -399,13 +413,7 @@ impl RecordingUi {
 
     pub fn detach(&mut self) {
         if let Some(recording) = self.active.take() {
-            if self.available {
-                self.outbox
-                    .push_back(json!({"proto":"poc.tui@1","op":"recording:run",
-                "jobId":format!("native-recording-{}",self.next_id),"method":"discard",
-                "params":{"recordingId":recording.summary["recordingId"]}}));
-                self.next_id += 1;
-            }
+            self.discard_cached(recording.summary["recordingId"].clone());
         }
         self.detach_requested = false;
         self.seek_requested = None;
@@ -551,13 +559,68 @@ impl RecordingUi {
         model.job_inspection.outbox.clear();
     }
 
-    pub fn lines(&self) -> Vec<String> {
-        vec!["Saved sessions | read-only local file loader".into(),
-            if self.available { "Enter an absolute JSONL file or directory; Ctrl+U clears; Esc closes/cancels".into() }
+    pub fn lines(&self, height: usize, width: usize) -> Vec<String> {
+        let headers = vec![format!("Saved sessions {}/{} | Esc back/cancel | Ctrl+C quit",
+            if self.entries.is_empty() { 0 } else { self.selected + 1 }, self.entries.len()),
+            if self.available { "Enter absolute JSONL/directory | cursor/Home/End | Ctrl+U clear | paste is data".into() }
             else { "The owned supervisor has not advertised recording support".into() },
-            format!("Path: {}",self.draft), self.status.clone(),
-            self.entries.iter().enumerate().map(|(i,e)|format!("{} {}{}",if i==self.selected {">"}else{" "},
-                e["filename"].as_str().unwrap_or("?"),if e["valid"]==true{""}else{" [invalid]"})).collect::<Vec<_>>().join("\n"),
-            "Replay: Space play/pause; arrows step; PgUp/PgDn, Home/End seek; Esc detaches; q quits owned session".into()]
+            format!("Path: {}", self.cursor.visible(&self.draft, width.saturating_sub(6))), self.status.clone()];
+        if self.page == Page::Entries {
+            let rows = self.entries.iter().enumerate().map(|(i, entry)| format!("{} {}{}",
+                if i == self.selected { ">" } else { " " }, entry["filename"].as_str().unwrap_or("?"),
+                if entry["valid"] == true { "" } else { " [invalid]" })).collect();
+            selected_rows(headers, rows, self.selected, height, width)
+        } else {
+            headers.into_iter().take(height).map(|line| crate::fit_text(&line, width)).collect()
+        }
+    }
+}
+
+#[cfg(test)]
+mod picker_tests {
+    use super::*;
+    use crossterm::event::KeyModifiers;
+
+    #[test]
+    fn recording_path_reuses_grapheme_cursor_and_inert_bounded_paste() {
+        let mut ui = RecordingUi { available: true, draft: "界e\u{301}😀".into(), ..RecordingUi::default() };
+        ui.key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
+        ui.key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
+        assert_eq!(ui.draft, "界😀");
+        ui.paste("\r\n\u{1b}q\u{3}");
+        assert_eq!(ui.draft, "界  q😀");
+        assert!(ui.outbox.is_empty(), "paste cannot request a file load, detach or shutdown");
+        assert!(ui.lines(8, 20).join("\n").contains('|'));
+        let before = ui.draft.clone(); ui.paste(&"x".repeat(4097)); assert_eq!(ui.draft, before);
+        ui.available = false; ui.paste("read-only"); assert_eq!(ui.draft, before);
+    }
+
+    #[test]
+    fn every_bounded_picker_entry_is_visible_at_its_exact_selected_row() {
+        let mut ui = RecordingUi { available: true, page: Page::Entries,
+            entries: (0..64).map(|index| json!({"id":index,"filename":format!("saved-{index:02}.jsonl"),"valid":true})).collect(),
+            ..RecordingUi::default() };
+        for (height, width) in [(12, 50), (6, 28), (3, 20)] {
+            for selected in 0..64 {
+                ui.selected = selected;
+                let rows = ui.lines(height, width);
+                assert!(rows.len() <= height);
+                assert!(rows.iter().any(|row| row.contains(&format!("> saved-{selected:02}.jsonl"))));
+            }
+        }
+    }
+
+    #[test]
+    fn cancelling_page_load_discards_only_its_exact_retained_replay() {
+        let id = "cda931bc-9b07-48a2-a2b8-80e53e828541";
+        let mut ui = RecordingUi { available: true, page: Page::Loading,
+            pending: Some(("owned-read".into(), "page".into())), summary: Some(json!({"recordingId":id})),
+            ..RecordingUi::default() };
+        ui.key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        let cancel = ui.outbox.pop_front().unwrap();
+        assert_eq!(cancel["op"], "job:cancel"); assert_eq!(cancel["jobId"], "owned-read");
+        let discard = ui.outbox.pop_front().unwrap();
+        assert_eq!(discard["method"], "discard"); assert_eq!(discard["params"]["recordingId"], id);
+        assert!(ui.outbox.is_empty()); assert!(ui.pending.is_none() && ui.summary.is_none());
     }
 }
