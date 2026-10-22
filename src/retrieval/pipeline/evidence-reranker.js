@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { stableStringify } from '../../shared/stable-json.js';
-import { createAbortError, isAbortError, throwIfAborted } from '../../shared/abort.js';
+import { createAbortError, throwIfAborted } from '../../shared/abort.js';
 import { buildRetrievalHitKey } from '../hit-comparison.js';
-import { pendingRerankerWorkFailure, preserveRerankerFailure, trackRerankerWork } from '../rerankers/failure-ownership.js';
+import { pendingRerankerWorkFailure, trackRerankerWork } from '../rerankers/failure-ownership.js';
+import { classifyRerankerError } from './reranker-error-classification.js';
 
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const freeze = (value, depth = 0) => {
@@ -83,17 +84,19 @@ export const rerankEvidence = async ({ adapter, query, hits, signal, maxMs = 200
       .sort((a, b) => b.score - a.score || a.__rank - b.__rank).slice(0, finalOutputCap).map(({ __rank, ...hit }) => hit);
     return attach(ranked, tracked.pending ? tracked.promise : null);
   } catch (error) {
-    // Inspect original ownership before any normalization: a frozen error may
-    // carry the only capability that can reconcile an actual native resource.
-    if (error?.cacheOwnershipPending) throw error;
-    if (!error || typeof error !== 'object') error = preserveRerankerFailure(error);
-    if (timedOut && !signal?.aborted && isAbortError(error)) error = Object.assign(new Error('Reranker deadline exceeded', { cause: error }), { code: 'ERR_RERANK_DEADLINE' });
-    if (signal?.aborted || isAbortError(error) || error?.cancelled) {
+    let classified = classifyRerankerError(error);
+    error = classified.error;
+    if (classified.pending) throw error;
+    if (timedOut && !signal?.aborted && classified.abort) {
+      error = Object.assign(new Error('Reranker deadline exceeded', { cause: error }), { code: 'ERR_RERANK_DEADLINE' });
+      classified = classifyRerankerError(error);
+    }
+    if (signal?.aborted || classified.abort || classified.cancelled) {
       const cancellationError = signal?.aborted ? cancelled() : error;
       if (tracked?.pending) throw pendingRerankerWorkFailure(cancellationError, adapter, tracked);
       throw cancellationError;
     }
-    diagnostic.status = fallback ? 'fallback' : 'failed'; diagnostic.reason = error?.code || error?.message || 'adapter-error';
+    diagnostic.status = fallback ? 'fallback' : 'failed'; diagnostic.reason = classified.reason;
     diagnostic.pending = tracked?.pending === true;
     if (!fallback) {
       if (diagnostic.pending) throw pendingRerankerWorkFailure(error, adapter, tracked);
