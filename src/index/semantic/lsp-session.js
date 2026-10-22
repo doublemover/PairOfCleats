@@ -20,6 +20,7 @@ import { readVerifiedContainedFile } from '../../shared/contained-file.js';
 import { createLspSourceIndex } from './lsp-source-index.js';
 import { createLspObservationCollector } from '../../integrations/tooling/providers/lsp/structured-observations.js';
 import { writeStructuredLspEvidence } from './lsp-structured-evidence.js';
+import { readRetainedSemanticSourceSnapshot } from '../../semantic/retained-source-snapshot.js';
 const refKey = ref => canonicalSemanticJson(ref);
 /** One build-owned LSP lane; this owns no server, Program, or request scheduler. */
 export const createSemanticLspSession = async ({ state, runtime, signal = null, languages = null, eagerOnly = false }) => {
@@ -38,11 +39,13 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
     for await (const row of store.iterateRows(syntax.partitionId, 'semantic_sources', { signal })) source = row;
     if (!source || languages && !languages.includes(source.language)) continue;
     if (nativeAuthority && !nativeAuthority.sourceUnits.has(source.sourceUnitId)) continue;
-    await store.verifySource(source, { signal });
     if (source.encoding === 'binary') continue;
-    const bytes = await fs.readFile(path.join(root, 'semantic-sources', source.byteHash + '.utf8'));
+    const captured = await readRetainedSemanticSourceSnapshot({ store, partitionId: syntax.partitionId, signal,
+      maxBytes: 64 * 1024 * 1024 });
+    source = captured.source;
+    const { bytes, text } = captured;
     const occurrenceIds = new Set(), expressionKinds=new Map(), parents=new Map();
-    const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes), declarations = [];
+    const declarations = [];
     for await (const row of store.iterateRows(syntax.partitionId, 'semantic_records', { signal })) { if(row.kind==='expression')expressionKinds.set(row.id,row.data); if (row.kind === 'declaration' && row.span) declarations.push({ span: row.span, ref: { partitionId: syntax.partitionId, localId: row.id } }); if (row.kind === 'occurrence' && row.span && !row.data.roles.includes('definition')) occurrenceIds.add(refKey({ partitionId: syntax.partitionId, localId: row.id })); }
     for await(const row of store.iterateRows(syntax.partitionId,'semantic_operands',{signal}))if(row.child?.partitionId===syntax.partitionId&&row.parent.partitionId===syntax.partitionId)parents.set(row.child.localId,{parent:row.parent,slot:row.slot});
     const invocationFor = expression => {

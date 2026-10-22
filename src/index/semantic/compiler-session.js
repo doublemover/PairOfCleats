@@ -26,6 +26,7 @@ import { createSemanticFactsRef } from './file-ref.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { resolveSemanticPartPath } from '../../semantic/artifact-store.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { readRetainedSemanticSourceSnapshot } from '../../semantic/retained-source-snapshot.js';
 
 const hashText = text => createHash('sha256').update(text, 'utf8').digest('hex');
 const keyPath = file => process.platform === 'win32' ? path.resolve(file).toLowerCase() : path.resolve(file);
@@ -77,10 +78,10 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       if (!parent || sourceMap.parentSourceUnitId !== parent.sourceUnitId || sourceMap.parentByteHash !== parent.sourceHash || sourceMap.localEnd !== source.textLength || sourceMap.quality !== source.mapping.quality) throw new Error('Compiler embedded parent mismatch.');
       if (source.mapping.quality !== 'exact') continue;
     }
-    await store.verifySource(source, { signal });
-    const bytes = await fs.readFile(path.join(root, 'semantic-sources', source.byteHash + '.utf8'));
-    const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
-    if (hashText(text) !== source.textHash) throw new Error('Compiler source snapshot mismatch.');
+    const captured = await readRetainedSemanticSourceSnapshot({ store, partitionId: syntax.partitionId, signal,
+      maxBytes: 64 * 1024 * 1024 });
+    source = captured.source;
+    const { text } = captured;
     const declarations = new Map(), callables = new Map();
     for await (const row of store.iterateRows(syntax.partitionId, 'semantic_records', { signal })) {
       if (row.kind === 'declaration' && row.span) declarations.set(spanKey(row.span), { partitionId: syntax.partitionId, localId: row.id });
@@ -105,10 +106,8 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
     const store = createArtifactSemanticStore({ root, repoRoot: runtime.root, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       generation: parent.storage.generation, partitions: parent.partitions });
     for await (const source of store.iterateRows(parent.syntaxPartitionId, 'semantic_sources', { signal })) {
-      await store.verifySource(source, { signal });
-      const bytes = await fs.readFile(path.join(root, 'semantic-sources', source.byteHash + '.utf8'));
-      const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
-      if (hashText(text) !== source.textHash) throw new Error('Compiler container snapshot mismatch.');
+      const { text } = await readRetainedSemanticSourceSnapshot({ store, partitionId: parent.syntaxPartitionId,
+        signal, maxBytes: 64 * 1024 * 1024 });
       texts.set(parentFile, text);
     }
   }
@@ -392,7 +391,8 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         reason: [...new Set([...dispatchReasons,...(policy.targetSelectionConfigured ? ['targeted_binding_scope_widened_or_selected_only'] : completedCount === observations.length ? [] : ['unresolved_or_unmapped_checker_occurrence'])])].sort().join(';') || null,
         observedCount: observations.length + typeFacts.observedCount, completedCount: completedCount + typeFacts.completedCount, frontierRef: null };
       rows.push({ family: 'coverage', row: coverage });
-      const bytes = await fs.readFile(path.join(item.root, 'semantic-sources', item.source.byteHash + '.utf8'));
+      const { bytes } = await readRetainedSemanticSourceSnapshot({ store: item.store,
+        partitionId: item.syntax.partitionId, signal, maxBytes: 64 * 1024 * 1024 });
       const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: item.root, source: item.source,
         sourceBytes: bytes, partitionId, producerHash: semanticHash('semantic.compiler-producer.v1', { version: SEMANTIC_ANALYSIS_VERSIONS.compilerBindings, compiler: ts.version }),
         contextHash: context.contextKey, policyHash: item.policy.identity.analysis,

@@ -29,4 +29,20 @@ const architecture = projectPackageManifestFacet({ snapshot: packageSource, worl
 assert.equal(architecture.declarations[0].kind, 'declared-script');
 assert.equal(architecture.qualification.execution, 'not-observed');
 assert.equal(architecture.qualification.resolvedDependencyVersion, 'not-established');
+const forgedId = { ...source, manifest: { ...source.manifest, sourceUnitId: 'su1:' + '0'.repeat(64) } };
+assert.throws(() => materializeTaskLens({ ...args, sources: [forgedId] }), /manifest/);
+const forgedPath = { ...packageSource, manifest: { ...packageSource.manifest, path: 'other/package.json' } };
+assert.throws(() => projectPackageManifestFacet({ snapshot: forgedPath, worldRef }), /manifest/);
+const forgedLines = { ...source, manifest: { ...source.manifest, lineStarts: [0, 1] } };
+assert.throws(() => materializeTaskLens({ ...args, sources: [forgedLines] }), /manifest/);
+let invoked = false;
+const accessorManifest = { ...source.manifest };
+Object.defineProperty(accessorManifest, 'path', { enumerable: true, get() { invoked = true; return 'retry.js'; } });
+assert.throws(() => materializeTaskLens({ ...args, sources: [{ ...source, manifest: accessorManifest }] }), /getter/i);
+assert.equal(invoked, false, 'source admission never evaluates a metadata getter');
+const accessorSnapshot = Object.defineProperty({ manifest: source.manifest }, 'sourceCapability', {
+  get() { invoked = true; return source.sourceCapability; }
+});
+assert.throws(() => materializeTaskLens({ ...args, sources: [accessorSnapshot] }), /data fields/);
+assert.equal(invoked, false, 'opaque source ownership cannot be obtained through an accessor');
 console.log('exact-source task lens contract passed');

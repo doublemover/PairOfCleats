@@ -1,11 +1,10 @@
-import { readSemanticSourceCapability } from '../../index/semantic/source-capability.js';
+import { admitOwnedSemanticSourceSnapshot } from '../../index/semantic/source-snapshot-admission.js';
 import { semanticHash } from '../../index/semantic/identity.js';
 
 /** package.json declarations only. Script strings are inert; versions are declarations, not resolved artifacts. */
 export const projectPackageManifestFacet = ({ snapshot, worldRef }) => {
-  const source = readSemanticSourceCapability(snapshot?.sourceCapability);
-  if (!source || snapshot.manifest?.byteHash !== source.byteHash || snapshot.manifest.path.split('/').at(-1) !== 'package.json'
-    || source.byteLength > 1024 * 1024) throw new TypeError('Bounded owned package.json snapshot required.');
+  const source = admitOwnedSemanticSourceSnapshot(snapshot, { maxBytes: 1024 * 1024 });
+  if (source.manifest.path.split('/').at(-1) !== 'package.json') throw new TypeError('Bounded owned package.json snapshot required.');
   const value = JSON.parse(source.text.replace(/^\uFEFF/, ''));
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Package manifest object required.');
   const declarations = [];

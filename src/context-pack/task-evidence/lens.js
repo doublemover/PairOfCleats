@@ -1,7 +1,10 @@
 import { semanticHash, canonicalSemanticJson } from '../../index/semantic/identity.js';
-import { readSemanticSourceCapability } from '../../index/semantic/source-capability.js';
+import { admitOwnedSemanticSourceSnapshot } from '../../index/semantic/source-snapshot-admission.js';
 import { selectDiverseEvidence } from '../../retrieval/pipeline/evidence-selection.js';
 import { enforceContextPackResponseBudget } from '../response-budget.js';
+import { readRetainedSemanticSourceSnapshot } from '../../semantic/retained-source-snapshot.js';
+import { assertSemanticEnvelope } from '../../contracts/validators/semantic-envelopes.js';
+import { throwIfAborted } from '../../shared/abort.js';
 
 const key = canonicalSemanticJson;
 const boundary = (text, offset) => offset === 0 || offset === text.length
@@ -19,14 +22,13 @@ export const materializeTaskLens = ({ worldRef, taskId, requiredRoles = [], maxF
   const sourceMap = new Map();
   let sourceBytes = 0;
   for (const snapshot of sources) {
-    const source = readSemanticSourceCapability(snapshot.sourceCapability);
-    if (!source || snapshot.manifest?.byteHash !== source.byteHash || snapshot.manifest.textHash !== source.byteHash
-      || snapshot.manifest.coordinateUnit !== 'utf16' || sourceMap.has(snapshot.manifest.sourceUnitId)) {
+    const source = admitOwnedSemanticSourceSnapshot(snapshot);
+    if (sourceMap.has(source.manifest.sourceUnitId)) {
       throw new TypeError('Owned immutable source snapshots required.');
     }
     sourceBytes += source.byteLength;
     if (sourceBytes > 8 * 1024 * 1024) throw new RangeError('Lens source hydration allowance exceeded.');
-    sourceMap.set(snapshot.manifest.sourceUnitId, { ...source, manifest: snapshot.manifest });
+    sourceMap.set(source.manifest.sourceUnitId, source);
   }
   const ids = new Set();
   const entries = candidates.map(candidate => {
@@ -82,4 +84,50 @@ export const materializeTaskLens = ({ worldRef, taskId, requiredRoles = [], maxF
   while (payload.renderedBytes !== size) { payload.renderedBytes = size; size = measure(payload); }
   enforceContextPackResponseBudget(payload, { measure });
   return payload;
+};
+
+/** Existing semantic records are the source admission boundary for this lens.
+ * Roles and ranking remain caller declarations; source IDs/spans come only from
+ * the pinned records. This grants no binding, edit or execution authority. */
+export const materializeRetainedSemanticTaskLens = async ({ store, worldRef, taskId,
+  requiredRoles = [], maxFacets = 12, candidates, retainedResult,
+  maxSourceBytes = 8 * 1024 * 1024, signal = null }) => {
+  throwIfAborted(signal);
+  if (!worldRef || key(assertSemanticEnvelope('generation', worldRef.generation)) !== key(store.generation)
+    || typeof worldRef.repositoryNamespace !== 'string' || !worldRef.repositoryNamespace
+    || !Array.isArray(candidates) || candidates.length > 64
+    || !Number.isSafeInteger(maxSourceBytes) || maxSourceBytes < 1024 || maxSourceBytes > 8 * 1024 * 1024) {
+    throw new TypeError('Bounded generation-pinned semantic lens required.');
+  }
+  const records = await store.getRecords(candidates.map(candidate => candidate.ref), ['span'], { signal });
+  const snapshots = new Map(), byPartition = new Map();
+  let bytes = 0;
+  const projected = [];
+  for (let index = 0; index < candidates.length; index++) {
+    throwIfAborted(signal);
+    const candidate = candidates[index], record = records[index];
+    if (!record || key(record.ref) !== key(candidate.ref) || !record.span) throw new TypeError('Retained lens source record is unavailable.');
+    let source = byPartition.get(record.ref.partitionId);
+    if (!source) {
+      const remaining = maxSourceBytes - bytes;
+      if (remaining < 1) throw new RangeError('Retained lens source allowance exceeded.');
+      const captured = await readRetainedSemanticSourceSnapshot({ store, partitionId: record.ref.partitionId,
+        repositoryNamespace: worldRef.repositoryNamespace, maxBytes: remaining, signal });
+      source = captured.source;
+      if (source.mapping !== null) throw Object.assign(new Error('Retained lens needs an independently qualified original-source mapping.'), {
+        code: 'ERR_SEMANTIC_SOURCE_MAPPING_UNAVAILABLE'
+      });
+      bytes += captured.bytes.length;
+      if (snapshots.has(source.sourceUnitId) && key(snapshots.get(source.sourceUnitId).manifest) !== key(source)) {
+        throw new TypeError('Conflicting retained lens source manifests.');
+      }
+      snapshots.set(source.sourceUnitId, captured.snapshot);
+      byPartition.set(record.ref.partitionId, source);
+    }
+    projected.push({ ...candidate, worldRef, sourceRef: { sourceUnitId: source.sourceUnitId,
+      span: record.span, coordinateUnit: source.coordinateUnit },
+    qualification: { certainty: 'exact-retained-source', closure: 'not-implied' } });
+  }
+  return materializeTaskLens({ worldRef, taskId, requiredRoles, maxFacets,
+    candidates: projected, sources: [...snapshots.values()], retainedResult });
 };
