@@ -1,5 +1,6 @@
 import { normalizeProgressMode, resolveTerminal } from './display/terminal.js';
 import { formatCount } from './display/text.js';
+import { formatHumanLog } from './display/human-log.js';
 import { renderDisplay } from './display/render.js';
 import { createSafeWritableStream } from './display/stream.js';
 import { writeDisplayLogEvent, writeDisplayTaskEvent } from './display/events.js';
@@ -49,6 +50,10 @@ export function createDisplay(options = {}) {
     : {};
 
   const state = createDisplayState();
+  state.detailPolicy = ['compact', 'normal', 'detail'].includes(options.detailPolicy) ? options.detailPolicy : 'normal';
+  state.reducedMotion = options.reducedMotion === true;
+  let closed = false;
+  let renderTimer = null;
 
   const writeJsonLog = (level, message, meta) => {
     writeDisplayLogEvent(stream, contextPatch, level, message, meta);
@@ -61,7 +66,8 @@ export function createDisplay(options = {}) {
     }
     const forceOutput = meta && typeof meta === 'object' && meta.forceOutput === true;
     if (quiet && level !== 'error' && !forceOutput) return;
-    const baseLine = message || '';
+    options.onDiagnostic?.({ level, message, meta });
+    const baseLine = formatHumanLog(message || '', { width: interactive ? (term?.width || stream.columns) : 120, verbose });
     const prefix = level === 'warn' ? '[warn] ' : (level === 'error' ? '[error] ' : '');
     const line = `${prefix}${baseLine}`.trim();
     const isStatusLine = (meta && typeof meta === 'object' && meta.kind === 'status')
@@ -104,8 +110,19 @@ export function createDisplay(options = {}) {
   });
 
   const scheduleRender = () => {
+    if (closed) return;
     const now = Date.now();
-    if (now - state.lastRenderMs < renderMinIntervalMs) return;
+    if (now - state.lastRenderMs < renderMinIntervalMs) {
+      if (!renderTimer) {
+        renderTimer = setTimeout(() => {
+          renderTimer = null;
+          if (!closed) { state.lastRenderMs = Date.now(); render(); }
+        }, renderMinIntervalMs - (now - state.lastRenderMs));
+        renderTimer.unref?.();
+      }
+      return;
+    }
+    if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
     state.lastRenderMs = now;
     render();
   };
@@ -221,10 +238,17 @@ export function createDisplay(options = {}) {
     log(message, meta);
   };
 
-  let closed = false;
+  const onResize = () => scheduleRender();
+  if (interactive && canRender) {
+    term.on?.('resize', onResize);
+    stream.on?.('resize', onResize);
+  }
   const finalize = (onFinal = null) => {
     if (closed) return;
     closed = true;
+    if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
+    term?.off?.('resize', onResize);
+    stream.off?.('resize', onResize);
     let cleanupError = null;
     try {
       if (interactive && term) {
