@@ -1,16 +1,17 @@
 import { resolveRepoCacheRootPath } from '../../../shared/repo-paths.js';
 import { acquireIndexStorageSession } from '../storage-session.js';
 import { isStorageSessionReleaseFailure } from '../../../shared/storage/session.js';
+import { createRuntimeFailure } from './failure.js';
 
 const owners = new WeakMap();
-const retainedErrors = new WeakSet();
-const pendingObserver = error => {
-  if (!error) return null;
+const retainedErrors = new WeakMap();
+const pendingObserver = (error, inspectionErrors = []) => {
+  if (error === null || (typeof error !== 'object' && typeof error !== 'function')) return null;
   try {
     const observe = error.cacheOwnershipReleased;
     if (error.cacheOwnershipPending !== true && typeof observe !== 'function') return null;
     return () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } };
-  } catch { return () => false; }
+  } catch (failure) { inspectionErrors.push(failure); return () => false; }
 };
 
 /** Admission precedes runtime logger/cache/native initialization. Resolution
@@ -18,7 +19,7 @@ const pendingObserver = error => {
  */
 export const acquireBuildRuntimeStorage = (root, userConfig) => {
   const owner = acquireIndexStorageSession(resolveRepoCacheRootPath(root, userConfig), { repoRoot: root, userConfig });
-  owners.set(owner, { released: false, initializationClosed: false, pending: new Map(), unknownPending: false });
+  owners.set(owner, { released: false, initializationClosed: false, pending: new Map(), unknownPending: false, inspectionErrors: [] });
   return owner;
 };
 
@@ -37,31 +38,39 @@ const release = owner => {
   return true;
 };
 
-const retainedFailure = (error, owner, { cleanupError = null, runtime = null } = {}) => {
-  const primary = error && typeof error === 'object' ? error : new Error(String(error), { cause: error });
-  const additional = cleanupError && cleanupError !== primary ? cleanupError : null;
-  const observers = [primary, additional].filter(Boolean).map(pendingObserver).filter(Boolean);
+const rememberFailure = (error, owner) => {
   const state = owners.get(owner);
-  for (const failure of [primary, additional].filter(Boolean)) {
-    if (retainedErrors.has(failure) || state.pending.has(failure) || isStorageSessionReleaseFailure(failure, owner.session)) continue;
-    const observe = pendingObserver(failure);
-    if (!observe) continue;
+  if (!state) throw new TypeError('Build runtime storage requires its actual admitted owner.');
+  if (retainedErrors.get(error) === owner || state.pending.has(error) || isStorageSessionReleaseFailure(error, owner.session)) return;
+  const inspectionErrors = [];
+  const observe = pendingObserver(error, inspectionErrors);
+  if (observe) {
     if (state.pending.size >= 128) state.unknownPending = true;
-    else state.pending.set(failure, observe);
+    else state.pending.set(error, observe);
   }
-  const cleanupErrors = [...(Array.isArray(primary.cleanupErrors) ? primary.cleanupErrors : []), ...(additional ? [additional] : [])];
-  const failure = Object.assign(new AggregateError([primary, ...(additional ? [additional] : [])],
-    primary.message || 'Build runtime resource settlement remains unconfirmed.', { cause: primary }), {
-    code: primary.code || additional?.code || 'ERR_INDEX_RUNTIME_STORAGE_PENDING', name: primary.name || 'AggregateError',
-    cacheOwnershipPending: true,
-    cacheOwnershipReleased: () => owners.get(owner)?.released === true && observers.every(observe => observe()),
-    ...(cleanupErrors.length ? { cleanupErrors } : {})
-  });
+  for (const failure of inspectionErrors) {
+    if (state.inspectionErrors.length < 128) state.inspectionErrors.push(failure);
+    else state.unknownPending = true;
+  }
+};
+
+const retainedFailure = (error, owner, { cleanupError, cleanupFailed = false, runtime = null } = {}) => {
+  rememberFailure(error, owner);
+  if (cleanupFailed) rememberFailure(cleanupError, owner);
+  const state = owners.get(owner);
+  const failure = createRuntimeFailure(error, { cleanupError, cleanupFailed, additionalErrors: state.inspectionErrors });
+  // Diagnostic inspection can itself fail with an independent resource owner.
+  // Capture each original observation before exposing the aggregate.
+  for (const original of failure.errors) rememberFailure(original, owner);
+  for (const original of state.inspectionErrors) if (!failure.errors.includes(original)) failure.errors.push(original);
+  if (!Object.hasOwn(failure, 'code')) Object.defineProperty(failure, 'code', { value: 'ERR_INDEX_RUNTIME_STORAGE_PENDING', enumerable: true });
   Object.defineProperties(failure, {
+    cacheOwnershipPending: { value: true, enumerable: true },
+    cacheOwnershipReleased: { value: () => state.released && !state.unknownPending && [...state.pending.values()].every(observe => observe()) },
     storageSession: { value: owner.session }, buildRuntimeStorage: { value: owner },
     ...(runtime ? { buildRuntime: { value: runtime } } : {})
   });
-  retainedErrors.add(failure);
+  retainedErrors.set(failure, owner);
   return failure;
 };
 
@@ -85,31 +94,28 @@ export const releaseBuildRuntimeStorage = runtime => {
  * rejection or an independent pending primary prevents category release.
  */
 export const closeBuildRuntimeInitialization = async ({ initialization, error, owner = null }) => {
-  let cleanupError = null;
-  try { await initialization.close(); } catch (failure) { cleanupError = failure; }
+  let cleanupError, cleanupFailed = false;
+  try { await initialization.close(); } catch (failure) { cleanupError = failure; cleanupFailed = true; }
   if (!owner) {
-    if (!cleanupError) return error;
-    const failure = new AggregateError([error, cleanupError], error.message, { cause: error });
-    return Object.assign(failure, { code: error.code, name: error.name, cleanupErrors: [cleanupError] });
+    return cleanupFailed ? createRuntimeFailure(error, { cleanupError, cleanupFailed }) : error;
   }
-  const observe = pendingObserver(error);
-  if (cleanupError || (observe && !observe())) return retainedFailure(error, owner, { cleanupError });
+  rememberFailure(error, owner);
+  const state = owners.get(owner);
+  const observe = state.pending.get(error);
+  if (cleanupFailed || state.unknownPending || (observe && !observe())) return retainedFailure(error, owner, { cleanupError, cleanupFailed });
   // Failure receipt persistence still writes this category after unwind. The
   // outer receipt owner finalizes admission only after that write settles.
   owners.get(owner).initializationClosed = true;
   return error;
 };
 
-export const finalizeBuildRuntimeInitializationFailure = ({ error, recordingError = null, owner = null }) => {
+export const finalizeBuildRuntimeInitializationFailure = ({ error, recordingError, recordingFailed = recordingError !== null && recordingError !== undefined, owner = null }) => {
   if (!owner) {
-    if (!recordingError) return error;
-    return Object.assign(new AggregateError([error, recordingError], error.message, { cause: error }), {
-      code: error.code, name: error.name, cleanupErrors: [recordingError]
-    });
+    return recordingFailed ? createRuntimeFailure(error, { cleanupError: recordingError, cleanupFailed: true }) : error;
   }
-  if (recordingError || owners.get(owner)?.initializationClosed !== true) {
-    return retainedFailure(error, owner, { cleanupError: recordingError });
+  if (recordingFailed || owners.get(owner)?.initializationClosed !== true) {
+    return retainedFailure(error, owner, { cleanupError: recordingError, cleanupFailed: recordingFailed });
   }
-  try { release(owner); } catch (failure) { return retainedFailure(error, owner, { cleanupError: failure }); }
+  try { release(owner); } catch (failure) { return retainedFailure(error, owner, { cleanupError: failure, cleanupFailed: true }); }
   return error;
 };

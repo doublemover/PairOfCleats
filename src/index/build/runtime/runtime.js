@@ -123,7 +123,7 @@ export const createBuildRuntime = (input = {}) => {
   let owner = null;
   return withRuntimeReceiptInitialization(onRuntimeAttempt => createBuildRuntimeImpl({ ...input, onRuntimeAttempt,
     onStorageAdmission: admitted => { owner = admitted; } }), {
-    finalizeFailure: ({ error, recordingError }) => finalizeBuildRuntimeInitializationFailure({ error, recordingError, owner })
+    finalizeFailure: ({ error, recordingError, recordingFailed }) => finalizeBuildRuntimeInitializationFailure({ error, recordingError, recordingFailed, owner })
   });
 };
 
