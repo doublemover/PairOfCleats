@@ -41,10 +41,11 @@ do not assume issue-number order or turn feature requests into duplicate engines
    **In progress:** 23 additional repairs have focused proof and the complete
    front gate passes at f05fb0d4e. A further 33 storage/publication/cache/contract
    repairs have focused proof and the complete front gate passes at d4dcba413. Remaining
-   watch/pointer/queue authority and editor-package owners continue next. Two
-   agents implement independent storage/vector spans directly in assigned real
-   files, without peer coordination or commit-slot waits. The lead owns shared
-   integration, validation, Git and publication. No worktree or elevation is required.
+   watch/pointer/queue authority and editor-package owners continue next. Eight
+   6.1 Sol agents at xhigh implement independent storage/publication, vectors,
+   language semantics, storage layout, editor, native TUI, map and developer
+   experience spans in real files. The lead owns shared integration, validation,
+   Git and publication. No peer coordination, worktree or elevation is required.
 3. Remaining P2 correctness/contract issues, then P3, grouped by owner.
 4. Perf reports: retain correctness parity and measure the changed operation;
    distinguish operation-count reductions from real latency/heap measurements.
@@ -54,7 +55,7 @@ do not assume issue-number order or turn feature requests into duplicate engines
    qualification. Keep release/real-model/optional-backend claims separate.
 
 The user's latest direction defers validation until the broad backlog development
-pass is complete. Both agents and the lead edit real repository files and author
+pass is complete. All eight agents and the lead edit real repository files and author
 regressions without executing tests, syntax campaigns or formatting. Publish
 completed owner groups as explicitly **unvalidated development checkpoints**;
 these commits do not replace the last qualified source identified above. Recent source batches cover final response/risk
@@ -96,8 +97,20 @@ inventories, retrieval, embeddings and dependency-safe bootstrap; measurements r
 A fresh inventory adds 163 reports. New P1 CI restore publication and pending-child
 cache-lock ownership, plus 110 new P2 defects, precede remaining Perf work.
 Language declaration/source spans, retrieval contracts, extraction and evaluation
-are assigned to the two existing agents; the lead owns runtime, UI and contracts.
+are assigned across the eight implementation owners; the lead integrates shared contracts.
 There is no current-source deep-suite, native-host or performance claim.
+
+Source checkpoints through 101f3641f add local loaded-response find, source-qualified
+semantic navigation, bounded SQLite bundle ingestion, incremental embedding cache
+index deltas, binary vector streaming, immutable coverage receipts and coalesced
+artifact verification. Map exports now have per-deliverable publication receipts
+and immutable loopback preview sessions; focus/visibility retire idle work. Reviewed
+first-search plans, explicit config explanations, terminal cell-width progress and
+checkout diagnosis have source owners. Structured provider evidence reaches the
+semantic sink with shared meaning versions advanced. Navigation mappings, full
+provider onboarding, cache migration, native service ownership and representative
+performance remain partial. Every new regression is unexecuted; generated surfaces,
+changed dependency bootstrap and the final Windows validation batch are deferred.
 
 ## Environment and qualification boundaries
 

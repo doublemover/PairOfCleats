@@ -520,7 +520,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#732](https://github.com/doublemover/PairOfCleats/issues/732) | P2 | [P2] Close compressed JSONL source streams when artifact iteration stops early | development implemented; validation deferred |
 | [#733](https://github.com/doublemover/PairOfCleats/issues/733) | other | [Enhancement] Replace TUI full-model JSON frame signatures with revision-based invalidation | source repair and regression authored; unvalidated |
 | [#734](https://github.com/doublemover/PairOfCleats/issues/734) | other | [Enhancement] Batch stack bases and member shapes across bounded spatial cells | pending |
-| [#735](https://github.com/doublemover/PairOfCleats/issues/735) | other | [Enhancement] Find and navigate entities across the loaded workspace response | pending |
+| [#735](https://github.com/doublemover/PairOfCleats/issues/735) | other | [Enhancement] Find and navigate entities across the loaded workspace response | source authored; unvalidated |
 | [#736](https://github.com/doublemover/PairOfCleats/issues/736) | other | [Enhancement] Format only visible TUI job and task rows and reuse filtered identities | source repair and regression authored; unvalidated |
 | [#737](https://github.com/doublemover/PairOfCleats/issues/737) | other | [Enhancement] Cache immutable TUI preview text and materialize only visible detail lines | source repair and regression authored; unvalidated |
 | [#738](https://github.com/doublemover/PairOfCleats/issues/738) | other | [Enhancement] Preserve structured search diagnostics in editor and TUI results | source authored; unvalidated |
@@ -930,8 +930,8 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1142](https://github.com/doublemover/PairOfCleats/issues/1142) | other | Prototype versioned vector quantization with original-vector reranking | pending |
 | [#1143](https://github.com/doublemover/PairOfCleats/issues/1143) | other | Add bounded cross-generation declaration correspondence without changing immutable source identity | pending |
 | [#1144](https://github.com/doublemover/PairOfCleats/issues/1144) | other | Add paired repository-cluster quality comparisons to existing evaluation reports | pending |
-| [#1145](https://github.com/doublemover/PairOfCleats/issues/1145) | other | Route validated provider semantic facts through one canonical durable sink | pending |
-| [#1146](https://github.com/doublemover/PairOfCleats/issues/1146) | other | Bind provider tool profiles to observed executable and project identities | pending |
+| [#1145](https://github.com/doublemover/PairOfCleats/issues/1145) | other | Route validated provider semantic facts through one canonical durable sink | partial source authored; integration/qualification open |
+| [#1146](https://github.com/doublemover/PairOfCleats/issues/1146) | other | Bind provider tool profiles to observed executable and project identities | partial source authored; integration/qualification open |
 | [#1147](https://github.com/doublemover/PairOfCleats/issues/1147) | other | Publish provider and consumer declarations with a conformance SDK | pending |
 | [#1148](https://github.com/doublemover/PairOfCleats/issues/1148) | other | Add a bounded JSONL provider adapter and source-pinned report importer | pending |
 | [#1149](https://github.com/doublemover/PairOfCleats/issues/1149) | other | Prototype explicit request-local semantic enrichment without generation mutation | pending |
@@ -982,21 +982,21 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1194](https://github.com/doublemover/PairOfCleats/issues/1194) | other | Ingest configured build-graph snapshots for CMake, Bazel and Make | pending |
 | [#1195](https://github.com/doublemover/PairOfCleats/issues/1195) | other | Add source-linked web/template reference adapters without template execution | pending |
 | [#1196](https://github.com/doublemover/PairOfCleats/issues/1196) | other | Bridge existing SCIP ingest into source-pinned semantic facts and define LSIF compatibility | pending |
-| [#1197](https://github.com/doublemover/PairOfCleats/issues/1197) | other | Acquire and project structured LSP observations through shared semantic consumers | pending |
+| [#1197](https://github.com/doublemover/PairOfCleats/issues/1197) | other | Acquire and project structured LSP observations through shared semantic consumers | partial source authored; integration/qualification open |
 | [#1198](https://github.com/doublemover/PairOfCleats/issues/1198) | perf | [Perf] Batch persistent embedding-cache writes and coalesce hit touches | development implemented; integration/validation deferred |
-| [#1199](https://github.com/doublemover/PairOfCleats/issues/1199) | perf | [Perf] Replace per-file full embedding-cache index snapshots with bounded delta checkpoints | pending |
+| [#1199](https://github.com/doublemover/PairOfCleats/issues/1199) | perf | [Perf] Replace per-file full embedding-cache index snapshots with bounded delta checkpoints | source authored; unvalidated |
 | [#1200](https://github.com/doublemover/PairOfCleats/issues/1200) | perf | [Perf] Build embedding-cache shard summaries once for pruning and compaction | source authored; unvalidated |
 | [#1201](https://github.com/doublemover/PairOfCleats/issues/1201) | perf | [Perf] Qualify fused ONNX pooling and selective output fetches | pending |
 | [#1202](https://github.com/doublemover/PairOfCleats/issues/1202) | perf | [Perf] Qualify model-specific ONNX execution profiles under a shared CPU budget | pending |
 | [#1203](https://github.com/doublemover/PairOfCleats/issues/1203) | perf | [Perf] Read parse checkpoints without decoding full incremental bundles twice | source authored; unvalidated |
-| [#1204](https://github.com/doublemover/PairOfCleats/issues/1204) | perf | [Perf] Avoid redundant synchronous full-model hashing through verified artifact leases | pending |
+| [#1204](https://github.com/doublemover/PairOfCleats/issues/1204) | perf | [Perf] Avoid redundant synchronous full-model hashing through verified artifact leases | source authored; unvalidated |
 | [#1205](https://github.com/doublemover/PairOfCleats/issues/1205) | perf | [Perf] Build semantic compiler-session identity indexes instead of repeated inventory scans | development implemented; integration/validation deferred |
 | [#1206](https://github.com/doublemover/PairOfCleats/issues/1206) | perf | [Perf] Remove full-clear vocabulary-cache cliffs in SQLite bundle ingestion | development implemented; integration/validation deferred |
-| [#1207](https://github.com/doublemover/PairOfCleats/issues/1207) | perf | [Perf] Pipeline SQLite bundle decoding with ordered byte-bounded ingestion | pending |
+| [#1207](https://github.com/doublemover/PairOfCleats/issues/1207) | perf | [Perf] Pipeline SQLite bundle decoding with ordered byte-bounded ingestion | partial source authored; integration/qualification open |
 | [#1208](https://github.com/doublemover/PairOfCleats/issues/1208) | perf | [Perf] Spool Stage-3 vector channels instead of retaining the full corpus | pending |
-| [#1209](https://github.com/doublemover/PairOfCleats/issues/1209) | perf | [Perf] Use canonical binary vector streams for ANN handoff and avoid mandatory dual serialization | pending |
+| [#1209](https://github.com/doublemover/PairOfCleats/issues/1209) | perf | [Perf] Use canonical binary vector streams for ANN handoff and avoid mandatory dual serialization | partial source authored; integration/qualification open |
 | [#1210](https://github.com/doublemover/PairOfCleats/issues/1210) | perf | [Perf] Keep no-yield postings iterations synchronous instead of allocating a promise per item | development implemented; integration/validation deferred |
-| [#1211](https://github.com/doublemover/PairOfCleats/issues/1211) | perf | [Perf] Stream SQLite dense-vector reconciliation instead of materializing both generations | pending |
+| [#1211](https://github.com/doublemover/PairOfCleats/issues/1211) | perf | [Perf] Stream SQLite dense-vector reconciliation instead of materializing both generations | source authored; unvalidated |
 | [#1212](https://github.com/doublemover/PairOfCleats/issues/1212) | perf | [Perf] Encode semantic rows once per admitted batch for sizing, hashing and writing | development implemented; integration/validation deferred |
 | [#1213](https://github.com/doublemover/PairOfCleats/issues/1213) | perf | [Perf] Reuse compatible HNSW generations with measured delta and rebuild thresholds | pending |
 | [#1214](https://github.com/doublemover/PairOfCleats/issues/1214) | perf | [Perf] Coalesce semantic family parts without weakening durable completion boundaries | pending |
@@ -1007,7 +1007,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1219](https://github.com/doublemover/PairOfCleats/issues/1219) | perf | [Perf] Fuse vector postprocessing without repeated normalized-channel copies | source authored; unvalidated |
 | [#1220](https://github.com/doublemover/PairOfCleats/issues/1220) | perf | [Perf] Preserve partial embedding reuse when one chunk changes the file fingerprint | development implemented; integration/validation deferred |
 | [#1221](https://github.com/doublemover/PairOfCleats/issues/1221) | perf | [Perf] Add a validated cache-only Stage-3 path that avoids loading ONNX | pending |
-| [#1222](https://github.com/doublemover/PairOfCleats/issues/1222) | perf | [Perf] Skip unchanged embedding bundle hydration using verified coverage digests | pending |
+| [#1222](https://github.com/doublemover/PairOfCleats/issues/1222) | perf | [Perf] Skip unchanged embedding bundle hydration using verified coverage digests | source authored; unvalidated |
 | [#1223](https://github.com/doublemover/PairOfCleats/issues/1223) | perf | [Perf] Solve compiler call summaries with dirty dependencies instead of full SCC rescans | source repair and regression authored; unvalidated |
 | [#1224](https://github.com/doublemover/PairOfCleats/issues/1224) | perf | [Perf] Avoid full reaching-definition Map/Set snapshots at every CFG block | source repair and regression authored; unvalidated |
 | [#1225](https://github.com/doublemover/PairOfCleats/issues/1225) | perf | [Perf] Share CFG effect and exception reachability instead of traversing suffixes per call | source repair and regression authored; unvalidated |
@@ -1039,7 +1039,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1251](https://github.com/doublemover/PairOfCleats/issues/1251) | perf | [Perf] Prewarm query hot caches once per disk generation instead of rebuilding on misses | source repair and regression authored; unvalidated |
 | [#1252](https://github.com/doublemover/PairOfCleats/issues/1252) | perf | [Perf] Fuse manifest integrity reads with artifact decoding during validation | pending |
 | [#1253](https://github.com/doublemover/PairOfCleats/issues/1253) | perf | [Perf] Project cold chunk identity fields without retaining full cold rows | development implemented; integration/validation deferred |
-| [#1254](https://github.com/doublemover/PairOfCleats/issues/1254) | perf | [Perf] Stream benchmark logs once into independent report reducers | pending |
+| [#1254](https://github.com/doublemover/PairOfCleats/issues/1254) | perf | [Perf] Stream benchmark logs once into independent report reducers | source authored; unvalidated |
 | [#1255](https://github.com/doublemover/PairOfCleats/issues/1255) | perf | [Perf] Share risk witness prefixes and release consumed traversal states | source authored; unvalidated |
 | [#1256](https://github.com/doublemover/PairOfCleats/issues/1256) | perf | [Perf] Prepare immutable risk edge metadata once rather than per traversal state | development implemented; integration/validation deferred |
 | [#1257](https://github.com/doublemover/PairOfCleats/issues/1257) | other | Unify configuration guidance and retire the obsolete two-key hard-cut prescription | pending |
@@ -1057,17 +1057,17 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1269](https://github.com/doublemover/PairOfCleats/issues/1269) | other | Refresh contributor test and benchmark recipes after source-owner moves and runner consolidation | pending |
 | [#1270](https://github.com/doublemover/PairOfCleats/issues/1270) | other | Separate shipped backend recipes from evaluation-only recommendations and dependency labels | pending |
 | [#1271](https://github.com/doublemover/PairOfCleats/issues/1271) | other | Rewrite viewer documentation as two current workflows with scoped evidence instead of campaign handoffs | pending |
-| [#1272](https://github.com/doublemover/PairOfCleats/issues/1272) | other | [Setup] Keep help and checkout diagnosis available before bootstrap readiness | pending |
-| [#1273](https://github.com/doublemover/PairOfCleats/issues/1273) | other | [Viewer] Add a canonical local preview command with safe startup and recovery | pending |
+| [#1272](https://github.com/doublemover/PairOfCleats/issues/1272) | other | [Setup] Keep help and checkout diagnosis available before bootstrap readiness | partial source authored; integration/qualification open |
+| [#1273](https://github.com/doublemover/PairOfCleats/issues/1273) | other | [Viewer] Add a canonical local preview command with safe startup and recovery | partial source authored; integration/qualification open |
 | [#1274](https://github.com/doublemover/PairOfCleats/issues/1274) | other | [Config] Explain and validate effective settings instead of only raw file shape | pending |
 | [#1275](https://github.com/doublemover/PairOfCleats/issues/1275) | other | [Setup] Add a reviewable first-search plan with explicit capability choices | pending |
-| [#1276](https://github.com/doublemover/PairOfCleats/issues/1276) | other | Summarize package patches once with real file/hunk counts and clear failures | pending |
+| [#1276](https://github.com/doublemover/PairOfCleats/issues/1276) | other | Summarize package patches once with real file/hunk counts and clear failures | source authored; unvalidated |
 | [#1277](https://github.com/doublemover/PairOfCleats/issues/1277) | perf | [Perf] Add dependency-safe bounded concurrency to patch preparation and native bootstrap | development implemented; integration/validation deferred |
 | [#1278](https://github.com/doublemover/PairOfCleats/issues/1278) | perf | [Perf] Push selective BM25 posting and length hydration into SQLite | pending |
 | [#1279](https://github.com/doublemover/PairOfCleats/issues/1279) | perf | [Perf] Use indexed cold filter enumeration without whole-corpus metadata hydration | pending |
 | [#1280](https://github.com/doublemover/PairOfCleats/issues/1280) | perf | [Perf] Qualify a blocked contiguous exact dense-scan kernel without per-row view allocation | pending |
 | [#1281](https://github.com/doublemover/PairOfCleats/issues/1281) | perf | [Perf] Coalesce retrieval cache touches and avoid full cache serialization on every hit | source repair and regression authored; unvalidated |
-| [#1282](https://github.com/doublemover/PairOfCleats/issues/1282) | other | [Setup] Provision and verify the selected modern bootstrap toolchain across platforms | pending |
+| [#1282](https://github.com/doublemover/PairOfCleats/issues/1282) | other | [Setup] Provision and verify the selected modern bootstrap toolchain across platforms | partial source authored; integration/qualification open |
 | [#1283](https://github.com/doublemover/PairOfCleats/issues/1283) | other | [Workspace] Guide users from two repository roots to a validated federated search | pending |
 | [#1284](https://github.com/doublemover/PairOfCleats/issues/1284) | other | [TUI] Implement captured mouse focus, selection and scrolling instead of discarding events | pending |
 | [#1285](https://github.com/doublemover/PairOfCleats/issues/1285) | other | [TUI] Add safe paste, cursor editing and schema-native controls to existing forms | pending |
@@ -1080,36 +1080,36 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1292](https://github.com/doublemover/PairOfCleats/issues/1292) | P2 | [P2] Bind inline editor intelligence to source, generation and current interaction | development implemented; integration/validation deferred |
 | [#1293](https://github.com/doublemover/PairOfCleats/issues/1293) | other | [Enhancement] Resolve and explain editor settings for the selected repository | pending |
 | [#1294](https://github.com/doublemover/PairOfCleats/issues/1294) | other | [TUI] Prioritize the focused work pane with a height-aware compact layout | pending |
-| [#1295](https://github.com/doublemover/PairOfCleats/issues/1295) | other | [Viewer] Replace the settings wall with a scene-first, capability-aware control workspace | pending |
+| [#1295](https://github.com/doublemover/PairOfCleats/issues/1295) | other | [Viewer] Replace the settings wall with a scene-first, capability-aware control workspace | partial source authored; integration/qualification open |
 | [#1296](https://github.com/doublemover/PairOfCleats/issues/1296) | other | [Viewer] Ship a striking Tron-inspired default with composable glass, light and motion presets | pending |
-| [#1297](https://github.com/doublemover/PairOfCleats/issues/1297) | other | [Viewer] Replace hidden cap stacks with progressive detail and truthful coverage | pending |
-| [#1298](https://github.com/doublemover/PairOfCleats/issues/1298) | other | [Viewer] Make keyboard camera control focus-safe and expose an accessible navigation surface | pending |
-| [#1299](https://github.com/doublemover/PairOfCleats/issues/1299) | other | [Viewer] Add reduced-motion and idle-aware rendering with trustworthy frame telemetry | pending |
-| [#1300](https://github.com/doublemover/PairOfCleats/issues/1300) | other | [Viewer] Preserve a working evidence browser through module, WebGL and context-loss failures | pending |
+| [#1297](https://github.com/doublemover/PairOfCleats/issues/1297) | other | [Viewer] Replace hidden cap stacks with progressive detail and truthful coverage | partial source authored; integration/qualification open |
+| [#1298](https://github.com/doublemover/PairOfCleats/issues/1298) | other | [Viewer] Make keyboard camera control focus-safe and expose an accessible navigation surface | source authored; unvalidated |
+| [#1299](https://github.com/doublemover/PairOfCleats/issues/1299) | other | [Viewer] Add reduced-motion and idle-aware rendering with trustworthy frame telemetry | partial source authored; integration/qualification open |
+| [#1300](https://github.com/doublemover/PairOfCleats/issues/1300) | other | [Viewer] Preserve a working evidence browser through module, WebGL and context-loss failures | partial source authored; integration/qualification open |
 | [#1301](https://github.com/doublemover/PairOfCleats/issues/1301) | other | [Viewer] Fit and navigate the full scene with adaptive zoom and readable labels | pending |
-| [#1302](https://github.com/doublemover/PairOfCleats/issues/1302) | other | [Viewer] Make directed pipes visually distinguishable and reconcile plumbing inspection with visible filters | pending |
-| [#1303](https://github.com/doublemover/PairOfCleats/issues/1303) | other | [Enhancement] Connect both editors to source-qualified definition and reference navigation | pending |
+| [#1302](https://github.com/doublemover/PairOfCleats/issues/1302) | other | [Viewer] Make directed pipes visually distinguishable and reconcile plumbing inspection with visible filters | partial source authored; integration/qualification open |
+| [#1303](https://github.com/doublemover/PairOfCleats/issues/1303) | other | [Enhancement] Connect both editors to source-qualified definition and reference navigation | partial source authored; integration/qualification open |
 | [#1304](https://github.com/doublemover/PairOfCleats/issues/1304) | other | [Enhancement] Expose bounded semantic find, detail and trace workflows in both editors | pending |
 | [#1305](https://github.com/doublemover/PairOfCleats/issues/1305) | other | [Enhancement] Add editor filter-only enumeration and generation-safe continuation | pending |
 | [#1306](https://github.com/doublemover/PairOfCleats/issues/1306) | other | [Enhancement] Make remote editor execution and API repository mapping explicit | pending |
 | [#1307](https://github.com/doublemover/PairOfCleats/issues/1307) | other | [Enhancement] Turn editor context and risk output into reusable source-linked evidence | pending |
 | [#1308](https://github.com/doublemover/PairOfCleats/issues/1308) | other | [Enhancement] Show actionable editor workflow progress and recoverable service readiness | pending |
-| [#1309](https://github.com/doublemover/PairOfCleats/issues/1309) | other | [Viewer] Own and retire environment render targets when replacing fallback lighting | pending |
+| [#1309](https://github.com/doublemover/PairOfCleats/issues/1309) | other | [Viewer] Own and retire environment render targets when replacing fallback lighting | source authored; unvalidated |
 | [#1310](https://github.com/doublemover/PairOfCleats/issues/1310) | other | Keep CLI log/status lines compact without changing the progress-bar look | pending |
 | [#1311](https://github.com/doublemover/PairOfCleats/issues/1311) | other | [Tooling] Execute dependency-aware managed provisioning instead of stopping at missing runtimes | pending |
 | [#1312](https://github.com/doublemover/PairOfCleats/issues/1312) | other | [Tooling] Add durable per-tool install receipts and verified update, repair and removal | pending |
 | [#1313](https://github.com/doublemover/PairOfCleats/issues/1313) | other | [Tooling] Provision structural engines and operational CLI prerequisites by selected feature | pending |
 | [#1314](https://github.com/doublemover/PairOfCleats/issues/1314) | other | [Diagnostics] Persist embedding child failures in run-scoped logs and advertise the actual evidence | development implemented; integration/validation deferred |
 | [#1315](https://github.com/doublemover/PairOfCleats/issues/1315) | P1 | [P1] Serialize crash-log error writes with live appenders and preserve terminal error state | development implemented; integration/validation deferred |
-| [#1316](https://github.com/doublemover/PairOfCleats/issues/1316) | other | [Viewer] Fail map export and preview admission when requested output was not written | pending |
-| [#1317](https://github.com/doublemover/PairOfCleats/issues/1317) | other | [Viewer] Pin running preview sessions instead of rereading one shared mutable HTML file | pending |
+| [#1316](https://github.com/doublemover/PairOfCleats/issues/1316) | other | [Viewer] Fail map export and preview admission when requested output was not written | source authored; unvalidated |
+| [#1317](https://github.com/doublemover/PairOfCleats/issues/1317) | other | [Viewer] Pin running preview sessions instead of rereading one shared mutable HTML file | partial source authored; integration/qualification open |
 | [#1318](https://github.com/doublemover/PairOfCleats/issues/1318) | P2 | [P2] Bound embedding subprocess line forwarding and keep stdout/stderr framing separate | development implemented; integration/validation deferred |
 | [#1319](https://github.com/doublemover/PairOfCleats/issues/1319) | other | [Build] Reuse sealed completed stages from compatible failed generations | pending |
 | [#1320](https://github.com/doublemover/PairOfCleats/issues/1320) | perf | [Perf] Reuse freshness-qualified discovery and preprocessing across build retries | pending |
 | [#1321](https://github.com/doublemover/PairOfCleats/issues/1321) | other | [Build] Seal independently validated graph capability before optional backend work | pending |
 | [#1322](https://github.com/doublemover/PairOfCleats/issues/1322) | other | [Build] Add reviewable resume and validate-only recovery plans for retained runs | pending |
 | [#1323](https://github.com/doublemover/PairOfCleats/issues/1323) | P2 | [P2] Do not block embedding-disabled Stage2 recovery on inactive model execution requirements | development implemented; integration/validation deferred |
-| [#1324](https://github.com/doublemover/PairOfCleats/issues/1324) | other | [Viewer] Open saved map artifacts without regenerating from the current index | pending |
+| [#1324](https://github.com/doublemover/PairOfCleats/issues/1324) | other | [Viewer] Open saved map artifacts without regenerating from the current index | partial source authored; integration/qualification open |
 | [#1325](https://github.com/doublemover/PairOfCleats/issues/1325) | other | [Build] Preflight requested embedding assets and execution plan before expensive Stage2 work | pending |
 | [#1326](https://github.com/doublemover/PairOfCleats/issues/1326) | P2 | [P2] Finalize CLI output before closing the display and preserve JSONL framing | development implemented; integration/validation deferred |
 | [#1327](https://github.com/doublemover/PairOfCleats/issues/1327) | other | [Diagnostics] Compare durable build execution plans and actual work across attempts | pending |
@@ -1152,22 +1152,22 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1364](https://github.com/doublemover/PairOfCleats/issues/1364) | perf | [Perf] Make field-postings shards byte-bounded and stream the compatibility merge | pending |
 | [#1365](https://github.com/doublemover/PairOfCleats/issues/1365) | perf | [Perf] Share active artifact compression workers under the build CPU and byte budget | source repair and regression authored; unvalidated |
 | [#1366](https://github.com/doublemover/PairOfCleats/issues/1366) | perf | [Perf] Plan one required sparse artifact representation before emitting compatibility copies | pending |
-| [#1367](https://github.com/doublemover/PairOfCleats/issues/1367) | other | [Viewer] Fix world-depth occlusion and glass/path compositing instead of drawing overlays through files | pending |
+| [#1367](https://github.com/doublemover/PairOfCleats/issues/1367) | other | [Viewer] Fix world-depth occlusion and glass/path compositing instead of drawing overlays through files | partial source authored; integration/qualification open |
 
 | [#1368](https://github.com/doublemover/PairOfCleats/issues/1368) | P2 | [P2] Derive JSONL block length from encoded bytes instead of trusting optional lineBytes | pending |
 | [#1369](https://github.com/doublemover/PairOfCleats/issues/1369) | perf | [Perf] Reuse dependency-qualified artifact families during partial rebuilds | source repair and regression authored; unvalidated |
-| [#1370](https://github.com/doublemover/PairOfCleats/issues/1370) | other | [Viewer] Keep semantic selection, highlight and source actions coherent outside drawn scope | pending |
+| [#1370](https://github.com/doublemover/PairOfCleats/issues/1370) | other | [Viewer] Keep semantic selection, highlight and source actions coherent outside drawn scope | source authored; unvalidated |
 | [#1371](https://github.com/doublemover/PairOfCleats/issues/1371) | P2 | [P2] Serve the complete viewer module graph in FPS and LOD benchmark previews | source repair and regression authored; unvalidated |
 | [#1372](https://github.com/doublemover/PairOfCleats/issues/1372) | P2 | [P2] Gate Three.js browser qualification on phase-local errors and a rendered scene | source repair and regression authored; unvalidated |
 | [#1373](https://github.com/doublemover/PairOfCleats/issues/1373) | P2 | [P2] Reconcile repo-map and canonical chunk identities before building map members | source repair and regression authored; unvalidated |
 | [#1374](https://github.com/doublemover/PairOfCleats/issues/1374) | P2 | [P2] Keep indexed files and import edges when a file has no named map member | source repair and regression authored; unvalidated |
 | [#1375](https://github.com/doublemover/PairOfCleats/issues/1375) | P2 | [P2] Preserve alias dataflow evidence through code-map normalization | source repair and regression authored; unvalidated |
 | [#1376](https://github.com/doublemover/PairOfCleats/issues/1376) | P3 | [P3] Preserve opaque IDs when resolving connected-entity highlights | source repair and regression authored; unvalidated |
-| [#1377](https://github.com/doublemover/PairOfCleats/issues/1377) | other | [Viewer] Compute height fog from actual instance and line world positions | pending |
+| [#1377](https://github.com/doublemover/PairOfCleats/issues/1377) | other | [Viewer] Compute height fog from actual instance and line world positions | source authored; unvalidated |
 | [#1378](https://github.com/doublemover/PairOfCleats/issues/1378) | P2 | [P2] Resolve editor risk explain against the selected code generation instead of repo-local index-code | source repair and regression authored; unvalidated |
 | [#1379](https://github.com/doublemover/PairOfCleats/issues/1379) | P2 | [P2] Discover validation modes from the explicit index root rather than the current generation | source repair and regression authored; unvalidated |
 | [#1380](https://github.com/doublemover/PairOfCleats/issues/1380) | P2 | [P2] Resolve index stats from every published mode root instead of one latest build | source repair and regression authored; unvalidated |
-| [#1381](https://github.com/doublemover/PairOfCleats/issues/1381) | other | [Viewer] Stream generation-pinned graph data through a worker-owned incremental scene pipeline | pending |
+| [#1381](https://github.com/doublemover/PairOfCleats/issues/1381) | other | [Viewer] Stream generation-pinned graph data through a worker-owned incremental scene pipeline | partial source authored; integration/qualification open |
 | [#1382](https://github.com/doublemover/PairOfCleats/issues/1382) | perf | [Perf] Replace cubic map adjacency ordering with incremental candidate scores | source repair and regression authored; unvalidated |
 | [#1383](https://github.com/doublemover/PairOfCleats/issues/1383) | P2 | [P2] Preserve setup's explicit repository target across index and artifact-restore children | source repair and regression authored; unvalidated |
 | [#1384](https://github.com/doublemover/PairOfCleats/issues/1384) | P2 | [P2] Make index health honor selected modes and intentionally absent optional backends | source repair and regression authored; unvalidated |
@@ -1633,4 +1633,69 @@ All source checkpoints above are unvalidated. No test, syntax check, formatter,
 bootstrap, gate or benchmark ran in this continuation. Required dependency setup,
 generated refresh (including diagnostic/config/schema inventories), relevant
 fail-before/after controls and the complete Windows qualification remain deferred.
+The last qualified production/test source remains d4dcba413.
+
+
+### Eight-owner implementation continuation, 2026-10-22
+
+Eight 6.1 Sol/xhigh agents now own independent real-file spans: storage and
+publication, vector identity, language semantics, storage layout, editor workflows,
+native workflows, map workflows and developer experience. The lead integrates
+shared schemas, semantic versions and CLI routes and owns Git publication.
+No worktree, elevation, physical symlink creation or peer coordination is required.
+Source checkpoint hashes below do not represent acceptance.
+
+Source 08b6c949e (#735) indexes bounded scalar metadata once per loaded workspace
+response and supports local page/response find, cancellable traversal and stable
+original-page navigation. It fetches no additional server data. Source 6662ccc73
+(#1303, partial) binds navigation to retained source bytes, UTF-16 positions,
+semantic occurrences and exact recorded binding targets; ambiguous/unresolved
+bindings remain explicit and legacy spelling search remains approximate. The
+source-manifest lookup has a work budget and no continuation; mapping support,
+explicit candidate selection and full published-producer/editor proof remain open.
+
+Source 3b07f8733 (#1199) appends checksummed generation/sequence cache-index deltas
+under the existing lock, preserves JSON authority and refuses corrupt frames.
+Source be55a330a (#1207, partial) streams ordered SQLite shard windows and bounded
+primary/patch/checksum input while retaining global IDs, transaction rollback and
+manifest fallback. Retained memory admission is modeled, not measured RSS. Source
+5ab158d3f (#1254) shares a captured-length UTF-8 benchmark log transport while
+preserving independent reducer ordering and incomplete-input rejection.
+
+Source 74104dc63 (#1204/#1222) coalesces bounded asynchronous byte verification
+and retains immutable embedding coverage receipts bound to source, mapping,
+identity, ranges and patch metadata. Mutable warm acquisitions still rehash.
+Source 8a33d633c (#1209 partial/#1211) streams manifest-authorized binary ANN
+inputs and SQLite old/new reconciliation with bounded windows. Mandatory JSONL
+publication remains until consumer cutover; unproduced delta ranges fall back to
+complete comparison, and optional ANN recovery retains backfill. Actual native
+backend parity, crash/cancellation lifetimes and bytes/CPU/RSS/latency proof remain.
+
+Sources b1f1a3062/3d046719d add read-only effective configuration and reviewed
+first-search plans plus terminal-cell-aware progress, resize coalescing and owned
+cleanup. Source f20903567 (#1272/#1276/#1282, partial) adds a dependency-free
+checkout diagnosis/help/version front door, precise bootstrap identity mismatch
+fields, patch file/hunk summaries and selected prerequisite provenance. Operational
+commands keep bootstrap admission. Prerequisite provisioning and modern native
+qualification are not established by metadata diagnosis.
+
+Source b9548372e (#1145/#1146/#1197, partial) carries source/profile-pinned
+provider output through an atomic semantic sink, retains typed LSP evidence and
+combines compiler/provider results once. Shared compilerBindings11, lspBindings15
+and nativeFlow2 invalidate reused derived meaning. Complete profile adoption,
+producer qualification and published consumer workflows remain open.
+
+Sources f4c77dd9b/101f3641f add explicit map resource ownership, per-output atomic
+publication receipts (#1316), inert saved-map admission, a pinned local module
+closure and immutable loopback preview sessions (#1273/#1317/#1324, partial).
+Focus, visibility and reduced motion retire owned animation work; callback/CPU
+telemetry does not claim GPU timing. Source-linked hierarchy and visible-pipe
+coverage retain authoritative IDs. Generation selection, transactional refresh,
+portable packaging, progressive GPU admission, glass/refraction capture, pipeline
+workers and browser/native/hardware qualification remain open as applicable.
+
+All regressions are authored and unexecuted. No tests, syntax checks, formatter,
+bootstrap, native hosts, browser checks, benchmarks or gates ran in this
+continuation. Dependency preparation, generated surfaces and final Windows
+acceptance remain deferred. No new issue closure or measured speedup is claimed.
 The last qualified production/test source remains d4dcba413.
