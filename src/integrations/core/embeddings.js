@@ -2,6 +2,12 @@ import { resolveEmbeddingIntent } from '../../shared/embedding-intent.js';
 import { getEnvConfig } from '../../shared/env/runtime.js';
 import { StringDecoder } from 'node:string_decoder';
 import { spawnSubprocess, SubprocessError } from '../../shared/subprocess/runner.js';
+import path from 'node:path';
+import { getRepoCacheRoot, loadUserConfig } from '../../shared/dict-utils.js';
+import { createCrashEvidenceOwner, boundedCrashEvent, redactCrashArguments } from '../../index/build/crash-evidence.js';
+import { redactDiagnosticText } from '../../shared/diagnostic-text.js';
+import { readRuntimeReceipt } from '../../shared/runtime-envelope/read-receipt.js';
+import { persistRuntimeAttempt } from '../../index/build/build-state/runtime.js';
 
 const EMBEDDINGS_CANCEL_CODE = 0xC000013A;
 
@@ -56,6 +62,69 @@ export const runEmbeddingsTool = async (args, options = {}) => {
     ? options.extraEnv
     : null;
   const env = extraEnv ? { ...baseEnv, ...extraEnv } : baseEnv;
+  const argument = name => {
+    const index = args.indexOf(name);
+    return index >= 0 && typeof args[index + 1] === 'string' ? args[index + 1] : null;
+  };
+  const buildRoot = options.indexRoot || argument('--index-root');
+  const mode = options.mode || argument('--mode') || 'all';
+  let evidenceOwner = null;
+  let evidenceSetupError = null;
+  let priorAttemptIds = new Set();
+  try {
+    const repo = options.root || argument('--repo');
+    const repoCacheRoot = options.repoCacheRoot || (repo ? getRepoCacheRoot(repo, options.userConfig || loadUserConfig(repo)) : null);
+    if (repoCacheRoot) evidenceOwner = createCrashEvidenceOwner({ repoCacheRoot,
+      buildId: buildRoot ? path.basename(buildRoot) : null, mode, stage: 'stage3',
+      attemptId: options.attemptId || null, parentAttemptId: options.parentAttemptId || null,
+      runtimeReceiptPath: buildRoot ? path.join(buildRoot, 'build_state.json') : null });
+    if (buildRoot) priorAttemptIds = new Set((await readRuntimeReceipt({ buildRoot })).attempts.map(attempt => attempt.attemptId));
+  } catch (error) { evidenceSetupError = error; }
+  const persistOutcome = async (childResult, originalError, cancelled = false) => {
+    if (!evidenceOwner) return { written: false, evidencePath: null,
+      writeError: evidenceSetupError ? { code: evidenceSetupError.code || 'ERR_CRASH_EVIDENCE_SETUP',
+        message: redactDiagnosticText(evidenceSetupError.message || evidenceSetupError) } : null };
+    let attempts = [];
+    try {
+      if (buildRoot) attempts = (await readRuntimeReceipt({ buildRoot })).attempts.filter(attempt =>
+        !priorAttemptIds.has(attempt.attemptId) && attempt.stage === 'stage3'
+        && (mode === 'all' || attempt.mode === mode));
+    } catch { /* Terminal child evidence remains independent of receipt availability. */ }
+    const tail = value => {
+      const text = Array.isArray(value) ? value.join('\n') : typeof value === 'string' ? value : '';
+      return { text: redactDiagnosticText(text.slice(-4096), 4096),
+        capturedChars: text.length, retainedChars: Math.min(4096, text.length), truncated: text.length > 4096 };
+    };
+    const reference = evidenceOwner.writeTerminal({ category: 'tooling', stage: 'embeddings',
+      message: redactDiagnosticText(originalError?.message || (cancelled ? 'Embedding child cancelled.' : 'Embedding child failed.'), 4096),
+      code: originalError?.code || null,
+      outcome: cancelled ? 'cancelled' : childResult?.signal ? 'signal' : childResult?.pid == null ? 'spawn-error' : 'nonzero-exit',
+      child: { executable: process.execPath, arguments: redactCrashArguments(args),
+        pid: childResult?.pid ?? null, parentPid: process.pid,
+        exitCode: childResult?.exitCode ?? null, signal: childResult?.signal || null,
+        stdout: tail(childResult?.stdout), stderr: tail(childResult?.stderr),
+        outputCapture: boundedCrashEvent(childResult?.outputCapture || {}),
+        detailAvailable: Boolean(childResult?.stdout?.length || childResult?.stderr?.length),
+        runtimeAttemptIds: attempts.map(attempt => attempt.attemptId) } });
+    if (reference.written && buildRoot) {
+      for (const projected of attempts) {
+        const { freshness, explanation, ...attempt } = projected;
+        try {
+          await persistRuntimeAttempt(buildRoot, attempt, {
+            lifecycle: cancelled ? 'aborted' : 'failed',
+            error: { ...(attempt.error || {}), code: String(originalError?.code || 'EMBEDDING_CHILD_FAILED'),
+              message: redactDiagnosticText(originalError?.message || 'Embedding child terminated.'), diagnosticEvidence: reference }
+          });
+        } catch (error) {
+          reference.receiptLinkError = { code: error?.code || 'ERR_CRASH_RECEIPT_LINK', message: redactDiagnosticText(error?.message || error) };
+        }
+      }
+    }
+    return reference;
+  };
+  const attachEvidence = (error, reference) => {
+    try { error.diagnosticEvidence = reference; } catch {}
+  };
   let result;
   try {
     result = await spawnSubprocess(process.execPath, args, {
@@ -66,6 +135,11 @@ export const runEmbeddingsTool = async (args, options = {}) => {
       onStdout: emitter ? emitter.handleChunk : null,
       onStderr: emitter ? emitter.handleChunk : null
     });
+  } catch (error) {
+    try { attachEvidence(error, await persistOutcome(error?.result, error, options.signal?.aborted === true)); }
+    catch (diagnosticError) { attachEvidence(error, { written: false, evidencePath: null,
+      writeError: { code: diagnosticError?.code || 'ERR_CRASH_EVIDENCE_WRITE', message: redactDiagnosticText(diagnosticError?.message || diagnosticError) } }); }
+    throw error;
   } finally {
     emitter?.flush();
   }
@@ -74,7 +148,8 @@ export const runEmbeddingsTool = async (args, options = {}) => {
   }
   if (options.signal?.aborted
     || (Number.isInteger(result.exitCode) && (result.exitCode >>> 0) === EMBEDDINGS_CANCEL_CODE)) {
-    return { cancelled: true, code: result.exitCode ?? null, signal: result.signal || null };
+    const diagnosticEvidence = await persistOutcome(result, null, true);
+    return { cancelled: true, code: result.exitCode ?? null, signal: result.signal || null, diagnosticEvidence };
   }
   const pickText = (value) => {
     if (Array.isArray(value)) return value.join('\n');
@@ -91,5 +166,9 @@ export const runEmbeddingsTool = async (args, options = {}) => {
     ? `was terminated by signal ${result.signal}`
     : `exited with code ${result.exitCode ?? 'unknown'}`;
   const errorMessage = `build-embeddings ${termination}${detailTail ? `\n${detailTail}` : ''}`;
-  throw new SubprocessError(errorMessage, result);
+  const error = new SubprocessError(errorMessage, result);
+  try { attachEvidence(error, await persistOutcome(result, error)); }
+  catch (diagnosticError) { attachEvidence(error, { written: false, evidencePath: null,
+    writeError: { code: diagnosticError?.code || 'ERR_CRASH_EVIDENCE_WRITE', message: redactDiagnosticText(diagnosticError?.message || diagnosticError) } }); }
+  throw error;
 };

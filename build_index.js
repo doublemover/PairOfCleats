@@ -16,31 +16,13 @@ const { createAbortControllerWithHandlers, isAbortError } = await import('./src/
 const { isDirectExecution } = await import('./src/shared/direct-execution.js');
 const { setVerboseEnv } = await import('./src/shared/env.js');
 const { emitLegacyCliEntrypointWarning } = await import('./src/shared/cli/legacy-entrypoint.js');
+const { resolveConfirmedCrashEvidencePath } = await import('./src/index/build/crash-evidence.js');
 const {
   getCurrentBuildInfo,
-  getRepoCacheRoot,
   getToolVersion,
   loadUserConfig,
   resolveRepoRoot
 } = await import('./tools/shared/dict-utils.js');
-
-const normalizePath = (value) => String(value || '').replace(/\//g, path.sep);
-
-const formatPath = (value, localAppData, maxLength = 120) => {
-  if (!value) return '';
-  let normalized = normalizePath(value);
-  if (localAppData && normalized.toLowerCase().startsWith(localAppData.toLowerCase())) {
-    const suffix = normalized.slice(localAppData.length);
-    const trimmed = suffix.startsWith(path.sep) ? suffix.slice(1) : suffix;
-    normalized = `%localappdata%${path.sep}${trimmed}`;
-  }
-  if (normalized.length <= maxLength) return normalized;
-  const head = normalized.startsWith('%localappdata%') ? `%localappdata%${path.sep}` : '';
-  const remaining = normalized.slice(head.length);
-  const tailLength = Math.max(10, maxLength - head.length - 3);
-  const tail = remaining.slice(-tailLength);
-  return `${head}...${tail}`;
-};
 
 export const main = async ({
   rawArgs = process.argv.slice(2),
@@ -101,7 +83,6 @@ export const main = async ({
     }
     stderr.write(`${line}\n`);
   };
-  const localAppData = env.LOCALAPPDATA || '';
   let displayClosed = false;
   const closeDisplay = () => {
     if (displayClosed) return;
@@ -115,10 +96,6 @@ export const main = async ({
   const startedAt = Date.now();
   const resolvedRoot = rootArg || resolveRepoRoot(cwd);
   const observability = parseObservabilityContextEnv(env);
-  const repoCacheRoot = getRepoCacheRoot(resolvedRoot);
-  const crashLogPath = repoCacheRoot
-    ? path.join(repoCacheRoot, 'logs', 'index-crash.log')
-    : null;
   const abortController = createAbortControllerWithHandlers();
   const handleSigint = () => abortController.abort('SIGINT');
   const handleSigterm = () => abortController.abort('SIGTERM');
@@ -198,9 +175,9 @@ export const main = async ({
         display.error(err.stack);
       }
     }
-    if (crashLogPath) {
-      display.error(`Crash log: ${formatPath(crashLogPath, localAppData)}`);
-    }
+    const evidencePath = resolveConfirmedCrashEvidencePath(err?.diagnosticEvidence);
+    if (evidencePath) writeLine(`Failure evidence: ${evidencePath}`);
+    else if (err?.diagnosticEvidence?.writeError) writeLine(`Failure evidence unavailable: ${err.diagnosticEvidence.writeError.message}`);
     return 1;
   } finally {
     process.off('SIGINT', handleSigint);
