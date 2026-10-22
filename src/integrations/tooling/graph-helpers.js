@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { throwIfAborted } from '../../shared/abort.js';
 import { buildGraphIndexCacheKey, createGraphStore } from '../../graph/store.js';
 import { buildIndexSignature } from '../../retrieval/index-cache.js';
 import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
@@ -165,4 +167,40 @@ export const prepareGraphIndex = async ({
     graphRelations,
     indexSignature: indexSignature || null
   };
+};
+
+
+/** Private bridge for the authoritative CLI/API/MCP dispatchers. It opens only
+ * the supplied pinned generation; it never redirects an old cursor to current.
+ * Whole graph indexes, neighborhood traversal and full occurrence arrays are
+ * deliberately absent from this bounded evidence-only request.
+ */
+export const prepareGraphEvidencePage = async ({ indexDir = null, graphInputs = null,
+  family, filter = {}, cursor = null, limit = 128, scanRows = 1024,
+  maxPageBytes = 1024 * 1024, expectedBuildId = null, signal = null } = {}) => {
+  throwIfAborted(signal);
+  if (!['call_sites', 'graph_relation_edges'].includes(family)) throw new TypeError('Unknown retained graph evidence family.');
+  const selectedRoot = indexDir || graphInputs?.indexDir;
+  if (!selectedRoot || graphInputs?.indexDir && path.resolve(selectedRoot) !== path.resolve(graphInputs.indexDir)) {
+    throw Object.assign(new Error('Evidence inputs belong to another pinned index root.'), { code: 'ERR_RETAINED_EVIDENCE_GENERATION' });
+  }
+  if (!Number.isSafeInteger(maxPageBytes) || maxPageBytes < 4096 || maxPageBytes > 4 * 1024 * 1024) {
+    throw new TypeError('Retained evidence response allowance must be between 4096 and 4194304 bytes.');
+  }
+  const maxBytes = graphInputs?.maxBytes ?? MAX_JSON_BYTES;
+  const manifest = graphInputs?.manifest || loadPiecesManifest(selectedRoot, { maxBytes, strict: true });
+  if (typeof manifest?.buildId !== 'string' || !manifest.buildId
+    || expectedBuildId !== null && manifest.buildId !== expectedBuildId) {
+    throw Object.assign(new Error('Retained evidence requires the exact published build identity.'), { code: 'ERR_RETAINED_EVIDENCE_GENERATION' });
+  }
+  const store = createGraphStore({ indexDir: selectedRoot, manifest, maxBytes, strict: true });
+  const page = await (family === 'call_sites' ? store.readCallSitesPage : store.readGraphEdgesPage)({
+    filter, cursor, limit, scanRows, maxPageBytes: maxPageBytes - 2048, signal
+  });
+  const result = { family, generation: { buildId: manifest.buildId, artifactSurfaceVersion: manifest.artifactSurfaceVersion }, ...page };
+  if (Buffer.byteLength(JSON.stringify(result)) > maxPageBytes) {
+    throw Object.assign(new Error('Retained evidence response envelope exceeds its byte allowance.'), { code: 'ERR_RETAINED_EVIDENCE_RESPONSE_BYTES' });
+  }
+  throwIfAborted(signal);
+  return result;
 };

@@ -2230,6 +2230,7 @@ async function writeIndexArtifactsInCodecScope(input) {
   const graphRelationsOrdering = await scheduleRelations(() => enqueueGraphRelationsArtifacts({
     graphRelations,
     upstreamCoverage: state?.crossFileCoverage || null,
+    abortSignal: effectiveAbortSignal,
     chunks: state?.chunks || [],
     fileRelations: state?.fileRelations || null,
     caps: indexingConfig?.graph?.caps || null,

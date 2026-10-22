@@ -30,10 +30,10 @@ const bufferReadSource = bytes => ({
   async close() {}
 });
 
-const hashReadSource = async (source, expectedBytes, signal, snapshot) => {
+const hashReadSource = async (source, expectedBytes, signal, snapshot, algorithm) => {
   const before = await source.stat();
   if (before.size !== expectedBytes) throw contentChanged();
-  const hash = createHash('sha256');
+  const hash = createHash(algorithm);
   const scratch = Buffer.allocUnsafe(Math.max(1, Math.min(expectedBytes, VERIFIED_SNAPSHOT_BYTES)));
   const captured = snapshot ? Buffer.alloc(expectedBytes) : null;
   const blocks = snapshot ? null : [];
@@ -446,8 +446,8 @@ const readJsonlRowsAtWithHandles = async (
 /** Open one operation-scoped row reader. The caller owns close(), including on
  * cancellation or failure. Positioned reads retain the existing byte bounds.
  */
-export const openJsonlRowReader = async (jsonlPath, offsetsPath) => {
-  let handles = await openJsonlHandles(jsonlPath, offsetsPath);
+export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) => {
+  let handles = await openJsonlHandles(jsonlPath, offsetsPath, options);
   let closed = false;
   let verification = null, identity = null, contentVerification = null, closePromise = null;
   const pending = new Set();
@@ -465,19 +465,23 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath) => {
     ? handles.map((handle, index) => verifiedBlockReadSource(handle, contentVerification[index], signal))
     : handles;
   return {
-    verify({ jsonlBytes, offsetsBytes, jsonlHash, offsetsHash, signal = null }) {
+    verify({ jsonlBytes, offsetsBytes, jsonlHash, offsetsHash,
+      jsonlHashAlgorithm = 'sha256', offsetsHashAlgorithm = 'sha256', signal = null }) {
       if (closed) throw new Error('JSONL row reader is closed.');
       if (verification) throw new Error('JSONL row reader integrity is already initialized.');
       if (pending.size) throw new Error('JSONL integrity must be initialized before reading.');
       if (![jsonlBytes, offsetsBytes].every(value => Number.isSafeInteger(value) && value >= 0)
-        || ![jsonlHash, offsetsHash].every(value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value))) {
-        throw new TypeError('JSONL verification requires bounded byte counts and SHA-256 hashes.');
+        || ![[jsonlHash, jsonlHashAlgorithm], [offsetsHash, offsetsHashAlgorithm]].every(([value, algorithm]) =>
+          ['sha1', 'sha256'].includes(algorithm) && typeof value === 'string'
+          && new RegExp('^[a-f0-9]{' + (algorithm === 'sha1' ? 40 : 64) + '}$').test(value))) {
+        throw new TypeError('JSONL verification requires bounded byte counts and explicit SHA-1/SHA-256 hashes.');
       }
       verification = track((async () => {
         const snapshot = jsonlBytes <= VERIFIED_SNAPSHOT_BYTES && offsetsBytes <= VERIFIED_SNAPSHOT_BYTES;
         // Both reads settle before disposal, including cancellation or a failed peer.
         const hashes = await Promise.allSettled(handles.map((handle, index) =>
-          hashReadSource(handle, index ? offsetsBytes : jsonlBytes, signal, snapshot)));
+          hashReadSource(handle, index ? offsetsBytes : jsonlBytes, signal, snapshot,
+            index ? offsetsHashAlgorithm : jsonlHashAlgorithm)));
         const failed = hashes.find(result => result.status === 'rejected');
         if (failed) throw failed.reason;
         const values = hashes.map(result => result.value);

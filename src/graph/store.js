@@ -1,9 +1,12 @@
+import { createRetainedEdgePages } from './retained-edge-pages.js';
+import { createCallSitePages } from './call-site-pages.js';
 import { MAX_JSON_BYTES } from '../shared/artifact-io/constants.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../shared/artifact-io/manifest.js';
 import { loadJsonArrayArtifactRows } from '../shared/artifact-io/loaders/core.js';
 import { loadGraphRelations, loadGraphRelationsCsr } from '../shared/artifact-io/loaders/graph.js';
 import {
   buildCallSiteIndex,
+  appendCallSiteIndex,
   buildAdjacencyIndex,
   buildAdjacencyCsr,
   buildChunkInfo,
@@ -179,6 +182,7 @@ export const buildGraphIndex = ({
   graphRelationsCsr,
   symbolEdges,
   callSites,
+  callSiteIndex: inputCallSiteIndex = null,
   repoRoot = null,
   indexSignature = null,
   includeCsr = false
@@ -260,7 +264,7 @@ export const buildGraphIndex = ({
   }
   const chunkInfo = buildChunkInfo(callGraphIndex, usageGraphIndex);
   const symbolIndex = buildSymbolEdgesIndex(symbolEdges);
-  const callSiteIndex = buildCallSiteIndex(callSites);
+  const callSiteIndex = inputCallSiteIndex || buildCallSiteIndex(callSites);
   return {
     repoRoot,
     indexSignature: indexSignature || null,
@@ -487,6 +491,30 @@ export const createGraphStore = ({
     return rows;
   });
 
+  // Full occurrence rows are an explicit compatibility loader. Normal graph
+  // indexing retains only its pair evidence, without a second corpus-sized row
+  // array. Complete/unresolved evidence is separately enumerable in pages.
+  const loadCallSiteIndex = () => loadOnce('call_sites_pair_index', async () => {
+    artifactsUsed.add('call_sites');
+    const index = new Map();
+    for await (const row of loadJsonArrayArtifactRows(indexDir, 'call_sites', {
+      manifest: resolvedManifest, maxBytes, strict
+    })) appendCallSiteIndex(index, row);
+    return index;
+  });
+  let callSitePages = null;
+  const getCallSitePages = () => callSitePages ||= createCallSitePages({
+    indexDir, manifest: resolvedManifest, maxBytes
+  });
+  const readCallSitesPage = options => getCallSitePages().readPage(options);
+  const iterateCallSites = options => getCallSitePages().iterateRows(options);
+  let retainedEdgePages = null;
+  const getRetainedEdgePages = () => retainedEdgePages ||= createRetainedEdgePages({
+    indexDir, manifest: resolvedManifest, maxBytes
+  });
+  const readGraphEdgesPage = options => getRetainedEdgePages().readPage(options);
+  const iterateGraphEdges = options => getRetainedEdgePages().iterateRows(options);
+
   /**
    * Load or build cached graph index for selected graph artifacts.
    *
@@ -521,11 +549,11 @@ export const createGraphStore = ({
     let cachedArtifacts = getCachedGraphArtifacts(cacheKey, telemetry);
     if (!cachedArtifacts) {
       const loadStartedAt = Date.now();
-      const [graphRelations, csrPayload, symbolEdges, callSites] = await Promise.all([
+      const [graphRelations, csrPayload, symbolEdges, callSiteIndex] = await Promise.all([
         wantsGraphRelations && hasArtifact('graph_relations') ? loadGraph() : null,
         wantsGraphCsr ? loadGraphCsr() : null,
         wantsSymbolEdges && hasArtifact('symbol_edges') ? loadSymbolEdges() : null,
-        wantsCallSites && hasArtifact('call_sites') ? loadCallSites() : null
+        wantsCallSites && hasArtifact('call_sites') ? loadCallSiteIndex() : null
       ]);
       // Another compatible caller can finish its synchronous build while this
       // caller awaits artifact admission. Reuse it before building a second copy.
@@ -572,7 +600,7 @@ export const createGraphStore = ({
         csrSource,
         artifactLoadMs: Math.max(0, Date.now() - loadStartedAt),
         symbolEdges,
-        callSites
+        callSiteIndex
       };
       setCachedGraphArtifacts(cacheKey, cachedArtifacts, telemetry);
     }
@@ -582,7 +610,7 @@ export const createGraphStore = ({
       graphRelations: cachedArtifacts.graphRelations,
       graphRelationsCsr: cachedArtifacts.graphRelationsCsr,
       symbolEdges: cachedArtifacts.symbolEdges,
-      callSites: cachedArtifacts.callSites,
+      callSiteIndex: cachedArtifacts.callSiteIndex,
       repoRoot,
       indexSignature,
       includeCsr
@@ -637,6 +665,10 @@ export const createGraphStore = ({
     loadGraph,
     loadSymbolEdges,
     loadCallSites,
+    readCallSitesPage,
+    iterateCallSites,
+    readGraphEdgesPage,
+    iterateGraphEdges,
     loadGraphIndex,
     getArtifactsUsed: () => Array.from(artifactsUsed),
     stats: () => ({

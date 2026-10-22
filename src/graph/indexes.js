@@ -305,15 +305,18 @@ export const buildSymbolEdgesIndex = (symbolEdges) => {
   return { byChunk, bySymbol };
 };
 
+/** Append one occurrence to the existing pair-evidence projection. Unresolved
+ * occurrences remain in canonical call_sites and its independent page route. */
+export const appendCallSiteIndex = (map, site) => {
+  if (!site?.callerChunkUid || !site?.targetChunkUid || !site?.callSiteId) return;
+  const key = `${site.callerChunkUid}|${site.targetChunkUid}`;
+  const list = map.get(key) || [];
+  list.push(site.callSiteId);
+  map.set(key, list);
+};
+
 export const buildCallSiteIndex = (callSites) => {
   const map = new Map();
-  const entries = Array.isArray(callSites) ? callSites : [];
-  for (const site of entries) {
-    if (!site?.callerChunkUid || !site?.targetChunkUid || !site?.callSiteId) continue;
-    const key = `${site.callerChunkUid}|${site.targetChunkUid}`;
-    const list = map.get(key) || [];
-    list.push(site.callSiteId);
-    map.set(key, list);
-  }
+  for (const site of Array.isArray(callSites) ? callSites : []) appendCallSiteIndex(map, site);
   return map;
 };

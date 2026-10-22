@@ -3,15 +3,17 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonLinesSharded, writeJsonLinesShardedAsync } from '../../../shared/json-stream/jsonl-sharded.js';
 import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
+import { GRAPH_RELATION_EDGES_VERSION } from '../../../contracts/schemas/graph-relation-edges.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
 import { fromPosix } from '../../../shared/file-paths.js';
 import { createOrderingHasher, stableOrder } from '../../../shared/order.js';
 import { normalizeCap } from '../../../shared/limits.js';
-import { mergeSortedRuns } from '../../../shared/merge.js';
+import { mergeRunsWithPlanner, readJsonlRows } from '../../../shared/merge.js';
+import { throwIfAborted } from '../../../shared/abort.js';
+import { writeShardedJsonlMeta, buildShardedPartEntries } from './writers/_common.js';
 import { compareStrings } from '../../../shared/sort.js';
 import { resolveChunkId } from '../../chunk-id.js';
 import { resolveRelativeImport } from '../../type-inference-crossfile/resolve-relative-import.js';
-import { hashTokenId64Parts, TOKEN_ID_CONSTANTS } from '../../../shared/token-id.js';
 import {
   buildGraphRelationsCsr,
   createRowSpillCollector,
@@ -27,11 +29,6 @@ const GRAPH_RELATION_VERSION = 2;
 const GRAPH_MAX_NODES = 200000;
 const GRAPH_MAX_EDGES = 500000;
 const GRAPH_SAMPLE_LIMIT = 5;
-
-// Dedupe edges cheaply within spill buffers to reduce redundant spill rows.
-// Collision strategy: primary hash + independent fingerprint (both fnv1a64 with distinct seeds).
-const EDGE_DEDUPE_HASH_SEED = TOKEN_ID_CONSTANTS.DEFAULT_TOKEN_ID_SEED;
-const EDGE_DEDUPE_FINGERPRINT_SEED = TOKEN_ID_CONSTANTS.DEFAULT_TOKEN_ID_SEED ^ 0x243f6a8885a308d3n;
 
 const resolveCaps = (caps) => ({
   maxNodes: normalizeCap(caps?.maxNodes, GRAPH_MAX_NODES),
@@ -106,16 +103,26 @@ const compareEdgesIn = (a, b) => {
   return compareStrings(a.s, b.s);
 };
 
-const iterateEdges = async function* (collection, { compare } = {}) {
+const iterateEdges = async function* (collection, { compare, signal = null } = {}) {
   if (!collection) return;
   if (Array.isArray(collection.rows)) {
-    for (const row of collection.rows) yield row;
+    for (const row of collection.rows) { throwIfAborted(signal); yield row; }
     return;
   }
   if (Array.isArray(collection.runs) && collection.runs.length) {
-    for await (const row of mergeSortedRuns(collection.runs, { compare, validateComparator: true })) {
-      yield row;
-    }
+    const directory = path.dirname(collection.runs[0]);
+    const compareId = compare === compareEdgesOut ? 'graph-relations-out-v3' : 'graph-relations-in-v3';
+    const readRun = async function* (file) {
+      for await (const row of readJsonlRows(file)) { throwIfAborted(signal); yield row; }
+    };
+    const merged = await mergeRunsWithPlanner({ runs: collection.runs, compare, readRun,
+      outputPath: path.join(directory, 'ordered.jsonl'), tempDir: directory,
+      checkpointPath: path.join(directory, 'merge-checkpoint.json'), runPrefix: compareId,
+      compareId, plannerInputKey: compareId, maxOpenRuns: 32, validateComparator: true });
+    // Keep original runs/checkpoint on interruption; dispose only consumed merge
+    // intermediates. The existing planner verifies exact input bytes on replay.
+    for await (const row of readRun(merged.outputPath)) yield row;
+    await merged.cleanup();
   }
 };
 
@@ -169,6 +176,7 @@ const maybeLogCaps = (caps, logFn) => {
 export async function enqueueGraphRelationsArtifacts({
   graphRelations,
   upstreamCoverage = null,
+  abortSignal = null,
   chunks = null,
   fileRelations = null,
   callSites = null,
@@ -184,6 +192,7 @@ export async function enqueueGraphRelationsArtifacts({
   removeArtifact,
   stageCheckpoints
 }) {
+  throwIfAborted(abortSignal);
   const schedule = typeof scheduleIo === 'function' ? scheduleIo : (fn) => fn();
   const hasPayload = graphRelations && typeof graphRelations === 'object';
   const hasInputs = Array.isArray(chunks) && chunks.length;
@@ -262,11 +271,11 @@ export async function enqueueGraphRelationsArtifacts({
 
     // Spend edge slots only after the shared spill merge has sorted duplicates.
     const appendEdge = async (_guard, edge) => {
+      throwIfAborted(abortSignal);
       if (!edge?.s || !edge?.t) return;
-      const dedupeParts = [edge.g, edge.s, edge.t];
-      const dedupeHash = hashTokenId64Parts(dedupeParts, EDGE_DEDUPE_HASH_SEED);
-      const dedupeFingerprint = hashTokenId64Parts(dedupeParts, EDGE_DEDUPE_FINGERPRINT_SEED);
-      await outCollector.append(edge, { dedupeHash, dedupeFingerprint });
+      // Exact sorted-row comparison owns deduplication. Hash fingerprints alone
+      // cannot authorize deletion of a distinct retained adjacency fact.
+      await outCollector.append(edge);
     };
 
     for (const chunk of chunks) {
@@ -276,34 +285,31 @@ export async function enqueueGraphRelationsArtifacts({
       const chunkId = resolveChunkId(chunk) || null;
       const context = { file: chunk.file || null, chunkId, chunkUid: sourceUid };
 
-      if (!callGuard.disabled && (!callNodes.allowed || callNodes.allowed.has(sourceUid))) {
+      if (!callGuard.disabled) {
         const callLinks = Array.isArray(relations.callLinks) ? relations.callLinks : [];
         for (const link of callLinks) {
           const targetUid = link?.to?.status === 'resolved' ? link.to.resolved?.chunkUid : null;
           if (!targetUid || !chunkByUid.has(targetUid)) continue;
-          if (callNodes.allowed && !callNodes.allowed.has(targetUid)) continue;
           await appendEdge(callGuard, { g: 0, s: sourceUid, t: targetUid }, context);
           if (callGuard.disabled && callGuard.reason === 'maxEdges') break;
         }
       }
 
-      if (!usageGuard.disabled && (!usageNodes.allowed || usageNodes.allowed.has(sourceUid))) {
+      if (!usageGuard.disabled) {
         const usageLinks = Array.isArray(relations.usageLinks) ? relations.usageLinks : [];
         for (const link of usageLinks) {
           const targetUid = link?.to?.status === 'resolved' ? link.to.resolved?.chunkUid : null;
           if (!targetUid || !chunkByUid.has(targetUid)) continue;
-          if (usageNodes.allowed && !usageNodes.allowed.has(targetUid)) continue;
           await appendEdge(usageGuard, { g: 1, s: sourceUid, t: targetUid }, context);
           if (usageGuard.disabled && usageGuard.reason === 'maxEdges') break;
         }
       }
 
-      if (!useCallSites && !callGuard.disabled && (!callNodes.allowed || callNodes.allowed.has(sourceUid))) {
+      if (!useCallSites && !callGuard.disabled) {
         const callDetails = Array.isArray(relations.callDetails) ? relations.callDetails : [];
         for (const detail of callDetails) {
           const targetUid = detail?.targetChunkUid;
           if (!targetUid || !chunkByUid.has(targetUid)) continue;
-          if (callNodes.allowed && !callNodes.allowed.has(targetUid)) continue;
           await appendEdge(callGuard, { g: 0, s: sourceUid, t: targetUid }, context);
           if (callGuard.disabled && callGuard.reason === 'maxEdges') break;
         }
@@ -316,7 +322,6 @@ export async function enqueueGraphRelationsArtifacts({
         const targetUid = site?.targetChunkUid;
         if (!sourceUid || !targetUid) continue;
         if (!chunkByUid.has(sourceUid) || !chunkByUid.has(targetUid)) continue;
-        if (callNodes.allowed && (!callNodes.allowed.has(sourceUid) || !callNodes.allowed.has(targetUid))) continue;
         const sourceChunk = chunkByUid.get(sourceUid) || null;
         const context = {
           file: sourceChunk?.file || null,
@@ -354,7 +359,6 @@ export async function enqueueGraphRelationsArtifacts({
       for (const [file, relations] of fileRelations.entries()) {
         if (!file) continue;
         if (fileSet.size && !fileSet.has(file)) continue;
-        if (importNodes.allowed && !importNodes.allowed.has(file)) continue;
         let imports = Array.isArray(relations?.importLinks) ? relations.importLinks : [];
         if (!imports.length && Array.isArray(relations?.imports) && fileSet.size) {
           imports = relations.imports
@@ -365,7 +369,6 @@ export async function enqueueGraphRelationsArtifacts({
         for (const target of imports) {
           if (!target) continue;
           if (fileSet.size && !fileSet.has(target)) continue;
-          if (importNodes.allowed && !importNodes.allowed.has(target)) continue;
           await appendEdge(importGuard, { g: 2, s: file, t: target }, context);
           if (importGuard.disabled && importGuard.reason === 'maxEdges') break;
         }
@@ -374,6 +377,36 @@ export async function enqueueGraphRelationsArtifacts({
     }
 
     const rawOutSpill = await outCollector.finalize();
+    const retainedCounts = [0, 0, 0];
+    const retainedRows = (async function* () {
+      let previous = null;
+      for await (const edge of iterateEdges(rawOutSpill, { compare: compareEdgesOut, signal: abortSignal })) {
+        if (previous && compareEdgesOut(previous, edge) === 0) continue;
+        previous = edge;
+        retainedCounts[edge.g] += 1;
+        yield { schemaVersion: GRAPH_RELATION_EDGES_VERSION, graph: GRAPH_RELATION_GRAPHS[edge.g], from: edge.s, to: edge.t };
+      }
+    })();
+    // Canonical retained adjacency is independent of display caps. Each edge is
+    // small; high-degree nodes never require one giant neighbor-array row here.
+    const retained = await schedule(() => writeJsonLinesShardedAsync({ dir: outDir,
+      partsDirName: 'graph_relation_edges.parts', partPrefix: 'graph_relation_edges.part-',
+      items: retainedRows, maxBytes: maxJsonBytes, atomic: true,
+      offsets: { suffix: 'offsets.bin' }, signal: abortSignal }));
+    const retainedMetaPath = path.join(outDir, 'graph_relation_edges.meta.json');
+    await schedule(() => writeShardedJsonlMeta({ metaPath: retainedMetaPath,
+      artifact: 'graph_relation_edges', result: retained, parts: buildShardedPartEntries(retained),
+      extensions: { upstreamCoverage, ordering: 'graph-from-to-v1',
+        scope: 'resolved-collected-adjacency', distinctEdges: retainedCounts,
+        occurrenceMultiplicity: 'canonical-call-sites',
+        offsets: createOffsetsMeta({ suffix: 'offsets.bin', parts: retained.offsets, compression: 'none' }) } }));
+    for (let index = 0; index < retained.parts.length; index += 1) {
+      addPieceFile({ type: 'relations', name: 'graph_relation_edges', format: 'jsonl', count: retained.counts[index] },
+        path.join(outDir, fromPosix(retained.parts[index])));
+      addPieceFile({ type: 'relations', name: 'graph_relation_edges_offsets', format: 'bin', count: retained.counts[index] },
+        path.join(outDir, fromPosix(retained.offsets[index])));
+    }
+    addPieceFile({ type: 'relations', name: 'graph_relation_edges_meta', format: 'json' }, retainedMetaPath);
     const selectedOutCollector = createRowSpillCollector({
       outDir: stagingDir, runPrefix: 'graph-relations-selected-out', compare: compareEdgesOut,
       maxBufferBytes: spillBufferBytes, scheduleIo
@@ -381,11 +414,13 @@ export async function enqueueGraphRelationsArtifacts({
     const guards = [callGuard, usageGuard, importGuard];
     const distinctCounts = [0, 0, 0];
     let previousEdge = null;
-    for await (const edge of iterateEdges(rawOutSpill, { compare: compareEdgesOut })) {
+    for await (const edge of iterateEdges(rawOutSpill, { compare: compareEdgesOut, signal: abortSignal })) {
       if (previousEdge && compareEdgesOut(previousEdge, edge) === 0) continue;
       previousEdge = edge;
       const guard = guards[edge.g];
       if (!guard) continue;
+      const allowed = [callNodes.allowed, usageNodes.allowed, importNodes.allowed][edge.g];
+      if (allowed && (!allowed.has(edge.s) || !allowed.has(edge.t))) continue;
       const cap = guard.maxEdges;
       if (Number.isFinite(cap) && cap >= 0 && distinctCounts[edge.g] >= cap) {
         guard.reason = 'maxEdges';
@@ -417,11 +452,11 @@ export async function enqueueGraphRelationsArtifacts({
     const edgeCounts = [0, 0, 0];
 
     const outGroups = groupNeighbors(
-      iterateEdges(outSpill, { compare: compareEdgesOut }),
+      iterateEdges(outSpill, { compare: compareEdgesOut, signal: abortSignal }),
       { key: (edge) => edge.s, neighbor: (edge) => edge.t }
     )[Symbol.asyncIterator]();
     const inGroups = groupNeighbors(
-      iterateEdges(inSpill, { compare: compareEdgesIn }),
+      iterateEdges(inSpill, { compare: compareEdgesIn, signal: abortSignal }),
       { key: (edge) => edge.t, neighbor: (edge) => edge.s }
     )[Symbol.asyncIterator]();
 
@@ -494,7 +529,8 @@ export async function enqueueGraphRelationsArtifacts({
       items: rows,
       maxBytes: maxJsonBytes,
       atomic: true,
-      offsets: offsetsConfig
+      offsets: offsetsConfig,
+      signal: abortSignal
     }));
 
     const parts = result.parts.map((part, index) => ({
@@ -523,6 +559,8 @@ export async function enqueueGraphRelationsArtifacts({
         parts,
         extensions: {
           upstreamCoverage,
+          retainedEdges: { artifact: 'graph_relation_edges', scope: 'resolved-collected-adjacency',
+            status: 'complete', distinctEdges: retainedCounts },
           graphs: {
             callGraph: { nodeCount: callNodes.ids.length, edgeCount: edgeCounts[0] },
             usageGraph: { nodeCount: usageNodes.ids.length, edgeCount: edgeCounts[1] },
