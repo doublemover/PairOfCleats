@@ -163,7 +163,9 @@ const buildCallSiteRow = ({ chunk, detail, stats }) => {
     row.extensions = { syntax: {
       producer: 'tree-sitter', coordinateSystem: 'utf16', role: detail.role || 'call',
       resolution: ['resolved', 'ambiguous', 'unresolved'].includes(status) ? status : 'unresolved',
-      reason: detail.calleeRef?.reason || detail.reason || 'syntax-target-unresolved',
+      reason: status === 'resolved' ? 'source-qualified-target'
+        : status === 'ambiguous' ? 'ambiguous-target'
+          : detail.calleeRef?.reason || detail.reason || 'syntax-target-unresolved',
       rawPreviewTruncated: detail.rawPreviewTruncated === true
     } };
   }
