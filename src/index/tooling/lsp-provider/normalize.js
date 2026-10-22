@@ -9,6 +9,7 @@ import {
 } from '../provider-contract.js';
 import { listLspServerPresets, resolveLspServerPreset } from '../lsp-presets.js';
 import { SCRIPT_LSP_PRESET_DEFINITIONS } from '../script-lsp-profiles.js';
+import { isRetiredKotlinLspSelection } from '../kotlin-lsp-profile.js';
 import { isRepoTrusted } from '../../../shared/config-authority.js';
 import { isWorkspaceBuildExecution } from '../../../shared/workspace-execution-authority.js';
 import {
@@ -96,10 +97,12 @@ export const normalizeServerConfig = (server, index) => {
   const providerId = merged.providerId
     ? normalizeServerId(merged.providerId, id)
     : null;
-  const cmd = String(merged.cmd || '').trim();
+  const retiredKotlinProfile = isRetiredKotlinLspSelection(server);
+  const cmd = String(merged.cmd || (retiredKotlinProfile ? 'kotlin-language-server' : '')).trim();
   if (!cmd) return null;
   const args = normalizeArgs(merged.args);
   const languages = normalizeLanguageList(merged.languages);
+  if (retiredKotlinProfile && !languages.length) languages.push('kotlin');
   const kinds = normalizeKindList(merged.kinds);
   const uriScheme = merged.uriScheme === 'poc-vfs' ? 'poc-vfs' : 'file';
   const timeoutMs = Number(merged.timeoutMs);
@@ -238,6 +241,8 @@ export const normalizeServerConfig = (server, index) => {
     exclusiveLanguageGroup: preset?.exclusiveLanguageGroup || null,
     replacesProviderIds: Array.isArray(preset?.replacesProviderIds) ? [...preset.replacesProviderIds] : [],
     requiresWorkspaceExecution: preset?.requiresWorkspaceExecution === true,
+    workspaceExecutionProfile: preset?.requiresWorkspaceExecution === true ? preset.id : null,
+    retiredKotlinProfile,
     signatureProfile: preset?.signatureProfile || null,
     providerId,
     cmd,

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { runWithManagedCommandInstallation, runWithManagedCommandInstallationSync } from '../../../src/index/tooling/managed-command-lifetime.js';
+import { runWithManagedCommandInstallation, runWithManagedCommandInstallationSync, resolveManagedCommandSelection } from '../../../src/index/tooling/managed-command-lifetime.js';
 import { createManagedCommandFixture } from '../../helpers/managed-command-fixture.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 
@@ -14,6 +14,10 @@ try {
   await withTemporaryEnv({ PAIROFCLEATS_HOME: path.join(root, 'home') }, async () => {
     const f = await createManagedCommandFixture(root);
     const options = { toolingRoot: f.toolingRoot, command: f.command };
+    await withTemporaryEnv({ PAIROFCLEATS_TOOLING_DIR: f.toolingRoot }, async () => {
+      assert.equal(resolveManagedCommandSelection({ command: f.command }).installId, f.installId,
+        'default canonical tooling selection is retained even when the caller omits an explicit root');
+    });
     const normal = await runWithManagedCommandInstallation(options, async ({ onSpawn }) => {
       assert.equal(await f.protected(), true);
       const child = new EventEmitter(); onSpawn(child); child.emit('close', 0, null);

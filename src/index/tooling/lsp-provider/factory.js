@@ -1,6 +1,7 @@
 import { awaitToolingProviderPreflight } from '../preflight-manager.js';
 import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
 import { admitScriptLspInputs } from '../script-lsp-profiles.js';
+import { admitKotlinLspInputs, kotlinLspMigrationDiagnostic } from '../kotlin-lsp-profile.js';
 import {
   mergePreflightChecks,
   resolveCommandProfilePreflightResult,
@@ -47,6 +48,8 @@ export const createConfiguredLspProvider = (server) => {
   const executionAuthorityFor = (ctx) => resolveWorkspaceExecutionAuthority({
     repoRoot: ctx?.repoRoot || process.cwd(), providerId, server
   });
+  const admitInputs = inputs => admitKotlinLspInputs({ profileId: server.workspaceExecutionProfile || server.id,
+    inputs: admitScriptLspInputs({ serverId: server.scriptProfileId || server.id, inputs }) });
   const blockedExecutionOutput = (ctx, inputs, authority, owner) => ({
     provider: { id: providerId, version: owner.version, configHash: owner.getConfigHash(ctx) },
     byChunkUid: {},
@@ -110,7 +113,8 @@ export const createConfiguredLspProvider = (server) => {
           diagnostics: appendDiagnosticChecks(null, preChecks)
         };
       }
-      const admittedInputs = admitScriptLspInputs({ serverId: server.scriptProfileId || server.id, inputs });
+      if (server.retiredKotlinProfile) return blockedExecutionOutput(ctx, inputs, kotlinLspMigrationDiagnostic(), this);
+      const admittedInputs = admitInputs(inputs);
       const preparedInputs = prepareConfiguredProviderInputs({
         providerId,
         inputs: admittedInputs
@@ -266,7 +270,7 @@ export const createConfiguredLspProvider = (server) => {
     },
     preparePreflightInputs(_ctx, inputs) {
       return prepareConfiguredProviderInputs({ providerId,
-        inputs: admitScriptLspInputs({ serverId: server.scriptProfileId || server.id, inputs }) });
+        inputs: admitInputs(inputs) });
     }
   };
   provider.preflightId = server.workspaceMarkerOptions && server.requireWorkspaceModel !== false
@@ -280,9 +284,13 @@ export const createConfiguredLspProvider = (server) => {
   provider.preflightClass = server.preflightClass
     || (server.workspaceMarkerOptions && server.requireWorkspaceModel !== false ? 'workspace' : 'probe');
   provider.preflight = async (ctx, inputs = {}) => {
+    if (server.retiredKotlinProfile) return kotlinLspMigrationDiagnostic();
     const executionAuthority = executionAuthorityFor(ctx);
     if (executionAuthority) return executionAuthority;
-    const admittedInputs = admitScriptLspInputs({ serverId: server.scriptProfileId || server.id, inputs });
+    const admittedInputs = admitInputs(inputs);
+    if (server.workspaceExecutionProfile === 'kotlin-lsp' && !admittedInputs.documents.length) return {
+      state: 'blocked', blockProvider: true, reasonCode: 'kotlin_lsp_no_admitted_sources', checks: admittedInputs.checks
+    };
     if ((server.scriptProfileId || server.id) === 'bash-language-server' && !admittedInputs.documents.length) return {
       state: 'blocked', blockProvider: true, reasonCode: 'bash_lsp_no_admitted_dialect', checks: admittedInputs.checks
     };

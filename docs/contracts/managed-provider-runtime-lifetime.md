@@ -10,6 +10,8 @@ physical `installId`, recipe `descriptorId`, command and current selection must
 agree with the canonical byte inventory under the owner's category and
 installation leases. A repaired sibling has a distinct physical identity even
 when it uses the same recipe. Stale or damaged managed paths fail admission.
+An omitted explicit tooling root resolves through the canonical storage layout;
+it does not turn a default managed installation into an unleased system command.
 Unmanaged commands retain the existing execution/trust policy.
 
 Pooled and unpooled LSP sessions and initialize probes retain the selected

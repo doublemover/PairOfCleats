@@ -8,9 +8,13 @@ const workspaceExecutionLanguage = ({ providerId, server, languages = [] } = {})
   const command = path.basename(String(server?.cmd || '').trim()).toLowerCase().replace(/\.(exe|cmd|bat)$/u, '');
   const selectedLanguages = [...(Array.isArray(server?.languages) ? server.languages : []),
     ...(Array.isArray(languages) ? languages : [])].map((language) => String(language || '').trim().toLowerCase());
-  if (server?.requiresWorkspaceExecution === true && (id === 'ruby-lsp' || command === 'ruby-lsp')) return 'ruby';
+  if (server?.requiresWorkspaceExecution === true && (server.workspaceExecutionProfile === 'ruby-lsp'
+    || id === 'ruby-lsp' || command === 'ruby-lsp')) return 'ruby';
   if (server?.requiresWorkspaceExecution === true && (server.scriptProfileId === 'perl-navigator'
     || id === 'perl-navigator' || command === 'perlnavigator')) return 'perl';
+  if ((server?.requiresWorkspaceExecution === true && server.workspaceExecutionProfile === 'kotlin-lsp')
+    || id === 'kotlin-lsp' || id.endsWith('-kotlin-lsp') || command === 'kotlin-lsp'
+    || command === 'kotlin-lsp.sh' || selectedLanguages.includes('kotlin')) return 'kotlin';
   if (id === 'rust' || id.includes('rust-analyzer') || command === 'rust-analyzer' || selectedLanguages.includes('rust')) return 'rust';
   if (id === 'zig' || id === 'zls' || id.endsWith('-zls') || command === 'zls' || selectedLanguages.includes('zig')) return 'zig';
   if (id === 'java' || /(^|-)jdtls($|-)/u.test(id) || id.includes('eclipse.jdt.ls')
@@ -45,6 +49,8 @@ export const resolveWorkspaceExecutionAuthority = ({ repoRoot, workspaceRoot = r
       ? 'Perl Navigator requires an exact launch-owned repository trust grant before interpreter checks can execute BEGIN, use or project dependencies.'
       : language === 'java'
       ? 'Java workspace tooling requires an exact launch-owned repository trust grant; native Java AST analysis remains available.'
+      : language === 'kotlin'
+      ? 'Official Kotlin LSP requires an exact launch-owned repository trust grant before Gradle/Maven import, plugins or dependencies can execute; native Kotlin parsing remains available.'
       : 'Zig workspace tooling requires an exact launch-owned repository trust grant; Zig is currently a tooling-only route.';
   return { state: 'blocked', blockProvider: true, reasonCode, message,
     check: { name: reasonCode, status: 'warn', message } };

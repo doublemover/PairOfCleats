@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { resolveManagedToolInstallation, retainManagedToolInstallation, retainManagedToolInstallationSync } from '../../shared/managed-installation.js';
+import { resolveStorageLayout } from '../../shared/storage/layout.js';
 
 const pendingInstallations = new Set();
 const fail = message => Object.assign(new Error(message), { code: 'ERR_TOOLING_MANAGED_INSTALLATION' });
@@ -8,7 +9,8 @@ const fail = message => Object.assign(new Error(message), { code: 'ERR_TOOLING_M
  * PATH/system tools keep their existing execution authority. A stale physical
  * generation inside the owner is an error, never an unmanaged fallback. */
 export const resolveManagedCommandSelection = ({ toolingRoot, command }) => {
-  if (!toolingRoot || !path.isAbsolute(command || '')) return null;
+  if (!path.isAbsolute(command || '')) return null;
+  toolingRoot ||= resolveStorageLayout().descriptors.tooling.path;
   const installs = path.join(path.resolve(toolingRoot), 'installs');
   const relative = path.relative(installs, path.resolve(command));
   if (path.isAbsolute(relative) || relative === '..' || relative.startsWith('..' + path.sep)) return null;
