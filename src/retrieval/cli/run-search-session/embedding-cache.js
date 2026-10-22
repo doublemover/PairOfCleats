@@ -107,10 +107,10 @@ export function createEmbeddingResolver({
       modelProfile,
       modelArtifact
     }).then(value => {
-      if (!value) embeddingCache.delete(cacheKeyLocal);
+      if (!value && embeddingCache.get(cacheKeyLocal) === pending) embeddingCache.delete(cacheKeyLocal);
       return value;
     }).catch((error) => {
-      embeddingCache.delete(cacheKeyLocal);
+      if (embeddingCache.get(cacheKeyLocal) === pending) embeddingCache.delete(cacheKeyLocal);
       throw error;
     });
     setCacheEntry(cacheKeyLocal, pending);

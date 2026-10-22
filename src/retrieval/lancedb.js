@@ -45,14 +45,16 @@ const closeMaybe = async (resource) => {
 
 const closeConnectionEntry = async (entry) => {
   if (!entry || typeof entry !== 'object') return;
-  const tables = entry.tables instanceof Map ? Array.from(entry.tables.values()) : [];
-  for (const table of tables) {
-    await closeMaybe(table);
-  }
-  await closeMaybe(entry.db);
-  entry.tables = new Map();
-  entry.db = null;
-  entry.pending = null;
+  entry.retired = true;
+  if (entry.refs > 0) return;
+  if (!entry.closing) entry.closing = (async () => {
+    for (const table of entry.tables?.values() || []) await closeMaybe(table);
+    await closeMaybe(entry.db);
+    entry.tables = new Map();
+    entry.db = null;
+    entry.pending = null;
+  })();
+  await entry.closing;
 };
 
 const touchConnectionEntry = (entry, now = Date.now()) => {
@@ -103,77 +105,68 @@ const getConnection = async (dir) => {
   if (!dir) return null;
   const now = Date.now();
   await pruneConnectionCache({ now });
-  const cached = connectionCache.get(dir);
-  if (cached && cached.pending) {
-    touchConnectionEntry(cached, now);
-    try {
-      const db = await cached.pending;
-      cached.pending = null;
-      if (!cached.db && db) {
-        cached.db = db;
-      }
-      if (cached.db) {
-        touchConnectionEntry(cached);
-        return cached;
-      }
-      connectionCache.delete(dir);
-      await closeConnectionEntry(cached);
-      return null;
-    } catch {
-      connectionCache.delete(dir);
-      await closeConnectionEntry(cached);
-      return null;
-    }
+  let entry = connectionCache.get(dir);
+  if (!entry) {
+    entry = { db: null, tables: new Map(), openingTables: new Map(), refs: 0,
+      retired: false, pending: null, lastAccessMs: now, expiresAtMs: now + CONNECTION_CACHE_TTL_MS };
+    entry.pending = (async () => {
+      const lancedb = await loadLanceDb();
+      const connect = lancedb?.connect || lancedb?.default?.connect;
+      return connect ? connect(dir) : null;
+    })();
+    entry.pending.catch(() => {});
+    connectionCache.set(dir, entry);
   }
-  if (cached && cached.db) {
-    touchConnectionEntry(cached, now);
-    return cached;
-  }
-
-  const entry = {
-    db: null,
-    tables: new Map(),
-    pending: null,
-    lastAccessMs: now,
-    expiresAtMs: now + CONNECTION_CACHE_TTL_MS
+  // Pin before yielding to connect, openTable or cache eviction. Retirement
+  // removes lookup ownership; the last query lease owns eventual native close.
+  entry.refs++;
+  let released = false;
+  const release = async () => {
+    if (released) return;
+    released = true;
+    entry.refs--;
+    if (entry.retired) await closeConnectionEntry(entry);
   };
-  const pending = (async () => {
-    const lancedb = await loadLanceDb();
-    const connect = lancedb?.connect || lancedb?.default?.connect;
-    if (!connect) return null;
-    return connect(dir);
-  })();
-  entry.pending = pending;
-  connectionCache.set(dir, entry);
-  await pruneConnectionCache({ now });
+  touchConnectionEntry(entry, now);
   try {
-    const db = await pending;
+    await pruneConnectionCache({ now });
+    entry.db ||= await entry.pending;
+    if (!entry.db) throw new Error('LanceDB connection unavailable.');
     entry.pending = null;
-    if (!db) {
-      connectionCache.delete(dir);
-      await closeConnectionEntry(entry);
-      return null;
-    }
-    entry.db = db;
     touchConnectionEntry(entry);
-    return entry;
+    return { entry, release };
   } catch {
-    connectionCache.delete(dir);
+    if (connectionCache.get(dir) === entry) connectionCache.delete(dir);
     await closeConnectionEntry(entry);
+    await release();
     return null;
   }
 };
 
 const getTable = async (dir, tableName) => {
-  const connection = await getConnection(dir);
-  if (!connection || !tableName) return null;
-  touchConnectionEntry(connection);
-  if (connection.tables.has(tableName)) return connection.tables.get(tableName);
-  const openTable = connection.db?.openTable;
-  if (typeof openTable !== 'function') return null;
-  const table = await openTable.call(connection.db, tableName);
-  connection.tables.set(tableName, table);
-  return table;
+  const lease = await getConnection(dir);
+  if (!lease) return null;
+  const connection = lease.entry;
+  try {
+    if (!tableName || typeof connection.db?.openTable !== 'function') {
+      await lease.release();
+      return null;
+    }
+    if (!connection.tables.has(tableName)) {
+      if (!connection.openingTables.has(tableName)) {
+        const opening = Promise.resolve().then(() => connection.db.openTable(tableName)).then(table => {
+          connection.tables.set(tableName, table);
+          return table;
+        }).finally(() => connection.openingTables.delete(tableName));
+        connection.openingTables.set(tableName, opening);
+      }
+      await connection.openingTables.get(tableName);
+    }
+    return { table: connection.tables.get(tableName), release: lease.release };
+  } catch (error) {
+    await lease.release();
+    throw error;
+  }
 };
 
 const toArray = async (query) => {
@@ -233,6 +226,8 @@ export async function rankLanceDb({
   candidateSet,
   config
 }) {
+  const candidateCount = getCandidateSetSize(candidateSet);
+  if (candidateSet != null && candidateCount === 0) return [];
   if (!lancedbInfo?.available) return [];
   const resolvedConfig = normalizeLanceDbConfig(config);
   if (!resolvedConfig.enabled) return [];
@@ -257,9 +252,9 @@ export async function rankLanceDb({
   const dir = lancedbInfo.dir;
   if (!dir || !fs.existsSync(dir)) return [];
 
-  let table;
+  let tableLease;
   try {
-    table = await getTable(dir, tableName);
+    tableLease = await getTable(dir, tableName);
   } catch (err) {
     warnOnce(
       'lancedb-table-load',
@@ -267,69 +262,74 @@ export async function rankLanceDb({
     );
     return [];
   }
-  if (!table || typeof table.search !== 'function') return [];
-
-  const limitBase = normalizePositiveInt(topN, 1) || 1;
-  const candidateCount = getCandidateSetSize(candidateSet);
-  const candidateIds = (candidateCount && isSafeIdColumn(idColumn))
-    ? normalizeCandidateSetIds(candidateSet)
-    : [];
-
-  const createBaseQuery = () => {
-    let query;
-    if (embeddingColumn !== 'vector' && table.search.length > 1) {
-      query = table.search(embeddingArray, { vectorColumn: embeddingColumn });
-    } else {
-      query = table.search(embeddingArray);
-    }
-    if (typeof query?.metricType === 'function') {
-      query = query.metricType(metric);
-    } else if (typeof query?.metric === 'function') {
-      query = query.metric(metric);
-    } else if (typeof query?.distanceType === 'function') {
-      query = query.distanceType(metric);
-    }
-    return query;
-  };
-
-  const supportsWhere = Boolean(candidateIds.length) && typeof createBaseQuery()?.where === 'function';
-  const canPushdown = Boolean(candidateIds.length && supportsWhere);
-
-  const buildQuery = (limit, ids = candidateIds) => {
-    let query = createBaseQuery();
-    if (canPushdown && typeof query?.where === 'function') {
-      query = query.where(`${idColumn} IN (${ids.join(',')})`);
-    }
-    if (typeof query?.limit === 'function') {
-      query = query.limit(limit);
-    }
-    if (typeof query?.select === 'function') {
-      const columns = [idColumn, '_distance'];
-      query = query.select(columns.filter(Boolean));
-    }
-    return query;
-  };
-
-  try {
-    let rows = [];
-    if (canPushdown) {
-      // Every candidate batch contributes its top N. Their union therefore
-      // contains the global filtered top N, regardless of global ANN position.
-      for (let start = 0; start < candidateIds.length; start += CANDIDATE_PUSH_LIMIT) {
-        rows.push(...await toArray(buildQuery(limitBase, candidateIds.slice(start, start + CANDIDATE_PUSH_LIMIT))));
-      }
-    } else {
-      // Without backend filtering, a complete scan is required. A multiplier
-      // based on candidate count cannot bound the nearest allowed row's rank.
-      const limit = candidateCount ? Number(await table.countRows?.()) : limitBase;
-      if (!Number.isSafeInteger(limit) || limit <= 0) return [];
-      rows = await toArray(buildQuery(limit));
-    }
-    return filterSortLimitHits({
-      hits: rowsToHits(rows, idColumn, metric), candidateCount, canPushdown, candidateSet, limitBase
-    });
-  } catch (err) {
-    warnOnce('lancedb-query', `[ann] LanceDB query failed; falling back to other ANN backends. ${err?.message || err}`);
+  const table = tableLease?.table;
+  if (!table || typeof table.search !== 'function') {
+    await tableLease?.release();
     return [];
   }
+
+  try {
+    const limitBase = normalizePositiveInt(topN, 1) || 1;
+    const candidateIds = (candidateCount && isSafeIdColumn(idColumn))
+      ? normalizeCandidateSetIds(candidateSet)
+      : [];
+
+    const createBaseQuery = () => {
+      let query;
+      if (embeddingColumn !== 'vector' && table.search.length > 1) {
+        query = table.search(embeddingArray, { vectorColumn: embeddingColumn });
+      } else {
+        query = table.search(embeddingArray);
+      }
+      if (typeof query?.metricType === 'function') {
+        query = query.metricType(metric);
+      } else if (typeof query?.metric === 'function') {
+        query = query.metric(metric);
+      } else if (typeof query?.distanceType === 'function') {
+        query = query.distanceType(metric);
+      }
+      return query;
+    };
+
+    const supportsWhere = Boolean(candidateIds.length) && typeof createBaseQuery()?.where === 'function';
+    const canPushdown = Boolean(candidateIds.length && supportsWhere);
+
+    const buildQuery = (limit, ids = candidateIds) => {
+      let query = createBaseQuery();
+      if (canPushdown && typeof query?.where === 'function') {
+        query = query.where(`${idColumn} IN (${ids.join(',')})`);
+      }
+      if (typeof query?.limit === 'function') {
+        query = query.limit(limit);
+      }
+      if (typeof query?.select === 'function') {
+        const columns = [idColumn, '_distance'];
+        query = query.select(columns.filter(Boolean));
+      }
+      return query;
+    };
+
+    try {
+      let rows = [];
+      if (canPushdown) {
+      // Every candidate batch contributes its top N. Their union therefore
+      // contains the global filtered top N, regardless of global ANN position.
+        for (let start = 0; start < candidateIds.length; start += CANDIDATE_PUSH_LIMIT) {
+          rows.push(...await toArray(buildQuery(limitBase, candidateIds.slice(start, start + CANDIDATE_PUSH_LIMIT))));
+        }
+      } else {
+      // Without backend filtering, a complete scan is required. A multiplier
+      // based on candidate count cannot bound the nearest allowed row's rank.
+        const limit = candidateCount ? Number(await table.countRows?.()) : limitBase;
+        if (!Number.isSafeInteger(limit) || limit <= 0) return [];
+        rows = await toArray(buildQuery(limit));
+      }
+      return filterSortLimitHits({
+        hits: rowsToHits(rows, idColumn, metric), candidateCount, canPushdown, candidateSet, limitBase
+      });
+    } catch (err) {
+      warnOnce('lancedb-query', `[ann] LanceDB query failed; falling back to other ANN backends. ${err?.message || err}`);
+      return [];
+    }
+  } finally { await tableLease.release(); }
 }

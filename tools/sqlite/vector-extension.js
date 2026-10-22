@@ -446,6 +446,7 @@ export function encodeVector(vector, config) {
  * @returns {Array<{idx:number,sim:number}>}
  */
 export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
+  if (candidateSet != null && getCandidateSetSize(candidateSet) === 0) return [];
   if (!db || !embedding || !config?.enabled) return [];
   const table = config?.table || DEFAULT_TABLE;
   const column = config?.column || DEFAULT_COLUMN;
