@@ -28,16 +28,47 @@ const components = (graph, signal) => {
 };
 /** Bounded monotone parameter-to-return may-depend summaries; field effects and exception inputs are caller-instantiated may channels. */
 export const buildCallDependencySummaries = (documents, { maxIterations = 12, signal } = {}) => {
+  throwIfAborted(signal);
+  const canonicalKeys = new WeakMap();
+  const key = value => {
+    if (!value || typeof value !== 'object') return canonicalSemanticJson(value);
+    if (!canonicalKeys.has(value)) canonicalKeys.set(value, canonicalSemanticJson(value));
+    return canonicalKeys.get(value);
+  };
   const functions=new Map(),reverse=new Map(),calls=[],graph=new Map();
+  const summaryIndexes = new WeakMap(), summaryIds = new WeakMap(), nodeDependents = new Map();
+  const nodeCalls = new Map(), cacheWatchers = new Map(), dirty = new Set(), dirtyCalls = new Set(), callRevisions = new WeakMap(), revisions = new Map();
+  const callers = new Map(); let cacheMemberships = 0, cacheEntries = 0, activeCall = null;
+  const stats = { derives: 0, reverseEdgeVisits: 0, aliasCandidates: 0, callInstantiations: 0,
+    reachabilityCacheHits: 0, dirtyFunctionVisits: 0, cachedMemberships: 0 };
+
   let remainingWork=1000000,exhausted=false;
   const add=(from,to)=>{
     if(!from||!to)return false;const a=key(from),b=key(to);
-    if(!reverse.has(b))reverse.set(b,new Set());const inputs=reverse.get(b),changed=!inputs.has(a);inputs.add(a);return changed;
+    if(!reverse.has(b))reverse.set(b,new Set());const inputs=reverse.get(b),changed=!inputs.has(a);inputs.add(a);
+    if (changed) {
+      for (const id of nodeDependents.get(b) || []) dirty.add(id);
+      for (const call of nodeCalls.get(b) || []) dirtyCalls.add(call);
+      for (const query of cacheWatchers.get(b) || []) { query.valid = false; for (const call of query.calls) dirtyCalls.add(call); }
+    }
+    return changed;
   };
   for(const document of documents){
     for(const edge of document.flowEdges||[])if(channelKinds.has(edge.kind))add(edge.from,edge.to);
     const owners=document.summaries.filter(summary=>summary.declaration).sort((a,b)=>(a.span?.[0]||0)-(b.span?.[0]||0)||(b.span?.[1]||0)-(a.span?.[1]||0));
-    for(const summary of owners){const id=key(summary.declaration);functions.set(id,{...summary,dependencies:new Set(),exceptionDependencies:new Set(),effectDependencies:new Map(),aliases:document.aliases||[],fieldPathDepth:document.policy?.enrichment.fieldPathDepth??8,widened:false,calls:[],maxRounds:document.policy?.enrichment.maxSccIterations??maxIterations,converged:false});graph.set(id,new Set());}
+    const aliasesByRef = new Map();
+    for (const alias of document.aliases || []) {
+      const id = key(alias.ref); if (!aliasesByRef.has(id)) aliasesByRef.set(id, []); aliasesByRef.get(id).push(alias);
+    }
+    for(const summary of owners){
+      const id=key(summary.declaration);
+      const current={...summary,dependencies:new Set(),exceptionDependencies:new Set(),effectDependencies:new Map(),aliases:document.aliases||[],fieldPathDepth:document.policy?.enrichment.fieldPathDepth??8,widened:false,calls:[],maxRounds:document.policy?.enrichment.maxSccIterations??maxIterations,converged:false};
+      functions.set(id,current); graph.set(id,new Set()); revisions.set(id,0); summaryIds.set(current,id);
+      const ordinals = new Map(); current.parameters.forEach((ref, ordinal) => { if (ref) ordinals.set(key(ref), ordinal); });
+      for (const field of current.parameterFields || []) ordinals.set(key(field.ref), field.parameter);
+      const rootOrdinals = new Map(); current.parameters.forEach((ref, ordinal) => { if (ref && !rootOrdinals.has(key(ref))) rootOrdinals.set(key(ref), ordinal); });
+      summaryIndexes.set(current, { ordinals, rootOrdinals, aliasesByRef, queries: new Map() });
+    }
     // Source-ordered interval sweep assigns nested invocations without scanning all declarations.
     const scopeStack=[],routes=new Map();let nextOwner=0;
     for(const route of document.callEffects||[]){const id=key(route.result);if(!routes.has(id))routes.set(id,{reads:[],exceptionTargets:[],exceptionEscapes:false});const entry=routes.get(id);entry.reads.push(...route.reads);entry.exceptionTargets.push(...route.exceptionTargets);entry.exceptionEscapes ||= route.exceptionEscapes;}
@@ -51,21 +82,44 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
       const entry={...call,ownerId,effectRoutes};calls.push(entry);if(ownerId)functions.get(ownerId).calls.push(entry);
     }
   }
-  for(const call of calls)if(call.ownerId)for(const target of call.targets.slice(0,32))if(functions.has(key(target)))graph.get(call.ownerId).add(key(target));
+  for(const call of calls)if(call.ownerId)for(const target of call.targets.slice(0,32))if(functions.has(key(target))){
+    const targetId = key(target); graph.get(call.ownerId).add(targetId);
+    if (!callers.has(targetId)) callers.set(targetId, new Set()); callers.get(targetId).add(call.ownerId);
+  }
   const inputs = (summary, refs) => {
-    const ordinals=new Map();summary.parameters.forEach((ref,ordinal)=>{if(ref)ordinals.set(key(ref),ordinal);});
-    for(const field of summary.parameterFields||[])ordinals.set(key(field.ref),field.parameter);
-    const pending=refs.filter(Boolean).map(key),seen=new Set(),result=new Set();
+    const indexes = summaryIndexes.get(summary), ownerId = summaryIds.get(summary);
+    const roots = refs.filter(Boolean).map(key), queryKey = JSON.stringify(roots);
+    let query = indexes.queries.get(queryKey);
+    if (query?.valid) {
+      if (remainingWork-- <= 0) { exhausted = true; return new Set(); }
+      stats.reachabilityCacheHits++;
+      if (activeCall) query.calls.add(activeCall);
+      return query.result;
+    }
+    const pending = roots.slice(), seen = new Set(), result = new Set();
     while(pending.length){
       throwIfAborted(signal);if(remainingWork--<=0){exhausted=true;break;}
       const current=pending.pop();if(seen.has(current))continue;seen.add(current);
-      if(ordinals.has(current))result.add(ordinals.get(current));
-      for(const previous of reverse.get(current)||[])pending.push(previous);
+      if (!nodeDependents.has(current)) nodeDependents.set(current, new Set()); nodeDependents.get(current).add(ownerId);
+      if (activeCall) { if (!nodeCalls.has(current)) nodeCalls.set(current, new Set()); nodeCalls.get(current).add(activeCall); }
+      if(indexes.ordinals.has(current))result.add(indexes.ordinals.get(current));
+      for(const previous of reverse.get(current)||[]){ stats.reverseEdgeVisits++; pending.push(previous); }
+    }
+    if (!exhausted && (query || cacheEntries < 4096) && cacheMemberships + seen.size <= 65536) {
+      if (!query) { query = { valid: true, result, calls: new Set(), watched: new Set() }; cacheEntries++; }
+      query.valid = true; query.result = result;
+      if (activeCall) query.calls.add(activeCall);
+      for (const current of seen) if (!query.watched.has(current)) {
+        query.watched.add(current); cacheMemberships++;
+        if (!cacheWatchers.has(current)) cacheWatchers.set(current, new Set()); cacheWatchers.get(current).add(query);
+      }
+      indexes.queries.set(queryKey, query); stats.cachedMemberships = cacheMemberships;
     }
     return result;
   };
   const union=(target,values)=>{let changed=false;for(const value of values)if(!target.has(value)){target.add(value);changed=true;}return changed;};
   const derive=summary=>{
+    stats.derives++;
     let changed=union(summary.dependencies,inputs(summary,summary.returns));
     changed=union(summary.exceptionDependencies,inputs(summary,summary.exceptions||[]))||changed;
     for(const effect of summary.effects||[]){
@@ -88,7 +142,8 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
       if(target.restIndex>=0 && effect.parameter===target.restIndex) {changed=owner.complete!==false||changed;owner.complete=false;continue;}
       if(remainingWork--<=0){exhausted=true;break;}
       const argument=callInput(call,effect.parameter);if(!argument)continue;
-      const aliases=owner.aliases.filter(value=>key(value.ref)===key(argument));
+      const aliases=summaryIndexes.get(owner).aliasesByRef.get(key(argument)) || [];
+      stats.aliasCandidates += aliases.length;
       for(const alias of aliases) {
         for(const read of call.effectRoutes?.reads||[]){
           if(remainingWork--<=0){exhausted=true;break;}
@@ -96,7 +151,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
             for(const input of dependencyInputs(call,target,effect.dependencies))changed=add(input,read.ref)||changed;
         }
         const receiver=!owner.lexicalReceiver && owner.ownerRef && key(owner.ownerRef)===key(alias.root);
-        const parameter=receiver?-1:owner.parameters.findIndex(ref=>ref&&key(ref)===key(alias.root));
+        const parameter=receiver?-1:(summaryIndexes.get(owner).rootOrdinals.get(key(alias.root)) ?? -1);
         if(parameter<0&&!receiver)continue;
         const path=[...alias.path,...effect.path];if(path.length>owner.fieldPathDepth){owner.widened=true;continue;}const id=key({parameter,path});
         if(!owner.effectDependencies.has(id)){owner.effectDependencies.set(id,{parameter,path,refs:[],dependencies:new Set()});changed=true;}
@@ -106,6 +161,8 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     return changed;
   };
   const instantiate = call => {
+    if (remainingWork-- <= 0) { exhausted = true; return false; }
+    stats.callInstantiations++;
     let changed = false;
     for(const ref of call.targets.slice(0,32)) changed = instantiateTarget(call,functions.get(key(ref))) || changed;
     if(call.incompleteTargets || call.targets.length > 32 || !call.targets.length || call.hasSpread || call.targets.some(ref=>{const target=functions.get(key(ref));return !target||target.async||target.generator||!target.complete||call.invocationKind==='construct'&&!target.constructible;})) {
@@ -122,19 +179,44 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     }
     return changed;
   };
-  for(const summary of functions.values())if(summary.maxRounds>0&&maxIterations>0)derive(summary);
+  for(const summary of functions.values())if(summary.maxRounds>0&&maxIterations>0) {
+    if (derive(summary)) revisions.set(summaryIds.get(summary), 1);
+  }
+  const targetRevision = call => call.targets.slice(0, 32).map(ref => [key(ref), revisions.get(key(ref)) ?? null]);
+  const needsCall = call => dirtyCalls.has(call) || JSON.stringify(callRevisions.get(call)) !== JSON.stringify(targetRevision(call));
   let iterations=0,converged=true;
   for(const component of components(graph,signal)){
-    let changed=true,round=0;const roundLimit=component.reduce((limit,id)=>Math.min(limit,functions.get(id).maxRounds),maxIterations);
-    while(changed&&!exhausted&&round<roundLimit){
-      changed=false;round++;iterations++;
-      for(const id of component){const summary=functions.get(id);for(const call of summary.calls)changed=instantiate(call)||changed;changed=derive(summary)||changed;}
+    const members = new Set(component);
+    for (const id of component) dirty.add(id);
+    let round=0;
+    const roundLimit=component.reduce((limit,id)=>Math.min(limit,functions.get(id).maxRounds),maxIterations);
+    while(component.some(id => dirty.has(id))&&!exhausted&&round<roundLimit){
+      round++;iterations++;
+      for(const id of component){
+        if (!dirty.delete(id)) continue;
+        stats.dirtyFunctionVisits++;
+        const summary=functions.get(id), beforeComplete=summary.complete, beforeWidened=summary.widened;
+        let changed=false;
+        for(const call of summary.calls) {
+          if (!needsCall(call)) continue;
+          dirtyCalls.delete(call); activeCall=call;
+          try { changed=instantiate(call)||changed; }
+          finally { activeCall=null; }
+          callRevisions.set(call,targetRevision(call));
+        }
+        changed=derive(summary)||changed;
+        changed=beforeComplete!==summary.complete||beforeWidened!==summary.widened||changed;
+        if (changed) {
+          revisions.set(id, (revisions.get(id) || 0) + 1);
+          for (const caller of callers.get(id) || []) if (members.has(caller)) dirty.add(caller);
+        }
+      }
     }
-    const complete=!changed&&!exhausted;converged=complete&&converged;
+    const complete=!component.some(id => dirty.has(id))&&!exhausted;converged=complete&&converged;
     for(const id of component)functions.get(id).converged=complete;
     if(exhausted)break;
   }
-  return {functions,converged:converged&&!exhausted,iterations};
+  return {functions,converged:converged&&!exhausted,iterations,stats};
 };
 
 /** Join known alternatives at the call site without promoting the remainder to exactness. */
