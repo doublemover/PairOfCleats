@@ -23,4 +23,12 @@ const sharedEvidenceAlias = planStorageQuota({ items: [eligible, { ...eligible, 
 assert.equal(sharedEvidenceAlias.selected.length, 0, 'protected aliases block physical eviction');
 assert.equal(decideStorageLifecycle(eligible, { maxAgeMs: 1 }).eligible, false, 'unknown last-use provenance cannot satisfy TTL');
 assert.equal(planStorageQuota({ items: [], hardBytes: 0 }).admission, 'defer-accounting-required', 'an empty unqualified inventory is not proof of zero usage');
+const overflow = planStorageQuota({ items: [{ ...eligible, allocatedBytes: Number.MAX_SAFE_INTEGER },
+  { ...eligible, physicalIdentity: 'device:overflow', allocatedBytes: 1 }], inventoryComplete: true, hardBytes: Number.MAX_SAFE_INTEGER });
+assert.equal(overflow.measuredUniqueAllocatedBytes, null);
+assert.equal(overflow.admission, 'defer-accounting-required');
+assert.deepEqual(overflow.selected, [], 'unsafe aggregate sums cannot nominate eviction');
+const cleanupFirst = planStorageQuota({ items: [eligible], inventoryComplete: true, hardBytes: 0 });
+assert.equal(cleanupFirst.quotaSatisfied, true, 'the proposal can satisfy the budget');
+assert.equal(cleanupFirst.admission, 'defer-reviewed-cleanup-required', 'planned bytes are not already reclaimed admission capacity');
 console.log('storage quota preserves evidence passed');

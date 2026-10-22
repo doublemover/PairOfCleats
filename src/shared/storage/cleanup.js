@@ -3,8 +3,8 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { assertSafeCacheDeletion } from '../cache-deletion.js';
 import { assertNoSymlinkPath, readVerifiedContainedFile } from '../contained-file.js';
-import { isGeneratedCacheMetadata } from '../generated-artifact-cache.js';
 import { removeToolingCacheEntry } from '../../index/tooling/cache-storage.js';
+import { isOwnedCommandProbeCacheEntry } from '../../index/tooling/command-probe-persistent-cache.js';
 import { inspectStorageInventory, sameStorageFileIdentity, storageFileIdentity } from './inventory.js';
 import { inspectStorageAccess, withExclusiveStorageAccess } from './access.js';
 import { decideStorageLifecycle } from './policy.js';
@@ -27,8 +27,8 @@ const qualifyProbe = async (cacheRoot, file, expectedIdentity = null) => {
   const { buffer, hash, stat } = await readVerifiedContainedFile(cacheRoot, target, { maxBytes: 8 * 1024 * 1024,
     expectedFileIdentity: { dev: identity.dev, ino: identity.ino } });
   const value = JSON.parse(buffer.toString('utf8'));
-  if (!isGeneratedCacheMetadata(value?.__poc_generated) || value.__poc_generated.artifact !== 'command-probe') {
-    throw new Error('Command-probe producer ownership metadata is missing.');
+  if (!isOwnedCommandProbeCacheEntry(value, file)) {
+    throw new Error('Command-probe complete producer/key identity is missing or has protected unknown fields.');
   }
   const after = storageFileIdentity(await fs.lstat(target, { bigint: true }));
   if (!sameStorageFileIdentity(identity, after)) throw new Error('Command-probe changed during qualification.');

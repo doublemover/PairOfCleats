@@ -53,9 +53,11 @@ export const planStorageQuota = ({ items, inventoryComplete = false, softBytes =
     if (!previous) unique.set(item.physicalIdentity, { allocatedBytes: item.allocatedBytes, members: [] });
     unique.get(item.physicalIdentity).members.push(item);
   }
-  const measuredBytes = [...unique.values()].reduce((sum, entry) => sum + entry.allocatedBytes, 0);
+  const measuredExact = [...unique.values()].reduce((sum, entry) => sum + BigInt(entry.allocatedBytes), 0n);
+  if (measuredExact > BigInt(Number.MAX_SAFE_INTEGER)) accountingComplete = false;
+  const measuredBytes = measuredExact <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(measuredExact) : null;
   const targetBudget = softBytes ?? hardBytes;
-  const overSoft = targetBudget === null ? 0 : Math.max(0, measuredBytes - targetBudget);
+  const overSoft = targetBudget === null || measuredBytes === null ? 0 : Math.max(0, measuredBytes - targetBudget);
   const reserveNeed = minimumFreeBytes === null ? 0 : freeBytes === null ? null : Math.max(0, minimumFreeBytes - freeBytes);
   const target = Math.max(overSoft, reserveNeed || 0);
   const ordered = [...unique.entries()].map(([identity, entry]) => ({ identity, ...entry,
@@ -69,6 +71,7 @@ export const planStorageQuota = ({ items, inventoryComplete = false, softBytes =
   const selected = [];
   let plannedBytes = 0;
   for (const entry of eligible) {
+    if (!accountingComplete || reserveNeed === null) break;
     if (plannedBytes >= target || retain.has(entry.identity)) continue;
     // Every known alias must be selected by the category owner; a hardlink
     // outside inventory leaves reclaimability unknown rather than inflated.
@@ -76,7 +79,7 @@ export const planStorageQuota = ({ items, inventoryComplete = false, softBytes =
     selected.push(entry.identity);
     plannedBytes += entry.allocatedBytes;
   }
-  const hardExceeded = hardBytes !== null && measuredBytes - plannedBytes > hardBytes;
+  const hardExceeded = hardBytes !== null && measuredBytes !== null && measuredBytes - plannedBytes > hardBytes;
   const unknown = !accountingComplete || reserveNeed === null;
   const satisfied = !unknown && !hardExceeded && plannedBytes >= target;
   return { schemaVersion: 1, accountingComplete, measuredUniqueAllocatedBytes: measuredBytes,
@@ -84,6 +87,6 @@ export const planStorageQuota = ({ items, inventoryComplete = false, softBytes =
     blocked: ordered.filter(entry => !entry.decisions.every(decision => decision.eligible))
       .map(entry => ({ physicalIdentity: entry.identity, reasons: [...new Set(entry.decisions.flatMap(decision => decision.reasons))] })),
     quotaSatisfied: satisfied, admission: unknown ? 'defer-accounting-required'
-      : hardExceeded || !satisfied ? 'deny-space-needed' : 'admit',
+      : hardExceeded || !satisfied ? 'deny-space-needed' : plannedBytes > 0 ? 'defer-reviewed-cleanup-required' : 'admit',
     remedy: satisfied ? null : 'Release owned leases, retain evidence, adjust explicit budgets or provide more free space. No forced eviction.' };
 };

@@ -21,6 +21,11 @@ const allocatedBytes = stat => {
   return Number.isSafeInteger(bytes) && bytes >= 0 ? bytes : null;
 };
 const physicalKey = stat => String(stat.ino) !== '0' ? `${stat.dev}:${stat.ino}` : null;
+const exactSum = values => {
+  if (values.some(value => !Number.isSafeInteger(value) || value < 0)) return null;
+  const sum = values.reduce((total, value) => total + BigInt(value), 0n);
+  return sum <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(sum) : null;
+};
 
 export const inspectStorageOwnership = async root => {
   const marker = path.join(root, CACHE_OWNER_FILE);
@@ -110,11 +115,13 @@ export const inspectStorageInventory = async ({ roots, maxEntries = 100000, maxD
           if (!Number.isSafeInteger(Number(stat.size))) throw new Error('Storage file size exceeds exact accounting range.');
           item.filesCount += 1;
           item.logicalBytes += Number(stat.size);
+          if (!Number.isSafeInteger(item.logicalBytes)) throw new Error('Storage logical byte sum exceeds exact accounting range.');
           const bytes = allocatedBytes(stat);
           const key = physicalKey(stat);
           if (bytes === null || key === null) item.physicalBytesKnown = false;
           if (key === null) item.physicalIdentityKnown = false;
           if (!key || !rootFiles.has(key)) item.allocatedBytes += bytes || 0;
+          if (!Number.isSafeInteger(item.allocatedBytes)) throw new Error('Storage allocation sum exceeds exact accounting range.');
           if (key) {
             rootFiles.add(key);
             const existing = uniqueFiles.get(key);
@@ -153,11 +160,11 @@ export const inspectStorageInventory = async ({ roots, maxEntries = 100000, maxD
     stopReason, visitedEntries, limits: { maxEntries, maxDurationMs }, items, errors,
     consistency: 'observed-enumeration-with-directory-revalidation; not-a-filesystem-snapshot',
     totals: {
-      logicalAttributedBytes: items.reduce((sum, item) => sum + item.logicalBytes, 0),
+      logicalAttributedBytes: exactSum(items.map(item => item.logicalBytes)),
       uniqueLogicalBytes: complete && items.every(item => item.physicalIdentityKnown)
-        ? physical.reduce((sum, file) => sum + file.size, 0) : null,
+        ? exactSum(physical.map(file => file.size)) : null,
       uniqueAllocatedBytes: complete && items.every(item => item.physicalBytesKnown)
-        ? physical.reduce((sum, file) => sum + file.allocatedBytes, 0) : null,
+        ? exactSum(physical.map(file => file.allocatedBytes)) : null,
       uniqueFiles: physical.length, reclaimableBytes: null,
       accounting: complete ? 'observed-files-only' : 'incomplete-observed-files-only',
       deletedButOpenBytes: null, compressedSparseBytes: 'platform-stat-dependent'

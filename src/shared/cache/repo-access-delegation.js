@@ -263,4 +263,5 @@ export const settleDelegatedRepoCacheOwner = async ({ resourceId, handlesClosed,
 };
 
 export const getDelegatedRepoCacheOwner = () => childOwner ? Object.freeze({ resourceId: childOwner.record.resourceId,
-  root: childOwner.paths.root, invocationId: childOwner.record.invocationId, settled: childOwner.settled }) : null;
+  root: childOwner.paths.root, commandIdentity: childOwner.record.commandIdentity,
+  invocationId: childOwner.record.invocationId, settled: childOwner.settled }) : null;

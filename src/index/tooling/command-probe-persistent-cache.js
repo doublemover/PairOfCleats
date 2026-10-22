@@ -6,8 +6,11 @@ import { getCacheRoot } from '../../shared/cache-roots.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { isGeneratedCacheMetadata, withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 import { resolveNoProvisionToolingEnvironment } from '../../shared/toolchain-env.js';
+import { acquireRepoCacheAccessLease } from '../../shared/cache/repo-access.js';
+import { createLockPayload, readLockInfoSync, removeLockFileSyncIfOwned } from '../../shared/locks/file-lock-info.js';
 import {
   assertToolingCachePath,
+  ensureToolingCacheDir,
   readToolingCacheEntry,
   removeToolingCacheEntry,
   writeToolingCacheJsonSync
@@ -19,6 +22,7 @@ const SHARED_COMMAND_PROBE_CACHE_SUBDIR = path.join('tooling', 'command-probes')
 const TOOLING_CACHE_COMMAND_PROBE_SUBDIR = 'command-probes';
 const COMMAND_PROBE_CACHE_MAX_ENTRIES = 256;
 const COMMAND_PROBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const COMMAND_PROBE_CACHE_MAX_ENTRY_BYTES = 8 * 1024 * 1024;
 
 let persistentReadCount = 0;
 let persistentHitCount = 0;
@@ -172,6 +176,21 @@ const isCommandProbeEntry = (payload, fileName, { requireOwnership = true } = {}
   return fileName === `${key.digest}.json`;
 };
 
+/** Destructive authority is the real complete producer/key identity. Unknown
+ * pin, retention, reference or future fields are retained rather than inferred
+ * disposable from a marker alone. Legacy reads keep their existing decoder.
+ */
+export const isOwnedCommandProbeCacheEntry = (payload, fileName) => {
+  const keys = ['__poc_generated', 'schemaVersion', 'createdAt', 'ok', 'providerId', 'args', 'cwd',
+    'environmentIdentity', 'command', 'attempted'].sort();
+  return Boolean(payload && Object.keys(payload).sort().join(',') === keys.join(',')
+    && payload.command && Object.keys(payload.command).sort().join(',') === 'mtimeMs,path,size'
+    && Number.isSafeInteger(payload.command.size) && payload.command.size >= 0
+    && Number.isSafeInteger(payload.command.mtimeMs) && payload.command.mtimeMs >= 0
+    && typeof payload.createdAt === 'string' && Number.isFinite(Date.parse(payload.createdAt))
+    && isCommandProbeEntry(payload, fileName));
+};
+
 const prunePersistentCommandProbeCacheDir = (cacheDir) => {
   if (!cacheDir) return;
   let entries;
@@ -188,7 +207,7 @@ const prunePersistentCommandProbeCacheDir = (cacheDir) => {
     const fullPath = path.join(cacheDir, entry.name);
     try {
       const { payload, stat } = readToolingCacheEntry(fullPath);
-      if (!isCommandProbeEntry(payload, entry.name)) continue;
+      if (!isOwnedCommandProbeCacheEntry(payload, entry.name)) continue;
       const size = toFiniteSize(stat.size);
       const mtimeMs = toFiniteMtimeMs(stat.mtimeMs);
       if (mtimeMs > 0 && mtimeMs < cutoffMs) {
@@ -282,14 +301,21 @@ export const writePersistentCommandProbeCache = ({
     probeEnv
   });
   if (!descriptor || !isAttemptList(attempted) || attempted.length === 0) return false;
+  let lease = null;
+  let admissionLock = null;
+  const admissionPath = path.join(descriptor.cacheDir, '.write-admission.lock');
   try {
+    lease = acquireRepoCacheAccessLease(descriptor.cacheDir, { scope: 'command-probe-write-admission' });
+    ensureToolingCacheDir(descriptor.cacheDir);
+    admissionLock = createLockPayload({ scope: 'command-probe-write-admission' });
+    fsSync.writeFileSync(admissionPath, JSON.stringify(admissionLock), { flag: 'wx' });
     try {
       const { payload } = readToolingCacheEntry(descriptor.cachePath);
-      if (!isCommandProbeEntry(payload, path.basename(descriptor.cachePath))) return false;
+      if (!isOwnedCommandProbeCacheEntry(payload, path.basename(descriptor.cachePath))) return false;
     } catch (error) {
       if (error?.code !== 'ENOENT') return false;
     }
-    writeToolingCacheJsonSync(descriptor.cachePath, withGeneratedCacheMetadata({
+    const next = withGeneratedCacheMetadata({
       schemaVersion: COMMAND_PROBE_CACHE_SCHEMA_VERSION,
       createdAt: new Date().toISOString(),
       ok: true,
@@ -303,12 +329,50 @@ export const writePersistentCommandProbeCache = ({
         mtimeMs: descriptor.fingerprint.mtimeMs
       },
       attempted
-    }, 'command-probe'), { spaces: 0 });
+    }, 'command-probe');
+    const nextBytes = Buffer.byteLength(`${JSON.stringify(next)}\n`);
+    if (nextBytes > COMMAND_PROBE_CACHE_MAX_ENTRY_BYTES) return false;
+    const files = [];
+    const directory = fsSync.opendirSync(descriptor.cacheDir);
+    try {
+      for (;;) {
+        const entry = directory.readSync();
+        if (!entry) break;
+        if (entry.name === path.basename(admissionPath)
+          && readLockInfoSync(admissionPath)?.lockId === admissionLock.lockId) continue;
+        // Unknown files, saved annotations and incomplete inventory cannot be
+        // evicted to admit a new cache write. They remain byte-for-byte intact.
+        if (!entry.isFile() || files.length >= 10000) return false;
+        const file = path.join(descriptor.cacheDir, entry.name);
+        const { payload, stat } = readToolingCacheEntry(file);
+        if (!isOwnedCommandProbeCacheEntry(payload, entry.name)) return false;
+        files.push({ path: file, stat, size: stat.size, mtimeMs: stat.mtimeMs });
+      }
+    } finally { directory.closeSync(); }
+    const previous = files.find(file => file.path === descriptor.cachePath);
+    let count = files.length + (previous ? 0 : 1);
+    let bytes = files.reduce((sum, file) => sum + BigInt(file.size), 0n) - BigInt(previous?.size || 0) + BigInt(nextBytes);
+    const budget = BigInt(COMMAND_PROBE_CACHE_MAX_ENTRIES) * BigInt(COMMAND_PROBE_CACHE_MAX_ENTRY_BYTES);
+    const candidates = files.filter(file => file.path !== descriptor.cachePath)
+      .sort((a, b) => a.mtimeMs - b.mtimeMs || a.path.localeCompare(b.path));
+    for (const candidate of candidates) {
+      if (count <= COMMAND_PROBE_CACHE_MAX_ENTRIES && bytes <= budget) break;
+      const current = readToolingCacheEntry(candidate.path);
+      if (!isOwnedCommandProbeCacheEntry(current.payload, path.basename(candidate.path))
+        || ['dev', 'ino', 'size', 'mtimeMs'].some(key => current.stat[key] !== candidate.stat[key])
+        || !removeToolingCacheEntry(candidate.path, candidate.stat)) return false;
+      count -= 1; bytes -= BigInt(candidate.size);
+    }
+    if (count > COMMAND_PROBE_CACHE_MAX_ENTRIES || bytes > budget) return false;
+    writeToolingCacheJsonSync(descriptor.cachePath, next, { spaces: 0 });
     persistentWriteCount += 1;
     prunePersistentCommandProbeCacheDir(descriptor.cacheDir);
     return true;
   } catch {
     return false;
+  } finally {
+    if (admissionLock) removeLockFileSyncIfOwned(admissionPath, admissionLock);
+    lease?.release();
   }
 };
 
@@ -329,7 +393,7 @@ export const invalidatePersistentCommandProbeCache = ({
   if (!descriptor) return false;
   try {
     const { payload, stat } = readToolingCacheEntry(descriptor.cachePath);
-    return isCommandProbeEntry(payload, path.basename(descriptor.cachePath))
+    return isOwnedCommandProbeCacheEntry(payload, path.basename(descriptor.cachePath))
       && removeToolingCacheEntry(descriptor.cachePath, stat);
   } catch {
     return false;
