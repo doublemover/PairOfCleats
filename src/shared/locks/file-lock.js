@@ -249,12 +249,14 @@ export const withFileLock = async (options, worker) => {
   if (!lock) return null;
   let workerResult;
   let workerError = null;
+  let workerFailed = false;
   try {
     workerResult = await worker(lock);
   } catch (error) {
+    workerFailed = true;
     workerError = error;
   }
   await releaseFileLockOrThrow(lock, { workerError });
-  if (workerError) throw workerError;
+  if (workerFailed) throw workerError;
   return workerResult;
 };
