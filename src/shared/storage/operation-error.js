@@ -14,11 +14,12 @@ const observePending = error => {
 /** Diagnostic context cannot replace a frozen primary or an earlier capability.
  * This helper grants no lifecycle/deletion authority and owns no lock namespace.
  */
-export const addStorageFailureContext = (value, fields, secondary = null) => {
+export const addStorageFailureContext = (value, fields, secondary = null, { nonEnumerable = [] } = {}) => {
   const primary = asError(value);
   const additional = secondary && secondary !== primary ? asError(secondary) : null;
+  const capabilities = new Set(['storageOperationLocks', ...nonEnumerable]);
   const descriptors = Object.fromEntries(Object.entries(fields).map(([key, field]) => [key,
-    { value: field, configurable: true, enumerable: key !== 'storageOperationLocks' }]));
+    { value: field, configurable: true, enumerable: !capabilities.has(key) }]));
   const secondaryObserver = observePending(additional);
   const pending = [observePending(primary), secondaryObserver].filter(Boolean);
   if (pending.length) {
