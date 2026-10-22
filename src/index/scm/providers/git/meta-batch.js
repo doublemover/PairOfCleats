@@ -66,76 +66,52 @@ const resolveGitMetaBatchCommitLimit = (fileCount, configuredLimit = null) => {
   return GIT_META_BATCH_COMMIT_LIMIT_DEFAULT;
 };
 
-const parseGitMetaBatchOutput = ({ stdout, repoRoot }) => {
-  const fileMetaByPath = Object.create(null);
-  let currentMeta = null;
-  for (const row of String(stdout || '').split(/\r?\n/)) {
-    const line = String(row || '');
-    if (!line) continue;
-    if (line.startsWith(GIT_META_BATCH_FORMAT_PREFIX)) {
-      const payload = line.slice(GIT_META_BATCH_FORMAT_PREFIX.length);
-      const parts = payload.split('\0');
-      const hasCommitPrefix = parts.length >= 3 && /^[0-9a-f]{7,64}$/i.test(String(parts[0] || '').trim());
-      const lastCommitIdRaw = hasCommitPrefix ? parts[0] : null;
-      const lastModifiedAtRaw = hasCommitPrefix ? parts[1] : parts[0];
-      const authorParts = hasCommitPrefix ? parts.slice(2) : parts.slice(1);
-      const lastCommitId = String(lastCommitIdRaw || '').trim().toLowerCase() || null;
-      const lastModifiedAt = String(lastModifiedAtRaw || '').trim() || null;
-      const lastAuthor = authorParts.join('\0').trim() || null;
-      currentMeta = { lastCommitId, lastModifiedAt, lastAuthor };
-      continue;
-    }
-    if (!currentMeta) continue;
-    const fileKey = toRepoPosixPath(line, repoRoot);
-    if (!fileKey || fileMetaByPath[fileKey]) continue;
-    fileMetaByPath[fileKey] = {
-      lastCommitId: currentMeta.lastCommitId,
-      lastModifiedAt: currentMeta.lastModifiedAt,
-      lastAuthor: currentMeta.lastAuthor,
-      churn: null,
-      churnAdded: null,
-      churnDeleted: null,
-      churnCommits: null
-    };
-  }
-  return fileMetaByPath;
-};
+const HISTORY_MARKER = '\0\0' + GIT_META_BATCH_FORMAT_PREFIX;
+const HISTORY_FORMAT = `%x00%x00${GIT_META_BATCH_FORMAT_PREFIX}%H%x00%aI%x00%an%x00`;
 
-const parseGitMetaBatchChurnOutput = ({ stdout, repoRoot, fileMetaByPath }) => {
-  const targetIndex = fileMetaByPath && typeof fileMetaByPath === 'object'
-    ? fileMetaByPath
-    : Object.create(null);
-  const churnByPath = Object.create(null);
-  let seenInCommit = null;
-  for (const row of String(stdout || '').split(/\r?\n/)) {
-    const line = String(row || '');
-    if (!line) continue;
-    if (line.startsWith(GIT_META_BATCH_FORMAT_PREFIX)) {
-      seenInCommit = new Set();
-      continue;
+/** Decode one bounded Git history result. Double NUL commit framing cannot be
+ * forged by a legal Git path; path fields retain tabs, newlines and whitespace. */
+export const decodeGitMetaHistory = ({ stdout, repoRoot, numstat = false }) => {
+  const fileMetaByPath = Object.create(null), churnByPath = Object.create(null);
+  let requiresNameOnly = false;
+  for (const section of String(stdout || '').split(HISTORY_MARKER).slice(1)) {
+    const rows = section.split('\0');
+    const lastCommitId = rows.shift(), lastModifiedAt = rows.shift(), lastAuthor = rows.shift();
+    if (!/^[a-f0-9]{7,64}$/i.test(lastCommitId || '') || !Number.isFinite(Date.parse(lastModifiedAt))) {
+      throw new Error('Invalid NUL-framed Git metadata header.');
     }
-    const parts = line.split('\t');
-    if (parts.length < 3) continue;
-    const added = parts[0] === '-' ? 0 : Number.parseInt(parts[0], 10);
-    const deleted = parts[1] === '-' ? 0 : Number.parseInt(parts[1], 10);
-    const fileKey = toRepoPosixPath(parts.slice(2).join('\t'), repoRoot);
-    if (!fileKey || !targetIndex[fileKey]) continue;
-    const entry = churnByPath[fileKey] || {
-      churn: 0,
-      churnAdded: 0,
-      churnDeleted: 0,
-      churnCommits: 0
+    const seen = new Set(); let first = true;
+    const addMeta = raw => {
+      const file = toRepoPosixPath(raw, repoRoot); if (!file) return null;
+      if (!fileMetaByPath[file]) fileMetaByPath[file] = { lastCommitId: lastCommitId.toLowerCase(), lastModifiedAt,
+        lastAuthor, churn: null, churnAdded: null, churnDeleted: null, churnCommits: null };
+      return file;
     };
-    if (Number.isFinite(added)) entry.churnAdded += added;
-    if (Number.isFinite(deleted)) entry.churnDeleted += deleted;
-    if (seenInCommit && !seenInCommit.has(fileKey)) {
-      seenInCommit.add(fileKey);
-      entry.churnCommits += 1;
+    for (let index = 0; index < rows.length; index++) {
+      let row = rows[index]; if (!row) continue;
+      if (first && row.startsWith('\n')) row = row.slice(1);
+      first = false; if (!row || row === '\n') continue;
+      if (!numstat) { addMeta(row); continue; }
+      const match = /^(-|[0-9]+)\t(-|[0-9]+)\t([\s\S]*)$/.exec(row);
+      if (!match) throw new Error('Invalid NUL-framed Git numstat row.');
+      let label = match[3];
+      if (!label) {
+        // Rename/copy path selection differs from name-only history. Preserve
+        // the numstat result and qualify metadata with the narrow cheap lane.
+        const previous = rows[++index]; label = rows[++index];
+        if (!previous || !label) throw new Error('Incomplete Git rename numstat row.');
+        requiresNameOnly = true;
+      }
+      const file = addMeta(label); if (!file) continue;
+      const churn = churnByPath[file] || { churn: 0, churnAdded: 0, churnDeleted: 0, churnCommits: 0 };
+      churn.churnAdded += match[1] === '-' ? 0 : Number(match[1]);
+      churn.churnDeleted += match[2] === '-' ? 0 : Number(match[2]);
+      if (!seen.has(file)) { seen.add(file); churn.churnCommits++; }
+      churn.churn = churn.churnAdded + churn.churnDeleted; churnByPath[file] = churn;
     }
-    entry.churn = entry.churnAdded + entry.churnDeleted;
-    churnByPath[fileKey] = entry;
   }
-  return churnByPath;
+  if (String(stdout || '').length && !String(stdout).includes(HISTORY_MARKER)) throw new Error('Git metadata result has no qualified commit framing.');
+  return { fileMetaByPath, churnByPath, requiresNameOnly };
 };
 
 const mergeGitMetaBatchChurn = ({ fileMetaByPath, churnByPath }) => {
@@ -162,7 +138,7 @@ const normalizeRepoRootKey = (repoRoot) => {
 };
 
 const buildMetaPathScopeKey = (repoRoot, filePosix) => (
-  `${normalizeRepoRootKey(repoRoot)}::${toPosix(filePosix)}`
+  `${normalizeRepoRootKey(repoRoot)}::${process.platform === 'win32' ? toPosix(filePosix) : filePosix}`
 );
 
 const toFailureMessage = (value, maxLength = 220) => {
@@ -301,6 +277,9 @@ const resolveTimeoutPlan = ({
 };
 
 export const createBatchDiagnostics = () => ({
+  historyTraversals: 0,
+  renameMetadataFallbacks: 0,
+  historyStdoutBytes: 0,
   timeoutCount: 0,
   timeoutRetries: 0,
   cooldownSkips: 0,
@@ -495,8 +474,8 @@ export const runGitMetaBatchFetch = async ({
           repoRoot,
           'log',
           '--date=iso-strict',
-          `--format=${GIT_META_BATCH_FORMAT_PREFIX}%H%x00%aI%x00%an`,
-          '--name-only'
+          `--format=${HISTORY_FORMAT}`, '-z',
+          includeChurn === true ? '--numstat' : '--name-only'
         ];
         if (batchCommitLimit > 0) {
           args.push('-n', String(batchCommitLimit));
@@ -504,6 +483,7 @@ export const runGitMetaBatchFetch = async ({
         args.push('--', ...chunk);
         let result = null;
         try {
+          diagnostics.historyTraversals++;
           result = await runGitTask(() => runScmCommand('git', args, {
             outputMode: 'string',
             captureStdout: true,
@@ -529,74 +509,32 @@ export const runGitMetaBatchFetch = async ({
           break;
         }
         if (result?.exitCode === 0) {
-          parsedMetaByPath = parseGitMetaBatchOutput({ stdout: result.stdout, repoRoot });
-          if (includeChurn === true) {
-            let churnFailure = null;
-            for (let churnAttemptIndex = 0; churnAttemptIndex < timeoutPlan.length; churnAttemptIndex += 1) {
-              const churnTimeoutMs = timeoutPlan[churnAttemptIndex];
-              const churnArgs = [
-                '-c', 'core.quotePath=false',
-                '-C',
-                repoRoot,
-                'log',
-                '--date=iso-strict',
-                `--format=${GIT_META_BATCH_FORMAT_PREFIX}%H%x00%aI%x00%an`,
-                '--numstat'
-              ];
-              if (batchCommitLimit > 0) {
-                churnArgs.push('-n', String(batchCommitLimit));
-              }
-              churnArgs.push('--', ...chunk);
-              let churnResult = null;
-              try {
-                churnResult = await runGitTask(() => runScmCommand('git', churnArgs, {
-                  outputMode: 'string',
-                  captureStdout: true,
-                  captureStderr: true,
-                  rejectOnNonZeroExit: false,
-                  timeoutMs: churnTimeoutMs
-                }), {
-                  useQueue: config.maxConcurrentProcesses > 1,
-                  timeoutState: gitMetaTimeoutState
-                });
-              } catch (err) {
-                churnFailure = createGitMetaBatchFailure({ err });
-                if (recordTimeoutFailureBookkeeping({
-                  failure: churnFailure,
-                  chunk,
-                  timeoutMsForAttempt: churnTimeoutMs,
-                  attemptIndex: churnAttemptIndex,
-                  attemptCount: timeoutPlan.length
-                })) {
-                  continue;
-                }
-                break;
-              }
-              if (churnResult?.exitCode === 0) {
-                mergeGitMetaBatchChurn({
-                  fileMetaByPath: parsedMetaByPath,
-                  churnByPath: parseGitMetaBatchChurnOutput({
-                    stdout: churnResult.stdout,
-                    repoRoot,
-                    fileMetaByPath: parsedMetaByPath
-                  })
-                });
-                churnFailure = null;
-                break;
-              }
-              churnFailure = createGitMetaBatchFailure({ result: churnResult });
-              if (recordTimeoutFailureBookkeeping({
-                failure: churnFailure,
-                chunk,
-                timeoutMsForAttempt: churnTimeoutMs,
-                attemptIndex: churnAttemptIndex,
-                attemptCount: timeoutPlan.length
-              })) {
-                continue;
-              }
+          diagnostics.historyStdoutBytes += Buffer.byteLength(result.stdout || '');
+          const decoded = decodeGitMetaHistory({ stdout: result.stdout, repoRoot, numstat: includeChurn === true });
+          parsedMetaByPath = decoded.fileMetaByPath;
+          if (includeChurn === true && decoded.requiresNameOnly) {
+            diagnostics.renameMetadataFallbacks++;
+            const nameArgs = args.map(argument => argument === '--numstat' ? '--name-only' : argument);
+            let nameResult;
+            try {
+              diagnostics.historyTraversals++;
+              nameResult = await runGitTask(() => runScmCommand('git', nameArgs, {
+                outputMode: 'string', captureStdout: true, captureStderr: true,
+                rejectOnNonZeroExit: false, timeoutMs: attemptTimeoutMs
+              }), { useQueue: config.maxConcurrentProcesses > 1, timeoutState: gitMetaTimeoutState });
+            } catch (err) {
+              failure = createGitMetaBatchFailure({ err }); parsedMetaByPath = null;
+            }
+            if (!failure && nameResult?.exitCode !== 0) { failure = createGitMetaBatchFailure({ result: nameResult }); parsedMetaByPath = null; }
+            if (failure) {
+              if (recordTimeoutFailureBookkeeping({ failure, chunk, timeoutMsForAttempt: attemptTimeoutMs,
+                attemptIndex, attemptCount: timeoutPlan.length, updateTimeoutState: true })) continue;
               break;
             }
+            diagnostics.historyStdoutBytes += Buffer.byteLength(nameResult.stdout || '');
+            parsedMetaByPath = decodeGitMetaHistory({ stdout: nameResult.stdout, repoRoot }).fileMetaByPath;
           }
+          if (includeChurn === true) mergeGitMetaBatchChurn({ fileMetaByPath: parsedMetaByPath, churnByPath: decoded.churnByPath });
           for (const filePosix of chunk) {
             clearTimeoutState(filePosix);
           }

@@ -8,7 +8,7 @@ export const toRepoPosixPath = (filePath, repoRoot) => {
     ? path.resolve(filePath)
     : (baseRoot ? path.resolve(baseRoot, filePath) : path.resolve(filePath));
   const rel = baseRoot ? path.relative(baseRoot, resolved) : resolved;
-  const normalized = toPosix(rel).replace(/^\.\//, '');
+  const normalized = (process.platform === 'win32' ? toPosix(rel) : rel).replace(/^\.\//, '');
   if (isRelativePathEscape(normalized)) return null;
   return normalized;
 };
@@ -20,7 +20,7 @@ export const normalizeScmFileKey = (filePath, {
   if (typeof filePath !== 'string' || !filePath) return null;
   const normalized = repoRoot
     ? toRepoPosixPath(filePath, repoRoot)
-    : path.posix.normalize(toPosix(String(filePath || ''))).replace(/^\.\//, '');
+    : path.posix.normalize(process.platform === 'win32' ? toPosix(String(filePath || '')) : String(filePath || '')).replace(/^\.\//, '');
   if (!normalized || normalized === '.') return null;
   if (rejectEscape && (isRelativePathEscape(normalized) || isAbsolutePathNative(normalized))) return null;
   return normalized;

@@ -51,72 +51,72 @@ export const createWorkerPoolQueue = (input = {}) => {
   const pressureCache = new Map();
   let pressureCacheOrdinal = 0;
 
-  const resolveWaiterKey = (languageId) => (
-    typeof languageId === 'string' && languageId ? languageId : '*'
-  );
+  let pressureRefreshTimer = null;
+  let admissionSample = null;
+  let sampleEpochReset = null;
+  let pressureSamples = 0;
+  let capacityWakeCount = 0;
+  let globalWakeCount = 0;
+  const pendingCapacityWakes = new Map();
 
-  const notifyWaitersForKey = (key) => {
+  const notifyWaitersForKey = (key, count = Infinity, capacity = false) => {
     const waiters = pressureThrottleWaitersByLanguage.get(key);
-    if (!waiters || waiters.size === 0) return;
-    pressureThrottleWaitersByLanguage.delete(key);
-    for (const resolve of waiters.values()) {
-      try {
-        resolve();
-      } catch {}
+    if (!waiters) return;
+    for (const resume of [...waiters]) {
+      if (count-- <= 0) break;
+      waiters.delete(resume);
+      if (capacity) pendingCapacityWakes.set(key, (pendingCapacityWakes.get(key) || 0) + 1);
+      resume(capacity);
     }
+    if (!waiters.size) pressureThrottleWaitersByLanguage.delete(key);
   };
-
   const notifyThrottleWaiters = (languageId = null) => {
     if (typeof languageId === 'string' && languageId) {
-      notifyWaitersForKey(languageId);
+      capacityWakeCount++; notifyWaitersForKey(languageId, 1, true); return;
     }
-    notifyWaitersForKey('*');
+    globalWakeCount++;
+    for (const key of [...pressureThrottleWaitersByLanguage.keys()]) notifyWaitersForKey(key);
   };
-
-  const registerThrottleWaiter = (languageId, resolve) => {
-    const key = resolveWaiterKey(languageId);
-    let waiters = pressureThrottleWaitersByLanguage.get(key);
-    if (!waiters) {
-      waiters = new Set();
-      pressureThrottleWaitersByLanguage.set(key, waiters);
-    }
-    waiters.add(resolve);
-    return () => {
-      const current = pressureThrottleWaitersByLanguage.get(key);
-      if (!current) return;
-      current.delete(resolve);
-      if (current.size === 0) {
-        pressureThrottleWaitersByLanguage.delete(key);
-      }
-    };
+  const stopPressureRefreshIfIdle = () => {
+    if (pressureThrottleWaitersByLanguage.size || !pressureRefreshTimer) return;
+    clearTimeout(pressureRefreshTimer); pressureRefreshTimer = null;
   };
-
-  /**
-   * Wait for either a language-specific release or a global pressure transition.
-   *
-   * Registering both wait channels preserves ordering behavior when a language
-   * slot opens at the same time as a state transition. The timeout acts as a
-   * bounded wake-up to guarantee forward progress during quiet periods.
-   *
-   * @param {string} languageId
-   * @returns {Promise<void>}
-   */
-  const waitForThrottleSignal = (languageId) => new Promise((resolve) => {
+  const schedulePressureRefresh = () => {
+    if (closed || pressureRefreshTimer || !pressureThrottleWaitersByLanguage.size) return;
+    // One referenced quiet-period refresh per owner, independent of waiter count.
+    pressureRefreshTimer = setTimeout(() => {
+      pressureRefreshTimer = null;
+      if (closed || !pressureThrottleWaitersByLanguage.size) return;
+      admissionSample = null;
+      const sample = readAdmissionPressureSample();
+      updatePressureState({ pressureRatio: sample.pressureRatio, rssPressure: sample.rssPressure,
+        gcPressure: sample.heapUtilization, reason: 'throttle-refresh' });
+      schedulePressureRefresh();
+    }, THROTTLE_SIGNAL_TIMEOUT_MS);
+  };
+  const waitForThrottleSignal = (languageId, signal) => new Promise((resolve, reject) => {
     let settled = false;
-    const onResolve = () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      releaseLang();
-      releaseAll();
-      resolve();
+    const waiters = pressureThrottleWaitersByLanguage.get(languageId) || new Set();
+    const cleanup = () => {
+      waiters.delete(resume);
+      if (!waiters.size) pressureThrottleWaitersByLanguage.delete(languageId);
+      signal?.removeEventListener('abort', onAbort);
+      stopPressureRefreshIfIdle();
     };
-    const releaseLang = registerThrottleWaiter(languageId, onResolve);
-    const releaseAll = registerThrottleWaiter('*', onResolve);
-    // Keep this timer referenced: this promise is awaited on the hot path and
-    // must always wake, even when no other event-loop handles are active.
-    const timer = setTimeout(onResolve, THROTTLE_SIGNAL_TIMEOUT_MS);
+    const resume = capacity => { if (settled) return; settled = true; cleanup(); resolve(capacity === true); };
+    const onAbort = () => { if (settled) return; settled = true; cleanup(); reject(createAbortError()); };
+    waiters.add(resume); pressureThrottleWaitersByLanguage.set(languageId, waiters);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) onAbort(); else schedulePressureRefresh();
   });
+  const readAdmissionPressureSample = () => {
+    if (!admissionSample) admissionSample = readProcessPressureSample();
+    if (!sampleEpochReset) {
+      sampleEpochReset = setImmediate(() => { sampleEpochReset = null; admissionSample = null; });
+      sampleEpochReset.unref?.();
+    }
+    return admissionSample;
+  };
 
   const updatePressureState = ({
     pressureRatio,
@@ -145,10 +145,11 @@ export const createWorkerPoolQueue = (input = {}) => {
   };
 
   const readProcessPressureSample = () => {
-    const usage = process.memoryUsage();
+    pressureSamples++;
+    const usage = input.readMemoryUsage?.() || process.memoryUsage();
     const heapUsed = Number(usage?.heapUsed) || 0;
     const heapTotal = Number(usage?.heapTotal) || 0;
-    const rss = Number(input.readOwnedRssBytes?.() ?? usage?.rss) || 0;
+    const rss = Number(input.readOwnedRssBytes?.(usage?.rss) ?? usage?.rss) || 0;
     const heapUtilization = heapTotal > 0
       ? clampRatio(heapUsed / heapTotal)
       : 0;
@@ -199,9 +200,9 @@ export const createWorkerPoolQueue = (input = {}) => {
   /**
    * Acquire an admission slot for a tokenize payload.
    *
-   * Admission is intentionally loop-based instead of queue-based: each wake-up
-   * re-evaluates the latest pressure sample and language limits to preserve the
-   * original race behavior between worker completions and pressure transitions.
+   * FIFO language waiters re-evaluate admission under one event-loop pressure
+   * observation. Capacity release wakes one same-language contender; pressure
+   * transitions reconsider every affected language through one refresh owner.
    *
    * @param {object} payload
    * @returns {Promise<{languageId:string,limit:number}|null>}
@@ -212,10 +213,11 @@ export const createWorkerPoolQueue = (input = {}) => {
     const languageId = normalizeLanguageId(payload?.languageId);
     const mode = typeof payload?.mode === 'string' ? payload.mode.toLowerCase() : '';
     if (!languageId || mode !== 'code') return null;
+    let capacityAdmission = false;
     while (true) {
       throwIfAborted(signal);
       if (closed) throw createAbortError('Worker admission is closed');
-      const sample = readProcessPressureSample();
+      const sample = readAdmissionPressureSample();
       updatePressureState({
         pressureRatio: sample.pressureRatio,
         rssPressure: sample.rssPressure,
@@ -228,7 +230,7 @@ export const createWorkerPoolQueue = (input = {}) => {
         throttleConfig: languageThrottleConfig
       });
       const active = Number(tokenizeInFlightByLanguage.get(languageId) || 0);
-      if (!Number.isFinite(limit) || active < limit) {
+      if ((!Number.isFinite(limit) || active < limit) && (capacityAdmission || !pendingCapacityWakes.has(languageId))) {
         tokenizeInFlightByLanguage.set(languageId, active + 1);
         return { languageId, limit };
       }
@@ -236,7 +238,12 @@ export const createWorkerPoolQueue = (input = {}) => {
         pressureHardBlockCount += 1;
       }
       const waitStart = Date.now();
-      await waitForThrottleSignal(languageId);
+      const capacityWake = await waitForThrottleSignal(languageId, signal);
+      if (capacityWake) {
+        const pending = pendingCapacityWakes.get(languageId) || 0;
+        if (pending <= 1) pendingCapacityWakes.delete(languageId); else pendingCapacityWakes.set(languageId, pending - 1);
+      }
+      capacityAdmission = capacityWake;
       pressureThrottleWaitCount += 1;
       pressureThrottleWaitMs += Math.max(0, Date.now() - waitStart);
     }
@@ -269,6 +276,8 @@ export const createWorkerPoolQueue = (input = {}) => {
       hardMaxPerLanguage: languageThrottleConfig.hardMaxPerLanguage,
       blockHeavyOnHardPressure: languageThrottleConfig.blockHeavyOnHardPressure !== false,
       waitCount: pressureThrottleWaitCount,
+      pressureSamples, capacityWakeCount, globalWakeCount,
+      refreshTimerCount: pressureRefreshTimer ? 1 : 0,
       waitMs: pressureThrottleWaitMs,
       hardBlockCount: pressureHardBlockCount,
       activeByLanguage: Object.fromEntries(tokenizeInFlightByLanguage.entries())
@@ -284,7 +293,10 @@ export const createWorkerPoolQueue = (input = {}) => {
   const close = () => {
     if (closed) return;
     closed = true;
+    if (pressureRefreshTimer) clearTimeout(pressureRefreshTimer); pressureRefreshTimer = null;
+    if (sampleEpochReset) clearImmediate(sampleEpochReset); sampleEpochReset = null; admissionSample = null;
     for (const key of [...pressureThrottleWaitersByLanguage.keys()]) notifyWaitersForKey(key);
+    pendingCapacityWakes.clear();
     pressureCache.clear();
   };
 

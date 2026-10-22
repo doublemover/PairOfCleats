@@ -263,7 +263,7 @@ export async function createIndexerWorkerPool(input = {}) {
       pressureCacheMaxEntries,
       languageThrottleConfig,
       maxGlobalRssBytes,
-      readOwnedRssBytes: () => process.memoryUsage().rss + (lifecycle?.getPool()?.stats?.().sampledChildRssBytes || 0)
+      readOwnedRssBytes: parentRss => Number(parentRss || 0) + (lifecycle?.getPool()?.stats?.().sampledChildRssBytes || 0)
     });
 
     const workerCoordinator = createWorkerProcessCoordinator({
