@@ -3,6 +3,7 @@ import { createSnapshotSearchIndex } from '../../src/map/isometric/client/data/s
 import { createMemberAliasIndex } from '../../src/map/isometric/client/data/member-identity.js';
 import { snapshotSearchRecords, searchMapSnapshotRows, createSnapshotSearchPage, prepareSnapshotSearch } from './map-snapshot-search.js';
 import { setImmediate as yieldImmediate } from 'node:timers/promises';
+import { createSnapshotRowByteBudget } from './map-snapshot-page-budget.js';
 
 const compactMember=(member,file,ordinal)=>({id:member.id??null,name:member.name??null,kind:member.kind??member.type??null,
   type:member.type??null,range:member.range??null,exported:member.exported??null,file,ordinal});
@@ -106,8 +107,10 @@ const initializeTransport = function* ({model,snapshotId,identity,maxResponseByt
   const page=(request,rows,project=row=>row)=>{
     if(request.cursor>rows.length)throw new Error('Snapshot cursor exceeds the pinned page total.');
     const result=[],end=Math.min(rows.length,request.cursor+request.limit);let next=request.cursor;
-    while(next<end){const candidate=project(rows[next],next),trial=wrap(request,{cursor:request.cursor,next:next+1<rows.length?next+1:null,total:rows.length,rows:[...result,candidate]});
-      if(Buffer.byteLength(JSON.stringify(trial))>maxResponseBytes){if(!result.length)encode(trial);break;}
+    const envelope=nextCursor=>wrap(request,{cursor:request.cursor,next:nextCursor,total:rows.length,rows:[]});
+    const budget=createSnapshotRowByteBudget({maxResponseBytes,emptyEnvelope:envelope(null)});
+    while(next<end){const candidate=project(rows[next],next),nextCursor=next+1<rows.length?next+1:null;
+      if(!budget.admit(candidate,envelope(nextCursor))){if(!result.length)throw new Error('A map record exceeds the snapshot response budget; use the admitted compatibility artifact for this detail.');break;}
       result.push(candidate);next++;
     }
     return {cursor:request.cursor,next:next<rows.length?next:null,total:rows.length,rows:result};

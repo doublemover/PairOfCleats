@@ -1,4 +1,5 @@
 import { setImmediate } from 'node:timers/promises';
+import { createSnapshotRowByteBudget } from './map-snapshot-page-budget.js';
 
 /** Source-order records are transient; no second whole-source key table. */
 export function* snapshotSearchRecords(files,{includeAnonymous=false}={}){
@@ -28,11 +29,12 @@ export const prepareSnapshotSearch = request => {
 
 export const createSnapshotSearchPage = ({request,wrap,maxResponseBytes}) => {
   const rows=[];let total=0,closed=false;
+  const budget=createSnapshotRowByteBudget({maxResponseBytes,
+    emptyEnvelope:wrap(request,{rows:[],cursor:request.cursor,next:Number.MAX_SAFE_INTEGER,total:Number.MAX_SAFE_INTEGER,complete:true})});
   return {
     admit(info){
       if(total>=request.cursor&&rows.length<request.limit&&!closed){
-        const trial=wrap(request,{rows:[...rows,info],cursor:request.cursor,next:Number.MAX_SAFE_INTEGER,total:Number.MAX_SAFE_INTEGER,complete:true});
-        if(Buffer.byteLength(JSON.stringify(trial))>maxResponseBytes){if(!rows.length)throw new Error('Search result exceeds its response budget. Use the compatibility snapshot for this record.');closed=true;}
+        if(!budget.admit(info)){if(!rows.length)throw new Error('Search result exceeds its response budget. Use the compatibility snapshot for this record.');closed=true;}
         else rows.push(info);
       }
       total++;

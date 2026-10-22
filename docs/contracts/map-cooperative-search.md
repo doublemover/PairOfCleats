@@ -37,6 +37,19 @@ table. Directed adjacency summaries likewise share one row-counting owner and
 yield in the asynchronous endpoint; self-relationships retain both directions.
 No partial summary is returned after request cancellation or session retirement.
 
+File/member/edge/adjacency page admission and both search modes now share an
+incremental UTF-8 row-byte budget. Each candidate's JSON array representation is
+counted once, with escaped/multibyte text and commas, instead of serializing every
+already retained row again for each candidate. The normal page keeps its actual
+next-cursor envelope; search retains its existing conservative maximum-digit
+next/total reserve until the complete matching total is known. The final response
+still passes the existing actual encoded-byte guard before publication. This
+preserves the admitted immutable JSON snapshot contract, exact source order and
+continuation; it does not certify arbitrary stateful custom JSON serializers.
+Authored controls compare original whole-envelope page behavior at byte/cursor
+boundaries and count stable property visits through the actual response owner.
+They are unrun and establish no wall-clock, allocation or end-to-end speedup.
+
 This source slice chooses no GPU/backend, source admission threshold or performance
 acceptance value. Cooperative scan latency, allocation/heap impact, concurrency and
 HTTP/worker/browser behavior remain unqualified; the authored cancellation/parity
