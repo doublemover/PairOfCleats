@@ -7,8 +7,8 @@ import { collectCompilerAliasAssignments } from './compiler-flow-fields.js';
  * open-world effects, even when a constructor or literal allocation is visible. */
 export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}) => {
   nodes=[...nodes];
-  const structural = createCompilerStructuralQueries({ ts, checker });
   const writes = new Map(), assignments=collectCompilerAliasAssignments(ts,checker,nodes);
+  const structural = createCompilerStructuralQueries({ ts, checker, assignments });
   const unwrap = node => { while(node && (ts.isParenthesizedExpression(node)||ts.isAsExpression(node)||ts.isNonNullExpression(node)||ts.isTypeAssertionExpression(node))) node=node.expression; return node; };
   const symbolFor = node => { let symbol=checker.getSymbolAtLocation(node); if(symbol?.flags & ts.SymbolFlags.Alias) symbol=checker.getAliasedSymbol(symbol); return symbol; };
   for(const node of nodes) if(ts.isBinaryExpression(node)&&node.operatorToken.kind===ts.SyntaxKind.EqualsToken) {

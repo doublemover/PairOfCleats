@@ -3,7 +3,7 @@ import { compilerClassDefinitions, compilerConstructorCandidates, compilerReturn
 import { compilerPropertyKeys, propertyKeySetsOverlap } from './compiler-property-paths.js';
 
 /** Group-owned immutable structural queries; final dispatch remains per call. */
-export const createCompilerStructuralQueries = ({ ts, checker, maxMemberBytes = 8 * 1024 * 1024 }) => {
+export const createCompilerStructuralQueries = ({ ts, checker, assignments = new Map(), maxMemberBytes = 8 * 1024 * 1024 }) => {
   const classes = new WeakMap(), constructors = new WeakMap(), returns = new WeakMap(), members = new WeakMap();
   const stats = { classQueries: 0, constructorQueries: 0, accessorScans: 0, memberBuilds: 0,
     membersVisited: 0, matchedMemberRows: 0, memberBytes: 0 };
@@ -61,9 +61,9 @@ export const createCompilerStructuralQueries = ({ ts, checker, maxMemberBytes = 
       // roots retain their exact node key and therefore their own depth budget.
       let symbol = ts.isIdentifier(node) ? checker.getSymbolAtLocation(node) : null;
       if (symbol?.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
-      return cached(classes, node, local => compilerClassDefinitions({ ts, checker, node, reasons: local }), reasons, 'classQueries', symbol || node);
+      return cached(classes, node, local => compilerClassDefinitions({ ts, checker, node, reasons: local, assignments }), reasons, 'classQueries', symbol || node);
     },
-    constructors(definition, reasons) { return cached(constructors, definition, local => compilerConstructorCandidates({ ts, checker, definition, reasons: local }), reasons, 'constructorQueries'); },
+    constructors(definition, reasons) { return cached(constructors, definition, local => compilerConstructorCandidates({ ts, checker, definition, reasons: local, assignments }), reasons, 'constructorQueries'); },
     returns(owner, reasons) { return cached(returns, owner, local => compilerReturnExpressions({ ts, owner, reasons: local }), reasons, 'accessorScans'); },
     *members(owner, names, staticMember, reasons) {
       const index = indexFor(owner, staticMember);

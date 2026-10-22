@@ -27,6 +27,15 @@ try {
     }
     class Base { call(){return 3;} } const Parent=Base; class Child extends Parent {}
     new Child().call();
+    class LeftCtor {value=117;} class RightCtor {value=129;}
+    function classChoices(flag:boolean) {
+      const ChoiceCtor=flag?LeftCtor:RightCtor;
+      let MutableCtor=LeftCtor; if(flag)MutableCtor=RightCtor;
+      const LogicalCtor=LeftCtor||RightCtor;
+      const choiceAllocation=new ChoiceCtor(), mutableAllocation=new MutableCtor(), logicalAllocation=new LogicalCtor();
+      const choiceRead=choiceAllocation.value, mutableRead=mutableAllocation.value, logicalRead=logicalAllocation.value;
+      return choiceRead+mutableRead+logicalRead;
+    }
   ` }, {}, { withFlow: true });
   const doc = fixture.documents[0], { ts, checker, nodes, sourceFile, expressionFor } = doc;
   const declarationFor = node => { const anchor = node.name || node; return doc.item.declarations.get(anchor.getStart() + ':' + anchor.end); };
@@ -66,6 +75,21 @@ try {
   const store = fixture.storeFor(fixture.syntaxPartitions), edges = [];
   for (const partition of fixture.syntaxPartitions) for await (const edge of store.iterateRows(partition.partitionId, 'semantic_edges')) edges.push(edge);
   const key = ref => ref.partitionId + ':' + ref.localId;
+  const choiceReasons = new Set(), choiceOwner = sourceFile.statements.find(node => ts.isFunctionDeclaration(node) && node.name.text === 'classChoices');
+  const choiceFields = createCompilerFieldPaths({ ts, checker, owner: choiceOwner, sourceFile,
+    assignments: collectCompilerAliasAssignments(ts, checker, nodes), expressionFor, declarationFor, depthLimit: 8, reasons: choiceReasons });
+  const classInitializers = ['117', '129'].map(value => expressionFor(nodes.find(node => ts.isNumericLiteral(node) && node.text === value)));
+  for (const text of ['choiceAllocation.value', 'mutableAllocation.value', 'logicalAllocation.value']) {
+    const read = find(text), initializers = choiceFields.locationsFor(read).flatMap(location => location.initializers);
+    for (const initializer of classInitializers) {
+      assert.ok(initializers.some(ref => key(ref) === key(initializer)), `${text} retains both source class initializer alternatives`);
+      const reached = new Set([key(initializer)]);
+      for (const ref of reached) for (const edge of edges) if (key(edge.from) === ref && ['packs', 'flowsTo', 'reads', 'writes', 'defines'].includes(edge.kind)) reached.add(key(edge.to));
+      assert.ok(reached.has(key(expressionFor(read))), `${text} retains the initializer in the actual CFG flow partition`);
+    }
+  }
+  assert.ok(choiceReasons.has('class_definition_alternatives_modeled'));
+  assert.ok(choiceReasons.has('mutable_class_binding_order_and_escape_conservative'));
   const reached = new Set([key(expressionFor(seventeen))]);
   for (const ref of reached) for (const edge of edges) if (key(edge.from) === ref && ['packs', 'flowsTo', 'reads', 'writes', 'defines'].includes(edge.kind)) reached.add(key(edge.to));
   assert.ok(reached.has(key(expressionFor(find('renamed.value')))), 'nested destructuring initializer reaches the actual CFG read');

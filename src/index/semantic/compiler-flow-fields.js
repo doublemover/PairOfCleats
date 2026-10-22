@@ -99,6 +99,7 @@ export const createCompilerFieldPaths = ({ ts, checker, owner, sourceFile, assig
   };
   const initial = location => {
     let budget = 256;
+    const classWork = { remaining: 256 };
     const limit = values => {
       if (values.length > 32) reasons.add('field_initial_candidate_budget');
       return values.slice(0,32);
@@ -132,7 +133,7 @@ export const createCompilerFieldPaths = ({ ts, checker, owner, sourceFile, assig
           else reasons.add('field_initial_accessor_or_method_unresolved');
         }
       } else if (ts.isNewExpression(node)) {
-        const classes=compilerClassDefinitions({ts,checker,node:node.expression,reasons}),visited=new Set();
+        const classes=compilerClassDefinitions({ts,checker,node:node.expression,reasons,assignments,work:classWork}),visited=new Set();
         while(classes.length) {
           const definition=classes.pop();if(visited.has(definition))continue;visited.add(definition);
           if(visited.size>16){reasons.add('field_initial_heritage_budget');break;}
@@ -142,7 +143,7 @@ export const createCompilerFieldPaths = ({ ts, checker, owner, sourceFile, assig
             if(ts.isPropertyDeclaration(member)&&member.initializer)next.push(...read(member.initializer,remaining,seen));
             else if(ts.isGetAccessorDeclaration(member))for(const value of compilerReturnExpressions({ts,owner:member,reasons}))next.push(...read(value,remaining,seen));
           }
-          for(const clause of definition.heritageClauses||[])if(clause.token===ts.SyntaxKind.ExtendsKeyword)for(const type of clause.types)classes.push(...compilerClassDefinitions({ts,checker,node:type.expression,reasons}));
+          for(const clause of definition.heritageClauses||[])if(clause.token===ts.SyntaxKind.ExtendsKeyword)for(const type of clause.types)classes.push(...compilerClassDefinitions({ts,checker,node:type.expression,reasons,assignments,work:classWork}));
         }
         reasons.add('constructor_return_override_initializer_order_and_escape_conservative');
       } else if (ts.isArrayLiteralExpression(node)) {
