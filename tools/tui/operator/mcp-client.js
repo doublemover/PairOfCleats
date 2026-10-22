@@ -15,10 +15,14 @@ export const createTuiMcpClients = ({ toolRoot, requireScope, createClient = cre
     if (entry.closing) return entry.closing;
     entry.phase = 'closing';
     entry.closing = Promise.resolve().then(() => entry.client.dispose()).then(result => {
-      entry.closed = result || { closed: true };
+      if (result?.closed !== true || result.pending !== false) {
+        throw Object.assign(new Error('Owned MCP disposal returned no confirmed closure receipt.'),
+          { code: 'ERR_TUI_MCP_CLOSE', cacheOwnershipPending: true });
+      }
+      entry.closed = result;
       if (clients.get(entry.jobId) === entry) clients.delete(entry.jobId);
       return result;
-    }, error => {
+    }).catch(error => {
       entry.phase = 'closure-failed'; entry.closeErrorCode = String(error?.code || 'ERR_TUI_MCP_CLOSE');
       throw error;
     }).finally(() => { entry.closing = null; });

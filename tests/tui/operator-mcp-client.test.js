@@ -12,7 +12,7 @@ const client = { completion, status: () => ({ connected: !closed, pending: 0 }),
     calls.push({ method, params });
     return method === 'initialize' ? { protocolVersion: MCP_PROTOCOL_VERSION, serverInfo: { name: 'canonical' } }
       : { tools: [{ name: 'index_status' }] };
-  }, dispose: async () => { closed = true; finish({ exitCode: 0 }); return completion; } };
+  }, dispose: async () => { closed = true; finish({ exitCode: 0, closed: true, pending: false }); return completion; } };
 const owner = createTuiMcpClients({ toolRoot: process.cwd(), requireScope: () => {}, createClient: options => {
   assert.ok(options.args.includes('--mcp-mode=legacy'));
   assert.equal(options.args.some(value => value.includes('token')), false);

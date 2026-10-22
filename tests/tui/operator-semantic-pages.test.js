@@ -13,7 +13,7 @@ const createClient = () => {
       page += 1;
       return { page: { generation: 'exact-generation', rows: [page], cursor: null }, hasMore: page < 3 };
     },
-    dispose: async () => { disposed = true; finish({ exitCode: 0 }); },
+    dispose: async () => { disposed = true; finish({ exitCode: 0 }); return { closed: true, pending: false }; },
     get disposed() { return disposed; } };
   children.push(client); return client;
 };

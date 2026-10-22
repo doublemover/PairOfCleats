@@ -20,10 +20,14 @@ export const createTuiSemanticPages = ({ toolRoot, requireScope, now = Date.now,
     if (sessions.get(entry.id) === entry) sessions.delete(entry.id);
     clearTimeout(entry.timer);
     closing.set(entry.id, entry);
-    entry.closing = Promise.resolve().then(() => entry.client.dispose()).then(() => {
+    entry.closing = Promise.resolve().then(() => entry.client.dispose()).then(result => {
+      if (result?.closed !== true || result.pending !== false) {
+        throw Object.assign(new Error('Semantic disposal returned no confirmed closure receipt.'),
+          { code: 'ERR_TUI_SEMANTIC_CLOSE', cacheOwnershipPending: true });
+      }
       entry.closed = true;
       closing.delete(entry.id);
-    }, error => {
+    }).catch(error => {
       entry.closeErrorCode = String(error?.code || 'ERR_TUI_SEMANTIC_CLOSE');
       throw error;
     }).finally(() => { entry.closing = null; });

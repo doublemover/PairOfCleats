@@ -4,6 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { getEnvSecrets } from '../../../src/shared/env/runtime.js';
 import { sameIdentityPath } from '../../../src/shared/indexing/build-pointer-roots.js';
+import { settleOwnedActions, combineOwnedErrors, ownedCleanupIsPending } from './settle-owned.js';
 
 const fault = (code, message) => Object.assign(new Error(message), { code });
 
@@ -55,7 +56,17 @@ export const createTuiApiServices = ({ toolRoot, requireScope, spawn = spawnSubp
     const entry = { scopeId: scope.id, jobId, controller, settlement, pid: null, phase: 'starting',
       endpoint: null, lastHealthAt: null, healthChecks: 0, healthErrorCode: null };
     services.set(jobId, entry);
-    let line = '', stderrTail = '', announced = false, childClosed = false, failure = null;
+    let line = '', stderrTail = '', announced = false, childClosed = false, failure = null, childFailure = null;
+    const reconcile = ({ throwPending = false } = {}) => {
+      if (ownedCleanupIsPending(childFailure)) {
+        entry.phase = 'closure-pending'; entry.closeErrorCode = String(childFailure.code || 'ERR_TUI_API_CLOSE');
+        if (throwPending) throw childFailure;
+        return false;
+      }
+      if (services.get(jobId) === entry) services.delete(jobId);
+      return true;
+    };
+    entry.reconcile = reconcile;
     const stop = error => { failure ||= error; controller.abort(error); rejectStartup(error); };
     const startupTimer = setTimeout(() => stop(fault('ERR_TUI_API_STARTUP_TIMEOUT', 'Owned API startup did not complete.')), 10000);
     const completion = Promise.resolve().then(() => spawn(process.execPath, [path.join(toolRoot, 'bin/pairofcleats.js'), ...argv], {
@@ -81,11 +92,17 @@ export const createTuiApiServices = ({ toolRoot, requireScope, spawn = spawnSubp
       }, onStderr: chunk => {
         stderrTail = (stderrTail + String(chunk).slice(-256)).slice(-512);
         if (/\bEADDRINUSE\b/.test(stderrTail)) failure ||= fault('ERR_TUI_API_PORT_IN_USE', 'Owned API bind address is already in use.');
-      } })).then(result => result, () => ({ exitCode: null, signal: null })).then(result => {
-      childClosed = true; clearTimeout(startupTimer);
+      } })).then(result => { childClosed = true; return result; }, error => {
+      childFailure = error; failure ||= error;
+      childClosed = !ownedCleanupIsPending(error);
+      controller.abort(error);
+      return { exitCode: null, signal: null };
+    }).then(result => {
+      clearTimeout(startupTimer);
       rejectStartup(failure || fault('ERR_TUI_API_EXIT', 'Owned API process exited before startup.'));
       return result;
     });
+    let primary = null;
     try {
       const port = await startup;
       while (!lifetime.aborted && !childClosed) {
@@ -110,17 +127,23 @@ export const createTuiApiServices = ({ toolRoot, requireScope, spawn = spawnSubp
       return { exitCode: signal.aborted ? 130 : 1, signal: result.signal || null,
         stdout: JSON.stringify({ service: 'api', endpoint: entry.endpoint, stopped: true,
           lastHealthAt: entry.lastHealthAt, healthChecks: entry.healthChecks }) };
-    } finally {
+    } catch (error) { primary = error; throw error; }
+    finally {
       controller.abort(); clearTimeout(startupTimer); await completion;
-      services.delete(jobId); settle();
+      try {
+        if (!reconcile()) throw primary && primary !== childFailure ? combineOwnedErrors(primary, [childFailure]) : childFailure;
+      } finally { settle(); }
     }
   };
   const status = scopeId => [...services.values()].filter(entry => entry.scopeId === scopeId)
-    .map(({ controller: _controller, settlement: _settlement, scopeId: _scope, ...entry }) => ({ service: 'api', ...entry,
+    .map(({ controller: _controller, settlement: _settlement, reconcile: _reconcile, scopeId: _scope, ...entry }) => ({ service: 'api', ...entry,
       healthMeaning: 'Last bounded /health response after this child\'s listen event; no index/search readiness claim.' }));
   return { run, status, dispose: async () => {
     const owned = [...services.values()];
     for (const entry of owned) entry.controller.abort();
-    await Promise.all(owned.map(entry => entry.settlement));
+    await settleOwnedActions(Object.fromEntries(owned.map(entry => [entry.jobId, async () => {
+      await entry.settlement;
+      entry.reconcile({ throwPending: true });
+    }])));
   } };
 };

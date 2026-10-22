@@ -1,5 +1,6 @@
 import { createFramedJsonRpcParser, getJsonRpcWriter } from '../../../src/shared/jsonrpc.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
+import { combineOwnedErrors, ownedCleanupIsPending } from './settle-owned.js';
 
 const fault = (code, message) => Object.assign(new Error(message), { code });
 const MAX_BYTES = 768 * 1024;
@@ -14,7 +15,7 @@ export const createOwnedStdioClient = ({ command, args, cwd, env, signal, onSpaw
     || !Number.isSafeInteger(maxBytes) || maxBytes < 1024 || maxBytes > MAX_BYTES) throw new TypeError('Invalid client bounds.');
   const controller = new AbortController();
   const pending = new Map();
-  let writer = null, nextId = 1, closed = false, failure = null, writes = 0, opening = 0;
+  let writer = null, nextId = 1, closed = false, failure = null, childFailure = null, writes = 0, opening = 0;
   let resolveReady, rejectReady;
   const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
   // A caller can close before awaiting readiness; still observe the rejection.
@@ -75,20 +76,26 @@ export const createOwnedStdioClient = ({ command, args, cwd, env, signal, onSpaw
         writer = getJsonRpcWriter(child.stdin);
         onSpawn?.(child);
         resolveReady();
-      } catch { stop(fault('ERR_TUI_STDIO_START', 'Could not attach the owned protocol.')); }
+      } catch (error) { stop(Object.assign(fault('ERR_TUI_STDIO_START', 'Could not attach the owned protocol.'), { cause: error })); }
     },
     onStdout: chunk => parser.push(chunk),
     // stderr is intentionally discarded; it can contain private configuration.
     onStderr: () => {} })).then(result => ({ exitCode: result.exitCode, signal: result.signal || null }),
-  () => ({ exitCode: null, signal: null })).then(result => {
-    closed = true;
+  error => { childFailure = error; return { exitCode: null, signal: null }; }).then(result => {
+    const pendingClosure = ownedCleanupIsPending(childFailure);
+    const pendingError = pendingClosure && failure && failure !== childFailure
+      ? combineOwnedErrors(failure, [childFailure]) : childFailure;
+    closed = !pendingClosure;
     writer?.close(); parser.dispose();
     signal?.removeEventListener('abort', externalAbort);
-    const error = failure || fault('ERR_TUI_STDIO_EXIT', 'The owned protocol process exited.');
+    const error = pendingClosure ? pendingError : failure || childFailure || fault('ERR_TUI_STDIO_EXIT', 'The owned protocol process exited.');
+    if (pendingClosure) stop(error);
     rejectReady(error);
     for (const entry of pending.values()) settle(entry, error);
-    return { ...result, failureCode: failure?.code || null };
+    if (pendingClosure) throw error;
+    return { ...result, closed: true, pending: false, failureCode: failure?.code || childFailure?.code || null };
   });
+  completion.catch(() => {});
   const request = async (method, params = {}, { signal: requestSignal, timeoutMs = 10000 } = {}) => {
     if (typeof method !== 'string' || !/^[a-zA-Z0-9_/$.-]{1,80}$/.test(method)
       || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) throw new TypeError('Invalid protocol request.');
@@ -124,8 +131,16 @@ export const createOwnedStdioClient = ({ command, args, cwd, env, signal, onSpaw
       });
     });
   };
-  const dispose = async () => { stop(fault('ERR_TUI_STDIO_DISPOSED', 'The session closed.')); return completion; };
+  const dispose = async () => {
+    stop(fault('ERR_TUI_STDIO_DISPOSED', 'The session closed.'));
+    try { return await completion; }
+    catch (error) {
+      if (error?.cacheOwnershipPending !== true || ownedCleanupIsPending(error)) throw error;
+      closed = true;
+      return { exitCode: null, signal: null, closed: true, pending: false, failureCode: error?.code || null };
+    }
+  };
   return { ready, request, completion, dispose,
     status: () => ({ connected: !closed && Boolean(writer) && !controller.signal.aborted,
-      pending: pending.size, opening, maxPending, failureCode: failure?.code || null }) };
+      pending: pending.size, opening, maxPending, closurePending: ownedCleanupIsPending(childFailure), failureCode: failure?.code || null }) };
 };

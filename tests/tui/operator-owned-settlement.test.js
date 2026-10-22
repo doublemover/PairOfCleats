@@ -25,7 +25,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
   const scope = { id: 'mcp-scope', configRoot: process.cwd() };
   const owner = createTuiMcpClients({ toolRoot: process.cwd(), requireScope: () => {}, createClient: () => ({
     completion, status: () => ({ connected: !recover }), request: async () => { throw primary; },
-    dispose: async () => { if (!recover) throw cleanup; finish({ exitCode: 1 }); return { exitCode: 1 }; }
+    dispose: async () => { if (!recover) throw cleanup; finish({ exitCode: 1 }); return { exitCode: 1, closed: true, pending: false }; }
   }) });
   await assert.rejects(owner.run({ scope, jobId: 'mcp-owned' }, { signal: new AbortController().signal, env: {},
     onActivity: () => {} }), error => error.code === primary.code && error.cause === primary);
@@ -56,7 +56,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
   await turn();
   assert.equal(owner.status(scope.id)[0].closurePending, true);
   assert.equal(disposed, false);
-  closed.resolve(); await disposing; await rejected;
+  closed.resolve({ closed: true, pending: false }); await disposing; await rejected;
   assert.deepEqual(owner.status(scope.id), [], 'a page arriving during close cannot resurrect a continuation');
 }
 {
@@ -73,7 +73,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
   assert.equal(owner.status(scope.id).filter(entry => entry.closurePending).length, 4);
   await assert.rejects(owner.open(input, {}), { code: 'ERR_TUI_SEMANTIC_ADMISSION' });
   assert.equal(clients.length, 4, 'removing public capabilities cannot evade the process bound during teardown');
-  for (const close of clients) close.resolve();
+  for (const close of clients) close.resolve({ closed: true, pending: false });
   await closing;
   assert.deepEqual(owner.status(scope.id), []);
 }
@@ -84,7 +84,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
   const owner = createTuiSemanticPages({ toolRoot: process.cwd(), requireScope: () => {}, createClient: () => ({
     completion: new Promise(() => {}), status: () => ({ connected: !recovered }),
     request: async () => ({ page: { rows: [] }, hasMore: true }),
-    dispose: async () => { if (!recovered) throw error; }
+    dispose: async () => { if (!recovered) throw error; return { closed: true, pending: false }; }
   }) });
   const first = await owner.open({ scope, commandId: 'semantic.detail', request: { repoRoot: scope.configRoot },
     requestSha256: 'c'.repeat(64) }, {});

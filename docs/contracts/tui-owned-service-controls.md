@@ -19,6 +19,16 @@ one exact scope/kind reservation to its admitted job; rejected admission returns
 only its unbound reservation. Capacity exhaustion cannot first launch a service
 and then fail while registering its control.
 
+API and framed-protocol owners retain the original pending subprocess error.
+Promise rejection is never converted to resource-map removal or a closed result.
+API disposal can reconcile the original exact-handle delayed-close observer;
+failed tree cleanup remains protected. Framed disposal returns closed:true and
+pending:false only after its canonical child owner confirms settlement. MCP and
+semantic continuations require both fields before erasing their resource entries.
+Combined operational/cleanup failures preserve the pending marker and exact
+reconciliation predicates. These are direct-child guarantees, not a descendant
+census; actual Windows containment still requires separate qualification.
+
 The native workflow exposes the picker with `v` from commands/results, refreshes
 with `t`, and preserves opaque service selection through observations. The
 supervisor's typed services/stop-service requests retain strict scope and

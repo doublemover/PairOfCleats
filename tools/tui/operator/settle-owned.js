@@ -8,6 +8,18 @@ export const settleOwnedActions = async actions => {
   if (errors.length > 1) throw combineOwnedErrors(errors[0], errors.slice(1));
 };
 
-export const combineOwnedErrors = (primary, cleanup) => Object.assign(
-  new AggregateError([primary, ...cleanup], 'Owned execution and cleanup did not both complete.', { cause: primary }),
-  { code: primary?.code || 'ERR_TUI_OWNER_CLEANUP' });
+/** Only the original exact-handle observer can reconcile pending cleanup. */
+export const ownedCleanupIsPending = error => {
+  if (error?.cacheOwnershipPending !== true) return false;
+  try { return error.cacheOwnershipReleased?.() !== true; }
+  catch { return true; }
+};
+
+export const combineOwnedErrors = (primary, cleanup) => {
+  const pending = [primary, ...cleanup].filter(error => error?.cacheOwnershipPending === true);
+  return Object.assign(
+    new AggregateError([primary, ...cleanup], 'Owned execution and cleanup did not both complete.', { cause: primary }),
+    { code: primary?.code || 'ERR_TUI_OWNER_CLEANUP',
+      ...(pending.length ? { cacheOwnershipPending: true,
+        cacheOwnershipReleased: () => pending.every(error => !ownedCleanupIsPending(error)) } : {}) });
+};
