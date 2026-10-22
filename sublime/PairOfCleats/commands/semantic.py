@@ -10,7 +10,7 @@ import sublime_plugin
 
 from ..lib import api_client, config, operations, paths, results, runner, ui, service_repository
 from ..lib import semantic_discovery
-from ..lib.source_authority import read_verified_source
+from ..lib.source_authority import read_verified_source, utf16_source_position
 
 _LAST = {}
 LIMITS = {'records': 128, 'bytes': 65536, 'workMs': 250}
@@ -290,19 +290,8 @@ def open_source(window, state, record):
     if (not isinstance(span, list) or len(span) != 2 or any(not isinstance(value, int) or isinstance(value, bool) for value in span)
             or span[0] < 0 or span[1] < span[0]):
         raise ValueError('Record has no exact source span.')
-    encoded = text.encode('utf-16-le')
-    if span[1] * 2 > len(encoded):
-        raise ValueError('Record span exceeds its qualified source.')
-    for offset in span:
-        if encoded[max(0, offset * 2 - 2):offset * 2 + 2] == b'\r\x00\n\x00':
-            raise ValueError('Record boundary intersects a CRLF pair that the host may normalize.')
-    def position(offset):
-        before = encoded[:offset * 2].decode('utf-16-le')
-        line = before.count('\n') + 1
-        column = len(before.rsplit('\n', 1)[-1].encode('utf-16-le')) // 2 + 1
-        return line, column
-    start_line, start_col = position(span[0])
-    end_line, end_col = position(span[1])
+    start_line, start_col = utf16_source_position(text, span[0])
+    end_line, end_col = utf16_source_position(text, span[1])
     results.open_hit(window, {'file': relative, 'sourceHash': source['sourceHash'],
         'startLine': start_line, 'startCol': start_col, 'endLine': end_line, 'endCol': end_col,
         'coordinateUnit': 'utf16'}, root)

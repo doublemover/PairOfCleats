@@ -1,4 +1,5 @@
 import os
+import re
 import time
 
 import sublime
@@ -319,12 +320,16 @@ def resolve_hit_context_query(hit):
 
 
 def qualified_source_buffer(source_text, buffer_text):
-    """Only actually observed BOM removal/CRLF normalization is reversible."""
-    if buffer_text == source_text or buffer_text == source_text.replace('\r\n', '\n'):
-        return {'removedBom': False}
-    if source_text.startswith('\ufeff') and (buffer_text == source_text[1:]
-            or buffer_text == source_text[1:].replace('\r\n', '\n')):
-        return {'removedBom': True}
+    """Only actually observed exact BOM/newline projections are admitted."""
+    bom_options = (False, True) if source_text.startswith('\ufeff') else (False,)
+    for removed_bom in bom_options:
+        text = source_text[1:] if removed_bom else source_text
+        normalized = text.replace('\r\n', '\n')
+        if buffer_text in (text, normalized, normalized.replace('\r', '\n')):
+            return {'removedBom': removed_bom}
+        # Replacing bare CR while retaining CRLF is also an exact observed form.
+        if buffer_text == re.sub(r'\r(?!\n)', '\n', text):
+            return {'removedBom': removed_bom}
     return None
 
 

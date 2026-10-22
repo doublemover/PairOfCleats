@@ -1,9 +1,8 @@
 """Saved-source native adapter for the canonical tooling navigate owner."""
-import hashlib
-
 import sublime
 
 from . import config, operations, paths, results, runner, ui
+from .source_authority import read_current_source, read_verified_source
 
 _QUALIFIED_NAVIGATION = {}
 
@@ -17,12 +16,10 @@ def qualified_navigation_evidence(window, repo_root):
             or not list(view.sel()) or view.sel()[0].begin() != captured['point']):
         return None
     try:
-        with open(captured['file'], 'rb') as handle:
-            raw = handle.read(4194305)
-        if (len(raw) > 4194304 or hashlib.sha256(raw).hexdigest() != captured['payload'].get('sourceHash')
-                or results.qualified_source_buffer(raw.decode('utf-8'), view.substr(sublime.Region(0, view.size()))) is None):
+        source = read_verified_source(repo_root, captured['file'], captured['payload'].get('sourceHash'))
+        if results.qualified_source_buffer(source['sourceText'], view.substr(sublime.Region(0, view.size()))) is None:
             return None
-    except (OSError, UnicodeError):
+    except (ValueError, OSError, UnicodeError):
         return None
     return captured['payload']
 
@@ -58,14 +55,10 @@ def execute_qualified_navigation(view, query, kind, on_hits, limit, title, inclu
         failed('PairOfCleats settings need attention:\n- ' + '\n- '.join(errors))
         return
     try:
-        with open(file_name, 'rb') as handle:
-            raw = handle.read(4 * 1024 * 1024 + 1)
-        disk = raw.decode('utf-8')
-    except (OSError, UnicodeError) as error:
+        source = read_current_source(repo_root, file_name)
+        disk = source['sourceText']
+    except (ValueError, OSError, UnicodeError) as error:
         failed('PairOfCleats: source bytes could not be qualified: ' + str(error))
-        return
-    if len(raw) > 4 * 1024 * 1024:
-        failed('PairOfCleats: source exceeds the bounded navigation verifier.')
         return
     text = view.substr(sublime.Region(0, view.size()))
     normalization = results.qualified_source_buffer(disk, text)
@@ -82,7 +75,7 @@ def execute_qualified_navigation(view, query, kind, on_hits, limit, title, inclu
     column = len(prefix.encode('utf-16-le')) // 2
     if row == 0 and normalization['removedBom']:
         column += 1
-    source_hash = hashlib.sha256(raw).hexdigest()
+    source_hash = source['sourceHash']
     version = str(view.change_count())
     args = ['tooling', 'navigate', '--json', '--repo', repo_root, '--kind', kind,
             '--top', str(limit), '--file', file_name, '--symbol', query,
