@@ -2,6 +2,7 @@ import fsSync from 'node:fs';
 import { createLruCache } from '../shared/cache/lru.js';
 import { incCacheEviction, setCacheSize } from '../shared/metrics/core.js';
 import { stableStringifyForSignature } from '../shared/stable-json.js';
+import { createSqliteCacheCloseOwner } from './sqlite-cache-close-owner.js';
 
 const DEFAULT_SQLITE_CACHE_MAX_ENTRIES = 4;
 const DEFAULT_SQLITE_CACHE_TTL_MS = 15 * 60 * 1000;
@@ -37,13 +38,15 @@ export function createSqliteDbCache({
 } = {}) {
   let disposed = false;
   let cleanupErrors = null;
+  const retiredEntries = new Set(), deferredErrors = new Set();
   const attemptCleanup = (action) => {
     try {
       action();
     } catch (error) {
       // LRU callbacks must finish so one failed close cannot interrupt eviction.
       // Explicit cleanup operations report failures after attempting every entry.
-      cleanupErrors?.push(error);
+      if (cleanupErrors) cleanupErrors.push(error);
+      else deferredErrors.add(error);
     }
   };
   const withCleanupErrors = (action) => {
@@ -57,12 +60,23 @@ export function createSqliteDbCache({
     } finally {
       cleanupErrors = previousErrors;
     }
-    if (errors.length) throw new AggregateError(errors, 'Failed to close SQLite cache handles.');
+    errors.push(...deferredErrors); deferredErrors.clear();
+    for (const entry of retiredEntries) {
+      if (entry.owner.lastError && !entry.owner.isSettled()) errors.push(entry.owner.lastError);
+    }
+    if (errors.length) {
+      const unique = [...new Set(errors)], owners = [...new Set([...retiredEntries].map(entry => entry.owner))];
+      const failure = new AggregateError(unique, 'Failed to close SQLite cache handles.', { cause: unique[0] });
+      Object.defineProperties(failure, { sqliteCacheOwners: { value: Object.freeze(owners) },
+        cacheOwnershipPending: { get: () => owners.some(owner => !owner.isSettled()) },
+        cacheOwnershipReleased: { value: () => owners.every(owner => owner.isSettled()) } });
+      throw failure;
+    }
   };
   const closeRetiredEntry = (entry) => {
     if (!entry || !entry.retired || entry.refs || entry.closed) return;
-    entry.closed = true;
-    attemptCleanup(() => entry.db?.close?.());
+    retiredEntries.add(entry);
+    attemptCleanup(() => entry.owner.retire());
   };
   const createLease = (entry) => {
     entry.refs += 1;
@@ -70,7 +84,10 @@ export function createSqliteDbCache({
     return {
       db: entry.db,
       release() {
-        if (released) return;
+        if (released) {
+          if (entry.owner.lastError && !entry.owner.isSettled()) withCleanupErrors(() => {});
+          return;
+        }
         released = true;
         withCleanupErrors(() => {
           entry.refs -= 1;
@@ -85,6 +102,7 @@ export function createSqliteDbCache({
     ttlMs,
     onEvict: ({ key, value, reason }) => {
       value.retired = true;
+      retiredEntries.add(value);
       closeRetiredEntry(value);
       if (typeof onEvict === 'function') {
         attemptCleanup(() => onEvict({ key, entry: value, reason }));
@@ -116,15 +134,15 @@ export function createSqliteDbCache({
     const entry = getEntry(dbPath, options);
     return entry ? createLease(entry) : null;
   };
-  const makeEntry = (dbPath, db, options) => ({
-    db,
-    dbPath,
-    generationTag: normalizeGenerationTag(options.generationTag),
-    signature: fileSignature(dbPath),
-    refs: 0,
-    retired: disposed || !cacheHandle.cache,
-    closed: false
-  });
+  const makeEntry = (dbPath, db, options) => {
+    const entry = { db, dbPath, generationTag: normalizeGenerationTag(options.generationTag),
+      signature: fileSignature(dbPath), refs: 0, retired: disposed || !cacheHandle.cache, closed: false };
+    entry.owner = createSqliteCacheCloseOwner(db, {
+      canClose: () => entry.retired && entry.refs === 0,
+      onClosed: () => { entry.closed = true; retiredEntries.delete(entry); }
+    });
+    return entry;
+  };
   const insertEntry = (entry) => {
     const { dbPath, generationTag } = entry;
     const cacheKey = buildCacheKey(dbPath, generationTag);
@@ -159,7 +177,6 @@ export function createSqliteDbCache({
 
   const closeAll = () => withCleanupErrors(() => cacheHandle.clear());
   const dispose = () => {
-    if (disposed) return;
     disposed = true;
     closeAll();
   };
@@ -172,6 +189,7 @@ export function createSqliteDbCache({
     close,
     closeAll,
     dispose,
+    pendingOwners: () => Object.freeze([...retiredEntries].map(entry => entry.owner)),
     size: cacheHandle.size
   };
 }
