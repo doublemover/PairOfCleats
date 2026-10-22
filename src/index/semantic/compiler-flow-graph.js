@@ -1,15 +1,57 @@
 import { throwIfAborted } from '../../shared/abort.js';
 import { compilerOperationDependencies } from './compiler-operation-dependencies.js';
 /** Structured intraprocedural CFG. Nodes are syntax anchors, not runtime executions. */
-export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, signal }) => {
+export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, signal, constructionLimits = null }) => {
   const blocks = [], reasons = new Set();
+  const maxBytes = Math.max(1, constructionLimits?.maxBytes ?? 16 * 1024 * 1024);
+  const maxBlocks = Math.max(1, constructionLimits?.maxBlocks ?? Math.min(32768, Math.floor(maxBytes / 512)));
+  const maxWork = Math.max(1, constructionLimits?.maxWork ?? maxBlocks * 32);
+  const constructionStop = new Error('Compiler CFG construction budget exhausted.');
+  const stats = { createdBlocks: 0, constructionWork: 0, admittedBytes: 0, finalizerVariants: 0, finalizerMemoHits: 0 };
+  const admit = (bytes = 0) => {
+    throwIfAborted(signal);
+    stats.constructionWork++; stats.admittedBytes += bytes;
+    if (stats.constructionWork > maxWork || stats.admittedBytes > maxBytes) throw constructionStop;
+  };
   let sequence = 0;
   const add = (node, event = null, kind = 'normal') => {
+    admit(512);
+    if (blocks.length >= maxBlocks) throw constructionStop;
     const block = { key: String(sequence++).padStart(10, '0'), node, site: expressionFor(node) || expressionFor(owner), event, kind, successors: [] };
-    blocks.push(block); return block;
+    blocks.push(block); stats.createdBlocks++; return block;
   };
-  const link = (from, to, kind = 'controlNext', condition = null) => { if (to) from.successors.push({ to, kind, condition }); };
-  const exit = add(owner, null, 'exit'), exception = add(owner, null, 'exception');
+  const link = (from, to, kind = 'controlNext', condition = null) => { if (to) { admit(48); from.successors.push({ to, kind, condition }); } };
+  // Terminals are always available; budgets apply before the first source node.
+  const terminal = kind => ({ key: String(sequence++).padStart(10, '0'), node: owner, site: expressionFor(owner), event: null, kind, successors: [] });
+  const exit = terminal('exit'), exception = terminal('exception');
+  blocks.push(exit, exception); stats.createdBlocks = 2;
+  const finalizerMemo = new WeakMap(), abruptMemo = new WeakMap();
+  const abruptKinds = root => {
+    if (!root) return new Set();
+    if (abruptMemo.has(root)) return abruptMemo.get(root);
+    const kinds = new Set(), pending = [root];
+    while (pending.length) {
+      admit();
+      const node = pending.pop();
+      if (ts.isFunctionLike(node)) continue;
+      if (ts.isReturnStatement(node)) kinds.add('return');
+      if (ts.isBreakStatement(node)) kinds.add('break');
+      if (ts.isContinueStatement(node)) kinds.add('continue');
+      ts.forEachChild(node, child => { pending.push(child); });
+    }
+    abruptMemo.set(root, kinds); return kinds;
+  };
+  const finalizer = (node, target, context) => {
+    if (!node) return target;
+    let memo = finalizerMemo.get(node);
+    if (!memo) { memo = new Map(); finalizerMemo.set(node, memo); }
+    const key = JSON.stringify([target?.key, context.return?.key, context.exception?.key, context.break?.key, context.continue?.key,
+      [...context.labels].map(([name, destinations]) => [name, destinations.break?.key, destinations.continue?.key]), context.iterationLabels]);
+    if (memo.has(key)) { stats.finalizerMemoHits++; return memo.get(key); }
+    admit(Buffer.byteLength(key) + 64); stats.finalizerVariants++;
+    const entry = statement(node, target, context);
+    memo.set(key, entry); return entry;
+  };
   const anchor = node => expressionFor(node) || null;
   const children = node => { const result = []; ts.forEachChild(node, child => { result.push(child); }); return result; };
   const lexicalRead = node => {
@@ -52,7 +94,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
   };
   const expression = (node, next, context) => {
     if (!node) return next;
-    throwIfAborted(signal);
+    admit();
     if (ts.isClassExpression(node)) return classDefinition(node, next, context);
     if (ts.isFunctionLike(node)) {
       const creation=eventBlock(node,{kind:'creation'},next,context);
@@ -170,7 +212,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     return expression(heritage?.expression, head, context);
   };
   const statement = (node, next, context) => {
-    throwIfAborted(signal);
+    admit();
     if (!node) return next;
     if (ts.isBlock(node) || ts.isSourceFile(node)) return list(node.statements, next, context);
     if (ts.isVariableStatement(node)) return declarations(node.declarationList, next, context);
@@ -248,14 +290,16 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     if (ts.isTryStatement(node)) {
       if (node.finallyBlock) reasons.add('finally_completion_alternatives_conservative');
       // Separate finally routes retain abrupt destinations without merging them into normal flow.
-      const wrap = target => node.finallyBlock ? statement(node.finallyBlock, target, context) : target;
-      const normal = wrap(next), returned = wrap(context.return), thrown = wrap(context.exception);
+      const wrap = target => finalizer(node.finallyBlock, target, context);
+      const abrupt = new Set([...abruptKinds(node.tryBlock), ...abruptKinds(node.catchClause?.block)]);
+      const normal = wrap(next), returned = abrupt.has('return') ? wrap(context.return) : context.return, thrown = wrap(context.exception);
       const labels = new Map([...context.labels].map(([name, targets]) => [name, {
-        break: targets.break ? wrap(targets.break) : null,
-        continue: targets.continue ? wrap(targets.continue) : null
+        break: targets.break ? abrupt.has('break') ? wrap(targets.break) : targets.break : null,
+        continue: targets.continue ? abrupt.has('continue') ? wrap(targets.continue) : targets.continue : null
       }]));
       const inner = { ...context, return: returned, exception: thrown, labels,
-        break: context.break ? wrap(context.break) : null, continue: context.continue ? wrap(context.continue) : null };
+        break: context.break ? abrupt.has('break') ? wrap(context.break) : context.break : null,
+        continue: context.continue ? abrupt.has('continue') ? wrap(context.continue) : context.continue : null };
       if (node.catchClause) {
         // Catch-body and binding failures go through finally toward the outer
         // exception route; they must never re-enter the same catch handler.
@@ -276,6 +320,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     reasons.add('unsupported_statement:' + ts.SyntaxKind[node.kind]);
     return expression(node, next, context);
   };
+  try {
   const context = { return: exit, exception, break: null, continue: null, labels: new Map(), iterationLabels: [] };
   let head = ts.isSourceFile(owner) ? statement(owner, exit, context)
     : ts.isBlock(owner.body) ? statement(owner.body, exit, context)
@@ -292,5 +337,12 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     } else head = present;
   }
   const entry = add(owner, null, 'entry'); link(entry, head);
-  return { blocks, entry, exit, exception, reasons };
+  return { blocks, entry, exit, exception, reasons, stats, truncated: false };
+  } catch (error) {
+    if (error !== constructionStop) throw error;
+    reasons.add('cfg_construction_work_or_byte_budget');
+    // Discard the incomplete route graph. Its source owner remains unknown;
+    // admitting a partial clone graph would invent completion destinations.
+    return { blocks: [], entry: null, exit: null, exception: null, reasons, stats, truncated: true };
+  }
 };

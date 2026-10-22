@@ -1,11 +1,11 @@
 import { canonicalSemanticJson } from './identity.js';
 import { collectCompilerCrossFileFlow } from './compiler-cross-file-flow.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { createProviderAliasClosureResolver } from './provider-alias-closure.js';
 
 const key = canonicalSemanticJson;
 const MAX_EDGES = 4096;
 const MAX_TARGETS = 32;
-const MAX_ALIAS_DEPTH = 8;
 const DECLARATIONS = new Set(['declaration', 'externalDeclaration']);
 
 /** Validated provider candidates and directional declaration aliases can reach
@@ -47,29 +47,18 @@ export const joinProviderCallSummaries = async ({ group, output, store, state, p
     aliases.get(from).push(edge.to);
   }
   const bySite = new Map();
-  let work = 32768;
+  const closures = createProviderAliasClosureResolver({ aliases, known, signal });
   for (const edge of pending) {
     throwIfAborted(signal);
     const site = key({ site: edge.callSite, kind: edge.kind });
     if (!bySite.has(site)) bySite.set(site, new Map());
-    const targets = bySite.get(site), queue = [{ ref: edge.to, depth: 0 }], seen = new Set();
-    for (let offset = 0; offset < queue.length; offset += 1) {
-      if (--work < 0) { truncated = true; break; }
-      const { ref, depth } = queue[offset], id = key(ref);
-      if (seen.has(id)) continue;
-      seen.add(id);
-      if (known.has(id)) {
-        if (targets.size < MAX_TARGETS || targets.has(id)) targets.set(id, ref);
-        else truncated = true;
-      }
-      const next = aliases.get(id) || [];
-      if (depth >= MAX_ALIAS_DEPTH) { if (next.length) truncated = true; continue; }
-      for (const candidate of next) {
-        if (queue.length >= 256) { truncated = true; break; }
-        queue.push({ ref: candidate, depth: depth + 1 });
-      }
+    const targets = bySite.get(site), closure = closures.resolve(edge.to);
+    if (closure.truncated) truncated = true;
+    for (const ref of closure.targets) {
+      const id = key(ref);
+      if (targets.size < MAX_TARGETS || targets.has(id)) targets.set(id, ref);
+      else truncated = true;
     }
-    if (work < 0) break;
   }
   let changed = false;
   const flowDocuments = group.flowDocuments.map(doc => ({ ...doc, calls: doc.calls.map(call => {

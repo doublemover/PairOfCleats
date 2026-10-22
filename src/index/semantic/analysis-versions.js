@@ -11,8 +11,8 @@ export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   repoMapProducer: '2',
   sourceChunking: '5', typeNormalization: '2', vfsRouting: '2', complexityAnalysis: '2',
   riskPropagation: '3', callSiteIdentity: '2',
-  compilerBindings: '10', lspBindings: '14', cfgFlow: '15', callFlow: '15',
-  valueSlice: '5', storageFlow: '2', workerFlow: '6', boundaryFlow: '8', wasmFlow: '5', nativeFlow: '1'
+  compilerBindings: '10', lspBindings: '14', cfgFlow: '16', callFlow: '16',
+  valueSlice: '5', storageFlow: '2', workerFlow: '7', boundaryFlow: '8', wasmFlow: '5', nativeFlow: '1'
 });
 // Static WASM validation is supplied by this runtime, so derived replay must
 // not reuse a partition validated by a different engine version.
@@ -22,10 +22,15 @@ export const SEMANTIC_OWNERSHIP_PRODUCER_HASH = semanticHash('semantic.ownership
   version: Number(SEMANTIC_OWNERSHIP_VERSION)
 });
 
+// CFG construction admission changes meaning when the queue-byte policy changes.
+export const resolveCfgConstructionMaxBytes = policy =>
+  Math.min(16 * 1024 * 1024, policy.storage?.maxQueuedBytes ?? 16 * 1024 * 1024);
+
 export const semanticAnalysisPolicyIdentity = (policy, versions = SEMANTIC_ANALYSIS_VERSIONS) =>
   semanticHash('semantic.analysis-policy.v2', {
     enrichment: policy.enrichment, targets: policy.targets || [], producers: versions,
     wasmValidatorRuntime: WASM_VALIDATOR_RUNTIME,
+    cfgConstructionMaxBytes: resolveCfgConstructionMaxBytes(policy),
     overrides: (policy.overrides || []).filter(rule => rule.set?.enrichment).map(rule => ({
       match: rule.match, enrichment: rule.set.enrichment
     }))

@@ -1,4 +1,4 @@
-import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
+import { SEMANTIC_ANALYSIS_VERSIONS, resolveCfgConstructionMaxBytes } from './analysis-versions.js';
 import { propertyPathsOverlap } from './compiler-property-paths.js';
 import { compilerCallAdapter } from './compiler-call-adapter.js';
 import { compilerRuntimeParameters, compilerInvocationInputs } from './compiler-invocation.js';
@@ -13,9 +13,10 @@ import { throwIfAborted } from '../../shared/abort.js';
 export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourceFile, nodes, expressionFor, declarationFor,
   source, bytes, bindingPartition, context, root, policy, diskAccount, signal }) => {
   if (['off', 'deferred'].includes(policy.enrichment.localFlow)) return null;
+  const constructionMaxBytes = resolveCfgConstructionMaxBytes(policy);
   const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-cfg-flow', version: SEMANTIC_ANALYSIS_VERSIONS.cfgFlow },
     inputPartitionHashes: [bindingPartition.canonicalHash], compilerContext: context, dependencySummaryHashes: [],
-    analysisPolicy: { maxSccIterations: policy.enrichment.maxSccIterations, version: Number(SEMANTIC_ANALYSIS_VERSIONS.cfgFlow), fieldPathDepth: policy.enrichment.fieldPathDepth } });
+    analysisPolicy: { maxSccIterations: policy.enrichment.maxSccIterations, version: Number(SEMANTIC_ANALYSIS_VERSIONS.cfgFlow), fieldPathDepth: policy.enrichment.fieldPathDepth, constructionMaxBytes } });
   const local = key => ({ local: key }), ledger = new Map(), edges = [], operands = [], allReasons = new Set(), summaries = [], fieldAccesses = [], aliases = [], callEffects = [];
   const orderedAccesses = new Set(), orderedOperations = new Set();
   const add = (key, kind, node, data) => {
@@ -38,8 +39,14 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
     const ownerRef = expressionFor(owner);
     if (!ownerRef) { allReasons.add('missing_function_syntax_anchor'); continue; }
     const prefix = owner.getStart(sourceFile) + ':' + owner.end + ':' + ts.SyntaxKind[owner.kind];
-    const graph = buildCompilerFlowGraph({ ts, owner, sourceFile, expressionFor, signal });
+    const graph = buildCompilerFlowGraph({ ts, owner, sourceFile, expressionFor, signal,
+      constructionLimits: { maxBytes: constructionMaxBytes } });
     for (const reason of graph.reasons) reasons.add(reason);
+    if (graph.truncated) {
+      totalBlocks += graph.stats.createdBlocks;
+      for (const reason of reasons) allReasons.add(reason);
+      continue;
+    }
     const reachable = new Set(), pending = [graph.entry], predecessors = new Map();
     while (pending.length) {
       const block = pending.pop(); if (reachable.has(block)) continue; reachable.add(block);
@@ -371,7 +378,7 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
   rows.push({ family: 'coverage', row: coverage });
   const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: root, source, sourceBytes: bytes, partitionId,
     producerHash: semanticHash('semantic.cfg-producer.v1', { version: Number(SEMANTIC_ANALYSIS_VERSIONS.cfgFlow) }), contextHash: context.contextKey,
-    policyHash: semanticHash('semantic.cfg-policy.v1', { maxSccIterations: policy.enrichment.maxSccIterations, fieldPathDepth: policy.enrichment.fieldPathDepth }), diskAccount, signal });
+    policyHash: semanticHash('semantic.cfg-policy.v1', { maxSccIterations: policy.enrichment.maxSccIterations, fieldPathDepth: policy.enrichment.fieldPathDepth, constructionMaxBytes }), diskAccount, signal });
   return { partition, coverage: [coverage], edges: unique.map(([, row]) => row), fieldAccesses, aliases, orderedAccesses, orderedOperations,
     callEffects: expand(callEffects), summaries: summaries.map(summary => ({ ...summary, returns: expand(summary.returns), exceptions: expand(summary.exceptions), effects: expand(summary.effects), parameterFields: expand(summary.parameterFields) })) };
 };

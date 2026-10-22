@@ -22,3 +22,26 @@ target; finalizer routing still owns abrupt completion. These compiler and LSP
 meaning changes require their shared analysis-version increments before replay
 reuse. Regression sources are development assertions; this document does not
 claim native/provider qualification.
+
+Immutable join work is session/group owned. LSP sessions index normalized paths,
+full parent/segment/range identities and declaration intervals once, and compute
+one source-inventory digest. A declaration lookup distinguishes unique from
+multiple containment; it never resolves ambiguity by choosing the nearest span.
+Provider alias joins memoize validated directional closures with explicit depth,
+queue, target, traversal-work and retained-byte bounds. Replaying a cached partial
+closure preserves its truncation and does not establish complete dispatch.
+
+Dispatch caches retain immutable member/accessor/class structure with reason
+metadata, while each call keeps its own mutable assignment, recursion and target
+budget. Finalizer CFG nodes may be shared only with equal pending completion
+contexts and exact destinations. Construction uses bounded work and an estimated
+byte admission tied to the existing queued-byte policy; an exhausted owner graph
+is discarded and local-flow coverage remains partial. No incomplete graph is
+solved as if its completion routes were complete.
+
+Worker message joins index exact worker sources and canonical opposite channel
+endpoints. Received endpoint roots subscribe dependent consumers/sends; only
+changed roots and newly available peers trigger another bounded propagation wave.
+Overflow uses an explicit bounded conservative fallback. All emitted worker edges
+remain source candidates, with runtime delivery/instance/detachment uncertainty.
+These changes describe operation structure, not measured end-to-end speedups.

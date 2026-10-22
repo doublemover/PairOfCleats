@@ -17,13 +17,15 @@ import { getLspLineIndex } from '../../integrations/tooling/lsp/positions.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { nativeExecutionAuthority } from './native-execution-context.js';
 import { readVerifiedContainedFile } from '../../shared/contained-file.js';
-const keyPath = file => { const value = path.resolve(file); return process.platform === 'win32' ? value.toLowerCase() : value; };
+import { createLspSourceIndex } from './lsp-source-index.js';
 const refKey = ref => canonicalSemanticJson(ref);
 /** One build-owned LSP lane; this owns no server, Program, or request scheduler. */
 export const createSemanticLspSession = async ({ state, runtime, signal = null, languages = null, eagerOnly = false }) => {
   const inventory = new Map(), byUri = new Map(), texts = new Map(), emitted = [], contexts = new Map(), completed = new Set();
   const policy = runtime.semanticPolicy;
   const nativeAuthority = nativeExecutionAuthority(state);
+  const sourcePaths = new Map();
+  for (const [file, facts] of state.semanticFactsByFile || []) if (!sourcePaths.has(facts.sourceUnitId)) sourcePaths.set(facts.sourceUnitId, file);
   state.semanticEvidenceArtifacts ||= [];
   for (const [file, facts] of state.semanticFactsByFile || []) {
     throwIfAborted(signal);
@@ -65,22 +67,15 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
       sourceMap = JSON.parse(mapBytes.toString('utf8'));
       if (semanticHash('semantic.embedded-map.v1', sourceMap) !== source.mapping.identity || sourceMap.parentSourceUnitId !== source.mapping.parentSourceUnitId || sourceMap.localEnd !== source.textLength) throw new Error('Embedded map identity mismatch.');
     }
-    const sourcePath = source.mapping ? [...state.semanticFactsByFile].find(([, parent]) => parent.sourceUnitId === source.mapping.parentSourceUnitId)?.[0] || source.path : source.path;
+    const sourcePath = source.mapping ? sourcePaths.get(source.mapping.parentSourceUnitId) || source.path : source.path;
     const sourcePolicy = resolveSemanticSourcePolicy(policy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, language: source.language, path: sourcePath });
     const plan = state.semanticPlanningBySource?.get(source.sourceUnitId) || planSemanticSource(sourcePolicy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, syntaxPartitionId: syntax.partitionId });
     const item = { sourceMap, policy: sourcePolicy, plan, invocationFor, unresolvedCount, file, facts, root, store, syntax, source, text, bytes, declarations, resolved };
     inventory.set(source.sourceUnitId, item);
     if (!source.mapping) { texts.set(source.path, text); byUri.set(pathToFileURL(path.join(runtime.root, source.path)).href, item); }
   }
-  const itemForDoc = doc => {
-    if (doc.semanticSourceUnitId && !doc.segmentUid) { const item = inventory.get(doc.semanticSourceUnitId); if (!item?.source.mapping) return item; }
-    const container = keyPath(path.resolve(runtime.root, doc.containerPath || doc.virtualPath));
-    if (doc.segmentUid) return [...inventory.values()].find(item => {
-      const parent = inventory.get(item.source.mapping?.parentSourceUnitId);
-      return parent && item.sourceMap?.segmentUid === doc.segmentUid && keyPath(path.resolve(runtime.root, parent.source.path)) === container && item.sourceMap?.parentStart === doc.segmentRange?.start && item.sourceMap?.parentEnd === doc.segmentRange?.end && item.text === doc.text;
-    });
-    return [...inventory.values()].find(item => !item.source.mapping && keyPath(path.resolve(runtime.root, item.source.path)) === container);
-  };
+  const sourceIndex = createLspSourceIndex({ inventory, repoRoot: runtime.root });
+  const itemForDoc = sourceIndex.itemForDocument;
   const api = {
     get enabled() { return inventory.size > 0; }, get hasTargetedWork() { return [...inventory.values()].some(item => item.unresolvedCount > 0); }, fileTextByFile: texts,
     setSignal(value) { signal = value; },
@@ -142,7 +137,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
       const context = { providerId, providerVersion, compilerVersion: null,
         configHash: semanticHash('semantic.lsp-config.v1', { providerId, providerVersion, workspaceKey, positionEncoding,
           ...(nativeAuthority ? { nativeAuthorityHash: nativeAuthority.authorityHash } : {}) }),
-        moduleResolutionHash: semanticHash('semantic.lsp-sources.v1', [...inventory.values()].map(value => ({ sourceUnitId: value.source.sourceUnitId, byteHash: value.source.byteHash })).sort((a,b) => a.sourceUnitId.localeCompare(b.sourceUnitId))),
+        moduleResolutionHash: sourceIndex.digest,
         vfsMappingHash: semanticHash('semantic.lsp-mapping.v1', { uri, mapping: item.source.mapping }) };
       context.contextKey = semanticHash('semantic.lsp-context.v1', context);
       context.sourceUnits = [{ sourceUnitId: item.source.sourceUnitId, byteHash: item.source.byteHash }];
@@ -167,11 +162,11 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
         const candidates = [], exact = [];
         for (const location of normalizeLspLocations(response.payload)) {
           let mapped = byUri.get(location.uri);
-          if (!mapped && location.uri?.startsWith('file:')) { try { const file = keyPath(fileURLToPath(location.uri)); mapped = [...inventory.values()].find(value => !value.source.mapping && keyPath(path.join(runtime.root, value.source.path)) === file); } catch { /* Not a recognized source URI. */ } }
+          if (!mapped && location.uri?.startsWith('file:')) { try { mapped = sourceIndex.itemForPath(fileURLToPath(location.uri)); } catch { /* Not a recognized source URI. */ } }
           const span = mapped ? exactLspRange(mapped.source, mapped.text, location.range, positionEncoding) : null;
           const originSpan = location.originRange ? exactLspRange(item.source, item.text, location.originRange, positionEncoding) : target.span;
           const origin = originSpan && originSpan[0] <= target.span[0] && originSpan[1] >= target.span[1];
-          const declarations = span && origin ? mapped.declarations.filter(value => value.span[0] <= span[0] && value.span[1] >= span[1]) : [];
+          const declarations = span && origin ? sourceIndex.containingDeclarations(mapped, span) : [];
           if (declarations.length === 1 && mapped.source.mapping?.quality !== 'coarse' && mapped.source.mapping?.quality !== 'synthetic') { candidates.push(declarations[0].ref); exact.push(declarations[0].ref); }
           else if (typeof location.uri === 'string' && location.uri.length) {
             const external = ref(nextId++); candidates.push(external);

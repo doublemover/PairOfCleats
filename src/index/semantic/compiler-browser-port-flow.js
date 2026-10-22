@@ -6,6 +6,13 @@ import { throwIfAborted } from '../../shared/abort.js';
  */
 export const createBrowserPortFlow = ({ documents, ledgers, platformType, signal }) => {
   const received = new Map(documents.map(doc => [doc, new Map()]));
+  const roots = new Map(documents.map(doc => [doc, new Map()])), changedRoots = new Set();
+  let captured = null;
+  const rootFor = (doc, symbol) => {
+    const table = roots.get(doc);
+    if (!table.has(symbol)) table.set(symbol, { doc, symbol, revision: 0 });
+    return table.get(symbol);
+  };
   let work = 100000;
   const budget = doc => {
     throwIfAborted(signal);
@@ -24,7 +31,9 @@ export const createBrowserPortFlow = ({ documents, ledgers, platformType, signal
       parts.unshift(key.text); node = node.expression;
     }
     if (!node || !ts.isIdentifier(node)) return null;
-    const ports = received.get(doc).get(checker.getSymbolAtLocation(node))?.get(JSON.stringify(parts));
+    const symbol = checker.getSymbolAtLocation(node);
+    if (symbol && captured) captured.add(rootFor(doc, symbol));
+    const ports = received.get(doc).get(symbol)?.get(JSON.stringify(parts));
     return ports?.length ? { ports } : null;
   };
   const bind = (doc, root, parts, ports) => {
@@ -36,7 +45,9 @@ export const createBrowserPortFlow = ({ documents, ledgers, platformType, signal
       if (old.length >= 32) { ledgers.get(doc).reasons.add('browser_port_candidate_budget'); break; }
       old.push(port); changed = true;
     }
-    paths.set(key, old); return changed;
+    paths.set(key, old);
+    if (changed) { const token = rootFor(doc, root); token.revision++; changedRoots.add(token); }
+    return changed;
   };
   const properties = (doc, node) => {
     if (!node || !doc.ts.isObjectLiteralExpression(node)) return null;
@@ -106,5 +117,9 @@ export const createBrowserPortFlow = ({ documents, ledgers, platformType, signal
     }
     return result;
   };
-  return { read, candidates, same, budget, transferred, bind };
+  return { read, candidates, same, budget, transferred, bind,
+    capture(fn) { const previous = captured, dependencies = new Set(); captured = dependencies;
+      try { const value = fn(); return { value, dependencies, revisions: new Map([...dependencies].map(root => [root, root.revision])) }; } finally { captured = previous; } },
+    drainChangedRoots() { const result = [...changedRoots]; changedRoots.clear(); return result; }
+  };
 };
