@@ -66,6 +66,9 @@ export const mergeSemanticProviderOutput = async ({ output, state, runtime, sign
     await validateSemanticPartitions({ store, partitions: added, referencePartitions: references, signal });
     const coverage = [...current.coverage];
     for (const partition of added) {
+      for await (const record of store.iterateRows(partition.partitionId, 'semantic_records', { signal })) {
+        if (['scope', 'declaration', 'occurrence', 'statement', 'expression', 'literal'].includes(record.kind)) throw fail('Provider syntax must be admitted by the parser stage.');
+      }
       for await (const source of store.iterateRows(partition.partitionId, 'semantic_sources', { signal })) {
         if (source.byteHash !== current.sourceHash || source.repositoryNamespace !== current.repositoryNamespace) throw fail('Persisted provider source differs from admitted source.');
       }

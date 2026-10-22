@@ -232,6 +232,11 @@ export const normalizeServerConfig = (server, index) => {
   );
   return {
     id,
+    profileContractVersion: preset?.profileContractVersion || null,
+    exclusiveLanguageGroup: preset?.exclusiveLanguageGroup || null,
+    replacesProviderIds: Array.isArray(preset?.replacesProviderIds) ? [...preset.replacesProviderIds] : [],
+    requiresWorkspaceExecution: preset?.requiresWorkspaceExecution === true,
+    signatureProfile: preset?.signatureProfile || null,
     providerId,
     cmd,
     args,
@@ -361,6 +366,7 @@ export const collectAutoPresetServers = (toolingConfig, configuredServerIds) => 
   const enabledSet = hasEnabledAllowlist ? new Set(enabledTools) : null;
   const autoServers = [];
   for (const preset of listLspServerPresets()) {
+    if (preset.explicitOnly === true) continue;
     const serverId = normalizeServerId(preset.id, preset.id);
     if (!serverId) continue;
     if (configuredServerIds.has(serverId)) continue;

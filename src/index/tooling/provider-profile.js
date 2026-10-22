@@ -84,6 +84,11 @@ export const observeProviderProfile = async ({ providerId, adapterVersion, contr
   if (expectedToolHash !== null && !digest(expectedToolHash)) throw fail('Invalid expected tool identity.');
   const reasons = [];
   if (!tool.length) reasons.push('tool_bytes_unobserved');
+  let resolvedExecutable = null;
+  if (path.isAbsolute(resolved[0])) {
+    try { resolvedExecutable = await fs.realpath(resolved[0]); } catch { /* Incomplete identity remains non-durable. */ }
+  }
+  if (!resolvedExecutable || !tool.some(entry => path.resolve(entry.path) === path.resolve(resolvedExecutable))) reasons.push('resolved_executable_unobserved');
   if (dependencyClosure !== 'complete') reasons.push('read_dependency_closure_unknown');
   if (expectedToolHash !== null && expectedToolHash !== toolHash) reasons.push('install_runtime_identity_mismatch');
   if (!['explicit', 'managed', 'ambient-fallback'].includes(selection)) throw fail('Unknown tool selection source.');

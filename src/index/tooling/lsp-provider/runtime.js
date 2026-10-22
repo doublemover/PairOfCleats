@@ -19,6 +19,7 @@ import { parseHaskellSignature } from '../signature-parse/haskell.js';
 import { parseLuaSignature } from '../signature-parse/lua.js';
 import { parsePythonSignature } from '../signature-parse/python.js';
 import { parseRubySignature } from '../signature-parse/ruby.js';
+import { parseRubyLspSignature } from '../signature-parse/ruby-lsp.js';
 import { parseRustSignature } from '../signature-parse/rust.js';
 import { parseSwiftSignature } from '../signature-parse/swift.js';
 import { parseZigSignature } from '../signature-parse/zig.js';
@@ -477,7 +478,7 @@ export const collectConfiguredOutput = async ({
         cmd: resolvedCmd,
         collectTypes: shouldCollectTypesForRequestedKinds(requestedKinds),
         args: resolvedArgs,
-        parseSignature: parseGenericSignature,
+        parseSignature: server.signatureProfile === 'ruby-lsp' ? parseRubyLspSignature : parseGenericSignature,
         strict: ctx?.strict !== false,
         vfsRoot: ctx?.buildRoot || ctx.repoRoot,
         uriScheme: server.uriScheme || 'file',

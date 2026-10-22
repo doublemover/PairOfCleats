@@ -75,6 +75,9 @@ export const createConfiguredLspProvider = (server) => {
     version: server.version || '1.0.0',
     priority: Number.isFinite(server.priority) ? server.priority : 80,
     languages: server.languages || [],
+    ...(server.profileContractVersion ? { profileContractVersion: server.profileContractVersion } : {}),
+    exclusiveLanguageGroup: server.exclusiveLanguageGroup || null,
+    replacesProviderIds: server.replacesProviderIds || [],
     kinds: Array.isArray(server.kinds) && server.kinds.length
       ? server.kinds.slice()
       : ['types', 'diagnostics'],

@@ -140,5 +140,15 @@ export function selectToolingProviders({
     plans.push({ provider, documents: filteredDocs, targets: filteredTargets });
   }
 
-  return plans;
+  const selectedGroups = new Map(), suppressed = new Set();
+  for (const plan of plans) {
+    const group = plan.provider.exclusiveLanguageGroup;
+    if (!group) continue;
+    if (selectedGroups.has(group)) throw Object.assign(new Error(`Multiple explicit providers selected for ${group}: ${selectedGroups.get(group)}, ${plan.provider.id}.`), {
+      code: 'ERR_TOOLING_PROVIDER_SELECTION'
+    });
+    selectedGroups.set(group, plan.provider.id);
+    for (const id of plan.provider.replacesProviderIds || []) suppressed.add(normalizeProviderId(id));
+  }
+  return plans.filter(plan => !suppressed.has(normalizeProviderId(plan.provider.id)));
 }

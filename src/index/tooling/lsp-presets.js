@@ -10,6 +10,33 @@ const adaptiveDocScopeFor = (providerId) => {
 };
 
 const PRESET_DEFINITIONS = Object.freeze({
+  basedpyright: Object.freeze({
+    id: 'basedpyright', cmd: 'basedpyright-langserver', args: ['--stdio'], languages: ['python'],
+    label: 'Python (BasedPyright, explicit experimental profile)', priority: 80,
+    explicitOnly: true, profileContractVersion: 1, exclusiveLanguageGroup: 'python-types', replacesProviderIds: ['pyright'],
+    preflightPolicy: 'optional', workspaceMarkerOptions: Object.freeze({ exactNames: Object.freeze(['pyproject.toml', 'pyrightconfig.json']) }),
+    initializationOptions: Object.freeze({ settings: Object.freeze({ basedpyright: Object.freeze({ analysis: Object.freeze({ diagnosticMode: 'openFilesOnly' }) }) }) })
+  }),
+  ty: Object.freeze({
+    id: 'ty', cmd: 'ty', args: ['server'], languages: ['python'],
+    label: 'Python (ty, explicit experimental profile)', priority: 80,
+    explicitOnly: true, profileContractVersion: 1, exclusiveLanguageGroup: 'python-types', replacesProviderIds: ['pyright'],
+    preflightPolicy: 'optional', workspaceMarkerOptions: Object.freeze({ exactNames: Object.freeze(['pyproject.toml', 'ty.toml']) })
+  }),
+  pyrefly: Object.freeze({
+    id: 'pyrefly', cmd: 'pyrefly', args: ['lsp'], languages: ['python'],
+    label: 'Python (Pyrefly, explicit experimental profile)', priority: 80,
+    explicitOnly: true, profileContractVersion: 1, exclusiveLanguageGroup: 'python-types', replacesProviderIds: ['pyright'],
+    preflightPolicy: 'optional', workspaceMarkerOptions: Object.freeze({ exactNames: Object.freeze(['pyproject.toml', 'pyrefly.toml']) })
+  }),
+  'ruby-lsp': Object.freeze({
+    id: 'ruby-lsp', cmd: 'ruby-lsp', args: [], languages: ['ruby'],
+    label: 'Ruby (Ruby LSP, explicit experimental profile)', priority: 80,
+    explicitOnly: true, profileContractVersion: 1, exclusiveLanguageGroup: 'ruby-semantic', replacesProviderIds: ['solargraph'],
+    requiresWorkspaceExecution: true, signatureProfile: 'ruby-lsp', preflightPolicy: 'required',
+    preflightRuntimeRequirements: Object.freeze([Object.freeze({ id: 'ruby', cmd: 'ruby', args: Object.freeze(['--version']), label: 'Ruby runtime' })]),
+    workspaceMarkerOptions: Object.freeze({ exactNames: Object.freeze(['Gemfile', 'Gemfile.lock', '.ruby-version']) })
+  }),
   gopls: Object.freeze({
     id: 'gopls',
     cmd: 'gopls',
@@ -125,6 +152,10 @@ const PRESET_DEFINITIONS = Object.freeze({
 });
 
 const PRESET_ALIAS_TO_KEY = Object.freeze({
+  basedpyright: 'basedpyright',
+  ty: 'ty',
+  pyrefly: 'pyrefly',
+  'ruby-lsp': 'ruby-lsp',
   go: 'gopls',
   gopls: 'gopls',
   rust: 'rust-analyzer',

@@ -8,6 +8,7 @@ const workspaceExecutionLanguage = ({ providerId, server, languages = [] } = {})
   const command = path.basename(String(server?.cmd || '').trim()).toLowerCase().replace(/\.(exe|cmd|bat)$/u, '');
   const selectedLanguages = [...(Array.isArray(server?.languages) ? server.languages : []),
     ...(Array.isArray(languages) ? languages : [])].map((language) => String(language || '').trim().toLowerCase());
+  if (server?.requiresWorkspaceExecution === true && (id === 'ruby-lsp' || command === 'ruby-lsp')) return 'ruby';
   if (id === 'rust' || id.includes('rust-analyzer') || command === 'rust-analyzer' || selectedLanguages.includes('rust')) return 'rust';
   if (id === 'zig' || id === 'zls' || id.endsWith('-zls') || command === 'zls' || selectedLanguages.includes('zig')) return 'zig';
   if (id === 'java' || /(^|-)jdtls($|-)/u.test(id) || id.includes('eclipse.jdt.ls')
@@ -36,7 +37,9 @@ export const resolveWorkspaceExecutionAuthority = ({ repoRoot, workspaceRoot = r
   const reasonCode = `${language}_workspace_trust_required`;
   const message = language === 'rust'
     ? 'Rust workspace tooling requires an exact launch-owned repository trust grant; native Rust AST analysis remains available.'
-    : language === 'java'
+    : language === 'ruby'
+      ? 'Ruby LSP requires an exact launch-owned repository trust grant before Bundler, composed bundles or project add-ons can run.'
+      : language === 'java'
       ? 'Java workspace tooling requires an exact launch-owned repository trust grant; native Java AST analysis remains available.'
       : 'Zig workspace tooling requires an exact launch-owned repository trust grant; Zig is currently a tooling-only route.';
   return { state: 'blocked', blockProvider: true, reasonCode, message,
