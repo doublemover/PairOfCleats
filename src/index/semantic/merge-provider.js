@@ -5,7 +5,7 @@ import { createArtifactSemanticStore } from '../../semantic/artifact-store.js';
 import { createSemanticFactsRef } from './file-ref.js';
 import { canonicalSemanticJson } from './identity.js';
 import { validateSemanticPartitions } from './reconcile.js';
-import { throwIfAborted } from '../../shared/abort.js';
+import { composeAbortSignals, throwIfAborted } from '../../shared/abort.js';
 
 const fail = (message) => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
 const same = (left, right) => canonicalSemanticJson(left) === canonicalSemanticJson(right);
@@ -88,4 +88,5 @@ export const mergeSemanticProviderOutput = async ({ output, state, runtime, sign
 };
 
 export const createSemanticProviderResultSink = ({ state, runtime, signal = null }) =>
-  (output) => mergeSemanticProviderOutput({ output, state, runtime, signal });
+  (output, { signal: operationSignal = null } = {}) => mergeSemanticProviderOutput({ output, state, runtime,
+    signal: composeAbortSignals(signal, operationSignal) });

@@ -2,7 +2,7 @@ import { canonicalSemanticJson, semanticHash, createAnalysisPartitionId } from '
 import { writeSemanticAnalysis } from '../semantic/analysis-write.js';
 import { validateSemanticRecord } from '../../contracts/validators/semantic.js';
 import { providerProfileCacheIdentity, verifyProviderProfileReceipt } from './provider-profile.js';
-import { throwIfAborted } from '../../shared/abort.js';
+import { composeAbortSignals, throwIfAborted } from '../../shared/abort.js';
 import { combineSemanticProviderOutputs } from './result-dispatch.js';
 import path from 'node:path';
 
@@ -43,17 +43,19 @@ export const createCanonicalProviderRowWriter = ({ request, profile, sources, st
     || !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 16 * 1048576) throw fail('Provider request or writer bounds changed.');
   const pinned = structuredClone(request), items = new Map([...sources.values()].map(item => [item.source.sourceUnitId, item]));
   let completed = false;
-  return async report => {
-    throwIfAborted(signal);
+  return async (report, { signal: operationSignal = null } = {}) => {
+    const activeSignal = composeAbortSignals(signal, operationSignal);
+    throwIfAborted(activeSignal);
     if (completed || report?.schemaVersion !== 1 || report.kind !== 'canonical-rows-v1' || !Array.isArray(report.batches)) throw fail('Invalid or repeated completed row report.');
     completed = true;
-    await verifyProviderProfileReceipt(profile, { signal });
+    await verifyProviderProfileReceipt(profile, { signal: activeSignal });
     const groups = new Map();
     let retainedRows = 0, retainedBytes = 0;
     for (const batch of report.batches) {
       if (!batch || !items.has(batch.sourceUnitId) || !Array.isArray(batch.rows)) throw fail('Provider emitted an unknown source target.');
       const rows = groups.get(batch.sourceUnitId) || [];
       for (const entry of batch.rows) {
+        throwIfAborted(activeSignal);
         if (++retainedRows > maxRows) throw fail('Provider semantic row budget exhausted.');
         if (!entry || !['node', 'operand', 'edge', 'coverage', 'lookup'].includes(entry.family)
           || Object.keys(entry).length !== 2 || !Object.hasOwn(entry, 'row')) throw fail('Provider cannot emit syntax/source/ownership/frontier records.');
@@ -76,7 +78,7 @@ export const createCanonicalProviderRowWriter = ({ request, profile, sources, st
     for (const target of pinned.targets) {
       const rows = groups.get(target.sourceUnitId);
       if (!rows?.length) continue;
-      throwIfAborted(signal);
+      throwIfAborted(activeSignal);
       const item = items.get(target.sourceUnitId), current = state.semanticFactsByFile.get(item.file);
       if (!current || current.sourceHash !== target.byteHash || current.syntaxPartitionId !== target.syntaxPartitionId
         || current.partitions.find(partition => partition.partitionId === target.syntaxPartitionId)?.canonicalHash !== target.syntaxHash
@@ -84,9 +86,9 @@ export const createCanonicalProviderRowWriter = ({ request, profile, sources, st
       partitions.push(await writeSemanticAnalysis({ rows, policy, stagingRoot: item.root, source: item.source,
         sourceBytes: item.bytes, partitionId: target.partitionId, contextHash: context.contextKey,
         producerHash: pinned.profileHash, policyHash: semanticHash('tooling.provider-row-policy.v1', { version: 1 }),
-        structuralSlots: [], diskAccount: state.semanticDiskAccount, signal }));
+        structuralSlots: [], diskAccount: state.semanticDiskAccount, signal: activeSignal }));
     }
-    throwIfAborted(signal);
+    throwIfAborted(activeSignal);
     return combineSemanticProviderOutputs([{ schemaVersion: 1, contexts: partitions.length ? [context] : [],
       partitions, coverageRef: null, diagnosticsRef: null }]);
   };

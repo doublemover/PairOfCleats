@@ -49,6 +49,11 @@ try {
   assert.throws(() => combineSemanticProviderOutputs([output, conflict]), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
   const late = new AbortController(); late.abort();
   await assert.rejects(dispatchToolingProviderResult({ result, semanticSink: sink, signal: late.signal }), { name: 'AbortError' });
+  await assert.rejects(sink(output, { signal: late.signal }), { name: 'AbortError' },
+    'the host sink must observe request-local cancellation supplied by its dispatcher');
+  const boundSink = createSemanticProviderResultSink({ state, runtime, signal: late.signal });
+  await assert.rejects(boundSink(output, { signal: new AbortController().signal }), { name: 'AbortError' },
+    'a request-local signal cannot override canceled build authority');
   assert.equal(state.semanticFactsByFile.get('original.js'), snapshot);
   const newSyntax = structuredClone(output);
   newSyntax.partitions[0].partitionId = 'sy1:' + '3'.repeat(64);

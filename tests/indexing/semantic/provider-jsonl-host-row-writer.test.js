@@ -43,6 +43,9 @@ try {
   const encode = values => Buffer.from(values.map(value => JSON.stringify(value)).join('\n') + '\n');
   const policy = normalizeSemanticConfig({ enabled: true });
   const writer = createCanonicalProviderRowWriter({ request, profile, sources, state, policy });
+  const aborted = new AbortController(); aborted.abort();
+  await assert.rejects(writer(report, { signal: aborted.signal }), { name: 'AbortError' },
+    'request-local abort reaches the host materializer before consuming its one completed report');
   const result = await importProviderJsonlReport({ chunks: [encode(messages)], request, rowWriter: writer,
     semanticSink: createSemanticProviderResultSink({ state, runtime }) });
   assert.equal(result.admission.persisted, 1);
@@ -54,5 +57,8 @@ try {
   const unsafe = structuredClone(report); unsafe.batches[0].rows = [{ family: 'node', row: { id: 0, kind: 'declaration' } }];
   const freshWriter = createCanonicalProviderRowWriter({ request, profile, sources, state, policy });
   await assert.rejects(freshWriter(unsafe), { code: 'ERR_TOOLING_PROVIDER_ROWS' });
+  const canceledBuildWriter = createCanonicalProviderRowWriter({ request, profile, sources, state, policy, signal: aborted.signal });
+  await assert.rejects(canceledBuildWriter(report, { signal: new AbortController().signal }), { name: 'AbortError' },
+    'transport-local authority cannot replace an aborted build writer');
   console.log('complete JSONL rows through host disk accounting, immutable sink and semantic detail');
 } finally { await f.cleanup(); }
