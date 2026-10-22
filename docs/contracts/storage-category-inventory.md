@@ -70,3 +70,10 @@ same-size corruption or replacement cannot satisfy it. Failed reuse preserves
 the current local object and reports failure. Writer reconciliation records
 release only after the shared storage owner's asynchronous release succeeds,
 so a rejected release remains retryable.
+
+Dictionary common/language word loading and signature reads share bounded file
+work. One code-dictionary load uses a single reader pool across all language
+scopes; adding languages cannot multiply simultaneously open native streams.
+An admission failure stops new work and drains already-started reads through
+actual stream close before rejecting, so no dictionary mutation or owned read
+continues after the failed load returns.

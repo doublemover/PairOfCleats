@@ -48,6 +48,38 @@ try {
     await assert.rejects(loadDictionaryWordSetFromFiles([file]), { code: 'ERR_REPO_CACHE_CLEANUP_BUSY' });
   }, { coordinationRoot });
   assert.equal(excluded.protected, false, 'normal read failures must not turn exclusion into an empty successful dictionary');
+  const blockedRoot = path.join(home, 'blocked-dictionaries');
+  const blockedFile = path.join(blockedRoot, 'blocked.txt');
+  await fs.mkdir(blockedRoot);
+  await fs.writeFile(blockedFile, 'must-not-be-read\n');
+  registerDictionaryStorageRoot(blockedRoot);
+  await withExclusiveRepoCacheCleanup(blockedRoot, async () => {
+    const closureGate = new Promise(resolve => { allowClose = resolve; });
+    let readOpened;
+    const readStarted = new Promise(resolve => { readOpened = resolve; });
+    fsSync.createReadStream = (...args) => {
+      const stream = originalCreate(...args);
+      const destroy = stream.destroy.bind(stream);
+      stream.destroy = error => { closureGate.then(() => destroy(error)); return stream; };
+      stream.once('open', readOpened);
+      return stream;
+    };
+    const target = new Set();
+    loading = loadDictionaryWordSetFromFiles([file, blockedFile], { target });
+    let rejected = false;
+    loading.catch(() => { rejected = true; });
+    await readStarted;
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(rejected, false, 'one denied reader cannot terminally reject while its sibling still owns an open native stream');
+    assert.equal((await inspectStorageAccess(root, { coordinationRoot })).protected, true);
+    allowClose();
+    await assert.rejects(loading, { code: 'ERR_REPO_CACHE_CLEANUP_BUSY' });
+    assert.equal((await inspectStorageAccess(root, { coordinationRoot })).protected, false);
+    const settledWords = [...target];
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual([...target], settledWords, 'failed dictionary loading has no late word-set mutations after return');
+    fsSync.createReadStream = originalCreate;
+  }, { coordinationRoot });
 } finally {
   fsSync.createReadStream = originalCreate;
   allowClose?.();

@@ -88,15 +88,23 @@ const runWithBoundedConcurrency = async (values, maxConcurrency, worker) => {
     ? Math.max(1, Math.floor(maxConcurrency))
     : DEFAULT_DICTIONARY_READ_CONCURRENCY;
   let cursor = 0;
+  let failed = false;
+  let firstError;
   const workers = Array.from({ length: Math.min(limit, values.length) }, async () => {
-    while (true) {
+    while (!failed) {
       const index = cursor;
       cursor += 1;
       if (index >= values.length) break;
-      await worker(values[index], index);
+      try { await worker(values[index], index); }
+      catch (error) {
+        if (!failed) { failed = true; firstError = error; }
+      }
     }
   });
+  // The first failure stops admission, but already-open native reads must
+  // confirm closure before this owner reports terminal failure to its caller.
   await Promise.all(workers);
+  if (failed) throw firstError;
 };
 
 /**
@@ -213,21 +221,22 @@ export const loadCodeDictionaryWordSets = async (
   const commonWords = new Set();
   const wordsByLanguage = new Map();
   const allWords = new Set();
-  const [, languageResults] = await Promise.all([
-    loadDictionaryWordSetFromFiles(commonFiles, { target: commonWords, lowerCase }),
-    Promise.all(
-      entries.map(async ([lang, files]) => {
-        if (typeof lang !== 'string' || !lang) return null;
-        return [lang, await loadDictionaryWordSetFromFiles(files, { lowerCase })];
-      })
-    )
-  ]);
+  const jobs = toFileList(commonFiles).map(file => ({ file, words: commonWords }));
+  for (const [language, files] of entries) {
+    if (typeof language !== 'string' || !language) continue;
+    const words = new Set();
+    wordsByLanguage.set(language, words);
+    for (const file of toFileList(files)) jobs.push({ file, words });
+  }
+  // Common and all language scopes consume one file-reader budget. A separate
+  // pool per language multiplies open descriptors by configured language count.
+  await runWithBoundedConcurrency(jobs, DEFAULT_DICTIONARY_READ_CONCURRENCY, async ({ file, words }) => {
+    try { await readDictionaryWordsFromFile(file, words, { lowerCase }); }
+    catch (error) { if (isDictionaryStorageAccessError(error)) throw error; }
+  });
   for (const word of commonWords) allWords.add(word);
-  for (const entry of languageResults) {
-    if (!entry) continue;
-    const [lang, words] = entry;
-    if (!words.size) continue;
-    wordsByLanguage.set(lang, words);
+  for (const [language, words] of wordsByLanguage) {
+    if (!words.size) { wordsByLanguage.delete(language); continue; }
     for (const word of words) allWords.add(word);
   }
   return { commonWords, wordsByLanguage, allWords };
@@ -246,7 +255,9 @@ export const collectDictionaryFileSignatures = async (
 ) => {
   const files = toFileList(filePaths);
   if (!files.length) return [];
-  return Promise.all(
-    files.map((dictFile) => buildDictionaryFileSignature(dictFile, { toSignaturePath, prefix }))
-  );
+  const signatures = new Array(files.length);
+  await runWithBoundedConcurrency(files, DEFAULT_DICTIONARY_READ_CONCURRENCY, async (file, index) => {
+    signatures[index] = await buildDictionaryFileSignature(file, { toSignaturePath, prefix });
+  });
+  return signatures;
 };
