@@ -24,6 +24,33 @@ try {
   assert.equal(lens.facets[0].qualification.certainty, 'exact-retained-source');
   assert.equal(lens.facets[0].editAuthority, 'not-granted');
   assert.equal(lens.renderedBytes, Buffer.byteLength(JSON.stringify(lens) + '\n'));
+  const mutableWorld = structuredClone(worldRef), mutableCandidates = structuredClone(args.candidates);
+  const mutableRoles = ['implementation'], mutableResult = structuredClone(args.retainedResult);
+  const pinned = await materializeRetainedSemanticTaskLens({ ...args, worldRef: mutableWorld, candidates: mutableCandidates,
+    requiredRoles: mutableRoles, retainedResult: mutableResult,
+    store: { ...store, getRecords: async (...request) => {
+      const rows = await store.getRecords(...request);
+      mutableWorld.contextKey = 'changed'; mutableWorld.generation.baseBuildId = 'changed';
+      mutableCandidates[0].roles[0] = 'configuration'; mutableCandidates[0].ref.localId = 99;
+      mutableRoles[0] = 'configuration'; mutableResult.ownerHandle = 'changed-owner';
+      return rows;
+    } } });
+  assert.deepEqual(pinned.worldRef, worldRef);
+  assert.deepEqual(pinned.facets[0].roles, ['implementation']);
+  assert.equal(pinned.facets[0].expandToSource.ownerHandle, args.retainedResult.ownerHandle);
+  assert.deepEqual(pinned.missingRoles, [], 'all source-lens selection and expansion metadata is pinned before awaited reads');
+  let selectionReads = 0, getterCalls = 0;
+  const countedStore = { ...store, getRecords: (...request) => { selectionReads++; return store.getRecords(...request); } };
+  const accessorCandidate = { ...args.candidates[0], get roles() { getterCalls++; return ['implementation']; } };
+  await assert.rejects(materializeRetainedSemanticTaskLens({ ...args, store: countedStore, candidates: [accessorCandidate] }), /getter/i);
+  assert.equal(getterCalls, 0);
+  await assert.rejects(materializeRetainedSemanticTaskLens({ ...args, store: countedStore,
+    retainedResult: { ...args.retainedResult, padding: 'x'.repeat(4 * 1024 * 1024) } }), /metadata allowance/);
+  assert.equal(selectionReads, 0, 'unadmitted caller metadata cannot trigger retained source acquisition');
+  await assert.rejects(materializeRetainedSemanticTaskLens({ ...args, store: { ...store, getRecords: async () => [] } }), /inventory/);
+  const lateAbort = new AbortController();
+  await assert.rejects(materializeRetainedSemanticTaskLens({ ...args, candidates: [], signal: lateAbort.signal,
+    store: { ...store, getRecords: async (...request) => { const rows = await store.getRecords(...request); lateAbort.abort(); return rows; } } }), { name: 'AbortError' });
   const forged = { ...store, async *iterateRows(partitionId, member, options) {
     for await (const row of store.iterateRows(partitionId, member, options)) {
       yield member === 'semantic_sources' ? { ...row, lineStarts: [0, 1] } : row;

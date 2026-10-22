@@ -45,4 +45,14 @@ const accessorSnapshot = Object.defineProperty({ manifest: source.manifest }, 's
 });
 assert.throws(() => materializeTaskLens({ ...args, sources: [accessorSnapshot] }), /data fields/);
 assert.equal(invoked, false, 'opaque source ownership cannot be obtained through an accessor');
+const accessorCandidate = { ...candidate };
+Object.defineProperty(accessorCandidate, 'roles', { enumerable: true, get() { invoked = true; return ['implementation']; } });
+assert.throws(() => materializeTaskLens({ ...args, candidates: [accessorCandidate] }), /getter/i);
+assert.equal(invoked, false, 'source role metadata is admitted without invoking accessors');
+const accessorSources = [];
+Object.defineProperty(accessorSources, '0', { enumerable: true, get() { invoked = true; return source; } });
+assert.throws(() => materializeTaskLens({ ...args, sources: accessorSources }), /data fields/);
+assert.equal(invoked, false, 'source array entries cannot invoke caller code during admission');
+assert.throws(() => materializeTaskLens({ ...args, retainedResult: { ...args.retainedResult,
+  padding: 'x'.repeat(4 * 1024 * 1024) } }), /metadata allowance/);
 console.log('exact-source task lens contract passed');

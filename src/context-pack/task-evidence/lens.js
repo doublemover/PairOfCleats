@@ -4,9 +4,15 @@ import { selectDiverseEvidence } from '../../retrieval/pipeline/evidence-selecti
 import { enforceContextPackResponseBudget } from '../response-budget.js';
 import { readRetainedSemanticSourceSnapshot } from '../../semantic/retained-source-snapshot.js';
 import { assertSemanticEnvelope } from '../../contracts/validators/semantic-envelopes.js';
+import { validateSemanticRecord } from '../../contracts/validators/semantic.js';
 import { throwIfAborted } from '../../shared/abort.js';
 
 const key = canonicalSemanticJson;
+const pinLensMetadata = value => {
+  const encoded = key(value);
+  if (Buffer.byteLength(encoded) > 4 * 1024 * 1024) throw new RangeError('Lens retained metadata allowance exceeded.');
+  return JSON.parse(encoded);
+};
 const boundary = (text, offset) => offset === 0 || offset === text.length
   || !(text.charCodeAt(offset - 1) >= 0xd800 && text.charCodeAt(offset - 1) <= 0xdbff
     && text.charCodeAt(offset) >= 0xdc00 && text.charCodeAt(offset) <= 0xdfff);
@@ -15,13 +21,21 @@ const boundary = (text, offset) => offset === 0 || offset === text.length
 export const materializeTaskLens = ({ worldRef, taskId, requiredRoles = [], maxFacets = 12,
   candidates, sources, retainedResult }) => {
   if (typeof taskId !== 'string' || !taskId.length || !worldRef || !Array.isArray(requiredRoles)
-    || requiredRoles.some(role => typeof role !== 'string') || requiredRoles.length > 64
+    || requiredRoles.length > 64
     || !Array.isArray(candidates) || candidates.length > 4096 || !Array.isArray(sources) || sources.length > 256
+    || Object.keys(sources).length !== sources.length || Object.getOwnPropertySymbols(sources).length
     || !Number.isSafeInteger(maxFacets) || maxFacets < 1 || maxFacets > 64
-    || !retainedResult?.ownerHandle) throw new TypeError('Bounded admitted source lens inputs required.');
+    || !retainedResult) throw new TypeError('Bounded admitted source lens inputs required.');
+  ({ worldRef, taskId, requiredRoles, candidates, retainedResult } = pinLensMetadata({ worldRef, taskId, requiredRoles, candidates, retainedResult }));
+  if (requiredRoles.some(role => typeof role !== 'string') || !retainedResult.ownerHandle) {
+    throw new TypeError('Bounded admitted source lens inputs required.');
+  }
   const sourceMap = new Map();
   let sourceBytes = 0;
-  for (const snapshot of sources) {
+  for (let index = 0; index < sources.length; index++) {
+    const descriptor = Object.getOwnPropertyDescriptor(sources, String(index));
+    if (!descriptor || !Object.hasOwn(descriptor, 'value')) throw new TypeError('Owned source snapshot array data fields required.');
+    const snapshot = descriptor.value;
     const source = admitOwnedSemanticSourceSnapshot(snapshot);
     if (sourceMap.has(source.manifest.sourceUnitId)) {
       throw new TypeError('Owned immutable source snapshots required.');
@@ -93,13 +107,29 @@ export const materializeRetainedSemanticTaskLens = async ({ store, worldRef, tas
   requiredRoles = [], maxFacets = 12, candidates, retainedResult,
   maxSourceBytes = 8 * 1024 * 1024, signal = null }) => {
   throwIfAborted(signal);
-  if (!worldRef || key(assertSemanticEnvelope('generation', worldRef.generation)) !== key(store.generation)
-    || typeof worldRef.repositoryNamespace !== 'string' || !worldRef.repositoryNamespace
-    || !Array.isArray(candidates) || candidates.length > 64
+  if (store?.backend !== 'artifact' || !worldRef || !Array.isArray(candidates) || candidates.length > 64
     || !Number.isSafeInteger(maxSourceBytes) || maxSourceBytes < 1024 || maxSourceBytes > 8 * 1024 * 1024) {
     throw new TypeError('Bounded generation-pinned semantic lens required.');
   }
-  const records = await store.getRecords(candidates.map(candidate => candidate.ref), ['span'], { signal });
+  ({ worldRef, taskId, requiredRoles, candidates, retainedResult } = pinLensMetadata({ worldRef, taskId, requiredRoles, candidates, retainedResult }));
+  if (key(assertSemanticEnvelope('generation', worldRef.generation)) !== key(store.generation)
+    || typeof worldRef.repositoryNamespace !== 'string' || !worldRef.repositoryNamespace
+    || !Array.isArray(requiredRoles) || requiredRoles.length > 64 || requiredRoles.some(role => typeof role !== 'string')
+    || typeof taskId !== 'string' || !taskId || !retainedResult?.ownerHandle
+    || !Number.isSafeInteger(maxFacets) || maxFacets < 1 || maxFacets > 64
+    || candidates.some(candidate => !validateSemanticRecord('recordRef', candidate?.ref).ok)) {
+    throw new TypeError('Bounded generation-pinned semantic lens required.');
+  }
+  let metadataBytes = Buffer.byteLength(key({ worldRef, taskId, requiredRoles, candidates, retainedResult }));
+  const retain = value => {
+    const encoded = key(value); metadataBytes += Buffer.byteLength(encoded);
+    if (metadataBytes > 4 * 1024 * 1024) throw new RangeError('Lens retained metadata allowance exceeded.');
+    return JSON.parse(encoded);
+  };
+  const rows = await store.getRecords(candidates.map(candidate => candidate.ref), ['span'], { signal });
+  throwIfAborted(signal);
+  if (!Array.isArray(rows) || rows.length !== candidates.length) throw new TypeError('Retained lens source inventory is incomplete.');
+  const records = retain(rows);
   const snapshots = new Map(), byPartition = new Map();
   let bytes = 0;
   const projected = [];
@@ -114,6 +144,7 @@ export const materializeRetainedSemanticTaskLens = async ({ store, worldRef, tas
       const captured = await readRetainedSemanticSourceSnapshot({ store, partitionId: record.ref.partitionId,
         repositoryNamespace: worldRef.repositoryNamespace, maxBytes: remaining, signal });
       source = captured.source;
+      retain(source);
       if (source.mapping !== null) throw Object.assign(new Error('Retained lens needs an independently qualified original-source mapping.'), {
         code: 'ERR_SEMANTIC_SOURCE_MAPPING_UNAVAILABLE'
       });
@@ -128,6 +159,9 @@ export const materializeRetainedSemanticTaskLens = async ({ store, worldRef, tas
       span: record.span, coordinateUnit: source.coordinateUnit },
     qualification: { certainty: 'exact-retained-source', closure: 'not-implied' } });
   }
-  return materializeTaskLens({ worldRef, taskId, requiredRoles, maxFacets,
+  throwIfAborted(signal);
+  const result = materializeTaskLens({ worldRef, taskId, requiredRoles, maxFacets,
     candidates: projected, sources: [...snapshots.values()], retainedResult });
+  throwIfAborted(signal);
+  return result;
 };

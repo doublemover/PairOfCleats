@@ -27,6 +27,20 @@ source coordinates or upgrade binding coverage. Mapped/generated sources require
 an independently qualified original-source adapter and currently remain
 unavailable on this bridge.
 
+Both materializers canonically copy role, candidate, world and expansion-handle
+metadata before consuming it. The retained bridge pins every caller selection
+before its first awaited store read, then copies the complete selected-record
+response before further source reads. Later caller mutations cannot retarget
+source refs, required roles, build context or the retained expansion owner.
+Metadata accessors are rejected without invocation; source arrays also require
+ordinary own data entries. Caller metadata has a 4 MiB encoded allowance. The
+retained bridge charges selected record and source-manifest metadata against
+that same allowance while actual source reads retain the existing shared byte
+bound. These encoded admission limits do not claim total process-memory bounds.
+Incomplete record responses and cancellation after a store read fail before a
+source lens is returned. These query ownership changes create no new producer or
+public default acquisition surface.
+
 Compiler and LSP session initialization and compiler publication use the same
 `readRetainedSemanticSourceSnapshot` owner. A single contained descriptor capture
 checks exact bytes and reconstructs the full canonical source manifest before
