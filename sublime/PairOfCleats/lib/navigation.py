@@ -102,6 +102,9 @@ def execute_qualified_navigation(view, query, kind, on_hits, limit, title, inclu
             return
         _QUALIFIED_NAVIGATION[window.id()] = {'payload': payload, 'scope': scope, 'root': repo_root,
             'file': file_name, 'version': version, 'point': point}
+        if qualified_navigation_evidence(window, repo_root) is None:
+            failed('PairOfCleats: the saved source or cursor changed before indexed navigation completed.')
+            return
         if callable(on_evidence):
             on_evidence(payload, repo_root)
             return

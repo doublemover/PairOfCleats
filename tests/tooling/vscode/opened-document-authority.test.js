@@ -27,6 +27,15 @@ try {
   document.version += 1;
   await assert.rejects(authority.assertCurrent(), /version|changed/i);
 
+  const retainedBuffer = { version: 1, isDirty: false, getText: () => 'a😀z\nsecond\n' };
+  const spanAuthority = createDocumentAuthority({ workspace: { async openTextDocument() { return retainedBuffer; } } });
+  const selectedSpan = await spanAuthority.qualify({ repoRoot: root, file, uri: {}, sourceHash, span: { start: 7, end: 13 } });
+  assert.deepEqual(selectedSpan.offsets, { start: 5, end: 11 });
+  fs.writeFileSync(file, raw + 'changed after opening');
+  await assert.rejects(spanAuthority.assertCurrent(), /differs|changed/,
+    'an unchanged saved buffer cannot hide disk replacement during a later editor await');
+  fs.writeFileSync(file, raw);
+
   const changed = createDocumentAuthority({ workspace: { async openTextDocument() {
     fs.writeFileSync(file, 'changed on disk');
     return { version: 1, isDirty: false, getText: () => 'a😀z\nsecond\n' };

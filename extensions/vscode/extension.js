@@ -14,8 +14,9 @@ const { createTaskObservations, taskRecoveryActions } = require('./task-observat
 const taskObservations = createTaskObservations();
 const { generationFromContextPack, contextDiscoveryRequest, contextDiscoveryCliArgs } = require('./semantic-discovery.js');
 const { normalizeFilterPagination, mergeFilterPage, continuationInvocation } = require('./filter-pagination.js');
-const { createSemanticEvidenceWorkflow, sourceQualifiedSelection, qualifiedDocumentOffsets, qualifiedBindingSeed } = require('./semantic-evidence.js');
+const { createSemanticEvidenceWorkflow, sourceQualifiedSelection, qualifiedBindingSeed } = require('./semantic-evidence.js');
 let latestNavigationEvidence = null;
+const navigationLocationSources = new WeakMap();
 const { sourceNavigationArgs, qualifiedNavigationRows } = require('./source-navigation.js');
 const { readGitHead, validateServiceRoot, mapServicePayload, verifyServiceRevision } = require('./service-repository.js');
 const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask,
@@ -2121,7 +2122,9 @@ async function createNavigationLocation(repoContext, entry, authority) {
     uri: target.targetUri, sourceHash: entry.sourceHash, range: entry });
   if (!qualified) return null;
   const range = new vscode.Range(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
-  return new vscode.Location(qualified.document.uri || target.targetUri, range);
+  const location = new vscode.Location(qualified.document.uri || target.targetUri, range);
+  navigationLocationSources.set(location, { repoContext, entry: Object.freeze({ ...entry }) });
+  return location;
 }
 
 async function createNavigationLocations(repoContext, rows) {
@@ -2245,7 +2248,7 @@ async function runNavigationCommand({
   if (filePath) args.push('--file', filePath);
   if (query) args.push('--symbol', query);
   if (kind === 'definitions' || kind === 'references') {
-    try { args.push(...sourceNavigationArgs(sourceDocument, position, includeDeclaration)); }
+    try { args.push(...sourceNavigationArgs(sourceDocument, position, includeDeclaration, repoContext.repoRoot)); }
     catch (error) { noteNavigationDegraded('source-admission', error.message); return []; }
   }
   const output = getOutputChannel();
@@ -2324,6 +2327,13 @@ async function runNavigationCommand({
   if (kind === 'definitions' || kind === 'references') {
     if (sourceDocument?.isDirty || sourceDocument?.version !== requestedSourceVersion) return [];
     const expectedHash = args[args.indexOf('--source-hash') + 1];
+    try {
+      const currentArgs = sourceNavigationArgs(sourceDocument, position, includeDeclaration, repoContext.repoRoot);
+      if (currentArgs[currentArgs.indexOf('--source-hash') + 1] !== expectedHash) {
+        noteNavigationDegraded('source-changed', 'The saved source changed before indexed navigation completed.');
+        return [];
+      }
+    } catch (error) { noteNavigationDegraded('source-changed', error.message); return []; }
     if (result.payload?.sourceHash !== expectedHash
       || result.payload?.sourceVersion !== String(requestedSourceVersion ?? 0)
       || result.payload?.coordinateUnit !== 'utf16') {
@@ -4834,7 +4844,7 @@ function currentQualifiedSemanticSeed(repoContext) {
       || document?.uri?.fsPath !== captured.sourceFile || !position
       || position.line !== captured.position.line || position.character !== captured.position.character) return null;
     try {
-      const args = sourceNavigationArgs(document, position);
+      const args = sourceNavigationArgs(document, position, true, repoContext.repoRoot);
       if (args[args.indexOf('--source-hash') + 1] !== captured.payload.sourceHash
         || args[args.indexOf('--source-version') + 1] !== captured.payload.sourceVersion) return null;
       return qualifiedBindingSeed(captured.payload);
@@ -5004,15 +5014,18 @@ async function openCapturedEvidence() {
           if (!qualified || !operations.isCurrent()) return;
           await authority.assertCurrent();
           const editor = await vscode.window.showTextDocument(qualified.document);
+          await authority.assertCurrent();
           if (!operations.isCurrent() || qualified.document.version !== qualified.version || qualified.document.isDirty) return;
           editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
           editor.revealRange(editor.selection);
         } else {
           const source = readVerifiedSource({ repoRoot: captured.repoContext.repoRoot, file: target.filePath, sourceHash: hit.sourceHash });
-          const document = await vscode.workspace.openTextDocument(target.targetUri);
           const offset = source.sourceText.startsWith('\ufeff') ? 1 : 0;
-          qualifiedDocumentOffsets(document, { ...source, start: offset, end: offset });
-          await vscode.window.showTextDocument(document);
+          const qualified = await authority.qualify({ repoRoot: captured.repoContext.repoRoot, file: target.filePath,
+            uri: target.targetUri, sourceHash: hit.sourceHash, span: { start: offset, end: offset } });
+          if (!qualified) return;
+          await vscode.window.showTextDocument(qualified.document);
+          await authority.assertCurrent();
           vscode.window.showInformationMessage('Evidence source bytes were verified. Its producer supplied no exact UTF-16 range, so only the source file was opened.');
         }
       } catch (error) {
@@ -5041,12 +5054,14 @@ async function inspectIndexedNavigation(kind) {
       const value = candidate.candidate;
       const target = sourceQualifiedSelection(evidence.repoContext, { path: value.file, sourceHash: value.sourceHash,
         coordinateUnit: value.coordinateUnit }, { span: value.span });
-      const document = await vscode.workspace.openTextDocument(vscode.Uri.file(target.file));
-      const offsets = qualifiedDocumentOffsets(document, target);
-      const version = document.version;
-      const editor = await vscode.window.showTextDocument(document);
-      if (!operations.isCurrent() || document.version !== version || document.isDirty) return;
-      editor.selection = new vscode.Selection(document.positionAt(offsets.start), document.positionAt(offsets.end));
+      const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: () => operations.isCurrent(), maxDocuments: 1 });
+      const qualified = await authority.qualify({ repoRoot: evidence.repoContext.repoRoot, file: target.file,
+        uri: vscode.Uri.file(target.file), sourceHash: target.sourceHash, span: { start: target.start, end: target.end } });
+      if (!qualified) return;
+      const editor = await vscode.window.showTextDocument(qualified.document);
+      await authority.assertCurrent();
+      if (!operations.isCurrent()) return;
+      editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
       editor.revealRange(editor.selection);
       vscode.window.showInformationMessage('Opened candidate evidence. The indexed binding remains ambiguous; references were not pooled.');
     } catch (error) { vscode.window.showErrorMessage(error.message); }
@@ -5057,8 +5072,21 @@ async function inspectIndexedNavigation(kind) {
     description: `${location.range?.start.line + 1}:${location.range?.start.character + 1}`, location
   })), { title: `Indexed ${kind}: source-qualified candidates` });
   if (!selected) return;
-  const target = await vscode.workspace.openTextDocument(selected.location.uri);
-  await vscode.window.showTextDocument(target, { selection: selected.location.range });
+  const source = navigationLocationSources.get(selected.location);
+  if (!source) { vscode.window.showErrorMessage('The selected native location has no retained source witness. Inspect indexed navigation again.'); return; }
+  try {
+    const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: () => operations.isCurrent(), maxDocuments: 1 });
+    const target = resolveValidatedHitTarget(vscode, source.repoContext, source.entry);
+    if (!target.ok) throw new Error(target.message);
+    const qualified = await authority.qualify({ repoRoot: source.repoContext.repoRoot, file: target.filePath,
+      uri: target.targetUri, sourceHash: source.entry.sourceHash, range: source.entry });
+    if (!qualified) return;
+    const editor = await vscode.window.showTextDocument(qualified.document);
+    await authority.assertCurrent();
+    if (!operations.isCurrent()) return;
+    editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
+    editor.revealRange(editor.selection);
+  } catch (error) { if (operations.isCurrent()) vscode.window.showErrorMessage(`Indexed selection unavailable: ${error.message}`); }
 }
 
 async function resolveServiceRepository(repoContext, execution, { force = false } = {}) {

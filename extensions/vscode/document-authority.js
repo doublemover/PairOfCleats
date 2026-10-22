@@ -11,8 +11,8 @@ const contained = (root, file) => {
 };
 
 /** Read exact original bytes under the selected local workspace authority. */
-function readVerifiedSource({ repoRoot, file, sourceHash }) {
-  if (!repoRoot || !file || !/^[a-f0-9]{64}$/.test(sourceHash || '')) throw new Error('Exact source hash and repository are required.');
+function readCurrentSource({ repoRoot, file }) {
+  if (!repoRoot || !file) throw new Error('Exact source file and repository are required.');
   const root = fs.realpathSync(repoRoot), real = fs.realpathSync(file);
   if (!contained(root, real)) throw new Error('Indexed source resolves outside the selected repository.');
   const noFollow = process.platform === 'win32' ? 0 : (fs.constants.O_NOFOLLOW || 0);
@@ -35,9 +35,15 @@ function readVerifiedSource({ repoRoot, file, sourceHash }) {
       throw new Error('Source changed while its exact bytes were being verified.');
     }
     const admitted = bytes.subarray(0, size);
-    if (createHash('sha256').update(admitted).digest('hex') !== sourceHash) throw new Error('Source differs from indexed evidence.');
-    return { file: real, sourceHash, sourceText: decodeSource(admitted) };
+    return { repoRoot: root, file: real, sourceHash: createHash('sha256').update(admitted).digest('hex'), sourceText: decodeSource(admitted) };
   } finally { fs.closeSync(descriptor); }
+}
+
+function readVerifiedSource(options) {
+  if (!/^[a-f0-9]{64}$/.test(options.sourceHash || '')) throw new Error('Exact source hash and repository are required.');
+  const source = readCurrentSource(options);
+  if (source.sourceHash !== options.sourceHash) throw new Error('Source differs from indexed evidence.');
+  return source;
 }
 
 function sourceRangeOffsets(sourceText, range) {
@@ -87,7 +93,7 @@ function documentOffsets(document, { sourceText, start, end }) {
  * revealed; each returned location uses an actually opened, versioned buffer. */
 function createDocumentAuthority({ workspace, isCurrent = () => true, maxDocuments = 25 }) {
   const sources = new Map();
-  async function qualify({ repoRoot, file, uri, sourceHash, range }) {
+  async function qualify({ repoRoot, file, uri, sourceHash, range, span = null }) {
     if (!isCurrent()) return null;
     const key = `${file}\0${sourceHash}`;
     if (!sources.has(key)) {
@@ -107,19 +113,23 @@ function createDocumentAuthority({ workspace, isCurrent = () => true, maxDocumen
     const source = await sources.get(key);
     if (!source || !isCurrent()) return null;
     if (source.document.version !== source.version) throw new Error('Opened target version changed before location publication.');
-    const span = sourceRangeOffsets(source.sourceText, range);
-    const offsets = documentOffsets(source.document, { ...source, ...span });
+    const sourceSpan = span || sourceRangeOffsets(source.sourceText, range);
+    const offsets = documentOffsets(source.document, { ...source, ...sourceSpan });
     return { document: source.document, version: source.version, offsets, file: source.file };
   }
-  function assertCurrent() {
+  async function assertCurrent() {
     if (!isCurrent()) throw new Error('Navigation operation no longer owns publication.');
-    return Promise.all([...sources.values()].map(async pending => {
+    await Promise.all([...sources.values()].map(async pending => {
       const source = await pending;
-      if (source && (source.document.isDirty || source.document.version !== source.version)) throw new Error('Target document changed before locations were published.');
+      if (source) {
+        if (source.document.isDirty || source.document.version !== source.version) throw new Error('Target document changed before locations were published.');
+        readVerifiedSource(source);
+      }
     }));
+    if (!isCurrent()) throw new Error('Navigation operation no longer owns publication.');
   }
   return { qualify, assertCurrent };
 }
 
-module.exports = { MAX_SOURCE_BYTES, decodeSource, readVerifiedSource, sourceRangeOffsets,
+module.exports = { MAX_SOURCE_BYTES, decodeSource, readCurrentSource, readVerifiedSource, sourceRangeOffsets,
   documentOffsets, createDocumentAuthority };

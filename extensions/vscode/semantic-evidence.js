@@ -1,5 +1,5 @@
 const path = require('node:path');
-const { readVerifiedSource, documentOffsets } = require('./document-authority.js');
+const { readVerifiedSource, documentOffsets, createDocumentAuthority } = require('./document-authority.js');
 
 const LIMITS = Object.freeze({ records: 128, bytes: 65536, workMs: 250 });
 const sameGeneration = (left, right) => left?.baseBuildId === right?.baseBuildId
@@ -124,6 +124,7 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
         placeHolder: 'Select a record for detail/trace, or return to the seed'
       });
       if (!choice || choice.action === 'back') return;
+      try {
       if (choice.action === 'copy') {
         await vscode.env.clipboard.writeText(JSON.stringify(payload, null, 2));
         continue;
@@ -151,14 +152,17 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
         placeHolder: state.transport === 'api' ? 'Only operations advertised by this service are offered' : 'Bounded canonical semantic operations' });
       if (!action) continue;
       if (action.value === 'open') {
-        const source = (payload.sourceRefs || []).find(item => JSON.stringify(item.ref) === JSON.stringify(choice.record.ref));
+        const source = (payload.sourceRefs || []).find(item => item?.ref?.partitionId === choice.record.ref?.partitionId
+          && item?.ref?.localId === choice.record.ref?.localId);
         const target = sourceQualifiedSelection(state.repoContext, source, choice.record);
-        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(target.file));
-        const offsets = qualifiedDocumentOffsets(document, target);
-        const version = document.version;
-        const editor = await vscode.window.showTextDocument(document);
-        if (!operations.isCurrent() || document.version !== version || document.isDirty) return;
-        editor.selection = new vscode.Selection(document.positionAt(offsets.start), document.positionAt(offsets.end));
+        const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: () => operations.isCurrent(), maxDocuments: 1 });
+        const qualified = await authority.qualify({ repoRoot: state.repoContext.repoRoot, file: target.file,
+          uri: vscode.Uri.file(target.file), sourceHash: target.sourceHash, span: { start: target.start, end: target.end } });
+        if (!qualified || !operations.isCurrent()) return;
+        const editor = await vscode.window.showTextDocument(qualified.document);
+        await authority.assertCurrent();
+        if (!operations.isCurrent()) return;
+        editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
         editor.revealRange(editor.selection);
       } else {
         let extra = { direction: action.direction };
@@ -184,6 +188,11 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
         await runOperation(action.value, choice.record.ref, state, extra);
         if (last) await inspect(last);
         await show(payload, state);
+      }
+      } catch (error) {
+        if (!operations.isCurrent()) return;
+        await vscode.window.showErrorMessage(`PairOfCleats semantic evidence: ${error.message}. Previous evidence is retained; choose another action or return.`);
+        if (operations.isCurrent()) await show(payload, state);
       }
     }
   }

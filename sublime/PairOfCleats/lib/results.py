@@ -1,8 +1,10 @@
 import os
-import hashlib
+import time
 
 import sublime
 from .saved_search import normalize_saved_options
+from . import operations
+from .source_authority import read_verified_source
 
 HIGHLIGHT_KEY = 'pairofcleats.search.highlight'
 HIGHLIGHT_SCOPE = 'region.yellowish'
@@ -202,21 +204,16 @@ def open_hit(window, hit, repo_root=None):
         return None
 
     source_hash = hit.get('sourceHash')
+    scope = operations.capture(window, key='source-opening')
     if source_hash:
         opened = window.find_open_file(file_path) if hasattr(window, 'find_open_file') else None
         if opened and opened.is_dirty():
             sublime.status_message('PairOfCleats: dirty source; indexed range was not opened.')
             return None
         try:
-            if os.path.getsize(file_path) > 4194304:
-                sublime.status_message('PairOfCleats: source exceeds the bounded indexed-range verifier.')
-                return None
-            with open(file_path, 'rb') as handle:
-                actual = hashlib.sha256(handle.read()).hexdigest()
-            if actual != source_hash:
-                sublime.status_message('PairOfCleats: source changed; indexed range was not opened.')
-                return None
-        except OSError:
+            read_verified_source(repo_root or os.path.dirname(file_path), file_path, source_hash)
+        except (ValueError, OSError, UnicodeError) as error:
+            sublime.status_message('PairOfCleats: indexed source was not opened: ' + str(error))
             return None
     start_line = hit.get('startLine')
     encoded_path = file_path
@@ -224,7 +221,7 @@ def open_hit(window, hit, repo_root=None):
         encoded_path = '{0}:{1}'.format(file_path, start_line)
 
     view = window.open_file(encoded_path, sublime.ENCODED_POSITION)
-    highlight_hit(view, hit)
+    highlight_hit(view, hit, scope=scope, repo_root=repo_root)
     return view
 
 
@@ -323,7 +320,7 @@ def qualified_source_buffer(source_text, buffer_text):
     return None
 
 
-def highlight_hit(view, hit):
+def highlight_hit(view, hit, scope=None, repo_root=None):
     if view is None or not isinstance(hit, dict):
         return
     start_line = hit.get('startLine')
@@ -333,9 +330,18 @@ def highlight_hit(view, hit):
     if not isinstance(end_line, int) or end_line <= 0:
         end_line = start_line
 
+    if scope is None and hasattr(view, 'window') and view.window():
+        scope = operations.capture(view.window(), key='source-opening')
+    deadline = time.monotonic() + 5
     def apply():
+        if (scope is not None and not operations.is_current(scope)
+                or hasattr(view, 'is_valid') and not view.is_valid()):
+            return
         removed_bom = False
         if view.is_loading():
+            if time.monotonic() >= deadline:
+                sublime.status_message('PairOfCleats: source loading did not settle within the selection deadline.')
+                return
             sublime.set_timeout(apply, 10)
             return
         view.erase_regions(HIGHLIGHT_KEY)
@@ -344,16 +350,15 @@ def highlight_hit(view, hit):
             return
         if hit.get('sourceHash'):
             try:
-                with open(view.file_name(), 'rb') as handle:
-                    raw = handle.read(4194305)
-                text = raw.decode('utf-8')
+                source = read_verified_source(repo_root or os.path.dirname(view.file_name()), view.file_name(), hit['sourceHash'])
+                text = source['sourceText']
                 buffer_text = view.substr(sublime.Region(0, view.size()))
                 normalization = qualified_source_buffer(text, buffer_text)
-                if hashlib.sha256(raw).hexdigest() != hit['sourceHash'] or normalization is None:
+                if normalization is None:
                     sublime.status_message('PairOfCleats: source changed; indexed selection was not applied.')
                     return
                 removed_bom = normalization['removedBom']
-            except (OSError, UnicodeError):
+            except (ValueError, OSError, UnicodeError):
                 return
         start_col = hit.get('startCol')
         end_col = hit.get('endCol')
@@ -364,8 +369,14 @@ def highlight_hit(view, hit):
                 if start_col < 1 or end_col < 1:
                     sublime.status_message('PairOfCleats: indexed span includes a BOM removed by the host; selection unavailable.')
                     return
-            start_pt = _utf16_point(view, start_line - 1, start_col - 1)
-            end_pt = _utf16_point(view, end_line - 1, end_col - 1)
+            try:
+                start_pt = _utf16_point(view, start_line - 1, start_col - 1)
+                end_pt = _utf16_point(view, end_line - 1, end_col - 1)
+                if end_pt < start_pt:
+                    raise ValueError('Source range ends before it begins.')
+            except ValueError as error:
+                sublime.status_message('PairOfCleats: indexed selection unavailable: ' + str(error))
+                return
             region = sublime.Region(start_pt, end_pt)
             view.sel().clear()
             view.sel().add(region)
@@ -438,7 +449,12 @@ def _safe_active_group(window):
 
 
 def _utf16_point(view, row, units):
+    if (not isinstance(row, int) or isinstance(row, bool) or row < 0
+            or not isinstance(units, int) or isinstance(units, bool) or units < 0):
+        raise ValueError('Invalid UTF-16 source coordinate.')
     start = view.text_point(row, 0)
+    if hasattr(view, 'rowcol') and view.rowcol(start)[0] != row:
+        raise ValueError('Source line is outside the loaded buffer.')
     line = view.substr(view.line(start))
     consumed = 0
     column = 0
@@ -448,4 +464,6 @@ def _utf16_point(view, row, units):
             break
         consumed += width
         column += 1
+    if consumed != units:
+        raise ValueError('Source column is outside its line or splits a UTF-16 surrogate pair.')
     return view.text_point(row, column)

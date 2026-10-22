@@ -27,6 +27,8 @@ try {
   assert.equal(args[args.indexOf('--include-declaration') + 1], 'false');
   assert.throws(() => sourceNavigationArgs({ ...document, isDirty: true }, { line: 1, character: 0 }), /saved source/);
   assert.throws(() => sourceNavigationArgs({ ...document, getText: () => 'changed' }, { line: 0, character: 0 }), /differs from disk/);
+  assert.throws(() => sourceNavigationArgs(document, { line: 99, character: 0 }), /outside/);
+  assert.throws(() => sourceNavigationArgs(document, { line: 0, character: 9999 }), /exceeds/);
   assert.equal(verifyLocationSource(file, hash), true);
   const bomFile = path.join(temporary, 'bom.js');
   fs.writeFileSync(bomFile, '\ufeff' + text);
@@ -37,6 +39,8 @@ try {
   const retained = '\ufeffa😀z\r\nsecond\r\n';
   const normalizedFile = path.join(temporary, 'host-normalized.js');
   fs.writeFileSync(normalizedFile, retained);
+  assert.throws(() => sourceNavigationArgs({ ...document, uri: { fsPath: normalizedFile }, getText: () => retained },
+    { line: 0, character: 3 }), /surrogate/);
   const sourceRef = { ref: { partitionId: 'sy1:' + 'a'.repeat(64), localId: 1 }, sourceUnitId: 'su1:' + 'b'.repeat(64),
     sourceHash: createHash('sha256').update(fs.readFileSync(normalizedFile)).digest('hex'),
     path: 'host-normalized.js', coordinateUnit: 'utf16' };

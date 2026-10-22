@@ -2,7 +2,6 @@
 import json
 import os
 import tempfile
-import hashlib
 import math
 import re
 
@@ -11,6 +10,7 @@ import sublime_plugin
 
 from ..lib import api_client, config, operations, paths, results, runner, ui, service_repository
 from ..lib import semantic_discovery
+from ..lib.source_authority import read_verified_source
 
 _LAST = {}
 LIMITS = {'records': 128, 'bytes': 65536, 'workMs': 250}
@@ -181,24 +181,30 @@ def describe(payload, generation_source=None):
         json.dumps(payload, indent=2, ensure_ascii=False)])
 
 
-def execute(window, operation, request, context, on_done):
+def execute(window, operation, request, context, on_done, on_error=None):
     scope = context['scope']
     if not operations.is_current(scope):
         return
+    def failed(message):
+        if not operations.is_current(scope):
+            return
+        ui.show_error(message + '\nPrevious evidence remains available.')
+        if callable(on_error):
+            on_error()
     settings = context['settings']
     execution = config.resolve_execution_mode(settings, 'semantic-' + operation)
     if execution.get('error'):
-        ui.show_error(execution['error'])
+        failed(execution['error'])
         return
 
     def accept(payload):
         if not operations.is_current(scope):
             return
         if not isinstance(payload, dict) or payload.get('generation') != request['generation']:
-            ui.show_error('PairOfCleats: semantic generation mismatch. Restart from the seed.')
+            failed('PairOfCleats: semantic generation mismatch. Restart from the seed.')
             return
         if len(json.dumps(payload, ensure_ascii=False).encode('utf-8')) > 131072:
-            ui.show_error('PairOfCleats: semantic response exceeds the editor evidence bound.')
+            failed('PairOfCleats: semantic response exceeds the editor evidence bound.')
             return
         state = {'operation': operation, 'request': request, 'payload': payload, 'context': context,
                  'transport': execution.get('mode')}
@@ -210,7 +216,7 @@ def execute(window, operation, request, context, on_done):
         if not context.get('serviceRoot'):
             def selected(root):
                 context['serviceRoot'] = root
-                execute(window, operation, request, context, on_done)
+                execute(window, operation, request, context, on_done, on_error)
             service_repository.resolve(window, settings, context['root'], selected)
             return
         wire_request = dict(request, repoRoot=context['serviceRoot'])
@@ -229,7 +235,7 @@ def execute(window, operation, request, context, on_done):
             return response.get('result'), headers
         def api_done(response):
             if response.error:
-                ui.show_error(response.error + '\nPrevious evidence remains available.')
+                failed(response.error)
             else:
                 accept(response.payload)
         api_client.run_async(call, api_done, window=window, scope=scope)
@@ -249,7 +255,7 @@ def execute(window, operation, request, context, on_done):
     def done(response):
         try:
             if response.error or response.returncode != 0:
-                ui.show_error(response.error or response.output or 'Semantic operation failed.')
+                failed(response.error or response.output or 'Semantic operation failed.')
                 return
             payload = response.payload
             if isinstance(payload, dict) and payload.get('cursor'):
@@ -278,15 +284,8 @@ def open_source(window, state, record):
         raise ValueError('Source is outside the selected repository.')
     root = os.path.realpath(state['context']['root'])
     filename = os.path.realpath(os.path.join(root, relative))
-    relative_target = os.path.relpath(filename, root)
-    if (relative_target == os.pardir or relative_target.startswith(os.pardir + os.sep)
-            or os.path.isabs(relative_target) or os.path.getsize(filename) > 4194304):
-        raise ValueError('Source escaped the repository or exceeds the verification bound.')
-    with open(filename, 'rb') as handle:
-        raw = handle.read()
-    if hashlib.sha256(raw).hexdigest() != source.get('sourceHash'):
-        raise ValueError('Source differs from indexed evidence. Re-select the current generation.')
-    text = raw.decode('utf-8')
+    verified = read_verified_source(root, filename, source.get('sourceHash'))
+    text = verified['sourceText']
     span = record.get('span')
     if (not isinstance(span, list) or len(span) != 2 or any(not isinstance(value, int) or isinstance(value, bool) for value in span)
             or span[0] < 0 or span[1] < span[0]):
@@ -336,16 +335,16 @@ def inspect(window, state, on_back=None):
             return
         if index == 1:
             sublime.set_clipboard(json.dumps(payload, indent=2, ensure_ascii=False))
-            inspect(window, state)
+            inspect(window, state, on_back)
             return
         if more and index == 2:
             request = dict(state['request'], cursor=payload['cursor'])
-            execute(window, state['operation'], request, state['context'], lambda next_state: inspect(window, next_state))
+            execute(window, state['operation'], request, state['context'], lambda next_state: inspect(window, next_state, restore), restore)
             return
         if index == plan_index:
             request = request_for('enrichment', state['context']['root'], state['request']['generation'],
                                   [suggestion['taskId'] for suggestion in suggestions])
-            execute(window, 'enrichment', request, state['context'], lambda next_state: inspect(window, next_state, restore))
+            execute(window, 'enrichment', request, state['context'], lambda next_state: inspect(window, next_state, restore), restore)
             return
         record = records[index - base]
         actions = ['Detail', 'Trace upstream (choose bounds)', 'Trace downstream (choose bounds)', 'Explain proposed evidence',
@@ -356,7 +355,7 @@ def inspect(window, state, on_back=None):
             if not operations.is_current(state['context']['scope']):
                 return
             if chosen < 0:
-                inspect(window, state)
+                inspect(window, state, on_back)
                 return
             chosen = offered[chosen]
             if chosen == 4:
@@ -364,12 +363,13 @@ def inspect(window, state, on_back=None):
                     open_source(window, state, record)
                 except (ValueError, OSError, UnicodeError) as error:
                     ui.show_error(str(error))
+                    restore()
                 return
             operation = 'detail' if chosen == 0 else 'explain' if chosen == 3 else 'trace'
             def submit(extra=None):
                 request = request_for(operation, state['context']['root'], state['request']['generation'],
                                       record['ref'], 'downstream' if chosen == 2 else 'upstream', extra)
-                execute(window, operation, request, state['context'], lambda next_state: inspect(window, next_state, restore))
+                execute(window, operation, request, state['context'], lambda next_state: inspect(window, next_state, restore), restore)
             if operation in ('trace', 'explain'):
                 choose_trace_options(window, state['context'], submit, restore)
             else:

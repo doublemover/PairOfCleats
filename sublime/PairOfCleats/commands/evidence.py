@@ -43,8 +43,9 @@ def render_preview(packets, purpose, omitted=None):
 
 class PairOfCleatsCopyContextCommand(sublime_plugin.WindowCommand):
     def run(self, source=None, hits=None, repo_root=None):
+        scope = operations.capture(self.window, key='evidence-collection')
         if hits is not None and repo_root:
-            self._select({'hits': hits, 'repoRoot': repo_root})
+            self._select({'hits': hits, 'repoRoot': repo_root}, scope)
             return
         choices = [('Search Results', results_state.get_last_results(self.window)),
                    ('Context Pack Evidence', results_state.get_last_context_pack(self.window)),
@@ -56,21 +57,24 @@ class PairOfCleatsCopyContextCommand(sublime_plugin.WindowCommand):
         if source:
             session = next((session for label, session in available if label == source), None)
             if session:
-                self._select(session)
+                self._select(session, scope)
             return
         self.window.show_quick_panel([[label, session.get('repoRoot')] for label, session in available],
-            lambda index: self._select(available[index][1]) if index >= 0 else None)
+            lambda index: self._select(available[index][1], scope) if index >= 0 and operations.is_current(scope) else None)
 
-    def _select(self, session):
+    def _select(self, session, scope=None):
+        scope = scope or operations.capture(self.window, key='evidence-collection')
         candidates = session['hits'][:128]
         selected = set()
         def show():
+            if not operations.is_current(scope):
+                return
             items = [['Create Context / Preview Selection', '{0}/{1} selected; 24 KiB per canonical packet'.format(len(selected), MAX_SELECTED)],
                      ['Cancel', 'No clipboard, export or external transmission']]
             items.extend([('[x] ' if index in selected else '[ ] ') + (hit.get('name') or hit.get('file') or 'evidence'),
                           results.format_file_label(hit)] for index, hit in enumerate(candidates))
             def choose(index):
-                if index < 0 or index == 1:
+                if index < 0 or index == 1 or not operations.is_current(scope):
                     return
                 if index == 0:
                     if not selected:
@@ -78,7 +82,7 @@ class PairOfCleatsCopyContextCommand(sublime_plugin.WindowCommand):
                         show()
                     else:
                         self.window.show_input_panel('Purpose for this source context', '',
-                            lambda purpose: self._collect(session, [candidates[i] for i in sorted(selected)], purpose), None, None)
+                            lambda purpose: self._collect(session, [candidates[i] for i in sorted(selected)], purpose, scope), None, None)
                     return
                 hit_index = index - 2
                 if hit_index in selected:
@@ -91,7 +95,10 @@ class PairOfCleatsCopyContextCommand(sublime_plugin.WindowCommand):
             self.window.show_quick_panel(items, choose)
         show()
 
-    def _collect(self, session, selected, purpose):
+    def _collect(self, session, selected, purpose, scope=None):
+        scope = scope or operations.capture(self.window, key='evidence-collection')
+        if not operations.is_current(scope):
+            return
         root = session['repoRoot']
         if not os.path.isdir(root):
             ui.show_error('Selected repository is unavailable.')
@@ -105,7 +112,6 @@ class PairOfCleatsCopyContextCommand(sublime_plugin.WindowCommand):
         if execution.get('error'):
             ui.show_error(execution['error'])
             return
-        scope = operations.capture(self.window, key='evidence-collection')
         packets, omitted = [], []
         context = {'serviceRoot': None}
         def accept(packet, index):
@@ -113,6 +119,10 @@ class PairOfCleatsCopyContextCommand(sublime_plugin.WindowCommand):
                 return
             if not isinstance(packet, dict) or not all(key in packet for key in ('version', 'primary', 'provenance', 'evidence')):
                 ui.show_error('Context owner returned no canonical packet. Previous evidence is retained.')
+                return
+            if len(json.dumps(packet, ensure_ascii=False).encode('utf-8')) > MAX_BYTES:
+                omitted.append('Selected context packet exceeds the 256 KiB review bound; its contents were not retained.')
+                collect(index + 1)
                 return
             packets.append(packet)
             collect(index + 1)
@@ -139,7 +149,7 @@ class PairOfCleatsCopyContextCommand(sublime_plugin.WindowCommand):
                 def request():
                     capability, _headers = api_client.request_json(api_client.build_url(base, '/capabilities'),
                         headers=api_client._api_headers(base), timeout_ms=settings.get('api_timeout_ms', 5000))
-                    if (capability.get('capabilities') or {}).get('context-pack') is not True:
+                    if api_client.read_workflow_capabilities(capability).get('context-pack') is not True:
                         raise ValueError('Service does not advertise context-pack.')
                     response, headers = api_client.request_json(api_client.build_url(base, '/analysis/context-pack'),
                         method='POST', payload={'repo': context['serviceRoot'], 'seed': seed, 'hops': 0,
@@ -174,6 +184,8 @@ class PairOfCleatsCopyContextCommand(sublime_plugin.WindowCommand):
         results.open_results_view(self.window, markdown)
         retained = set(range(len(packets)))
         def review():
+            if not operations.is_current(scope):
+                return
             items = [['Copy / Export Reviewed Context', '{0} selected; no external transmission'.format(len(retained))]]
             items.extend([('[x] ' if index in retained else '[ ] ') + str(packet['primary'].get('file') or index),
                           '{0} JSON bytes'.format(len(json.dumps(packet, ensure_ascii=False).encode('utf-8')))]

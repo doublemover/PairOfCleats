@@ -1,14 +1,14 @@
 const fs = require('node:fs');
 const { createHash } = require('node:crypto');
-const { TextDecoder } = require('node:util');
+const path = require('node:path');
+const { readCurrentSource, sourceRangeOffsets } = require('./document-authority.js');
 
-function sourceNavigationArgs(document, position, includeDeclaration = true) {
+function sourceNavigationArgs(document, position, includeDeclaration = true, repoRoot = null) {
   if (!document?.uri?.fsPath || !position || document.isDirty) {
     throw new Error('PairOfCleats indexed navigation requires a saved source document. Use Related Search for approximate matches.');
   }
-  const bytes = fs.readFileSync(document.uri.fsPath);
-  if (bytes.length > 4 * 1024 * 1024) throw new Error('Source exceeds the bounded editor navigation verifier.');
-  const disk = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+  const captured = readCurrentSource({ repoRoot: repoRoot || path.dirname(document.uri.fsPath), file: document.uri.fsPath });
+  const disk = captured.sourceText;
   const text = document.getText();
   const normalized = disk.replace(/\r\n/g, '\n');
   const removedBom = disk.startsWith('\ufeff') && (text === disk.slice(1) || text === normalized.slice(1));
@@ -17,9 +17,13 @@ function sourceNavigationArgs(document, position, includeDeclaration = true) {
   }
   if (!Number.isSafeInteger(position.line) || !Number.isSafeInteger(position.character)
     || position.line < 0 || position.character < 0) throw new Error('Invalid navigation cursor.');
-  return ['--source-hash', createHash('sha256').update(bytes).digest('hex'),
+  const line = position.line + 1, column = position.character + 1 + (removedBom && position.line === 0 ? 1 : 0);
+  const span = sourceRangeOffsets(disk, { startLine: line, startCol: column, endLine: line, endCol: column });
+  const left = disk.charCodeAt(span.start - 1), right = disk.charCodeAt(span.start);
+  if (left >= 0xd800 && left <= 0xdbff && right >= 0xdc00 && right <= 0xdfff) throw new Error('Navigation cursor splits a UTF-16 surrogate pair.');
+  return ['--source-hash', captured.sourceHash,
     '--source-version', String(document.version ?? 0), '--coordinate-unit', 'utf16',
-    '--line', String(position.line + 1), '--column', String(position.character + 1 + (removedBom && position.line === 0 ? 1 : 0)),
+    '--line', String(line), '--column', String(column),
     '--include-declaration', String(includeDeclaration !== false)];
 }
 
