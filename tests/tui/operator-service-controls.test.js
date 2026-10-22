@@ -71,6 +71,26 @@ const job = id => {
 }
 {
   const bounded = createTuiServiceControls({ requireScope: () => {}, getJob: id => jobs.get(id), cancelJob: () => true });
+  const reservations = Array.from({ length: 6 }, () => bounded.reserve({ scopeId, kind: 'api' }));
+  assert.throws(() => bounded.reserve({ scopeId, kind: 'api' }), { code: 'ERR_TUI_SERVICE_CONTROL_LIMIT' },
+    'pending async admission consumes capacity before any job starts');
+  const running = job('reserved-api');
+  assert.throws(() => bounded.register({ scopeId, kind: 'mcp', jobId: running.owner.id,
+    reservation: reservations[0], inspectClosure: () => ({ closed: false }) }), { code: 'ERR_TUI_SERVICE_STALE' });
+  const id = bounded.register({ scopeId, kind: 'api', jobId: running.owner.id,
+    reservation: reservations[0], inspectClosure: () => ({ closed: false }) });
+  assert.ok(id);
+  assert.equal(bounded.releaseReservation(reservations[0]), false, 'binding transfers the same slot to its exact job');
+  assert.throws(() => bounded.reserve({ scopeId, kind: 'api' }), { code: 'ERR_TUI_SERVICE_CONTROL_LIMIT' });
+  assert.equal(bounded.releaseReservation(reservations[1]), true, 'failed admission can return its unbound slot');
+  const retry = bounded.reserve({ scopeId, kind: 'api' });
+  assert.ok(retry);
+  bounded.releaseReservation(retry);
+  reservations.forEach(value => bounded.releaseReservation(value));
+  running.finish(); bounded.clear(); jobs.clear();
+}
+{
+  const bounded = createTuiServiceControls({ requireScope: () => {}, getJob: id => jobs.get(id), cancelJob: () => true });
   let first;
   for (let i = 0; i < 6; i++) {
     const running = job('bounded-' + i);

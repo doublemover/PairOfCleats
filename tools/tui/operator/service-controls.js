@@ -8,6 +8,7 @@ const KINDS = new Set(['api', 'mcp', 'indexer']);
  */
 export const createTuiServiceControls = ({ requireScope, getJob, cancelJob } = {}) => {
   const owned = new Map();
+  const reservations = new Map();
   const enabled = typeof getJob === 'function' && typeof cancelJob === 'function';
   const assertEnabled = () => {
     if (!enabled) fail('ERR_TUI_SERVICE_CONTROL_UNAVAILABLE', 'This workflow owner has no exact supervisor job-control bridge.');
@@ -21,16 +22,30 @@ export const createTuiServiceControls = ({ requireScope, getJob, cancelJob } = {
       try { if (entry.inspectClosure()?.closed === true) owned.delete(id); } catch {}
     }
   };
-  const register = ({ scopeId, kind, jobId, inspectClosure }) => {
+  const reserve = ({ scopeId, kind }) => {
+    if (!enabled) return null;
+    requireScope(scopeId); prune();
+    if (!KINDS.has(kind)) fail('ERR_TUI_SERVICE_CONTROL_UNAVAILABLE', 'Unknown owned service kind.');
+    if (owned.size + reservations.size >= 6) fail('ERR_TUI_SERVICE_CONTROL_LIMIT', 'The six owned-service control slots remain occupied.');
+    const reservation = Object.freeze({});
+    reservations.set(reservation, { scopeId, kind });
+    return reservation;
+  };
+  const register = ({ scopeId, kind, jobId, inspectClosure, reservation = null }) => {
     if (!enabled || !KINDS.has(kind) || typeof inspectClosure !== 'function') return null;
     requireScope(scopeId); prune();
+    const reserved = reservation === null ? null : reservations.get(reservation);
+    if (reservation !== null && (!reserved || reserved.scopeId !== scopeId || reserved.kind !== kind)) {
+      fail('ERR_TUI_SERVICE_STALE', 'Service admission no longer belongs to this exact scope/kind.');
+    }
     const owner = getJob(jobId);
     if (!owner || owner.internal || owner.finalized || typeof owner.settlement?.then !== 'function') return null;
     const existing = [...owned.values()].find(entry => entry.owner === owner);
-    if (existing) return existing.id;
-    if (owned.size >= 6) fail('ERR_TUI_SERVICE_CONTROL_LIMIT', 'The six owned-service control slots remain occupied.');
+    if (existing) { reservations.delete(reservation); return existing.id; }
+    if (owned.size + reservations.size - (reserved ? 1 : 0) >= 6) fail('ERR_TUI_SERVICE_CONTROL_LIMIT', 'The six owned-service control slots remain occupied.');
     const id = randomUUID();
     owned.set(id, { id, scopeId, kind, jobId, owner, inspectClosure });
+    reservations.delete(reservation);
     return id;
   };
   const list = scopeId => {
@@ -76,5 +91,6 @@ export const createTuiServiceControls = ({ requireScope, getJob, cancelJob } = {
     }
     return entry.stopping;
   };
-  return { enabled, register, list, stop, clear: () => owned.clear() };
+  return { enabled, reserve, releaseReservation: value => reservations.delete(value), register, list, stop,
+    clear() { owned.clear(); reservations.clear(); } };
 };

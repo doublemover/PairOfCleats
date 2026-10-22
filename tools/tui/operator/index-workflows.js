@@ -294,6 +294,13 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
     plans.delete(request.previewId);
     throwIfAborted(signal);
     const jobId = plan.jobId;
+    const serviceKind = ['service.api', 'service.mcp'].includes(plan.command.registryId)
+      || plan.command.registryId === 'service.indexer' && plan.values.command === 'work'
+      ? plan.command.registryId.slice('service.'.length) : null;
+    // Reserve control capacity before startJob can admit/spawn anything. Keep
+    // that slot across async admission so parallel launches cannot overbook it.
+    const serviceReservation = serviceKind ? serviceControls.reserve({ scopeId: plan.scope.id, kind: serviceKind }) : null;
+    try {
     const check = async ({ signal }) => {
       requireScope(plan.scope.id);
       const current = await inspect(plan.scope, plan.command, plan.values, signal);
@@ -368,10 +375,8 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
           }) } };
       }
     });
-    const serviceKind = ['service.api', 'service.mcp'].includes(plan.command.registryId)
-      || plan.command.registryId === 'service.indexer' && plan.values.command === 'work'
-      ? plan.command.registryId.slice('service.'.length) : null;
     const serviceControlId = serviceKind ? serviceControls.register({ scopeId: plan.scope.id, kind: serviceKind, jobId,
+      reservation: serviceReservation,
       inspectClosure: () => {
         const owner = { api, mcp, indexer }[serviceKind];
         return { closed: !owner.status(plan.scope.id).some(entry => entry.jobId === jobId) };
@@ -381,6 +386,7 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
       ...(plan.storage || plan.service || plan.backend ? { executionOwner: plan.backend ? 'authenticated-canonical-cache-child'
         : plan.storage ? 'canonical-storage-api' : 'canonical-service-worker-owners' } : {}),
       note: 'Track this owned job for progress, cancellation, publication evidence and artifact references.' };
+    } finally { serviceControls.releaseReservation(serviceReservation); }
   };
   const discard = request => { assertTuiWorkflowRequest('discard', request); findPlan(request); plans.delete(request.previewId); return { discarded: true }; };
   const status = async (request, { signal } = {}) => {

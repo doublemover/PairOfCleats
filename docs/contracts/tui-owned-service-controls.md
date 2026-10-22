@@ -13,6 +13,12 @@ slots and diagnostics; they cannot accidentally cancel replacement jobs. Failed
 observation remains unconfirmed. Health and published-index readiness are never
 inferred from service ownership or child exit.
 
+The same six-slot owner reserves capacity before supervisor job admission. Pending
+launches count against that limit across asynchronous admission. Binding transfers
+one exact scope/kind reservation to its admitted job; rejected admission returns
+only its unbound reservation. Capacity exhaustion cannot first launch a service
+and then fail while registering its control.
+
 The native workflow exposes the picker with `v` from commands/results, refreshes
 with `t`, and preserves opaque service selection through observations. The
 supervisor's typed services/stop-service requests retain strict scope and
