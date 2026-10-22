@@ -1,6 +1,24 @@
 import os
 from . import operations
 
+SELECTED_REPO_KEY = 'pairofcleats_selected_repo'
+_SELECTED_REPOS = {}
+
+
+def select_repo(window, root=None):
+    """A window-local choice never changes project settings or starts indexing."""
+    if not window:
+        return
+    if root:
+        _SELECTED_REPOS[window.id()] = os.path.abspath(root)
+    else:
+        _SELECTED_REPOS.pop(window.id(), None)
+    if hasattr(window, 'settings'):
+        if root:
+            window.settings().set(SELECTED_REPO_KEY, os.path.abspath(root))
+        else:
+            window.settings().erase(SELECTED_REPO_KEY)
+
 
 def _normalize_config_path(value):
     text = str(value or '')
@@ -84,6 +102,7 @@ def resolve_repo_root_interactive(window, on_done, path_hint=None, allow_fallbac
             on_done(None, 'Repo selection cancelled.')
             return
         chosen = repo_roots[index]
+        select_repo(window, chosen.get('root'))
         on_done(chosen.get('root'), 'Using selected repo: {0}'.format(chosen.get('root')))
 
     window.show_quick_panel(items, on_select)
@@ -139,6 +158,14 @@ def _describe_repo_root(window, path_hint=None, allow_fallback=True):
 
     if hint_repo_root:
         return {'selected_root': hint_repo_root, 'reason': None, 'repo_roots': repo_roots}
+    selected = window.settings().get(SELECTED_REPO_KEY) if hasattr(window, 'settings') else _SELECTED_REPOS.get(window.id())
+    if selected:
+        match = next((entry for entry in repo_roots
+                      if os.path.normcase(entry['root']) == os.path.normcase(selected)), None)
+        if match:
+            return {'selected_root': match['root'], 'reason': 'Using selected repo: {0}'.format(match['root']),
+                    'repo_roots': repo_roots}
+        select_repo(window)
     if hint_root and not allow_fallback:
         return {
             'selected_root': None,

@@ -1,95 +1,53 @@
 # PairOfCleats for VS Code
 
-PairOfCleats brings local repository search and operational workflows into VS Code.
+PairOfCleats searches an indexed repository and exposes bounded, source-linked evidence through native VS Code commands. The CLI installation and the repository you search can be different directories.
 
-## Core commands
+## Install from a source checkout
 
-- `PairOfCleats: Search`
-- `PairOfCleats: Search Selection`
-- `PairOfCleats: Search Symbol Under Cursor`
-- `PairOfCleats: Repeat Last Search`
-- `PairOfCleats: Explain Search`
-- `PairOfCleats: Index Build`
-- `PairOfCleats: Start Index Watch`
-- `PairOfCleats: Index Validate`
-- `PairOfCleats: Start Service API`
-- `PairOfCleats: Start Service Indexer`
-- `PairOfCleats: Tooling Doctor`
-- `PairOfCleats: Config Dump`
-- `PairOfCleats: Index Health`
+1. In the **PairOfCleats application checkout**, install the external Node version pinned in `.nvmrc` (currently **26.12.1**, supported range `>=26.12.1 <27`). Native dependencies also need Python 3 and a C/C++ toolchain. Open a terminal in that checkout and run:
 
-## Results explorer
+   ```text
+   node --version
+   npm run bootstrap:ci
+   node tools/package-vscode.js
+   ```
 
-Saved searches populate the `PairOfCleats Results` explorer view. From there you can:
+   The existing packaging owner writes `dist/vscode/pairofcleats.vsix`. A successful dependency install alone is not bootstrap readiness; resolve any bootstrap failure before packaging or indexing.
+2. In VS Code, run **Extensions: Install from VSIX...**, select that VSIX, then reload when prompted. If `code` is on PATH, `code --install-extension ./dist/vscode/pairofcleats.vsix` from the application checkout is an alternative.
+3. Open **Preferences: Open User Settings (JSON)**. Set absolute paths to the application CLI and external Node executable. For example, in Windows User Settings:
 
-- reopen previous searches
-- rerun saved result sets
-- open individual hits
-- reveal hit files in the explorer
-- copy hit paths
+   ```json
+   {
+     "pairofcleats.cliPath": "C:/tools/PairOfCleats/bin/pairofcleats.js",
+     "pairofcleats.nodePath": "C:/Program Files/nodejs/node.exe",
+     "pairofcleats.apiExecutionMode": "cli"
+   }
+   ```
 
-Search History reopens the stored hits, repository identity and recorded evidence
-without contacting the CLI or API. Repeat Last Search and Rerun Result Set are
-explicit refresh actions that create a new result set. Saved evidence does not
-establish the current worktree or index state.
+   On POSIX hosts, use host-local absolute paths such as `/home/me/PairOfCleats/bin/pairofcleats.js` and `/usr/local/bin/node`. This source recipe requires no globally linked `pairofcleats` command. An empty `cliPath` uses the extension host's PATH; an empty `nodePath` searches that host's PATH and verifies Node identity. VS Code's embedded runtime does not establish CLI runtime compatibility. Restart VS Code after changing the process PATH.
+4. Open and trust the **target repository** you want to search. It need not contain PairOfCleats application files. In a multi-root window, run **PairOfCleats: Select Repository**. **Show Effective Settings** shows the chosen root, execution host, transport policy and value sources, with credentials/environment/arguments redacted. Query and presentation settings are scoped to that resource; executable, environment and destination authority belong in User Settings.
+5. Run **PairOfCleats: Index Build**, then **Index Validate** for that target. This is a deliberate build; displaying search errors never starts indexing. **Inspect Tasks** shows the exact repository/operation, stages, counters, elapsed/idle time and selected stop actions. **Tooling Doctor**, **Config Dump** and **Index Health** provide diagnostics in the **PairOfCleats** Output channel.
+6. Run **PairOfCleats: Search**, enter a term known to exist in that target, and select a result to open its source. Defaults remain `both` modes and 25 results. Saved sets appear in **PairOfCleats Results**. **Reopen Last Results** and **Search History** reopen captured evidence locally; **Repeat Last Search** and **Rerun Result Set** deliberately contact the selected consumer again.
+7. Stop an owned watch/service through **Inspect Tasks** or its matching Stop command before closing the window. A service remains starting until readiness is observed; an unconfirmed stop is not reported as success. Failed builds retain the existing publication/recovery owner's last good generation.
 
-Search output retains the producer's actual backend, fallback fidelity, empty
-result reasons and recorded generation identity. Older history without those
-facts is labelled unknown. Empty results offer deliberate Index Health/Tooling
-Doctor actions when the recorded reason supports them; receiving diagnostics
-never launches either workflow. See the [diagnostic contract](../../docs/contracts/search-diagnostics.md).
+## Search, navigation and evidence
 
-## Operational workflows
+**Browse Indexed Matches** accepts an effective filter without a text query. **Load More Indexed Matches** reuses the captured filters, modes, backend, time reference and producer cursor. It displays indexed-metadata coverage and rejects changed generations; start a new browse when the cursor expires. The editor view is bounded to 2,000 hits. Ranked text searches remain top-k. Invalid mode/backend/time combinations fail with a correction rather than silently switching scope.
 
-Long-running workflows stream into the `PairOfCleats` output channel.
+Definition/reference commands send the saved document's SHA-256 byte hash, version and one-based UTF-16 cursor position to the shared navigation consumer. Dirty, changed, external/generated or unsupported source facts remain explicit. Ambiguous bindings expose candidate evidence without pooling references. **Inspect Indexed Definitions/References** provides an explicit native route; **Search Symbol Under Cursor** is a related, approximate search. Built-in language intelligence is not replaced with spelling-only locations.
 
-Search, operators, navigation, inline requests and managed services belong to
-the extension host. New foreground searches cancel superseded owned work;
-late replies cannot replace current results. Deactivation cancels and waits for
-owned resources with a bounded deadline. An unconfirmed process-tree shutdown
-is reported as such. Windows teardown uses the current user's process ownership
-and does not request elevation.
+**Semantic Evidence (Experimental)** accepts an exact immutable `baseBuildId` from indexed evidence/the semantic manifest, then a source-path, structural operation, exact declared type or scalar-string selector. Candidate detail/trace/explain retains generation and record refs, separate extraction/analysis/response coverage, frontier reasons and warnings. Limits remain 128 records, 512 edges, 64 KiB and 250 ms where the typed operation admits them; trace depth/slot/kinds are deliberate choices. More is available only through a persistent API cursor. CLI cursors expire with their process. Proposed enrichment starts with **Plan**; the workflow does not enqueue/drain or capture runtime data automatically. An empty partial response does not establish absence of flow.
 
-Inline context currently describes an indexed file summary. A word spelling is
-not treated as a canonical symbol identity, aggregate warnings are not precise
-source findings, and dirty buffers are labelled as differing from indexed text.
-Source edits, settings and workspace changes invalidate publication authority.
-Cross-request payload reuse requires authoritative index-generation identity;
-without that identity the extension requests fresh context instead of using TTL
-as evidence of freshness. Editor-host lifecycle qualification remains separate
-from the authored fixture coverage.
+**Open Captured Evidence** inspects context/risk nodes and call-site witnesses. Exact ranges require source qualification; otherwise it opens the current file with freshness marked unknown. **Copy / Export Selected Context** collects up to eight selected seeds through the canonical context owner (24 KiB per packet), previews them as inert text, allows exclusions, then copies or saves JSON/Markdown to a chosen destination. The aggregate export bound is 256 KiB; exact bytes are shown and no token estimate is invented. JSON is an array of unchanged canonical packets; purpose/omission notes are in Markdown. Source hashes, citations, provenance, confidence, truncation and incomplete-frontier warnings remain producer evidence. Collection is a deliberate current-index operation and does not certify an older search generation. Nothing is transmitted to an external agent.
 
-- `Setup`, `Bootstrap`, `Tooling Doctor`, `Config Dump`, and `Index Health` emit structured summaries with explicit next actions.
-- `Index Build` runs an indexed build against the active repo context.
-- `Start Index Watch` starts watch mode and leaves it running until `Stop Index Watch`.
-- `Start Service API` and `Start Service Indexer` launch the local service commands and keep session status visible in the extension workflow status surface.
+## Execution host and service repositories
 
-## Configuration
+The extension declares **workspace** host placement. A normal local checkout runs CLI/Node on the local extension host. For SSH, WSL or a container, install the extension and compatible CLI/Node on that workspace host and configure paths valid there. Do not use a UI-machine executable path for a remote workspace host. Remote host qualification is platform-specific; installation is never automatic. Web, virtual/read-only URI workspaces and arbitrary non-file CLI roots are unsupported.
 
-Checkout JS commands require an external Node.js >=26.12.1 <27, independently
-of VS Code's embedded runtime. Set `pairofcleats.nodePath` to an absolute Node
-executable in User Settings, or leave it empty to use `node` from the editor
-process PATH. Workspace overrides and workspace environment values cannot select
-this runtime. Both configured JS CLI entrypoints and operator scripts use the
-same bounded version/identity check; an incompatible runtime fails with setup
-guidance. Executable CLI commands retain their own invocation behavior.
+API policy remains **cli / prefer / require**. Prefer may report an allowed CLI fallback; require reports unsupported operations or service failures without a CLI fallback. **Select Service Repository** separately chooses the service-host root and the editor URI. The server must admit the root through `/status`, and its source Git revision must match the editor checkout; missing/different identity or a dirty service source is rejected. Editor working-tree freshness remains explicitly unverified. Service absolute result paths are mapped to contained relative paths before opening in the editor's original URI authority. Non-Git source identities currently require local CLI mode or another source-qualified workflow. Reconnection is bounded and cancellable and does not replay mutations.
 
-The extension honors the `pairofcleats.*` VS Code settings documented in:
+A connection display or readiness observation does not authorize different binds, remote installation, credentials from workspace files or setup mutation. Success/error HTTP bodies and CLI capture have a 20 MiB byte limit; HTTP previews retain at most 4,096 characters. Narrow oversized requests before retrying. Owned task raw-log display is bounded separately; structured progress stays indeterminate when the producer has no authoritative stage/readiness fact.
 
-- `docs/guides/editor-integration.md`
+## References
 
-API response bodies have the same 20 MiB byte ceiling as CLI capture. Both
-successful and error bodies are counted while streaming; oversized responses
-are cancelled and reported as `api-response-too-large`. Reduce the result scope
-or volume before retrying. Retained HTTP error previews contain at most 4,096 characters.
-
-For the CLI contract and packaging behavior, see:
-
-- `src/contracts/editor-config-contract.json` (bundled with each editor package)
-- `docs/specs/editor-packaging-determinism.md`
-
-Risk Explain resolves chunk, file and symbol seeds through the canonical context-pack
-code-generation owner. Editor requests and exported results retain repository, mode,
-concrete index directory and index signature. Stale repo-local index-code artifacts
-do not provide a fallback. Saved qualified requests remain pinned; if that generation
-or chunk is unavailable, run the current command deliberately to choose current evidence.
+The installed package includes the [settings/runtime contract](editor-config-contract.json), [first-search walkthrough](walkthroughs/first-search.md) and [operations walkthrough](walkthroughs/operations.md). The [PairOfCleats repository](https://github.com/doublemover/PairOfCleats) contains the canonical CLI, configuration, packaging and search-diagnostics contracts under `docs/`; the README and walkthrough above remain usable without those repository files installed.

@@ -7,6 +7,15 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { EventEmitter: NodeEventEmitter } = require('node:events');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
+const { snapshotConfiguration, renderEffectiveSettings } = require('./effective-settings.js');
+const { normalizeFilterPagination, mergeFilterPage, continuationInvocation } = require('./filter-pagination.js');
+const { createSemanticEvidenceWorkflow, sourceQualifiedSelection } = require('./semantic-evidence.js');
+let latestNavigationEvidence = null;
+const { sourceNavigationArgs, qualifiedNavigationRows, verifyLocationSource } = require('./source-navigation.js');
+const { readGitHead, validateServiceRoot, mapServicePayload, verifyServiceRevision } = require('./service-repository.js');
+const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask } = require('./progress-view.js');
+const { collectEvidenceSources, createEvidenceCollection } = require('./evidence-collection.js');
+let latestAnalysisEvidence = null;
 const { resolveRiskSource, validateRiskSource } = require('./risk-source.js');
 const {
   buildRiskExplanationModelFromStandalone,
@@ -217,7 +226,10 @@ const WORKFLOW_TRANSPORTS = Object.freeze({
   search: { label: 'search', supportsCli: true, supportsApi: true },
   'search-symbol': { label: 'search symbol lookup', supportsCli: true, supportsApi: true },
   'explain-search': { label: 'explain search', supportsCli: true, supportsApi: false },
-  'index-health': { label: 'index health', supportsCli: true, supportsApi: true }
+  'index-health': { label: 'index health', supportsCli: true, supportsApi: true },
+  'context-collection': { label: 'selected context collection', supportsCli: true, supportsApi: true },
+  ...Object.fromEntries(['find', 'detail', 'trace', 'explain'].map(operation => [
+    `semantic-${operation}`, { label: `semantic ${operation}`, supportsCli: true, supportsApi: true }]))
 });
 const apiCapabilityCache = new Map();
 const navigationDegradationNotes = new Set();
@@ -239,8 +251,29 @@ function normalizeStringArray(value) {
  *
  * @returns {import('vscode').WorkspaceConfiguration}
  */
-function getExtensionConfiguration() {
-  return vscode.workspace.getConfiguration(VSCODE_SETTINGS.namespace);
+function getExtensionConfiguration(repoContext = null) {
+  let resource = repoContext?.repoUri || repoContext?.uri || null;
+  if (!resource) {
+    const folders = vscode.workspace.workspaceFolders || [];
+    const candidates = collectRepoCandidates(folders, { allowRemote: true });
+    resource = resolveSelectedRepoCandidate(candidates)?.repoUri
+      || vscode.window.activeTextEditor?.document?.uri || folders[0]?.uri;
+  }
+  const configuration = vscode.workspace.getConfiguration(VSCODE_SETTINGS.namespace, resource);
+  const keys = Object.keys(require('./package.json').contributes.configuration.properties)
+    .map(key => key.slice(VSCODE_SETTINGS.namespace.length + 1));
+  return snapshotConfiguration(configuration, keys);
+}
+
+async function showEffectiveSettings() {
+  const repoContext = await resolveSearchRepoContext({ allowRemote: true });
+  if (!repoContext) return;
+  const snapshot = getExtensionConfiguration(repoContext);
+  const text = renderEffectiveSettings({ snapshot, repoContext,
+    remoteName: vscode.env?.remoteName, cli: resolveCli(repoContext.repoRoot, snapshot),
+    api: readApiSettings(snapshot) });
+  const document = await vscode.workspace.openTextDocument({ content: text, language: 'plaintext' });
+  await vscode.window.showTextDocument(document, { preview: true });
 }
 
 function getWorkflowTransport(workflow) {
@@ -265,9 +298,10 @@ function getWorkflowTransport(workflow) {
 function readApiSettings(config) {
   const baseUrl = normalizeApiBaseUrl(config.get(VSCODE_SETTINGS.apiServerUrlKey));
   const timeoutMs = normalizeApiTimeoutMs(config.get(VSCODE_SETTINGS.apiTimeoutKey));
-  const rawMode = String(config.get(VSCODE_SETTINGS.apiExecutionModeKey) || 'cli').trim().toLowerCase();
-  const mode = VALID_API_EXECUTION_MODES.has(rawMode) ? rawMode : 'cli';
-  return { baseUrl, timeoutMs, mode };
+  const configured = config.get(VSCODE_SETTINGS.apiExecutionModeKey);
+  const mode = String(configured == null ? 'cli' : configured).trim().toLowerCase();
+  return { baseUrl, timeoutMs, mode, ...(!VALID_API_EXECUTION_MODES.has(mode)
+    ? { error: 'PairOfCleats apiExecutionMode must be cli, prefer, or require. Correct User Settings.' } : {}) };
 }
 
 function readInlineSettings(config) {
@@ -323,6 +357,7 @@ async function getCachedApiCapabilities(baseUrl, timeoutMs, headers = null) {
 async function resolveExecutionMode(config, workflow, requestedMode = null) {
   const transport = getWorkflowTransport(workflow);
   const apiSettings = readApiSettings(config);
+  if (apiSettings.error) return { ok: false, message: apiSettings.error, detail: 'Open PairOfCleats: Show Effective Settings.' };
   const configuredMode = apiSettings.mode;
   const { mode: _ignoredConfiguredMode, ...apiRuntimeSettings } = apiSettings;
   const headers = buildApiHeaders(config);
@@ -1269,6 +1304,9 @@ function normalizeSearchHit(hit) {
     score: Number.isFinite(hit.score) ? Number(hit.score) : null,
     scoreType: hit.scoreType ? String(hit.scoreType) : '',
     chunkUid: typeof hit.chunkUid === 'string' ? hit.chunkUid : '',
+    id: typeof hit.id === 'string' || Number.isSafeInteger(hit.id) ? hit.id : null,
+    sourceHash: /^[a-f0-9]{64}$/.test(hit.sourceHash || '') ? hit.sourceHash : null,
+    generation: hit.generation && typeof hit.generation === 'object' ? hit.generation : null,
     ...(breakdown ? { scoreBreakdown: breakdown.facts } : {}),
     explanationTruncated: hit.explanationTruncated === true || breakdown?.truncated === true,
     startLine: Number.isFinite(hit.startLine) ? Number(hit.startLine) : null,
@@ -1283,7 +1321,8 @@ function normalizeSearchResultSet(rawResultSet) {
   const resultSetId = String(rawResultSet.resultSetId || '').trim();
   const query = String(rawResultSet.query || '').trim();
   const repoRoot = String(rawResultSet.repoRoot || '').trim();
-  if (!resultSetId || !query || !repoRoot) return null;
+  const pagination = normalizeFilterPagination(rawResultSet.pagination);
+  if (!resultSetId || (!query && !pagination) || !repoRoot) return null;
   const hits = Array.isArray(rawResultSet.hits)
     ? rawResultSet.hits.map((hit) => normalizeSearchHit(hit)).filter(Boolean)
     : [];
@@ -1299,6 +1338,7 @@ function normalizeSearchResultSet(rawResultSet) {
   return {
     resultSetId,
     query,
+    pagination,
     repoRoot,
     repoLabel: formatRepoLabel(repoRoot),
     repoUri: rawResultSet.repoUri ? String(rawResultSet.repoUri) : '',
@@ -1492,6 +1532,7 @@ async function recordSearchResultSet({
     createdAt: new Date().toISOString(),
     mode: searchOptions.mode,
     backend: searchOptions.backend,
+    pagination: normalizeFilterPagination(payload?.pagination),
     totalHits: hits.length,
     invocation,
     explanation: explain ? captureSearchExplanation(payload) : null,
@@ -1830,7 +1871,7 @@ function buildInlineSeed(document, position, repoContext) {
 }
 
 function captureInlineIdentity(document, repoContext, position = null) {
-  const config = getExtensionConfiguration();
+  const config = getExtensionConfiguration(repoContext);
   const hash = (value) => createHash('sha256').update(value).digest('hex');
   return {
     repoRoot: repoContext.repoRoot,
@@ -2031,6 +2072,10 @@ function createNavigationLocation(repoContext, entry) {
     file: entry?.file || entry?.virtualPath || ''
   });
   if (!target.ok) return null;
+  if (entry?.sourceHash && !verifyLocationSource(target.filePath, entry.sourceHash)) {
+    noteNavigationDegraded('changed-target', 'Indexed target source changed; its precise range was not published.');
+    return null;
+  }
   const range = createRangeFromNavigationEntry(entry) || new vscode.Range(
     new vscode.Position(0, 0),
     new vscode.Position(0, 0)
@@ -2101,11 +2146,16 @@ async function runNavigationCommand({
   repoContext,
   query = '',
   filePath = '',
+  sourceDocument = null,
+  position = null,
+  includeDeclaration = true,
   limit = NAVIGATION_RESULT_LIMIT
 }) {
   if (!operations.isCurrent()) return [];
-  const config = getExtensionConfiguration();
+  const requestedSourceVersion = sourceDocument?.version;
+  const config = getExtensionConfiguration(repoContext);
   const apiSettings = readApiSettings(config);
+  if (apiSettings.error) { noteNavigationDegraded('invalid-policy', apiSettings.error); return []; }
   if (apiSettings.mode === 'require') {
     noteNavigationDegraded(
       'api-require',
@@ -2134,6 +2184,10 @@ async function runNavigationCommand({
   ];
   if (filePath) args.push('--file', filePath);
   if (query) args.push('--symbol', query);
+  if (kind === 'definitions' || kind === 'references') {
+    try { args.push(...sourceNavigationArgs(sourceDocument, position, includeDeclaration)); }
+    catch (error) { noteNavigationDegraded('source-admission', error.message); return []; }
+  }
   const output = getOutputChannel();
   const env = buildSpawnEnv(config);
   const useShellWrapper = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
@@ -2207,6 +2261,15 @@ async function runNavigationCommand({
     noteNavigationDegraded(`payload-${kind}`, result.payload.message || 'PairOfCleats navigation query failed.');
     return [];
   }
+  if (kind === 'definitions' || kind === 'references') {
+    if (sourceDocument?.isDirty || sourceDocument?.version !== requestedSourceVersion) return [];
+    latestNavigationEvidence = { payload: result.payload, repoContext };
+    const rows = qualifiedNavigationRows(result.payload);
+    if (!rows.length) noteNavigationDegraded(`binding-${result.payload?.status || 'unknown'}`,
+      `Indexed navigation: ${result.payload?.status || 'unqualified'}. Use PairOfCleats Related Search for approximate matches.`,
+      result.payload?.message);
+    return rows;
+  }
   return Array.isArray(result.payload?.results) ? result.payload.results : [];
 }
 
@@ -2216,8 +2279,9 @@ async function runInlineContextCommand({
   identity = null
 }) {
   if (!repoContext?.repoRoot || !seed || !operations.isCurrent()) return null;
-  const config = getExtensionConfiguration();
+  const config = getExtensionConfiguration(repoContext);
   const apiSettings = readApiSettings(config);
+  if (apiSettings.error) { noteInlineSignalDegraded('invalid-policy', apiSettings.error); return null; }
   if (apiSettings.mode === 'require') {
     noteInlineSignalDegraded(
       'api-require',
@@ -2332,6 +2396,7 @@ async function provideOwnedDefinitions(document, position) {
   if (!repoContext.ok || !operations.isCurrent()) return [];
   const rows = await runNavigationCommand({
     kind: 'definitions',
+    sourceDocument: document, position,
     repoContext,
     query,
     filePath: getDocumentFilePath(document),
@@ -2341,16 +2406,17 @@ async function provideOwnedDefinitions(document, position) {
 }
 
 function provideReferencesAtPosition(document, position, context, token) {
-  return operations.run('references', () => provideOwnedReferences(document, position), { token });
+  return operations.run('references', () => provideOwnedReferences(document, position, context), { token });
 }
 
-async function provideOwnedReferences(document, position) {
+async function provideOwnedReferences(document, position, context = {}) {
   const query = getWordQueryAtPosition(document, position);
   if (!query) return [];
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
   if (!repoContext.ok || !operations.isCurrent()) return [];
   const rows = await runNavigationCommand({
     kind: 'references',
+    sourceDocument: document, position, includeDeclaration: context.includeDeclaration,
     repoContext,
     query,
     filePath: getDocumentFilePath(document),
@@ -2401,7 +2467,7 @@ function provideInlineHoverAtPosition(document, position, token) {
 }
 
 async function provideOwnedInlineHover(document, position) {
-  const config = getExtensionConfiguration();
+  const config = getExtensionConfiguration({ uri: document?.uri });
   const inlineSettings = readInlineSettings(config);
   if (!inlineSettings.inlineHoverEnabled) return null;
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
@@ -2435,9 +2501,9 @@ function refreshInlineSignalsForEditor(editor = null) {
 
 async function refreshOwnedInlineSignals(editor = null) {
   const targetEditor = editor || vscode.window.activeTextEditor || null;
-  const config = getExtensionConfiguration();
-  const inlineSettings = readInlineSettings(config);
   const targetDocument = targetEditor?.document || null;
+  const config = getExtensionConfiguration({ uri: targetDocument?.uri });
+  const inlineSettings = readInlineSettings(config);
   inlineRiskDiagnostics?.clear?.();
   clearInlineDecorations(targetEditor);
   if (!targetDocument || targetDocument?.uri?.scheme !== 'file') {
@@ -2846,6 +2912,9 @@ async function openPresentationDocument(filePath, languageHint = null) {
 }
 
 async function presentOperatorPayload(spec, payload, repoContext, inputContext, output) {
+  if (spec.id === 'pairofcleats.contextPack' || spec.id === 'pairofcleats.riskExplain') {
+    latestAnalysisEvidence = { payload, repoContext };
+  }
   const presentationMode = inputContext?.presentationMode || 'both';
   if (presentationMode === 'output') return null;
   const rendered = await buildOperatorPresentation(spec, payload, inputContext);
@@ -2890,7 +2959,7 @@ async function resolveRiskExplainSeedContext({ repoContext, cliResolution, seed,
     repoRoot: repoContext.repoRoot,
     command: cliResolution.command,
     args,
-    env: buildSpawnEnv(getExtensionConfiguration()),
+    env: buildSpawnEnv(getExtensionConfiguration(repoContext)),
     output
   });
   if (!result.ok || !result.payload) {
@@ -3233,7 +3302,7 @@ const MANAGED_COMMAND_SPECS = Object.freeze([
     timeoutMs: 30 * 60 * 1000,
     persistent: false,
     buildArgs(repoRoot) {
-      return ['--repo', repoRoot, '--progress', 'log'];
+      return ['--repo', repoRoot, '--progress', 'jsonl'];
     }
   },
   {
@@ -3246,7 +3315,7 @@ const MANAGED_COMMAND_SPECS = Object.freeze([
     persistent: true,
     stopCommandId: 'pairofcleats.indexWatchStop',
     buildArgs(repoRoot) {
-      return ['--repo', repoRoot, '--progress', 'log'];
+      return ['--repo', repoRoot, '--progress', 'jsonl'];
     }
   },
   {
@@ -3259,7 +3328,7 @@ const MANAGED_COMMAND_SPECS = Object.freeze([
     persistent: true,
     stopCommandId: 'pairofcleats.serviceApiStop',
     buildArgs(repoRoot) {
-      return ['--repo', repoRoot];
+      return ['--repo', repoRoot, '--json'];
     }
   },
   {
@@ -3299,26 +3368,13 @@ const MANAGED_STOP_COMMAND_SPECS = Object.freeze([
 
 const MANAGED_STOP_COMMANDS_BY_ID = new Map(MANAGED_STOP_COMMAND_SPECS.map((spec) => [spec.id, spec]));
 
-function resolveOperatorInvocation(spec, repoContext, cliResolution, inputContext, config = getExtensionConfiguration()) {
+function resolveOperatorInvocation(spec, repoContext, cliResolution, inputContext) {
   const repoRoot = repoContext.repoRoot;
   const extraArgs = typeof spec.buildArgs === 'function' ? spec.buildArgs(repoRoot, inputContext, repoContext) : [];
-  if (spec.invocation === 'script') {
-    const scriptPath = path.join(repoRoot, ...spec.scriptParts);
-    if (!fs.existsSync(scriptPath)) {
-      return {
-        ok: false,
-        message: `${spec.title} requires ${scriptPath}, but that file was not found in the selected repo.`,
-        detail: 'Open a PairOfCleats checkout or use the CLI directly for this workspace.'
-      };
-    }
-    const node = resolveNodeRuntime(config);
-    if (!node.ok) return node;
-    return {
-      ok: true,
-      command: node.command,
-      args: [scriptPath, ...extraArgs],
-      inputContext
-    };
+  if (!cliResolution?.ok) return cliResolution || { ok: false, message: 'Configured CLI is unavailable.' };
+  if (spec.invocation !== 'cli' || !Array.isArray(spec.cliArgs) || !spec.cliArgs.length) {
+    return { ok: false, message: `${spec.title} has no canonical configured-CLI dispatch.`,
+      detail: 'Operator scripts are never discovered or executed from the target repository.' };
   }
   return {
     ok: true,
@@ -3903,7 +3959,7 @@ async function executeApiOperatorWorkflow(spec, repoContext, request) {
 
 async function executeOperatorWorkflow(spec, repoContext, invocation) {
   const { repoRoot } = repoContext;
-  const config = getExtensionConfiguration();
+  const config = getExtensionConfiguration(repoContext);
   const env = buildSpawnEnv(config);
   const output = getOutputChannel();
   output.appendLine('');
@@ -3968,7 +4024,7 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
 }
 
 async function runOperatorCommand(spec, { repoContext: seededRepoContext = null, inputContext: seededInputContext = undefined } = {}) {
-  const config = getExtensionConfiguration();
+  let config = getExtensionConfiguration();
   const workflow = spec.id === 'pairofcleats.indexHealth' ? 'index-health' : spec.id;
   const execution = await resolveExecutionMode(config, workflow);
   if (!execution.ok) {
@@ -3992,6 +4048,7 @@ async function runOperatorCommand(spec, { repoContext: seededRepoContext = null,
     return;
   }
   const { repoRoot } = repoContext;
+  config = getExtensionConfiguration(repoContext);
   if (seededRepoContext && !validateReplayRepoContext(repoContext, execution.mode)) return;
   const cliResolution = execution.mode === 'cli' ? resolveCli(repoRoot, config) : { ok: true };
   if (execution.mode === 'cli' && !cliResolution.ok) {
@@ -4018,7 +4075,11 @@ async function runOperatorCommand(spec, { repoContext: seededRepoContext = null,
     }
   }
   if (execution.mode === 'api' && spec.id === 'pairofcleats.indexHealth') {
-    const requestPath = `/status?repo=${encodeURIComponent(repoRoot)}`;
+    let mapping;
+    try { mapping = await resolveServiceRepository(repoContext, execution); }
+    catch (error) { vscode.window.showErrorMessage(error.message); return; }
+    if (!mapping) return;
+    const requestPath = `/status?repo=${encodeURIComponent(mapping.serviceRoot)}`;
     await executeApiOperatorWorkflow(spec, repoContext, {
       baseUrl: execution.baseUrl,
       timeoutMs: execution.timeoutMs,
@@ -4057,21 +4118,6 @@ function resolveManagedInvocation(spec, repoContext, cliResolution) {
 
 function getManagedProcessKey(spec, repoRoot) {
   return `${spec.id}:${repoRoot}`;
-}
-
-function appendStreamChunk(output, prefix, chunkState, chunk) {
-  const text = `${chunkState.carry}${String(chunk || '')}`;
-  const lines = text.split(/\r?\n/);
-  chunkState.carry = lines.pop() || '';
-  for (const line of lines) {
-    output.appendLine(`${prefix}${line}`);
-  }
-}
-
-function flushStreamChunk(output, prefix, chunkState) {
-  if (!chunkState.carry) return;
-  output.appendLine(`${prefix}${chunkState.carry}`);
-  chunkState.carry = '';
 }
 
 function killChildProcess(child) {
@@ -4139,7 +4185,7 @@ async function stopManagedCommand(stopSpec, { sessionId = null, repoRoot = null 
 }
 
 async function startManagedCommand(spec, { repoContext: seededRepoContext = null } = {}) {
-  const config = getExtensionConfiguration();
+  let config = getExtensionConfiguration();
   const execution = await resolveExecutionMode(config, spec.id);
   if (!execution.ok) {
     vscode.window.showErrorMessage(execution.message);
@@ -4153,6 +4199,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     return;
   }
   const { repoRoot } = repoContext;
+  config = getExtensionConfiguration(repoContext);
   if (seededRepoContext && !validateReplayRepoContext(repoContext, 'cli')) return;
   const cliResolution = resolveCli(repoRoot, config);
   const invocation = resolveManagedInvocation(spec, repoContext, cliResolution);
@@ -4206,8 +4253,6 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     persistent: spec.persistent === true
   });
   noteRepoContext(repoContext);
-  const stdoutState = { carry: '' };
-  const stderrState = { carry: '' };
   let timedOut = false;
   let resolvedCompletion = false;
   let resolveCompletion;
@@ -4218,8 +4263,8 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     if (resolvedCompletion) return;
     resolvedCompletion = true;
     managedProcesses.delete(key);
-    flushStreamChunk(output, '[stdout] ', stdoutState);
-    flushStreamChunk(output, '[stderr] ', stderrState);
+    entry.stdoutDecoder?.flush();
+    entry.stderrDecoder?.flush();
     const stoppedByUser = entry.stopReason === 'cancelled';
     const failed = Boolean(error) || timedOut || (!stoppedByUser && code !== 0);
     const status = stoppedByUser ? 'cancelled' : failed ? 'failed' : 'succeeded';
@@ -4243,6 +4288,9 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     key,
     spec,
     child,
+    repoRoot,
+    progress: { phase: 'starting', startedAt: Date.now(), lastActivityAt: Date.now() },
+    logBytes: 0,
     sessionId: session.sessionId,
     stopReason: null,
     stopping: false,
@@ -4257,8 +4305,31 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     }, spec.timeoutMs);
     entry.timeout.unref?.();
   }
-  child.stdout?.on('data', (chunk) => appendStreamChunk(output, '[stdout] ', stdoutState, chunk));
-  child.stderr?.on('data', (chunk) => appendStreamChunk(output, '[stderr] ', stderrState, chunk));
+  const taskText = (prefix, line, truncated) => {
+    entry.progress.lastActivityAt = Date.now();
+    if (spec.id === 'pairofcleats.serviceApiStart' && prefix === '[stdout] ') {
+      const endpoint = !truncated && apiReadinessFrame(line);
+      if (endpoint) {
+        entry.progress = { ...entry.progress, phase: 'ready', endpoint,
+          message: 'API listener readiness observed in its authoritative startup frame.' };
+        vscode.window.showInformationMessage(`${spec.title} ready at ${endpoint}.`);
+      }
+    }
+    if (entry.logBytes >= 1024 * 1024) return;
+    const bounded = line.slice(0, 8192);
+    entry.logBytes += Buffer.byteLength(bounded);
+    output.appendLine(`${prefix}${bounded}${truncated ? ' [line truncated]' : ''}`);
+    if (entry.logBytes >= 1024 * 1024) output.appendLine('[managed] Raw task log reached its 1 MiB display bound. Structured status remains active.');
+  };
+  for (const [stream, prefix] of [[child.stdout, '[stdout] '], [child.stderr, '[stderr] ']]) {
+    const decoder = createEditorProgressDecoder({
+      onEvent: event => { entry.progress = applyProgressEvent(entry.progress, event); entry.progressReporter?.report({ message: `${entry.progress.stage}: ${entry.progress.message}` }); },
+      onText: (line, truncated) => taskText(prefix, line, truncated)
+    });
+    if (prefix === '[stdout] ') entry.stdoutDecoder = decoder;
+    else entry.stderrDecoder = decoder;
+    stream?.on('data', chunk => decoder.push(chunk));
+  }
   child.once('error', async (error) => {
     clearTimeout(entry.timeout);
     output.appendLine(`[managed] spawn error=${error?.message || error}`);
@@ -4272,7 +4343,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     const stopTitle = spec.stopCommandId
       ? (MANAGED_STOP_COMMANDS_BY_ID.get(spec.stopCommandId)?.title || 'the stop command')
       : 'the stop command';
-    vscode.window.showInformationMessage(`${spec.title} started. Use ${stopTitle} to stop it.`);
+    vscode.window.showInformationMessage(`${spec.title} is starting. Readiness has not been observed. Use ${stopTitle} or Inspect Tasks to stop it.`);
     return { ok: true, status: 'running', sessionId: session.sessionId };
   }
   return vscode.window.withProgress(
@@ -4281,7 +4352,8 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
       title: spec.progressTitle,
       cancellable: true
     },
-    async (_, token) => {
+    async (progress, token) => {
+      entry.progressReporter = progress;
       const cancelSub = token.onCancellationRequested(() => {
         output.appendLine(`[managed] cancellation requested for ${spec.title}`);
         void stopManagedProcessEntry(entry, {
@@ -4328,9 +4400,11 @@ async function executeOwnedSearchCommand({
   explain = false,
   workflow = 'search',
   prompt = 'PairOfCleats search query',
-  placeHolder = 'e.g. auth token validation'
+  placeHolder = 'e.g. auth token validation',
+  enumeration = false,
+  optionOverrides = null
 } = {}) {
-  const config = getExtensionConfiguration();
+  let config = getExtensionConfiguration();
   const execution = await resolveExecutionMode(config, explain ? 'explain-search' : workflow);
   if (!operations.isCurrent()) return;
   if (!execution.ok) {
@@ -4343,10 +4417,17 @@ async function executeOwnedSearchCommand({
   const repoContext = await resolveSearchRepoContext({ allowRemote: execution.mode === 'api' });
   if (!repoContext || !operations.isCurrent()) return;
   const { repoRoot } = repoContext;
-  const resolvedQuery = query && String(query).trim()
+  config = getExtensionConfiguration(repoContext);
+  let serviceMapping = null;
+  if (execution.mode === 'api') {
+    try { serviceMapping = await resolveServiceRepository(repoContext, execution); }
+    catch (error) { vscode.window.showErrorMessage(error.message); return; }
+    if (!serviceMapping || !operations.isCurrent()) return;
+  }
+  const resolvedQuery = enumeration ? '' : query && String(query).trim()
     ? String(query).trim()
     : await promptSearchQuery({ prompt, placeHolder });
-  if (!resolvedQuery || !operations.isCurrent()) return;
+  if ((!resolvedQuery && !enumeration) || !operations.isCurrent()) return;
 
   const cliResolution = resolveCli(repoRoot, config);
   if (execution.mode === 'cli' && !cliResolution.ok) {
@@ -4356,15 +4437,13 @@ async function executeOwnedSearchCommand({
     output.show?.(true);
     return;
   }
-  const searchOptions = {
-    ...readSearchOptions(config, VSCODE_SETTINGS),
-    explain
-  };
+  let searchOptions;
   let searchArgs = null;
   let searchPayload = null;
   try {
+    searchOptions = { ...readSearchOptions(config, VSCODE_SETTINGS), ...(optionOverrides || {}), explain };
     if (execution.mode === 'api') {
-      searchPayload = buildApiSearchRequest(resolvedQuery, repoRoot, searchOptions);
+      searchPayload = buildApiSearchRequest(resolvedQuery, serviceMapping.serviceRoot, searchOptions);
     } else {
       searchArgs = buildSearchArgs(resolvedQuery, repoRoot, searchOptions);
     }
@@ -4420,7 +4499,9 @@ async function executeOwnedSearchCommand({
           vscode.window.showErrorMessage(result.message);
           return;
         }
-        const payload = result.payload?.result || result.payload;
+        let payload;
+        try { payload = mapServicePayload(result.payload?.result || result.payload, serviceMapping.serviceRoot); }
+        catch (error) { vscode.window.showErrorMessage(error.message); return; }
         const hits = collectSearchHits(payload);
         await recordSearchResultSet({
           repoContext,
@@ -4642,6 +4723,253 @@ async function executeOwnedSearchCommand({
  *
  * @returns {Promise<void>}
  */
+const runSemanticEvidence = createSemanticEvidenceWorkflow({
+  vscode, operations,
+  resolveRepo: node => node?.resultSet ? Promise.resolve(createStoredRepoContext(node.resultSet)) : resolveSearchRepoContext(),
+  chooseTransport: async repoContext => {
+    const config = getExtensionConfiguration(repoContext);
+    const execution = await resolveExecutionMode(config, 'semantic-find');
+    if (!execution.ok) throw new Error(execution.message);
+    const mapping = execution.mode === 'api' ? await resolveServiceRepository(repoContext, execution) : null;
+    if (execution.mode === 'api' && !mapping) return null;
+    return { transport: execution.mode, execution, config, serviceMapping: mapping };
+  },
+  execute: async (operation, request, state) => {
+    const { execution, config, repoContext } = state;
+    if (execution.mode === 'api') {
+      request = { ...request, repoRoot: state.serviceMapping.serviceRoot };
+      const probe = await getCachedApiCapabilities(execution.baseUrl, execution.timeoutMs);
+      if (probe.capabilities?.[`semantic-${operation}`] !== true) throw new Error(`Service does not advertise semantic ${operation}.`);
+      const response = await requestApiJson(execution.baseUrl, `/analysis/semantic-${operation}`, {
+        method: 'POST', payload: request, timeoutMs: execution.timeoutMs, label: `Semantic ${operation}` });
+      if (!response.ok) throw new Error(response.message);
+      return response.payload?.result || response.payload;
+    }
+    const cli = resolveCli(repoContext.repoRoot, config);
+    if (!cli.ok) throw new Error(cli.message);
+    const storage = extensionContext?.globalStorageUri?.fsPath;
+    if (!storage) throw new Error('Extension-owned request storage is unavailable.');
+    fs.mkdirSync(storage, { recursive: true });
+    const directory = fs.mkdtempSync(path.join(storage, 'semantic-request-'));
+    const requestPath = path.join(directory, 'request.json');
+    try {
+      fs.writeFileSync(requestPath, JSON.stringify(request), { encoding: 'utf8', flag: 'wx' });
+      const result = await runBufferedJsonCommand({
+        spec: { title: `Semantic ${operation}`, progressTitle: `PairOfCleats semantic ${operation}`, timeoutMs: 5000 },
+        repoRoot: repoContext.repoRoot, command: cli.command,
+        args: [...cli.argsPrefix, 'semantic', operation, '--request', requestPath],
+        env: buildSpawnEnv(config), output: getOutputChannel()
+      });
+      if (!result?.ok || !result.payload) throw new Error(result?.message || 'Semantic operation failed.');
+      if (Buffer.byteLength(JSON.stringify(result.payload)) > 128 * 1024) throw new Error('Semantic response exceeds the editor evidence bound.');
+      // Process-local CLI cursors cannot be resumed by another invocation.
+      if (result.payload.cursor) result.payload.warnings = [...(result.payload.warnings || []),
+        'Additional bounded pages require a persistent API session; CLI cursor expires with this process.'];
+      return result.payload;
+    } finally {
+      try { fs.unlinkSync(requestPath); } catch {}
+      try { fs.rmdirSync(directory); } catch {}
+    }
+  }
+});
+
+const copySelectedContext = createEvidenceCollection({
+  vscode, operations, getResults: getActiveSearchResultSet,
+  fetchContext: async (seed, resultSet) => {
+    const repoContext = createStoredRepoContext(resultSet);
+    const config = getExtensionConfiguration(repoContext);
+    const execution = await resolveExecutionMode(config, 'context-collection');
+    if (!execution.ok) throw new Error(execution.message);
+    if (execution.mode === 'api') {
+      const probe = await getCachedApiCapabilities(execution.baseUrl, execution.timeoutMs);
+      if (probe.capabilities?.['context-pack'] !== true) throw new Error('Service does not advertise context-pack.');
+      const mapping = await resolveServiceRepository(repoContext, execution);
+      if (!mapping) throw new Error('Service repository selection was cancelled.');
+      const response = await requestApiJson(execution.baseUrl, '/analysis/context-pack', {
+        method: 'POST', payload: { repo: mapping.serviceRoot, seed, hops: 0, includeRisk: true,
+          maxBytes: 24576, maxNodes: 16, maxEdges: 32 },
+        timeoutMs: execution.timeoutMs, label: 'PairOfCleats selected context' });
+      if (!response.ok) throw new Error(response.message);
+      return response.payload?.result || response.payload;
+    }
+    const cli = resolveCli(repoContext.repoRoot, config);
+    if (!cli.ok) throw new Error(cli.message);
+    const response = await runBufferedJsonCommand({ spec: { title: 'Selected context', progressTitle: 'PairOfCleats selected context', timeoutMs: 5000 },
+      repoRoot: repoContext.repoRoot, command: cli.command,
+      args: [...cli.argsPrefix, 'context-pack', '--repo', repoContext.repoRoot, '--seed', seed,
+        '--hops', '0', '--includeRisk', '--maxBytes', '24576', '--maxNodes', '16', '--maxEdges', '32', '--json'],
+      env: buildSpawnEnv(config), output: getOutputChannel() });
+    if (!response?.ok || !response.payload) throw new Error(response?.message || 'Canonical context collection failed.');
+    return response.payload;
+  }
+});
+
+async function openCapturedEvidence() {
+  const captured = latestAnalysisEvidence;
+  if (!captured) { vscode.window.showInformationMessage('Run Context Pack or Risk Explain to capture evidence first.'); return; }
+  const sources = collectEvidenceSources(captured.payload);
+  const selected = await vscode.window.showQuickPick(sources.map(hit => ({ label: hit.name || hit.file,
+    description: `${hit.kind} • ${hit.file}:${hit.startLine || 1}`, hit })),
+    { title: 'Open captured context / risk evidence', placeHolder: 'Exact ranges require a captured source hash; unknown freshness is shown explicitly' });
+  if (!selected) return;
+  const action = await vscode.window.showQuickPick(['Open Source', 'Create Context from This Evidence'], { title: selected.label });
+  if (action === 'Create Context from This Evidence') {
+    await copySelectedContext({ hit: selected.hit, resultSet: { repoRoot: captured.repoContext.repoRoot,
+      repoUri: captured.repoContext.repoUri?.toString?.(), hits: sources } });
+  } else if (action === 'Open Source') {
+    const hit = selected.hit;
+    if (!hit.sourceHash) {
+      vscode.window.showInformationMessage('Captured evidence has no full source hash. Opening the file; indexed range freshness is unknown.');
+      const result = await openSearchHit(vscode, captured.repoContext, { file: hit.file });
+      if (!result.ok) vscode.window.showErrorMessage(result.message);
+    } else {
+      const target = resolveValidatedHitTarget(vscode, captured.repoContext, hit);
+      if (!target.ok || !verifyLocationSource(target.filePath, hit.sourceHash)) {
+        vscode.window.showErrorMessage('Captured evidence source is stale or unavailable. Re-capture context before using its range.');
+        return;
+      }
+      const result = await openSearchHit(vscode, captured.repoContext, hit);
+      if (!result.ok) vscode.window.showErrorMessage(result.message);
+    }
+  }
+}
+
+async function inspectIndexedNavigation(kind) {
+  const editor = vscode.window.activeTextEditor;
+  const document = editor?.document;
+  const position = editor?.selection?.active;
+  if (!document || !position) return;
+  const locations = kind === 'references'
+    ? await provideReferencesAtPosition(document, position, { includeDeclaration: true })
+    : await provideDefinitionsAtPosition(document, position);
+  if (!locations?.length && latestNavigationEvidence?.payload?.binding?.candidates?.length) {
+    const evidence = latestNavigationEvidence;
+    const candidate = await vscode.window.showQuickPick(evidence.payload.binding.candidates.map(value => ({
+      label: `${value.status || 'candidate'} • ${value.targetId}`, description: value.file || 'external source',
+      detail: `Binding remains ${evidence.payload.status}; inspect one candidate without pooling references`, candidate: value
+    })), { title: 'Inspect ambiguous indexed binding candidates' });
+    if (!candidate) return;
+    try {
+      const value = candidate.candidate;
+      const target = sourceQualifiedSelection(evidence.repoContext, { path: value.file, sourceHash: value.sourceHash,
+        coordinateUnit: value.coordinateUnit }, { span: value.span });
+      const document = await vscode.workspace.openTextDocument(vscode.Uri.file(target.file));
+      if (document.isDirty) throw new Error('Candidate source buffer is dirty.');
+      const editor = await vscode.window.showTextDocument(document);
+      editor.selection = new vscode.Selection(document.positionAt(target.start), document.positionAt(target.end));
+      editor.revealRange(editor.selection);
+      vscode.window.showInformationMessage('Opened candidate evidence. The indexed binding remains ambiguous; references were not pooled.');
+    } catch (error) { vscode.window.showErrorMessage(error.message); }
+    return;
+  }
+  const selected = await vscode.window.showQuickPick((locations || []).map(location => ({
+    label: location.uri?.path || location.uri?.fsPath || 'source',
+    description: `${location.range?.start.line + 1}:${location.range?.start.character + 1}`, location
+  })), { title: `Indexed ${kind}: source-qualified candidates` });
+  if (!selected) return;
+  const target = await vscode.workspace.openTextDocument(selected.location.uri);
+  await vscode.window.showTextDocument(target, { selection: selected.location.range });
+}
+
+async function resolveServiceRepository(repoContext, execution, { force = false } = {}) {
+  if (repoContext.repoUri?.scheme !== 'file' || repoContext.supportsLocalFs === false) {
+    throw new Error('Service mapping requires a file checkout on the workspace extension host. Virtual/non-file URI roots cannot be source-qualified.');
+  }
+  const editorUri = repoContext.repoUri?.toString?.() || '';
+  const mappings = readWorkspaceState('pairofcleats.serviceRepositories', {}) || {};
+  const key = `${execution.baseUrl}::${editorUri}`;
+  let mapping = force ? null : mappings[key];
+  const commit = readGitHead(repoContext.repoRoot);
+  if (!commit) throw new Error('Service mapping needs a readable Git HEAD for source identity. Use a supported local CLI checkout or select a source-qualified service workflow.');
+  let root = mapping?.serviceRoot;
+  if (!root) {
+    const value = await vscode.window.showInputBox({ prompt: `Repository path on ${execution.baseUrl} (service host)`,
+      value: repoContext.repoRoot, placeHolder: '/srv/repositories/project or C:\\repositories\\project' });
+    if (!value) return null;
+    root = validateServiceRoot(value);
+  }
+  const response = await requestApiJson(execution.baseUrl, `/status?repo=${encodeURIComponent(root)}`, {
+    timeoutMs: execution.timeoutMs, label: 'PairOfCleats service repository identity' });
+  if (!response.ok) throw new Error(response.message);
+  const identity = verifyServiceRevision(response.payload?.status, commit);
+  if (!mapping) {
+    const action = await vscode.window.showInformationMessage(
+      `Service ${execution.baseUrl} repository ${root} matches revision ${identity.commit.slice(0, 12)}. ` +
+      `Open results in ${editorUri}. Editor working-tree freshness remains unverified.`, 'Use repository mapping');
+    if (action !== 'Use repository mapping') return null;
+    mapping = { serviceRoot: root, editorUri, commit, verifiedAt: new Date().toISOString() };
+    mappings[key] = mapping;
+    await writeWorkspaceState('pairofcleats.serviceRepositories', mappings);
+  }
+  return { ...mapping, ...identity };
+}
+
+async function inspectTasks() {
+  const entries = Array.from(managedProcesses.values());
+  if (!entries.length) { await showWorkflowStatus(); return; }
+  const picked = await vscode.window.showQuickPick(entries.map(entry => ({
+    label: entry.spec.title, description: `${entry.repoRoot} • ${entry.progress?.phase || 'starting'}`,
+    detail: entry.sessionId, entry
+  })), { title: 'PairOfCleats exact task', placeHolder: 'Choose the repository and operation to inspect' });
+  if (!picked) return;
+  const entry = picked.entry;
+  const document = await vscode.workspace.openTextDocument({ content: describeTask(entry), language: 'plaintext' });
+  await vscode.window.showTextDocument(document, { preview: true });
+  const action = await vscode.window.showQuickPick(['Inspect Logs', 'Stop Selected Task', 'Open Effective Settings', 'Tooling Doctor'],
+    { title: `${entry.spec.title} • ${entry.repoRoot}`, placeHolder: 'Safe registered recovery actions' });
+  if (action === 'Inspect Logs') getOutputChannel().show?.(true);
+  else if (action === 'Open Effective Settings') await showEffectiveSettings();
+  else if (action === 'Tooling Doctor') await vscode.commands.executeCommand('pairofcleats.doctor');
+  else if (action === 'Stop Selected Task') {
+    if (managedProcesses.get(entry.key)?.sessionId !== entry.sessionId) {
+      vscode.window.showInformationMessage('That exact task already settled. Inspect tasks again.');
+      return;
+    }
+    entry.progress.phase = 'cancellation-requested';
+    await stopManagedProcessEntry(entry, { reason: 'cancelled', summaryLine: `${entry.spec.title} stopped after owned process settlement.` });
+  }
+}
+
+async function selectServiceRepository() {
+  return operations.run('service-repository', async () => {
+    try {
+      const repoContext = await resolveSearchRepoContext();
+      if (!repoContext) return;
+      const config = getExtensionConfiguration(repoContext);
+      const execution = await resolveExecutionMode(config, 'search', 'api');
+      if (!execution.ok) throw new Error(execution.message);
+      await resolveServiceRepository(repoContext, execution, { force: true });
+    } catch (error) { if (operations.isCurrent()) vscode.window.showErrorMessage(error.message); }
+  });
+}
+
+async function browseIndexedMatches() {
+  const filter = await promptTextInput({ prompt: 'Browse indexed metadata: filter expression',
+    placeHolder: 'e.g. lang:javascript — current repo, modes, backend and time settings apply' });
+  if (!filter?.trim()) return;
+  await executeSearchCommand({ enumeration: true, optionOverrides: { filter: filter.trim() } });
+}
+
+async function loadMoreIndexedMatches() {
+  const previous = getActiveSearchResultSet();
+  if (!previous?.pagination?.hasMore || !previous.pagination.nextCursor) {
+    vscode.window.showInformationMessage('No indexed continuation is available. Ranked text search is top-k.');
+    return;
+  }
+  const config = getExtensionConfiguration(createStoredRepoContext(previous));
+  const policy = readApiSettings(config);
+  if (policy.error) { vscode.window.showErrorMessage(policy.error); return; }
+  const capturedApi = previous.invocation?.kind === 'api-search';
+  if ((capturedApi && (policy.mode === 'cli' || policy.baseUrl !== previous.invocation.baseUrl))
+    || (!capturedApi && policy.mode === 'require')) {
+    vscode.window.showErrorMessage('Transport policy or endpoint changed. Restart indexed browsing with the intended transport.');
+    return;
+  }
+  const invocation = continuationInvocation(previous.invocation, previous.pagination.nextCursor);
+  await operations.run('foreground-search', () => runOwnedSavedSearch(
+    { ...previous, invocation }, createStoredRepoContext(previous), previous), { key: 'foreground-search' });
+}
+
 async function runSearch() {
   await executeSearchCommand({ workflow: 'search' });
 }
@@ -4677,7 +5005,7 @@ function runSavedSearchInvocation(resultSet, repoContext) {
   return operations.run('foreground-search', () => runOwnedSavedSearch(resultSet, repoContext), { key: 'foreground-search' });
 }
 
-async function runOwnedSavedSearch(resultSet, repoContext) {
+async function runOwnedSavedSearch(resultSet, repoContext, appendTo = null) {
   const output = getOutputChannel();
   const invocation = resultSet?.invocation || null;
   let hits = [];
@@ -4686,7 +5014,7 @@ async function runOwnedSavedSearch(resultSet, repoContext) {
     const result = await requestApiJson(invocation.baseUrl, '/search', {
       method: 'POST',
       payload: invocation.payload,
-      headers: buildApiHeaders(getExtensionConfiguration(), invocation.baseUrl),
+      headers: buildApiHeaders(getExtensionConfiguration(repoContext), invocation.baseUrl),
       timeoutMs: invocation.timeoutMs || DEFAULT_API_TIMEOUT_MS,
       label: 'PairOfCleats search'
     });
@@ -4696,12 +5024,12 @@ async function runOwnedSavedSearch(resultSet, repoContext) {
       vscode.window.showErrorMessage(result.message || 'PairOfCleats search failed.');
       return { ok: false };
     }
-    payload = result.payload?.result || result.payload;
+    payload = mapServicePayload(result.payload?.result || result.payload, invocation.payload.repo);
     hits = collectSearchHits(payload);
   } else {
     const searchTimeoutMs = 60000;
     const spec = { title: 'PairOfCleats search', progressTitle: 'PairOfCleats search', timeoutMs: searchTimeoutMs };
-    const env = buildSpawnEnv(getExtensionConfiguration());
+    const env = buildSpawnEnv(getExtensionConfiguration(repoContext));
     const result = await runBufferedJsonCommand({
       spec,
       repoRoot: repoContext.repoRoot,
@@ -4721,6 +5049,22 @@ async function runOwnedSavedSearch(resultSet, repoContext) {
     }
     payload = result.payload;
     hits = collectSearchHits(payload);
+  }
+  if (appendTo) {
+    if (!operations.isCurrent() || getActiveSearchResultSet()?.resultSetId !== appendTo.resultSetId) return { ok: false };
+    try {
+      const pagination = normalizeFilterPagination(payload?.pagination);
+      const merged = mergeFilterPage(appendTo, pagination, hits);
+      const updated = normalizeSearchResultSet({ ...appendTo, hits: merged, totalHits: merged.length, pagination });
+      searchHistory = searchHistory.map(entry => entry.resultSetId === updated.resultSetId ? updated : entry);
+      await persistSearchHistory();
+      refreshResultsExplorer();
+      vscode.window.showInformationMessage(`PairOfCleats indexed matches: ${merged.length} loaded; ${pagination.total ?? 'unknown'} total. ${pagination.coverageNote}`);
+      return { ok: true, hits: merged };
+    } catch (error) {
+      vscode.window.showErrorMessage(error.message);
+      return { ok: false };
+    }
   }
   await recordSearchResultSet({
     repoContext,
@@ -4856,6 +5200,27 @@ function activate(context) {
     const command = vscode.commands.registerCommand(spec.id, () => runOperatorCommand(spec));
     context.subscriptions.push(command);
   }
+  context.subscriptions.push(
+    vscode.commands.registerCommand('pairofcleats.showEffectiveSettings', showEffectiveSettings),
+    vscode.commands.registerCommand('pairofcleats.browseIndexedMatches', browseIndexedMatches),
+    vscode.commands.registerCommand('pairofcleats.loadMoreResults', loadMoreIndexedMatches),
+    vscode.commands.registerCommand('pairofcleats.semanticEvidence', runSemanticEvidence),
+    vscode.commands.registerCommand('pairofcleats.selectServiceRepository', selectServiceRepository),
+    vscode.commands.registerCommand('pairofcleats.inspectTasks', inspectTasks),
+    vscode.commands.registerCommand('pairofcleats.copyContext', copySelectedContext),
+    vscode.commands.registerCommand('pairofcleats.openEvidence', openCapturedEvidence),
+    vscode.commands.registerCommand('pairofcleats.navigateDefinitions', () => inspectIndexedNavigation('definitions')),
+    vscode.commands.registerCommand('pairofcleats.navigateReferences', () => inspectIndexedNavigation('references'))
+  );
+  if (typeof vscode.workspace.onDidChangeConfiguration === 'function') {
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+      if (!event?.affectsConfiguration || event.affectsConfiguration(VSCODE_SETTINGS.namespace)) {
+        if (typeof apiCapabilityCache !== 'undefined') apiCapabilityCache.clear();
+        invalidateInlineSignals();
+        updateWorkflowStatusBar();
+      }
+    }));
+  }
   if (typeof vscode.window.onDidChangeActiveTextEditor === 'function') {
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(() => {
       updateWorkflowStatusBar();
@@ -4941,6 +5306,8 @@ module.exports = {
     getOutputChannel,
     openSearchHit,
     resolveCli,
+    resolveOperatorInvocation,
+    getExtensionConfiguration,
     resolveExecutionMode,
     resolveRepoContext,
     resolvePassiveRepoContext,

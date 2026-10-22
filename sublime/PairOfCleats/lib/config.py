@@ -160,8 +160,8 @@ SETTING_GROUPS = (
     )),
 )
 
-VALID_INDEX_MODES = {'code', 'prose', 'both'}
-VALID_BACKENDS = {'memory', 'sqlite', 'sqlite-fts', 'lmdb'}
+VALID_INDEX_MODES = set(_contract_get(['search', 'modes'], ['code', 'prose', 'both', 'records', 'extracted-prose', 'all']))
+VALID_BACKENDS = set(_contract_get(['search', 'backends'], ['auto', 'memory', 'sqlite', 'sqlite-fts', 'lmdb', 'tantivy']))
 VALID_OPEN_TARGETS = {'quick_panel', 'new_tab', 'output_panel'}
 VALID_API_EXECUTION_MODES = {'cli', 'prefer', 'require'}
 VALID_WATCH_SCOPES = {'repo', 'folder'}
@@ -210,6 +210,13 @@ VALID_SEARCH_ADVANCED_BOOL_KEYS = {'case', 'case_file', 'case_tokens', 'lint', '
 VALID_SEARCH_ADVANCED_INT_KEYS = {'modified_since'}
 WORKFLOW_TRANSPORTS = {
     'search': {'label': 'search', 'supports_cli': True, 'supports_api': True},
+    'navigation': {'label': 'indexed navigation', 'supports_cli': True, 'supports_api': False},
+    'context-collection': {'label': 'selected context collection', 'supports_cli': True, 'supports_api': True},
+    'semantic-enrichment': {'label': 'semantic enrichment planning', 'supports_cli': True, 'supports_api': True},
+    'semantic-find': {'label': 'semantic find', 'supports_cli': True, 'supports_api': True},
+    'semantic-detail': {'label': 'semantic detail', 'supports_cli': True, 'supports_api': True},
+    'semantic-trace': {'label': 'semantic trace', 'supports_cli': True, 'supports_api': True},
+    'semantic-explain': {'label': 'semantic explain', 'supports_cli': True, 'supports_api': True},
     'search-explain': {'label': 'search explain', 'supports_cli': True, 'supports_api': False},
     'search-symbol': {'label': 'search symbol lookup', 'supports_cli': True, 'supports_api': True},
     'map': {'label': 'map', 'supports_cli': True, 'supports_api': False},

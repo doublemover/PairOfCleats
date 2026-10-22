@@ -135,7 +135,7 @@ def _run_index_watch(window):
         full_args = list(cli.get('args_prefix') or []) + args
         env = config.build_env(settings)
 
-        ui.show_status('PairOfCleats: watch started ({0}).'.format(watch_root))
+        ui.show_status('PairOfCleats: watch is starting ({0}); readiness is not yet observed.'.format(watch_root))
 
         token = None
 

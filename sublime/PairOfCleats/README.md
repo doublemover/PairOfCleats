@@ -52,8 +52,8 @@ Open the command palette and run:
 Core:
 - `pairofcleats_path`: Path to the CLI binary or `bin/pairofcleats.js`.
 - `node_path`: Optional override for the Node.js binary.
-- `index_mode_default`: `code`, `prose`, or `both`.
-- `search_backend_default`: `memory`, `sqlite`, `sqlite-fts`, or `lmdb`.
+- `index_mode_default`: `code`, `prose`, `both`, `records`, `extracted-prose`, or `all`.
+- `search_backend_default`: `auto`, `memory`, `sqlite`, `sqlite-fts`, `lmdb`, or CLI-only `tantivy`. The API rejects backends it does not admit.
 - `search_limit`: Default `--top` value.
 - `search_prompt_options`: Prompt for mode/backend/limit each search.
 - `history_limit`: Maximum queries stored per project.
@@ -193,3 +193,19 @@ code-generation owner. Editor requests and exported results retain repository, m
 concrete index directory and index signature. Stale repo-local index-code artifacts
 do not provide a fallback. Saved qualified requests remain pinned; if that generation
 or chunk is unavailable, run the current command deliberately to choose current evidence.
+
+## Selected repositories and bounded evidence
+
+Use **Select Repository** / **Clear Selected Repository** to switch a window's read-only target without editing its project or starting an index. Ambiguous multi-root searches and **Show Effective Settings** offer the same target choice. Removed roots are discarded. The effective-settings panel shows target, source of each supported override and corrections; runtime, API and environment authority stays in User Settings and secrets/arguments are redacted.
+
+**Browse Indexed Matches** deliberately admits an empty query plus an effective filter. **Load More Indexed Matches** reuses frozen options and generation identity, appends exact IDs without merging spelling collisions, and stops at the 2,000 hit view bound. Restart after a generation/cursor error. Ranked text results remain top-k; ordinary empty/cancelled search prompts still do nothing.
+
+Goto Definition / Find References use the shared navigation consumer with saved-source SHA-256, document version and one-based UTF-16 cursor coordinates. Dirty or stale sources do not produce precise indexed joins. Ambiguous candidates can be inspected without pooling references. **Related Search (Approximate)** retains the ranked-search fallback under an honest label. Qualified source selections retain start/end columns, including Unicode and multiline spans; unsupported generated/byte mappings remain explicit.
+
+**Semantic Evidence (Experimental)** asks for the exact indexed semantic `baseBuildId`, offers source/structural/type/literal selectors, then bounded candidate detail/trace/explain. Generation, refs, extraction/analysis/response coverage and stopped-frontier warnings remain visible. Requests retain 128-record, 512-edge, 64 KiB and 250 ms bounds where applicable; traces use explicit depth two. Persistent API sessions offer bounded More; CLI cursors expire with their process. Enrichment proposals expose planning only. Empty/partial output is not proof of no flow. Exact source opening requires captured source/hash/range evidence; Explain can provide that mapping.
+
+From a search/context/risk hit action, **Create Context from This Evidence**, or use **Copy / Export Selected Context** for up to eight seeds. The native keyboard picker toggles items, previews canonical packets, allows exclusions, and deliberately copies/saves JSON or Markdown. Each packet uses a 24 KiB context budget and the export is bounded to 256 KiB. JSON is an array of unchanged canonical packets; purpose and omission notes are in Markdown. Actual byte size is shown; token estimates are unavailable. Current/indexed distinctions, generation/source provenance, confidence, truncation and incomplete-frontier warnings are retained. Collection captures current indexed context and does not certify an older result generation. Export requires an explicit destination and never transmits to an agent.
+
+**Inspect Tasks** identifies exact repository/operation IDs and offers logs, selected cancellation and registered diagnostics. Structured `poc.progress@2` events supply stages and bounded counters; quiet/missing phases stay indeterminate. Cancellation waits for owned settlement, and unconfirmed process-tree cleanup is a failure. There is no automatic destructive rebuild/restart.
+
+**Select Service Repository** separates the API host's repository path from this editor's local checkout. `/status` must admit that service root and report a matching Git revision with clean service source; editor worktree freshness remains unverified. Paths are mapped using service-host path rules and traversal is rejected. Non-Git identities require local CLI or another qualified workflow. Sublime has no automatic SSH/WSL/container shell transport: run a compatible CLI on the host where Sublime executes, or deliberately select supported API operations. `require` never silently switches to CLI. Connection recovery does not replay mutations or change binds/credentials.

@@ -1,4 +1,7 @@
 import time
+import json
+import math
+from datetime import datetime
 
 import sublime
 
@@ -47,7 +50,10 @@ def start_task(window, title, kind='task', repo_root=None, cancellable=False, ca
         'cancellable': bool(cancellable),
         'cancel': cancel,
         'details': details or '',
-        'status': 'running',
+        'status': 'starting',
+        'stage': 'indeterminate',
+        'current': None,
+        'total': None,
         'startedAt': _now(),
         'lastActivityAt': _now(),
         'lastWatchdogAt': None,
@@ -66,6 +72,45 @@ def note_progress(window, task, details=None):
     if details is not None:
         task['details'] = details
     _render(window)
+
+
+def note_structured_progress(window, task, line):
+    """Consume poc.progress@2; never derive stages or readiness from log prose."""
+    if not task or len(line.encode('utf-8')) > 65536:
+        return False
+    try:
+        event = json.loads(line)
+        if (not isinstance(event, dict) or event.get('proto') != 'poc.progress@2'
+                or event.get('event') not in ('hello', 'job:start', 'job:spawn', 'job:end',
+                    'job:artifacts', 'runtime:metrics', 'event:chunk', 'task:start',
+                    'task:progress', 'task:end', 'log')):
+            return False
+        timestamp = event.get('ts')
+        if not isinstance(timestamp, str):
+            return False
+        parsed_time = None
+        for pattern in ('%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%SZ'):
+            try:
+                parsed_time = datetime.strptime(timestamp, pattern)
+                break
+            except ValueError:
+                pass
+        if parsed_time is None:
+            return False
+    except (ValueError, KeyError, TypeError):
+        return False
+    task['stage'] = str(event.get('stage') or event.get('name') or task.get('stage') or 'indeterminate')[:256]
+    task['details'] = str(event.get('message') or event.get('text') or task.get('details') or '')[:1024]
+    for field in ('current', 'total'):
+        value = event.get(field)
+        task[field] = value if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0 else None
+    if event['event'] in ('task:start', 'task:progress'):
+        task['status'] = 'indexing'
+    elif event['event'] == 'job:end':
+        task['status'] = 'failed' if event.get('status') == 'failed' else 'settling'
+    task['lastActivityAt'] = _now()
+    _render(window)
+    return True
 
 
 def note_watchdog(window, task, details=None):
@@ -130,6 +175,15 @@ def cancel_active(window):
     return None
 
 
+def cancel_task(window, task_id):
+    task = next((entry for entry in active_tasks(window) if entry['id'] == task_id), None)
+    if not task or not task.get('cancellable') or not callable(task.get('cancel')):
+        return None
+    mark_cancelling(window, task, details='Cancellation requested; waiting for owned process settlement.')
+    task['cancel']()
+    return task
+
+
 def clear_window(window):
     confirmed = operations.shutdown(window)
     window_id = _window_id(window)
@@ -182,6 +236,10 @@ def _render(window, show_panel=False):
             ))
             if task.get('repoRoot'):
                 lines.append('  repo: {0}'.format(task['repoRoot']))
+            lines.append('  operation: {0}; stage: {1}; counters: {2}/{3}'.format(
+                task['id'], task.get('stage', 'indeterminate'),
+                task.get('current') if task.get('current') is not None else 'unknown',
+                task.get('total') if task.get('total') is not None else 'unknown'))
             if task.get('details'):
                 lines.append('  detail: {0}'.format(task['details']))
             if task.get('watchdogCount'):

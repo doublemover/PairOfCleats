@@ -7,6 +7,16 @@ export const cloneJson = (value) => JSON.parse(JSON.stringify(value));
 const freezeArray = (items) => Object.freeze(items.map((item) => Object.freeze({ ...item })));
 
 export const EDITOR_COMMAND_SPECS = freezeArray([
+  { id: 'pairofcleats.showEffectiveSettings', title: 'PairOfCleats: Show Effective Settings', workflow: 'repo-selection' },
+  { id: 'pairofcleats.browseIndexedMatches', title: 'PairOfCleats: Browse Indexed Matches', workflow: 'search' },
+  { id: 'pairofcleats.loadMoreResults', title: 'PairOfCleats: Load More Indexed Matches', workflow: 'search' },
+  { id: 'pairofcleats.semanticEvidence', title: 'PairOfCleats: Semantic Evidence (Experimental)', workflow: 'semantic-find' },
+  { id: 'pairofcleats.copyContext', title: 'PairOfCleats: Copy / Export Selected Context', workflow: 'context-pack' },
+  { id: 'pairofcleats.inspectTasks', title: 'PairOfCleats: Inspect Tasks', workflow: 'workflow-history' },
+  { id: 'pairofcleats.navigateDefinitions', title: 'PairOfCleats: Inspect Indexed Definitions', workflow: 'navigation' },
+  { id: 'pairofcleats.navigateReferences', title: 'PairOfCleats: Inspect Indexed References', workflow: 'navigation' },
+  { id: 'pairofcleats.openEvidence', title: 'PairOfCleats: Open Captured Evidence', workflow: 'results-explorer' },
+  { id: 'pairofcleats.selectServiceRepository', title: 'PairOfCleats: Select Service Repository', workflow: 'repo-selection' },
   { id: 'pairofcleats.search', title: 'PairOfCleats: Search', workflow: 'search' },
   { id: 'pairofcleats.searchSelection', title: 'PairOfCleats: Search Selection', workflow: 'search' },
   { id: 'pairofcleats.searchSymbolUnderCursor', title: 'PairOfCleats: Search Symbol Under Cursor', workflow: 'search-symbol' },

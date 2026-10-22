@@ -31,6 +31,8 @@ ANALYSIS_ACTIONS = [
     ('open', 'Open Hit'),
     ('open_new_group', 'Open in New Group'),
     ('copy_path', 'Copy Path'),
+    ('create_context', 'Create Context from This Evidence'),
+    ('inspect_semantic', 'Inspect Semantic Evidence (Experimental)'),
 ]
 
 
@@ -162,6 +164,7 @@ def _append_unique_hit(hits, hit):
         return
     key = (
         normalized.get('section') or '',
+        normalized.get('chunkUid') or json.dumps(normalized.get('ref'), sort_keys=True),
         file_path,
         normalized.get('startLine') or 0,
         normalized.get('endLine') or 0,
@@ -204,6 +207,9 @@ def _callsite_details_to_hit(details, section, headline):
         'file': file_path,
         'startLine': details.get('startLine'),
         'endLine': details.get('endLine') or details.get('startLine'),
+        'startCol': details.get('startCol'), 'endCol': details.get('endCol'),
+        'sourceHash': details.get('sourceHash'), 'ref': details.get('ref'),
+        'coordinateUnit': details.get('coordinateUnit'),
         'section': section,
         'name': details.get('calleeNormalized') or details.get('calleeRaw') or 'call site',
         'headline': headline,
@@ -223,6 +229,10 @@ def _collect_context_pack_hits(payload):
             'name': 'Primary Context',
             'headline': primary.get('excerpt') or '',
         })
+
+    for node in ((payload.get('graph') or {}).get('nodes') or [])[:128]:
+        if isinstance(node, dict) and node.get('file'):
+            _append_unique_hit(state, dict(node, section='graph-evidence'))
 
     repo_evidence = payload.get('repoEvidence') if isinstance(payload, dict) else None
     queries = repo_evidence.get('queries') if isinstance(repo_evidence, dict) else None
@@ -634,6 +644,9 @@ def _has_any_analysis_session(window):
 
 def _run_analysis_action(window, session, hit, action):
     repo_root = session.get('repoRoot')
+    if action in ('open', 'open_new_group') and not hit.get('sourceHash'):
+        ui.show_status('PairOfCleats: captured source hash is unavailable; indexed range freshness is unknown.')
+        hit = dict(hit, startLine=None, endLine=None, startCol=None, endCol=None)
     return results.apply_hit_action(window, hit, repo_root=repo_root, action=action)
 
 

@@ -1,4 +1,5 @@
 import os
+import hashlib
 
 import sublime
 from .saved_search import normalize_saved_options
@@ -13,6 +14,8 @@ HIT_ACTIONS = [
     ('open', 'Open Hit'),
     ('open_new_group', 'Open in New Group'),
     ('copy_path', 'Copy Path'),
+    ('create_context', 'Create Context from This Evidence'),
+    ('inspect_semantic', 'Inspect Semantic Evidence (Experimental)'),
     ('rerun_context', 'Rerun from Hit Context'),
 ]
 
@@ -179,6 +182,12 @@ def apply_hit_action(window, hit, repo_root=None, action='open', rerun=None):
         if file_path:
             sublime.set_clipboard(file_path)
         return file_path
+    if action == 'inspect_semantic':
+        window.run_command('pairofcleats_semantic_evidence', {'hit': hit, 'repo_root': repo_root})
+        return hit
+    if action == 'create_context':
+        window.run_command('pairofcleats_copy_context', {'hits': [hit], 'repo_root': repo_root})
+        return hit
     if action == 'rerun_context':
         query = resolve_hit_context_query(hit)
         if query and callable(rerun):
@@ -192,6 +201,23 @@ def open_hit(window, hit, repo_root=None):
     if not file_path:
         return None
 
+    source_hash = hit.get('sourceHash')
+    if source_hash:
+        opened = window.find_open_file(file_path) if hasattr(window, 'find_open_file') else None
+        if opened and opened.is_dirty():
+            sublime.status_message('PairOfCleats: dirty source; indexed range was not opened.')
+            return None
+        try:
+            if os.path.getsize(file_path) > 4194304:
+                sublime.status_message('PairOfCleats: source exceeds the bounded indexed-range verifier.')
+                return None
+            with open(file_path, 'rb') as handle:
+                actual = hashlib.sha256(handle.read()).hexdigest()
+            if actual != source_hash:
+                sublime.status_message('PairOfCleats: source changed; indexed range was not opened.')
+                return None
+        except OSError:
+            return None
     start_line = hit.get('startLine')
     encoded_path = file_path
     if isinstance(start_line, int) and start_line > 0:
@@ -259,10 +285,18 @@ def resolve_hit_path(hit, repo_root):
     file_path = hit.get('file')
     if not file_path:
         return None
+    if repo_root:
+        root = os.path.realpath(repo_root)
+        resolved = os.path.realpath(file_path if os.path.isabs(file_path) else os.path.join(root, file_path))
+        try:
+            relative = os.path.relpath(resolved, root)
+            if relative == os.pardir or relative.startswith(os.pardir + os.sep) or os.path.isabs(relative):
+                return None
+        except ValueError:
+            return None
+        return resolved
     if os.path.isabs(file_path):
         return file_path
-    if repo_root:
-        return os.path.join(repo_root, file_path)
     return file_path
 
 
@@ -294,9 +328,34 @@ def highlight_hit(view, hit):
             sublime.set_timeout(apply, 10)
             return
         view.erase_regions(HIGHLIGHT_KEY)
-        start_pt = view.text_point(start_line - 1, 0)
-        end_pt = view.text_point(end_line - 1, 0)
-        region = view.full_line(sublime.Region(start_pt, end_pt))
+        if hit.get('sourceHash') and view.is_dirty():
+            sublime.status_message('PairOfCleats: dirty source; indexed selection was not applied.')
+            return
+        if hit.get('sourceHash'):
+            try:
+                with open(view.file_name(), 'rb') as handle:
+                    raw = handle.read(4194305)
+                text = raw.decode('utf-8')
+                buffer_text = view.substr(sublime.Region(0, view.size()))
+                if (hashlib.sha256(raw).hexdigest() != hit['sourceHash']
+                        or (buffer_text != text and not (text.startswith('\ufeff') and buffer_text == text[1:]))):
+                    sublime.status_message('PairOfCleats: source changed; indexed selection was not applied.')
+                    return
+            except (OSError, UnicodeError):
+                return
+        start_col = hit.get('startCol')
+        end_col = hit.get('endCol')
+        if isinstance(start_col, int) and start_col > 0 and isinstance(end_col, int) and end_col > 0:
+            start_pt = _utf16_point(view, start_line - 1, start_col - 1)
+            end_pt = _utf16_point(view, end_line - 1, end_col - 1)
+            region = sublime.Region(start_pt, end_pt)
+            view.sel().clear()
+            view.sel().add(region)
+            view.show(region)
+        else:
+            start_pt = view.text_point(start_line - 1, 0)
+            end_pt = view.text_point(end_line - 1, 0)
+            region = view.full_line(sublime.Region(start_pt, end_pt))
         view.add_regions(HIGHLIGHT_KEY, [region], HIGHLIGHT_SCOPE, flags=0)
 
     sublime.set_timeout(apply, 0)
@@ -358,3 +417,17 @@ def _safe_active_group(window):
         return max(int(window.active_group()), 0)
     except Exception:
         return 0
+
+
+def _utf16_point(view, row, units):
+    start = view.text_point(row, 0)
+    line = view.substr(view.line(start))
+    consumed = 0
+    column = 0
+    for character in line:
+        width = len(character.encode('utf-16-le')) // 2
+        if consumed + width > units:
+            break
+        consumed += width
+        column += 1
+    return view.text_point(row, column)

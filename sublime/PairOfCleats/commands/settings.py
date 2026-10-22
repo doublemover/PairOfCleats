@@ -1,10 +1,13 @@
 import json
+from urllib.parse import urlsplit, urlunsplit
 
 import sublime
 import sublime_plugin
 
 from ..lib import config
 from ..lib import ui
+from ..lib import paths
+from ..lib import service_repository
 
 SETTINGS_PANEL = 'pairofcleats-settings'
 
@@ -68,11 +71,31 @@ class PairOfCleatsShowEffectiveSettingsCommand(sublime_plugin.WindowCommand):
         return True
 
     def run(self):
-        settings = config.get_settings(self.window)
-        overrides = config.extract_project_settings(self.window)
-        text = _render_effective_settings(settings, overrides)
-        ui.write_output_panel(self.window, SETTINGS_PANEL, text)
-        ui.show_status('PairOfCleats: showing effective settings.')
+        def show(root, reason):
+            if not root:
+                ui.show_status('PairOfCleats: {0}'.format(reason))
+                return
+            settings = config.get_settings(self.window)
+            overrides = config.extract_project_settings(self.window)
+            text = 'Target repository: {0}\n\n'.format(root) + _render_effective_settings(settings, overrides)
+            cli = paths.resolve_cli(settings, root)
+            text += '\nCLI/runtime command: {0}; argument count: {1}\n'.format(
+                cli.get('command') or 'unavailable', len(cli.get('args_prefix') or []))
+            errors = config.validate_settings(settings, root)
+            if errors:
+                text += '\nCorrections:\n- {0}\n'.format('\n- '.join(errors))
+            ui.write_output_panel(self.window, SETTINGS_PANEL, text)
+        paths.resolve_repo_root_interactive(self.window, show)
+
+
+class PairOfCleatsSelectRepoCommand(sublime_plugin.WindowCommand):
+    def run(self, clear=False):
+        paths.select_repo(self.window)
+        if clear:
+            ui.show_status('PairOfCleats: repository selection cleared.')
+            return
+        paths.resolve_repo_root_interactive(self.window, lambda root, reason: (
+            paths.select_repo(self.window, root), ui.show_status(reason or root or 'Selection cancelled.')))
 
 
 def _render_effective_settings(settings, overrides):
@@ -107,6 +130,17 @@ def _render_effective_settings(settings, overrides):
         lines.append('{0}:'.format(title))
         for key in keys:
             value = settings.get(key)
+            if key == 'env' or any(part in key.lower() for part in ('token', 'secret', 'password', 'credential', 'args')):
+                value = '[redacted]'
+            elif key == 'api_server_url' and value:
+                try:
+                    parsed = urlsplit(value)
+                    authority = parsed.hostname or ''
+                    if parsed.port:
+                        authority += ':' + str(parsed.port)
+                    value = urlunsplit((parsed.scheme, authority, parsed.path, '', ''))
+                except ValueError:
+                    value = '[invalid endpoint; inspect User Settings]'
             source = _setting_source(key, effective_overrides)
             lines.append('- {0} = {1} [{2}]'.format(key, _format_value(value), source))
         lines.append('')
@@ -126,3 +160,14 @@ def _format_value(value):
     if isinstance(value, dict):
         return json.dumps(value, sort_keys=True)
     return json.dumps(value)
+
+
+class PairOfCleatsSelectServiceRepositoryCommand(sublime_plugin.WindowCommand):
+    def run(self):
+        def chosen(root, reason):
+            if not root:
+                ui.show_status(reason or 'Selection cancelled.')
+                return
+            service_repository.resolve(self.window, config.get_settings(self.window), root,
+                                       lambda selected: ui.show_status('PairOfCleats service repository: ' + selected), force=True)
+        paths.resolve_repo_root_interactive(self.window, chosen)

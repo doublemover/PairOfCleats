@@ -168,7 +168,7 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
                 capture_json=False, on_done=None, stream_output=True,
                 panel_name='pairofcleats', watchdog_ms=None, show_progress_panel=None,
                 spawn_process=None, timeout_ms=DEFAULT_TIMEOUT_MS,
-                output_cap_chars=DEFAULT_OUTPUT_CAP_CHARS, operation_scope=None):
+                output_cap_chars=DEFAULT_OUTPUT_CAP_CHARS, operation_scope=None, on_settled=None):
     if window is None:
         window = sublime.active_window()
     scope = operation_scope or operations.capture(window)
@@ -209,6 +209,8 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
             error='Failed to launch process: {0}'.format(exc),
             state='spawn_failed',
         )
+        if callable(on_settled):
+            on_settled(result)
         if on_done:
             sublime.set_timeout(lambda: on_done(result) if operations.is_current(scope) else None, 0)
         return ProcessHandle(None, None)
@@ -247,8 +249,9 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
         with activity_lock:
             state['last_activity_at'] = time.time()
         if task and window and operations.is_current(scope):
-            detail = line.strip() or 'Output received.'
-            tasks.note_progress(window, task, details=detail[:200])
+            if not tasks.note_structured_progress(window, task, line):
+                detail = line.strip() or 'Output received.'
+                tasks.note_progress(window, task, details=detail[:200])
         if panel is not None and operations.is_current(scope):
             panel_text = []
             _append_bounded(panel_text, line, output_cap_chars, state['panel'])
@@ -335,8 +338,17 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
         )
         with activity_lock:
             state['done'] = True
+        if handle._stopper is not None:
+            handle._stopper.join(2.1)
+        cleanup_unconfirmed = bool(handle._cleanup_failures or (handle._stopper is not None and handle._stopper.is_alive()))
+        if cleanup_unconfirmed:
+            result.error = 'Owned process-tree settlement remains unconfirmed.'
+            result.state = 'cleanup_unconfirmed'
         if task and window:
-            if result.cancelled or task.get('status') == 'cancelling':
+            if cleanup_unconfirmed:
+                final_status = 'failed'
+                detail = result.error
+            elif result.cancelled or task.get('status') == 'cancelling':
                 final_status = 'cancelled'
                 detail = 'Cancelled.'
             elif result.timed_out:
@@ -349,9 +361,9 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
                 final_status = 'done' if proc.returncode == 0 else 'failed'
                 detail = 'Completed successfully.' if proc.returncode == 0 else (output.strip() or 'Process failed.')
             tasks.complete_task(window, task, status=final_status, details=detail[:240])
+        if callable(on_settled):
+            on_settled(result)
         sublime.set_timeout(lambda: done_callback(result), 0)
-        if handle._stopper is not None:
-            handle._stopper.join(2.1)
         if not handle._cleanup_failures and (handle._stopper is None or not handle._stopper.is_alive()):
             operations.release(handle)
 

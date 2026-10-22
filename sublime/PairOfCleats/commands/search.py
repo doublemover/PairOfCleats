@@ -1,4 +1,6 @@
 import os
+import hashlib
+import uuid
 import sublime
 import sublime_plugin
 
@@ -10,6 +12,7 @@ from ..lib import results
 from ..lib import results_state
 from ..lib import runner
 from ..lib import search as search_lib
+from ..lib import service_repository
 from ..lib import tasks
 from ..lib import operations
 from ..lib import ui
@@ -25,7 +28,8 @@ def _resolve_repo_root(window):
 
 
 def _has_repo_root(window):
-    return paths.has_repo_root(window)
+    resolution = paths.describe_repo_root(window)
+    return bool(resolution.get('selected_root') or resolution.get('repo_roots'))
 
 
 def _has_selection(view):
@@ -111,6 +115,7 @@ def _search_transport_kwargs(resolved):
         'as_of': resolved.get('as_of') or None,
         'snapshot': resolved.get('snapshot') or None,
         'advanced': resolved.get('advanced'),
+        'cursor': resolved.get('cursor'),
     }
 
 
@@ -141,7 +146,7 @@ def _prompt_options(window, settings, defaults, on_done, force_prompt=False):
         return
 
     options = dict(defaults)
-    mode_choices = ['code', 'prose', 'both']
+    mode_choices = ['both'] + sorted(config.VALID_INDEX_MODES - {'both'})
     default_mode = options.get('mode')
     mode_index = mode_choices.index(default_mode) if default_mode in mode_choices else 2
 
@@ -164,7 +169,8 @@ def _prompt_backend(window, options, on_done):
         ('memory', 'memory'),
         ('sqlite', 'sqlite'),
         ('sqlite-fts', 'sqlite-fts'),
-        ('lmdb', 'lmdb')
+        ('lmdb', 'lmdb'),
+        ('tantivy', 'tantivy')
     ]
     labels = ['backend: {0}'.format(label) for _, label in backend_choices]
     current = options.get('backend') or ''
@@ -321,10 +327,10 @@ def _prompt_limit(window, options, on_done):
     window.show_quick_panel(choices, on_limit_select, selected_index=0)
 
 
-def _execute_search(window, query, overrides=None, explain=False):
+def _execute_search(window, query, overrides=None, explain=False, enumeration=False, append_session=None, service_root=None):
     if not _saved_scope_available(overrides):
         return
-    if not query:
+    if not query and not enumeration:
         return
     scope = operations.capture(window, key='foreground-search')
     if not operations.is_current(scope):
@@ -334,7 +340,9 @@ def _execute_search(window, query, overrides=None, explain=False):
     saved_root = overrides.get('repoRoot') if isinstance(overrides, dict) else None
     repo_root, reason = (saved_root, None) if saved_root else _resolve_repo_root(window)
     if not repo_root:
-        ui.show_error('PairOfCleats: {0}'.format(reason))
+        paths.resolve_repo_root_interactive(window, lambda chosen, why: (
+            _execute_search(window, query, dict(overrides or {}, repoRoot=chosen), explain, enumeration, append_session)
+            if chosen else ui.show_status('PairOfCleats: {0}'.format(why))))
         return
     if reason:
         ui.show_status('PairOfCleats: {0}'.format(reason))
@@ -349,9 +357,29 @@ def _execute_search(window, query, overrides=None, explain=False):
 
     resolved = _resolve_defaults(settings, overrides)
     resolved = normalize_saved_options(resolved, repo_root)
+    if enumeration and not search_lib.has_effective_filter(resolved.get('advanced')):
+        ui.show_error('PairOfCleats: indexed browsing requires an effective filter.')
+        return
+    if isinstance(overrides, dict) and overrides.get('cursor'):
+        resolved['cursor'] = overrides['cursor']
+    option_errors = search_lib.validate_search_options(resolved)
+    if option_errors:
+        ui.show_error('PairOfCleats search options need attention:\n- ' + '\n- '.join(option_errors))
+        return
     execution = config.resolve_execution_mode(settings, 'search-explain' if explain else 'search')
     if execution.get('error'):
         ui.show_error(execution['error'])
+        return
+
+    if append_session and append_session.get('transport') != execution.get('mode'):
+        ui.show_error('PairOfCleats: transport changed. Restart indexed browsing with the intended transport.')
+        return
+    if append_session and service_root and append_session.get('serviceRoot') != service_root:
+        ui.show_error('PairOfCleats: service repository mapping changed. Restart indexed browsing.')
+        return
+    if execution.get('mode') == 'api' and not service_root:
+        service_repository.resolve(window, settings, repo_root, lambda selected: _execute_search(
+            window, query, overrides, explain, enumeration, append_session, selected))
         return
 
     def handle_payload(result):
@@ -372,9 +400,45 @@ def _execute_search(window, query, overrides=None, explain=False):
             ui.show_error(payload.get('message') or 'PairOfCleats search failed.')
             return
 
+        actual_transport = 'api' if getattr(result, 'transport', None) == 'api' else 'cli'
+        if append_session and append_session.get('transport') != actual_transport:
+            ui.show_error('PairOfCleats: continuation transport changed. Restart indexed browsing.')
+            return
+        if service_root and actual_transport == 'api':
+            try:
+                payload = service_repository.map_payload(payload, service_root)
+            except ValueError as error:
+                ui.show_error(str(error))
+                return
         hits = results.collect_hits(payload)
+        pagination = payload.get('pagination')
+        if append_session:
+            previous = append_session.get('pagination') or {}
+            current = results_state.get_last_results(window)
+            if not current or current.get('sessionId') != append_session.get('sessionId'):
+                return
+            if not isinstance(pagination, dict) or previous.get('generation') != pagination.get('generation'):
+                ui.show_error('PairOfCleats: indexed generation changed. Restart Browse Indexed Matches.')
+                return
+            previous_hits = append_session.get('hits') or []
+            def identity(hit):
+                value = hit.get('chunkUid') or hit.get('id')
+                return (hit.get('section'), str(value)) if value is not None and value != '' else None
+            seen = set(identity(hit) for hit in previous_hits if identity(hit) is not None)
+            merged = list(previous_hits)
+            for hit in hits:
+                key = identity(hit)
+                if key is None or key not in seen:
+                    merged.append(hit)
+                    if key is not None:
+                        seen.add(key)
+            hits = merged
+            if len(hits) > 2000:
+                ui.show_error('PairOfCleats: view reached its 2,000 hit bound. Narrow filters and restart.')
+                return
         history_limit = settings.get('history_limit')
-        history.record_query(window, query, resolved, history_limit)
+        if query:
+            history.record_query(window, query, resolved, history_limit)
 
         if explain:
             session = results.build_session(
@@ -394,12 +458,19 @@ def _execute_search(window, query, overrides=None, explain=False):
             )
             return
 
-        if not hits:
+        if not hits and not enumeration:
             ui.show_status('PairOfCleats: no results.')
             return
 
         target = _resolve_results_target(settings, len(hits))
         session = results.build_session(query, resolved, repo_root, hits, target)
+        session['pagination'] = pagination if isinstance(pagination, dict) else None
+        session['transport'] = actual_transport
+        session['serviceRoot'] = service_root if actual_transport == 'api' else None
+        session['sessionId'] = append_session.get('sessionId') if append_session else str(uuid.uuid4())
+        if isinstance(pagination, dict):
+            ui.show_status('PairOfCleats: {0} loaded / {1} indexed matches; more={2}.'.format(
+                len(hits), pagination.get('total', 'unknown'), pagination.get('hasMore', False)))
         results_state.record_last_results(window, session)
         if target == 'output_panel':
             results.open_output_panel(
@@ -454,7 +525,7 @@ def _execute_search(window, query, overrides=None, explain=False):
         api_client.run_async(
             lambda: api_client.search_json(
                 execution.get('base_url'),
-                repo_root,
+                service_root or repo_root,
                 settings,
                 query,
                 resolved.get('mode'),
@@ -478,6 +549,7 @@ class _ApiProcessResult(object):
         self.output = ''
         self.error = None
         self.payload = payload
+        self.transport = 'api'
 
 
 def _execute_search_cli(window, query, repo_root, settings, resolved, explain, on_done, scope=None):
@@ -506,7 +578,7 @@ def _execute_search_cli(window, query, repo_root, settings, resolved, explain, o
     )
 
 
-def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats symbol lookup'):
+def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats symbol lookup', service_root=None):
     if not query:
         return
 
@@ -537,6 +609,11 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
         ui.show_error(execution['error'])
         return
 
+    if execution.get('mode') == 'api' and not service_root:
+        service_repository.resolve(window, settings, repo_root, lambda selected: _execute_symbol_lookup(
+            window, query, on_hits, limit, title, selected))
+        return
+
     def on_done(result):
         if result.returncode != 0:
             message = result.output.strip() or '{0} failed.'.format(title)
@@ -552,6 +629,12 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
         if payload.get('ok') is False:
             ui.show_error(payload.get('message') or '{0} failed.'.format(title))
             return
+        if service_root and getattr(result, 'transport', None) == 'api':
+            try:
+                payload = service_repository.map_payload(payload, service_root)
+            except ValueError as error:
+                ui.show_error(str(error))
+                return
         hits = [hit for hit in results.collect_hits(payload) if hit.get('section') == 'code']
         on_hits(hits, repo_root, resolved)
 
@@ -579,7 +662,7 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
         api_client.run_async(
             lambda: api_client.search_json(
                 execution.get('base_url'),
-                repo_root,
+                service_root or repo_root,
                 settings,
                 query,
                 'code',
@@ -658,16 +741,96 @@ class _FileSymbolLookupMixin(object):
         def on_hits(hits, repo_root, resolved):
             self.handle_symbol_hits(query, hits, repo_root, resolved)
 
-        _execute_symbol_lookup(
-            self.view.window(),
-            query,
-            on_hits,
-            limit=self.lookup_limit,
-            title=self.lookup_title,
-        )
+        _execute_qualified_navigation(self.view, query, self.lookup_kind, on_hits,
+                                      self.lookup_limit, self.lookup_title)
 
     def handle_symbol_hits(self, query, hits, repo_root, resolved):
         raise NotImplementedError()
+
+
+def _execute_qualified_navigation(view, query, kind, on_hits, limit, title, include_declaration=True):
+    window = view.window()
+    if view.is_dirty():
+        ui.show_error('PairOfCleats: save the source before indexed navigation. Related Search remains approximate.')
+        return
+    file_name = view.file_name()
+    repo_root, reason = paths.resolve_repo_root(window, return_reason=True, path_hint=file_name)
+    if not repo_root:
+        ui.show_error(reason)
+        return
+    settings = config.get_settings(window)
+    execution = config.resolve_execution_mode(settings, 'navigation')
+    if execution.get('error'):
+        ui.show_error(execution['error'])
+        return
+    errors = config.validate_settings(settings, repo_root, workflow='navigation')
+    if errors:
+        ui.show_error('PairOfCleats settings need attention:\n- ' + '\n- '.join(errors))
+        return
+    with open(file_name, 'rb') as handle:
+        raw = handle.read(4 * 1024 * 1024 + 1)
+    if len(raw) > 4 * 1024 * 1024:
+        ui.show_error('PairOfCleats: source exceeds the bounded navigation verifier.')
+        return
+    text = view.substr(sublime.Region(0, view.size()))
+    disk = raw.decode('utf-8')
+    if text != disk and not (disk.startswith('\ufeff') and text == disk[1:]):
+        ui.show_error('PairOfCleats: source buffer differs from disk. Save before indexed navigation.')
+        return
+    selections = list(view.sel())
+    if not selections:
+        return
+    point = selections[0].begin()
+    row, _column = view.rowcol(point)
+    prefix = view.substr(sublime.Region(view.text_point(row, 0), point))
+    column = len(prefix.encode('utf-16-le')) // 2
+    source_hash = hashlib.sha256(raw).hexdigest()
+    version = str(view.change_count())
+    args = ['tooling', 'navigate', '--json', '--repo', repo_root, '--kind', kind,
+            '--top', str(limit), '--file', file_name, '--symbol', query,
+            '--source-hash', source_hash, '--source-version', version,
+            '--line', str(row + 1), '--column', str(column + 1), '--coordinate-unit', 'utf16',
+            '--include-declaration', str(bool(include_declaration)).lower()]
+    scope = operations.capture(window, key='navigation')
+    def done(result):
+        if not operations.is_current(scope) or view.change_count() != int(version) or view.is_dirty():
+            return
+        if result.error or result.returncode != 0:
+            ui.show_error(result.error or result.output or 'Indexed navigation failed.')
+            return
+        payload = result.payload or {}
+        if payload.get('status') == 'ambiguous' and (payload.get('binding') or {}).get('candidates'):
+            candidates = payload['binding']['candidates']
+            def chosen(index):
+                if index < 0 or not operations.is_current(scope):
+                    return
+                candidate = candidates[index]
+                from . import semantic
+                state = {'context': {'root': repo_root}, 'payload': {'sourceRefs': [
+                    dict(candidate, path=candidate.get('file'))]}}
+                try:
+                    semantic.open_source(window, state, {'ref': candidate.get('ref'), 'span': candidate.get('span')})
+                    ui.show_status('PairOfCleats: candidate evidence opened; binding remains ambiguous and references were not pooled.')
+                except (ValueError, OSError, UnicodeError) as error:
+                    ui.show_error(str(error))
+            window.show_quick_panel([[candidate.get('targetId'), candidate.get('file') or 'external source',
+                'Inspect one candidate; binding remains ambiguous'] for candidate in candidates], chosen)
+            return
+        if payload.get('status') not in ('resolved', 'partial') or (payload.get('binding') or {}).get('status') == 'ambiguous':
+            ui.write_output_panel(window, 'pairofcleats-navigation',
+                                  'Indexed navigation: {0}\n{1}\nUse Related Search for approximate matches.'.format(
+                                      payload.get('status', 'unqualified'), payload.get('message', '')))
+            return
+        if payload.get('status') == 'partial':
+            ui.show_status('PairOfCleats: partial indexed navigation; missing occurrences remain unknown.')
+        hits = [dict(row, section='indexed-' + kind + '-' + payload.get('status', 'unknown')) for row in payload.get('results', []) if row.get('coordinateUnit') == 'utf16'
+                and isinstance(row.get('sourceHash'), str) and len(row['sourceHash']) == 64]
+        on_hits(hits, repo_root, {})
+    cli = paths.resolve_cli(settings, repo_root)
+    runner.run_process(cli['command'], list(cli.get('args_prefix') or []) + args,
+                       cwd=repo_root, env=config.build_env(settings), window=window, title=title,
+                       capture_json=True, on_done=done, stream_output=False, timeout_ms=5000,
+                       operation_scope=scope)
 
 
 def _rank_definition_hits(hits, query):
@@ -781,6 +944,7 @@ class PairOfCleatsSearchSymbolUnderCursorCommand(sublime_plugin.TextCommand):
 
 
 class PairOfCleatsGotoDefinitionCommand(_FileSymbolLookupMixin, sublime_plugin.TextCommand):
+    lookup_kind = 'definitions'
     lookup_limit = 25
     lookup_title = 'PairOfCleats goto definition'
 
@@ -788,7 +952,7 @@ class PairOfCleatsGotoDefinitionCommand(_FileSymbolLookupMixin, sublime_plugin.T
         if not hits:
             ui.show_status('PairOfCleats: no indexed definitions found.')
             return
-        ranked = _rank_definition_hits(hits, query)
+        ranked = hits
         if len(ranked) == 1:
             results.open_hit(self.view.window(), ranked[0], repo_root)
             return
@@ -796,6 +960,7 @@ class PairOfCleatsGotoDefinitionCommand(_FileSymbolLookupMixin, sublime_plugin.T
 
 
 class PairOfCleatsFindReferencesCommand(_FileSymbolLookupMixin, sublime_plugin.TextCommand):
+    lookup_kind = 'references'
     lookup_limit = 50
     lookup_title = 'PairOfCleats find references'
 
@@ -1034,3 +1199,23 @@ def _run_result_action(window, session, hit, action):
     )
     if action == 'copy_path' and outcome:
         ui.show_status('PairOfCleats: copied path.')
+
+
+class PairOfCleatsBrowseIndexedMatchesCommand(sublime_plugin.WindowCommand):
+    def run(self):
+        def execute(value):
+            if value.strip():
+                _execute_search(self.window, '', {'filter': value.strip()}, enumeration=True)
+        self.window.show_input_panel('PairOfCleats indexed metadata filter', '', execute, None, None)
+
+
+class PairOfCleatsLoadMoreResultsCommand(sublime_plugin.WindowCommand):
+    def run(self):
+        session = results_state.get_last_results(self.window)
+        pagination = (session or {}).get('pagination') or {}
+        if not pagination.get('hasMore') or not pagination.get('nextCursor'):
+            ui.show_status('PairOfCleats: no indexed continuation. Ranked text search is top-k.')
+            return
+        options = dict(session.get('options') or {})
+        options['cursor'] = pagination['nextCursor']
+        _execute_search(self.window, '', options, enumeration=True, append_session=session)

@@ -1,5 +1,10 @@
 {
   "schemaVersion": 1,
+  "search": {
+    "modes": ["code", "prose", "both", "records", "extracted-prose", "all"],
+    "backends": ["auto", "memory", "sqlite", "sqlite-fts", "lmdb", "tantivy"],
+    "apiBackends": ["auto", "memory", "sqlite", "sqlite-fts", "lmdb"]
+  },
   "repoRoot": {
     "markers": [
       ".pairofcleats.json",

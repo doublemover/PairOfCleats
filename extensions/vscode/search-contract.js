@@ -49,6 +49,11 @@ function readSearchOptions(config, settings) {
 }
 
 function normalizeSearchContractOptions(options = {}) {
+  const contract = require('./editor-config-contract.json').search || {};
+  const modes = contract.modes || ['code', 'prose', 'both', 'records', 'extracted-prose', 'all'];
+  const backends = contract.backends || ['auto', 'memory', 'sqlite', 'sqlite-fts', 'lmdb', 'tantivy'];
+  if (options.mode && !modes.includes(options.mode)) throw new Error(`Unsupported search mode: ${options.mode}. Choose ${modes.join(', ')}.`);
+  if (options.backend && !backends.includes(options.backend)) throw new Error(`Unsupported search backend: ${options.backend}. Choose ${backends.join(', ')}.`);
   return {
     mode: normalizeStringSetting(options.mode) || 'both',
     backend: normalizeStringSetting(options.backend),
@@ -123,6 +128,11 @@ function buildSearchArgs(query, repoRoot, options = {}) {
 }
 
 function buildSearchPayload(query, repoRoot, options = {}) {
+  const apiBackends = require('./editor-config-contract.json').search?.apiBackends
+    || ['auto', 'memory', 'sqlite', 'sqlite-fts', 'lmdb'];
+  if (options.backend && !apiBackends.includes(options.backend)) {
+    throw new Error(`The API does not admit backend ${options.backend}. Select a supported API backend or deliberately choose CLI mode.`);
+  }
   const {
     mode,
     backend,

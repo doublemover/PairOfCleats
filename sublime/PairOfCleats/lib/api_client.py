@@ -280,7 +280,8 @@ def search_json(
         allow_sparse_fallback=False,
         as_of=None,
         snapshot=None,
-        advanced=None):
+        advanced=None,
+        cursor=None):
     from . import search as search_lib
 
     base_url = normalize_base_url(base_url)
@@ -302,6 +303,7 @@ def search_json(
         as_of=as_of,
         snapshot=snapshot,
         advanced=advanced,
+        cursor=cursor,
     )
 
     body, headers = request_json(
