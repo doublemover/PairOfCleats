@@ -603,20 +603,27 @@ const allocateShard = (cacheIndex) => {
  * @param {number} [maxShardBytes]
  * @returns {string}
  */
-const selectShardForWrite = (cacheIndex, payloadBytes, maxShardBytes) => {
+const selectShardForWrite = async (cacheDir, cacheIndex, payloadBytes, maxShardBytes) => {
   const resolvedMax = Number.isFinite(Number(maxShardBytes))
     ? Math.max(1, Math.floor(Number(maxShardBytes)))
     : DEFAULT_MAX_SHARD_BYTES;
-  const currentName = cacheIndex.currentShard;
-  const currentMeta = currentName ? cacheIndex.shards?.[currentName] : null;
-  const currentSize = Number.isFinite(Number(currentMeta?.sizeBytes)) ? Number(currentMeta.sizeBytes) : 0;
-  if (!currentName || !currentMeta) {
-    return allocateShard(cacheIndex);
+  let shardName = cacheIndex.currentShard;
+  if (!shardName || !cacheIndex.shards?.[shardName]) shardName = allocateShard(cacheIndex);
+  for (;;) {
+    let actualSize = 0;
+    try {
+      const stat = await fs.stat(resolveCacheShardPath(cacheDir, shardName));
+      if (!stat.isFile()) throw new Error(`Embedding cache shard is not a regular file: ${shardName}`);
+      actualSize = stat.size;
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    cacheIndex.shards[shardName].sizeBytes = actualSize;
+    // A single oversized entry may own an otherwise empty shard, as before.
+    // Never append to a full shard based on an unflushed writer's stale index.
+    if (actualSize === 0 || actualSize + payloadBytes + CACHE_ENTRY_PREFIX_BYTES <= resolvedMax) return shardName;
+    shardName = allocateShard(cacheIndex);
   }
-  if (currentSize + payloadBytes + CACHE_ENTRY_PREFIX_BYTES > resolvedMax) {
-    return allocateShard(cacheIndex);
-  }
-  return currentName;
 };
 
 /**
@@ -634,7 +641,7 @@ const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = 
   const shardDir = resolveCacheShardDir(cacheDir);
   if (!shardDir) return null;
   await fs.mkdir(shardDir, { recursive: true });
-  const shardName = selectShardForWrite(cacheIndex, buffer.length, options.maxShardBytes);
+  const shardName = await selectShardForWrite(cacheDir, cacheIndex, buffer.length, options.maxShardBytes);
   const shardPath = resolveCacheShardPath(cacheDir, shardName);
   const prefix = Buffer.allocUnsafe(CACHE_ENTRY_PREFIX_BYTES);
   prefix.writeUInt32LE(buffer.length, 0);

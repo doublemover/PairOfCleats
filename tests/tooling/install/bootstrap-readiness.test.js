@@ -25,6 +25,7 @@ const entries = ['bin/pairofcleats.js', 'tests/run.js', 'tools/bench/bench-runne
 // Every guarded cache-path consumer must reject an incomplete checkout before
 // linking even its lightweight repository helpers.
 entries.push('tools/ci/run-suite.js');
+entries.push('tools/build/embeddings.js');
 for (const directory of ['tools/bench/index', 'tools/bench/sqlite']) {
   for (const name of fs.readdirSync(path.join(sourceRoot, directory)).sort()) {
     if (!name.endsWith('.js')) continue;

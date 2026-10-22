@@ -21,6 +21,14 @@ export const assertVectorArrays = (vectors, count, label) => {
         `[embeddings] ${label} embedding output invalid at index ${i} (non-vector).`
       );
     }
+    if (vec.length !== vectors[0].length) {
+      throw new Error(`[embeddings] ${label} embedding dimensions differ at index ${i}.`);
+    }
+    for (let column = 0; column < vec.length; column++) {
+      if (typeof vec[column] !== 'number' || !Number.isFinite(vec[column])) {
+        throw new Error(`[embeddings] ${label} embedding output invalid at index ${i}, element ${column} (non-finite number).`);
+      }
+    }
   }
 };
 
@@ -97,6 +105,7 @@ export const runBatched = async ({
   const { batches } = plan;
   const out = new Array(texts.length);
   let completed = 0;
+  let observedDims = null;
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
     const indices = batches[batchIndex];
     const slice = indices.map((index) => texts[index]);
@@ -109,6 +118,10 @@ export const runBatched = async ({
     const startedAt = Date.now();
     const vectors = await embed(slice);
     assertVectorArrays(vectors, indices.length, 'grouped batch');
+    if (observedDims !== null && vectors[0].length !== observedDims) {
+      throw new Error('[embeddings] grouped batch embedding dimensions changed between batches.');
+    }
+    observedDims = vectors[0].length;
     indices.forEach((index, slot) => { out[index] = vectors[slot]; });
     completed += indices.length;
     observer?.({

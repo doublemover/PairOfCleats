@@ -58,5 +58,11 @@ const stable = createIncrementalChunkMappingIndex(new Map([
 assert.equal(resolveBundleChunkVectorIndex({ chunk: { chunkId: 'unique' }, normalizedFile: 'renamed.js',
   fileMapping: null, mappingIndex: stable, fallbackState: { cursor: 0 }, vectorCount: 1 }).vectorIndex, 0,
 'a unique explicit stable identity remains an admissible cross-file recovery');
+const whitespacePaths = createIncrementalChunkMappingIndex(new Map([
+  ['a.js', [{ index: 0, chunk: identical('a.js') }]],
+  [' a.js', [{ index: 1, chunk: identical(' a.js') }]]
+]));
+assert.equal(whitespacePaths.fileMappings.size, 2, 'mapping file identity also preserves leading whitespace');
+assert.equal(whitespacePaths.fileMappings.get(' a.js').fallbackIndices[0], 1);
 
 console.log('embeddings mapping index bounds test passed');

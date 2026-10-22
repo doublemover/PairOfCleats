@@ -175,8 +175,8 @@ export const writeLanceDbBackends = async ({
     }
   ];
 
-  try {
-    for (const entry of entries) {
+  for (const entry of entries) {
+    try {
       let result = await writeLanceDbIndex({
         indexDir,
         variant: entry.variant,
@@ -214,9 +214,9 @@ export const writeLanceDbBackends = async ({
         });
       }
       results[entry.variant] = result;
+    } catch (err) {
+      warn(`[embeddings] ${entry.label}: failed to write LanceDB index: ${err?.message || err}`);
     }
-  } catch (err) {
-    warn(`[embeddings] ${mode}: failed to write LanceDB indexes: ${err?.message || err}`);
   }
   return results;
 };

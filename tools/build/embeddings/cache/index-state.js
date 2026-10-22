@@ -111,7 +111,7 @@ const parseIsoMillis = (value) => {
 };
 
 const toCanonicalFileString = (value) => {
-  const text = typeof value === 'string' ? value.trim() : '';
+  const text = typeof value === 'string' ? value : '';
   return text || null;
 };
 

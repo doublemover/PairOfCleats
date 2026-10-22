@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { sha1 } from '../../../src/shared/hash.js';
 import { resolveCacheBase } from './cache.js';
 
@@ -8,6 +9,7 @@ const DEFAULT_MAX_ENTRIES = 500000;
 const PRUNE_INTERVAL_WRITES = 512;
 const VECTOR_ENCODING_FLOAT32 = 'float32';
 const VECTOR_ENCODING_FLOAT16 = 'float16';
+const VECTOR_ROW_VERSION = 2;
 
 const FLOAT32_BITS_VIEW = new Uint32Array(1);
 const FLOAT32_VALUE_VIEW = new Float32Array(FLOAT32_BITS_VIEW.buffer);
@@ -59,7 +61,8 @@ const float32ToFloat16Bits = (value) => {
     if (roundBit && (stickyBits !== 0 || (halfMantissa & 1) !== 0)) {
       halfMantissa += 1;
     }
-    return sign | (halfMantissa & 0x03ff);
+    // Subnormal rounding can carry into the minimum normal half (0x0400).
+    return sign | halfMantissa;
   }
 
   let halfMantissa = mantissa >>> 13;
@@ -112,6 +115,7 @@ const encodeVectorBlob = (vector, vectorEncoding) => {
     const out = new Uint16Array(vector.length);
     for (let i = 0; i < vector.length; i += 1) {
       out[i] = float32ToFloat16Bits(vector[i]);
+      if ((out[i] & 0x7c00) === 0x7c00) return null;
     }
     return Buffer.from(out.buffer, out.byteOffset, out.byteLength);
   }
@@ -143,33 +147,23 @@ const decodeFloat16Blob = (buffer, length) => {
   return out;
 };
 
-const bufferToFloat32 = (buffer, dims = null) => {
-  if (!buffer || !buffer.byteLength) return null;
-  const length = Number.isFinite(Number(dims)) && Number(dims) > 0
-    ? Math.max(1, Math.floor(Number(dims)))
-    : Math.floor(buffer.byteLength / Float32Array.BYTES_PER_ELEMENT);
-  if (!length) return null;
-  const float16Bytes = length * Uint16Array.BYTES_PER_ELEMENT;
-  const float32Bytes = length * Float32Array.BYTES_PER_ELEMENT;
-  if (Number.isFinite(Number(dims)) && Number(dims) > 0) {
-    if (buffer.byteLength === float16Bytes) {
-      return decodeFloat16Blob(buffer, length);
-    }
-    if (buffer.byteLength === float32Bytes || buffer.byteLength > float32Bytes) {
-      return decodeFloat32Blob(buffer, length);
-    }
-    return null;
-  }
-  if (buffer.byteLength % Float32Array.BYTES_PER_ELEMENT === 0) {
-    return decodeFloat32Blob(buffer, Math.floor(buffer.byteLength / Float32Array.BYTES_PER_ELEMENT));
-  }
-  if (buffer.byteLength % Uint16Array.BYTES_PER_ELEMENT === 0) {
-    return decodeFloat16Blob(buffer, Math.floor(buffer.byteLength / Uint16Array.BYTES_PER_ELEMENT));
-  }
-  return null;
+const vectorDigest = (buffer, dims, encoding) => createHash('sha256')
+  .update(`${VECTOR_ROW_VERSION}\n${encoding}\n${dims}\n${buffer.byteLength}\n`).update(buffer).digest('hex');
+
+const decodeVectorRow = (row, expectedEncoding, expectedDims) => {
+  const buffer = row?.vectorBlob;
+  if (!(buffer instanceof Uint8Array) || row.formatVersion !== VECTOR_ROW_VERSION
+    || row.vectorEncoding !== expectedEncoding || !Number.isSafeInteger(row.dims) || row.dims <= 0
+    || (expectedDims && row.dims !== expectedDims)) return null;
+  const width = expectedEncoding === VECTOR_ENCODING_FLOAT16 ? 2 : 4;
+  if (buffer.byteLength !== row.dims * width || row.payloadBytes !== buffer.byteLength
+    || row.payloadSha256 !== vectorDigest(buffer, row.dims, expectedEncoding)) return null;
+  const vector = expectedEncoding === VECTOR_ENCODING_FLOAT16
+    ? decodeFloat16Blob(buffer, row.dims) : decodeFloat32Blob(buffer, row.dims);
+  return vector?.every(Number.isFinite) ? vector : null;
 };
 
-const buildCacheKey = (identityKey, text) => sha1(`${identityKey}\n${text}`);
+const buildCacheKey = (identityKey, text, encoding) => sha1(`${identityKey}\ntext-vectors@${VECTOR_ROW_VERSION}:${encoding}\n${text}`);
 
 const resolveMaxEntries = (value) => {
   const parsed = Number(value);
@@ -212,6 +206,7 @@ export const createPersistentEmbeddingTextKvStore = async ({
   if (!Database || !cacheRoot || !cacheIdentity || !cacheIdentityKey) return null;
   const maxRows = resolveMaxEntries(maxEntries);
   const resolvedVectorEncoding = normalizePersistentTextVectorEncoding(vectorEncoding);
+  const expectedDims = Number.isSafeInteger(cacheIdentity.dims) && cacheIdentity.dims > 0 ? cacheIdentity.dims : null;
   const baseDir = resolveCacheBase(cacheRoot, cacheIdentity);
   const dbPath = path.join(baseDir, PROFILE_DB_FILE);
   try {
@@ -233,6 +228,10 @@ export const createPersistentEmbeddingTextKvStore = async ({
         cache_key TEXT PRIMARY KEY,
         dims INTEGER NOT NULL,
         vector_blob BLOB NOT NULL,
+        format_version INTEGER,
+        vector_encoding TEXT,
+        payload_bytes INTEGER,
+        payload_sha256 TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         last_access_at TEXT NOT NULL,
@@ -241,6 +240,14 @@ export const createPersistentEmbeddingTextKvStore = async ({
       CREATE INDEX IF NOT EXISTS idx_text_vectors_last_access
       ON text_vectors(last_access_at);
     `);
+    // Legacy rows remain available to older writers, but never acquire guessed
+    // dtype/provenance. New keys and nullable metadata make their invalidation
+    // conservative while allowing a normal successful inference to replace them.
+    const columns = new Set(db.prepare('PRAGMA table_info(text_vectors)').all().map(row => row.name));
+    for (const [name, type] of [['format_version', 'INTEGER'], ['vector_encoding', 'TEXT'],
+      ['payload_bytes', 'INTEGER'], ['payload_sha256', 'TEXT']]) {
+      if (!columns.has(name)) db.exec(`ALTER TABLE text_vectors ADD COLUMN ${name} ${type}`);
+    }
   } catch (err) {
     try { db?.close?.(); } catch {}
     if (typeof log === 'function') {
@@ -250,7 +257,8 @@ export const createPersistentEmbeddingTextKvStore = async ({
   }
 
   const getStmt = db.prepare(`
-    SELECT vector_blob AS vectorBlob, dims AS dims
+    SELECT vector_blob AS vectorBlob, dims AS dims, format_version AS formatVersion,
+      vector_encoding AS vectorEncoding, payload_bytes AS payloadBytes, payload_sha256 AS payloadSha256
     FROM text_vectors
     WHERE cache_key = ?
   `);
@@ -264,14 +272,22 @@ export const createPersistentEmbeddingTextKvStore = async ({
       cache_key,
       dims,
       vector_blob,
+      format_version,
+      vector_encoding,
+      payload_bytes,
+      payload_sha256,
       created_at,
       updated_at,
       last_access_at,
       hit_count
-    ) VALUES (?, ?, ?, ?, ?, ?, 0)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
     ON CONFLICT(cache_key) DO UPDATE SET
       dims = excluded.dims,
       vector_blob = excluded.vector_blob,
+      format_version = excluded.format_version,
+      vector_encoding = excluded.vector_encoding,
+      payload_bytes = excluded.payload_bytes,
+      payload_sha256 = excluded.payload_sha256,
       updated_at = excluded.updated_at,
       last_access_at = excluded.last_access_at
   `);
@@ -318,14 +334,14 @@ export const createPersistentEmbeddingTextKvStore = async ({
   return {
     get(text) {
       if (typeof text !== 'string' || !text.length) return null;
-      const key = buildCacheKey(cacheIdentityKey, text);
+      const key = buildCacheKey(cacheIdentityKey, text, resolvedVectorEncoding);
       try {
         const row = getStmt.get(key);
         if (!row || !row.vectorBlob) {
           counters.misses += 1;
           return null;
         }
-        const vector = bufferToFloat32(row.vectorBlob, row.dims);
+        const vector = decodeVectorRow(row, resolvedVectorEncoding, expectedDims);
         if (!vector || !vector.length) {
           counters.misses += 1;
           return null;
@@ -341,8 +357,9 @@ export const createPersistentEmbeddingTextKvStore = async ({
     set(text, vector) {
       if (typeof text !== 'string' || !text.length) return false;
       const normalized = toFloat32Copy(vector);
-      if (!normalized || !normalized.length) return false;
-      const key = buildCacheKey(cacheIdentityKey, text);
+      if (!normalized || !normalized.length || (expectedDims && normalized.length !== expectedDims)
+        || !normalized.every(Number.isFinite)) return false;
+      const key = buildCacheKey(cacheIdentityKey, text, resolvedVectorEncoding);
       const now = new Date().toISOString();
       const encodedVector = encodeVectorBlob(normalized, resolvedVectorEncoding);
       if (!encodedVector) return false;
@@ -351,6 +368,10 @@ export const createPersistentEmbeddingTextKvStore = async ({
           key,
           normalized.length,
           encodedVector,
+          VECTOR_ROW_VERSION,
+          resolvedVectorEncoding,
+          encodedVector.byteLength,
+          vectorDigest(encodedVector, normalized.length, resolvedVectorEncoding),
           now,
           now,
           now

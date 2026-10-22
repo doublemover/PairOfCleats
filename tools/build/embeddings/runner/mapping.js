@@ -41,9 +41,9 @@ import {
  * @typedef {object} IncrementalChunkMappingIndex
  * @property {Map<string,FileChunkMapping>} fileMappings
  * @property {Map<string,FileChunkMapping|null>} fileAliases
- * @property {Map<string,number>} globalChunkIdMap
+ * @property {Map<string,number|null>} globalChunkIdMap
  * @property {Map<string,number>} globalHintMap
- * @property {Map<string,number>} globalHintWithFileMap
+ * @property {Map<string,number|null>} globalHintWithFileMap
  * @property {Map<string,MappingEntry[]>} globalAnchorBuckets
  * @property {Map<string,MappingEntry[]>} globalSegmentBuckets
  */
@@ -192,7 +192,7 @@ const resolveExplicitChunkId = (chunk) => normalizeMappingString(
  */
 const normalizeMappingPath = (value) => {
   const normalized = toPosix(value);
-  return normalizeMappingString(normalized);
+  return typeof normalized === 'string' ? normalized : '';
 };
 
 /**
