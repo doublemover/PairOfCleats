@@ -6,6 +6,18 @@ Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
 
+The current repair program executes on Windows with Node 26.12.1. Its locked
+bootstrap verifies 37 required packages and 33 language routes without warnings
+or errors; activation remains separate from runtime qualification. The
+[current issue receipt](../archived/github-issue-repairs-2026-10-21.md) records
+the new snapshot, storage, embedding and lifecycle batches and their exact limits.
+At the user's request, new authority fixtures use ordinary filesystem controls
+and injected link metadata without elevation or creating links. The existing
+49-case physical-link cohort is optional capability qualification for this
+program, not a completion prerequisite or a claimed pass. Historical Linux and
+physical-link results below retain their original source and scope; no new Linux
+execution is part of this program.
+
 ## What exists
 
 | Surface | Checked-in qualification | What it establishes |

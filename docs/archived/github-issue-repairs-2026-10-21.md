@@ -155,7 +155,20 @@ integration failure exposed canonical sharded metadata selection; its owner was
 fixed and both direct and existing manifest integration controls pass. These
 receipts are historical author-workspace evidence, not clean-checkout assets.
 
-Integration and the complete pre-push gate are pending for this batch. No full
+The combined integration selection passed 29 cases and found one stale download
+fixture that assumed artifact existence alone was sufficient for verification.
+The fixture now supplies the explicit expected SHA256 of its known inert binary,
+asserts approved-integrity verification and asserts native loading was not
+attempted; its affected rerun passes. No runtime trust boundary was weakened.
+The first complete front gate passes at 20092549f. Before publication, a delayed
+real-close probe demonstrated that merge SHA256 rejection on hash.update could
+return with an open descriptor. SHA256 now reuses the shared close-aware hash
+owner; SHA1 uses the same asynchronous digest owner. Read, creation, update and
+digest faults retain their initiating error and await descriptor close. The
+three affected hash/merge/freeze cases pass. Final freshness/gate checks against
+this last change are pending.
+
+No full
 deep-suite, real-model, optional-backend or measured performance claim is made.
 
 ## Complete starting inventory
