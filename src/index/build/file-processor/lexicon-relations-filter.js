@@ -251,9 +251,12 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
     const callDetails = [];
     const seen = new Set();
     for (const detail of rawRelations.callDetails) {
+      const syntaxOccurrence = detail?.source === 'tree-sitter' && detail.coordinateSystem === 'utf16'
+        && Number.isSafeInteger(detail.start) && Number.isSafeInteger(detail.end) && detail.end > detail.start
+        && typeof detail.calleeRaw === 'string' && detail.calleeRaw.length > 0;
       const base = normalizeToken(extractSymbolBaseName(detail?.callee));
-      if (!base) continue;
-      if (dropSet.has(base) && !preserveQualifiedKeywordMember(detail?.callee, base, resolvedLexicon)) {
+      if (!base && !syntaxOccurrence) continue;
+      if (!syntaxOccurrence && dropSet.has(base) && !preserveQualifiedKeywordMember(detail?.callee, base, resolvedLexicon)) {
         stats.droppedCallDetails += 1;
         continue;
       }

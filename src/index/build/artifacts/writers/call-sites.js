@@ -158,6 +158,15 @@ const buildCallSiteRow = ({ chunk, detail, stats }) => {
     targetCandidates: Array.isArray(detail.targetCandidates) ? detail.targetCandidates.filter(Boolean) : [],
     snippetHash: detail.snippetHash || buildSnippetHash(calleeRaw, args)
   };
+  if (detail.source === 'tree-sitter' && detail.coordinateSystem === 'utf16') {
+    const status = detail.calleeRef?.status || (row.targetChunkUid ? 'resolved' : detail.resolution);
+    row.extensions = { syntax: {
+      producer: 'tree-sitter', coordinateSystem: 'utf16', role: detail.role || 'call',
+      resolution: ['resolved', 'ambiguous', 'unresolved'].includes(status) ? status : 'unresolved',
+      reason: detail.calleeRef?.reason || detail.reason || 'syntax-target-unresolved',
+      rawPreviewTruncated: detail.rawPreviewTruncated === true
+    } };
+  }
   const trimmedResult = maybeTrimRow(row);
   if (!trimmedResult.row) {
     recordTrimStats(stats, { dropped: true, trimReasons: trimmedResult.trimReasons });

@@ -194,7 +194,17 @@ const callSiteEntry = {
     targetDocId: nullableInt,
     targetCandidates: { type: 'array', items: { type: 'string' } },
     snippetHash: nullableString,
-    extensions: { type: 'object' }
+    extensions: { type: 'object', properties: {
+      syntax: { type: 'object', additionalProperties: false,
+        required: ['producer', 'coordinateSystem', 'role', 'resolution', 'reason', 'rawPreviewTruncated'],
+        properties: {
+          producer: { const: 'tree-sitter' }, coordinateSystem: { const: 'utf16' },
+          role: { type: 'string', minLength: 1, maxLength: 64 },
+          resolution: { enum: ['resolved', 'ambiguous', 'unresolved'] },
+          reason: { type: 'string', minLength: 1, maxLength: 256 }, rawPreviewTruncated: { type: 'boolean' }
+        }
+      }
+    } }
   },
   additionalProperties: true
 };

@@ -17,3 +17,13 @@ Parser-owned call facts are copied as ordinary immutable `callDetails` before na
 Decoded template dependency keys carry `parsed-literal` provenance through registry and import-pass admission. Syntax cleanup is reserved for raw scanner tokens; control/length checks still apply to literal keys. CMake/Make/Starlark/R import scanning remains passive and bounded, preserves logical argument boundaries, and leaves dynamic expressions unresolved. Shell source arguments preserve static quoting and internal spaces; no source fixture is executed.
 
 SQL segmentation uses effective dialect quote/comment rules and native declarations are retained while uncovered statement source is filled. Static client includes are admitted only outside SQL literals/comments. XML keeps root/preamble bytes; top-level YAML partitions documents before property chunks; Starlark headings require a real top-level lexical boundary outside strings. These source changes require later parser, consumer, cache and platform qualification before publishing acceptance.
+
+Native syntax call facts retain immutable parser-owner snapshots. Relation
+projections copy compact details so later resolution can annotate them without
+mutating those snapshots. Exact UTF-16 half-open offsets and one-based line/column
+coordinates cross the default lexicon filter, chunk occurrence index and canonical
+call-sites writer. Dynamic targets remain occurrences with explicit unresolved
+reason in the existing syntax extension; raw target previews are bounded to 512
+UTF-16 units while exact retained-source ranges remain addressable. Query/display
+limits do not justify dropping these syntax rows. Full durable spill/resume and
+comprehensive inference coverage remain open under #1484/#1348.
