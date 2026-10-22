@@ -1,3 +1,4 @@
+import { chooseMeasuredWarmLaneCount } from '../warm-lane-profile.js';
 import os from 'node:os';
 import { planWeightedBatches } from '../../../../shared/concurrency/weighted-batches.js';
 import { toArray } from '../../../../shared/iterables.js';
@@ -28,7 +29,7 @@ export const resolveParserExecutionBudget = runtime => {
   const memory = readEffectiveMemory({ configuredLimitBytes: runtime.envelope?.concurrency?.totalMemBytes });
   const memoryCap = Math.max(1, Math.floor(memory.freeBytes / (perChildMb * 1024 * 1024)));
   const effective = Math.min(cpu, fd, memoryCap);
-  return { cpu, fd, memory: memoryCap, perChildMb, effective,
+  return { cpu, fd, memory: memoryCap, perChildMb, availableMemoryBytes: memory.freeBytes, effective,
     limitingReason: effective === cpu ? 'cpu-envelope' : effective === fd ? 'fd-budget' : 'retained-memory-budget' };
 };
 
@@ -90,7 +91,8 @@ const resolveWarmPoolLaneCount = ({
   schedulerConfig,
   baseGrammarKey,
   keyCount,
-  execConcurrency
+  execConcurrency,
+  measured = null
 }) => {
   if (!Number.isFinite(keyCount) || keyCount <= 1) return 1;
   const perGrammarRaw = Number(
@@ -99,8 +101,9 @@ const resolveWarmPoolLaneCount = ({
       ?? schedulerConfig?.warmPools?.[baseGrammarKey]
   );
   if (Number.isFinite(perGrammarRaw) && perGrammarRaw > 0) {
-    return Math.max(1, Math.min(keyCount, Math.floor(perGrammarRaw)));
+    return Math.max(1, Math.min(keyCount, Math.floor(perGrammarRaw), execConcurrency || 1));
   }
+  if (measured) return measured.laneCount;
   const configuredMinKeysRaw = Number(
     schedulerConfig?.warmPoolMinKeysForSplit
       ?? schedulerConfig?.warmPoolSplitMinKeys
@@ -225,7 +228,11 @@ export const buildWarmPoolTasks = ({
   executionOrder,
   groupMetaByGrammarKey,
   schedulerConfig,
-  execConcurrency
+  execConcurrency,
+  executionBudget = null,
+  warmLaneHistory = {},
+  warmLaneProfileIdentity = null,
+  nowMs = Date.now()
 }) => {
   const byBaseGrammar = new Map();
   const order = toArray(executionOrder);
@@ -241,11 +248,20 @@ export const buildWarmPoolTasks = ({
   }
   const tasks = [];
   for (const [baseGrammarKey, keyed] of byBaseGrammar.entries()) {
+    const configuredLanes = Number(schedulerConfig?.warmPoolPerGrammar
+      ?? schedulerConfig?.parserWarmPoolPerGrammar ?? schedulerConfig?.warmPools?.[baseGrammarKey]);
+    const explicit = Number.isFinite(configuredLanes) && configuredLanes > 0;
+    const measured = chooseMeasuredWarmLaneCount({
+      costs: keyed.map(({ grammarKey }) => groupMetaByGrammarKey?.[grammarKey]?.estimatedParseCost),
+      history: warmLaneHistory[baseGrammarKey], identity: warmLaneProfileIdentity,
+      execConcurrency, executionBudget, nowMs
+    });
     const laneCount = resolveWarmPoolLaneCount({
       schedulerConfig,
       baseGrammarKey,
       keyCount: keyed.length,
-      execConcurrency
+      execConcurrency,
+      measured
     });
     // Planner costs already include file size, token density and adaptive
     // history. Preserve that information at the warm-pool handoff instead of
@@ -273,6 +289,9 @@ export const buildWarmPoolTasks = ({
         baseGrammarKey,
         laneIndex: laneIndex + 1,
         laneCount,
+        laneDecision: explicit ? { reason: 'explicit-override', selectedLanes: laneCount }
+          : measured ? { ...measured, selectedLanes: laneCount }
+            : { reason: 'legacy-no-qualified-history', selectedLanes: laneCount },
         grammarKeys: lane.map((entry) => entry.grammarKey),
         estimatedParseCost: hasCompleteCosts
           ? lane.reduce((sum, entry) => sum + Number(groupMetaByGrammarKey[entry.grammarKey].estimatedParseCost), 0)

@@ -36,7 +36,10 @@ export const prepareTreeSitterSchedulerTasks = ({
     executionOrder,
     groupMetaByGrammarKey,
     schedulerConfig,
-    execConcurrency
+    execConcurrency,
+    executionBudget,
+    warmLaneHistory: planResult?.plan?.warmLaneHistory || {},
+    warmLaneProfileIdentity: planResult?.plan?.warmLaneProfileIdentity || null
   }).map((task) => ({
     ...task,
     timeoutMs: resolveSchedulerTaskTimeoutMs({
