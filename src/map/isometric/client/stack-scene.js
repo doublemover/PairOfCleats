@@ -34,7 +34,7 @@ export function buildStackMeshes(){
       rows.forEach((row,index)=>{
         const point={x:file.x+row.x,y:row.y,z:file.z+row.z},color=new THREE.Color(row.color);
         dummy.position.set(point.x,point.y,point.z);dummy.scale.set(row.width,row.height,row.depth);dummy.updateMatrix();mesh.setMatrixAt(index,dummy.matrix);mesh.setColorAt(index,color);
-        mesh.userData.instanceInfo.push({type:'member',file:file.key,id:row.id,name:row.member.name,range:row.member.range||null,baseColor:color.clone(),...point,footprint:row.width,height:row.height});
+        mesh.userData.instanceInfo.push({type:'member',semanticKind:row.kind,file:file.key,id:row.id,name:row.member.name,range:row.member.range||null,baseColor:color.clone(),...point,footprint:row.width,height:row.height});
         if(row.id!==null){state.memberInstanceById.set(row.id,{mesh,instanceId:index});state.memberColorById.set(row.id,color);state.memberClusterByMemberId.set(row.id,cluster);state.memberAnchors.set(row.id,point);}
         members++;
       });
@@ -116,9 +116,10 @@ export function updateStackVisibility(force=false){
       layer.mesh.geometry=layer.fullGeometry;layer.mesh.userData.ownedGeometries.add(layer.fullGeometry);
       layer.geometryRows=layer.rows;layer.model=state.stackModel;layer.scale=state.scaleFactor||1;
     }
-    const rows=projectPipeRows(layer.rows,{level:layer.level,tier,selected,allConnections:state.stackAllConnections===true,
-      globalVisible:state.edgeGroup.visible,typeVisible:layer.mesh.parent?.visible!==false&&state.edgeVisibility.get(layer.type)!==false});
-    setPipeRows(layer,rows);admitted+=rows.length;represented+=rows.reduce((sum,row)=>sum+row.count,0);
+    const topologyRows=projectPipeRows(layer.rows,{level:layer.level,tier,selected,allConnections:state.stackAllConnections===true});
+    setPipeRows(layer,topologyRows);
+    const rows=state.edgeGroup.visible&&layer.mesh.parent?.visible!==false&&state.edgeVisibility.get(layer.type)!==false?topologyRows:[];
+    admitted+=rows.length;represented+=rows.reduce((sum,row)=>sum+row.count,0);
     visibleRows.push(...rows);
   }
   for(const label of state.labelGroup.children)label.visible=label.userData.stackLabelLevel==='pipeline'||tier!=='pipeline';

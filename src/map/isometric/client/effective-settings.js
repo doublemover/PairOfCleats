@@ -1,3 +1,5 @@
+import { mergeConfig } from '../../../shared/config.js';
+
 export const VIEWER_SETTINGS_VERSION = 1;
 export const VIEWER_SETTINGS_MAX_BYTES = 64 * 1024;
 const roots = new Set(['layout','scoring','colors','controls','visuals','performance','appearance']);
@@ -92,5 +94,4 @@ export const createViewerSettingsSession = ({repoId,report={},document=emptyView
     dispose(){if(timer!==null)clearTimeout(timer);timer=null;}
   };
 };
-import { mergeConfig } from '../../../shared/config.js';
 

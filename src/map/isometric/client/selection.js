@@ -24,6 +24,7 @@ const wireReference = (pill, entry) => {
 export const setHoverRef = (ref) => {
   state.hoveredRef = ref;
   applyHighlights();
+  state.invalidateRender?.();
 };
 
 const renderValueNode = (value) => {
