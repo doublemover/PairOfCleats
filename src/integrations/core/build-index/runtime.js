@@ -76,19 +76,27 @@ export const teardownRuntime = async (runtime) => {
     },
     cleanupTimeoutMs > 0 ? cleanupTimeoutMs + 25 : 0
   );
-  if (runtime.workerPools?.destroy) {
-    await runTeardownStepWithTimeout(
-      'runtime.worker-pools.destroy',
-      () => runtime.workerPools.destroy(),
-      cleanupTimeoutMs + 15000
-    );
-  } else if (runtime.workerPool?.destroy) {
-    await runTeardownStepWithTimeout(
-      'runtime.worker-pool.destroy',
-      () => runtime.workerPool.destroy(),
-      cleanupTimeoutMs + 15000
-    );
-  }
+  await runTeardownStepWithTimeout(
+    'runtime.worker-pools.destroy',
+    async () => {
+      // Selection is fallible cleanup work too. Capture one original owner and
+      // method inside the bounded step so a getter cannot bypass later cleanup
+      // or substitute a different pool between checking and invoking destroy.
+      const pools = runtime.workerPools;
+      const destroyPools = pools?.destroy;
+      if (destroyPools) {
+        if (typeof destroyPools !== 'function') throw new TypeError('Runtime worker-pools destroy must be callable.');
+        return destroyPools.call(pools);
+      }
+      const pool = runtime.workerPool;
+      const destroyPool = pool?.destroy;
+      if (destroyPool) {
+        if (typeof destroyPool !== 'function') throw new TypeError('Runtime worker-pool destroy must be callable.');
+        return destroyPool.call(pool);
+      }
+    },
+    cleanupTimeoutMs + 15000
+  );
   await runTeardownStepWithTimeout(
     'runtime.stage1-subprocesses.terminate',
     async () => {

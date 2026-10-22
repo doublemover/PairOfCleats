@@ -106,6 +106,48 @@ try {
       owner.session.releaseAfterSettlement({ resourceId: owner.session.resourceId, settled: true, pending: false });
     }
   }
+  for (const [position, value] of [undefined, null, false, 0, ''].entries()) {
+    const home = path.join(temporary, `pool-getter-${position}`, 'home');
+    const cache = path.join(temporary, `pool-getter-${position}`, 'cache');
+    const coordinationRoot = path.join(home, 'state', 'storage-access');
+    const owner = await withTemporaryEnv({ PAIROFCLEATS_HOME: home },
+      () => acquireBuildRuntimeStorage(repo, { cache: { root: cache } }));
+    let loggerCloses = 0, getterCalls = 0;
+    const runtime = { root: repo, log() {}, indexRuntimeStorage: owner,
+      get workerPools() { getterCalls++; throw value; }, closeLogger() { loggerCloses++; } };
+    try {
+      const failure = await teardownRuntime(runtime).then(() => assert.fail('pool acquisition failed'), error => error);
+      assert.equal(failure.cause, value);
+      assert.equal(getterCalls, 1, 'worker ownership is inspected once inside its cleanup step');
+      assert.equal(loggerCloses, 1, 'method selection failure cannot bypass later cleanup');
+      assert.equal((await inspectStorageAccess(cache, { coordinationRoot })).protected, true);
+    } finally {
+      owner.session.releaseAfterSettlement({ resourceId: owner.session.resourceId, settled: true, pending: false });
+    }
+  }
+  for (const plural of [true, false]) {
+    let selections = 0, captures = 0, closes = 0, loggerCloses = 0;
+    const pool = { get destroy() {
+      captures++;
+      return function () { assert.equal(this, pool); closes++; };
+    } };
+    const runtime = { log() {}, closeLogger() { loggerCloses++; } };
+    Object.defineProperty(runtime, plural ? 'workerPools' : 'workerPool', { get() {
+      if (++selections !== 1) assert.fail('a replacement worker owner cannot be selected');
+      return pool;
+    } });
+    await teardownRuntime(runtime);
+    assert.equal(selections, 1); assert.equal(captures, 1); assert.equal(closes, 1); assert.equal(loggerCloses, 1);
+  }
+  {
+    const primary = Object.freeze(new Error('original destroy method inspection failed'));
+    let loggerCloses = 0, captures = 0;
+    const failure = await teardownRuntime({ log() {},
+      workerPools: { get destroy() { captures++; throw primary; } },
+      closeLogger() { loggerCloses++; }
+    }).then(() => assert.fail('destroy inspection failed'), error => error);
+    assert.equal(failure, primary); assert.equal(captures, 1); assert.equal(loggerCloses, 1);
+  }
   const unhandled = [], diagnosticFailure = new Error('async cleanup presentation failed');
   const onUnhandled = error => { unhandled.push(error); };
   process.on('unhandledRejection', onUnhandled);
