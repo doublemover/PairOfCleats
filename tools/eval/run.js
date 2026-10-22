@@ -13,6 +13,7 @@ import { evaluateDatasetVectorReplay } from './vector-oracle.js';
 import { evaluateDatasetFusionReplay } from './fusion-replay.js';
 import { evaluateDatasetShadowRouting } from './shadow-routing.js';
 import { evaluateDatasetTaskSpans } from './task-spans.js';
+import { runEvaluationResourceScope } from './resource-scope.js';
 
 const argv = createCli({
   scriptName: 'eval-run',
@@ -81,6 +82,7 @@ const evalCaches = {
   sqliteCache: createSqliteDbCache()
 };
 
+const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqliteCache, display }, async () => {
 const allCases = loadDataset();
 const cases = limit > 0 ? allCases.slice(0, limit) : allCases;
 if (!cases.length) {
@@ -156,7 +158,7 @@ const summary = {
   mrr: aggregate('mrr')
 };
 
-const output = {
+const report = {
   generatedAt: new Date().toISOString(),
   repo: repoRoot,
   dataset: datasetPath,
@@ -171,16 +173,17 @@ const output = {
   results
 };
 const fusionReplay = await evaluateDatasetFusionReplay({ cases });
-if (fusionReplay) output.fusionReplay = fusionReplay;
+if (fusionReplay) report.fusionReplay = fusionReplay;
 const shadowRouting = evaluateDatasetShadowRouting({ cases });
-if (shadowRouting) output.shadowRouting = shadowRouting;
+if (shadowRouting) report.shadowRouting = shadowRouting;
 const taskSpanReplay = await evaluateDatasetTaskSpans({ cases });
-if (taskSpanReplay) output.taskSpanReplay = taskSpanReplay;
+if (taskSpanReplay) report.taskSpanReplay = taskSpanReplay;
+return report;
+});
 
 if (argv.out) {
   fs.writeFileSync(path.resolve(argv.out), JSON.stringify(output, null, 2));
 }
 
 const payload = argv.pretty ? JSON.stringify(output, null, 2) : JSON.stringify(output);
-display.close();
 console.log(payload);

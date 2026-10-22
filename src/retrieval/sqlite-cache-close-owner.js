@@ -73,7 +73,8 @@ export const createSqliteCacheCloseOwner = (db, { canClose, onClosed }) => {
     } finally { closing = false; }
   };
   owner = Object.freeze({ kind: 'sqlite-cache', db, isSettled,
-    get lastError() { return lastError; }, retire: () => close(), release: () => close({ retry: true }) });
+    get lastError() { return lastError; }, retainFailure: record,
+    retire: () => close(), release: () => close({ retry: true }) });
   try {
     originalClose = db?.close;
     if (typeof originalClose !== 'function') throw new TypeError('SQLite cache requires its original synchronous close method.');

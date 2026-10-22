@@ -189,6 +189,10 @@ export function createSqliteDbCache({
     close,
     closeAll,
     dispose,
+    retainFailure(error) {
+      const entries = new Set([...retiredEntries, ...(cacheHandle.cache?.values() || [])]);
+      for (const entry of entries) entry.owner.retainFailure(error);
+    },
     pendingOwners: () => Object.freeze([...retiredEntries].map(entry => entry.owner)),
     size: cacheHandle.size
   };

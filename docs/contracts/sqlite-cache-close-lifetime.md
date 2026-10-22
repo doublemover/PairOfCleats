@@ -37,5 +37,13 @@ falsey/frozen causes, replaced observers and unknown inspection. Existing positi
 cache/generation/native integration assertions remain. The previous failure test's
 one-attempt guarantee remains; it now also requires retained pending evidence and
 explicit original-owner recovery rather than treating a failed close as finished.
-Real SQLite native lifetime/retry/GC, end-to-end request propagation and evaluation
-tool finalization remain outstanding qualification or follow-up work.
+The actual evaluation entry now captures its cache/display lifecycle methods
+before asynchronous work. Search failures register their original observations
+on actual cache entries before disposal, so pending native work gates close.
+Every cleanup gets an attempt; exact primary and cleanup failures stay together.
+Outstanding leases or failed cleanup prevent report-file/stdout publication.
+Captured original predicates follow later settlement without an automatic retry.
+Authored scope and actual report-entry controls cover success, falsey dual failure,
+original method replacement, pending work and an outstanding lease. They are unrun.
+Real SQLite native lifetime/retry/GC and wider end-to-end request propagation
+remain outstanding qualification or follow-up work.
