@@ -28,5 +28,11 @@ try {
   const extra = invoke(['doctor', 'cleanup-apply']);
   assert.notEqual(extra.status, 0, 'one action cannot smuggle another positional action');
   assert.deepEqual(await fs.readdir(temporary, { recursive: true }), before, 'diagnostics and rejected actions cannot create home, lease or cleanup paths');
+  const invalidMachine = path.join(temporary, 'invalid-machine-storage.json');
+  await fs.writeFile(invalidMachine, JSON.stringify({ categories: [] }));
+  const invalidLayout = invoke(['doctor', '--repo', repo, '--home', home, '--machine-config', invalidMachine, '--json']);
+  assert.equal(invalidLayout.status, 0, invalidLayout.stderr || invalidLayout.stdout);
+  assert.equal(JSON.parse(invalidLayout.stdout).configurationErrors.some(error => error.source === 'machine-storage-layout'), true,
+    'home diagnosis remains available when machine JSON parses but its storage shape is invalid');
 } finally { await rmDirRecursive(temporary); }
 console.log('storage operator config-error diagnostics passed');

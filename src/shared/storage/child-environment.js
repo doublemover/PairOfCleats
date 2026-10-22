@@ -5,6 +5,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { assertNoSymlinkPath } from '../contained-file.js';
 import { isPathWithinRoot } from '../file-paths.js';
 import { atomicWriteJson } from '../io/atomic-write.js';
+import { readStorageLocator } from './locator-read.js';
+import { applyStorageLocatorSelections } from './selected-layout.js';
 
 export const MANAGED_CHILD_CACHE_FAMILIES = Object.freeze({
   npm: [['npm_config_cache', 'npm-downloads', 'downloadable']],
@@ -36,6 +38,8 @@ export const planManagedChildStorage = ({ baseEnv = process.env, layout, command
   const selectedFamily = family || familyForCommand(command);
   if (!managed) return { schemaVersion: 1, managed: false, env, locations: [], ownedRoots: [],
     exceptions: [{ kind: 'global-or-user-executable', status: 'external-shared-read-only-inventory' }] };
+  const locator = readStorageLocator(layout.home.path);
+  layout = applyStorageLocatorSelections(layout, locator);
   if (typeof toolId !== 'string' || !toolId || typeof toolIdentity !== 'string' || !toolIdentity
     || !/^[a-zA-Z0-9._-]{1,120}$/u.test(runId)) throw new TypeError('Managed child routing requires exact tool/profile and run identities.');
   const identity = createHash('sha256').update(JSON.stringify({ toolId, toolIdentity,
@@ -70,6 +74,7 @@ export const planManagedChildStorage = ({ baseEnv = process.env, layout, command
     exceptions.push({ kind: 'unregistered-tool-specific-secondary-writes', status: 'unsupported-owner-adapter-required' });
   }
   return { schemaVersion: 1, managed: true, toolId, toolIdentity, profileIdentity: identity,
+    storageLocator: { home: layout.home.path, target: locator.target, sha256: locator.sha256 },
     projectIdentity, family: selectedFamily, runId, env, locations,
     ownedRoots: [cache, state, assets, scratch], scratch,
     exceptions, coverage: 'declared-environment-only; observed-child-write-qualification-required' };
@@ -80,6 +85,11 @@ export const planManagedChildStorage = ({ baseEnv = process.env, layout, command
  */
 export const prepareManagedChildStorage = async (plan, { authorizedRoots = [] } = {}) => {
   if (!plan?.managed) return { prepared: false, locations: [], exceptions: plan?.exceptions || [] };
+  if (!plan.storageLocator || !path.isAbsolute(plan.storageLocator.home || '')) throw new Error('Managed storage preparation requires an active locator snapshot; re-plan this child.');
+  const current = readStorageLocator(plan.storageLocator.home);
+  if (current.status === 'invalid' || current.target !== plan.storageLocator.target || current.sha256 !== plan.storageLocator.sha256) {
+    throw new Error('Managed child category selection changed after planning; no declared directories were prepared.');
+  }
   const owned = plan.locations.filter(location => !location.external);
   for (const location of owned) {
     const target = location.file ? path.dirname(location.path) : location.path;

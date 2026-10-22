@@ -232,3 +232,14 @@ Migration, rollback and configuration share `config/storage-locator.lock`.
 Explicit existing environment/project overrides still take precedence; callers
 must restart to observe a new selection. These source contracts and authored
 regressions remain **UNVALIDATED** until the deferred validation phase.
+
+`selected-layout.js` applies the verified locator as a pure overlay of layout
+intent. Existing explicit launch, environment and machine inputs retain
+precedence and expose shadowed selections. Cache-child defaults follow the
+selected effective cache root. The base `resolveStorageLayout()` stays free of
+filesystem reads. Storage diagnostics and the actual managed-child planner
+consume this overlay; managed preparation rechecks the exact locator snapshot
+before creating any declared directories. An intervening configure/migration
+selection requires a new child plan. Invalid machine-layout shapes remain
+visible in home-level doctor/explain diagnostics without granting mutation
+authority from fallback paths.
