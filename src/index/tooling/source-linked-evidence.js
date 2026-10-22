@@ -22,8 +22,9 @@ export const writeSourceLinkedEvidence = async ({ report, sources, state, policy
   throwIfAborted(signal);
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1024 * 1024
     || !Number.isSafeInteger(maxReferences) || maxReferences < 1 || maxReferences > 4096) throw fail('Invalid source-linked writer bounds.');
-  const encoded = canonicalSemanticJson(report);
-  if (Buffer.byteLength(encoded) > maxBytes) throw fail('Source-linked report byte budget exhausted.');
+  let encoded;
+  try { encoded = canonicalSemanticJson(report, { maxBytes, check: () => throwIfAborted(signal) }); }
+  catch (error) { if (error?.code === 'ERR_SEMANTIC_JSON_BUDGET') throw fail('Source-linked report byte budget exhausted.'); throw error; }
   report = JSON.parse(encoded);
   const { identity, ...identityInput } = report;
   if (report.schemaVersion !== 1 || report.kind !== 'source-linked-evidence'
