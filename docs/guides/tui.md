@@ -345,3 +345,28 @@ and inspected revision. Schema rejection returns to the editor with the input
 intact. A stale revision retains unsaved input but requires Ctrl-r reload and a
 new validation preview before saving. Explicit discard, scope selection and a
 successful save clear the draft. Draft text is excluded from snapshots and logs.
+Flow control queues complete logical events with a hard 2,048 pending-frame
+allowance. Partially sent chunk groups stay pinned until their remaining frames
+drain. Ordinary logs/progress cannot evict task lifecycle events; progress for
+the same queued task coalesces only within its current start/end boundary.
+An explicit task:start begins a new instance; stale task:progress cannot revive
+a terminal task. If lifecycle-only pressure exhausts the finite allowance,
+lifecycleDropped is reported in the next runtime metrics/credit receipt and the
+native UI marks formerly active tasks unknown instead of claiming current state.
+
+Live ingress uses a bounded 4,096-frame channel and monotonic stamps taken when
+the reader admits a parsed frame. eventLagMsEwma measures that local residence
+through dispatch, including a reader waiting on channel admission. It does not
+estimate age from producer wall clocks or queue length. nativeInboundPending
+counts local pending frames (including the single waiting reader), separately
+from supervisor queueDepthEwma. Unknown measurements serialize null and display
+a question mark. Reassembled events do not add a second ingress sample; passive
+replay does not invent live latency. Each main-loop protocol drain admits at most
+128 frames or four milliseconds before returning to input/render work.
+
+Terminal keys retain raw FIFO identity until dispatch. Each key is interpreted
+against the modal state produced by its predecessor, including the owned
+recordings UI. The 25 ms dispatch bound does not reinterpret queued text as a
+global shortcut. Ctrl+C still clears pending interaction and enters the existing
+owned shutdown path. Source/Rust/producer regressions for these changes are
+authored; build, clippy, capture and ConPTY qualification remain deferred.

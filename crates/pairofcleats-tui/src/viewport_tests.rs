@@ -236,6 +236,8 @@ fn job_selection_keys_are_distinct_from_scroll_and_log_follow() {
         model.input_queue.clear();
         model.last_input_at = Instant::now() - Duration::from_secs(1);
         enqueue_terminal_key(&mut model, KeyEvent::new(key, KeyModifiers::NONE));
+        let (_, InputCommand::TerminalKey(raw)) = model.input_queue.pop_front().unwrap() else { panic!("raw key expected") };
+        interpret_terminal_key(&mut model, raw);
         let command = &model.input_queue.back().unwrap().1;
         assert!(match expected {
             "previous" => matches!(command, InputCommand::SelectPreviousJob),
@@ -290,7 +292,7 @@ fn distinct_key_presses_and_repeated_letters_keep_fifo_order() {
     assert!(model
         .input_queue
         .iter()
-        .all(|(_, command)| matches!(command, InputCommand::SearchChar('e'))));
+        .all(|(_, command)| matches!(command, InputCommand::TerminalKey(key) if key.code == KeyCode::Char('e'))));
 }
 
 #[test]

@@ -2,7 +2,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::process::Child;
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::mpsc::TryRecvError;
+use crate::event_ingress::{InboundEvent, Receiver};
 use std::time::{Duration, Instant};
 
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(10);
@@ -86,7 +87,7 @@ pub fn prepare_containment() -> anyhow::Result<()> {
 
 pub struct SupervisorLifetime {
     child: Child,
-    events: Receiver<Value>,
+    events: Receiver,
     active_groups: HashMap<String, u32>,
     closed: bool,
     #[cfg(windows)]
@@ -94,7 +95,7 @@ pub struct SupervisorLifetime {
 }
 
 impl SupervisorLifetime {
-    pub fn new(mut child: Child, events: Receiver<Value>) -> anyhow::Result<Self> {
+    pub fn new(mut child: Child, events: Receiver) -> anyhow::Result<Self> {
         #[cfg(windows)]
         let job = match windows::Job::attach(&child) {
             Ok(job) => job,
@@ -116,8 +117,9 @@ impl SupervisorLifetime {
         })
     }
 
-    pub fn poll(&mut self) -> Result<Value, TryRecvError> {
-        let event = self.events.try_recv()?;
+    pub fn poll(&mut self) -> Result<InboundEvent, TryRecvError> {
+        let received = self.events.try_recv()?;
+        let event = &received.value;
         let job_id = event.get("jobId").and_then(Value::as_str).unwrap_or("");
         match event.get("event").and_then(Value::as_str) {
             Some("job:spawn") => {
@@ -136,10 +138,10 @@ impl SupervisorLifetime {
             }
             _ => {}
         }
-        Ok(event)
+        Ok(received)
     }
 
-    pub fn shutdown(&mut self, mut observe: impl FnMut(Value)) -> anyhow::Result<()> {
+    pub fn shutdown(&mut self, mut observe: impl FnMut(InboundEvent)) -> anyhow::Result<()> {
         if self.closed {
             return Ok(());
         }
@@ -179,7 +181,7 @@ impl SupervisorLifetime {
             .map_err(Into::into)
     }
 
-    fn drain_closed_output(&mut self, observe: &mut impl FnMut(Value)) -> std::io::Result<()> {
+    fn drain_closed_output(&mut self, observe: &mut impl FnMut(InboundEvent)) -> std::io::Result<()> {
         let until = Instant::now() + Duration::from_millis(500);
         loop {
             if Instant::now() >= until {

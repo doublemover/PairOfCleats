@@ -5,6 +5,7 @@ import { formatProgressEvent } from '../../../src/shared/cli/progress-events.js'
 import { clampInt } from '../../../src/shared/limits.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { splitUnicodeChunks } from '../../../src/shared/unicode-chunks.js';
+import { createProtocolQueue } from './protocol-queue.js';
 import {
   CRITICAL_EVENTS,
   FLOW_CHUNK_CHARS,
@@ -131,13 +132,13 @@ export const createEventLogRecorder = ({ requestedDir, runId, supervisorVersion,
 export const createFlowController = ({ runId, nextSeq, eventLogRecorder }) => {
   const flow = {
     credits: FLOW_DEFAULT_CREDITS,
-    queue: [],
     queueMax: FLOW_QUEUE_MAX,
     maxEventChars: FLOW_MAX_EVENT_CHARS,
     chunkChars: FLOW_CHUNK_CHARS,
     sent: 0,
     dropped: 0,
     coalesced: 0,
+    lifecycleDropped: 0,
     chunked: 0,
     chunkSeq: 0
   };
@@ -160,78 +161,15 @@ export const createFlowController = ({ runId, nextSeq, eventLogRecorder }) => {
     flow.sent += 1;
   };
 
-  /**
-   * Enqueue a flow event with bounded-queue coalescing semantics.
-   *
-   * When full, progress events for the same job/task replace older entries and
-   * log events preferentially evict older log entries before generic FIFO drops.
-   *
-   * @param {object} entry
-   * @returns {void}
-   */
-  const queueFlowEntry = (entry) => {
-    const queue = flow.queue;
-    if (queue.length < flow.queueMax) {
-      queue.push(entry);
-      return;
-    }
-    if (entry.event === 'task:progress') {
-      const replacementIndex = queue.findLastIndex((queued) => (
-        queued.event === 'task:progress'
-        && queued.jobId === entry.jobId
-        && queued.taskId === entry.taskId
-      ));
-      if (replacementIndex >= 0) {
-        queue[replacementIndex] = entry;
-        flow.coalesced += 1;
-        return;
-      }
-    }
-    if (entry.event === 'log') {
-      const dropIndex = queue.findIndex((queued) => queued.event === 'log');
-      if (dropIndex >= 0) {
-        queue.splice(dropIndex, 1);
-        flow.dropped += 1;
-      }
-    } else {
-      queue.shift();
-      flow.dropped += 1;
-    }
-    queue.push(entry);
-  };
-
-  /**
-   * Flush queued flow entries while per-interval send credits remain.
-   *
-   * @returns {void}
-   */
-  const drainFlowQueue = () => {
-    while (flow.credits > 0 && flow.queue.length > 0) {
-      const next = flow.queue.shift();
-      if (!next) break;
-      flow.credits -= 1;
-      writeEvent(next);
-    }
-  };
-
-  /**
-   * Emit immediately when credits allow, otherwise enqueue for later drain.
-   *
-   * @param {object} entry
-   * @param {{critical?:boolean}} [options]
-   * @returns {void}
-   */
-  const emitEntry = (entry, { critical = false } = {}) => {
-    if (critical || flow.credits > 0) {
-      if (!critical) {
-        flow.credits = Math.max(0, flow.credits - 1);
-      }
-      writeEvent(entry);
-      return;
-    }
-    queueFlowEntry(entry);
-  };
-
+  let lossNoticePending = false;
+  const queue = createProtocolQueue({
+    flow, write: writeEvent,
+    onLifecycleLoss: () => { lossNoticePending = true; }
+  });
+  // Names retained as the documented integration owners, now operating on
+  // complete logical events instead of independently droppable chunk frames.
+  const queueFlowEntry = (entry, frames) => queue.admit(entry, frames);
+  const drainFlowQueue = () => queue.drain();
   /**
    * Split oversized serialized events into chunk protocol frames.
    *
@@ -274,13 +212,13 @@ export const createFlowController = ({ runId, nextSeq, eventLogRecorder }) => {
       ...payload
     });
     const chunked = splitEventPayloadIntoChunks(entry);
-    if (Array.isArray(chunked)) {
-      for (const chunkEntry of chunked) {
-        emitEntry(chunkEntry, { critical: critical || CRITICAL_EVENTS.has(event) });
-      }
-      return;
+    const frames = Array.isArray(chunked) ? chunked : [entry];
+    if (critical || CRITICAL_EVENTS.has(event)) {
+      for (const frame of frames) writeEvent(frame);
+    } else {
+      queueFlowEntry(entry, frames);
+      drainFlowQueue();
     }
-    emitEntry(entry, { critical: critical || CRITICAL_EVENTS.has(event) });
   };
 
   /**
@@ -308,10 +246,11 @@ export const createFlowController = ({ runId, nextSeq, eventLogRecorder }) => {
    */
   const buildFlowSnapshot = ({ includeChunked = false } = {}) => ({
     credits: flow.credits,
-    queueDepth: flow.queue.length,
+    queueDepth: queue.depth(),
     sent: flow.sent,
     dropped: flow.dropped,
     coalesced: flow.coalesced,
+    lifecycleDropped: flow.lifecycleDropped,
     ...(includeChunked ? { chunked: flow.chunked } : {})
   });
 
@@ -326,6 +265,7 @@ export const createFlowController = ({ runId, nextSeq, eventLogRecorder }) => {
     if (credits <= 0) return 0;
     flow.credits = Math.min(FLOW_MAX_CREDITS, flow.credits + credits);
     drainFlowQueue();
+    if (lossNoticePending) emitRuntimeMetrics();
     return credits;
   };
 
@@ -335,6 +275,7 @@ export const createFlowController = ({ runId, nextSeq, eventLogRecorder }) => {
    * @returns {void}
    */
   const emitRuntimeMetrics = () => {
+    lossNoticePending = false;
     emit('runtime:metrics', {
       flow: buildFlowSnapshot({ includeChunked: true })
     }, { critical: true });

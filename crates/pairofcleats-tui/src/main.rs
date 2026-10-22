@@ -1,4 +1,7 @@
 mod inspection;
+mod event_ingress;
+#[cfg(test)]
+mod input_ingress_tests;
 #[cfg(test)]
 mod recording_tests;
 mod recordings;
@@ -20,7 +23,6 @@ use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crossterm::event::{
@@ -142,15 +144,21 @@ struct SessionSnapshot {
 
 #[derive(Default)]
 struct RuntimeTelemetry {
-    event_lag_ms_ewma: f64,
+    event_lag_ms_ewma: Option<f64>,
     render_ms_ewma: f64,
-    queue_depth_ewma: f64,
+    queue_depth_ewma: Option<f64>,
+    native_inbound_pending: Option<usize>,
     dropped_chunks: u64,
     chunk_reassembled: u64,
     processed_events: u64,
+    lifecycle_dropped: u64,
 }
 
 impl RuntimeTelemetry {
+    fn update_known_ewma(current: Option<f64>, next: f64) -> Option<f64> {
+        Some(current.map_or(next, |value| value * 0.85 + next * 0.15))
+    }
+
     fn update_ewma(current: f64, next: f64) -> f64 {
         if current <= 0.0 {
             return next;
@@ -528,6 +536,7 @@ struct CaptureManifest {
 
 #[derive(Clone)]
 enum InputCommand {
+    TerminalKey(KeyEvent),
     Quit,
     RunJob,
     Settings,
@@ -1121,7 +1130,7 @@ fn save_snapshot(snapshot_path: &Path, model: &AppModel) {
 fn spawn_supervisor(
     run_id: &str,
     event_log_dir: &Path,
-) -> anyhow::Result<(std::process::Child, Receiver<Value>)> {
+) -> anyhow::Result<(std::process::Child, event_ingress::Receiver)> {
     let node = std::env::var_os("PAIROFCLEATS_TUI_NODE")
         .map(std::path::PathBuf::from)
         .ok_or_else(|| anyhow::anyhow!("launch the TUI through its verified wrapper"))?;
@@ -1151,7 +1160,7 @@ fn spawn_supervisor(
         .stdout
         .take()
         .ok_or_else(|| anyhow::anyhow!("missing supervisor stdout"))?;
-    let (tx, rx) = mpsc::channel();
+    let (tx, rx) = event_ingress::channel();
     std::thread::spawn(move || {
         let reader = BufReader::new(stdout);
         let mut parse_failures = 0usize;
@@ -1219,8 +1228,9 @@ fn frame_signature(model: &AppModel) -> String {
         // Render duration is measured by drawing this very frame. It updates
         // when another visible change draws, but cannot cause its own redraw.
         "runtime": [json!(job_status_counts(model)), json!(task_status_counts(model)),
-            json!(format!("{:.0}", model.telemetry.queue_depth_ewma)),
-            json!(format!("{:.0}", model.telemetry.event_lag_ms_ewma)),
+            json!(metric_label(model.telemetry.queue_depth_ewma)),
+            json!(metric_label(model.telemetry.event_lag_ms_ewma)),
+            json!(model.telemetry.native_inbound_pending),
             json!(model.session.note)],
         "workloadTitle": model.workload_kind.label(),
         "jobOrder": model.job_order,
@@ -1857,14 +1867,19 @@ fn operator_summary_text(model: &AppModel, width: usize) -> String {
     fit_text(&parts.join(" | "), width)
 }
 
+fn metric_label(value: Option<f64>) -> String {
+    value.map(|number| format!("{number:.0}")).unwrap_or_else(|| "?".to_string())
+}
+
 fn runtime_summary_text(model: &AppModel, width: usize) -> String {
     let (running_jobs, failed_jobs, done_jobs, cancelled_jobs) = job_status_counts(model);
     let (active_tasks, failed_tasks) = task_status_counts(model);
     let parts = [
         format!("jobs {running_jobs}run/{failed_jobs}fail/{done_jobs}done/{cancelled_jobs}cancel"),
         format!("tasks {active_tasks}a/{failed_tasks}f"),
-        format!("queue {:.0}", model.telemetry.queue_depth_ewma),
-        format!("lag {:.0}ms", model.telemetry.event_lag_ms_ewma),
+        format!("flow queue {}", metric_label(model.telemetry.queue_depth_ewma)),
+        format!("ingress lag {}ms", metric_label(model.telemetry.event_lag_ms_ewma)),
+        format!("native pending {}", model.telemetry.native_inbound_pending.map(|value| value.to_string()).unwrap_or_else(|| "?".to_string())),
         format!("render {:.0}ms", model.telemetry.render_ms_ewma),
         format!("note {}", model.session.note),
     ];
@@ -3178,6 +3193,8 @@ fn append_runtime_metrics(model: &mut AppModel) {
             "eventLagMsEwma": model.telemetry.event_lag_ms_ewma,
             "renderMsEwma": model.telemetry.render_ms_ewma,
             "queueDepthEwma": model.telemetry.queue_depth_ewma,
+            "nativeInboundPending": model.telemetry.native_inbound_pending,
+            "lifecycleDropped": model.telemetry.lifecycle_dropped,
             "processedEvents": model.telemetry.processed_events,
             "chunkReassembled": model.telemetry.chunk_reassembled,
             "droppedChunks": model.telemetry.dropped_chunks
@@ -3473,7 +3490,17 @@ fn summarize_protocol_event(event_name: &str, event: &Value) -> String {
     }
 }
 
-fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) {
+fn apply_ingress_event_at(model: &mut AppModel, received: event_ingress::InboundEvent, now: Instant) {
+    if let Some(age) = now.checked_duration_since(received.received_at) {
+        let milliseconds = age.as_secs_f64() * 1000.0;
+        model.telemetry.event_lag_ms_ewma = RuntimeTelemetry::update_known_ewma(
+            model.telemetry.event_lag_ms_ewma, milliseconds);
+    }
+    model.telemetry.native_inbound_pending = Some(received.pending_at_dispatch);
+    apply_protocol_event(model, received.value, 0);
+}
+
+fn apply_protocol_event(model: &mut AppModel, event: Value, _queue_depth: usize) {
     let event_name = event
         .get("event")
         .and_then(|value| value.as_str())
@@ -3482,18 +3509,12 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
 
     if event_name == "event:chunk" {
         if let Some(rebuilt) = handle_chunk_event(model, &event) {
-            apply_protocol_event(model, rebuilt, queue_depth);
+            apply_protocol_event(model, rebuilt, 0);
         }
         return;
     }
 
     model.telemetry.processed_events += 1;
-    model.telemetry.queue_depth_ewma =
-        RuntimeTelemetry::update_ewma(model.telemetry.queue_depth_ewma, queue_depth as f64);
-    model.telemetry.event_lag_ms_ewma = RuntimeTelemetry::update_ewma(
-        model.telemetry.event_lag_ms_ewma,
-        (queue_depth as f64) * INPUT_POLL_INTERVAL.as_millis() as f64,
-    );
 
     if let Some(run_id) = event.get("runId").and_then(|value| value.as_str()) {
         model.run_id = run_id.to_string();
@@ -3605,6 +3626,11 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
                 .get("taskId")
                 .and_then(|value| value.as_str())
                 .unwrap_or("task");
+            let task_key = json!([job_id, task_id]).to_string();
+            if event_name == "task:progress" && model.task_status.get(&task_key)
+                .is_some_and(|task| task.lifecycle() != Lifecycle::Active) {
+                return;
+            }
             let status = event
                 .get("status")
                 .and_then(|value| value.as_str())
@@ -3620,14 +3646,23 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
 
     if event_name == "runtime:metrics" {
         if let Some(flow) = event.get("flow").and_then(|value| value.as_object()) {
-            let queue_depth = flow
-                .get("queueDepth")
-                .and_then(|value| value.as_u64())
-                .unwrap_or(0) as f64;
-            model.telemetry.queue_depth_ewma =
-                RuntimeTelemetry::update_ewma(model.telemetry.queue_depth_ewma, queue_depth);
-            if model.workload_kind == WorkloadKind::Service {
-                model.service_summary.queue_depth = Some(queue_depth as u64);
+            if let Some(lost) = flow.get("lifecycleDropped").and_then(Value::as_u64) {
+                if lost > model.telemetry.lifecycle_dropped {
+                    for task in model.task_status.values_mut() {
+                        if task.lifecycle() == Lifecycle::Active {
+                            *task = TaskState::new("unknown", Some("task lifecycle transport incomplete"));
+                        }
+                    }
+                    model.push_alert("warn", "Task lifecycle transport incomplete; running states are unknown until a new lifecycle event.");
+                }
+                model.telemetry.lifecycle_dropped = lost;
+            }
+            if let Some(queue_depth) = flow.get("queueDepth").and_then(Value::as_u64) {
+                model.telemetry.queue_depth_ewma = RuntimeTelemetry::update_known_ewma(
+                    model.telemetry.queue_depth_ewma, queue_depth as f64);
+                if model.workload_kind == WorkloadKind::Service {
+                    model.service_summary.queue_depth = Some(queue_depth);
+                }
             }
         }
         model.update_session_state(
@@ -3702,6 +3737,10 @@ fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
     }
     model.last_key_at = now;
     model.last_input_token = token;
+    enqueue_input(model, InputCommand::TerminalKey(key), "terminal-key");
+}
+
+fn interpret_terminal_key(model: &mut AppModel, key: KeyEvent) {
     match model.overlay {
         OverlayMode::Recordings => {} // Keys are consumed by the owned loader UI.
         OverlayMode::JobInspection => {
@@ -3811,20 +3850,54 @@ fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
     }
 }
 
+#[cfg(test)]
 fn dispatch_input(
     model: &mut AppModel,
     supervisor: &mut std::process::Child,
     next_job_idx: &mut u64,
 ) -> anyhow::Result<bool> {
+    dispatch_input_with_recordings_at(model, supervisor, next_job_idx, None, Instant::now())
+}
+
+fn dispatch_input_with_recordings_at(
+    model: &mut AppModel,
+    supervisor: &mut std::process::Child,
+    next_job_idx: &mut u64,
+    mut recordings: Option<&mut recordings::RecordingUi>,
+    now: Instant,
+) -> anyhow::Result<bool> {
     if model.input_queue.is_empty() {
         return Ok(false);
     }
-    if model.last_input_at.elapsed().as_millis() < INPUT_DISPATCH_INTERVAL_MS {
+    if !matches!(model.input_queue.front(), Some((_, InputCommand::Quit)))
+        && now.saturating_duration_since(model.last_input_at).as_millis() < INPUT_DISPATCH_INTERVAL_MS {
         return Ok(false);
     }
+    if matches!(model.input_queue.front(), Some((_, InputCommand::TerminalKey(_)))) {
+        let (_, InputCommand::TerminalKey(key)) = model.input_queue.pop_front().unwrap() else { unreachable!() };
+        let mut consumed = false;
+        if let Some(recordings) = recordings.as_mut() {
+            if model.overlay == OverlayMode::Recordings {
+                if recordings.key(key) { model.overlay = OverlayMode::None; }
+                model.dirty = true;
+                consumed = true;
+            } else if model.overlay == OverlayMode::None && recordings.playback_key(key) {
+                model.dirty = true;
+                consumed = true;
+            }
+        }
+        // Interpret only now, against the state produced by the preceding key.
+        // Commands produced by this key precede every later raw key.
+        let mut later_keys = std::mem::take(&mut model.input_queue);
+        if !consumed { interpret_terminal_key(model, key); }
+        let interpreted = !model.input_queue.is_empty();
+        model.input_queue.append(&mut later_keys);
+        if !interpreted { model.last_input_at = now; return Ok(false); }
+    }
     let (_, cmd) = model.input_queue.pop_front().unwrap();
-    model.last_input_at = Instant::now();
+    model.last_input_at = now;
     match cmd {
+        InputCommand::TerminalKey(_) => unreachable!("raw key must be interpreted before command dispatch"),
         InputCommand::InspectJob => open_job_inspection(model),
         InputCommand::Recordings => open_recordings(model),
         InputCommand::SelectPreviousJob => select_job(model, -1),
@@ -4050,15 +4123,17 @@ fn main() -> anyhow::Result<()> {
     let execution = (|| -> anyhow::Result<()> {
         loop {
             let mut processed = 0u64;
-            while let Ok(event) = supervisor.poll() {
+            let ingress_started = Instant::now();
+            while processed < 128 && ingress_started.elapsed() < Duration::from_millis(4) {
+                let Ok(received) = supervisor.poll() else { break; };
                 let owned_channel = recordings
                     .live_model
                     .as_ref()
                     .map(|live| live.owns_control_channel)
                     .unwrap_or(model.owns_control_channel);
-                recordings.supervisor_event(&event, owned_channel);
+                recordings.supervisor_event(&received.value, owned_channel);
                 let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
-                apply_protocol_event(live, event, 0);
+                apply_ingress_event_at(live, received, Instant::now());
                 processed += 1;
             }
             if processed > 0 {
@@ -4106,31 +4181,18 @@ fn main() -> anyhow::Result<()> {
                 last_frame = Instant::now();
             }
 
-            if event::poll(Duration::from_millis(20))? {
+            if event::poll(INPUT_POLL_INTERVAL)? {
                 let terminal_event = event::read()?;
                 if matches!(terminal_event, CEvent::Resize(_, _)) {
                     // Terminal::draw performs autoresize through the normal backend.
                     // An unchanged model still needs a new layout after SIGWINCH.
                     invalidate_frame(&mut model);
                 } else if let CEvent::Key(key) = terminal_event {
-                    let interrupt = key.modifiers.contains(KeyModifiers::CONTROL)
-                        && matches!(key.code, KeyCode::Char('c' | 'C'));
-                    if interrupt {
-                        enqueue_terminal_key(&mut model, key);
-                    } else if model.overlay == OverlayMode::Recordings {
-                        if recordings.key(key) {
-                            model.overlay = OverlayMode::None;
-                            model.dirty = true;
-                        }
-                    } else if model.overlay == OverlayMode::None && recordings.playback_key(key) {
-                        model.dirty = true;
-                    } else {
-                        enqueue_terminal_key(&mut model, key);
-                    }
+                    enqueue_terminal_key(&mut model, key);
                 }
             }
 
-            if dispatch_input(&mut model, &mut supervisor, &mut next_job_idx)? {
+            if dispatch_input_with_recordings_at(&mut model, &mut supervisor, &mut next_job_idx, Some(&mut recordings), Instant::now())? {
                 break;
             }
             flush_model_requests(
@@ -4147,7 +4209,7 @@ fn main() -> anyhow::Result<()> {
     })();
 
     let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
-    let shutdown = supervisor.shutdown(|event| apply_protocol_event(live, event, 0));
+    let shutdown = supervisor.shutdown(|event| apply_ingress_event_at(live, event, Instant::now()));
     let unfinished_jobs: Vec<_> = live.job_status.iter()
         .filter(|(_, status)| Lifecycle::from_status(status) == Lifecycle::Active)
         .map(|(id, _)| id.clone()).collect();
@@ -4239,7 +4301,7 @@ mod redraw_tests {
             );
         }
         assert_eq!(model.telemetry.processed_events, before + 100);
-        assert!(model.telemetry.queue_depth_ewma > 0.0);
+        assert!(model.telemetry.queue_depth_ewma.is_some_and(|value| value > 0.0));
         assert_eq!(model.logs.len(), 1);
         assert_eq!(model.logs[0].text, "retained user log");
         assert_eq!(model.logs[0].job_id.as_deref(), Some("selected"));
@@ -4374,6 +4436,8 @@ mod redraw_tests {
                     &mut model,
                     KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
                 );
+                let (_, InputCommand::TerminalKey(key)) = model.input_queue.pop_front().unwrap() else { panic!("plain key must retain raw FIFO identity") };
+                interpret_terminal_key(&mut model, key);
                 match overlay {
                     OverlayMode::None => assert!(matches!(
                         model.input_queue.front(),
