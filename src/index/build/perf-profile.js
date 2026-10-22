@@ -1,7 +1,8 @@
+import { getOwn, setOwn } from '../../shared/object-record.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const PERF_PROFILE_VERSION = 1;
+const PERF_PROFILE_VERSION = 2;
 const DEFAULT_BUCKETS = [
   { id: 'xs', maxBytes: 8 * 1024 },
   { id: 's', maxBytes: 32 * 1024 },
@@ -92,16 +93,16 @@ export function recordFileMetric(profile, metric) {
     ? profile.buckets
     : DEFAULT_BUCKETS;
   const bucket = resolveBucket(metric.bytes, buckets);
-  const langEntry = profile.languages[languageId] || {
+  const langEntry = getOwn(profile.languages,languageId) || {
     totals: initTotals(),
     buckets: {}
   };
-  const bucketEntry = langEntry.buckets[bucket.id] || initTotals();
+  const bucketEntry = getOwn(langEntry.buckets,bucket.id) || initTotals();
   addTotals(langEntry.totals, metric);
   addTotals(profile.totals, metric);
   addTotals(bucketEntry, metric);
-  langEntry.buckets[bucket.id] = bucketEntry;
-  profile.languages[languageId] = langEntry;
+  setOwn(langEntry.buckets,bucket.id,bucketEntry);
+  setOwn(profile.languages,languageId,langEntry);
 }
 
 export function finalizePerfProfile(profile) {
@@ -110,7 +111,7 @@ export function finalizePerfProfile(profile) {
   for (const entry of Object.values(profile.languages || {})) {
     entry.totals = finalizeTotals(entry.totals || initTotals());
     for (const [bucketId, bucketTotals] of Object.entries(entry.buckets || {})) {
-      entry.buckets[bucketId] = finalizeTotals(bucketTotals);
+      setOwn(entry.buckets,bucketId,finalizeTotals(bucketTotals));
     }
   }
   return profile;
@@ -149,15 +150,18 @@ export function estimateFileCost({
     ? profile.buckets
     : DEFAULT_BUCKETS;
   const langKey = typeof languageId === 'string' && languageId ? languageId : 'unknown';
-  const langProfile = profile?.languages?.[langKey] || profile?.languages?.unknown || null;
+  const langProfile = (profile?.languages && getOwn(profile.languages,langKey)) || profile?.languages?.unknown || null;
   const bucket = resolveBucket(bytes, buckets);
-  const bucketProfile = langProfile?.buckets?.[bucket.id] || null;
+  const bucketProfile = (langProfile?.buckets && getOwn(langProfile.buckets,bucket.id)) || null;
   const fallback = langProfile?.totals || profile?.totals || initTotals();
   const resolved = bucketProfile || fallback;
   const overhead = resolved.avgMsPerFile || fallback.avgMsPerFile || 0;
   const byteCost = resolved.byteCostMs || fallback.byteCostMs || 0;
   const lineCost = resolved.lineCostMs || fallback.lineCostMs || 0;
-  const baseCost = overhead + (byteCost * bytes) + (lineCost * lines);
+  // Each rate was fitted to the same duration; they are alternative models,
+  // not independent terms. Prefer byte scaling, then lines, then per-file cost.
+  const baseCost = byteCost > 0 && bytes > 0 ? byteCost * bytes
+    : lineCost > 0 && lines > 0 ? lineCost * lines : overhead;
   if (!featureWeights || typeof featureWeights !== 'object') return baseCost;
   let multiplier = 1;
   for (const value of Object.values(featureWeights)) {

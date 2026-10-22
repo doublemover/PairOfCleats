@@ -2,6 +2,12 @@
 
 ## What they are
 
+Import collection advances block-comment state before directive prechecks,
+including nested Dart/Scala/Nix comments and multiline Razor comments. A trailing
+slash is a directory hint even when the directory name contains a dot. Unknown
+reason strings always receive the complete unknown decision; object-prototype
+names are not registry entries.
+
 TypeScript configuration is parsed by TypeScript's existing config owner, with
 ordered multi-base inheritance and paths resolved relative to their defining
 configuration. The winning exact/most-specific paths key owns all of its ordered

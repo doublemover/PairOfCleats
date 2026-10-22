@@ -225,7 +225,7 @@ export const resolveCandidate = (relPath, lookup) => {
   if (!ext && lookup.caseSensitive !== false && lookup?.pathTrie && trieKey && !trieHasPrefix(lookup.pathTrie, trieKey)) {
     return null;
   }
-  return resolveRelativeImportCandidate(trimmed, {
+  return resolveRelativeImportCandidate(normalized.endsWith('/') ? `${trimmed}/` : trimmed, {
     extensions: DEFAULT_IMPORT_EXTS,
     resolve: (candidate) => resolveFromLookup(candidate, lookup)
   });

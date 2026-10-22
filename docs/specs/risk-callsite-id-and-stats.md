@@ -1,4 +1,4 @@
-# Spec: callSiteId algorithm (v1.1 refined)
+# Spec: callSiteId algorithm (v2)
 
 ## Status
 * **Normative** for Phase 10 implementation.
@@ -15,12 +15,9 @@ The `risk_interprocedural_stats` artifact is defined in:
 `callSiteId` MUST be computed as:
 
 ```
-callSiteId = "sha1:" + sha1(
-  file + ":" +
-  startLine + ":" + startCol + ":" +
-  endLine + ":" + endCol + ":" +
-  calleeRaw
-)
+callSiteId = "sha1:" + sha1(JSON.stringify([
+  2, file, startLine, startCol, endLine, endCol, calleeRaw
+]))
 ```
 
 Constraints:
@@ -31,6 +28,7 @@ Constraints:
 * The SHA1 hex MUST be lowercase, prefixed with `sha1:`.
 
 Notes:
+* Version 2 hashes a structural tuple so separators in filenames or callee text cannot alias field boundaries. The shared `callSiteIdentity` producer version invalidates derived replay of older graph/risk identifiers; rows from the two algorithms must not be joined as one generation.
 * `callSiteId` is referenced by `risk_flows.path.callSiteIdsByStep` and MUST be stable across repeated identical builds.
 * If required input fields are unavailable, the producer MUST NOT synthesize a `callSiteId` from alternate fields; instead, it MUST omit the call-site row or correct the collector to provide the required fields.
 

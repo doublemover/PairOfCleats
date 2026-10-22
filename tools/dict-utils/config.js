@@ -65,6 +65,25 @@ const discardedConfigPaths = (before, after, prefix = '') => {
   });
 };
 
+let shippedSchemaCache = null;
+const freezeShippedSchema = schema => {
+  if (!schema || typeof schema !== 'object' || Object.isFrozen(schema)) return schema;
+  for (const child of Object.values(schema)) freezeShippedSchema(child);
+  return Object.freeze(schema);
+};
+const schemaIdentity = stat => [stat.dev,stat.ino,stat.size,stat.mtimeNs,stat.ctimeNs].map(String).join(':');
+/** One shipped tool schema identity; repository and trusted values are never cached. */
+export const readShippedConfigSchema = schemaPath => {
+  const absolute = path.resolve(schemaPath);
+  const before = fs.statSync(absolute,{ bigint: true });
+  const identity = schemaIdentity(before);
+  if (shippedSchemaCache?.path === absolute && shippedSchemaCache.identity === identity) return shippedSchemaCache.schema;
+  const schema = freezeShippedSchema(JSON.parse(fs.readFileSync(absolute,'utf8')));
+  if (schemaIdentity(fs.statSync(absolute,{ bigint: true })) !== identity) throw new Error('Shipped config schema changed while being read.');
+  shippedSchemaCache = { path: absolute,identity,schema };
+  return schema;
+};
+
 /** Optional source callback reports loader facts without changing the config value contract. */
 export function loadUserConfig(repoRoot, { env = process.env, onSources = null } = {}) {
   const metadata = { version: 1, files: [], repoTrusted: isRepoTrusted(repoRoot, env),
@@ -90,7 +109,7 @@ export function loadUserConfig(repoRoot, { env = process.env, onSources = null }
     const base = readSource(configPath, 'repository', true);
     if (!isPlainObject(base)) throw new Error('Config root must be a JSON object.');
     const schemaPath = path.join(resolveToolRoot(), 'docs', 'config', 'schema.json');
-    const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+    const schema = readShippedConfigSchema(schemaPath);
     const result = validateConfig(schema, base);
     if (!result.ok) {
       const details = result.errors.map((err) => `- ${err}`).join('\n');

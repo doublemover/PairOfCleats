@@ -125,7 +125,6 @@ export const readTextFileWithStreamingCap = async ({
       total += bytesRead;
       remaining -= bytesRead;
       buffers.push(bytesRead === chunk.length ? chunk : chunk.subarray(0, bytesRead));
-      if (bytesRead < nextSize) break;
     }
     const buffer = buffers.length === 1 ? buffers[0] : Buffer.concat(buffers, total);
     const decoded = decodeTextBuffer(buffer, { filePath: absPath });

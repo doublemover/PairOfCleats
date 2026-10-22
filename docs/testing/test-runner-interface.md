@@ -1,5 +1,12 @@
 # Test Runner Entrypoint -- Interface Sketch
 
+Test-report validators compile lazily on first use, retaining strict schema
+validation for actual report producers. Help and discovery commands do not
+compile unused report schemas. Stability history preserves the existing body
+timestamp ordering while retaining only the requested newest K full payloads
+plus the active candidate; archives remain intact. This working-set bound does
+not imply fewer files read or a measured startup speedup.
+
 ## Context / problem
 Historically the test surface was flat and dominated by many one-off scripts under `tests/*.js`. The suite now lives under subsystem folders with `*.test.js` files, but the same discovery and triage issues remain without a stable runner entrypoint. This causes:
 

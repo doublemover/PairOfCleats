@@ -1,3 +1,4 @@
+import { getOwn, setOwn } from '../../../src/shared/object-record.js';
 import path from 'node:path';
 import { mergeReuseSummaries } from '../../../src/shared/reuse-diagnostics.js';
 import { readJsonFileSyncSafe } from '../../../src/shared/file-read.js';
@@ -37,7 +38,7 @@ const toNonNegativeCountMap = (value) => {
   for (const [key, rawCount] of Object.entries(value)) {
     const count = toNonNegativeIntOrNull(rawCount);
     if (!Number.isFinite(count) || count <= 0) continue;
-    result[String(key)] = count;
+    setOwn(result,String(key),count);
   }
   return result;
 };
@@ -48,7 +49,7 @@ const toLanguageLines = (value) => {
   for (const [language, bucket] of Object.entries(value)) {
     const lines = toNonNegativeIntOrNull(bucket?.lines);
     if (!Number.isFinite(lines) || lines <= 0) continue;
-    result[String(language)] = lines;
+    setOwn(result,String(language),lines);
   }
   return result;
 };
@@ -249,7 +250,7 @@ export const buildScanProfile = ({
       throughput: throughput?.[INDEX_METRICS_KEY_BY_MODE[modeKey]] || null,
       artifactBytes: repo?.artifacts?.[artifactBytesKey]
     });
-    modes[modeKey] = modeProfile;
+    setOwn(modes,modeKey,modeProfile);
     reuseSummary = mergeReuseSummaries(reuseSummary, modeProfile.reuse);
     if (Number.isFinite(modeProfile.files.candidates)) totals.files.candidates += modeProfile.files.candidates;
     if (Number.isFinite(modeProfile.files.scanned)) totals.files.scanned += modeProfile.files.scanned;
@@ -270,7 +271,7 @@ export const buildScanProfile = ({
       observedDuration = true;
     }
     for (const [language, lines] of Object.entries(modeProfile.lines.byLanguage || {})) {
-      languageLines[language] = (languageLines[language] || 0) + lines;
+      setOwn(languageLines,language,(getOwn(languageLines,language) || 0) + lines);
     }
   }
 

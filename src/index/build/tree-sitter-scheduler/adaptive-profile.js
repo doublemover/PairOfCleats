@@ -40,8 +40,8 @@ const normalizeSampleCount = (value) => {
  */
 const normalizeLaneState = (value) => {
   if (!value || typeof value !== 'object') return null;
-  const bucketCount = Math.max(1, Math.floor(Number(value.bucketCount) || 0));
-  if (!bucketCount) return null;
+  const bucketCount = value.bucketCount;
+  if (!Number.isSafeInteger(bucketCount) || bucketCount <= 0) return null;
   const cooldownSteps = Math.max(0, Math.floor(Number(value.cooldownSteps) || 0));
   const lastAction = value.lastAction === 'split' || value.lastAction === 'merge'
     ? value.lastAction

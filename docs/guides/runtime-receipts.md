@@ -1,5 +1,12 @@
 # Runtime receipts and launch evidence
 
+Dynamic stage, language, setting and telemetry channel names are own data keys,
+including reserved object names. Per-language attribution conserves observed
+file/setting duration when embedded language spans overlap. Startup calibration
+uses an invocation-unique file and cleans up only that file, including failures.
+Shipped config-schema caching retains one immutable schema identity; repository,
+trusted config, environment and trust inputs are refreshed on every load.
+
 Worker availability and observed tokenization routes are separate evidence.
 Until a chunk executes, the observed route is `not-yet-observed`; receipts can
 report mixed worker/process, inline, pretokenized and disabled routes with bounded

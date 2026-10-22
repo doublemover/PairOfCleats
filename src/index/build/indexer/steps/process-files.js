@@ -414,6 +414,7 @@ export const processFiles = async ({
   const stageFileCount = Array.isArray(entries) ? entries.length : 0;
   const stageChunkCount = Array.isArray(state?.chunks) ? state.chunks.length : 0;
   if (stageFileCount === 0 && stageChunkCount === 0) {
+    detachExternalAbort?.();
     logLine(
       `[stage1:${mode}] processing elided (zero modality: files=0 chunks=0).`,
       {
@@ -630,18 +631,57 @@ export const processFiles = async ({
   const debugOrdered = envConfig.debugOrdered === true;
   const hangProbeConfig = resolveHangProbeConfig(envConfig);
   const enablePerfEvents = envConfig.debugPerfEvents === true;
+  let perfEventLogger = null;
+  let treeSitterScheduler = null;
+  let completedSemanticFiles = new Set();
+  const cleanupTimeoutMs = resolveProcessCleanupTimeoutMs(runtime);
+
+  /**
+   * Stop and flush tree-sitter scheduler resources when used by this stage.
+   *
+   * @param {{onTimeout?:Function|null}} [input]
+   * @returns {Promise<{skipped:boolean,timedOut:boolean,elapsedMs:number,error?:unknown}>}
+   */
+  const closeTreeSitterScheduler = async ({ onTimeout = null } = {}) => {
+    if (!treeSitterScheduler || typeof treeSitterScheduler.close !== 'function') {
+      return { skipped: true, timedOut: false, elapsedMs: 0 };
+    }
+    return runCleanupWithTimeout({
+      label: 'tree-sitter-scheduler.close',
+      cleanup: () => treeSitterScheduler.close(),
+      timeoutMs: cleanupTimeoutMs,
+      log: (line, meta) => logLine(line, {
+        ...(meta || {}),
+        mode,
+        stage: 'processing'
+      }),
+      onTimeout
+    });
+  };
+  let stallSnapshotTimer = null;
+  let progressHeartbeatTimer = null;
+  let stallAbortTimer = null;
+  let preDispatchWatchdogTimer = null;
+  let orderedCompletionTracker = null;
+  const activeOrderedCompletionTrackers = new Set();
+  const inFlightProcessFileTasks = createTrackedProcessFileTaskRegistry({
+    name: `stage1:${String(runtime?.buildId || 'unknown-build')}:${mode || 'unknown-mode'}`
+  });
+  runtime.cacheWriterDrain = () => inFlightProcessFileTasks.drain();
+  runtime.cacheWriterPending = () => inFlightProcessFileTasks.pendingCount();
+  let stage1ShuttingDown = false;
+
+  try {
   const perfEventBaseLogger = await createPerfEventLogger({
     buildRoot: runtime.buildRoot || runtime.root,
     mode,
     stream: 'heavy-file',
     enabled: mode === 'code' && enablePerfEvents
   });
-  const perfEventLogger = createHeavyFilePerfAggregator({
+  perfEventLogger = createHeavyFilePerfAggregator({
     logger: perfEventBaseLogger
   });
 
-  let treeSitterScheduler = null;
-  let completedSemanticFiles = new Set();
   if (runtime.semanticPolicy?.enabled && mode === 'code') {
     if (incrementalState?.enabled && runtime.cacheWriterLease && runtime.semanticPolicy.storage.decodedCacheBytes > 0) {
       runtime.semanticReplayVerification = createSemanticReplayVerificationContext({
@@ -729,44 +769,6 @@ export const processFiles = async ({
       }
     }
   }
-  const cleanupTimeoutMs = resolveProcessCleanupTimeoutMs(runtime);
-
-  /**
-   * Stop and flush tree-sitter scheduler resources when used by this stage.
-   *
-   * @param {{onTimeout?:Function|null}} [input]
-   * @returns {Promise<{skipped:boolean,timedOut:boolean,elapsedMs:number,error?:unknown}>}
-   */
-  const closeTreeSitterScheduler = async ({ onTimeout = null } = {}) => {
-    if (!treeSitterScheduler || typeof treeSitterScheduler.close !== 'function') {
-      return { skipped: true, timedOut: false, elapsedMs: 0 };
-    }
-    return runCleanupWithTimeout({
-      label: 'tree-sitter-scheduler.close',
-      cleanup: () => treeSitterScheduler.close(),
-      timeoutMs: cleanupTimeoutMs,
-      log: (line, meta) => logLine(line, {
-        ...(meta || {}),
-        mode,
-        stage: 'processing'
-      }),
-      onTimeout
-    });
-  };
-  let stallSnapshotTimer = null;
-  let progressHeartbeatTimer = null;
-  let stallAbortTimer = null;
-  let preDispatchWatchdogTimer = null;
-  let orderedCompletionTracker = null;
-  const activeOrderedCompletionTrackers = new Set();
-  const inFlightProcessFileTasks = createTrackedProcessFileTaskRegistry({
-    name: `stage1:${String(runtime?.buildId || 'unknown-build')}:${mode || 'unknown-mode'}`
-  });
-  runtime.cacheWriterDrain = () => inFlightProcessFileTasks.drain();
-  runtime.cacheWriterPending = () => inFlightProcessFileTasks.pendingCount();
-  let stage1ShuttingDown = false;
-
-  try {
     assignFileIndexes(entries);
     const repoFileCount = Array.isArray(entries) ? entries.length : 0;
     const scmFilesPosix = entries.map((entry) => (
@@ -3298,7 +3300,7 @@ export const processFiles = async ({
             label: 'perf-event-logger.close',
             run: () => runCleanupWithTimeout({
               label: 'perf-event-logger.close',
-              cleanup: () => perfEventLogger.close(),
+              cleanup: () => perfEventLogger?.close(),
               timeoutMs: cleanupTimeoutMs,
               log: (line, meta) => logLine(line, {
                 ...(meta || {}),
@@ -3367,5 +3369,6 @@ export const processFiles = async ({
       })
     });
     runtime.semanticReplayVerification?.clear();
+    if (incrementalState) incrementalState.semanticReplayVerification = null;
   }
 };

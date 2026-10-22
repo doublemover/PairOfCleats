@@ -1,5 +1,17 @@
 # Incremental cache snapshot ownership
 
+Canonical bundle and VFS source keys preserve filename case on every platform.
+Segment rebasing copies metadata before adjusting coordinates; reusing one source
+chunk cannot compound offsets or mutate a prior result. Future ordering-ledger
+versions retain their format identity through compatible patches.
+
+Registry operations accept borrowed locks only as live capabilities minted by
+the registry lock owner, bound to the exact root, domain and on-disk lock UUID.
+Domains are single safe path tokens. Release-shaped impostors, released leases
+and cross-domain handles cannot bypass lock acquisition. Checkpoint mode and
+grammar filenames retain raw-key digests when sanitization changes spelling;
+duplicate persisted checkpoint slice descriptors fail closed before new writes.
+
 Cache ownership ends only after the file-task registry and scheduler/pool owners
 confirm drain. Scheduler deadline expiry raises `ERR_SCHEDULER_DRAIN_TIMEOUT`
 for enabled and disabled execution; it never reports completion. An ordinary

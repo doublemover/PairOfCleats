@@ -32,7 +32,13 @@ export function readFileRangeSync(filePath, start, end, repoRoot = null) {
   try {
     fd = repoRoot ? openContainedFileSync(repoRoot, filePath) : fs.openSync(filePath, 'r');
     const buffer = Buffer.allocUnsafe(length);
-    const bytesRead = fs.readSync(fd, buffer, 0, length, safeStart);
+    let bytesRead = 0;
+    while (bytesRead < length) {
+      const progress = fs.readSync(fd,buffer,bytesRead,length-bytesRead,safeStart+bytesRead);
+      if (!Number.isSafeInteger(progress) || progress < 0 || progress > length-bytesRead) throw new Error('Invalid file range read progress.');
+      if (progress === 0) break;
+      bytesRead += progress;
+    }
     return buffer.subarray(0, bytesRead);
   } finally {
     if (fd !== null) fs.closeSync(fd);

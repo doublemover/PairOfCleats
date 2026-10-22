@@ -8,8 +8,20 @@ export function createSchedulerDispatch({
   adaptiveController,
   captureTelemetryIfDue
 }) {
+  const blockedScans = new WeakMap();
+  const admissionIdentity = (queue, pressure) => JSON.stringify([
+    state.tokens.cpu.used,state.tokens.cpu.total,state.tokens.io.used,state.tokens.io.total,
+    state.tokens.mem.used,state.tokens.mem.total,queue.running,queue.concurrency,
+    queue.inFlightBytes,queue.maxInFlightBytes,state.globalInFlightBytes,config.globalMaxInFlightBytes,
+    config.adaptiveSurfaceControllersEnabled,queue.surface,
+    config.adaptiveSurfaceStates.get(queue.surface)?.currentConcurrency,
+    queueLifecycle.countSurfaceRunning(queue.surface),pressure?.active,
+    config.writeBackpressure.enabled,config.writeBackpressure.writeQueue,
+    config.writeBackpressure.producerQueues.has(queue.name)
+  ]);
   const admissionBlockReason = (queue, req, backpressureState = null) => {
     const normalized = config.normalizeRequest(req);
+    if (queue?.concurrency && queue.running >= queue.concurrency) return 'queue-concurrency';
     const resolvedBackpressure = backpressureState || queueLifecycle.evaluateWriteBackpressure();
     const producerBlocked = resolvedBackpressure.active
       && queue
@@ -113,9 +125,18 @@ export function createSchedulerDispatch({
 
   const findStartableIndex = (queue, backpressureState = null) => {
     if (!queue?.pending?.length) return -1;
-    for (let i = 0; i < queue.pending.length; i += 1) {
-      if (canStart(queue, queue.pending[i].tokens, backpressureState)) return i;
+    const pressure = backpressureState || queueLifecycle.evaluateWriteBackpressure();
+    const identity = admissionIdentity(queue,pressure);
+    const previous = blockedScans.get(queue);
+    const start = previous?.identity === identity && previous.index <= queue.pending.length
+      && (previous.index === 0 || queue.pending[previous.index-1] === previous.tail) ? previous.index : 0;
+    for (let i = start; i < queue.pending.length; i += 1) {
+      if (canStart(queue, queue.pending[i].tokens, pressure)) {
+        blockedScans.delete(queue);
+        return i;
+      }
     }
+    blockedScans.set(queue,{ identity,index:queue.pending.length,tail:queue.pending.at(-1) });
     return -1;
   };
 
@@ -240,7 +261,7 @@ export function createSchedulerDispatch({
       config.counters.rejectedByReason.abort += 1;
       return Promise.reject(createAbortError());
     }
-    if (!config.enabled) {
+    if (!config.enabled && !queueLifecycle.ensureQueue(queueName).concurrency) {
       const done = Promise.resolve().then(() => {
         if (state.shuttingDown) throw new Error('scheduler is shut down');
         if (scheduleSignal?.aborted) throw createAbortError();

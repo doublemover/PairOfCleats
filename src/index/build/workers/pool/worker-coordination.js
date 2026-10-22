@@ -32,7 +32,6 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     crashPayloadMetaPool,
     observeWorkerTaskDuration,
     setStageGcPressure,
-    setWorkerGcPressure,
     readProcessPressureSample,
     updatePressureState,
     maybeReduceWorkersOnPressure,
@@ -42,6 +41,9 @@ export const createWorkerProcessCoordinator = (input = {}) => {
   const gcSampleIntervalMs = 25;
   const gcByWorker = new Map();
   const runtimeByWorker = new Map();
+  const runningByWorker = new Map();
+  let completedTasks = 0;
+  let workerWallMs = 0;
   let currentPool = null;
   let lastGcSampleAt = 0;
   let gcSampleCount = 0;
@@ -78,9 +80,6 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     if ((now - lastGcSampleAt) < gcSampleIntervalMs) return null;
     lastGcSampleAt = now;
     const {
-      heapUsed,
-      heapTotal,
-      rss,
       heapUtilization,
       rssPressure,
       pressureRatio
@@ -101,34 +100,24 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     const previous = gcByWorker.get(key) || {
       worker: key,
       samples: 0,
+      taskCompletions: 0,
       lastDurationMs: null,
-      pressureRatio: 0,
-      heapUtilization: 0,
-      rssPressure: 0,
-      rssBytes: 0,
-      heapUsedBytes: 0,
-      heapTotalBytes: 0,
+      pressureRatio: null,
+      heapUtilization: null,
+      rssPressure: null,
+      rssBytes: null,
+      heapUsedBytes: null,
+      heapTotalBytes: null,
+      scope: 'unavailable',
       updatedAt: null
     };
     const next = {
       ...previous,
-      samples: previous.samples + 1,
+      taskCompletions: previous.taskCompletions + 1,
       lastDurationMs: Number.isFinite(durationMs) ? Math.max(0, durationMs) : previous.lastDurationMs,
-      pressureRatio,
-      heapUtilization,
-      rssPressure,
-      rssBytes: rss,
-      heapUsedBytes: heapUsed,
-      heapTotalBytes: heapTotal,
       updatedAt: new Date(now).toISOString()
     };
     gcByWorker.set(key, next);
-    setWorkerGcPressure({
-      pool: poolLabel,
-      worker: key,
-      stage: normalizedStage,
-      value: pressureRatio
-    });
     return { rssPressure, gcPressure: heapUtilization, pressureRatio };
   };
 
@@ -136,6 +125,7 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     if (!poolInstance?.on) return;
     currentPool = poolInstance;
     runtimeByWorker.clear();
+    runningByWorker.clear();
     poolInstance.on('message', (message) => {
       if (poolInstance !== currentPool || !message || typeof message !== 'object') return;
       if (message.type === 'worker-runtime') {
@@ -145,7 +135,14 @@ export const createWorkerProcessCoordinator = (input = {}) => {
         }
         return;
       }
+      if (message.type === 'worker-task-start') {
+        if (runningByWorker.size < 256) runningByWorker.set(message.threadId, Date.now());
+        return;
+      }
       if (message.type === 'worker-task') {
+        runningByWorker.delete(message.threadId);
+        completedTasks += 1;
+        workerWallMs += Math.max(0, Number(message.durationMs) || 0);
         withPooledPayloadMeta(workerTaskMetricPool, (labels) => {
           labels.pool = poolLabel;
           labels.task = message.task;
@@ -180,7 +177,7 @@ export const createWorkerProcessCoordinator = (input = {}) => {
           withPooledPayloadMeta(crashPayloadMetaPool, (meta) => {
             meta.threadId = message.threadId ?? null;
           }, (payloadMeta) => {
-            crashLogger.logError({
+            crashLogger?.enabled && crashLogger.logError({
               phase: 'worker-thread',
               message: message.message || 'worker crash',
               stack: message.stack || null,
@@ -197,7 +194,6 @@ export const createWorkerProcessCoordinator = (input = {}) => {
         }
       }
     });
-    if (!crashLogger?.enabled) return;
     const formatPoolError = (err) => ({
       message: summarizeError(err, { fullDepth: true, maxLen: 0 }) || err?.message || String(err),
       stack: err?.stack || null,
@@ -206,7 +202,7 @@ export const createWorkerProcessCoordinator = (input = {}) => {
       raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true })
     });
     poolInstance.on('error', (err) => {
-      crashLogger.logError({ phase: 'worker-pool', ...formatPoolError(err) });
+      crashLogger?.enabled && crashLogger.logError({ phase: 'worker-pool', ...formatPoolError(err) });
     });
     poolInstance.on('workerCreate', (worker) => {
       if (!worker) return;
@@ -233,7 +229,7 @@ export const createWorkerProcessCoordinator = (input = {}) => {
       target.on('error', (err) => {
         const detail = summarizeError(err, { fullDepth: true, maxLen: 0 }) || err?.message || String(err);
         log(`Worker thread error: ${detail}`);
-        crashLogger.logError({
+        crashLogger?.enabled && crashLogger.logError({
           phase: 'worker-thread',
           threadId: worker.threadId ?? worker.id ?? worker.worker?.threadId,
           ...formatPoolError(err)
@@ -245,7 +241,7 @@ export const createWorkerProcessCoordinator = (input = {}) => {
         }
         if (code === 0) return;
         log(`Worker thread exited with code ${code}.`);
-        crashLogger.logError({
+        crashLogger?.enabled && crashLogger.logError({
           phase: 'worker-exit',
           threadId: worker.threadId ?? worker.id ?? worker.worker?.threadId,
           message: `worker exited with code ${code}`
@@ -258,6 +254,8 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     stage: normalizedStage,
     samples: gcSampleCount,
     global: {
+      scope: 'parent-process',
+      method: 'heap-utilization-and-aggregate-rss-pressure-proxy',
       pressureRatio: gcGlobalPressure,
       heapUtilization: gcGlobalHeapUtilization,
       rssPressure: gcGlobalRssPressure
@@ -269,6 +267,11 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     setNumaPinningPlan,
     attachPoolListeners,
     gcPressureStats,
+    busyStats: pool => ({ actuallyRunning: pool && pool === currentPool
+      ? (Array.isArray(pool.threads) ? pool.threads.filter(worker => runningByWorker.has(worker.threadId)).length
+        : runningByWorker.size) : 0, completedTasks,
+      workerWallMs, scope: 'worker-owned-task-wall-time', cpuTimeMs: null,
+      method: 'worker-start-end-events; excludes throttle, startup and backend queue waits' }),
     runtimeObservationStats: (pool) => {
       if (!pool || pool !== currentPool) return [];
       const threads = Array.isArray(pool.threads) ? new Set(pool.threads.map((worker) => worker.threadId)) : null;

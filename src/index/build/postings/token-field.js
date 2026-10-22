@@ -1,3 +1,4 @@
+import { setOwn } from '../../../shared/object-record.js';
 import { maybeYield, sortStrings } from './constants.js';
 
 /**
@@ -107,13 +108,13 @@ export const buildTokenAndFieldPostings = async ({
       const avgLen = lengths.length
         ? lengths.reduce((sum, len) => sum + len, 0) / lengths.length
         : 0;
-      fields[field] = {
+      setOwn(fields,field,{
         vocab,
         postings,
         docLengths: lengths,
         avgDocLen: avgLen,
         totalDocs: lengths.length
-      };
+      });
       await maybeYield(requestYield);
     }
     return Object.keys(fields).length ? { fields } : null;

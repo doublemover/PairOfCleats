@@ -409,7 +409,8 @@ export const collectJvmStyleImports = (
   {
     precheckTokens = ['import', 'package', 'extends'],
     typeReferenceKeywords = ['extends'],
-    includePackageDeclarations = false
+    includePackageDeclarations = false,
+    nestedBlockComments = false
   } = {}
 ) => {
   const imports = new Set();
@@ -427,7 +428,9 @@ export const collectJvmStyleImports = (
     if (!token) return;
     imports.add(token);
   };
-  for (const line of lines) {
+  const stripComments = createCommentAwareLineStripper({ markers: ['//'], blockCommentPairs: [['/*','*/']], nestedBlockComments });
+  for (const rawLine of lines) {
+    const line = stripComments(rawLine);
     if (!shouldScanLine(line, precheck)) continue;
     const importMatch = line.match(/^\s*import\s+([^\s;]+)/);
     if (importMatch?.[1]) addImport(importMatch[1]);

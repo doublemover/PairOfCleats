@@ -182,7 +182,8 @@ export const resolveDecisionFromReasonCode = (reasonCode, {
   fallbackStage = IMPORT_RESOLVER_STAGES.CLASSIFY
 } = {}) => {
   const normalizedCode = typeof reasonCode === 'string' ? reasonCode.trim() : '';
-  const fromRegistry = normalizedCode ? IMPORT_REASON_DECISIONS[normalizedCode] : null;
+  const fromRegistry = Object.hasOwn(IMPORT_REASON_DECISIONS,normalizedCode)
+    ? IMPORT_REASON_DECISIONS[normalizedCode] : null;
   if (fromRegistry) {
     return {
       reasonCode: normalizedCode,

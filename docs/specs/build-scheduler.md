@@ -22,6 +22,16 @@ Scheduler owns admission control, concurrency caps, fairness, and backpressure b
 
 ## Work model
 
+Blocked admission scans retain only a per-queue cursor and capacity/policy
+identity. New requests are still checked behind blocked heads. Capacity release,
+limits, adaptive ceilings, byte pressure, queue reconfiguration, cancellation and
+clear invalidate the prior blocked prefix when relevant. Diagnostic top-N
+selection applies its full elapsed/order rank at the cutoff; absent idle time
+uses elapsed progress time while an explicit zero remains zero. Singleton
+Tree-sitter batches still receive language metadata. NUMA lifecycle observations
+are independent of crash logging, and unsupported Windows load average falls
+back to labeled process CPU deltas in checkpoint evidence.
+
 Queue `concurrency` is a hard running-task admission cap, independent of producer
 pending/byte windows, resource tokens and adaptive surface ceilings. Adapters
 register the minimum of their effective capacity and any explicit queue cap.

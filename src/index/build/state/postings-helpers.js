@@ -88,9 +88,8 @@ export function appendPhraseNgramsToPostingsMap(
       if (j >= len) break;
       const tok = tokens[j];
       if (tok == null || tok === '') {
-        // Reset on empty tokens so we don't emit malformed n-grams.
-        key = '';
-        continue;
+        // This start cannot span an empty token; later starts remain eligible.
+        break;
       }
       key = key ? `${key}${sep}${tok}` : String(tok);
       if (n >= min) {

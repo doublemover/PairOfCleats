@@ -256,6 +256,11 @@ export const resolveStage1ShardExecutionQueuePlan = ({
     firstOrderIndex: resolveShardWorkItemMinOrderIndex(workItem)
   }));
   const shardMergePlan = buildDeterministicShardMergePlan(shardWorkPlan);
+  const subsetIds = new Set();
+  for (const entry of shardMergePlan) {
+    if (subsetIds.has(entry.subsetId)) throw new Error(`Duplicate shard subset identity: ${entry.subsetId}`);
+    subsetIds.add(entry.subsetId);
+  }
   const mergeOrderBySubsetId = new Map(
     shardMergePlan.map((entry) => [entry.subsetId, entry.mergeIndex])
   );

@@ -209,6 +209,15 @@ export const writeCheckpointSlices = async (buildRoot, {
     ? checkpointPatch
     : mergedCheckpoints;
   const modeKeys = Object.keys(modeSource || {}).sort(compareStrings);
+  const descriptorOwners = new Map();
+  for (const [mode,descriptor] of Object.entries(nextIndex.modes || {})) {
+    const relative = resolveSafeCheckpointRelativePath(mode,descriptor?.path);
+    if (!relative) continue;
+    if (descriptorOwners.has(relative)) throw Object.assign(new Error('Checkpoint modes alias one persisted slice.'), {
+      code:'ERR_CHECKPOINT_MODE_PATH_ALIAS'
+    });
+    descriptorOwners.set(relative,mode);
+  }
   const modeHashes = isObjectLike(cache.modeHashes) ? { ...cache.modeHashes } : {};
   const modeFingerprints = isObjectLike(cache.modeFingerprints) ? { ...cache.modeFingerprints } : {};
   for (const mode of modeKeys) {

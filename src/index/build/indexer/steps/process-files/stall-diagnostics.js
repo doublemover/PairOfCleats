@@ -70,18 +70,21 @@ export const collectStage1StalledFiles = (
 
   /** @type {object[]} */
   const topByElapsedAsc = [];
+  const compareRank = (left,right) => (left.elapsedMs || 0) - (right.elapsedMs || 0)
+    || (Number.isFinite(right.orderIndex) ? right.orderIndex : Number.MAX_SAFE_INTEGER)
+      - (Number.isFinite(left.orderIndex) ? left.orderIndex : Number.MAX_SAFE_INTEGER);
   for (const value of inFlightFiles.values()) {
     const summary = toStage1StallFileSummary(value, nowMs);
     if (!summary) continue;
     if (topByElapsedAsc.length < maxResults) {
       topByElapsedAsc.push(summary);
-      topByElapsedAsc.sort((left, right) => (left.elapsedMs || 0) - (right.elapsedMs || 0));
+      topByElapsedAsc.sort(compareRank);
       continue;
     }
     const smallest = topByElapsedAsc[0];
-    if ((summary.elapsedMs || 0) <= (smallest?.elapsedMs || 0)) continue;
+    if (compareRank(summary,smallest) <= 0) continue;
     topByElapsedAsc[0] = summary;
-    topByElapsedAsc.sort((left, right) => (left.elapsedMs || 0) - (right.elapsedMs || 0));
+    topByElapsedAsc.sort(compareRank);
   }
 
   return topByElapsedAsc
@@ -285,7 +288,7 @@ export const buildStage1ProcessingStallSnapshot = ({
   stage1OwnershipPrefix = '',
   runtime = null
 } = {}) => {
-  const resolvedIdleMs = Number.isFinite(Number(idleMs))
+  const resolvedIdleMs = idleMs != null && Number.isFinite(Number(idleMs))
     ? clampDurationMs(idleMs)
     : Math.max(0, nowMs - (Number(lastProgressAt) || nowMs));
   const orderedPending = getOrderedPendingCount();

@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { createWorkerProcessCoordinator } from '../../../src/index/build/workers/pool/worker-coordination.js';
+const coordinator=createWorkerProcessCoordinator({crashLogger:{enabled:false}});
+coordinator.setNumaPinningPlan({active:true,assignments:[0,1],nodeCount:2});
+const pool=new EventEmitter(),worker=new EventEmitter();worker.threadId=7;
+coordinator.attachPoolListeners(pool);pool.emit('workerCreate',worker);
+assert.equal(coordinator.getNumaAssignmentMap().get(7),0);
+worker.emit('exit',0);assert.equal(coordinator.getNumaAssignmentMap().size,0);
+console.log('NUMA lifecycle telemetry without crash logging passed');

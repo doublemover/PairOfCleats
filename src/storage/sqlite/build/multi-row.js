@@ -104,7 +104,13 @@ export function createMultiRowInserter(db, options = {}) {
             `expected ${columns.length} values, got ${Array.isArray(row) ? row.length : typeof row}`
           );
         }
-        const key = dedupeKeyIndices.map((idx) => String(row[idx])).join('\u001f');
+        const key = JSON.stringify(dedupeKeyIndices.map(idx => {
+          const value = row[idx];
+          if (value === null) return ['null'];
+          if (ArrayBuffer.isView(value)) return ['bytes', Buffer.from(value.buffer,value.byteOffset,value.byteLength).toString('hex')];
+          if (['string','number','bigint','boolean','undefined'].includes(typeof value)) return [typeof value,String(value)];
+          throw new TypeError('SQLite dedupe keys must contain supported scalar/blob bindings.');
+        }));
         const seen = byKey.get(key);
         if (seen === undefined) {
           const next = row.slice();
