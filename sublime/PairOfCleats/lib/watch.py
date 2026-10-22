@@ -15,8 +15,9 @@ def register(window, handle, root):
     global _NEXT_TOKEN
     key = _window_key(window)
     previous = _WATCHERS.get(key)
-    if previous and not previous.get('stopping'):
-        _cancel_handle(previous.get('handle'))
+    if previous and _is_handle_running(previous.get('handle')):
+        _cancel_handle(handle)
+        raise RuntimeError('Previous watch still owns process settlement. Inspect/stop it before starting another watch.')
     token = _NEXT_TOKEN
     _NEXT_TOKEN += 1
     _WATCHERS[key] = {
@@ -38,7 +39,14 @@ def snapshot(window):
         _WATCHERS.pop(key, None)
         return None
     snapshot_entry = dict(entry)
-    snapshot_entry['running'] = True
+    process = getattr(entry.get('handle'), 'process', None)
+    try:
+        parent_alive = process is not None and process.poll() is None
+    except Exception:
+        parent_alive = False
+    snapshot_entry['running'] = parent_alive
+    snapshot_entry['settling'] = not parent_alive
+    snapshot_entry['cleanupUnconfirmed'] = bool(getattr(entry.get('handle'), '_cleanup_failures', None))
     return snapshot_entry
 
 
@@ -90,9 +98,16 @@ def _is_handle_running(handle):
     if process is None:
         return False
     try:
-        return process.poll() is None
+        if process.poll() is None:
+            return True
     except Exception:
-        return False
+        return True
+    if getattr(handle, '_cleanup_failures', None):
+        return True
+    for thread in (getattr(handle, 'thread', None), getattr(handle, '_stopper', None)):
+        if thread is not None and getattr(thread, 'is_alive', lambda: False)():
+            return True
+    return False
 
 
 def _cancel_handle(handle):

@@ -1,4 +1,5 @@
 import json
+import os
 from urllib.parse import urlsplit, urlunsplit
 
 import sublime
@@ -71,7 +72,7 @@ class PairOfCleatsShowEffectiveSettingsCommand(sublime_plugin.WindowCommand):
     def is_visible(self):
         return True
 
-    def run(self):
+    def run(self, repo_root=None):
         def show(root, reason):
             if not root:
                 ui.show_status('PairOfCleats: {0}'.format(reason))
@@ -106,7 +107,13 @@ class PairOfCleatsShowEffectiveSettingsCommand(sublime_plugin.WindowCommand):
                     self.window.run_command('pair_of_cleats_tooling_doctor')
             self.window.show_quick_panel(['Inspect Installation / Transport Evidence', 'Open User Settings',
                                           'Tooling Doctor', 'Done'], action)
-        paths.resolve_repo_root_interactive(self.window, show)
+        if repo_root:
+            if not os.path.isdir(repo_root):
+                ui.show_error('Selected task repository is unavailable; choose a current repository before inspecting its installation.')
+                return
+            show(repo_root, None)
+        else:
+            paths.resolve_repo_root_interactive(self.window, show)
 
 
 class PairOfCleatsSelectRepoCommand(sublime_plugin.WindowCommand):

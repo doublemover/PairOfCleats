@@ -10,6 +10,8 @@ const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
 const { snapshotConfiguration, renderEffectiveSettings } = require('./effective-settings.js');
 const { inspectCliVersion } = require('./installation-evidence.js');
 const { createDocumentAuthority, readVerifiedSource } = require('./document-authority.js');
+const { createTaskObservations, taskRecoveryActions } = require('./task-observations.js');
+const taskObservations = createTaskObservations();
 const { generationFromContextPack, contextDiscoveryRequest, contextDiscoveryCliArgs } = require('./semantic-discovery.js');
 const { normalizeFilterPagination, mergeFilterPage, continuationInvocation } = require('./filter-pagination.js');
 const { createSemanticEvidenceWorkflow, sourceQualifiedSelection, qualifiedDocumentOffsets, qualifiedBindingSeed } = require('./semantic-evidence.js');
@@ -269,8 +271,9 @@ function getExtensionConfiguration(repoContext = null) {
   return snapshotConfiguration(configuration, keys);
 }
 
-async function showEffectiveSettings() {
-  const repoContext = await resolveSearchRepoContext({ allowRemote: true });
+async function showEffectiveSettings(seededRepoContext = null) {
+  const repoContext = seededRepoContext?.ok === true && seededRepoContext.repoRoot
+    ? seededRepoContext : await resolveSearchRepoContext({ allowRemote: true });
   if (!repoContext) return;
   const snapshot = getExtensionConfiguration(repoContext);
   const cli = resolveCli(repoContext.repoRoot, snapshot);
@@ -4285,6 +4288,10 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
   const key = getManagedProcessKey(spec, repoRoot);
   const existing = managedProcesses.get(key);
   if (existing) {
+    if (existing.cleanupUnconfirmed) {
+      vscode.window.showErrorMessage(`${spec.title} cannot restart for ${formatRepoLabel(repoRoot)} while its earlier owned tree stop remains unconfirmed. Inspect the exact task logs and resolve that process lifetime first.`);
+      return { ok: false, status: 'cleanup-unconfirmed', sessionId: existing.sessionId };
+    }
     const output = getOutputChannel();
     output.appendLine(`[managed] ${spec.title} already running for ${repoRoot}`);
     output.show?.(true);
@@ -4343,7 +4350,8 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     entry.stderrDecoder?.flush();
     const termination = entry.termination ? await entry.termination : null;
     const stopUnconfirmed = entry.stopping && termination?.ok !== true;
-    if (managedProcesses.get(key) === entry) managedProcesses.delete(key);
+    entry.cleanupUnconfirmed = stopUnconfirmed;
+    if (!stopUnconfirmed && managedProcesses.get(key) === entry) managedProcesses.delete(key);
     const stoppedByUser = entry.stopReason === 'cancelled';
     const failed = Boolean(error) || timedOut || stopUnconfirmed || (!stoppedByUser && code !== 0);
     const status = failed ? 'failed' : stoppedByUser ? 'cancelled' : 'succeeded';
@@ -4354,6 +4362,10 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
       : failed
         ? `${spec.title} exited with code ${code}.`
         : `${spec.title} completed.`;
+    entry.status = status;
+    entry.summaryLine = summaryLine;
+    entry.progress = { ...entry.progress, phase: stopUnconfirmed ? 'stop-unconfirmed' : status, message: summaryLine };
+    taskObservations.remember(entry, { status, summaryLine });
     await finishWorkflowSession(session.sessionId, { status, summaryLine });
     if (!stoppedByUser || stopUnconfirmed) {
       if (failed) {
@@ -4370,6 +4382,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     spec,
     child,
     repoRoot,
+    repoUri: repoContext.repoUri,
     progress: { phase: 'starting', startedAt: Date.now(), lastActivityAt: Date.now() },
     logBytes: 0,
     sessionId: session.sessionId,
@@ -4390,7 +4403,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     entry.progress.lastActivityAt = Date.now();
     if (!entry.stopping && !entry.settling && managedProcesses.get(key) === entry
       && spec.id === 'pairofcleats.serviceApiStart' && prefix === '[stdout] ') {
-      const endpoint = !truncated && apiReadinessFrame(line);
+      const endpoint = !truncated && apiReadinessFrame(line, entry.repoRoot);
       if (endpoint && entry.progress.endpoint !== endpoint) {
         entry.progress = { ...entry.progress, phase: 'ready', endpoint,
           message: 'API listener readiness observed in its authoritative startup frame.' };
@@ -5082,7 +5095,9 @@ async function resolveServiceRepository(repoContext, execution, { force = false 
 }
 
 async function inspectTasks() {
-  const entries = Array.from(managedProcesses.values());
+  const active = Array.from(managedProcesses.values());
+  const activeIds = new Set(active.map(entry => entry.sessionId));
+  const entries = [...active, ...taskObservations.list().filter(entry => !activeIds.has(entry.sessionId))];
   if (!entries.length) { await showWorkflowStatus(); return; }
   const picked = await vscode.window.showQuickPick(entries.map(entry => ({
     label: entry.spec.title, description: `${entry.repoRoot} • ${entry.progress?.phase || 'starting'}`,
@@ -5092,17 +5107,31 @@ async function inspectTasks() {
   const entry = picked.entry;
   const document = await vscode.workspace.openTextDocument({ content: describeTask(entry), language: 'plaintext' });
   await vscode.window.showTextDocument(document, { preview: true });
-  const action = await vscode.window.showQuickPick(['Inspect Logs', 'Stop Selected Task', 'Open Effective Settings', 'Tooling Doctor'],
+  const activeEntry = managedProcesses.get(entry.key)?.sessionId === entry.sessionId && !entry.cleanupUnconfirmed && !entry.settling;
+  const actions = taskRecoveryActions(entry, activeEntry);
+  const pickedAction = await vscode.window.showQuickPick(actions.map(item => item.label),
     { title: `${entry.spec.title} • ${entry.repoRoot}`, placeHolder: 'Safe registered recovery actions' });
-  if (action === 'Inspect Logs') {
+  const action = actions.find(item => item.label === pickedAction)?.action;
+  const repoContext = { ok: true, ...createStoredRepoContext({ repoRoot: entry.repoRoot,
+    repoUri: entry.workspaceUri || entry.repoUri?.toString?.() || '' }) };
+  if (action === 'logs') {
     const text = [describeTask(entry), '', `Task log tail${entry.logTailTruncated ? ' (older lines omitted)' : ''}:`,
       ...(entry.logTail || []).map(row => row.text)].join('\n');
     const logs = await vscode.workspace.openTextDocument({ content: text, language: 'plaintext' });
     await vscode.window.showTextDocument(logs, { preview: true });
   }
-  else if (action === 'Open Effective Settings') await showEffectiveSettings();
-  else if (action === 'Tooling Doctor') await vscode.commands.executeCommand('pairofcleats.doctor');
-  else if (action === 'Stop Selected Task') {
+  else if (action === 'settings') await showEffectiveSettings(repoContext);
+  else if (action === 'doctor' || action === 'health') {
+    const id = action === 'doctor' ? 'pairofcleats.doctor' : 'pairofcleats.indexHealth';
+    await runOperatorCommand(OPERATOR_COMMANDS_BY_ID.get(id), { repoContext });
+  }
+  else if (action === 'select') await selectRepo();
+  else if (action === 'retry') {
+    const session = workflowSessions.find(item => item.sessionId === entry.sessionId);
+    if (session) await rerunWorkflowSession(session);
+    else vscode.window.showInformationMessage('This task observation has no admitted saved workflow. Run its registered command deliberately.');
+  }
+  else if (action === 'stop') {
     if (managedProcesses.get(entry.key)?.sessionId !== entry.sessionId) {
       vscode.window.showInformationMessage('That exact task already settled. Inspect tasks again.');
       return;
@@ -5451,6 +5480,7 @@ async function deactivate() {
   const result = await operations.dispose();
   if (result.ok) managedProcesses.clear();
   else console.error('[PairOfCleats] Owned editor work did not finish shutdown:', result);
+  taskObservations.clear();
   return result;
 }
 

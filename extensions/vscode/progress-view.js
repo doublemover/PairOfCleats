@@ -1,4 +1,5 @@
 const { StringDecoder } = require('node:string_decoder');
+const path = require('node:path');
 const EVENTS = new Set(['hello', 'job:start', 'job:spawn', 'job:end', 'job:artifacts',
   'runtime:metrics', 'event:chunk', 'task:start', 'task:progress', 'task:end', 'log']);
 
@@ -46,10 +47,12 @@ function applyProgressEvent(state, event, now = Date.now()) {
   return next;
 }
 
-function apiReadinessFrame(line) {
+function apiReadinessFrame(line, expectedRepoRoot = null) {
   let frame;
   try { frame = JSON.parse(line); } catch { return null; }
   if (frame?.ok !== true || !Number.isInteger(frame.port) || frame.port < 1 || frame.port > 65535) return null;
+  if (expectedRepoRoot && (typeof frame.repo !== 'string' || !path.isAbsolute(frame.repo)
+    || path.resolve(frame.repo) !== path.resolve(expectedRepoRoot))) return null;
   try {
     const url = new URL(frame.baseUrl);
     const host = typeof frame.host === 'string' ? frame.host.trim().toLowerCase() : '';
@@ -62,13 +65,15 @@ function apiReadinessFrame(line) {
 
 function describeTask(entry, now = Date.now()) {
   const progress = entry.progress || {};
+  const observedUntil = entry.completedAt || progress.completedAt || now;
   return [`${entry.spec.title} • ${entry.repoRoot || ''} • ${entry.sessionId}`,
-    `State: ${entry.stopping ? 'stopping' : progress.phase || 'starting'}`,
+    `State: ${entry.cleanupUnconfirmed ? 'failed; owned stop unconfirmed' : entry.stopping && !entry.status ? 'stopping' : progress.phase || 'starting'}`,
     `Stage: ${progress.stage || 'indeterminate'}`,
-    `Elapsed: ${Math.max(0, now - (progress.startedAt || now))} ms; idle: ${Math.max(0, now - (progress.lastActivityAt || now))} ms`,
+    `Elapsed: ${Math.max(0, observedUntil - (progress.startedAt || observedUntil))} ms; idle: ${Math.max(0, observedUntil - (progress.lastActivityAt || observedUntil))} ms`,
     `Counters: ${progress.current ?? 'unknown'} / ${progress.total ?? 'unknown'}`,
     progress.message || 'No structured progress observed.',
     ...(progress.endpoint ? [`Endpoint (readiness observed): ${progress.endpoint}`] : []),
+    ...(entry.observedOnly ? ['Read-only completed task observation; no process/PID authority is retained.'] : []),
     'No percentage or ETA is inferred from unstructured logs.'].join('\n');
 }
 

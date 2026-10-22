@@ -55,6 +55,8 @@ try {
   assert.deepEqual(qualifiedNavigationRows({ status: 'resolved', binding: { status: 'resolved' }, results: [exact] }), [exact]);
   assert.deepEqual(qualifiedNavigationRows({ status: 'resolved', binding: { status: 'resolved' }, results: [exact, { ...exact, sourceHash: null }] }), [],
     'dropping one unqualified row must not turn a resolved reference set into falsely complete native locations');
+  assert.deepEqual(qualifiedNavigationRows({ status: 'resolved', binding: { status: 'resolved' }, results: [exact, null] }), [],
+    'malformed rows suppress the whole native result set without throwing or publishing a subset');
   assert.deepEqual(qualifiedNavigationRows({ status: 'partial', binding: { status: 'resolved' }, results: [exact] }), [], 'native providers do not imply completeness for partial reference sets');
   assert.deepEqual(qualifiedNavigationRows({ status: 'ambiguous', results: [exact] }), []);
   assert.deepEqual(qualifiedNavigationRows({ status: 'approximate', results: [exact] }), []);

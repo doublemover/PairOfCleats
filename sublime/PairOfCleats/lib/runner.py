@@ -346,18 +346,19 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
             result.error = 'Owned process-tree settlement remains unconfirmed.'
             result.state = 'cleanup_unconfirmed'
         if task and window:
+            task['cleanupUnconfirmed'] = cleanup_unconfirmed
             if cleanup_unconfirmed:
                 final_status = 'failed'
                 detail = result.error
-            elif result.cancelled or task.get('status') == 'cancelling':
-                final_status = 'cancelled'
-                detail = 'Cancelled.'
             elif result.timed_out:
                 final_status = 'failed'
                 detail = error or 'Timed out.'
             elif result.error:
                 final_status = 'failed'
                 detail = result.error
+            elif result.cancelled or task.get('status') == 'cancelling':
+                final_status = 'cancelled'
+                detail = 'Cancelled.'
             else:
                 final_status = 'done' if proc.returncode == 0 else 'failed'
                 detail = 'Completed successfully.' if proc.returncode == 0 else (output.strip() or 'Process failed.')

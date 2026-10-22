@@ -20,6 +20,10 @@ try {
   const apiChild = harness.spawnCalls[0].child;
   assert.ok(harness.infoMessages.some(message => /starting.*Readiness has not been observed/.test(message)));
   assert.equal(harness.infoMessages.some(message => /ready at/.test(message)), false);
+  apiChild.stdout.emit('data', Buffer.from(JSON.stringify({ ok: true, host: '127.0.0.1', port: 7345,
+    baseUrl: 'http://127.0.0.1:7345', repo: second }) + '\n'));
+  assert.equal(harness.infoMessages.some(message => /ready at/.test(message)), false,
+    'a listener frame for a different repository cannot claim readiness for this owned task');
   apiChild.stdout.emit('data', Buffer.from(ready));
   apiChild.stdout.emit('data', Buffer.from(ready));
   assert.equal(harness.infoMessages.filter(message => /ready at/.test(message)).length, 1,

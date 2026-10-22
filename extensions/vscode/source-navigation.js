@@ -27,7 +27,7 @@ function qualifiedNavigationRows(payload) {
   if (payload?.status !== 'resolved' || payload?.binding?.status !== 'resolved') return [];
   const rows = payload.results;
   if (!Array.isArray(rows)) return [];
-  const valid = row => row.coordinateUnit === 'utf16'
+  const valid = row => row && typeof row === 'object' && row.coordinateUnit === 'utf16'
     && /^[a-f0-9]{64}$/.test(row.sourceHash || '') && Number.isSafeInteger(row.startLine)
     && Number.isSafeInteger(row.startCol) && Number.isSafeInteger(row.endLine)
     && Number.isSafeInteger(row.endCol) && row.startLine >= 1 && row.startCol >= 1

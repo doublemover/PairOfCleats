@@ -16,6 +16,7 @@ evidence = importlib.import_module('PairOfCleats.commands.evidence')
 settings_commands = importlib.import_module('PairOfCleats.commands.settings')
 results = importlib.import_module('PairOfCleats.lib.results')
 tasks = importlib.import_module('PairOfCleats.lib.tasks')
+runtime_commands = importlib.import_module('PairOfCleats.commands.runtime')
 operations = importlib.import_module('PairOfCleats.lib.operations')
 service = importlib.import_module('PairOfCleats.lib.service_repository')
 api = importlib.import_module('PairOfCleats.lib.api_client')
@@ -189,6 +190,40 @@ tasks.note_log(second_task, 'only task two\n')
 assert first_task['logTailBytes'] <= 65536 and len(first_task['logTail']) <= 128
 assert first_task['logTailTruncated'] is True
 assert second_task['logTail'] == ['only task two\n']
+
+inspection_window = FakeWindow()
+inspection_task = tasks.start_task(inspection_window, 'PairOfCleats index build', repo_root='/exact-task-root',
+    cancellable=True, cancel=lambda: cancelled.append('completed-authority-must-not-run'), show_panel=False)
+tasks.note_log(inspection_task, 'selected completed task evidence\n')
+tasks.complete_task(inspection_window, inspection_task, status='failed', details='Controlled index failure.')
+recent = tasks.recent_tasks(inspection_window)[0]
+assert 'cancel' not in recent and not recent['cancellable'], 'completed logs do not retain process callbacks'
+tasks.note_log(inspection_task, 'late output must not rewrite a completed observation\n')
+assert recent['logTail'] == ['selected completed task evidence\n']
+runtime_commands.PairOfCleatsInspectTasksCommand(inspection_window).run()
+assert 'completed observation' in inspection_window.quick_panel_items[0][2]
+inspection_window.quick_panel_callback(0)
+assert 'Cancel Selected Task' not in inspection_window.quick_panel_items
+assert 'Retry Index Build (choose mode and repository)' in inspection_window.quick_panel_items
+assert inspection_window.commands == [], 'displaying a failure cannot retry a mutation'
+inspection_window.quick_panel_callback(inspection_window.quick_panel_items.index('Inspect Task Logs'))
+assert 'selected completed task evidence' in inspection_window.panels['pairofcleats-task-logs'].appended
+assert 'late output' not in inspection_window.panels['pairofcleats-task-logs'].appended
+runtime_commands.PairOfCleatsInspectTasksCommand(inspection_window).run()
+inspection_window.quick_panel_callback(0)
+inspection_window.quick_panel_callback(inspection_window.quick_panel_items.index('Show Effective Settings for This Task'))
+assert inspection_window.commands[-1] == {'name': 'pair_of_cleats_show_effective_settings', 'args': {'repo_root': '/exact-task-root'}}
+uncertain = tasks.start_task(inspection_window, 'PairOfCleats index build', repo_root='/uncertain-root', show_panel=False)
+uncertain['cleanupUnconfirmed'] = True
+tasks.complete_task(inspection_window, uncertain, status='failed', details='Stop unconfirmed.')
+runtime_commands.PairOfCleatsInspectTasksCommand(inspection_window).run()
+inspection_window.quick_panel_callback(0)
+assert 'Retry Index Build (choose mode and repository)' not in inspection_window.quick_panel_items
+assert 'completed-authority-must-not-run' not in cancelled
+for index in range(10):
+    entry = tasks.start_task(inspection_window, 'bounded observation {0}'.format(index), show_panel=False)
+    tasks.complete_task(inspection_window, entry)
+assert len(tasks.recent_tasks(inspection_window)) == 8
 
 entered, released = threading.Event(), threading.Event()
 completed = []

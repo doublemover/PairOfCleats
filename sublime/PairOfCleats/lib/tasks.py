@@ -163,7 +163,11 @@ def complete_task(window, task, status='done', details=None):
     active = _ACTIVE_TASKS.get(window_id) or []
     _ACTIVE_TASKS[window_id] = [entry for entry in active if entry.get('id') != task.get('id')]
     recent = _RECENT_TASKS.setdefault(window_id, [])
-    recent.insert(0, dict(task))
+    observation = dict(task)
+    observation.pop('cancel', None)
+    observation['cancellable'] = False
+    observation['logTail'] = list(task.get('logTail') or [])
+    recent.insert(0, observation)
     del recent[_MAX_RECENT_TASKS:]
     _render(window)
 
