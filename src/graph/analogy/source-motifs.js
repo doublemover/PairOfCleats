@@ -3,8 +3,9 @@ import { admitOwnedSemanticSourceSnapshot } from '../../index/semantic/source-sn
 import { validateSemanticEnvelope } from '../../contracts/validators/semantic-envelopes.js';
 import { materializeTaskLens } from '../../context-pack/task-evidence/lens.js';
 import { enforceContextPackResponseBudget } from '../../context-pack/response-budget.js';
+import { throwIfAborted } from '../../shared/abort.js';
 
-const views = new WeakMap(), matches = new WeakMap();
+const views = new WeakMap(), matches = new WeakMap(), comparisons = new WeakMap();
 const key = canonicalSemanticJson;
 const text = value => typeof value === 'string' && value.length > 0 && Buffer.byteLength(value) <= 4096;
 const fields = (value, names) => value && Object.getPrototypeOf(value) === Object.prototype
@@ -162,5 +163,89 @@ export const materializeSourceMotifLens = ({ view, match, taskId, maxFacets = 12
   let bytes = measure(payload);
   while (payload.renderedBytes !== bytes) { payload.renderedBytes = bytes; bytes = measure(payload); }
   enforceContextPackResponseBudget(payload, { measure });
+  return payload;
+};
+
+/** Two independently checked maps share typed roles, not language truth or a
+ * bijection between their parallel evidence. Every world remains separate. */
+export const compareSourceMotifMatches = ({ leftView, leftMatch, rightView, rightMatch, signal = null }) => {
+  throwIfAborted(signal);
+  const left = views.get(leftView), right = views.get(rightView);
+  if (!left || !right || matches.get(leftMatch) !== leftView || matches.get(rightMatch) !== rightView
+    || leftMatch.motifId !== rightMatch.motifId) fail('owned checked matches for the same motif required');
+  const motifId = leftMatch.motifId, motif = motifs[motifId];
+  const rolePairs = motif.roles.map(role => ({ role,
+    left: { entityId: leftMatch.roleMap[role], worldRef: left.world, sourceRef: left.byId.get(leftMatch.roleMap[role]).sourceRef },
+    right: { entityId: rightMatch.roleMap[role], worldRef: right.world, sourceRef: right.byId.get(rightMatch.roleMap[role]).sourceRef } }));
+  const relationCorrespondence = motif.relations.map(([kind, fromRole, toRole], index) => {
+    const leftWitnesses = leftMatch.relationWitnesses[index].relations, rightWitnesses = rightMatch.relationWitnesses[index].relations;
+    const leftCertainties = [...new Set(leftWitnesses.map(row => row.certainty))].sort();
+    const rightCertainties = [...new Set(rightWitnesses.map(row => row.certainty))].sort();
+    return { kind, fromRole, toRole, leftWitnesses, rightWitnesses,
+      leftCertainties, rightCertainties,
+      certaintyLabels: key(leftCertainties) === key(rightCertainties) ? 'same-declared-labels' : 'different-declared-labels',
+      edgeBijection: 'not-established', truthEquivalence: 'not-implied' };
+  });
+  const identity = { motifId, leftViewId: leftView.viewId, leftMatchId: leftMatch.matchId,
+    rightViewId: rightView.viewId, rightMatchId: rightMatch.matchId };
+  const result = freeze({ comparisonId: semanticHash('pairofcleats.source-motif-comparison.v1', identity), ...identity,
+    checker: 'owned-typed-motif-role-pairing/v1', rolePairs, relationCorrespondence,
+    conditions: motif.conditions.map(id => ({ id, status: 'unknown', evidenceIds: [] })),
+    sourceCoverage: { left: left.coverage, right: right.coverage },
+    tier: 'checked-structural-correspondence', transfer: 'not-established', behavioralEquivalence: 'not-implied',
+    sourceLanguageClosure: 'not-implied', actionAuthority: 'none' });
+  comparisons.set(result, { leftView, leftMatch, rightView, rightMatch });
+  throwIfAborted(signal);
+  return result;
+};
+
+/** Pair existing exact-source lenses under one complete response allowance.
+ * An overflow withholds both role sets instead of presenting half an analogy. */
+export const materializeSourceMotifComparisonLens = ({ comparison, taskId, maxFacets = 12, signal = null }) => {
+  throwIfAborted(signal);
+  const owned = comparisons.get(comparison);
+  if (!owned || typeof taskId !== 'string' || !taskId) fail('owned checked comparison and task ID required');
+  const materialize = (view, match, side) => materializeSourceMotifLens({ view, match, taskId: taskId + ':' + side, maxFacets });
+  const left = materialize(owned.leftView, owned.leftMatch, 'left');
+  throwIfAborted(signal);
+  const right = materialize(owned.rightView, owned.rightMatch, 'right');
+  const roles = comparison.rolePairs.map(row => row.role);
+  const compact = { comparisonId: comparison.comparisonId, motifId: comparison.motifId,
+    leftViewId: comparison.leftViewId, leftMatchId: comparison.leftMatchId,
+    rightViewId: comparison.rightViewId, rightMatchId: comparison.rightMatchId,
+    rolePairs: comparison.rolePairs.map(row => ({ role: row.role, leftEntityId: row.left.entityId, rightEntityId: row.right.entityId })),
+    relationSupport: comparison.relationCorrespondence.map(row => ({ kind: row.kind, fromRole: row.fromRole, toRole: row.toRole,
+      leftWitnessCount: row.leftWitnesses.length, rightWitnessCount: row.rightWitnesses.length,
+      leftCertainties: row.leftCertainties, rightCertainties: row.rightCertainties,
+      certaintyLabels: row.certaintyLabels, edgeBijection: row.edgeBijection })),
+    conditions: comparison.conditions, sourceCoverage: comparison.sourceCoverage,
+    tier: comparison.tier, transfer: comparison.transfer, behavioralEquivalence: comparison.behavioralEquivalence,
+    actionAuthority: 'none' };
+  const measure = value => Buffer.byteLength(JSON.stringify(value) + '\n');
+  const settle = payload => {
+    let bytes = measure(payload);
+    while (payload.renderedBytes !== bytes) { payload.renderedBytes = bytes; bytes = measure(payload); }
+    enforceContextPackResponseBudget(payload, { measure });
+    return payload;
+  };
+  const overflow = lens => {
+    const result = { ...lens, facets: [], status: 'mandatoryOverflow', omittedCandidates: lens.totalCandidates,
+      missingRoles: [...roles], overflowReason: 'paired-source-response-budget' };
+    delete result.warnings; return settle(result);
+  };
+  let payload = { schemaVersion: 1, taskId, analogy: compact, left, right,
+    status: left.status === 'mandatoryOverflow' || right.status === 'mandatoryOverflow' ? 'mandatoryOverflow' : 'projected',
+    completeness: 'not-implied', renderedBytes: Number.MAX_SAFE_INTEGER };
+  // A one-sided overflow cannot leave its counterpart looking like a complete
+  // role pairing. The owned comparison still retains every original witness.
+  if (payload.status === 'mandatoryOverflow') payload = { ...payload, left: overflow(left), right: overflow(right) };
+  try { payload = settle(payload); }
+  catch (error) {
+    if (error.code !== 'ERR_CONTEXT_PACK_RESPONSE_BUDGET') throw error;
+    payload = { ...payload, left: overflow(left), right: overflow(right), status: 'mandatoryOverflow',
+      overflowReason: 'paired-source-response-budget' };
+    delete payload.warnings; payload = settle(payload);
+  }
+  throwIfAborted(signal);
   return payload;
 };

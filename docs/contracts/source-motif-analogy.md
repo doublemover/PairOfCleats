@@ -73,7 +73,29 @@ not implemented. No performance or heap-size guarantee is claimed.
 Authored unexecuted fixtures use a separate brute-force correspondence oracle,
 both motifs, competing validators, wrong-object publication, reversed qualifiers,
 missing closure, forged maps, cancellation and actual lens materialization.
-Legacy retained adjacency projection, cross-view source/target correspondence,
+Legacy retained adjacency projection, retrieval of cross-view candidate pairs,
 provider-owned condition discharge, opaque continuations, migration campaigns,
 binding adaptation and measured baseline/utility qualification remain open #1522
 obligations. The source-only motif route remains independently inspectable.
+
+The owned comparison consumer can now pair two independently checked matches of
+the same motif, including matches from distinct retained repository/build stores.
+Each typed role pair retains both entity IDs, original source refs and worlds.
+Directed relation groups retain every left and right parallel witness separately;
+their cardinalities need not agree. A role pairing does not invent an edge
+bijection, equate certainty labels or establish truth equivalence. Different
+declared certainty sets are reported, and both source-coverage states remain
+visible. All behavioral transfer conditions stay unknown. Comparison identity
+pins the direction, both view IDs and both owned match IDs; a cloned match or
+comparison cannot mint consumer authority.
+
+`materializeSourceMotifComparisonLens` consumes that owned comparison through two
+existing exact-source lenses under one complete response budget. It keeps the
+compact role pairing, witness counts, separate world-qualified facets and open
+conditions. If either mandatory role set or the combined response overflows,
+both facet sets are withheld with `mandatoryOverflow`; a one-sided preview cannot
+look like a complete analogy. The owned views retain original witnesses for
+expansion. This is explicit supplied-pair comparison, not repository candidate
+retrieval, automatic cross-language adaptation, condition discharge, migration
+advice or an equivalence certificate. The new canonical writer/store/paired-lens
+regression is authored and unrun; no persisted producer or public default changes.
