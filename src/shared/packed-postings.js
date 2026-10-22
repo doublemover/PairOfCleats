@@ -1,5 +1,6 @@
 const MAX_VARINT_BYTES = 10;
 const DEFAULT_BLOCK_SIZE = 128;
+const MAX_SAFE_OFFSET = BigInt(Number.MAX_SAFE_INTEGER);
 const invalidPackedValue = message => Object.assign(new Error(message), { code: 'ERR_VARINT_DECODE' });
 
 const decodeVarint = (buffer, offset) => {
@@ -136,10 +137,13 @@ export const encodePackedOffsets = (offsets) => {
  */
 export const decodePackedOffsets = (buffer) => {
   if (!buffer || buffer.length === 0) return [];
+  if (buffer.length % 8 !== 0) throw Object.assign(new Error('Packed offsets contain a partial uint64 value.'), { code: 'ERR_PACKED_OFFSETS' });
   const count = Math.floor(buffer.length / 8);
   const offsets = new Array(count);
   for (let i = 0; i < count; i += 1) {
-    offsets[i] = Number(buffer.readBigUInt64LE(i * 8));
+    const value = buffer.readBigUInt64LE(i * 8);
+    if (value > MAX_SAFE_OFFSET) throw Object.assign(new Error('Packed offset exceeds Number.MAX_SAFE_INTEGER.'), { code: 'ERR_PACKED_OFFSETS' });
+    offsets[i] = Number(value);
   }
   return offsets;
 };

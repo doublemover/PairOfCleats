@@ -272,6 +272,9 @@ const loadTokenPostingsRaw = (
       ? Math.max(1, Math.floor(Number(fields.blockSize)))
       : DEFAULT_PACKED_BLOCK_SIZE;
     const totalTokens = Math.max(0, offsets.length - 1);
+    if (offsets.length !== vocab.length + 1 || (vocabIds.length > 0 && vocabIds.length !== vocab.length)) {
+      throw Object.assign(new Error('Packed token_postings vocabulary/offset cardinality does not match.'), { code: 'ERR_ARTIFACT_INVALID' });
+    }
     const postings = new Array(totalTokens);
     const resolvedWindowTokens = Number.isFinite(Number(packedWindowTokens))
       ? Math.max(1, Math.floor(Number(packedWindowTokens)))
@@ -326,6 +329,12 @@ const loadTokenPostingsRaw = (
     let fd = null;
     try {
       fd = strict ? openContainedFileSync(dir, resolvedPackedPath) : fs.openSync(resolvedPackedPath, 'r');
+      const dataBytes = fs.fstatSync(fd).size;
+      if (!Number.isSafeInteger(dataBytes) || dataBytes < 0 || offsets[0] !== 0
+        || offsets[offsets.length - 1] !== dataBytes
+        || offsets.some((value, index) => value < 0 || value > dataBytes || (index > 0 && value < offsets[index - 1]))) {
+        throw Object.assign(new Error('Packed token_postings offsets do not cover the opened data in order.'), { code: 'ERR_ARTIFACT_INVALID' });
+      }
       let startToken = 0;
       while (startToken < totalTokens) {
         let endToken = Math.min(totalTokens, startToken + 1);
