@@ -32,6 +32,20 @@ export const sanitizeDisplayText = value => {
 export const stripAnsi = (value) => String(value || '').replace(ANSI_PATTERN, '');
 export const displayWidth = value => [...graphemes.segment(stripAnsi(sanitizeDisplayText(value)))].reduce((sum, segment) => sum + graphemeWidth(segment.segment), 0);
 
+const closeDisplayStyles = text => {
+  let styled = false;
+  let hyperlink = false;
+  for (const match of text.matchAll(ANSI_PATTERN)) {
+    const token = match[0];
+    if (token.startsWith('\x1b[')) styled = !/^\x1b\[(?:0(?:;0)*)?m$/.test(token);
+    if (token.startsWith('\x1b]8;')) {
+      const payload = token.slice(4).replace(/(?:\x07|\x1b\\)$/, '');
+      hyperlink = payload.slice(payload.indexOf(';') + 1).length > 0;
+    }
+  }
+  return text + (hyperlink ? '\x1b]8;;\x1b\\' : '') + (styled ? '\x1b[0m' : '');
+};
+
 const sliceDisplayCells = (value, width) => {
   const text = sanitizeDisplayText(value);
   const plain = stripAnsi(text);
@@ -76,14 +90,14 @@ export const padLabel = (label, width) => {
 };
 
 export const padVisible = (text, width) => {
-  const value = String(text ?? '');
+  const value = closeDisplayStyles(sanitizeDisplayText(text));
   const plainLength = displayWidth(value);
   if (plainLength >= width) return value;
   return `${value}${' '.repeat(width - plainLength)}`;
 };
 
 export const padVisibleStart = (text, width) => {
-  const value = String(text ?? '');
+  const value = closeDisplayStyles(sanitizeDisplayText(text));
   const plainLength = displayWidth(value);
   if (plainLength >= width) return value;
   return `${' '.repeat(width - plainLength)}${value}`;
@@ -93,7 +107,7 @@ export const truncateLine = (line, width) => {
   if (!line) return '';
   const safeWidth = Number.isFinite(width) ? Math.max(0, Math.floor(width)) : 80;
   const text = sanitizeDisplayText(line);
-  if (displayWidth(text) <= safeWidth) return text;
+  if (displayWidth(text) <= safeWidth) return closeDisplayStyles(text);
   if (safeWidth <= 3) return sliceDisplayCells(text, safeWidth);
   return `${sliceDisplayCells(text, safeWidth - 3)}...`;
 };

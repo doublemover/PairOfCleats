@@ -16,6 +16,8 @@ const BAR_MIN = 7;
 /** All widths are display cells. Separators and bar brackets are reserved once. */
 export const resolveRowCellBudget = ({ width, fixed, suffix = 0, rate = 0, detail = 0, message = 0, policy = 'normal' }) => {
   const available = Math.max(0, width - fixed - suffix);
+  if (available < 4) return { compact: true, showSuffix: true, showRate: false, showDetail: false, showMessage: false,
+    fields: { rate: 0, detail: 0, message: 0 }, omittedFields: ['bar', ...Object.entries({ rate, detail, message }).filter(([, size]) => size > 0).map(([name]) => name)], barWidth: 0 };
   let remaining = Math.max(0, available - BAR_MIN);
   const fields = { rate: 0, detail: 0, message: 0 };
   for (const [name, size] of [['rate', rate], ['detail', policy === 'compact' ? 0 : detail], ['message', message]]) {
@@ -168,7 +170,7 @@ const formatTimeText = ({ task, value, parts, useAlignedUnits, layoutWidths }) =
     : formatDurationCompact(parts);
 };
 
-export const resolveDisplayLayout = ({ displayTasks, width, statusDone, statusFail }) => {
+export const resolveDisplayLayout = ({ displayTasks, width, statusDone, statusFail, detailPolicy = 'normal' }) => {
   const now = Date.now();
   const runningNow = Math.floor(now / 1000) * 1000;
   const extrasByTask = displayTasks.map((task) => {
@@ -216,7 +218,7 @@ export const resolveDisplayLayout = ({ displayTasks, width, statusDone, statusFa
   }));
   const detailMaxRaw = detailTexts.reduce((max, value) => Math.max(max, displayWidth(value)), 0);
   const detailPrefix = 'eta:';
-  const detailWidth = detailMaxRaw + detailPrefix.length + 1;
+  const detailWidth = detailMaxRaw > 0 ? detailMaxRaw + detailPrefix.length + 1 : 0;
   const padDetail = (task, value) => {
     if (!value) return padVisibleStart('', detailWidth);
     if (task.status === 'running') {
@@ -247,7 +249,7 @@ export const resolveDisplayLayout = ({ displayTasks, width, statusDone, statusFa
   const layout = resolveRowCellBudget({
     width: width - 1, fixed: indentWidth + labelWidth + 2 + 1 + 1 + statusWidth,
     suffix: maxSuffixLength, rate: maxRateLength, detail: detailWidth,
-    message: maxMessageLength, policy: state.detailPolicy || 'normal'
+    message: maxMessageLength, policy: detailPolicy
   });
   return {
     now,

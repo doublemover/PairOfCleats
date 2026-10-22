@@ -106,11 +106,17 @@ export const renderDisplay = ({
     messageTexts,
     statusWidth,
     layout
-  } = resolveDisplayLayout({ displayTasks, width, statusDone, statusFail });
+  } = resolveDisplayLayout({ displayTasks, width, statusDone, statusFail, detailPolicy: state.detailPolicy });
   const hueShiftVariants = new Set(['files', 'imports', 'artifacts', 'records', 'embeddings', 'shard']);
   const taskLines = displayTasks.map((task, index) => {
     const total = Number.isFinite(task.total) && task.total > 0 ? task.total : null;
     const current = Number.isFinite(task.current) ? task.current : 0;
+    if (layout.compact) {
+      const count = suffixes[index] || formatCount(current);
+      const status = task.status === 'failed' ? ' failed' : task.status === 'done' ? ' done' : '';
+      const labelBudget = Math.max(1, width - displayWidth(count + status) - 2);
+      return `${padLabel(taskLabels[index] || task.name, labelBudget)} ${count}${status}`;
+    }
     let pct = total ? current / total : 0;
     if (overallOverride !== null && task === overallTask) {
       pct = overallOverride;
