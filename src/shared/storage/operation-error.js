@@ -1,5 +1,3 @@
-import { releaseFileLockOrThrow } from '../locks/file-lock.js';
-
 const knownMetadataLocks = new WeakSet();
 const contextStates = new WeakMap();
 const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
@@ -159,7 +157,10 @@ export const addStorageFailureContext = (value, fields = {}, secondary = null,
  * Retrying that handle cannot settle an independent child/native resource.
  */
 export const releaseStorageOperationLock = async (lock, operationError = null) => {
-  try { return await releaseFileLockOrThrow(lock, { workerError: operationError }); }
+  try {
+    const { releaseFileLockOrThrow } = await import('../locks/file-lock.js');
+    return await releaseFileLockOrThrow(lock, { workerError: operationError });
+  }
   catch (cleanupError) {
     knownMetadataLocks.add(lock);
     const operationPresent = operationError !== null && operationError !== undefined;

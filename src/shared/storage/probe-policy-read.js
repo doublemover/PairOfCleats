@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { readVerifiedContainedFileSync } from '../contained-file.js';
+import { describeStorageFailure } from './failure-observation.js';
 import { STORAGE_POLICY_VERSION, COMMAND_PROBE_POLICY_DEFAULTS,
   assertCommandProbeStoragePolicy } from '../../contracts/schemas/storage-policy.js';
 
@@ -37,11 +38,12 @@ export const readStorageProbePolicy = home => {
     return { status: 'present', target, value, sha256: read.hash, policy: entry?.policy || { ...COMMAND_PROBE_POLICY_DEFAULTS },
       source: entry ? 'machine-local-reviewed-policy' : 'legacy-defaults', policyId: entry?.selectionId || null, mutationPerformed: false };
   } catch (error) {
-    if (!locatorRead && error.code === 'ENOENT') return { status: 'missing', target,
+    const diagnostic = describeStorageFailure(error, { phase: 'storage-policy-read', defaultCode: 'ERR_STORAGE_POLICY' });
+    if (!locatorRead && diagnostic.code === 'ENOENT') return { status: 'missing', target,
       value: { schemaVersion: STORAGE_POLICY_VERSION, kind: 'pairofcleats-storage-policy-locator', policies: {} },
       sha256: null, policy: { ...COMMAND_PROBE_POLICY_DEFAULTS }, source: 'legacy-defaults', policyId: null, mutationPerformed: false };
     return { status: 'invalid', target, value: null, sha256: null, policy: null, policyId: null,
       source: 'invalid-policy-preserve-cache-bytes', mutationPerformed: false,
-      error: { code: error.code || 'ERR_STORAGE_POLICY', message: error.message } };
+      error: diagnostic };
   }
 };
