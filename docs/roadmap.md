@@ -30,10 +30,10 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `a45ae1f38` retains actual verified/tooling/packed
-file descriptors through confirmed close, captures original reranker outputs,
-binds reviewed editor exports and counts only fulfilled queue outcomes. Exact
-whole-input parser leaf reuse is partial; broader contexts and measurements remain.
+Latest source continuation: `333b62993` owns checksum reads, confirms delegated
+settlement only after IPC transmission, bounds supplied report receipts before
+callbacks, captures runtime cleanup methods and preserves semantic picker/detail
+view authority. Broader runtime/native recovery and measurements remain open.
 Dispositions: 141 historical, 555 source, 164 partial, 97 pending.
 All authored checks remain unvalidated; durable failed-job cleanup recovery is open.
 
@@ -84,7 +84,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `a45ae1f38` repairs watch/pointer and queue authority,
+Current source through `333b62993` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
@@ -126,6 +126,7 @@ retain evaluation/conversion order and creation-context captures. Current versio
 sourceChunking11/importResolution7/typeNormalization7/compilerBindings21/
 lspBindings40/rq10/cfgFlow25/callFlow27/valueSlice9/boundaryFlow9/workerFlow8. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
+Proto/SemanticDB/ShellCheck report adapters are3; the other five remain2.
 
 The rollout gate now requires explicit coherent benchmark counts and diagnostic
 parity, rejects empty/unsupported evidence and keeps unknown timing deltas null
