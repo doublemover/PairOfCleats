@@ -25,14 +25,6 @@ const initViewer = async () => {
   const { map: rawMap, config, dom } = loadDomConfig();
   const { map, limits } = applyDisplayLimits(rawMap, config?.performance?.displayLimits);
 
-  if (!config.threeUrl) {
-    dom.selectionBody.textContent = 'Missing three.js module reference.';
-    throw new Error('threeUrl missing');
-  }
-
-  dom.summary.textContent = 'Loading Three.js modules…';
-  const { THREE, LineSegments2, LineSegmentsGeometry, LineMaterial } = await loadThreeModules(config.threeUrl);
-
   dom.summary.textContent = 'Preparing bounded source model…';
   const layout = { ...layoutDefaults, ...(config.layout || {}) };
   const scoring = { ...scoringDefaults, ...(config.scoring || {}) };
@@ -50,7 +42,6 @@ const initViewer = async () => {
   };
 
   const flowWaveTotal = flowWaveLayers.reduce((acc, layer) => acc + layer.amplitude, 0) || 1;
-  const RGBELoader = assets.hdrEnvUrl ? await loadRgbeLoader(assets.rgbeLoaderUrl, config.threeUrl) : null;
   const performance = {
     ...performanceDefaults,
     ...(config.performance || {}),
@@ -73,11 +64,6 @@ const initViewer = async () => {
     map,
     config,
     dom,
-    THREE,
-    LineSegments2,
-    LineSegmentsGeometry,
-    LineMaterial,
-    RGBELoader,
     layout,
     scoring,
     colors,
@@ -170,15 +156,30 @@ const initViewer = async () => {
 
   initMapData();
   initStackNavigation();
-  try { await initScene(); } catch(error) {
-    dom.summary.textContent = `3D unavailable: ${error.message}. Source hierarchy and inspection remain usable.`;
-    return;
-  }
-  initMaterials();
-  initUi();
-  rebuildScene();
-  initControls();
-  state.scheduleRebuild = scheduleRebuild;
+  const retry=document.createElement('button');retry.type='button';retry.textContent='Retry 3D assets';
+  retry.onclick=()=>enhance();
+  const enhance=async()=>{
+    retry.remove();
+    dom.summary.textContent='Source browser ready · loading local 3D assets…';
+    try {
+      if(!config.threeUrl)throw new Error('Missing local three.js module reference');
+      Object.assign(state,await loadThreeModules(config.threeUrl));
+      state.RGBELoader=assets.hdrEnvUrl?await loadRgbeLoader(assets.rgbeLoaderUrl,config.threeUrl):null;
+      dom.summary.textContent='Source browser ready · constructing 3D scene…';
+      await initScene();
+      initMaterials();
+      initUi();
+      rebuildScene();
+      initControls();
+      state.scheduleRebuild=scheduleRebuild;
+      renderSummary();
+    } catch(error) {
+      state.disposeScene?.();
+      dom.summary.textContent=`3D unavailable: ${error.message}. Source hierarchy and inspection remain usable.`;
+      dom.summary.append(retry);
+    }
+  };
+  await enhance();
 };
 
 initViewer();

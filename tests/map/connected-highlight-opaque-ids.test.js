@@ -16,6 +16,7 @@ const instance = id => ({ mesh: { setColorAt: (_index, color) => colored.set(id,
   instanceColor: {} }, instanceId: 0 });
 Object.assign(state, {
   THREE, selected: { object: { userData: { type: 'file', file: 'root.js' } } },
+  selectedInfo: { type: 'file', file: 'root.js' },
   hovered: null, hoveredRef: null,
   fileMeshes: [], memberMeshes: [], chunkMeshes: [], edgeMeshes: [], wireMaterials: [],
   fileMeshByKey: new Map(), fileWireByKey: new Map(), wireByMesh: new Map(),
@@ -33,6 +34,7 @@ assert.ok(state.highlightedMemberIds.has(member));
 assert.ok(state.highlightedMemberIds.has('0'));
 assert.ok(state.highlightedFileKeys.has(file));
 state.selected = null;
+state.selectedInfo = null;
 applyHighlights();
 assert.equal(colored.get(member).getHex(), 0x222222);
 assert.equal(colored.get('0').getHex(), 0x333333);

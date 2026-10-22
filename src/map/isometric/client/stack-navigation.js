@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { setSelection, renderSelectionDetails } from './selection.js';
+import { setSelection, setSemanticSelection, openSelection } from './selection.js';
 import { inspectValue } from '../../workspace/inspect.js';
 import { STACK_KINDS } from './stack-model.js';
 import { updateStackVisibility } from './stack-scene.js';
@@ -7,8 +7,13 @@ import { selectionEndpointMatcher, endpointFile } from './selection-endpoints.js
 const makeButton=(label,callback)=>{const button=document.createElement('button');button.textContent=label;button.type='button';button.onclick=callback;return button;};
 const entityKey=info=>info?.type==='member'?`member:${info.id}`:info?.file?`file:${info.file}`:null;
 export function focusStack(info=null){
+  state.cancelCameraMotion?.();
   if(!state.camera||!state.THREE)return;
   const model=state.stackModel,file=model?.fileByPath.get(info?.file),member=info?.type==='member'?model?.memberById.get(String(info.id)):null;
+  if(info && !(info.type==='member'?member:file)) {
+    state.selectionFocusAvailable=false;
+    return;
+  }
   const target=member?{x:member.file.x+member.segment.x,y:member.segment.y,z:member.file.z}:file?{x:file.x,y:file.stackHeight/2,z:file.z}:{x:0,y:(model?.bounds.maxHeight||0)/2,z:0};
   const span=member?Math.max(12*(state.scaleFactor||1),member.file.stackHeight):file?Math.max(file.width*2,file.stackHeight*1.6):state.bounds?.maxSpan||80;
   const distance=Math.max(60,state.bounds?.maxSpan*2||60),offset=new state.THREE.Vector3(0,0,distance).applyQuaternion(state.camera.quaternion);
@@ -21,19 +26,19 @@ export function focusStack(info=null){
 export function navigateStack(info){
   const ref=info.type==='member'?state.memberInstanceById?.get(String(info.id)):state.fileInstanceByKey?.get(info.file);
   if(ref)setSelection({object:ref.mesh,instanceId:ref.instanceId});
-  else{state.selectedInfo=info;renderSelectionDetails(info);state.onSelectionChanged?.(info);}
+  else setSemanticSelection(info);
   focusStack(info);
 }
 export function initStackNavigation(){
   const tree=document.getElementById('stack-tree'),filter=document.getElementById('stack-search'),back=document.getElementById('stack-back'),forward=document.getElementById('stack-forward');
   if(!tree)return;
-  let history=[],at=-1,replaying=false;
+  let history=[],at=-1,replaying=false,treeOffset=0;
   const renderTree=()=>{
     tree.replaceChildren();const query=filter.value.trim().toLowerCase();let admitted=0;
-    for(const file of state.files||[]){
+    for(const file of state.sourceIndex?.files.values()||state.files||[]){
       const members=file.members||[],match=(file.path||file.name||'').toLowerCase().includes(query);
       const hits=members.filter(member=>`${member.name} ${member.kind||member.type} ${member.id}`.toLowerCase().includes(query));
-      if(query&&!match&&!hits.length)continue;if(admitted++>=80){tree.append(document.createTextNode('80 stacks shown. Narrow your search for more.'));break;}
+      if(query&&!match&&!hits.length)continue;const ordinal=admitted++;if(ordinal<treeOffset||ordinal>=treeOffset+80)continue;
       const group=document.createElement('details'),summary=document.createElement('summary');summary.textContent=`${file.path||file.name} · ${members.length} segments`;group.append(summary);
       group.append(makeButton('Focus stack',()=>navigateStack({type:'file',file:file.path||file.name,name:file.name})));
       let loaded=false;const load=()=>{if(loaded)return;loaded=true;let offset=0;
@@ -42,33 +47,40 @@ export function initStackNavigation(){
         append();};
       group.addEventListener('toggle',()=>{if(group.open)load();});if(query){group.open=true;load();}tree.append(group);
     }
+    const pager=document.createElement('nav');pager.setAttribute('aria-label','Available snapshot files');
+    pager.append(document.createTextNode(`${admitted?treeOffset+1:0}–${Math.min(treeOffset+80,admitted)} of ${admitted} matching available files. `));
+    if(treeOffset>0)pager.append(makeButton('Previous files',()=>{treeOffset=Math.max(0,treeOffset-80);renderTree();}));
+    if(treeOffset+80<admitted)pager.append(makeButton('Next files',()=>{treeOffset+=80;renderTree();}));
+    tree.append(pager);
   };
-  filter.oninput=renderTree;
+  filter.oninput=()=>{treeOffset=0;renderTree();};
   const sourceDetails=info=>{
-    const file=state.nodeByPath?.get(info.file),source=info.type==='member'?(file?.members||[]).find(row=>String(row.id)===String(info.id)):file;
+    const file=state.sourceIndex?.files.get(info.file)||state.nodeByPath?.get(info.file),source=info.type==='member'?state.sourceIndex?.members.get(String(info.id))?.member||(file?.members||[]).find(row=>String(row.id)===String(info.id)):file;
+    if(state.config.openUriTemplate)state.dom.selectionBody.append(makeButton('Open inspected source',openSelection));
     if(source){const all=document.createElement('details'),title=document.createElement('summary');title.textContent='All source fields · lazy inspector';all.append(title);let loaded=false;all.addEventListener('toggle',()=>{if(all.open&&!loaded){loaded=true;all.append(inspectValue(source));}});state.dom.selectionBody.append(all);}
     const heading=document.createElement('h3');heading.textContent='Directed relationships · admitted scope';state.dom.selectionBody.append(heading);
     const touches=selectionEndpointMatcher(info,{fileByMember:state.fileByMember});
-    const rows=(state.edges||[]).filter(edge=>touches(edge.from)||touches(edge.to));let offset=0;const more=makeButton('More relationships',append);
+    const rows=state.sourceIndex?.relationships(info)||(state.edges||[]).filter(edge=>touches(edge.from)||touches(edge.to));let offset=0;const more=makeButton('More relationships',append);
     function append(){more.remove();for(const edge of rows.slice(offset,offset+40)){
       const out=touches(edge.from),other=out?edge.to:edge.from;
       state.dom.selectionBody.append(makeButton(`${out?'→':'←'} ${edge.type} · ${other?.member??other?.file??'unresolved'}`,()=>{
         const host=state.dom.selectionBody;host.replaceChildren(inspectValue(edge));
         for(const [label,endpoint] of [['Source',edge.from],['Target',edge.to]]){
           const file=endpointFile(endpoint,state.fileByMember);
-          const available=endpoint?.member!=null?state.memberInstanceById?.has(String(endpoint.member)):state.fileInstanceByKey?.has(file);
-          const action=makeButton(`Go to ${label.toLowerCase()}${available?'':' · outside drawn scope'}`,()=>navigateStack({type:endpoint.member!=null?'member':'file',file,id:endpoint.member}));action.disabled=!available;host.append(action);
+          const candidate={type:endpoint.member!=null?'member':'file',file,id:endpoint.member};
+          const available=Boolean(state.sourceIndex?.resolve(candidate));
+          const action=makeButton(`Inspect ${label.toLowerCase()}${available?'':' · unavailable in saved payload'}`,()=>navigateStack(candidate));action.disabled=!available;host.append(action);
         }
       }));
     }offset+=40;if(offset<rows.length)state.dom.selectionBody.append(more);}
     append();if(!rows.length)state.dom.selectionBody.append(document.createTextNode('No admitted relationship. This is not evidence of absence from the index.'));
   };
   state.onSelectionChanged=info=>{
-    if(!info){document.getElementById('stack-breadcrumb').textContent='Select a stack or segment';updateStackVisibility(true);return;}const key=entityKey(info);if(!replaying&&key!==entityKey(history[at])){history=history.slice(0,at+1);history.push({...info});if(history.length>50)history.shift();at=history.length-1;}
+    if(!info){document.getElementById('stack-breadcrumb').textContent='Select a stack or segment';back.disabled=at<1;forward.disabled=at>=history.length-1;updateStackVisibility(true);return;}const key=entityKey(info);if(!replaying&&key!==entityKey(history[at]?.info)){history=history.slice(0,at+1);history.push({info:{...info},snapshot:state.sourceIndex?.snapshot});if(history.length>50)history.shift();at=history.length-1;}
     back.disabled=at<1;forward.disabled=at>=history.length-1;
-    sourceDetails(info);const breadcrumb=document.getElementById('stack-breadcrumb');breadcrumb.textContent=`${info.file||'Unknown file'}${info.type==='member'?' / '+(info.name||info.id):''}`;
+    sourceDetails(info);const breadcrumb=document.getElementById('stack-breadcrumb');breadcrumb.textContent=`${info.file||'Unknown file'}${info.type==='member'?' / '+(info.name||info.id):''}${state.selectionFocusAvailable?'':' · outside drawn scope; source inspection available'}`;
   };
-  const replay=step=>{const next=at+step;if(next<0||next>=history.length)return;at=next;replaying=true;navigateStack(history[at]);replaying=false;};back.onclick=()=>replay(-1);forward.onclick=()=>replay(1);
+  const replay=step=>{const next=at+step;if(next<0||next>=history.length)return;at=next;replaying=true;try{const entry=history[at];if(entry.snapshot!==state.sourceIndex?.snapshot){setSemanticSelection(null);document.getElementById('stack-breadcrumb').textContent='Historical selection belongs to another saved snapshot.';}else navigateStack(entry.info);}finally{replaying=false;}};back.onclick=()=>replay(-1);forward.onclick=()=>replay(1);
   document.getElementById('stack-home').onclick=()=>focusStack();
   document.getElementById('stack-focus').onclick=()=>focusStack(state.selectedInfo);
   document.getElementById('stack-mode').onchange=event=>{state.stackMode=event.target.value;updateStackVisibility(true);};

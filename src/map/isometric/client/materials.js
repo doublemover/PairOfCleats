@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import { clamp, numberValue } from './utils.js';
 import { toArray } from '../../../shared/iterables.js';
+import { injectWorldFogPosition } from './world-fog.js';
 
 export const initMaterials = () => {
   const { THREE, assets, visuals } = state;
@@ -11,11 +12,17 @@ export const initMaterials = () => {
   state.glassShells = [];
   state.wireMaterials = [];
   state.gridLineMaterials = [];
-  state.normalMapState = { texture: null };
+  const normalMapState = { texture: null };
+  state.normalMapState = normalMapState;
+  const scene = state.scene;
 
   if (assets.normalMapUrl) {
     const loader = new THREE.TextureLoader();
     loader.load(assets.normalMapUrl, (texture) => {
+      if (state.scene !== scene || state.normalMapState !== normalMapState || !state.disposeScene) {
+        texture.dispose();
+        return;
+      }
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
       texture.repeat.set(visuals.glass.normalRepeat, visuals.glass.normalRepeat);
@@ -32,27 +39,17 @@ export const applyHeightFog = (material) => {
   material.userData.heightFogApplied = true;
   const fogVarying = 'vIsoWorldPosition';
   const previousCompile = material.onBeforeCompile;
-  material.onBeforeCompile = (shader) => {
+  const previousCacheKey = material.customProgramCacheKey.bind(material);
+  const wideLine = material.isLineMaterial === true;
+  material.customProgramCacheKey = () => `${previousCacheKey()}|poc-world-height-fog-v2:${wideLine}`;
+  material.onBeforeCompile = (shader, renderer) => {
     if (typeof previousCompile === 'function') {
-      previousCompile(shader);
+      previousCompile.call(material, shader, renderer);
     }
     shader.uniforms.fogHeight = { value: visuals.fogHeight };
     shader.uniforms.fogHeightRange = { value: visuals.fogHeightRange };
     shader.uniforms.fogHeightEnabled = { value: visuals.enableHeightFog ? 1 : 0 };
-    if (!shader.vertexShader.includes(`varying vec3 ${fogVarying}`)) {
-      if (shader.vertexShader.includes('#include <common>')) {
-        shader.vertexShader = shader.vertexShader.replace(
-          '#include <common>',
-          `#include <common>\n  varying vec3 ${fogVarying};`
-        );
-      }
-    }
-    if (shader.vertexShader.includes('#include <fog_vertex>')) {
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <fog_vertex>',
-        `#include <fog_vertex>\n  ${fogVarying} = (modelMatrix * vec4(position, 1.0)).xyz;`
-      );
-    }
+    injectWorldFogPosition(shader, { wideLine });
     if (!shader.fragmentShader.includes(`varying vec3 ${fogVarying}`)) {
       if (shader.fragmentShader.includes('#include <common>')) {
         shader.fragmentShader = shader.fragmentShader.replace(
@@ -224,7 +221,7 @@ export const createWireframe = (geometry, color, phase) => {
       linewidth: 1,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      depthTest: false
+      depthTest: true
     });
     wireMat.worldUnits = true;
     wireMat.resolution.set(lineResolution.width, lineResolution.height);
@@ -236,7 +233,7 @@ export const createWireframe = (geometry, color, phase) => {
       linewidth: 1,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      depthTest: false
+      depthTest: true
     });
   }
   const emissiveColor = color.clone().lerp(new THREE.Color(0xffffff), 0.18);
@@ -360,7 +357,7 @@ export const updateFileOpacity = () => {
 };
 
 export const updateMemberOpacity = () => {
-  const { visuals, visualDefaults, memberMeshes, chunkMeshes, instancedMemberMaterials, instancedChunkMaterial } = state;
+  const { visuals, visualDefaults, memberMeshes, chunkMeshes, memberInstancedMeshes, instancedMemberMaterials, instancedChunkMaterial } = state;
   const opacity = clamp(numberValue(visuals.memberOpacity, visualDefaults.memberOpacity), 0.1, 1);
 
   // Instanced members/chunks use shared materials (huge perf win). Update those directly.
@@ -379,6 +376,7 @@ export const updateMemberOpacity = () => {
     setMaterialOpacity(mesh.material, opacity);
     setShellInnerOpacity(mesh, opacity);
   }
+  for (const mesh of toArray(memberInstancedMeshes)) setMaterialOpacity(mesh?.material, opacity);
 };
 
 export const updateWireframes = () => {

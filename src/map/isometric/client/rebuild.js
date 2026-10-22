@@ -5,7 +5,7 @@ import { applyHeightFog, updateFog, updateGridGlow, updateFlowLights } from './m
 import { computeLayout } from './layout.js';
 import { buildMeshes } from './meshes.js';
 import { buildEdges } from './edges.js';
-import { applyHighlights, renderSelectionDetails, setSelection } from './selection.js';
+import { applyHighlights, renderSelectionDetails, setSelection, setSemanticSelection } from './selection.js';
 
 const resetScene = () => {
   state.invalidateHover?.();
@@ -165,7 +165,7 @@ export const rebuildScene = () => {
         linewidth: visuals.gridLineThickness,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        depthTest: false
+        depthTest: true
       });
       gridLineMaterial.resolution.set(lineResolution.width, lineResolution.height);
     } else {
@@ -175,7 +175,7 @@ export const rebuildScene = () => {
         opacity: visuals.gridGlowBase,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        depthTest: false
+        depthTest: true
       });
     }
     gridLineMaterial.userData = {
@@ -248,7 +248,8 @@ export const rebuildScene = () => {
   }
   applyHighlights();
   if(state.layoutStyle==='stacks'){
-    if(previousSelection){const ref=previousSelection.type==='member'?state.memberInstanceById.get(String(previousSelection.id)):state.fileInstanceByKey.get(previousSelection.file);if(ref)setSelection({object:ref.mesh,instanceId:ref.instanceId});}
+    if(previousSelection){const ref=previousSelection.type==='member'?state.memberInstanceById.get(String(previousSelection.id)):state.fileInstanceByKey.get(previousSelection.file);if(ref)setSelection({object:ref.mesh,instanceId:ref.instanceId});else setSemanticSelection(previousSelection);}
     else if(firstLayout) focusStack();
-  }
+  } else if(previousSelection) setSemanticSelection(previousSelection);
+  state.invalidateRender?.();
 };

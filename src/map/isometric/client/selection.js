@@ -181,7 +181,7 @@ const collectEdgesForSelection = (selectionInfo, member, node) => {
   const touches = selectionEndpointMatcher(selectionInfo, { member, node, fileByMember: state.fileByMember });
   const incoming = [];
   const outgoing = [];
-  state.edges.forEach((edge) => {
+  (state.sourceIndex?.relationships(selectionInfo) || state.edges).forEach((edge) => {
     const fromMatch = touches(edge.from);
     const toMatch = touches(edge.to);
     if (fromMatch) outgoing.push(edge);
@@ -198,13 +198,13 @@ export const renderSelectionDetails = (info) => {
     return;
   }
   const fileKey = info.file || info.name || '';
-  const node = nodeByPath.get(fileKey) || nodeById.get(info.id) || null;
+  const node = state.sourceIndex?.files.get(fileKey) || nodeByPath.get(fileKey) || nodeById.get(info.id) || null;
   const rangeKey = buildMemberKey(fileKey, info.name || '', info.range || {});
   const nameKey = buildMemberNameKey(fileKey, info.name || '');
   const rawMemberId = (info.type === 'member' ? (info.id ?? info.memberId ?? null) : (info.memberId ?? null));
   const memberId = rawMemberId !== null && rawMemberId !== undefined ? String(rawMemberId) : null;
   const member = memberId
-    ? (memberById.get(memberId) || memberById.get(rawMemberId))
+    ? (state.sourceIndex?.members.get(memberId)?.member || memberById.get(memberId) || memberById.get(rawMemberId))
     : (memberByKey.get(rangeKey) || memberByKey.get(nameKey) || null);
 
   if (info.type === 'file' || (!info.type && node)) {
@@ -235,7 +235,7 @@ export const renderSelectionDetails = (info) => {
     addSelectionRow(section, 'Modifiers', member?.modifiers || 'None');
     addSelectionRow(section, 'Exported', member?.exported ?? false);
     addSelectionRow(section, 'Range', formatRange(member?.range || info.range));
-    addSelectionRow(section, 'Id', member?.id || info.id || 'None');
+    addSelectionRow(section, 'Id', member?.id ?? info.id ?? 'None');
     addSelectionRow(section, 'Port', member?.port || 'None');
 
     const dataflow = member?.dataflow || {};
@@ -511,6 +511,7 @@ const applyHighlightsForKeys = (selectionKeys, intensity = 1) => {
 };
 
 export const applyHighlights = () => {
+  if (!state.THREE) return;
   resetObjectHighlights();
   resetEdgeHighlights();
   resetWireHighlights();
@@ -519,7 +520,7 @@ export const applyHighlights = () => {
 
   const selectedHit = state.selected;
   const selectedObj = selectedHit?.object || null;
-  const selectedInfo = resolveHitInfo(selectedHit);
+  const selectedInfo = state.selectedInfo;
   const selectionKeys = buildSelectionKeys(selectedInfo);
 
   if (selectedHit && selectedObj) {
@@ -549,8 +550,8 @@ export const applyHighlights = () => {
       highlightMesh(selectedObj, baseColor.clone().lerp(white, 0.35), 0.7, 0.85);
     }
 
-    applyHighlightsForKeys(selectionKeys, 1);
   }
+  if (selectedInfo) applyHighlightsForKeys(selectionKeys, 1);
 
   if (state.hoveredRef) {
     const hoverInfo = state.hoveredRef.refType === 'member'
@@ -614,14 +615,19 @@ export const applyHighlights = () => {
   }
 };
 
-export const setSelection = (hit) => {
-  state.selected = hit;
-  const info = resolveHitInfo(hit);
+export const setSemanticSelection = (candidate, hit = null) => {
+  const info = candidate && state.sourceIndex ? state.sourceIndex.resolve(candidate) : candidate;
+  state.selected = info ? hit : null;
   state.selectedInfo = info || null;
+  state.selectionSnapshot = info ? state.sourceIndex?.snapshot || state.map : null;
+  state.selectionFocusAvailable = Boolean(info && hit);
   renderSelectionDetails(info);
   state.onSelectionChanged?.(info);
   applyHighlights();
+  state.invalidateRender?.();
 };
+
+export const setSelection = (hit) => setSemanticSelection(resolveHitInfo(hit), hit);
 
 const resolveFilePath = (file) => {
   if (!file) return '';
@@ -649,8 +655,8 @@ const buildOpenUri = (info) => {
 };
 
 export const openSelection = () => {
-  if (!state.selected) return;
-  const info = resolveHitInfo(state.selected);
+  const info = state.selectedInfo;
+  if (!info || (state.sourceIndex && state.selectionSnapshot !== state.sourceIndex.snapshot)) return;
   const uri = buildOpenUri(info || {});
   if (uri) window.location.href = uri;
 };

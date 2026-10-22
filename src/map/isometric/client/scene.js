@@ -1,8 +1,11 @@
 import { state } from './state.js';
 import { numberValue } from './utils.js';
 import { toArray } from '../../../shared/iterables.js';
+import { createEnvironmentOwner } from './environment-owner.js';
+import { clearGroup } from './scene-utils.js';
 
 export const initScene = async () => {
+  state.disposeScene?.();
   const { THREE, dom, RGBELoader, assets, visuals } = state;
   const { app } = dom;
 
@@ -101,12 +104,23 @@ export const initScene = async () => {
     camera.updateMatrixWorld();
   };
 
-  const applyEnvironment = (texture) => {
-    if (!texture) return;
-    texture.mapping = THREE.EquirectangularReflectionMapping;
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromEquirectangular(texture).texture;
-    pmrem.dispose();
+  const environment = createEnvironmentOwner({ THREE, renderer, scene });
+  let disposed = false;
+  const disposeScene = () => {
+    if (disposed) return;
+    disposed = true;
+    state.disposeControls?.();
+    if (state.rebuildTimer) clearTimeout(state.rebuildTimer);
+    state.rebuildTimer = null;
+    environment.dispose();
+    clearGroup(scene);
+    for (const geometry of state.shapeGeometryCache?.values?.() || []) geometry.dispose?.();
+    state.shapeGeometryCache?.clear?.();
+    state.normalMapState?.texture?.dispose?.();
+    if (state.normalMapState) state.normalMapState.texture = null;
+    renderer.dispose();
+    renderer.domElement.remove();
+    if (state.disposeScene === disposeScene) state.disposeScene = null;
   };
 
   const envCanvas = document.createElement('canvas');
@@ -120,19 +134,22 @@ export const initScene = async () => {
   envCtx.fillStyle = gradient;
   envCtx.fillRect(0, 0, envCanvas.width, envCanvas.height);
   const fallbackEnv = new THREE.CanvasTexture(envCanvas);
-  applyEnvironment(fallbackEnv);
-  fallbackEnv.dispose();
+  environment.replace(fallbackEnv);
 
   if (RGBELoader && assets.hdrEnvUrl) {
     const rgbe = new RGBELoader();
     rgbe.load(assets.hdrEnvUrl, (hdrTexture) => {
-      applyEnvironment(hdrTexture);
-      hdrTexture.dispose();
+      try { environment.replace(hdrTexture); }
+      catch (error) { if (!disposed) state.environmentError = error.message; }
+    }, undefined, (error) => {
+      if (!disposed) state.environmentError = error?.message || 'Optional environment unavailable; using local lighting.';
     });
   }
 
   Object.assign(state, {
     renderer,
+    disposeScene,
+    environmentOwner: environment,
     scene,
     camera,
     lineResolution,
