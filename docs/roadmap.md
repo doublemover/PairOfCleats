@@ -30,10 +30,10 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `333b62993` owns checksum reads, confirms delegated
-settlement only after IPC transmission, bounds supplied report receipts before
-callbacks, captures runtime cleanup methods and preserves semantic picker/detail
-view authority. Broader runtime/native recovery and measurements remain open.
+Latest source continuation: `cf3248e6d` preserves suspended finally return
+origins under bounded completion tracking (cfgFlow26), and owns lazy binary frame
+reads across yields through confirmed close and normal-only witness publication.
+External iterator protocol and broader native/recovery qualification remain open.
 Dispositions: 141 historical, 555 source, 164 partial, 97 pending.
 All authored checks remain unvalidated; durable failed-job cleanup recovery is open.
 
@@ -84,7 +84,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `333b62993` repairs watch/pointer and queue authority,
+Current source through `cf3248e6d` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
@@ -124,7 +124,7 @@ consumers. Complete source-checked semantic tokens and iterative symbols preserv
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
 sourceChunking11/importResolution7/typeNormalization7/compilerBindings21/
-lspBindings40/rq10/cfgFlow25/callFlow27/valueSlice9/boundaryFlow9/workerFlow8. VSCode and Sublime retain
+lspBindings40/rq10/cfgFlow26/callFlow27/valueSlice9/boundaryFlow9/workerFlow8. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 Proto/SemanticDB/ShellCheck report adapters are3; the other five remain2.
 
