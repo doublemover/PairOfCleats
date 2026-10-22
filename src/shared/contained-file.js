@@ -7,6 +7,9 @@ import { createHash } from 'node:crypto';
 import { constants as bufferConstants } from 'node:buffer';
 import { isPathWithinRoot } from './file-paths.js';
 import { throwIfAborted } from './abort.js';
+import { createContainedFileResource } from './contained-file-resource.js';
+import { addStorageFailureContext } from './storage/operation-error.js';
+export { isContainedFileSession, getContainedFileSession } from './contained-file-resource.js';
 
 const unsafePath = () => Object.assign(new Error('Path is outside its authorized root or contains a symlink.'), { code: 'ERR_UNSAFE_FILE_PATH' });
 // Native Windows canonicalization avoids JS walking every ancestor repeatedly.
@@ -34,10 +37,11 @@ export const assertNoSymlinkPath = (root, target, { allowMissing = false } = {})
   return lexicalTarget;
 };
 
-const verifyHandle = (fd, root, target, expectedFileIdentity = null) => {
+const verifyHandle = (fd, root, target, expectedFileIdentity = null,
+  methods = { fstat: fs.fstatSync, stat: fs.statSync }) => {
   assertNoSymlinkPath(root, target);
-  const opened = fs.fstatSync(fd, { bigint: true });
-  const current = fs.statSync(target, { bigint: true });
+  const opened = methods.fstat.call(fs, fd, { bigint: true });
+  const current = methods.stat.call(fs, target, { bigint: true });
   if (opened.isDirectory()) {
     throw Object.assign(new Error('Repository path is a directory.'), { code: 'EISDIR' });
   }
@@ -61,20 +65,69 @@ export const verifyContainedFileHandle = (handleOrFd, root, target) => {
 
 const READ_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0);
 
-export const openContainedFileSync = (root, target, { expectedFileIdentity = null } = {}) => {
+const acquireContainedFileSync = (root, target, { expectedFileIdentity = null } = {}) => {
   const identity = normalizeFileIdentity(expectedFileIdentity);
+  const methods = { receiver: fs, close: fs.closeSync, stat: fs.fstatSync, read: fs.readSync };
+  const verification = { fstat: methods.stat, stat: fs.statSync };
   assertNoSymlinkPath(root, target);
   const fd = fs.openSync(target, READ_FLAGS);
-  try { verifyHandle(fd, root, target, identity); } catch (error) { fs.closeSync(fd); throw error; }
-  return fd;
+  const owner = createContainedFileResource({ fd, sync: true, methods });
+  if (owner.hasFailure()) return owner.runSync(() => {});
+  try {
+    verifyHandle(fd, root, target, identity, verification);
+  } catch (error) { owner.remember(error); return owner.runSync(() => {}); }
+  return { owner, verification, identity };
 };
 
-export const openContainedFile = async (root, target, { expectedFileIdentity = null } = {}) => {
+const acquireContainedFile = async (root, target, { expectedFileIdentity = null } = {}) => {
   const identity = normalizeFileIdentity(expectedFileIdentity);
+  const verification = { fstat: fs.fstatSync, stat: fs.statSync };
   assertNoSymlinkPath(root, target);
-  const handle = await withSchedulerCpuSuspended(() => fsPromises.open(target, READ_FLAGS));
-  try { verifyHandle(handle.fd, root, target, identity); } catch (error) { await withSchedulerCpuSuspended(() => handle.close()); throw error; }
-  return handle;
+  const openMethod = fsPromises.open;
+  let opening = null, handle = null, failure, secondary, failed = false, secondaryPresent = false;
+  try {
+    await withSchedulerCpuSuspended(() => {
+      opening = Promise.resolve().then(() => openMethod.call(fsPromises, target, READ_FLAGS));
+      return opening;
+    });
+  } catch (value) { failed = true; failure = value; }
+  if (opening) {
+    try { handle = await opening; }
+    catch (value) {
+      if (!failed) { failed = true; failure = value; }
+      else if (value !== failure) { secondaryPresent = true; secondary = value; }
+    }
+  }
+  if (!handle) {
+    if (!failed) throw new Error('Scheduler wait did not return the actual opened contained descriptor.');
+    if (secondaryPresent) throw addStorageFailureContext(failure, {}, secondary, { secondaryPresent: true });
+    throw failure;
+  }
+  const owner = createContainedFileResource({ handle, sync: false });
+  if (failed) owner.remember(failure);
+  if (secondaryPresent) owner.remember(secondary);
+  if (owner.hasFailure()) return owner.run(() => {});
+  try {
+    verifyHandle(owner.operations.fd, root, target, identity, verification);
+  } catch (error) { owner.remember(error); return owner.run(() => {}); }
+  return { owner, verification, identity };
+};
+
+/** Legacy successful open transfers its descriptor to the caller. Failed
+ * admission remains with the actual original owner until close is confirmed.
+ */
+export const openContainedFileSync = (root, target, options = {}) => acquireContainedFileSync(root, target, options).owner.detach();
+export const openContainedFile = async (root, target, options = {}) => (await acquireContainedFile(root, target, options)).owner.detach();
+
+/** Borrow immutable original operations only during this callback. No read,
+ * stat, payload or witness is replayed by a failed-close recovery capability.
+ */
+export const withContainedFile = async (root, target, action, options = {}) => {
+  if (typeof action !== 'function') throw new TypeError('Contained file requires its read callback.');
+  const { owner, verification, identity } = await acquireContainedFile(root, target, options);
+  const descriptor = Object.freeze({ ...owner.operations,
+    verify: () => owner.inspect(fd => verifyHandle(fd, root, target, identity, verification)) });
+  return owner.run(() => action(descriptor));
 };
 
 const changedFile = () => Object.assign(new Error('Repository file changed during its verified read.'), { code: 'ERR_FILE_CHANGED' });
@@ -115,9 +168,9 @@ const admitRead = (stat, options) => {
   if (options.expectedStat && identityKeys.some((key) => Number.isFinite(options.expectedStat[key])
     && options.expectedStat[key] !== stat[key])) throw changedFile();
 };
-const finishRead = (fd, root, target, before, after, buffer, bytesRead, options) => {
+const finishRead = (fd, root, target, before, after, buffer, bytesRead, options, verification) => {
   throwIfAborted(options.signal);
-  const opened = verifyHandle(fd, root, target, options.expectedFileIdentity);
+  const opened = verifyHandle(fd, root, target, options.expectedFileIdentity, verification);
   if (bytesRead !== before.size || identityKeys.some((key) => before[key] !== after[key])) throw changedFile();
   const hash = createHash(options.hashAlgorithm).update(buffer).digest('hex');
   if (options.metrics) options.metrics.verificationBytes = (options.metrics.verificationBytes || 0) + bytesRead;
@@ -125,7 +178,6 @@ const finishRead = (fd, root, target, before, after, buffer, bytesRead, options)
     throw Object.assign(new Error('Contained file checksum does not match its pinned identity.'), { code: 'ERR_FILE_INTEGRITY' });
   }
   const result = { buffer, hash, stat: after };
-  recordVerifiedArtifactRead(root, target, result, options.hashAlgorithm);
   // Exact descriptor identity is internal read authority, not serialized output.
   Object.defineProperty(result, 'fileIdentity', {
     value: Object.freeze({ dev: opened.dev.toString(), ino: opened.ino.toString() })
@@ -137,39 +189,45 @@ const finishRead = (fd, root, target, before, after, buffer, bytesRead, options)
 export const readVerifiedContainedFile = async (root, target, inputOptions = {}) => {
   const options = normalizeReadOptions(inputOptions);
   throwIfAborted(options.signal);
-  const handle = await openContainedFile(root, target, options);
-  try {
-    const stat = await withSchedulerCpuSuspended(() => handle.stat());
+  const { owner, verification } = await acquireContainedFile(root, target, options);
+  const result = await owner.run(async descriptor => {
+    const stat = await descriptor.stat();
     admitRead(stat, options);
     const buffer = Buffer.alloc(stat.size);
     let offset = 0;
     while (offset < buffer.length) {
       throwIfAborted(options.signal);
-      const { bytesRead } = await withSchedulerCpuSuspended(() => handle.read(buffer, offset, Math.min(65536, buffer.length - offset), offset));
+      const { bytesRead } = await descriptor.read(buffer, offset, Math.min(65536, buffer.length - offset), offset);
+      if (!Number.isInteger(bytesRead) || bytesRead < 0 || bytesRead > Math.min(65536, buffer.length - offset)) throw changedFile();
       if (!bytesRead) break;
       offset += bytesRead;
     }
-    return finishRead(handle.fd, root, target, stat, await withSchedulerCpuSuspended(() => handle.stat()), buffer, offset, options);
-  } finally { await withSchedulerCpuSuspended(() => handle.close()); }
+    return finishRead(descriptor.fd, root, target, stat, await descriptor.stat(), buffer, offset, options, verification);
+  });
+  recordVerifiedArtifactRead(root, target, result, options.hashAlgorithm);
+  return result;
 };
 
 export const readVerifiedContainedFileSync = (root, target, inputOptions = {}) => {
   const options = normalizeReadOptions(inputOptions);
   throwIfAborted(options.signal);
-  const fd = openContainedFileSync(root, target, options);
-  try {
-    const stat = fs.fstatSync(fd);
+  const { owner, verification } = acquireContainedFileSync(root, target, options);
+  const result = owner.runSync(descriptor => {
+    const stat = descriptor.stat();
     admitRead(stat, options);
     const buffer = Buffer.alloc(stat.size);
     let offset = 0;
     while (offset < buffer.length) {
       throwIfAborted(options.signal);
-      const bytesRead = fs.readSync(fd, buffer, offset, Math.min(65536, buffer.length - offset), offset);
+      const bytesRead = descriptor.read(buffer, offset, Math.min(65536, buffer.length - offset), offset);
+      if (!Number.isInteger(bytesRead) || bytesRead < 0 || bytesRead > Math.min(65536, buffer.length - offset)) throw changedFile();
       if (!bytesRead) break;
       offset += bytesRead;
     }
-    return finishRead(fd, root, target, stat, fs.fstatSync(fd), buffer, offset, options);
-  } finally { fs.closeSync(fd); }
+    return finishRead(descriptor.fd, root, target, stat, descriptor.stat(), buffer, offset, options, verification);
+  });
+  recordVerifiedArtifactRead(root, target, result, options.hashAlgorithm);
+  return result;
 };
 
 export const readContainedFile = async (root, target, options = {}) => (
