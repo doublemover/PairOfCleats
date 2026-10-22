@@ -18,6 +18,7 @@ import {
 } from '../../shared/reuse-diagnostics.js';
 import { selectToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
+import { providerProfileCacheIdentity } from './provider-profile.js';
 import { ToolingRequiredComputationError, isRequiredToolingComputationError } from './required-computation.js';
 import { isAbortError } from '../../shared/abort.js';
 import { mergeSymbolicTypeGraphs, normalizeTypeExpressions, symbolicTypeError,
@@ -137,7 +138,7 @@ const resolveGenerationIdentity = (ctx) => ({
   buildId: normalizeIdentityString(ctx?.buildId)
 });
 
-const computeCacheKey = ({ providerId, providerVersion, configHash, documents, targets, generation }) => {
+const computeCacheKey = ({ providerId, providerVersion, configHash, documents, targets, generation, profileHash = null }) => {
   const docKey = computeDocumentsKey(documents || []);
   const targetKey = computeTargetsKey(targets || []);
   return buildLocalCacheKey({
@@ -149,6 +150,7 @@ const computeCacheKey = ({ providerId, providerVersion, configHash, documents, t
       providerId,
       providerVersion,
       configHash,
+      profileHash,
       documents: docKey,
       targets: targetKey,
       generation: {
@@ -188,20 +190,28 @@ const resolveProviderCachedExecution = async ({
   const planTargets = Array.isArray(plan?.targets) ? plan.targets : [];
   const configHash = provider.getConfigHash(ctx);
   const generation = resolveGenerationIdentity(ctx);
+  const profile = ctx.providerProfiles instanceof Map ? ctx.providerProfiles.get(providerId) : ctx.providerProfiles?.[providerId];
+  const profileHash = profile ? providerProfileCacheIdentity(profile, { providerId,
+    adapterVersion: provider.version, repoRoot: ctx.repoRoot }) : null;
   const cacheKey = computeCacheKey({
     providerId,
     providerVersion: provider.version,
     configHash,
     documents: planDocuments,
     targets: planTargets,
-    generation
+    generation,
+    profileHash
   });
   // Symbolic meaning depends on the live compiler/resolution closure. The
   // legacy provider cache key does not seal every tsconfig/package/ambient
   // dependency, so it cannot authorize replay of this representation yet.
   const symbolicContextRequiresLiveRun = providerId === 'typescript'
     && ctx?.toolingConfig?.typescript?.typeRepresentation === 'symbolic';
-  let cachePath = cacheDir && !symbolicContextRequiresLiveRun
+  const profileRequiresLiveRun = provider.profileContractVersion === 1 && !profileHash;
+  if (profileRequiresLiveRun) observations.push({ level: 'info', code: 'tooling_profile_not_durable',
+    message: `[tooling] ${providerId} profile has no complete observed dependency identity; using a live run.`,
+    context: { providerId, reasons: profile?.reasons || ['profile_unavailable'] } });
+  let cachePath = cacheDir && !symbolicContextRequiresLiveRun && !profileRequiresLiveRun
     ? path.join(cacheDir, buildCacheFileName({ providerId, cacheKey }))
     : null;
   let output = null;
@@ -269,7 +279,8 @@ const resolveProviderCachedExecution = async ({
     output,
     outputFromCache,
     outputSource,
-    generation
+    generation,
+    profile: profile || null
   };
 };
 
@@ -1467,6 +1478,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     return {
       byChunkUid: merged,
       semanticFacts,
+      providerProfiles: Object.fromEntries(providerExecutions.filter(entry => entry.profile).map(entry => [entry.providerId, entry.profile])),
       symbolicTypeGraphs,
       sourcesByChunkUid,
       diagnostics: providerDiagnostics,

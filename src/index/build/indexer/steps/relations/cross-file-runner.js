@@ -2,6 +2,7 @@ import { resolveCrossFileFidelity, buildCrossFileCoverage } from '../../../../cr
 import { createSemanticLspSession } from '../../../../semantic/lsp-session.js';
 import { runNativeSemanticProviders } from '../../../../semantic/native-provider-pass.js';
 import { mergeSemanticProviderOutput } from '../../../../semantic/merge-provider.js';
+import { combineSemanticProviderOutputs } from '../../../../tooling/result-dispatch.js';
 import { prepareSemanticBindingWork, persistSemanticAnalysisFrontiers } from '../../../../semantic/build-frontier.js';
 import { createSemanticCompilerSession } from '../../../../semantic/compiler-session.js';
 import { runToolingPass, prepareToolingPassDocuments } from '../../../../type-inference-crossfile/tooling.js';
@@ -117,20 +118,21 @@ export const runCrossFileInference = async ({
     });
     await work.run(async ({ signal }) => {
       semanticSession.setSignal(signal); semanticLspSession.setSignal?.(signal);
+      let registeredProviderOutput = null;
       if (semanticSession.enabled || semanticLspSession.enabled) {
         const toolingResult = await runToolingPass({ rootDir: runtime.root, buildRoot: runtime.buildRoot,
           chunks: state.chunks, entryByUid: new Map(), log,
           toolingConfig, toolingDocuments, fileTextByFile: semanticSession.fileTextByFile,
           abortSignal: signal, semanticSession, semanticLspSession, applyTypes: useTooling });
         state.symbolicTypeGraphs = mergeSymbolicTypeGraphs(state.symbolicTypeGraphs || [], toolingResult.symbolicTypeGraphs || []);
+        registeredProviderOutput = toolingResult.semanticFacts;
         useTooling = false;
       }
-      const lspOutput = semanticLspSession.output();
+      const lspOutput = combineSemanticProviderOutputs([semanticLspSession.output(), ...(registeredProviderOutput ? [registeredProviderOutput] : [])]);
       await mergeSemanticProviderOutput({ output: lspOutput, state, runtime, signal });
       await semanticSession.joinProviderOutput(lspOutput);
       const compilerOutput = semanticSession.output();
-      return { ...compilerOutput, contexts: [...compilerOutput.contexts, ...lspOutput.contexts],
-        partitions: [...compilerOutput.partitions, ...lspOutput.partitions] };
+      return combineSemanticProviderOutputs([compilerOutput, lspOutput]);
     });
     await runNativeSemanticProviders({ state, runtime, toolingConfig, log, signal: abortSignal });
   }

@@ -18,6 +18,8 @@ import { throwIfAborted } from '../../shared/abort.js';
 import { nativeExecutionAuthority } from './native-execution-context.js';
 import { readVerifiedContainedFile } from '../../shared/contained-file.js';
 import { createLspSourceIndex } from './lsp-source-index.js';
+import { createLspObservationCollector } from '../../integrations/tooling/providers/lsp/structured-observations.js';
+import { writeStructuredLspEvidence } from './lsp-structured-evidence.js';
 const refKey = ref => canonicalSemanticJson(ref);
 /** One build-owned LSP lane; this owns no server, Program, or request scheduler. */
 export const createSemanticLspSession = async ({ state, runtime, signal = null, languages = null, eagerOnly = false }) => {
@@ -76,6 +78,16 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
   }
   const sourceIndex = createLspSourceIndex({ inventory, repoRoot: runtime.root });
   const itemForDoc = sourceIndex.itemForDocument;
+  const contextFor = ({ item, uri, providerId, providerVersion, workspaceKey, positionEncoding }) => {
+    const context = { providerId, providerVersion, compilerVersion: null,
+      configHash: semanticHash('semantic.lsp-config.v1', { providerId, providerVersion, workspaceKey, positionEncoding,
+        ...(nativeAuthority ? { nativeAuthorityHash: nativeAuthority.authorityHash } : {}) }),
+      moduleResolutionHash: sourceIndex.digest,
+      vfsMappingHash: semanticHash('semantic.lsp-mapping.v1', { uri, mapping: item.source.mapping }) };
+    context.contextKey = semanticHash('semantic.lsp-context.v1', context);
+    context.sourceUnits = [{ sourceUnitId: item.source.sourceUnitId, byteHash: item.source.byteHash }];
+    return context;
+  };
   const api = {
     get enabled() { return inventory.size > 0; }, get hasTargetedWork() { return [...inventory.values()].some(item => item.unresolvedCount > 0); }, fileTextByFile: texts,
     setSignal(value) { signal = value; },
@@ -101,6 +113,40 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
       if (!item) return;
       if (doc.text !== item.text) throw Object.assign(new Error('LSP document differs from immutable semantic source.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
       byUri.set(uri, item);
+    },
+    createObservationCollector({ doc, uri, providerId = 'lsp', providerVersion = '1', workspaceKey = null, positionEncoding = 'utf-16' }) {
+      const item = itemForDoc(doc);
+      if (!item) return null;
+      if (item.policy.targetSelectionConfigured || eagerOnly && item.policy.enrichment.bindings !== 'eager'
+        || state.semanticAdmittedSources && !state.semanticAdmittedSources.has(item.source.sourceUnitId)
+        || !semanticPhasePolicy(item.policy, item.plan, 'bindings', runtime, item.source.sourceUnitId).admitted
+          && !state.semanticAdmittedSources?.has(item.source.sourceUnitId)) return null;
+      api.registerDocument(doc, uri);
+      const context = contextFor({ item, uri, providerId, providerVersion, workspaceKey, positionEncoding });
+      const collector = createLspObservationCollector({ identity: { sessionId: context.contextKey,
+        profileId: 'context:' + context.contextKey, profileQualification: 'unknown', generation: item.facts.storage.generation,
+        sourceUnitId: item.source.sourceUnitId, sourceHash: item.source.byteHash, contextHash: context.contextKey, uri },
+      consumers: ['navigation', 'symbolDetail'], signal, maxMs: 30000,
+      isCurrent: () => doc.text === item.text && state.semanticFactsByFile.get(item.file)?.sourceHash === item.source.byteHash,
+      sourceForUri: targetUri => {
+        if (byUri.has(targetUri)) return byUri.get(targetUri);
+        try { return targetUri?.startsWith('file:') ? sourceIndex.itemForPath(fileURLToPath(targetUri)) : null; } catch { return null; }
+      } });
+      return { record: collector.record, async flush() {
+        throwIfAborted(signal);
+        collector.assertCurrent();
+        const observations = collector.observations();
+        if (!observations.length) return;
+        const partition = await writeStructuredLspEvidence({ observations, item, context, state, signal,
+          declarationsForFact: fact => {
+            const target = inventory.get(fact.target.sourceUnitId);
+            return target ? sourceIndex.containingDeclarations(target, fact.target.span) : [];
+          } });
+        collector.assertCurrent();
+        if (partition && !emitted.some(value => value.partitionId === partition.partitionId)) emitted.push(partition);
+        contexts.set(context.contextKey, context);
+        collector.invalidate();
+      } };
     },
     async targetsForDocument(doc) {
       const item = itemForDoc(doc); if (!item) return [];
@@ -134,13 +180,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
       if (state.semanticAdmittedSources && !state.semanticAdmittedSources.has(item.source.sourceUnitId)) return;
       if (!semanticPhasePolicy(policy, item.plan, 'bindings', runtime, item.source.sourceUnitId).admitted && !state.semanticAdmittedSources?.has(item.source.sourceUnitId)) return;
       api.registerDocument(doc, uri);
-      const context = { providerId, providerVersion, compilerVersion: null,
-        configHash: semanticHash('semantic.lsp-config.v1', { providerId, providerVersion, workspaceKey, positionEncoding,
-          ...(nativeAuthority ? { nativeAuthorityHash: nativeAuthority.authorityHash } : {}) }),
-        moduleResolutionHash: sourceIndex.digest,
-        vfsMappingHash: semanticHash('semantic.lsp-mapping.v1', { uri, mapping: item.source.mapping }) };
-      context.contextKey = semanticHash('semantic.lsp-context.v1', context);
-      context.sourceUnits = [{ sourceUnitId: item.source.sourceUnitId, byteHash: item.source.byteHash }];
+      const context = contextFor({ item, uri, providerId, providerVersion, workspaceKey, positionEncoding });
       const completionKey = context.contextKey + ':' + item.source.sourceUnitId;
       if (completed.has(completionKey)) return;
       const observations = [];

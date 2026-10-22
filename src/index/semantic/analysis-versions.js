@@ -11,8 +11,8 @@ export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   repoMapProducer: '2',
   sourceChunking: '5', typeNormalization: '2', vfsRouting: '2', complexityAnalysis: '2',
   riskPropagation: '4', callSiteIdentity: '3',
-  compilerBindings: '10', lspBindings: '14', cfgFlow: '17', callFlow: '18',
-  valueSlice: '5', storageFlow: '2', workerFlow: '7', boundaryFlow: '8', wasmFlow: '5', nativeFlow: '1'
+  compilerBindings: '11', lspBindings: '15', cfgFlow: '17', callFlow: '18',
+  valueSlice: '5', storageFlow: '2', workerFlow: '7', boundaryFlow: '8', wasmFlow: '5', nativeFlow: '2'
 });
 // Static WASM validation is supplied by this runtime, so derived replay must
 // not reuse a partition validated by a different engine version.

@@ -1,5 +1,6 @@
 import { sha1 } from '../../shared/hash.js';
 import { stableStringify } from '../../shared/stable-json.js';
+import { LSP_STRUCTURED_METHODS, LSP_HIERARCHY_REQUEST_CLASSES } from '../../integrations/tooling/providers/lsp/observation-methods.js';
 
 export const normalizeProviderId = (value) => String(value || '').trim().toLowerCase();
 
@@ -29,7 +30,8 @@ const PROVIDER_REQUEST_CLASS_METHODS = Object.freeze({
   inlayHints: 'textDocument/inlayHint',
   definition: 'textDocument/definition',
   typeDefinition: 'textDocument/typeDefinition',
-  references: 'textDocument/references'
+  references: 'textDocument/references',
+  ...Object.fromEntries(LSP_HIERARCHY_REQUEST_CLASSES.map(key => [key, LSP_STRUCTURED_METHODS[key]]))
 });
 
 const normalizeRuntimeRequirement = (entry) => {
@@ -425,6 +427,7 @@ export const validateToolingProvider = (provider) => {
   if (!normalizeProviderId(provider.id)) return 'provider.id missing';
   if (!provider.version) return 'provider.version missing';
   if (!provider.capabilities || typeof provider.capabilities !== 'object') return 'provider.capabilities missing';
+  if (provider.profileContractVersion !== undefined && provider.profileContractVersion !== 1) return 'provider.profileContractVersion unsupported';
   if (provider.languages && !Array.isArray(provider.languages)) return 'provider.languages must be array';
   if (provider.kinds && !Array.isArray(provider.kinds)) return 'provider.kinds must be array';
   if (provider.preflightPolicy) {

@@ -237,6 +237,11 @@ export const processDocumentTypes = async ({
   const parseCache = signatureParseCache instanceof Map ? signatureParseCache : null;
   const signatureParserKey = String(parseSignature?.cacheKey || parseSignature?.name || 'default').trim() || 'default';
   const signatureParserSymbolSensitive = parseSignature?.isSymbolSensitive !== false;
+  const requestCacheProviderId = requestCacheContext?.providerId || cmd;
+  const requestCacheProviderVersion = requestCacheContext?.providerVersion || '1';
+  const requestCacheWorkspaceKey = requestCacheContext?.workspaceKey || null;
+  const structuredCollector = semanticSession?.createObservationCollector?.({ doc, uri, positionEncoding,
+    providerId: requestCacheProviderId, providerVersion: requestCacheProviderVersion, workspaceKey: requestCacheWorkspaceKey }) || null;
 
   const parseSignatureCached = (detailText, symbolName) => {
     if (typeof parseSignature !== 'function') return null;
@@ -308,8 +313,11 @@ export const processDocumentTypes = async ({
       if (!semanticTargets.length) return { enrichedDelta: 0 };
     }
 
+    if (collectSymbols && symbols !== null) structuredCollector?.record({ requestClass: 'documentSymbol',
+      params: { textDocument: { uri } }, response: { attempted: true, payload: symbols }, positionEncoding });
     const flattened = flattenSymbols(symbols || []);
     if (!flattened.length && !semanticTargets.length) {
+      await structuredCollector?.flush();
       return { enrichedDelta: 0 };
     }
 
@@ -336,9 +344,6 @@ export const processDocumentTypes = async ({
     const semanticDefinitionBudget = budgetControllers.semanticDefinition || definitionBudget;
     const typeDefinitionBudget = budgetControllers.typeDefinition || createRequestBudgetController(null);
     const referencesBudget = budgetControllers.references || createRequestBudgetController(null);
-    const requestCacheProviderId = requestCacheContext?.providerId || cmd;
-    const requestCacheProviderVersion = requestCacheContext?.providerVersion || null;
-    const requestCacheWorkspaceKey = requestCacheContext?.workspaceKey || null;
     const isSoftDeadlineExpired = () => (
       softDeadlineAt != null
       && Number.isFinite(Number(softDeadlineAt))
@@ -727,6 +732,8 @@ export const processDocumentTypes = async ({
             }),
             { label, ...(timeoutOverride ? { timeoutOverride } : {}) }
           ));
+          structuredCollector?.record({ requestClass: label, params: buildParams({ position }),
+            response: { attempted: true, payload }, positionEncoding });
           const locations = extractDefinitionLocations(payload);
           if (!locations.length) return { attempted: true, info: null, payload };
           const allowedUris = new Set([String(uri || '')]);
@@ -1110,6 +1117,7 @@ export const processDocumentTypes = async ({
       requestedFlag: 'referencesRequested',
       succeededFlag: 'referencesSucceeded'
     });
+    await structuredCollector?.flush();
 
     const candidateRows = [];
     const unresolvedRate = symbolRecords.length > 0

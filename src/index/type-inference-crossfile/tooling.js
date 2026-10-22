@@ -13,6 +13,7 @@ import { writeToolingCacheJson } from '../tooling/cache-storage.js';
 import { normalizePathForPlatform } from '../../shared/path-normalize.js';
 import { normalizeTypeExpressions, mergeSymbolicTypeGraphs } from '../../shared/symbolic-types.js';
 import { buildToolingDiagnosticRecord, redactToolingDiagnosticText } from './tooling-diagnostic-record.js';
+import { dispatchToolingProviderResult } from '../tooling/result-dispatch.js';
 const EMPTY_TOOLING_PASS_STATS = Object.freeze({
   inferredReturns: 0,
   toolingDegradedProviders: 0,
@@ -303,6 +304,8 @@ export const runToolingPass = async ({
   abortSignal = null,
   semanticSession = null,
   semanticLspSession = null,
+  semanticSink = null,
+  providerProfiles = null,
   toolingDocuments = null,
   applyTypes = true
 }) => {
@@ -351,7 +354,7 @@ export const runToolingPass = async ({
       maxEntries: Number.isFinite(cacheConfig.maxEntries) ? cacheConfig.maxEntries : null
     },
     abortSignal,
-    semanticSession, semanticLspSession
+    semanticSession, semanticLspSession, providerProfiles
   };
   const providerPlans = selectToolingProviders({
     toolingConfig: ctx.toolingConfig,
@@ -409,6 +412,10 @@ export const runToolingPass = async ({
   }
   const degradedStats = summarizeDegradedProviderCounts(result?.degradedProviders);
   const runtimeStats = summarizeToolingRuntimeCounts(result?.metrics);
+  const dispatched = await dispatchToolingProviderResult({ result, semanticSink, signal: abortSignal });
+  if (dispatched.receipt.semantic.unused) {
+    log(`[tooling] semantic output unused: ${dispatched.receipt.semantic.reason} (${dispatched.receipt.semantic.unused} partitions).`);
+  }
 
   const applyResult = !applyTypes ? {} : applyToolingTypes({
     byChunkUid: result.byChunkUid,
@@ -435,6 +442,9 @@ export const runToolingPass = async ({
   return {
     inferredReturns: applyResult.inferredReturns || 0,
     symbolicTypeGraphs: mergeSymbolicTypeGraphs([], result.symbolicTypeGraphs || []),
+    semanticFacts: dispatched.semanticFacts,
+    providerConsumption: dispatched.receipt,
+    providerProfiles: result.providerProfiles || {},
     ...degradedStats,
     ...runtimeStats
   };
