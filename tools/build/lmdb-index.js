@@ -22,6 +22,7 @@ import { updateIndexStateManifest } from '../../src/shared/index-state-utils.js'
 import { withGeneratedArtifactMetadata } from '../../src/shared/generated-artifact-core.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../src/storage/lmdb/schema.js';
 import { loadLmdbMinhashArtifact } from '../../src/storage/lmdb/minhash.js';
+import { replaceLmdbEntries } from '../../src/storage/lmdb/replace.js';
 import { getIndexDir, getMetricsDir, resolveIndexRoot, resolveLmdbPaths, resolveRepoConfig } from '../shared/dict-utils.js';
 import { resolveAsOfContext, resolveSingleRootForModes } from '../../src/index/as-of.js';
 import { createIndexBuildToolCli } from './index-tool-cli.js';
@@ -219,26 +220,23 @@ const storeValue = (db, key, value) => {
 };
 
 const storeArtifacts = (db, meta, artifacts) => {
-  db.clearSync();
-  db.transactionSync(() => {
-    storeValue(db, LMDB_META_KEYS.schemaVersion, LMDB_SCHEMA_VERSION);
-    storeValue(db, LMDB_META_KEYS.createdAt, meta.createdAt);
-    storeValue(db, LMDB_META_KEYS.mode, meta.mode);
-    storeValue(db, LMDB_META_KEYS.sourceIndex, meta.sourceIndex);
-    storeValue(db, LMDB_META_KEYS.chunkCount, meta.chunkCount);
-    storeValue(db, LMDB_META_KEYS.artifacts, meta.artifacts);
-    storeValue(db, LMDB_META_KEYS.artifactManifest, {
+  replaceLmdbEntries(db, [
+    [LMDB_META_KEYS.schemaVersion, LMDB_SCHEMA_VERSION],
+    [LMDB_META_KEYS.createdAt, meta.createdAt],
+    [LMDB_META_KEYS.mode, meta.mode],
+    [LMDB_META_KEYS.sourceIndex, meta.sourceIndex],
+    [LMDB_META_KEYS.chunkCount, meta.chunkCount],
+    [LMDB_META_KEYS.artifacts, meta.artifacts],
+    [LMDB_META_KEYS.artifactManifest, {
       keys: meta.artifacts,
       createdAt: meta.createdAt
-    });
-    storeValue(db, LMDB_META_KEYS.mapSizeBytes, meta.mapSizeBytes);
-    storeValue(db, LMDB_META_KEYS.mapSizeEstimatedBytes, meta.mapSizeEstimatedBytes);
-    storeValue(db, LMDB_META_KEYS.mapSizeFactor, meta.mapSizeFactor);
-    storeValue(db, LMDB_META_KEYS.pageSize, meta.pageSize);
-    for (const [key, value] of Object.entries(artifacts)) {
-      storeValue(db, key, value);
-    }
-  });
+    }],
+    [LMDB_META_KEYS.mapSizeBytes, meta.mapSizeBytes],
+    [LMDB_META_KEYS.mapSizeEstimatedBytes, meta.mapSizeEstimatedBytes],
+    [LMDB_META_KEYS.mapSizeFactor, meta.mapSizeFactor],
+    [LMDB_META_KEYS.pageSize, meta.pageSize],
+    ...Object.entries(artifacts)
+  ], value => packr.pack(value));
 };
 
 /**
@@ -411,8 +409,8 @@ for (const mode of modes) {
   const readMs = Date.now() - readStart;
   const writeStart = Date.now();
   const db = open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes });
-  storeArtifacts(db, meta, artifacts);
-  db.close();
+  try { storeArtifacts(db, meta, artifacts); }
+  finally { await db.close(); }
   const writeMs = Date.now() - writeStart;
 
   const finalState = await updateLmdbState(indexDir, {
@@ -426,8 +424,8 @@ for (const mode of modes) {
     mapSizeEstimatedBytes: estimatedBytes
   });
   const finalDb = open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes });
-  storeValue(finalDb, LMDB_ARTIFACT_KEYS.indexState, finalState);
-  finalDb.close();
+  try { storeValue(finalDb, LMDB_ARTIFACT_KEYS.indexState, finalState); }
+  finally { await finalDb.close(); }
 
   const totalMs = Date.now() - buildStart;
   const metrics = {
