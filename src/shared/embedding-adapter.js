@@ -11,6 +11,7 @@ import {
 import { createEmbeddingProviderAdapter } from './embedding-provider-adapters.js';
 import { loadEmbeddingModelComponents } from './embedding-model-loading.js';
 import { isAbortError } from './abort.js';
+import { createEmbeddingCacheLifetime, observeEmbeddingOwnership, preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
 import {
   resolveEmbeddingModelProfile,
   validateEmbeddingModelProfile
@@ -25,72 +26,68 @@ let transformersModuleLoader = () => import('@huggingface/transformers');
 let transformersModulePromise = null;
 const pipelineCache = new Map();
 const adapterCache = new Map();
-const retiringAdapters = new Set();
+const pipelineLifetime = createEmbeddingCacheLifetime({ cache: pipelineCache, kind: 'embedding-pipeline-cache-entry' });
+const adapterLifetime = createEmbeddingCacheLifetime({ cache: adapterCache, kind: 'embedding-adapter-cache-entry' });
 let adapterFactory = null;
 
-const retirePipelineEntry = (entry) => {
-  if (!entry || entry.references || entry.releasing) return entry?.releasing;
-  if (pipelineCache.get(entry.key) === entry) pipelineCache.delete(entry.key);
-  entry.releasing = entry.promise.then(pipeline => pipeline.dispose?.());
-  entry.releasing.catch(() => {});
-  return entry.releasing;
+const retirePipelineEntry = entry => {
+  const work = pipelineLifetime.retire(entry); work.catch(() => {}); return work;
 };
+const pipelineLeaseOwners = new FinalizationRegistry(reference => {
+  pipelineLifetime.releaseReference(reference).catch(() => {});
+});
 const acquirePipeline = async (entry) => {
   entry.references++;
+  const operations = new Set(), methods = new Map(), token = {};
+  const reference = pipelineLifetime.createReference(entry, operations);
   let pipeline;
   try { pipeline = await entry.promise; }
-  catch (error) { entry.references--; throw error; }
+  catch (error) {
+    try { await pipelineLifetime.releaseReference(reference); }
+    catch (cleanup) { throw preserveEmbeddingCleanupFailure(error, cleanup); }
+    throw error;
+  }
   let disposed = false, disposing = null;
-  const operations = new Set(), methods = new Map();
   const run = (fn, args) => {
-    if (disposed) return Promise.reject(new Error('Embedding pipeline lease is disposed.'));
+    if (disposed || reference.released) return Promise.reject(new Error('Embedding pipeline lease is disposed.'));
     const work = Promise.resolve().then(() => fn.apply(pipeline, args));
     operations.add(work);
-    work.then(() => operations.delete(work), () => operations.delete(work));
+    work.then(() => operations.delete(work), error => {
+      operations.delete(work); pipelineLifetime.recordFailure(entry, error);
+    });
     return work;
   };
   const dispose = () => {
     if (!disposing) {
-      disposed = true;
-      disposing = Promise.allSettled([...operations]).then(() => {
-        entry.references--;
-        return entry.references ? undefined : retirePipelineEntry(entry);
-      });
+      disposed = true; pipelineLeaseOwners.unregister(token);
+      disposing = pipelineLifetime.releaseReference(reference, { retry: reference.released });
+      disposing = disposing.catch(error => { disposing = null; throw error; });
     }
     return disposing;
   };
-  return new Proxy(pipeline, {
+  const lease = new Proxy(pipeline, {
     apply(target, thisArg, args) { return run(target, args); },
     get(target, key) {
       if (key === 'dispose') return dispose;
-      const value = Reflect.get(target, key, target);
+      let value;
+      try { value = Reflect.get(target, key, target); }
+      catch (error) { pipelineLifetime.recordFailure(entry, error); throw error; }
       if (typeof value !== 'function') return value;
       // executionInfo is a synchronous observation; task methods own async work.
-      if (key === 'executionInfo') return value.bind(target);
+      if (key === 'executionInfo') return (...args) => {
+        try { return value.apply(target, args); }
+        catch (error) { pipelineLifetime.recordFailure(entry, error); throw error; }
+      };
       if (!methods.has(key)) methods.set(key, (...args) => run(value, args));
       return methods.get(key);
     }
   });
+  pipelineLeaseOwners.register(lease, reference, token);
+  return lease;
 };
 
-const retireAdapterEntry = (entry) => {
-  if (!entry) return;
-  entry.cacheOwned = false;
-  clearTimeout(entry.retentionTimer);
-  if (adapterCache.get(entry.key) === entry) adapterCache.delete(entry.key);
-  if (!entry.retirement) {
-    entry.retirement = new Promise((resolve, reject) => {
-      entry.resolveRetirement = resolve; entry.rejectRetirement = reject;
-    });
-    retiringAdapters.add(entry.retirement);
-    entry.retirement.then(() => retiringAdapters.delete(entry.retirement),
-      () => retiringAdapters.delete(entry.retirement));
-  }
-  if (!entry.references && !entry.releasing) {
-    entry.releasing = Promise.resolve().then(() => entry.adapter.dispose?.());
-    entry.releasing.then(entry.resolveRetirement, entry.rejectRetirement);
-  }
-  return entry.retirement;
+const retireAdapterEntry = entry => {
+  const work = adapterLifetime.retire(entry); work.catch(() => {}); return work;
 };
 const retainAdapterEntry = (entry, now) => {
   entry.cacheOwned = true;
@@ -99,56 +96,83 @@ const retainAdapterEntry = (entry, now) => {
   entry.retentionTimer = setTimeout(() => { void retireAdapterEntry(entry); }, ADAPTER_CACHE_TTL_MS);
   entry.retentionTimer.unref?.();
 };
-const releaseAdapterEntry = (entry) => {
-  entry.references = Math.max(0, entry.references - 1);
-  return entry.references || entry.cacheOwned ? Promise.resolve() : retireAdapterEntry(entry);
-};
-const adapterLeaseOwners = new FinalizationRegistry(entry => { void releaseAdapterEntry(entry); });
+const adapterLeaseOwners = new FinalizationRegistry(reference => {
+  adapterLifetime.releaseReference(reference).catch(() => {});
+});
 const LEASE_OPERATIONS = new Set(['embed', 'embedOne', 'prepare', 'embedPrepared', 'prewarm', 'estimateTokensBatch', 'endProfiling']);
 const leaseAdapter = (entry) => {
   entry.references += 1;
   const token = {}, methods = new Map(), operations = new Set();
+  const reference = adapterLifetime.createReference(entry, operations);
   let disposed = false, disposing = null;
   const dispose = () => {
     if (!disposing) {
       disposed = true;
       adapterLeaseOwners.unregister(token);
-      disposing = Promise.allSettled([...operations]).then(() => releaseAdapterEntry(entry));
+      disposing = adapterLifetime.releaseReference(reference, { retry: reference.released });
+      disposing = disposing.catch(error => { disposing = null; throw error; });
     }
     return disposing;
+  };
+  const track = work => {
+    operations.add(work);
+    work.then(() => operations.delete(work), error => {
+      operations.delete(work); adapterLifetime.recordFailure(entry, error);
+      const admissionRejected = isAbortError(error)
+        || ['ERR_EMBEDDING_QUEUE_FULL', 'ERR_EMBEDDING_QUEUE_CLOSED'].includes(error?.code);
+      if (entry.cacheOwned && !admissionRejected) retireAdapterEntry(entry).catch(() => {});
+    });
+    return work;
   };
   const lease = new Proxy(entry.adapter, {
     get(target, key) {
       if (key === 'dispose') return dispose;
-      const value = Reflect.get(target, key, target);
+      if (key === 'embedderPromise' && (disposed || reference.released)) {
+        return Promise.reject(new Error('Embedding adapter lease is disposed.'));
+      }
+      let value;
+      try { value = Reflect.get(target, key, target); }
+      catch (error) {
+        adapterLifetime.recordFailure(entry, error);
+        if (entry.cacheOwned) retireAdapterEntry(entry).catch(() => {});
+        throw error;
+      }
+      if (key === 'embedderPromise' && value && typeof value.then === 'function') {
+        return track(Promise.resolve(value));
+      }
       if (typeof value !== 'function') return value;
-      if (!LEASE_OPERATIONS.has(key)) return value.bind(target);
+      if (!LEASE_OPERATIONS.has(key)) return (...args) => {
+        try { return value.apply(target, args); }
+        catch (error) {
+          adapterLifetime.recordFailure(entry, error);
+          if (entry.cacheOwned) retireAdapterEntry(entry).catch(() => {});
+          throw error;
+        }
+      };
       if (!methods.has(key)) methods.set(key, (...args) => {
-        if (disposed) return Promise.reject(new Error('Embedding adapter lease is disposed.'));
-        const work = Promise.resolve().then(() => value.apply(target, args));
-        operations.add(work);
-        work.then(() => operations.delete(work), (error) => {
-          operations.delete(work);
-          const admissionRejected = isAbortError(error)
-            || ['ERR_EMBEDDING_QUEUE_FULL', 'ERR_EMBEDDING_QUEUE_CLOSED'].includes(error?.code);
-          if (entry.cacheOwned && !admissionRejected) void retireAdapterEntry(entry);
-        });
-        return work;
+        if (disposed || reference.released) return Promise.reject(new Error('Embedding adapter lease is disposed.'));
+        return track(Promise.resolve().then(() => value.apply(target, args)));
       });
       return methods.get(key);
     }
   });
-  adapterLeaseOwners.register(lease, entry, token);
+  adapterLeaseOwners.register(lease, reference, token);
   return lease;
 };
 
 /** Release cache ownership, joining native disposal after outstanding leases drain. */
 export const disposeEmbeddingAdapterCaches = () => {
-  for (const entry of [...adapterCache.values()]) retireAdapterEntry(entry);
-  for (const entry of pipelineCache.values()) retirePipelineEntry(entry);
-  pipelineCache.clear();
-  return Promise.all([...retiringAdapters]);
+  const retirements = [...adapterLifetime.retireAll(), ...pipelineLifetime.retireAll()];
+  return Promise.allSettled(retirements).then(results => {
+    const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
+    if (errors.length) throw errors.slice(1).reduce(preserveEmbeddingCleanupFailure, errors[0]);
+  });
 };
+
+/** Scoped existing-owner capabilities; reconciliation never loads a model. */
+export const getRetiredEmbeddingCacheOwners = () => Object.freeze([
+  ...adapterLifetime.retiredOwners(), ...pipelineLifetime.retiredOwners()
+]);
 
 const resetEmbeddingAdapterCachesInternal = () => {
   transformersModulePromise = null;
@@ -197,29 +221,27 @@ async function loadPipeline(modelId, modelsDir, modelProfile = null, localFilesO
     touchEntry(cached, PIPELINE_CACHE_TTL_MS, now);
     return acquirePipeline(cached);
   }
-  const entry = {
+  const entry = pipelineLifetime.adopt({
     key: cacheKey, references: 0, releasing: null,
-    promise: loadTransformersModule(modelsDir)
+    lastAccessAt: now,
+    expiresAt: now + PIPELINE_CACHE_TTL_MS
+  });
+  entry.promise = loadTransformersModule(modelsDir)
       // v2 selected model_quantized.onnx by default. Keep the same weights and
       // cache identity after the Transformers.js migration (Node defaults to fp32).
       .then(async (mod) => {
         const components = await loadEmbeddingModelComponents(mod, {
           modelId, modelsDir, modelProfile, localFilesOnly, sessionOptions, modelFileName
         });
-        if (components.pipeline) return components.pipeline;
+        if (components.pipeline) return pipelineLifetime.loaded(entry, components.pipeline);
         const { tokenizer, model } = components;
-        return createPreparedTextEncoder({ tokenizer, model, Tensor: mod.Tensor, profile: modelProfile, sessionOptions, modelFileName });
+        return pipelineLifetime.loaded(entry, createPreparedTextEncoder({ tokenizer, model, Tensor: mod.Tensor, profile: modelProfile, sessionOptions, modelFileName }));
       })
-      .catch((err) => {
-        if (pipelineCache.get(cacheKey) === entry) pipelineCache.delete(cacheKey);
-        throw err;
-      }),
-    lastAccessAt: now,
-    expiresAt: now + PIPELINE_CACHE_TTL_MS
-  };
+      .catch(err => { throw pipelineLifetime.failed(entry, err); });
   pipelineCache.set(cacheKey, entry);
+  const lease = acquirePipeline(entry);
   pruneCache(pipelineCache, { maxEntries: PIPELINE_CACHE_MAX_ENTRIES, now, onEvict: retirePipelineEntry });
-  return acquirePipeline(entry);
+  return lease;
 }
 
 const createAdapter = (options) => createEmbeddingProviderAdapter({
@@ -297,12 +319,20 @@ function getVerifiedEmbeddingAdapter(options) {
     modelFileName,
     localFilesOnly: options?.localFilesOnly === true
   });
-  const entry = { key: cacheKey, adapter, references: 0, releasing: null,
-    lastAccessAt: now, expiresAt: now + ADAPTER_CACHE_TTL_MS };
+  const entry = adapterLifetime.adopt({ key: cacheKey, adapter, references: 0,
+    lastAccessAt: now, expiresAt: now + ADAPTER_CACHE_TTL_MS });
+  try { adapterLifetime.loaded(entry, adapter); }
+  catch (error) {
+    entry.promise = Promise.reject(adapterLifetime.failed(entry, error)); entry.promise.catch(() => {});
+    entry.releaseError = adapterLifetime.retainFailure(entry, error);
+    throw entry.releaseError;
+  }
+  entry.promise = Promise.resolve(adapter);
   adapterCache.set(cacheKey, entry);
   if (retainInCache) retainAdapterEntry(entry, now);
+  const lease = leaseAdapter(entry);
   pruneCache(adapterCache, { maxEntries: ADAPTER_CACHE_MAX_ENTRIES, now, onEvict: retireAdapterEntry });
-  return leaseAdapter(entry);
+  return lease;
 }
 
 export function getEmbeddingAdapter(options = {}) {
@@ -346,10 +376,11 @@ export const warmEmbeddingAdapter = async (options = {}) => {
       });
     }
   } catch (error) {
-    try { await adapter.dispose?.(); } catch (cleanupError) {
-      if (error && typeof error === 'object') error.cleanupErrors = [...(error.cleanupErrors || []), cleanupError];
-    }
-    if (options.throwOnError === true) throw error;
+    let failure = error;
+    try { await adapter.dispose?.(); }
+    catch (cleanupError) { failure = preserveEmbeddingCleanupFailure(error, cleanupError); }
+    const observe = observeEmbeddingOwnership(failure);
+    if (options.throwOnError === true || (observe && !observe())) throw failure;
     return null;
   }
   return adapter;

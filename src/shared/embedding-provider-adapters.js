@@ -2,6 +2,7 @@ import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from 
 import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-lease.js';
 import { resolveStubDims, stubEmbedding } from './embedding.js';
 import { createOnnxEmbedder } from './onnx-embeddings.js';
+import { observeEmbeddingOwnership, preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
 import {
   DEFAULT_EMBEDDING_POOLING,
   normalizeEmbeddingBatchOutput
@@ -15,25 +16,36 @@ import {
 export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipeline, modelProfile, localFilesOnly = false, sessionOptions = {}, modelFileName = null, modelArtifact = null }) => {
   let embedderPromise = null;
   let resolvedEmbedder = null;
+  let acquiredEmbedder = null, acquiredDispose = null, acquiredClosed = false;
+  let startupFailure = null, startupFailureReported = false, disposed = false, disposing = null;
   let observedArtifact = modelArtifact;
   const measurements = { scope: 'adapter-lifetime', initializationMs: 0, runs: 0,
     providerBusyMs: 0, active: 0, peakActive: 0, failures: 0 };
   const ensureEmbedder = () => {
+    if (disposed) return Promise.reject(new Error('Embedding provider adapter is disposed.'));
     if (!embedderPromise) {
       const startedAt = performance.now();
       embedderPromise = loadPipeline(modelId, modelsDir, modelProfile, localFilesOnly, sessionOptions, modelFileName, modelArtifact).then(async (embedder) => {
+        acquiredEmbedder = embedder; acquiredClosed = false; startupFailure = null; startupFailureReported = false;
+        acquiredDispose = embedder.dispose;
         try {
           observedArtifact = await resolveEmbeddingArtifactIdentityAsync({ provider: 'xenova', modelId, modelsDir, modelProfile }, { phase: 'loaded' });
           if (embeddingArtifactReusable(modelArtifact)) assertEmbeddingArtifactCompatibility(modelArtifact, observedArtifact);
         } catch (error) {
-          try { await embedder.dispose?.(); } catch { /* Preserve artifact verification failure. */ }
+          try {
+            if (typeof acquiredDispose === 'function') await acquiredDispose.call(acquiredEmbedder);
+            acquiredClosed = true;
+          } catch (cleanup) { throw preserveEmbeddingCleanupFailure(error, cleanup); }
           throw error;
         }
         measurements.initializationMs += performance.now() - startedAt;
         resolvedEmbedder = embedder;
         return embedder;
       }).catch((err) => {
-        embedderPromise = null;
+        startupFailure = err;
+        // An original pending child cannot authorize a fresh pipeline or be
+        // erased by the existing ordinary initialization recovery policy.
+        if (!observeEmbeddingOwnership(err)) embedderPromise = null;
         resolvedEmbedder = null;
         throw err;
       });
@@ -90,10 +102,23 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
       const embedder = await ensureEmbedder();
       return embedder.endProfiling?.() ?? { enabled: false, sessions: [] };
     },
-    dispose: async () => {
-      if (!embedderPromise) return;
-      const embedder = await embedderPromise;
-      await embedder.dispose?.();
+    dispose: () => {
+      if (!disposing) {
+        disposed = true;
+        disposing = Promise.resolve().then(async () => {
+          if (embedderPromise) { try { await embedderPromise; } catch {} }
+          const observe = observeEmbeddingOwnership(startupFailure);
+          if (observe && !observe() && !startupFailureReported) {
+            startupFailureReported = true; throw startupFailure;
+          }
+          if (acquiredEmbedder && !acquiredClosed) {
+            if (typeof acquiredDispose === 'function') await acquiredDispose.call(acquiredEmbedder);
+            acquiredClosed = true;
+          }
+          if (observe && !observe()) throw startupFailure;
+        }).catch(error => { disposing = null; throw error; });
+      }
+      return disposing;
     },
     estimateTokensBatch: async (texts) => {
       const list = Array.isArray(texts) ? texts : [];
