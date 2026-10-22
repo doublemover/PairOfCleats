@@ -4,6 +4,7 @@ import { edgeKey, sampleCallSitesForEdge } from './edges.js';
 import { containsIdentifier, matchRulePatterns, SEVERITY_RANK } from '../risk/shared.js';
 import { compileRiskInterproceduralSemantics } from './semantics.js';
 import { createRiskStateQueue } from './state-queue.js';
+import { createRiskWitness, matchesRiskWitnessExtension, materializeRiskWitness } from './witness.js';
 import { aggregateRiskInputCoverage } from './input-coverage.js';
 
 const ROW_SCHEMA_VERSION = 1;
@@ -295,13 +296,13 @@ const buildWatchStep = ({
   const sourceConfidence = state?.rootSource?.source?.confidence;
   const confidenceBefore = propagationConfidence({
     sourceConfidence,
-    hopCount: Math.max(0, toArray(state?.pathChunkUids).length - 1),
+    hopCount: Math.max(0, state.depth),
     sanitizerBarriersHit: barriersBefore,
     sanitizerPolicy
   });
   const confidenceAfter = propagationConfidence({
     sourceConfidence,
-    hopCount: Math.max(0, toArray(state?.pathChunkUids).length),
+    hopCount: Math.max(0, state.depth + 1),
     sanitizerBarriersHit: barriersAfter,
     sanitizerPolicy
   });
@@ -579,12 +580,13 @@ export const computeInterproceduralRisk = ({
       capsHit.add('maxPartialFlows');
       return;
     }
+    const path = materializeRiskWitness(state.witness);
     const partialFlowId = buildPartialFlowId({
       sourceChunkUid: state.rootSource.chunkUid,
       sourceRuleId: state.rootSource.source.ruleId,
       frontierChunkUid: state.chunkUid,
       terminalReason,
-      pathChunkUids: state.pathChunkUids
+      pathChunkUids: path.chunkUids
     });
     if (partialFlowIds.has(partialFlowId)) return;
     partialFlowIds.add(partialFlowId);
@@ -601,17 +603,13 @@ export const computeInterproceduralRisk = ({
         terminalReason,
         blockedExpansions: toArray(blockedExpansions).slice(0, maxBlockedExpansionsPerPartial)
       },
-      path: {
-        chunkUids: state.pathChunkUids.slice(),
-        callSiteIdsByStep: state.callSiteIdsByStep.map((list) => (Array.isArray(list) ? list.slice() : [])),
-        watchByStep: toArray(state.watchByStep).map((entry) => ({ ...entry }))
-      },
+      path,
       confidence: Math.max(
         0.05,
         flowConfidence({
           source: state.rootSource.source,
           sink: state.rootSource.source,
-          hopCount: Math.max(0, state.pathChunkUids.length - 1),
+          hopCount: Math.max(0, state.depth),
           sanitizerBarriersHit: state.sanitizerBarriersHit,
           sanitizerPolicy
         }) * 0.75
@@ -619,7 +617,7 @@ export const computeInterproceduralRisk = ({
       notes: {
         strictness,
         sanitizerPolicy,
-        hopCount: Math.max(0, state.pathChunkUids.length - 1),
+        hopCount: Math.max(0, state.depth),
         sanitizerBarriersHit: state.sanitizerBarriersHit,
         capsHit: frontierCaps,
         terminalReason
@@ -652,9 +650,7 @@ export const computeInterproceduralRisk = ({
     queue.push({
       chunkUid: root.chunkUid,
       rootSource: root,
-      pathChunkUids: [root.chunkUid],
-      callSiteIdsByStep: [],
-      watchByStep: [],
+      witness: createRiskWitness({ chunkUid: root.chunkUid }),
       depth: 0,
       sanitizerBarriersHit: 0,
       taintList,
@@ -692,7 +688,8 @@ export const computeInterproceduralRisk = ({
           break;
         }
         pathCounts.set(key, used + 1);
-        const hopCount = state.pathChunkUids.length - 1;
+        const hopCount = state.depth;
+        const path = materializeRiskWitness(state.witness);
         const flow = {
           schemaVersion: ROW_SCHEMA_VERSION,
           flowId: buildFlowId({
@@ -700,7 +697,7 @@ export const computeInterproceduralRisk = ({
             sourceRuleId: state.rootSource.source.ruleId,
             sinkChunkUid: state.chunkUid,
             sinkRuleId: sink.ruleId,
-            pathChunkUids: state.pathChunkUids
+            pathChunkUids: path.chunkUids
           }),
           source: buildFlowSourceEndpoint(state.rootSource),
           sink: {
@@ -713,11 +710,7 @@ export const computeInterproceduralRisk = ({
             confidence: Number.isFinite(sink.confidence) ? sink.confidence : null,
             tags: Array.isArray(sink.tags) ? sink.tags.filter(Boolean) : []
           },
-          path: {
-            chunkUids: state.pathChunkUids.slice(),
-            callSiteIdsByStep: state.callSiteIdsByStep.map((list) => (Array.isArray(list) ? list.slice() : [])),
-            watchByStep: toArray(state.watchByStep).map((entry) => ({ ...entry }))
-          },
+          path,
           confidence: flowConfidence({
             source: state.rootSource.source,
             sink,
@@ -895,24 +888,22 @@ export const computeInterproceduralRisk = ({
       let sampling = sampledEdges.get(samplingKey);
       if (!sampling) {
         const sampled = sampleCallSitesForEdge(details, { calleeUid, callerFile, maxCallSitesPerEdge: caps.maxCallSitesPerEdge });
-        sampling = { sampled, callSiteIds: sampled.map(entry => entry.callSiteId).filter(Boolean) };
+        const callSiteIds = Object.freeze(sampled.map(entry => entry.callSiteId).filter(Boolean));
+        sampling = { sampled, callSiteIds, callSiteKey: JSON.stringify(callSiteIds) };
         sampledEdges.set(samplingKey, sampling);
       }
       const { sampled, callSiteIds } = sampling;
       const nextBarriers = state.sanitizerBarriersHit + (sanitizerPolicy === 'weaken' && hasSanitizers ? 1 : 0);
       const stateKey = JSON.stringify([state.rootSource.chunkUid,state.rootSource.source.ruleId,
         calleeUid,taintKey,nextDepth,nextBarriers]);
-      const witnessKey = JSON.stringify([state.pathChunkUids, state.callSiteIdsByStep, callSiteIds]);
-      const witnesses = witnessesByState.get(stateKey) || new Set();
-      if (witnesses.has(witnessKey)) continue;
-      if (witnesses.size >= maxPathsPerPair) {
+      const witnesses = witnessesByState.get(stateKey) || [];
+      if (witnesses.some(witness => matchesRiskWitnessExtension(witness, state.witness, sampling.callSiteKey))) continue;
+      if (witnesses.length >= maxPathsPerPair) {
         capsHit.add('maxPathsPerPair');
         blockedExpansions.push(buildBlockedExpansion({ targetChunkUid: calleeUid,
           reason: 'maxPathsPerPair', callSiteIds }));
         continue;
       }
-      witnesses.add(witnessKey);
-      witnessesByState.set(stateKey,witnesses);
       const watchStep = buildWatchStep({
         state,
         nextTaint,
@@ -923,13 +914,14 @@ export const computeInterproceduralRisk = ({
         sanitizerPolicy,
         semantics: appliedSemantics
       });
+      const witness = createRiskWitness({ parent: state.witness, chunkUid: calleeUid, callSiteIds, watch: watchStep });
+      witnesses.push(witness);
+      witnessesByState.set(stateKey,witnesses);
 
       queue.push({
         chunkUid: calleeUid,
         rootSource: state.rootSource,
-        pathChunkUids: [...state.pathChunkUids, calleeUid],
-        callSiteIdsByStep: [...state.callSiteIdsByStep, callSiteIds],
-        watchByStep: [...toArray(state.watchByStep), watchStep],
+        witness,
         depth: nextDepth,
         sanitizerBarriersHit: nextBarriers,
         taintList: nextTaint,

@@ -2,10 +2,12 @@
 export const createRiskStateQueue = () => {
   const heap = [];
   const compare = (a,b) => a.depth-b.depth || a.sanitizerBarriersHit-b.sanitizerBarriersHit
-    || (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0);
+    || (a.rootOrderKey < b.rootOrderKey ? -1 : a.rootOrderKey > b.rootOrderKey ? 1 : 0)
+    || compareRiskWitnesses(a.witness, b.witness)
+    || (a.taintOrderKey < b.taintOrderKey ? -1 : a.taintOrderKey > b.taintOrderKey ? 1 : 0);
   const push = state => {
-    state.orderKey = JSON.stringify([state.rootSource.chunkUid,state.rootSource.source.ruleId,
-      state.pathChunkUids,state.callSiteIdsByStep,state.taintKey]);
+    state.rootOrderKey = JSON.stringify([state.rootSource.chunkUid,state.rootSource.source.ruleId]);
+    state.taintOrderKey = JSON.stringify(state.taintKey ?? null);
     heap.push(state);
     let index = heap.length-1;
     while (index>0) {
@@ -30,3 +32,5 @@ export const createRiskStateQueue = () => {
   };
   return {push,pop,get length(){return heap.length;},pending:()=>heap.slice()};
 };
+import { compareRiskWitnesses } from './witness.js';
+
