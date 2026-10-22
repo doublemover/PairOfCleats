@@ -218,7 +218,7 @@ Otherwise base roots are derived from the snapshot's pointer mapping:
 - `indexBaseRoot = repoCacheRoot/<relativeBuildRootFromSnapshot>`
 
 The resolver MUST populate `identity.snapshotId = snapshotId` and `identity.buildIdByMode` by reading the relevant build_state.json files:
-- For frozen: if `<frozenRoot>/build_state.json` exists, use it.
+- For frozen: use the mode-specific verified `modeProvenance` receipt and `provenance/<mode>.build_state.json`. Bind its SHA256, mode, build ID/config/tool identity and copied mode manifest. Legacy frozen roots without that receipt may retain the snapshot pointer build ID, but configuration/tool provenance stays unknown; never apply a shared build state across modes.
 - For pointer: read from referenced build roots.
 
 ### 4.4 Resolve `tag:<tag>`
@@ -263,7 +263,7 @@ repoCacheRoot/
       snapshot.json
       frozen.json            (optional; only if frozen)
       frozen/                (optional; only if frozen)
-        build_state.json     (optional but recommended)
+        provenance/<mode>.build_state.json  (per-mode verified authority)
         index-code/
         index-prose/
         index-extracted-prose/
@@ -469,8 +469,7 @@ Atomic, crash-safe algorithm:
    - If include-sqlite: recursively copy `sourceBaseRoot/index-sqlite` to `<staging>/index-sqlite`
    - If include-lmdb: recursively copy `sourceBaseRoot/index-lmdb` to `<staging>/index-lmdb`
    - These directories are not in pieces manifests and MUST be copied by direct directory walk.
-7. Optionally write `build_state.json` into staging:
-   - Prefer copying from the dominant source base root (the one used for `code` if present else first mode).
+7. Copy each selected mode’s build state into `provenance/<mode>.build_state.json`, verify it against that mode’s copied manifest and pointer identity, and record its SHA256 in `frozen.json.modeProvenance` (version 1). Optional SQLite/LMDB are copied only from that same mode root. A shared dominant state is not provenance for other modes.
 8. If verification failures exist:
    - Delete staging directory
    - Do **not** modify snapshot registry
@@ -591,3 +590,5 @@ counts. Optional SQLite/LMDB copies use the same independent-copy, no-link and
 byte-verification owner. Directory pieces retain empty directories and deduplicated
 overlapping descendants. These snapshot copies are not a live-database checkpoint
 contract; callers still supply the published generation named by the pointer.
+
+Frozen provenance and backend mode-root repairs are implemented without execution evidence. Browser, native SQLite, freeze interruption and final-head acceptance remain separate qualification obligations.

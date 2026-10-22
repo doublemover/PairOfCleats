@@ -145,6 +145,17 @@ export const SNAPSHOT_DIFF_ARTIFACT_SCHEMA_DEFS = {
       frozenAt: { type: 'string' },
       method: { type: 'string' },
       frozenRoot: { type: 'string' },
+      modeProvenanceVersion: { const: 1 },
+      modeProvenance: {
+        type: 'object', propertyNames: { enum: ['code', 'prose', 'extracted-prose', 'records'] },
+        additionalProperties: {
+          type: 'object', required: ['mode', 'statePath', 'sha256', 'buildId', 'configHash', 'toolVersion', 'compatibilityKey'],
+          properties: { mode: { enum: ['code', 'prose', 'extracted-prose', 'records'] }, statePath: { type: 'string' },
+            sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' }, buildId: { type: 'string' },
+            configHash: nullableString, toolVersion: nullableString, compatibilityKey: nullableString },
+          additionalProperties: false
+        }
+      },
       included: {
         type: 'object',
         required: ['modes', 'sqlite', 'lmdb'],

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { loadPiecesManifest } from '../../shared/artifact-io/manifest.js';
 import { isManifestPathSafe } from '../validate/paths.js';
 import { fromPosix, toPosix } from '../../shared/file-paths.js';
-import { checksumFile, sha1File } from '../../shared/hash.js';
+import { checksumFile, sha1File, sha256File } from '../../shared/hash.js';
 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 
@@ -111,14 +111,14 @@ const verifyPieceChecksum = async ({ targetPath, piece, sourceDigest }) => {
     if (!sourceDigest || digest !== sourceDigest) throw new Error(`Checksum mismatch for ${piece.path}`);
     return { algo: 'sha1', digest };
   }
-  if (!parsed || !['sha1', 'xxh64'].includes(parsed.algo)
-    || !(parsed.algo === 'sha1' ? /^[a-f0-9]{40}$/ : /^[a-f0-9]{16}$/).test(parsed.digest)) {
+  if (!parsed || !['sha1', 'sha256', 'xxh64'].includes(parsed.algo)
+    || !new RegExp(`^[a-f0-9]{${{ sha1: 40, sha256: 64, xxh64: 16 }[parsed.algo]}}$`).test(parsed.digest)) {
     throw new Error(`Invalid or unsupported checksum for ${piece.path}: ${piece.checksum}`);
   }
-  if (parsed.algo === 'sha1') {
-    const actual = (await sha1File(targetPath)).toLowerCase();
+  if (parsed.algo === 'sha1' || parsed.algo === 'sha256') {
+    const actual = (await (parsed.algo === 'sha1' ? sha1File : sha256File)(targetPath)).toLowerCase();
     if (actual !== parsed.digest) {
-      throw new Error(`Checksum mismatch for ${piece.path}: sha1:${actual} != ${piece.checksum}`);
+      throw new Error(`Checksum mismatch for ${piece.path}: ${parsed.algo}:${actual} != ${piece.checksum}`);
     }
     return { algo: parsed.algo, digest: actual };
   }
