@@ -1551,8 +1551,10 @@ async function copyResultHitPath(node) {
   vscode.window.showInformationMessage(`PairOfCleats copied ${printablePath}`);
 }
 
-async function reopenLastResults() {
-  const resultSet = getActiveSearchResultSet();
+async function activateSavedResultSet(savedResultSet) {
+  // Reopening selects existing evidence. Only the explicit rerun owner may
+  // dispatch a new query or append a new history entry.
+  const resultSet = searchHistory.find(entry => entry.resultSetId === savedResultSet?.resultSetId);
   if (!resultSet) {
     vscode.window.showInformationMessage('PairOfCleats has no saved search results.');
     return;
@@ -1560,7 +1562,11 @@ async function reopenLastResults() {
   activeSearchResultId = resultSet.resultSetId;
   await persistSearchHistory();
   refreshResultsExplorer();
-  vscode.window.showInformationMessage(`PairOfCleats reopened results for "${resultSet.query}".`);
+  vscode.window.showInformationMessage(`PairOfCleats reopened results for "${resultSet.query}" (saved evidence${resultSet.createdAt ? ` from ${resultSet.createdAt}` : ''}).`);
+}
+
+async function reopenLastResults() {
+  await activateSavedResultSet(getActiveSearchResultSet());
 }
 
 async function rerunResultSet(nodeOrResultSet) {
@@ -1599,7 +1605,7 @@ async function showSearchHistory() {
     }
   );
   if (!selection?.resultSet) return;
-  await rerunResultSet(selection.resultSet);
+  await activateSavedResultSet(selection.resultSet);
 }
 
 async function repeatLastSearch() {

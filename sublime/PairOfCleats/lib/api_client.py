@@ -7,6 +7,41 @@ import urllib.error
 from . import operations
 
 _REQUEST_CONTEXT = threading.local()
+MAX_RESPONSE_BYTES = 20 * 1024 * 1024
+_RESPONSE_BLOCK_BYTES = 64 * 1024
+
+
+class ApiResponseTooLarge(RuntimeError):
+    code = 'api-response-too-large'
+
+    def __init__(self, limit, prefix=b''):
+        super(ApiResponseTooLarge, self).__init__(
+            'API response exceeded the {0}-byte editor limit. Narrow the request or reduce result volume.'.format(limit))
+        self.preview = bytes(prefix[:4096]).decode('utf-8', 'replace')
+
+
+def _read_response(response, handle=None, max_bytes=None):
+    """Bound received bytes for JSON, text and HTTP errors before decoding."""
+    limit = MAX_RESPONSE_BYTES if max_bytes is None else min(MAX_RESPONSE_BYTES, max(1, int(max_bytes)))
+    headers = {str(key).lower(): str(value) for key, value in response.headers.items()}
+    length = headers.get('content-length', '')
+    # urllib supplies wire bytes; unlike fetch, it does not decompress bodies.
+    digits = length.lstrip('0') or '0'
+    if length and all('0' <= char <= '9' for char in length) and (
+            len(digits) > len(str(limit)) or int(digits) > limit):
+        raise ApiResponseTooLarge(limit)
+    data = bytearray()
+    while True:
+        if handle is not None and handle.is_cancelled():
+            raise RuntimeError('API request cancelled.')
+        block = response.read(min(_RESPONSE_BLOCK_BYTES, limit - len(data) + 1))
+        if handle is not None and handle.is_cancelled():
+            raise RuntimeError('API request cancelled.')
+        if not block:
+            return bytes(data)
+        if len(block) > limit - len(data):
+            raise ApiResponseTooLarge(limit, data if data else block)
+        data.extend(block)
 
 
 class ApiResult(object):
@@ -114,44 +149,38 @@ def _open_url(url, timeout_ms=5000, method='GET', payload=None, headers=None):
         request_headers['Content-Type'] = 'application/json'
     request = urllib.request.Request(url, data=data, headers=request_headers, method=method)
 
+    opener = urllib.request.build_opener(_CredentialRedirectGuard())
     try:
-        opener = urllib.request.build_opener(_CredentialRedirectGuard())
         resp = opener.open(request, timeout=timeout)
+    except urllib.error.HTTPError as err:
+        # HTTPError owns a live response too, including authentication/proxy
+        # bodies. It follows the same budget, cancellation and close path.
+        resp = err
+    if handle is not None:
+        with handle.response_lock:
+            handle.response = resp
+    try:
+        if handle is not None and handle.is_cancelled():
+            raise RuntimeError('API request cancelled.')
+        status = resp.getcode() or 0
+        headers = dict(resp.headers.items())
+        data = _read_response(resp, handle)
+        return status, headers, data
+    finally:
         if handle is not None:
             with handle.response_lock:
-                handle.response = resp
+                handle.response = None
         try:
-            if handle is not None and handle.is_cancelled():
-                raise RuntimeError('API request cancelled.')
-            status = resp.getcode() or 0
-            headers = dict(resp.headers.items())
-            data = resp.read()
-        finally:
-            if handle is not None:
-                with handle.response_lock:
-                    handle.response = None
-            try:
-                resp.close()
-            except Exception:
-                pass
-        return status, headers, data
-    except urllib.error.HTTPError as err:
-        try:
-            data = err.read()
+            resp.close()
         except Exception:
-            data = b''
-        finally:
-            err.close()
-        headers = dict(getattr(err, 'headers', {}).items()) if getattr(err, 'headers', None) else {}
-        status = getattr(err, 'code', 0) or 0
-        return status, headers, data
+            pass
 
 
 def request_json(url, timeout_ms=5000, method='GET', payload=None, headers=None):
     status, headers, data = _open_url(url, timeout_ms=timeout_ms, method=method, payload=payload, headers=headers)
     text = (data or b'').decode('utf-8', 'replace')
     if status < 200 or status >= 300:
-        raise RuntimeError('API request failed ({0}): {1}'.format(status, text.strip() or url))
+        raise RuntimeError('API request failed ({0}): {1}'.format(status, text.strip()[:4096] or 'No response detail.'))
     try:
         return json.loads(text or '{}'), headers
     except Exception as exc:
@@ -162,7 +191,7 @@ def request_text(url, timeout_ms=5000, method='GET', payload=None, headers=None)
     status, headers, data = _open_url(url, timeout_ms=timeout_ms, method=method, payload=payload, headers=headers)
     text = (data or b'').decode('utf-8', 'replace')
     if status < 200 or status >= 300:
-        raise RuntimeError('API request failed ({0}): {1}'.format(status, text.strip() or url))
+        raise RuntimeError('API request failed ({0}): {1}'.format(status, text.strip()[:4096] or 'No response detail.'))
     return text, headers
 
 

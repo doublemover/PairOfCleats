@@ -202,27 +202,85 @@ function normalizeApiTimeoutMs(value) {
 
 function summarizeApiHttpFailure(label, status, payload, fallbackText) {
   const bodyMessage = payload && typeof payload === 'object'
-    ? String(payload.message || payload.error || payload.code || '').trim()
+    ? String(payload.message || payload.error || payload.code || '').trim().slice(0, 4096)
     : '';
   if (status === 401) {
     return {
       kind: 'api-unauthorized',
       message: `${label} failed: the PairOfCleats API rejected the request as unauthorized.`,
-      detail: bodyMessage || fallbackText || null
+      detail: bodyMessage || fallbackText?.slice(0, 4096) || null
     };
   }
   if (status === 403) {
     return {
       kind: 'api-forbidden',
       message: `${label} failed: the PairOfCleats API rejected the request as forbidden.`,
-      detail: bodyMessage || fallbackText || null
+      detail: bodyMessage || fallbackText?.slice(0, 4096) || null
     };
   }
   return {
     kind: 'api-http-error',
     message: `${label} failed via the PairOfCleats API (HTTP ${status}).`,
-    detail: bodyMessage || fallbackText || null
+    detail: bodyMessage || fallbackText?.slice(0, 4096) || null
   };
+}
+
+// Fetch exposes decoded bytes, so Content-Length is only an early admission
+// hint for identity encoding. The stream remains authoritative for every body.
+async function readApiResponseText(response, { signal, maxBytes = DEFAULT_MAX_BUFFER_BYTES } = {}) {
+  const limit = Number.isSafeInteger(maxBytes) && maxBytes > 0
+    ? Math.min(maxBytes, DEFAULT_MAX_BUFFER_BYTES) : DEFAULT_MAX_BUFFER_BYTES;
+  const blocks = [];
+  let block = null, used = 0, total = 0, reader = null, cancelled = false;
+  const tooLarge = (incoming = null) => {
+    const error = new Error(`API response exceeded the ${limit}-byte editor limit. Narrow the request or reduce result volume.`);
+    error.code = 'ERR_API_RESPONSE_TOO_LARGE';
+    const prefix = blocks[0] || block?.subarray(0, used) || incoming;
+    error.preview = prefix ? Buffer.from(prefix.subarray(0, 4096)).toString('utf8') : '';
+    return error;
+  };
+  const cancel = async (reason) => {
+    if (cancelled) return;
+    cancelled = true;
+    try { await (reader ? reader.cancel(reason) : response.body?.cancel?.(reason)); } catch {}
+  };
+  const abort = () => { void cancel(signal.reason); };
+  try {
+    const length = response.headers?.get?.('content-length');
+    const encoding = response.headers?.get?.('content-encoding');
+    if ((!encoding || encoding.toLowerCase() === 'identity') && /^\d+$/.test(length || '') && Number(length) > limit) {
+      throw tooLarge();
+    }
+    if (signal?.aborted) throw signal.reason;
+    if (!response.body) return '';
+    reader = response.body.getReader();
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) throw signal.reason;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (signal?.aborted) throw signal.reason;
+      if (done) break;
+      if (!(value instanceof Uint8Array)) throw new Error('API response stream did not supply bytes.');
+      if (value.byteLength > limit - total) throw tooLarge(value);
+      total += value.byteLength;
+      for (let offset = 0; offset < value.byteLength;) {
+        if (!block) block = Buffer.allocUnsafe(Math.min(64 * 1024, limit - (total - value.byteLength + offset)));
+        const count = Math.min(block.length - used, value.byteLength - offset);
+        block.set(value.subarray(offset, offset + count), used);
+        used += count; offset += count;
+        if (used === block.length) { blocks.push(block); block = null; used = 0; }
+      }
+    }
+    if (used) blocks.push(block.subarray(0, used));
+    const text = Buffer.concat(blocks, total).toString('utf8');
+    return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  } catch (error) {
+    await cancel(error);
+    throw error;
+  } finally {
+    signal?.removeEventListener('abort', abort);
+    reader?.releaseLock();
+  }
 }
 
 async function requestApiJson(baseUrl, requestPath, {
@@ -231,7 +289,8 @@ async function requestApiJson(baseUrl, requestPath, {
   headers = null,
   timeoutMs = DEFAULT_API_TIMEOUT_MS,
   label = 'PairOfCleats API request',
-  signal = null
+  signal = null,
+  maxResponseBytes = DEFAULT_MAX_BUFFER_BYTES
 } = {}) {
   if (signal?.aborted) return { ok: false, kind: 'cancelled', message: `${label} was cancelled.` };
   const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
@@ -270,7 +329,7 @@ async function requestApiJson(baseUrl, requestPath, {
       redirect: 'error',
       signal: controller?.signal
     });
-    const text = await response.text();
+    const text = await readApiResponseText(response, { signal: controller?.signal, maxBytes: maxResponseBytes });
     let body = null;
     if (text.trim()) {
       try {
@@ -279,14 +338,14 @@ async function requestApiJson(baseUrl, requestPath, {
         if (!response.ok) {
           return {
             ok: false,
-            ...summarizeApiHttpFailure(label, response.status, null, text.trim() || error.message)
+            ...summarizeApiHttpFailure(label, response.status, null, text.trim().slice(0, 4096) || error.message)
           };
         }
         return {
           ok: false,
           kind: 'api-invalid-json',
           message: `${label} failed: PairOfCleats API returned invalid JSON.`,
-          detail: text.trim() || error.message
+          detail: text.trim().slice(0, 4096) || error.message
         };
       }
     }
@@ -298,14 +357,18 @@ async function requestApiJson(baseUrl, requestPath, {
     }
     return { ok: true, payload: body || {} };
   } catch (error) {
-    const isAbort = error?.name === 'AbortError';
+    if (error?.code === 'ERR_API_RESPONSE_TOO_LARGE') return {
+      ok: false, kind: 'api-response-too-large', message: `${label} failed: ${error.message}`,
+      detail: error.preview || null
+    };
+    const isAbort = controller?.signal.aborted || error?.name === 'AbortError';
     return {
       ok: false,
       kind: signal?.aborted ? 'cancelled' : isAbort ? 'api-timeout' : 'api-request-error',
       message: signal?.aborted ? `${label} was cancelled.` : isAbort
         ? `${label} timed out after ${normalizeApiTimeoutMs(timeoutMs)}ms.`
         : `${label} failed: ${error?.message || error}`,
-      detail: String(error?.stack || error?.message || error)
+      detail: String(error?.stack || error?.message || error).slice(0, 4096)
     };
   } finally {
     clearTimeout(timeout);

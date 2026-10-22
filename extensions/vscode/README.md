@@ -28,6 +28,11 @@ Saved searches populate the `PairOfCleats Results` explorer view. From there you
 - reveal hit files in the explorer
 - copy hit paths
 
+Search History reopens the stored hits, repository identity and recorded evidence
+without contacting the CLI or API. Repeat Last Search and Rerun Result Set are
+explicit refresh actions that create a new result set. Saved evidence does not
+establish the current worktree or index state.
+
 ## Operational workflows
 
 Long-running workflows stream into the `PairOfCleats` output channel.
@@ -66,6 +71,11 @@ guidance. Executable CLI commands retain their own invocation behavior.
 The extension honors the `pairofcleats.*` VS Code settings documented in:
 
 - `docs/guides/editor-integration.md`
+
+API response bodies have the same 20 MiB byte ceiling as CLI capture. Both
+successful and error bodies are counted while streaming; oversized responses
+are cancelled and reported as `api-response-too-large`. Reduce the result scope
+or volume before retrying. Retained HTTP error previews contain at most 4,096 characters.
 
 For the CLI contract and packaging behavior, see:
 

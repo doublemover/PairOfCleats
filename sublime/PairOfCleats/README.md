@@ -59,6 +59,10 @@ Core:
 - `history_limit`: Maximum queries stored per project.
 
 API:
+- Success and error response bodies have a 20 MiB byte ceiling before decoding.
+  An oversized response is closed and reported as `api-response-too-large`;
+  narrow the request or reduce result volume. HTTP error text and overflow
+  previews contain at most 4,096 characters.
 - `api_server_url`: Base URL for API-backed workflows.
 - Authenticated servers use `PAIROFCLEATS_API_TOKEN` from User Settings `env`,
   falling back to the editor process environment. Credentials are sent only to

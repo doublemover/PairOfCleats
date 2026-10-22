@@ -222,6 +222,8 @@ function createFakeFetch(fetchCalls, queuedFetchResults, implementation = null) 
     return {
       ok: result?.ok ?? (status >= 200 && status < 300),
       status,
+      headers: new Headers(result?.headers),
+      body: new Response(responseText).body,
       async text() {
         return responseText;
       }
