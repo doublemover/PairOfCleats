@@ -6,6 +6,7 @@ import { updateStackVisibility } from './stack-scene.js';
 import { selectionEndpointMatcher, endpointFile } from './selection-endpoints.js';
 import { fitOrthographicBounds, usableViewport, visibleWorldBounds } from './camera-fit.js';
 import { renderRemoteMembers, renderRemoteSourceDetails } from './remote-navigation.js';
+import { projectPipeSemantics } from './rendering/pipe-semantics.js';
 const makeButton=(label,callback)=>{const button=document.createElement('button');button.textContent=label;button.type='button';button.onclick=callback;return button;};
 const entityKey=info=>info?.type==='member'?JSON.stringify(['member',typeof info.id,info.id]):info?.file?JSON.stringify(['file',info.file]):null;
 export function focusStack(info=null){
@@ -95,7 +96,7 @@ export function initStackNavigation(){
   filter.oninput=()=>{treeOffset=0;state.remoteDirectory=null;renderTree();};
   const sourceDetails=info=>{
     if(state.remoteSource){renderRemoteSourceDetails(state.dom.selectionBody,info,{navigate:navigateStack,openSource:openSelection});return;}
-    const file=state.sourceIndex?.files.get(info.file)||state.nodeByPath?.get(info.file),source=info.type==='member'?state.sourceIndex?.members.get(String(info.id))?.member||(file?.members||[]).find(row=>String(row.id)===String(info.id)):file;
+    const file=state.sourceIndex?.files.get(info.file)||state.nodeByPath?.get(info.file),source=info.type==='member'?state.sourceIndex?.member?.(info.id)?.member||(file?.members||[]).find(row=>row.id===info.id):file;
     if(state.config.openUriTemplate)state.dom.selectionBody.append(makeButton('Open inspected source',openSelection));
     else if(state.config.sourceNavigation?.available===false)state.dom.selectionBody.append(document.createTextNode(state.config.sourceNavigation.reason));
     if(!state.selectionFocusAvailable&&state.revealSourceSelection)state.dom.selectionBody.append(makeButton('Reveal in bounded render working set',()=>state.revealSourceSelection(info)));
@@ -138,9 +139,11 @@ export function initStackNavigation(){
     const heading=document.createElement('h3');heading.textContent=`${tier} dependency plumbing · currently visible filters`;host.append(heading);
     let offset=0;const more=makeButton('More pipes',append);
     function append(){more.remove();for(const row of rows.slice(offset,offset+40)){
-      host.append(makeButton(`${row.type} · ${row.fromGroup||row.fromFile} → ${row.toGroup||row.toFile} · ${row.count} source relations`,()=>{
+      const semantic=projectPipeSemantics(row,tier);
+      host.append(makeButton(`${semantic.textCue} · ${row.fromGroup||row.fromFile} → ${row.toGroup||row.toFile} · ${row.count} source relations`,()=>{
         host.replaceChildren(inspectValue(row));
-        if(tier==='pipeline')for(const [label,key] of [['source',row.fromGroup],['target',row.toGroup]])host.append(makeButton(`Find ${label} directory: ${key}`,()=>{filter.value=key==='(root)'?'':key+'/';renderTree();}));
+        host.append(document.createTextNode(semantic.textCue));
+        if(tier==='pipeline')for(const [label,key] of [['source',row.fromGroup],['target',row.toGroup]])host.append(makeButton(`Find ${label} directory: ${key}`,()=>{treeOffset=0;if(state.remoteSource){state.remoteDirectory=key==='(root)'?null:key;filter.value='';}else filter.value=key==='(root)'?'':key+'/';renderTree();}));
         else for(const [label,file,member] of [['source',row.fromFile,row.fromMember],['target',row.toFile,row.toMember]])host.append(makeButton(`Go to ${label}`,()=>navigateStack({type:tier==='segments'&&member!=null?'member':'file',file,id:member})));
       }));
     }offset+=40;if(offset<rows.length)host.append(more);}

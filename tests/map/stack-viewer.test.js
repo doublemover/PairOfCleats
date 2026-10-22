@@ -36,6 +36,7 @@ for(const key of ['fileMeshes','fileInstancedMeshes','fileInstancedInnerMeshes',
 for(const key of ['fileInstanceByKey','fileColorByPath','fileAnchors','memberInstanceById','memberColorById','memberClusterByMemberId','memberAnchors','edgeTypeGroups','fileWireByKey','wireByMesh','fileMeshByKey','memberMeshById','fileBucketByKey'])state[key]=new Map();
 state.highlightedMemberIds=new Set();state.highlightedFileKeys=new Set();
 initMapData();computeLayout();initStackNavigation();buildMeshes();buildEdges();
+assert.ok(state.stackPipeLayers.filter(layer=>layer.level!==state.stackTier).every(layer=>layer.mesh===null&&layer.owner.geometries.length===0),'inactive fine levels allocate no vertex buffers or materials');
 // Selection changes may affect visibility without changing full-level vertices.
 for(const tier of ['pipeline','stacks','segments']){
   state.stackMode=tier;state.stackAllConnections=true;updateStackVisibility(true);
@@ -64,14 +65,15 @@ assert.match(state.dom.selectionBody.textContent,/→ call/,'typed summary agree
 assert.equal(state.drawCounts.members,3);assert.equal(state.chunkMeshes.length,0,'no invented decorative chunks');
 for(const mesh of [...state.fileInstancedMeshes,...state.memberInstancedMeshes]){for(let index=0;index<mesh.count;index++){const matrix=new THREE.Matrix4();mesh.getMatrixAt(index,matrix);assert.ok(matrix.elements.every(Number.isFinite));assert.ok(matrix.determinant()>0);}}
 navigateStack({type:'member',id:0,file:'input/read.ts',name:'receive'});assert.equal(state.selectedInfo.id,0);assert.match(state.dom.selectionBody.textContent,/Directed relationships/);assert.match(state.dom.selectionBody.textContent,/All source fields/);
-state.stackMode='segments';updateStackVisibility(true);const active=state.stackPipeLayers.filter(row=>row.mesh.visible);assert.ok(active.length);assert.match(document.getElementById('stack-status').textContent,/1 visible pipes/);
+state.stackMode='segments';updateStackVisibility(true);const active=state.stackPipeLayers.filter(row=>row.mesh?.visible);assert.ok(active.length);assert.match(document.getElementById('stack-status').textContent,/1 visible pipes/);
 navigateStack({type:'member',id:2,file:'output/write.ts',name:'emit'});document.getElementById('stack-back').click();assert.equal(state.selectedInfo.id,0);document.getElementById('stack-forward').click();assert.equal(state.selectedInfo.id,2);
 const search=document.getElementById('stack-search');search.value='receive';search.dispatchEvent(new window.Event('input'));assert.match(document.getElementById('stack-tree').textContent,/receive/);assert.doesNotMatch(document.getElementById('stack-tree').textContent,/output\/write/);
 for(let index=0;index<20;index++){state.stackMode=['pipeline','stacks','segments'][index%3];updateStackVisibility(true);}assert.equal(state.stackPipeLayers.length,6);assert.ok(state.camera.position.toArray().every(Number.isFinite));
 document.getElementById('stack-plumbing').click();assert.match(state.dom.selectionBody.textContent,/dependency plumbing/);assert.match(state.dom.selectionBody.textContent,/source relations/);
 const oldGeometry=state.stackPipeLayers[0].mesh.geometry;let disposed=false;oldGeometry.addEventListener('dispose',()=>{disposed=true;});
-const retired=new Map();for(const layer of state.stackPipeLayers)for(const geometry of layer.mesh.userData.ownedGeometries){retired.set(geometry,0);geometry.addEventListener('dispose',()=>retired.set(geometry,retired.get(geometry)+1));}
-clearGroup(state.edgeGroup);assert.equal(disposed,true);assert.equal(state.edgeGroup.children.length,0);
+const retired=new Map();for(const owner of state.stackPipeOwners)for(const geometry of owner.geometries){retired.set(geometry,0);geometry.addEventListener('dispose',()=>retired.set(geometry,retired.get(geometry)+1));}
+clearGroup(state.edgeGroup);assert.equal(disposed,false,'generic group teardown defers retained geometry to its owner');
+for(const owner of state.stackPipeOwners)owner.dispose();assert.equal(disposed,true);assert.equal(state.edgeGroup.children.length,0);
 assert.ok([...retired.values()].every(count=>count===1),'full and selected-neighborhood geometries retire exactly once');
 Object.assign(state,{scene:new THREE.Scene(),visualDefaults,controlDefaults:{zoomMin:0.05,zoomMax:80},fogBounds:{maxSpan:80},lineResolution:{width:1200,height:750},cameraBase:40,groundPlane:new THREE.Plane(new THREE.Vector3(0,1,0),0),lockIsometric:()=>{},cameraInitialized:true,flowLights:[]});
 for(let index=0;index<3;index++)rebuildScene();

@@ -510,6 +510,11 @@ export const initControls = () => {
         `edges: ${edgeCount}`
       ];
       if (heapMb !== null) parts.push(`heap: ${heapMb}MB`);
+      if(state.pipeBufferMetrics){
+        parts.push(`pipe vertex capacity: ${state.pipeBufferMetrics.attributeCapacityBytes}B`);
+        parts.push(`pipe writes requested: ${state.pipeBufferMetrics.requestedUploadBytes}B`);
+      }
+      if(perfStats.renderer)parts.push(`last submission calls: ${perfStats.renderer.calls ?? 'unavailable'}`);
       state.dom.perfHud.textContent = parts.join(' | ');
       state.dom.perfHud.style.display = 'block';
     } else if (state.dom?.perfHud && !state.performance?.hud?.enabled) {
@@ -527,6 +532,11 @@ export const initControls = () => {
     refreshHoverCamera();
     hover.frame();
     renderer.render(state.scene, camera);
+    const renderInfo=renderer.info;
+    perfStats.renderer=renderInfo?{calls:renderInfo.render?.calls??null,triangles:renderInfo.render?.triangles??null,
+      lines:renderInfo.render?.lines??null,points:renderInfo.render?.points??null,
+      geometries:renderInfo.memory?.geometries??null,textures:renderInfo.memory?.textures??null,
+      programs:renderInfo.programs?.length??null,scope:'last renderer submission; resource counts are renderer caches, not GPU byte measurements'}:null;
     perfStats.submissionMs=Math.round((performance.now()-started)*100)/100;
     return hasEffects()||Object.keys(keys).length>0||velocity.lengthSq()>0.000001||Math.abs(zoomVelocity)>0.0001||dragging;
   };

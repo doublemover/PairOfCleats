@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { projectPipeRows, projectViewerCoverage } from '../../src/map/isometric/client/coverage.js';
 import { settingSupported } from '../../src/map/isometric/client/setting-capabilities.js';
 
-const rows=[{fromFile:'a',toFile:'b',fromMember:'0',toMember:'id:b',count:1},
-  {fromFile:'b',toFile:'a',fromMember:'id:b',toMember:'0',count:2}];
+const rows=[{fromFile:'a',toFile:'b',fromMember:0,toMember:'id:b',count:1},
+  {fromFile:'b',toFile:'a',fromMember:'id:b',toMember:0,count:2}];
 const options={level:'segments',tier:'segments',selected:{type:'member',id:0}};
 assert.equal(projectPipeRows(rows,options).length,2);
 assert.deepEqual(projectPipeRows(rows,{...options,typeVisible:false}),[]);

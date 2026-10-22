@@ -198,3 +198,25 @@ legacy adapter; identity is never recovered from an instance slot or by parsing 
 semantic ID. Typed source indexes prefer exact identity before an unambiguous
 legacy text alias. Saved artifact admission still rejects String-equivalent
 duplicate member identities; this migration does not broaden that admission rule.
+
+Pipe layer descriptors now defer vertex buffers and materials until their tier,
+type and endpoint neighborhood are actually visible. Each committed layer owns
+one lazily filled full-level buffer and one capacity-retaining current-neighborhood
+buffer. Changing the neighborhood rewrites changed slots using the original
+layer ordinal, so filtering does not reroute unchanged evidence. Pending attribute
+ranges merge while rendering is suspended. Hidden types and repeated unchanged
+selections retain their buffers; previous neighborhoods do not accumulate caches.
+Scene replacement, cancelled detached preparation, rebuild and teardown retire
+these owners separately from generic group disposal. Route validation precedes
+accepted-buffer mutation. Capacity, allocations, computed route rows and requested
+attribute bytes are source operation counters; GPU upload bytes remain unavailable.
+The optional Performance HUD also exposes the last renderer submission's calls
+and renderer cache resource counts, without treating them as measured GPU memory.
+
+Plumbing inspection now carries type, original source certainty and an explicit
+static directed relationship cue. Mixed aggregates keep their constituent source
+certainty labels and evidence references. Deterministic reciprocal side/lane
+routing uses the committed layer address, not a changing subset position. The
+pattern grammar is metadata/text in this slice; the accepted thin-line backend
+has not been replaced with width-capable physical cores, nor have overlap pixels,
+dash rendering, glass capture or resource/frame budgets been qualified.
