@@ -124,3 +124,19 @@ locations and allocation reservations resolve against that child directory.
 The installer refuses a changed launch directory before preparation. Ambiguous
 Windows drive-relative overrides require an absolute selection; they are not
 silently resolved against the installer's ambient drive directory.
+
+Verifier success, verifier errors and reconciliation all require an explicit
+`pending:false` alongside the exact resource ID and `settled:true`. Omitting
+that field retains the transaction and its storage owners. The actual Go
+subprocess adapter produces error settlement only from its no-spawn or existing
+close/tree reconciliation evidence; an arbitrary verifier throw is unknown.
+Retained sibling verifiers hold durable resource leases on their physical owner
+and tooling category, so a dead initiating PID cannot make that sibling idle.
+
+Managed descriptors, source records, file inventories and ownership receipts
+use one registered persisted vocabulary. Unknown receipt/source retention fields
+block consumer selection and lifecycle removal, even when known byte digests
+still match. Recording an unknown `pinned` or forensic field cannot make that
+evidence disposable. The actual async inventory hashes bounded files through
+the shared contained-descriptor verifier, rather than reopening an unchecked
+pathname after a metadata observation.

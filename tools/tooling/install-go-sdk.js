@@ -45,11 +45,23 @@ const ensureChildDirectory = async (parent, name) => {
 };
 
 const probeInstalledSdk = async (command, { cwd, env, signal, resourceId }) => {
-  const result = await spawnResolvedSubprocess(command, ['version'], { cwd, env, signal,
-    timeoutMs: 10000, outputEncoding: 'utf8', maxOutputBytes: 65536, rejectOnNonZeroExit: false });
-  return { ok: result.exitCode === 0 && !result.signal && !result.outputCapture?.stdout?.truncated,
-    status: result.exitCode, signal: result.signal || null, stdout: result.stdout || '',
-    settlement: { resourceId, settled: true, pending: false } };
+  let spawned = false;
+  try {
+    const result = await spawnResolvedSubprocess(command, ['version'], { cwd, env, signal,
+      timeoutMs: 10000, outputEncoding: 'utf8', maxOutputBytes: 65536, rejectOnNonZeroExit: false,
+      onSpawn: () => { spawned = true; } });
+    return { ok: result.exitCode === 0 && !result.signal && !result.outputCapture?.stdout?.truncated,
+      status: result.exitCode, signal: result.signal || null, stdout: result.stdout || '',
+      settlement: { resourceId, settled: true, pending: false } };
+  } catch (error) {
+    const termination = error.result?.termination;
+    const settled = !spawned || error.cacheOwnershipReleased?.() === true
+      || (termination?.closeObserved === true && termination.treeCleanupSettled === true && termination.treeCleanupFailed === false);
+    if (settled) Object.defineProperty(error, 'settlement', { configurable: true,
+      value: { resourceId, settled: true, pending: false } });
+    else error.cacheOwnershipPending = true;
+    throw error;
+  }
 };
 
 const checkSdkLayout = async (goRoot, archive) => {
@@ -149,8 +161,16 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
     const env = applyManagedGoEnvironment(baseEnv, { toolingRoot, sdk });
     env.GOENV = 'off';
     env.GOWORK = 'off';
-    const probe = await (dependencies.probe || probeInstalledSdk)(command, { cwd: cwd || transaction, env, signal, resourceId });
-    if (probe?.settlement?.resourceId !== resourceId || probe.settlement.settled !== true || probe.settlement.pending === true) {
+    let probe;
+    try { probe = await (dependencies.probe || probeInstalledSdk)(command, { cwd: cwd || transaction, env, signal, resourceId }); }
+    catch (cause) {
+      const error = cause && typeof cause === 'object' ? cause : new Error(String(cause), { cause });
+      if (error?.settlement?.resourceId !== resourceId || error.settlement.settled !== true || error.settlement.pending !== false) {
+        error.cacheOwnershipPending = true;
+      }
+      throw error;
+    }
+    if (probe?.settlement?.resourceId !== resourceId || probe.settlement.settled !== true || probe.settlement.pending !== false) {
       throw Object.assign(new Error('Go SDK verification did not confirm its exact child/resource settlement.'),
         { code: 'ERR_GO_SDK_VERIFY_PENDING', cacheOwnershipPending: true });
     }

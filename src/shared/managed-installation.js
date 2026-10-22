@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { assertNoSymlinkPath } from './contained-file.js';
 import { hashManagedToolFile, readManagedToolText } from './managed-tool-file.js';
 import { stableStringify } from './stable-json.js';
+import { isKnownManagedInstallationReceipt } from './managed-installation-contract.js';
 export { retainManagedToolInstallation, retainManagedToolInstallationSync, inspectManagedInstallationSync } from './managed-installation-retain.js';
 
 const identity = value => createHash('sha256').update(stableStringify(value)).digest('hex');
@@ -17,7 +18,7 @@ export const resolveManagedToolInstallation = (toolingRoot, toolId) => {
     const receipt = JSON.parse(readManagedToolText(path.join(owner, 'receipts', selector.installId + '.json'), 8 * 1024 * 1024));
     const root = path.join(owner, 'generations', selector.installId);
     const descriptor = receipt.descriptor;
-    if (receipt.schemaVersion !== 1 || receipt.application !== 'pairofcleats' || receipt.toolId !== toolId || receipt.root !== root
+    if (!isKnownManagedInstallationReceipt(receipt) || receipt.toolId !== toolId || receipt.root !== root
       || receipt.installId !== selector.installId || receipt.descriptorId !== selector.descriptorId || identity(descriptor) !== selector.descriptorId
       || receipt.selectorIdentity !== identity(selector) || descriptor.platform !== process.platform || descriptor.arch !== process.arch
       || identity(selector) !== identity({ schemaVersion: 1, toolId, descriptorId: selector.descriptorId, installId: selector.installId })

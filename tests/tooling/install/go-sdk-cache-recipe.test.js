@@ -166,6 +166,22 @@ try {
   actualProbeClosed = true;
   assert.equal(await pendingFailure.goSdkInstallSession.releaseAfterClosure(), true);
   assert.deepEqual(await fs.readdir(path.join(pendingRoot, 'sdk/go')), []);
+  const incompleteRoot = path.join(root, 'incomplete-verifier-settlement');
+  let incompleteClosed = false;
+  const incompleteFailure = Object.assign(new Error('fixture verifier omitted explicit pending state'), {
+    cacheOwnershipReleased: () => incompleteClosed
+  });
+  await assert.rejects(ensureManagedGoSdk({ toolingRoot: incompleteRoot, storageEstimate, cwd: root, platform: 'linux', arch: 'x64',
+    dependencies: createDependencies({ probe: async (_command, { resourceId }) => {
+      incompleteFailure.settlement = { resourceId, settled: true };
+      throw incompleteFailure;
+    } }) }), error => error === incompleteFailure && error.cacheOwnershipPending === true);
+  assert.ok((await fs.readdir(path.join(incompleteRoot, 'sdk/go'))).some(name => name.startsWith('.install-')),
+    'missing explicit pending:false cannot authorize transaction cleanup');
+  await assert.rejects(incompleteFailure.goSdkInstallSession.releaseAfterClosure(), /remains pending/);
+  incompleteClosed = true;
+  assert.equal(await incompleteFailure.goSdkInstallSession.releaseAfterClosure(), true);
+  assert.deepEqual(await fs.readdir(path.join(incompleteRoot, 'sdk/go')), []);
   const runtimeMarker = path.join(sdk.goRoot, 'src/runtime/runtime.go');
   await fs.rm(runtimeMarker);
   assert.equal(resolveManagedGoSdk(toolingRoot, { platform: 'linux', arch: 'x64' }), null,

@@ -7,6 +7,7 @@ import { readManagedToolText } from './managed-tool-file.js';
 import { stableStringify } from './stable-json.js';
 import { acquireRepoCacheAccessLease } from './cache/repo-access.js';
 import { resolveStorageLayout } from './storage/layout.js';
+import { isKnownManagedInstallationReceipt } from './managed-installation-contract.js';
 
 const identity = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const safeRelative = value => typeof value === 'string' && value.length <= 4096
@@ -76,7 +77,7 @@ export const inspectManagedInstallationSync = ({ toolingRoot, toolId, descriptor
     const receipt = boundedJson(receiptPath);
     const root = path.join(owner, 'generations', selector.installId);
     const descriptor = receipt.descriptor;
-    if (receipt.schemaVersion !== 1 || receipt.application !== 'pairofcleats' || receipt.toolId !== toolId
+    if (!isKnownManagedInstallationReceipt(receipt) || receipt.schemaVersion !== 1 || receipt.application !== 'pairofcleats' || receipt.toolId !== toolId
       || receipt.installId !== selector.installId || receipt.descriptorId !== selector.descriptorId || receipt.root !== root
       || receipt.selectorIdentity !== identity(expected) || identity(descriptor) !== selector.descriptorId
       || descriptor?.schemaVersion !== 1 || descriptor.toolId !== toolId || descriptor.platform !== process.platform || descriptor.arch !== process.arch

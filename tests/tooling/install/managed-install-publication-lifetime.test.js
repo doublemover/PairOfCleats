@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { installPinnedManagedTool, inspectManagedInstallation, retainManagedToolInstallation, inspectManagedToolRemoval, removePinnedManagedTool } from '../../../tools/tooling/managed-install.js';
+import { installPinnedManagedTool, inspectManagedInstallation, retainManagedToolInstallation, inspectManagedToolRemoval, removePinnedManagedTool, validatePinnedInstallDescriptor } from '../../../tools/tooling/managed-install.js';
 import { resolveManagedToolInstallation, retainManagedToolInstallationSync } from '../../../src/shared/managed-installation.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
+import { inspectStorageAccess } from '../../../src/shared/storage/access.js';
 
 const suite = path.join(process.cwd(), '.tmp', 'tasks', 'managed-install-publication-lifetime');
 await fs.mkdir(suite, { recursive: true });
@@ -32,6 +33,9 @@ try {
       },
       verify: async ({ command, resourceId }) => ({ ok: (await fs.readFile(command, 'utf8')).includes('fixture'), level: 'fixture-only', settlement: { resourceId, settled: true, pending: false } })
     };
+    assert.throws(() => validatePinnedInstallDescriptor({ ...descriptor('1.0.0'), pinned: true },
+      { approvedOrigins: dependencies.approvedOrigins }), /canonical tool\/profile\/recipe descriptor/,
+    'unknown retention semantics cannot be adopted as a canonical installation recipe');
     const first = await installPinnedManagedTool({ toolingRoot, descriptor: descriptor('1.0.0'), ...dependencies });
     assert.equal(first.ok, true);
     assert.equal(resolveManagedToolInstallation(toolingRoot, 'fixture-tool').command, first.command);
@@ -46,6 +50,8 @@ try {
     assert.equal((await inspectManagedToolRemoval({ toolingRoot, toolId: 'fixture-tool' })).state, 'blocked', 'failed verifier without settlement retains consumer ownership');
     const pendingSession = pendingVerification.managedInstallSession;
     assert.throws(() => pendingSession.releaseAfterSettlement({ resourceId: 'another-resource', settled: true }), /remains pending/);
+    assert.throws(() => pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true }), /remains pending/,
+      'omitted pending is not exact settlement evidence');
     assert.equal(pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true, pending: false }), true);
     const held = await retainManagedToolInstallation({ toolingRoot, toolId: 'fixture-tool' });
     const blocked = await installPinnedManagedTool({ toolingRoot, descriptor: descriptor('2.0.0'), ...dependencies });
@@ -60,18 +66,36 @@ try {
     const resumed = await installPinnedManagedTool({ toolingRoot, descriptor: descriptor('2.0.0'), ...dependencies });
     assert.equal(resumed.ok, true);
     assert.equal(downloads, 2, 'resuming verified sibling does not reacquire archive');
+    let pendingSibling;
+    const siblingDescriptor = descriptor('2.1.0');
+    const heldForSibling = await retainManagedToolInstallation({ toolingRoot, toolId: 'fixture-tool' });
+    assert.equal((await installPinnedManagedTool({ toolingRoot, descriptor: siblingDescriptor, ...dependencies })).state, 'verified-awaiting-owner-release');
+    heldForSibling.release();
+    await assert.rejects(installPinnedManagedTool({ toolingRoot, descriptor: siblingDescriptor, ...dependencies,
+      verify: async ({ resourceId }) => { throw Object.assign(new Error('fixture sibling verifier missing explicit pending state'),
+        { settlement: { resourceId, settled: true } }); } }), error => { pendingSibling = error; return error.cacheOwnershipPending === true; });
+    const siblingOwner = path.join(toolingRoot, 'installs', 'fixture-tool');
+    const siblingAccess = await inspectStorageAccess(siblingOwner,
+      { coordinationRoot: path.join(root, 'home', 'state', 'storage-access') });
+    assert.equal(siblingAccess.owners.some(owner => owner.status === 'resource-settlement-unconfirmed'
+      && owner.resourceId === pendingSibling.managedInstallSession.resourceId), true,
+    'retained sibling verification uses the durable exact-resource owner');
+    await pendingSibling.managedInstallSession.releaseAfterSettlement({ resourceId: pendingSibling.managedInstallSession.resourceId,
+      settled: true, pending: false });
+    const downloadsBeforeRepair = downloads;
+    // Keep the selected 2.0.0 generation for the original repair/removal checks.
     await fs.writeFile(resumed.command, 'damaged selected installation bytes');
     const drift = await inspectManagedInstallation({ toolingRoot, toolId: 'fixture-tool' });
     assert.equal(drift.state, 'repair-required');
     assert.equal(resolveManagedToolInstallation(toolingRoot, 'fixture-tool'), null, 'drift cannot be selected by consumers');
     await assert.rejects(installPinnedManagedTool({ toolingRoot, descriptor: descriptor('2.0.0'), ...dependencies }), /explicit owned repair/);
-    assert.equal(downloads, 2, 'ordinary install preserves drift without downloading over it');
+    assert.equal(downloads, downloadsBeforeRepair, 'ordinary install preserves drift without downloading over it');
     const repaired = await installPinnedManagedTool({ toolingRoot, descriptor: descriptor('2.0.0'), repair: true, ...dependencies });
     assert.equal(repaired.ok, true);
     assert.equal(repaired.receipt.descriptorId, resumed.receipt.descriptorId, 'repair retains the exact pinned recipe identity');
     assert.notEqual(repaired.receipt.installId, resumed.receipt.installId, 'repair creates a distinct immutable physical generation');
     assert.equal(await fs.readFile(resumed.command, 'utf8'), 'damaged selected installation bytes', 'damaged evidence survives repair');
-    assert.equal(downloads, 3);
+    assert.equal(downloads, downloadsBeforeRepair + 1);
     const failed = descriptor('3.0.0');
     await assert.rejects(installPinnedManagedTool({ toolingRoot, descriptor: failed, ...dependencies,
       verify: async ({ resourceId }) => ({ ok: false, settlement: { resourceId, settled: true, pending: false } }) }), /verification failed/);
@@ -83,6 +107,20 @@ try {
     assert.throws(() => retainManagedToolInstallationSync({ toolingRoot, toolId: 'fixture-tool' }), /unavailable/, 'full shared retain rejects drift outside the launcher');
     await fs.writeFile(library, libraryBytes);
     assert.equal(removal.state, 'owned-and-idle');
+    const receiptFile = path.join(toolingRoot, 'installs', 'fixture-tool', 'receipts', `${repaired.installId}.json`);
+    const receiptBytes = await fs.readFile(receiptFile);
+    for (const patch of [value => ({ ...value, pinned: true }),
+      value => ({ ...value, source: { ...value.source, forensic: true } })]) {
+      const protectedReceipt = Buffer.from(JSON.stringify(patch(JSON.parse(receiptBytes))));
+      await fs.writeFile(receiptFile, protectedReceipt);
+      assert.equal(resolveManagedToolInstallation(toolingRoot, 'fixture-tool'), null,
+        'unknown receipt metadata is not a qualified current consumer');
+      assert.equal((await inspectManagedToolRemoval({ toolingRoot, toolId: 'fixture-tool' })).state, 'blocked');
+      await assert.rejects(removePinnedManagedTool(removal), /plan changed or has an active\/unknown owner/);
+      assert.deepEqual(await fs.readFile(receiptFile), protectedReceipt, 'removal cannot normalize or overwrite retained evidence');
+      assert.deepEqual(await fs.readFile(library), libraryBytes);
+      await fs.writeFile(receiptFile, receiptBytes);
+    }
     assert.equal((await removePinnedManagedTool(removal)).ok, true);
     await assert.rejects(fs.stat(repaired.root), { code: 'ENOENT' });
     assert.equal((await fs.stat(resumed.root)).isDirectory(), true, 'repair evidence survives selected generation removal');
