@@ -20,6 +20,9 @@ const installExitHook = () => {
   exitHookInstalled = true;
   process.once('exit', () => {
     for (const lease of [...held.values(), ...scoped.values()]) {
+      // The initiating PID can exit before an external child or teardown owner.
+      // Only the exact scoped release capability may remove a resource lease.
+      if (lease.payload.resourceSettlementVersion === 1) continue;
       try { removeLockFileSyncIfOwned(lease.file, lease.payload); } catch {}
     }
   });
@@ -37,16 +40,34 @@ export const repoAccessPaths = (repoCacheRoot, { coordinationRoot = null } = {})
   return { root, directory, lockPath: path.join(directory, 'cleanup.lock'), leases: path.join(directory, 'leases') };
 };
 
-/** Admission precedes any cache access; leases cover retained handles until process exit. */
+/** Admission precedes cache access. Ordinary readers last until process exit;
+ * resource owners require their separate explicit settlement capability.
+ */
 const createAccessLease = (paths, options = {}) => {
+  if (options.requireSettlement === true && (typeof options.resourceId !== 'string'
+    || !options.resourceId || options.resourceId.length > 256)) {
+    throw new TypeError('Resource settlement admission requires an exact bounded resource identity.');
+  }
   assertNoRepoCacheDelegation(paths);
   try { assertNoSymlinkPath(path.parse(paths.directory).root, paths.lockPath, { allowMissing: true }); }
   catch (error) { throw Object.assign(new Error('Storage access coordination path is unsafe or unknown.', { cause: error }), { code: 'ERR_REPO_CACHE_ACCESS_UNSAFE' }); }
   fs.mkdirSync(paths.leases, { recursive: true });
   const payload = createLockPayload({ scope: options.scope || 'repo-cache-access', hostname: os.hostname(),
-    ...(typeof options.resourceId === 'string' ? { resourceId: options.resourceId } : {}) });
+    ...(typeof options.resourceId === 'string' ? { resourceId: options.resourceId } : {}),
+    ...(options.requireSettlement === true ? { resourceSettlementVersion: 1 } : {}) });
   const file = path.join(paths.leases, `${payload.lockId}.json`);
-  fs.writeFileSync(file, JSON.stringify(payload), { flag: 'wx' });
+  if (options.requireSettlement === true) {
+    // Publish the fence before any resource starts. A partial/failed write is
+    // unknown protected evidence; do not remove it by PID-based recovery.
+    const descriptor = fs.openSync(file, 'wx');
+    let primary = null;
+    try { fs.writeFileSync(descriptor, JSON.stringify(payload)); fs.fsyncSync(descriptor); }
+    catch (error) { primary = error; throw error; }
+    finally {
+      try { fs.closeSync(descriptor); }
+      catch (error) { if (primary) primary.cleanupError = error; else throw error; }
+    }
+  } else fs.writeFileSync(file, JSON.stringify(payload), { flag: 'wx' });
   // A collector creates its exclusion lock BEFORE inspecting leases. Therefore
   // either it observes our lease, or we observe its lock before touching data.
   if (fs.existsSync(paths.lockPath)) {

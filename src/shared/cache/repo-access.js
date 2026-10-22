@@ -5,7 +5,7 @@ import { removeLockFileSyncIfOwned, isLocalProcessDefinitelyDead } from '../lock
 import { repoAccessPaths, consumeRepoCacheAccessHandoff } from './repo-access-reader.js';
 import { assertNoSymlinkPath, readVerifiedContainedFileSync } from '../contained-file.js';
 import { inspectRepoCacheDelegation } from './repo-access-delegation-guard.js';
-import { isKnownRepoAccessOwner } from './repo-access-owner.js';
+import { isKnownRepoAccessOwner, isKnownRepoResourceOwner } from './repo-access-owner.js';
 export { repoAccessPaths, retainRepoCacheAccess, retainCachePathAccess,
   prepareRepoCacheAccessHandoff, cancelRepoCacheAccessHandoff,
   acquireRepoCacheAccessLease } from './repo-access-reader.js';
@@ -35,7 +35,9 @@ export const inspectRepoCacheAccess = (repoCacheRoot, options = {}) => {
       if (count >= 10000) { active.push({ reason: 'lease-inventory-budget' }); break; }
       const file = path.join(paths.leases, entry.name);
       const lease = entry.isFile() ? readOwner(file) : null;
-      if (!isKnownRepoAccessOwner(lease) || entry.name !== `${lease.lockId}.json` || !isLocalProcessDefinitelyDead(lease.pid)) {
+      if (isKnownRepoResourceOwner(lease) && entry.name === `${lease.lockId}.json`) {
+        active.push({ pid: lease.pid, resourceId: lease.resourceId, reason: 'resource-settlement-unconfirmed' });
+      } else if (!isKnownRepoAccessOwner(lease) || entry.name !== `${lease.lockId}.json` || !isLocalProcessDefinitelyDead(lease.pid)) {
         active.push({ pid: lease?.pid ?? null, reason: !lease ? 'unreadable-lease' : 'live-or-unknown-process-lease' });
       } else if (!removeLockFileSyncIfOwned(file, lease)) {
         active.push({ pid: lease.pid, reason: 'lease-identity-changed' });

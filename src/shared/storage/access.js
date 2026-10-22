@@ -4,7 +4,7 @@ import { repoAccessPaths, retainRepoCacheAccess, withExclusiveRepoCacheCleanup }
 import { isLocalProcessDefinitelyDead } from '../locks/file-lock-info.js';
 import { readVerifiedContainedFile } from '../contained-file.js';
 import { inspectRepoCacheDelegation } from '../cache/repo-access-delegation-guard.js';
-import { isKnownRepoAccessOwner } from '../cache/repo-access-owner.js';
+import { isKnownRepoAccessOwner, isKnownRepoResourceOwner } from '../cache/repo-access-owner.js';
 
 /** Use the existing admission/exclusion handshake for adopted assets as well. */
 export const retainStorageAssetAccess = (root, options = {}) => retainRepoCacheAccess(root, options);
@@ -22,6 +22,10 @@ export const inspectStorageAccess = async (root, options = {}) => {
     try {
       const { buffer } = await readVerifiedContainedFile(path.parse(file).root, file, { maxBytes: 64 * 1024 });
       const value = JSON.parse(buffer.toString('utf8'));
+      const resource = file !== paths.lockPath && isKnownRepoResourceOwner(value)
+        && path.basename(file) === `${value.lockId}.json`;
+      if (resource) return { path: file, pid: value.pid, lockId: value.lockId, resourceId: value.resourceId,
+        status: 'resource-settlement-unconfirmed', protected: true };
       const valid = isKnownRepoAccessOwner(value)
         && (file === paths.lockPath || path.basename(file) === `${value.lockId}.json`);
       const dead = Boolean(valid && isLocalProcessDefinitelyDead(value.pid));

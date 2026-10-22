@@ -22,7 +22,8 @@ export const acquireStorageSession = ({ roots, coordinationRoot, authorizedRoots
   }
   const leases = [];
   try {
-    for (const root of selected) leases.push(acquireRepoCacheAccessLease(root, { coordinationRoot: metadataRoot, scope, resourceId }));
+    for (const root of selected) leases.push(acquireRepoCacheAccessLease(root,
+      { coordinationRoot: metadataRoot, scope, resourceId, requireSettlement: true }));
   } catch (error) {
     for (const lease of leases) lease.release();
     throw error;

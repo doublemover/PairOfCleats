@@ -97,8 +97,10 @@ export const retainManagedToolInstallationSync = options => {
   const selected = inspectManagedInstallationSync(options);
   if (!selected.ok) throw new Error('Managed tool selection is unavailable: ' + selected.state);
   const coordinationRoot = path.join(resolveStorageLayout({ overrides: { tooling: options.toolingRoot } }).descriptors.state.path, 'storage-access');
-  const leases = [acquireRepoCacheAccessLease(options.toolingRoot, { coordinationRoot })];
-  try { leases.push(acquireRepoCacheAccessLease(selected.owner, { coordinationRoot })); }
+  const leaseOptions = { coordinationRoot, resourceId: selected.receipt.installId, requireSettlement: true,
+    scope: 'managed-physical-installation-resource' };
+  const leases = [acquireRepoCacheAccessLease(options.toolingRoot, leaseOptions)];
+  try { leases.push(acquireRepoCacheAccessLease(selected.owner, leaseOptions)); }
   catch (error) { leases[0].release(); throw error; }
   const release = () => leases.map(lease => lease.release()).every(Boolean);
   try {
