@@ -42,3 +42,20 @@ its own task-directory permission owner solely to exercise source copy and
 rollback; that is not platform permission or runtime acceptance evidence.
 Tooling/model category qualification and generic registry/CAS migration remain
 with their dedicated owners.
+
+Dictionary reader failures preserve their original operation error when actual
+stream cleanup also fails. The cleanup evidence and retained lease handle stay
+attached to that primary error. A bounded reader pool likewise drains admitted
+siblings and attaches their failures; any pending sibling marks the terminal
+primary error as pending ownership. Such errors cannot be swallowed as optional
+missing dictionary files merely because the original code was a read failure.
+Frozen or readonly primary errors use an aggregate whose cause and first member
+preserve that exact primary object; pending sibling handles stay attached.
+Nonarray diagnostic metadata is retained on its original error, not interpreted
+as a list of failures.
+Pending failure composition captures the primary's original closure observer
+and every added pending observer before publishing an aggregate predicate. Every
+captured owner must confirm closure; missing or throwing observers stay false.
+An earlier primary confirmation cannot release a later unsettled sibling.
+This error/ownership propagation and its real-stream injected regressions remain
+**UNVALIDATED**; successful dictionary word and case semantics are unchanged.

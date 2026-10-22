@@ -4,6 +4,45 @@ import readline from 'node:readline';
 import { acquireDictionaryStorageRead, isDictionaryStorageAccessError } from './storage/dictionary-access.js';
 
 const DEFAULT_DICTIONARY_READ_CONCURRENCY = 8;
+const asDictionaryError = error => error && typeof error === 'object' ? error : new Error(String(error), { cause: error });
+const captureDictionaryClosure = error => {
+  let observer;
+  try { observer = error.cacheOwnershipReleased; } catch { return { present: true, observe: () => false }; }
+  return { present: typeof observer === 'function',
+    observe: () => { try { return typeof observer === 'function' && observer.call(error) === true; } catch { return false; } } };
+};
+const retainDictionaryFailure = (primary, secondary, field) => {
+  const error = asDictionaryError(primary);
+  const additional = asDictionaryError(secondary);
+  if (error === additional) return error;
+  const failures = [...(Array.isArray(error[field]) ? error[field] : []), additional];
+  const pending = error.cacheOwnershipPending === true || additional.cacheOwnershipPending === true;
+  // Capture function identities before replacing the primary's observer; a
+  // dynamic lookup here would recurse into this newly composed predicate.
+  const closures = [];
+  const primaryClosure = captureDictionaryClosure(error);
+  if (error.cacheOwnershipPending === true || primaryClosure.present) closures.push(primaryClosure.observe);
+  if (additional.cacheOwnershipPending === true) closures.push(captureDictionaryClosure(additional).observe);
+  const allReleased = () => closures.length > 0 && closures.every(observe => observe());
+  try {
+    Object.defineProperty(error, field, { value: failures, configurable: true, writable: true });
+    if (pending && error.cacheOwnershipPending !== true) {
+      Object.defineProperty(error, 'cacheOwnershipPending', { value: true, configurable: true, writable: true });
+    }
+    if (pending) Object.defineProperty(error, 'cacheOwnershipReleased', { value: allReleased, configurable: true, writable: true });
+    return error;
+  } catch {
+    // Provider/native errors may be frozen or carry readonly diagnostics. Keep
+    // that exact primary as cause and first aggregate member instead of losing
+    // it (and its pending sibling) to a metadata-attachment TypeError.
+    const aggregate = new AggregateError([error, additional], error.message || 'Dictionary operation and cleanup failed.', { cause: error });
+    if (typeof error.code === 'string') aggregate.code = error.code;
+    aggregate[field] = failures;
+    if (pending) aggregate.cacheOwnershipPending = true;
+    if (pending) aggregate.cacheOwnershipReleased = allReleased;
+    return aggregate;
+  }
+};
 
 /**
  * Normalize file path inputs into a filtered string list.
@@ -97,7 +136,8 @@ const runWithBoundedConcurrency = async (values, maxConcurrency, worker) => {
       if (index >= values.length) break;
       try { await worker(values[index], index); }
       catch (error) {
-        if (!failed) { failed = true; firstError = error; }
+        if (!failed) { failed = true; firstError = asDictionaryError(error); }
+        else firstError = retainDictionaryFailure(firstError, error, 'dictionarySiblingFailures');
       }
     }
   });
@@ -125,6 +165,7 @@ const readDictionaryWordsFromFile = async (
   let lineReader = null;
   let closed = null;
   let closeFailure = null;
+  let operationError = null;
   try {
     stream = fsSync.createReadStream(dictFile, { encoding: 'utf8' });
     stream.on('error', error => { if (error?.syscall === 'close') closeFailure = error; });
@@ -133,9 +174,16 @@ const readDictionaryWordsFromFile = async (
     for await (const line of lineReader) {
       addDictionaryWordFromLine(line, target, lowerCase);
     }
+  } catch (error) {
+    operationError = asDictionaryError(error);
+    throw operationError;
   } finally {
-    lineReader?.close();
-    stream?.destroy();
+    let cleanupError = null;
+    try { lineReader?.close(); } catch (error) { cleanupError = asDictionaryError(error); }
+    try { stream?.destroy(); } catch (error) {
+      const failure = asDictionaryError(error);
+      cleanupError = cleanupError ? retainDictionaryFailure(cleanupError, failure, 'dictionaryCleanupErrors') : failure;
+    }
     // readline completion/destroy requests are not native handle closure.
     // Keep the exact scoped lease until the ReadStream emits actual close.
     if (closed) await closed;
@@ -144,9 +192,12 @@ const readDictionaryWordsFromFile = async (
         code: 'ERR_DICTIONARY_STORAGE_CLOSE_PENDING', cacheOwnershipPending: true
       });
       Object.defineProperty(error, 'dictionaryStorageAccess', { value: access });
-      throw error;
+      cleanupError = cleanupError ? retainDictionaryFailure(cleanupError, error, 'dictionaryCleanupErrors') : error;
+    } else {
+      try { access.releaseAfterClosure(); }
+      catch (error) { cleanupError = cleanupError ? retainDictionaryFailure(cleanupError, error, 'dictionaryCleanupErrors') : asDictionaryError(error); }
     }
-    access.releaseAfterClosure();
+    if (cleanupError) throw operationError ? retainDictionaryFailure(operationError, cleanupError, 'dictionaryCleanupErrors') : cleanupError;
   }
 };
 

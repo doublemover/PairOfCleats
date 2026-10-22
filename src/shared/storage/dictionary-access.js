@@ -34,4 +34,5 @@ export const acquireDictionaryStorageRead = (target, { root = null, scope = 'dic
   } };
 };
 
-export const isDictionaryStorageAccessError = error => /^ERR_(?:REPO_CACHE_|DICTIONARY_STORAGE_|STORAGE_)/u.test(error?.code || '');
+export const isDictionaryStorageAccessError = error => error?.cacheOwnershipPending === true
+  || /^ERR_(?:REPO_CACHE_|DICTIONARY_STORAGE_|STORAGE_)/u.test(error?.code || '');
