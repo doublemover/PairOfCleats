@@ -11,9 +11,13 @@ const coerceKind = (kind) => (isValidKind(kind) ? kind : null);
 
 function flattenDocumentSymbols(symbols, parentName = '') {
   const out = [];
-  for (const symbol of symbols || []) {
+  const frames=[{symbols,index:0,parentName}],active=new Set([symbols]);
+  while (frames.length) {
+    const frame=frames[frames.length-1];
+    if (frame.index>=frame.symbols.length) { active.delete(frame.symbols);frames.pop();continue; }
+    const symbol=frame.symbols[frame.index++];
     if (!symbol || !symbol.name || !symbol.range) continue;
-    const fullName = parentName ? `${parentName}.${symbol.name}` : symbol.name;
+    const fullName = frame.parentName ? `${frame.parentName}.${symbol.name}` : symbol.name;
     out.push({
       name: symbol.name,
       fullName,
@@ -24,7 +28,8 @@ function flattenDocumentSymbols(symbols, parentName = '') {
       protocolShape: 'DocumentSymbol'
     });
     if (Array.isArray(symbol.children) && symbol.children.length) {
-      out.push(...flattenDocumentSymbols(symbol.children, fullName));
+      if (active.has(symbol.children)) throw new TypeError('Cyclic LSP document symbols are not protocol data.');
+      active.add(symbol.children);frames.push({symbols:symbol.children,index:0,parentName:fullName});
     }
   }
   return out;
