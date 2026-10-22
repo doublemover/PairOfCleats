@@ -52,6 +52,11 @@ labels and assigns each distinct retrieved document to at most one relevant
 slot. Overlapping file and symbol predicates use deterministic maximum matching;
 one hit cannot increase recall or gain twice. Metrics validate unique positive
 ranks and distinct relevant counts instead of clamping impossible results.
+Labels require explicit own nonempty scalar file/name/kind predicates; malformed
+or empty rows cannot match every hit. Explicit modes must identify canonical
+cohorts, and judged assignments require stable observed chunk or file/range
+identity. Sparse ranks and unknown rank-local document identities are unavailable
+evidence. See [response and judgment admission](../contracts/evaluation-response-evidence.md).
 
 Model comparisons use repository/mode-scoped stable chunk or file/range identity.
 Generation-local document ordinals qualify only with an explicit shared index

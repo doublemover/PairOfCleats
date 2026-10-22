@@ -1,4 +1,5 @@
 import { resolveSearchMode } from '../../src/retrieval/cli-args.js';
+import { assertEvaluationMode, captureEvaluationJudgments } from './judgments.js';
 
 const FIELDS = Object.freeze({ code: ['runCode', 'code'], prose: ['runProse', 'prose'],
   'extracted-prose': ['runExtractedProse', 'extractedProse'], records: ['runRecords', 'records'] });
@@ -8,9 +9,9 @@ const FIELDS = Object.freeze({ code: ['runCode', 'code'], prose: ['runProse', 'p
 export const resolveEvaluationCohorts = (rawMode, judgments = []) => {
   const selection = resolveSearchMode(rawMode);
   const modes = Object.keys(FIELDS).filter(mode => selection[FIELDS[mode][0]]);
-  for (const expected of judgments) {
-    if (modes.length > 1 && !expected?.mode) throw new Error('Combined-mode evaluation requires an explicit mode on every relevance judgment; use code, prose, extracted-prose or records.');
-    if (expected?.mode && !modes.includes(expected.mode)) throw new Error(`Judgment mode ${expected.mode} is outside the selected evaluation cohorts.`);
+  for (const expected of captureEvaluationJudgments(judgments)) {
+    if (modes.length > 1 && !Object.hasOwn(expected, 'mode')) throw new Error('Combined-mode evaluation requires an explicit mode on every relevance judgment; use code, prose, extracted-prose or records.');
+    if (Object.hasOwn(expected, 'mode') && !modes.includes(expected.mode)) throw new Error(`Judgment mode ${expected.mode} is outside the selected evaluation cohorts.`);
   }
   return { requestMode: selection.searchMode === 'default' ? null : selection.searchMode, modes };
 };
@@ -37,4 +38,7 @@ export const selectEvaluationCohort = (payload, mode) => {
   }
   return rows;
 };
-export const judgmentsForCohort = (judgments, mode) => judgments.filter(row => !row?.mode || row.mode === mode);
+export const judgmentsForCohort = (judgments, mode) => {
+  assertEvaluationMode(mode);
+  return captureEvaluationJudgments(judgments).filter(row => !Object.hasOwn(row, 'mode') || row.mode === mode);
+};

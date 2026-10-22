@@ -22,6 +22,24 @@ zero hits still score zero for supplied relevance judgments. This contract does
 not assign a quality penalty to failed retrieval, infer a failure score, change
 judgments or promote saved replay into current-search evidence.
 
-Additional direct cohort, actual render-budget and actual report-entry controls
+Judgment rows also require explicit supported evidence. Each must provide at
+least one own scalar nonempty `file`, `name` or `kind` predicate. An empty object,
+unsupported-only row, inherited/accessor predicate or falsey explicit matching
+field cannot become an unrestricted match. Explicit `mode` must be one canonical
+cohort, even in a single-cohort dataset. Combined-mode labels still require that
+mode; filtering never turns an invalid explicit mode into an unqualified label.
+The cohort and metric consumers use the same frozen scalar predicate snapshots,
+and additional metadata does not become matching evidence. Existing exact file,
+case-folded name/kind and substring/exact matching policies remain in place.
+
+Judged document assignment requires an observed stable chunk or file/range
+identity. A rank-local ordinal cannot prove distinct documents and cannot supply
+additional relevant slots. Unknown identity makes judged input unavailable;
+unjudged cohorts remain unjudged. Every rank slot must be an own positive integer,
+with no sparse/inherited entries or duplicate ranks. Missing rank data cannot
+serialize as a successful `NaN`/null quality metric. These rules reject malformed
+evidence without inventing judgments or a failure penalty.
+
+Additional direct judgment/cohort/matcher/metric, actual render-budget and report-entry controls
 are authored and **UNVALIDATED**. No tests, syntax/lint/format, bootstrap, search,
 native/child/model execution or quality/performance qualification was run.
