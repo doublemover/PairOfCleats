@@ -1,4 +1,5 @@
 import { collectDeclaredReturnTypes } from './metadata/docmeta.js';
+import { normalizeLiteralInput, inspectLiteralStructure, splitLiteralElements, isWholeQuotedLiteral } from './type-inference/literal-expression.js';
 
 const TYPE_SOURCES = {
   annotation: 'annotation',
@@ -130,32 +131,6 @@ const splitTopLevel = (value, delimiter) => {
   return inspectTypeExpression(value)?.split(delimiter) || [];
 };
 
-const splitLiteralTopLevel = (value) => {
-  const parts = [];
-  if (!value) return parts;
-  let current = '';
-  let depth = 0;
-  let inSingle = false;
-  let inDouble = false;
-  for (let i = 0; i < value.length; i += 1) {
-    const ch = value[i];
-    if (ch === "'" && !inDouble) inSingle = !inSingle;
-    if (ch === '"' && !inSingle) inDouble = !inDouble;
-    if (!inSingle && !inDouble) {
-      if (ch === '{' || ch === '[' || ch === '(') depth += 1;
-      if (ch === '}' || ch === ']' || ch === ')') depth = Math.max(0, depth - 1);
-      if (ch === ',' && depth === 0) {
-        if (current.trim()) parts.push(current.trim());
-        current = '';
-        continue;
-      }
-    }
-    current += ch;
-  }
-  if (current.trim()) parts.push(current.trim());
-  return parts;
-};
-
 const stripOptionalSuffix = (value) => {
   if (!value) return value;
   if (value.endsWith('?') && inspectTypeExpression(value)) return value.slice(0, -1).trim();
@@ -206,22 +181,6 @@ const expandTypeCandidates = (raw, languageId) => {
   return Array.from(seen).filter(Boolean);
 };
 
-const normalizeDefaultValue = (raw) => {
-  let value = normalizeText(raw);
-  if (!value || value === '...' || value === '...') return '';
-  const commentCuts = [];
-  const hashIdx = value.indexOf('#');
-  if (hashIdx >= 0) commentCuts.push(hashIdx);
-  const slashIdx = value.indexOf('//');
-  if (slashIdx >= 0) commentCuts.push(slashIdx);
-  if (commentCuts.length) {
-    const cut = Math.min(...commentCuts);
-    value = value.slice(0, cut).trim();
-  }
-  value = value.replace(/[;,]$/, '').trim();
-  return value;
-};
-
 const mapPrimitive = (kind, languageId) => {
   if (languageId === 'python') return PYTHON_TYPES[kind] || kind;
   return JS_TYPES[kind] || kind;
@@ -240,69 +199,81 @@ const stripQuotes = (value) => {
 const extractObjectKeys = (value, limit) => {
   const keys = [];
   if (!value || !value.trim().startsWith('{')) return keys;
-  const keyRx = /([A-Za-z_$][\w$]*|"(?:[^"\\]|\\.)+"|'(?:[^'\\]|\\.)+')\s*:/g;
-  let match;
-  while ((match = keyRx.exec(value)) !== null) {
-    const key = stripQuotes(match[1]);
+  for (const part of splitLiteralElements(value.slice(1, -1))) {
+    const structure = inspectLiteralStructure(part), colon = structure?.colons[0];
+    const raw = colon === undefined ? part : part.slice(0, colon).trim();
+    if (!/^[A-Za-z_$][\w$]*$/u.test(raw) && !(['"', "'"].includes(raw[0]) && isWholeQuotedLiteral(raw))) continue;
+    const key = stripQuotes(raw);
     if (key) keys.push(key);
     if (keys.length >= limit) break;
   }
   return keys;
 };
 
-const extractArrayElements = (value, limit, languageId) => {
+const extractArrayElements = (value, limit, languageId, depth) => {
   const trimmed = value.trim();
   if (!trimmed.startsWith('[')) return null;
   const closeIndex = trimmed.lastIndexOf(']');
   if (closeIndex <= 0) return null;
   const inner = trimmed.slice(1, closeIndex);
-  const parts = splitLiteralTopLevel(inner).slice(0, limit);
+  const parts = splitLiteralElements(inner).slice(0, limit);
   const elements = [];
   for (const part of parts) {
-    const entry = inferLiteralType(part, languageId);
+    const entry = inferLiteralType(part, languageId, depth + 1);
     if (entry?.type) elements.push(entry.type);
   }
   return unique(elements);
 };
 
-const inferLiteralType = (raw, languageId) => {
-  const value = normalizeDefaultValue(raw);
+const inferLiteralType = (raw, languageId, depth = 0) => {
+  if (depth > 128) return null;
+  const value = normalizeLiteralInput(raw, languageId);
   if (!value) return null;
-  const lowered = value.toLowerCase();
+  const structure = inspectLiteralStructure(value);
+  if (!structure) return null;
+  const enclosed = structure.pairs.get(0) === value.length - 1;
+  if (value[0] === '(' && enclosed) {
+    const inner = value.slice(1, -1), layout = inspectLiteralStructure(inner);
+    if (languageId === 'python' && /^lambda(?:\s|:)/u.test(inner.trim())) return null;
+    if (languageId === 'python' && (!inner.trim() || layout?.commas.length)) return { type: PYTHON_TYPES.tuple };
+    return inferLiteralType(inner, languageId, depth + 1);
+  }
   if (languageId === 'python') {
-    if (lowered === 'none') return { type: PYTHON_TYPES.null };
-    if (lowered === 'true' || lowered === 'false') return { type: PYTHON_TYPES.boolean };
+    if (value === 'None') return { type: PYTHON_TYPES.null };
+    if (value === 'True' || value === 'False') return { type: PYTHON_TYPES.boolean };
     if (/^-?\d+\.\d+$/.test(value)) return { type: PYTHON_TYPES.float };
     if (/^-?\d+$/.test(value)) return { type: PYTHON_TYPES.number };
-    if (value.startsWith('[')) {
+    if (value.startsWith('[') && enclosed) {
       return {
         type: PYTHON_TYPES.array,
-        elements: extractArrayElements(value, 25, languageId)
+        elements: extractArrayElements(value, 25, languageId, depth)
       };
     }
-    if (value.startsWith('{')) {
+    if (value.startsWith('{') && enclosed) {
+      const inner = value.slice(1, -1).trim(), layout = inspectLiteralStructure(inner);
+      if (splitLiteralElements(inner).some(part => /^lambda(?:\s|:)/u.test(part))) return null;
+      if (inner && !layout.colons.length && !inner.startsWith('**')) return { type: PYTHON_TYPES.set };
       const keys = extractObjectKeys(value, 20);
       return {
         type: PYTHON_TYPES.object,
         shape: keys.length ? { kind: 'object', keys } : null
       };
     }
-    if (value.startsWith('(')) return { type: PYTHON_TYPES.tuple };
-    if (lowered.startsWith('set(')) return { type: PYTHON_TYPES.set };
-    if (lowered.startsWith('dict(')) return { type: PYTHON_TYPES.object };
-    if (lowered.startsWith('list(')) return { type: PYTHON_TYPES.array };
+    for (const [name, type] of [['set', PYTHON_TYPES.set], ['dict', PYTHON_TYPES.object], ['list', PYTHON_TYPES.array]]) {
+      if (value.startsWith(name + '(') && structure.pairs.get(name.length) === value.length - 1) return { type };
+    }
   } else {
-    if (lowered === 'null') return { type: JS_TYPES.null };
-    if (lowered === 'undefined') return { type: JS_TYPES.undefined };
-    if (lowered === 'true' || lowered === 'false') return { type: JS_TYPES.boolean };
+    if (value === 'null') return { type: JS_TYPES.null };
+    if (value === 'undefined') return { type: JS_TYPES.undefined };
+    if (value === 'true' || value === 'false') return { type: JS_TYPES.boolean };
     if (/^-?\d+(\.\d+)?$/.test(value)) return { type: JS_TYPES.number };
-    if (value.startsWith('[')) {
+    if (value.startsWith('[') && enclosed) {
       return {
         type: JS_TYPES.array,
-        elements: extractArrayElements(value, 25, languageId)
+        elements: extractArrayElements(value, 25, languageId, depth)
       };
     }
-    if (value.startsWith('{')) {
+    if (value.startsWith('{') && enclosed) {
       const keys = extractObjectKeys(value, 20);
       return {
         type: JS_TYPES.object,
@@ -310,11 +281,16 @@ const inferLiteralType = (raw, languageId) => {
       };
     }
   }
-  if (value.startsWith('"') || value.startsWith("'") || value.startsWith('`')) {
+  if (isWholeQuotedLiteral(value, languageId)) {
     return { type: mapPrimitive('string', languageId) };
   }
-  const newMatch = value.match(/^new\s+([A-Za-z_][\w.]*)/);
-  if (newMatch) return { type: normalizeTypeName(newMatch[1], languageId) };
+  const newMatch = value.match(/^new\s+([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)/u);
+  if (newMatch) {
+    const tail = value.slice(newMatch[0].length).trim(), open = value.indexOf('(', newMatch[0].length);
+    if (!tail || tail[0] === '(' && structure.pairs.get(open) === value.length - 1) {
+      return { type: normalizeTypeName(newMatch[1], languageId) };
+    }
+  }
   return null;
 };
 
