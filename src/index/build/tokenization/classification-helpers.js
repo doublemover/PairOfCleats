@@ -1,6 +1,7 @@
 import { CLIKE_RESERVED_WORDS, CPP_RESERVED_WORDS, OBJC_RESERVED_WORDS } from '../../constants.js';
 import { COMMON_NAME_NODE_TYPES } from '../../../lang/tree-sitter/ast.js';
-import { getNativeTreeSitterParser } from '../../../lang/tree-sitter/native-runtime.js';
+import { getNativeTreeSitterParser, getNativeTreeSitterIdentity } from '../../../lang/tree-sitter/native-runtime.js';
+import { readNativeLeafProduct } from '../../../lang/tree-sitter/leaf-product.js';
 import { isTreeSitterEnabled } from '../../../lang/tree-sitter/options.js';
 import { resolveTreeSitterLanguageForSegment } from '../file-processor/tree-sitter.js';
 import { JS_RESERVED_WORDS } from '../../../lang/javascript/constants.js';
@@ -212,6 +213,7 @@ const classifyTokensWithTreeSitter = ({
   dictConfig,
   keywordSet,
   treeSitter,
+  nativeClassificationLeaves,
   buildTokenSequence
 }) => {
   if (!text) return null;
@@ -228,6 +230,24 @@ const classifyTokensWithTreeSitter = ({
   }
   const parser = getNativeTreeSitterParser(resolvedLang, { treeSitter, suppressMissingLog: true });
   if (!parser) return null;
+  const identifiers = new Set(), keywords = new Set(), operators = new Set(), literals = new Set();
+  const classifyLeaf = (start, end, type) => {
+    const raw = text.slice(start,end);
+    if (!raw || !raw.trim()) return;
+    let bucket = null;
+    if (isLiteralNodeType(type,raw)) bucket = literals;
+    else if (isOperatorToken(raw) || type.toLowerCase().includes('operator')) bucket = operators;
+    else if (isKeywordNodeType(type,raw,keywordSet)) bucket = keywords;
+    else if (isIdentifierNodeType(type)) bucket = identifiers;
+    const leafTokens = buildTokenSetForLeaf(raw,dictWords,dictConfig,ext,buildTokenSequence);
+    if (bucket) for (const token of leafTokens) bucket.add(token);
+  };
+  const leaves = nativeClassificationLeaves ? readNativeLeafProduct({ product: nativeClassificationLeaves, text,
+    languageId: resolvedLang, parserIdentity: getNativeTreeSitterIdentity(resolvedLang) }) : null;
+  if (leaves) {
+    for (const [start,end,type] of leaves) classifyLeaf(start,end,type);
+    return { identifiers, keywords, operators, literals, reusedProduct: true };
+  }
   let tree;
   try {
     tree = parser.parse(text);
@@ -236,11 +256,6 @@ const classifyTokensWithTreeSitter = ({
   }
   const root = tree?.rootNode;
   if (!root) return null;
-
-  const identifiers = new Set();
-  const keywords = new Set();
-  const operators = new Set();
-  const literals = new Set();
 
   const stack = [root];
   while (stack.length) {
@@ -266,29 +281,8 @@ const classifyTokensWithTreeSitter = ({
       || (typeof node.isExtra === 'function' && node.isExtra());
     if (isExtra) continue;
 
-    const raw = text.slice(node.startIndex, node.endIndex);
-    if (!raw || !raw.trim()) continue;
-
     const type = typeof node.type === 'string' ? node.type : '';
-    let bucket = null;
-    if (isLiteralNodeType(type, raw)) {
-      bucket = 'literal';
-    } else if (isOperatorToken(raw) || (type && type.toLowerCase().includes('operator'))) {
-      bucket = 'operator';
-    } else if (isKeywordNodeType(type, raw, keywordSet)) {
-      bucket = 'keyword';
-    } else if (isIdentifierNodeType(type)) {
-      bucket = 'identifier';
-    }
-
-    const leafTokens = buildTokenSetForLeaf(raw, dictWords, dictConfig, ext, buildTokenSequence);
-    if (!leafTokens.length) continue;
-    for (const tok of leafTokens) {
-      if (bucket === 'literal') literals.add(tok);
-      else if (bucket === 'operator') operators.add(tok);
-      else if (bucket === 'keyword') keywords.add(tok);
-      else if (bucket === 'identifier') identifiers.add(tok);
-    }
+    classifyLeaf(node.startIndex,node.endIndex,type);
   }
 
   if (tree && typeof tree.delete === 'function') {
@@ -320,7 +314,8 @@ export const classifyTokenBucketsInternal = ({
   ext,
   dictWords,
   dictConfig,
-  context
+  context,
+  nativeClassificationLeaves
 }, buildTokenSequence) => {
   if (!Array.isArray(tokens) || !tokens.length) {
     return { identifierTokens: [], keywordTokens: [], operatorTokens: [], literalTokens: [] };
@@ -337,12 +332,14 @@ export const classifyTokenBucketsInternal = ({
     dictConfig,
     keywordSet,
     treeSitter: treeSitterConfig,
+    nativeClassificationLeaves,
     buildTokenSequence
   });
   if (treeSitterSets && context?.tokenClassificationRuntime) {
     const runtime = context.tokenClassificationRuntime;
     runtime.remainingChunks -= 1;
     runtime.remainingBytes = Math.max(0, runtime.remainingBytes - Buffer.byteLength(text || '', 'utf8'));
+    if (treeSitterSets.reusedProduct) runtime.nativeLeafProductsReused = (runtime.nativeLeafProductsReused || 0) + 1;
   }
 
   const identifierTokens = [];

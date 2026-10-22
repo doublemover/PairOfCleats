@@ -12,7 +12,9 @@ import { resolveDeclarationPrefixRange } from './declaration-roles.js';
 import { callableGrammarMetadata } from './declaration-metadata.js';
 import { attachSyntaxCallFacts } from './call-facts.js';
 import { isTreeSitterEnabled } from './options.js';
-import { getNativeTreeSitterParser, loadNativeTreeSitterGrammar } from './native-runtime.js';
+import { getNativeTreeSitterParser, getNativeTreeSitterIdentity, loadNativeTreeSitterGrammar } from './native-runtime.js';
+import { attachNativeLeafProduct, NATIVE_LEAF_PRODUCT_LIMITS } from './leaf-product.js';
+import { getContainedFileSession } from '../../shared/contained-file-resource.js';
 import { resolveTreeSitterLanguageForExt } from './language-id.js';
 import { treeSitterState } from './state.js';
 import { getTreeSitterWorkerPool, sanitizeTreeSitterOptions } from './worker.js';
@@ -577,12 +579,26 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
  * @param {{text:string,languageId?:string|null,ext?:string|null,options?:object}} input
  * @returns {Array<object>|null}
  */
-export function buildTreeSitterChunks({ text, languageId, ext, options }) {
+export function buildTreeSitterChunks({ text, languageId, ext, options, captureNativeClassificationLeaves = true }) {
   const resolvedId = resolveTreeSitterLanguageForExt(languageId, ext);
   if (!resolvedId) return null;
   if (!isTreeSitterEnabled(options, resolvedId)) return null;
   const strict = options?.treeSitter?.strict === true;
-  let parserRecovered = null;
+  let parserRecovered = null, leafOwnerRoot = null, leafWorkLimit = 0;
+  const withLeafProduct = chunks => {
+    if (!captureNativeClassificationLeaves) return chunks;
+    try {
+      if (!leafOwnerRoot || leafOwnerRoot.hasError !== false || !Array.isArray(chunks)
+        || !chunks.some(chunk => chunk.start === 0 && chunk.end === text.length)
+        || text.length > NATIVE_LEAF_PRODUCT_LIMITS.inputBytes || Buffer.byteLength(text) > NATIVE_LEAF_PRODUCT_LIMITS.inputBytes) return chunks;
+      return attachNativeLeafProduct({ chunks, text, root: leafOwnerRoot,
+        languageId: resolvedId, parserIdentity: getNativeTreeSitterIdentity(resolvedId), maxWork: leafWorkLimit,
+        signal: options?.abortSignal });
+    } catch (error) {
+      if (getContainedFileSession(error) || error?.name === 'AbortError' || error?.code === 'ABORT_ERR') throw error;
+      return chunks;
+    }
+  };
   const failStrict = (reason, message, extra = {}) => {
     if (!strict) return null;
     const err = new Error(message);
@@ -592,13 +608,13 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     Object.assign(err, extra);
     throw err;
   };
-  const buildWholeFileChunk = () => withParserCoverage([{
+  const buildWholeFileChunk = () => withLeafProduct(withParserCoverage([{
     start: 0,
     end: text.length,
     name: 'file',
     kind: 'File',
     meta: { treeSitter: true, wholeFile: true }
-  }], resolvedId, parserRecovered);
+  }], resolvedId, parserRecovered));
   if (shouldGuardNativeParser(resolvedId, options)) {
     bumpMetric('fallbacks', 1);
     const guardKey = `${resolvedId}:native-crash-guard`;
@@ -700,6 +716,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     return null;
   }
   const traversalBudget = resolveTraversalBudget(options, resolvedId, { bumpMetric });
+  leafWorkLimit = traversalBudget.maxAstNodes;
   let tree = null;
   try {
     try {
@@ -757,6 +774,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     let rootNode = null;
     try {
       rootNode = tree.rootNode;
+      leafOwnerRoot = rootNode;
       if (resolvedId === 'groovy') parserRecovered = rootNode.hasError === true;
     } catch {
       recordMetrics();
@@ -785,7 +803,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     if (queryResult?.usedQuery) {
       if (Array.isArray(queryResult.chunks) && queryResult.chunks.length) {
         attachSyntaxCallFacts(rootNode,text,queryResult.chunks,{maxNodes:traversalBudget.maxAstNodes});
-        queryResult.chunks = withParserCoverage(queryResult.chunks, resolvedId, parserRecovered);
+        queryResult.chunks = withLeafProduct(withParserCoverage(queryResult.chunks, resolvedId, parserRecovered));
         if (cacheKey && cacheRef) {
           storeCachedChunks({
             cache: cacheRef.cache,
@@ -877,7 +895,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     }
 
     attachSyntaxCallFacts(rootNode,text,traversalResult.chunks,{maxNodes:traversalBudget.maxAstNodes});
-    traversalResult.chunks = withParserCoverage(traversalResult.chunks, resolvedId, parserRecovered);
+    traversalResult.chunks = withLeafProduct(withParserCoverage(traversalResult.chunks, resolvedId, parserRecovered));
 
     if (cacheKey && cacheRef) {
       storeCachedChunks({
@@ -1001,6 +1019,7 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
     bumpMetric('workerFallbacks', 1);
     return buildTreeSitterChunks({ text, languageId, ext, options: fallbackOptions });
   } catch (err) {
+    if (getContainedFileSession(err)) throw err;
     if (options?.log && !treeSitterState.loggedWorkerFailures.has('run')) {
       options.log(`[tree-sitter] Worker parse failed; falling back to main thread (${err?.message || err}).`);
       treeSitterState.loggedWorkerFailures.add('run');

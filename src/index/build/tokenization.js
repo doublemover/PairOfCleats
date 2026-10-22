@@ -267,7 +267,7 @@ const computeTokenStats = (freq) => {
  * @returns {{tokens:string[],seq:string[],minhashSig:number[],stats:object}}
  */
 export function tokenizeChunkText(input) {
-  const { text, mode, ext, context, buffers = null, languageId = null, pretokenized = null } = input;
+  const { text, mode, ext, context, buffers = null, languageId = null, pretokenized = null, nativeClassificationLeaves = null } = input;
   const dictConfig = context?.dictConfig || {};
   const dictWords = resolveTokenDictWords({ context, mode, languageId });
   const providedTokens = Array.isArray(pretokenized?.tokens) ? pretokenized.tokens : null;
@@ -309,7 +309,8 @@ export function tokenizeChunkText(input) {
       ext,
       dictWords,
       dictConfig,
-      context
+      context,
+      nativeClassificationLeaves
     })
     : null;
 

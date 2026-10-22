@@ -873,6 +873,7 @@ export const processChunks = async (context) => {
         context: fileTokenContext,
         languageId: chunkLanguageId,
         pretokenized,
+        nativeClassificationLeaves: c.nativeClassificationLeaves || null,
         // chargramTokens is intentionally omitted (see note above).
         buffers: tokenBuffers
       });
@@ -927,7 +928,8 @@ export const processChunks = async (context) => {
           ext: effectiveExt,
           dictWords: dictWordsForChunk,
           dictConfig,
-          context: fileTokenContext
+          context: fileTokenContext,
+          nativeClassificationLeaves: c.nativeClassificationLeaves || null
         });
         updateCrashStage('token-classification:done', {
           chunkIndex: ci,
