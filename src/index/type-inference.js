@@ -379,29 +379,53 @@ const inferAssignments = (chunkText,languageId,knownTypes) => {
   return {locals};
 };
 
+const guardName = '[\\p{ID_Start}_$][\\p{ID_Continue}$\\u200c\\u200d]*';
+const guardBoundary = '(?<![\\p{ID_Continue}$\\u200c\\u200d.#])';
+const guardEnd = '(?![\\p{ID_Continue}$\\u200c\\u200d])';
+const conditionalGuards = {
+  typeof: new RegExp(guardBoundary + 'typeof\\s+(' + guardName + ')\\s*===?\\s*' + "(['\"])(string|number|boolean|object|function|undefined|symbol|bigint)\\2", 'gu'),
+  instanceof: new RegExp(guardBoundary + '(' + guardName + ')\\s+instanceof\\s+(' + guardName + '(?:\\.' + guardName + ')*)' + guardEnd, 'gu'),
+  array: new RegExp(guardBoundary + 'Array\\s*\\.\\s*isArray\\s*\\(\\s*(' + guardName + ')\\s*\\)', 'gu'),
+  null: new RegExp(guardBoundary + '(' + guardName + ')\\s*===?\\s*null' + guardEnd, 'gu')
+};
 const inferConditionalTypes = (chunkText, languageId) => {
   const results = [];
-  if (!chunkText) return results;
+  if (!chunkText || !['javascript', 'typescript', 'jsx', 'tsx'].includes(languageId)) return results;
+  const unqualified = (pattern, text) => {
+    pattern.lastIndex = 0;
+    for (let match; (match = pattern.exec(text));) {
+      let previous = match.index - 1;
+      while (previous >= 0 && /\s/u.test(text[previous])) previous--;
+      if (text[previous] === '.' || text[previous] === '#') continue;
+      if (pattern === conditionalGuards.instanceof || pattern === conditionalGuards.null) {
+        let next = pattern.lastIndex;
+        while (next < text.length && /\s/u.test(text[next])) next++;
+        if (['.', '[', '('].includes(text[next])) continue;
+      }
+      return match;
+    }
+    return null;
+  };
   const lines = chunkText.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('#')) continue;
-    let match = trimmed.match(/typeof\s+([A-Za-z_$][\w$]*)\s*===?\s*['"]([A-Za-z]+)['"]/);
+    let match = unqualified(conditionalGuards.typeof, trimmed);
+    if (match) {
+      results.push({ name: match[1], type: normalizeTypeName(match[3], languageId) });
+      continue;
+    }
+    match = unqualified(conditionalGuards.instanceof, trimmed);
     if (match) {
       results.push({ name: match[1], type: normalizeTypeName(match[2], languageId) });
       continue;
     }
-    match = trimmed.match(/([A-Za-z_$][\w$]*)\s+instanceof\s+([A-Za-z_$][\w$.]*)/);
-    if (match) {
-      results.push({ name: match[1], type: normalizeTypeName(match[2], languageId) });
-      continue;
-    }
-    match = trimmed.match(/Array\.isArray\s*\(\s*([A-Za-z_$][\w$]*)\s*\)/);
+    match = unqualified(conditionalGuards.array, trimmed);
     if (match) {
       results.push({ name: match[1], type: mapPrimitive('array', languageId) });
       continue;
     }
-    match = trimmed.match(/([A-Za-z_$][\w$]*)\s*===?\s*null/);
+    match = unqualified(conditionalGuards.null, trimmed);
     if (match) {
       results.push({ name: match[1], type: mapPrimitive('null', languageId) });
       continue;
