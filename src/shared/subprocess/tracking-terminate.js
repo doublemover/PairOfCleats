@@ -7,7 +7,6 @@ import {
   normalizeTrackedOwnershipId,
   normalizeTrackedOwnershipPrefix,
   normalizeTrackedScope,
-  removeTrackedSubprocess,
   resolveEntryOwnershipId,
   resolveTerminationState
 } from './tracking-runtime.js';
@@ -72,6 +71,7 @@ const createKillAuditEntry = ({
   scope: target.scope,
   ownershipId: target.ownershipId,
   terminated,
+  closeObserved: target.entry.closeObserved === true,
   forced,
   error
 });
@@ -145,6 +145,17 @@ const createTerminationSummary = ({
   };
 };
 
+// A kill acknowledgement, exitCode or dead PID cannot substitute for the
+// exact registered handle's close. All targets observe this bound in parallel.
+const observeTrackedClose = async target => {
+  if (target.entry.closeObserved === true) return;
+  let timer;
+  try {
+    await Promise.race([target.entry.closed,
+      new Promise(resolve => { timer = setTimeout(resolve, 500); })]);
+  } finally { clearTimeout(timer); }
+};
+
 export const terminateTrackedSubprocesses = async ({
   reason = 'shutdown',
   force = false,
@@ -158,6 +169,7 @@ export const terminateTrackedSubprocesses = async ({
     ownershipId,
     ownershipPrefix
   });
+
   const entries = collectTerminationEntries({
     ownershipId: normalizedOptions.ownershipId,
     ownershipPrefix: normalizedOptions.ownershipPrefix
@@ -168,22 +180,33 @@ export const terminateTrackedSubprocesses = async ({
   const killTargets = entries.map(createKillTarget);
   const killAudit = [];
   const liveTargets = [];
+  const exitedTargets = [];
   for (const target of killTargets) {
     const terminated = resolveTerminationState(target.child, target.pid);
     if (terminated) {
-      removeTrackedSubprocess(target.entryKey, 'terminate_already_exited');
-      killAudit.push(createKillAuditEntry({ target, terminated: true }));
+      exitedTargets.push(target);
       continue;
     }
     liveTargets.push(target);
   }
-  const settled = await Promise.allSettled(liveTargets.map((entry) => killChildProcessTree(entry.child, {
-    killTree: entry.killTree,
-    killSignal: entry.killSignal,
-    graceMs: force ? TRACKED_SUBPROCESS_FORCE_GRACE_MS : entry.killGraceMs,
-    detached: entry.detached,
-    awaitGrace: true
-  })));
+  const [settled] = await Promise.all([
+    Promise.allSettled(liveTargets.map(async entry => {
+      try {
+        return await killChildProcessTree(entry.child, {
+          killTree: entry.killTree,
+          killSignal: entry.killSignal,
+          graceMs: force ? TRACKED_SUBPROCESS_FORCE_GRACE_MS : entry.killGraceMs,
+          detached: entry.detached,
+          awaitGrace: true
+        });
+      } finally { await observeTrackedClose(entry); }
+    })),
+    Promise.all(exitedTargets.map(observeTrackedClose))
+  ]);
+  for (const target of exitedTargets) {
+    if (target.entry.closeObserved !== true) clearEntryTerminating(target.entry);
+    killAudit.push(createKillAuditEntry({ target, terminated: true }));
+  }
   const attemptedAudit = settled.map((result, index) => {
     const target = liveTargets[index];
     let terminated = resolveTerminationState(target.child, target.pid);
@@ -195,10 +218,7 @@ export const terminateTrackedSubprocesses = async ({
       terminated = resolveTerminationState(target.child, target.pid, result.value?.terminated === true);
       forced = result.value?.forced === true;
     }
-    if (terminated) {
-      error = null;
-      removeTrackedSubprocess(target.entryKey, 'terminate');
-    } else {
+    if (target.entry.closeObserved !== true) {
       clearEntryTerminating(target.entry);
     }
     return createKillAuditEntry({
@@ -241,7 +261,7 @@ export const terminateTrackedSubprocessesSync = ({
     const target = createKillTarget(source);
     const alreadyTerminated = resolveTerminationState(target.child, target.pid);
     if (alreadyTerminated) {
-      removeTrackedSubprocess(target.entryKey, 'terminate_sync_already_exited');
+      if (target.entry.closeObserved !== true) clearEntryTerminating(target.entry);
       return createKillAuditEntry({ target, terminated: true });
     }
     let terminated = resolveTerminationState(target.child, target.pid);
@@ -260,10 +280,7 @@ export const terminateTrackedSubprocessesSync = ({
       terminated = resolveTerminationState(target.child, target.pid);
       error = caughtError?.message || String(caughtError || 'unknown_kill_error');
     }
-    if (terminated) {
-      error = null;
-      removeTrackedSubprocess(target.entryKey, 'terminate_sync');
-    } else {
+    if (target.entry.closeObserved !== true) {
       clearEntryTerminating(target.entry);
     }
     return createKillAuditEntry({

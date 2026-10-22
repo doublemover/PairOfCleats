@@ -98,7 +98,7 @@ export const removeTrackedSubprocess = (entryKey, reason = 'unregister') => {
     args: entry.args,
     name: entry.name,
     reason,
-    terminated: reason === 'close'
+    terminated: entry.closeObserved === true
   });
   return entry;
 };

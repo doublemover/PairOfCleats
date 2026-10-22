@@ -12,7 +12,7 @@ export const assertSubprocessTerminationReceipt = (receipt, { ownershipPrefix = 
     && Number.isSafeInteger(receipt.failures) && receipt.failures === 0
     && Array.isArray(receipt.killAudit) && receipt.killAudit.length === receipt.tracked
     && (!ownershipPrefix || receipt.ownershipPrefix === ownershipPrefix)
-    && remaining === 0 && receipt.killAudit.every(row => row?.terminated === true && !row.error
+    && remaining === 0 && receipt.killAudit.every(row => row?.terminated === true && row.closeObserved === true && !row.error
       && (!ownershipPrefix || (typeof row.ownershipId === 'string' && row.ownershipId.startsWith(ownershipPrefix))
         || (typeof row.scope === 'string' && row.scope.startsWith(ownershipPrefix))));
   if (!confirmed) throw Object.assign(new Error('Subprocess termination remains failed or unconfirmed.'), {

@@ -4,7 +4,8 @@ import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { once } from 'node:events';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
-import { getTrackedSubprocessCount } from '../../../src/shared/subprocess/tracking.js';
+import { getTrackedSubprocessCount, terminateTrackedSubprocesses } from '../../../src/shared/subprocess/tracking.js';
+import { assertSubprocessTerminationReceipt } from '../../../src/shared/subprocess/termination-receipt.js';
 
 const normal = new AbortController();
 let child;
@@ -20,6 +21,7 @@ assert.equal(closedError.cacheOwnershipPending, undefined);
 assert.equal(closedError.result.termination.scope, 'spawned-child-close-only');
 
 const nativeSpawn = childProcess.spawn;
+const ownershipId = `missing-close:${process.pid}`;
 let suppressClose = true, actualClose = null, nativeEmit;
 childProcess.spawn = (...args) => {
   child = nativeSpawn(...args);
@@ -34,7 +36,7 @@ syncBuiltinESMExports();
 try {
   const delayed = new AbortController();
   const error = await spawnSubprocess(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
-    stdio: 'ignore', killTree: false, signal: delayed.signal, timeoutAbortReapWaitMs: 25,
+    stdio: 'ignore', killTree: false, signal: delayed.signal, timeoutAbortReapWaitMs: 25, ownershipId,
     onSpawn: () => delayed.abort()
   }).then(() => assert.fail('abort must reject'), value => value);
   assert.equal(error.code, 'ABORT_ERR');
@@ -42,14 +44,21 @@ try {
   assert.equal(error.result.termination.closeTimedOut, true);
   assert.equal(error.cacheOwnershipPending, true);
   assert.equal(error.cacheOwnershipReleased(), false);
-  assert.equal(getTrackedSubprocessCount(), 1, 'unconfirmed close retains tracked cleanup ownership');
+  assert.equal(getTrackedSubprocessCount(ownershipId), 1, 'unconfirmed close retains tracked cleanup ownership');
   if (child.exitCode == null && child.signalCode == null) await once(child, 'exit');
+  const receipt = await terminateTrackedSubprocesses({ reason: 'missing-close-regression', force: true, ownershipId });
+  assert.equal(receipt.tracked, 1);
+  assert.equal(receipt.killAudit[0].terminated, true, 'actual process exit remains an independent observation');
+  assert.equal(receipt.killAudit[0].closeObserved, false);
+  assert.equal(getTrackedSubprocessCount(ownershipId), 1, 'a later cleanup cannot erase the missing-close barrier using exit status');
+  assert.throws(() => assertSubprocessTerminationReceipt(receipt), { code: 'ERR_INDEX_CACHE_DRAIN_INCOMPLETE' });
   suppressClose = false;
   if (actualClose) nativeEmit.call(child, 'close', ...actualClose);
   else await once(child, 'close');
-  assert.equal(getTrackedSubprocessCount(), 0);
+  assert.equal(getTrackedSubprocessCount(ownershipId), 0);
   assert.equal(error.cacheOwnershipReleased(), true,
     'only the delayed close of this exact spawned handle reconciles missing-close ownership');
+  assert.equal(assertSubprocessTerminationReceipt(await terminateTrackedSubprocesses({ ownershipId })).tracked, 0);
 } finally {
   suppressClose = false;
   if (actualClose) nativeEmit.call(child, 'close', ...actualClose);

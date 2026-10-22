@@ -17,7 +17,8 @@ const hooks = registerHooks({ load(url, context, next) {
     : url.endsWith('/src/shared/subprocess/tracking-terminate.js')
       ? access + `export const terminateTrackedSubprocesses = async options => ({
         ...options, tracked: 1, failures: state.failures,
-        killAudit: [{ ownershipId: options.ownershipPrefix + ':child', terminated: state.confirmed }] });`
+        killAudit: [{ ownershipId: options.ownershipPrefix + ':child', terminated: state.confirmed,
+          closeObserved: state.confirmed }] });`
       : url.endsWith('/src/lang/tree-sitter.js') ? 'export const shutdownTreeSitterWorkerPool = async () => {};'
         : url.endsWith('/src/lang/python.js') ? 'export const shutdownPythonAstPool = async () => {};'
           : url.endsWith('/src/shared/progress-runtime.js') ? 'export const log = () => {};'
@@ -66,8 +67,13 @@ try {
   await release(true);
   assert.equal(invalidations, 1); assert.equal(releases, 1);
   assert.throws(() => assertSubprocessTerminationReceipt({ tracked: 1, failures: 0, killAudit: [] }), /unconfirmed/);
+  for (const closeObserved of [undefined, false]) {
+    assert.throws(() => assertSubprocessTerminationReceipt({ tracked: 1, failures: 0,
+      killAudit: [{ terminated: true, closeObserved }] }), /unconfirmed/,
+    'a fulfilled termination claim requires independent exact-child close evidence');
+  }
   assert.throws(() => assertSubprocessTerminationReceipt({ tracked: 1, failures: 0,
-    ownershipPrefix: 'foreign:', killAudit: [{ terminated: true, ownershipId: 'foreign:child' }] },
+    ownershipPrefix: 'foreign:', killAudit: [{ terminated: true, closeObserved: true, ownershipId: 'foreign:child' }] },
   { ownershipPrefix: 'stage1:fixture-run:' }), /unconfirmed/);
   const entryKey = Symbol('in-flight-cleanup');
   trackedSubprocesses.set(entryKey, { child: new EventEmitter(), terminating: true, ownershipId: 'stage1:fixture-run:pending' });
