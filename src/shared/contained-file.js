@@ -130,6 +130,14 @@ export const withContainedFile = async (root, target, action, options = {}) => {
   return owner.run(() => action(descriptor));
 };
 
+export const withContainedFileSync = (root, target, action, options = {}) => {
+  if (typeof action !== 'function') throw new TypeError('Contained file requires its synchronous read callback.');
+  const { owner, verification, identity } = acquireContainedFileSync(root, target, options);
+  const descriptor = Object.freeze({ ...owner.operations,
+    verify: () => owner.inspect(fd => verifyHandle(fd, root, target, identity, verification)) });
+  return owner.runSync(() => action(descriptor));
+};
+
 const changedFile = () => Object.assign(new Error('Repository file changed during its verified read.'), { code: 'ERR_FILE_CHANGED' });
 const identityKeys = ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'];
 const normalizeFileIdentity = (value) => {

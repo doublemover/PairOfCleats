@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { admitSortedPostings } from '../../posting-order.js';
-import { openContainedFileSync, verifyContainedFileHandle } from '../../contained-file.js';
+import { withContainedFileSync } from '../../contained-file.js';
+import { createContainedFileResource } from '../../contained-file-resource.js';
 import { readBuffer } from '../compression.js';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from '../constants.js';
@@ -287,7 +288,7 @@ const loadTokenPostingsRaw = (
       'token_postings',
       'token_postings packed'
     );
-    const readWindow = (fd, startToken, endToken) => {
+    const readWindow = (descriptor, startToken, endToken) => {
       const byteStart = offsets[startToken] ?? 0;
       const byteEnd = offsets[endToken] ?? byteStart;
       const byteLen = byteEnd - byteStart;
@@ -306,7 +307,7 @@ const loadTokenPostingsRaw = (
       let bytesRead = 0;
       while (bytesRead < byteLen) {
         const remaining = byteLen - bytesRead;
-        const read = fs.readSync(fd, windowBuffer, bytesRead, remaining, byteStart + bytesRead);
+        const read = descriptor.read(windowBuffer, bytesRead, remaining, byteStart + bytesRead);
         if (!Number.isSafeInteger(read) || read <= 0 || read > remaining) {
           throw Object.assign(new Error('Packed token_postings truncated or invalid read progress.'),
             { code: 'ERR_ARTIFACT_CORRUPT' });
@@ -326,10 +327,8 @@ const loadTokenPostingsRaw = (
         postings[i] = unpackTfPostingSlice(windowBuffer.subarray(localStart, localEnd), { blockSize });
       }
     };
-    let fd = null;
-    try {
-      fd = strict ? openContainedFileSync(dir, resolvedPackedPath) : fs.openSync(resolvedPackedPath, 'r');
-      const dataBytes = fs.fstatSync(fd).size;
+    const consumePacked = descriptor => {
+      const dataBytes = descriptor.stat().size;
       if (!Number.isSafeInteger(dataBytes) || dataBytes < 0 || offsets[0] !== 0
         || offsets[offsets.length - 1] !== dataBytes
         || offsets.some((value, index) => value < 0 || value > dataBytes || (index > 0 && value < offsets[index - 1]))) {
@@ -343,15 +342,17 @@ const loadTokenPostingsRaw = (
           if (candidateBytes > resolvedWindowBytes) break;
           endToken += 1;
         }
-        readWindow(fd, startToken, endToken);
+        readWindow(descriptor, startToken, endToken);
         startToken = endToken;
       }
       if (packedChecksum) packedChecksum.verify();
-      if (strict) verifyContainedFileHandle(fd, dir, resolvedPackedPath);
-    } finally {
-      if (fd !== null) {
-        try { fs.closeSync(fd); } catch {}
-      }
+      if (strict) descriptor.verify();
+    };
+    if (strict) withContainedFileSync(dir, resolvedPackedPath, consumePacked);
+    else {
+      const methods = { receiver: fs, close: fs.closeSync, stat: fs.fstatSync, read: fs.readSync };
+      const fd = fs.openSync(resolvedPackedPath, 'r');
+      createContainedFileResource({ fd, sync: true, methods }).runSync(consumePacked);
     }
     const avgDocLen = Number.isFinite(fields?.avgDocLen) ? fields.avgDocLen : (
       docLengths.length

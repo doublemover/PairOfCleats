@@ -2,8 +2,8 @@
 
 Status: UNVALIDATED source and authored controls, 2026-10-22.
 
-The actual tooling cache JSON reader adopts its successfully transferred sync
-descriptor into the shared contained-file resource owner. Singly linked regular
+The actual tooling cache JSON reader borrows its sync descriptor through
+`withContainedFileSync` and the shared contained-file resource owner. Singly linked regular
 file and byte-bound admission remains before payload allocation/read. Original
 read/stat/close methods are captured before opening and used through confirmed
 close. Parsed payload is returned only after close succeeds. Invalid progress,

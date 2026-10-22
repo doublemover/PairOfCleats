@@ -1,8 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { constants as bufferConstants } from 'node:buffer';
-import { assertNoSymlinkPath, openContainedFileSync } from '../../shared/contained-file.js';
-import { createContainedFileResource } from '../../shared/contained-file-resource.js';
+import { assertNoSymlinkPath, withContainedFileSync } from '../../shared/contained-file.js';
 import { atomicWriteJson, atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 import { resolveSystemCacheAlias } from '../../shared/system-cache-alias.js';
 
@@ -28,10 +27,7 @@ export const readToolingCacheEntry = (target, maxBytes = 8 * 1024 * 1024) => {
     throw new TypeError('Tooling cache reads require a bounded nonnegative byte allowance.');
   }
   const resolved = assertToolingCachePath(target);
-  const methods = { receiver: fs, close: fs.closeSync, stat: fs.fstatSync, read: fs.readSync };
-  const fd = openContainedFileSync(path.parse(resolved).root, resolved);
-  const owner = createContainedFileResource({ fd, sync: true, methods });
-  return owner.runSync(descriptor => {
+  return withContainedFileSync(path.parse(resolved).root, resolved, descriptor => {
     const stat = descriptor.stat();
     if (!stat.isFile() || stat.nlink !== 1 || !Number.isSafeInteger(stat.size) || stat.size < 0 || stat.size > maxBytes) {
       throw Object.assign(new Error('Unowned or oversized tooling cache artifact.'), { code: 'ERR_TOOLING_CACHE_ENTRY' });
