@@ -6,7 +6,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createArtifactSemanticStore } from '../../semantic/artifact-store.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { assertSemanticEnvelope } from '../../contracts/validators/semantic-envelopes.js';
-import { validateSemanticRecord } from '../../contracts/validators/semantic.js';
 import { createAnalysisPartitionId, createSymbolGroupId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { persistSemanticEvidence, encodeSemanticEvidence } from './lsp-evidence.js';
@@ -20,6 +19,7 @@ import { createLspObservationCollector } from '../../integrations/tooling/provid
 import { writeStructuredLspEvidence } from './lsp-structured-evidence.js';
 import { readRetainedSemanticSourceSnapshot } from '../../semantic/retained-source-snapshot.js';
 import { readRetainedEmbeddedSourceMap, assertRetainedEmbeddedSourceRange } from './embedded-map-read.js';
+import { captureLspTargetSelection } from './lsp-target-selection.js';
 const refKey = ref => canonicalSemanticJson(ref);
 const valueWrapperKinds = new Set(['ParenthesizedExpression', 'NonNullExpression', 'AsExpression',
   'TypeAssertionExpression', 'SatisfiesExpression']);
@@ -79,7 +79,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
     const sourcePath = source.mapping ? sourcePaths.get(source.mapping.parentSourceUnitId) || source.path : source.path;
     const sourcePolicy = resolveSemanticSourcePolicy(policy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, language: source.language, path: sourcePath });
     const plan = state.semanticPlanningBySource?.get(source.sourceUnitId) || planSemanticSource(sourcePolicy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, syntaxPartitionId: syntax.partitionId });
-    const item = { sourceMap, policy: sourcePolicy, plan, invocationFor, unresolvedCount, file, facts, root, store, syntax, source, text, bytes, declarations, resolved };
+    const item = { sourceMap, policy: sourcePolicy, plan, invocationFor, occurrenceCount: occurrenceIds.size, unresolvedCount, file, facts, root, store, syntax, source, text, bytes, declarations, resolved };
     if (inventory.has(source.sourceUnitId)) throw Object.assign(new Error('Duplicate retained LSP source identity.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
     inventory.set(source.sourceUnitId, item);
     if (!source.mapping) { texts.set(source.path, text); byUri.set(pathToFileURL(path.join(runtime.root, source.path)).href, item); }
@@ -114,15 +114,8 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
     return context;
   };
   const captureTargets = async (item, selection) => {
-    // Capture the entire caller selection before the first asynchronous read.
-    // Canonical encoding rejects accessors, sparse arrays and non-JSON values.
-    if (!Array.isArray(selection)) throw Object.assign(new TypeError('LSP target selection must be an array.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
-    const targets = JSON.parse(canonicalSemanticJson(selection)), seen = new Set();
-    for (const target of targets) {
-      if (!validateSemanticRecord('recordRef', target?.ref).ok || target.ref.partitionId !== item.syntax.partitionId
-        || seen.has(refKey(target.ref))) throw Object.assign(new Error('LSP target is not a unique retained source occurrence.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
-      seen.add(refKey(target.ref));
-    }
+    const targets = captureLspTargetSelection({ selection, partitionId: item.syntax.partitionId,
+      occurrenceCount: item.occurrenceCount, text: item.text, signal });
     const selectedScopes = await collectSemanticTargetScopes({ policy: item.policy, store: item.store,
       partitionId: item.syntax.partitionId, signal });
     for (let offset = 0; offset < targets.length; offset += 128) {
