@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { stableStringify } from '../../../src/shared/stable-json.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
@@ -62,6 +64,21 @@ try {
   assert.equal(crashObserved.deletionAuthority, false);
   assert.equal(crashObserved.migrationAuthority, false);
   assert.equal(await fs.readFile(crash.path, 'utf8'), 'retained fixture crash evidence');
+  const { receiptId: priorId, ...knownBody } = receipt;
+  const unknownBody = { ...knownBody, toolId: 'unknown-metadata-tool', source: { ...knownBody.source, pinned: true } };
+  const unknownReceipt = { ...unknownBody, receiptId: createHash('sha256').update(stableStringify(unknownBody)).digest('hex') };
+  const unknownDirectory = path.join(root, 'install-receipts', unknownReceipt.toolId);
+  await fs.mkdir(unknownDirectory);
+  const unknownPath = path.join(unknownDirectory, `${unknownReceipt.receiptId}.json`);
+  const unknownBytes = JSON.stringify(unknownReceipt) + '\n';
+  await fs.writeFile(unknownPath, unknownBytes);
+  const unknownMetadata = await inspect();
+  assert.equal(unknownMetadata.complete, false, 'a body digest cannot register source retention metadata');
+  assert.equal(unknownMetadata.receipts.find(entry => entry.path === unknownPath).status, 'unknown-or-incomplete-receipt');
+  assert.equal(unknownMetadata.receipts.find(entry => entry.path === unknownPath).locations, undefined);
+  assert.equal(await fs.readFile(unknownPath, 'utf8'), unknownBytes);
+  await fs.rm(unknownPath);
+  await fs.rmdir(unknownDirectory);
   const env = applyTestEnv({ syncProcess: false });
   const cli = runNode(['tools/storage/cli.js', 'inspect', '--category', 'managed-installations', '--repo', repo,
     '--home', home, '--path', root, '--json'], 'managed receipt storage inventory CLI', process.cwd(), env,

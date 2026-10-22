@@ -229,3 +229,27 @@ teardown and native close are both retained through timeout reconciliation.
 Neither one alone proves the other complete. Authored disposable-file controls
 exercise delayed close, delayed iterator return and EOF followed by close error;
 they remain UNVALIDATED.
+
+Ordinary per-tool observation receipts publish exclusively from a flushed private
+file. An existing identity is a no-op only after a bounded contained read checks
+the same registered body; conflicting, unreadable or unknown evidence is retained.
+The writer never renames over that existing record. Failure to clean its private
+temporary file preserves the original publication error as an aggregate cause.
+An incomplete temporary write is left as recovery evidence rather than removed
+without confirmation that this writer completed its private write.
+
+The actual receipt writer, lifecycle reader/verifier and secondary storage
+inventory share checks for the registered observation fields, body digest,
+consumer identity and secondary retention vocabulary. Unknown top-level, source
+or location metadata stays unqualified and cannot select secondary scan paths.
+Prior observations without secondary routing remain incomplete. Prerequisite
+rows are bounded observations; these receipts still grant no removal authority.
+The lifecycle inventory counts unregistered directory entries toward its bound.
+
+A package-manager command or version-looking argument does not establish an
+immutable upstream source or transitive integrity. New observation receipts set
+`source.immutable:false`; a historical true flag does not elevate their existing
+`not-probed` protocol or `not-qualified` consumer status. Canonical pinned archive
+descriptors retain their separate existing integrity owner and are not treated
+as ordinary command recipes. These publication, conflict and metadata controls
+are authored source and fixtures only and remain UNVALIDATED.

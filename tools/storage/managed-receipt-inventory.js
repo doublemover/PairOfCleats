@@ -1,44 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
-import { TOOL_INSTALL_RECEIPT_VERSION, TOOL_SECONDARY_STORAGE_VERSION } from '../tooling/install-receipts.js';
-import { stableStringify } from '../../src/shared/stable-json.js';
+import { validateToolInstallReceipt, validateToolSecondaryStorage } from '../tooling/install-receipts.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 import { readVerifiedContainedFile } from '../../src/shared/contained-file.js';
 import { inspectStorageInventory, storageFileIdentity, sameStorageFileIdentity } from '../../src/shared/storage/inventory.js';
 import { inspectStorageAccess } from '../../src/shared/storage/access.js';
-import { MANAGED_CHILD_STORAGE_RETENTION_TIERS } from '../../src/shared/storage/child-environment.js';
-
-const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
-const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
-  && Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 const errorRecord = error => ({ code: error.code || 'ERR_MANAGED_STORAGE_RECEIPT', message: error.message });
-const locationKeys = ['environmentKey', 'path', 'retention', 'external', 'source', 'purpose', 'file', 'cleanupAuthority'];
-const retention = new Set(MANAGED_CHILD_STORAGE_RETENTION_TIERS);
-
-const readSecondaryStorage = value => {
-  if (!exact(value, ['schemaVersion', 'state', 'profileIdentity', 'runId', 'locations', 'exceptions'])
-    || value.schemaVersion !== TOOL_SECONDARY_STORAGE_VERSION || value.state !== 'settled-declared-not-observed'
-    || !/^[a-f0-9]{64}$/u.test(value.profileIdentity || '')
-    || !/^[a-zA-Z0-9._-]{1,120}$/u.test(value.runId || '') || ['.', '..'].includes(value.runId) || !Array.isArray(value.locations)
-    || value.locations.length > 128 || !Array.isArray(value.exceptions) || value.exceptions.length > 128) {
-    throw new Error('Managed secondary storage receipt is unknown or incomplete.');
-  }
-  for (const location of value.locations) {
-    if (!exact(location, locationKeys) || !/^[a-zA-Z_][a-zA-Z0-9_]{0,127}$/u.test(location.environmentKey || '')
-      || !path.isAbsolute(location.path || '') || /[\x00-\x1f]/u.test(location.path) || !retention.has(location.retention)
-      || typeof location.external !== 'boolean' || typeof location.file !== 'boolean' || location.cleanupAuthority !== false
-      || !['inherited-or-explicit-environment', 'managed-storage-profile'].includes(location.source)
-      || (location.purpose !== null && typeof location.purpose !== 'string')) throw new Error('Unregistered secondary location is retained without scan authority.');
-  }
-  for (const exception of value.exceptions) {
-    if (!exception || typeof exception !== 'object' || Array.isArray(exception)
-      || Object.keys(exception).some(key => !['environmentKey', 'path', 'kind', 'status'].includes(key))
-      || ['kind', 'status'].some(key => exception[key] !== null && typeof exception[key] !== 'string')
-      || (exception.path !== undefined && !path.isAbsolute(exception.path))) throw new Error('Unknown secondary exception metadata is retained.');
-  }
-  return value;
-};
 
 /** Read existing producer receipts and account only launch-selected registered
  * roots. A persisted path is declaration evidence, never read/write adoption,
@@ -73,10 +40,9 @@ export const inspectManagedStorageReceipts = async ({ root, home, registeredRoot
       if (!sameStorageFileIdentity(file.identity, storageFileIdentity(await fs.lstat(target, { bigint: true })))) {
         throw new Error('Managed receipt changed during inventory.');
       }
-      const value = JSON.parse(read.buffer.toString('utf8'));
-      const { receiptId, ...body } = value;
-      if (value.schemaVersion !== TOOL_INSTALL_RECEIPT_VERSION || value.kind !== 'tool-install-receipt'
-        || value.toolId !== parts[0] || receiptId !== parts[1].slice(0, -5) || digest(body) !== receiptId) {
+      const value = validateToolInstallReceipt(JSON.parse(read.buffer.toString('utf8')));
+      const { receiptId } = value;
+      if (value.toolId !== parts[0] || receiptId !== parts[1].slice(0, -5)) {
         throw new Error('Managed install receipt producer identity is incompatible.');
       }
       if (!value.secondaryStorage || value.secondaryStorage.state === 'unknown-or-not-recorded') {
@@ -86,7 +52,7 @@ export const inspectManagedStorageReceipts = async ({ root, home, registeredRoot
           retention: 'evidence', protected: true, ownerQualified: false, deletionAuthority: false });
         continue;
       }
-      const secondary = readSecondaryStorage(value.secondaryStorage);
+      const secondary = validateToolSecondaryStorage(value.secondaryStorage);
       const locations = [];
       for (const location of secondary.locations) {
         const selected = path.resolve(location.path);
