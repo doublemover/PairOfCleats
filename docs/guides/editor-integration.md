@@ -12,6 +12,15 @@ The JSON payload includes top-level search buckets (`code`, `prose`, `extractedP
 
 Indexed metadata enumeration admits only canonical filter pagination with a concrete generation and bounded opaque cursor. Continuation keeps its captured options, transport destination and repository mapping; cursor/generation/endpoint failure preserves the previous results and requires an explicit restart. Ranked text has no exhaustive continuation. Exact hit identity includes section, ID domain and value type, so numeric zero, string zero and a chunk UID are distinct. Sublime retains its selected hit across appended pages and local reopening; supported-editor focus qualification remains separate.
 
+Both adapters admit initial page membership before publishing history/results:
+returned counts must match the captured rows, known totals must cover that page,
+and an advancing page must contain a result. Invalid pages retain the prior view.
+VS Code assigns stable native TreeItem IDs to result sets, grouping rows and hit
+occurrences, including duplicate canonical IDs and anonymous captured ordinals.
+These IDs preserve display identity across refresh/grouping and appended pages;
+they are never semantic/source authority. Real editor focus/expansion acceptance
+and the authored initial-page/identity regressions remain unvalidated.
+
 ## Deterministic packaging flow
 
 Canonical packaging commands:

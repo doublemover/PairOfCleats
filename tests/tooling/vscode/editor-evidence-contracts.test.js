@@ -27,7 +27,7 @@ assert.doesNotMatch(rendered, /never display this|\/project\/cli/);
 const generation = { baseBuildId: 'build-a', semanticRevision: 0 };
 const pagination = normalizeFilterPagination({ kind: 'filter', generation: 'a'.repeat(64), total: 4, returned: 2, hasMore: true, nextCursor: 'opaque' });
 const previous = { pagination, hits: [{ section: 'code', chunkUid: 'a', file: 'a.js', name: 'same' }] };
-const merged = mergeFilterPage(previous, { ...pagination, hasMore: false }, [
+const merged = mergeFilterPage(previous, { ...pagination, returned: 4, hasMore: false, nextCursor: null }, [
   { section: 'code', chunkUid: 'a', file: 'a.js', name: 'same' },
   { section: 'code', chunkUid: 'b', file: 'b.js', name: 'same' },
   { section: 'records', chunkUid: 'a', file: 'record.json', name: 'same' },

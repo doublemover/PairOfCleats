@@ -17,7 +17,7 @@ from ..lib import operations
 from ..lib import ui
 from ..lib import views
 from ..lib.saved_search import normalize_saved_options
-from ..lib.filter_pagination import (normalize_filter_pagination, merge_filter_page, continuation_endpoint_matches,
+from ..lib.filter_pagination import (normalize_filter_pagination, admit_filter_page, merge_filter_page, continuation_endpoint_matches,
                                    selected_index, capture_selection)
 from ..lib.navigation import qualified_navigation_evidence, execute_qualified_navigation as _execute_qualified_navigation
 from ..lib.completion_target import capture_target, target_is_current, apply_target
@@ -416,9 +416,12 @@ def _execute_search(window, query, overrides=None, explain=False, enumeration=Fa
                 return
         hits = results.collect_hits(payload)
         pagination = normalize_filter_pagination(payload.get('pagination'))
-        if enumeration and pagination is None:
-            ui.show_error('PairOfCleats: indexed browsing returned no canonical generation/page identity. Restart with supported indexed metadata filters.')
-            return
+        if enumeration:
+            try:
+                pagination = admit_filter_page(payload.get('pagination'), hits)
+            except ValueError as error:
+                ui.show_error('PairOfCleats: ' + str(error))
+                return
         if append_session:
             current = results_state.get_last_results(window)
             if not current or current.get('sessionId') != append_session.get('sessionId'):

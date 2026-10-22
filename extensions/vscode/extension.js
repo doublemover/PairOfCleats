@@ -13,7 +13,8 @@ const { createDocumentAuthority, readVerifiedSource } = require('./document-auth
 const { createTaskObservations, taskRecoveryActions } = require('./task-observations.js');
 const taskObservations = createTaskObservations();
 const { generationFromContextPack, contextDiscoveryRequest, contextDiscoveryCliArgs } = require('./semantic-discovery.js');
-const { normalizeFilterPagination, mergeFilterPage, continuationInvocation } = require('./filter-pagination.js');
+const { normalizeFilterPagination, admitFilterPage, mergeFilterPage, continuationInvocation } = require('./filter-pagination.js');
+const { resultTreeItemId, resultTreeHitOccurrences } = require('./results-tree-identity.js');
 const { createSemanticEvidenceWorkflow, sourceQualifiedSelection, qualifiedBindingSeed } = require('./semantic-evidence.js');
 let latestNavigationEvidence = null;
 const navigationLocationSources = new WeakMap();
@@ -1455,13 +1456,14 @@ function getActiveSearchResultSet() {
   return searchHistory.find((entry) => entry.resultSetId === activeSearchResultId) || searchHistory[0] || null;
 }
 
-function createTreeItem(label, { description = '', tooltip = '', collapsibleState = 0, command = null, contextValue = '' } = {}) {
+function createTreeItem(label, { description = '', tooltip = '', collapsibleState = 0, command = null, contextValue = '', id = null } = {}) {
   if (typeof vscode.TreeItem === 'function') {
     const item = new vscode.TreeItem(label, collapsibleState);
     item.description = description;
     item.tooltip = tooltip || label;
     item.command = command || undefined;
     item.contextValue = contextValue || undefined;
+    if (id) item.id = id;
     return item;
   }
   return {
@@ -1470,7 +1472,8 @@ function createTreeItem(label, { description = '', tooltip = '', collapsibleStat
     tooltip: tooltip || label,
     collapsibleState,
     command,
-    contextValue
+    contextValue,
+    ...(id ? { id } : {})
   };
 }
 
@@ -1478,23 +1481,28 @@ function buildResultsTree() {
   const activeResultSet = getActiveSearchResultSet();
   if (!activeResultSet) return [];
   if (searchGroupMode === 'query') {
-    return searchHistory.slice(0, 10).map((resultSet) => ({
-      kind: 'result-set',
-      resultSet,
-      treeItem: createTreeItem(resultSet.query, {
-        description: `${resultSet.repoLabel} • ${resultSet.totalHits} hit(s)`,
-        tooltip: `${resultSet.repoRoot}\n${resultSet.query}`,
-        collapsibleState: 1,
-        contextValue: 'pairofcleats.resultSet'
-      }),
-      children: resultSet.hits.map((hit) => buildResultHitNode(resultSet, hit))
-    }));
+    return searchHistory.slice(0, 10).map((resultSet) => {
+      const occurrences = resultTreeHitOccurrences(resultSet.hits);
+      return {
+        kind: 'result-set',
+        resultSet,
+        treeItem: createTreeItem(resultSet.query || 'Indexed metadata matches', {
+          id: resultTreeItemId({ resultSetId: resultSet.resultSetId, groupMode: 'query', kind: 'result-set' }),
+          description: `${resultSet.repoLabel} • ${resultSet.totalHits} hit(s)`,
+          tooltip: `${resultSet.repoRoot}\n${resultSet.query}`,
+          collapsibleState: 1,
+          contextValue: 'pairofcleats.resultSet'
+        }),
+        children: resultSet.hits.map((hit, ordinal) => buildResultHitNode(resultSet, hit, ordinal, occurrences[ordinal]))
+      };
+    });
   }
   const groups = new Map();
-  for (const hit of activeResultSet.hits) {
+  const occurrences = resultTreeHitOccurrences(activeResultSet.hits);
+  for (const [ordinal, hit] of activeResultSet.hits.entries()) {
     const key = searchGroupMode === 'file' ? hit.file : hit.section;
     if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(hit);
+    groups.get(key).push({ hit, ordinal });
   }
   return Array.from(groups.entries()).map(([key, hits]) => ({
     kind: 'group',
@@ -1503,20 +1511,22 @@ function buildResultsTree() {
       {
         description: `${hits.length} hit(s)`,
         collapsibleState: 1,
-        contextValue: 'pairofcleats.resultGroup'
+        contextValue: 'pairofcleats.resultGroup',
+        id: resultTreeItemId({ resultSetId: activeResultSet.resultSetId, groupMode: searchGroupMode, kind: 'group', key })
       }
     ),
-    children: hits.map((hit) => buildResultHitNode(activeResultSet, hit))
+    children: hits.map(({ hit, ordinal }) => buildResultHitNode(activeResultSet, hit, ordinal, occurrences[ordinal]))
   }));
 }
 
-function buildResultHitNode(resultSet, hit) {
+function buildResultHitNode(resultSet, hit, ordinal, occurrence) {
   const label = hit.name || hit.headline || hit.file;
   return {
     kind: 'hit',
     resultSet,
     hit,
     treeItem: createTreeItem(label, {
+      id: resultTreeItemId({ resultSetId: resultSet.resultSetId, kind: 'hit', hit, ordinal, occurrence }),
       description: `${hit.file}${Number.isFinite(hit.startLine) ? `:${hit.startLine}` : ''}`,
       tooltip: `${hit.section}${hit.score !== null ? ` • score ${hit.score}` : ''}`,
       collapsibleState: 0,
@@ -4628,6 +4638,10 @@ async function executeOwnedSearchCommand({
         try { payload = mapServicePayload(result.payload?.result || result.payload, serviceMapping.serviceRoot); }
         catch (error) { vscode.window.showErrorMessage(error.message); return; }
         const hits = collectSearchHits(payload);
+        if (enumeration) {
+          try { admitFilterPage(payload?.pagination, hits); }
+          catch (error) { vscode.window.showErrorMessage(error.message); return; }
+        }
         await recordSearchResultSet({
           repoContext,
           query: resolvedQuery,
@@ -4774,8 +4788,11 @@ async function executeOwnedSearchCommand({
             return;
           }
           const payload = parsed.payload;
-
           const hits = collectSearchHits(payload);
+          if (enumeration) {
+            try { admitFilterPage(payload?.pagination, hits); }
+            catch (error) { vscode.window.showErrorMessage(error.message); resolve(); return; }
+          }
           const resultSet = await recordSearchResultSet({
             repoContext,
             query: resolvedQuery,
@@ -5217,7 +5234,9 @@ async function loadMoreIndexedMatches() {
     vscode.window.showErrorMessage('Transport policy or endpoint changed. Restart indexed browsing with the intended transport.');
     return;
   }
-  const invocation = continuationInvocation(previous.invocation, previous.pagination.nextCursor);
+  let invocation;
+  try { invocation = continuationInvocation(previous.invocation, previous.pagination.nextCursor); }
+  catch (error) { vscode.window.showErrorMessage(`${error.message} Restart indexed browsing to capture its scope.`); return; }
   await operations.run('foreground-search', () => runOwnedSavedSearch(
     { ...previous, invocation }, createStoredRepoContext(previous), previous), { key: 'foreground-search' });
 }

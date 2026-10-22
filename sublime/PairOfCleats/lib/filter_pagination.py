@@ -12,7 +12,9 @@ def normalize_filter_pagination(value):
     if (not isinstance(value, dict) or value.get('kind') != 'filter'
             or not isinstance(value.get('generation'), str)
             or not re.match(r'^[a-f0-9]{64}\Z', value['generation'])
-            or not isinstance(value.get('hasMore'), bool)):
+            or not isinstance(value.get('hasMore'), bool)
+            or value.get('order') not in (None, 'indexed-order')
+            or not value['hasMore'] and value.get('nextCursor') is not None):
         return None
     cursor = value.get('nextCursor')
     if value['hasMore'] and (not isinstance(cursor, str) or not 0 < len(cursor) <= 8192):
@@ -23,6 +25,16 @@ def normalize_filter_pagination(value):
         'nextCursor': cursor if isinstance(cursor, str) and 0 < len(cursor) <= 8192 else None,
         'coverage': value.get('coverage') or 'indexed-metadata',
         'coverageNote': str(value.get('coverageNote') or '')[:4096]}
+
+
+def admit_filter_page(value, hits):
+    page = normalize_filter_pagination(value)
+    if (not page or not isinstance(hits, list) or len(hits) > MAX_HITS
+            or _count(value.get('returned')) != len(hits)
+            or page['total'] is not None and page['total'] < page['returned']
+            or page['hasMore'] and page['returned'] == 0):
+        raise ValueError('Indexed browsing returned invalid generation/page membership. Restart with supported indexed metadata filters.')
+    return page
 
 
 def hit_identity(hit):
@@ -42,6 +54,9 @@ def merge_filter_page(previous_session, next_pagination, hits):
     current = normalize_filter_pagination(next_pagination)
     if not previous or not current or previous['generation'] != current['generation']:
         raise ValueError('Indexed generation changed or page identity is unavailable. Restart Browse Indexed Matches.')
+    current = admit_filter_page(next_pagination, hits)
+    if previous['total'] is not None and current['total'] is not None and previous['total'] != current['total']:
+        raise ValueError('Indexed matching total changed within one generation. Restart browsing; the previous result set is retained.')
     if current['hasMore'] and current['nextCursor'] == previous['nextCursor']:
         raise ValueError('Indexed continuation did not advance. Restart browsing; the previous result set is retained.')
     merged = list(previous_session.get('hits') or [])

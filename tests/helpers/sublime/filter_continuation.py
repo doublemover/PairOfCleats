@@ -21,12 +21,20 @@ assert pagination.normalize_filter_pagination(dict(page, hasMore='true')) is Non
 assert pagination.normalize_filter_pagination(dict(page, nextCursor=None)) is None
 previous = {'pagination': page, 'hits': [{'section': 'records', 'id': 0, 'name': 'same'}]}
 next_page = dict(page, hasMore=False, nextCursor=None)
-merged = pagination.merge_filter_page(previous, next_page, [
+merged = pagination.merge_filter_page(previous, dict(next_page, returned=4), [
     {'section': 'records', 'id': 0, 'name': 'same'},
     {'section': 'records', 'id': '0', 'name': 'same'},
     {'section': 'records', 'chunkUid': '0', 'name': 'same'},
     {'section': 'code', 'id': 0, 'name': 'same'}])
 assert len(merged) == 4, 'only exact namespace/type/domain identities deduplicate'
+for invalid in (dict(page, returned=0), dict(page, returned='1'), dict(page, total=0),
+        dict(page, order='ranked-score'), dict(page, hasMore=False)):
+    try:
+        pagination.admit_filter_page(invalid, previous['hits'])
+        raise AssertionError('invalid initial page was admitted')
+    except ValueError:
+        pass
+assert pagination.admit_filter_page(dict(page, returned=0, total=0, hasMore=False, nextCursor=None), [])['returned'] == 0
 pagination.capture_selection(previous, merged, 1)
 assert pagination.selected_index(previous, [merged[-1]] + merged) == 2, 'selected exact identity survives section/insertion ordering'
 for invalid in (dict(page, generation='b' * 64), page):

@@ -2,6 +2,8 @@ function normalizeFilterPagination(value) {
   if (value?.kind !== 'filter' || typeof value.generation !== 'string'
     || value.generation.length !== 64 || !/^[a-f0-9]{64}$/.test(value.generation)
     || typeof value.hasMore !== 'boolean'
+    || value.order != null && value.order !== 'indexed-order'
+    || !value.hasMore && value.nextCursor != null
     || value.hasMore && (typeof value.nextCursor !== 'string' || !value.nextCursor.length || value.nextCursor.length > 8192)) return null;
   return {
     kind: 'filter', order: 'indexed-order', generation: value.generation,
@@ -15,6 +17,17 @@ function normalizeFilterPagination(value) {
   };
 }
 
+function admitFilterPage(value, hits) {
+  const page = normalizeFilterPagination(value);
+  if (!page || !Array.isArray(hits) || hits.length > 2000
+    || !Number.isSafeInteger(value.returned) || value.returned !== hits.length
+    || page.total !== null && page.total < page.returned
+    || page.hasMore && page.returned === 0) {
+    throw new Error('Indexed browsing returned invalid generation/page membership. Restart with supported indexed metadata filters.');
+  }
+  return page;
+}
+
 function filterHitIdentity(hit) {
   if (typeof hit.chunkUid === 'string' && hit.chunkUid) return JSON.stringify([hit.section || '', 'chunkUid', hit.chunkUid]);
   const id = typeof hit.id === 'string' || Number.isSafeInteger(hit.id) && hit.id >= 0 ? hit.id : null;
@@ -25,6 +38,10 @@ function mergeFilterPage(previous, next, hits) {
   if (!previous?.pagination || !next
     || JSON.stringify(previous.pagination.generation) !== JSON.stringify(next.generation)) {
     throw new Error('Indexed generation changed. Restart Browse Indexed Matches to use the new generation.');
+  }
+  next = admitFilterPage(next, hits);
+  if (previous.pagination.total != null && next.total != null && previous.pagination.total !== next.total) {
+    throw new Error('Indexed matching total changed within one generation. Restart browsing; the previous result set is retained.');
   }
   if (next.hasMore && next.nextCursor === previous.pagination.nextCursor) {
     throw new Error('Indexed continuation did not advance. Restart browsing; the previous result set is retained.');
@@ -58,4 +75,4 @@ function continuationInvocation(invocation, cursor) {
   return { ...invocation, args };
 }
 
-module.exports = { normalizeFilterPagination, filterHitIdentity, mergeFilterPage, continuationInvocation };
+module.exports = { normalizeFilterPagination, admitFilterPage, filterHitIdentity, mergeFilterPage, continuationInvocation };
