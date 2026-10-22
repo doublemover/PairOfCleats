@@ -73,6 +73,8 @@ try {
     assert.equal(page.repoPath, await fs.realpath(repo));
     assert.equal(typeof page.scopeId, 'string');
     assert.equal(page.queryGeneration, 1);
+    assert.equal(page.searchDiagnostics.backend.selected, 'memory');
+    assert.equal(page.searchDiagnostics.state, 'recorded');
     assert.ok(session.events.some(event => event.event === 'job:spawn'
       && event.jobId === 'search-1' && event.internal === true && Number.isSafeInteger(event.pid)));
     assert.ok(page.hits.some(hit => hit.file === 'src/item0.js'), JSON.stringify(page));
@@ -87,6 +89,8 @@ try {
     assert.equal(empty.queryGeneration, 2);
     assert.notEqual(empty.scopeId, page.scopeId);
     assert.equal(empty.hits.length, 0);
+    assert.ok(empty.searchDiagnostics.reasons.some(reason => reason.code === 'query-with-filters'));
+    assert.ok(empty.searchDiagnostics.reasons.some(reason => reason.code === 'coverage-check'));
     const old = await request('source', { resultId: page.resultId, hitId: page.hits[0].hitId });
     assert.equal(old.status, 'failed'); assert.equal(old.error.code, 'ERR_TUI_SEARCH_STALE');
     const invalid = await request('query', { repoPath: repo, search: { ...search, asOf: 'commit:a', snapshot: 'b' } });

@@ -14,6 +14,7 @@ import { applyOutputBudgetPolicy, normalizeOutputBudgetPolicy } from '../output/
 import { buildTrustSurface } from '../output/explain.js';
 import { buildRetrievalMetadata } from '../output/retrieval-metadata.js';
 import { explainEmptyResults } from '../output/empty-results.js';
+import { buildSearchDiagnostics } from '../output/search-diagnostics.js';
 import { ANSI } from '../../shared/cli/ansi-utils.js';
 
 const FALLBACK_TERMINAL_COLUMNS = 108;
@@ -401,6 +402,7 @@ export function renderSearchOutput({
       filtersActive, filterEnumeration, backend: payload.retrieval.backend
     });
   }
+  payload.retrieval.diagnostics = buildSearchDiagnostics(payload.retrieval);
   if (asOfContext) {
     payload.asOf = {
       ref: asOfContext.ref || 'latest',

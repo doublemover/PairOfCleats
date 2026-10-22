@@ -33,6 +33,12 @@ without contacting the CLI or API. Repeat Last Search and Rerun Result Set are
 explicit refresh actions that create a new result set. Saved evidence does not
 establish the current worktree or index state.
 
+Search output retains the producer's actual backend, fallback fidelity, empty
+result reasons and recorded generation identity. Older history without those
+facts is labelled unknown. Empty results offer deliberate Index Health/Tooling
+Doctor actions when the recorded reason supports them; receiving diagnostics
+never launches either workflow. See the [diagnostic contract](../../docs/contracts/search-diagnostics.md).
+
 ## Operational workflows
 
 Long-running workflows stream into the `PairOfCleats` output channel.

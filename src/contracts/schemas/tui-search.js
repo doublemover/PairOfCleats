@@ -1,4 +1,5 @@
 const id = { type: 'string', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' };
+export { SEARCH_DIAGNOSTICS_SCHEMA as TUI_SEARCH_DIAGNOSTICS_SCHEMA } from './search-diagnostics.js';
 const record = properties => ({ type: 'object', additionalProperties: false, properties, required: Object.keys(properties) });
 
 /** Internal operator envelope; search predicates retain their canonical API schema. */

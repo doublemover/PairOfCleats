@@ -2,7 +2,7 @@ import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { createTuiSettingsSession } from './settings.js';
-import { assertTuiSearchRequest } from '../../../src/contracts/validators/tui-search.js';
+import { assertTuiSearchRequest, assertTuiSearchDiagnostics } from '../../../src/contracts/validators/tui-search.js';
 import { buildSearchRequestArgs } from '../../../src/shared/search-request.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
@@ -10,6 +10,7 @@ import { createExcerptSourceContext, resolveExcerpt } from '../../../src/context
 import { getSearchRequestSchema } from '../../api/validation.js';
 import { readVerifiedContainedFile, assertNoSymlinkPath } from '../../../src/shared/contained-file.js';
 import { resolveTrustedTuiCommand, runTrustedTuiCommand } from './command.js';
+import { buildSearchDiagnostics } from '../../../src/retrieval/output/search-diagnostics.js';
 
 const MODES = [['code', 'code'], ['prose', 'prose'], ['extractedProse', 'extracted-prose'], ['records', 'records']];
 const MAX_OUTPUT_BYTES = 768 * 1024;
@@ -88,6 +89,7 @@ export const createTuiSearchSession = ({ toolRoot, env = process.env } = {}) => 
     return { resultId: state.resultId, scopeId: state.scope.id, queryGeneration: state.epoch,
       repoPath: state.scope.configRoot, hits,
       pagination: payload.pagination ?? null, freshness: payload.retrieval?.freshness ?? null,
+      searchDiagnostics: assertTuiSearchDiagnostics(buildSearchDiagnostics(payload.retrieval)),
       outputBudget: payload.outputBudget ?? null, diagnostics: safeText(child.stderr).slice(0, 8192) };
   };
   const withOwnedOperation = async (executeOperation, signal, { query = false } = {}) => {

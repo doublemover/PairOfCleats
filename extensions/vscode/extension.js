@@ -39,7 +39,7 @@ const {
 } = require('./runtime.js');
 const { buildDestinationBoundApiHeaders, workspaceTrustError } = require('./security.js');
 const { normalizeWorkflowRequest, hasRequiredWorkflowInput } = require('./workflow-replay.js');
-const { boundedFacts, captureSearchExplanation, renderSearchExplanation, normalizeCapturedExplanation } = require('./search-explanation.js');
+const { boundedFacts, captureSearchExplanation, renderSearchExplanation, normalizeCapturedExplanation, normalizeSearchDiagnostics } = require('./search-explanation.js');
 
 // Check immediately at each sink, including after async prompts/probes and
 // saved/background workflows. Trust may change while a command is pending.
@@ -1308,6 +1308,7 @@ function normalizeSearchResultSet(rawResultSet) {
     totalHits: Number.isFinite(rawResultSet.totalHits) ? Number(rawResultSet.totalHits) : hits.length,
     invocation: normalizeSearchInvocation(rawResultSet.invocation),
     explanation: normalizeCapturedExplanation(rawResultSet.explanation),
+    searchDiagnostics: normalizeSearchDiagnostics(rawResultSet.searchDiagnostics),
     hits
   };
 }
@@ -1494,6 +1495,7 @@ async function recordSearchResultSet({
     totalHits: hits.length,
     invocation,
     explanation: explain ? captureSearchExplanation(payload) : null,
+    searchDiagnostics: normalizeSearchDiagnostics(payload?.retrieval?.diagnostics),
     hits
   });
   if (!resultSet) return null;
@@ -1501,7 +1503,31 @@ async function recordSearchResultSet({
   activeSearchResultId = resultSet.resultSetId;
   await persistSearchHistory();
   refreshResultsExplorer();
+  presentSearchDiagnostics(resultSet);
   return resultSet;
+}
+
+function presentSearchDiagnostics(resultSet, historical = false) {
+  const facts = resultSet.searchDiagnostics;
+  const output = getOutputChannel();
+  output.appendLine(`[search diagnostics] ${historical ? 'Saved evidence' : 'Captured response'}: ${facts.summary}`);
+  for (const line of facts.details) output.appendLine(line);
+  output.appendLine('Recorded generation identity does not verify current worktree freshness.');
+  if (facts.truncated) output.appendLine('Diagnostic projection is truncated by its display/history bound.');
+  if (!historical && !resultSet.hits.length) {
+    const message = facts.reasons.find(reason => reason.message)?.message || 'This response contains no hits; diagnostics are unknown.';
+    const actionIds = { 'Index Health': 'pairofcleats.indexHealth', 'Tooling Doctor': 'pairofcleats.doctor' };
+    const labels = facts.actions.map(action => action === 'index-report' ? 'Index Health' : 'Tooling Doctor');
+    // Labels resolve locally to registered read-only commands. Response text is
+    // never executable and receiving metadata never dispatches a workflow.
+    Promise.resolve(vscode.window.showInformationMessage(`PairOfCleats: ${message}`, ...labels)).then(label => {
+      if (labels.includes(label) && actionIds[label]) return vscode.commands.executeCommand(actionIds[label]);
+      return undefined;
+    }).catch(() => {});
+    output.show?.(true);
+  } else if (!historical && facts.backend.fidelity === 'fallback-derived') {
+    vscode.window.showInformationMessage(`PairOfCleats search used fallback results. ${facts.summary}`);
+  }
 }
 
 async function openResultHitNode(node) {
@@ -1562,6 +1588,7 @@ async function activateSavedResultSet(savedResultSet) {
   activeSearchResultId = resultSet.resultSetId;
   await persistSearchHistory();
   refreshResultsExplorer();
+  presentSearchDiagnostics(resultSet, true);
   vscode.window.showInformationMessage(`PairOfCleats reopened results for "${resultSet.query}" (saved evidence${resultSet.createdAt ? ` from ${resultSet.createdAt}` : ''}).`);
 }
 
@@ -4406,10 +4433,11 @@ async function executeOwnedSearchCommand({
             payload: searchPayload,
             transport: 'api'
           },
-          hits
+          hits,
+          payload,
+          explain
         });
         if (!hits.length) {
-          vscode.window.showInformationMessage('PairOfCleats: no results.');
           return;
         }
         const items = hits.map((hit) => {
@@ -4558,7 +4586,6 @@ async function executeOwnedSearchCommand({
           });
 
           if (!hits.length) {
-            vscode.window.showInformationMessage('PairOfCleats: no results.');
             resolve();
             return;
           }
@@ -4654,6 +4681,7 @@ async function runOwnedSavedSearch(resultSet, repoContext) {
   const output = getOutputChannel();
   const invocation = resultSet?.invocation || null;
   let hits = [];
+  let payload = null;
   if (invocation?.kind === 'api-search') {
     const result = await requestApiJson(invocation.baseUrl, '/search', {
       method: 'POST',
@@ -4668,7 +4696,8 @@ async function runOwnedSavedSearch(resultSet, repoContext) {
       vscode.window.showErrorMessage(result.message || 'PairOfCleats search failed.');
       return { ok: false };
     }
-    hits = collectSearchHits(result.payload?.result || result.payload);
+    payload = result.payload?.result || result.payload;
+    hits = collectSearchHits(payload);
   } else {
     const searchTimeoutMs = 60000;
     const spec = { title: 'PairOfCleats search', progressTitle: 'PairOfCleats search', timeoutMs: searchTimeoutMs };
@@ -4690,7 +4719,8 @@ async function runOwnedSavedSearch(resultSet, repoContext) {
       show(result?.message || 'PairOfCleats search failed.');
       return { ok: false };
     }
-    hits = collectSearchHits(result.payload);
+    payload = result.payload;
+    hits = collectSearchHits(payload);
   }
   await recordSearchResultSet({
     repoContext,
@@ -4700,7 +4730,9 @@ async function runOwnedSavedSearch(resultSet, repoContext) {
       backend: resultSet.backend
     },
     invocation: resultSet.invocation,
-    hits
+    hits,
+    payload,
+    explain: Boolean(resultSet.explanation)
   });
   return { ok: true, hits };
 }

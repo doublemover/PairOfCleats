@@ -196,7 +196,9 @@ try {
           const replacement = await settled('query', Number(spawn.jobId.split('-').at(-1)));
           assert.equal(replacement.queryGeneration, 2);
           if (mode === 'replace') {
-            assert.equal(replacement.hits.length, 0); await rendered('No indexed hits');
+            assert.equal(replacement.hits.length, 0);
+            assert.ok(replacement.searchDiagnostics.reasons[0].message);
+            await rendered(replacement.searchDiagnostics.reasons[0].message.slice(0, 30));
           } else {
             assert.equal(replacement.repoPath, await fs.realpath(alternate));
             assert.ok(replacement.hits.some(hit => hit.file === 'src/different.js'));
@@ -211,7 +213,8 @@ try {
         const expandedAfter = await lastJob();
         terminal.write('e\t\t\x15zzznevermatchzzz\r');
         const empty = await settled('query', expandedAfter); assert.equal(empty.hits.length, 0);
-        await rendered('No indexed hits');
+        assert.ok(empty.searchDiagnostics.reasons[0].message);
+        await rendered(empty.searchDiagnostics.reasons[0].message.slice(0, 30));
         const after = await lastJob();
         terminal.write('e\t\t\x15invented\r');
         let rejected;

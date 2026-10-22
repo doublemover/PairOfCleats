@@ -63,4 +63,39 @@ function normalizeCapturedExplanation(value) {
   return { version: 1, source: 'captured-response', ...projected, truncated: value.truncated === true || projected.truncated };
 }
 
-module.exports = { boundedFacts, captureSearchExplanation, renderSearchExplanation, normalizeCapturedExplanation };
+// Only the retrieval producer explains backend selection and empty results.
+// This adapter bounds a recorded projection; old history remains unknown.
+function normalizeSearchDiagnostics(value) {
+  if (value?.schemaVersion !== 1) return {
+    schemaVersion: 1, state: 'unknown', summary: 'Search diagnostics were not recorded for this response.',
+    backend: { requested: null, selected: null, selectionReason: null, fidelity: 'unknown' },
+    reasons: [], generations: [], actions: [], details: ['Search diagnostics were not recorded for this response.'], truncated: false
+  };
+  let truncated = value.truncated === true;
+  const text = (input, limit = 256) => {
+    if (typeof input !== 'string') return null;
+    const safe = cleanText(input).replace(/[\r\n\t\u0080-\u009f\u202a-\u202e\u2066-\u2069]/g, ' ');
+    if (safe.length > limit || input.length > 4096) truncated = true;
+    return safe.slice(0, limit);
+  };
+  const rows = (input, max, project) => {
+    if (!Array.isArray(input)) return [];
+    if (input.length > max) truncated = true;
+    return input.slice(0, max).map(project);
+  };
+  const output = {
+    schemaVersion: 1, state: value.state === 'recorded' ? 'recorded' : 'unknown', summary: text(value.summary, 768),
+    backend: { requested: text(value.backend?.requested, 128), selected: text(value.backend?.selected, 128),
+      selectionReason: text(value.backend?.selectionReason),
+      fidelity: ['complete', 'fallback-derived'].includes(value.backend?.fidelity) ? value.backend.fidelity : 'unknown' },
+    reasons: rows(value.reasons, 8, reason => ({ code: text(reason?.code, 64), message: text(reason?.message, 512), next: text(reason?.next, 512) })),
+    generations: rows(value.generations, 4, generation => ({ mode: text(generation?.mode, 32),
+      buildId: text(generation?.buildId), generationKey: text(generation?.generationKey), signature: text(generation?.signature),
+      profileId: text(generation?.profileId), artifactSurfaceVersion: text(generation?.artifactSurfaceVersion) })),
+    actions: rows(value.actions, 2, action => action).filter(action => ['index-report', 'tooling-doctor'].includes(action)),
+    details: rows(value.details, 24, line => text(line, 768)).filter(Boolean)
+  };
+  return { ...output, truncated };
+}
+
+module.exports = { boundedFacts, captureSearchExplanation, renderSearchExplanation, normalizeCapturedExplanation, normalizeSearchDiagnostics };

@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 enum Page {
     Composer,
     Results,
+    Diagnostics,
     Source,
     OpenConfirm,
 }
@@ -29,6 +30,8 @@ pub(crate) struct SearchUi {
     source_hit: Option<String>,
     source_scroll: usize,
     source_column: usize,
+    diagnostics_scroll: usize,
+    diagnostics_column: usize,
     pending: Option<(String, String)>,
     next_id: u64,
     status: String,
@@ -61,6 +64,8 @@ impl Default for SearchUi {
             source_hit: None,
             source_scroll: 0,
             source_column: 0,
+            diagnostics_scroll: 0,
+            diagnostics_column: 0,
             pending: None,
             next_id: 1,
             status: String::new(),
@@ -128,6 +133,9 @@ impl SearchUi {
             > 0
         {
             status.push_str("; output budget omitted hits");
+        }
+        if self.result.as_ref().and_then(|result| result["searchDiagnostics"]["backend"]["fidelity"].as_str()) == Some("fallback-derived") {
+            status.push_str("; fallback results (d for diagnostics)");
         }
         status
     }
@@ -222,6 +230,11 @@ impl SearchUi {
                 }
                 return false;
             }
+            if self.page == Page::Diagnostics {
+                self.page = Page::Results;
+                self.status = self.results_status();
+                return false;
+            }
             return true;
         }
         match self.page {
@@ -243,6 +256,11 @@ impl SearchUi {
                 _ => {}
             },
             Page::Results => match key.code {
+                KeyCode::Char('d') => {
+                    self.diagnostics_scroll = 0;
+                    self.diagnostics_column = 0;
+                    self.page = Page::Diagnostics;
+                }
                 KeyCode::Down | KeyCode::Char('j') => {
                     self.selected = (self.selected + 1).min(self.rows.len().saturating_sub(1))
                 }
@@ -270,6 +288,16 @@ impl SearchUi {
                         self.request("source", params);
                     }
                 }
+                _ => {}
+            },
+            Page::Diagnostics => match key.code {
+                KeyCode::Down | KeyCode::Char('j') => self.diagnostics_scroll = self.diagnostics_scroll.saturating_add(1),
+                KeyCode::Up | KeyCode::Char('k') => self.diagnostics_scroll = self.diagnostics_scroll.saturating_sub(1),
+                KeyCode::PageDown => self.diagnostics_scroll = self.diagnostics_scroll.saturating_add(10),
+                KeyCode::PageUp => self.diagnostics_scroll = self.diagnostics_scroll.saturating_sub(10),
+                KeyCode::Right => self.diagnostics_column = self.diagnostics_column.saturating_add(8).min(768),
+                KeyCode::Left => self.diagnostics_column = self.diagnostics_column.saturating_sub(8),
+                KeyCode::Home => { self.diagnostics_scroll = 0; self.diagnostics_column = 0; }
                 _ => {}
             },
             Page::OpenConfirm => {
@@ -491,16 +519,18 @@ impl SearchUi {
                 lines.push("Empty query + shared filters enumerates pages; Snapshot and As of are exclusive.".into());
             }
             Page::Results => {
-                lines.push("Up/Down select; Enter source; n next filter page; e edit query; Esc close/cancel".into());
+                lines.push("Up/Down select; Enter source; n next page; d diagnostics; e edit; Esc close/cancel".into());
                 if let Some(result) = &self.result {
                     lines.push(format!(
                         "Repository: {}",
                         result["repoPath"].as_str().unwrap_or("unknown")
                     ));
-                    lines.push(format!("Index freshness: {}", result["freshness"]));
+                    lines.push(result["searchDiagnostics"]["summary"].as_str()
+                        .unwrap_or("Search diagnostics were not recorded for this response.").into());
                 }
                 if self.rows.is_empty() && self.pending.is_none() {
-                    lines.push("No indexed hits".into());
+                    lines.push(self.result.as_ref().and_then(|result| result["searchDiagnostics"]["reasons"][0]["message"].as_str())
+                        .unwrap_or("This response page contains no hits; diagnostics were not recorded.").into());
                 }
                 let budget = height.saturating_sub(lines.len()).max(1);
                 let offset = self.selected.saturating_sub(budget - 1);
@@ -517,6 +547,26 @@ impl SearchUi {
                         hit["name"].as_str().unwrap_or("")
                     );
                     lines.push(text);
+                }
+            }
+            Page::Diagnostics => {
+                lines.push("Recorded search diagnostics; Up/Down scroll; Left/Right pan; Home reset; Esc results".into());
+                lines.push("Use Index Health or Tooling Doctor deliberately; viewing diagnostics runs no command.".into());
+                let details = self.result.as_ref().and_then(|result| result["searchDiagnostics"]["details"].as_array());
+                if let Some(details) = details {
+                    let count = details.len().min(24);
+                    let offset = self.diagnostics_scroll.min(count.saturating_sub(1));
+                    for value in details.iter().take(24).skip(offset).take(height.saturating_sub(lines.len())) {
+                        if let Some(text) = value.as_str() {
+                            lines.push(Span::raw(text).styled_graphemes(Style::default())
+                                .skip(self.diagnostics_column).map(|grapheme| grapheme.symbol).collect());
+                        }
+                    }
+                    if self.result.as_ref().map(|result| result["searchDiagnostics"]["truncated"] == true).unwrap_or(false) {
+                        lines.push("Diagnostic projection was truncated by its display bound.".into());
+                    }
+                } else {
+                    lines.push("Search diagnostics were not recorded for this response.".into());
                 }
             }
             Page::OpenConfirm => {
@@ -586,6 +636,47 @@ impl SearchUi {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn diagnostics_are_recorded_read_only_and_bound_to_the_current_response() {
+        let mut ui = ready();
+        key(&mut ui, KeyCode::Enter);
+        ui.outbox.clear();
+        let mut data = page(vec![hit("code", 1, "one"), hit("code", 2, "two")]);
+        data["searchDiagnostics"] = json!({"schemaVersion":1,"state":"recorded",
+            "summary":"Backend: memory; fidelity: fallback-derived; requested: sqlite",
+            "backend":{"selected":"memory","requested":"sqlite","fidelity":"fallback-derived"},
+            "reasons":[],"details":["Backend: memory; fidelity: fallback-derived",
+            "Recorded index identity does not verify the current worktree.",
+            "Recorded code generation: old-generation", "coverage-check: inspect indexed coverage"],"truncated":false});
+        reply(&mut ui, "query", data);
+        key(&mut ui, KeyCode::Down);
+        assert_eq!(ui.selected, 1);
+        assert!(ui.status.contains("fallback results"));
+        key(&mut ui, KeyCode::Char('d'));
+        assert!(ui.page == Page::Diagnostics);
+        let text = ui.lines(20, 100).join("\n");
+        for expected in ["old-generation", "coverage-check", "does not verify", "runs no command"] {
+            assert!(text.contains(expected), "{expected}");
+        }
+        for _ in 0..40 { key(&mut ui, KeyCode::PageDown); }
+        assert!(ui.lines(8, 20).iter().all(|line| line.chars().count() <= 20));
+        key(&mut ui, KeyCode::Home);
+        assert!(ui.lines(20, 100).join("\n").contains("old-generation"));
+        assert!(ui.outbox.is_empty());
+        assert!(!key(&mut ui, KeyCode::Esc));
+        assert_eq!(ui.selected, 1);
+        assert!(ui.page == Page::Results);
+        ui.scope_changed("/new repository");
+        assert!(ui.result.is_none());
+        key(&mut ui, KeyCode::Enter);
+        ui.outbox.clear();
+        reply(&mut ui, "query", page(vec![]));
+        assert!(ui.lines(20, 100).join("\n").contains("diagnostics were not recorded"));
+        key(&mut ui, KeyCode::Char('d'));
+        assert!(!ui.lines(20, 100).join("\n").contains("old-generation"));
+        assert!(ui.outbox.is_empty());
+    }
 
     fn key(ui: &mut SearchUi, code: KeyCode) -> bool {
         ui.key(KeyEvent::new(code, KeyModifiers::NONE))
