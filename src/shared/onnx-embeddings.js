@@ -1,6 +1,6 @@
 import { runOnnxEmbeddingSession, decodeOnnxEmbeddingOutput } from './onnx-embeddings/output.js';
 import { acquireOnnxQualificationSlot } from './onnx-embeddings/qualification.js';
-import { releaseOnnxResources } from './onnx-embeddings/resource-lifetime.js';
+import { createOnnxResourceOwner, releaseOnnxResources } from './onnx-embeddings/resource-lifetime.js';
 import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from './embedding-artifact-identity.js';
 import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-lease.js';
 import { createDeferredEmbeddingAdapter } from './embedding-deferred-adapter.js';
@@ -40,14 +40,10 @@ const retireEntry = (key, entry) => {
   if (entry.references || entry.releasing) return;
   entry.releasing = entry.queue.onIdle().then(async () => {
     const loaded = await entry.promise.catch(error => {
-      if (error.cacheOwnershipPending) throw Object.assign(new Error('ONNX startup resource cleanup remains unconfirmed.'), {
-        code: 'ERR_ONNX_RESOURCE_PENDING', cacheOwnershipPending: true, onnxSessionOwner: error.onnxSessionOwner || entry,
-        qualificationLease: entry.qualificationLease || null,
-        startupFailure: { code: error.code || 'UNKNOWN', message: error.message }
-      });
+      if (error?.cacheOwnershipPending) throw error;
       return null;
     });
-    const failure = await releaseOnnxResources({ session: loaded?.session, tokenizer: loaded?.tokenizer,
+    const failure = await releaseOnnxResources({ resourceOwner: loaded?.resourceOwner, session: loaded?.session, tokenizer: loaded?.tokenizer,
       qualificationSlot: entry.qualificationSlot, qualificationLease: entry.qualificationLease, owner: entry });
     if (failure) throw failure;
   });
@@ -276,7 +272,9 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
         }
         const observedArtifact = await resolveEmbeddingArtifactIdentityAsync({ provider: 'onnx', modelId, modelsDir, rootDir, onnx: normalized }, { phase: 'loaded' });
         if (embeddingArtifactReusable(selectedArtifact)) assertEmbeddingArtifactCompatibility(selectedArtifact, observedArtifact);
-        return { tokenizer, session, Tensor, observedArtifact, effectiveSessionOptions };
+        const resourceOwner = createOnnxResourceOwner({ session, tokenizer, qualificationSlot, qualificationLease,
+          owner: { session, tokenizer, qualificationSlot, selectedArtifact, resolvedModelPath } });
+        return { tokenizer, session, Tensor, observedArtifact, effectiveSessionOptions, resourceOwner };
       } catch (error) {
         throw await releaseOnnxResources({ session, tokenizer, qualificationSlot, qualificationLease, primaryError: error,
           owner: { session, tokenizer, qualificationSlot, selectedArtifact, resolvedModelPath } });

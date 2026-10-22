@@ -6,7 +6,8 @@ const resources = { session: { release: async () => { order.push('session'); thr
   tokenizer: { dispose: async () => { order.push('tokenizer'); throw tokenizerFailure; } },
   qualificationSlot: { release: () => { order.push('capacity'); } }, qualificationLease: { id: 'controlled-lease' } };
 const failed = await releaseOnnxResources({ ...resources, primaryError: primary });
-assert.equal(failed, primary); assert.deepEqual(order, ['session', 'tokenizer']);
+assert.equal(failed.cause, primary); assert.equal(primary.cacheOwnershipPending, undefined);
+assert.deepEqual(order, ['session', 'tokenizer']);
 assert.deepEqual(failed.cleanupErrors, [sessionFailure, tokenizerFailure]);
 assert.equal(failed.cleanupFailureCount, 2); assert.equal(failed.cacheOwnershipPending, true);
 assert.equal(failed.onnxSessionOwner.session, resources.session);
@@ -14,7 +15,8 @@ assert.equal(failed.onnxSessionOwner.tokenizer, resources.tokenizer);
 assert.equal(failed.qualificationLease, resources.qualificationLease);
 order.length = 0;
 const stopped = await releaseOnnxResources({ ...resources });
-assert.equal(stopped, sessionFailure); assert.deepEqual(stopped.cleanupErrors, [tokenizerFailure]);
+assert.equal(stopped.cause, sessionFailure); assert.equal(sessionFailure.cacheOwnershipPending, undefined);
+assert.deepEqual(stopped.cleanupErrors, [tokenizerFailure]);
 assert.deepEqual(order, ['session', 'tokenizer']);
 order.length = 0;
 const cleanPrimary = new Error('controlled artifact verification failure');
