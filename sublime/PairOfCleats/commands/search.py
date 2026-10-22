@@ -17,6 +17,8 @@ from ..lib import operations
 from ..lib import ui
 from ..lib import views
 from ..lib.saved_search import normalize_saved_options
+from ..lib.filter_pagination import (normalize_filter_pagination, merge_filter_page, continuation_endpoint_matches,
+                                   selected_index, capture_selection)
 from ..lib.navigation import qualified_navigation_evidence, execute_qualified_navigation as _execute_qualified_navigation
 from ..lib.completion_target import capture_target, target_is_current, apply_target
 
@@ -327,12 +329,13 @@ def _prompt_limit(window, options, on_done):
     window.show_quick_panel(choices, on_limit_select, selected_index=0)
 
 
-def _execute_search(window, query, overrides=None, explain=False, enumeration=False, append_session=None, service_root=None):
+def _execute_search(window, query, overrides=None, explain=False, enumeration=False, append_session=None, service_root=None,
+                    operation_scope=None):
     if not _saved_scope_available(overrides):
         return
     if not query and not enumeration:
         return
-    scope = operations.capture(window, key='foreground-search')
+    scope = operation_scope or operations.capture(window, key='foreground-search')
     if not operations.is_current(scope):
         return
 
@@ -341,7 +344,8 @@ def _execute_search(window, query, overrides=None, explain=False, enumeration=Fa
     repo_root, reason = (saved_root, None) if saved_root else _resolve_repo_root(window)
     if not repo_root:
         paths.resolve_repo_root_interactive(window, lambda chosen, why: (
-            _execute_search(window, query, dict(overrides or {}, repoRoot=chosen), explain, enumeration, append_session)
+            _execute_search(window, query, dict(overrides or {}, repoRoot=chosen), explain, enumeration, append_session,
+                            operation_scope=scope)
             if chosen else ui.show_status('PairOfCleats: {0}'.format(why))))
         return
     if reason:
@@ -371,15 +375,15 @@ def _execute_search(window, query, overrides=None, explain=False, enumeration=Fa
         ui.show_error(execution['error'])
         return
 
-    if append_session and append_session.get('transport') != execution.get('mode'):
-        ui.show_error('PairOfCleats: transport changed. Restart indexed browsing with the intended transport.')
+    if append_session and not continuation_endpoint_matches(append_session, execution):
+        ui.show_error('PairOfCleats: transport or endpoint changed. Restart indexed browsing with the intended destination.')
         return
     if append_session and service_root and append_session.get('serviceRoot') != service_root:
         ui.show_error('PairOfCleats: service repository mapping changed. Restart indexed browsing.')
         return
     if execution.get('mode') == 'api' and not service_root:
         service_repository.resolve(window, settings, repo_root, lambda selected: _execute_search(
-            window, query, overrides, explain, enumeration, append_session, selected))
+            window, query, overrides, explain, enumeration, append_session, selected, operation_scope=scope))
         return
 
     def handle_payload(result):
@@ -411,30 +415,18 @@ def _execute_search(window, query, overrides=None, explain=False, enumeration=Fa
                 ui.show_error(str(error))
                 return
         hits = results.collect_hits(payload)
-        pagination = payload.get('pagination')
+        pagination = normalize_filter_pagination(payload.get('pagination'))
+        if enumeration and pagination is None:
+            ui.show_error('PairOfCleats: indexed browsing returned no canonical generation/page identity. Restart with supported indexed metadata filters.')
+            return
         if append_session:
-            previous = append_session.get('pagination') or {}
             current = results_state.get_last_results(window)
             if not current or current.get('sessionId') != append_session.get('sessionId'):
                 return
-            if not isinstance(pagination, dict) or previous.get('generation') != pagination.get('generation'):
-                ui.show_error('PairOfCleats: indexed generation changed. Restart Browse Indexed Matches.')
-                return
-            previous_hits = append_session.get('hits') or []
-            def identity(hit):
-                value = hit.get('chunkUid') or hit.get('id')
-                return (hit.get('section'), str(value)) if value is not None and value != '' else None
-            seen = set(identity(hit) for hit in previous_hits if identity(hit) is not None)
-            merged = list(previous_hits)
-            for hit in hits:
-                key = identity(hit)
-                if key is None or key not in seen:
-                    merged.append(hit)
-                    if key is not None:
-                        seen.add(key)
-            hits = merged
-            if len(hits) > 2000:
-                ui.show_error('PairOfCleats: view reached its 2,000 hit bound. Narrow filters and restart.')
+            try:
+                hits = merge_filter_page(append_session, pagination, hits)
+            except ValueError as error:
+                ui.show_error('PairOfCleats: ' + str(error))
                 return
         history_limit = settings.get('history_limit')
         if query:
@@ -466,8 +458,11 @@ def _execute_search(window, query, overrides=None, explain=False, enumeration=Fa
         session = results.build_session(query, resolved, repo_root, hits, target)
         session['pagination'] = pagination if isinstance(pagination, dict) else None
         session['transport'] = actual_transport
+        session['endpoint'] = execution.get('base_url') if actual_transport == 'api' else None
         session['serviceRoot'] = service_root if actual_transport == 'api' else None
         session['sessionId'] = append_session.get('sessionId') if append_session else str(uuid.uuid4())
+        if append_session:
+            capture_selection(session, hits, selected_index(append_session, hits))
         if isinstance(pagination, dict):
             ui.show_status('PairOfCleats: {0} loaded / {1} indexed matches; more={2}.'.format(
                 len(hits), pagination.get('total', 'unknown'), pagination.get('hasMore', False)))
@@ -492,9 +487,11 @@ def _execute_search(window, query, overrides=None, explain=False, enumeration=Fa
         def on_select(index):
             if index < 0 or not operations.is_current(scope):
                 return
+            capture_selection(session, hits, index)
+            results_state.record_last_results(window, session)
             results.open_hit(window, hits[index], repo_root)
 
-        window.show_quick_panel(items, on_select)
+        window.show_quick_panel(items, on_select, selected_index=selected_index(session, hits))
 
     if execution.get('mode') == 'api':
         ui.show_status('PairOfCleats: searching via API...')
@@ -513,7 +510,7 @@ def _execute_search(window, query, overrides=None, explain=False, enumeration=Fa
                 return
             if result.error:
                 tasks.complete_task(window, task, status='failed', details=result.error)
-                if execution.get('allow_fallback'):
+                if execution.get('allow_fallback') and not append_session:
                     ui.show_status('PairOfCleats: API search failed; falling back to CLI.')
                     _execute_search_cli(window, query, repo_root, settings, resolved, explain, handle_payload, scope=scope)
                     return
@@ -705,9 +702,10 @@ def _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, tit
 
 def _show_symbol_hit_picker(window, hits, repo_root):
     items = [results.format_quick_panel_item(hit) for hit in hits]
+    scope = operations.capture(window, key='navigation-picker')
 
     def on_select(index):
-        if index < 0:
+        if index < 0 or not operations.is_current(scope):
             return
         results.open_hit(window, hits[index], repo_root)
 
@@ -775,26 +773,30 @@ def _search_with_query(window, query, overrides=None, force_prompt=False):
     if not query:
         ui.show_status('PairOfCleats: empty query.')
         return
+    scope = operations.capture(window, key='foreground-search')
     settings = config.get_settings(window)
     defaults = _resolve_defaults(settings, overrides)
 
     def after_options(options):
-        _execute_search(window, query, options)
+        if operations.is_current(scope):
+            _execute_search(window, query, options, operation_scope=scope)
 
     _prompt_options(window, settings, defaults, after_options, force_prompt=force_prompt)
 
 
 def _search_with_prompt(window, overrides=None, force_prompt=False):
+    scope = operations.capture(window, key='foreground-search')
     settings = config.get_settings(window)
     defaults = _resolve_defaults(settings, overrides)
     last = history.get_last_query(window)
     initial = last.get('query') if isinstance(last, dict) else ''
 
     def on_query(value):
-        if not value:
+        if not value or not operations.is_current(scope):
             return
         def after_options(options):
-            _execute_search(window, value, options)
+            if operations.is_current(scope):
+                _execute_search(window, value, options, operation_scope=scope)
         _prompt_options(window, settings, defaults, after_options, force_prompt=force_prompt)
 
     _prompt_query(window, initial, on_query)
@@ -1118,16 +1120,17 @@ def _run_result_action(window, session, hit, action):
 
 class PairOfCleatsBrowseIndexedMatchesCommand(sublime_plugin.WindowCommand):
     def run(self):
+        scope = operations.capture(self.window, key='foreground-search')
         def execute(value):
-            if value.strip():
-                _execute_search(self.window, '', {'filter': value.strip()}, enumeration=True)
+            if value.strip() and operations.is_current(scope):
+                _execute_search(self.window, '', {'filter': value.strip()}, enumeration=True, operation_scope=scope)
         self.window.show_input_panel('PairOfCleats indexed metadata filter', '', execute, None, None)
 
 
 class PairOfCleatsLoadMoreResultsCommand(sublime_plugin.WindowCommand):
     def run(self):
         session = results_state.get_last_results(self.window)
-        pagination = (session or {}).get('pagination') or {}
+        pagination = normalize_filter_pagination((session or {}).get('pagination')) or {}
         if not pagination.get('hasMore') or not pagination.get('nextCursor'):
             ui.show_status('PairOfCleats: no indexed continuation. Ranked text search is top-k.')
             return

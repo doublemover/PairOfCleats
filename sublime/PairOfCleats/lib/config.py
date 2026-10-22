@@ -353,13 +353,13 @@ def validate_settings(settings, repo_root=None, workflow=None):
     mode = settings.get('index_mode_default')
     if mode and mode not in VALID_INDEX_MODES:
         errors.append(
-            'index_mode_default must be one of: code, prose, both.'
+            'index_mode_default must be one of: {0}.'.format(', '.join(sorted(VALID_INDEX_MODES)))
         )
 
     backend = settings.get('search_backend_default')
     if backend and backend not in VALID_BACKENDS:
         errors.append(
-            'search_backend_default must be one of: memory, sqlite, sqlite-fts, lmdb.'
+            'search_backend_default must be one of: {0}.'.format(', '.join(sorted(VALID_BACKENDS)))
         )
 
     ann_default = settings.get('search_ann_default')

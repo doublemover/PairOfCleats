@@ -4,6 +4,8 @@ import time
 import sublime
 from .saved_search import normalize_saved_options
 from . import operations
+from . import results_state
+from .filter_pagination import selected_index, capture_selection
 from .source_authority import read_verified_source
 
 HIGHLIGHT_KEY = 'pairofcleats.search.highlight'
@@ -87,13 +89,19 @@ def reopen_session(window, session):
         return {'target': target, 'view': view}
 
     items = [format_quick_panel_item(hit) for hit in hits]
+    scope = operations.capture(window, key='result-picker')
 
     def on_select(index):
-        if index < 0:
+        if index < 0 or not operations.is_current(scope):
             return
+        capture_selection(session, hits, index)
+        if explain:
+            results_state.record_last_explain(window, session)
+        else:
+            results_state.record_last_results(window, session)
         open_hit(window, hits[index], repo_root)
 
-    window.show_quick_panel(items, on_select)
+    window.show_quick_panel(items, on_select, selected_index=selected_index(session, hits))
     return {'target': 'quick_panel', 'count': len(items)}
 
 

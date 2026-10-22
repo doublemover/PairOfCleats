@@ -1,5 +1,8 @@
 function normalizeFilterPagination(value) {
-  if (value?.kind !== 'filter' || !/^[a-f0-9]{64}$/.test(value.generation || '')) return null;
+  if (value?.kind !== 'filter' || typeof value.generation !== 'string'
+    || value.generation.length !== 64 || !/^[a-f0-9]{64}$/.test(value.generation)
+    || typeof value.hasMore !== 'boolean'
+    || value.hasMore && (typeof value.nextCursor !== 'string' || !value.nextCursor.length || value.nextCursor.length > 8192)) return null;
   return {
     kind: 'filter', order: 'indexed-order', generation: value.generation,
     total: Number.isSafeInteger(value.total) && value.total >= 0 ? value.total : null,
@@ -12,18 +15,23 @@ function normalizeFilterPagination(value) {
   };
 }
 
+function filterHitIdentity(hit) {
+  if (typeof hit.chunkUid === 'string' && hit.chunkUid) return JSON.stringify([hit.section || '', 'chunkUid', hit.chunkUid]);
+  const id = typeof hit.id === 'string' || Number.isSafeInteger(hit.id) && hit.id >= 0 ? hit.id : null;
+  return id === null || id === '' ? null : JSON.stringify([hit.section || '', typeof id, id]);
+}
+
 function mergeFilterPage(previous, next, hits) {
   if (!previous?.pagination || !next
     || JSON.stringify(previous.pagination.generation) !== JSON.stringify(next.generation)) {
     throw new Error('Indexed generation changed. Restart Browse Indexed Matches to use the new generation.');
   }
-  const identity = hit => {
-    const id = hit.chunkUid || (typeof hit.id === 'string' || Number.isSafeInteger(hit.id) ? hit.id : null);
-    return id === null || id === '' ? null : `${hit.section || ''}:${id}`;
-  };
-  const seen = new Set(previous.hits.map(hit => identity(hit)).filter(Boolean));
+  if (next.hasMore && next.nextCursor === previous.pagination.nextCursor) {
+    throw new Error('Indexed continuation did not advance. Restart browsing; the previous result set is retained.');
+  }
+  const seen = new Set(previous.hits.map(hit => filterHitIdentity(hit)).filter(Boolean));
   const added = hits.filter(hit => {
-    const key = identity(hit);
+    const key = filterHitIdentity(hit);
     if (!key) return true;
     if (seen.has(key)) return false;
     seen.add(key);
@@ -50,4 +58,4 @@ function continuationInvocation(invocation, cursor) {
   return { ...invocation, args };
 }
 
-module.exports = { normalizeFilterPagination, mergeFilterPage, continuationInvocation };
+module.exports = { normalizeFilterPagination, filterHitIdentity, mergeFilterPage, continuationInvocation };
