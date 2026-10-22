@@ -109,6 +109,7 @@ export const SEARCH_OPTIONS = {
   'non-strict': { type: 'boolean', default: false }
 };
 
+export const SEARCH_ALIASES = Object.freeze({ n: 'top', h: 'help' });
 export const SEARCH_OPTION_NAMES = Object.freeze(Object.keys(SEARCH_OPTIONS));
 
 export const SEARCH_VALUE_FLAG_NAMES = Object.freeze(

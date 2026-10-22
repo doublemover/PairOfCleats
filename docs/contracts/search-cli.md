@@ -15,6 +15,7 @@ This document defines the CLI interface and output contract for **search**.
   - `search.js --mode code --return-type boolean --top 20 --json`
 
 ### Common flags
+- `--help` (alias: `-h`): display search command help
 - `--repo <path>`: repo root (defaults to current directory)
 - `--mode code|prose|extracted-prose|records|both|all`: search mode
 - `--top <n>` (alias: `-n`, `--n`): results per mode; page size for filter-only enumeration

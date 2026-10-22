@@ -1,7 +1,7 @@
 import yargs from 'yargs/yargs';
 export { SEARCH_FILTER_OPTION_NAMES, hasSearchFilterArgs } from '../shared/search-request.js';
 
-import { REMOVED_FLAGS, SEARCH_OPTIONS } from './cli-options.js';
+import { REMOVED_FLAGS, SEARCH_OPTIONS, SEARCH_ALIASES } from './cli-options.js';
 export { SEARCH_OPTION_NAMES, SEARCH_VALUE_FLAG_NAMES, SEARCH_BOOLEAN_FLAG_NAMES, SEARCH_SHORT_VALUE_FLAG_NAMES, SEARCH_VALUE_FLAGS, SEARCH_DISPATCH_METADATA } from './cli-options.js';
 
 export function getSearchHelp({ full = false } = {}) {
@@ -62,9 +62,8 @@ export function parseSearchArgs(rawArgs) {
       'dot-notation': false
     })
     .options(SEARCH_OPTIONS)
-    .alias({ n: 'top' })
     .help()
-    .alias('h', 'help')
+    .alias(SEARCH_ALIASES)
     .strict(false)
     .parse();
 }

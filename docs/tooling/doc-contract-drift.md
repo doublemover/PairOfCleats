@@ -1,19 +1,19 @@
 # Doc Contract Drift
 
-Status: DRIFT
+Status: OK
 
 ## searchCliFlags
 - doc: docs/contracts/search-cli.md
-- source: src/retrieval/cli-args.js
+- source: src/retrieval/cli-options.js
 - missing in docs: none
-- extra in docs (106): --alias, --allow-sparse-fallback, --allow-unsafe-mix, --ann, --ann-backend, --ann-candidates, --as-of, --async, --author, --awaits
+- extra in docs: none
 
 ## searchContractFlags
 - doc: docs/contracts/search-contract.md
-- source: src/retrieval/cli-args.js
+- source: src/retrieval/cli-options.js
 - note: non-blocking drift (informational)
-- missing in docs (1): -n
-- extra in docs (24): --calls, --candidates, --deadline-ms, --explain, --ext, --file, --inferred-type, --lang, --match, --output-bytes
+- missing in docs (81): --alias, --allow-sparse-fallback, --allow-unsafe-mix, --ann, --ann-backend, --ann-candidates, --as-of, --async, --author, --awaits
+- extra in docs: none
 
 ## artifactSchemas
 - doc: docs/contracts/artifact-schemas.md
