@@ -18,7 +18,7 @@ const withPendingContext = (primary, descriptors, secondary = null) => {
   const additional = secondary && secondary !== primary ? secondary : null;
   try {
     if (additional || Object.hasOwn(primary, 'managedInstallSession') || Object.hasOwn(primary, 'managedRemovalSession')
-      || Object.hasOwn(primary, 'downloadSession')) throw new Error('Keep original verification context.');
+      || Object.hasOwn(primary, 'goSdkInstallSession') || Object.hasOwn(primary, 'downloadSession')) throw new Error('Keep original verification context.');
     Object.defineProperties(primary, descriptors);
     return primary;
   } catch {
@@ -41,20 +41,21 @@ export const captureManagedVerificationFailure = (error, resourceId) => {
     observe: owned?.resourceId === resourceId ? owned.observe : observePending(error) };
 };
 
-export const retainManagedResourceFailure = (value, { session, released, cleanupError = null, field = 'managedInstallSession' }) => {
+export const retainManagedResourceFailure = (value, { session, released, cleanupError = null, field = 'managedInstallSession',
+  cleanupField = 'managedCleanupError' }) => {
   const primary = asError(value);
   return withPendingContext(primary, {
     cacheOwnershipPending: { value: true, configurable: true },
     cacheOwnershipReleased: { value: released, configurable: true },
     [field]: { value: session, configurable: true },
-    ...(cleanupError && cleanupError !== primary ? { managedCleanupError: { value: cleanupError, configurable: true } } : {})
+    ...(cleanupError && cleanupError !== primary ? { [cleanupField]: { value: cleanupError, configurable: true } } : {})
   }, cleanupError);
 };
 
 /** Missing recipe settlement is owned by this invocation, while pre-existing
  * native/child observers retain their independent authority and exact receiver.
  */
-export const verifyOwnedInstallation = async (verify, input, resourceId) => {
+export const verifyOwnedResource = async (verify, input, resourceId) => {
   input.signal?.throwIfAborted();
   let result;
   try { result = await verify({ ...input, resourceId }); }
@@ -83,6 +84,11 @@ export const verifyOwnedInstallation = async (verify, input, resourceId) => {
     verificationFailures.set(failure, { resourceId, observe });
     throw failure;
   }
+  return result;
+};
+
+export const verifyOwnedInstallation = async (verify, input, resourceId) => {
+  const result = await verifyOwnedResource(verify, input, resourceId);
   let ok;
   try { ok = result.ok === true; }
   catch (value) {

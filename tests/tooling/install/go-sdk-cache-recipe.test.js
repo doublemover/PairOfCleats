@@ -62,6 +62,13 @@ const createDependencies = (overrides = {}) => ({
   },
   ...overrides
 });
+const containsFailure = (error, primary) => {
+  const pending = [error], seen = new Set();
+  while (pending.length) { const current = pending.pop(); if (current === primary) return true;
+    if (!current || typeof current !== 'object' || seen.has(current)) continue; seen.add(current);
+    pending.push(current.cause, ...(Array.isArray(current.errors) ? current.errors : [])); }
+  return false;
+};
 
 try {
   assert.deepEqual(resolveGoSdkTarget({ platform: 'darwin', arch: 'arm64' }), { os: 'darwin', arch: 'arm64', archiveType: 'tar.gz' });
@@ -156,31 +163,35 @@ try {
   const pendingFailure = Object.assign(new Error('fixture verifier still owns output handles'), {
     cacheOwnershipPending: true, cacheOwnershipReleased: () => actualProbeClosed
   });
+  let pendingOwner;
   await assert.rejects(ensureManagedGoSdk({ toolingRoot: pendingRoot, storageEstimate, cwd: root, platform: 'linux', arch: 'x64',
-    dependencies: createDependencies({ probe: async () => { throw pendingFailure; } }) }), error => error === pendingFailure);
+    dependencies: createDependencies({ probe: async () => { throw pendingFailure; } }) }), error => {
+    pendingOwner = error; return containsFailure(error, pendingFailure);
+  });
   assert.equal(pendingFailure.cacheOwnershipPending, true);
   assert.ok((await fs.readdir(path.join(pendingRoot, 'sdk/go'))).some(name => name.startsWith('.install-')),
     'unknown child closure preserves exact transaction bytes and storage owners');
   await assert.rejects(fs.stat(path.join(pendingRoot, 'sdk/go/current.json')), { code: 'ENOENT' });
-  await assert.rejects(pendingFailure.goSdkInstallSession.releaseAfterClosure(), /remains pending/);
+  await assert.rejects(pendingOwner.goSdkInstallSession.releaseAfterClosure(), /remains pending/);
   actualProbeClosed = true;
-  assert.equal(await pendingFailure.goSdkInstallSession.releaseAfterClosure(), true);
+  assert.equal(await pendingOwner.goSdkInstallSession.releaseAfterClosure(), true);
   assert.deepEqual(await fs.readdir(path.join(pendingRoot, 'sdk/go')), []);
   const incompleteRoot = path.join(root, 'incomplete-verifier-settlement');
   let incompleteClosed = false;
   const incompleteFailure = Object.assign(new Error('fixture verifier omitted explicit pending state'), {
     cacheOwnershipReleased: () => incompleteClosed
   });
+  let incompleteOwner;
   await assert.rejects(ensureManagedGoSdk({ toolingRoot: incompleteRoot, storageEstimate, cwd: root, platform: 'linux', arch: 'x64',
     dependencies: createDependencies({ probe: async (_command, { resourceId }) => {
       incompleteFailure.settlement = { resourceId, settled: true };
       throw incompleteFailure;
-    } }) }), error => error === incompleteFailure && error.cacheOwnershipPending === true);
+    } }) }), error => { incompleteOwner = error; return containsFailure(error, incompleteFailure) && error.cacheOwnershipPending === true; });
   assert.ok((await fs.readdir(path.join(incompleteRoot, 'sdk/go'))).some(name => name.startsWith('.install-')),
     'missing explicit pending:false cannot authorize transaction cleanup');
-  await assert.rejects(incompleteFailure.goSdkInstallSession.releaseAfterClosure(), /remains pending/);
+  await assert.rejects(incompleteOwner.goSdkInstallSession.releaseAfterClosure(), /remains pending/);
   incompleteClosed = true;
-  assert.equal(await incompleteFailure.goSdkInstallSession.releaseAfterClosure(), true);
+  assert.equal(await incompleteOwner.goSdkInstallSession.releaseAfterClosure(), true);
   assert.deepEqual(await fs.readdir(path.join(incompleteRoot, 'sdk/go')), []);
   const pointer = path.join(toolingRoot, 'sdk', 'go', 'current.json');
   const selectedReceipt = await fs.readFile(pointer);

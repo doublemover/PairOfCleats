@@ -322,6 +322,23 @@ Unreadable original lifecycle flags/observers remain unconfirmed. Authored actua
 tiny transaction controls for these hook values, awaited progress, frozen getter
 failures and exact known-resource cleanup remain UNVALIDATED.
 
+Portable Go SDK verification now shares the same exact resource-receipt guard
+while retaining its existing Go version/platform/architecture acceptance checks.
+The actual native probe preserves frozen errors and independently composes the
+original native observer with observed direct close and existing tree evidence.
+Direct child close alone does not confirm an unknown descendant/tree owner.
+
+Go transaction cleanup captures original observers before attaching its own
+`goSdkInstallSession`. Frozen primary and secondary cleanup failures remain
+reachable, and a failed cleanup keeps the exact original outer wrapper for the
+next retry. Missing/throwing native observers cannot become confirmation from a
+recipe receipt or cleanup success. Known filesystem cleanup alone can retry once
+actual verifier/response ownership has settled. Private pointer and transaction
+cleanup require their original file/directory identities; changed or unsealed
+evidence stays protected. SDK cache directories reject link-shaped selections.
+Authored native-owner adapters and actual inert SDK/staging/category fixtures,
+including original cache-recipe assertions, remain UNVALIDATED.
+
 Structural execution binds each identity probe and rule invocation to the same
 identified physical path, digest and byte count, checking again after actual
 child completion. Successful output cannot qualify changed executable bytes.

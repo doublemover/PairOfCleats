@@ -10,11 +10,15 @@ import { extractArchive } from '../shared/archive-extraction.js';
 import { computeSha256, createInstallError, downloadToBuffer, settleInstallDownload } from './install-shared.js';
 import { verifyInstallerRequirementProbe } from './install-requirements.js';
 import { runInstallWithStorageAdmission } from './install-storage.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
+import { verifyOwnedResource, captureManagedVerificationFailure, retainManagedResourceFailure } from './managed-verification.js';
 
 export const GO_SDK_ARCHIVE_LIMITS = Object.freeze({
   maxBytes: 512 * 1024 * 1024, maxEntryBytes: 64 * 1024 * 1024, maxEntries: 50_000
 });
 const MAX_DOWNLOAD_BYTES = 128 * 1024 * 1024;
+const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
 
 export const selectOfficialGoSdkArchive = (releases, target, version = '') => {
   if (!target) throw createInstallError('go_sdk_unsupported_target', 'No portable Go SDK recipe for this platform/architecture.');
@@ -38,29 +42,34 @@ const ensureChildDirectory = async (parent, name) => {
   const stat = await fs.lstat(child);
   const physicalParent = await fs.realpath(parent);
   const physicalChild = await fs.realpath(child);
-  if (!stat.isDirectory() || path.dirname(physicalChild) !== physicalParent) {
+  if (!stat.isDirectory() || stat.isSymbolicLink() || path.dirname(physicalChild) !== physicalParent) {
     throw createInstallError('go_sdk_cache_path_invalid', 'Managed Go SDK cache directories must stay inside their selected owner.');
   }
   return child;
 };
 
-const probeInstalledSdk = async (command, { cwd, env, signal, resourceId }) => {
-  let spawned = false;
+export const probeInstalledSdk = async (command, { cwd, env, signal, resourceId }, { spawn = spawnResolvedSubprocess } = {}) => {
+  let spawned = false, closeObserved = false, completed = false;
   try {
-    const result = await spawnResolvedSubprocess(command, ['version'], { cwd, env, signal,
+    const result = await spawn(command, ['version'], { cwd, env, signal,
       timeoutMs: 10000, outputEncoding: 'utf8', maxOutputBytes: 65536, rejectOnNonZeroExit: false,
-      onSpawn: () => { spawned = true; } });
+      onSpawn: child => { spawned = true; child?.once?.('close', () => { closeObserved = true; }); } });
+    completed = true;
+    signal?.throwIfAborted();
     return { ok: result.exitCode === 0 && !result.signal && !result.outputCapture?.stdout?.truncated,
       status: result.exitCode, signal: result.signal || null, stdout: result.stdout || '',
       settlement: { resourceId, settled: true, pending: false } };
-  } catch (error) {
-    const termination = error.result?.termination;
-    const settled = !spawned || error.cacheOwnershipReleased?.() === true
-      || (termination?.closeObserved === true && termination.treeCleanupSettled === true && termination.treeCleanupFailed === false);
-    if (settled) Object.defineProperty(error, 'settlement', { configurable: true,
-      value: { resourceId, settled: true, pending: false } });
-    else error.cacheOwnershipPending = true;
-    throw error;
+  } catch (value) {
+    const error = asError(value);
+    let termination, inspectionError = null;
+    try { termination = error.result?.termination; } catch (failure) { inspectionError = asError(failure); }
+    const original = captureManagedVerificationFailure(error, resourceId).observe;
+    const treeSettled = termination?.treeCleanupSettled === true && termination.treeCleanupFailed === false;
+    const closed = () => (completed || !spawned || (closeObserved || termination?.closeObserved === true) && treeSettled
+      || original?.() === true) && (!original || original());
+    const settled = closed();
+    throw addStorageFailureContext(error, settled ? { settlement: { resourceId, settled: true, pending: false } }
+      : { cacheOwnershipPending: true, cacheOwnershipReleased: closed }, inspectionError);
   }
 };
 
@@ -108,6 +117,7 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
   }
   const cached = resolveManagedGoSdk(toolingRoot, { platform, arch });
   if (cached && (!version || cached.version === version)) return { ...cached, reused: true };
+  assertNoSymlinkPath(path.parse(toolingRoot).root, toolingRoot, { allowMissing: true });
   await fs.mkdir(toolingRoot, { recursive: true });
   const sdkParent = await ensureChildDirectory(toolingRoot, 'sdk');
   const cache = await ensureChildDirectory(sdkParent, 'go');
@@ -128,18 +138,64 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
     throw createInstallError('go_sdk_cache_conflict', 'The requested SDK cache slot already exists without a reusable receipt; it was preserved.');
   }
   const transaction = await fs.mkdtemp(path.join(cache, '.install-'));
-  const transactionIdentity = await fs.lstat(transaction);
+  const transactionIdentity = await fs.lstat(transaction, { bigint: true });
   let pointerTemp = null;
+  let pointerTempIdentity = null;
   let pendingError = null;
   let operationError = null;
+  let cleaned = false, resourcePending = false, reconciling = null, observerOverflow = false;
+  const observers = [], observed = new WeakSet(), described = new WeakSet();
   const resourceId = randomUUID();
-  const cleanupTransaction = async () => {
-    if (pointerTemp) await fs.rm(pointerTemp, { force: true });
-    const current = await fs.lstat(transaction).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
-    if (current?.isDirectory() && current.dev === transactionIdentity.dev && current.ino === transactionIdentity.ino) {
-      await fs.rm(transaction, { recursive: true, force: true });
+  const observeFailure = error => {
+    if (!error || typeof error !== 'object' || observed.has(error) || described.has(error)) return;
+    observed.add(error);
+    const captured = captureManagedVerificationFailure(error, resourceId);
+    if (captured.observe) {
+      if (observers.length < 128) observers.push(captured.observe);
+      else observerOverflow = true;
     }
+    if (captured.owned || captured.observe && !captured.observe()) resourcePending = true;
   };
+  const resourcesSettled = () => !observerOverflow && !resourcePending && observers.every(observe => observe());
+  const cleanupTransaction = async () => {
+    if (!resourcesSettled()) throw new Error('Actual Go SDK verifier child/tree closure remains pending.');
+    if (cleaned) return true;
+    if (pointerTemp) {
+      const current = await fs.lstat(pointerTemp, { bigint: true }).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
+      if (current) {
+        if (!pointerTempIdentity || !current.isFile() || current.isSymbolicLink() || current.dev !== pointerTempIdentity.dev
+          || current.ino !== pointerTempIdentity.ino) throw new Error('Go SDK private pointer identity changed; unknown evidence is preserved.');
+        await fs.rm(pointerTemp, { force: false });
+      }
+      pointerTemp = null; pointerTempIdentity = null;
+    }
+    const current = await fs.lstat(transaction, { bigint: true }).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
+    if (current) {
+      if (!current.isDirectory() || current.isSymbolicLink() || current.dev !== transactionIdentity.dev || current.ino !== transactionIdentity.ino) {
+        throw new Error('Go SDK transaction identity changed; unknown evidence is preserved.');
+      }
+      await fs.rm(transaction, { recursive: true, force: false });
+    }
+    cleaned = true;
+    return true;
+  };
+  const retainFailure = (primary, cleanupError = null) => {
+    const failure = retainManagedResourceFailure(primary, { session: recovery, field: 'goSdkInstallSession', cleanupField: 'goSdkCleanupError',
+      released: () => cleaned && resourcesSettled(), cleanupError });
+    described.add(failure); return failure;
+  };
+  const recovery = Object.freeze({ resourceId, transaction, releaseAfterClosure: async () => {
+    if (!reconciling) reconciling = (async () => {
+      if (operationError?.downloadSession) await settleInstallDownload(operationError);
+      if (observerOverflow || observers.some(observe => !observe()) || resourcePending && !observers.length) {
+        throw new Error('Actual Go SDK verifier child/tree closure remains pending.');
+      }
+      resourcePending = false;
+      return cleanupTransaction();
+    })().finally(() => { reconciling = null; });
+    try { return await reconciling; }
+    catch (error) { observeFailure(error); throw retainFailure(operationError || error, error); }
+  } });
   try {
     const fetched = await download({ url: archive.sourceUrl, label: 'official Go SDK archive',
       timeoutMs, maxBytes: MAX_DOWNLOAD_BYTES, redirect: 'error', signal });
@@ -162,19 +218,9 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
     const env = applyManagedGoEnvironment(baseEnv, { toolingRoot, sdk });
     env.GOENV = 'off';
     env.GOWORK = 'off';
-    let probe;
-    try { probe = await (dependencies.probe || probeInstalledSdk)(command, { cwd: cwd || transaction, env, signal, resourceId }); }
-    catch (cause) {
-      const error = cause && typeof cause === 'object' ? cause : new Error(String(cause), { cause });
-      if (error?.settlement?.resourceId !== resourceId || error.settlement.settled !== true || error.settlement.pending !== false) {
-        error.cacheOwnershipPending = true;
-      }
-      throw error;
-    }
-    if (probe?.settlement?.resourceId !== resourceId || probe.settlement.settled !== true || probe.settlement.pending !== false) {
-      throw Object.assign(new Error('Go SDK verification did not confirm its exact child/resource settlement.'),
-        { code: 'ERR_GO_SDK_VERIFY_PENDING', cacheOwnershipPending: true });
-    }
+    const probe = await verifyOwnedResource(input => (dependencies.probe || probeInstalledSdk)(command, input),
+      { cwd: cwd || transaction, env, signal }, resourceId);
+    observeFailure(probe);
     const verification = verifyInstallerRequirementProbe('go', probe);
     if (!verification.ok || verification.identity.version !== archive.version
       || verification.identity.platform !== target.os || verification.identity.arch !== target.arch) {
@@ -190,6 +236,7 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
     await fs.rename(extracted, destination);
     pointerTemp = path.join(cache, `.current-${randomUUID()}.json`);
     await fs.writeFile(pointerTemp, `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
+    pointerTempIdentity = await fs.lstat(pointerTemp, { bigint: true });
     const nowPointer = await fs.lstat(pointer).catch((error) => { if (error.code !== 'ENOENT') throw error; return null; });
     if ((pointerStat == null) !== (nowPointer == null) || (pointerStat &&
       (!nowPointer.isFile() || nowPointer.isSymbolicLink() || nowPointer.dev !== pointerStat.dev || nowPointer.ino !== pointerStat.ino
@@ -200,26 +247,23 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
       throw changed;
     }
     await fs.rename(pointerTemp, pointer);
-    pointerTemp = null;
+    pointerTemp = null; pointerTempIdentity = null;
     const installed = resolveManagedGoSdk(toolingRoot, { platform, arch });
     if (!installed) throw createInstallError('go_sdk_cache_verification_failed', 'Published SDK receipt could not be verified.');
     return { ...installed, reused: false };
-  } catch (error) {
+  } catch (value) {
+    const error = asError(value);
     operationError = error;
-    if (error.cacheOwnershipPending) {
+    observeFailure(error);
+    if (!resourcesSettled()) {
       pendingError = error;
-      Object.defineProperty(error, 'goSdkInstallSession', { configurable: true, value: { resourceId, transaction,
-        releaseAfterClosure: async () => {
-          if (error.downloadSession) await settleInstallDownload(error);
-          else if (error.cacheOwnershipReleased?.() !== true) throw new Error('Actual Go SDK verifier child/tree closure remains pending.');
-          await cleanupTransaction(); return true;
-        } } });
+      throw retainFailure(error);
     }
     throw error;
   } finally {
     if (!pendingError) {
       try { await cleanupTransaction(); }
-      catch (error) { if (operationError) operationError.goSdkCleanupError = error; else throw error; }
+      catch (error) { observeFailure(error); throw retainFailure(operationError || error, operationError ? error : null); }
     }
   }
 };
