@@ -1,5 +1,6 @@
 import { joinProviderCallSummaries } from './provider-call-joins.js';
 import { collectCompilerImplicitCalls } from './compiler-implicit-calls.js';
+import { createCompilerRuntimeContext } from './compiler-runtime-context.js';
 import { emitCompilerTypeFacts } from './compiler-type-facts.js';
 import { createCompilerDispatchResolver } from './compiler-dispatch.js';
 import { retainedWasmSource } from './wasm/retained-source.js';
@@ -266,6 +267,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         return group.sourceHashes.get(key);
       };
       const expressionFor = node => node ? expressions.get(node.getStart(sourceFile) + ':' + node.end) || null : null;
+      const { isRuntimeNode } = createCompilerRuntimeContext(ts);
       const dispatchTargets = createCompilerDispatchResolver({ts,checker,nodes:nodeIndex.nodes(),declarationRef});
       const dispatchReasons = new Set();
       const selectedScopes = await collectSemanticTargetScopes({ policy, store: item.store, partitionId: item.syntax.partitionId, signal });
@@ -279,6 +281,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         const invocation = row.kind === 'expression';
         const node = nodes.find(n => invocation ? ts.isCallExpression(n) || ts.isNewExpression(n) || ts.isTaggedTemplateExpression(n)
           : ts.isIdentifier(n) || ts.isPrivateIdentifier(n));
+        if (invocation && node && !isRuntimeNode(node)) continue;
         const occurrence = { partitionId: item.syntax.partitionId, localId: row.id };
         let symbol = node ? checker.getSymbolAtLocation(invocation ? node.expression || node.tag : node) : null;
         let targets = symbolTargets(symbol), aliasTargets = [];

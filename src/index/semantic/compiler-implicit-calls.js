@@ -1,10 +1,12 @@
 import { compilerAliasSymbol, isCompilerTransparentExpression } from './compiler-property-paths.js';
+import { createCompilerRuntimeContext } from './compiler-runtime-context.js';
 
 /** Accessor invocation candidates use the existing call-site summary contract. */
 export const collectCompilerImplicitCalls = ({ts,checker,nodes,expressionFor,declarationRef}) => {
   const calls=[];
+  const { isRuntimeNode } = createCompilerRuntimeContext(ts);
   for(const node of nodes) {
-    if(!ts.isPropertyAccessExpression(node)&&!ts.isElementAccessExpression(node))continue;
+    if(!isRuntimeNode(node)||!ts.isPropertyAccessExpression(node)&&!ts.isElementAccessExpression(node))continue;
     let target=node;
     while(target.parent && target.parent.expression===target && isCompilerTransparentExpression(ts,target.parent)) target=target.parent;
     const parent=target.parent;

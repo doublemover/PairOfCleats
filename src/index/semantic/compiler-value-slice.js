@@ -1,5 +1,6 @@
 import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import { compilerOperationDependencies } from './compiler-operation-dependencies.js';
+import { createCompilerRuntimeContext } from './compiler-runtime-context.js';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -16,6 +17,7 @@ export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes
   const ref = localId => ({ partitionId, localId }), rows = [], edges = [], constants = new Map();
   let id = 0, modeled = 0, unresolved = 0;
   const dependencyReasons = new Set();
+  const { isRuntimeNode, isLexicalValueRead } = createCompilerRuntimeContext(ts);
   const functionOwners = new WeakMap(), declarationOwners = new Map();
   const ownerOf = node => {
     const pending = [];
@@ -44,7 +46,7 @@ export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes
   // Canonical source preorder, never checker object IDs, determines derived definition IDs.
   for (const node of nodes) {
     throwIfAborted(signal);
-    if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || !node.initializer
+    if (!isRuntimeNode(node) || !ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || !node.initializer
       || !(node.parent.flags & ts.NodeFlags.Const)) continue;
     const expression = expressionFor(node.initializer), symbol = checker.getSymbolAtLocation(node.name);
     if (!expression || !symbol) continue;
@@ -58,9 +60,10 @@ export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes
   }
   for (const node of nodes) {
     throwIfAborted(signal);
+    if (!isRuntimeNode(node)) continue;
     const target = expressionFor(node);
     if (!target) continue;
-    if (ts.isIdentifier(node)) {
+    if (isLexicalValueRead(node)) {
       const symbol = ts.isShorthandPropertyAssignment(node.parent) ? checker.getShorthandAssignmentValueSymbol(node.parent) : checker.getSymbolAtLocation(node);
       const value = constants.get(symbol);
       if (value && !orderedAccesses.has(canonicalSemanticJson(target))
@@ -86,6 +89,7 @@ export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes
   for (const observation of observations) {
     if (!observation.invocation) continue;
     const node = observation.node, signature = observation.signatureDeclaration;
+    if (node && !isRuntimeNode(node)) continue;
     if (!node || !signature || !isDefaultLibrary(signature.getSourceFile())) { unresolved += 1; continue; }
     const target = expressionFor(node), args = node.arguments || [];
     let owner = signature.parent;

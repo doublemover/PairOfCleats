@@ -58,6 +58,6 @@ export const createCompilerBoundaryFixture = async (root, texts, binaries = {}, 
     const current=state.semanticFactsByFile.get(doc.item.file);
     state.semanticFactsByFile.set(doc.item.file,createSemanticFactsRef({source:doc.item.source,syntaxPartitionId:current.syntaxPartitionId,storage:current.storage,partitions:[...current.partitions,flow.partition],coverage:[...current.coverage,...flow.coverage]}));
   }
-  return { state, policy, documents, syntaxPartitions, stagingRoot, storeFor,
+  return { state, policy, program, documents, syntaxPartitions, stagingRoot, storeFor,
     group: { flowDocuments, wasmModules, workerDocuments: documents, repoRoot: root, context: { contextKey: 'a'.repeat(64), compilerVersion: ts.version }, dependencyHashes: [], isDefaultLibrary: file => program.isSourceFileDefaultLibrary(file) } };
 };

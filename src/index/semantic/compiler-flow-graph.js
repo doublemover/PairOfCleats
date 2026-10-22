@@ -1,9 +1,11 @@
 import { throwIfAborted } from '../../shared/abort.js';
 import { compilerOperationDependencies } from './compiler-operation-dependencies.js';
 import { unwrapCompilerExpression } from './compiler-property-paths.js';
+import { createCompilerRuntimeContext } from './compiler-runtime-context.js';
 /** Structured intraprocedural CFG. Nodes are syntax anchors, not runtime executions. */
 export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, signal, constructionLimits = null }) => {
   const blocks = [], reasons = new Set();
+  const { isRuntimeNode, isLexicalValueRead } = createCompilerRuntimeContext(ts);
   const maxBytes = Math.max(1, constructionLimits?.maxBytes ?? 16 * 1024 * 1024);
   const maxBlocks = Math.max(1, constructionLimits?.maxBlocks ?? Math.min(32768, Math.floor(maxBytes / 512)));
   const maxWork = Math.max(1, constructionLimits?.maxWork ?? maxBlocks * 32);
@@ -55,15 +57,6 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
   };
   const anchor = node => expressionFor(node) || null;
   const children = node => { const result = []; ts.forEachChild(node, child => { result.push(child); }); return result; };
-  const lexicalRead = node => {
-    const parent = node.parent;
-    if (!parent) return true;
-    if ((ts.isPropertyAccessExpression(parent) && parent.name === node)
-      || ((ts.isPropertyAssignment(parent) || ts.isMethodDeclaration(parent)) && parent.name === node)
-      || ((ts.isVariableDeclaration(parent) || ts.isParameter(parent) || ts.isFunctionLike(parent)) && parent.name === node)
-      || ts.isImportSpecifier(parent) || ts.isExportSpecifier(parent) || ts.isBindingElement(parent)) return false;
-    return true;
-  };
   const eventBlock = (node, event, next, context) => {
     const block = add(node, event); link(block, next);
     if (event?.mayThrow) link(block, context.exception, 'exceptional');
@@ -108,7 +101,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     return expression(node, next, context);
   };
   const expression = (node, next, context) => {
-    if (!node) return next;
+    if (!node || !isRuntimeNode(node)) return next;
     admit();
     if (ts.isClassExpression(node)) return classDefinition(node, next, context);
     if (ts.isComputedPropertyName(node)) {
@@ -125,7 +118,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       }
       return creation;
     }
-    if (ts.isIdentifier(node)) return lexicalRead(node) ? eventBlock(node, { kind: 'read', target: node }, next, context) : next;
+    if (ts.isIdentifier(node)) return isLexicalValueRead(node) ? eventBlock(node, { kind: 'read', target: node }, next, context) : next;
     if (ts.isDeleteExpression(node)) {
       const target = referenceTarget(node.expression);
       const deletion = eventBlock(node, { kind: 'operation', target: node,
@@ -236,7 +229,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
   };
   const statement = (node, next, context) => {
     admit();
-    if (!node) return next;
+    if (!node || !isRuntimeNode(node)) return next;
     if (ts.isBlock(node) || ts.isSourceFile(node)) return list(node.statements, next, context);
     if (ts.isVariableStatement(node)) return declarations(node.declarationList, next, context);
     if (ts.isExpressionStatement(node)) return expression(node.expression, next, context);
@@ -356,6 +349,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       : expression(owner.body, eventBlock(owner.body, { kind: 'return', value: owner.body }, exit, context), context);
   for (let i = (owner.parameters?.length || 0) - 1; i >= 0; i -= 1) {
     const parameter = owner.parameters[i];
+    if (!isRuntimeNode(parameter)) continue;
     if (parameter.initializer || parameter.dotDotDotToken || !ts.isIdentifier(parameter.name)) reasons.add('parameter_pattern_default_or_rest_conservative');
     const present = write(parameter.name, parameter, head, context, 'parameter');
     if (parameter.initializer) {
