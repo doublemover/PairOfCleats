@@ -1,28 +1,25 @@
-import { observeEmbeddingOwnership as releaseObserver } from '../../shared/embedding-cache-lifetime.js';
+import { captureRerankerFailure, projectRerankerFailure } from './failure-inspection.js';
 
 /** Decorate a new error without mutating frozen original causes or discarding
  * their nonenumerable resource reconciliation capabilities. */
 export const preserveRerankerFailure = (primary, properties = {}) => {
-  let message = 'Reranker operation failed';
-  try { message = String(primary?.message || primary); } catch {}
-  const failure = new Error(message, { cause: primary });
-  const originalObserver = releaseObserver(primary);
-  const inheritedOwnership = originalObserver && !Object.hasOwn(properties, 'cacheOwnershipPending')
-    && !Object.hasOwn(properties, 'cacheOwnershipReleased') ? {
-      cacheOwnershipPending: { get: () => !originalObserver() },
-      cacheOwnershipReleased: { value: originalObserver }
-    } : {};
-  const reserved = new Set(['cause', 'message', 'stack', ...Reflect.ownKeys(properties), ...Reflect.ownKeys(inheritedOwnership)]);
-  if (primary && (typeof primary === 'object' || typeof primary === 'function')) {
-    const descriptors = Object.getOwnPropertyDescriptors(primary);
-    for (const key of Reflect.ownKeys(descriptors)) {
-      if (!reserved.has(key)) Object.defineProperty(failure, key, descriptors[key]);
-    }
-    if (!Object.hasOwn(failure, 'name')) {
-      try { if (typeof primary.name === 'string') failure.name = primary.name; } catch {}
-    }
-  }
-  Object.defineProperties(failure, { ...inheritedOwnership, ...properties });
+  const captured = captureRerankerFailure(primary);
+  const failure = new Error(captured.message, { cause: primary });
+  const suppliedObserver = properties.cacheOwnershipReleased?.value;
+  const suppliedOwnership = Object.hasOwn(properties, 'cacheOwnershipPending') || Object.hasOwn(properties, 'cacheOwnershipReleased');
+  const released = () => {
+    if (!captured.released()) return false;
+    try { return !suppliedOwnership || typeof suppliedObserver === 'function' && Reflect.apply(suppliedObserver, failure, []) === true; }
+    catch { return false; }
+  };
+  const ownership = captured.hasOwnership || suppliedOwnership ? {
+    cacheOwnershipPending: { get: () => !released() }, cacheOwnershipReleased: { value: released }
+  } : {};
+  const reserved = new Set(['cause', 'errors', 'message', 'stack', 'rerankerInspectionErrors',
+    ...Reflect.ownKeys(properties), ...Reflect.ownKeys(ownership)]);
+  projectRerankerFailure(failure, captured, reserved);
+  Object.defineProperties(failure, { ...properties, ...ownership,
+    rerankerInspectionErrors: { value: captured.inspectionErrors } });
   return failure;
 };
 
@@ -34,16 +31,17 @@ export const trackRerankerWork = work => {
   const receipt = (hasError, error) => {
     const value = { settled: true, get pending() { return !released(); } };
     if (hasError) {
-      let message = 'Reranker operation failed', code = null;
-      try { message = String(error?.message || error); code = error?.code || null; } catch {}
-      value.error = Object.freeze({ code, message });
-      Object.defineProperty(value, 'primaryError', { value: error });
+      const captured = captureRerankerFailure(error);
+      value.error = Object.freeze({ code: typeof captured.code === 'string' ? captured.code : null, message: captured.message });
+      Object.defineProperties(value, { primaryError: { value: error },
+        rerankerInspectionErrors: { value: captured.inspectionErrors } });
     }
     Object.defineProperty(value, 'cacheOwnershipReleased', { value: released });
     return Object.freeze(value);
   };
   const promise = work.then(() => { settled = true; return receipt(false); }, error => {
-    observeReleased = releaseObserver(error); settled = true;
+    const captured = captureRerankerFailure(error);
+    observeReleased = captured.hasOwnership ? captured.released : null; settled = true;
     return receipt(true, error);
   });
   return Object.freeze({ promise, released, get settled() { return settled; }, get pending() { return !released(); } });

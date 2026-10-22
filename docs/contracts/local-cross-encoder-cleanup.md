@@ -68,3 +68,22 @@ call receives that release's existing retry handling. Actual adapter/scorer and
 inert resource controls for these paths are authored and **UNVALIDATED**. No
 native runtime/model/thread/resource/memory/quality or performance qualification
 was executed, and no model/tokenizer/license/revision/default policy changed.
+
+Reranker failure classification and projection now share a scoped snapshot of
+the original message, name, code and native-owner fields. Getters are read once;
+later classification, unavailable wrapping, cleanup aggregation and late-work
+receipts reuse the captured values. Descriptor copying skips `stack` before
+requesting any descriptor, so it does not ask an Error to format its lazy stack.
+Arbitrary error objects are not coerced into strings. Frozen and falsey original
+operation failures remain exact causes.
+
+A getter, own-key or descriptor inspection failure is retained separately as an
+exact `rerankerInspectionErrors` value, including falsey values. Its original
+release observer composes with the original operation, tensor, adapter and any
+supplied work observation. A successful sibling observation cannot release that
+independent owner. Actual scoring captures this evidence before disposing its
+inputs; startup captures it before attempting tokenizer/session/lease closure.
+Projected core fields contain captured values rather than the original getters.
+The new actual-adapter and direct lazy-stack/proxy/late-work controls are authored
+and **UNVALIDATED**; native retry safety, host behavior and resource qualification
+remain unmeasured.

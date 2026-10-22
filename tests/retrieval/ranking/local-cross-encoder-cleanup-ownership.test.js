@@ -21,7 +21,7 @@ const sources = new Map([
   ['poc:reranker-storage', `export const acquireStorageSession = options => { ${symbolExpression}.storageOptions = options; return ${symbolExpression}.storage; };`],
   ['poc:reranker-qualification', `export const currentOnnxQualificationRuntime = () => ({ runtime: 'onnxruntime-node@1.30.0' });`],
   ['poc:reranker-tokenizer', `export const AutoTokenizer = { from_pretrained: async () => ${symbolExpression}.tokenizer };`],
-  ['poc:reranker-native', `export class Tensor { constructor(...args) { return new (${symbolExpression}.Tensor)(...args); } } export const InferenceSession = { create: async () => { const value = ${symbolExpression}; if(value.createError)throw value.createError;return value.session; } };`]
+  ['poc:reranker-native', `export class Tensor { constructor(...args) { return new (${symbolExpression}.Tensor)(...args); } } export const InferenceSession = { create: async () => { const value = ${symbolExpression}; if(value.createFailurePresent||value.createError)throw value.createError;return value.session; } };`]
 ]);
 const scopedImports = new Map([
   ['node:module', 'poc:reranker-module'],
@@ -233,6 +233,45 @@ try {
   assert.equal(startupObserverReads,1,'unavailable wrapping, adapter admission and parent owner share the first original observer');
   startupSettled=true;await observerOnlyFailure.rerankerOwner.close();assert.equal(observerOnly.tokenizerCloses,1);assert.equal(observerOnly.storageCloses,1);
 
+  const inspectedStartup=fixture();let primarySettled=false,codeSettled=false,ownerSettled=false;
+  releaseNativeGates.push(()=>{primarySettled=true;codeSettled=true;ownerSettled=true;});
+  const codeInspection=Object.freeze(Object.defineProperty(new Error('startup code inspection owner'),'cacheOwnershipReleased',
+    {value(){assert.equal(this,codeInspection);return codeSettled;}}));
+  const ownerInspection=Object.freeze(Object.defineProperty(new Error('startup owner inspection owner'),'cacheOwnershipReleased',
+    {value(){assert.equal(this,ownerInspection);return ownerSettled;}}));
+  const inspectionReads={code:0,name:0,rerankerOwner:0,onnxSessionOwner:0};
+  const inspectedPrimary=Object.freeze(Object.defineProperties({message:'original startup failure'}, {
+    cacheOwnershipReleased:{value(){assert.equal(this,inspectedPrimary);return primarySettled;}},
+    code:{get(){inspectionReads.code++;throw codeInspection;}},name:{get(){inspectionReads.name++;throw false;}},
+    rerankerOwner:{get(){inspectionReads.rerankerOwner++;throw ownerInspection;}},
+    onnxSessionOwner:{get(){inspectionReads.onnxSessionOwner++;throw undefined;}}
+  }));
+  inspectedStartup.createError=inspectedPrimary;
+  const inspectedFailure=await pendingFailure(create());
+  assert.equal(inspectedFailure.primaryError.cause,inspectedPrimary);assert.equal(inspectedFailure.nativeOwner,inspectedPrimary);
+  assert.deepEqual(inspectedFailure.primaryError.rerankerInspectionErrors,[false,codeInspection,ownerInspection,undefined]);
+  assert.deepEqual(inspectionReads,{code:1,name:1,rerankerOwner:1,onnxSessionOwner:1});
+  primarySettled=true;await pendingFailure(inspectedFailure.rerankerOwner.close());
+  codeSettled=true;await pendingFailure(inspectedFailure.rerankerOwner.close());
+  assert.equal(inspectedStartup.tokenizerCloses,0);assert.equal(inspectedStartup.storageCloses,0);
+  ownerSettled=true;await inspectedFailure.rerankerOwner.close();assert.equal(inspectedStartup.tokenizerCloses,1);
+  assert.equal(inspectedFailure.cacheOwnershipReleased(),true);
+  assert.deepEqual(inspectionReads,{code:1,name:1,rerankerOwner:1,onnxSessionOwner:1});
+
+  const inspectedRun=fixture(),inspectedRunAdapter=await create();let runInspectionSettled=false,runOwnerReads=0;
+  releaseNativeGates.push(()=>{runInspectionSettled=true;});
+  const runInspection=Object.freeze(Object.defineProperty(new Error('inference diagnostic child'),'cacheOwnershipReleased',
+    {value(){assert.equal(this,runInspection);return runInspectionSettled;}}));
+  const runPrimary=Object.freeze(Object.defineProperty({message:'original inference'},'rerankerOwner',
+    {get(){runOwnerReads++;throw runInspection;}}));
+  inspectedRun.runError=runPrimary;
+  const inspectedRunFailure=await pendingFailure(rank(inspectedRunAdapter));
+  assert.equal(inspectedRunFailure.primaryError.primaryError,runPrimary);
+  assert.deepEqual(inspectedRun.tensors.map(tensor=>tensor.closes),[0,0,0]);
+  await pendingFailure(inspectedRunAdapter.dispose());assert.equal(inspectedRun.sessionCloses,0);
+  runInspectionSettled=true;await inspectedRunFailure.rerankerOwner.close();
+  assert.deepEqual(inspectedRun.tensors.map(tensor=>tensor.closes),[1,1,1]);assert.equal(runOwnerReads,1);
+
   for(const value of [undefined,null,false,0,'']){
     const falsey=fixture(),falseyAdapter=await create(),falseyController=new AbortController();
     falsey.runFailurePresent=true;falsey.runError=value;falsey.tensorGate=deferred();falsey.tensorDisposeEntered=deferred();
@@ -240,6 +279,10 @@ try {
     await falsey.tensorDisposeEntered.promise;falseyController.abort();falsey.tensorGate.resolve();
     assert.equal((await originalFailure).error,value,'later cleanup-time cancellation cannot replace the exact earlier inference failure');
     await falseyAdapter.dispose();assert.equal(falsey.storageReleased,true);
+
+    const falseyStartup=fixture();falseyStartup.createFailurePresent=true;falseyStartup.createError=value;
+    await assert.rejects(create(),error=>error.code==='ERR_RERANK_UNAVAILABLE'&&error.cause===value);
+    assert.equal(falseyStartup.tokenizerCloses,1);assert.equal(falseyStartup.artifactCloses,1);assert.equal(falseyStartup.storageCloses,1);
   }
 
   const cancelled = fixture(), cancelledAdapter = await create(), controller = new AbortController();

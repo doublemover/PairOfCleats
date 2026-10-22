@@ -1,4 +1,4 @@
-import { observeEmbeddingOwnership as pendingObserver } from '../../shared/embedding-cache-lifetime.js';
+import { captureRerankerFailure, projectRerankerFailure, observeRerankerFailureOwnership as pendingObserver } from './failure-inspection.js';
 
 const failureOwners=new WeakMap();
 
@@ -36,26 +36,24 @@ export const captureCrossEncoderResource = (resource, methodName, { optional = f
 };
 
 export const crossEncoderCleanupFailure = ({ owner, cleanupErrors = [], hasPrimary = false, primaryError, properties = {} }) => {
-  const errors = hasPrimary ? [primaryError, ...cleanupErrors] : [...cleanupErrors];
+  const originals = hasPrimary ? [primaryError, ...cleanupErrors] : [...cleanupErrors];
+  const captured = originals.map(captureRerankerFailure);
+  const inspectionErrors = [...new Set(captured.flatMap(snapshot => snapshot.inspectionErrors))];
+  const errors = [...originals, ...inspectionErrors];
   const failure = new AggregateError(errors, 'Local cross-encoder cleanup remains pending.',
     { cause: hasPrimary ? primaryError : cleanupErrors[0] });
-  const observers = errors.map(pendingObserver).filter(Boolean);
+  const observers = captured.filter(snapshot => snapshot.hasOwnership).map(snapshot => snapshot.released);
   const released = () => !owner.pending && observers.every(observe => observe());
-  if (hasPrimary && primaryError && (typeof primaryError === 'object' || typeof primaryError === 'function')) {
+  if (hasPrimary) {
     const reserved = new Set(['cause', 'errors', 'message', 'stack', 'primaryError', 'cleanupErrors',
-      'rerankerOwner', 'cacheOwnershipPending', 'cacheOwnershipReleased', ...Reflect.ownKeys(properties)]);
-    const descriptors = Object.getOwnPropertyDescriptors(primaryError);
-    for (const key of Reflect.ownKeys(descriptors)) {
-      if (!reserved.has(key)) Object.defineProperty(failure, key, descriptors[key]);
-    }
-    if (!Object.hasOwn(failure, 'name')) {
-      try { if (typeof primaryError.name === 'string') failure.name = primaryError.name; } catch {}
-    }
+      'rerankerOwner', 'rerankerInspectionErrors', 'cacheOwnershipPending', 'cacheOwnershipReleased', ...Reflect.ownKeys(properties)]);
+    projectRerankerFailure(failure, captured[0], reserved);
   }
   if (!Object.hasOwn(failure, 'code')) failure.code = 'ERR_LOCAL_RERANKER_CLEANUP';
   Object.defineProperties(failure, {
     primaryError: { value: hasPrimary ? primaryError : null },
     cleanupErrors: { value: Object.freeze([...cleanupErrors]) },
+    rerankerInspectionErrors: { value: Object.freeze(inspectionErrors) },
     rerankerOwner: { value: owner },
     cacheOwnershipPending: { get: () => !released() },
     cacheOwnershipReleased: { value: released },

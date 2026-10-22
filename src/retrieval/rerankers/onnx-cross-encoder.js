@@ -17,7 +17,7 @@ import { LOCAL_RERANKER_VERSION } from '../../contracts/schemas/reranker.js';
 import { scoreLocalCrossEncoderPairs } from './cross-encoder-scoring.js';
 import { createCrossEncoderSessionOwner, crossEncoderCleanupFailure } from './local-resource-owner.js';
 import { preserveRerankerFailure } from './failure-ownership.js';
-import { observeEmbeddingOwnership } from '../../shared/embedding-cache-lifetime.js';
+import { captureRerankerFailure } from './failure-inspection.js';
 
 export { decodeCrossEncoderLogit } from './cross-encoder-scoring.js';
 
@@ -106,13 +106,13 @@ export const createLocalOnnxCrossEncoder = async ({ profile: input, modelRoot, s
     await artifactLease.verifyLoaded();
     throwIfAborted(signal);
   } catch (cause) {
-    const error = typeof cause?.code === 'string' && cause.code.startsWith('ERR_LOCAL_')
-      || cause?.name === 'AbortError' ? cause : unavailable(cause);
-    const observe=observeEmbeddingOwnership(cause);
-    if (observe&&!observe()) {
+    const captured = captureRerankerFailure(cause);
+    const error = typeof captured.code === 'string' && captured.code.startsWith('ERR_LOCAL_')
+      || captured.name === 'AbortError' ? cause : unavailable(cause);
+    if (captured.hasOwnership && !captured.released()) {
       owner.retainFailure(cause);
       throw crossEncoderCleanupFailure({ owner, hasPrimary: true, primaryError: error,
-        properties: { nativeOwner: { value: cause.rerankerOwner || cause.onnxSessionOwner || cause }, storageSession: { value: sessionLease } } });
+        properties: { nativeOwner: { value: captured.nativeOwner }, storageSession: { value: sessionLease } } });
     }
     try { await close(); }
     catch (cleanupError) { throw crossEncoderCleanupFailure({ owner, hasPrimary: true, primaryError: error,
@@ -144,11 +144,11 @@ export const createLocalOnnxCrossEncoder = async ({ profile: input, modelRoot, s
             loadSource, tokenizer, session, Tensor, pendingTensors: owner.pendingTensors,
             pendingTensorOwners: owner.pendingTensorOwners, signal: operationSignal });
         } catch (error) {
-          const observe=observeEmbeddingOwnership(error);
-          if (observe&&!observe()) {
+          const captured = captureRerankerFailure(error);
+          if (captured.hasOwnership && !captured.released()) {
             owner.retainFailure(error);
             throw crossEncoderCleanupFailure({ owner, hasPrimary: true, primaryError: error,
-              properties: { nativeOwner: { value: error.rerankerOwner || error }, storageSession: { value: sessionLease } } });
+              properties: { nativeOwner: { value: captured.nativeOwner }, storageSession: { value: sessionLease } } });
           }
           throw error;
         }
