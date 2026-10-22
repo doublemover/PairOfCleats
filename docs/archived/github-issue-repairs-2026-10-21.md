@@ -422,10 +422,10 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#634](https://github.com/doublemover/PairOfCleats/issues/634) | other | TUI missing functionality: run real searches and navigate ranked results/source | implemented previously; acceptance pending |
 | [#635](https://github.com/doublemover/PairOfCleats/issues/635) | other | TUI missing functionality: configure and operate index and embedding workflows | implemented previously; acceptance pending |
 | [#636](https://github.com/doublemover/PairOfCleats/issues/636) | other | TUI missing functionality: expose doctor and supported tooling/provider setup | partial source forms; operational provider qualification open |
-| [#637](https://github.com/doublemover/PairOfCleats/issues/637) | other | TUI missing functionality: control owned services and preview maintenance actions | partial API/GC source; ownership-dependent adapters open |
+| [#637](https://github.com/doublemover/PairOfCleats/issues/637) | other | TUI missing functionality: control owned services and preview maintenance actions | partial exact owned-service controls 4a17a5e83; actual resource closure required; ConPTY/service qualification open |
 | [#638](https://github.com/doublemover/PairOfCleats/issues/638) | other | TUI missing functionality: select jobs and inspect their results/artifacts | implemented previously; acceptance pending |
 | [#639](https://github.com/doublemover/PairOfCleats/issues/639) | other | TUI missing functionality: open recorded sessions and explicitly distinguish passive/live attachment | partial replay source; native/platform qualification open |
-| [#640](https://github.com/doublemover/PairOfCleats/issues/640) | other | TUI missing functionality: expose registered analysis/report workflows with command-surface parity | partial catalog source; continuation/remaining adapters open |
+| [#640](https://github.com/doublemover/PairOfCleats/issues/640) | other | TUI missing functionality: expose registered analysis/report workflows with command-surface parity | partial canonical catalog and explicit unsupported adapters 4a17a5e83; remaining workflows and native qualification open |
 | [#641](https://github.com/doublemover/PairOfCleats/issues/641) | other | Hash the full admitted triage payload before using it as fallback record identity | implemented previously; acceptance pending |
 | [#642](https://github.com/doublemover/PairOfCleats/issues/642) | other | Preserve a single generic triage record when it contains array-valued fields | implemented previously; acceptance pending |
 | [#643](https://github.com/doublemover/PairOfCleats/issues/643) | P2 | [P2] Accept the risk truncation caps actually emitted by context-pack assembly | implemented previously; acceptance pending |
@@ -905,8 +905,8 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1117](https://github.com/doublemover/PairOfCleats/issues/1117) | P2 | [P2] VFS collector cleanup can delete another collector's live spill files | development implemented; validation deferred |
 | [#1118](https://github.com/doublemover/PairOfCleats/issues/1118) | P2 | [P2] Reject unknown publication statuses and absent validation evidence | development implemented; validation deferred |
 | [#1119](https://github.com/doublemover/PairOfCleats/issues/1119) | other | Add original-vector and stored-vector retrieval oracle adapters | partial independent original/stored scalar oracle 6af774d1a; real capture/live search proof open |
-| [#1120](https://github.com/doublemover/PairOfCleats/issues/1120) | other | Add a reproducible fusion and candidate-depth sweep to existing reports | pending |
-| [#1121](https://github.com/doublemover/PairOfCleats/issues/1121) | other | Separate rerank pool from final output and prototype bounded local rerankers | pending |
+| [#1120](https://github.com/doublemover/PairOfCleats/issues/1120) | other | Add a reproducible fusion and candidate-depth sweep to existing reports | partial production-stage fusion/depth replay 0aed57100/0500f370a; original score-space identity retained; real workload qualification open |
+| [#1121](https://github.com/doublemover/PairOfCleats/issues/1121) | other | Separate rerank pool from final output and prototype bounded local rerankers | partial bounded local reranker/pool source ae2069f17; caller-pinned model required; model/runtime/quality qualification open |
 | [#1122](https://github.com/doublemover/PairOfCleats/issues/1122) | other | Add count-aware exact-versus-ANN planning with conservative fallback | pending |
 | [#1123](https://github.com/doublemover/PairOfCleats/issues/1123) | other | Shadow query-class routing and per-repository candidate allocation | pending |
 | [#1124](https://github.com/doublemover/PairOfCleats/issues/1124) | other | Add explicit edit-safe and exploration context-pack policies | pending |
@@ -1133,7 +1133,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1345](https://github.com/doublemover/PairOfCleats/issues/1345) | P2 | [P2] Resolve workspace child startup settings per target instead of inheriting the launch directory | development implemented; integration/validation deferred |
 | [#1346](https://github.com/doublemover/PairOfCleats/issues/1346) | P2 | [P2] Preserve explicit validation and embedding flags across background Stage2 handoff | development implemented; integration/validation deferred |
 | [#1347](https://github.com/doublemover/PairOfCleats/issues/1347) | P2 | [P2] Do not forward the globally accepted -v version flag into mutating leaf commands | development implemented; integration/validation deferred |
-| [#1348](https://github.com/doublemover/PairOfCleats/issues/1348) | other | [Indexing] Make cross-file fidelity budgets explicit and preserve durable omission coverage | partial retained graph pages and source links 8cc785f95/54da0a7dc; resume/disk/public proof open |
+| [#1348](https://github.com/doublemover/PairOfCleats/issues/1348) | other | [Indexing] Make cross-file fidelity budgets explicit and preserve durable omission coverage | partial public retained pages 0c14a0dbe, source/work receipts fdfed91e5 and spill accounting 330402344; fine-grained resume and legacy supplied-graph quota open |
 | [#1349](https://github.com/doublemover/PairOfCleats/issues/1349) | P2 | [P2] Give inline and daemon-prewarm embedding leases an explicit runtime teardown owner | development implemented; integration/validation deferred |
 | [#1350](https://github.com/doublemover/PairOfCleats/issues/1350) | P2 | [P2] Report unconfirmed LSP disposal instead of returning a successful pool drain | development implemented; integration/validation deferred |
 | [#1351](https://github.com/doublemover/PairOfCleats/issues/1351) | P2 | [P2] Preserve manifest integrity errors during graph artifact admission | development implemented; integration/validation deferred |
@@ -2086,3 +2086,70 @@ and one Astra/high. Root alone integrates exact released source snapshots and Gi
 Hashes under ignored author-workspace `.tmp/tasks/` are historical bookkeeping,
 not clean-checkout artifacts or passing test evidence. No new issue is closed by
 this section, and no earlier green run is relabeled as current-source acceptance.
+
+### Three-owner development checkpoint through 0500f370a (2026-10-22)
+
+At the user's direction the active team is now the lead plus three Sol6.1/xhigh
+agents: storage/setup, semantic/indexing and retrieval/editor/map. Earlier
+nine-owner descriptions above are historical. Root integrates exact released real
+files and owns Git; no peer coordination or worktrees are required.
+
+**Execution:** source inspection and authored regressions only. No tests,
+syntax/lint/format, bootstrap, builds, native hosts, real services, model runs or
+benchmarks were executed. The last qualified production/test source remains
+`d4dcba4134f6103e3a59703d90fdbde5ca54d09e`. Changed setup inputs require locked
+bootstrap later. Generated-surface refresh and the complete Windows qualification
+batch remain deferred. These commits do not close issues or prove speedups.
+
+- **Public retained evidence:** 0c14a0dbe adds strict exact-build call-site/edge
+  requests and bounded pages through CLI/API/MCP, canonical registrations and
+  explicit retained-family coverage limits. It never falls back to CURRENT.
+  Compiler capability inputs now participate in bootstrap freshness. Source
+  10985f32d exposes opt-in provider evidence within the existing semantic detail
+  budgets. Sources 4490f9c33/fdfed91e5 connect contained retained-source captures,
+  source lenses and current work receipts; mutable propagation restarts its phase
+  rather than claiming a durable completed prefix. lspBindings20 and callFlow20
+  invalidate changed producer meaning. Source 330402344 reserves actual spill,
+  merge/checkpoint and retained projection working sets before writes; failed
+  cleanup conservatively keeps credits. Legacy supplied-graph quota coverage,
+  fine-grained durable propagation resume and actual consumer qualification remain
+  open. Existing global artifact-format identities are preserved.
+- **Durable resource authority:** 83dabeaa0 protects exact resource leases across
+  parent exit; dead PID recovery cannot erase an unknown settlement. Source
+  673547ba1 pins all matching launch-authorized category ancestors so migrations
+  cannot move active child profiles. c577405b5/1d4e1e1d7 require the exact resource,
+  settled:true and pending:false receipt. These do not establish an arbitrary
+  descendant census; lost owners remain conservatively protected.
+- **Native/process ownership:** d9a1ac1fb/6ea5e2b1f repair supervisor transport and
+  owned-service continuations. Source 4a17a5e83 binds service controls to the exact
+  job object/scope, requires both execution settlement and actual protocol-resource
+  closure, and retains unknown terminal/replaced owners within the bounded list.
+  Rust UI selection/confirmation preserves opaque identity. Unsupported graph and
+  policy adapters are explicit. Source 10ef70909 routes post-spawn error, stdin
+  failure and throwing spawn callbacks through the existing termination owner,
+  preserving the original failure and tracking until actual close. Regression
+  fixtures are authored; real ConPTY, services and descendant checks are unrun.
+- **Storage/setup integrity:** 955508d9f/07c2f5ad8 distinguish missing/offline
+  inventory and preserve rollback, installation and protected BEAM evidence.
+  Source 0930db5e8 checks dictionary bytes before conditional reuse, refuses an
+  in-flight replacement, retains original migration intent and evaluates managed
+  relative paths against the actual child cwd. Source 37413d958 unifies strict
+  known managed metadata across synchronous/asynchronous inspectors, locator and
+  removal admission; unknown retention/source fields stay protected and verifier
+  cleanup requires exact settlement. No installation, cache migration or cleanup
+  operation was performed.
+- **Retrieval/editor/map consumers:** 0aed57100 captures immutable actual baseline
+  and channel inputs before oracle awaits; 0500f370a retains the dense producer's
+  real dot-product identity during replay. Source ae2069f17 separates candidate
+  pool/output and admits a local reranker only with caller-pinned immutable
+  model/tokenizer/license/runtime evidence. No default model or pooling is enabled.
+  e71fda96f/b897441aa/d1b07208b preserve watch, cursor/hit/tree identities and bound
+  initial editor enumeration before publication. c423d4720/8fd408e3e connect actual
+  map request slots, spatial selection and cooperative pinned search cancellation.
+  Server model materialization, actual editor/browser/GPU/model hosts, independent
+  quality parity and measured resource/latency acceptance remain open.
+
+Ignored `.tmp/tasks/` hashes are author-workspace staging bookkeeping, not
+clean-checkout artifacts or passing evidence. Source changes after the last
+qualified candidate require their own final-tree checks; earlier green results
+are not combined into a current pass.

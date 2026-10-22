@@ -41,12 +41,11 @@ do not assume issue-number order or turn feature requests into duplicate engines
    **In progress:** 23 additional repairs have focused proof and the complete
    front gate passes at f05fb0d4e. A further 33 storage/publication/cache/contract
    repairs have focused proof and the complete front gate passes at d4dcba413. Remaining
-   watch/pointer/queue authority and editor-package owners continue next. Eight
-   6.1 Sol agents at xhigh implement independent storage/publication, vectors,
-   language semantics, storage layout, editor, native TUI, map and developer
-   experience spans in real files. The lead owns shared integration, validation,
-   Git and publication. A ninth agent, Astra/high, exclusively owns issues #1504
-   and above. No peer coordination, worktree or elevation is required.
+   watch/pointer/queue authority and editor-package owners continue next. Three
+   Sol 6.1/xhigh agents now own independent storage/setup, semantic/indexing and
+   retrieval/editor/map spans in real files. The lead owns shared integration,
+   native/core work, validation, Git and publication. Research #1504 and above
+   remains with the semantic owner. No worktree or elevation is required.
 3. Remaining P2 correctness/contract issues, then P3, grouped by owner.
 4. Perf reports: retain correctness parity and measure the changed operation;
    distinguish operation-count reductions from real latency/heap measurements.
@@ -56,7 +55,7 @@ do not assume issue-number order or turn feature requests into duplicate engines
    qualification. Keep release/real-model/optional-backend claims separate.
 
 The user's latest direction defers validation until the broad backlog development
-pass is complete. All nine agents and the lead edit real repository files and author
+pass is complete. The three agents and the lead edit real repository files and author
 regressions without executing tests, syntax campaigns or formatting. Publish
 completed owner groups as explicitly **unvalidated development checkpoints**;
 these commits do not replace the last qualified source identified above. Recent source batches cover final response/risk
@@ -98,13 +97,13 @@ inventories, retrieval, embeddings and dependency-safe bootstrap; measurements r
 A fresh inventory adds 163 reports. New P1 CI restore publication and pending-child
 cache-lock ownership, plus 110 new P2 defects, precede remaining Perf work.
 Language declaration/source spans, retrieval contracts, extraction and evaluation
-are assigned across the nine implementation owners; the lead integrates shared contracts.
+continue across the three implementation owners; the lead integrates shared contracts.
 There is no current-source deep-suite, native-host or performance claim.
 The refreshed inventory adds ten Other research/features (#1531–#1540) and
 expands modern viewer/semantic acceptance; prior source repairs retain credit
 without implying those new requirements are satisfied. Storage/category, native,
 editor, provisioning, bounded discovery and durable viewer preference releases
-now have durable partial mappings. Shared sourceChunking6/compilerBindings15/lspBindings19, callFlow19, graphRelations1
+now have durable partial mappings. Shared sourceChunking6/compilerBindings15/lspBindings20, callFlow20, graphRelations1
 and discoverySelection2/signature14 identify the new producer meaning.
 
 Source checkpoints through 101f3641f add local loaded-response find, source-qualified
@@ -125,11 +124,22 @@ lexical reuse, selective SQLite BM25 hydration, owned setup/download lifetimes
 and map snapshot workers. Actual SQLite/LMDB finalizers, guarded delegated
 opens, declared write admission and ordinal vector spooling now have source
 checkpoints. Build-owned SQLite filter pages, typed watch evidence, exact editor
-opening and native event/session lifetimes now have authored controls. Astra has
-staged internal slices for #1504-#1520;
+opening and native event/session lifetimes now have authored controls. Research
+has committed internal slices for #1504-#1520;
 public/operational integration and all new qualification remain open. See the
 current repair receipt for exact commits and remaining obligations. No current
 source suite or speedup is claimed.
+
+Further source integration through 0500f370a exposes exact retained graph pages
+through CLI/API/MCP, connects provider evidence and retained source lenses, and
+accounts actual graph spill/merge working sets. Pending resource leases survive
+parent exit; category migrations honor authorized active descendant roots. Native
+service controls bind the exact owned job and require actual resource closure.
+Subprocess error, stdin and spawn-callback failures retain cleanup ownership until
+close. Dictionary integrity, strict managed metadata, editor initial admission,
+cooperative map search and reproducible fusion/reranker owners have further repairs.
+All remain unvalidated; fine-grained semantic resume, legacy graph quota coverage,
+real service/editor/model hosts and performance qualification remain open.
 
 ## Environment and qualification boundaries
 
