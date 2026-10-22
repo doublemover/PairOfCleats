@@ -7,6 +7,7 @@ export const STORAGE_CLASS_CATALOG = Object.freeze([
   ['workspace-registries', 'state', 'durable', 'src/workspace', 'workspace'],
   ['repo-builds', 'repos', 'referenced', 'src/shared/repo-paths.js', 'repository'],
   ['incremental-bundles', 'repos', 'referenced', 'src/index/build/incremental', 'repository'],
+  ['preprocess-snapshot', 'repos', 'derived', 'src/index/build/preprocess.js', 'repository'],
   ['semantic-snapshots', 'repos', 'referenced', 'src/index/build/incremental', 'repository'],
   ['backend-databases', 'repos', 'referenced', 'src/storage', 'repository'],
   ['snapshot-registry', 'repos', 'evidence', 'src/index/snapshots/registry.js', 'repository'],
@@ -40,6 +41,13 @@ export const EMBEDDING_PROTECTED_METADATA = Object.freeze([
   'cache.index.json', 'cache.index.delta', 'cache.meta.json'
 ]);
 
+export const PREPROCESS_STORAGE_SURFACE = Object.freeze({
+  relativePath: 'preprocess/snapshot.json', category: 'repos', retention: 'derived', scope: 'repository',
+  sourceAuthority: 'content-verified-classification-and-line-products-only',
+  membership: 'enumerated-each-attempt', absenceAuthority: 'continuous-snapshot-witness-required',
+  leaseOwner: 'existing-repo-cache-writer', deletionAuthority: false
+});
+
 /** Known legacy locations only: no whole-disk discovery or implicit adoption. */
 export const resolveLegacyStorageLocations = ({ home, cacheRoot, repoRoots = [], toolingRoot = null,
   modelsRoot = null, extensionsRoot = null, dictionariesRoot = null }) => {
@@ -52,6 +60,8 @@ export const resolveLegacyStorageLocations = ({ home, cacheRoot, repoRoots = [],
     ['legacy-scratch', path.join(cacheRoot, 'tmp'), 'tmp', 'temporary']
   ];
   for (const root of repoRoots) {
+    entries.push([`legacy-repo-${path.basename(root)}-preprocess-snapshot`,
+      path.join(root, ...PREPROCESS_STORAGE_SURFACE.relativePath.split('/')), 'repos', 'derived']);
     for (const [child, retention] of [['triage', 'evidence'], ['snapshots', 'evidence'], ['diffs', 'evidence'],
       ['metrics', 'evidence'], ['builds', 'referenced'], ['query-cache', 'derived']]) {
       entries.push([`legacy-repo-${path.basename(root)}-${child}`, path.join(root, child),

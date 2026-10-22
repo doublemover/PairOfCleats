@@ -19,6 +19,9 @@ try {
     await fs.mkdir(path.join(root, 'repos', 'repo-123456789abc', category), { recursive: true });
     await fs.writeFile(path.join(root, 'repos', 'repo-123456789abc', category, 'saved.json'), 'preserved');
   }
+  const preprocess = path.join(root, 'repos', 'repo-123456789abc', 'preprocess', 'snapshot.json');
+  await fs.mkdir(path.dirname(preprocess), { recursive: true });
+  await fs.writeFile(preprocess, 'source-classification-replay-evidence');
   const unmarked = await planCacheRootCleanup({ cacheRoot: root, authorityRoots: [root] });
   assert.equal(unmarked.operations.length, 0, 'launch selection alone cannot adopt an unmarked root');
   await fs.writeFile(path.join(root, CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));
@@ -43,5 +46,6 @@ try {
   for (const category of ['triage', 'snapshots', 'diffs', 'builds']) {
     assert.equal(await fs.readFile(path.join(root, 'repos', 'repo-123456789abc', category, 'saved.json'), 'utf8'), 'preserved');
   }
+  assert.equal(await fs.readFile(preprocess, 'utf8'), 'source-classification-replay-evidence', 'registration does not grant generic snapshot deletion authority');
 } finally { await rmDirRecursive(temporary); }
 console.log('storage cleanup authority passed');

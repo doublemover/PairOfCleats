@@ -64,16 +64,30 @@ const verifyCopy = async (plan, data, signal) => {
       maxBytes: file.logicalBytes, signal });
   }
 };
-const ensureOwnedStage = async (plan, paths) => {
+const ensureOwnedStage = async (plan, paths, journal, persist, hooks) => {
+  if (await exists(paths.stage)) {
+    let owned = false;
+    try {
+      const marker = await readRecord(path.join(paths.stage, '.migration-owner.json'));
+      owned = marker.schemaVersion === 1 && marker.planId === plan.planId;
+    } catch {}
+    if (!owned) {
+      // A crash between mkdir and marker publication is indistinguishable from
+      // an unknown directory. Preserve it and select fresh run-owned staging.
+      journal.abandonedStages = [...new Set([...(journal.abandonedStages || []), paths.stage])];
+      if (journal.abandonedStages.length > 16) throw new Error('Migration has too many unknown stages; review retained recovery before resuming.');
+      paths.stage = path.join(paths.root, `${plan.planId}.staging-${randomUUID()}`);
+    }
+  }
+  journal.staging = paths.stage;
+  await persist('preparing');
   if (!(await exists(paths.stage))) {
     assertNoSymlinkPath(path.parse(paths.root).root, paths.root, { allowMissing: true });
     await fs.mkdir(paths.root, { recursive: true });
     await fs.mkdir(paths.stage);
+    await hooks.afterStageDirectory?.(paths.stage);
     await atomicWriteJson(path.join(paths.stage, '.migration-owner.json'), { schemaVersion: 1, planId: plan.planId }, { mkdir: false, createOnly: true });
     await fs.mkdir(path.join(paths.stage, 'data'));
-  } else {
-    const marker = await readRecord(path.join(paths.stage, '.migration-owner.json'));
-    if (marker.schemaVersion !== 1 || marker.planId !== plan.planId) throw new Error('Unrecognized migration staging is preserved.');
   }
 };
 
@@ -109,6 +123,11 @@ export const applyStorageMigration = async (plan, { approvedPlanId, authorityRoo
       journal = await readRecord(paths.journal);
       if (journal.schemaVersion !== 1 || journal.planId !== plan.planId) throw new Error('Migration journal identity is invalid.');
       if (journal.stage === 'rolled-back') throw new Error('Rolled-back migration requires a new reviewed plan before another cutover.');
+      if (journal.staging) {
+        const suffix = path.basename(journal.staging).slice(plan.planId.length);
+        if (path.dirname(journal.staging) !== paths.root || !/^\.staging(?:-[a-f0-9-]{36})?$/u.test(suffix)) throw new Error('Migration journal nominated an invalid staging path.');
+        paths.stage = journal.staging;
+      }
     }
     return await withExclusiveRoots([plan.source, plan.destination], { coordinationRoot: plan.coordinationRoot }, async () => {
       for (const target of [plan.source, plan.destination, plan.home, plan.recoveryRoot]) assertSafeCacheDeletion(target, authorityRoots);
@@ -121,7 +140,7 @@ export const applyStorageMigration = async (plan, { approvedPlanId, authorityRoo
       if (free?.complete !== true || !Number.isSafeInteger(free.availableBytes) || free.availableBytes < requiredBytes || free.reserveSatisfied !== true) throw new Error('Destination free space/reserve is insufficient or unknown.');
       const data = path.join(paths.published, 'data');
       if (!(await exists(paths.published))) {
-        await ensureOwnedStage(plan, paths);
+        await ensureOwnedStage(plan, paths, journal, persist, hooks);
         const stagingData = path.join(paths.stage, 'data');
         await persist('copying');
         for (const directory of plan.manifest.directories) {

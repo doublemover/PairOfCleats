@@ -63,7 +63,8 @@ export const inspectStorageInventory = async ({ roots, maxEntries = 100000, maxD
       lastUse: { timestamp: null, provenance: 'unknown' }, reclaimableBytes: null,
       ownership: null, identity: null, errors: [], ...(includeFiles ? { files: [], directories: [] } : {}) };
     items.push(item);
-    if (shouldStop()) { item.status = 'unscanned'; continue; }
+    if (shouldStop()) { item.status = 'unscanned'; item.logicalBytes = null; item.allocatedBytes = null;
+      item.physicalBytesKnown = false; item.physicalIdentityKnown = false; continue; }
     try {
       // Reject ancestor links, including junctions; inspect never traverses them.
       assertNoSymlinkPath(path.parse(root).root, root);
@@ -73,12 +74,15 @@ export const inspectStorageInventory = async ({ roots, maxEntries = 100000, maxD
     } catch (error) {
       item.status = error.code === 'ENOENT' ? 'missing' : 'inaccessible';
       item.complete = error.code === 'ENOENT';
-      if (!item.complete) { item.logicalBytes = null; item.allocatedBytes = null; }
+      if (!item.complete) { item.logicalBytes = null; item.allocatedBytes = null;
+        item.physicalBytesKnown = false; item.physicalIdentityKnown = false; }
       item.errors.push(failure(root, error));
+      if (!item.complete) errors.push(...item.errors);
       continue;
     }
     const stack = [root];
     const rootFiles = new Set();
+    const observedDirectories = [];
     while (stack.length && !shouldStop()) {
       const current = stack.pop();
       visitedEntries += 1;
@@ -90,6 +94,7 @@ export const inspectStorageInventory = async ({ roots, maxEntries = 100000, maxD
         }
         if (stat.isDirectory()) {
           item.directoriesCount += 1;
+          observedDirectories.push({ path: current, identity: storageFileIdentity(stat) });
           if (includeFiles) item.directories.push({ relativePath: path.relative(root, current), identity: storageFileIdentity(stat) });
           const directory = await fs.opendir(current);
           try {
@@ -114,15 +119,26 @@ export const inspectStorageInventory = async ({ roots, maxEntries = 100000, maxD
             rootFiles.add(key);
             const existing = uniqueFiles.get(key);
             if (existing) {
+              if (!sameStorageFileIdentity(existing.identity, storageFileIdentity(stat))) {
+                throw Object.assign(new Error('A shared physical file changed during storage inventory.'), { code: 'ERR_STORAGE_SCAN_CHANGED' });
+              }
               existing.paths.add(current);
               existing.attribution.add(item.id);
             } else uniqueFiles.set(key, { size: Number(stat.size), allocatedBytes: bytes,
-              paths: new Set([current]), attribution: new Set([item.id]), nlink: Number(stat.nlink) });
+              paths: new Set([current]), attribution: new Set([item.id]), nlink: Number(stat.nlink), identity: storageFileIdentity(stat) });
           }
           if (includeFiles) item.files.push({ relativePath: path.relative(root, current),
             identity: storageFileIdentity(stat), allocatedBytes: bytes, physicalKey: key });
         }
       } catch (error) { item.errors.push(failure(current, error)); }
+    }
+    for (const directory of observedDirectories) {
+      if (signal?.aborted || now() - started >= maxDurationMs) { stopReason = signal?.aborted ? 'cancelled' : 'time-budget'; break; }
+      try {
+        assertNoSymlinkPath(root, directory.path);
+        const current = storageFileIdentity(await fs.lstat(directory.path, { bigint: true }));
+        if (!sameStorageFileIdentity(directory.identity, current)) throw Object.assign(new Error('Storage directory membership changed during inventory.'), { code: 'ERR_STORAGE_SCAN_CHANGED' });
+      } catch (error) { item.errors.push(failure(directory.path, error)); }
     }
     item.complete = !stopReason && !item.errors.length;
     item.status = item.complete ? 'scanned' : 'incomplete';
@@ -135,6 +151,7 @@ export const inspectStorageInventory = async ({ roots, maxEntries = 100000, maxD
   return { schemaVersion: 1, startedAt: new Date(started).toISOString(),
     finishedAt: new Date(now()).toISOString(), scanMode: 'exact-bounded', complete,
     stopReason, visitedEntries, limits: { maxEntries, maxDurationMs }, items, errors,
+    consistency: 'observed-enumeration-with-directory-revalidation; not-a-filesystem-snapshot',
     totals: {
       logicalAttributedBytes: items.reduce((sum, item) => sum + item.logicalBytes, 0),
       uniqueLogicalBytes: complete && items.every(item => item.physicalIdentityKnown)

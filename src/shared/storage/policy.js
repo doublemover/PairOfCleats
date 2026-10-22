@@ -30,7 +30,7 @@ const budgetValue = (value, key) => {
 };
 
 /** Pure quota/admission planning. Unknown allocation is never treated as zero. */
-export const planStorageQuota = ({ items, softBytes = null, hardBytes = null,
+export const planStorageQuota = ({ items, inventoryComplete = false, softBytes = null, hardBytes = null,
   minimumFreeBytes = null, freeBytes = null, retainCount = 0, now = Date.now() } = {}) => {
   if (!Array.isArray(items)) throw new TypeError('Quota planning requires category-owner items.');
   softBytes = budgetValue(softBytes, 'softBytes');
@@ -41,8 +41,9 @@ export const planStorageQuota = ({ items, softBytes = null, hardBytes = null,
   if (retainCount === null) retainCount = 0;
   if (softBytes !== null && hardBytes !== null && softBytes > hardBytes) throw new TypeError('Soft storage budget exceeds hard budget.');
   const unique = new Map();
-  let accountingComplete = true;
+  let accountingComplete = inventoryComplete === true;
   for (const item of items) {
+    if (item.complete !== true) accountingComplete = false;
     if (!item.physicalIdentity || !Number.isSafeInteger(item.allocatedBytes) || item.allocatedBytes < 0) {
       accountingComplete = false;
       continue;
