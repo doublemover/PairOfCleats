@@ -3,7 +3,8 @@ import fsPromises from 'node:fs/promises';
 import { sumDiagnosticCounts } from './diagnostics.js';
 import { resolveTaskLowYieldBailout } from '../../../src/shared/extraction-quality.js';
 
-export const BENCH_VERDICT_SCHEMA_VERSION = 1;
+import { BENCH_VERDICT_SCHEMA_VERSION } from '../../../src/contracts/bench-comparison-input.js';
+export { BENCH_VERDICT_SCHEMA_VERSION } from '../../../src/contracts/bench-comparison-input.js';
 export const BENCH_POLICY_SCHEMA_VERSION = 1;
 export const BENCH_WAIVER_SCHEMA_VERSION = 1;
 export const BENCH_POLICY_VERSION = 'bench-language-policy-v1';
