@@ -5,7 +5,7 @@ Last audited: 2026-10-21
 Last reconciled: 2026-10-22
 Canonical for: initiative status, execution order, and remaining work
 
-Current reconciliation, 2026-10-21: 784 open issues are being reconciled by
+Current reconciliation, 2026-10-22: 947 open issues are being reconciled by
 priority and shared owner; historical implementation and acceptance remain distinct.
 
 ## Current GitHub repair program
@@ -16,8 +16,8 @@ existing `main` base. The latest qualified production/test source checkpoint is
 `d4dcba4134f6103e3a59703d90fdbde5ca54d09e`; publication is authorized and working.
 No merge is authorized. Preserve granular commits and verify remote/PR identities.
 
-The live inventory now contains **784 open issues (#584–#1367)**: P0 0, P1 50,
-P2 338, P3 95, P4 0, Perf 91, and unprioritized 210. This includes 700 new
+The live inventory now contains **947 open issues (#584–#1530)**: P0 0, P1 52,
+P2 448, P3 102, P4 0, Perf 102, and unprioritized 243. This includes 863 new
 reports. The [current repair receipt](archived/github-issue-repairs-2026-10-21.md)
 contains every issue and its disposition. The
 [previous receipt](archived/github-issue-repairs-2026-10-20.md) records 77 earlier
@@ -81,7 +81,11 @@ endpoint matching, retained pipe geometry and frame-owned hover are implemented.
 The final missed P2 service-progress owner now binds one claimed execution to its
 persisted runtime evidence. Retrieval P3 handoffs add 36 mappings. Performance
 implementation is active across serialization, workers, semantic row preparation,
-inventories, retrieval and embeddings; measurements remain deferred.
+inventories, retrieval, embeddings and dependency-safe bootstrap; measurements remain deferred.
+A fresh inventory adds 163 reports. New P1 CI restore publication and pending-child
+cache-lock ownership, plus 110 new P2 defects, precede remaining Perf work.
+Language declaration/source spans, retrieval contracts, extraction and evaluation
+are assigned to the two existing agents; the lead owns runtime, UI and contracts.
 There is no current-source deep-suite, native-host or performance claim.
 
 ## Environment and qualification boundaries
