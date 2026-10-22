@@ -14,6 +14,9 @@ export const resolveDispatchRuntimeEnv = async ({
   restArgs = [],
   baseEnv = process.env
 } = {}) => {
+  // Workspace coordinators have no single repository startup authority. Their
+  // children resolve target configuration against this original caller env.
+  if (scriptPath === 'tools/workspace/build.js') return { ...baseEnv };
   const userConfig = loadUserConfig(root);
   if (scriptPath === 'build_index.js' || scriptPath === 'tools/index/cli-entry.js') {
     const rawArgs = [...extraArgs, ...restArgs];
