@@ -18,6 +18,7 @@ import {
 } from './file-lock-owner.js';
 import { incrementStaleRemoveOwnerFailedForceSucceededMetric } from './file-lock-metrics.js';
 import { resolvePositiveStaleMs } from './file-lock-timing.js';
+import { isFileLockPublicationPending } from './file-lock-publication.js';
 
 export const isBenignStaleRemovalRace = (error) => {
   const code = String(error?.code || '').toUpperCase();
@@ -72,7 +73,7 @@ export const removeStaleLockFile = async ({
   info,
   staleMs
 }) => {
-  if (requiresLockResourceSettlement(info)) return { removed: false, removalMode: 'owner' };
+  if (isFileLockPublicationPending(lockPath) || requiresLockResourceSettlement(info)) return { removed: false, removalMode: 'owner' };
   const staleOwner = buildOwnerFromLockInfo(info);
   if (!staleOwner) {
     return {
@@ -126,7 +127,7 @@ export const shouldCleanupStaleLock = async ({
   forceStaleCleanup,
   invalidLockGraceMs
 }) => {
-  if (requiresLockResourceSettlement(info)) return {
+  if (isFileLockPublicationPending(lockPath) || requiresLockResourceSettlement(info)) return {
     pid: resolveLockPid(info), alive: null, stale: false, staleCleanup: false, shouldCleanup: false
   };
   const pid = resolveLockPid(info);

@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../subprocess/sync-command.js';
 import { DEFAULT_WINDOWS_TASKLIST_TIMEOUT_MS } from './file-lock-constants.js';
 import { readLockInfo, resolveLockPid, isOwnedBy, requiresLockResourceSettlement } from './file-lock-info.js';
+import { isFileLockPublicationPending } from './file-lock-publication.js';
 export { isOwnedBy, removeLockFileSyncIfOwned } from './file-lock-info.js';
 
 export const isProcessAlive = (pid) => {
@@ -38,7 +39,7 @@ export const isProcessAlive = (pid) => {
 };
 
 export const removeLockFileIfOwned = async (lockPath, owner, { force = false, swallowErrors = true } = {}) => {
-  if (!lockPath) return false;
+  if (!lockPath || isFileLockPublicationPending(lockPath)) return false;
   try {
     const info = await readLockInfo(lockPath);
     if ((!force || requiresLockResourceSettlement(info)) && !isOwnedBy(info, owner)) return false;

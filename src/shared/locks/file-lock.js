@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createAbortError } from '../abort.js';
+import { isFileLockPublicationPending, publishFileLock } from './file-lock-publication.js';
+export { isFileLockPublicationSession, isFileLockPublicationPending } from './file-lock-publication.js';
 import {
   createLockPayload,
   createStaleRemovalFailureError,
@@ -54,7 +56,7 @@ export {
  *  signal?:AbortSignal|null,
  *  staleRemovalImpl?:(input:{lockPath:string,info:object|null,staleMs:number})=>Promise<{removed:boolean,removalMode:'owner'|'force'|'owner-fallback-force'}>,
  *  onStale?:(info:{lockPath:string,info:object|null,pid:number|null,reason:'stale'|'dead-pid',removalMode?:'owner'|'force'|'owner-fallback-force'})=>void,
- *  onBusy?:(info:{lockPath:string,info:object|null,pid:number|null,reason?:'parent_missing',retries?:number})=>void
+ *  onBusy?:(info:{lockPath:string,info:object|null,pid:number|null,reason?:'parent_missing'|'publication-pending',retries?:number})=>void
  * }} input
  * @returns {Promise<{lockPath:string,payload:object,diagnostics:{parentMissingRetries:number},release:(opts?:{force?:boolean})=>Promise<boolean>}|null>}
  */
@@ -89,39 +91,27 @@ export const acquireFileLock = async ({
 
   while (true) {
     if (lockSignal?.aborted) throw createAbortError();
+    if (isFileLockPublicationPending(lockPath)) {
+      if (deadline != null && Date.now() < deadline) { await sleepWithAbort(resolvedPollMs, lockSignal); continue; }
+      safeInvokeHook(onBusy, { lockPath, info: null, pid: process.pid, reason: 'publication-pending' });
+      if (timeoutBehavior === 'throw') throw new Error(timeoutMessage || 'Lock timeout.');
+      return null;
+    }
     const payload = createLockPayload(metadata);
+    const expectedOwner = { lockId: payload.lockId, pid: payload.pid, startedAt: payload.startedAt };
+    const contents = JSON.stringify(payload);
+    const persisted = typeof contents === 'string' ? JSON.parse(contents) : null;
+    if (!persisted || Array.isArray(persisted) || persisted.lockId !== expectedOwner.lockId
+      || persisted.pid !== expectedOwner.pid || persisted.startedAt !== expectedOwner.startedAt) {
+      throw new TypeError('File lock metadata must preserve its generated owner identity.');
+    }
+    let opened = false;
     try {
       const handle = await fs.open(lockPath, 'wx');
-      let closed = false;
-      const closeHandle = async () => {
-        if (closed) return;
-        closed = true;
-        await handle.close();
-      };
-      try {
-        await handle.writeFile(JSON.stringify(payload));
-        await closeHandle();
-      } catch (writeError) {
-        try {
-          await closeHandle();
-        } catch {}
-        await fs.rm(lockPath, { force: true }).catch(() => {});
-        throw writeError;
-      }
-      return {
-        lockPath,
-        payload,
-        diagnostics: {
-          parentMissingRetries
-        },
-        release: async (options = {}) => {
-          const info = await readLockInfo(lockPath);
-          if (!info || info.lockId !== payload.lockId) return false;
-          await fs.rm(lockPath, { force: true });
-          return true;
-        }
-      };
+      opened = true;
+      return await publishFileLock({ handle, lockPath, payload: persisted, contents, diagnostics: { parentMissingRetries }, readInfo: readLockInfo });
     } catch (err) {
+      if (opened) throw err;
       // Windows can retain a delete-pending file object until another native
       // handle closes. CREATE_NEW reports EPERM (not EEXIST) during that gap.
       // Keep the existing acquisition bound; persistent denial still throws

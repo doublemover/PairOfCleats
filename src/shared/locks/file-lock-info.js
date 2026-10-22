@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
+import { isFileLockPublicationPending } from './file-lock-publication.js';
 import {
   DISALLOWED_LOCK_METADATA_KEYS,
   RESERVED_LOCK_METADATA_KEYS
@@ -40,7 +41,7 @@ export const isOwnedBy = (info, owner) => {
 };
 
 export const removeLockFileSyncIfOwned = (lockPath, owner, { force = false } = {}) => {
-  if (!lockPath) return false;
+  if (!lockPath || isFileLockPublicationPending(lockPath)) return false;
   try {
     const info = readLockInfoSync(lockPath);
     if ((!force || requiresLockResourceSettlement(info)) && !isOwnedBy(info, owner)) return false;

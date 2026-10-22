@@ -1,0 +1,193 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+// Process-local ownership of actual open publication descriptors. This is not
+// another filesystem lock/lease namespace and cannot identify another process.
+const publications = new Map();
+const sessions = new WeakSet();
+const keyFor = file => process.platform === 'win32' ? path.resolve(file).toLowerCase() : path.resolve(file);
+export const isFileLockPublicationPending = file => Boolean(file) && Boolean(publications.get(keyFor(file))?.size);
+export const isFileLockPublicationSession = session => Boolean(session) && sessions.has(session);
+const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
+const captureObservation = error => {
+  if (!objectLike(error)) return { observe: null };
+  try {
+    const observe = error.cacheOwnershipReleased;
+    if (error.cacheOwnershipPending !== true && typeof observe !== 'function') return { observe: null };
+    return { observe: () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } } };
+  } catch (inspectionError) { return { observe: () => false, inspectionFailed: true, inspectionError }; }
+};
+const identityOf = stat => ({ dev: stat.dev, ino: stat.ino, size: stat.size, mode: stat.mode, nlink: stat.nlink,
+  mtime: String(stat.mtimeNs ?? stat.mtimeMs), ctime: String(stat.ctimeNs ?? stat.ctimeMs),
+  birthtime: String(stat.birthtimeNs ?? stat.birthtimeMs) });
+const regular = stat => stat.isFile() && !stat.isSymbolicLink() && stat.ino !== 0n && stat.nlink === 1n;
+const sameObject = (left, right) => left.dev === right.dev && left.ino === right.ino && left.birthtime === right.birthtime;
+const sameIdentity = (left, right) => sameObject(left, right)
+  && ['size', 'mode', 'nlink', 'mtime', 'ctime'].every(field => left[field] === right[field]);
+
+/** Complete one already-exclusive publication. Failure never retries a known
+ * failed write/close or removes its pathname automatically. The exact original
+ * owner can explicitly close and roll back only its sealed original metadata.
+ */
+export const publishFileLock = async ({ handle, lockPath, payload, contents, diagnostics, readInfo }) => {
+  const key = keyFor(lockPath), token = {};
+  const active = publications.get(key) || new Set();
+  active.add(token); publications.set(key, active);
+  const forget = () => { active.delete(token); if (!active.size && publications.get(key) === active) publications.delete(key); };
+  const lockId = payload.lockId, resourceId = `file-lock-publication:${lockId}`;
+  const initialFailures = [], retryFailures = [], inspectionFailures = [], observers = [], observed = new WeakSet();
+  let primary, hasPrimary = false, closeMethod = null, statMethod = null, writeMethod = null;
+  let primaryMessage = 'File lock publication or exact rollback remains unconfirmed.';
+  let closeCaptureFailure, closeCaptureFailed = false;
+  let original = null, snapshot = null, closed = false, removed = false, closing = null, reconciling = null, overflow = false;
+  const remember = value => {
+    const pending = [value];
+    while (pending.length) {
+      const error = pending.pop();
+      if (!objectLike(error) || observed.has(error)) continue;
+      observed.add(error);
+      const captured = captureObservation(error);
+      if (captured.observe) { if (observers.length < 128) observers.push(captured.observe); else overflow = true; }
+      if (captured.inspectionFailed) {
+        if (inspectionFailures.length < 64) {
+          inspectionFailures.push(captured.inspectionError);
+          pending.push(captured.inspectionError);
+        } else overflow = true;
+      }
+    }
+  };
+  const fail = value => {
+    remember(value);
+    initialFailures.push(value);
+    if (!hasPrimary) {
+      hasPrimary = true; primary = value;
+      try {
+        const message = objectLike(value) ? value.message : null;
+        if (typeof message === 'string') primaryMessage = message;
+      } catch (inspectionError) {
+        inspectionFailures.push(inspectionError);
+        remember(inspectionError);
+      }
+    }
+  };
+  const resourcesSettled = () => closed && !overflow && observers.every(observe => observe());
+  const isSettled = () => removed && resourcesSettled();
+  const closeOriginal = async () => {
+    if (closed) return;
+    if (closeCaptureFailed) throw closeCaptureFailure;
+    if (!closing) closing = Promise.resolve().then(async () => {
+      const result = await closeMethod.call(handle);
+      if (result === false) throw new Error('Original file lock descriptor close explicitly remained unconfirmed.');
+      closed = true;
+    }).finally(() => { closing = null; });
+    return closing;
+  };
+  const retainFailure = latest => {
+    const errors = [...initialFailures, ...inspectionFailures, ...retryFailures];
+    if (!errors.length) errors.push(latest);
+    const failure = new AggregateError(errors, primaryMessage, hasPrimary ? { cause: primary } : { cause: latest });
+    if (objectLike(primary)) {
+      try {
+        for (const field of Reflect.ownKeys(primary)) {
+          if (['cause', 'errors', 'message', 'stack', 'cacheOwnershipPending', 'cacheOwnershipReleased',
+            'fileLockPublicationSession', 'fileLockPublication', 'fileLockPublicationErrors'].includes(field)) continue;
+          const descriptor = Object.getOwnPropertyDescriptor(primary, field);
+          if (descriptor) Object.defineProperty(failure, field, descriptor);
+        }
+      } catch (copyError) {
+        remember(copyError);
+        if (inspectionFailures.length < 64) inspectionFailures.push(copyError); else overflow = true;
+        failure.errors.push(copyError);
+      }
+    }
+    if (!Object.hasOwn(failure, 'code')) failure.code = 'ERR_FILE_LOCK_PUBLICATION_PENDING';
+    Object.defineProperties(failure, {
+      cacheOwnershipPending: { value: true }, cacheOwnershipReleased: { value: isSettled },
+      fileLockPublicationSession: { value: session }, fileLockPublicationErrors: { value: Object.freeze([...failure.errors]) },
+      fileLockPublication: { value: Object.freeze({ lockPath, lockId,
+        descriptorCloseObserved: closed, identitySealed: Boolean(snapshot), metadataRemoved: removed, state: 'publication-failed' }) }
+    });
+    return failure;
+  };
+  const currentOwned = async expected => {
+    let stat;
+    try { stat = await fs.lstat(lockPath, { bigint: true }); }
+    catch (error) { if (error?.code === 'ENOENT') return null; throw error; }
+    if (!expected || !regular(stat) || !sameIdentity(identityOf(stat), expected)) {
+      throw new Error('File lock metadata identity changed or was not sealed; existing evidence is preserved.');
+    }
+    return stat;
+  };
+  const session = Object.freeze({ resourceId, lockPath, isSettled, releaseAfterClose: async () => {
+    if (!reconciling) reconciling = (async () => {
+      if (isSettled()) return { resourceId, settled: true, pending: false };
+      await closeOriginal();
+      if (!resourcesSettled()) throw new Error('Original file lock publication resource observation remains pending.');
+      if (await currentOwned(snapshot)) await fs.rm(lockPath, { force: false });
+      removed = true; forget();
+      return { resourceId, settled: true, pending: false };
+    })().finally(() => { reconciling = null; });
+    try { return await reconciling; }
+    catch (value) {
+      remember(value);
+      if (retryFailures.length === 64) retryFailures.shift();
+      retryFailures.push(value);
+      throw retainFailure(value);
+    }
+  } });
+  sessions.add(session);
+  try {
+    try {
+      closeMethod = handle.close;
+      if (typeof closeMethod !== 'function') throw new TypeError('File lock publication has no original descriptor close owner.');
+    } catch (value) { closeCaptureFailed = true; closeCaptureFailure = value; throw value; }
+    statMethod = handle.stat;
+    if (typeof statMethod !== 'function') throw new TypeError('File lock publication has no descriptor identity owner.');
+    writeMethod = handle.writeFile;
+    if (typeof writeMethod !== 'function') throw new TypeError('File lock publication has no original write owner.');
+    const before = await statMethod.call(handle, { bigint: true });
+    if (!regular(before)) throw new Error('File lock publication requires a known singly linked regular descriptor.');
+    original = identityOf(before);
+    snapshot = original;
+    const named = await fs.lstat(lockPath, { bigint: true });
+    if (!regular(named) || !sameIdentity(identityOf(named), original)) throw new Error('File lock pathname changed before publication.');
+    await writeMethod.call(handle, contents);
+  } catch (value) { fail(value); }
+  // This is a new observation of the original descriptor after its write
+  // attempt, not a retry of an identity operation that already failed.
+  if (original) {
+    try {
+      const after = await statMethod.call(handle, { bigint: true });
+      if (!regular(after) || !sameObject(identityOf(after), original)) throw new Error('File lock descriptor identity changed during publication.');
+      snapshot = identityOf(after);
+    } catch (value) { snapshot = null; fail(value); }
+  }
+  try { await closeOriginal(); } catch (value) { if (!closeCaptureFailed) fail(value); }
+  if (!hasPrimary && !resourcesSettled()) fail(new Error('File lock publication retains an independent resource owner.'));
+  if (!hasPrimary) {
+    try {
+      const published = await fs.lstat(lockPath, { bigint: true });
+      const final = identityOf(published);
+      // Last-write timestamps can be committed at descriptor close. Establish
+      // the successful immutable metadata snapshot only after confirmed close.
+      if (!regular(published) || !sameObject(final, original) || final.size !== BigInt(Buffer.byteLength(contents))
+        || final.mode !== snapshot.mode) throw new Error('File lock publication pathname or byte extent changed before admission.');
+      snapshot = final;
+    } catch (value) { fail(value); }
+  }
+  if (hasPrimary) throw retainFailure(primary);
+  forget();
+  let released = false, releasing = null;
+  return { lockPath, payload, diagnostics, release: async (_options = {}) => {
+    if (released) return false;
+    if (!releasing) releasing = (async () => {
+      if (!await currentOwned(snapshot)) return false;
+      const info = await readInfo(lockPath);
+      if (!info || info.lockId !== lockId) return false;
+      if (!await currentOwned(snapshot)) return false;
+      await fs.rm(lockPath, { force: false }); released = true;
+      return true;
+    })().finally(() => { releasing = null; });
+    return releasing;
+  } };
+};
