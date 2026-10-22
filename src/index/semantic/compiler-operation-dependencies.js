@@ -39,7 +39,9 @@ export const compilerOperationDependencies = (ts, node) => {
   ]);
   if (ts.isVoidExpression(node)) return result();
   if (ts.isTypeOfExpression(node)) return result([input(node.expression, 'flowsTo', 'modeled')]);
-  if (ts.isDeleteExpression(node)) return result([input(node.expression, 'flowsTo', 'modeled')],
+  // Delete consumes a reference, not the selected property's stored value. Its
+  // Boolean result and mutation effects stay unknown until a heap model owns them.
+  if (ts.isDeleteExpression(node)) return result([],
     { reason: 'delete_result_and_heap_effects_unresolved', mayThrow: true });
   if (ts.isCommaListExpression(node)) return result(node.elements.length ? [input(node.elements.at(-1))] : []);
   // Separate owners supply binding, invocation, storage and creation channels.
