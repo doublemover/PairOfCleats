@@ -34,6 +34,19 @@ impl ReviewViewport {
     pub fn tail(&self) { self.follow_tail.set(true); }
     pub fn down(&self) { self.offset.set(self.offset.get().saturating_add(1).min(self.maximum.get())); self.follow_tail.set(false); }
     pub fn up(&self) { self.offset.set(self.offset.get().saturating_sub(1)); self.follow_tail.set(false); }
+    pub(crate) fn indexed_lines(&self, headers: Vec<String>, text: &str, rows: &[[u32; 2]], height: usize, width: usize) -> Vec<String> {
+        if height == 0 || width == 0 { return Vec::new(); }
+        let mut output: Vec<_> = headers.into_iter().take(height.saturating_sub(1)).map(|line| crate::fit_text(&line, width)).collect();
+        let count = height - output.len();
+        let maximum = rows.len().saturating_sub(count);
+        self.maximum.set(maximum);
+        let offset = if self.follow_tail.get() { maximum } else { self.offset.get().min(maximum) };
+        self.offset.set(offset);
+        output.extend(rows.iter().skip(offset).take(count).map(|[start, end]| {
+            if *start == u32::MAX { "…".into() } else { text[*start as usize..*end as usize].to_owned() }
+        }));
+        output
+    }
     pub fn lines(&self, headers: Vec<String>, text: &str, height: usize, width: usize) -> Vec<String> {
         if height == 0 || width == 0 { return Vec::new(); }
         let mut output: Vec<_> = headers.into_iter().take(height.saturating_sub(1)).map(|line| crate::fit_text(&line, width)).collect();

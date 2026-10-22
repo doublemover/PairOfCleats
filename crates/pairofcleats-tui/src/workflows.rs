@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use crate::review_presentation::ReviewPresentation;
 use std::collections::VecDeque;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -34,6 +36,7 @@ pub(crate) struct WorkflowUi {
     pending: Option<(String, String)>,
     status: String,
     scroll: ReviewViewport,
+    presentation: RefCell<ReviewPresentation>,
     next_id: u64,
     early_completion: Option<Value>,
 }
@@ -59,6 +62,7 @@ impl Default for WorkflowUi {
             pending: None,
             status: String::new(),
             scroll: ReviewViewport::default(),
+            presentation: RefCell::new(ReviewPresentation::default()),
             next_id: 1,
             early_completion: None,
         }
@@ -77,6 +81,7 @@ impl WorkflowUi {
         if !self.available || self.pending.is_some() {
             return;
         }
+        self.presentation.get_mut().clear();
         let id = format!("native-workflow-{}", self.next_id);
         self.next_id += 1;
         self.outbox
@@ -111,6 +116,7 @@ impl WorkflowUi {
         }
         if let Some((id, _)) = &self.pending {
             if key.code == KeyCode::Esc {
+                self.presentation.get_mut().clear();
                 self.outbox
                     .push_back(json!({"proto":"poc.tui@1", "op":"job:cancel",
                     "jobId":id, "reason":"user_cancel"}));
@@ -198,7 +204,7 @@ impl WorkflowUi {
                     if let (Some(scope), Some(preview)) = (&self.scope, &self.preview) {
                         if preview["previewId"].is_string() { self.request("discard", json!({"scopeId":scope["id"], "previewId":preview["previewId"]})); }
                     }
-                    self.page = Page::Fields; self.preview = None;
+                    self.page = Page::Fields; self.presentation.get_mut().clear(); self.preview = None;
                 }
                 KeyCode::Down => self.scroll.down(),
                 KeyCode::Up => self.scroll.up(),
@@ -220,7 +226,7 @@ impl WorkflowUi {
     }
 
     fn completed(&mut self, event: &Value) {
-        self.result = Some(
+        self.presentation.get_mut().clear(); self.result = Some(
             json!({"jobId":event["jobId"], "processStatus":event["status"],
                 "resultState":event["resultState"], "error":event["error"], "publicationEvidence":event["workflow"], "result":event["result"]}),
         );
@@ -276,7 +282,7 @@ impl WorkflowUi {
                     .as_str()
                     .unwrap_or("ERR_TUI_WORKFLOW_RESPONSE")
             );
-            self.preview = None;
+            self.presentation.get_mut().clear(); self.preview = None;
             self.early_completion = None;
             self.page = if self.scope.is_some() {
                 Page::Commands
@@ -289,12 +295,12 @@ impl WorkflowUi {
         let data = &event["result"]["data"];
         match method.as_str() {
             "select" => {
-                self.scope = Some(data.clone());
+                self.presentation.get_mut().clear(); self.scope = Some(data.clone());
                 self.owned_job = None;
                 self.early_completion = None;
                 self.command = None;
                 self.values.clear();
-                self.preview = None;
+                self.presentation.get_mut().clear(); self.preview = None;
                 self.selected = 0;
                 self.request("describe", json!({}));
             }
@@ -304,7 +310,7 @@ impl WorkflowUi {
                 self.status = "Canonical index/workspace catalog loaded; no work started".into();
             }
             "preview" => {
-                self.preview = Some(data.clone());
+                self.presentation.get_mut().clear(); self.preview = Some(data.clone());
                 self.page = Page::Preview;
                 self.scroll.reset();
                 self.status = if data["launchable"] == true {
@@ -322,14 +328,14 @@ impl WorkflowUi {
                     self.status =
                         "Launch identity mismatch; no control granted. Inspect actual jobs.".into();
                     self.owned_job = None;
-                    self.preview = None;
+                    self.presentation.get_mut().clear(); self.preview = None;
                     self.early_completion = None;
                     self.page = Page::Commands;
                     return true;
                 }
                 self.owned_job = data["jobId"].as_str().map(str::to_owned);
-                self.result = Some(data.clone());
-                self.preview = None;
+                self.presentation.get_mut().clear(); self.result = Some(data.clone());
+                self.presentation.get_mut().clear(); self.preview = None;
                 self.page = Page::Result;
                 self.scroll.reset();
                 self.status = "Owned job admitted; c cancels. Process completion alone does not establish readiness.".into();
@@ -340,13 +346,14 @@ impl WorkflowUi {
                 }
             }
             "status" => {
-                self.result = Some(data.clone());
+                self.presentation.get_mut().clear(); self.result = Some(data.clone());
                 self.page = Page::Result;
                 self.scroll.reset();
                 self.status =
                     "Published generation observation; independent of process success".into();
             }
             "discard" => {
+                self.presentation.get_mut().clear(); self.preview = None;
                 self.page = Page::Fields;
                 self.status = "Launch preview discarded; no job started".into();
             }
@@ -399,11 +406,52 @@ impl WorkflowUi {
             Page::Preview | Page::Result => {
                 lines.push(if self.page == Page::Preview {"Review exact scope/argv/readiness | Enter confirms | Esc discards | arrows scroll"} else {"Owned job result | c cancels owned job | t refreshes published status | Esc catalog | arrows scroll"}.into());
                 if let Some(job) = &self.owned_job { lines.push(format!("Owned job: {job}")); }
-                let value = if self.page == Page::Preview { self.preview.as_ref().map(|p| json!({"canonicalArgv":p["canonicalArgv"], "launchable":p["launchable"], "errors":p["errors"], "effect":p["effect"], "observations":p["observations"]})) } else {self.result.clone()};
-                let text = value.and_then(|v| serde_json::to_string_pretty(&v).ok()).unwrap_or_default();
-                return self.scroll.lines(lines, &format!("Scope: {}\n{text}", self.scope.as_ref().map(Value::to_string).unwrap_or_default()), height, width);
+                if self.page == Page::Preview {
+                    let empty = Value::Null;
+                    let preview = self.preview.as_ref().unwrap_or(&empty);
+                    let projection: std::collections::BTreeMap<_, _> = ["canonicalArgv", "launchable", "errors", "effect", "observations"]
+                        .into_iter().map(|key| (key, &preview[key])).collect();
+                    return self.presentation.borrow_mut().lines(1, self.scope.as_ref(), &projection,
+                        &self.scroll, lines, height, width);
+                }
+                return self.presentation.borrow_mut().lines(2, self.scope.as_ref(), self.result.as_ref().unwrap_or(&Value::Null),
+                    &self.scroll, lines, height, width);
             }
         }
         lines.into_iter().take(height).map(|line| crate::fit_text(&line, width)).collect()
+    }
+}
+
+#[cfg(test)]
+mod presentation_tests {
+    use super::*;
+    fn end(ui: &mut WorkflowUi, data: Value) {
+        let (id, method) = ui.pending.clone().unwrap();
+        assert!(ui.event(&json!({"event":"job:end","jobId":id,"status":"done",
+            "resultState":"complete","result":{"method":method,"data":data}})));
+    }
+    #[test]
+    fn accepted_workflow_projection_and_results_serialize_once_per_identity() {
+        let mut ui = WorkflowUi { available: true, scope: Some(json!({"id":"scope","target":"repo"})),
+            ..WorkflowUi::default() };
+        ui.request("preview", json!({}));
+        end(&mut ui, json!({"plannedJobId":"workflow-owned", "launchable":true,
+            "canonicalArgv":["node","FIRST-PREVIEW"],"errors":[],"observations":{"version":1}}));
+        let preview = ui.lines(24, 80).join("\n"); assert!(preview.contains("FIRST-PREVIEW"));
+        for _ in 0..20 { ui.scroll.down(); ui.revision += 1; ui.lines(24, 80); }
+        ui.lines(24, 90); assert_eq!(ui.presentation.borrow().builds, 1);
+        ui.request("launch", json!({})); end(&mut ui, json!({"jobId":"workflow-owned"}));
+        ui.lines(24, 80);
+        ui.completed(&json!({"jobId":"workflow-owned","status":"done","resultState":"complete",
+            "result":{"marker":"OWNED-RESULT"}}));
+        let result = ui.lines(24, 80).join("\n"); assert!(result.contains("OWNED-RESULT"));
+        assert!(!result.contains("FIRST-PREVIEW"));
+        let builds = ui.presentation.borrow().builds;
+        for _ in 0..20 { ui.scroll.down(); ui.lines(24, 80); }
+        assert_eq!(ui.presentation.borrow().builds, builds);
+        ui.request("status", json!({})); end(&mut ui, json!({"marker":"REFRESHED-STATUS"}));
+        assert!(ui.lines(24, 80).join("\n").contains("REFRESHED-STATUS"));
+        assert_eq!(ui.presentation.borrow().builds, builds + 1);
+        assert!(ui.preview.is_none());
     }
 }

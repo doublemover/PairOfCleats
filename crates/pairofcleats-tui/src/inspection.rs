@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use crossterm::event::{KeyCode, KeyEvent};
 use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
@@ -99,6 +100,7 @@ struct Record {
     result_state: String,
     result_capture: String,
     result_body: Option<String>,
+    result_revision: u64,
     result_notice: String,
     artifacts: Vec<Artifact>,
     artifact_notice: String,
@@ -132,6 +134,7 @@ impl Record {
             result_state: "pending".into(),
             result_capture: String::new(),
             result_body: None,
+            result_revision: 0,
             result_notice: "Awaiting terminal capture state".into(),
             artifacts: Vec::new(),
             artifact_notice: "Awaiting artifact inventory".into(),
@@ -142,6 +145,7 @@ impl Record {
     }
 
     fn end(&mut self, event: &Value) {
+        self.result_revision = self.result_revision.wrapping_add(1);
         self.status = text(&event["status"], 80);
         self.exit_code = event["exitCode"].as_i64();
         self.signal = text(&event["signal"], 80);
@@ -357,6 +361,35 @@ impl ReplayHistory {
     }
 }
 
+#[derive(Default)]
+struct ResultLineIndex {
+    identity: Option<(u64, u64)>,
+    rows: Vec<[u32; 2]>,
+    more: bool,
+    #[cfg(test)]
+    builds: usize,
+    #[cfg(test)]
+    owned_lines: usize,
+}
+
+impl ResultLineIndex {
+    fn refresh(&mut self, record: &Record) {
+        let identity = (record.generation, record.result_revision);
+        if self.identity == Some(identity) { return; }
+        self.rows.clear(); self.more = false; self.identity = Some(identity);
+        if let Some(body) = &record.result_body {
+            for line in body.lines().take(MAX_VIEW_LINES) {
+                let start = line.as_ptr() as usize - body.as_ptr() as usize;
+                self.rows.push([start as u32, (start + line.len()) as u32]);
+            }
+            self.more = self.rows.len() >= MAX_VIEW_LINES;
+            if self.more { self.rows.truncate(MAX_VIEW_LINES - 1); }
+        }
+        #[cfg(test)] { self.builds += 1; }
+    }
+    fn clear(&mut self) { self.identity = None; self.rows = Vec::new(); self.more = false; }
+}
+
 pub struct InspectionUi {
     pub revision: u64,
     pub available: bool,
@@ -364,6 +397,7 @@ pub struct InspectionUi {
     records: HashMap<String, Arc<Record>>,
     order: VecDeque<String>,
     next_generation: u64,
+    result_lines: RefCell<ResultLineIndex>,
     current: Option<(String, u64)>,
     page: Page,
     scroll: usize,
@@ -385,6 +419,7 @@ impl Default for InspectionUi {
             records: HashMap::new(),
             order: VecDeque::new(),
             next_generation: 0,
+            result_lines: RefCell::new(ResultLineIndex::default()),
             current: None,
             page: Page::Summary,
             scroll: 0,
@@ -406,6 +441,7 @@ impl InspectionUi {
     }
 
     pub(crate) fn restore_replay_history(&mut self, history: &ReplayHistory) {
+        self.result_lines.get_mut().clear();
         self.records = history.records.clone();
         self.order = history.order.clone();
         self.next_generation = history.next_generation;
@@ -446,6 +482,7 @@ impl InspectionUi {
                     .unwrap_or(0);
                 if let Some(old) = self.order.remove(index) {
                     self.records.remove(&old);
+                    self.result_lines.get_mut().clear();
                 } else {
                     break;
                 }
@@ -478,6 +515,7 @@ impl InspectionUi {
     }
 
     pub fn open(&mut self, id: &str) {
+        self.result_lines.get_mut().clear();
         self.prompt = None;
         let generation = self
             .records
@@ -727,24 +765,35 @@ impl InspectionUi {
         if available == 0 {
             return fit(output);
         }
+        if self.page == Page::Result {
+            let mut index = self.result_lines.borrow_mut();
+            index.refresh(record);
+            let total = 1 + index.rows.len() + if index.more { 1 } else { 0 };
+            let start = self.scroll.min(total.saturating_sub(available));
+            for ordinal in start..total.min(start.saturating_add(available)) {
+                let line = if ordinal == 0 {
+                    format!("Capture: {} | {}", record.result_state, record.result_notice)
+                } else if let Some([start, end]) = index.rows.get(ordinal - 1) {
+                    let line = &record.result_body.as_deref().unwrap_or_default()[*start as usize..*end as usize];
+                    ratatui::text::Span::raw(line).styled_graphemes(ratatui::style::Style::default())
+                        .skip(self.column).map(|grapheme| grapheme.symbol).collect::<String>()
+                } else {
+                    "Native line limit reached; payload capture state is unchanged".into()
+                };
+                // Header/notice use the same horizontal pan as body rows.
+                let line = if ordinal == 0 || ordinal > index.rows.len() {
+                    ratatui::text::Span::raw(&line).styled_graphemes(ratatui::style::Style::default())
+                        .skip(self.column).map(|grapheme| grapheme.symbol).collect::<String>()
+                } else { line };
+                output.push(line);
+                #[cfg(test)] { index.owned_lines += 1; }
+            }
+            output.push("Arrows/j/k select | Left/Right pan | o Open | y Copy path | e Export file | actions reverify current disk identity".into());
+            return fit(output);
+        }
         let body = match self.page {
             Page::Summary => record.summary(),
-            Page::Result => {
-                let mut lines = vec![format!(
-                    "Capture: {} | {}",
-                    record.result_state, record.result_notice
-                )];
-                if let Some(body) = &record.result_body {
-                    lines.extend(body.lines().take(MAX_VIEW_LINES + 1).map(str::to_owned));
-                }
-                if lines.len() > MAX_VIEW_LINES {
-                    lines.truncate(MAX_VIEW_LINES);
-                    lines.push(
-                        "Native line limit reached; payload capture state is unchanged".into(),
-                    );
-                }
-                lines
-            }
+            Page::Result => unreachable!("result viewport returned above"),
             Page::Artifacts => {
                 output.push(record.artifact_notice.clone());
                 let count = available.saturating_sub(1).div_euclid(3).max(1);
@@ -1116,4 +1165,33 @@ mod tests {
         }
         assert!(ui.key(KeyEvent::from(KeyCode::Esc)));
     }
+    #[test]
+    fn result_view_indexes_borrowed_lines_and_owns_only_the_visible_window() {
+        let mut ui = InspectionUi::default();
+        ui.record(&json!({"event":"job:start","jobId":"many","requested":{"resultPolicy":{"captureStdout":"text"}}}));
+        let body = (0..8000).map(|index| format!("row-{index:04} payload\n")).collect::<String>();
+        ui.record(&json!({"event":"job:end","jobId":"many","status":"done","resultState":"complete","result":body.as_str()}));
+        ui.open("many"); ui.page = Page::Result;
+        assert!(ui.lines(80, 24).join("\n").contains("row-0000"));
+        assert_eq!(ui.result_lines.borrow().owned_lines, 20);
+        let builds = ui.result_lines.borrow().builds;
+        for offset in 1..20 {
+            ui.scroll = offset; ui.column = 0; ui.result_lines.borrow_mut().owned_lines = 0;
+            ui.lines(80, 24);
+            assert_eq!(ui.result_lines.borrow().owned_lines, 20);
+            assert_eq!(ui.result_lines.borrow().builds, builds);
+        }
+        assert_eq!(ui.current_record().unwrap().result_body.as_deref(), Some(body.as_str()));
+        let bigger = (0..9000).map(|index| format!("fresh-{index:04}\n")).collect::<String>();
+        ui.record(&json!({"event":"job:end","jobId":"many","status":"done","resultState":"complete","result":bigger}));
+        ui.scroll = MAX_VIEW_LINES; ui.column = 0;
+        let tail = ui.lines(80, 24).join("\n");
+        assert!(tail.contains("Native line limit reached")); assert!(tail.contains("fresh-8190"));
+        assert_eq!(ui.result_lines.borrow().builds, builds + 1);
+        ui.record(&json!({"event":"job:start","jobId":"many","requested":{"resultPolicy":{"captureStdout":"text"}}}));
+        assert!(ui.lines(80, 24).join("\n").contains("superseded"));
+        ui.open("many"); ui.page = Page::Result;
+        assert!(!ui.lines(80, 24).join("\n").contains("fresh-8190"));
+    }
+
 }

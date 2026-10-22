@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use crate::review_presentation::ReviewPresentation;
 use std::collections::VecDeque;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -33,6 +35,7 @@ pub(crate) struct SettingsUi {
     reset: bool,
     selected: usize,
     scroll: ReviewViewport,
+    presentation: RefCell<ReviewPresentation>,
     status: String,
     pending: Option<(String, String)>,
     next_id: u64,
@@ -57,6 +60,7 @@ impl Default for SettingsUi {
             reset: false,
             selected: 0,
             scroll: ReviewViewport::default(),
+            presentation: RefCell::new(ReviewPresentation::default()),
             status: String::new(),
             pending: None,
             next_id: 1,
@@ -92,6 +96,7 @@ impl SettingsUi {
         if self.pending.is_some() || !self.available {
             return;
         }
+        self.presentation.get_mut().clear();
         let id = format!("native-settings-{}", self.next_id);
         self.next_id += 1;
         self.outbox
@@ -167,7 +172,7 @@ impl SettingsUi {
             self.draft.clear();
             self.draft_binding = None;
         }
-        self.preview = None;
+        self.presentation.get_mut().clear(); self.preview = None;
         self.request("preview", params);
     }
 
@@ -181,6 +186,7 @@ impl SettingsUi {
         }
         if let Some((id, _)) = &self.pending {
             if key.code == KeyCode::Esc {
+                self.presentation.get_mut().clear();
                 self.outbox
                     .push_back(json!({"proto":"poc.tui@1", "op":"job:cancel",
                     "jobId":id, "reason":"user_cancel"}));
@@ -380,7 +386,7 @@ impl SettingsUi {
         self.pending = None;
         self.revision += 1;
         if event["status"] != "done" || event["resultState"] != "complete" {
-            self.preview = None;
+            self.presentation.get_mut().clear(); self.preview = None;
             let code = event["error"]["code"].as_str().unwrap_or("ERR_TUI_OPERATION_FAILED");
             let keep_draft = self.draft_binding.is_some() && (method == "preview" || method == "commit" || method == "inspect");
             self.draft_needs_reload = keep_draft && (method == "commit" || method == "inspect"
@@ -403,7 +409,7 @@ impl SettingsUi {
         }
         let data = &event["result"]["data"];
         if event["result"]["method"] != method {
-            self.preview = None;
+            self.presentation.get_mut().clear(); self.preview = None;
             if self.draft_binding.is_some() {
                 self.draft_needs_reload = true;
                 self.page = Page::Edit;
@@ -413,10 +419,10 @@ impl SettingsUi {
         }
         match method.as_str() {
             "select" => {
-                self.scope = Some(data.clone());
+                self.presentation.get_mut().clear(); self.scope = Some(data.clone());
                 self.target = data["target"].as_str().unwrap_or_default().into();
-                self.inspection = None;
-                self.preview = None;
+                self.presentation.get_mut().clear(); self.inspection = None;
+                self.presentation.get_mut().clear(); self.preview = None;
                 self.draft.clear();
                 self.draft_binding = None;
                 self.draft_needs_reload = false;
@@ -427,7 +433,7 @@ impl SettingsUi {
             }
             "inspect" => {
                 if self.scope.as_ref().map(|scope| &scope["id"]) == Some(&data["scope"]["id"]) {
-                    self.inspection = Some(data.clone());
+                    self.presentation.get_mut().clear(); self.inspection = Some(data.clone());
                     self.selected = self.selected.min(self.fields().len().saturating_sub(1));
                     self.page = Page::Fields;
                     self.status = if data["validation"]["ok"] == true {
@@ -457,12 +463,12 @@ impl SettingsUi {
             }
             "preview" => {
                 if data["ok"] == true {
-                    self.preview = Some(data.clone());
+                    self.presentation.get_mut().clear(); self.preview = Some(data.clone());
                     self.page = Page::Preview;
                     self.scroll.reset();
                     self.status = "Validated preview; no file has been changed".into();
                 } else {
-                    self.preview = None;
+                    self.presentation.get_mut().clear(); self.preview = None;
                     self.page = if self.draft_binding.is_some() { Page::Edit } else { Page::Fields };
                     self.status = format!(
                         "Invalid value; nothing saved: {}",
@@ -471,7 +477,7 @@ impl SettingsUi {
                 }
             }
             "commit" => {
-                self.preview = None;
+                self.presentation.get_mut().clear(); self.preview = None;
                 self.draft.clear();
                 self.draft_binding = None;
                 self.draft_needs_reload = false;
@@ -480,7 +486,7 @@ impl SettingsUi {
                 self.inspect();
             }
             "cancel" => {
-                self.preview = None;
+                self.presentation.get_mut().clear(); self.preview = None;
                 self.draft.clear();
                 self.draft_binding = None;
                 self.draft_needs_reload = false;
@@ -603,21 +609,18 @@ impl SettingsUi {
                         preview["backupPath"], preview["overwritesBackup"]
                     ));
                 }
-                let text = serde_json::to_string_pretty(&preview["diff"]).unwrap_or_default();
-                return self.scroll.lines(lines, &format!("Scope: {}\n{text}", self.scope.as_ref().map(Value::to_string).unwrap_or_default()), height, width);
+                return self.presentation.borrow_mut().lines(1, self.scope.as_ref(), &preview["diff"],
+                    &self.scroll, lines, height, width);
             }
             Page::Provenance => {
                 lines.push(
                     "Canonical config sources and resolved policy | arrows scroll | Esc returns"
                         .into(),
                 );
-                let effective = self.inspection.as_ref().map(|info| &info["effective"]);
-                let mut sources = effective.cloned().unwrap_or(Value::Null);
-                if let Some(record) = sources.as_object_mut() {
-                    record.remove("userConfig");
-                }
-                let text = serde_json::to_string_pretty(&sources).unwrap_or_default();
-                return self.scroll.lines(lines, &format!("Scope: {}\n{text}", self.scope.as_ref().map(Value::to_string).unwrap_or_default()), height, width);
+                let empty = Value::Null;
+                let effective = self.inspection.as_ref().map(|info| &info["effective"]).unwrap_or(&empty);
+                return self.presentation.borrow_mut().lines(2, self.scope.as_ref(),
+                    &crate::review_presentation::WithoutUserConfig(effective), &self.scroll, lines, height, width);
             }
         }
         lines.into_iter().take(height).map(|line| crate::fit_text(&line, width)).collect()
@@ -845,4 +848,37 @@ mod tests {
         assert!(ui.outbox.is_empty());
         assert!(key(&mut ui, KeyCode::Esc));
     }
+    #[test]
+    fn accepted_preview_and_provenance_reuse_text_until_their_owner_changes() {
+        let mut ui = selected();
+        ui.request("preview", json!({}));
+        end(&mut ui, json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"first",
+            "diff":[{"value":"FIRST-DIFF"}]}));
+        assert!(ui.lines(24, 80).join("\n").contains("FIRST-DIFF"));
+        let builds = ui.presentation.borrow().builds;
+        for _ in 0..20 { key(&mut ui, KeyCode::Down); ui.lines(24, 80); }
+        ui.status = "unrelated live redraw".into(); ui.lines(24, 80); ui.lines(24, 90);
+        assert_eq!(ui.presentation.borrow().builds, builds);
+        assert!(!ui.event(&json!({"event":"job:end","jobId":"unrelated","status":"done"})));
+        key(&mut ui, KeyCode::Esc); end(&mut ui, json!({}));
+        assert!(ui.preview.is_none());
+        ui.request("preview", json!({}));
+        end(&mut ui, json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"second",
+            "diff":[{"value":"SECOND-DIFF"}]}));
+        let second = ui.lines(24, 80).join("\n");
+        assert!(second.contains("SECOND-DIFF")); assert!(!second.contains("FIRST-DIFF"));
+        assert_eq!(ui.presentation.borrow().builds, builds + 1);
+        key(&mut ui, KeyCode::Esc); end(&mut ui, json!({}));
+        ui.inspect();
+        end(&mut ui, json!({"scope":{"id":"scope-1"},"revision":"fresh","schemaRevision":"schema-1",
+            "fields":[],"effective":{"sources":["PUBLIC-SOURCE"],"userConfig":{"secret":"PRIVATE-CONFIG"}}}));
+        key(&mut ui, KeyCode::Char('p'));
+        let provenance = ui.lines(24, 80).join("\n");
+        assert!(provenance.contains("PUBLIC-SOURCE")); assert!(!provenance.contains("PRIVATE-CONFIG"));
+        assert_eq!(ui.inspection.as_ref().unwrap()["effective"]["userConfig"]["secret"], "PRIVATE-CONFIG");
+        let builds = ui.presentation.borrow().builds;
+        for _ in 0..20 { key(&mut ui, KeyCode::Down); ui.lines(24, 80); }
+        assert_eq!(ui.presentation.borrow().builds, builds);
+    }
+
 }
