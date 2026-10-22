@@ -6,16 +6,18 @@ const identityEntryBytes = Buffer.byteLength(',"identity":"' + '0'.repeat(64) + 
  * The identity field is part of that allowance. Canonical cloning pins retained
  * nested metadata, and unsupported JSON/getters cannot execute during spread. */
 export const finalizeSourceLinkedReport = (report, { maxBytes, fail, message, check = null }) => {
-  if (!report || typeof report !== 'object' || Array.isArray(report) || !Object.keys(report).length
+  let nonempty = false;
+  if (report && typeof report === 'object') for (const key in report) if (Object.hasOwn(report, key)) { nonempty = true; break; }
+  if (!report || typeof report !== 'object' || Array.isArray(report) || !nonempty
     || Object.hasOwn(report, 'identity') || !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1024 * 1024
     || typeof fail !== 'function' || typeof message !== 'string' || !message || check !== null && typeof check !== 'function') {
     throw new TypeError('An unsigned report and explicit producer byte/error contract are required.');
   }
   check?.();
-  const encoded = canonicalSemanticJson(report, { onObjectEncoded: (item, value) => {
-    check?.();
-    if (Buffer.byteLength(value) + (item === report ? identityEntryBytes : 0) > maxBytes) throw fail(message);
-  } });
+  if (maxBytes <= identityEntryBytes) throw fail(message);
+  let encoded;
+  try { encoded = canonicalSemanticJson(report, { maxBytes: maxBytes - identityEntryBytes, check }); }
+  catch (error) { if (error?.code === 'ERR_SEMANTIC_JSON_BUDGET') throw fail(message); throw error; }
   const owned = JSON.parse(encoded);
   const result = { ...owned, identity: semanticHash('tooling.source-linked-evidence.v1', owned) };
   check?.();

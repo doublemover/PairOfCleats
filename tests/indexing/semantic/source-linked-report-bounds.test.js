@@ -19,6 +19,12 @@ assert.deepEqual(result, expected);
 assert.throws(() => finalize(input, exactBytes - 1), { code: 'ERR_FIXTURE_REPORT_BOUND' }, 'the final identity field consumes bytes too');
 assert.throws(() => finalize(input, canonicalSemanticJson(expected).length), { code: 'ERR_FIXTURE_REPORT_BOUND' },
   'UTF-8 bytes cannot be replaced by UTF-16 character counts');
+assert.throws(() => finalize({ payload: '\u0000'.repeat(180000) }, 1024 * 1024), { code: 'ERR_FIXTURE_REPORT_BOUND' },
+  'a small source string cannot allocate an over-budget six-byte-per-control-character escape expansion');
+assert.throws(() => finalize({ ['名'.repeat(100000)]: null }, 1024), { code: 'ERR_FIXTURE_REPORT_BOUND' },
+  'caller metadata keys consume the same bounded output allowance as values');
+assert.throws(() => finalize({ payload: null }, 1), { code: 'ERR_FIXTURE_REPORT_BOUND' },
+  'an allowance too small for the identity entry keeps the producer budget error');
 input.payload[0].text = 'changed';
 assert.equal(result.payload[0].text, 'a  b', 'retained metadata is pinned independently of caller-owned nested objects');
 let getterCalls = 0;
