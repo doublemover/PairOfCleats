@@ -528,7 +528,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#740](https://github.com/doublemover/PairOfCleats/issues/740) | P2 | [P2] Derive native Tree-sitter signature previews past nested parameter punctuation | development implemented; integration/validation deferred |
 | [#741](https://github.com/doublemover/PairOfCleats/issues/741) | P3 | [P3] Build AST token membership sets lazily instead of allocating them for phrase-only eligibility | development implemented; integration/validation deferred |
 | [#742](https://github.com/doublemover/PairOfCleats/issues/742) | P3 | [P3] Coalesce stack-view hover picking to the latest pointer per frame | development implemented; integration/validation deferred |
-| [#743](https://github.com/doublemover/PairOfCleats/issues/743) | other | [Enhancement] Give the TUI event drain an explicit fairness budget before input and rendering | pending |
+| [#743](https://github.com/doublemover/PairOfCleats/issues/743) | other | [Enhancement] Give the TUI event drain an explicit fairness budget before input and rendering | source repair and regression authored; unvalidated |
 | [#744](https://github.com/doublemover/PairOfCleats/issues/744) | P3 | [P3] Reconcile the documented core status overload and type its includeAll contract | development implemented; integration/validation deferred |
 | [#745](https://github.com/doublemover/PairOfCleats/issues/745) | P3 | [P3] Bound retained stability-history payloads before selecting the newest runs | development implemented; integration/validation deferred |
 | [#746](https://github.com/doublemover/PairOfCleats/issues/746) | P2 | [P2] Make VS Code Explain Search display the returned ranking explanation | development implemented; validation deferred |
@@ -1157,8 +1157,8 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1368](https://github.com/doublemover/PairOfCleats/issues/1368) | P2 | [P2] Derive JSONL block length from encoded bytes instead of trusting optional lineBytes | pending |
 | [#1369](https://github.com/doublemover/PairOfCleats/issues/1369) | perf | [Perf] Reuse dependency-qualified artifact families during partial rebuilds | pending |
 | [#1370](https://github.com/doublemover/PairOfCleats/issues/1370) | other | [Viewer] Keep semantic selection, highlight and source actions coherent outside drawn scope | pending |
-| [#1371](https://github.com/doublemover/PairOfCleats/issues/1371) | P2 | [P2] Serve the complete viewer module graph in FPS and LOD benchmark previews | pending |
-| [#1372](https://github.com/doublemover/PairOfCleats/issues/1372) | P2 | [P2] Gate Three.js browser qualification on phase-local errors and a rendered scene | pending |
+| [#1371](https://github.com/doublemover/PairOfCleats/issues/1371) | P2 | [P2] Serve the complete viewer module graph in FPS and LOD benchmark previews | source repair and regression authored; unvalidated |
+| [#1372](https://github.com/doublemover/PairOfCleats/issues/1372) | P2 | [P2] Gate Three.js browser qualification on phase-local errors and a rendered scene | source repair and regression authored; unvalidated |
 | [#1373](https://github.com/doublemover/PairOfCleats/issues/1373) | P2 | [P2] Reconcile repo-map and canonical chunk identities before building map members | source repair and regression authored; unvalidated |
 | [#1374](https://github.com/doublemover/PairOfCleats/issues/1374) | P2 | [P2] Keep indexed files and import edges when a file has no named map member | source repair and regression authored; unvalidated |
 | [#1375](https://github.com/doublemover/PairOfCleats/issues/1375) | P2 | [P2] Preserve alias dataflow evidence through code-map normalization | source repair and regression authored; unvalidated |
@@ -1180,7 +1180,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1391](https://github.com/doublemover/PairOfCleats/issues/1391) | other | [Docs] Keep service diagnosis and recovery recipes bound to one explicit config and queue | pending |
 | [#1392](https://github.com/doublemover/PairOfCleats/issues/1392) | other | [Docs] Validate authored command and config recipes against executable contracts | pending |
 | [#1393](https://github.com/doublemover/PairOfCleats/issues/1393) | P2 | [P2] Resolve queued TUI keys after modal transitions instead of executing stale shortcuts | source repair and regression authored; unvalidated |
-| [#1394](https://github.com/doublemover/PairOfCleats/issues/1394) | perf | [Performance] Bound recorded-session seeks instead of replaying the entire prefix on the UI thread | pending |
+| [#1394](https://github.com/doublemover/PairOfCleats/issues/1394) | perf | [Performance] Bound recorded-session seeks instead of replaying the entire prefix on the UI thread | source repair and regression authored; unvalidated |
 | [#1395](https://github.com/doublemover/PairOfCleats/issues/1395) | other | [Docs] Document state-preserving source upgrades and required artifact rebuilds | pending |
 | [#1396](https://github.com/doublemover/PairOfCleats/issues/1396) | perf | [Perf] Shard persistent tree-sitter chunks by digest instead of constant namespace prefix | pending |
 | [#1397](https://github.com/doublemover/PairOfCleats/issues/1397) | P1 | [P1] Preserve pending subprocess cleanup before releasing the build cache-writer lock | source repair and regression authored; unvalidated |
@@ -1214,7 +1214,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1425](https://github.com/doublemover/PairOfCleats/issues/1425) | P3 | [P3] Enforce semantic-find response bytes when no records survive filtering | source repair and regression authored; unvalidated |
 | [#1426](https://github.com/doublemover/PairOfCleats/issues/1426) | P2 | [P2] Report mean function cyclomatic complexity instead of the module aggregate | source repair and regression authored; unvalidated |
 | [#1427](https://github.com/doublemover/PairOfCleats/issues/1427) | P2 | [P2] Stop silently dropping complexity metadata for valid ESM imports and exports | source repair and regression authored; unvalidated |
-| [#1428](https://github.com/doublemover/PairOfCleats/issues/1428) | P2 | [P2] Keep changed files without coverage observations visible in policy reports | pending |
+| [#1428](https://github.com/doublemover/PairOfCleats/issues/1428) | P2 | [P2] Keep changed files without coverage observations visible in policy reports | source repair and regression authored; unvalidated |
 | [#1429](https://github.com/doublemover/PairOfCleats/issues/1429) | P2 | [P2] Preserve configured LanceDB vector columns with an explicit queryable schema | pending |
 | [#1430](https://github.com/doublemover/PairOfCleats/issues/1430) | perf | [Perf] Reuse verified operation-index reads within semantic-find pages | source repair and regression authored; unvalidated |
 | [#1431](https://github.com/doublemover/PairOfCleats/issues/1431) | P2 | [P2] Convert indexed UTF-16 spans before slicing context excerpts from UTF-8 source | source repair and regression authored; unvalidated |
@@ -1420,3 +1420,33 @@ pairs, a 1-MiB retention admission budget and sixteen selector ranges bound reus
 Every new page/request rehashes content, and cursor progress advances only for
 processed candidates. Records remain incrementally hydrated. Authored real-reader
 open/byte/disposal/corruption/continuation controls are not passing measurements.
+
+### Replay responsiveness and qualification-source continuation
+
+Source checkpoints f920ade5c/bc72d02c1 implement #1394 and #743. Recorded seeks
+coalesce targets, skip identical positions and reduce at most 128 frames per tick
+with a cooperative 4-ms admission budget. Every 256 frames can produce a derived
+state checkpoint; eight checkpoints and an 8-MiB conservative allocation charge
+bound retention. Checkpoints exclude full AppModel objects, the recording event
+vector, transport handles, control outboxes and user view state. Immutable retained
+inspection records use shared ownership with per-record copy-on-write. Missing
+selected jobs stay explicitly unavailable, and detach restores the separate live
+model. Mismatched chunk disposal also releases its retained byte charge.
+
+Live ingress uses the production bounded-turn owner before due render/input work,
+charges credits only for consumed frames and avoids the 20-ms idle wait while
+native backlog or replay reconstruction is known. Authored maximum-recording,
+reference-reducer, checkpoint/chunk-boundary, sustained nonempty-source, real test
+renderer, quit-dispatch and finite-order controls are unexecuted. These constants
+are bounds on admitted work, not measured p95 latency or hard preemption guarantees.
+Rust compilation, existing frame parity, real ConPTY/live-channel behavior and
+retained/peak allocation measurements remain required.
+
+Coverage source dda9f30e9 (#1428) retains all changed inventory with explicit
+unobserved/deleted/unsupported/excluded states, null unknown counts, observed-only
+denominators and critical-surface completeness. Browser source 322d13b26
+(#1371/#1372) serves the complete permitted local module graph and qualifies each
+page/phase using errors, submitted scene identity and pixel variation. Authored
+HTTP/MIME/module-byte, negative-page and desktop/narrow browser workflows have not
+run. Depth/compositing #1367 and per-instance fog #1377 remain separate; no FPS,
+hardware, browser, full-suite or performance qualification is inferred.
