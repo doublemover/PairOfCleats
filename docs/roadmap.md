@@ -104,7 +104,8 @@ expands modern viewer/semantic acceptance; prior source repairs retain credit
 without implying those new requirements are satisfied. Storage/category, native,
 editor, provisioning, bounded discovery and durable viewer preference releases
 now have durable partial mappings. Shared sourceChunking6/compilerBindings18/lspBindings22, callFlow20, graphRelations1
-and discoverySelection2/signature14 identify the new producer meaning.
+and discoverySelection2/signature14 identify that producer meaning. The later
+checkpoint below uses importResolution4 and lspBindings23.
 
 Source checkpoints through 101f3641f add local loaded-response find, source-qualified
 semantic navigation, bounded SQLite bundle ingestion, incremental embedding cache
@@ -141,21 +142,27 @@ cooperative map search and reproducible fusion/reranker owners have further repa
 All remain unvalidated; fine-grained semantic resume, legacy graph quota coverage,
 real service/editor/model hosts and performance qualification remain open.
 
-Source continuation through a4f4f937f adds exact download/native-close and failed
-admission recovery, frozen/nested session evidence and partial rollback owners.
-Native storage now follows the canonical locator and rejects preview drift.
-Supplied graph/shard replacement consumes the existing disk account; generic
-copy headroom and fine-grained resume remain open. Constructor alternatives
-advance compilerBindings18/cfgFlow18; lspBindings22/callFlow20 remain current.
-Lance cancellation joins admitted work and retains bounded projected hits; native
-scan/recall/heap qualification remains separate. VS Code/Sublime share exact
-source/newline mapping; saved maps check observed byte/file stability. Paired
-quality and saved task-span reports use versioned fixed code-unit ordering.
-Cache-gc already checks writer locks inside exclusion; generic cache/repos
-migration remains unsupported. Explicit launch-context adoption is still in
-progress. All new source/fixtures are unvalidated; no issue closure, current
-suite pass or speedup is claimed. See the durable receipt for exact commits,
-coverage mappings and remaining host/source-truth/resource qualification.
+Source continuation through cddadde65 adds exact refused-admission rollback and
+canonical launch-selected category sessions for actual index writers/runtime.
+Category release follows exact writer removal, full teardown or initialization
+unwind plus failure recording. Only the owned metadata deadline observes its
+actual late unlink; generic timeouts cannot prove native/child closure. Frozen
+ONNX/LanceDB/reranker failures retain exact cleanup capabilities, independent
+pending observers and qualification/storage capacity. Successful child releases
+are not repeated. Real native rejected-release retry safety remains unqualified.
+Provisioning probes bind physical path/size/digest before and after execution;
+source checks do not provide OS-atomic launch of mutable external executables.
+TypeScript prefix ties now preserve declaration order; local cache fingerprints
+and shared importResolution4 retire old meaning. Balanced source-backed inlay
+roles advance lspBindings23; compilerBindings18/cfgFlow18/callFlow20 remain current.
+Retained lexical rename, paired motifs and exact-source lenses preserve owned
+worlds, source selection, uncertainty and response limits without edit authority.
+Supplied graph/shard accounting, source/newline mapping and saved-map exact close
+retain their prior source checkpoints. Generic cache/repos migration, fine-grained
+resume, independent source truth and actual native/editor/browser/model/resource
+qualification remain open. All new source/fixtures are unvalidated; no issue
+closure, current suite pass or speedup is claimed. See the durable receipt for
+exact commits, coverage mappings and remaining acceptance.
 
 ## Environment and qualification boundaries
 
