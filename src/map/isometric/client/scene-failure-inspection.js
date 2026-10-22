@@ -23,7 +23,7 @@ export const captureSceneFailure = primary => {
       if (visited.has(error)) continue; visited.add(error);
       if (visited.size > 128) { overflow = true; break; }
       const captured = captureSceneOwnershipObservation(error);
-      if (captured.observe) observers.set(error, captured.observe);
+      if (captured.observe) observers.set(error, captured);
       const prior = observedInspections.get(error) || 0;
       for (const value of captured.inspectionErrors.slice(prior)) { inspectionErrors.push(value); pending.push(value); }
       observedInspections.set(error, captured.inspectionErrors.length);
@@ -34,7 +34,9 @@ export const captureSceneFailure = primary => {
     get inspectionErrors() { return Object.freeze([...inspectionErrors]); },
     get overflow() { return overflow; },
     get hasOwnership() { return overflow || observers.size > 0; },
-    released: () => !overflow && [...observers.values()].every(observe => observe()),
+    released: () => !overflow && [...observers.values()].every(record => record.observe()),
+    releasedExcept: method => !overflow && [...observers].every(([error, record]) =>
+      error === primary ? record.observeExcept(method) : record.observe()),
     get owners() { return Object.freeze([...owners]); },
     get hasMessage() { return typeof fields.get('message') === 'string' && fields.get('message').length > 0; },
     get message() { return typeof fields.get('message') === 'string' ? fields.get('message') : 'Scene resource retirement remains pending.'; }

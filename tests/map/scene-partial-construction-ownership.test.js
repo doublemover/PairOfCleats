@@ -96,6 +96,50 @@ try{
   for(const owner of getPendingSceneResourceOwners())try{owner.release();}catch{}
   assert.equal(pendingRenderer.calls,1);assert.equal(pendingRenderer.domElement.removed,1);assert.equal(pendingFailure.sceneOwnershipReleased(),true);
 
+  // Installed construction retains the original operation before any physical
+  // shutdown. A direct disposer or a later initScene cannot bypass that gate.
+  setup();phase='after-install';let installedSettled=false,replaceInstalledObserver=false;
+  releaseNative=()=>{nativeSettled=true;installedSettled=true;};
+  const installedNative=Object.freeze(Object.defineProperties(new Error('original installed constructor native work'),{
+    cacheOwnershipPending:{value:true},cacheOwnershipReleased:{get(){return replaceInstalledObserver?()=>true:function(){
+      assert.equal(this,installedNative);return installedSettled;
+    };}}
+  }));
+  thrown=installedNative;
+  const installedFailure=await rejected(initScene()),installedRenderer=renderers.at(-1),installedDispose=state.disposeScene;
+  assert.equal(installedFailure.cause,installedNative);assert.equal(installedRenderer.calls,0);assert.equal(installedRenderer.domElement.removed,0);
+  replaceInstalledObserver=true;
+  assert.throws(()=>installedDispose(),error=>error===installedNative);
+  const installedCount=renderers.length,blockedConstruction=await rejected(initScene());
+  assert.equal(blockedConstruction,installedNative);assert.equal(renderers.length,installedCount);
+  assert.equal(installedRenderer.calls,0,'original installed work gates direct and replacement construction shutdown');
+  installedSettled=true;phase='';
+  for(const owner of getPendingSceneResourceOwners())try{await owner.releaseAsync();}catch{}
+  assert.equal(installedRenderer.calls,1);assert.equal(installedRenderer.domElement.removed,1);assert.equal(installedFailure.sceneOwnershipReleased(),true);
+
+  // Actual enhancement initialization can fail after construction returned. Its
+  // captured operation also gates the actual scene and every retry disposer.
+  setup();phase='';let initializationSettled=false;
+  releaseNative=()=>{nativeSettled=true;installedSettled=true;initializationSettled=true;};
+  const initializationNative=Object.freeze(Object.defineProperty(new Error('original enhancement initialization work'),'cacheOwnershipReleased',{
+    value(){assert.equal(this,initializationNative);return initializationSettled;}
+  }));
+  const pendingSummary={textContent:'',append(){}},pendingRetry={remove(){}};
+  const pendingEnhancement=createRendererEnhancementOwner({state,summary:pendingSummary,retry:pendingRetry,
+    loadModules:async()=>({THREE}),loadEnvironment:async()=>null,construct:initScene,
+    initialize(){throw initializationNative;},renderSummary(){assert.fail('pending initialization cannot be accepted');}});
+  const pendingResult=await pendingEnhancement.enhance(),initializationRenderer=renderers.at(-1),initializationDispose=state.disposeScene;
+  assert.equal(pendingResult.reason,'failed');assert.equal(pendingResult.error.cause,initializationNative);
+  assert.equal(state.rendererCapabilities.backend,'source-only');assert.equal(initializationRenderer.calls,0);
+  assert.throws(()=>initializationDispose(),error=>error===initializationNative);
+  const initializationCount=renderers.length,retriedResult=await pendingEnhancement.enhance();
+  assert.equal(retriedResult.reason,'failed');assert.equal(renderers.length,initializationCount);assert.equal(initializationRenderer.calls,0);
+  initializationSettled=true;
+  for(const owner of getPendingSceneResourceOwners())try{await owner.releaseAsync();}catch{}
+  assert.equal(initializationRenderer.calls,1);assert.equal(initializationRenderer.domElement.removed,1);
+  assert.equal(pendingResult.error.sceneOwnershipReleased(),true);assert.equal(retriedResult.error.sceneOwnershipReleased(),true);
+  pendingEnhancement.dispose();
+
   // Failure after shutdown installation still publishes source fallback for its
   // own closed scene, rather than misclassifying successful cleanup as takeover.
   setup();phase='after-install';thrown=primary;

@@ -15,7 +15,7 @@ try{
   const summary={textContent:'',append(value){appended.push(value);}},retry={type:'button'};
   const state={sourceIndex,remoteSource,disposeScene(){assert.equal(this,state);owner.retire();}};
   const failure=await enterSourceRendererFallback({state,summary,retry,error:primary});
-  assert.equal(failure.cause,primary);assert.equal(failure.errors[0],primary);assert.equal(failure.errors[1].cause,cleanup);
+  assert.equal(failure.cause,primary);assert.equal(failure.errors[0],primary);assert.equal(failure.errors[1].cause.cause,cleanup);
   assert.equal(failure.sceneOwnershipPending,true);assert.equal(state.rendererFailure,failure);assert.equal(state.sceneRetirementFailure,failure);
   assert.equal(state.rendererCapabilities.backend,'source-only');assert.equal(state.rendererCapabilities.sourceNavigation,true);
   assert.equal(state.rendererCapabilities.worldGeometry,false);assert.equal(state.rendererCapabilities.measuredAcceptance,'not-qualified');
@@ -24,7 +24,9 @@ try{
   assert.ok(state.sceneRetirementOwners.includes(owner));assert.equal(resource.calls,1);
   await enterSourceRendererFallback({state,summary,retry,error:primary});assert.equal(resource.calls,1,'display fallback does not retry a failed native close');
   resource.dispose=()=>assert.fail('reconciliation preserves captured original renderer method');
-  refusing=false;owner.release();assert.equal(resource.calls,2);assert.equal(failure.sceneOwnershipReleased(),true);
+  refusing=false;owner.release();assert.equal(resource.calls,2);
+  for(const retained of failure.sceneResourceOwners)await retained.releaseAsync();
+  assert.equal(failure.sceneOwnershipReleased(),true);
 
   let enteredCleanup;const entered=new Promise(resolve=>{enteredCleanup=resolve;});
   const cleanupGate=new Promise(resolve=>{releaseAsyncCleanup=resolve;});
@@ -32,7 +34,8 @@ try{
   const asyncFailure=enterSourceRendererFallback({state:asyncState,summary,retry,error:primary});
   await entered;assert.equal(asyncState.rendererCapabilities.backend,'source-only');
   assert.equal(asyncState.rendererFailure.cause,primary);assert.match(summary.textContent,/Source hierarchy and inspection remain usable/);
-  releaseAsyncCleanup();assert.deepEqual((await asyncFailure).errors,[primary,cleanup]);
+  releaseAsyncCleanup();const asyncCaptured=await asyncFailure;
+  assert.equal(asyncCaptured.errors[0],primary);assert.equal(asyncCaptured.errors[1].cause,cleanup);
 
   const staleEntered=deferred(),staleCleanup=deferred(),siblingFailure=Object.freeze(new Error('current renderer failure'));
   const staleResource={calls:0,dispose(){this.calls++;if(refusing)throw cleanup;}},staleOwner=captureSceneResource(staleResource,'original fallback sibling blocker');
@@ -51,7 +54,9 @@ try{
   assert.equal(staleState.sceneRetirementOwners,siblingOwners);assert.equal(staleState.sceneRetirementError,'current retirement');
   assert.equal(staleState.rendererCapabilities,siblingCapabilities);assert.equal(summary.textContent,'current renderer status');
   assert.equal(staleResource.calls,1);assert.ok(getPendingSceneResourceOwners().includes(staleOwner));
-  refusing=false;staleOwner.release();assert.equal(oldFailure.sceneOwnershipReleased(),true);
+  refusing=false;staleOwner.release();
+  for(const retained of oldFailure.sceneResourceOwners)await retained.releaseAsync();
+  assert.equal(oldFailure.sceneOwnershipReleased(),true);
 
   // Overlapping fallbacks can share the source/disposer yet still have distinct
   // publication owners. The older completion cannot replace the newer failure.

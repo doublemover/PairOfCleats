@@ -104,8 +104,13 @@ try {
   assert.equal(state.rendererCapabilities.backend, 'source-only'); assert.equal(state.rendererFailure, fallback);
   assert.equal(fallback.cause, fallbackPrimary); assert.equal(fallback.sceneOwnershipReleased(), false);
   assert.equal(fallbackMessageReads, 1); assert.match(summary.textContent, /Renderer operation failed/);
+  assert.equal(native.calls, 0, 'original diagnostic native work gates the captured cleanup callback');
   fallbackSettled = true; assert.equal(fallback.sceneOwnershipReleased(), false);
-  nativeCloseAllowed = true; nativeOwner.release(); assert.equal(native.calls, 2); assert.equal(fallback.sceneOwnershipReleased(), true);
+  for (const owner of fallback.sceneResourceOwners) await assert.rejects(owner.releaseAsync(), error => error.sceneOwnershipPending === true);
+  assert.equal(native.calls, 1, 'explicit callback reconciliation preserves its independently observed native close failure');
+  nativeCloseAllowed = true; nativeOwner.release(); assert.equal(native.calls, 2);
+  for (const owner of fallback.sceneResourceOwners) await owner.releaseAsync();
+  assert.equal(fallback.sceneOwnershipReleased(), true);
 } finally {
   sceneSettled = true; cacheSettled = true; constructionSettled = true; fallbackSettled = true; nativeCloseAllowed = true;
   for (const owner of getPendingSceneResourceOwners()) if (!baseline.has(owner)) { try { owner.release(); } catch {} }

@@ -56,8 +56,8 @@ try {
   } } }); Object.freeze(child);
   const nested = resource('nested', [child]), nestedOwner = captureSceneResource(nested);
   const nestedFailure = caught(() => nestedOwner.retire());
-  caught(() => nestedOwner.release()); assert.equal(nested.calls, 2);
-  externalClosed = true; nestedOwner.release(); assert.equal(nested.calls, 2, 'successful close is remembered while child remains pending');
+  caught(() => nestedOwner.release()); assert.equal(nested.calls, 1, 'explicit retry cannot call native disposal while original work remains pending');
+  externalClosed = true; nestedOwner.release(); assert.equal(nested.calls, 2, 'explicit original failed-close retry is admitted only after its prerequisite settles');
   assert.equal(nestedFailure.sceneOwnershipReleased(), true);
 
   const conversion = Object.freeze(new AggregateError([leaf], 'frozen conversion failure', { cause: leaf }));

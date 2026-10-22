@@ -187,3 +187,36 @@ closure authority. The additional inert actual construction/resource/fallback
 and lazy-stack/proxy/falsey/nested aggregate controls are authored and unrun.
 Native/environment post-installation work semantics, retry safety and real
 host/GPU resource and performance acceptance remain unqualified.
+
+Exact resource retirement now checks retained original operation and inspection
+observations before invoking its captured native disposer, including an explicit
+retry after a failed close. Successful physical disposal is remembered separately:
+late pending work can delay confirmation without invoking that disposer again.
+`retireAsync()` joins its original in-flight outcome; `releaseAsync()` is the
+explicit failed-scope reconciliation operation. Neither automatically retries an
+observed failure when the original prerequisite still reports pending.
+
+Private resource-failure and aggregate producer records delegate only their own
+scene closure observer and walk every original constituent. Independent cache,
+diagnostic and unknown observations remain prerequisites, even on a known local
+wrapper. Public owner/cause fields, a copied callback or one known constituent in
+a mixed failure cannot authorize dropping another observer. This also avoids a
+scope depending on its own closure before it can reconcile its original children.
+
+Source fallback captures its original disposer before invoking source UI
+callbacks, publishes usable source capabilities before cleanup, and retains the
+actual callback scope until its original async outcome settles. The actual scene
+producer privately binds its disposer to that construction owner's original-work
+gate. Fallback's observed initialization failure therefore also gates direct
+shutdown and the previous-scene disposer used by a later construction attempt.
+Only the first physical shutdown uses that operation gate; an already performed
+shutdown continues to report its captured cleanup evidence without repeating
+successful native closes or introducing a parent/installed-owner dependency.
+Captured old scopes cannot adopt a sibling scene or publish over its current
+status after reentrant UI replacement.
+
+Additional exact-resource, private-composition, mixed/copy/unknown/dual-observer,
+async joining, fallback and actual inert `initScene` prerequisite controls are
+authored and **UNVALIDATED**. They establish no browser/native/GPU acceptance,
+hidden allocation coverage, complete native-work observation, cancellation,
+driver retry safety, quiescence, memory bounds or performance claim.

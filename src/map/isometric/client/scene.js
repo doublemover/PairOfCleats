@@ -7,6 +7,7 @@ import { retirePicking } from './rendering/picking-owner.js';
 import { captureSceneResource, getPendingSceneResourceOwners, preserveSceneCleanupFailures } from './scene-retirement.js';
 import { createSceneConstructionOwner } from './rendering/scene-construction-owner.js';
 import { retireNormalMapState } from './normal-map-owner.js';
+import { createSceneDisposerGuard } from './rendering/scene-disposer-guard.js';
 
 export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
   if(!isCurrent())return null;
@@ -138,7 +139,8 @@ export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
     listenerOwners.push(owner);canvas.addEventListener(event,callback);
   }
   let disposalFailure = null;
-  const disposeScene = () => {
+  const disposeScene = createSceneDisposerGuard({receiver:state,
+    beforeDispose:()=>{if(!disposed)construction.assertReady();},retainFailure:construction.retainFailure,dispose:() => {
     if (disposed) {
       if (disposalFailure && !disposalFailure.sceneOwnershipReleased?.()) throw disposalFailure;
       if (state.disposeScene === disposeScene) state.disposeScene = null;
@@ -176,7 +178,7 @@ export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
       throw disposalFailure;
     }
     if (state.disposeScene === disposeScene) state.disposeScene = null;
-  };
+  }});
   if(!isCurrent())throw Object.assign(new Error('Renderer enhancement superseded before scene publication'),{name:'AbortError',code:'ABORT_ERR'});
   construction.install(disposeScene,state);
   Object.assign(state,{scene,renderer,disposeScene,contextLost:false});

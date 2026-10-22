@@ -1,6 +1,7 @@
 import { captureSceneFailure, projectSceneFailure, observeSceneFailureOwnership as observe } from './scene-failure-inspection.js';
 
 const pending = new Set();
+const compositions = new WeakMap(), resourceFailures = new WeakMap();
 const objectLike = value => value && (typeof value === 'object' || typeof value === 'function');
 export { observe as observeSceneOwnership };
 const failure = (primary, errors, captured = captureSceneFailure(primary),
@@ -32,6 +33,7 @@ export const preserveSceneCleanupFailures = (primary, cleanupErrors, { hasPrimar
   Object.defineProperties(result, { sceneCleanupErrors: { value: Object.freeze([...cleanupErrors]) },
     sceneResourceOwners: { value: Object.freeze([...new Set(owners)]) },
     sceneOwnershipPending: { get: () => !released() }, sceneOwnershipReleased: { value: released } });
+  compositions.set(result, { errors: [...errors], observation: released });
   return result;
 };
 
@@ -41,21 +43,46 @@ export const captureSceneResource = (resource, label = 'scene resource', methodN
   const capturedArgs = [...args];
   let dispose = null, captureError, captureFailed = false, closed = false, lastError = null, flight = null;
   const children = new Map();
+  const retainFailure = error => {
+    const inspect = [error], visited = new Set();
+    while (inspect.length) {
+      const original = inspect.pop();
+      if (visited.has(original)) continue; visited.add(original);
+      const composition = objectLike(original) && compositions.get(original);
+      const resource = objectLike(original) && resourceFailures.get(original);
+      const ownResource = resource?.owner === owner;
+      const excluded = composition?.observation || (ownResource ? resource.observation : null);
+      const captured = captureSceneFailure(original);
+      if (captured.hasOwnership) {
+        const check = excluded ? () => captured.releasedExcept(excluded) : captured.released;
+        children.set(original, check);
+        if (!check()) { closed = false; pending.add(owner); }
+      }
+      // Only original producer records may remove their own closure observer.
+      // Every independent original/inspection/cache observation is retained.
+      if (composition) inspect.push(...composition.errors);
+      else if (ownResource) inspect.push(resource.original);
+    }
+  };
+  const assertReady = () => { for (const [error, check] of children) if (!check()) throw error; };
   try {
     const method = resource?.[methodName]; dispose = typeof method === 'function' ? method : null;
     if (required && !dispose) throw new TypeError(`${label} has no original ${methodName} method.`);
   }
   catch (error) { captureFailed = true; captureError = error; }
   const retain = error => {
-    const check = observe(error); if (check && !children.has(error)) children.set(error, check);
-    const retained = failure(error, [error]);
-    Object.defineProperties(retained, { sceneResourceOwner: { value: owner }, sceneResourceOwners: { value: Object.freeze([owner]) },
-      sceneOwnershipPending: { get: () => !closed }, sceneOwnershipReleased: { value: () => closed } });
+    retainFailure(error);
+    const captured = captureSceneFailure(error), retained = failure(error, [error], captured);
+    const released = () => closed;
+    Object.defineProperties(retained, { sceneResourceOwner: { value: owner },
+      sceneResourceOwners: { value: Object.freeze([...new Set([...captured.owners, owner])]) },
+      sceneOwnershipPending: { get: () => !closed }, sceneOwnershipReleased: { value: released } });
+    resourceFailures.set(retained, { owner, original: error, observation: released });
     lastError = retained; pending.add(owner); return retained;
   };
   let disposed = false;
   const confirm = () => {
-    for (const [error, check] of children) if (!check()) throw error;
+    assertReady();
     closed = true; pending.delete(owner); return Object.freeze({ settled: true, pending: false });
   };
   const release = ({ retry = false } = {}) => {
@@ -64,6 +91,7 @@ export const captureSceneResource = (resource, label = 'scene resource', methodN
     pending.add(owner);
     try {
       if (captureFailed) throw captureError;
+      assertReady();
       if (!disposed) {
         const result = dispose?.apply(resource, capturedArgs);
         if (result && typeof result.then === 'function') {
@@ -71,9 +99,9 @@ export const captureSceneResource = (resource, label = 'scene resource', methodN
           lastError = retain(waiting);
           flight = Promise.resolve(result).then(value => {
             if (value === false) throw Object.assign(new Error(`${label} disposal was explicitly unconfirmed.`), { code: 'ERR_MAP_SCENE_DISPOSAL_UNCONFIRMED' });
-            disposed = true; confirm();
+            disposed = true; return confirm();
           }, error => { throw error; })
-            .catch(error => { retain(error); }).finally(() => { flight = null; });
+            .catch(error => Object.freeze({ settled: true, pending: true, error: retain(error) })).finally(() => { flight = null; });
           throw lastError;
         }
         if (result === false) throw Object.assign(new Error(`${label} disposal was explicitly unconfirmed.`), { code: 'ERR_MAP_SCENE_DISPOSAL_UNCONFIRMED' });
@@ -82,7 +110,18 @@ export const captureSceneResource = (resource, label = 'scene resource', methodN
       return confirm();
     } catch (error) { if (error === lastError) throw error; throw retain(error); }
   };
+  const settleAsync = async retry => {
+    try { return release({ retry }); }
+    catch (error) {
+      const waiting = flight;
+      if (!waiting) throw error;
+      const outcome = await waiting;
+      if (outcome.pending) throw outcome.error;
+      return outcome;
+    }
+  };
   const owner = Object.freeze({ label, resource, get pending() { return !closed; }, get lastError() { return lastError; },
+    retainFailure, assertReady, retireAsync: () => settleAsync(false), releaseAsync: () => settleAsync(true),
     retire: () => release(), release: () => release({ retry: true }) });
   return owner;
 };

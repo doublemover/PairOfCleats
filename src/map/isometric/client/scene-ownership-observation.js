@@ -9,7 +9,7 @@ export const captureSceneOwnershipObservation = error => {
   if (!captured) {
     const observers = new Map(), inspectionErrors = [];
     captured = { observers, inspectionErrors,
-      released: () => [...observers.values()].map(check => check()).every(Boolean) };
+      released: () => [...observers.values()].map(record => record.observe()).every(Boolean) };
     observations.set(error, captured);
   }
   for (const [marker, released] of [['sceneOwnershipPending', 'sceneOwnershipReleased'], ['cacheOwnershipPending', 'cacheOwnershipReleased']]) {
@@ -17,10 +17,14 @@ export const captureSceneOwnershipObservation = error => {
     try {
       const method = error[released];
       if (error[marker] !== true && typeof method !== 'function') continue;
-      captured.observers.set(marker, () => { try { return typeof method === 'function' && method.call(error) === true; } catch { return false; } });
+      captured.observers.set(marker, { method,
+        observe: () => { try { return typeof method === 'function' && method.call(error) === true; } catch { return false; } } });
     } catch (inspectionError) {
-      captured.inspectionErrors.push(inspectionError); captured.observers.set(marker, () => false);
+      captured.inspectionErrors.push(inspectionError); captured.observers.set(marker, { method: null, observe: () => false });
     }
   }
-  return { observe: captured.observers.size ? captured.released : null, inspectionErrors: [...captured.inspectionErrors] };
+  return { observe: captured.observers.size ? captured.released : null,
+    observeExcept: method => [...captured.observers].every(([marker, record]) =>
+      (marker === 'sceneOwnershipPending' && typeof method === 'function' && record.method === method) || record.observe()),
+    inspectionErrors: [...captured.inspectionErrors] };
 };
