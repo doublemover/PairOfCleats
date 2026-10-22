@@ -106,7 +106,7 @@ editor, provisioning, bounded discovery and durable viewer preference releases
 now have durable partial mappings. Shared sourceChunking6/compilerBindings18/lspBindings22, callFlow20, graphRelations1
 and discoverySelection2/signature14 identify that producer meaning. The later
 current source uses sourceChunking10/importResolution6/typeNormalization4,
-compilerBindings19/lspBindings33/cfgFlow19/callFlow22.
+compilerBindings19/lspBindings34/cfgFlow20/callFlow22/valueSlice6.
 
 Earlier source checkpoints through 0500f370a cover bounded SQLite/LMDB and vector
 ingestion/finalizers, complete lexical reuse, selective BM25 hydration, immutable
@@ -123,7 +123,7 @@ unvalidated; public research integration, full provider onboarding, fine-grained
 resume, generic migration, native service/editor/model hosts, generated freshness,
 locked setup and representative resource/performance qualification remain open.
 
-Source continuations through ac9091018 retain actual native/model, PDF, map,
+Source continuations through a168da42a retain actual native/model, PDF, map,
 FileHandle and directory owners through original cleanup and independent closure
 observations. Pending work cannot be erased by advisory flags, changed callbacks,
 recipe receipts or a completed bounded wait. Latest errors preserve exact recovery
@@ -142,7 +142,7 @@ Actual JS/TS consumers share ECMAScript comment terminators; quoted type values
 survive parser, cache and source-preview normalization. Dynamic parameter names
 use own-data records through enrichment/public metadata, with inherited evidence
 rejected. Current sourceChunking10/importResolution6/typeNormalization4,
-compilerBindings19/lspBindings33/rq8/cfgFlow19/callFlow22 retire changed meaning.
+compilerBindings19/lspBindings34/rq8/cfgFlow20/callFlow22/valueSlice6 retire changed meaning.
 Authored actual parser/cache/consumer and nested storage/queue regressions remain
 unrun. Full language/provider completeness, native/editor/browser/model hosts,
 generic migration, fine-grained resume, generated freshness, locked setup and
@@ -161,6 +161,14 @@ reach actual provider consumers. Renderer transactions retain committed truth,
 independent cleanup failures and exact fallback/source publication fences.
 These authored contracts remain unvalidated;
 archive parser/writer lifecycle and full generic lock publication are still open.
+
+Further source binds VSCode opened URIs to exact files and selected roots,
+admits complete source-checked semantic-token chains, and models computed-key
+conversion in CFG/value slices. Original queue resource observations fence retries.
+Canonical database commands retain original close methods, accepted use through
+closure, unknown handles and frozen/falsey causes. Existing SQLite assertions
+remain, with an immutable primary/cleanup control. Real native/IPC/editor/server
+and whole-source acceptance remain deferred.
 
 ## Environment and qualification boundaries
 
