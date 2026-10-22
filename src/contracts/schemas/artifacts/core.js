@@ -1,3 +1,4 @@
+import { crossFileCoverageSchema } from '../relation-coverage.js';
 import { METADATA_V2_SCHEMA } from '../analysis.js';
 import { MINHASH_HASH_IDENTITY } from '../../../index/minhash.js';
 import {
@@ -675,6 +676,7 @@ export const CORE_POST_SNAPSHOT_ARTIFACT_SCHEMA_DEFS = {
     properties: {
       version: { type: 'integer', minimum: 1 },
       generatedAt: { type: 'string' },
+      upstreamCoverage: crossFileCoverageSchema,
       callGraph: graphPayload,
       usageGraph: graphPayload,
       importGraph: graphPayload

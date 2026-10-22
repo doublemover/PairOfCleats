@@ -1,3 +1,4 @@
+import { resolveCrossFileFidelity, buildCrossFileCoverage } from '../../../../cross-file-fidelity.js';
 import { createSemanticLspSession } from '../../../../semantic/lsp-session.js';
 import { runNativeSemanticProviders } from '../../../../semantic/native-provider-pass.js';
 import { mergeSemanticProviderOutput } from '../../../../semantic/merge-provider.js';
@@ -82,7 +83,9 @@ export const runCrossFileInference = async ({
     && typeof runtime.indexingConfig.hugeRepoInferenceLite === 'object'
     ? runtime.indexingConfig.hugeRepoInferenceLite
     : {};
-  const inferenceLiteEnabled = mode === 'code' && (
+  const fidelity = policy.typeInference?.crossFile?.fidelity
+    || resolveCrossFileFidelity(runtime.indexingConfig?.crossFileFidelity);
+  const inferenceLiteEnabled = fidelity.mode !== 'comprehensive' && mode === 'code' && (
     hugeRepoInferenceLiteConfig.enabled === true
     || (
       runtime.hugeRepoProfileEnabled === true
@@ -140,7 +143,8 @@ export const runCrossFileInference = async ({
       const budgetPlan = buildCrossFileInferenceBudgetPlan({
         chunks: state.chunks,
         fileRelations: state.fileRelations,
-        inferenceLiteEnabled
+        inferenceLiteEnabled,
+        fidelity
       });
       const {
         chunks: inferenceChunks,
@@ -187,11 +191,13 @@ export const runCrossFileInference = async ({
         enableTypeInference: enableCrossFileTypeInference,
         enableRiskCorrelation: riskAnalysisEnabled && riskAnalysisCrossFileEnabled,
         fileRelations: inferenceFileRelations,
+        fidelity,
         inferenceLite: inferenceLiteEnabled,
         inferenceLiteHighSignalOnly,
         symbolicTypeGraphs: state.symbolicTypeGraphs || [],
         abortSignal
       });
+      state.crossFileCoverage = buildCrossFileCoverage({ fidelity, budgetStats, propagationStats: crossFileStats });
       mergeCrossFileInferenceView(state.chunks, inferenceChunks);
       state.symbolicTypeGraphs = mergeSymbolicTypeGraphs(state.symbolicTypeGraphs || [], crossFileStats?.symbolicTypeGraphs || []);
       const crossFileDurationMs = Date.now() - crossFileStart;

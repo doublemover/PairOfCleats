@@ -1,3 +1,5 @@
+import { setImmediate as yieldPropagation } from 'node:timers/promises';
+import { resolveCrossFileFidelity, resolveCrossFilePropagationBudget, orderCrossFileChunks } from '../cross-file-fidelity.js';
 import { createSymbolRefCacheMaintenance } from './symbol-ref-cache-maintenance.js';
 import path from 'node:path';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
@@ -24,15 +26,6 @@ import {
 import { throwIfAborted } from '../../shared/abort.js';
 import { runWithConcurrency } from '../../shared/concurrency/run-with-queue.js';
 
-const LARGE_REPO_CHUNK_THRESHOLD = 3000;
-const LARGE_REPO_FILE_THRESHOLD = 500;
-const LARGE_REPO_CALL_LINKS_PER_CHUNK = 96;
-const LARGE_REPO_CALL_SUMMARIES_PER_CHUNK = 128;
-const LARGE_REPO_USAGE_LINKS_PER_CHUNK = 128;
-const LARGE_REPO_CALL_LINKS_TOTAL = 25000;
-const LARGE_REPO_USAGE_LINKS_TOTAL = 25000;
-const LARGE_REPO_CALL_SAMPLE_LIMIT = 10;
-const LARGE_REPO_PARAM_TYPE_LIMIT = 3;
 const SYMBOL_REF_CACHE_MAX_ENTRIES = 20000;
 const SYMBOL_REF_CACHE_TTL_MS = 5 * 60 * 1000;
 const TOOLING_PRELOAD_CONCURRENCY_DEFAULT = 8;
@@ -114,20 +107,6 @@ const buildEdgeLink = ({ edgeKind, fromChunkUid, symbolRef, resolvedEntry }) => 
   return link;
 };
 
-const buildLargeRepoBudget = ({ chunkCount, fileCount }) => (
-  chunkCount >= LARGE_REPO_CHUNK_THRESHOLD || fileCount >= LARGE_REPO_FILE_THRESHOLD
-    ? {
-      maxCallLinksPerChunk: LARGE_REPO_CALL_LINKS_PER_CHUNK,
-      maxCallSummariesPerChunk: LARGE_REPO_CALL_SUMMARIES_PER_CHUNK,
-      maxUsageLinksPerChunk: LARGE_REPO_USAGE_LINKS_PER_CHUNK,
-      maxTotalCallLinks: LARGE_REPO_CALL_LINKS_TOTAL,
-      maxTotalUsageLinks: LARGE_REPO_USAGE_LINKS_TOTAL,
-      callSampleLimit: LARGE_REPO_CALL_SAMPLE_LIMIT,
-      paramTypeLimit: LARGE_REPO_PARAM_TYPE_LIMIT
-    }
-    : null
-);
-
 const confidenceForHop = (hops) => Math.max(0.2, FLOW_CONFIDENCE * (0.85 ** hops));
 
 const toTypeNameList = (value) => {
@@ -148,6 +127,7 @@ export async function runCrossFilePropagation({
   enableRiskCorrelation = false,
   fileRelations = null,
   inferenceLite = false,
+  fidelity = resolveCrossFileFidelity(),
   inferenceLiteHighSignalOnly = true,
   toolingConfig = null,
   toolingTimeoutMs = 60000,
@@ -158,6 +138,7 @@ export async function runCrossFilePropagation({
   abortSignal = null
 }) {
   throwIfAborted(abortSignal);
+  chunks = orderCrossFileChunks(chunks);
   const symbolEntries = [];
   const entryByKey = new Map();
   const entryByUid = new Map();
@@ -230,15 +211,16 @@ export async function runCrossFilePropagation({
     return resolved || null;
   };
 
-  const largeRepoBudget = buildLargeRepoBudget({
+  const largeRepoBudget = resolveCrossFilePropagationBudget({
+    fidelity,
     chunkCount: chunks.length,
     fileCount: fileSet.size
   });
-  const inferenceLiteEnabled = inferenceLite === true;
+  const inferenceLiteEnabled = fidelity.mode !== 'comprehensive' && inferenceLite === true;
   const inferenceLiteHighSignalOnlyMode = inferenceLiteEnabled
     && inferenceLiteHighSignalOnly !== false;
-  const callSampleLimit = largeRepoBudget?.callSampleLimit ?? 25;
-  const paramTypeLimit = largeRepoBudget?.paramTypeLimit ?? 5;
+  const callSampleLimit = fidelity.mode === 'comprehensive' ? Infinity : largeRepoBudget?.callSampleLimit ?? 25;
+  const paramTypeLimit = fidelity.mode === 'comprehensive' ? null : largeRepoBudget?.paramTypeLimit ?? 5;
   if (largeRepoBudget && typeof log === 'function') {
     log(
       `[perf] cross-file budget enabled `
@@ -270,6 +252,15 @@ export async function runCrossFilePropagation({
   let droppedCallLinks = 0;
   let droppedCallSummaries = 0;
   let droppedUsageLinks = 0;
+  const category = () => ({ visited: 0, unsupported: 0, unresolved: 0, self: 0, dropped: 0 });
+  const admission = { policy: fidelity, calls: category(), callDetails: category(), usages: category(), affectedChunks: [],
+    parameterSamplesDropped: 0, parameterTypesDropped: 0, inferenceLiteEnabled };
+  let candidateWork = 0;
+  const admitCandidate = async category => {
+    category.visited += 1;
+    if (++candidateWork % 256 === 0) await yieldPropagation();
+    throwIfAborted(abortSignal);
+  };
   const maxTotalCallLinks = Number.isFinite(largeRepoBudget?.maxTotalCallLinks)
     ? Math.max(0, Math.floor(largeRepoBudget.maxTotalCallLinks))
     : null;
@@ -513,6 +504,7 @@ export async function runCrossFilePropagation({
       throwIfAborted(abortSignal);
       if (!chunk) continue;
       const relations = chunk.codeRelations || {};
+      const droppedBefore = [droppedCallLinks, droppedCallSummaries, droppedUsageLinks];
       const fromChunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;
       const fileRelation = fileRelations
         ? (typeof fileRelations.get === 'function'
@@ -556,16 +548,18 @@ export async function runCrossFilePropagation({
               break;
             }
           }
+          await admitCandidate(admission.calls);
           const callEntry = relations.calls[callIndex];
-          if (!Array.isArray(callEntry) || callEntry.length < 2) continue;
+          if (!Array.isArray(callEntry) || callEntry.length < 2) { admission.calls.unsupported += 1; continue; }
           const callee = callEntry[1];
           const symbolRef = resolveSymbolRefCached({
             targetName: callee,
             kindHint: null,
             fromFile: chunk.file
           });
+          if (!symbolRef || symbolRef.status === 'unresolved') admission.calls.unresolved += 1;
           if (!symbolRef) continue;
-          if (symbolRef.resolved?.chunkUid && symbolRef.resolved.chunkUid === fromChunkUid) continue;
+          if (symbolRef.resolved?.chunkUid && symbolRef.resolved.chunkUid === fromChunkUid) { admission.calls.self += 1; continue; }
           const resolvedEntry = symbolRef.resolved?.chunkUid
             ? entryByUid.get(symbolRef.resolved.chunkUid)
             : null;
@@ -600,14 +594,16 @@ export async function runCrossFilePropagation({
               break;
             }
           }
+          await admitCandidate(admission.callDetails);
           const detail = relations.callDetails[detailIndex];
           const callee = detail?.callee;
-          if (!callee) continue;
+          if (!callee) { admission.callDetails.unsupported += 1; continue; }
           const symbolRef = detail.compilerBinding?.symbolRef || resolveSymbolRefCached({
             targetName: callee,
             kindHint: null,
             fromFile: chunk.file
           });
+          if (!symbolRef || symbolRef.status === 'unresolved') admission.callDetails.unresolved += 1;
           syncCallDetailResolution(detail, symbolRef);
           const resolvedEntry = symbolRef?.resolved?.chunkUid
             ? entryByUid.get(symbolRef.resolved.chunkUid)
@@ -680,14 +676,16 @@ export async function runCrossFilePropagation({
               break;
             }
           }
+          await admitCandidate(admission.usages);
           const usage = usageSource[usageIndex];
           const symbolRef = resolveSymbolRefCached({
             targetName: usage,
             kindHint: null,
             fromFile: chunk.file
           });
+          if (!symbolRef || symbolRef.status === 'unresolved') admission.usages.unresolved += 1;
           if (!symbolRef) continue;
-          if (symbolRef.resolved?.chunkUid && symbolRef.resolved.chunkUid === fromChunkUid) continue;
+          if (symbolRef.resolved?.chunkUid && symbolRef.resolved.chunkUid === fromChunkUid) { admission.usages.self += 1; continue; }
           const resolvedEntry = symbolRef.resolved?.chunkUid
             ? entryByUid.get(symbolRef.resolved.chunkUid)
             : null;
@@ -701,6 +699,12 @@ export async function runCrossFilePropagation({
         }
       }
 
+
+      const omitted = [droppedCallLinks - droppedBefore[0], droppedCallSummaries - droppedBefore[1], droppedUsageLinks - droppedBefore[2]];
+      if (admission.affectedChunks.length < 32 && omitted.some(count => count > 0)) {
+        admission.affectedChunks.push({ file: chunk.file || null, chunkUid: fromChunkUid,
+          calls: omitted[0], callDetails: omitted[1], usages: omitted[2] });
+      }
       if (callLinks.length) {
         relations.callLinks = callLinks;
         linkedCalls += callLinks.length;
@@ -723,7 +727,7 @@ export async function runCrossFilePropagation({
             if (!calleeChunk) continue;
             const sampleKey = resolvedUid || summary.name;
             const currentSamples = callSampleCounts.get(sampleKey) || 0;
-            if (currentSamples >= callSampleLimit) continue;
+            if (currentSamples >= callSampleLimit) { admission.parameterSamplesDropped += 1; continue; }
             callSampleCounts.set(sampleKey, currentSamples + 1);
             const args = Array.isArray(summary.args) ? summary.args : [];
             const paramNames = Array.isArray(calleeChunk.docmeta?.paramNames)
@@ -747,7 +751,7 @@ export async function runCrossFilePropagation({
                   const existing = getParamTypeList(entry.paramTypes, name);
                   entry.paramTypes[name] = uniqueTypes([...existing, type]);
                 }
-              }
+              } else { admission.parameterTypesDropped += 1; }
             }
           }
         }
@@ -894,7 +898,11 @@ export async function runCrossFilePropagation({
     }
   }
 
+  admission.calls.dropped = droppedCallLinks;
+  admission.callDetails.dropped = droppedCallSummaries;
+  admission.usages.dropped = droppedUsageLinks;
   return {
+    admission,
     linkedCalls,
     linkedCallSummaries,
     linkedUsages,

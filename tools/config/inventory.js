@@ -18,7 +18,7 @@ const defaultSchemaPath = path.join(defaultRoot, 'docs', 'config', 'schema.json'
 const defaultOutputJsonPath = path.join(defaultRoot, 'docs', 'config', 'inventory.json');
 const defaultOutputMdPath = path.join(defaultRoot, 'docs', 'config', 'inventory.md');
 
-const PUBLIC_CONFIG_KEYS = new Set(['cache.root', 'quality', 'tooling.typescript.typeRepresentation', 'indexing.workerPool.processFallback']);
+const PUBLIC_CONFIG_KEYS = new Set(['cache.root', 'quality', 'tooling.typescript.typeRepresentation', 'indexing.workerPool.processFallback', 'indexing.crossFileFidelity']);
 const PUBLIC_ENV_VARS = new Set(['PAIROFCLEATS_API_TOKEN']);
 const PUBLIC_CLI_FLAGS = new Set([
   'all',
@@ -291,7 +291,7 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_XXHASH_BACKEND'
 ]);
 const BUDGETS = {
-  configKeys: 4,
+  configKeys: 5,
   envVars: 1,
   cliFlags: 73
 };

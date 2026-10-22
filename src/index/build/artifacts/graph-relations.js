@@ -168,6 +168,7 @@ const maybeLogCaps = (caps, logFn) => {
 
 export async function enqueueGraphRelationsArtifacts({
   graphRelations,
+  upstreamCoverage = null,
   chunks = null,
   fileRelations = null,
   callSites = null,
@@ -521,6 +522,7 @@ export async function enqueueGraphRelationsArtifacts({
         targetMaxBytes: result.targetMaxBytes,
         parts,
         extensions: {
+          upstreamCoverage,
           graphs: {
             callGraph: { nodeCount: callNodes.ids.length, edgeCount: edgeCounts[0] },
             usageGraph: { nodeCount: usageNodes.ids.length, edgeCount: edgeCounts[1] },
@@ -598,7 +600,7 @@ export async function enqueueGraphRelationsArtifacts({
     return { orderingHash, orderingCount };
   }
 
-  const graphMeasurement = measureGraphRelations(graphRelations, { maxJsonBytes });
+  const graphMeasurement = measureGraphRelations({ ...graphRelations, upstreamCoverage }, { maxJsonBytes });
   if (!graphMeasurement) return;
   const orderingHash = graphMeasurement.orderingHash || null;
   const orderingCount = graphMeasurement.orderingCount || 0;
@@ -621,7 +623,7 @@ export async function enqueueGraphRelationsArtifacts({
     enqueueWrite(
       formatArtifactLabel(graphPath),
       async () => {
-        const payload = materializeGraphRelationsPayload(graphRelations);
+        const payload = { ...materializeGraphRelationsPayload(graphRelations), upstreamCoverage };
         await writeJsonObjectFile(graphPath, { fields: payload, atomic: true });
       }
     );
@@ -671,6 +673,7 @@ export async function enqueueGraphRelationsArtifacts({
             targetMaxBytes: result.targetMaxBytes,
             parts,
             extensions: {
+              upstreamCoverage,
               graphs: graphMeasurement.graphs,
               caps: graphRelations.caps ?? null,
               version: graphMeasurement.version,

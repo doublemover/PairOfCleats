@@ -1,3 +1,4 @@
+import { resolveCrossFileFidelity } from '../cross-file-fidelity.js';
 import { getToolingConfig } from '../../shared/dict-utils.js';
 import {
   buildCrossFileFingerprint,
@@ -97,6 +98,7 @@ const resolveCacheContext = ({
   enableRiskCorrelation,
   useTooling,
   fileRelations,
+  fidelity,
   inferenceLite,
   inferenceLiteHighSignalOnly
 }) => {
@@ -114,6 +116,7 @@ const resolveCacheContext = ({
       enableRiskCorrelation,
       useTooling,
       fileRelations,
+      fidelity,
       inferenceLite,
       inferenceLiteHighSignalOnly
     })
@@ -160,6 +163,7 @@ export async function applyCrossFileInference({
   fileRelations = null,
   crossFileCacheMaxBytes = DEFAULT_CROSS_FILE_CACHE_MAX_BYTES,
   inferenceLite = false,
+  fidelity = resolveCrossFileFidelity(),
   inferenceLiteHighSignalOnly = true,
   symbolicTypeGraphs = [],
   abortSignal = null
@@ -177,6 +181,7 @@ export async function applyCrossFileInference({
     enableRiskCorrelation,
     useTooling,
     fileRelations,
+    fidelity,
     inferenceLite,
     inferenceLiteHighSignalOnly
   });
@@ -212,6 +217,7 @@ export async function applyCrossFileInference({
     enableTypeInference,
     enableRiskCorrelation,
     fileRelations,
+    fidelity,
     inferenceLite,
     inferenceLiteHighSignalOnly,
     symbolicTypeGraphs,

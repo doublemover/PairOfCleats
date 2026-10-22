@@ -126,7 +126,8 @@ export const writeIndexArtifactsForMode = async ({
         mode,
         log,
         summaryTimingMs: state.riskSummaryTimingMs,
-        summaryStats: state.riskSummaryStats
+        summaryStats: state.riskSummaryStats,
+        crossFileCoverage: state.crossFileCoverage || null
       });
       state.riskFlows = result.flowRows || [];
       state.riskPartialFlows = result.partialFlowRows || [];

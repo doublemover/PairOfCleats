@@ -618,6 +618,7 @@ async function createBuildRuntimeImpl({
   const lintEnabled = indexingConfig.lint !== false;
   const complexityEnabled = indexingConfig.complexity !== false;
   const analysisPolicy = buildAnalysisPolicy({
+    crossFileFidelity: indexingConfig.crossFileFidelity,
     toolingEnabled,
     typeInferenceEnabled,
     typeInferenceCrossFileEnabled,

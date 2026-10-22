@@ -418,7 +418,8 @@ export const computeInterproceduralRisk = ({
   mode = 'code',
   log = null,
   summaryTimingMs = 0,
-  summaryStats = null
+  summaryStats = null,
+  crossFileCoverage = null
 } = {}) => {
   const start = Date.now();
   const config = runtime?.riskInterproceduralConfig || {};
@@ -487,7 +488,7 @@ export const computeInterproceduralRisk = ({
     },
     artifacts: {}
   };
-  stats.inputCoverage = aggregateRiskInputCoverage(summaryRows, summaryStats);
+  stats.inputCoverage = aggregateRiskInputCoverage(summaryRows, summaryStats, crossFileCoverage);
   stats.executionStatus = 'completed';
 
   if (!enabled || summaryOnly) {

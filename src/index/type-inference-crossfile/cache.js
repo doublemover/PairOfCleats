@@ -1,3 +1,4 @@
+import { resolveCrossFileFidelity } from '../cross-file-fidelity.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fs from 'node:fs/promises';
@@ -12,7 +13,7 @@ import { mergeSymbolicTypeGraphs, validateTypeExpressionReferences } from '../..
 import { isRequiredToolingComputationError } from '../tooling/required-computation.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from '../semantic/analysis-versions.js';
 
-export const CROSS_FILE_CACHE_SCHEMA_VERSION = 3;
+export const CROSS_FILE_CACHE_SCHEMA_VERSION = 4;
 export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference-format-' + ARTIFACT_SURFACE_VERSION;
 export const DEFAULT_CROSS_FILE_CACHE_MAX_BYTES = 8 * 1024 * 1024;
 export const DEFAULT_CROSS_FILE_CACHE_READ_MAX_BYTES = 12 * 1024 * 1024;
@@ -60,6 +61,8 @@ const normalizeCacheMaxBytes = (value) => {
 };
 
 const normalizeCacheStats = (cacheStats) => ({
+  admission: cacheStats?.admission || null,
+  linkedCallSummaries: Number(cacheStats?.linkedCallSummaries) || 0,
   linkedCalls: Number(cacheStats?.linkedCalls) || 0,
   linkedUsages: Number(cacheStats?.linkedUsages) || 0,
   inferredReturns: Number(cacheStats?.inferredReturns) || 0,
@@ -259,6 +262,7 @@ export const buildCrossFileFingerprint = ({
   useTooling,
   fileRelations,
   inferenceLite = false,
+  fidelity = resolveCrossFileFidelity(),
   inferenceLiteHighSignalOnly = true
 }) => {
   const fileRelationSignatures = resolveFileRelationSignatures(fileRelations);
@@ -287,6 +291,8 @@ export const buildCrossFileFingerprint = ({
     enableRiskCorrelation: enableRiskCorrelation === true,
     useTooling: useTooling === true,
     ...(useTooling ? { toolingProducerVersion: SEMANTIC_ANALYSIS_VERSIONS.lspBindings } : {}),
+    fidelity,
+    producers: { callFlow: SEMANTIC_ANALYSIS_VERSIONS.callFlow, riskPropagation: SEMANTIC_ANALYSIS_VERSIONS.riskPropagation },
     inferenceLite: inferenceLite === true,
     inferenceLiteHighSignalOnly: inferenceLiteHighSignalOnly !== false,
     chunks: chunkSignatures,

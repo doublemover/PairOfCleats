@@ -466,6 +466,13 @@ async function writeIndexArtifactsInCodecScope(input) {
       indexState.extensions = {};
     }
     stampIndexStateExtractionQuality({ indexState, state, mode });
+    // This receipt belongs to the same published generation as its raw facts.
+    // Missing/disabled work stays unknown rather than inheriting a prior receipt.
+    if (mode === 'code' && state?.crossFileCoverage) {
+      indexState.extensions.crossFileCoverage = state.crossFileCoverage;
+    } else {
+      delete indexState.extensions.crossFileCoverage;
+    }
     if (state?.discoveryHash) {
       indexState.extensions.discoveryHash = state.discoveryHash;
     }
@@ -2125,10 +2132,11 @@ async function writeIndexArtifactsInCodecScope(input) {
     && riskState?.enabled === true
     && riskState?.summaryOnly !== true;
   const callSitesRef = allowCallSitesArtifacts
-    ? enqueueCallSitesArtifacts({
+    ? await enqueueCallSitesArtifacts({
       state,
       outDir,
       maxJsonBytes: callSitesMaxBytes,
+      abortSignal: effectiveAbortSignal,
       byteBudget: callSitesBudget,
       log,
       forceEmpty: callSitesRequired,
@@ -2140,6 +2148,9 @@ async function writeIndexArtifactsInCodecScope(input) {
       stageCheckpoints
     })
     : null;
+  if (indexState?.extensions && state?.callSitesCoverage) {
+    indexState.extensions.callSitesCoverage = state.callSitesCoverage;
+  }
   const riskSummariesCompression = resolveShardCompression('risk_summaries');
   const riskFlowsCompression = resolveShardCompression('risk_flows');
   const riskPartialFlowsCompression = resolveShardCompression('risk_partial_flows');
@@ -2231,6 +2242,7 @@ async function writeIndexArtifactsInCodecScope(input) {
     : (fn) => fn();
   const graphRelationsOrdering = await scheduleRelations(() => enqueueGraphRelationsArtifacts({
     graphRelations,
+    upstreamCoverage: state?.crossFileCoverage || null,
     chunks: state?.chunks || [],
     fileRelations: state?.fileRelations || null,
     caps: indexingConfig?.graph?.caps || null,

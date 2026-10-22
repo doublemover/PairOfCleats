@@ -1,3 +1,4 @@
+import { normalizeCrossFileCoverage, crossFileCoverageWarning } from '../index/cross-file-fidelity.js';
 import { compareStrings } from '../shared/sort.js';
 import { normalizeDepth } from '../shared/limits.js';
 import { resolveProvenance } from '../shared/provenance.js';
@@ -138,6 +139,9 @@ export const buildImpactAnalysis = ({
 } = {}) => {
   const truncation = createTruncationRecorder({ scope: 'impact' });
   const warnings = { list: [], seen: new Set() };
+  const upstreamCoverage = normalizeCrossFileCoverage((graphRelations || graphIndex?.graphRelations)?.upstreamCoverage);
+  const upstreamWarning = crossFileCoverageWarning(upstreamCoverage);
+  if (upstreamWarning) mergeWarnings(warnings, [upstreamWarning]);
   const recordTruncation = (cap, detail) => truncation.record(cap, detail);
 
   const resolvedSeeds = resolveSeeds({
@@ -149,6 +153,7 @@ export const buildImpactAnalysis = ({
   if (!resolvedSeeds.seedRef) {
     return {
       version: '1.0.0',
+      upstreamCoverage,
       seed: seed && typeof seed === 'object' ? seed : { v: 1, status: 'unresolved', candidates: [], resolved: null },
       direction: normalizeDirection(direction),
       depth: normalizeDepth(depth, 1),
@@ -248,6 +253,7 @@ export const buildImpactAnalysis = ({
 
   return {
     version: '1.0.0',
+    upstreamCoverage,
     seed: seedRef,
     direction: directionMode,
     depth: effectiveDepth,

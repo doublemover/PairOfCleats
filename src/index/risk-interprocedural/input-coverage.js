@@ -1,3 +1,4 @@
+import { normalizeCrossFileCoverage, crossFileCoverageWarning } from '../cross-file-fidelity.js';
 export const riskSummaryCoverage = (risk, row, { dropped = false } = {}) => {
   const rawLocal = risk?.analysisStatus;
   const local = rawLocal ? { status: String(rawLocal.status || 'unknown').slice(0, 64),
@@ -30,9 +31,15 @@ export const riskSummaryCoverage = (risk, row, { dropped = false } = {}) => {
     losses, reasons };
 };
 
-export const aggregateRiskInputCoverage = (rows, summaryStats = null) => {
+export const aggregateRiskInputCoverage = (rows, summaryStats = null, crossFileCoverage = null) => {
   const observations = rows.map(row => row.inputCoverage || { status: 'unknown', reasons: ['unknown-local-analysis'], losses: {} });
   const reasons = new Set(observations.flatMap(row => row.reasons || []));
+  const upstreamCoverage = normalizeCrossFileCoverage(crossFileCoverage);
+  const upstreamWarning = crossFileCoverageWarning(upstreamCoverage);
+  if (upstreamWarning) {
+    reasons.add('cross-file-admission:' + (upstreamCoverage.admission?.status || 'unknown'));
+    reasons.add('cross-file-analysis:' + (upstreamCoverage.analysis?.status || 'unknown'));
+  }
   const droppedRows = Number.isSafeInteger(summaryStats?.summariesDroppedBySize) ? summaryStats.summariesDroppedBySize : 0;
   if (droppedRows) reasons.add('summary:rows');
   const losses = {};
@@ -42,6 +49,7 @@ export const aggregateRiskInputCoverage = (rows, summaryStats = null) => {
   if (unknownChunks) reasons.add('unknown-local-analysis');
   return { version: 1, scope: 'all-admitted-chunks; requested-slice completeness is not established',
     status: unknownChunks ? 'unknown' : reasons.size ? 'partial' : 'complete',
+    upstreamCoverage,
     chunksObserved: observations.length, unknownChunks, droppedRows, losses,
     reasons: [...reasons].sort(), droppedChunks: summaryStats?.droppedChunks || [],
     droppedChunkWitnessesOmitted: Math.max(0, droppedRows - (summaryStats?.droppedChunks?.length || 0)) };

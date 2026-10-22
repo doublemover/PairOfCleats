@@ -316,6 +316,10 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
+        "crossFileFidelity": {
+          "type": "string", "enum": ["bounded", "comprehensive"], "default": "bounded",
+          "description": "Cross-file candidate admission, independent of resource scheduling. Bounded preserves explicit semantic limits; comprehensive admits every collected supported candidate. Neither mode promises complete program analysis; generation receipts expose omissions and unknown coverage."
+        },
         "workerPool": {
           "type": "object", "additionalProperties": true,
           "properties": {

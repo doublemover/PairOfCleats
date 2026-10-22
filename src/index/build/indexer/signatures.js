@@ -1,3 +1,4 @@
+import { resolveCrossFileFidelity } from '../../cross-file-fidelity.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 import { SCORING_ANALYZER_VERSION } from '../../../shared/tokenize-identifiers.js';
 import { TEXT_ANALYZER_VERSION } from '../../../shared/text-analyzer.js';
@@ -115,6 +116,7 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       riskInterproceduralSummaryOnly: modeRiskInterproceduralSummaryOnly,
       typeInferenceEnabled,
       typeInferenceCrossFileEnabled,
+      crossFileFidelity: resolveCrossFileFidelity(indexingConfig.crossFileFidelity),
       gitBlameEnabled
     },
     riskInterproceduralConfig: runtime.riskInterproceduralConfig

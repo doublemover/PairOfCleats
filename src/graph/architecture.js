@@ -1,3 +1,4 @@
+import { normalizeCrossFileCoverage, crossFileCoverageWarning } from '../index/cross-file-fidelity.js';
 import picomatch from 'picomatch';
 import { compareStrings } from '../shared/sort.js';
 import { normalizeCap } from '../shared/limits.js';
@@ -195,6 +196,9 @@ export const buildArchitectureReport = ({
   now = () => new Date().toISOString()
 } = {}) => {
   const warnings = [];
+  const upstreamCoverage = normalizeCrossFileCoverage(graphRelations?.upstreamCoverage);
+  const upstreamWarning = crossFileCoverageWarning(upstreamCoverage);
+  if (upstreamWarning) warnings.push(upstreamWarning);
   const truncation = createTruncationRecorder({ scope: 'architecture' });
   const recordTruncation = (cap, detail) => truncation.record(cap, detail);
 
@@ -240,6 +244,7 @@ export const buildArchitectureReport = ({
     }
     return {
       version: '1.0.0',
+      upstreamCoverage,
       provenance: resolvedProvenance,
       rules: summaries,
       violations,
@@ -388,12 +393,13 @@ export const buildArchitectureReport = ({
   });
   return {
     version: '1.0.0',
+    upstreamCoverage,
     provenance: resolvedProvenance,
     rules: summaries,
     violations,
     summary: { detectedViolations, retainedViolations: violations.length,
       omittedViolations: detectedViolations - violations.length, edgesExamined,
-      complete: !truncation.list.some(entry => entry.cap === 'maxEdgesExamined') },
+      complete: !upstreamWarning && !truncation.list.some(entry => entry.cap === 'maxEdgesExamined') },
     truncation: truncation.list.length ? truncation.list : null,
     warnings: warnings.length ? warnings : null
   };
