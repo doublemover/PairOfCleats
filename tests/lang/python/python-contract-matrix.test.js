@@ -109,6 +109,12 @@ const cases = [
         "import { getPythonAst, shutdownPythonAstPool } from './src/lang/python.js';",
         "const ast = await getPythonAst('def add(a, b):\\n    return a + b\\n', null, { pythonAst: { workerCount: 1, maxWorkers: 1, taskTimeoutMs: 5000 } });",
         'assert.equal(ast, null);',
+        "const { LANGUAGE_REGISTRY } = await import('./src/index/language-registry/registry-data.js');",
+        "const { smartChunk } = await import('./src/index/chunking/dispatch.js');",
+        "const text = 'def control():\\n    return 1\\n';",
+        "const context = await LANGUAGE_REGISTRY.find(adapter => adapter.id === 'python').prepare({ text, mode: 'code', options: { pythonAst: { enabled: true, workerCount: 1, maxWorkers: 1, taskTimeoutMs: 5000 } } });",
+        'assert.equal(context.pythonAst, null);',
+        "assert.equal(smartChunk({ text, ext: '.py', mode: 'code', context })[0], context.pythonChunks[0]);",
         'await shutdownPythonAstPool();'
       ].join('\n');
       const failOpen = runNode(

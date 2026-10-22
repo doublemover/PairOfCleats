@@ -39,7 +39,7 @@ import { buildCssChunks } from '../../lang/css.js';
 import { buildLuaChunks } from '../../lang/lua.js';
 import { buildSqlChunks } from '../../lang/sql.js';
 import { buildCLikeChunks } from '../../lang/clike.js';
-import { buildPythonChunksFromAst, buildPythonHeuristicChunks } from '../../lang/python.js';
+import { resolvePythonPreparedChunks } from '../../lang/python/prepared-chunks.js';
 import { buildRustChunks } from '../../lang/rust.js';
 import { buildSwiftChunks } from '../../lang/swift.js';
 import { buildGoChunks } from '../../lang/go.js';
@@ -134,14 +134,7 @@ const CODE_CHUNKERS = [
   {
     id: 'python',
     match: (ext) => ext === '.py',
-    chunk: ({ text, context }) => {
-      const astChunks = buildPythonChunksFromAst(text, context?.pythonAst || null);
-      if (astChunks && astChunks.length) return astChunks;
-      if (context?.pythonTreeChunks && context.pythonTreeChunks.length) {
-        return context.pythonTreeChunks;
-      }
-      return buildPythonHeuristicChunks(text);
-    }
+    chunk: ({ text, context }) => resolvePythonPreparedChunks(text, context)
   },
   {
     id: 'swift',

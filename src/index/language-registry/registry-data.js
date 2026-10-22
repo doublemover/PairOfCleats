@@ -37,10 +37,9 @@ import {
   collectPythonImportEntries,
   collectPythonImports,
   buildPythonRelations,
-  extractPythonDocMeta,
-  buildPythonChunksFromAst,
-  buildPythonHeuristicChunks
+  extractPythonDocMeta
 } from '../../lang/python.js';
+import { preparePythonChunkContext } from '../../lang/python/prepared-chunks.js';
 import { buildRustChunks, buildRustRelations, collectRustImports, computeRustFlow, extractRustDocMeta } from '../../lang/rust.js';
 import { buildSwiftChunks, buildSwiftRelations, collectSwiftImports, computeSwiftFlow, extractSwiftDocMeta } from '../../lang/swift.js';
 import { buildShellChunks, buildShellRelations, collectShellImports, computeShellFlow, extractShellDocMeta } from '../../lang/shell.js';
@@ -460,7 +459,6 @@ const MANAGED_LANGUAGE_ADAPTERS = [
       if (mode !== 'code') return {};
       let pythonAst = null;
       let pythonAstMetrics = null;
-      let pythonChunks = null;
       const pythonAstEnabled = options?.pythonAst?.enabled !== false;
       const pythonAstSkip = shouldSkipPythonAstForFile({ text, relPath, options });
       const runPythonAst = pythonAstEnabled && !pythonAstSkip.skip;
@@ -479,13 +477,7 @@ const MANAGED_LANGUAGE_ADAPTERS = [
           + `(${pythonAstSkip.reason || 'policy'}).`
         );
       }
-      if (pythonAst) {
-        pythonChunks = buildPythonChunksFromAst(text, pythonAst);
-      }
-      if (!pythonChunks || !pythonChunks.length) {
-        pythonChunks = buildPythonHeuristicChunks(text);
-      }
-      return { pythonAst, pythonAstMetrics, pythonChunks };
+      return preparePythonChunkContext({ text, pythonAst, pythonAstMetrics });
     },
     buildRelations: ({ text, context }) => buildPythonRelations(text, context.pythonAst),
     extractDocMeta: ({ chunk, fileRelations, context }) =>

@@ -40,6 +40,7 @@ const stripFullFileChunkingCaches = (context) => {
   delete next.tsSyntax;
   delete next.typeScriptSyntaxContext;
   delete next.pythonAst;
+  delete next.pythonChunkPreparation;
   delete next.chunkingShared;
   return next;
 };
