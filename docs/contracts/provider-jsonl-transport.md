@@ -1,0 +1,11 @@
+# Bounded provider JSONL transport
+
+Implementation status: UNVALIDATED. Source-only fixtures are authored and unrun. No external executable has been launched or qualified.
+
+The version-1 transport sends one canonical pinned request on stdin. The producer replies with `hello` (protocol version, request ID, full request hash), monotonically numbered `batch` messages containing canonical provider envelopes, and one explicit complete `final` receipt. The final receipt binds batch/partition counts and the combined canonical output hash. Duplicate/future IDs, late batches, unknown fields, invalid UTF-8, oversized lines/output, missing final receipts and incomplete output are rejected. A successful process exit is also required before sink admission. Retention is bounded; batches remain staged until final acceptance and cannot partially select a generation.
+
+The process adapter uses the shared subprocess runner for cancellation, deadline, owned child-tree termination and cleanup receipts. UTF-8 decoding is fatal and incremental across byte boundaries. Stderr is diagnostic-only and separately capped. Commands must exactly match an observed durable profile and the launching repository's existing trust grant; trust is checked again before sink admission. There is no implicit shell, install, network permission or project build grant. A subprocess is not an OS sandbox. Trusted in-process providers are also unsandboxed.
+
+Offline reports use the same decoder and require the original producer request receipt, including source snapshot/profile/generation identity. Importing a report never invokes its producer. The caller must retain and independently verify that original request against admitted source/project/build facts; hashing present files alone cannot establish an old report's freshness.
+
+This first transport increment accepts canonical completed partition descriptors, using the existing #1145 immutable sink for source/partition/persisted-row validation. A third-party raw-row protocol and host-side writer adapter, CLI reference producer, approved-command provisioning integration, cancellation/process-exit fault fixtures and published binding/type consumer proof remain pending. Buffered bounded decoding does not claim streaming writer backpressure. Issue #1148 remains partial until those paths and proof are implemented.

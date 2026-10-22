@@ -16,6 +16,8 @@ import {
   writeJsonLine
 } from './shared.js';
 import { runLineStreamingCommand } from './shared-runner.js';
+import { scipRoleInfo as roleInfo, normalizeScipFlatRange as normalizeRange,
+  extractScipSymbolInfo as extractSymbolInfo } from '../../src/index/tooling/scip-format.js';
 
 const argv = createCli({
   scriptName: 'scip-ingest',
@@ -63,55 +65,6 @@ const stats = {
 };
 
 let writeStream = null;
-
-// https://github.com/scip-code/scip/blob/main/scip.proto#L502-L528
-const roleInfo = (roles) => {
-  const parsed = Number(roles);
-  const symbolRoles = Number.isInteger(parsed) ? parsed : 0;
-  const isDefinition = (symbolRoles & 1) !== 0;
-  return {
-    symbolRoles,
-    isDefinition,
-    isReference: !isDefinition,
-    isImport: (symbolRoles & 2) !== 0,
-    isWriteAccess: (symbolRoles & 4) !== 0,
-    isReadAccess: (symbolRoles & 8) !== 0,
-    isGenerated: (symbolRoles & 16) !== 0,
-    isTest: (symbolRoles & 32) !== 0,
-    isForwardDefinition: (symbolRoles & 64) !== 0
-  };
-};
-
-const normalizeRange = (range) => {
-  if (!Array.isArray(range) || !range.length) return null;
-  const startLine = Number.isFinite(Number(range[0])) ? Number(range[0]) : 0;
-  const startChar = Number.isFinite(Number(range[1])) ? Number(range[1]) : 0;
-  let endLine = startLine;
-  let endChar = startChar;
-  if (range.length === 3) {
-    endChar = Number.isFinite(Number(range[2])) ? Number(range[2]) : endChar;
-  } else if (range.length >= 4) {
-    endLine = Number.isFinite(Number(range[2])) ? Number(range[2]) : endLine;
-    endChar = Number.isFinite(Number(range[3])) ? Number(range[3]) : endChar;
-  }
-  return {
-    startLine: startLine + 1,
-    startChar,
-    endLine: endLine + 1,
-    endChar
-  };
-};
-
-const extractSymbolInfo = (doc) => {
-  const entries = doc?.symbols || doc?.symbolInformation || doc?.symbolInformations || [];
-  if (!Array.isArray(entries) || !entries.length) return new Map();
-  const map = new Map();
-  for (const entry of entries) {
-    if (!entry || !entry.symbol) continue;
-    map.set(entry.symbol, entry);
-  }
-  return map;
-};
 
 const writeOccurrence = async (doc, occurrence, symbolInfo) => {
   if (!occurrence || !occurrence.symbol) return;

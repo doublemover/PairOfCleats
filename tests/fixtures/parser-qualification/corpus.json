@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "qualificationStatus": "UNVALIDATED",
+  "cases": [
+    { "id": "js-unicode-crlf", "path": "input.js", "source": "export const value = '🧭';\r\nvalue?.trim();", "domains": ["declarations", "exports", "calls", "chunks"] },
+    { "id": "ts-type-punctuation", "path": "input.ts", "source": "export type Box<T> = { value: T };\nexport function use<T>(value: Box<T>): T { return value.value; }", "domains": ["declarations", "exports", "chunks"] },
+    { "id": "tsx-embedded-expression", "path": "input.tsx", "source": "export const View = () => <section>{items.map(item => <b>{item.name}</b>)}</section>;", "domains": ["declarations", "calls", "chunks"] },
+    { "id": "js-malformed-edit", "path": "input.js", "source": "export function broken(value { return value?.field;", "domains": ["parse-status", "declarations", "calls"] },
+    { "id": "js-import-attributes", "path": "input.js", "source": "import data from './data.json' with { type: 'json' };\nexport { data };", "domains": ["imports", "exports"] },
+    { "id": "vue-source-prefix", "path": "input.vue", "source": "<template><span>🧭</span></template>\n<script setup lang=\"ts\">const value = helper();</script>", "domains": ["segments", "declarations", "calls"] },
+    { "id": "c-unicode-comment", "path": "input.c", "source": "/* 🧭 */\nint twice(int value) { return value + value; }", "domains": ["declarations", "chunks"] },
+    { "id": "rust-pattern-call", "path": "input.rs", "source": "fn use_value(value: Option<i32>) -> i32 { match value { Some(x) => double(x), None => 0 } }", "domains": ["declarations", "calls", "chunks"] },
+    { "id": "swift-attribute-prefix", "path": "input.swift", "source": "@MainActor\npublic func value() -> String { return \"🧭\" }", "domains": ["declarations", "chunks"] }
+  ]
+}
