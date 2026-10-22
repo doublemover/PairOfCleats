@@ -2,7 +2,7 @@ import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { extractDocComment } from '../shared.js';
 import { buildTreeSitterChunks } from '../tree-sitter.js';
 import { SQL_DOC_OPTIONS } from './constants.js';
-import { splitSqlStatements } from './scanner.js';
+import { createSqlScannerState, splitSqlStatements } from './scanner.js';
 
 const CHAR_TAB = 9;
 const CHAR_LF = 10;
@@ -107,7 +107,8 @@ function consumeKeyword(text, start, lowerKeyword) {
  * @param {number} start
  * @returns {number}
  */
-function skipLeadingComments(text, start) {
+function skipLeadingComments(text, start, options) {
+  const { nestedComments } = createSqlScannerState(options);
   let i = start;
   while (i < text.length) {
     i = skipWhitespace(text, i);
@@ -119,7 +120,7 @@ function skipLeadingComments(text, start) {
     if (text[i] === '/' && text[i + 1] === '*') {
       let depth=1;i+=2;
       while(i<text.length && depth) {
-        if(text.startsWith('/*',i)) {depth++;i+=2;}
+        if(nestedComments && text.startsWith('/*',i)) {depth++;i+=2;}
         else if(text.startsWith('*/',i)) {depth--;i+=2;}
         else i++;
       }
@@ -171,8 +172,8 @@ function readSqlNameToken(text, start) {
  * @param {string} statement
  * @returns {{kind:string,name:string}}
  */
-function classifySqlStatement(statement) {
-  let idx = skipLeadingComments(statement, 0);
+function classifySqlStatement(statement, options) {
+  let idx = skipLeadingComments(statement, 0, options);
   idx = skipWhitespace(statement, idx);
 
   idx = consumeKeyword(statement, idx, 'create');
@@ -292,7 +293,7 @@ function extractSqlLeadingDoc(statementText) {
     return { docstring: '', signature: firstNonEmptyLine(statementText) };
   }
 
-  const lines = statementText.split('\n');
+  const lines = statementText.split(/\r\n|[\r\n]/u);
   const docLines = [];
   let signature = '';
   let i = 0;
@@ -363,7 +364,8 @@ export function buildSqlChunks(text, options = {}) {
     return 'generic';
   };
   const dialect = resolveDialect();
-  const statements = splitSqlStatements(text,{dialect});
+  const lexicalOptions = { ...options, dialect };
+  const statements = splitSqlStatements(text, lexicalOptions);
   const treeChunks = buildTreeSitterChunks({ text, languageId: 'sql', options });
 
   if (!statements.length) return null;
@@ -376,7 +378,7 @@ export function buildSqlChunks(text, options = {}) {
 
   for (const stmt of statements) {
     const stmtText = text.slice(stmt.start, stmt.end);
-    const { kind, name } = classifySqlStatement(stmtText);
+    const { kind, name } = classifySqlStatement(stmtText, lexicalOptions);
     const startLine = offsetToLine(lineIndex, stmt.start);
     const endLine = offsetToLine(lineIndex, stmt.end);
     const leading = extractSqlLeadingDoc(stmtText);

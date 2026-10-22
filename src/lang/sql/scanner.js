@@ -115,7 +115,7 @@ function matchesDelimiterAt(text, offset, delimiter, delimiterLength, delimiterF
 }
 
 export function createSqlScannerState(options = {}) {
-  const dialect = String(options.dialect || 'generic').toLowerCase();
+  const dialect = String(options.dialect || 'generic').trim().toLowerCase() || 'generic';
   return {
     inSingle: false,
     inDouble: false,
@@ -146,7 +146,7 @@ function consumeActiveSqlState(text, index, state, { preserveLineCommentNewline 
   }
 
   if (state.inLineComment) {
-    if (ch === '\n') {
+    if (ch === '\n' || ch === '\r') {
       state.inLineComment = false;
       return { handled: true, nextIndex: index, emit: preserveLineCommentNewline ? ch : null };
     }
@@ -290,16 +290,17 @@ export function splitSqlStatements(text,options = {}) {
           if (code !== CHAR_SPACE && code !== CHAR_TAB) break;
           k += 1;
         }
-        let endLine = text.indexOf('\n', k);
-        if (endLine === -1) endLine = text.length;
+        let endLine = k;
+        while (endLine < text.length && text[endLine] !== '\r' && text[endLine] !== '\n') endLine += 1;
+        const nextLine = endLine + (text[endLine] === '\r' && text[endLine + 1] === '\n' ? 2 : endLine < text.length ? 1 : 0);
         const rawDelimiter = text.slice(k, endLine).trim();
         if (rawDelimiter) {
           delimiter = rawDelimiter;
           delimiterLength = delimiter.length;
           delimiterFirstCode = delimiter.charCodeAt(0);
         }
-        start = Math.max(start, endLine + 1);
-        i = endLine;
+        start = Math.max(start, nextLine);
+        i = nextLine - 1;
         continue;
       }
     }
@@ -349,11 +350,12 @@ export const advanceSqlScannerState = (text,index,state) => {
 /**
  * Remove SQL comments while preserving quoted literal content.
  * @param {string} text
+ * @param {{dialect?:string,standardConformingStrings?:boolean}} [options]
  * @returns {string}
  */
-export function stripSqlComments(text) {
+export function stripSqlComments(text, options = {}) {
   const out = [];
-  const state = createSqlScannerState();
+  const state = createSqlScannerState(options);
 
   for (let i = 0; i < text.length; i += 1) {
     const active = consumeActiveSqlState(text, i, state, {
