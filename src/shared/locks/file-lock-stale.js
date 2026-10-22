@@ -9,6 +9,7 @@ import {
   isStableStaleSnapshot,
   readLockInfo,
   readLockSnapshot,
+  requiresLockResourceSettlement,
   resolveLockPid
 } from './file-lock-info.js';
 import {
@@ -71,6 +72,7 @@ export const removeStaleLockFile = async ({
   info,
   staleMs
 }) => {
+  if (requiresLockResourceSettlement(info)) return { removed: false, removalMode: 'owner' };
   const staleOwner = buildOwnerFromLockInfo(info);
   if (!staleOwner) {
     return {
@@ -124,6 +126,9 @@ export const shouldCleanupStaleLock = async ({
   forceStaleCleanup,
   invalidLockGraceMs
 }) => {
+  if (requiresLockResourceSettlement(info)) return {
+    pid: resolveLockPid(info), alive: null, stale: false, staleCleanup: false, shouldCleanup: false
+  };
   const pid = resolveLockPid(info);
   const alive = pid ? isProcessAlive(pid) : false;
   const invalidLock = isInvalidLockInfo(info);

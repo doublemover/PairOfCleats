@@ -16,7 +16,11 @@ export const combineCacheWriterErrors = (operationError, cleanupError) => {
 
 /** Other idle controls cannot prove that an explicitly pending child has closed. */
 export const releaseCacheWriterOwnership = async ({ lease = null, release, operationError = null, drained = true }) => {
-  if (operationError?.cacheOwnershipPending && operationError.cacheOwnershipReleased?.() !== true) throw operationError;
+  if (operationError?.cacheOwnershipPending) {
+    let confirmed = false;
+    try { confirmed = operationError.cacheOwnershipReleased?.() === true; } catch {}
+    if (!confirmed) throw operationError;
+  }
   if (!drained) throw Object.assign(new Error('Cache ownership retained because writer teardown did not complete.'),
     { code: 'ERR_INDEX_CACHE_DRAIN_INCOMPLETE', cacheOwnershipPending: true });
   lease?.assertOwned?.();

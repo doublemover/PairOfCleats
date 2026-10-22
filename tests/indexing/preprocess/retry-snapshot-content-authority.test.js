@@ -17,7 +17,7 @@ const repo = path.join(temporary, 'repo');
 const cache = path.join(temporary, 'cache');
 await fs.mkdir(path.join(repo, 'nested'), { recursive: true });
 await fs.mkdir(cache);
-const lock = await acquireIndexLock({ repoCacheRoot: cache });
+const lock = await acquireIndexLock({ repoCacheRoot: cache, requireSettlement: true });
 assert.ok(lock);
 const lease = createIndexCacheLease(lock, cache);
 const snapshotPath = path.join(cache, 'preprocess', 'snapshot.json');

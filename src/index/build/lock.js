@@ -12,7 +12,7 @@ const DEFAULT_STALE_MS = 30 * 60 * 1000;
 
 /**
  * Acquire a repo-scoped index lock to prevent concurrent writes.
- * @param {{repoCacheRoot:string,waitMs?:number,pollMs?:number,staleMs?:number,metadata?:object|null,log?:(msg:string)=>void}} input
+ * @param {{repoCacheRoot:string,waitMs?:number,pollMs?:number,staleMs?:number,requireSettlement?:boolean,metadata?:object|null,log?:(msg:string)=>void}} input
  * @returns {Promise<{lockPath:string,release:()=>Promise<void>}|null>}
  */
 export async function acquireIndexLock({
@@ -20,6 +20,7 @@ export async function acquireIndexLock({
   waitMs = 0,
   pollMs = 1000,
   staleMs = DEFAULT_STALE_MS,
+  requireSettlement = false,
   metadata = null,
   signal = null,
   log = () => {}
@@ -33,7 +34,8 @@ export async function acquireIndexLock({
     signal,
     metadata: {
       scope: 'index',
-      ...(metadata && typeof metadata === 'object' ? metadata : {})
+      ...(metadata && typeof metadata === 'object' ? metadata : {}),
+      ...(requireSettlement ? { resourceSettlementVersion: 1 } : {})
     },
     onStale: ({ reason, pid }) => {
       if (reason === 'dead-pid' && Number.isFinite(pid)) {
@@ -74,7 +76,8 @@ export async function readIndexLockInfo(repoCacheRoot) {
  * the low-level lock helper authoritative over process signal ownership.
  *
  * Callers that own process lifecycle can opt in so SIGINT/SIGTERM remove the
- * current lock file synchronously before higher-level abort/exit handling runs.
+ * current process-scoped lock synchronously before higher-level abort/exit
+ * handling runs. Resource fences always require their owner's explicit release.
  *
  * @param {{lockPath?:string,payload?:object}} lock
  * @param {{signals?:string[]}} [options]

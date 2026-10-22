@@ -94,10 +94,11 @@ const attachIndexLockSignalCleanup = (lock, options) => {
  * @param {{repoCacheRoot:string,log:(line:string)=>void,metadata?:object|null}} input
  * @returns {Promise<{release:()=>Promise<void>}>}
  */
-const acquireBuildIndexLock = async ({ repoCacheRoot, log, metadata = null, signal = null }) => {
+const acquireBuildIndexLock = async ({ repoCacheRoot, log, metadata = null, signal = null, requireSettlement = false }) => {
   const lock = await acquireIndexLock({
     repoCacheRoot,
     signal,
+    requireSettlement,
     waitMs: BUILD_INDEX_LOCK_WAIT_MS,
     pollMs: BUILD_INDEX_LOCK_POLL_MS,
     metadata: {
@@ -212,9 +213,9 @@ export const runEmbeddingsStage = async ({
     const borrowed = Boolean(cacheWriterLease);
     const lock = borrowed ? assertIndexCacheLease(cacheWriterLease, repoCacheRoot)
       : await acquireBuildIndexLock({ repoCacheRoot, log, signal: effectiveAbortSignal,
-        metadata: { operation: 'stage3-embeddings' } });
-    // Graceful abort drains the child before ownership ends; process-exit cleanup
-    // remains the lock owner's fallback, never an early signal unlink.
+        requireSettlement: true, metadata: { operation: 'stage3-embeddings' } });
+    // Graceful abort drains the child before ownership ends. An unknown resource
+    // survives parent exit; only the drained owner may explicitly release it.
     const detachSignalCleanup = () => {};
     let embeddingError = null;
     try {
@@ -774,7 +775,7 @@ export const runStage = async (
     try {
       throwIfAborted(effectiveAbortSignal);
       lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log,
-        signal: effectiveAbortSignal, metadata: { operation: `${phaseStage}-cache-writer` } });
+        signal: effectiveAbortSignal, requireSettlement: true, metadata: { operation: `${phaseStage}-cache-writer` } });
       runtime.cacheWriterLease = createIndexCacheLease(lock, runtime.repoCacheRoot);
 
       await updateBuildState(runtime.buildRoot, {

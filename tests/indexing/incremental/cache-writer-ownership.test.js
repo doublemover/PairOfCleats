@@ -13,9 +13,14 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 
 const [role, repoRoot, cacheRoot, phase] = process.argv.slice(2);
 if (role) {
-  if (role === 'owner') {
-    const lock = await acquireIndexLock({ repoCacheRoot: cacheRoot });
+  if (role === 'owner' || role === 'process-owner') {
+    const lock = await acquireIndexLock({ repoCacheRoot: cacheRoot, requireSettlement: role === 'owner' });
     assert.ok(lock);
+    if (role === 'process-owner') {
+      process.send({ ready: true });
+      await new Promise(resolve => process.once('message', resolve));
+      await lock.release(); process.exit(0);
+    }
     const lease = createIndexCacheLease(lock, cacheRoot);
     const filename = path.join(cacheRoot, 'incremental', phase, 'live-write');
     await fs.mkdir(path.dirname(filename), { recursive: true });
@@ -72,16 +77,22 @@ if (role) {
         assert.equal(await owner.exited, 0);
       }
     }
-    const abandoned = start('owner', 'killed-owner');
+    // A dead admitting PID cannot establish settlement for a resource writer.
+    // Preserve the old recovery control on the process-only lock it qualifies.
+    const abandoned = start('process-owner', 'killed-owner');
     await abandoned.message;
     abandoned.child.kill('SIGKILL'); await abandoned.exited;
     const recovered = await acquireIndexLock({ repoCacheRoot: cache });
-    assert.ok(recovered, 'a dead cache writer is recoverable without the stale-age deadline');
-    const lease = createIndexCacheLease(recovered, cache);
-    assert.equal(assertIndexCacheLease(lease, cache), recovered);
+    assert.ok(recovered, 'a dead process-only lock is recoverable without the stale-age deadline');
+    assert.throws(() => createIndexCacheLease(recovered, cache), { code: 'ERR_INDEX_CACHE_OWNERSHIP' },
+      'process lifetime alone cannot grant resource-writer authority');
+    await recovered.release();
+    const resourceOwner = await acquireIndexLock({ repoCacheRoot: cache, requireSettlement: true });
+    const lease = createIndexCacheLease(resourceOwner, cache);
+    assert.equal(assertIndexCacheLease(lease, cache), resourceOwner);
     lease.invalidate();
     assert.throws(() => assertIndexCacheLease(lease, cache), { code: 'ERR_INDEX_CACHE_OWNERSHIP' });
-    await recovered.release();
+    await resourceOwner.release();
     console.log('Cross-process ordinary/watch/rebuild ownership barriers and killed-owner recovery passed');
   } finally {
     for (const child of children) if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');

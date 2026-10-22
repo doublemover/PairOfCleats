@@ -24,8 +24,16 @@ export const isLocalProcessDefinitelyDead = (pid) => {
   catch (error) { return error?.code === 'ESRCH'; }
 };
 
+/** A resource fence survives its admitting process until its owner settles it.
+ * Unknown versions remain protected; neither age nor PID death proves closure.
+ */
+export const requiresLockResourceSettlement = info => Boolean(info && typeof info === 'object'
+  && Object.hasOwn(info, 'resourceSettlementVersion'));
+
 export const isOwnedBy = (info, owner) => {
   if (!owner || typeof owner !== 'object') return false;
+  if (requiresLockResourceSettlement(info)) return typeof info.lockId === 'string'
+    && info.lockId.length > 0 && owner.lockId === info.lockId;
   if (owner.lockId && info?.lockId) return owner.lockId === info.lockId;
   if (Number.isFinite(owner.pid) && Number.isFinite(Number(info?.pid))) return Number(owner.pid) === Number(info.pid);
   return false;
@@ -34,7 +42,8 @@ export const isOwnedBy = (info, owner) => {
 export const removeLockFileSyncIfOwned = (lockPath, owner, { force = false } = {}) => {
   if (!lockPath) return false;
   try {
-    if (!force && !isOwnedBy(readLockInfoSync(lockPath), owner)) return false;
+    const info = readLockInfoSync(lockPath);
+    if ((!force || requiresLockResourceSettlement(info)) && !isOwnedBy(info, owner)) return false;
     fsSync.rmSync(lockPath, { force: true });
     return true;
   } catch { return false; }

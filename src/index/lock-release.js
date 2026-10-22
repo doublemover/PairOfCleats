@@ -3,6 +3,7 @@ import {
   removeLockFileSyncIfOwned
 } from '../shared/locks/file-lock.js';
 import { attachCleanupSignalHandlers } from '../shared/process-signals.js';
+import { requiresLockResourceSettlement } from '../shared/locks/file-lock-info.js';
 import { runBuildCleanupWithTimeout } from './build/cleanup-timeout.js';
 
 export function createLockReleaseHandle({
@@ -16,6 +17,7 @@ export function createLockReleaseHandle({
   const handlers = [];
   const cleanupSync = () => {
     if (released) return;
+    if (requiresLockResourceSettlement(lock.payload)) return;
     removeLockFileSyncIfOwned(lockPath, lock.payload);
     released = true;
   };
@@ -30,7 +32,8 @@ export function createLockReleaseHandle({
     handlers.length = 0;
   };
   // Keep library behavior non-authoritative for process lifetime: cleanup on
-  // process exit, but do not install signal handlers that force termination.
+  // process exit only for process-scoped locks. Resource fences require explicit
+  // settled-owner release and survive an unhandled exit or forced parent death.
   registerHandler('exit', cleanupSync);
 
   const publicLock = {
@@ -79,6 +82,7 @@ export function attachLockSignalCleanup(
 ) {
   if (!lock?.lockPath || !lock?.payload) return () => {};
   const cleanupSync = () => {
+    if (requiresLockResourceSettlement(lock.payload)) return;
     const removed = removeLockFileSyncIfOwned(lock.lockPath, lock.payload);
     if (removed) {
       lock.signalCleaned = true;

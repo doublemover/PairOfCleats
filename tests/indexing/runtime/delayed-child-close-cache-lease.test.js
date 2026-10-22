@@ -14,7 +14,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-pending-close-lease-'));
-const lock = await acquireIndexLock({ repoCacheRoot: root });
+const lock = await acquireIndexLock({ repoCacheRoot: root, requireSettlement: true });
 const lease = createIndexCacheLease(lock, root);
 const originalSpawn = childProcess.spawn;
 let child, emit, delayedClose, suppress = true;
@@ -50,7 +50,7 @@ try {
   assert.equal(error.cacheOwnershipReleased(), true);
   assert.equal(combined.cacheOwnershipReleased(), true, 'aggregation retains the original exact-handle observer');
   await release();
-  const successor = await acquireIndexLock({ repoCacheRoot: root });
+  const successor = await acquireIndexLock({ repoCacheRoot: root, requireSettlement: true });
   const nextLease = createIndexCacheLease(successor, root);
   try {
     await assert.rejects(release(), /active repository cache writer lease/,

@@ -21,7 +21,7 @@ export const acquireIndexLockWithBackoff = async ({
     ? backoff.maxWaitMs
     : LOCK_BACKOFF_MAX_WAIT_MS;
   return await retryWithBackoff({
-    task: async () => acquireIndexLock({ repoCacheRoot, log: logFn }),
+    task: async () => acquireIndexLock({ repoCacheRoot, log: logFn, requireSettlement: true }),
     shouldStop: shouldExit,
     baseMs,
     maxMs,

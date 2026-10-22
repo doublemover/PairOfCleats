@@ -11,7 +11,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = await makeTempDir('closeout-lock-authority-');
 applyTestEnv({ cacheRoot: path.join(root, 'cache') });
-const lock = await acquireIndexLock({ repoCacheRoot: root });
+const lock = await acquireIndexLock({ repoCacheRoot: root, requireSettlement: true });
 const lease = createIndexCacheLease(lock, root);
 try {
   const calls = [];
