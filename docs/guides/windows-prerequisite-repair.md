@@ -71,3 +71,26 @@ selected command/header/library bytes, compiler output, linked PE/COFF target
 and bounded child output/deadlines. It does not establish every transitive
 header/library hash, hard disk allocation, executable activation, every addon's
 compiler invocation or representative workload behavior.
+
+Frozen or primitive installer/capability failures retain their exact causes and
+separate failure context. A pending original native observer keeps its original
+receiver and function identity, including when its separate pending marker is
+absent or false. Missing/throwing observations stay unknown. Capability cleanup
+uses only the exact admitted storage session; its own producer-branded metadata
+release error cannot prevent retrying the same removal needed to settle it.
+
+An unconfirmed apply exposes a non-enumerable
+`prerequisiteApplySession.releaseAfterClosure()` on its failure. Recovery first
+asks any genuine nested `windowsCapabilitySession` to settle its own native and
+storage ownership, then checks every captured original observation, then
+releases the exact original apply lock. Matching property names or copied
+method data do not identify a genuine capability session. Failed lock removal
+preserves the primary failure and the same retry capability; concurrent retries
+share actual work. This adds no installer selection, approval, elevation,
+readiness or cleanup authority.
+
+The authored resource-recovery regressions use only disposable ordinary
+evidence bytes, category leases and apply locks with inert vendor/compiler
+callbacks and injected unlink failures. Their fixture catalog's allocation
+metadata is explicitly synthetic and cannot enable the shipped provider. The
+tests, native behavior and all platform acceptance remain **UNVALIDATED**.

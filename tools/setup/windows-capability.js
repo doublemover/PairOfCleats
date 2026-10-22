@@ -4,12 +4,24 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { assertNoSymlinkPath, readVerifiedContainedFile } from '../../src/shared/contained-file.js';
-import { runWithStorageSession } from '../../src/shared/storage/session.js';
+import { runWithStorageSession, isStorageSessionReleaseFailure } from '../../src/shared/storage/session.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 
 const source = '#include <windows.h>\n#include <vector>\n#include <cstdio>\nint main() { std::vector<DWORD> ids{GetCurrentProcessId()}; return std::printf("%lu", static_cast<unsigned long>(ids[0])) < 0; }\n';
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const machine = { x64: 0x8664, arm64: 0xaa64 };
+const capabilitySessions = new WeakSet();
+export const isWindowsCapabilitySession = session => Boolean(session) && capabilitySessions.has(session);
+const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+/** Capture original native observation before adding any outer recovery owner. */
+export const captureWindowsResourceObservation = error => {
+  try {
+    const observe = error?.cacheOwnershipReleased;
+    if (error?.cacheOwnershipPending !== true && typeof observe !== 'function') return null;
+    return () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } };
+  } catch { return () => false; }
+};
 
 export const inspectWindowsTargetBytes = (bytes, arch, { executable = false } = {}) => {
   const expected = machine[arch];
@@ -101,9 +113,11 @@ const verifyWindowsCompilerCapabilityOwned = async (report, { scratchRoot, signa
       qualification: 'Selected compiler, C++/Windows/UCRT headers, link libraries and output target only; executable not run; native package activation still required.' };
     await fs.writeFile(path.join(directory, 'receipt.json'), JSON.stringify(receipt, null, 2), { flag: 'wx' });
     return receipt;
-  } catch (error) {
-    error.windowsCapability = { directory, stages, state: error.cacheOwnershipPending === true ? 'teardown-pending' : 'failed', outputsRetained: true };
-    throw error;
+  } catch (value) {
+    const error = asError(value), observe = captureWindowsResourceObservation(error);
+    throw addStorageFailureContext(error, { windowsCapability: {
+      directory, stages, state: observe && !observe() ? 'teardown-pending' : 'failed', outputsRetained: true
+    } });
   }
 };
 
@@ -111,23 +125,62 @@ export const verifyWindowsCompilerCapability = async (report, options = {}) => {
   if (!path.isAbsolute(options.scratchRoot || '')) throw new Error('Windows capability requires an absolute run-owned scratch parent.');
   const layout = resolveStorageLayout();
   const state = layout.descriptors.state.path;
-  let session;
+  let session, admitted = null;
+  let overflow = false;
+  const observations = [], observed = new WeakSet();
+  const remember = error => {
+    if (observed.has(error)) return;
+    observed.add(error);
+    const observe = captureWindowsResourceObservation(error);
+    if (observe) { if (observations.length < 128) observations.push(observe); else overflow = true; }
+  };
+  const resourcesSettled = () => !overflow && observations.every(observe => observe());
   try { session = await runWithStorageSession({ roots: [options.scratchRoot], coordinationRoot: path.join(state, 'storage-access'),
     authorizedRoots: [options.scratchRoot, state], scope: 'windows-compiler-capability' },
-  () => verifyWindowsCompilerCapabilityOwned(report, options), { settlement: ({ error, resourceId }) => {
-    const settled = !error?.cacheOwnershipPending || error.cacheOwnershipReleased?.() === true;
+  async held => {
+    admitted = held;
+    try { return await verifyWindowsCompilerCapabilityOwned(report, options); }
+    catch (value) { const error = asError(value); remember(error); throw error; }
+  }, { settlement: ({ resourceId }) => {
+    const settled = resourcesSettled();
     return { resourceId, settled, pending: !settled };
-  } }); } catch (error) {
-    if (error.cacheOwnershipPending && error.storageSession) {
-      const held = error.storageSession;
-      Object.defineProperty(error, 'windowsCapabilitySession', { configurable: true, value: {
-        resourceId: held.resourceId, releaseAfterClosure: () => {
-          if (error.cacheOwnershipReleased?.() !== true) throw new Error('Actual Windows capability child/tree closure remains pending.');
-          return held.releaseAfterSettlement({ resourceId: held.resourceId, settled: true, pending: false });
+  } }); } catch (value) {
+    const error = asError(value);
+    let held, settlementFailure;
+    try { held = error.storageSession; settlementFailure = error.storageSettlementError; }
+    catch (inspectionError) { throw addStorageFailureContext(error, { windowsCapabilityContextError: asError(inspectionError) }, inspectionError); }
+    if (!held || !(held === admitted || isStorageSessionReleaseFailure(error, held)
+      || isStorageSessionReleaseFailure(settlementFailure, held))) throw error;
+    let released = false, releasing = null;
+    const settled = () => released && resourcesSettled();
+    const retainFailure = secondary => {
+      const pending = Object.assign(new Error('Windows capability resource or metadata release remains pending.', { cause: secondary || error }), {
+        cacheOwnershipPending: true, cacheOwnershipReleased: settled
+      });
+      return addStorageFailureContext(error, { windowsCapabilitySession: recovery,
+        ...(secondary ? { windowsCapabilityReleaseError: secondary } : {}) }, pending,
+      { nonEnumerable: ['windowsCapabilitySession'] });
+    };
+    const recovery = Object.freeze({ resourceId: held.resourceId, releaseAfterClosure: async () => {
+      if (!releasing) releasing = (async () => {
+        if (!resourcesSettled()) throw new Error('Actual Windows capability child/tree closure remains pending.');
+        if (!released) {
+          if (held.releaseAfterSettlement({ resourceId: held.resourceId, settled: true, pending: false }) !== true) {
+            throw new Error('Windows capability storage metadata removal was not confirmed.');
+          }
+          released = true;
         }
-      } });
-    }
-    throw error;
+        return true;
+      })().finally(() => { releasing = null; });
+      try { return await releasing; }
+      catch (failure) {
+        const secondary = asError(failure);
+        if (!isStorageSessionReleaseFailure(secondary, held)) remember(secondary);
+        throw retainFailure(secondary);
+      }
+    } });
+    capabilitySessions.add(recovery);
+    throw retainFailure();
   }
   return session.value;
 };

@@ -8,10 +8,16 @@ import { assertNoSymlinkPath, readVerifiedContainedFile } from '../../src/shared
 import { acquireFileLock, releaseFileLockOrThrow } from '../../src/shared/locks/file-lock.js';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { WINDOWS_PREREQUISITE_CATALOG } from './windows-prerequisite-catalog.js';
-import { verifyWindowsCompilerCapability } from './windows-capability.js';
+import { verifyWindowsCompilerCapability, captureWindowsResourceObservation, isWindowsCapabilitySession } from './windows-capability.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const identity = value => hash(stableStringify(value));
+const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+const failureReason = error => {
+  for (const key of ['code', 'message']) { try { const value = error[key]; if (typeof value === 'string') return value; } catch {} }
+  return 'Prerequisite input inspection failed.';
+};
 const base = path.dirname(fileURLToPath(import.meta.url));
 const ownSources = ['windows-prerequisite-plan.js', 'windows-prerequisite-catalog.js', 'windows-capability.js', 'preflight.js'];
 const signatureScript = '$ErrorActionPreference="Stop"; $p=$env:PAIROFCLEATS_PREREQUISITE_FILE; $s=Get-AuthenticodeSignature -LiteralPath $p; $v=(Get-Item -LiteralPath $p).VersionInfo; @{status=[string]$s.Status;subject=$s.SignerCertificate.Subject;thumbprint=$s.SignerCertificate.Thumbprint;issuer=$s.SignerCertificate.Issuer;productVersion=$v.ProductVersion;fileVersion=$v.FileVersion} | ConvertTo-Json -Compress';
@@ -84,9 +90,10 @@ export const createWindowsPrerequisitePlan = async (input, dependencies = {}) =>
   const blockers = [];
   let installer = null;
   try { installer = await (dependencies.inspectInstaller || inspectWindowsPrerequisiteInstaller)(request.bootstrapperPath, { env, signal, spawn }); }
-  catch (error) {
-    if (error.cacheOwnershipPending || signal?.aborted) throw error;
-    blockers.push({ code: 'installer-acquisition-or-inspection-required', reason: error.code || error.message, source: catalog.url });
+  catch (value) {
+    const error = asError(value), observe = captureWindowsResourceObservation(error);
+    if (observe && !observe() || signal?.aborted) throw error;
+    blockers.push({ code: 'installer-acquisition-or-inspection-required', reason: failureReason(error), source: catalog.url });
   }
   signal?.throwIfAborted();
   if (installer && (installer.sha256 !== catalog.sha256 || (catalog.bytes !== null && installer.bytes !== catalog.bytes)
@@ -135,7 +142,44 @@ export const applyWindowsPrerequisitePlan = async (approved, { approveSystemChan
     metadata: { scope: 'windows-prerequisite-apply', planId: current.planId } });
   if (!lock) throw new Error('Another prerequisite apply owns this state root.');
   let pending = false;
-  let primary = null;
+  let primary = null, released = false, releasing = null, overflow = false;
+  const observations = [], observed = new WeakSet(), capabilities = new Set();
+  const remember = value => {
+    const error = asError(value);
+    if (observed.has(error)) return error;
+    observed.add(error);
+    const observe = captureWindowsResourceObservation(error);
+    if (observe) { if (observations.length < 128) observations.push(observe); else overflow = true; }
+    try { const capability = error.windowsCapabilitySession; if (isWindowsCapabilitySession(capability)) capabilities.add(capability); }
+    catch (inspectionError) {
+      overflow = true;
+      return addStorageFailureContext(error, { prerequisiteContextError: asError(inspectionError) }, inspectionError);
+    }
+    return error;
+  };
+  const resourcesSettled = () => !overflow && observations.every(observe => observe());
+  const releaseLock = async () => {
+    if (!released) { await releaseFileLockOrThrow(lock); released = true; }
+    return true;
+  };
+  const retainFailure = (value, secondary = null) => {
+    const error = asError(value);
+    const retained = Object.assign(new AggregateError(secondary ? [secondary] : [], 'Prerequisite resource or apply-lock release remains pending.',
+      { cause: secondary || error }), { cacheOwnershipPending: true, cacheOwnershipReleased: () => released && resourcesSettled() });
+    return addStorageFailureContext(error, { prerequisiteApplySession: recovery,
+      ...(secondary ? { prerequisiteReleaseError: secondary } : {}) }, retained, { nonEnumerable: ['prerequisiteApplySession'] });
+  };
+  const recovery = Object.freeze({ planId: current.planId, releaseAfterClosure: async () => {
+    if (!releasing) releasing = (async () => {
+      for (const capability of capabilities) {
+        if (await capability.releaseAfterClosure() !== true) throw new Error('Actual prerequisite capability owner did not confirm release.');
+      }
+      if (!resourcesSettled()) throw new Error('Actual prerequisite child/tree closure remains pending.');
+      return releaseLock();
+    })().finally(() => { releasing = null; });
+    try { return await releasing; }
+    catch (value) { const error = remember(value); throw retainFailure(primary || error, error); }
+  } });
   try {
     signal?.throwIfAborted();
     // Recheck actual pinned bytes after exclusion. Never execute saved arbitrary argv.
@@ -175,22 +219,16 @@ export const applyWindowsPrerequisitePlan = async (approved, { approveSystemChan
     }
     await fs.writeFile(path.join(stateRoot, current.planId + '-' + outcome.attemptId + '-result.json'), JSON.stringify(outcome, null, 2), { flag: 'wx' });
     return outcome;
-  } catch (error) {
-    primary = error;
-    pending = error.cacheOwnershipPending === true;
-    error.prerequisiteOutcome = { planId: current.planId, state: pending ? 'teardown-pending' : signal?.aborted ? 'cancelled' : 'failed', systemChanged: 'unknown', readinessRecorded: false };
-    if (pending) Object.defineProperty(error, 'prerequisiteApplySession', { configurable: true, value: {
-      planId: current.planId, releaseAfterClosure: async () => {
-        if (error.cacheOwnershipReleased?.() !== true) throw new Error('Actual prerequisite child/tree closure remains pending.');
-        if (error.windowsCapabilitySession) await error.windowsCapabilitySession.releaseAfterClosure();
-        await releaseFileLockOrThrow(lock); return true;
-      }
-    } });
-    throw error;
+  } catch (value) {
+    const error = remember(value);
+    pending = !resourcesSettled();
+    primary = addStorageFailureContext(error, { prerequisiteOutcome: { planId: current.planId,
+      state: pending ? 'teardown-pending' : signal?.aborted ? 'cancelled' : 'failed', systemChanged: 'unknown', readinessRecorded: false } });
+    throw pending ? retainFailure(primary) : primary;
   } finally {
     if (!pending) {
-      try { await releaseFileLockOrThrow(lock); }
-      catch (error) { if (primary) primary.prerequisiteReleaseError = error; else throw error; }
+      try { await releaseLock(); }
+      catch (value) { const error = asError(value); throw retainFailure(primary || error, error); }
     }
   }
 };
