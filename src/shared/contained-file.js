@@ -1,3 +1,4 @@
+import { withSchedulerCpuSuspended } from './concurrency/scheduler-task-scope.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -70,8 +71,8 @@ export const openContainedFileSync = (root, target, { expectedFileIdentity = nul
 export const openContainedFile = async (root, target, { expectedFileIdentity = null } = {}) => {
   const identity = normalizeFileIdentity(expectedFileIdentity);
   assertNoSymlinkPath(root, target);
-  const handle = await fsPromises.open(target, READ_FLAGS);
-  try { verifyHandle(handle.fd, root, target, identity); } catch (error) { await handle.close(); throw error; }
+  const handle = await withSchedulerCpuSuspended(() => fsPromises.open(target, READ_FLAGS));
+  try { verifyHandle(handle.fd, root, target, identity); } catch (error) { await withSchedulerCpuSuspended(() => handle.close()); throw error; }
   return handle;
 };
 
@@ -136,18 +137,18 @@ export const readVerifiedContainedFile = async (root, target, inputOptions = {})
   throwIfAborted(options.signal);
   const handle = await openContainedFile(root, target, options);
   try {
-    const stat = await handle.stat();
+    const stat = await withSchedulerCpuSuspended(() => handle.stat());
     admitRead(stat, options);
     const buffer = Buffer.alloc(stat.size);
     let offset = 0;
     while (offset < buffer.length) {
       throwIfAborted(options.signal);
-      const { bytesRead } = await handle.read(buffer, offset, Math.min(65536, buffer.length - offset), offset);
+      const { bytesRead } = await withSchedulerCpuSuspended(() => handle.read(buffer, offset, Math.min(65536, buffer.length - offset), offset));
       if (!bytesRead) break;
       offset += bytesRead;
     }
-    return finishRead(handle.fd, root, target, stat, await handle.stat(), buffer, offset, options);
-  } finally { await handle.close(); }
+    return finishRead(handle.fd, root, target, stat, await withSchedulerCpuSuspended(() => handle.stat()), buffer, offset, options);
+  } finally { await withSchedulerCpuSuspended(() => handle.close()); }
 };
 
 export const readVerifiedContainedFileSync = (root, target, inputOptions = {}) => {

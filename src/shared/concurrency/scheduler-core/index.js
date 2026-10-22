@@ -132,6 +132,9 @@ export function createBuildScheduler(input = {}) {
 
   return {
     schedule: dispatch.schedule,
+    // Internal optional-child admission: Promise when reserved now, null when
+    // busy; it never queues behind a parent's retained byte/memory reservation.
+    scheduleIfAvailable: dispatch.scheduleIfAvailable,
     stats,
     shutdown: shutdownController.shutdown,
     setLimits: shutdownController.setLimits,

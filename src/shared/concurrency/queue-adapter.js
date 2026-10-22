@@ -111,6 +111,9 @@ export function createSchedulerQueueAdapter({
       } catch (error) { releaseCapacity(); throw error; }
     }
     const baseTokens = { ...(tokens || { cpu: 1 }) };
+    // Internal nested compute requests may add a CPU charge; callers cannot
+    // lower the queue's existing CPU, I/O or memory envelope.
+    if (Number.isSafeInteger(options.cpu) && options.cpu > 0) baseTokens.cpu = Math.max(baseTokens.cpu || 0, options.cpu);
     const tokenRequest = {
       ...baseTokens,
       ...(bytes > 0 ? { bytes } : {}),

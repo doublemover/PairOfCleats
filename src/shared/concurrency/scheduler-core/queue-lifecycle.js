@@ -44,6 +44,8 @@ export function createSchedulerQueueLifecycle({ config }) {
       pendingBytes: 0,
       inFlightBytes: 0,
       running: 0,
+      suspendedCpu: 0,
+      resumeTarget: null,
       runningSince: new Map(),
       stats: {
         scheduled: 0,
@@ -72,7 +74,7 @@ export function createSchedulerQueueLifecycle({ config }) {
   const applyQueueConfig = (queue, newConfig) => {
     if (!queue || !newConfig || typeof newConfig !== 'object') return;
     const previousSurface = queue.surface;
-    const runningBeforeSurfaceChange = Math.max(0, Number(queue.running) || 0);
+    const runningBeforeSurfaceChange = Math.max(0, (Number(queue.running) || 0) - (Number(queue.suspendedCpu) || 0));
     if (Number.isFinite(Number(newConfig.priority))) {
       queue.priority = Number(newConfig.priority);
     }

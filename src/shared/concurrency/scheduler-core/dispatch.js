@@ -1,4 +1,5 @@
-import { createAbortError, isAbortSignal } from '../../abort.js';
+import { runWithSchedulerTaskLease, currentSchedulerTaskLease } from '../scheduler-task-scope.js';
+import { createAbortError, isAbortSignal, coerceAbortSignal } from '../../abort.js';
 import { appendBounded } from '../scheduler-telemetry.js';
 
 export function createSchedulerDispatch({
@@ -11,7 +12,7 @@ export function createSchedulerDispatch({
   const blockedScans = new WeakMap();
   const admissionIdentity = (queue, pressure) => JSON.stringify([
     state.tokens.cpu.used,state.tokens.cpu.total,state.tokens.io.used,state.tokens.io.total,
-    state.tokens.mem.used,state.tokens.mem.total,queue.running,queue.concurrency,
+    state.tokens.mem.used,state.tokens.mem.total,queue.running,queue.suspendedCpu,queue.resumeTarget?.running,queue.resumeTarget?.suspendedCpu,queue.resumeTarget?.concurrency,queue.concurrency,queue.maxPending,
     queue.inFlightBytes,queue.maxInFlightBytes,state.globalInFlightBytes,config.globalMaxInFlightBytes,
     config.adaptiveSurfaceControllersEnabled,queue.surface,
     config.adaptiveSurfaceStates.get(queue.surface)?.currentConcurrency,
@@ -21,7 +22,13 @@ export function createSchedulerDispatch({
   ]);
   const admissionBlockReason = (queue, req, backpressureState = null) => {
     const normalized = config.normalizeRequest(req);
-    if (queue?.concurrency && queue.running >= queue.concurrency) return 'queue-concurrency';
+    const computeQueue = queue?.resumeTarget || queue;
+    const active = Math.max(0, (computeQueue?.running || 0) - (computeQueue?.suspendedCpu || 0));
+    if (computeQueue?.concurrency && active >= computeQueue.concurrency) return 'queue-concurrency';
+    if (!queue?.resumeTarget && queue?.suspendedCpu > 0) {
+      const retainedLimit = (queue.concurrency || state.tokens.cpu.total) + (queue.maxPending || state.tokens.cpu.total);
+      if (queue.running >= retainedLimit) return 'retained-file-window';
+    }
     const resolvedBackpressure = backpressureState || queueLifecycle.evaluateWriteBackpressure();
     const producerBlocked = resolvedBackpressure.active
       && queue
@@ -94,6 +101,8 @@ export function createSchedulerDispatch({
       oldestRunningMs = Math.max(oldestRunningMs, at - startedAt);
     }
     return { runnable, blocked: queue.pending.length - runnable, blockedBy,
+      retainedRunning: queue.running, suspendedCpu: queue.suspendedCpu || 0,
+      activeComputeRunning: Math.max(0, queue.running - (queue.suspendedCpu || 0)),
       oldestRunnableWaitMs: Math.max(0, oldestRunnableWaitMs), oldestRunningMs: Math.max(0, oldestRunningMs) };
   };
 
@@ -167,6 +176,129 @@ export function createSchedulerDispatch({
     return picked ? { queue: picked.queue, starved: false, index: picked.index } : null;
   };
 
+  const createTaskLease = (queue, used, signal) => {
+    const cpu = used.cpu;
+    const lease = { queue, used, signal, active: true, surfaceActive: true, suspended: false, depth: 0, resuming: false,
+      resumePromise: null, resumeResolve: null, resumeReject: null };
+    const enqueueResume = () => {
+      if (lease.resuming || !lease.active || !lease.suspended || lease.depth) return;
+      lease.resuming = true;
+      const resolveResume = lease.resumeResolve, rejectResume = lease.resumeReject;
+      const name = '@resume:' + queue.name;
+      const resumeQueue = queueLifecycle.ensureQueue(name);
+      resumeQueue.resumeTarget = queue; resumeQueue.surface = queue.surface;
+      resumeQueue.priority = queue.priority; resumeQueue.weight = queue.weight;
+      // The original task retains file/bytes/memory ownership. This entry owns
+      // only compute admission, then transfers that exact reservation back.
+      schedule(name, { cpu, signal: coerceAbortSignal(null) }, () => {
+        if (!lease.active) throw new Error('Scheduler task retired before CPU reacquisition.');
+        if (lease.depth) return false;
+        const admitted = currentSchedulerTaskLease();
+        if (!admitted || admitted.used.cpu !== cpu) throw new Error('Invalid scheduler CPU permit transfer.');
+        admitted.used.cpu = 0; admitted.surfaceActive = false;
+        if (resumeQueue.surface !== queue.surface) {
+          queueLifecycle.bumpSurfaceRunning(resumeQueue.surface, -1); queueLifecycle.bumpSurfaceRunning(queue.surface, 1);
+        }
+        lease.used.cpu = cpu; lease.surfaceActive = true;
+        queue.suspendedCpu = Math.max(0, queue.suspendedCpu - 1);
+        lease.suspended = false;
+        return true;
+      }).then(transferred => {
+        lease.resuming = false;
+        if (transferred) resolveResume();
+        enqueueResume();
+      }, error => { lease.resuming = false; rejectResume(error); });
+    };
+    lease.suspendCpu = async operation => {
+      if (!lease.active) throw new Error('Scheduler task retired before nested wait.');
+      if (!cpu) return operation();
+      lease.depth++;
+      if (!lease.suspended) {
+        lease.suspended = true; lease.surfaceActive = false;
+        lease.used.cpu = 0; state.tokens.cpu.used = Math.max(0, state.tokens.cpu.used - cpu);
+        queue.suspendedCpu += 1; queueLifecycle.bumpSurfaceRunning(queue.surface, -1);
+        lease.resumePromise = new Promise((resolve, reject) => { lease.resumeResolve = resolve; lease.resumeReject = reject; });
+        lease.resumePromise.catch(() => {});
+        pump();
+      }
+      let value, primary = null, failed = false;
+      try { value = await operation(); } catch (error) { primary = error; failed = true; }
+      lease.depth--; enqueueResume();
+      try { await lease.resumePromise; }
+      catch (error) {
+        if (failed) {
+          try { primary.cpuReacquisitionError = error; } catch {}
+          throw primary;
+        }
+        throw error;
+      }
+      if (failed) throw primary;
+      return value;
+    };
+    return lease;
+  };
+
+  const startQueuedTask = (queue, index, starved = false) => {
+    const next = queue.pending[index];
+    if (!next) return;
+    queue.pending.splice(index, 1);
+    queue.pendingBytes = Math.max(0, config.normalizeByteCount(queue.pendingBytes) - config.normalizeByteCount(next.bytes));
+    if (typeof next.detachAbort === 'function') {
+      try {
+        next.detachAbort();
+      } catch {}
+    }
+    queue.running += 1;
+    queueLifecycle.bumpSurfaceRunning(queue.surface, 1);
+    queue.stats.started += 1;
+    config.counters.started += 1;
+    if (starved) {
+      queue.stats.starvation += 1;
+      config.counters.starvation += 1;
+    }
+    queueLifecycle.recordQueueWaitTime(queue, config.nowMs() - next.enqueuedAt);
+    const used = reserve(queue, next.tokens);
+    const lease = createTaskLease(queue, used, next.signal);
+    const startedAt = config.nowMs();
+    queue.runningSince.set(next, startedAt);
+    const done = Promise.resolve()
+      .then(() => {
+        if (state.shuttingDown) throw new Error('scheduler is shut down');
+        if (next.signal?.aborted) throw createAbortError();
+        return runWithSchedulerTaskLease(lease, next.fn);
+      })
+      .then(
+        (value) => {
+          queue.stats.completed += 1;
+          config.counters.completed += 1;
+          next.resolve(value);
+        },
+        (err) => {
+          queue.stats.failed += 1;
+          config.counters.failed += 1;
+          next.reject(err);
+        }
+      )
+      .finally(() => {
+        appendBounded(queue.stats.runSamples, Math.max(0, config.nowMs() - startedAt), config.WAIT_TIME_SAMPLE_LIMIT);
+        queue.runningSince.delete(next);
+        queue.running -= 1;
+        lease.active = false;
+        if (lease.suspended) {
+          queue.suspendedCpu = Math.max(0, queue.suspendedCpu - 1);
+          const retired = new Error('Scheduler task retired with an unawaited suspended operation.');
+          retired.code = 'ERR_SCHEDULER_TASK_RETIRED';
+          lease.resumeReject?.(retired);
+        }
+        if (lease.surfaceActive) queueLifecycle.bumpSurfaceRunning(queue.surface, -1);
+        release(queue, used);
+        state.runningTasks.delete(done);
+        pump();
+      });
+    state.runningTasks.add(done);
+    void done;
+  };
+
   const pump = () => {
     if (state.shuttingDown) return;
     while (true) {
@@ -177,58 +309,12 @@ export function createSchedulerDispatch({
       const { queue, starved, index } = pick;
       const next = queue.pending[index];
       if (!next || !canStart(queue, next.tokens, backpressureState)) return;
-      queue.pending.splice(index, 1);
-      queue.pendingBytes = Math.max(0, config.normalizeByteCount(queue.pendingBytes) - config.normalizeByteCount(next.bytes));
-      if (typeof next.detachAbort === 'function') {
-        try {
-          next.detachAbort();
-        } catch {}
-      }
-      queue.running += 1;
-      queueLifecycle.bumpSurfaceRunning(queue.surface, 1);
-      queue.stats.started += 1;
-      config.counters.started += 1;
-      if (starved) {
-        queue.stats.starvation += 1;
-        config.counters.starvation += 1;
-      }
-      queueLifecycle.recordQueueWaitTime(queue, config.nowMs() - next.enqueuedAt);
-      const used = reserve(queue, next.tokens);
-      const startedAt = config.nowMs();
-      queue.runningSince.set(next, startedAt);
-      const done = Promise.resolve()
-        .then(() => {
-          if (state.shuttingDown) throw new Error('scheduler is shut down');
-          if (next.signal?.aborted) throw createAbortError();
-          return next.fn();
-        })
-        .then(
-          (value) => {
-            queue.stats.completed += 1;
-            config.counters.completed += 1;
-            next.resolve(value);
-          },
-          (err) => {
-            queue.stats.failed += 1;
-            config.counters.failed += 1;
-            next.reject(err);
-          }
-        )
-        .finally(() => {
-          appendBounded(queue.stats.runSamples, Math.max(0, config.nowMs() - startedAt), config.WAIT_TIME_SAMPLE_LIMIT);
-          queue.runningSince.delete(next);
-          queue.running -= 1;
-          queueLifecycle.bumpSurfaceRunning(queue.surface, -1);
-          release(queue, used);
-          state.runningTasks.delete(done);
-          pump();
-        });
-      state.runningTasks.add(done);
-      void done;
+      startQueuedTask(queue, index, starved);
     }
   };
 
-  const schedule = (queueName, tokensReq = { cpu: 1 }, fn) => {
+
+  const enqueue = (queueName, tokensReq = { cpu: 1 }, fn, ifAvailable = false) => {
     if (typeof tokensReq === 'function') {
       fn = tokensReq;
       tokensReq = { cpu: 1 };
@@ -272,7 +358,14 @@ export function createSchedulerDispatch({
     }
     const normalizedReq = config.normalizeRequest(tokensReq || {});
     const queue = queueLifecycle.ensureQueue(queueName);
-    if (queue.maxPending && queue.pending.length >= queue.maxPending) {
+    // An internal nested operation must not wait for bytes/memory held by its
+    // own parent. Dispatch older runnable work first, then either reserve now
+    // or decline without queueing. The caller keeps its ordinary inline path.
+    if (ifAvailable) {
+      pump();
+      if (queue.pending.length || !canStart(queue, normalizedReq)) return null;
+    }
+    if (!queue.resumeTarget && queue.maxPending && queue.pending.length >= queue.maxPending) {
       queue.stats.rejected += 1;
       queue.stats.rejectedMaxPending += 1;
       queue.stats.scheduled += 1;
@@ -337,13 +430,16 @@ export function createSchedulerDispatch({
       }
       queue.pending.push(pendingEntry);
       queue.pendingBytes = config.normalizeByteCount(queue.pendingBytes) + normalizedReq.bytes;
-      adaptiveController.maybeAdaptTokens();
+      if (!ifAvailable) adaptiveController.maybeAdaptTokens();
       queue.stats.scheduled += 1;
       config.counters.scheduled += 1;
       captureTelemetryIfDue('schedule');
-      pump();
+      if (ifAvailable) startQueuedTask(queue, queue.pending.indexOf(pendingEntry));
+      else pump();
     });
   };
+  const schedule = (queueName, tokensReq, fn) => enqueue(queueName, tokensReq, fn);
+  const scheduleIfAvailable = (queueName, tokensReq, fn) => enqueue(queueName, tokensReq, fn, true);
 
   return {
     canStart,
@@ -353,6 +449,7 @@ export function createSchedulerDispatch({
     findStartableIndex,
     pickNextQueue,
     pump,
-    schedule
+    schedule,
+    scheduleIfAvailable
   };
 }
