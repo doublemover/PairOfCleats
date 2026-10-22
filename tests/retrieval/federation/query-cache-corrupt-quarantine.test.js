@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { loadFederatedQueryCache } from '../../../src/retrieval/federation/query-cache.js';
+import { loadFederatedQueryCache, FEDERATED_QUERY_CACHE_SCHEMA_VERSION } from '../../../src/retrieval/federation/query-cache.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-fed-cache-corrupt-'));
 const cachePath = path.join(tempRoot, 'queryCache.json');
@@ -18,7 +18,7 @@ const cache = await loadFederatedQueryCache({
   health
 });
 
-assert.equal(cache?.schemaVersion, 1, 'expected empty cache schema payload after parse failure');
+assert.equal(cache?.schemaVersion, FEDERATED_QUERY_CACHE_SCHEMA_VERSION, 'expected empty cache schema payload after parse failure');
 assert.equal(
   Object.keys(cache?.entries || {}).length,
   0,

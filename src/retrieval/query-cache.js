@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import { normalizePositiveInt } from '../shared/limits.js';
-import { sortEntriesByNewest, sortAndTrimEntriesByNewest } from './cache-trim.js';
+import { sortAndTrimEntriesByNewest } from './cache-trim.js';
+import { TimestampRetention } from './timestamp-retention.js';
 import { loadBoundedJsonFileSync } from '../shared/cache/json-file.js';
+import { applyQueryCacheTouches, loadQueryCacheTouches } from './query-cache-touches.js';
 
 const QUERY_CACHE_VERSION = 1;
 const queryCacheDiskCache = new Map();
@@ -24,8 +26,8 @@ const trimPathCacheEntries = (cacheMap, maxEntries = QUERY_CACHE_MAX_PATH_ENTRIE
 
 const readCacheFileSignature = (cachePath) => {
   try {
-    const stat = fs.statSync(cachePath);
-    return `${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}:${stat.ino || 0}:${stat.dev || 0}`;
+    const stat = fs.statSync(cachePath, { bigint: true });
+    return [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].map(String).join(':');
   } catch {
     return null;
   }
@@ -98,7 +100,7 @@ const ensureHotCache = (cachePath, maxEntries = HOT_CACHE_MAX_ENTRIES_DEFAULT) =
   let state = queryCacheHotEntries.get(pathKey);
   if (!state) {
     state = {
-      entries: new Map(),
+      entries: new TimestampRetention(),
       maxEntries: normalizeHotCacheMaxEntries(maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT)
     };
     queryCacheHotEntries.set(pathKey, state);
@@ -157,14 +159,10 @@ const quarantineCorruptCacheFileSync = (cachePath, onWarning) => {
 };
 
 const trimHotCache = (state) => {
-  if (!state?.entries || !(state.entries instanceof Map)) return;
+  if (!(state?.entries instanceof TimestampRetention)) return;
   const maxEntries = normalizeHotCacheMaxEntries(state.maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT);
   if (state.entries.size <= maxEntries) return;
-  const sorted = sortEntriesByNewest(Array.from(state.entries.entries()), (entry) => entry?.[1]?.ts);
-  // This independent snapshot is consumed synchronously by Map construction;
-  // cap it without a second prefix array. No borrowed or retained array is cut.
-  sorted.length = maxEntries;
-  state.entries = new Map(sorted);
+  state.entries.trim(maxEntries);
 };
 
 const rememberHotCacheEntry = ({
@@ -193,7 +191,7 @@ const getHotCacheEntry = ({
   const pathKey = resolveCachePathKey(cachePath);
   if (!pathKey) return null;
   const state = queryCacheHotEntries.get(pathKey);
-  if (!state?.entries || !(state.entries instanceof Map)) return null;
+  if (!(state?.entries instanceof TimestampRetention)) return null;
   const entry = state.entries.get(lookupKey) || null;
   if (!entry) return null;
   const freshnessMs = Number.isFinite(Number(memoryFreshMs))
@@ -209,13 +207,16 @@ const getHotCacheEntry = ({
 const prewarmHotCache = ({
   cachePath,
   entries,
+  generation,
+  hotMaxEntries = null,
   maxEntries = HOT_CACHE_MAX_ENTRIES_DEFAULT
 }) => {
   const list = Array.isArray(entries) ? entries : [];
   if (!list.length) return;
-  const state = ensureHotCache(cachePath, maxEntries);
+  const state = ensureHotCache(cachePath, hotMaxEntries);
   if (!state) return;
-  state.entries = new Map();
+  const policy = normalizeHotCacheMaxEntries(maxEntries, state.maxEntries);
+  if (state.prewarmGeneration === generation && state.prewarmLimit === policy) { trimHotCache(state); return; }
   const sorted = sortAndTrimEntriesByNewest(
     list.filter((entry) => entry?.key && entry?.signature),
     {
@@ -228,9 +229,12 @@ const prewarmHotCache = ({
   for (const entry of sorted) {
     const lookupKey = normalizeLookupKey(entry.key, entry.signature);
     if (!lookupKey) continue;
-    state.entries.set(lookupKey, entry);
+    const resident = state.entries.get(lookupKey);
+    if (!resident || Number(entry.ts || 0) > Number(resident.ts || 0)) state.entries.set(lookupKey, entry);
   }
   trimHotCache(state);
+  state.prewarmGeneration = generation;
+  state.prewarmLimit = policy;
 };
 
 /**
@@ -254,10 +258,13 @@ export function loadQueryCache(cachePath, options = {}) {
   }
   const cached = queryCacheDiskCache.get(cachePath);
   if (cached?.signature === signature && cached?.value) {
+    applyQueryCacheTouches(cached.value, loadQueryCacheTouches(cachePath));
     if (options.prewarm === true) {
       prewarmHotCache({
         cachePath,
         entries: cached.value.entries,
+        generation: signature,
+        hotMaxEntries: options.maxHotEntries,
         maxEntries: options.prewarmMaxEntries
       });
     }
@@ -272,6 +279,7 @@ export function loadQueryCache(cachePath, options = {}) {
     && Number(data.version) === QUERY_CACHE_VERSION
     && Array.isArray(data.entries)
   ) {
+    applyQueryCacheTouches(data, loadQueryCacheTouches(cachePath));
     queryCacheDiskCache.set(cachePath, { signature, value: data });
     trimPathCacheEntries(queryCacheDiskCache);
     rebuildLookup(data);
@@ -279,6 +287,8 @@ export function loadQueryCache(cachePath, options = {}) {
       prewarmHotCache({
         cachePath,
         entries: data.entries,
+        generation: signature,
+        hotMaxEntries: options.maxHotEntries,
         maxEntries: options.prewarmMaxEntries
       });
     }

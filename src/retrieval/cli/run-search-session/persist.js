@@ -1,6 +1,8 @@
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { withFileLock } from '../../../shared/locks/file-lock.js';
 import { loadBoundedJsonFile } from '../../../shared/cache/json-file.js';
+import { randomUUID } from 'node:crypto';
+import { applyQueryCacheTouches, loadQueryCacheTouches, clearQueryCacheTouchesUnlocked } from '../../query-cache-touches.js';
 import {
   pruneQueryCache,
   rememberQueryCacheEntry
@@ -56,6 +58,7 @@ export async function persistSearchSession({
     }
     const entry = {
       key: cacheKey,
+      payloadId: randomUUID(),
       ts: Date.now(),
       ttlMs: queryCacheTtlMs,
       signature: cacheSignature,
@@ -81,6 +84,7 @@ export async function persistSearchSession({
     try {
       await withFileLock({ lockPath: `${queryCachePath}.lock`, waitMs: 5000, timeoutBehavior: 'throw' }, async () => {
         const { data: disk } = await loadBoundedJsonFile(queryCachePath, { maxBytes: 8 * 1024 * 1024 });
+        if (disk?.version === 1) applyQueryCacheTouches(disk, loadQueryCacheTouches(queryCachePath));
         const byKey = new Map();
         for (const entry of [...(disk?.version === 1 && Array.isArray(disk.entries) ? disk.entries : []), ...nextCacheData.entries]) {
           if (!entry?.key) continue;
@@ -88,8 +92,10 @@ export async function persistSearchSession({
           if (!old || Number(entry.ts || 0) >= Number(old.ts || 0)) byKey.set(entry.key, entry);
         }
         nextCacheData = { version: 1, entries: [...byKey.values()] };
+        for (const entry of nextCacheData.entries) entry.payloadId ||= randomUUID();
         pruneQueryCache(nextCacheData, queryCacheMaxEntries);
         await atomicWriteJson(queryCachePath, nextCacheData, { spaces: 2 });
+        await clearQueryCacheTouchesUnlocked(queryCachePath);
       });
     } catch {}
   }
