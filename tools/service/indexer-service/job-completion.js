@@ -163,8 +163,7 @@ export const createJobCompletion = ({
     }
     if (normalized.status === 'failed' && maxRetries > attempts) {
       const nextAttempts = attempts + 1;
-      metrics.retried += 1;
-      await completeJob(
+      const completed = await completeJob(
         queueDir,
         job.id,
         'queued',
@@ -187,15 +186,11 @@ export const createJobCompletion = ({
           expectedLeaseVersion: job?.lease?.version ?? null
         }
       );
+      if (completed !== null) metrics.retried += 1;
       return;
     }
-    if (normalized.status === 'done') {
-      metrics.succeeded += 1;
-    } else {
-      metrics.failed += 1;
-    }
     if (normalized.status === 'failed') {
-      await quarantineJob(
+      const quarantined = await quarantineJob(
         queueDir,
         job.id,
         'retry-exhausted',
@@ -217,9 +212,10 @@ export const createJobCompletion = ({
           expectedLeaseVersion: job?.lease?.version ?? null
         }
       );
+      if (quarantined !== null) metrics.failed += 1;
       return;
     }
-    await completeJob(
+    const completed = await completeJob(
       queueDir,
       job.id,
       normalized.status,
@@ -240,6 +236,7 @@ export const createJobCompletion = ({
         expectedLeaseVersion: job?.lease?.version ?? null
       }
     );
+    if (completed !== null) metrics.succeeded += 1;
   };
 
   return {

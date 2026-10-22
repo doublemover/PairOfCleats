@@ -21,3 +21,10 @@ are unrun. This does not repair resource-cleanup failure recovery, prove native
 closure, or change the separate cancellation and signal policies. The queue
 worker still needs a durable recovery design for failed lifecycle cleanup; a
 logged close error and removal of an active job are not settlement evidence.
+
+Completion metrics also wait for the existing queue persistence owner to fulfill.
+An in-flight or rejected write cannot increment success, retry or quarantine
+counts. A fulfilled `null` means that owner found no matching job and made no
+transition; existing void-fulfilling callback compatibility remains. Original
+lease/transition failures propagate unchanged. Authored controlled-promise cases
+cover all three outcomes, falsey/frozen rejection and missing jobs; they are unrun.
