@@ -4,10 +4,13 @@ import { explainStorageLayout, inspectStorageLayout, diagnoseStorageLayout } fro
 import { planCacheRootCleanup, applyStorageCleanupPlan } from '../../../src/shared/storage/cleanup.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
+import { readStorageLocator } from '../../../src/shared/storage/locator-read.js';
+import { applyStorageLocatorSelections } from '../../../src/shared/storage/selected-layout.js';
 
 export const NATIVE_STORAGE_COMMANDS = new Set(['storage.list', 'storage.explain', 'storage.inspect',
   'storage.doctor', 'storage.cleanup-plan', 'storage.cleanup-apply']);
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
+const layoutIdentity = layout => digest({ home: layout.home, descriptors: layout.descriptors, locator: layout.locator });
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
 
 /** Retain the canonical plan privately; serialized input never grants authority.
@@ -17,9 +20,12 @@ export const prepareTuiStorage = async ({ commandId, values, env, requireScope, 
   if (!NATIVE_STORAGE_COMMANDS.has(commandId)) fail('ERR_TUI_STORAGE_COMMAND', 'Unsupported native storage action.');
   requireScope(scope.id);
   throwIfAborted(signal);
-  const resolve = () => resolveStorageLayout({ env, cwd: scope.configRoot });
+  const resolve = () => {
+    const layout = resolveStorageLayout({ env, cwd: scope.configRoot });
+    return applyStorageLocatorSelections(layout, readStorageLocator(layout.home.path));
+  };
   const layout = resolve();
-  const identity = digest({ home: layout.home, descriptors: layout.descriptors });
+  const identity = layoutIdentity(layout);
   const limits = { maxEntries: values['max-entries'] ?? 10000,
     maxDurationMs: values['max-duration-ms'] ?? 5000, signal };
   const cacheRoot = layout.descriptors.cache.path;
@@ -43,7 +49,7 @@ export const prepareTuiStorage = async ({ commandId, values, env, requireScope, 
     throwIfAborted(runSignal);
     requireScope(scope.id);
     const current = resolve();
-    if (digest({ home: current.home, descriptors: current.descriptors }) !== identity) {
+    if (layoutIdentity(current) !== identity) {
       fail('ERR_TUI_STORAGE_STALE', 'Storage root authority changed after review. Preview again.');
     }
     let receipt;
