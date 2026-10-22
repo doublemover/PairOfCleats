@@ -20,6 +20,8 @@ export const STORAGE_CLASS_CATALOG = Object.freeze([
   ['lsp-workspace-state', 'repos', 'referenced', 'src/integrations/tooling', 'repository'],
   ['models-onnx-sidecars', 'models', 'downloadable', 'src/shared/embedding-adapter.js', 'shared'],
   ['dictionaries', 'dictionaries', 'downloadable', 'tools/dict-utils/paths/dictionaries.js', 'shared'],
+  ['repository-user-dictionaries', 'dictionaries', 'durable', 'tools/dict-utils/paths/dictionaries.js', 'repository'],
+  ['user-slang-code-dictionaries', 'dictionaries', 'durable', 'src/shared/dictionary-wordlists.js', 'user'],
   ['extensions', 'extensions', 'downloadable', 'tools/dict-utils/paths/cache.js', 'shared'],
   ['managed-tools-sdks', 'tooling', 'downloadable', 'tools/tooling/install.js', 'shared'],
   ['managed-install-receipts', 'tooling', 'evidence', 'tools/tooling/install-receipts/<toolId>/<identity>.json', 'tool-profile'],

@@ -67,13 +67,13 @@ export const inspectEmbeddingStorageProfile = async ({ cacheRoot, identity, repo
         const keys = Object.keys(index.entries || {});
         entryCount += keys.length;
         if (entryCount > maxEntries) throw new Error('Embedding logical inventory entry budget exhausted.');
-        let payloadBytes = 0;
+        let payloadBytes = 0n;
         let bytesKnown = true;
         let newestAccess = null;
         for (const key of keys) {
           const entry = index.entries[key];
           if (!entry || !Number.isSafeInteger(entry.length) || entry.length < 0) bytesKnown = false;
-          else payloadBytes += entry.length;
+          else payloadBytes += BigInt(entry.length);
           const access = Date.parse(entry?.lastAccessAt || '');
           if (Number.isFinite(access)) newestAccess = Math.max(newestAccess || 0, access);
         }
@@ -84,7 +84,7 @@ export const inspectEmbeddingStorageProfile = async ({ cacheRoot, identity, repo
         indexes.push({ tier, directory, status: reference.incomplete ? 'incomplete-reference-authority' : 'strict-index-observed',
           identityKey: profile.identityKey, entries: keys.length, storageEpoch: index.storageEpoch || 0,
           journal: index.journal ? { generation: index.journal.generation, sequence: index.journal.sequence } : null,
-          indexedPayloadBytes: bytesKnown ? payloadBytes : null,
+          indexedPayloadBytes: bytesKnown && payloadBytes <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(payloadBytes) : null,
           newestObservedLastUse: newestAccess === null ? null : new Date(newestAccess).toISOString(),
           lastUseProvenance: newestAccess === null ? 'unknown' : 'partial-index-entry-lastAccessAt',
           protectedChunkKeys: reference.protectedKeys.size, referencesComplete: !reference.incomplete });

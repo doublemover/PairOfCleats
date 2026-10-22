@@ -12,6 +12,9 @@ export const decideStorageLifecycle = (item, { includeEvidence = false, now = Da
   if (protectedRetention.has(item.retention || 'unknown')) {
     reasons.push(includeEvidence ? 'evidence-deletion-requires-dedicated-owner' : 'saved-or-referenced-evidence');
   }
+  if (!protectedRetention.has(item.retention || 'unknown') && !['derived', 'temporary', 'downloadable'].includes(item.retention)) {
+    reasons.push('unknown-retention-owner-required');
+  }
   if (item.retention === 'downloadable' && item.explicitAssetEviction !== true) reasons.push('offline-critical-asset-retention');
   if (maxAgeMs !== null) {
     const lastUse = Date.parse(item.lastUse?.timestamp || '');

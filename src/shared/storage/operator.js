@@ -8,8 +8,10 @@ export { planStorageConfiguration, applyStorageConfiguration } from './configura
 
 /** Root metadata only; scan bytes explicitly with exact=true. */
 export const inspectStorageLayout = async (layout, { exact = false, extraRoots = [], maxEntries = 100000,
-  maxDurationMs = 10000, signal = null } = {}) => {
-  const roots = [...Object.values(layout.descriptors).map(descriptor => ({ ...descriptor, id: descriptor.category })), ...extraRoots];
+  maxDurationMs = 10000, signal = null, category = null } = {}) => {
+  if (category !== null && !Object.hasOwn(layout.descriptors, category)) throw new TypeError('Unknown logical storage category filter.');
+  const roots = [...Object.values(layout.descriptors).map(descriptor => ({ ...descriptor, id: descriptor.category })), ...extraRoots]
+    .filter(root => category === null || root.category === category);
   if (exact) return inspectStorageInventory({ roots, maxEntries, maxDurationMs, signal });
   const items = [];
   for (const root of roots) {

@@ -10,6 +10,8 @@ for (const patch of [{ retention: 'evidence' }, { pinned: true }, { forensic: tr
   { external: true }, { ownerQualified: false }, { retention: 'downloadable' }]) {
   assert.equal(decideStorageLifecycle({ ...eligible, ...patch }).eligible, false);
 }
+assert.equal(decideStorageLifecycle({ ...eligible, retention: 'temporary-and-crash-evidence' }).eligible, false,
+  'a new or unknown retention label cannot silently become disposable');
 const evidence = { ...eligible, physicalIdentity: 'device:2', allocatedBytes: 40, retention: 'evidence' };
 const plan = planStorageQuota({ items: [eligible, { ...eligible }, evidence], inventoryComplete: true, softBytes: 0, hardBytes: 10 });
 assert.equal(plan.measuredUniqueAllocatedBytes, 60, 'aliases do not double allocated bytes');

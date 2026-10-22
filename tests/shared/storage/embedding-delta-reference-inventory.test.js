@@ -7,6 +7,8 @@ import { buildCacheIdentity, resolveGlobalChunkCacheDir, resolveCacheDir, writeC
 import { readEmbeddingIndex, appendEmbeddingIndexDelta } from '../../../tools/build/embeddings/cache/index-log.js';
 import { createCacheIndex } from '../../../tools/build/embeddings/cache/index-state.js';
 import { inspectEmbeddingStorageProfile } from '../../../tools/storage/embedding-adapter.js';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const temporary = await makeTempDir('poc-storage-embedding-delta-');
 try {
@@ -37,6 +39,21 @@ try {
   assert.equal(inventory.protectedMetadata.includes('cache.index.delta'), true);
   assert.equal(inventory.cleanupAuthority, false);
   assert.deepEqual(await fs.readdir(temporary, { recursive: true }), before, 'inventory does not create locks or compatibility roots');
+  const requestFile = path.join(temporary, 'profile-request.json');
+  const repo = path.join(temporary, 'inspection-repo');
+  const home = path.join(temporary, 'inspection-home');
+  await fs.mkdir(repo);
+  await fs.writeFile(requestFile, JSON.stringify({ schemaVersion: 1, kind: 'embedding-storage-profile-request', identity }));
+  const beforeCli = await fs.readdir(temporary, { recursive: true });
+  const cli = runNode(['tools/storage/cli.js', 'inspect', '--repo', repo, '--home', home, '--category', 'embedding-profiles',
+    '--path', temporary, '--plan', requestFile, '--json'], 'actual storage embedding category inventory', process.cwd(),
+  applyTestEnv({ syncProcess: false }), { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
+  assert.equal(cli.status, 0, cli.stderr || cli.stdout);
+  const inspected = JSON.parse(cli.stdout);
+  assert.equal(inspected.logicalEntryCount, inventory.logicalEntryCount);
+  assert.equal(inspected.references.protectedChunkKeys, 1);
+  assert.equal(inspected.deletionAuthority, false);
+  assert.deepEqual(await fs.readdir(temporary, { recursive: true }), beforeCli, 'actual read-only category CLI creates no home or metadata directories');
   await fs.appendFile(path.join(files, 'cache.index.delta'), Buffer.from([1]));
   const incomplete = await inspectEmbeddingStorageProfile({ cacheRoot: temporary, identity });
   assert.equal(incomplete.complete, false);

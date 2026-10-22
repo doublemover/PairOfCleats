@@ -6,7 +6,7 @@ export const STORAGE_OPTIONS = {
   repo: { type: 'string', describe: 'Repository context; no indexed reader lease is acquired by path-only diagnostics' },
   home: { type: 'string', describe: 'Explicit application home for this storage operation' },
   category: { type: 'string', describe: 'Logical storage category' },
-  path: { type: 'string', describe: 'Explicit requested category destination for configuration preview/apply' },
+  path: { type: 'string', describe: 'Explicit category path for read-only inspection or configuration preview/apply' },
   source: { type: 'string', describe: 'Known owned source for migration-plan' },
   destination: { type: 'string', describe: 'Owned destination for migration-plan' },
   'machine-config': { type: 'string', describe: 'Explicit trusted machine-local storage configuration outside the repository' },
@@ -14,6 +14,6 @@ export const STORAGE_OPTIONS = {
   exact: { type: 'boolean', default: false, describe: 'Bounded exact file accounting instead of root metadata only' },
   'max-entries': { type: 'number', default: 100000, describe: 'Maximum entries for bounded inventory' },
   'max-duration-ms': { type: 'number', default: 10000, describe: 'Bounded inventory time allowance' },
-  plan: { type: 'string', describe: 'Reviewed plan JSON file for apply/status' },
+  plan: { type: 'string', describe: 'Reviewed storage plan or explicit read-only category request JSON' },
   'plan-id': { type: 'string', describe: 'Exact reviewed storage plan ID' }
 };

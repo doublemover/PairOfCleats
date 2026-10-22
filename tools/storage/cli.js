@@ -15,6 +15,8 @@ import { resolveRepoConfig, resolveRepoCacheRootPath, getModelsDir, getToolingDi
 import { STORAGE_ACTIONS, STORAGE_OPTIONS } from './options.js';
 import { readStorageLocator } from '../../src/shared/storage/locator-read.js';
 import { getEnvConfig } from '../../src/shared/env.js';
+import { applyStorageLocatorSelections } from '../../src/shared/storage/selected-layout.js';
+import { inspectStorageCategory, STORAGE_INVENTORY_ADAPTERS } from './category-inventory.js';
 
 const argv = createCli({ scriptName: 'pairofcleats storage', options: STORAGE_OPTIONS,
   usage: `usage: pairofcleats storage <${STORAGE_ACTIONS.join('|')}> [--json]` })
@@ -48,8 +50,18 @@ try {
   } catch (error) { configurationErrors.push({ source: 'machine-config', path: argv['machine-config'] || null,
     code: error.code || 'ERR_STORAGE_MACHINE_CONFIG', message: error.message, authorityGranted: false });
     configPath = null; machineConfig = null; }
-  const layout = resolveStorageLayout({ home: argv.home || null, machineConfig, machineConfigPath: configPath,
-    overrides: argv['cache-root'] ? { cache: argv['cache-root'] } : {} });
+  const layoutInput = { home: argv.home || null, machineConfig, machineConfigPath: configPath,
+    overrides: argv['cache-root'] ? { cache: argv['cache-root'] } : {} };
+  let layout;
+  try { layout = resolveStorageLayout(layoutInput); }
+  catch (error) {
+    configurationErrors.push({ source: 'machine-storage-layout', path: configPath, code: error.code || 'ERR_STORAGE_LAYOUT',
+      message: error.message, authorityGranted: false });
+    layout = resolveStorageLayout({ ...layoutInput, machineConfig: null, machineConfigPath: null });
+  }
+  try { layout = applyStorageLocatorSelections(layout, readStorageLocator(layout.home.path)); }
+  catch (error) { configurationErrors.push({ source: 'active-storage-locator', code: error.code || 'ERR_STORAGE_LOCATOR',
+    message: error.message, authorityGranted: false }); }
   const cacheRoot = layout.descriptors.cache.path;
   let legacy = [];
   let currentCache;
@@ -64,7 +76,7 @@ try {
       repoRoots: argv.home ? [] : [resolveRepoCacheRootPath(repoRoot, userConfig)],
       modelsRoot: argv.home ? env.modelsDir || userConfig.models?.dir || selected('models') || path.join(currentCache, 'models') : getModelsDir(repoRoot, userConfig),
       toolingRoot: argv.home ? env.toolingDir || userConfig.tooling?.dir || selected('tooling') || path.join(layout.home.path, 'tooling') : getToolingDir(repoRoot, userConfig),
-      extensionsRoot: argv.home ? env.extensionsDir || userConfig.extensions?.dir || selected('extensions') || path.join(layout.home.path, 'extensions') : getExtensionsDir(repoRoot, userConfig),
+      extensionsRoot: argv.home ? env.extensionsDir || userConfig.extensions?.dir || userConfig.sqlite?.vectorExtension?.dir || selected('extensions') || path.join(layout.home.path, 'extensions') : getExtensionsDir(repoRoot, userConfig),
       dictionariesRoot: argv.home ? env.dictDir || userConfig.dictionary?.dir || selected('dictionaries') || path.join(layout.home.path, 'dictionaries') : getDictConfig(repoRoot, userConfig).dir });
   } catch (error) { configurationErrors.push({ source: 'current-storage-locator',
     code: error.code || 'ERR_STORAGE_CURRENT_LOCATIONS', message: error.message, authorityGranted: false }); }
@@ -75,12 +87,19 @@ try {
       blocked: [{ reason: 'configuration-incomplete-no-storage-authority-granted' }], configurationErrors };
     process.exitCode = 1;
   } else if (action === 'list' || action === 'explain') receipt = { ...explainStorageLayout(layout), currentCompatibilityLocations: legacy };
-  else if (action === 'inspect') receipt = await inspectStorageLayout(layout, { ...limits, exact: argv.exact, extraRoots: legacy });
+  else if (action === 'inspect' && STORAGE_INVENTORY_ADAPTERS.includes(argv.category)) {
+    const root = argv.path || (argv.category === 'command-probes' ? path.join(currentCache || cacheRoot, 'tooling', 'command-probes')
+      : argv.category === 'dictionaries' ? legacy.find(entry => entry.id === 'legacy-dictionaries')?.path : null);
+    receipt = await inspectStorageCategory({ category: argv.category, root, home: layout.home.path,
+      request: argv.plan ? await readPlan(argv.plan) : null, ...limits });
+  } else if (action === 'inspect') receipt = await inspectStorageLayout(layout, { ...limits, exact: argv.exact,
+    extraRoots: legacy, category: argv.category || null });
   else if (action === 'doctor') receipt = await diagnoseStorageLayout(layout, { ...limits, extraRoots: legacy });
   else if (action === 'configure-plan') {
     const compatibilityId = { models: 'legacy-models', tooling: 'legacy-tooling', extensions: 'legacy-extensions',
       dictionaries: 'legacy-dictionaries', tmp: 'legacy-scratch' }[argv.category];
     const currentPath = argv.category === 'cache' ? currentCache
+      : argv.category === 'tmp' && layout.descriptors.tmp.source === 'locator.categories.tmp' ? layout.descriptors.tmp.path
       : legacy.find(entry => entry.id === compatibilityId)?.path;
     receipt = await planStorageConfiguration({ layout, category: argv.category, currentPath,
       target: argv.path, machineConfigPath: configPath, repoRoot });
