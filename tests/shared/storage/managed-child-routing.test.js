@@ -27,6 +27,21 @@ try {
   assert.equal(external.env.npm_config_cache, override);
   assert.equal(external.env.HOME, '/unchanged-user-home');
   assert.equal(external.exceptions.some(exception => exception.path === override), true);
+  const childCwd = path.join(temporary, 'child-working-directory');
+  const relativeCache = path.join(childCwd, 'relative-cache');
+  await fs.mkdir(relativeCache, { recursive: true });
+  const relative = planManagedChildStorage({ ...input, cwd: childCwd, runId: 'relative-run',
+    baseEnv: { npm_config_cache: 'relative-cache' } });
+  assert.equal(relative.env.npm_config_cache, 'relative-cache', 'explicit inherited syntax is preserved for the actual child');
+  assert.equal(relative.locations.find(location => location.environmentKey === 'npm_config_cache').path, relativeCache);
+  await prepareManagedChildStorage(relative, { authorizedRoots: [temporary] });
+  const relativeProbe = runNode([path.join(process.cwd(), 'tests', 'fixtures', 'storage', 'child-write-probe.js')],
+    'relative managed child override routing', childCwd, relative.env, { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
+  assert.equal(relativeProbe.status, 0, relativeProbe.stderr || relativeProbe.stdout);
+  assert.equal(JSON.parse(relativeProbe.stdout).paths.includes(path.join(relativeCache, 'download-cache.bin')), true);
+  assert.equal(relative.locations.find(location => location.environmentKey === 'npm_config_cache').cleanupAuthority, false);
+  if (process.platform === 'win32') assert.throws(() => planManagedChildStorage({ ...input, cwd: childCwd,
+    baseEnv: { npm_config_cache: 'D:drive-relative-cache' } }), /drive-relative environment override/);
   const global = planManagedChildStorage({ ...input, managed: false, baseEnv: { npm_config_cache: override } });
   assert.deepEqual(global.env, { npm_config_cache: override });
   assert.equal(global.locations.length, 0);

@@ -13,6 +13,7 @@ import { buildStorageMigrationManifest, storageMigrationOwnerProof, storagePlanD
 import { verifyStorageFile } from './transfer.js';
 import { inspectStorageInventory } from './inventory.js';
 import { revalidateStorageAuthority } from './authority.js';
+import { assertStorageLocatorShape } from './locator-contract.js';
 
 const exists = async target => {
   try { await fs.lstat(target); return true; }
@@ -51,6 +52,17 @@ const readJournal = async (file, plan) => {
     || !Number.isSafeInteger(value.completedFiles) || value.completedFiles < 0 || value.completedFiles > plan.manifest.files.length
     || !Array.isArray(value.failures) || value.failures.length > 16) {
     throw new Error('Migration journal is unknown or incompatible; existing recovery bytes are preserved.');
+  }
+  const rollback = ['rollback-prepared', 'rolled-back'].includes(value.stage);
+  if (rollback !== Object.hasOwn(value, 'rollbackTarget') || rollback !== Object.hasOwn(value, 'rollbackFromHash')
+    || (rollback && (!/^[a-f0-9]{64}$/u.test(value.rollbackFromHash || '') || value.destinationPreserved !== true))) {
+    throw new Error('Migration rollback intent is incomplete; existing recovery bytes are preserved.');
+  }
+  if (rollback) {
+    assertStorageLocatorShape(value.rollbackTarget);
+    if (storagePlanDigest(value.rollbackTarget.categories[plan.category] || null) !== storagePlanDigest(plan.priorSelection)) {
+      throw new Error('Migration rollback intent differs from its reviewed prior category selection.');
+    }
   }
   return value;
 };
@@ -315,11 +327,17 @@ export const applyStorageMigrationRollback = async (plan, { approvedPlanId, owne
         if (plan.priorSelection) categories[plan.category] = plan.priorSelection;
         else delete categories[plan.category];
         const rollbackTarget = { schemaVersion: 1, categories };
-        journal = { ...journal, stage: 'rollback-prepared', rollbackTarget, rollbackFromHash: current.sha256,
-          sourcePreserved: true, destinationPreserved: true, updatedAt: new Date().toISOString() };
-        await atomicWriteJson(paths.journal, journal, { mkdir: false });
-        await hooks.afterRollbackPrepared?.();
-        await writeStorageLocator(plan.home, rollbackTarget, { expectedHash: current.sha256 });
+        if (journal.stage === 'rollback-prepared') {
+          if (current.sha256 !== journal.rollbackFromHash || storagePlanDigest(rollbackTarget) !== storagePlanDigest(journal.rollbackTarget)) {
+            throw new Error('Storage locator changed after rollback intent; the original intent and current selection are preserved.');
+          }
+        } else {
+          journal = { ...journal, stage: 'rollback-prepared', rollbackTarget, rollbackFromHash: current.sha256,
+            sourcePreserved: true, destinationPreserved: true, updatedAt: new Date().toISOString() };
+          await atomicWriteJson(paths.journal, journal, { mkdir: false });
+          await hooks.afterRollbackPrepared?.();
+        }
+        await writeStorageLocator(plan.home, journal.rollbackTarget, { expectedHash: journal.rollbackFromHash });
         await hooks.afterRollbackSelection?.();
         await atomicWriteJson(paths.journal, { ...journal, stage: 'rolled-back', sourcePreserved: true,
           destinationPreserved: true, updatedAt: new Date().toISOString() }, { mkdir: false });

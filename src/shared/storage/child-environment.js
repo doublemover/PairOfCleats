@@ -38,12 +38,14 @@ const environmentKey = (env, key, platform) => platform === 'win32' || key.start
  */
 export const planManagedChildStorage = ({ baseEnv = process.env, layout, command = '', family = null,
   managed = false, toolId, toolIdentity, projectIdentity = null, runId = randomUUID(),
-  preserveEnvironmentKeys = [], platformTemp = os.tmpdir() } = {}) => {
+  preserveEnvironmentKeys = [], platformTemp = os.tmpdir(), cwd = process.cwd() } = {}) => {
   if (!layout?.descriptors || layout.platform !== process.platform) throw new TypeError('Managed child routing requires a native-platform storage layout.');
   const env = { ...baseEnv };
   const selectedFamily = family || familyForCommand(command);
   if (!managed) return { schemaVersion: 1, managed: false, env, locations: [], ownedRoots: [],
     exceptions: [{ kind: 'global-or-user-executable', status: 'external-shared-read-only-inventory' }] };
+  if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) throw new TypeError('Managed child routing requires its absolute launch working directory.');
+  const childCwd = path.resolve(cwd);
   const locator = readStorageLocator(layout.home.path);
   layout = applyStorageLocatorSelections(layout, locator);
   if (typeof toolId !== 'string' || !toolId || typeof toolIdentity !== 'string' || !toolIdentity
@@ -60,9 +62,15 @@ export const planManagedChildStorage = ({ baseEnv = process.env, layout, command
   const setLocation = (key, defaultPath, retention, { temp = false, file = false } = {}) => {
     const actualKey = environmentKey(env, key, layout.platform);
     const inherited = String(env[actualKey] || '').trim();
-    const platformDefault = temp && inherited && path.resolve(inherited) === path.resolve(platformTemp);
+    // Relative environment locations are interpreted by the launched child.
+    // Planning them against the parent cwd would record and reserve other bytes.
+    if (layout.platform === 'win32' && /^[a-zA-Z]:[^\\/]/u.test(inherited)) {
+      throw new Error('Managed child storage cannot qualify a drive-relative environment override; select an absolute path.');
+    }
+    const inheritedPath = inherited ? path.resolve(childCwd, inherited) : null;
+    const platformDefault = temp && inheritedPath && inheritedPath === path.resolve(platformTemp);
     const explicit = inherited && (preserve.has(key.toLowerCase()) || !platformDefault);
-    const selected = explicit ? path.resolve(inherited) : defaultPath;
+    const selected = explicit ? inheritedPath : defaultPath;
     const external = ![cache, state, assets, scratch].some(root => isPathWithinRoot(selected, root));
     if (!explicit) env[actualKey] = selected;
     locations.push({ environmentKey: actualKey, path: selected, retention, external,
@@ -81,7 +89,7 @@ export const planManagedChildStorage = ({ baseEnv = process.env, layout, command
   }
   return { schemaVersion: 1, managed: true, toolId, toolIdentity, profileIdentity: identity,
     storageLocator: { home: layout.home.path, target: locator.target, sha256: locator.sha256 },
-    projectIdentity, family: selectedFamily, runId, env, locations,
+    projectIdentity, family: selectedFamily, runId, cwd: childCwd, env, locations,
     ownedRoots: [cache, state, assets, scratch], scratch,
     exceptions, coverage: 'declared-environment-only; observed-child-write-qualification-required' };
 };

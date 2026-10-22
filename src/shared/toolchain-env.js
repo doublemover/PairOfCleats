@@ -38,7 +38,8 @@ const appendGradleDaemonFlag = (value) => {
  */
 export const applyToolchainDaemonPolicyEnv = (baseEnv = null, options = {}) => {
   const routed = options.managedStorage
-    ? planManagedChildStorage({ ...options.managedStorage, baseEnv: normalizeEnv(baseEnv), command: options.command }).env
+    ? planManagedChildStorage({ ...options.managedStorage, baseEnv: normalizeEnv(baseEnv), command: options.command,
+      cwd: options.cwd || options.managedStorage.cwd || process.cwd() }).env
     : normalizeEnv(baseEnv);
   const next = applyManagedRubyEnvironment(routed, options);
   next.ORG_GRADLE_DAEMON = 'false';

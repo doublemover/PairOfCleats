@@ -305,6 +305,7 @@ for (const action of actions) {
   }
   const layout = resolveStorageLayout({ overrides: { tooling: toolingConfig.dir } });
   const storagePlan = planManagedChildStorage({ baseEnv: env, layout, command: action.cmd,
+    cwd: installationCwd,
     family: action.requires === 'gem' ? 'ruby' : action.requires || null,
     managed: action.scope === 'cache', toolId: action.id,
     toolIdentity: action.provisioning.planId, projectIdentity: root });

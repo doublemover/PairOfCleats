@@ -265,3 +265,11 @@ staging/publication marker fields are preserved rather than adopted by failure
 recording. Status requires the intact reviewed plan before resolving recovery
 paths. Source-only fixtures cover these boundaries; platform, interruption and
 runtime acceptance remain deferred.
+
+Locators, category selections and configuration receipts accept only their
+registered fields. Unknown retention or ownership metadata blocks selection
+and is preserved; an intact hash does not make future semantics safe to adopt.
+Pending rollback also keeps its original target locator and source hash. If a
+different category selection changes that source before cutover, resume stops
+with both the new selection and original intent intact instead of silently
+rebasing the rollback.

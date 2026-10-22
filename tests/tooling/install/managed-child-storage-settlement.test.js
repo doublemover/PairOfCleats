@@ -21,6 +21,10 @@ try {
   assert.equal(deferred.error.code, 'ERR_INSTALL_STORAGE_ESTIMATE_REQUIRED');
   assert.equal(missingEstimateSpawns, 0);
   await assert.rejects(fs.stat(plan.scratch), { code: 'ENOENT' });
+  await assert.rejects(runToolInstallChild({ command: 'fixture', args: [], options: { cwd: root }, storagePlan: plan, layout,
+    spawn: async () => { missingEstimateSpawns++; } }), { code: 'ERR_INSTALL_STORAGE_CWD_CHANGED' });
+  assert.equal(missingEstimateSpawns, 0, 'a cwd change is rejected before admission, preparation or child execution');
+  await assert.rejects(fs.stat(plan.scratch), { code: 'ENOENT' });
   assert.equal(resolveDeclaredInstallAdmission({ managedDescriptor: { archive: { bytes: 1024 } } }).writes, null,
     'archive length cannot stand in for expanded/build allocation');
   const declared = resolveDeclaredInstallAdmission({ storageEstimate: { complete: true, writes: [

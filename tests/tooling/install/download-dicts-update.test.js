@@ -7,11 +7,12 @@ import { setupDownloadDictsTest, runDownloadDicts } from './download-dicts-test-
 const { tempRoot, sourceFile, sourceHash } = await setupDownloadDictsTest('download-dicts-update');
 const bytes = await fs.readFile(sourceFile);
 const requests = [];
-let unexpected304 = false, removeDuringRequest = false;
+let unexpected304 = false, removeDuringRequest = false, replaceDuringRequest = false;
 const output = path.join(tempRoot, 'test.txt');
 const server = http.createServer(async (req, res) => {
   requests.push({ url: req.url, headers: req.headers });
   if (removeDuringRequest) { removeDuringRequest = false; await fs.rm(output, { force: true }); }
+  if (replaceDuringRequest) { replaceDuringRequest = false; await fs.writeFile(output, Buffer.alloc(bytes.length, 120)); }
   if (unexpected304 || req.headers['if-none-match'] === '"words-v1"') {
     res.writeHead(304); res.end(); return;
   }
@@ -41,6 +42,16 @@ try {
   assert.equal(empty.code, 0, empty.stderr);
   assert.deepEqual(await fs.readFile(output), bytes);
   assert.equal(requests.at(-1).headers['if-none-match'], undefined, 'empty bytes cannot authorize 304 reuse');
+  await fs.writeFile(output, Buffer.alloc(bytes.length, 120));
+  const corrupt = await run('/words.txt', ['--update']);
+  assert.equal(corrupt.code, 0, corrupt.stderr);
+  assert.deepEqual(await fs.readFile(output), bytes, 'a matching stale manifest cannot qualify changed local bytes');
+  assert.equal(requests.at(-1).headers['if-none-match'], undefined, 'hash drift requires unconditional restoration');
+  replaceDuringRequest = true;
+  const replaced = await run('/words.txt', ['--update']);
+  assert.equal(replaced.code, 1, 'a 304 cannot qualify a different same-length local object');
+  assert.deepEqual(await fs.readFile(output), Buffer.alloc(bytes.length, 120), 'failed reuse retains the concurrently changed evidence');
+  assert.equal((await run('/words.txt', ['--update'])).code, 0);
   const changed = await run('/other-source.txt', ['--update']);
   assert.equal(changed.code, 0, changed.stderr);
   assert.equal(requests.at(-1).headers['if-none-match'], undefined, 'source identity fences validators');

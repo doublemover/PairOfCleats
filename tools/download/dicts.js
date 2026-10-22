@@ -15,6 +15,7 @@ import {
 import { assertDownloadFileName, parseNameUrlSources } from '../shared/input-parsers.js';
 import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
 import { closeDictionaryResources, runDictionaryWriteSession, streamDictionaryToFile } from './dictionary-write-session.js';
+import { inspectReusableDictionary, sameReusableDictionary } from './dictionary-reuse.js';
 
 const DEFAULT_MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024;
 
@@ -63,15 +64,6 @@ const SOURCES = {
   }
 };
 
-const hasUsableLocalBytes = async (file) => {
-  try {
-    const stat = await fs.stat(file);
-    if (!stat.isFile() || stat.size === 0 || stat.size > downloadPolicy.maxBytes) return false;
-    await fs.access(file, fsSync.constants.R_OK);
-    return true;
-  } catch { return false; }
-};
-
 /**
  * Download a dictionary source into the cache.
  * @param {{name:string,url:string,file:string}} source
@@ -91,9 +83,12 @@ async function downloadSource(source) {
 
   const headers = {};
   const expectedHash = resolveExpectedHash(source, downloadPolicy, hashOverrides);
-  const canReuse = argv.update && !argv.force && entry.url === source.url && entry.file === source.file
-    && (!expectedHash || (entry.verified === true && entry.sha256 === expectedHash))
-    && await hasUsableLocalBytes(outputPath);
+  const reusableSource = argv.update && !argv.force && entry.url === source.url && entry.file === source.file
+    && (!expectedHash || (entry.verified === true && entry.sha256 === expectedHash));
+  const reuseOptions = { root: dictDir, file: outputPath, maxBytes: downloadPolicy.maxBytes,
+    expectedHash: expectedHash || (entry.verified === true ? entry.sha256 : null), signal };
+  const reusable = reusableSource ? await inspectReusableDictionary(reuseOptions) : null;
+  const canReuse = reusable !== null;
   if (canReuse) {
     if (entry.etag) headers['If-None-Match'] = entry.etag;
     if (entry.lastModified) headers['If-Modified-Since'] = entry.lastModified;
@@ -109,7 +104,7 @@ async function downloadSource(source) {
   });
   if (response.statusCode === 304) {
     response.stream?.resume?.();
-    if (!canReuse || !await hasUsableLocalBytes(outputPath)) {
+    if (!canReuse || !sameReusableDictionary(reusable, await inspectReusableDictionary(reuseOptions))) {
       throw new Error(`Unexpected 304 for ${source.url}: usable local dictionary bytes are unavailable.`);
     }
     return { name: source.name, skipped: true };
@@ -139,9 +134,11 @@ async function downloadSource(source) {
     throw err;
   }
 
+  signal.throwIfAborted();
   if (lastByte !== 10) {
     await fs.appendFile(tempPath, '\n');
   }
+  signal.throwIfAborted();
   await replaceFile(tempPath, outputPath);
 
   manifest[source.name] = {
@@ -195,6 +192,7 @@ for (const source of sources) {
   }
 }
 
+signal.throwIfAborted();
 await atomicWriteJson(manifestPath, manifest, { mkdir: false });
 
 const downloaded = results.filter((r) => !r.skipped).length;

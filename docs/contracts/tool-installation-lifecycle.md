@@ -117,3 +117,10 @@ state rather than infer a cache footprint or ownership.
 The producer and receipt readers share the managed child retention vocabulary.
 File-valued BEAM `ERL_CRASH_DUMP` locations retain the protected `evidence` tier;
 their placement under run-owned scratch does not grant cleanup authority.
+
+Managed plans bind the actual absolute launch working directory. Relative
+inherited cache/scratch overrides keep their environment syntax, while declared
+locations and allocation reservations resolve against that child directory.
+The installer refuses a changed launch directory before preparation. Ambiguous
+Windows drive-relative overrides require an absolute selection; they are not
+silently resolved against the installer's ambient drive directory.

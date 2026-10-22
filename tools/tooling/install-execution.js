@@ -55,6 +55,13 @@ export const bindDeclaredInstallAdmission = (declared, { storagePlan, artifactRo
 /** Owned async child close/termination evidence controls storage-session release. */
 export const runToolInstallChild = async ({ command, args, options, storagePlan, layout, artifactRoot,
   admission = null, spawn = spawnResolvedSubprocess } = {}) => {
+  if (storagePlan?.managed) {
+    const normalize = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
+    if (!path.isAbsolute(storagePlan.cwd || '') || normalize(storagePlan.cwd) !== normalize(options?.cwd || process.cwd())) {
+      throw Object.assign(new Error('Managed install launch working directory differs from its reviewed storage routes; re-plan before preparation.'),
+        { code: 'ERR_INSTALL_STORAGE_CWD_CHANGED' });
+    }
+  }
   const destinations = storagePlan?.managed ? [artifactRoot, ...storagePlan.locations.map(location => location.file ? path.dirname(location.path) : location.path)] : [];
   if (storagePlan?.managed && (!Array.isArray(admission?.writes) || !admission.writes.length
     || destinations.some(root => !root || !admission.writes.some(write => path.isAbsolute(write.root || '') && isPathWithinRoot(root, write.root))))) {

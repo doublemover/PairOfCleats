@@ -1,5 +1,6 @@
 import { STORAGE_CATEGORIES, storagePathApi } from './layout.js';
 import { isPathWithinRoot } from '../file-paths.js';
+import { assertStorageLocatorShape } from './locator-contract.js';
 
 const inputOf = descriptor => ({ path: descriptor.path, lexicalPath: descriptor.lexicalPath,
   source: descriptor.source, relativeBase: descriptor.relativeBase });
@@ -19,6 +20,7 @@ export const applyStorageLocatorSelections = (layout, locator) => {
     throw Object.assign(new Error('Active storage locator is unreadable, incompatible or belongs to another home.'), { code: 'ERR_STORAGE_LOCATOR' });
   }
   const descriptors = { ...layout.descriptors };
+  assertStorageLocatorShape(locator.value, { pathApi: api });
   const diagnostics = [...layout.diagnostics];
   for (const [category, selection] of Object.entries(locator.value.categories)) {
     if (!Object.hasOwn(STORAGE_CATEGORIES, category) || !selection || typeof selection.path !== 'string'

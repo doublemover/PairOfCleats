@@ -61,3 +61,12 @@ The managed child producer, install receipt projection and inventory reader use
 the same retention vocabulary. BEAM's file-valued `ERL_CRASH_DUMP` remains
 `evidence` through that path, including when stored under run-owned scratch.
 Accounting a crash dump does not authorize cleanup or migration of that file.
+
+The dictionary downloader qualifies conditional reuse from a bounded contained
+read of the current local file. A configured source checksum must match the
+actual bytes, allowing the downloader's one appended final newline. A `304`
+requires the same file identity and digest after the request; a stale manifest,
+same-size corruption or replacement cannot satisfy it. Failed reuse preserves
+the current local object and reports failure. Writer reconciliation records
+release only after the shared storage owner's asynchronous release succeeds,
+so a rejected release remains retryable.

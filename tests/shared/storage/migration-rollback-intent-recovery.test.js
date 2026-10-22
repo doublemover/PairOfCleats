@@ -35,6 +35,17 @@ try {
   const intentBytes = await fs.readFile(journal);
   await assert.rejects(() => applyStorageMigration(plan, options), /pending rollback/);
   assert.deepEqual(await fs.readFile(journal), intentBytes, 'forward resume cannot overwrite rollback recovery intent');
+  const locatorFile = path.join(home, 'config', 'storage-locations.json');
+  const selectedBytes = await fs.readFile(locatorFile);
+  const selectionWithNewCategory = readStorageLocator(home).value;
+  selectionWithNewCategory.categories.extensions = { path: path.join(home, 'newer-extension-selection'),
+    migrationId: 'b'.repeat(64), owner: 'different-reviewed-category-operation' };
+  await fs.writeFile(locatorFile, JSON.stringify(selectionWithNewCategory));
+  const newerBytes = await fs.readFile(locatorFile);
+  await assert.rejects(() => applyStorageMigrationRollback(plan, options), /changed after rollback intent/);
+  assert.deepEqual(await fs.readFile(journal), intentBytes, 'resume cannot rebase or replace its saved rollback intent');
+  assert.deepEqual(await fs.readFile(locatorFile), newerBytes, 'a later category selection is preserved');
+  await fs.writeFile(locatorFile, selectedBytes);
   await assert.rejects(() => applyStorageMigrationRollback(plan, { ...options, hooks: {
     afterRollbackSelection: () => { throw new Error('fixture interruption after rollback pointer'); }
   } }), /after rollback pointer/);

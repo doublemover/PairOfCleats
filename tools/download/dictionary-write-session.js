@@ -90,8 +90,8 @@ export const runDictionaryWriteSession = async ({ dictDir, signal = null, settle
           await Promise.all(resources.map(resource => resource.closed));
           if (!resources.every(resource => resource.isClosed())) throw new Error('Dictionary resource closure remains unconfirmed.');
           for (const resource of resources) await resource.cleanupAfterClosure?.();
-          if (lock) await releaseFileLockOrThrow(lock);
-          const result = error.storageSession.releaseAfterSettlement({ resourceId: session.resourceId, settled: true, pending: false });
+          if (lock) { await releaseFileLockOrThrow(lock); lock = null; }
+          const result = await error.storageSession.releaseAfterSettlement({ resourceId: session.resourceId, settled: true, pending: false });
           released = true;
           return result;
         } } });
@@ -99,7 +99,7 @@ export const runDictionaryWriteSession = async ({ dictDir, signal = null, settle
     }
     try {
       for (const resource of resources) await resource.cleanupAfterClosure?.();
-      if (lock) await releaseFileLockOrThrow(lock);
+      if (lock) { await releaseFileLockOrThrow(lock); lock = null; }
     } catch (cleanupError) {
       if (!primaryError) throw cleanupError;
       primaryError.dictionaryCleanupError ||= cleanupError;

@@ -48,7 +48,19 @@ try {
     assert.equal((await fs.stat(path.join(dictDir, '.pairofcleats-download.lock'))).isFile(), true);
     closed = true;
     settle();
+    const actualSession = pending.storageSession;
+    let releaseAttempts = 0;
+    Object.defineProperty(pending, 'storageSession', { configurable: true, value: { ...actualSession,
+      releaseAfterSettlement: async receipt => {
+        releaseAttempts++;
+        if (releaseAttempts === 1) throw new Error('fixture storage settlement publication failed');
+        return actualSession.releaseAfterSettlement(receipt);
+      } } });
+    await assert.rejects(pending.dictionaryWriteSession.releaseAfterClosure(), /fixture storage settlement publication failed/);
+    assert.equal((await inspectStorageAccess(dictDir, { coordinationRoot })).protected, true,
+      'a rejected async settlement is not remembered as a completed release');
     await pending.dictionaryWriteSession.releaseAfterClosure();
+    assert.equal(releaseAttempts, 2, 'actual storage release remains retryable after its prior rejection');
     assert.equal((await inspectStorageAccess(dictDir, { coordinationRoot })).protected, false);
     await assert.rejects(fs.stat(path.join(dictDir, '.pairofcleats-download.lock')), { code: 'ENOENT' });
   });
