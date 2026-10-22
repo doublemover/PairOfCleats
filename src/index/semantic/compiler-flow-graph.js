@@ -17,17 +17,22 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     if (stats.constructionWork > maxWork || stats.admittedBytes > maxBytes) throw constructionStop;
   };
   let sequence = 0;
-  const add = (node, event = null, kind = 'normal') => {
+  const add = (node, event = null, kind = 'normal', context = null) => {
     admit(512);
     if (blocks.length >= maxBlocks) throw constructionStop;
-    const block = { key: String(sequence++).padStart(10, '0'), node, site: expressionFor(node) || expressionFor(owner), event, kind, successors: [] };
+    const block = { key: String(sequence++).padStart(10, '0'), node, site: expressionFor(node) || expressionFor(owner), event, kind,
+      finalizerDepth: context?.finalizerDepth || 0, successors: [] };
     blocks.push(block); stats.createdBlocks++; return block;
   };
   const link = (from, to, kind = 'controlNext', condition = null) => { if (to) { admit(48); from.successors.push({ to, kind, condition }); } };
   // Terminals are always available; budgets apply before the first source node.
-  const terminal = kind => ({ key: String(sequence++).padStart(10, '0'), node: owner, site: expressionFor(owner), event: null, kind, successors: [] });
-  const exit = terminal('exit'), exception = terminal('exception');
-  blocks.push(exit, exception); stats.createdBlocks = 2;
+  const terminal = kind => ({ key: String(sequence++).padStart(10, '0'), node: owner, site: expressionFor(owner), event: null, kind, finalizerDepth: 0, successors: [] });
+  // Ordinary fallthrough and completed return are different destinations.
+  // Finally-local catch/break/continue can finish normally while preserving a
+  // suspended return; an escaping finalizer completion bypasses returnExit.
+  // Both terminals use the existing public exit block kind.
+  const exit = terminal('exit'), exception = terminal('exception'), returnExit = terminal('exit');
+  blocks.push(exit, exception, returnExit); stats.createdBlocks = 3;
   const finalizerMemo = new WeakMap(), abruptMemo = new WeakMap();
   const abruptKinds = root => {
     if (!root) return new Set();
@@ -49,16 +54,19 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     let memo = finalizerMemo.get(node);
     if (!memo) { memo = new Map(); finalizerMemo.set(node, memo); }
     const key = JSON.stringify([target?.key, context.return?.key, context.exception?.key, context.break?.key, context.continue?.key,
-      [...context.labels].map(([name, destinations]) => [name, destinations.break?.key, destinations.continue?.key]), context.iterationLabels]);
+      [...context.labels].map(([name, destinations]) => [name, destinations.break?.key, destinations.continue?.key]), context.iterationLabels, context.finalizerDepth]);
     if (memo.has(key)) { stats.finalizerMemoHits++; return memo.get(key); }
     admit(Buffer.byteLength(key) + 64); stats.finalizerVariants++;
-    const entry = statement(node, target, context);
+    const bodyContext = { ...context, finalizerDepth: context.finalizerDepth + 1 };
+    const resumed = add(node, { kind: 'resumeCompletion' }, 'normal', bodyContext); link(resumed, target);
+    const body = statement(node, resumed, bodyContext);
+    const entry = add(node, { kind: 'suspendCompletion' }, 'normal', context); link(entry, body);
     memo.set(key, entry); return entry;
   };
   const anchor = node => expressionFor(node) || null;
   const children = node => { const result = []; ts.forEachChild(node, child => { result.push(child); }); return result; };
   const eventBlock = (node, event, next, context) => {
-    const block = add(node, event); link(block, next);
+    const block = add(node, event, 'normal', context); link(block, next);
     if (event?.mayThrow) link(block, context.exception, 'exceptional');
     return block;
   };
@@ -82,7 +90,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     for (let i = evaluated.length - 1; i >= 0; i -= 1) active = expression(evaluated[i], active, context);
     if (call) reasons.add('call_heap_and_captured_effects_unresolved');
     if (node.questionDotToken) {
-      const branch = add(node.expression, { kind: 'condition', predicate: { operation: 'isNullish', inputs: [node.expression] } });
+      const branch = add(node.expression, { kind: 'condition', predicate: { operation: 'isNullish', inputs: [node.expression] } }, 'normal', context);
       link(branch, shortCircuit, 'controlTrue'); link(branch, active, 'controlFalse');
       active = branch;
     }
@@ -134,7 +142,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       const logical = [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken,
         ts.SyntaxKind.AmpersandAmpersandEqualsToken, ts.SyntaxKind.BarBarEqualsToken, ts.SyntaxKind.QuestionQuestionEqualsToken].includes(operator);
       if (logical) {
-        const join = eventBlock(node, { kind: 'operation' }, next, context), branch = add(node.left, { kind: 'condition' });
+        const join = eventBlock(node, { kind: 'operation' }, next, context), branch = add(node.left, { kind: 'condition' }, 'normal', context);
         const right = expression(node.right, assignment ? write(node.left, node, join, context) : join, context);
         const reversed = [ts.SyntaxKind.BarBarToken, ts.SyntaxKind.BarBarEqualsToken].includes(operator);
         link(branch, reversed ? join : right, 'controlTrue', anchor(node.left));
@@ -152,7 +160,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       }
     }
     if (ts.isConditionalExpression(node)) {
-      const join = eventBlock(node, { kind: 'operation' }, next, context), branch = add(node.condition, { kind: 'condition' });
+      const join = eventBlock(node, { kind: 'operation' }, next, context), branch = add(node.condition, { kind: 'condition' }, 'normal', context);
       link(branch, expression(node.whenTrue, join, context), 'controlTrue', anchor(node.condition));
       link(branch, expression(node.whenFalse, join, context), 'controlFalse', anchor(node.condition));
       return expression(node.condition, branch, context);
@@ -234,20 +242,20 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     if (ts.isVariableStatement(node)) return declarations(node.declarationList, next, context);
     if (ts.isExpressionStatement(node)) return expression(node.expression, next, context);
     if (ts.isIfStatement(node)) {
-      const branch = add(node.expression, { kind: 'condition' });
+      const branch = add(node.expression, { kind: 'condition' }, 'normal', context);
       link(branch, statement(node.thenStatement, next, context), 'controlTrue', anchor(node.expression));
       link(branch, node.elseStatement ? statement(node.elseStatement, next, context) : next, 'controlFalse', anchor(node.expression));
       return expression(node.expression, branch, context);
     }
     if (ts.isReturnStatement(node) || ts.isThrowStatement(node)) {
-      const block = add(node, { kind: ts.isReturnStatement(node) ? 'return' : 'throw', value: node.expression });
+      const block = add(node, { kind: ts.isReturnStatement(node) ? 'return' : 'throw', value: node.expression }, 'normal', context);
       link(block, ts.isReturnStatement(node) ? context.return : context.exception, ts.isReturnStatement(node) ? 'controlNext' : 'exceptional');
       return expression(node.expression, block, context);
     }
     if (ts.isBreakStatement(node) || ts.isContinueStatement(node)) {
       const isBreak = ts.isBreakStatement(node), label = node.label?.text;
       const target = label ? context.labels.get(label)?.[isBreak ? 'break' : 'continue'] : context[isBreak ? 'break' : 'continue'];
-      const block = add(node, { kind: 'abrupt' });
+      const block = add(node, { kind: 'abrupt' }, 'normal', context);
       if (!target) reasons.add('unresolved_abrupt_target');
       link(block, target || exception); return block;
     }
@@ -265,7 +273,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       || ts.isForOfStatement(node) || ts.isForInStatement(node)) {
       const iteration = ts.isForOfStatement(node) || ts.isForInStatement(node);
       const condition = node.condition || node.expression, branch = add(condition || node, { kind: 'condition',
-        ...(iteration ? { mayThrow: true, predicate: { operation: ts.isForOfStatement(node) ? 'iteratorHasNext' : 'enumeratorHasNext', inputs: [node.expression] } } : {}) });
+        ...(iteration ? { mayThrow: true, predicate: { operation: ts.isForOfStatement(node) ? 'iteratorHasNext' : 'enumeratorHasNext', inputs: [node.expression] } } : {}) }, 'normal', context);
       if (iteration) link(branch, context.exception, 'exceptional');
       let test = iteration ? branch : expression(condition, branch, context);
       let step = ts.isForStatement(node) ? expression(node.incrementor, test, context) : test;
@@ -303,7 +311,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       }
       let test = clauses.find(row => ts.isDefaultClause(row.clause))?.head || next;
       for (let i = clauses.length - 1; i >= 0; i -= 1) if (ts.isCaseClause(clauses[i].clause)) {
-        const { clause, head } = clauses[i], branch = add(clause, { kind: 'condition', predicate: { operation: 'strictEqual', inputs: [node.expression, clause.expression] } });
+        const { clause, head } = clauses[i], branch = add(clause, { kind: 'condition', predicate: { operation: 'strictEqual', inputs: [node.expression, clause.expression] } }, 'normal', context);
         link(branch, head, 'controlTrue', anchor(clause.expression)); link(branch, test, 'controlFalse', anchor(clause.expression));
         test = expression(clause.expression, branch, context);
       }
@@ -343,29 +351,29 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     return expression(node, next, context);
   };
   try {
-  const context = { return: exit, exception, break: null, continue: null, labels: new Map(), iterationLabels: [] };
+  const context = { return: returnExit, exception, break: null, continue: null, labels: new Map(), iterationLabels: [], finalizerDepth: 0 };
   let head = ts.isSourceFile(owner) ? statement(owner, exit, context)
     : ts.isBlock(owner.body) ? statement(owner.body, exit, context)
-      : expression(owner.body, eventBlock(owner.body, { kind: 'return', value: owner.body }, exit, context), context);
+      : expression(owner.body, eventBlock(owner.body, { kind: 'return', value: owner.body }, returnExit, context), context);
   for (let i = (owner.parameters?.length || 0) - 1; i >= 0; i -= 1) {
     const parameter = owner.parameters[i];
     if (!isRuntimeNode(parameter)) continue;
     if (parameter.initializer || parameter.dotDotDotToken || !ts.isIdentifier(parameter.name)) reasons.add('parameter_pattern_default_or_rest_conservative');
     const present = write(parameter.name, parameter, head, context, 'parameter');
     if (parameter.initializer) {
-      const branch = add(parameter, { kind: 'condition', predicate: { operation: 'isUndefined', inputs: [parameter] } });
+      const branch = add(parameter, { kind: 'condition', predicate: { operation: 'isUndefined', inputs: [parameter] } }, 'normal', context);
       link(branch, expression(parameter.initializer, write(parameter.name, parameter.initializer, head, context), context), 'controlTrue');
       link(branch, present, 'controlFalse');
       head = branch;
     } else head = present;
   }
-  const entry = add(owner, null, 'entry'); link(entry, head);
-  return { blocks, entry, exit, exception, reasons, stats, truncated: false };
+  const entry = add(owner, null, 'entry', context); link(entry, head);
+  return { blocks, entry, exit, returnExit, exception, reasons, stats, truncated: false };
   } catch (error) {
     if (error !== constructionStop) throw error;
     reasons.add('cfg_construction_work_or_byte_budget');
     // Discard the incomplete route graph. Its source owner remains unknown;
     // admitting a partial clone graph would invent completion destinations.
-    return { blocks: [], entry: null, exit: null, exception: null, reasons, stats, truncated: true };
+    return { blocks: [], entry: null, exit: null, returnExit: null, exception: null, reasons, stats, truncated: true };
   }
 };

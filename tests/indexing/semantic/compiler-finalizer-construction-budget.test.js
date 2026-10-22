@@ -24,8 +24,9 @@ for (const statement of ['return 7;', 'throw fail;']) {
     for (const edge of block.successors) pending.push(edge.to);
   }
   assert.equal(statement.startsWith('return') ? returns > 0 : throws > 0, true);
-  assert.equal(visited.has(override.exit), statement.startsWith('return'), 'finalizer throw suppresses normal return completion');
+  assert.equal(visited.has(override.returnExit), statement.startsWith('return'), 'finalizer throw suppresses the completed return destination');
+  assert.equal(visited.has(override.exit), false, 'an overriding return/throw does not become ordinary fallthrough');
 }
 const controller = new AbortController(); controller.abort(new Error('stop CFG'));
-assert.throws(() => build('function f() { return 1; }', { signal: controller.signal }), /stop CFG/);
+assert.throws(() => build('function f() { return 1; }', { signal: controller.signal }), { name: 'AbortError' });
 console.log('finalizer sharing preserves continuation context and construction exhaustion stays partial');

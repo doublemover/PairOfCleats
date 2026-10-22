@@ -6,6 +6,7 @@ import { compilerCallAdapter } from './compiler-call-adapter.js';
 import { compilerRuntimeParameters, compilerInvocationInputs } from './compiler-invocation.js';
 import { createCompilerFieldPaths, collectCompilerAliasAssignments } from './compiler-flow-fields.js';
 import { buildCompilerFlowGraph } from './compiler-flow-graph.js';
+import { collectCompilerCompletions } from './compiler-completions.js';
 import { compilerOperationDependencies } from './compiler-operation-dependencies.js';
 import { createCompilerOrderedStorage, indexCompilerOrderedStorage } from './compiler-ordered-storage.js';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
@@ -199,16 +200,9 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
       }
     }
     const complete = !definitionBudgetExhausted && index === queue.length;
-    // One reverse reachability pass for all pending returns, not one graph scan per return.
-    const completionReachable = new Set([graph.exit]), completionPending = [graph.exit];
-    while (completionPending.length) {
-      throwIfAborted(signal);
-      for (const parent of predecessors.get(completionPending.pop()) || []) {
-        if (completionReachable.has(parent) || ['return', 'throw'].includes(parent.event?.kind)) continue;
-        completionReachable.add(parent); completionPending.push(parent);
-      }
-    }
-    const canCompleteReturn = block => block.successors.some(edge => completionReachable.has(edge.to));
+    const completions = collectCompilerCompletions({ graph, maxBytes: constructionMaxBytes, maxWork, signal });
+    if (!completions.complete) reasons.add('completion_state_work_or_byte_budget');
+    const canCompleteReturn = block => completions.returns.has(block);
     if (!complete) reasons.add('reaching_definition_iteration_budget');
     totalBlocks += reachable.size; solvedBlocks += complete ? reachable.size : outgoing.size;
     const returnRefs = [], exceptionRefs = [], effects = [], parameterFields = [];
@@ -340,16 +334,10 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
         }
       }
     }
-    const completionStates = new Set(), completionQueue = [[graph.entry,false]];
-    let normalExit = false;
-    while(completionQueue.length) {
-      throwIfAborted(signal);
-      const [block,pendingReturn] = completionQueue.pop(), key = block.key + ':' + pendingReturn;
-      if(completionStates.has(key)) continue; completionStates.add(key);
-      if(block === graph.exit && !pendingReturn) normalExit = true;
-      const pending = block.event?.kind === 'return' ? true : ['throw','catch'].includes(block.event?.kind) ? false : pendingReturn;
-      for(const successor of block.successors) completionQueue.push([successor.to,successor.kind === 'exceptional' ? false : pending]);
-    }
+    // CFG destinations already distinguish resumed return from fallthrough.
+    // A local catch in a finalizer cannot erase the suspended completion, and
+    // an escaping labeled break/continue cannot falsely retain its old return.
+    const normalExit = completions.normalExit;
     if (owner !== sourceFile && normalExit) {
       const input = add('undefined:' + prefix, 'expression', null, {astKind:'SemanticUndefined',operation:'undefined',invocationKind:null,syntacticArgumentCount:null,flags:['derived','implicit-return']});
       const result = add('implicit-return:' + prefix, 'value', null, {origin:'return',site:ownerRef,storage:null});
