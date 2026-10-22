@@ -20,7 +20,8 @@ import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantizat
 import { applyBuildPragmas } from '../../../src/storage/sqlite/build/pragmas.js';
 import {
   loadDenseVectorBinaryFromMetaSync,
-  materializeDenseVectorRows
+  materializeDenseVectorRows,
+  normalizeDenseVectorMeta
 } from '../../../src/shared/dense-vector-artifacts.js';
 
 const hasTable = (db, table) => {
@@ -48,21 +49,47 @@ const ensureDenseMetaSchema = (db) => {
 };
 
 const resolveSqliteDenseArtifactRows = ({ vectorsPath, modelId = null }) => {
-  if (typeof vectorsPath !== 'string' || !vectorsPath.trim()) return [];
-  const resolvedBasePath = path.resolve(vectorsPath);
-  const metaPath = `${resolvedBasePath}.meta.json`;
-  if (!fsSync.existsSync(metaPath)) return [];
   try {
-    const meta = JSON.parse(fsSync.readFileSync(metaPath, 'utf8'));
+    if (typeof vectorsPath !== 'string' || !vectorsPath.trim()) throw new Error('Missing vector artifact path.');
+    const resolvedBasePath = path.resolve(vectorsPath);
+    const metaPath = `${resolvedBasePath}.meta.json`;
+    const sourceMeta = normalizeDenseVectorMeta(JSON.parse(fsSync.readFileSync(metaPath, 'utf8')));
+    const meta = sourceMeta ? { ...sourceMeta, count: sourceMeta.count ?? sourceMeta.totalRecords } : null;
+    if (!meta || !Number.isSafeInteger(meta.count) || meta.count < 0
+      || !Number.isSafeInteger(meta.dims) || meta.dims <= 0
+      || !Number.isSafeInteger(meta.count * meta.dims)
+      || (modelId && meta.model !== modelId)) throw new Error('Invalid vector artifact metadata or model identity.');
+    const binaryMetaPath = `${resolvedBasePath}.bin.meta.json`;
+    if (fsSync.existsSync(binaryMetaPath)) {
+      const binaryMeta = normalizeDenseVectorMeta(JSON.parse(fsSync.readFileSync(binaryMetaPath, 'utf8')));
+      if (!binaryMeta || binaryMeta.count !== meta.count || binaryMeta.dims !== meta.dims
+        || binaryMeta.model !== meta.model || (binaryMeta.bytes != null && binaryMeta.bytes !== meta.count * meta.dims)) {
+        throw new Error('Binary and sharded vector metadata disagree.');
+      }
+      if (binaryMeta.path != null) meta.path = binaryMeta.path;
+    }
+    if (meta.count === 0) {
+      const relPath = meta.path || `${path.basename(resolvedBasePath)}.bin`;
+      if (path.isAbsolute(relPath) || relPath.split(/[\\/]/).includes('..')) throw new Error('Invalid binary artifact path.');
+      if (fsSync.statSync(path.join(path.dirname(resolvedBasePath), relPath)).size !== 0) {
+        throw new Error('Empty vector artifact contains unexpected binary data.');
+      }
+      return [];
+    }
     const payload = loadDenseVectorBinaryFromMetaSync({
       dir: path.dirname(resolvedBasePath),
       baseName: path.basename(resolvedBasePath),
       meta,
       modelId
     });
-    return materializeDenseVectorRows(payload);
-  } catch {
-    return [];
+    const rows = materializeDenseVectorRows(payload);
+    if (!payload || rows.length !== meta.count || payload.buffer.byteLength !== meta.count * meta.dims) {
+      throw new Error('Vector artifact binary is missing, truncated, or inconsistent.');
+    }
+    return rows;
+  } catch (cause) {
+    throw Object.assign(new Error(`SQLite dense input artifact is unreadable: ${vectorsPath || '<missing>'}`, { cause }),
+      { code: 'ERR_SQLITE_DENSE_ARTIFACT_INVALID' });
   }
 };
 
@@ -147,6 +174,9 @@ export const updateSqliteDense = ({
     return { skipped: true, reason: 'sqlite missing', vectorAnn: vectorAnnState };
   }
 
+  // Resolve and validate the replacement before opening a mutable connection,
+  // changing schema/pragmas, or touching existing vector authority.
+  const vectorRows = resolveSqliteDenseVectorRows({ vectors, vectorsPath, modelId });
   const db = new Database(resolvedDbPath);
   try {
     assertSqliteIndexFormat({ db, repoRoot: root, indexPath: resolvedDbPath, operation: 'embedding-update' });
@@ -166,6 +196,7 @@ export const updateSqliteDense = ({
     } catch {}
 
     let vectorAnnReady = false;
+    let vectorAnnNeedsBackfill = false;
     let vectorAnnTable = vectorExtension.table || 'dense_vectors_ann';
     let vectorAnnColumn = vectorExtension.column || 'embedding';
     let insertVectorAnn = null;
@@ -181,6 +212,7 @@ export const updateSqliteDense = ({
             const created = ensureVectorTable(db, vectorExtension, dims);
             if (created.ok) {
               vectorAnnReady = true;
+              vectorAnnNeedsBackfill = true;
               vectorAnnTable = created.tableName;
               vectorAnnColumn = created.column;
             } else if (emitOutput) {
@@ -193,6 +225,7 @@ export const updateSqliteDense = ({
           const created = ensureVectorTable(db, vectorExtension, dims);
           if (created.ok) {
             vectorAnnReady = true;
+            vectorAnnNeedsBackfill = true;
             vectorAnnTable = created.tableName;
             vectorAnnColumn = created.column;
           } else if (emitOutput) {
@@ -226,7 +259,6 @@ export const updateSqliteDense = ({
     );
     const resolvedQuantization = resolveQuantizationParams(quantization);
     const ingestEncoding = resolveVectorIngestEncoding(vectorExtension, { preferQuantized: true });
-    const vectorRows = resolveSqliteDenseVectorRows({ vectors, vectorsPath, modelId });
     const toComparableBuffer = (value) => {
       if (Buffer.isBuffer(value)) return value;
       if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
@@ -363,11 +395,11 @@ export const updateSqliteDense = ({
           existingIndex += 1;
           current = existingRows[existingIndex] || null;
         }
-        if (unchanged) {
+        if (unchanged && !vectorAnnNeedsBackfill) {
           continue;
         }
 
-        denseUpsertBatch.push({ docId, packed });
+        if (!unchanged) denseUpsertBatch.push({ docId, packed });
         if (vectorAnnReady) {
           const annRow = upsertVectorAnnRow(docId, vec);
           if (annRow) {
