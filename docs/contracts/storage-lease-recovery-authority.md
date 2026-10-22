@@ -21,3 +21,17 @@ and containment. Bounded lease inventory returns protected state on unknown,
 unreadable, incomplete or unconfirmed-close paths. Ordinary admission removes
 only its own exact new lease when it observes exclusion; cache/user evidence is
 never part of metadata recovery.
+
+Resource sessions preserve actual primary and settlement failures together.
+Frozen or readonly errors use an aggregate whose exact original cause and
+non-enumerable owner capabilities remain reachable. Nested sessions keep each
+handle on its original cause. Original closure observers are captured before
+composition; every pending owner must confirm, and missing/throwing observers
+stay unknown. A supplied `pending:false` receipt cannot override an original
+pending resource whose observer still returns false. Explicit session release
+still needs that session's exact resource identity, settled:true and pending:false.
+
+Authored controls use disposable ordinary storage roots and actual exclusion
+owners with inert frozen/readonly failures, contradictory receipts, independent
+pending observers, nested sessions and the normal successful release path. They
+have not run; no resource runtime or current-source acceptance is claimed.

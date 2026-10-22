@@ -4,6 +4,49 @@ import { acquireRepoCacheAccessLease } from '../cache/repo-access.js';
 import { assertNoSymlinkPath } from '../contained-file.js';
 import { isPathWithinRoot } from '../file-paths.js';
 
+const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+const capturePendingClosure = error => {
+  if (!error) return null;
+  let observer;
+  try { observer = error.cacheOwnershipReleased; } catch { return () => false; }
+  if (error.cacheOwnershipPending !== true && typeof observer !== 'function') return null;
+  return () => { try { return typeof observer === 'function' && observer.call(error) === true; } catch { return false; } };
+};
+const retainSessionFailure = (primary, settlementError, session) => {
+  const failure = asError(primary || settlementError);
+  const additional = primary && settlementError !== failure ? asError(settlementError) : null;
+  const observers = [failure, additional].filter(Boolean).map(capturePendingClosure).filter(Boolean);
+  // Capture original function identities before attaching the aggregate observer.
+  // The retained session itself still requires its exact explicit settlement.
+  const descriptors = {
+    cacheOwnershipPending: { value: true, configurable: true, writable: true },
+    cacheOwnershipReleased: { value: () => observers.length > 0 && observers.every(observe => observe()), configurable: true, writable: true },
+    storageSession: { value: session, configurable: true },
+    ...(additional ? { storageSettlementError: { value: additional, configurable: true } } : {})
+  };
+  try {
+    // A nested session keeps its own handle on the exact original cause.
+    if (Object.hasOwn(failure, 'storageSession')) throw new Error('Existing session owner must be preserved.');
+    Object.defineProperties(failure, descriptors);
+    return failure;
+  } catch {
+    let message = 'Storage resource operation or settlement failed.';
+    try { if (typeof failure.message === 'string') message = failure.message; } catch {}
+    const aggregate = new AggregateError([failure, ...(additional ? [additional] : [])],
+      message, { cause: failure });
+    try { if (typeof failure.name === 'string') aggregate.name = failure.name; } catch {}
+    // Preserve non-enumerable resource capabilities without invoking getters or
+    // replacing the aggregate's exact original cause/errors.
+    const existing = Object.getOwnPropertyDescriptors(failure);
+    for (const key of Reflect.ownKeys(existing)) {
+      if (['cause', 'errors', 'message', 'stack'].includes(key) || Object.hasOwn(descriptors, key)) continue;
+      Object.defineProperty(aggregate, key, existing[key]);
+    }
+    Object.defineProperties(aggregate, descriptors);
+    return aggregate;
+  }
+};
+
 /** Session lifetime is resource lifetime, not request timeout or Promise.race.
  * Metadata uses the existing reader protocol and an explicit owned state root.
  */
@@ -65,14 +108,13 @@ export const runWithStorageSession = async (input, action, { settlement } = {}) 
   catch (error) { operationError = error && typeof error === 'object' ? error : new Error(String(error), { cause: error }); }
   try {
     const receipt = await settlement({ value, error: operationError, resourceId: session.resourceId });
-    if (operationError?.cacheOwnershipPending === true && receipt?.pending !== false) throw operationError;
+    if (operationError?.cacheOwnershipPending === true) {
+      const observe = capturePendingClosure(operationError);
+      if (receipt?.pending !== false || !observe || !observe()) throw operationError;
+    }
     session.releaseAfterSettlement(receipt);
   } catch (settlementError) {
-    const error = operationError || settlementError;
-    error.cacheOwnershipPending = true;
-    Object.defineProperty(error, 'storageSession', { value: session, configurable: true });
-    if (settlementError !== error) error.storageSettlementError = settlementError;
-    throw error;
+    throw retainSessionFailure(operationError, settlementError, session);
   }
   if (operationError) throw operationError;
   return { value, resourceId: session.resourceId, settled: true };
