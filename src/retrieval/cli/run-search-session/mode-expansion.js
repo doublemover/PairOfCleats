@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
 import { readJsonFile } from '../../../shared/artifact-io/json.js';
 import { buildIndexSignature } from '../../index-cache.js';
@@ -27,7 +28,8 @@ export function createModeExpander({
   filters,
   filtersActive,
   filterPredicates,
-  explain
+  explain,
+  contextCacheDir = null
 }) {
   const contextExpansionStats = {
     enabled: contextExpansionEnabled,
@@ -39,29 +41,40 @@ export function createModeExpander({
   const contextIndexByIndex = new WeakMap();
   const allowedIdsByIndex = new WeakMap();
 
+  const resolveContextCachePaths = async idx => {
+    if (!idx?.indexDir || !contextCacheDir) return null;
+    const cacheRoot = path.resolve(contextCacheDir);
+    const relative = path.relative(path.resolve(idx.indexDir), cacheRoot);
+    if (relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) return null;
+    const signature = await buildIndexSignature(idx.indexDir);
+    if (!signature) return null;
+    const identity = createHash('sha256').update(JSON.stringify([path.resolve(idx.indexDir), signature])).digest('hex');
+    const base = path.join(cacheRoot, 'context-index-v2', identity);
+    return { signature, metaPath: `${base}.meta.json`, dataPath: `${base}.json` };
+  };
+
   const loadContextIndexCache = async (idx) => {
-    if (!idx?.indexDir) return null;
-    const metaPath = path.join(idx.indexDir, 'context_index.meta.json');
-    const dataPath = path.join(idx.indexDir, 'context_index.json');
+    const paths = await resolveContextCachePaths(idx);
+    if (!paths) return null;
+    const { metaPath, dataPath, signature } = paths;
     const meta = readContextCacheJson(metaPath);
     if (!meta) return null;
-    if (!meta?.signature || meta.version !== 1) return null;
-    const signature = await buildIndexSignature(idx.indexDir);
+    if (!meta?.signature || meta.version !== 2) return null;
     if (signature !== meta.signature) return null;
     const raw = readContextCacheJson(dataPath);
     if (!raw) return null;
     return hydrateContextIndex(raw);
   };
   const persistContextIndexCache = async (idx, contextIndex) => {
-    if (!idx?.indexDir || !contextIndex) return;
-    const signature = await buildIndexSignature(idx.indexDir);
+    if (!contextIndex) return;
+    const paths = await resolveContextCachePaths(idx);
+    if (!paths) return;
+    const { signature, metaPath, dataPath } = paths;
     const payload = serializeContextIndex(contextIndex);
     if (!signature || !payload) return;
-    const metaPath = path.join(idx.indexDir, 'context_index.meta.json');
-    const dataPath = path.join(idx.indexDir, 'context_index.json');
     try {
       await atomicWriteJson(dataPath, payload, { spaces: 0 });
-      await atomicWriteJson(metaPath, { version: 1, signature }, { spaces: 0 });
+      await atomicWriteJson(metaPath, { version: 2, signature }, { spaces: 0 });
     } catch {}
   };
   const getContextIndex = async (idx) => {

@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readJsonFileSafe } from '../../shared/file-read.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import { withFileLock } from '../../shared/locks/file-lock.js';
 
 export async function recordSearchArtifacts({
   metricsDir,
@@ -20,10 +21,12 @@ export async function recordSearchArtifacts({
     const historyPath = path.join(metricsDir, 'searchHistory');
     const noResultPath = path.join(metricsDir, 'noResultQueries');
     await fs.mkdir(path.dirname(metricsPath), { recursive: true });
-
+    await withFileLock({ lockPath: path.join(metricsDir, '.search-metrics.lock'), waitMs: 5000, timeoutBehavior: 'throw' }, async () => {
     const metrics = await readJsonFileSafe(metricsPath, { fallback: {} });
     const inc = (file, key) => {
-      if (!metrics[file]) metrics[file] = { md: 0, extractedProse: 0, code: 0, records: 0, terms: [] };
+      if (!Object.hasOwn(metrics, file)) {
+        Object.defineProperty(metrics, file, { value: { md: 0, extractedProse: 0, code: 0, records: 0, terms: [] }, enumerable: true, configurable: true, writable: true });
+      }
       metrics[file][key] = (metrics[file][key] || 0) + 1;
       queryTokens.forEach((token) => {
         if (!metrics[file].terms.includes(token)) metrics[file].terms.push(token);
@@ -59,5 +62,6 @@ export async function recordSearchArtifacts({
         JSON.stringify({ time: new Date().toISOString(), query }) + '\n'
       );
     }
+    });
   } catch {}
 }

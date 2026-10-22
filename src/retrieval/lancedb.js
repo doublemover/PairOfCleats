@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { distanceToSimilarity } from '../shared/ann-similarity.js';
+import { distanceToSimilarity, withAnnScoreSpace } from '../shared/ann-similarity.js';
 import { tryImport } from '../shared/optional-deps.js';
 import { normalizeLanceDbConfig } from '../shared/lancedb.js';
 import { createWarnOnce } from '../shared/logging/warn-once.js';
@@ -201,7 +201,7 @@ const rowsToHits = (rows, idColumn, metric) => {
     if (idx == null) continue;
     const sim = readRowScore(row, metric);
     if (sim == null) continue;
-    hits.push({ idx, sim });
+    hits.push(withAnnScoreSpace({ idx, sim }, { metric, kind: metric === 'cosine' ? 'cosine' : 'negative-distance', backend: 'lancedb', distance: row?._distance ?? row?.distance ?? null }));
   }
   return hits;
 };

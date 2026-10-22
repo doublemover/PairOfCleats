@@ -289,6 +289,9 @@ export const createGraphStore = ({
     throw new Error('GraphStore requires indexDir');
   }
   const resolvedManifest = manifest || loadPiecesManifest(indexDir, { maxBytes, strict });
+  const admissionScope = buildLocalCacheKey({ namespace: 'graph-store-admission', payload: {
+    indexDir, strict, maxBytes, manifest: resolvedManifest
+  } }).key;
   const presenceCache = new Map();
   const artifactCache = new Map();
   const artifactsUsed = new Set();
@@ -402,6 +405,15 @@ export const createGraphStore = ({
    */
   const hasArtifact = (name) => {
     const presence = resolvePresence(name);
+    if (presence?.error) {
+      if (presence.error.code === 'ERR_MANIFEST_MISSING') return false;
+      throw presence.error;
+    }
+    if (presence?.missingMeta || presence?.missingPaths?.length) {
+      throw Object.assign(new Error(`Declared graph artifact ${name} is incomplete: ${presence.missingPaths.join(', ') || presence.metaPath}`), {
+        code: 'ERR_ARTIFACT_MISSING'
+      });
+    }
     return presence && presence.format !== 'missing' && !presence.error;
   };
 
@@ -482,6 +494,7 @@ export const createGraphStore = ({
     graphs = null,
     includeCsr = false
   } = {}) => {
+    cacheKey = cacheKey ? `${cacheKey}::${admissionScope}` : null;
     const cached = getCachedGraphIndex(cacheKey, telemetry);
     if (cached) return cached;
     const graphList = normalizeGraphList(graphs);
@@ -498,7 +511,7 @@ export const createGraphStore = ({
       const loadStartedAt = Date.now();
       const [graphRelations, csrPayload, symbolEdges, callSites] = await Promise.all([
         wantsGraphRelations && hasArtifact('graph_relations') ? loadGraph() : null,
-        wantsGraphCsr ? loadGraphCsr().catch(() => null) : null,
+        wantsGraphCsr ? loadGraphCsr() : null,
         wantsSymbolEdges && hasArtifact('symbol_edges') ? loadSymbolEdges() : null,
         wantsCallSites && hasArtifact('call_sites') ? loadCallSites() : null
       ]);
@@ -512,6 +525,7 @@ export const createGraphStore = ({
       if (includeCsr && graphRelationsCsr) {
         const validation = validateCsrNodeOrdering(graphRelationsCsr, graphRelations);
         if (!validation.ok) {
+          if (strict) throw Object.assign(new Error(`Declared graph CSR is incompatible: ${validation.reason}`), { code: 'ERR_ARTIFACT_INVALID' });
           graphRelationsCsr = null;
           csrSource = null;
         }

@@ -324,7 +324,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     if (runCode) asOfRequestedModes.push('code');
     if (runProse) asOfRequestedModes.push('prose');
     if (runRecords) asOfRequestedModes.push('records');
-    if ((searchMode === 'extracted-prose' || searchMode === 'all') && !asOfRequestedModes.includes('extracted-prose')) {
+    if (runExtractedProseRaw && !asOfRequestedModes.includes('extracted-prose')) {
       asOfRequestedModes.push('extracted-prose');
     }
     let asOfContext = null;
@@ -333,6 +333,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         repoRoot: rootDir,
         userConfig,
         requestedModes: asOfRequestedModes,
+        optionalModes: !filterOnly && commentsEnabled && runCode && !runExtractedProseRaw ? ['extracted-prose'] : [],
         asOf: argv['as-of'],
         snapshot: argv.snapshot,
         preferFrozen: true,
@@ -341,13 +342,24 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     } catch (err) {
       return bail(err?.message || 'Invalid --as-of value.', 1, err?.code || ERROR_CODES.INVALID_REQUEST);
     }
-    const indexResolveOptions = asOfContext?.strict
-      ? {
-        indexDirByMode: asOfContext.indexDirByMode,
-        indexBaseRootByMode: asOfContext.indexBaseRootByMode,
-        explicitRef: true
+    const admittedDirs = { ...(asOfContext?.strict ? asOfContext.indexDirByMode : {}) };
+    const admittedRoots = { ...(asOfContext?.strict ? asOfContext.indexBaseRootByMode : {}) };
+    if (!asOfContext?.strict) {
+      // Capture every possible join before the first request await. Mutable
+      // current pointers are never consulted again during this request.
+      for (const mode of ['code', 'prose', 'extracted-prose', 'records']) {
+        try {
+          const dir = resolveIndexDir(rootDir, mode, userConfig);
+          admittedDirs[mode] = dir;
+          admittedRoots[mode] = path.dirname(dir);
+        } catch (error) {
+          if (asOfRequestedModes.includes(mode)) throw error;
+        }
       }
-      : {};
+    }
+    const indexResolveOptions = {
+      indexDirByMode: admittedDirs, indexBaseRootByMode: admittedRoots, explicitRef: true
+    };
     const resolvedIndexDirByMode = new Map();
     const resolveSearchIndexDir = (mode) => {
       if (resolvedIndexDirByMode.has(mode)) return resolvedIndexDirByMode.get(mode);
@@ -816,7 +828,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         runRecords
       })
     );
-    const baseCodeDictLanguages = normalizeCodeDictLanguages(DEFAULT_CODE_DICT_LANGUAGES);
+    const baseCodeDictLanguages = normalizeCodeDictLanguages(userConfig.indexing?.codeDictLanguages ?? DEFAULT_CODE_DICT_LANGUAGES);
     let codeDictLanguages = baseCodeDictLanguages;
     if (langFilter && langFilter.length) {
       const filterLangs = normalizeCodeDictLanguages(langFilter);
@@ -830,7 +842,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     const includeCodeDicts = runCode && codeDictLanguages.size > 0;
     const dictStart = stageTracker.mark();
-    const { dict } = await loadDictionary(rootDir, dictConfig, {
+    const { dict, policyIdentity: dictionaryPolicyIdentity } = await loadDictionary(rootDir, dictConfig, {
       includeCode: includeCodeDicts,
       codeDictLanguages: Array.from(codeDictLanguages)
     });
@@ -844,6 +856,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         structuredFilters: Object.fromEntries(SEARCH_FILTER_OPTION_NAMES.map((key) => [key, argv[key] ?? null])),
         dictConfig,
         dictSize: dict?.size ?? null,
+        dictionaryPolicyIdentity,
         postingsConfig,
         caseTokens,
         fileFilter,
@@ -887,9 +900,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         includeExtractedProse: runExtractedProseRaw || joinComments,
         root: rootDir,
         userConfig,
-        indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
-        indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
-        explicitRef: asOfContext?.strict === true,
+        indexDirByMode: admittedDirs,
+        indexBaseRootByMode: admittedRoots,
+        explicitRef: true,
         asOfContext,
         generationContext
       })
@@ -1103,6 +1116,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       exitOnError,
       annActive,
       filtersActive: queryPlan.filtersActive,
+      relationFilters: queryPlan.filters,
       chunkAuthorFilterActive: Array.isArray(chunkAuthorFilter) ? chunkAuthorFilter.length > 0 : Boolean(chunkAuthorFilter),
       contextExpansionEnabled,
       graphRankingEnabled,
@@ -1129,9 +1143,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       loadExtractedProse: joinComments,
       allowUnsafeMix,
       requiredArtifacts,
-      indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
-      indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
-      explicitRef: asOfContext?.strict === true,
+      indexDirByMode: admittedDirs,
+      indexBaseRootByMode: admittedRoots,
+      explicitRef: true,
       generationContext
     });
     stageTracker.record('startup.indexes', indexesStart, { mode: 'all' });

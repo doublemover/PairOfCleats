@@ -87,6 +87,7 @@ export function createIndexBackendLoader({
         : null,
       modelIdDefault,
       fileChargramN,
+      strict,
       includeHnsw: options.includeHnsw !== false,
       includeDense: options.includeDense !== false,
       includeMinhash: options.includeMinhash !== false,

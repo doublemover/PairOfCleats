@@ -41,6 +41,17 @@ const normalizeRulesInput = (rules) => {
   return [];
 };
 
+const assertUniqueRuleIds = rules => {
+  const seen = new Map();
+  for (let index = 0; index < rules.length; index += 1) {
+    const id = String(rules[index]?.id || '').trim();
+    if (!id) continue;
+    if (seen.has(id)) throw Object.assign(new Error(`Duplicate architecture rule id "${id}" at entries ${seen.get(id) + 1} and ${index + 1}.`),
+      { code: 'ERR_ARCHITECTURE_DUPLICATE_RULE_ID', ruleId: id, indices: [seen.get(id),index] });
+    seen.set(id,index);
+  }
+};
+
 const compileRules = (rules, warnings) => {
   const compiled = [];
   for (const rule of rules) {
@@ -167,6 +178,7 @@ export const parseArchitectureRules = (payload) => {
   if (!Array.isArray(payload.rules)) {
     throw new Error('Architecture rules must include a rules array.');
   }
+  assertUniqueRuleIds(payload.rules);
   return payload;
 };
 
@@ -207,6 +219,7 @@ export const buildArchitectureReport = ({
   });
 
   const normalizedRules = normalizeRulesInput(rules);
+  assertUniqueRuleIds(normalizedRules);
   const compiledRules = resolveCompiledRules(normalizedRules, warnings);
   const summaries = compiledRules.map((rule) => ({
     id: rule.id,

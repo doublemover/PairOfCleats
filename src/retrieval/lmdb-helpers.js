@@ -60,8 +60,7 @@ export function createLmdbHelpers(options) {
       requireFileMetaForFileIdChunks(chunkMeta);
     } else if (fileMetaById && includeChunks) {
       hydrateChunksFromFileMeta(chunkMeta, fileMetaById, {
-        churnAssignment: 'nullish',
-        skipWhenFileAndExt: true
+        churnAssignment: 'nullish'
       });
     }
 

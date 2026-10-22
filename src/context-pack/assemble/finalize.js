@@ -8,11 +8,13 @@ import { normalizeRiskFilters, validateRiskFilters } from '../../shared/risk-fil
 import { createTruncationRecorder } from '../../shared/truncation.js';
 import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
 import { loadPiecesManifest } from '../../shared/artifact-io/manifest.js';
+import { loadChunkMeta } from '../../shared/artifact-io/loaders/chunk-meta.js';
 import { buildGraphContextPack } from '../../graph/context-pack.js';
 import {
   buildChunkIndex,
   buildChunkUidMapSeedIndex,
   resolveChunkBySeed,
+  resolveChunkCandidatesBySeed,
   resolveChunkUidMapSeedCandidatesFromIndex,
   resolveChunkUidMapSeedRefs,
   resolvePrimaryRef,
@@ -83,7 +85,7 @@ export const assembleCompositeContextPack = ({
   const primaryRef = resolvePrimaryRef(seedRef, primaryChunk);
 
   const primary = {
-    ref: primaryRef || { type: 'chunk', chunkUid: null },
+    ref: primaryRef,
     file: null,
     range: null,
     excerpt: '',
@@ -275,6 +277,17 @@ export const assembleCompositeContextPackStreaming = async ({
     : null;
   const resolvedChunks = [];
   const seenChunkUids = new Set();
+  const hasSymbolSeed = candidates.some(candidate => candidate.type === 'symbol');
+  if (hasSymbolSeed) {
+    // Compact UID maps carry no symbol lookup. Hydrate selected-generation
+    // metadata explicitly rather than interpreting a symbol's path as a file seed.
+    const full = await loadChunkMeta(indexDir, { manifest: resolvedManifest, strict, maxBytes: MAX_JSON_BYTES });
+    for (const candidate of resolveChunkCandidatesBySeed(seedRef, buildChunkIndex(full, { repoRoot }))) {
+      if (!candidate.chunkUid || seenChunkUids.has(candidate.chunkUid)) continue;
+      seenChunkUids.add(candidate.chunkUid);
+      resolvedChunks.push(candidate.chunk);
+    }
+  }
   for (const candidate of candidates) {
     const chunks = resolveChunkUidMapSeedCandidatesFromIndex({
       seedIndex,
@@ -311,7 +324,7 @@ export const assembleCompositeContextPackStreaming = async ({
   }
   if (payload?.stats) {
     payload.stats.seedResolution = {
-      strategy: 'chunk_uid_map_index',
+      strategy: hasSymbolSeed ? 'symbol_metadata_fallback' : 'chunk_uid_map_index',
       candidates: candidates.length,
       rowsIndexed: seedIndex?.rowsIndexed || 0,
       hit: resolvedChunks.length > 0

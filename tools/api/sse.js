@@ -1,5 +1,5 @@
 import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
-import { redactAbsolutePaths, redactSearchResponseMetadata } from './redact.js';
+import { redactAbsolutePaths, redactPublicDiagnostic, redactSearchResponseMetadata } from './redact.js';
 
 /**
  * Write SSE headers for streaming responses.
@@ -61,7 +61,7 @@ export const createSseResponder = (req, res, options = {}) => {
       const { result, ...metadata } = payload || {};
       const publicPayload = event === 'result' && result
         ? { ...redactAbsolutePaths(metadata), result: redactSearchResponseMetadata(result) }
-        : redactAbsolutePaths(payload);
+        : redactPublicDiagnostic(payload);
       if (format) Object.assign(publicPayload, format, { message: payload.message, details: format, hint: format.rebuildCommand });
       return writeChunk(`data: ${JSON.stringify(publicPayload)}\n\n`);
     },

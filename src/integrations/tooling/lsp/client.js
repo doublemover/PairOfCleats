@@ -1019,6 +1019,8 @@ export function createLspClient(options) {
       return cachedMetricsSnapshot;
     },
     shutdownAndExit,
+    getTerminationEvidence: () => ({ exitObserved: !trackedChildProcess && pendingTerminations.size === 0,
+      pending: pendingTerminations.size, pid: trackedChildProcess?.pid ?? null }),
     kill,
     killSync
   };

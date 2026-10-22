@@ -1,4 +1,5 @@
 import yargs from 'yargs/yargs';
+import { optionPrefix } from '../shared/cli/option-prefix.js';
 export { SEARCH_FILTER_OPTION_NAMES, hasSearchFilterArgs } from '../shared/search-request.js';
 
 import { REMOVED_FLAGS, SEARCH_OPTIONS, SEARCH_ALIASES } from './cli-options.js';
@@ -45,7 +46,7 @@ export function getSearchHelp({ full = false } = {}) {
  */
 export function parseSearchArgs(rawArgs) {
   const removed = REMOVED_FLAGS.filter((entry) =>
-    rawArgs.some((arg) => arg === entry.flag || arg.startsWith(`${entry.flag}=`))
+    optionPrefix(rawArgs).some((arg) => arg === entry.flag || arg.startsWith(`${entry.flag}=`))
   );
   if (removed.length) {
     const details = removed

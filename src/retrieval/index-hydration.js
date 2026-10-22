@@ -42,14 +42,12 @@ export const hydrateChunksFromFileMeta = (
   chunkMeta,
   fileMetaById,
   {
-    churnAssignment = 'falsy-or-nullish',
-    skipWhenFileAndExt = false
+    churnAssignment = 'falsy-or-nullish'
   } = {}
 ) => {
   if (!fileMetaById) return;
   for (const chunk of Array.isArray(chunkMeta) ? chunkMeta : []) {
     if (!chunk) continue;
-    if (skipWhenFileAndExt && chunk.file && chunk.ext) continue;
     const meta = fileMetaById.get(chunk.fileId);
     if (!meta) continue;
     for (const [field, defaultMode] of CHUNK_FILE_META_FIELDS) {

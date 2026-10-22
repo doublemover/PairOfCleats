@@ -111,10 +111,13 @@ export async function startMcpSdkServer({
   serverInfo,
   resolveToolTimeoutMs,
   queueMax,
+  maxBufferBytes = 8 * 1024 * 1024,
   capabilities,
   capabilityManifest,
   executeTool = handleToolCall,
-  transport: suppliedTransport = null
+  transport: suppliedTransport = null,
+  stdin = process.stdin,
+  stdout = process.stdout
 }) {
   const {
     Server,
@@ -249,7 +252,10 @@ export async function startMcpSdkServer({
     finally { signal.removeEventListener('abort', cancelAdmission); }
   });
 
-  const transport = suppliedTransport || new StdioServerTransport();
+  if (!Number.isSafeInteger(maxBufferBytes) || maxBufferBytes < 0) throw new TypeError('MCP maxBufferBytes must be a nonnegative integer.');
+  const transport = suppliedTransport || new StdioServerTransport(stdin, stdout, {
+    maxBufferSize: maxBufferBytes === 0 ? Infinity : maxBufferBytes
+  });
   await server.connect(transport);
   let closing = null;
   const onInputEnd = () => { void service.close().catch(() => { process.exitCode = 1; }); };
@@ -264,7 +270,7 @@ export async function startMcpSdkServer({
         try { await queue.onIdle(); }
         finally {
           if (!suppliedTransport) {
-            process.stdin.off('end', onInputEnd); process.stdin.off('close', onInputEnd);
+            stdin.off('end', onInputEnd); stdin.off('close', onInputEnd);
           }
           await (await import('../../src/shared/embedding-adapter.js')).disposeEmbeddingAdapterCaches();
         }
@@ -276,8 +282,8 @@ export async function startMcpSdkServer({
   // The SDK stdio transport does not translate EOF into transport.onclose.
   // EOF is nevertheless a disconnect and must cancel owned tool work.
   if (!suppliedTransport) {
-    process.stdin.once('end', onInputEnd);
-    process.stdin.once('close', onInputEnd);
+    stdin.once('end', onInputEnd);
+    stdin.once('close', onInputEnd);
   }
   return service;
 }

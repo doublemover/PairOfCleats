@@ -1,5 +1,5 @@
 import { extractNgrams, tri } from '../../shared/tokenize.js';
-import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
+import { assertChargramHashIdentity, forEachRollingChargramHash } from '../../shared/chargram-hash.js';
 import { createVocabIndex } from '../vocab-index.js';
 
 /**
@@ -26,7 +26,7 @@ export const createCandidateSetBuilder = ({
     : null;
   return function buildCandidateSet(idx, tokens, mode) {
     if (useSqlite && (mode === 'code' || mode === 'prose')) {
-      return buildCandidateSetSqlite(mode, tokens);
+      return buildCandidateSetSqlite(mode, tokens, idx);
     }
 
     const candidates = candidatePool?.acquire ? candidatePool.acquire() : new Set();
@@ -60,6 +60,7 @@ export const createCandidateSetBuilder = ({
       const sample = idx.chargrams.vocab[0];
       const hashedChargrams = typeof idx.chargrams?.fields?.hash?.prefix === 'string'
         || (typeof sample === 'string' && sample.startsWith('h64:'));
+      if (hashedChargrams) assertChargramHashIdentity(idx.chargrams?.fields?.hash);
       for (const token of tokens) {
         if (chargramMaxTokenLength && token.length > chargramMaxTokenLength) continue;
         if (hashedChargrams) {

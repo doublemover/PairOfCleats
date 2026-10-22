@@ -4,14 +4,17 @@
  * @param {number} index
  * @returns {string}
  */
-export function buildRetrievalHitKey(hit, index) {
-  if (hit && (hit.id || hit.id === 0)) return String(hit.id);
+export function buildRetrievalHitKey(hit, index, options = {}) {
+  const scope = [hit?.repoId ?? hit?.repoRoot ?? options.repoScope ?? null, hit?.mode ?? options.mode ?? null];
+  const chunkUid = hit?.chunkUid ?? hit?.metaV2?.chunkUid;
+  if (chunkUid) return JSON.stringify(['chunk', scope, chunkUid]);
   if (hit && hit.file) {
-    const start = hit.startLine ?? hit.start ?? 0;
-    const end = hit.endLine ?? hit.end ?? 0;
-    return `${hit.file}:${start}:${end}:${hit.kind || ''}:${hit.name || ''}`;
+    const start = hit.start ?? hit.startLine ?? null;
+    const end = hit.end ?? hit.endLine ?? null;
+    return JSON.stringify(['file-range', scope, hit.file, start, end, hit.kind || '', hit.name || '']);
   }
-  return String(index);
+  if (options.idNamespace && hit?.id != null) return JSON.stringify(['ordinal', scope, options.idNamespace, hit.id]);
+  return null;
 }
 
 /**
@@ -50,17 +53,25 @@ export function resolveRetrievalHitScore(hit) {
  */
 export function compareRetrievalHitLists(baseHits, otherHits, options = {}) {
   const topN = Math.max(0, Number.isFinite(options.topN) ? Math.trunc(options.topN) : 10);
-  const base = baseHits.slice(0, topN);
-  const other = otherHits.slice(0, topN);
-  const baseKeys = base.map(buildRetrievalHitKey);
-  const otherKeys = other.map(buildRetrievalHitKey);
+  let unknownBase = 0, unknownOther = 0;
+  const distinct = (hits, side) => {
+    const rows = new Map();
+    hits.slice(0, topN).forEach((hit, index) => {
+      const key = buildRetrievalHitKey(hit, index, options)
+        ?? (side === 'base' ? `unknown:base:${unknownBase++}` : `unknown:other:${unknownOther++}`);
+      if (!rows.has(key)) rows.set(key, hit);
+    });
+    return rows;
+  };
+  const baseRows = distinct(baseHits, 'base'), otherRows = distinct(otherHits, 'other');
+  const baseKeys = [...baseRows.keys()], otherKeys = [...otherRows.keys()];
   const baseSet = new Set(baseKeys);
   const otherSet = new Set(otherKeys);
-  const intersection = baseKeys.filter((key) => otherSet.has(key));
+  const intersection = [...new Set(baseKeys.filter((key) => otherSet.has(key)))];
   const overlap = intersection.length / Math.max(1, Math.min(baseKeys.length, otherKeys.length));
 
-  const baseScores = new Map(base.map((hit, idx) => [buildRetrievalHitKey(hit, idx), resolveRetrievalHitScore(hit)]));
-  const otherScores = new Map(other.map((hit, idx) => [buildRetrievalHitKey(hit, idx), resolveRetrievalHitScore(hit)]));
+  const baseScores = new Map([...baseRows].map(([key, hit]) => [key, resolveRetrievalHitScore(hit)]));
+  const otherScores = new Map([...otherRows].map(([key, hit]) => [key, resolveRetrievalHitScore(hit)]));
   const deltas = intersection.map((key) => Math.abs((baseScores.get(key) || 0) - (otherScores.get(key) || 0)));
   const avgDelta = deltas.length ? deltas.reduce((sum, delta) => sum + delta, 0) / deltas.length : 0;
 
@@ -88,6 +99,10 @@ export function compareRetrievalHitLists(baseHits, otherHits, options = {}) {
     avgDelta,
     rankCorr,
     top1Same: baseKeys[0] && otherKeys[0] ? baseKeys[0] === otherKeys[0] : false,
+    comparable: !unknownBase && !unknownOther,
+    identityPolicy: options.idNamespace ? 'verified-ordinal-namespace' : 'repository-mode-stable-chunk-or-file-range',
+    duplicatePolicy: 'first-distinct-hit-within-top-window',
+    unknownIdentityCounts: { base: unknownBase, other: unknownOther },
     missingFromOther: baseKeys.filter((key) => !otherSet.has(key)),
     missingFromBase: otherKeys.filter((key) => !baseSet.has(key))
   };
@@ -101,7 +116,7 @@ export function compareRetrievalHitLists(baseHits, otherHits, options = {}) {
  * @returns {ReturnType<typeof compareRetrievalHitLists> & {zeroHits: boolean}}
  */
 export function summarizeRetrievalHitComparison(baseHits, otherHits, options = {}) {
-  const comparison = compareRetrievalHitLists(baseHits, otherHits, { topN: options.topN });
+  const comparison = compareRetrievalHitLists(baseHits, otherHits, options);
   const missingLimit = Number.isFinite(options.missingLimit)
     ? Math.max(0, Math.trunc(options.missingLimit))
     : null;

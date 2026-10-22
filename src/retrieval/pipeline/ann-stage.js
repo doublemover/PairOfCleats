@@ -9,6 +9,7 @@ import {
   resolveAnnCandidateSet
 } from '../scoring/ann-candidate-policy.js';
 import { VECTOR_REQUIRED_CODE } from './constants.js';
+import { isAbortError, throwIfAborted } from '../../shared/abort.js';
 
 const normalizeAnnHits = (hits) => {
   if (!Array.isArray(hits)) return [];
@@ -60,6 +61,7 @@ export const runAnnStage = async ({
   lanceAnnState,
   annMetrics
 }) => {
+  throwIfAborted(signal);
   let annHits = [];
   let annSource = null;
   let warned = false;
@@ -166,6 +168,7 @@ export const runAnnStage = async ({
   };
 
   const runAnnQuery = async (provider, candidateSet) => {
+    throwIfAborted(signal);
     if (!provider || typeof provider.query !== 'function') {
       return { hits: [], succeeded: false };
     }
@@ -193,10 +196,15 @@ export const runAnnStage = async ({
         route: annAdaptiveStrategy?.route || null,
         features: annAdaptiveStrategy?.features || null
       });
+      throwIfAborted(signal);
       const elapsedMs = Number(process.hrtime.bigint() - startedAtNs) / 1e6;
       providerRuntime.recordProviderSuccess(provider, mode, { latencyMs: elapsedMs });
       return { hits: normalizeAnnHits(hits), succeeded: true };
     } catch (err) {
+      if (signal?.aborted || isAbortError(err)) {
+        throwIfAborted(signal);
+        throw err;
+      }
       providerRuntime.recordProviderFailure(provider, mode, err?.message || 'query failed');
       return { hits: [], succeeded: false };
     }
@@ -305,6 +313,7 @@ export const runAnnStage = async ({
 
   const bypassedToSparse = effectiveRoute === ANN_ADAPTIVE_ROUTE.SPARSE;
 
+  throwIfAborted(signal);
   if (annEnabledForMode && !annHits.length && !bypassedToSparse) {
     const adaptiveTopN = Number.isFinite(Number(annAdaptiveStrategy?.budget?.topN))
       ? Math.max(1, Math.floor(Number(annAdaptiveStrategy.budget.topN)))

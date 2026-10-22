@@ -24,24 +24,24 @@ export async function runSearchByMode({
     throw error;
   };
   throwIfAborted();
-  const prosePromise = runProse
-    ? searchPipeline(idxProse, 'prose', queryEmbeddingProse)
-    : Promise.resolve([]);
-  const extractedProsePromise = runExtractedProse
-    ? searchPipeline(idxExtractedProse, 'extracted-prose', queryEmbeddingExtractedProse)
-    : Promise.resolve([]);
-  const codePromise = runCode
-    ? searchPipeline(idxCode, 'code', queryEmbeddingCode)
-    : Promise.resolve([]);
-  const recordsPromise = runRecords
-    ? searchPipeline(idxRecords, 'records', queryEmbeddingRecords)
-    : Promise.resolve([]);
-  const [proseHits, extractedProseHits, codeHits, recordHits] = await Promise.all([
-    prosePromise,
-    extractedProsePromise,
-    codePromise,
-    recordsPromise
-  ]);
+  let primaryFailure = null;
+  const modes = [
+    [runProse, idxProse, 'prose', queryEmbeddingProse],
+    [runExtractedProse, idxExtractedProse, 'extracted-prose', queryEmbeddingExtractedProse],
+    [runCode, idxCode, 'code', queryEmbeddingCode],
+    [runRecords, idxRecords, 'records', queryEmbeddingRecords]
+  ];
+  const settled = await Promise.allSettled(modes.map(([enabled, idx, mode, embedding]) => (
+    Promise.resolve().then(() => enabled ? searchPipeline(idx, mode, embedding) : [])
+      .catch(error => { primaryFailure ||= error; throw error; })
+  )));
+  if (primaryFailure) {
+    const siblingErrors = settled.filter(result => result.status === 'rejected' && result.reason !== primaryFailure)
+      .map(result => result.reason);
+    if (siblingErrors.length) primaryFailure.siblingErrors = siblingErrors;
+    throw primaryFailure;
+  }
+  const [proseHits, extractedProseHits, codeHits, recordHits] = settled.map(result => result.value);
   throwIfAborted();
   return { proseHits, extractedProseHits, codeHits, recordHits };
 }

@@ -12,7 +12,15 @@ const DEFAULT_RULE_ID = 'pairofcleats/risk-flow';
 
 const toSarifPathUri = (filePath) => {
   if (typeof filePath !== 'string' || !filePath.trim()) return null;
-  return filePath.replace(/\\/g, '/');
+  const normalized = filePath.replace(/\\/g, '/');
+  const encodePath = value => value.split('/').map(encodeURIComponent).join('/');
+  if (/^[A-Za-z]:\//u.test(normalized)) return `file:///${normalized.slice(0, 2)}${encodePath(normalized.slice(2))}`;
+  if (normalized.startsWith('//')) {
+    const [host, ...parts] = normalized.slice(2).split('/');
+    if (!/^[A-Za-z0-9._-]+$/u.test(host)) throw new TypeError('Invalid UNC host in SARIF source path.');
+    return `file://${host}/${parts.map(encodeURIComponent).join('/')}`;
+  }
+  return normalized.startsWith('/') ? `file://${encodePath(normalized)}` : encodePath(normalized);
 };
 
 const buildSarifRegion = (details) => {
@@ -31,7 +39,7 @@ const buildSarifPhysicalLocation = (details, { uriBaseId = DEFAULT_URI_BASE_ID }
   const physicalLocation = {
     artifactLocation: {
       uri,
-      uriBaseId
+      ...(!uri.startsWith('file:') ? { uriBaseId } : {})
     }
   };
   const region = buildSarifRegion(details);
@@ -105,7 +113,7 @@ const collectFlowSteps = (flow, maxEvidencePerFlow) => {
 
 const buildThreadFlowLocation = (flowStep, { uriBaseId = DEFAULT_URI_BASE_ID } = {}) => {
   const location = {
-    message: { text: flowStep.message },
+    location: { message: { text: flowStep.message } },
     executionOrder: flowStep.ordinal,
     properties: {
       pairOfCleats: {
@@ -118,7 +126,7 @@ const buildThreadFlowLocation = (flowStep, { uriBaseId = DEFAULT_URI_BASE_ID } =
   };
   const physicalLocation = buildSarifPhysicalLocation(flowStep.details, { uriBaseId });
   if (physicalLocation) {
-    location.location = { physicalLocation };
+    location.location.physicalLocation = physicalLocation;
   }
   return location;
 };
@@ -157,12 +165,12 @@ const buildFlowResult = (flow, index, { uriBaseId = DEFAULT_URI_BASE_ID, maxEvid
     partialFingerprints: {
       pairOfCleatsFlowId: flow?.flowId || `flow-${index + 1}`
     },
-    codeFlows: [{
+    ...(flowSteps.length ? { codeFlows: [{
       threadFlows: [{
         id: flow?.flowId || `flow-${index + 1}`,
         locations: flowSteps.map((step) => buildThreadFlowLocation(step, { uriBaseId }))
       }]
-    }],
+    }] } : {}),
     properties: {
       pairOfCleats: {
         flowId: flow?.flowId || null,

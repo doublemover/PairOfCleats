@@ -576,6 +576,12 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
 
   const manifestResult = await generateWorkspaceManifest(workspaceConfig, { write: true });
   const manifest = manifestResult.manifest;
+  const verifyRankedGeneration = async () => {
+    const current = await generateWorkspaceManifest(workspaceConfig, { write: false });
+    if (current.manifest.manifestHash !== manifest.manifestHash) {
+      throw createError(ERROR_CODES.INVALID_REQUEST, 'Workspace generation changed during ranked search. Retry against the current generation.');
+    }
+  };
   const requestedModes = resolveRequestedModes(request.search?.mode || request.mode);
   const selection = selectWorkspaceRepos({
     workspaceConfig,
@@ -732,6 +738,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     now: timeAnchor
   });
   if (cachedEntry?.result) {
+    await verifyRankedGeneration();
     touchFederatedQueryCacheEntry(cacheData, cacheKeyInfo.keyHash, new Date(timeAnchor).toISOString());
     try {
       await persistFederatedQueryCache({ cachePath, cache: cacheData });
@@ -911,6 +918,15 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
           }
         }
         const fallbackCaches = getSharedCaches();
+        const admittedBuild = manifestRepoMap.get(repo.repoId)?.build || null;
+        const resolvedGeneration = buildRepoGenerationContext(repoCaches);
+        if (resolvedGeneration && admittedBuild && (
+          (resolvedGeneration.buildGenerationKey && resolvedGeneration.buildGenerationKey !== admittedBuild.generationKey)
+          || (resolvedGeneration.buildId && resolvedGeneration.buildId !== admittedBuild.buildId)
+          || (resolvedGeneration.activeBuildRoot && resolvedGeneration.activeBuildRoot !== admittedBuild.activeRoot)
+        )) {
+          throw createError(ERROR_CODES.INVALID_REQUEST, `Repository ${repo.repoId} generation changed after workspace admission. Retry the search.`);
+        }
         let callSucceeded = false;
         const repoModePlan = buildRepoModePlans(
           Array.from(repoEligibleModesById.get(repo.repoId) || [])
@@ -933,13 +949,19 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
           try {
             const result = await searchFn(repo.repoRootCanonical, {
               args: repoArgs,
+              argsMode: 'complete',
               query: perRepoQuery,
               emitOutput: false,
               exitOnError: false,
               indexCache: repoCaches?.indexCache || fallbackCaches.indexCache,
               sqliteCache: repoCaches?.sqliteCache || fallbackCaches.sqliteCache,
               signal: context.signal || null,
-              generationContext: buildRepoGenerationContext(repoCaches)
+              generationContext: admittedBuild ? {
+                buildId: admittedBuild.buildId || null,
+                buildRoot: admittedBuild.buildRoot || null,
+                activeBuildRoot: admittedBuild.activeRoot || null,
+                buildGenerationKey: admittedBuild.generationKey || null
+              } : resolvedGeneration
             });
             if (result?.backend) combined.backend = result.backend;
             for (const mode of plan.modesCovered) {
@@ -1055,6 +1077,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     perRepoTop,
     rrfK
   });
+  await verifyRankedGeneration();
 
   const response = buildFederatedResponse({
     workspaceConfig,

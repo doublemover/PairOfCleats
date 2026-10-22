@@ -15,15 +15,8 @@ export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
       tokenIndexOverride,
       includeZeroScores = false
     }) => {
-      const fieldWeightsEnabled = fieldWeights
-        && Object.values(fieldWeights).some((value) => (
-          Number.isFinite(Number(value)) && Number(value) > 0
-        ));
-      const hasWeightedFields = fieldWeightsEnabled && Object.entries(fieldWeights).some(([field, weight]) => (
-        Number(weight) > 0 && Array.isArray(idx.fieldPostings?.fields?.[field]?.vocab)
-        && idx.fieldPostings.fields[field].vocab.length > 0
-      ));
-      const hits = hasWeightedFields
+      const fieldPolicyConfigured = fieldWeights && typeof fieldWeights === 'object';
+      const hits = fieldPolicyConfigured
         ? rankBM25Fields({
           idx,
           tokens: queryTokens,
@@ -45,7 +38,7 @@ export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
           k1,
           b
         });
-      return { hits, type: hasWeightedFields ? 'bm25-fielded' : 'bm25' };
+      return { hits, type: fieldPolicyConfigured ? 'bm25-fielded' : 'bm25' };
     }
   };
 }

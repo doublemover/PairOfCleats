@@ -15,11 +15,12 @@ import { createCandidateHelpers } from './filters/candidates.js';
 import { buildFileFilters, matchFileFilters } from './filters/file.js';
 import { collectFilePrefilterMatches } from './filters/file-prefilter.js';
 import { asObject, matchMetaFilters, resolveChunkDocmeta, resolveReturnTypes } from './filters/meta.js';
-import { normalizeList, normalizePhraseList, matchList, truthy } from './filters/predicates.js';
+import { normalizeArgumentList, normalizeList, normalizePhraseList, matchList, truthy } from './filters/predicates.js';
 import { matchStructural } from './filters/structural.js';
 import { normalizeFilePath } from '../../shared/path-normalize.js';
 import { toArray } from '../../shared/iterables.js';
 import { resolveFileRelations as resolveFileRelationLookup } from '../file-relations-resolver.js';
+import { resolveFilterVisibility } from '../effective-filter-facts.js';
 
 const normalizeModifierToken = (value) => String(value || '').trim().toLowerCase();
 
@@ -38,27 +39,6 @@ const hasModifierFlag = (modifiers, key) => {
   if (value == null) return false;
   const normalized = normalizeModifierToken(value);
   return normalized === 'true' || normalized === needle;
-};
-
-const resolveVisibilityFromModifiers = (modifiers) => {
-  if (!modifiers) return null;
-  if (modifiers && typeof modifiers === 'object' && !Array.isArray(modifiers)) {
-    if (typeof modifiers.visibility === 'string') return modifiers.visibility;
-    return null;
-  }
-  if (!Array.isArray(modifiers)) return null;
-  for (const entry of modifiers) {
-    const token = normalizeModifierToken(entry);
-    if (!token) continue;
-    if (token.startsWith('visibility:')) {
-      const value = token.split(':').slice(1).join(':').trim();
-      if (value) return value;
-    }
-    if (token === 'public' || token === 'private' || token === 'protected' || token === 'internal') {
-      return token;
-    }
-  }
-  return null;
 };
 
 const resolveDocmetaDecorators = (docmeta) => (
@@ -111,7 +91,7 @@ export function compileFilterPredicates(filters = {}, { fileChargramN = null } =
     ? Math.max(2, Math.floor(Number(filePrefilterConfig.chargramN)))
     : (Number.isFinite(Number(fileChargramN)) ? Math.max(2, Math.floor(Number(fileChargramN))) : null);
   const typeNeedles = normalizeList(filters.type).map(normalize);
-  const authorNeedles = normalizeList(filters.author).map(normalize);
+  const authorNeedles = normalizeArgumentList(filters.author).map(normalize);
   const metaFilters = Array.isArray(filters.meta) ? filters.meta : (filters.meta ? [filters.meta] : []);
   const excludeNeedles = normalizeList(filters.excludeTokens)
     .map((value) => (caseTokens ? String(value || '') : normalize(value)));
@@ -357,7 +337,7 @@ const matchChunkFilters = (c, state) => {
   const docmetaDecorators = resolveDocmetaDecorators(docmeta);
   const docmetaThrows = resolveDocmetaThrows(docmeta);
   const docmetaAwaits = resolveDocmetaAwaits(docmeta);
-  const docmetaVisibility = docmeta?.visibility || resolveVisibilityFromModifiers(docmetaModifiers);
+  const docmetaVisibility = resolveFilterVisibility(c);
   const docmetaParents = resolveDocmetaParents(docmeta);
   const docmetaHasAsync = Boolean(docmeta?.async) || hasModifierFlag(docmetaModifiers, 'async');
   const docmetaHasGenerator = Boolean(docmeta?.generator) || hasModifierFlag(docmetaModifiers, 'generator');

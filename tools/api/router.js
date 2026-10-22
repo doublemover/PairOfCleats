@@ -252,6 +252,7 @@ export const createApiRouter = ({
     const searchObservability = buildSearchObservability(requestObservability, repoPath, caches, searchContext);
     return await search(repoPath, {
       args: searchParams.args,
+      argsMode: 'complete',
       query: searchParams.query,
       emitOutput: false,
       exitOnError: false,

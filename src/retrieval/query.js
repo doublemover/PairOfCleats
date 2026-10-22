@@ -275,6 +275,7 @@ export function annotateQueryAst(ast, dict, options, postingsConfig) {
     if (node.type === BOOLEAN_TOKEN.PHRASE) {
       const tokens = tokenizePhrase(node.value, dict, options);
       node.tokens = tokens;
+      node.caseSensitive = options?.caseSensitive === true;
       const phraseInfo = buildPhraseNgrams([tokens], postingsConfig);
       node.ngrams = phraseInfo.ngrams;
       node.ngramSet = phraseInfo.ngrams.length ? new Set(phraseInfo.ngrams) : null;
@@ -355,6 +356,9 @@ const expandQueryToken = (raw, dict, options) => {
   const normalized = normalizeToken(raw);
   if (!normalized) return [];
   if (caseSensitive) return [normalized];
+  if (Array.isArray(dict?.queryDictionaries)) {
+    return [...new Set(dict.queryDictionaries.flatMap(variant => expandQueryToken(raw, variant, options)))];
+  }
   if (normalized.length <= 3 || dict.has(normalized)) return [normalized];
   const expanded = splitWordsWithDict(normalized, dict, options);
   return expanded.length ? expanded : [normalized];

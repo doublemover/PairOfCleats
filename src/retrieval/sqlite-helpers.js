@@ -1,8 +1,8 @@
 import { compileFtsMatchFromAst } from './fts-query.js';
-import { createQueryAstHelpers, matchesLiteralPhraseTokens, requiresBooleanUniverse } from './pipeline/query-ast.js';
+import { assertCasePreservedPhraseEvidence, createQueryAstHelpers, hasCaseSensitivePhrase, matchesLiteralPhraseTokens, requiresBooleanUniverse } from './pipeline/query-ast.js';
 import { FTS_VARIANT_TABLES } from '../storage/sqlite/fts-variants.js';
 import { extractNgrams, tri } from '../shared/tokenize.js';
-import { forEachRollingChargramHash } from '../shared/chargram-hash.js';
+import { assertChargramHashIdentity, forEachRollingChargramHash } from '../shared/chargram-hash.js';
 import { chunkArray } from '../storage/sqlite/utils.js';
 import { resolveDenseMetaRecord } from '../storage/sqlite/quantization.js';
 import { fetchVocabRows as fetchSqliteVocabRows } from '../storage/sqlite/vocab.js';
@@ -20,7 +20,7 @@ const FTS_OVERFETCH_MULTIPLIER = 10;
 const FTS_OVERFETCH_TIME_BUDGET_MS = 150;
 export const RETRIEVAL_FTS_UNAVAILABLE_CODE = 'retrieval_fts_unavailable';
 const phraseFunctionDatabases = new WeakSet();
-const matchesFtsPhraseJson = (literal, phrase) => Number(matchesLiteralPhraseTokens(parseArrayField(literal), parseArrayField(phrase)));
+const matchesFtsPhraseJson = (literal, phrase, caseSensitive) => Number(matchesLiteralPhraseTokens(parseArrayField(literal), parseArrayField(phrase), caseSensitive === 1));
 
 // Apply the same AST eligibility before ranking admission. SQL term membership
 // uses the actual selected tokenizer; the pure phrase callback shares the
@@ -38,8 +38,8 @@ const compileFtsEligibility = (queryAst, table) => {
     }
     if (node.type === 'phrase') {
       hasPhrase = true;
-      params.push(JSON.stringify(node.tokens ?? []));
-      return 'poc_fts_phrase_match(chunks.phrase_tokens, ?)';
+      params.push(JSON.stringify(node.tokens ?? []), node.caseSensitive === true ? 1 : 0);
+      return 'poc_fts_phrase_match_v3(chunks.phrase_tokens, ?, ?)';
     }
     if (node.type === 'not') return `NOT (${visit(node.child)})`;
     if (node.type === 'and' || node.type === 'or') return `(${visit(node.left)}) ${node.type.toUpperCase()} (${visit(node.right)})`;
@@ -512,7 +512,7 @@ export function createSqliteHelpers(options) {
    * @param {string[]} tokens
    * @returns {Set<number>|null}
    */
-  function buildCandidateSetSqlite(mode, tokens) {
+  function buildCandidateSetSqlite(mode, tokens, idx = null) {
     const db = getDb(mode);
     if (!db) return null;
     const candidates = new Set();
@@ -526,6 +526,9 @@ export function createSqliteHelpers(options) {
       sqliteCache.chargramHashMode.set(mode, hashed);
       return hashed;
     })();
+    if (hashedChargrams && postingsConfig.enableChargrams !== false) {
+      assertChargramHashIdentity(idx?.state?.features?.chargramHash);
+    }
     const addCandidate = (id) => {
       candidates.add(id);
       return candidateCap && candidates.size >= candidateCap;
@@ -679,9 +682,10 @@ export function createSqliteHelpers(options) {
       ? jsonPushdown ? ' AND chunks.id IN (SELECT value FROM json_each(?))'
         : ` AND chunks.id IN (${allowedList.map(() => '?').join(',')})`
       : '';
+    if (hasCaseSensitivePhrase(options.queryAst)) assertCasePreservedPhraseEvidence(idx);
     const eligibility = options.queryAst ? compileFtsEligibility(options.queryAst, table) : null;
     if (eligibility?.hasPhrase && !phraseFunctionDatabases.has(db)) {
-      db.function('poc_fts_phrase_match', { deterministic: true }, matchesFtsPhraseJson);
+      db.function('poc_fts_phrase_match_v3', { deterministic: true }, matchesFtsPhraseJson);
       phraseFunctionDatabases.add(db);
     }
     const fetchSql = () => needsUniverse

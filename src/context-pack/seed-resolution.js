@@ -94,10 +94,10 @@ export const resolveChunkCandidatesBySeed = (seedRef, chunkIndex) => {
     const candidate = candidates[index];
     const ref = candidate?.chunkUid
       ? { type: 'chunk', chunkUid: candidate.chunkUid }
-      : candidate?.path
-        ? { type: 'file', path: candidate.path }
-        : candidate?.symbolId
-          ? { type: 'symbol', symbolId: candidate.symbolId }
+      : candidate?.symbolId
+        ? { type: 'symbol', symbolId: candidate.symbolId }
+        : candidate?.path
+          ? { type: 'file', path: candidate.path }
           : null;
     if (!ref) continue;
     for (const chunk of resolveFromNode(ref)) {
@@ -138,7 +138,11 @@ export const resolvePrimaryRef = (seedRef, chunk) => {
     return { type: 'chunk', chunkUid: chunk.chunkUid || chunk.metaV2.chunkUid };
   }
   if (chunk?.file) return { type: 'file', path: chunk.file };
-  return seedRef || null;
+  const resolved = seedRef?.status === 'resolved' ? seedRef.resolved : null;
+  if (typeof resolved?.chunkUid === 'string' && resolved.chunkUid) return { type: 'chunk', chunkUid: resolved.chunkUid };
+  if (typeof resolved?.symbolId === 'string' && resolved.symbolId) return { type: 'symbol', symbolId: resolved.symbolId };
+  if (typeof resolved?.path === 'string' && resolved.path) return { type: 'file', path: resolved.path };
+  return null;
 };
 
 export const resolveChunkUidMapSeedRefs = (seedRef) => {
@@ -164,10 +168,10 @@ export const resolveChunkUidMapSeedRefs = (seedRef) => {
   for (const candidate of candidates) {
     if (candidate?.chunkUid) {
       pushUnique({ type: 'chunk', chunkUid: candidate.chunkUid });
-    } else if (candidate?.path) {
-      pushUnique({ type: 'file', path: candidate.path });
     } else if (candidate?.symbolId) {
       pushUnique({ type: 'symbol', symbolId: candidate.symbolId });
+    } else if (candidate?.path) {
+      pushUnique({ type: 'file', path: candidate.path });
     }
   }
   return refs;

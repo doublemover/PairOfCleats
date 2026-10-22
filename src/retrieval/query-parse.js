@@ -289,6 +289,7 @@ export function annotateQueryAst(ast, dict, options = {}, postingsConfig) {
     if (next.type === BOOLEAN_NODE_TYPES.PHRASE) {
       const tokens = tokenizePhrase(next.value, dict, options);
       next.tokens = tokens;
+      next.caseSensitive = options.caseSensitive === true;
       const phraseInfo = buildPhraseNgrams([tokens], postingsConfig);
       next.ngrams = phraseInfo.ngrams;
       next.ngramSet = phraseInfo.ngrams.length ? new Set(phraseInfo.ngrams) : null;

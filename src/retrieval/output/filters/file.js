@@ -1,7 +1,7 @@
-import path from 'node:path';
+import { resolveFilterExtension, resolveFilterLanguage } from '../../effective-filter-facts.js';
 import { compileSafeRegex } from '../../../shared/safe-regex.js';
 import { normalizeFilePath } from '../../../shared/path-normalize.js';
-import { defaultNormalize, normalizeList } from './predicates.js';
+import { defaultNormalize, normalizeArgumentList, normalizeList } from './predicates.js';
 
 const parseFileMatcher = ({ entry, normalizeFile, regexConfig }) => {
   const raw = String(entry || '').trim();
@@ -22,7 +22,7 @@ export const buildFileFilters = ({ file, ext, lang, caseFile, normalize = defaul
     caseFile ? normalizeFilePath(value) : normalize(normalizeFilePath(value))
   );
   const normalizeFilePrefilter = (value) => normalizeFilePath(value).toLowerCase();
-  const fileMatchers = normalizeList(file)
+  const fileMatchers = normalizeArgumentList(file)
     .map((entry) => parseFileMatcher({ entry, normalizeFile, regexConfig }))
     .filter(Boolean);
   const extNeedles = normalizeList(ext)
@@ -44,20 +44,6 @@ export const buildFileFilters = ({ file, ext, lang, caseFile, normalize = defaul
   };
 };
 
-const resolveEffectiveLang = (chunk) => {
-  const languageValues = [
-    chunk?.metaV2?.lang,
-    chunk?.metaV2?.effective?.languageId,
-    chunk?.lang
-  ];
-  for (const value of languageValues) {
-    if (typeof value !== 'string') continue;
-    const trimmed = value.trim();
-    if (trimmed) return trimmed;
-  }
-  return 'unknown';
-};
-
 export const matchFileFilters = ({ chunk, fileMatchers, extNeedles, langNeedles, normalizeFile, normalize = defaultNormalize }) => {
   if (fileMatchers.length) {
     const fileValue = String(chunk?.file || '');
@@ -72,11 +58,11 @@ export const matchFileFilters = ({ chunk, fileMatchers, extNeedles, langNeedles,
     if (!matches) return false;
   }
   if (langNeedles.length) {
-    const langValue = resolveEffectiveLang(chunk);
+    const langValue = resolveFilterLanguage(chunk);
     if (!langNeedles.includes(normalize(langValue))) return false;
   }
   if (extNeedles.length) {
-    const extValue = normalize(chunk?.ext || path.extname(chunk?.file || ''));
+    const extValue = normalize(resolveFilterExtension(chunk));
     if (!extNeedles.includes(extValue)) return false;
   }
   return true;

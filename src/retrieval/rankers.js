@@ -3,6 +3,8 @@ import { createTopKReducer } from './pipeline/topk.js';
 import { bitmapHas, bitmapToArray, getBitmapSize } from './bitmap.js';
 import { normalizeEmbeddingDims } from './ann/dims.js';
 import { createVocabIndex } from './vocab-index.js';
+import { isDenseVectorRowPresent } from '../shared/dense-vector-validity.js';
+import { withAnnScoreSpace } from '../shared/ann-similarity.js';
 
 /**
  * Legacy BM25-like scoring using chunk metadata fields directly.
@@ -200,10 +202,11 @@ export function rankBM25Fields({
   b = 0.75,
   includeZeroScores = false
 }) {
-  const fields = idx.fieldPostings?.fields;
-  if (!fields || !fieldWeights || !tokens.length) {
+  const fields = idx.fieldPostings?.fields || {};
+  if (!fieldWeights) {
     return rankBM25({ idx, tokens, topN, k1, b, allowedIdx, tokenIndexOverride, includeZeroScores });
   }
+  if (!tokens.length) return [];
   if (allowedIdx && getBitmapSize(allowedIdx) === 0) return [];
 
   // NOTE:
@@ -283,7 +286,7 @@ export function rankMinhash(idx, tokens, topN, candidateSet = null) {
   const ids = candidateSet ? bitmapToArray(candidateSet) : idx.minhash.signatures.map((_, i) => i);
   const reducer = createTopKReducer({
     k: topN,
-    buildPayload: (entry) => ({ idx: entry.id, sim: entry.score })
+    buildPayload: (entry) => withAnnScoreSpace({ idx: entry.id, sim: entry.score }, { kind: 'jaccard', metric: 'jaccard', backend: 'minhash' })
   });
   let order = 0;
   for (const id of ids) {
@@ -348,11 +351,12 @@ export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
     : vectors.length;
   const reducer = createTopKReducer({
     k: topN,
-    buildPayload: (entry) => ({ idx: entry.id, sim: entry.score })
+    buildPayload: (entry) => withAnnScoreSpace({ idx: entry.id, sim: entry.score }, { kind: 'dot-product', metric: 'dot', backend: 'dense' })
   });
   let order = 0;
 
   const processVectorId = (id) => {
+    if (!isDenseVectorRowPresent(idx.denseVec, id)) return;
     let vec = null;
     if (hasBuffer) {
       const start = id * dims;

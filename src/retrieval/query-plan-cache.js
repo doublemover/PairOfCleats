@@ -341,13 +341,15 @@ export function buildQueryPlanConfigSignature({
   fieldWeightsConfig = null,
   denseVectorMode = null,
   branchFilter = null,
-  dictSize = null
+  dictSize = null,
+  dictionaryPolicyIdentity = null
 } = {}) {
   return hashSignature({
     queryMatch,
     structuredFilters,
     dictConfig,
     dictSize,
+    dictionaryPolicyIdentity,
     postingsConfig,
     caseTokens,
     fileFilter,

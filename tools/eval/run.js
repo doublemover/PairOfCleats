@@ -6,6 +6,7 @@ import { createToolDisplay } from '../shared/cli-display.js';
 import { search as coreSearch } from '../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
 import { matchExpected, resolveMatchMode } from './match.js';
+import { collectExpectedJudgments, computeMRR, computeNDCG, computeRecallAtK } from './metrics.js';
 
 const argv = createCli({
   scriptName: 'eval-run',
@@ -64,40 +65,6 @@ const loadDataset = () => {
 
 const isMatch = (hit, expected) => matchExpected(hit, expected, matchMode);
 
-const computeRecallAtK = (ranks, totalRelevant, k) => {
-  if (!totalRelevant) return 0;
-  const found = ranks.filter((rank) => rank <= k).length;
-  return found / totalRelevant;
-};
-
-const computeMRR = (ranks) => {
-  if (!ranks.length) return 0;
-  return 1 / Math.min(...ranks);
-};
-
-const computeNDCG = (ranks, totalRelevant, k) => {
-  if (!totalRelevant) return 0;
-  const hits = ranks.filter((rank) => rank <= k).sort((a, b) => a - b);
-  if (!hits.length) return 0;
-  const dcg = hits.reduce((sum, rank) => sum + 1 / Math.log2(rank + 1), 0);
-  const idealCount = Math.min(totalRelevant, k);
-  let idcg = 0;
-  for (let i = 1; i <= idealCount; i += 1) {
-    idcg += 1 / Math.log2(i + 1);
-  }
-  return idcg ? dcg / idcg : 0;
-};
-
-const collectExpectedRanks = (hits, expectedItems, isMatchFn) => {
-  if (!Array.isArray(hits) || !Array.isArray(expectedItems) || !expectedItems.length) return [];
-  const ranks = [];
-  for (const expected of expectedItems) {
-    const index = hits.findIndex((hit) => isMatchFn(hit, expected));
-    if (index >= 0) ranks.push(index + 1);
-  }
-  return ranks;
-};
-
 const runSearch = async (query, mode) => {
   const args = ['--json', '--repo', repoRoot, '-n', String(topN)];
   if (mode && mode !== 'both') args.push('--mode', mode);
@@ -143,19 +110,21 @@ for (const entry of cases) {
   const gold = Array.isArray(entry.gold) ? entry.gold : [];
 
   const hits = await runSearch(query, mode);
-  const ranks = collectExpectedRanks(hits, silver, isMatch);
-  const goldRanks = collectExpectedRanks(hits, gold, isMatch);
+  const silverJudgments = collectExpectedJudgments(hits, silver, isMatch, { mode });
+  const goldJudgments = collectExpectedJudgments(hits, gold, isMatch, { mode });
+  const { ranks, totalRelevant } = silverJudgments;
+  const { ranks: goldRanks, totalRelevant: totalGold } = goldJudgments;
 
   const metrics = {
-    recallAtK: Object.fromEntries(ks.map((k) => [k, computeRecallAtK(ranks, silver.length, k)])),
+    recallAtK: Object.fromEntries(ks.map((k) => [k, computeRecallAtK(ranks, totalRelevant, k)])),
     mrr: computeMRR(ranks),
-    ndcgAtK: Object.fromEntries(ks.map((k) => [k, computeNDCG(ranks, silver.length, k)]))
+    ndcgAtK: Object.fromEntries(ks.map((k) => [k, computeNDCG(ranks, totalRelevant, k)]))
   };
   const goldMetrics = gold.length
     ? {
-      recallAtK: Object.fromEntries(ks.map((k) => [k, computeRecallAtK(goldRanks, gold.length, k)])),
+      recallAtK: Object.fromEntries(ks.map((k) => [k, computeRecallAtK(goldRanks, totalGold, k)])),
       mrr: computeMRR(goldRanks),
-      ndcgAtK: Object.fromEntries(ks.map((k) => [k, computeNDCG(goldRanks, gold.length, k)]))
+      ndcgAtK: Object.fromEntries(ks.map((k) => [k, computeNDCG(goldRanks, totalGold, k)]))
     }
     : null;
 
@@ -163,8 +132,8 @@ for (const entry of cases) {
     query,
     mode,
     totals: {
-      relevant: silver.length,
-      gold: gold.length,
+      relevant: totalRelevant,
+      gold: totalGold,
       hits: hits.length
     },
     metrics,
@@ -206,6 +175,7 @@ const output = {
   topN,
   ann: annFlag,
   ks,
+  relevancePolicy: 'distinct-document-one-to-one.v1',
   summary,
   results
 };

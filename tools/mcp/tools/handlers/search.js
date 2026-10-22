@@ -30,6 +30,7 @@ export async function runSearch(args = {}, context = {}) {
   });
   return await coreSearch(repoPath, {
     args: searchArgs,
+    argsMode: 'complete',
     query,
     emitOutput: false,
     exitOnError: false,

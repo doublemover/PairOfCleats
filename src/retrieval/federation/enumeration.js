@@ -53,7 +53,13 @@ export const enumerateWorkspace = async ({ tasks, args, cursor, manifestHash, se
       if (!boundArgs[i].startsWith('--mode=')) modeArgs.push(boundArgs[i]);
     }
     const result = await search(task.repo.repoRootCanonical, {
-      args: [...modeArgs, '--mode', task.mode, ...(localCursor ? ['--cursor', localCursor] : [])],
+      argsMode: 'complete',
+      args: (() => {
+        const terminator = modeArgs.indexOf('--');
+        const insertion = terminator < 0 ? modeArgs.length : terminator;
+        return [...modeArgs.slice(0, insertion), '--mode', task.mode,
+          ...(localCursor ? ['--cursor', localCursor] : []), ...modeArgs.slice(insertion)];
+      })(),
       emitOutput: false, exitOnError: false, signal,
       [INTERNAL_EXACT_SEARCH_MODE]: task.mode
     });

@@ -5,6 +5,7 @@ import { createProgressReporter } from '../../../../src/shared/progress-events.j
 import { clearRepoCaches } from '../../repo.js';
 import { runToolWithProgress } from '../../runner.js';
 import { maybeRestoreArtifacts, resolveMcpRepoContext, toolRoot } from '../helpers.js';
+import { getIndexDir } from '../../../../src/shared/dict-utils.js';
 
 /**
  * Handle the MCP build_index tool call.
@@ -72,10 +73,13 @@ export async function buildIndex(args = {}, context = {}) {
     );
   }
 
-  if (buildSqlite) {
+  if (buildSqlite && restoredArtifacts) {
     await withHeartbeat(
       `Building SQLite index${incremental ? ' (incremental)' : ''}.`,
       () => coreBuildSqliteIndex(repoPath, {
+        mode,
+        codeDir: ['all', 'code'].includes(mode) ? getIndexDir(repoPath, 'code', userConfig) : undefined,
+        proseDir: ['all', 'prose'].includes(mode) ? getIndexDir(repoPath, 'prose', userConfig) : undefined,
         incremental,
         abortSignal: context.signal,
         emitOutput: false

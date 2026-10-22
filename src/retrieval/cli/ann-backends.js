@@ -96,13 +96,24 @@ export const attachDenseVectorLoader = ({
       try {
         manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
       } catch (err) {
+        if (strict) throw err;
         if (err?.code !== 'ERR_MANIFEST_MISSING' && err?.code !== 'ERR_MANIFEST_INVALID') {
           throw err;
         }
       }
+      const candidatePresent = name => {
+        if (!strict) return true;
+        const presence = resolveArtifactPresence(dir, name, { manifest, strict: true });
+        if (presence.error) {
+          if (presence.error.code === 'ERR_MANIFEST_MISSING') return false;
+          throw presence.error;
+        }
+        return presence.format !== 'missing';
+      };
       for (const artifactName of artifactCandidates) {
         const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
         if (!descriptor) continue;
+        if (!candidatePresent(descriptor.metaName)) continue;
         let meta = null;
         try {
           meta = await loadJsonObjectArtifact(dir, descriptor.metaName, {
@@ -110,14 +121,16 @@ export const attachDenseVectorLoader = ({
             manifest,
             strict
           });
-        } catch {
-          if (strict) continue;
+        } catch (error) {
+          if (strict) throw error;
         }
         const loaded = await loadDenseVectorBinaryFromMetaAsync({
           dir,
           baseName: descriptor.baseName,
           meta,
-          modelId: modelIdDefault || null
+          modelId: modelIdDefault || null,
+          manifest,
+          strict
         });
         if (!loaded) continue;
         if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
@@ -127,6 +140,7 @@ export const attachDenseVectorLoader = ({
         return admitted;
       }
       for (const artifactName of artifactCandidates) {
+        if (!candidatePresent(artifactName)) continue;
         const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
         let legacy = null;
         try {
@@ -135,8 +149,9 @@ export const attachDenseVectorLoader = ({
             manifest,
             strict
           });
-        } catch {
-          if (strict || !descriptor) continue;
+        } catch (error) {
+          if (strict) throw error;
+          if (!descriptor) continue;
         }
         // Optional source lookup may fall through; a strict identity rejection
         // after a successful read must reach the caller.

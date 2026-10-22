@@ -4,6 +4,7 @@ import { ERROR_CODES } from '../../shared/error-codes.js';
 import { getSearchHelp, getSearchUsage, hasSearchFilterArgs, parseSearchArgs, resolveSearchMode, SEARCH_VALUE_FLAGS } from '../cli-args.js';
 import { formatHumanError, inferJsonOutputFromArgs } from './runner.js';
 import { wrapTerminalText } from '../output/format/shared.js';
+import { optionPrefix } from '../../shared/cli/option-prefix.js';
 
 const resolveHelpWidth = (stdout = process.stdout) => {
   const envColumns = Number.parseInt(String(process.env.COLUMNS || ''), 10);
@@ -47,6 +48,7 @@ const emitCliError = ({ stdout, message, jsonOutput }) => {
 };
 
 const findMissingValueFlag = (args) => {
+  args = optionPrefix(args);
   for (let index = 0; index < args.length; index += 1) {
     const current = String(args[index] || '');
     if (!SEARCH_VALUE_FLAGS.has(current)) continue;
@@ -64,7 +66,7 @@ export async function runCli({
 } = {}) {
   const args = rawArgs.slice();
   if (hasHelpArg(args)) {
-    printHelp(stdout, { full: args.includes('--all'), json: args.includes('--json') });
+    printHelp(stdout, { full: optionPrefix(args).includes('--all'), json: optionPrefix(args).includes('--json') });
     return 0;
   }
   if (hasVersionArg(args)) {
@@ -119,18 +121,18 @@ export async function runCli({
   }
 
   const { search } = await import('../../integrations/core/search.js');
-  await search(null, { args, emitOutput: true, exitOnError: true });
+  await search(null, { args, argsMode: 'complete', emitOutput: true, exitOnError: true });
   return 0;
 }
 
 export function hasHelpArg(values) {
-  return Array.isArray(values) && values.some((value) => (
+  return optionPrefix(values).some((value) => (
     value === '--help' || value === '-h'
   ));
 }
 
 export function hasVersionArg(values) {
-  return Array.isArray(values) && values.some((value) => (
+  return optionPrefix(values).some((value) => (
     value === '--version' || value === '-v'
   ));
 }

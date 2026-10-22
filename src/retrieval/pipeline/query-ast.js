@@ -1,6 +1,7 @@
 import { extractNgrams } from '../../shared/tokenize.js';
 import { postingIncludesDocId, resolvePhraseRange } from './candidates.js';
 import { createVocabIndex } from '../vocab-index.js';
+import { TEXT_ANALYZER_VERSION } from '../../shared/text-analyzer.js';
 
 /** Whether positive lexical seeding can omit rows admitted by the Boolean AST. */
 export const requiresBooleanUniverse = queryAst => {
@@ -20,12 +21,23 @@ export const requiresBooleanUniverse = queryAst => {
 };
 
 /** Exact contiguous membership in the admitted literal token stream. */
-export const matchesLiteralPhraseTokens = (literal, phrase) => {
+export const matchesLiteralPhraseTokens = (literal, phrase, caseSensitive = false) => {
   if (!phrase.length || literal.length < phrase.length) return false;
   for (let start = 0; start <= literal.length - phrase.length; start++) {
-    if (phrase.every((token, offset) => literal[start + offset] === token)) return true;
+    if (phrase.every((token, offset) => caseSensitive
+      ? literal[start + offset] === token
+      : String(literal[start + offset]).toLowerCase() === String(token).toLowerCase())) return true;
   }
   return false;
+};
+
+export const hasCaseSensitivePhrase = node => !!node && ((node.type === 'phrase' && node.caseSensitive === true)
+  || hasCaseSensitivePhrase(node.left) || hasCaseSensitivePhrase(node.right) || hasCaseSensitivePhrase(node.child));
+export const assertCasePreservedPhraseEvidence = (idx, chunk = null) => {
+  if (chunk?.phraseTokensCasePreserved === true || idx?.state?.features?.literalAnalyzer === TEXT_ANALYZER_VERSION) return;
+  throw Object.assign(new Error('Case-sensitive phrases require case-preserving literal evidence. Rebuild this index with the current analyzer.'), {
+    code: 'ERR_LITERAL_ANALYZER_REBUILD'
+  });
 };
 
 /**
@@ -139,6 +151,7 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange, t
   const matchesQueryAst = (idx, chunkId, chunk, semantic = false) => {
     if (!queryAst) return true;
     const chunkRecord = resolveChunk(idx, chunkId, chunk);
+    if (hasCaseSensitivePhrase(queryAst)) assertCasePreservedPhraseEvidence(idx, chunkRecord);
     if (requiresLiteral && (chunkRecord?.phraseTokensComplete === false
       || chunkRecord?.phraseTokens === null)) return false;
     const tokens = resolveChunkTokens(idx, chunkId, chunkRecord);
@@ -156,7 +169,7 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange, t
         case 'phrase': {
           const literal = chunkRecord?.phraseTokens ?? tokens;
           const phrase = node.tokens ?? [];
-          return matchesLiteralPhraseTokens(literal, phrase);
+          return matchesLiteralPhraseTokens(literal, phrase, node.caseSensitive === true);
         }
         case 'not':
           return !evalNode(node.child, false);

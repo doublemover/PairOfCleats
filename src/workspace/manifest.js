@@ -312,9 +312,8 @@ const buildModeEntry = async ({
     || pointer.modes.length === 0
     || pointer.modes.includes(mode)
   );
-  const indexRoot = pointer.activeRoot
-    || pointer.buildRoots[mode]
-    || (modeFromBuildRoot ? pointer.buildRoot : null);
+  const indexRoot = pointer.buildRoots[mode]
+    || (modeFromBuildRoot ? (pointer.activeRoot || pointer.buildRoot) : null);
   const indexDir = indexRoot ? path.join(indexRoot, `index-${mode}`) : null;
   const indexStat = indexDir ? await statIfExists(indexDir) : null;
   const hasIndexDir = Boolean(indexStat?.isDirectory?.());

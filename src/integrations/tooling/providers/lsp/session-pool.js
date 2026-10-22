@@ -24,6 +24,7 @@ const SESSION_STATE = Object.freeze({
 const sessions = new Map();
 const sessionHealthRecords = new Map();
 const disposalBarriers = new Map();
+const unconfirmedDisposals = new Map();
 const creationBarriers = new Map();
 const sessionPoolMetrics = {
   cleanupPassFailures: 0,
@@ -234,7 +235,7 @@ const resolveQuarantineForFailure = (reason, lifecycleState, record = null) => {
 
 const emitPoolWarning = (log, message) => {
   if (typeof log === 'function') {
-    log(message);
+    try { log(message); } catch { /* Diagnostics cannot replace disposal evidence. */ }
     return;
   }
   try {
@@ -312,8 +313,9 @@ const awaitWithTimeout = async (promise, timeoutMs) => {
   const resolvedTimeoutMs = toPositiveInt(timeoutMs, DEFAULT_DISPOSE_TIMEOUT_MS, 100);
   let timeoutHandle = null;
   let timedOut = false;
+  let value;
   try {
-    await Promise.race([
+    value = await Promise.race([
       Promise.resolve(promise),
       new Promise((resolve) => {
         timeoutHandle = setTimeout(() => {
@@ -325,28 +327,20 @@ const awaitWithTimeout = async (promise, timeoutMs) => {
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle);
   }
-  return { timedOut };
+  return { timedOut, value };
 };
 
 const trackDisposalPromise = (promise) => {
   if (!promise || typeof promise.then !== 'function') return Promise.resolve();
   activeDisposals.add(promise);
-  promise.finally(() => {
-    activeDisposals.delete(promise);
-  });
+  promise.then(() => activeDisposals.delete(promise), () => activeDisposals.delete(promise));
   return promise;
 };
 
 const killSessionClient = (session, { sync = false } = {}) => {
   if (!session || typeof session !== 'object') return;
-  try {
-    if (sync && session.client && typeof session.client.killSync === 'function') {
-      return session.client.killSync();
-    }
-    if (session.client && typeof session.client.kill === 'function') {
-      return session.client.kill();
-    }
-  } catch {}
+  if (sync && session.client && typeof session.client.killSync === 'function') return session.client.killSync();
+  if (session.client && typeof session.client.kill === 'function') return session.client.kill();
 };
 
 const disposeSessionClient = async (session) => {
@@ -356,37 +350,40 @@ const disposeSessionClient = async (session) => {
     return;
   }
   const runDispose = async () => {
-    session.disposed = true;
     session.state = SESSION_STATE.RETIRED;
     const delayMs = toNonNegativeInt(testHooks.disposeDelayMs, 0);
     if (delayMs > 0) {
       await sleep(delayMs);
     }
-    let shutdownTimedOut = false;
+    let shutdownError = null;
     try {
       if (session.client && typeof session.client.shutdownAndExit === 'function') {
-        const shutdownResult = await awaitWithTimeout(
+        await awaitWithTimeout(
           session.client.shutdownAndExit(),
           DEFAULT_DISPOSE_TIMEOUT_MS
         );
-        shutdownTimedOut = shutdownResult.timedOut === true;
       }
-    } catch {}
-    if (shutdownTimedOut) {
-      await awaitWithTimeout(
-        Promise.resolve(killSessionClient(session)),
-        DEFAULT_KILL_TIMEOUT_MS
-      );
-      return;
-    }
-    await awaitWithTimeout(
+    } catch (error) { shutdownError = error; }
+    const outcome = await awaitWithTimeout(
       Promise.resolve(killSessionClient(session)),
       DEFAULT_KILL_TIMEOUT_MS
     );
+    const confirmsExit = value => Array.isArray(value) ? value.length > 0 && value.every(confirmsExit)
+      : value?.exitObserved === true;
+    const evidence = session.client?.getTerminationEvidence?.();
+    if (outcome.timedOut || !(evidence ? evidence.exitObserved === true : confirmsExit(outcome.value))) {
+      throw Object.assign(new Error('LSP disposal did not confirm child exit.'), {
+        code: 'ERR_LSP_DISPOSAL_UNCONFIRMED', termination: { timedOut: outcome.timedOut, ...evidence, result: outcome.value },
+        ...(shutdownError ? { cleanupErrors: [shutdownError] } : {})
+      });
+    }
+    session.disposed = true;
+    unconfirmedDisposals.delete(session.key);
+    return { exitObserved: true };
   };
   session.disposePromise = runDispose();
-  session.disposed = true;
-  await session.disposePromise;
+  try { return await session.disposePromise; }
+  catch (error) { session.disposePromise = null; throw error; }
 };
 
 const awaitSessionDisposalBarrier = async (key) => {
@@ -438,14 +435,7 @@ const enqueueSessionDisposal = (session, {
   const previous = key ? disposalBarriers.get(key) : null;
   const run = async () => {
     if (previous) {
-      await previous.catch((error) => {
-        sessionPoolMetrics.disposalFailures += 1;
-        emitPoolWarning(
-          session?.options?.log,
-          `[tooling:lsp] prior disposal barrier failed for ${session?.lifecycleName || session?.key || 'session'}: ` +
-          `${error?.message || error}`
-        );
-      });
+      await previous.catch(() => {});
     }
     if (killFirst) {
       const killResult = await awaitWithTimeout(
@@ -463,20 +453,26 @@ const enqueueSessionDisposal = (session, {
     await disposeSessionClient(session);
   };
   const tracked = trackDisposalPromise(run().catch((error) => {
-    sessionPoolMetrics.disposalFailures += 1;
+    if (!session.disposalFailureReported) {
+      session.disposalFailureReported = true;
+      sessionPoolMetrics.disposalFailures += 1;
+    }
+    unconfirmedDisposals.set(key, session);
     emitPoolWarning(
       session?.options?.log,
       `[tooling:lsp] session disposal failed for ${session?.lifecycleName || session?.key || 'session'}: ` +
       `${error?.message || error}`
     );
+    throw error;
   }));
+  tracked.catch(() => {});
   if (key) {
     disposalBarriers.set(key, tracked);
-    tracked.finally(() => {
+    tracked.then(() => {
       if (disposalBarriers.get(key) === tracked) {
         disposalBarriers.delete(key);
       }
-    });
+    }, () => {});
   }
   return tracked;
 };
@@ -738,7 +734,10 @@ const waitForAllSettledWithTimeout = async (promises, timeoutMs) => {
 
 const hardKillSessionsSync = (sessionsToKill) => {
   for (const session of sessionsToKill) {
-    killSessionClient(session, { sync: true });
+    try { killSessionClient(session, { sync: true }); } catch (error) {
+      unconfirmedDisposals.set(session.key, session);
+      emitPoolWarning(session?.options?.log, `LSP hard kill failed: ${error?.message || error}`);
+    }
   }
 };
 
@@ -900,23 +899,21 @@ export const drainLspSessionPool = async (options = {}) => {
   drainSessionPoolPromise = (async () => {
     clearCleanupTimer();
     await cleanupPassQueue.catch(() => {});
-    const liveSessions = Array.from(sessions.values());
+    const liveSessions = [...new Set([...sessions.values(), ...unconfirmedDisposals.values()])];
     sessions.clear();
     const disposalPromises = liveSessions.map((session) => enqueueSessionDisposal(session, { killFirst }));
     const pendingDisposals = Array.from(disposalBarriers.values());
     const pendingTrackedDisposals = Array.from(activeDisposals.values());
     const waited = await waitForAllSettledWithTimeout(
-      [...disposalPromises, ...pendingDisposals, ...pendingTrackedDisposals],
+      [...new Set([...disposalPromises, ...pendingDisposals, ...pendingTrackedDisposals])],
       timeoutMs
     );
     if (waited.timedOut) {
       hardKillSessionsSync(liveSessions);
-      disposalBarriers.clear();
-      creationBarriers.clear();
       if (log) {
         log(
           `[tooling:lsp] session pool drain timed out after ${timeoutMs}ms; `
-          + `hard-killed ${liveSessions.length} session(s).`
+          + `attempted hard kill for ${liveSessions.length} session(s); exit remains unconfirmed.`
         );
       }
       return {
@@ -931,8 +928,6 @@ export const drainLspSessionPool = async (options = {}) => {
     if (!rejected && sessionPoolMetrics.disposalFailures === disposalFailuresBeforeDrain) {
       retireUnusedHealthySessionRecords();
     }
-    disposalBarriers.clear();
-    creationBarriers.clear();
     if (log) {
       log(
         `[tooling:lsp] session pool drain complete: sessions=${liveSessions.length}, `
@@ -940,7 +935,7 @@ export const drainLspSessionPool = async (options = {}) => {
       );
     }
     return {
-      status: 'ok',
+      status: rejected ? 'failed' : 'ok',
       total: liveSessions.length,
       rejected,
       timedOut: false,
@@ -1129,7 +1124,6 @@ export const withLspSession = async (options, fn) => {
     barrier.resolve();
     if (disposalPromise) {
       void disposalPromise.catch((error) => {
-        sessionPoolMetrics.disposalFailures += 1;
         emitPoolWarning(
           session?.options?.log,
           `[tooling:lsp] lease-finalizer disposal failed for ${session?.lifecycleName || session?.key || 'session'}: ` +

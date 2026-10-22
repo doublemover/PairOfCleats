@@ -624,7 +624,7 @@ export async function runApiContractsCli(rawArgs = process.argv.slice(2)) {
   const callSitesByTarget = await loadCallSitesByTarget(indexDir, manifest);
   const callSites = callSitesByTarget
     ? []
-    : await collectRows(loadJsonArrayArtifactRows(indexDir, 'call_sites', { manifest, strict: true })).catch(() => []);
+    : await collectRows(loadJsonArrayArtifactRows(indexDir, 'call_sites', { manifest, strict: true }));
 
   const { key: indexCompatKey } = readCompatibilityKey(indexDir, {
     maxBytes: MAX_JSON_BYTES,

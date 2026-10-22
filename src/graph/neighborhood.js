@@ -344,14 +344,22 @@ export const buildGraphNeighborhood = ({
     const nodes = [];
     const edgesOut = [];
     let cursor = key;
-    let safety = 0;
-    while (cursor && safety < 5000) {
+    const seen = new Set();
+    while (cursor) {
+      if (seen.has(cursor) || !nodeMap.has(cursor)) {
+        warnings.push({ code: 'GRAPH_PATH_INCOMPLETE', message: 'Graph parent evidence is cyclic or missing.' });
+        return null;
+      }
+      seen.add(cursor);
       const node = nodeMap.get(cursor);
       if (node?.ref) nodes.push(node.ref);
       const parent = parentMap.get(cursor);
+      if (!parent && Number(node?.distance || 0) > 0) {
+        warnings.push({ code: 'GRAPH_PATH_INCOMPLETE', message: 'Graph parent evidence does not reach an admitted seed.' });
+        return null;
+      }
       if (parent?.edge) edgesOut.push(parent.edge);
       cursor = parent?.parentKey;
-      safety += 1;
     }
     nodes.reverse();
     edgesOut.reverse();

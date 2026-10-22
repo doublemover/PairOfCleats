@@ -1,14 +1,15 @@
 import { normalizeCap } from '../../shared/limits.js';
+const optionalCap = value => value == null ? null : normalizeCap(value);
 
 export const normalizeCaps = (caps) => ({
-  maxDepth: normalizeCap(caps?.maxDepth),
-  maxFanoutPerNode: normalizeCap(caps?.maxFanoutPerNode),
-  maxNodes: normalizeCap(caps?.maxNodes),
-  maxEdges: normalizeCap(caps?.maxEdges),
-  maxPaths: normalizeCap(caps?.maxPaths),
-  maxCandidates: normalizeCap(caps?.maxCandidates),
-  maxWorkUnits: normalizeCap(caps?.maxWorkUnits),
-  maxWallClockMs: normalizeCap(caps?.maxWallClockMs)
+  maxDepth: optionalCap(caps?.maxDepth),
+  maxFanoutPerNode: optionalCap(caps?.maxFanoutPerNode),
+  maxNodes: optionalCap(caps?.maxNodes),
+  maxEdges: optionalCap(caps?.maxEdges),
+  maxPaths: optionalCap(caps?.maxPaths),
+  maxCandidates: optionalCap(caps?.maxCandidates),
+  maxWorkUnits: optionalCap(caps?.maxWorkUnits),
+  maxWallClockMs: optionalCap(caps?.maxWallClockMs)
 });
 
 export const normalizeDirection = (value) => {

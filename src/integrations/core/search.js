@@ -22,7 +22,10 @@ export async function search(repoRoot, params = {}) {
       output: params.output || null
     }
   });
-  const rawArgs = Array.isArray(params.args) ? params.args.slice() : buildSearchArgs(params);
+  if (params.argsMode != null && !['additional', 'complete'].includes(params.argsMode)) throw new TypeError('argsMode must be additional or complete.');
+  if (params.args != null && !Array.isArray(params.args)) throw new TypeError('Search args must be an array.');
+  const namedArgs = buildSearchArgs({ ...params, args: [] });
+  const rawArgs = params.argsMode === 'complete' ? (params.args || []).slice() : [...namedArgs, ...(params.args || [])];
   const query = typeof params.query === 'string' ? params.query : '';
   if (query) rawArgs.push('--', query);
   const result = await runSearchCli(rawArgs, {

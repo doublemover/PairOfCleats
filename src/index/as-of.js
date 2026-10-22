@@ -98,6 +98,7 @@ export function resolveAsOfContext({
   repoRoot,
   userConfig = null,
   requestedModes = [],
+  optionalModes = [],
   asOf = null,
   snapshot = null,
   preferFrozen = true,
@@ -111,10 +112,15 @@ export function resolveAsOfContext({
       ref: normalized.inputRef,
       repoRoot,
       userConfig,
-      requestedModes,
+      requestedModes: [...new Set([...requestedModes, ...optionalModes])],
       preferFrozen,
-      allowMissingModes: strictInput ? false : allowMissingModesForLatest === true
+      allowMissingModes: optionalModes.length ? true : (strictInput ? false : allowMissingModesForLatest === true)
     });
+    if (strictInput) {
+      for (const mode of requestedModes) {
+        if (!resolved.indexDirByMode?.[mode]) throw invalidRequest(`Selected index reference has no ${mode} generation.`);
+      }
+    }
     const strictRef = normalized.provided && resolved.canonical !== 'latest';
     return {
       provided: normalized.provided,

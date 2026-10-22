@@ -63,18 +63,25 @@ export function createTantivyProvider({ verbose = false, logger } = {}) {
       if (!query) return { hits: [], type: 'tantivy' };
       // The adapter ranks globally and filtering happens below. Eligible-set
       // cardinality cannot bound the rank of its first eligible document.
-      const overfetch = candidateSet
+      let overfetch = candidateSet
         ? Math.max(topN, Math.min(topN * 3, 2000))
         : topN;
-      let rows = [];
-      try {
-        rows = adapter.searchIndex(handle, query, overfetch, mode) || [];
-      } catch {
-        return { hits: [], type: 'tantivy' };
-      }
-      let hits = normalizeHits(rows);
-      if (candidateSet) {
-        hits = hits.filter((hit) => bitmapHas(candidateSet, hit.idx));
+      const maxWindow = Math.max(overfetch, Array.isArray(idx?.chunkMeta) ? idx.chunkMeta.length : 1_000_000);
+      let hits;
+      for (;;) {
+        let rows;
+        try { rows = adapter.searchIndex(handle, query, overfetch, mode) || []; }
+        catch { return { hits: [], type: 'tantivy' }; }
+        hits = normalizeHits(rows);
+        if (candidateSet) hits = hits.filter(hit => bitmapHas(candidateSet, hit.idx));
+        if (!candidateSet || hits.length >= topN || rows.length < overfetch) break;
+        if (overfetch >= maxWindow) {
+          if (Array.isArray(idx?.chunkMeta)) break;
+          throw Object.assign(new Error('Tantivy filtered search exhausted its bounded global scan before proving complete eligible results.'), {
+            code: 'ERR_SPARSE_FILTER_BUDGET'
+          });
+        }
+        overfetch = Math.min(maxWindow, Math.max(overfetch + 1, overfetch * 2));
       }
       hits.sort((a, b) => (b.score - a.score) || (a.idx - b.idx));
       if (hits.length > topN) hits = hits.slice(0, topN);

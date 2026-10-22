@@ -122,7 +122,7 @@ export const createAstGraphObserved = () => ({
 });
 
 const hasObservedAstField = (analysis, key) => ANALYSIS_MODE_KEYS.some((modeKey) => (
-  Number.isFinite(Number(analysis?.modes?.[modeKey]?.[key]))
+  Number.isFinite(analysis?.modes?.[modeKey]?.[key])
 ));
 
 export const mergeAstGraphObserved = (target, analysis) => {
@@ -150,7 +150,7 @@ const loadStage2Artifacts = (buildState, modeKey) => {
 };
 
 const analysisCountFromArtifacts = (artifacts, key) => {
-  const value = Number(artifacts?.[key]?.count);
+  const value = artifacts?.[key]?.count;
   return Number.isFinite(value) ? value : null;
 };
 
@@ -234,11 +234,10 @@ const computeBenchAnalysis = (
   };
 };
 
-const hasKindBreakdown = (analysis) => ANALYSIS_MODE_KEYS.some((modeKey) => {
-  const mode = analysis?.modes?.[modeKey];
-  return Number.isFinite(Number(mode?.classes))
-    || Number.isFinite(Number(mode?.functions));
-});
+const hasKindBreakdown = (analysis) => {
+  const modes = ANALYSIS_MODE_KEYS.map(key => analysis?.modes?.[key]).filter(Boolean);
+  return modes.length > 0 && modes.every(mode => Number.isFinite(mode.classes) && Number.isFinite(mode.functions));
+};
 
 export const loadOrComputeIndexingSummary = ({
   payload,
@@ -651,6 +650,17 @@ export const applyRunThroughputLedgerDiffs = (runs) => {
   }
 };
 
+export const compareLedgerRegressions = (left, right) => {
+  const severity = row => Number.isFinite(row?.deltaPct)
+    ? (row.metricKind === 'duration' ? row.deltaPct : -row.deltaPct) : -Infinity;
+  if (severity(left) !== severity(right)) return severity(left) > severity(right) ? -1 : 1;
+  for (const field of ['folder', 'repoIdentity', 'modality', 'stage', 'metric', 'metricKind', 'file']) {
+    const order = String(left?.[field] || '').localeCompare(String(right?.[field] || ''));
+    if (order) return order;
+  }
+  return 0;
+};
+
 export const collectRunLedgerRegressions = (runs) => {
   const rows = [];
   for (const run of runs) {
@@ -676,10 +686,6 @@ export const collectRunLedgerRegressions = (runs) => {
       }
     }
   }
-  rows.sort((left, right) => (
-    left.metricKind === 'duration'
-      ? (Number(right.deltaPct) - Number(left.deltaPct))
-      : (Number(left.deltaPct) - Number(right.deltaPct))
-  ) || String(left.repoIdentity || '').localeCompare(String(right.repoIdentity || '')));
+  rows.sort(compareLedgerRegressions);
   return rows;
 };

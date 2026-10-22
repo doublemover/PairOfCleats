@@ -4,8 +4,7 @@ import { normalizeHnswConfig } from '../../shared/hnsw.js';
 import { normalizeLanceDbConfig } from '../../shared/lancedb.js';
 import { normalizeEmbeddingProvider, resolveOnnxConfig } from '../../shared/onnx-embeddings.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
-import { resolveFtsWeights } from '../fts.js';
-import { parseJson } from '../query-cache.js';
+import { parseFtsWeightsOption, resolveFtsWeights } from '../fts.js';
 import { parseChurnArg, parseModifiedArgs } from '../query-parse.js';
 import { normalizeAnnBackend } from '../ann/normalize-backend.js';
 import {
@@ -437,19 +436,7 @@ export function normalizeSearchOptions({
       || (['fast', 'balanced', 'max'].includes(policyQuality) ? policyQuality : 'balanced')
   ).toLowerCase();
   let sqliteFtsWeightsConfig = searchConfig.sqliteFtsWeights ?? null;
-  if (argv['fts-weights']) {
-    const parsed = parseJson(argv['fts-weights'], null);
-    if (parsed) {
-      sqliteFtsWeightsConfig = parsed;
-    } else {
-      const values = String(argv['fts-weights'])
-        .split(/[,\s]+/)
-        .filter(Boolean)
-        .map((val) => Number(val))
-        .filter((val) => Number.isFinite(val));
-      sqliteFtsWeightsConfig = values.length ? values : sqliteFtsWeightsConfig;
-    }
-  }
+  if (argv['fts-weights'] != null) sqliteFtsWeightsConfig = parseFtsWeightsOption(argv['fts-weights']);
   const sqliteFtsWeights = resolveFtsWeights(sqliteFtsProfile, sqliteFtsWeightsConfig);
   const sqliteFtsTrigram = argv['fts-trigram'] === true;
   const sqliteFtsStemming = argv['fts-stemming'] === true

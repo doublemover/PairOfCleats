@@ -64,6 +64,7 @@ export function buildQueryPlan({
   extImpossible,
   langImpossible
 }) {
+  const queryMatch = argv.match || 'auto';
   const requestedLanguage = Array.isArray(langFilter)
     ? (langFilter[0] || null)
     : (typeof langFilter === 'string' ? langFilter : null);
@@ -74,7 +75,7 @@ export function buildQueryPlan({
   };
   const parseResult = parseQueryWithFallback(query);
   const parsedQuery = parseResult.parsed;
-  const queryAst = applyQueryMatchPolicy(annotateQueryAst(parsedQuery.ast, dict, tokenizationOptions, postingsConfig), argv.match || 'auto');
+  const queryAst = applyQueryMatchPolicy(annotateQueryAst(parsedQuery.ast, dict, tokenizationOptions, postingsConfig), queryMatch);
   const includeTokens = tokenizeQueryTerms(parsedQuery.includeTerms, dict, tokenizationOptions);
   const phraseTokens = parsedQuery.phrases
     .map((phrase) => tokenizePhrase(phrase, dict, tokenizationOptions))
@@ -92,7 +93,8 @@ export function buildQueryPlan({
   const excludePhraseRange = excludePhraseInfo.minLen && excludePhraseInfo.maxLen
     ? { min: excludePhraseInfo.minLen, max: excludePhraseInfo.maxLen }
     : null;
-  const queryTokens = [...includeTokens, ...phraseTokens.flat()];
+  const phraseScoringTokens = tokenizeQueryTerms(parsedQuery.phrases, dict, { ...tokenizationOptions, caseSensitive: false });
+  const queryTokens = [...includeTokens, ...phraseScoringTokens];
   const rx = buildHighlightRegex(queryTokens);
   const embeddingQueryText = [...parsedQuery.includeTerms, ...parsedQuery.phrases]
     .join(' ')
@@ -170,6 +172,11 @@ export function buildQueryPlan({
   const filterPredicates = compileFilterPredicates(filters, { fileChargramN });
 
   const cacheFilters = {
+    queryMatch,
+    branches: branchesMin ?? null,
+    loops: loopsMin ?? null,
+    breaks: breaksMin ?? null,
+    continues: continuesMin ?? null,
     type: searchType,
     author: searchAuthor,
     calls: argv.calls || null,
