@@ -34,6 +34,12 @@ assert.equal(external.facts[0].protocolShape, 'LocationLink');
 const signature = collector.record({ requestClass: 'references', params: { textDocument: { uri }, position: range.start, context: { includeDeclaration: false } },
   response: { attempted: true, info: { signature: 'display only' } } });
 assert.equal(signature.reason, 'raw_payload_unavailable');
+const splitScalar = collector.record({ requestClass: 'definition', params: { textDocument: { uri }, position: { line: 0, character: 0 } },
+  response: { attempted: true, payload: [{ uri, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } } }] } });
+assert.equal(splitScalar.facts[0].target.state, 'invalid_range', 'UTF16 code-unit roundtrip does not make a split scalar an exact source range');
+assert.equal(splitScalar.facts[0].target.span, null);
+assert.equal(splitScalar.exactCount, 0);
+assert.equal(splitScalar.state, 'partial');
 let requests = 0;
 const item = { name: 'value', kind: 12, uri, range, selectionRange: range, data: { opaque: 'keep-exact' } };
 const budgets = Object.fromEntries(['prepareCallHierarchy', 'outgoingCalls'].map(key => [key, { tryReserve: () => true }]));

@@ -9,6 +9,11 @@ export const exactLspRange = (source, text, range, encoding = 'utf-16') => {
   if (!range || !point(range.start) || !point(range.end) || range.start.line >= lines.length || range.end.line >= lines.length) return null;
   const offsets = rangeToOffsets(lines, range, { text, positionEncoding: encoding });
   if (offsets.end < offsets.start) return null;
+  for (const offset of [offsets.start, offsets.end]) {
+    if (offset > 0 && offset < text.length && text.charCodeAt(offset - 1) >= 0xd800
+      && text.charCodeAt(offset - 1) <= 0xdbff && text.charCodeAt(offset) >= 0xdc00
+      && text.charCodeAt(offset) <= 0xdfff) return null;
+  }
   for (const key of ['start', 'end']) { const back = offsetToLspPosition(source, text, offsets[key], encoding); if (back.line !== range[key].line || back.character !== range[key].character) return null; }
   return [offsets.start, offsets.end];
 };

@@ -5,7 +5,8 @@ import { createSemanticFactsRef } from '../../../src/index/semantic/file-ref.js'
 import { createSemanticProviderResultSink } from '../../../src/index/semantic/merge-provider.js';
 import { semanticHash } from '../../../src/index/semantic/identity.js';
 import { normalizeSemanticConfig } from '../../../src/index/semantic/config.js';
-import { prepareScipSemanticImport, loadScipSemanticSources, writeScipSemanticImport } from '../../../src/index/tooling/scip-semantic-import.js';
+import { prepareScipSemanticImport, loadScipSemanticSources, writeScipSemanticImport, SCIP_SEMANTIC_IMPORT_VERSION } from '../../../src/index/tooling/scip-semantic-import.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../../../src/index/semantic/analysis-versions.js';
 import { createSemanticDetailService } from '../../../src/semantic/detail.js';
 
 const f = await createRecoveryFixture('😀 value value');
@@ -23,6 +24,9 @@ try {
     semanticDiskAccount: f.account, semanticEvidenceArtifacts: [] };
   const runtime = { root: f.root, buildRoot: f.root };
   const admittedSources = await loadScipSemanticSources({ state, runtime });
+  await assert.rejects(loadScipSemanticSources({ state: { ...state,
+    semanticFactsByFile: new Map([['original.js', { ...facts, sourceHash: '0'.repeat(64) }]]) }, runtime }),
+  { code: 'ERR_SCIP_IMPORT_IDENTITY' }, 'retained byte identity must still join the current parser facts');
   const index = { metadata: { projectRoot: 'file:///producing-root/', toolInfo: { name: 'scip-fixture', version: '1' } },
     documents: [{ relativePath: 'original.js', positionEncoding: 2, symbols: [{ symbol: 'scip npm fixture 1 value().', relationships: [] }],
       occurrences: [{ symbol: 'scip npm fixture 1 value().', symbolRoles: 1, range: [0, 3, 8] },
@@ -40,13 +44,23 @@ try {
     assert.deepEqual(prepare(variant).documents[0].occurrences[0].span, [3, 8]);
   }
   const prepared = prepare(index);
+  assert.deepEqual(prepared.adapterIdentity, { version: SCIP_SEMANTIC_IMPORT_VERSION, sourceCoordinates: SEMANTIC_ANALYSIS_VERSIONS.lspBindings });
+  const splitScalar = structuredClone(index);
+  splitScalar.documents[0].occurrences.push({ symbol: 'scip npm fixture 1 value().', symbolRoles: 0, range: [0, 0, 1] });
+  assert.equal(prepare(splitScalar).rejected, 1, 'UTF16 roundtrip alone cannot admit half of the leading emoji');
+  const oldMeaning = { ...prepared, adapterIdentity: { ...prepared.adapterIdentity, sourceCoordinates: 'old-coordinate-meaning' } };
+  await assert.rejects(writeScipSemanticImport({ prepared: oldMeaning }), { code: 'ERR_SCIP_IMPORT_IDENTITY' });
+  const legacyMeaning = { ...prepared }; delete legacyMeaning.adapterIdentity;
+  await assert.rejects(writeScipSemanticImport({ prepared: legacyMeaning }), { code: 'ERR_SCIP_IMPORT_IDENTITY' });
   const result = await writeScipSemanticImport({ prepared, state, policy: normalizeSemanticConfig({ enabled: true }),
     semanticSink: createSemanticProviderResultSink({ state, runtime }) });
   assert.equal(result.persisted, 1);
+  assert.equal(result.output.contexts[0].providerVersion, SCIP_SEMANTIC_IMPORT_VERSION);
   const store = f.store(state.semanticFactsByFile.get('original.js').partitions), records = [];
   for await (const row of store.iterateRows(result.output.partitions[0].partitionId, 'semantic_records')) records.push(row);
   const binding = records.find(row => row.kind === 'binding');
   assert.equal(binding.data.status, 'resolved');
+  assert.ok(records.filter(row => row.kind === 'evidence').every(row => row.data.producerVersion === SCIP_SEMANTIC_IMPORT_VERSION));
   const detail = await createSemanticDetailService()({ store, request: { repoRoot: f.root, generation: f.generation,
     refs: [{ partitionId: result.output.partitions[0].partitionId, localId: binding.id }] } });
   assert.equal(detail.records[0].data.candidateCount, 1);

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { canonicalSemanticJson, semanticHash, createAnalysisPartitionId, createSymbolGroupId } from '../semantic/identity.js';
 import { exactLspRange } from '../semantic/lsp-locations.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../semantic/analysis-versions.js';
 import { writeSemanticAnalysis } from '../semantic/analysis-write.js';
 import { persistSemanticEvidence } from '../semantic/lsp-evidence.js';
 import { combineSemanticProviderOutputs } from './result-dispatch.js';
@@ -8,8 +9,10 @@ import { throwIfAborted } from '../../shared/abort.js';
 import path from 'node:path';
 import { createArtifactSemanticStore } from '../../semantic/artifact-store.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
-import { readVerifiedContainedFile } from '../../shared/contained-file.js';
+import { readRetainedSemanticSourceSnapshot } from '../../semantic/retained-source-snapshot.js';
 
+export const SCIP_SEMANTIC_IMPORT_VERSION = '2';
+const adapterIdentity = () => ({ version: SCIP_SEMANTIC_IMPORT_VERSION, sourceCoordinates: SEMANTIC_ANALYSIS_VERSIONS.lspBindings });
 const fail = message => Object.assign(new Error(message), { code: 'ERR_SCIP_IMPORT_IDENTITY' });
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
 const field = (object, camel, snake) => {
@@ -40,6 +43,7 @@ export const loadScipSemanticSources = async ({ state, runtime, maxSources = 256
     throwIfAborted(signal);
     if (sources.size >= maxSources) throw fail('SCIP source inventory budget exhausted.');
     const root = path.join(runtime.buildRoot, facts.storage.relativePath), syntax = facts.partitions.find(value => value.partitionId === facts.syntaxPartitionId);
+    if (!syntax) throw fail('SCIP parser syntax partition is absent from the immutable inventory.');
     const store = createArtifactSemanticStore({ root, repoRoot: runtime.root, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       generation: facts.storage.generation, partitions: facts.partitions });
     let source;
@@ -47,11 +51,14 @@ export const loadScipSemanticSources = async ({ state, runtime, maxSources = 256
       if (source) throw fail('Multiple SCIP parser source manifests.');
       source = row;
     }
-    if (!source || source.encoding !== 'utf8') continue;
-    await store.verifySource(source, { signal });
-    const { buffer: bytes } = await readVerifiedContainedFile(root, path.join(root, 'semantic-sources', source.byteHash + '.utf8'), {
-      expectedHash: source.byteHash, maxBytes: maxBytes - retainedBytes, signal
-    });
+    if (!source) throw fail('SCIP parser source manifest is missing.');
+    if (source.encoding !== 'utf8') continue;
+    if (maxBytes - retainedBytes < 1) throw fail('SCIP source byte allowance exhausted.');
+    const { bytes, text, source: capturedSource } = await readRetainedSemanticSourceSnapshot({ store,
+      partitionId: syntax.partitionId, maxBytes: maxBytes - retainedBytes, signal });
+    source = capturedSource;
+    if (source.sourceUnitId !== facts.sourceUnitId || source.sourceUnitId !== syntax.sourceUnitId
+      || source.byteHash !== facts.sourceHash) throw fail('SCIP captured source differs from its immutable parser inventory.');
     retainedBytes += bytes.length;
     const declarations = [], occurrences = [];
     for await (const row of store.iterateRows(syntax.partitionId, 'semantic_records', { signal })) {
@@ -62,8 +69,7 @@ export const loadScipSemanticSources = async ({ state, runtime, maxSources = 256
     }
     retainedTargets += declarations.length + occurrences.length;
     if (sources.has(source.path)) throw fail('Compile variants require separate explicit SCIP source mappings.');
-    sources.set(source.path, { file, source, syntax, facts, root, bytes,
-      text: new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes), declarations, occurrences });
+    sources.set(source.path, { file, source, syntax, facts, root, bytes, text, declarations, occurrences });
   }
   return sources;
 };
@@ -148,7 +154,7 @@ export const prepareScipSemanticImport = ({ bytes, producingReceipt, expectedRec
     }
     documents.push({ item, documentPath, positionEncoding, symbols, occurrences, original: doc });
   }
-  return { status: rejected || omitted || unsupportedRelationships ? 'partial' : 'admitted', artifactHash,
+  return { status: rejected || omitted || unsupportedRelationships ? 'partial' : 'admitted', artifactHash, adapterIdentity: adapterIdentity(),
     profileHash: producingReceipt.profileHash, generation, projectVariant, metadata: index.metadata,
     documents, definitions, rejected, omitted, unsupportedRelationships,
     externalSymbols: field(index, 'externalSymbols', 'external_symbols') || [] };
@@ -158,18 +164,19 @@ export const prepareScipSemanticImport = ({ bytes, producingReceipt, expectedRec
  * writer and return one canonical provider envelope for the common sink. */
 export const writeScipSemanticImport = async ({ prepared, state, policy, semanticSink = null, signal = null }) => {
   if (!['admitted', 'partial'].includes(prepared.status)) return { status: prepared.status, output: null, accepted: 0, persisted: 0 };
+  if (!prepared.adapterIdentity || canonicalSemanticJson(prepared.adapterIdentity) !== canonicalSemanticJson(adapterIdentity())) throw fail('SCIP prepared coordinate/adapter meaning changed.');
   const contexts = [], partitions = [];
   let unjoined = 0;
   for (const document of prepared.documents) {
     throwIfAborted(signal);
     const { item } = document;
-    const context = { contextKey: semanticHash('semantic.scip-context.v1', { profileHash: prepared.profileHash,
+    const context = { contextKey: semanticHash('semantic.scip-context.v1', { adapter: prepared.adapterIdentity, profileHash: prepared.profileHash,
       artifactHash: prepared.artifactHash, generation: prepared.generation, variant: prepared.projectVariant }),
     sourceUnits: prepared.documents.map(value => ({ sourceUnitId: value.item.source.sourceUnitId, byteHash: value.item.source.byteHash })),
-    providerId: 'scip-import', providerVersion: '1', compilerVersion: null,
+    providerId: 'scip-import', providerVersion: SCIP_SEMANTIC_IMPORT_VERSION, compilerVersion: null,
     configHash: semanticHash('semantic.scip-project.v1', { metadata: prepared.metadata, variant: prepared.projectVariant }),
     moduleResolutionHash: prepared.profileHash, vfsMappingHash: semanticHash('semantic.scip-mappings.v1', prepared.documents.map(value => value.item.source.mapping)) };
-    const partitionId = createAnalysisPartitionId({ pass: { name: 'scip-import', version: '1' },
+    const partitionId = createAnalysisPartitionId({ pass: { name: 'scip-import', version: SCIP_SEMANTIC_IMPORT_VERSION },
       inputPartitionHashes: [item.syntax.canonicalHash], compilerContext: context.contextKey,
       dependencySummaryHashes: [prepared.profileHash], analysisPolicy: { artifactHash: prepared.artifactHash, source: item.source.sourceUnitId } });
     const artifactRef = await persistSemanticEvidence({ value: { schemaVersion: 1, format: 'SCIP-JSON', metadata: prepared.metadata,
@@ -185,7 +192,7 @@ export const writeScipSemanticImport = async ({ prepared, state, policy, semanti
     for (const occurrence of document.occurrences) {
       const evidence = ref(nodeId++);
       rows.push({ family: 'node', row: { id: evidence.localId, kind: 'evidence', span: occurrence.span, scope: null,
-        data: { method: 'scip/occurrence', producerId: 'scip-import', producerVersion: '1', evidenceKind: 'scip-source-pinned', sourceRef: item.source.sourceUnitId, artifactRef } } });
+        data: { method: 'scip/occurrence', producerId: 'scip-import', producerVersion: SCIP_SEMANTIC_IMPORT_VERSION, evidenceKind: 'scip-source-pinned', sourceRef: item.source.sourceUnitId, artifactRef } } });
       const candidates = prepared.definitions.get(occurrence.symbolKey) || [];
       if (occurrence.roles & 1) {
         for (const target of candidates) rows.push({ family: 'edge', row: { id: edgeId++, kind: 'evidenceInput', from: evidence, to: target,
@@ -212,7 +219,8 @@ export const writeScipSemanticImport = async ({ prepared, state, policy, semanti
     }
     rows.push(...[...names].map(([value, id]) => ({ family: 'lookup', row: { kind: 'name', id, value } })));
     const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: item.root, source: item.source, sourceBytes: item.bytes,
-      partitionId, producerHash: prepared.profileHash, contextHash: context.contextKey, policyHash: semanticHash('semantic.scip-policy.v1', { version: 1 }),
+      partitionId, producerHash: semanticHash('semantic.scip-producer.v1', { profileHash: prepared.profileHash, adapter: prepared.adapterIdentity }),
+      contextHash: context.contextKey, policyHash: semanticHash('semantic.scip-policy.v1', { version: SCIP_SEMANTIC_IMPORT_VERSION }),
       structuralSlots: [], diskAccount: state.semanticDiskAccount, signal });
     contexts.push(context); partitions.push(partition);
   }
