@@ -1,0 +1,39 @@
+# Editor evidence collection lifetime
+
+The VS Code collector captures the selected saved result's repository root/URI
+and original canonical seeds before the first picker await. Source picker rows
+are immutable, and only distinct original rows from that picker may select work.
+A copied row, changed saved result object or mutated hit cannot substitute a
+different repository or seed after selection. The existing eight-selection and
+128-source limits remain in place. A newer collection revokes its predecessor
+through the existing keyed operation owner.
+
+Returned packets are captured as bounded immutable JSON data before review.
+Additional metadata, producer provenance, evidence/coverage and warnings remain
+in that original JSON representation. Review choices must be distinct original
+packet items; a foreign or copied packet cannot enter the final collection.
+The producer still owns canonical schema/source qualification. This consumer
+does not certify an old search generation by fetching current indexed context.
+Each packet must fit the existing 256 KiB export bound, and packets deeper than 64
+levels are unavailable. Oversized total selections may still be reduced in the
+existing review picker before final bounded output is generated.
+
+Every picker, source fetch, preview opening/display and export-destination await
+checks the collection's original operation authority. A preview must actually
+display its exact opened document and unchanged version/text. Before copying or
+starting a file write, the final preview must still identify that captured text;
+editing/closing it or displaying a different document cannot authorize export.
+Only the original offered copy/export actions are admitted. An already accepted
+clipboard/file write remains owned by its awaited operation; supersession does
+not establish cancellation or rollback of that external write.
+
+Failure reporting retains the exact original operation value, including falsey
+values. A throwing diagnostic getter or synchronous notification failure is
+returned separately in immutable inspection evidence; it cannot replace that
+primary. Original observer-bearing errors remain available to their existing
+owner, with no inferred resource-release observation or diagnostic getter retry.
+
+The additional actual collector/operation-owner controls are **UNVALIDATED**. No
+tests, syntax/lint/format, bootstrap, editor/browser/native/child execution or
+resource/performance qualification was run. Full canonical producer coverage,
+real editor review/cancellation behavior and write interruption remain separate.

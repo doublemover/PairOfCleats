@@ -1,15 +1,48 @@
 const fs = require('node:fs');
 const { renderCompositeContextPack } = require('./analysis-renderers.js');
+const { assertQualifiedEditor } = require('./document-authority.js');
 
 const MAX_SELECTED = 8;
 const MAX_EXPORT_BYTES = 256 * 1024;
 
+function originalChoices(selected, items, maximum) {
+  if (!Array.isArray(selected) || !selected.length) return null;
+  if (selected.length > maximum) throw new Error(`Select at most ${maximum} evidence items.`);
+  const choices = [], seen = new Set();
+  for (let index = 0; index < selected.length; index++) {
+    if (!Object.hasOwn(selected, index)) throw new Error('Evidence choices must be dense original picker items.');
+    const choice = selected[index];
+    if (seen.has(choice) || !items.includes(choice)) throw new Error('Evidence choices must be distinct original items from this picker.');
+    seen.add(choice); choices.push(choice);
+  }
+  return choices;
+}
+
+function capturePacket(packet) {
+  const encoded = JSON.stringify(packet);
+  if (typeof encoded !== 'string' || Buffer.byteLength(encoded) > MAX_EXPORT_BYTES) {
+    throw new Error('One canonical context packet exceeds the 256 KiB export bound. Narrow its budgets before collecting.');
+  }
+  const captured = JSON.parse(encoded);
+  const freeze = (value, depth = 0) => {
+    if (!value || typeof value !== 'object') return value;
+    if (depth > 64) throw new Error('Canonical context packet exceeds the editor nesting bound.');
+    for (const child of Object.values(value)) freeze(child, depth + 1);
+    return Object.freeze(value);
+  };
+  return freeze(captured);
+}
+
 function evidenceSeed(hit) {
-  if (hit?.chunkUid) return `chunk:${hit.chunkUid}`;
-  if (hit?.ref?.type === 'chunk' && hit.ref.chunkUid) return `chunk:${hit.ref.chunkUid}`;
-  if (hit?.ref?.type === 'symbol' && hit.ref.symbolId) return `symbol:${hit.ref.symbolId}`;
-  const file = hit?.file || hit?.path;
-  return file ? `file:${file}` : null;
+  const chunkUid = hit?.chunkUid;
+  if (typeof chunkUid === 'string' && chunkUid) return `chunk:${chunkUid}`;
+  const ref = hit?.ref, type = ref?.type;
+  if (type === 'chunk') { const id = ref.chunkUid; if (typeof id === 'string' && id) return `chunk:${id}`; }
+  if (type === 'symbol') { const id = ref.symbolId; if (typeof id === 'string' && id) return `symbol:${id}`; }
+  const file = hit?.file;
+  if (typeof file === 'string' && file) return `file:${file}`;
+  const sourcePath = hit?.path;
+  return typeof sourcePath === 'string' && sourcePath ? `file:${sourcePath}` : null;
 }
 
 function collectEvidenceSources(payload) {
@@ -50,61 +83,107 @@ function renderEvidencePreview(packets, purpose, omitted = []) {
 }
 
 function createEvidenceCollection({ vscode, operations, getResults, fetchContext }) {
+  const showPreview = async text => {
+    const document = await vscode.workspace.openTextDocument({ content: text, language: 'plaintext' });
+    if (!operations.isCurrent()) return null;
+    const qualified = { document, version: document.version };
+    const editor = await vscode.window.showTextDocument(document, { preview: true });
+    if (!operations.isCurrent()) return null;
+    const assertCurrent = () => {
+      assertQualifiedEditor(editor, qualified);
+      if (document.getText() !== text) throw new Error('Evidence preview changed before the reviewed export action.');
+    };
+    assertCurrent(); return Object.freeze({ assertCurrent });
+  };
   return async function copyContext(node) {
     return operations.run('evidence-collection', async () => {
       try {
         const resultSet = node?.resultSet || getResults();
-        const hits = node?.hit ? [node.hit] : resultSet?.hits || [];
+        const selectedHit = node?.hit;
+        const hits = selectedHit ? [selectedHit] : resultSet?.hits || [];
         if (!resultSet || !hits.length) { vscode.window.showInformationMessage('Select a saved search result before creating context.'); return; }
-        const selected = await vscode.window.showQuickPick(hits.slice(0, 128).map(hit => ({
-          label: hit.name || hit.file, description: `${hit.file}:${hit.startLine || 1}`,
-          detail: `Indexed evidence • ${resultSet.repoRoot} • generation ${JSON.stringify(hit.generation || resultSet.pagination?.generation || 'unknown')}`,
-          hit, picked: Boolean(node?.hit)
-        })), { canPickMany: true, title: 'Select source evidence (at most 8; preview before copying)' });
-        if (!selected?.length) return;
-        if (selected.length > MAX_SELECTED) throw new Error('Select at most eight evidence items.');
+        const repoRoot = resultSet.repoRoot, repoUri = resultSet.repoUri;
+        if (typeof repoRoot !== 'string' || !repoRoot
+          || (repoUri != null && typeof repoUri !== 'string')) throw new Error('Selected evidence has no captured repository authority.');
+        const authority = Object.freeze({ repoRoot, repoUri });
+        if (!Array.isArray(hits)) throw new Error('Selected evidence requires an original hit array.');
+        const candidates = [];
+        for (let index = 0; index < Math.min(128, hits.length); index++) {
+          if (!Object.hasOwn(hits, index)) throw new Error('Selected evidence requires dense original hit objects.');
+          const hit = hits[index];
+          if (!hit || typeof hit !== 'object' || Array.isArray(hit)) throw new Error('Selected evidence requires dense original hit objects.');
+          candidates.push(hit);
+        }
+        const seeds = new Map();
+        const items = Object.freeze(candidates.map(hit => {
+          const item = Object.freeze({
+            label: hit.name || hit.file, description: `${hit.file}:${hit.startLine || 1}`,
+            detail: `Indexed evidence • ${authority.repoRoot} • generation ${JSON.stringify(hit.generation || resultSet.pagination?.generation || 'unknown')}`,
+            picked: Boolean(selectedHit) });
+          seeds.set(item, evidenceSeed(hit)); return item;
+        }));
+        const selected = await vscode.window.showQuickPick(items, { canPickMany: true, title: 'Select source evidence (at most 8; preview before copying)' });
+        if (!operations.isCurrent()) return;
+        const choices = originalChoices(selected, items, MAX_SELECTED);
+        if (!choices) return;
         const purpose = await vscode.window.showInputBox({ prompt: 'Purpose of this context (included in Markdown preview)' });
-        if (purpose === undefined) return;
+        if (purpose === undefined || !operations.isCurrent()) return;
         const packets = [], omitted = [];
-        for (const choice of selected) {
+        for (const choice of choices) {
           if (!operations.isCurrent()) return;
-          const seed = evidenceSeed(choice.hit);
+          const seed = seeds.get(choice);
           if (!seed) { omitted.push('Selected item has no canonical file/chunk/symbol seed.'); continue; }
-          const packet = await fetchContext(seed, resultSet);
-          if (!packet?.version || !packet.primary || !packet.provenance || !packet.evidence) {
+          const packet = await fetchContext(seed, authority);
+          if (!operations.isCurrent()) return;
+          const captured = capturePacket(packet);
+          if (!captured?.version || !captured.primary || !captured.provenance || !captured.evidence) {
             throw new Error('The context owner did not return a canonical context packet.');
           }
-          packets.push(packet);
+          packets.push(captured);
         }
         let initial;
         try { initial = renderEvidencePreview(packets, purpose, omitted); }
         catch { initial = { markdown: 'The current selection exceeds the export bound. Exclude packets in the review picker; the final bounded output will be previewed before copying or saving.' }; }
-        const preview = await vscode.workspace.openTextDocument({ content: initial.markdown, language: 'plaintext' });
-        await vscode.window.showTextDocument(preview, { preview: true });
-        const retained = await vscode.window.showQuickPick(packets.map((packet, index) => ({
+        if (!await showPreview(initial.markdown)) return;
+        const review = Object.freeze(packets.map((packet, index) => Object.freeze({
           label: packet.primary.file || `Context ${index + 1}`,
           description: `${Buffer.byteLength(JSON.stringify(packet))} JSON bytes • captured source evidence`, packet, picked: true
-        })), { canPickMany: true, title: 'Review evidence: exclude any packet before copy/export' });
-        if (!retained?.length) return;
+        })));
+        const kept = await vscode.window.showQuickPick(review, { canPickMany: true, title: 'Review evidence: exclude any packet before copy/export' });
+        if (!operations.isCurrent()) return;
+        const retained = originalChoices(kept, review, MAX_SELECTED);
+        if (!retained) return;
         const final = renderEvidencePreview(retained.map(choice => choice.packet), purpose,
           [...omitted, ...(retained.length < packets.length ? [`${packets.length - retained.length} packet(s) excluded by user`] : [])]);
-        const finalPreview = await vscode.workspace.openTextDocument({ content: final.markdown, language: 'plaintext' });
-        await vscode.window.showTextDocument(finalPreview, { preview: true });
-        const action = await vscode.window.showQuickPick(['Copy JSON', 'Copy Markdown', 'Export JSON', 'Export Markdown'],
+        const finalPreview = await showPreview(final.markdown);
+        if (!finalPreview) return;
+        const actions = Object.freeze(['Copy JSON', 'Copy Markdown', 'Export JSON', 'Export Markdown']);
+        const action = await vscode.window.showQuickPick(actions,
           { title: `Reviewed context • ${retained.length} item(s) • ${final.bytes} JSON bytes`,
             placeHolder: 'JSON is an array of unchanged canonical context packets; no external transmission' });
-        if (!action || !operations.isCurrent()) return;
+        if (!actions.includes(action) || !operations.isCurrent()) return;
+        finalPreview.assertCurrent();
         const text = action.endsWith('JSON') ? final.json : final.markdown;
         if (action.startsWith('Copy')) await vscode.env.clipboard.writeText(text);
         else {
           const target = await vscode.window.showSaveDialog({ saveLabel: 'Export Reviewed Evidence',
             filters: action.endsWith('JSON') ? { JSON: ['json'] } : { Markdown: ['md'] } });
           if (!target || !operations.isCurrent()) return;
+          finalPreview.assertCurrent();
           if (vscode.workspace.fs?.writeFile) await vscode.workspace.fs.writeFile(target, Buffer.from(text));
           else if (target.scheme === 'file') fs.writeFileSync(target.fsPath, text, 'utf8');
           else throw new Error('This destination does not support writing evidence.');
         }
-      } catch (error) { if (operations.isCurrent()) vscode.window.showErrorMessage(`PairOfCleats evidence: ${error.message}`); }
+      } catch (error) {
+        const inspectionErrors = []; let message = 'Evidence operation failed.';
+        try { const value = error?.message; if (typeof value === 'string') message = value; }
+        catch (inspection) { inspectionErrors.push(inspection); }
+        if (operations.isCurrent()) {
+          try { vscode.window.showErrorMessage(`PairOfCleats evidence: ${message}`); }
+          catch (inspection) { inspectionErrors.push(inspection); }
+        }
+        return Object.freeze({ ok: false, primaryError: error, inspectionErrors: Object.freeze(inspectionErrors) });
+      }
     }, { key: 'evidence-collection' });
   };
 }
