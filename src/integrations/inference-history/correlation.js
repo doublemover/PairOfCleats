@@ -4,6 +4,7 @@ import path from 'node:path';
 import { devNull } from 'node:os';
 import { spawnSubprocess } from '../../shared/subprocess/runner.js';
 import { digest, historyError, redactHistoryText } from './common.js';
+import { readExactAt } from '../../shared/io/read-exact.js';
 
 const invalid = () => historyError('ERR_INFERENCE_HISTORY_CODE_SCOPE', 'Invalid authorized code scope.');
 
@@ -72,13 +73,13 @@ export async function correlateAuthorizedCode(text, access, { signal } = {}) {
       try {
         const stat = await handle.stat();
         if (!stat.isFile() || stat.size > 256 * 1024) throw invalid();
-        const buffer = Buffer.alloc(256 * 1024 + 1);
-        const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-        if (bytesRead > 256 * 1024) throw invalid();
+        const buffer = Buffer.alloc(stat.size);
+        const { bytesRead } = await readExactAt(handle, buffer, 0, buffer.length, 0, { signal });
+        if (bytesRead !== stat.size) throw historyError('ERR_INFERENCE_HISTORY_INCOMPLETE_READ', 'Authorized Markdown source ended before its validated length.');
         const bytes = buffer.subarray(0, bytesRead);
         const current = await fs.lstat(file);
         if (current.isSymbolicLink() || current.dev !== stat.dev || current.ino !== stat.ino
-          || current.size !== stat.size || current.mtimeMs !== stat.mtimeMs
+          || current.size !== stat.size || current.mtimeMs !== stat.mtimeMs || current.ctimeMs !== stat.ctimeMs
           || await fs.realpath(file) !== file || await fs.realpath(repo.root) !== root) throw invalid();
         const revision = digest(bytes);
         const lines = bytes.toString('utf8').split(/\r?\n/);
