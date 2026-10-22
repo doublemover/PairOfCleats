@@ -8,6 +8,11 @@ calling close again does not retry failed native destruction.
 Default resource close/drain hooks capture their original methods and receiver
 at registration. Later property or getter replacement cannot substitute another
 cleanup owner. Explicit caller-provided hooks retain their existing contract.
+Simple worker terminate, kill and close adapters likewise retain the original
+method and receiver; the numeric-PID process-tree adapter retains its existing
+policy. Best-effort error diagnostics consume asynchronous rejections without
+turning a diagnostic callback into resource-closure evidence or changing the
+unregister contract.
 Independent hooks still run after another rejects, including falsey rejection
 values. A falsey failure cannot turn drain or close into success.
 

@@ -67,4 +67,50 @@ for (const value of [undefined, null, false, 0, '']) {
   assert.equal(drained.rejected, true); assert.equal(drained.error, value);
   await draining.close().catch(() => {});
 }
+for (const method of ['terminate', 'kill', 'close']) {
+  const workers = createLifecycleRegistry({ name: `original-worker-${method}` });
+  let reads = 0, calls = 0;
+  const worker = {};
+  Object.defineProperty(worker, method, {
+    configurable: true,
+    get() {
+      reads++;
+      return function (...args) {
+        assert.equal(this, worker);
+        assert.deepEqual(args, method === 'kill' ? ['SIGTERM'] : []);
+        calls++;
+      };
+    }
+  });
+  workers.registerWorker(worker);
+  Object.defineProperty(worker, method, {
+    get() { assert.fail('worker cleanup cannot be replaced after registration'); }
+  });
+  await workers.close();
+  assert.equal(reads, 1);
+  assert.equal(calls, 1);
+}
+
+const cleanupFailure = new Error('unregister cleanup failed');
+const diagnosticFailure = new Error('async diagnostic failed');
+const reported = [], unhandled = [];
+const onUnhandled = error => { unhandled.push(error); };
+process.on('unhandledRejection', onUnhandled);
+try {
+  const diagnostics = createLifecycleRegistry({
+    name: 'async-error-diagnostic',
+    async onError(error) {
+      reported.push(error);
+      throw diagnosticFailure;
+    }
+  });
+  const unregister = diagnostics.registerCleanup(() => { throw cleanupFailure; });
+  unregister();
+  await diagnostics.close();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(reported, [cleanupFailure]);
+  assert.deepEqual(unhandled, [], 'best-effort async diagnostics cannot escape as unhandled rejections');
+} finally {
+  process.off('unhandledRejection', onUnhandled);
+}
 console.log('Lifecycle close-flight ownership and exact failure presence authored; execution deferred.');

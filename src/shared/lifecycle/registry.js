@@ -21,14 +21,17 @@ const resolveWorkerClose = (worker) => {
       awaitGrace: false
     }).catch(() => {});
   }
-  if (typeof worker.terminate === 'function') {
-    return () => worker.terminate();
+  const terminate = worker.terminate;
+  if (typeof terminate === 'function') {
+    return () => terminate.call(worker);
   }
-  if (typeof worker.kill === 'function') {
-    return () => worker.kill('SIGTERM');
+  const kill = worker.kill;
+  if (typeof kill === 'function') {
+    return () => kill.call(worker, 'SIGTERM');
   }
-  if (typeof worker.close === 'function') {
-    return () => worker.close();
+  const close = worker.close;
+  if (typeof close === 'function') {
+    return () => close.call(worker);
   }
   return null;
 };
@@ -66,7 +69,7 @@ export const createLifecycleRegistry = ({ name = 'lifecycle', onError = null } =
   const reportError = (err) => {
     if (typeof onError !== 'function') return;
     try {
-      onError(err);
+      Promise.resolve(onError(err)).catch(() => {});
     } catch {}
   };
 
