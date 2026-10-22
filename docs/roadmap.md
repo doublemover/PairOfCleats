@@ -30,9 +30,9 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `0c6106048` preserves runtime callback/iteration
-payload roles, whole cross-file argument facts, original editor/picker resources,
-bounded checker snapshots and independent embedding/storage diagnostic work.
+Latest source continuation: `b409477f9` preserves packed integer/offset ranges
+and requires explicit stable evaluation judgments and complete selected dataset
+admission before search, retaining cleanup and legacy label compatibility.
 Dispositions: 141 historical, 555 source, 163 partial, 98 pending.
 All authored checks remain unvalidated; durable failed-job cleanup recovery is open.
 
@@ -83,7 +83,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `0c6106048` repairs watch/pointer and queue authority,
+Current source through `b409477f9` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and

@@ -477,7 +477,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#689](https://github.com/doublemover/PairOfCleats/issues/689) | P2 | [P2] Preserve omitted thresholds and missing measurements in benchmark guardrails | development implemented; integration/validation deferred |
 | [#690](https://github.com/doublemover/PairOfCleats/issues/690) | P1 | [P1] Protect the published watch generation from failed-attempt retention cleanup | development implemented; validation deferred |
 | [#691](https://github.com/doublemover/PairOfCleats/issues/691) | P2 | [P2] Reject simulated and wrong-scope release reports at the readiness gate | development implemented; integration/validation deferred |
-| [#692](https://github.com/doublemover/PairOfCleats/issues/692) | P2 | [P2] Prevent overlapping eval judgments from counting one retrieval hit multiple times | development implemented; integration/validation deferred |
+| [#692](https://github.com/doublemover/PairOfCleats/issues/692) | P2 | [P2] Prevent overlapping eval judgments from counting one retrieval hit multiple times | development implemented; integration/validation deferred; actual relevance predicates/stable document identity/rank admission 538d4bb6c and pre-search dataset/alias admission e470b378a prevent fabricated or silently erased metrics; authored unvalidated |
 | [#693](https://github.com/doublemover/PairOfCleats/issues/693) | P2 | [P2] Encode VS Code modified-since filters as integers for HTTP searches | development implemented; validation deferred |
 | [#694](https://github.com/doublemover/PairOfCleats/issues/694) | P2 | [P2] Generate USR report schemas from runtime contracts and verify semantic parity | development implemented; integration/validation deferred |
 | [#695](https://github.com/doublemover/PairOfCleats/issues/695) | P2 | [P2] Fence ranked federated results to the manifest generation used for cohort admission | development implemented; integration/validation deferred |
@@ -929,7 +929,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1141](https://github.com/doublemover/PairOfCleats/issues/1141) | other | Shadow cost-aware scheduler choices using existing trace and admission owners | pending |
 | [#1142](https://github.com/doublemover/PairOfCleats/issues/1142) | other | Prototype versioned vector quantization with original-vector reranking | pending |
 | [#1143](https://github.com/doublemover/PairOfCleats/issues/1143) | other | Add bounded cross-generation declaration correspondence without changing immutable source identity | pending |
-| [#1144](https://github.com/doublemover/PairOfCleats/issues/1144) | other | Add paired repository-cluster quality comparisons to existing evaluation reports | partial shared paired repository quality reports fa3c1d44c/66b9f758b; independent population and empirical qualification open; eval selected response ee2606838 rejects failed/missing/malformed or hit-omitted evidence instead of zero metrics; actual render/report controls authored unvalidated; real model/quality proof open; eval/cache finalization e6e5c5bdb/0b987e42c retains failed original handles, native work and leases before report publication; actual scope/report controls authored unvalidated; native/model/quality acceptance open |
+| [#1144](https://github.com/doublemover/PairOfCleats/issues/1144) | other | Add paired repository-cluster quality comparisons to existing evaluation reports | partial shared paired repository quality reports fa3c1d44c/66b9f758b; independent population and empirical qualification open; eval selected response ee2606838 rejects failed/missing/malformed or hit-omitted evidence instead of zero metrics; actual render/report controls authored unvalidated; real model/quality proof open; eval/cache finalization e6e5c5bdb/0b987e42c retains failed original handles, native work and leases before report publication; actual scope/report controls authored unvalidated; native/model/quality acceptance open; actual judged row/document/rank admission 538d4bb6c and complete selected dataset admission e470b378a retain explicit missing versus malformed evidence; authored unvalidated |
 | [#1145](https://github.com/doublemover/PairOfCleats/issues/1145) | other | Route validated provider semantic facts through one canonical durable sink | partial eight complete identity-bearing source-linked report bounds b822d2462, owned canonical metadata and local adapter2; authored boundary/actual expansion controls unvalidated; durable public/provider/runtime integration remains open; existing complete report/identity allowance charged before canonical key/string expansion9c0aed204; adapter2/hash/error contracts unchanged; authored escape/Unicode/tiny-budget controls unvalidated; actual common external-report writer88027bcf4 charges existing complete report allowance before expansion independently of adapters; writer/sink/detail controls authored unvalidated |
 | [#1146](https://github.com/doublemover/PairOfCleats/issues/1146) | other | Bind provider tool profiles to observed executable and project identities | partial source authored; integration/qualification open |
 | [#1147](https://github.com/doublemover/PairOfCleats/issues/1147) | other | Publish provider and consumer declarations with a conformance SDK | partial declaration SDK source; concrete recipes/qualification open |
@@ -1145,7 +1145,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1357](https://github.com/doublemover/PairOfCleats/issues/1357) | P1 | [P1] Preserve complete artifacts when keepRaw fans out a single-use row iterator | implemented; focused proof and front gate pass |
 | [#1358](https://github.com/doublemover/PairOfCleats/issues/1358) | perf | [Perf] Batch binary-columnar data and sidecar writes instead of issuing three writes per row | development implemented; integration/validation deferred |
 | [#1359](https://github.com/doublemover/PairOfCleats/issues/1359) | perf | [Perf] Buffer generic JSON encoding and keep no-backpressure traversal synchronous | development implemented; integration/validation deferred |
-| [#1360](https://github.com/doublemover/PairOfCleats/issues/1360) | perf | [Perf] Encode packed postings into bounded buffers without per-integer Buffer allocation | development implemented; integration/validation deferred |
+| [#1360](https://github.com/doublemover/PairOfCleats/issues/1360) | perf | [Perf] Encode packed postings into bounded buffers without per-integer Buffer allocation | development implemented; integration/validation deferred; additional packed decoder correctness 02eafa391/b409477f9 preserves safe integers, bounds row counts and admits exact offset/vocabulary ranges before reads; authored BigInt/writer/manifest controls unvalidated |
 | [#1361](https://github.com/doublemover/PairOfCleats/issues/1361) | P2 | [P2] Forward configured gzip options through JSONL batch writers | development implemented; validation deferred |
 | [#1362](https://github.com/doublemover/PairOfCleats/issues/1362) | P2 | [P2] Reject unavailable relation evidence instead of returning false-empty filtered search | development implemented; integration/validation deferred |
 | [#1363](https://github.com/doublemover/PairOfCleats/issues/1363) | perf | [Perf] Reuse bounded prepared artifact rows across projection, sizing and output passes | partial shared bounded immutable prepared JSONL product and actual symbol producer384386c82 reuse final fitting/statistics/measurement/output bytes; authored raw/gzip/shard/offset/trim/ownership controls unvalidated; 4MiB/5000 encoded reuse accounting is not total heap; chunk hot/cold/binary packing, repo-map/graph spill/order reuse and memory/CPU/failure qualification remain open |
@@ -1226,7 +1226,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1437](https://github.com/doublemover/PairOfCleats/issues/1437) | P2 | [P2] Do not emit Go grouped type containers as duplicate first-type declarations | source repair and regression authored; unvalidated |
 | [#1438](https://github.com/doublemover/PairOfCleats/issues/1438) | P2 | [P2] Preserve explicit equals-form ANN booleans through search option resolution | source repair and regression authored; unvalidated |
 | [#1439](https://github.com/doublemover/PairOfCleats/issues/1439) | P2 | [P2] Resolve huge-repo profile intent from one accepted configuration namespace | source repair and regression authored; unvalidated |
-| [#1440](https://github.com/doublemover/PairOfCleats/issues/1440) | P2 | [P2] Preserve selected records and extracted-prose hits in retrieval evaluation | source repair and regression authored; unvalidated; eval selected response ee2606838 rejects failed/missing/malformed or hit-omitted evidence instead of zero metrics; actual render/report controls authored unvalidated; real model/quality proof open; eval/cache finalization e6e5c5bdb/0b987e42c retains failed original handles, native work and leases before report publication; actual scope/report controls authored unvalidated; native/model/quality acceptance open |
+| [#1440](https://github.com/doublemover/PairOfCleats/issues/1440) | P2 | [P2] Preserve selected records and extracted-prose hits in retrieval evaluation | source repair and regression authored; unvalidated; eval selected response ee2606838 rejects failed/missing/malformed or hit-omitted evidence instead of zero metrics; actual render/report controls authored unvalidated; real model/quality proof open; eval/cache finalization e6e5c5bdb/0b987e42c retains failed original handles, native work and leases before report publication; actual scope/report controls authored unvalidated; native/model/quality acceptance open; actual relevance/rank identity 538d4bb6c and dataset container e470b378a refuse malformed evidence before any search, preserving canonical empty/legacy aliases; authored entry controls unvalidated |
 | [#1441](https://github.com/doublemover/PairOfCleats/issues/1441) | P2 | [P2] Invalidate bakeoff resume when evaluation dataset contents change | source repair and regression authored; unvalidated |
 | [#1442](https://github.com/doublemover/PairOfCleats/issues/1442) | P2 | [P2] Validate paired input contracts before saving offline EG2 quality receipts | source repair and regression authored; unvalidated |
 | [#1443](https://github.com/doublemover/PairOfCleats/issues/1443) | P3 | [P3] Keep prototype-named document IDs from corrupting judged nDCG | source repair and regression authored; unvalidated |
@@ -3528,3 +3528,50 @@ classification spans. Remaining Perf #1233/#1329/#1366 still require production
 implementation and separate parity/resource/latency qualification. Current source
 is not a final-tree pass; locked setup, generated freshness, fail-before/after,
 formatting/front gate and complete Windows acceptance remain deferred.
+
+### Packed integer admission and complete evaluation label continuation
+
+Source interval: after 8c6ba664e through b409477f9, four implementation commits.
+Everything in this interval is **UNVALIDATED** source and authored controls.
+No tests, syntax/lint/format, bootstrap, database/native/child/IPC/compiler,
+editor/browser/GPU/model, builds or benchmark execution. Last qualified source
+remains d4dcba4134f6103e3a59703d90fdbde5ca54d09e.
+
+- 538d4bb6c captures immutable explicit file/name/kind predicates and canonical
+  cohort labels across actual cohort/matching/metric owners. Empty, falsey,
+  inherited/accessor and unsupported-only rows cannot be universal relevance.
+  Stable chunk/file identity replaces invented rank-local documents. Dense unique
+  positive ranks retain finite metrics; MRR avoids native argument expansion.
+  Distinct-document one-to-one matching and ordinary case/exact semantics remain.
+  Hand-enumerated overlap/duplicate/disjoint and malformed controls are authored.
+- e470b378a closes the actual runner's earlier container bypass. Every selected
+  case and explicit relevant/expect/gold array is admitted before the first search;
+  scalar query/mode/labels remain captured across awaits. Invalid/empty datasets
+  throw inside the existing resource scope instead of exiting through cleanup.
+  Valid empty relevant precedence, legacy expect and absent/unjudged labels remain.
+  Direct passive-array and actual runner no-search/cleanup/legacy controls are
+  authored. Dataset memory, label provenance and actual retrieval quality remain
+  separate; invalid query rows cannot silently vanish from observed case counts.
+- 02eafa391 fixes the unchanged packed wire decoder's signed 32-bit truncation.
+  Varints and delta sums retain safe integers through Number.MAX_SAFE_INTEGER.
+  Impossible count-versus-pair bytes is refused before allocation; truncation and
+  trailing row bytes fail in the existing error family. Encoder/layout/checksum/
+  compatibility bytes remain. Independent BigInt oracle, block resets, malformed
+  rows, durable streamed writer and bounded manifest loader controls are authored.
+- b409477f9 rejects partial/unsafe uint64 offsets, validates vocabulary/offset/ID
+  cardinality before result allocation and checks origin/order/terminal size
+  against the opened data descriptor before reading a row window. Standalone
+  empty offsets stay compatible; complete empty families require a zero terminal.
+  Actual malformed sidecar/no-window-read and ordinary positive controls are
+  authored. The loader's separate descriptor-close and filesystem-race ownership
+  remain open; numeric admission does not prove native settlement or memory bounds.
+
+The sparse-layout source comparison also confirmed that the existing preference
+fixture intentionally chooses available binary artifacts without registration
+in its JSON manifest. This is a real compatibility behavior, so no preference
+assertion or reader fallback was removed. #1366 still needs explicit consumer/
+layout migration before either compatibility representation can be omitted.
+#1233/#1329 also remain pending. No speedup or accepted current-head suite result.
+Dispositions remain 141 historical, 555 source, 163 partial and 98 pending; no
+new closing keywords or issue closures. Three agents continue independent native
+descriptor, parser-product and reranker source spans without execution.
