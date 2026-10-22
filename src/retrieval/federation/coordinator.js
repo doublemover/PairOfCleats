@@ -28,6 +28,7 @@ import { selectWorkspaceRepos } from './select.js';
 import { enumerateWorkspace, withoutCursor } from './enumeration.js';
 import { parseSearchArgs, hasSearchFilterArgs } from '../cli-args.js';
 import { bindRelativeModificationArgs } from './time-filter.js';
+import { captureFederatedShadow, publishFederatedShadow } from './shadow-routing.js';
 
 export const resolveFederatedUnavailableModes = ({repos,requestedModes,eligibleModesByRepo,cohortExcluded={}}) =>
   (repos || []).filter(repo=>repo.enabled !== false).flatMap(repo=>(requestedModes || [])
@@ -739,6 +740,14 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     }
   });
   const cacheKeyInfo = buildFederatedQueryCacheKey(cacheKeyPayload);
+  const emitShadow = (pools, manifestRepos = null) => {
+    if (context.shadowRouting !== true || typeof context.onShadowRouting !== 'function') return;
+    try {
+      publishFederatedShadow(context, captureFederatedShadow({ query, queryAst: context.queryAst || null,
+        manifest, selectedByMode, requestedModes, perRepoResults: pools, manifestRepos,
+        queryKey: cacheKeyInfo.keyHash, budget: topN, signal: context.signal }));
+    } catch { publishFederatedShadow(context, { authoritative: false, complete: false, reason: 'shadow-failed', metrics: null }); }
+  };
   let cacheData = await loadFederatedQueryCache({
     cachePath,
     repoSetId: workspaceConfig.repoSetId
@@ -751,6 +760,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   });
   if (cachedEntry?.result) {
     await verifyRankedGeneration();
+    emitShadow(null);
     touchFederatedQueryCacheEntry(cacheData, cacheKeyInfo.keyHash, new Date(timeAnchor).toISOString());
     try {
       const touched = await persistFederatedQueryCacheTouch({ cachePath, cache: cacheData,
@@ -885,6 +895,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     const stable = toStableResponse(emptyResponse, includePaths);
     await verifyRankedGeneration();
     await persistCachedResult(stable);
+    emitShadow([]);
     return stable;
   }
 
@@ -1120,5 +1131,6 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   if (!perRepoErrors.length) {
     await persistCachedResult(stable);
   }
+  emitShadow(perRepoResults, manifestRepoMap);
   return stable;
 };

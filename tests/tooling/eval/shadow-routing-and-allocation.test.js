@@ -13,6 +13,8 @@ for (const [query, label] of [['src/retrieval/query.js', 'symbol-or-path'], ['re
 const explicit = shadowQueryRoute({ query: 'alpha OR "quoted phrase"',
   queryAst: { type: 'or', left: { type: 'term' }, right: { type: 'phrase' } } });
 assert.equal(explicit.label, 'explicit-boolean-or-phrase'); assert.match(explicit.proposal, /explicit-constraints/);
+assert.equal(shadowQueryRoute({ query: 'find OR documents about x' }).abstained, true,
+  'explicit-looking syntax without canonical AST evidence cannot become fuzzy natural-language intent');
 assert.equal(shadowQueryRoute({ query: 'binding target', requestKind: 'semantic-find' }).label, 'semantic-fact');
 const cyclic = { type: 'not' }; cyclic.child = cyclic;
 assert.equal(shadowQueryRoute({ query: 'x', queryAst: cyclic }).complete, false);
@@ -39,6 +41,9 @@ const original = structuredClone(snapshot), receipt = simulateShadowAllocation(i
 assert.equal(receipt.complete, true); assert.equal(receipt.authoritative, false); assert.equal(receipt.promotion, 'none');
 assert.equal(receipt.work.savedCandidates, 72); assert.equal(receipt.target, 8);
 const repos = receipt.cohorts[0].repos;
+const abstained = simulateShadowAllocation({ ...input, queryClass: 'unknown' });
+assert(abstained.cohorts.flatMap(cohort => cohort.repos).every(repo => repo.fixedQuota === repo.proposedQuota),
+  'abstention retains fixed allocation rather than inferring effort from out-of-domain features');
 assert.equal(repos.reduce((sum, row) => sum + row.proposedQuota, 0), 8);
 assert(repos.every(row => row.proposedQuota >= 1));
 for (const row of repos) assert.deepEqual(row.selectedKeys, snapshot.cohorts[0].repos.find(repo => repo.repoId === row.repoId)

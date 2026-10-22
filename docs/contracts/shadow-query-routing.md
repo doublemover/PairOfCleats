@@ -47,9 +47,26 @@ enter live judged summaries. An invalid shadow input reports refusal without
 aborting the primary evaluation. There is no public CLI/config knob, result cache,
 automatic learned route, automatic extra search or default policy promotion.
 
+The programmatic primary pipeline accepts `shadowRouting:true` and places the
+classification only in stage diagnostics. Federation accepts the same private
+context opt-in with an `onShadowRouting` observer. After its existing generation
+fence, it captures at most the first64 already-produced ranked candidates per
+repository, preserving their admitted cohort and hashed build-generation/index
+signature witnesses. It reuses the coordinator's manifest lookup and never opens
+extra repositories. Unknown live judgments keep quality null. The observer gets
+an owned frozen report; synchronous and late observer errors cannot replace the
+primary result. The observer is not awaited and has no borrowed backend lifetime.
+
+Federated cache hits emit an explicit incomplete shadow receipt because their
+merged result cannot reconstruct the original per-repository candidate pools.
+The primary cache key, cached value, routing, hits and reuse are unchanged. A
+missing canonical AST for explicit syntax produces abstention rather than fuzzy
+reinterpretation. Reports retain no raw query/source path. Captured prefixes are
+available-pool evidence, not full candidate or corpus completeness.
+
 The regression sources cover syntax/abstention, privacy, source/generation/query
 refusal, floor/budget, deterministic order, judgment-independent frozen quotas,
-missing labels, empty scope and report isolation. They are unrun. Primary pipeline
-shadow-on/off byte parity, live federation feature collection, labeled confusion/
-calibration, routing regret, held-out repository families and measured native cost
-remain separate integration/qualification work.
+missing labels, empty scope, actual primary serialized-hit parity, actual
+federation call/cache parity and observer failure isolation. They are unrun.
+Labeled confusion/calibration, routing regret, held-out repository families,
+host behavior and measured native cost remain separate qualification work.

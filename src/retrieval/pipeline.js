@@ -24,6 +24,7 @@ import { resolveSparseRequiredTables, RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from '
 import { rerankEvidence } from './pipeline/evidence-reranker.js';
 import { capRerankCandidates, resolveRerankPoolPolicy } from './pipeline/rerank-policy.js';
 import { resolveCountAwareAnnPolicy } from './pipeline/count-aware-ann.js';
+import { shadowQueryRoute } from './evaluation/shadow-routing.js';
 import { getGenerationProviderRuntime } from './pipeline/provider-runtime.js';
 import { resolveFileRelations } from './pipeline/relations.js';
 import { runCandidateStage } from './pipeline/candidate-stage.js';
@@ -261,6 +262,7 @@ export function createSearchPipeline(context) {
     rerankPolicy = null,
     rerankSourceContext = null,
     countAwareAnnPolicy = null,
+    shadowRouting = false,
     candidatePool: candidatePoolInput,
     scoreBufferPool: scoreBufferPoolInput,
     createAnnProviders: createAnnProvidersInput
@@ -634,6 +636,10 @@ export function createSearchPipeline(context) {
       }
 
       const annMetrics = {};
+      if (shadowRouting === true) {
+        try { annMetrics.shadowRouting = shadowQueryRoute({ query, queryAst, signal }); }
+        catch { annMetrics.shadowRouting = { authoritative: false, complete: false, reason: 'shadow-failed' }; }
+      }
       const annResult = await runStageAsync('ann', annMetrics, async () => (
         runAnnStage({
           idx,

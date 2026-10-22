@@ -6,7 +6,8 @@ export const SHADOW_ROUTING_VERSION = 1;
 const hash = /^[a-f0-9]{64}$/u;
 const classes = new Set(['symbol-or-path', 'explicit-boolean-or-phrase', 'natural-language', 'semantic-fact', 'unknown']);
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
-const policy = Object.freeze({ version: SHADOW_ROUTING_VERSION, astNodes: 256, queryChars: 4096,
+const policy = Object.freeze({ version: SHADOW_ROUTING_VERSION, queryPolicy: 'explicit-ast-abstain.v2',
+  allocationPolicy: 'judgment-independent-prefix-floor-abstention-fixed.v2', astNodes: 256, queryChars: 4096,
   repos: 32, candidates: 2048, outputBytes: 65536, work: 200000, maxMs: 100 });
 export const SHADOW_ROUTING_POLICY_KEY = digest(policy);
 const incomplete = reason => ({ schemaVersion: SHADOW_ROUTING_VERSION, policyKey: SHADOW_ROUTING_POLICY_KEY,
@@ -20,7 +21,8 @@ export const shadowQueryRoute = ({ query, queryAst = null, requestKind = 'text',
   if (typeof query !== 'string' || query.length > policy.queryChars) return incomplete('query-bound');
   const started = performance.now(), stack = [queryAst], seen = new WeakSet();
   const features = { explicitBoolean: false, phrase: false, path: false, symbol: false,
-    naturalLanguageTokens: 0, structuralRequest: requestKind === 'semantic-find', visitedAstNodes: 0 };
+    naturalLanguageTokens: 0, structuralRequest: requestKind === 'semantic-find', visitedAstNodes: 0,
+    unqualifiedExplicitSyntax: queryAst == null && /\b(?:AND|OR|NOT)\b|["()]/u.test(query) };
   while (stack.length) {
     if (signal?.aborted || performance.now() - started > policy.maxMs) return incomplete(signal?.aborted ? 'cancelled' : 'deadline');
     const node = stack.pop(); if (node == null) continue;
@@ -42,7 +44,8 @@ export const shadowQueryRoute = ({ query, queryAst = null, requestKind = 'text',
   features.path = /^(?:[\w.@-]+[\\/])+[^\s]+$/u.test(text) || /^[\w.@-]+\.[A-Za-z0-9]{1,12}$/u.test(text);
   features.symbol = /^[A-Za-z_$][A-Za-z0-9_$]*(?:(?:::|\.)[A-Za-z_$][A-Za-z0-9_$]*)*$/u.test(text);
   features.naturalLanguageTokens = text.split(/\s+/u).filter(token => /^[A-Za-z][A-Za-z'-]*$/u.test(token)).length;
-  const label = features.structuralRequest ? 'semantic-fact' : features.explicitBoolean || features.phrase ? 'explicit-boolean-or-phrase'
+  const label = features.structuralRequest ? 'semantic-fact' : features.unqualifiedExplicitSyntax ? 'unknown'
+    : features.explicitBoolean || features.phrase ? 'explicit-boolean-or-phrase'
     : features.path || features.symbol ? 'symbol-or-path' : features.naturalLanguageTokens >= 3 ? 'natural-language' : 'unknown';
   const proposal = label === 'semantic-fact' ? 'existing-semantic-find-request-only'
     : label === 'explicit-boolean-or-phrase' ? 'existing-hybrid-with-explicit-constraints'
@@ -90,7 +93,8 @@ export const simulateShadowAllocation = ({ snapshot, expectedWorkspaceKey, expec
       }
       const evidence = queryClass === 'natural-language' ? sparse + dense * 2
         : queryClass === 'symbol-or-path' ? sparse * 2 + dense : sparse + dense;
-      repos.push({ repoId: row.repoId, generation: row.generation, candidates, weight: 1 + Math.log2(1 + evidence) });
+      repos.push({ repoId: row.repoId, generation: row.generation, candidates,
+        weight: queryClass === 'unknown' || queryClass === 'semantic-fact' ? 1 : 1 + Math.log2(1 + evidence) });
     }
     repos.sort((a, b) => a.repoId.localeCompare(b.repoId));
     cohorts.push({ id: cohort.id, signature: cohort.signature, repos });
