@@ -38,17 +38,20 @@ export function projectOutput(envelope, { page = 0, relation = '', family = dete
   const data = unwrapOutput(envelope);
   if (!data || typeof data !== 'object') throw new TypeError('Expected a JSON output object.');
   if (!Number.isSafeInteger(page) || page < 0) throw new RangeError('Invalid projection page.');
-  const nodes = [], edges = [], sections = [], byId = new Map();
+  const nodes = [], edges = [], sections = [], byId = new Map(), relationKinds = new Set();
   const start = page * VIEW_LIMITS.nodes;
   let seen = 0, edgeCount = 0;
   const add = (id, label, kind, detail, ref = null, parentId = null) => {
     const ordinal = seen++;
     if (ordinal < start || nodes.length >= VIEW_LIMITS.nodes) return;
     if (byId.has(id)) return;
-    const node = { id, label: String(label ?? id), kind, ref, parentId, detail, ordinal };
+    const node = { id, label: String(label ?? id), kind, ref, parentId,
+      detail: typeof detail === 'function' ? detail() : detail, ordinal };
     nodes.push(node); byId.set(id, node);
   };
   const edge = (from, to, kind, detail) => {
+    kind = kind || 'relation';
+    relationKinds.add(kind);
     if (relation && kind !== relation) return;
     edgeCount++;
     if (!from || !to || !byId.has(from) || !byId.has(to) || edges.length >= VIEW_LIMITS.edges) return;
@@ -72,7 +75,7 @@ export function projectOutput(envelope, { page = 0, relation = '', family = dete
       if (!entry?.graph) continue;
       for (const row of array(entry.graph.nodes)) add(`word:${entry.graphId}:${row.id}`,
         row.kind === 'Literal' ? String(row.value).slice(0, 80) : 'Ordered concatenation', row.kind,
-        { ...row, graphId: entry.graphId, root: array(entry.graph.rootIds).includes(row.id), location: 'response-inline' });
+        () => ({ ...row, graphId: entry.graphId, root: array(entry.graph.rootIds).includes(row.id), location: 'response-inline' }));
       for (const row of array(entry.graph.nodes)) array(row.children).forEach((child, ordinal) =>
         edge(`word:${entry.graphId}:${row.id}`, `word:${entry.graphId}:${child}`, `child:${ordinal}`, { parent: row.id, child, ordinal, graphId: entry.graphId }));
     }
@@ -123,7 +126,7 @@ export function projectOutput(envelope, { page = 0, relation = '', family = dete
     for (const mode of ['code', 'prose', 'extractedProse', 'records', 'hits', 'results']) {
       const rows = array(data[mode]);
       section(`${mode} · original ranking`, rows, 'ranked');
-      rows.forEach((row, rank) => add(`hit:${mode}:${rank}`, `${rank + 1}. ${row.name ?? row.file ?? row.path ?? row.id ?? 'hit'}`, mode, { ...row, originalRank: rank + 1, mode }, row.ref || (row.chunkUid ? { type: 'chunk', chunkUid: row.chunkUid } : null)));
+      rows.forEach((row, rank) => add(`hit:${mode}:${rank}`, `${rank + 1}. ${row.name ?? row.file ?? row.path ?? row.id ?? 'hit'}`, mode, () => ({ ...row, originalRank: rank + 1, mode }), row.ref || (row.chunkUid ? { type: 'chunk', chunkUid: row.chunkUid } : null)));
     }
     section('Query and ranking metadata', data.stats ?? data.meta ?? data.query);
   } else if (family === 'enrichment') {
@@ -170,7 +173,7 @@ export function projectOutput(envelope, { page = 0, relation = '', family = dete
   for (const key of ['provenance', 'coverage', 'frontier', 'truncation', 'warnings']) section(key, data[key], 'coverage');
   section('Complete original output', data, 'records');
   return { version: PROJECTION_VERSION, family, generation: data.generation ?? data.provenance?.indexSignature ?? null,
-    nodes, edges, sections, page, hasNext: seen > start + VIEW_LIMITS.nodes,
+    nodes, edges, sections, page, relationKinds: [...relationKinds].sort(), hasNext: seen > start + VIEW_LIMITS.nodes,
     cursor: family === 'search' ? (data.pagination?.nextCursor ?? null) : (data.cursor ?? data.nextCursor ?? null),
     continuation: family === 'search' ? (data.pagination || null) : null,
     coverage: { source: data.coverage ?? data.summary ?? null, sourceTotal: null,

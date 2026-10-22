@@ -122,9 +122,12 @@ async function compileSource() {
     if (error.name !== 'AbortError') { $('compile-status').textContent = error.message; notice(error.message, true); }
   }
 }
-function rebuild() {
+function rebuild(initialProjection = null) {
   loadId++; compiler.cancel(); compiled = null; diagram = null; $('export-svg').disabled = true; $('export-story').disabled = true;
-  projection = projectOutput(output, { page, relation: $('relation').value });
+  projection = initialProjection || projectOutput(output, { page, relation: $('relation').value });
+  const relation = $('relation').value;
+  $('relation').replaceChildren(new Option('All types', ''), ...projection.relationKinds.map(kind => new Option(kind, kind)));
+  $('relation').value = projection.relationKinds.includes(relation) ? relation : '';
   for (const id of expanded) if (!projection.nodes.some(node => node.id === id)) expanded.delete(id);
   story = authorProjection(projection); $('source').value = story.source;
   $('family').textContent = projection.family;
@@ -137,7 +140,10 @@ function rebuild() {
     $('selection').textContent = section.title; $('detail').replaceChildren(inspectValue(section.value));
   })));
   renderTree(); if (diagramMode) { $('diagram').replaceChildren(document.createTextNode('Compiling this admitted page…')); compileSource(); } else renderEvidenceList();
-  if (selected && !projection.nodes.some(node => node.id === selected)) { $('selection').textContent = 'Selected identity is outside this page'; $('detail').replaceChildren(document.createTextNode(selected)); }
+  if (selected) {
+    if (projection.nodes.some(node => node.id === selected)) selection(selected, false);
+    else { $('selection').textContent = 'Selected identity is outside this page'; $('detail').replaceChildren(document.createTextNode(selected)); }
+  }
 }
 function accept(data, name) {
   // Validate projection before replacing any usable state.
@@ -145,11 +151,10 @@ function accept(data, name) {
   diagramMode = ['map', 'graph', 'semantic', 'context', 'symbolic'].includes(next.family);
   expanded.clear(); output = data; projection = next; page = 0; selected = null; history = []; historyAt = -1;
   $('detail').replaceChildren(); $('selection').textContent = 'Select an entity or evidence surface';
-  const kinds = [...new Set(next.edges.map(edge => edge.kind))].sort();
-  $('relation').replaceChildren(new Option('All types', ''), ...kinds.map(kind => new Option(kind, kind)));
+  $('relation').value = '';
   $('export-evidence').disabled = false; $('back').disabled = true; $('forward').disabled = true;
   notice(`${name} · ${next.family === 'unknown' ? 'No recognized semantic schema. Evidence inspection only.' : 'Source values retained without reinterpretation.'}`);
-  rebuild();
+  rebuild(next);
 }
 $('open-button').onclick = () => $('open').click();
 $('open').onchange = async event => {

@@ -42,6 +42,23 @@ await load({code:[{id:1,name:'ranked',score:0.5}]});assert.equal($('family').tex
 await load({...map,nodes:Array.from({length:250},(_,i)=>({path:`${i}.js`,members:[]})),edges:[]});
 assert.equal(document.querySelectorAll('.pick-target').length,200);$('next').click();await settle();assert.equal(document.querySelectorAll('.pick-target').length,50);assert.equal($('page').textContent,'2');
 $('previous').click();await settle();assert.equal(document.querySelectorAll('.pick-target').length,200);
+await load({options:{},summary:{},nodes:Array.from({length:202},(_,i)=>({path:`${i}.js`,name:`File ${i}`,members:[]})),edges:[
+  {type:'call',from:{file:'0.js'},to:{file:'1.js'}},
+  {type:'import',from:{file:'200.js'},to:{file:'201.js'}}
+]});
+[...$('tree').querySelectorAll('button')].find(button=>button.textContent.startsWith('File 0')).click();
+assert.equal($('selection').textContent,'File 0');assert.match($('detail').textContent,/→ call/);
+assert.deepEqual([...$('relation').options].map(option=>option.value),['','call','import']);
+$('next').click();await settle();assert.match($('selection').textContent,/outside this page/);
+assert.ok([...$('relation').options].some(option=>option.value==='import'),'a later-page relation remains selectable');
+$('previous').click();await settle();assert.equal($('selection').textContent,'File 0');
+assert.ok($('detail').querySelector('dl'),'returning to the selected page restores its current overview');
+assert.match($('detail').textContent,/→ call/);assert.equal($('back').disabled,true,'rebuild does not record another selection');
+$('relation').value='import';$('relation').dispatchEvent(new window.Event('change'));await settle();
+assert.doesNotMatch($('detail').textContent,/→ call/,'retained inspectors use the current relationship filter');
+$('next').click();await settle();assert.equal($('relation').value,'import');
+assert.ok([...$('relation').options].some(option=>option.value==='call'),'filtering cannot hide the clearing/changing vocabulary');
+$('previous').click();await settle();assert.equal($('selection').textContent,'File 0');
 assert.ok(workers.every(worker=>worker.terminated),'compiled workers are disposed');
 let releaseOld;
 const older=$('open').onchange({target:{files:[{name:'older.json',size:20,text:()=>new Promise(resolve=>{releaseOld=resolve;})}],value:''}});
