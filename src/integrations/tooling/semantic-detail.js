@@ -54,7 +54,9 @@ export const createSemanticDetailRunner = ({ openStore = openPublishedSemanticSt
       const outputLimit = (request.limits?.bytes || options.maxBytes) - getSemanticDetailBudgetUsage(result).retainedEvidenceBytes;
       let responseBytes = measureSymbolicResponseBytes(result, outputLimit);
       const typeStore = await openTypeStore({ indexDir, repoRoot: request.repoRoot, generation: request.generation, signal });
+      throwIfAborted(signal);
       for (const typeQuery of request.typeQueries) {
+        throwIfAborted(signal);
         const separatorBytes = result.typeResults.length ? 1 : 0;
         const remaining = outputLimit - responseBytes - separatorBytes;
         const envelope = typeQuery.operation === 'classify'
@@ -62,13 +64,15 @@ export const createSemanticDetailRunner = ({ openStore = openPublishedSemanticSt
           : { ref: typeQuery.ref, operation: 'membership', contains: false, complete: true };
         const overhead = measureSymbolicResponseBytes(envelope, remaining);
         const maxWitnessBytes = Math.max(0, remaining - overhead - 5);
-        const value = await typeStore.query(typeQuery, { deadlineAtMs,
+        const value = await typeStore.query(typeQuery, { deadlineAtMs, signal,
           ...(typeQuery.operation === 'classify' ? { maxWitnessBytes } : {}), budget: { maxInputChars: 16384 } });
+        throwIfAborted(signal);
         const valueBytes = measureSymbolicResponseBytes(value, remaining);
         responseBytes += separatorBytes + valueBytes;
         result.typeResults.push(value);
       }
     }
+    throwIfAborted(signal);
     return assertSemanticQuery('detailResult', result);
   };
 };

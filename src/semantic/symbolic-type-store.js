@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { loadPiecesManifest } from '../shared/artifact-io/manifest-read.js';
 import { checksumString } from '../shared/hash.js';
-import { throwIfAborted } from '../shared/abort.js';
+import { composeAbortSignals, throwIfAborted } from '../shared/abort.js';
 import { resolveSemanticPartPath } from './artifact-store.js';
 import { containsTypeIr, classifyTypeIr } from '../index/tooling/typescript/type-ir/index.js';
 import { createSymbolicTypeGraph, normalizeSymbolicTypeRef, validateSymbolicTypeManifest,
@@ -51,6 +51,7 @@ const verifyPieceChecksum = async (piece, bytes) => {
 
 /** Open the registered family at the caller's exact generation, including legacy semantic-disabled builds. */
 export const openPublishedSymbolicTypeStore = async ({ indexDir, repoRoot, generation, signal = null }) => {
+  throwIfAborted(signal);
   const pieces = loadPiecesManifest(indexDir, { repoRoot, maxBytes: 2 * 1024 * 1024 });
   const manifestPieces = pieces.pieces.filter(piece => piece.name === 'symbolic_type_manifest');
   if (manifestPieces.length !== 1 || manifestPieces[0].path !== 'symbolic_type_manifest.json') {
@@ -82,21 +83,21 @@ export const openPublishedSymbolicTypeStore = async ({ indexDir, repoRoot, gener
   // Retain at most one hydrated context; the flat source buffer is released after admission.
   let active = null;
   const resolve = async (raw, options) => {
-    throwIfAborted(signal);
+    throwIfAborted(options.signal);
     const ref = normalizeSymbolicTypeRef(raw);
     const found = descriptors.get(ref.graphId);
     if (!found) throw symbolicTypeError('symbolic_type_missing', 'Referenced graph is absent from the pinned generation.');
     if (found.descriptor.contextKey !== ref.contextKey) throw symbolicTypeError('symbolic_type_corrupt', 'Symbolic reference context mismatch.');
     if (active?.graphId !== ref.graphId) {
       active = null;
-      const bytes = await readRegisteredFile(indexDir, found.descriptor.path, SYMBOLIC_TYPE_GRAPH_MAX_BYTES, signal);
+      const bytes = await readRegisteredFile(indexDir, found.descriptor.path, SYMBOLIC_TYPE_GRAPH_MAX_BYTES, options.signal);
       await verifyPieceChecksum(found.piece, bytes);
       if (bytes.length !== found.descriptor.bytes
         || createHash('sha256').update(bytes).digest('hex') !== found.descriptor.hash) {
         throw symbolicTypeError('symbolic_type_corrupt', 'Symbolic graph content checksum mismatch.');
       }
       let hydrated;
-      const entry = createSymbolicTypeGraph(readJson(bytes), { ...options, signal,
+      const entry = createSymbolicTypeGraph(readJson(bytes), { ...options,
         budget: { ...options.budget, maxInputChars: 1000000 }, onHydrated: value => { hydrated = value; } });
       if (entry.graphId !== ref.graphId || entry.graph.contextKey !== ref.contextKey
         || entry.graph.nodes.length !== found.descriptor.nodeCount) throw symbolicTypeError('symbolic_type_corrupt', 'Symbolic graph descriptor mismatch.');
@@ -106,14 +107,20 @@ export const openPublishedSymbolicTypeStore = async ({ indexDir, repoRoot, gener
     if (!node) throw symbolicTypeError('symbolic_type_missing', 'Referenced symbolic node is absent from its graph.');
     return { ref, arena: active.arena, node };
   };
+  throwIfAborted(signal);
   return {
     generation: Object.freeze({ ...manifest.generation }),
     async query(query, options = {}) {
-      const { ref, arena, node } = await resolve(query.ref, options);
-      const operationOptions = { ...options, signal };
-      if (query.operation === 'membership') return { ref, operation: 'membership',
-        contains: containsTypeIr(arena, node, query.value, operationOptions), complete: true };
-      if (query.operation === 'classify') return { ref, operation: 'classify', ...classifyTypeIr(arena, node, operationOptions) };
+      const operationOptions = { ...options, signal: composeAbortSignals(signal, options.signal) };
+      throwIfAborted(operationOptions.signal);
+      // Pin operation inputs before the awaited immutable read; the reference
+      // normalizer independently owns the selected graph/node identity.
+      const { operation, value } = query;
+      const { ref, arena, node } = await resolve(query.ref, operationOptions);
+      throwIfAborted(operationOptions.signal);
+      if (operation === 'membership') return { ref, operation: 'membership',
+        contains: containsTypeIr(arena, node, value, operationOptions), complete: true };
+      if (operation === 'classify') return { ref, operation: 'classify', ...classifyTypeIr(arena, node, operationOptions) };
       throw symbolicTypeError('symbolic_type_unsupported', 'Unsupported required symbolic type query.');
     }
   };
