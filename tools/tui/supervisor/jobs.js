@@ -57,7 +57,8 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
    */
   const cleanupFinalizedJob = (jobId, expectedJob = null) => {
     const job = getJob(jobId);
-    if (!job || !job.finalized || (expectedJob && job !== expectedJob)) return;
+    if (!job || !job.finalized || (expectedJob && job !== expectedJob)
+      || (job.settlement && job.settled !== true)) return;
     state.jobs.delete(jobId);
   };
 
@@ -365,7 +366,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
       return null;
     };
 
-    runAttempt(1).catch(async (error) => {
+    job.settlement = runAttempt(1).catch(async (error) => {
       if (job.finalized) return;
       finalizeJob(job, {
         status: 'failed',
@@ -383,9 +384,13 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
         cwd: request?.cwd ? path.resolve(String(request.cwd)) : (getTuiWorkspaceRoot() || process.cwd())
       });
     }).finally(() => {
+      job.settled = true;
       job.status = job.status === 'cancelled' ? 'cancelled' : (job.status || 'done');
       cleanupFinalizedJob(jobId, job);
     });
+    // Keep the original promise for shutdown observation without creating an
+    // unhandled rejection while the interactive supervisor is still running.
+    job.settlement.catch(() => {});
   };
 
   /**
@@ -457,7 +462,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
     }, timeoutMs);
     const finish = payload => finalizeJob(job, { internal: true, durationMs: Date.now() - job.startedAt,
       signal: null, ...payload });
-    Promise.resolve().then(() => execute({ signal: job.abortController.signal, operationJobId: jobId, operationOwner: job, onSpawn: child => {
+    job.settlement = Promise.resolve().then(() => execute({ signal: job.abortController.signal, operationJobId: jobId, operationOwner: job, onSpawn: child => {
       emit('job:spawn', { pid: child.pid, internal: true }, { jobId });
     } })).then(data => {
       const committed = isCommitted(data);
@@ -474,7 +479,8 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
       finish({ status: aborted && !job.timedOut ? 'cancelled' : 'failed', exitCode: null, result: null,
         error: { code: job.timedOut ? 'ERR_TUI_OPERATION_TIMEOUT' : aborted ? 'ABORT_ERR'
           : String(error?.code ?? 'ERR_TUI_OPERATION_FAILED').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 80) } });
-    }).finally(() => { clearTimeout(timer); cleanupFinalizedJob(jobId, job); });
+    }).finally(() => { job.settled = true; clearTimeout(timer); cleanupFinalizedJob(jobId, job); });
+    job.settlement.catch(() => {});
   };
 
   return {

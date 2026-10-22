@@ -118,7 +118,8 @@ export const createEventLogRecorder = ({ requestedDir, runId, supervisorVersion,
  * @param {{
  *  runId:string,
  *  nextSeq:(jobId?:string|null)=>number,
- *  eventLogRecorder:{write:(entry:object)=>void}|null
+ *  eventLogRecorder:{write:(entry:object)=>void}|null,
+ *  output?:{write:(frame:string)=>boolean}
  * }} input
  * @returns {{
  *  emit:(event:string,payload?:object,options?:{jobId?:string|null,critical?:boolean})=>void,
@@ -129,7 +130,7 @@ export const createEventLogRecorder = ({ requestedDir, runId, supervisorVersion,
  *  buildFlowSnapshot:(input?:{includeChunked?:boolean})=>object
  * }}
  */
-export const createFlowController = ({ runId, nextSeq, eventLogRecorder }) => {
+export const createFlowController = ({ runId, nextSeq, eventLogRecorder, output = process.stdout }) => {
   const flow = {
     credits: FLOW_DEFAULT_CREDITS,
     queueMax: FLOW_QUEUE_MAX,
@@ -156,7 +157,7 @@ export const createFlowController = ({ runId, nextSeq, eventLogRecorder }) => {
    * @returns {void}
    */
   const writeEvent = (entry) => {
-    process.stdout.write(`${JSON.stringify(entry)}\n`);
+    output.write(`${JSON.stringify(entry)}\n`);
     eventLogRecorder?.write(entry);
     flow.sent += 1;
   };

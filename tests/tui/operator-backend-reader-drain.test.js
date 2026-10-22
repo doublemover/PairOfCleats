@@ -43,6 +43,13 @@ const fixture = () => {
 }
 {
   const f = fixture();
+  f.jobs.set('terminal-but-reading', { id: 'terminal-but-reading', finalized: true,
+    settlement: Promise.resolve(), settled: false });
+  await assert.rejects(drainTuiBackendReaders(f.input), { code: 'ERR_TUI_BACKEND_ACTIVE_JOBS' });
+  assert.deepEqual(f.calls, [], 'job:end does not release an unfinished artifact/backend reader');
+}
+{
+  const f = fixture();
   await assert.rejects(drainTuiBackendReaders({ ...f.input, closeSearch: async () => {
     f.jobs.set('late-work', { id: 'late-work', finalized: false });
   } }), { code: 'ERR_TUI_BACKEND_ACTIVE_JOBS' });

@@ -4,11 +4,13 @@ import { getToolVersion, resolveToolRoot } from '../shared/dict-utils.js';
 import { FLOW_METRICS_INTERVAL_MS, SUPERVISOR_PROTOCOL } from './supervisor/constants.js';
 import { createJobController } from './supervisor/jobs.js';
 import { createEventLogRecorder, createFlowController } from './supervisor/protocol-flow.js';
-import { normalizeLineBreaks, sleep } from './supervisor/request-utils.js';
+import { normalizeLineBreaks } from './supervisor/request-utils.js';
 import { createCli } from '../../src/shared/cli.js';
 import { assertTuiControlReason } from '../../src/contracts/validators/tui-request.js';
 import { createTuiArtifactRegistry } from './operator/artifact-registry.js';
 import { drainTuiBackendReaders } from './operator/backend-reader-drain.js';
+import { createSupervisorOutput } from './supervisor/output.js';
+import { createSupervisorShutdown } from './supervisor/shutdown.js';
 
 createCli({
   scriptName: 'pairofcleats tui supervisor',
@@ -70,6 +72,8 @@ const eventLogRecorder = createEventLogRecorder({
   root: ROOT
 });
 
+const output = createSupervisorOutput({ onFailure: () => { void shutdown('stdout_failed', 1); } });
+
 const {
   emit,
   emitLog,
@@ -80,7 +84,8 @@ const {
 } = createFlowController({
   runId,
   nextSeq,
-  eventLogRecorder
+  eventLogRecorder,
+  output
 });
 
 const buildSessionDescriptor = () => ({
@@ -109,6 +114,7 @@ const {
   beginArtifactJob: id => /^[a-zA-Z0-9_-]{1,128}$/.test(id) ? artifactRegistry.beginJob(id) : null,
   captureArtifactInventory: input => artifactRegistry.capture(input),
   assertWorkAdmission: ({ kind, method }) => {
+    output.assertWritable();
     if (kind === 'operation' && ['status', 'describe'].includes(method)) return;
     indexWorkflows?.assertCacheAdmission();
   }
@@ -151,6 +157,7 @@ const runArtifact = async (request, context) => {
   const [actions, contracts] = await artifactModules;
   contracts.assertTuiArtifactRequest('dispatch', request);
   contracts.assertTuiArtifactRequest(request.method, request.params);
+  if (context.signal.aborted) throw Object.assign(new Error('Cancelled.'), { code: 'ABORT_ERR' });
   artifactActions ||= actions.createTuiArtifactActions({ registry: artifactRegistry, toolRoot: ROOT });
   return artifactActions.execute(request.method, request.params, context);
 };
@@ -201,33 +208,11 @@ const runWorkflow = async (request, context) => {
  * @param {number} [exitCode=0]
  * @returns {Promise<void>}
  */
-const shutdown = async (reason = 'shutdown', exitCode = 0) => {
-  assertTuiControlReason(reason);
-  if (state.shuttingDown) return;
-  state.shuttingDown = true;
-  if (runtimeMetricsTimer) {
-    clearInterval(runtimeMetricsTimer);
-  }
-  state.shutdownStartedAt = Date.now();
-  emitLog(null, 'info', 'supervisor shutdown requested', { reason });
-  for (const job of state.jobs.values()) {
-    cancelJob(job.id, reason);
-  }
-  const timeoutMs = 10_000;
-  while (Date.now() - state.shutdownStartedAt < timeoutMs) {
-    const active = Array.from(state.jobs.values()).some((job) => !job.finalized);
-    if (!active) break;
-    await sleep(50);
-  }
-  settingsSession?.dispose();
-  await indexWorkflows?.dispose();
-  recordings?.dispose();
-  await searchSession?.dispose();
-  await artifactRegistry.dispose();
-  await artifactActions?.dispose();
-  eventLogRecorder?.finalize(reason);
-  process.exit(exitCode);
-};
+const shutdown = createSupervisorShutdown({ state, cancelJob, output, recorder: eventLogRecorder, emitLog,
+  stopMetrics: () => { if (runtimeMetricsTimer) clearInterval(runtimeMetricsTimer); },
+  closeOwners: () => ({ settings: () => settingsSession?.dispose(), workflows: () => indexWorkflows?.dispose(),
+    recordings: () => recordings?.dispose(), search: () => searchSession?.dispose(),
+    artifacts: () => artifactRegistry.dispose(), artifactActions: () => artifactActions?.dispose() }) });
 
 /**
  * Route one parsed supervisor request message.
@@ -386,15 +371,16 @@ process.stdin.setEncoding('utf8');
 process.stdin.on('data', consumeStdinChunk);
 
 process.stdin.on('end', () => {
-  shutdown('stdin_closed', 0).catch(() => process.exit(0));
+  void shutdown('stdin_closed', 0);
 });
+process.stdin.on('error', () => { void shutdown('stdin_failed', 1); });
 
 process.on('SIGINT', () => {
-  shutdown('sigint', 130).catch(() => process.exit(130));
+  void shutdown('sigint', 130);
 });
 
 process.on('SIGTERM', () => {
-  shutdown('sigterm', 130).catch(() => process.exit(130));
+  void shutdown('sigterm', 130);
 });
 
 emitHello({ supervisorVersion, session: buildSessionDescriptor() });
