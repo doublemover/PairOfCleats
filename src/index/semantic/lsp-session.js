@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createArtifactSemanticStore } from '../../semantic/artifact-store.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { assertSemanticEnvelope } from '../../contracts/validators/semantic-envelopes.js';
+import { validateSemanticRecord } from '../../contracts/validators/semantic.js';
 import { createAnalysisPartitionId, createSymbolGroupId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { persistSemanticEvidence } from './lsp-evidence.js';
@@ -112,6 +113,39 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
     context.sourceUnits = [{ sourceUnitId: item.source.sourceUnitId, byteHash: item.source.byteHash }];
     return context;
   };
+  const captureTargets = async (item, selection) => {
+    // Capture the entire caller selection before the first asynchronous read.
+    // Canonical encoding rejects accessors, sparse arrays and non-JSON values.
+    if (!Array.isArray(selection)) throw Object.assign(new TypeError('LSP target selection must be an array.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
+    const targets = JSON.parse(canonicalSemanticJson(selection)), seen = new Set();
+    for (const target of targets) {
+      if (!validateSemanticRecord('recordRef', target?.ref).ok || target.ref.partitionId !== item.syntax.partitionId
+        || seen.has(refKey(target.ref))) throw Object.assign(new Error('LSP target is not a unique retained source occurrence.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
+      seen.add(refKey(target.ref));
+    }
+    const selectedScopes = await collectSemanticTargetScopes({ policy: item.policy, store: item.store,
+      partitionId: item.syntax.partitionId, signal });
+    for (let offset = 0; offset < targets.length; offset += 128) {
+      throwIfAborted(signal);
+      const batch = targets.slice(offset, offset + 128);
+      const records = await item.store.getRecords(batch.map(target => target.ref), ['span', 'scope', 'data'], { signal });
+      if (!Array.isArray(records) || records.length !== batch.length) throw Object.assign(new Error('LSP target source inventory is incomplete.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
+      for (let index = 0; index < batch.length; index++) {
+        const target = batch[index], record = records[index];
+        if (!record || record.kind !== 'occurrence' || !record.span || record.data.roles.includes('definition')
+          || !semanticTargetMatchesRecord(item.policy, item.syntax.partitionId, record, selectedScopes)) {
+          throw Object.assign(new Error('LSP target is outside its retained occurrence selection.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
+        }
+        const expected = { ref: record.ref, invocation: item.invocationFor(record.data.expression), span: record.span,
+          scope: record.scope, roles: record.data.roles, name: item.text.slice(...record.span) };
+        if (canonicalSemanticJson(target) !== canonicalSemanticJson(expected)) {
+          throw Object.assign(new Error('LSP target metadata differs from its retained source occurrence.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
+        }
+      }
+    }
+    throwIfAborted(signal);
+    return targets;
+  };
   const api = {
     get enabled() { return inventory.size > 0; }, get hasTargetedWork() { return [...inventory.values()].some(item => item.unresolvedCount > 0); }, fileTextByFile: texts,
     setSignal(value) { signal = value; },
@@ -207,12 +241,13 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
       const context = contextFor({ item, uri, providerId, providerVersion, workspaceKey, positionEncoding });
       const completionKey = context.contextKey + ':' + item.source.sourceUnitId;
       if (completed.has(completionKey)) return;
+      const selectedTargets = await captureTargets(item, targets === null ? await api.targetsForDocument(doc) : targets);
       const observations = [];
-      for (const target of targets || await api.targetsForDocument(doc)) {
+      for (const target of selectedTargets) {
         throwIfAborted(signal);
         const position = offsetToLspPosition(item.source, item.text, target.span[0], positionEncoding);
-        const response = definitionEnabled ? await requestDefinition({ name: target.name }, position) : { attempted: false, skipReason: 'definition_unsupported' };
-        observations.push({ target, position, response: response || { attempted: true, payload: null } });
+        const response = definitionEnabled ? await requestDefinition({ name: target.name }, { ...position }) : { attempted: false, skipReason: 'definition_unsupported' };
+        observations.push({ target, position, response: JSON.parse(canonicalSemanticJson(response || { attempted: true, payload: null })) });
       }
       const partitionId = createAnalysisPartitionId({ pass: { name: 'lsp-bindings', version: SEMANTIC_ANALYSIS_VERSIONS.lspBindings }, inputPartitionHashes: [item.syntax.canonicalHash], compilerContext: context.contextKey, dependencySummaryHashes: [context.moduleResolutionHash], analysisPolicy: { policy: item.policy.identity.analysis, evidence: semanticHash('semantic.lsp-responses.v1', observations) } });
       const ref = localId => ({ partitionId, localId }), rows = [], names = new Map(); let nextId = 0, edgeId = 0, completedCount = 0, failed = false, deferred = false;

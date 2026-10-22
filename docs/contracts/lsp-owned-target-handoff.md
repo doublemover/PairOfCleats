@@ -1,0 +1,9 @@
+# LSP owned target handoff
+
+Before asynchronous definition work, the retained LSP session captures the complete selected-target array through canonical JSON. It rejects duplicate references, foreign syntax partitions, non-occurrences and selections outside the existing source policy. Bounded record reads independently reconstruct each target's exact reference, span, scope, roles, spelling and invocation from the retained syntax/source. Caller metadata must agree completely before any provider request or evidence write.
+
+The request callback receives its own position object. Each returned response is captured before the next asynchronous request, so later mutation of a prior result cannot change its hashed observation, source-qualified target or persisted protocol evidence. Canonical capture rejects accessors and unsupported JSON values instead of invoking them. Existing provider admission and immutable evidence writers retain their own byte/storage checks; this repair adds no public budget or source fallback.
+
+The existing request-cache contents/policy and location interpretation do not change. The shared retained LSP-binding producer identity must advance because target/response ownership and accepted observations change. Source selection, mapping, provider uncertainty and language/server completeness retain their existing limits. Callback completion still does not establish runtime dispatch or semantic closure.
+
+Authored actual retained-session regressions cover forged span/name/roles/invocation/ref selections, duplicates/getters/sparse arrays, getter-bearing responses and mutations of caller targets, callback positions and earlier response payloads. They inspect persisted binding/call-site identity and original protocol evidence. All are **UNVALIDATED**; no tests, syntax, format, bootstrap, server/compiler/native/source execution or benchmark was run.
