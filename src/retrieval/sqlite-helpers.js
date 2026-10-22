@@ -13,6 +13,7 @@ import { buildFilterIndex } from './filter-index.js';
 import { normalizeMetaV2ForRead } from '../index/metadata/meta-v2.js';
 import { assertMinhashHashIdentity } from '../index/minhash.js';
 import { readSqliteMinhashHeader } from '../storage/sqlite/minhash.js';
+import { hydrateSelectiveSqliteBm25 } from './sqlite-bm25-source.js';
 
 const SQLITE_IN_LIMIT = 900;
 const FTS_TOKEN_SAFE = /^[\p{L}\p{N}_]+$/u;
@@ -110,13 +111,18 @@ export function createSqliteHelpers(options) {
     : null;
 
   const sqliteCache = {
-    tokenStats: new Map(),
-    docLengths: new Map(),
-    chargramHashMode: new Map()
+    tokenStats: new WeakMap(),
+    docLengths: new WeakMap(),
+    chargramHashMode: new WeakMap()
   };
   const statementCache = new WeakMap();
   const ftsAvailability = new WeakMap();
   const tableAvailability = new WeakMap();
+  const cacheForDb = (owner, db) => {
+    let cache = owner.get(db);
+    if (!cache) { cache = new Map(); owner.set(db, cache); }
+    return cache;
+  };
 
   const hasFtsTable = (mode) => {
     const db = getDb(mode);
@@ -383,11 +389,10 @@ export function createSqliteHelpers(options) {
    * @param {boolean} [includeTf]
    * @returns {Array<{id:number,doc_id:number,tf?:number}>}
    */
-  function fetchPostingRows(mode, table, idColumn, ids, includeTf = false) {
+  function* fetchPostingRows(mode, table, idColumn, ids, includeTf = false) {
     const db = getDb(mode);
     if (!db || !ids.length) return [];
     const unique = Array.from(new Set(ids));
-    const rows = [];
     for (const chunk of chunkArray(unique)) {
       const placeholders = buildPlaceholders(chunk.length);
       const selectCols = includeTf
@@ -399,9 +404,8 @@ export function createSqliteHelpers(options) {
         `SELECT ${selectCols} FROM ${table} WHERE mode = ? AND ${idColumn} IN (${placeholders}) ` +
           `ORDER BY ${idColumn}, doc_id`
       );
-      rows.push(...stmt.all(mode, ...chunk));
+      yield* stmt.iterate(mode, ...chunk);
     }
-    return rows;
   }
 
   /**
@@ -413,12 +417,12 @@ export function createSqliteHelpers(options) {
   function loadDocLengths(mode, totalDocs) {
     const db = getDb(mode);
     if (!db) return [];
-    if (sqliteCache.docLengths.has(mode)) return sqliteCache.docLengths.get(mode);
+    const cache = cacheForDb(sqliteCache.docLengths, db);
+    if (cache.has(mode)) return cache.get(mode);
 
     const lengths = Array.from({ length: totalDocs || 0 }, () => 0);
     let maxDocId = -1;
-    const rows = db.prepare('SELECT doc_id, len FROM doc_lengths WHERE mode = ?').all(mode);
-    for (const row of rows) {
+    for (const row of db.prepare('SELECT doc_id, len FROM doc_lengths WHERE mode = ?').iterate(mode)) {
       if (row.doc_id >= lengths.length) {
         lengths.length = row.doc_id + 1;
       }
@@ -428,7 +432,7 @@ export function createSqliteHelpers(options) {
     if (!totalDocs) totalDocs = maxDocId + 1;
     if (lengths.length < totalDocs) lengths.length = totalDocs;
 
-    sqliteCache.docLengths.set(mode, lengths);
+    cache.set(mode, lengths);
     return lengths;
   }
 
@@ -440,21 +444,22 @@ export function createSqliteHelpers(options) {
   function loadTokenStats(mode) {
     const db = getDb(mode);
     if (!db) return { avgDocLen: 0, totalDocs: 0 };
-    if (sqliteCache.tokenStats.has(mode)) return sqliteCache.tokenStats.get(mode);
+    const cache = cacheForDb(sqliteCache.tokenStats, db);
+    if (cache.has(mode)) return cache.get(mode);
 
     const row = db.prepare('SELECT avg_doc_len, total_docs FROM token_stats WHERE mode = ?').get(mode) || {};
     let totalDocs = typeof row.total_docs === 'number' ? row.total_docs : 0;
     let avgDocLen = typeof row.avg_doc_len === 'number' ? row.avg_doc_len : null;
 
-    const lengths = loadDocLengths(mode, totalDocs);
-    if (!totalDocs) totalDocs = lengths.length;
-    if (avgDocLen === null) {
-      const total = lengths.reduce((sum, len) => sum + len, 0);
-      avgDocLen = lengths.length ? total / lengths.length : 0;
+    if (!totalDocs || avgDocLen === null) {
+      const aggregate = db.prepare('SELECT COALESCE(MAX(doc_id), -1) + 1 AS ordinal_count, COALESCE(SUM(len), 0) AS total_len FROM doc_lengths WHERE mode = ?').get(mode);
+      const lengthCount = Math.max(totalDocs || 0, aggregate.ordinal_count || 0);
+      if (!totalDocs) totalDocs = lengthCount;
+      if (avgDocLen === null) avgDocLen = lengthCount ? aggregate.total_len / lengthCount : 0;
     }
 
     const stats = { avgDocLen, totalDocs };
-    sqliteCache.tokenStats.set(mode, stats);
+    cache.set(mode, stats);
     return stats;
   }
 
@@ -464,7 +469,7 @@ export function createSqliteHelpers(options) {
    * @param {'code'|'prose'} mode
    * @returns {object|null}
    */
-  function getTokenIndexForQuery(tokens, mode) {
+  function getTokenIndexForQuery(tokens, mode, { allowedIds = null, metrics = {}, throwIfAborted = null } = {}) {
     const db = getDb(mode);
     if (!db) return null;
     const uniqueTokens = Array.from(new Set(tokens)).filter(Boolean);
@@ -486,15 +491,22 @@ export function createSqliteHelpers(options) {
       tokenIds.push(row.id);
     }
 
+    const stats = loadTokenStats(mode);
+    const selective = hydrateSelectiveSqliteBm25({ db, mode, tokenIds, tokenIdToIndex, vocab, vocabIndex, stats,
+      allowedIds, getCachedStatement, throwIfAborted, metrics });
+    if (selective) return admitSortedPostings(selective);
+    metrics.plan = 'broad-streamed-postings'; metrics.postingRowsReturned = 0;
+
     const postingRows = fetchPostingRows(mode, 'token_postings', 'token_id', tokenIds, true);
     const postings = Array.from({ length: vocab.length }, () => []);
     for (const row of postingRows) {
+      if (metrics.postingRowsReturned % 256 === 0) throwIfAborted?.();
       const idx = tokenIdToIndex.get(row.id);
       if (idx === undefined) continue;
       postings[idx].push([row.doc_id, row.tf]);
+      metrics.postingRowsReturned++;
     }
 
-    const stats = loadTokenStats(mode);
     const docLengths = loadDocLengths(mode, stats.totalDocs);
 
     return admitSortedPostings({ vocab, postings, docLengths,
@@ -513,12 +525,12 @@ export function createSqliteHelpers(options) {
     const candidates = new Set();
     let matched = false;
     const hashedChargrams = (() => {
-      if (sqliteCache.chargramHashMode?.has(mode)) return sqliteCache.chargramHashMode.get(mode);
+      const cache = cacheForDb(sqliteCache.chargramHashMode, db);
+      if (cache.has(mode)) return cache.get(mode);
       const row = db.prepare('SELECT gram FROM chargram_vocab WHERE mode = ? LIMIT 1').get(mode);
       const value = row?.gram;
       const hashed = typeof value === 'string' && value.startsWith('h64:');
-      if (!sqliteCache.chargramHashMode) sqliteCache.chargramHashMode = new Map();
-      sqliteCache.chargramHashMode.set(mode, hashed);
+      cache.set(mode, hashed);
       return hashed;
     })();
     if (hashedChargrams && postingsConfig.enableChargrams !== false) {

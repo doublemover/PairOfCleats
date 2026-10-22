@@ -13,7 +13,8 @@ export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
       k1,
       b,
       tokenIndexOverride,
-      includeZeroScores = false
+      includeZeroScores = false,
+      work = null
     }) => {
       const fieldPolicyConfigured = fieldWeights && typeof fieldWeights === 'object';
       const hits = fieldPolicyConfigured
@@ -24,6 +25,7 @@ export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
           fieldWeights,
           tokenIndexOverride,
           includeZeroScores,
+          work,
           allowedIdx: allowedIds,
           k1,
           b
@@ -34,6 +36,7 @@ export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
           topN,
           tokenIndexOverride,
           includeZeroScores,
+          work,
           allowedIdx: allowedIds,
           k1,
           b

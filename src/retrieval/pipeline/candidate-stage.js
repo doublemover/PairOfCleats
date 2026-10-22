@@ -179,7 +179,10 @@ export const runCandidateStage = ({
       sparseType = 'none';
     } else {
       try {
-        const tokenIndexOverride = sqliteEnabledForMode ? getTokenIndexForQuery(queryTokens, mode) : null;
+        const sqliteBm25Hydration = {};
+        const tokenIndexOverride = sqliteEnabledForMode ? getTokenIndexForQuery(queryTokens, mode,
+          { allowedIds: sparseAllowedIds, metrics: sqliteBm25Hydration, throwIfAborted }) : null;
+        if (sqliteEnabledForMode) candidateMetrics.sqliteBm25Hydration = sqliteBm25Hydration;
         if (needLexicalCandidates) {
           candidates = buildCandidateSet(idx, queryTokens, mode);
           trackReleaseSet(candidates);
@@ -188,6 +191,7 @@ export const runCandidateStage = ({
           sparseAllowedIds = eligibility.evaluate({ semantic: false, tokenIndex: tokenIndexOverride });
           sparseAllowedCount = sparseAllowedIds.size;
         }
+        const bm25Work = {};
         const bm25Result = bm25Provider.search({
           idx,
           queryTokens,
@@ -198,8 +202,10 @@ export const runCandidateStage = ({
           k1: bm25K1,
           b: bm25B,
           tokenIndexOverride,
-          includeZeroScores: needsUniverse
+          includeZeroScores: needsUniverse,
+          work: bm25Work
         });
+        candidateMetrics.bm25Execution = bm25Work;
         bmHits = bm25Result.hits;
         sparseType = bm25Result.type;
         sqliteFtsUsed = false;

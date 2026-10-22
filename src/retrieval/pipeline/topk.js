@@ -238,6 +238,7 @@ export const createTopKReducer = ({
     pushRaw,
     finish,
     stats: statsRef,
+    minimumCompetitiveScore: () => limit > 0 && heap.length >= limit ? heap[0].score : -Infinity,
     limit,
     started
   };

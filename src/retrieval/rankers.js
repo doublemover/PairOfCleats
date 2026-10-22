@@ -8,6 +8,7 @@ import { throwIfAborted } from '../shared/abort.js';
 import { withAnnScoreSpace } from '../shared/ann-similarity.js';
 import { assertBm25Parameters } from './bm25-policy.js';
 import { hasAdmittedPostingOrder } from '../shared/posting-order.js';
+import { tryRankBm25Wand } from './bm25-wand.js';
 
 /**
  * Legacy BM25-like scoring using chunk metadata fields directly.
@@ -55,11 +56,13 @@ export function getTokenIndex(idx) {
   const tokenIndex = idx.tokenIndex;
   if (!tokenIndex || !tokenIndex.vocab || !tokenIndex.postings) return null;
   ensureVocabIndex(tokenIndex);
-  if (!Array.isArray(tokenIndex.docLengths)) tokenIndex.docLengths = [];
-  if (!tokenIndex.totalDocs) tokenIndex.totalDocs = tokenIndex.docLengths.length;
+  if (!Array.isArray(tokenIndex.docLengths) && !(tokenIndex.docLengths instanceof Map)) tokenIndex.docLengths = [];
+  if (!tokenIndex.totalDocs) tokenIndex.totalDocs = tokenIndex.docLengths instanceof Map ? tokenIndex.docLengths.size : tokenIndex.docLengths.length;
   if (!tokenIndex.avgDocLen) {
-    const total = tokenIndex.docLengths.reduce((sum, len) => sum + len, 0);
-    tokenIndex.avgDocLen = tokenIndex.docLengths.length ? total / tokenIndex.docLengths.length : 0;
+    const lengths = tokenIndex.docLengths instanceof Map ? tokenIndex.docLengths.values() : tokenIndex.docLengths;
+    let total = 0, count = 0;
+    for (const length of lengths) { total += length; count++; }
+    tokenIndex.avgDocLen = count ? total / count : 0;
   }
   return tokenIndex;
 }
@@ -96,8 +99,11 @@ const accumulateBm25Scores = ({
     const tokIdx = index.vocabIndex.get(tok);
     if (tokIdx === undefined) continue;
     const posting = index.postings[tokIdx] || [];
-    const df = posting.length;
-    if (!df) continue;
+    if (!posting.length) continue;
+    const df = index.documentFrequencies ? index.documentFrequencies[tokIdx] : posting.length;
+    if (index.documentFrequencies && (!Number.isSafeInteger(df) || df < posting.length || df > totalDocs)) {
+      throw new Error('Invalid global BM25 document-frequency evidence.');
+    }
     const idf = Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5));
 
     const seek = allowedIds && posting.length >= 64
@@ -116,7 +122,7 @@ const accumulateBm25Scores = ({
     })() : posting;
     for (const [docId, tf] of eligibleRows) {
       if (!seek && allowedIdx && !bitmapHas(allowedIdx, docId)) continue;
-      const dl = docLengths[docId] || 0;
+      const dl = (docLengths instanceof Map ? docLengths.get(docId) : docLengths[docId]) || 0;
       const denom = tf + k1 * (1 - b + b * (dl / avgDocLen));
       const score = idf * ((tf * (k1 + 1)) / denom) * qCount * scoreMultiplier;
       scores.set(docId, (scores.get(docId) || 0) + score);
@@ -174,7 +180,9 @@ export function rankBM25({
   allowedIdx = null,
   k1 = 1.2,
   b = 0.75,
-  includeZeroScores = false
+  includeZeroScores = false,
+  scoreBoundPruning = true,
+  work = null
 }) {
   assertBm25Parameters(k1, b);
   const tokenIndex = tokenIndexOverride || getTokenIndex(idx);
@@ -187,11 +195,18 @@ export function rankBM25({
   const docLengths = tokenIndex.docLengths;
   const avgDocLen = tokenIndex.avgDocLen || 1;
   const totalDocs = tokenIndex.totalDocs || idx.chunkMeta.length || 1;
+  const qtf = buildQueryTermFrequency(tokens);
+  ensureVocabIndex(tokenIndex);
+  if (scoreBoundPruning) {
+    const bounded = tryRankBm25Wand({ idx, groups: [{ index: tokenIndex, qtf, docLengths, avgDocLen, totalDocs }],
+      topN, k1, b, allowedIdx, includeZeroScores, work });
+    if (bounded !== null) return bounded;
+  }
 
   accumulateBm25Scores({
     scores,
     index: tokenIndex,
-    qtf: buildQueryTermFrequency(tokens),
+    qtf,
     allowedIdx,
     allowedIds: prepareAllowedIds(allowedIdx),
     docLengths,
@@ -200,6 +215,7 @@ export function rankBM25({
     k1,
     b
   });
+  if (work) Object.assign(work, { strategy: 'exhaustive', retainedScoreMapEntries: scores.size });
   return finishWeightedScores({ idx, scores, topN, includeZeroScores, zeroScoreIds: allowedIdx });
 }
 
@@ -224,12 +240,14 @@ export function rankBM25Fields({
   allowedIdx = null,
   k1 = 1.2,
   b = 0.75,
-  includeZeroScores = false
+  includeZeroScores = false,
+  scoreBoundPruning = true,
+  work = null
 }) {
   assertBm25Parameters(k1, b);
   const fields = idx.fieldPostings?.fields || {};
   if (!fieldWeights) {
-    return rankBM25({ idx, tokens, topN, k1, b, allowedIdx, tokenIndexOverride, includeZeroScores });
+    return rankBM25({ idx, tokens, topN, k1, b, allowedIdx, tokenIndexOverride, includeZeroScores, scoreBoundPruning, work });
   }
   if (!tokens.length) return [];
   if (allowedIdx && getBitmapSize(allowedIdx) === 0) return [];
@@ -244,7 +262,7 @@ export function rankBM25Fields({
   const qtf = buildQueryTermFrequency(tokens);
   const allowedIds = prepareAllowedIds(allowedIdx);
 
-  const scores = new Map();
+  const scores = new Map(), groups = [];
   for (const [field, weight] of Object.entries(fieldWeights)) {
     const fieldWeight = Number(weight);
     if (!Number.isFinite(fieldWeight) || fieldWeight <= 0) continue;
@@ -261,25 +279,20 @@ export function rankBM25Fields({
     }
 
     if (!index || !index.vocab || !index.postings) continue;
-    const docLengths = Array.isArray(index.docLengths) ? index.docLengths : [];
+    const docLengths = Array.isArray(index.docLengths) || index.docLengths instanceof Map ? index.docLengths : [];
     const avgDocLen = Number.isFinite(index.avgDocLen) ? index.avgDocLen : 1;
-    const totalDocs = Number.isFinite(index.totalDocs) ? index.totalDocs : docLengths.length;
+    const totalDocs = Number.isFinite(index.totalDocs) ? index.totalDocs : docLengths instanceof Map ? docLengths.size : docLengths.length;
     if (!totalDocs) continue;
 
-    accumulateBm25Scores({
-      scores,
-      index,
-      qtf,
-      allowedIdx,
-      allowedIds,
-      docLengths,
-      avgDocLen,
-      totalDocs,
-      k1,
-      b,
-      scoreMultiplier: fieldWeight
-    });
+    ensureVocabIndex(index);
+    groups.push({ index, qtf, docLengths, avgDocLen, totalDocs, scoreMultiplier: fieldWeight });
   }
+  if (scoreBoundPruning) {
+    const bounded = tryRankBm25Wand({ idx, groups, topN, k1, b, allowedIdx, includeZeroScores, work });
+    if (bounded !== null) return bounded;
+  }
+  for (const group of groups) accumulateBm25Scores({ scores, ...group, allowedIdx, allowedIds, k1, b });
+  if (work) Object.assign(work, { strategy: 'exhaustive', retainedScoreMapEntries: scores.size });
 
   return finishWeightedScores({ idx, scores, topN, includeZeroScores, zeroScoreIds: allowedIdx });
 }
