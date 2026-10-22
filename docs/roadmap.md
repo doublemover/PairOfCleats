@@ -103,7 +103,7 @@ The refreshed inventory adds ten Other research/features (#1531–#1540) and
 expands modern viewer/semantic acceptance; prior source repairs retain credit
 without implying those new requirements are satisfied. Storage/category, native,
 editor, provisioning, bounded discovery and durable viewer preference releases
-now have durable partial mappings. Shared sourceChunking6/compilerBindings17/lspBindings22, callFlow20, graphRelations1
+now have durable partial mappings. Shared sourceChunking6/compilerBindings18/lspBindings22, callFlow20, graphRelations1
 and discoverySelection2/signature14 identify the new producer meaning.
 
 Source checkpoints through 101f3641f add local loaded-response find, source-qualified
@@ -141,19 +141,21 @@ cooperative map search and reproducible fusion/reranker owners have further repa
 All remain unvalidated; fine-grained semantic resume, legacy graph quota coverage,
 real service/editor/model hosts and performance qualification remain open.
 
-Source continuation through 002afeb5c preserves exact tracked child close,
-required closeout and durable writer exclusion across parent exit. Shared stale
-and benchmark recovery cannot erase unknown resource settlement; process-only
-recovery remains covered. Dictionary failures retain every pending owner and
-reservation release coalesces/retries the exact coordinator. Setup evidence,
-Unicode-scalar provider admission, SCIP adapter2/lspBindings22, finite retained
-relation models, symbolic cancellation, actual cooperative map initialization and
-source-pinned task-span/paired-quality reports have further source consumers.
-Whole-cache/category writer lifetime adoption, live source-qualified telemetry,
-independent source/label truth, external hosts and empirical qualification remain
-open. All new source/fixtures are unvalidated; no final-tree green, issue closure
-or speedup follows from these checkpoints. See the durable receipt for commits,
-coverage mappings and exact limits.
+Source continuation through a4f4f937f adds exact download/native-close and failed
+admission recovery, frozen/nested session evidence and partial rollback owners.
+Native storage now follows the canonical locator and rejects preview drift.
+Supplied graph/shard replacement consumes the existing disk account; generic
+copy headroom and fine-grained resume remain open. Constructor alternatives
+advance compilerBindings18/cfgFlow18; lspBindings22/callFlow20 remain current.
+Lance cancellation joins admitted work and retains bounded projected hits; native
+scan/recall/heap qualification remains separate. VS Code/Sublime share exact
+source/newline mapping; saved maps check observed byte/file stability. Paired
+quality and saved task-span reports use versioned fixed code-unit ordering.
+Cache-gc already checks writer locks inside exclusion; generic cache/repos
+migration remains unsupported. Explicit launch-context adoption is still in
+progress. All new source/fixtures are unvalidated; no issue closure, current
+suite pass or speedup is claimed. See the durable receipt for exact commits,
+coverage mappings and remaining host/source-truth/resource qualification.
 
 ## Environment and qualification boundaries
 

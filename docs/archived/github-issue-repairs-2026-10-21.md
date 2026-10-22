@@ -422,7 +422,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#634](https://github.com/doublemover/PairOfCleats/issues/634) | other | TUI missing functionality: run real searches and navigate ranked results/source | implemented previously; acceptance pending |
 | [#635](https://github.com/doublemover/PairOfCleats/issues/635) | other | TUI missing functionality: configure and operate index and embedding workflows | implemented previously; acceptance pending |
 | [#636](https://github.com/doublemover/PairOfCleats/issues/636) | other | TUI missing functionality: expose doctor and supported tooling/provider setup | partial source forms; operational provider qualification open |
-| [#637](https://github.com/doublemover/PairOfCleats/issues/637) | other | TUI missing functionality: control owned services and preview maintenance actions | partial exact service controls 4a17a5e83/6abc47128 and retained protocol/job closure fc59bd7bf/4d3de4fa5; actual host qualification open |
+| [#637](https://github.com/doublemover/PairOfCleats/issues/637) | other | TUI missing functionality: control owned services and preview maintenance actions | partial exact service/job controls plus canonical native storage locator b66a06e36; authored controls unvalidated; actual host qualification open |
 | [#638](https://github.com/doublemover/PairOfCleats/issues/638) | other | TUI missing functionality: select jobs and inspect their results/artifacts | implemented previously; acceptance pending |
 | [#639](https://github.com/doublemover/PairOfCleats/issues/639) | other | TUI missing functionality: open recorded sessions and explicitly distinguish passive/live attachment | partial replay source; native/platform qualification open |
 | [#640](https://github.com/doublemover/PairOfCleats/issues/640) | other | TUI missing functionality: expose registered analysis/report workflows with command-surface parity | partial canonical catalog and explicit unsupported adapters 4a17a5e83; remaining workflows and native qualification open |
@@ -1097,7 +1097,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1309](https://github.com/doublemover/PairOfCleats/issues/1309) | other | [Viewer] Own and retire environment render targets when replacing fallback lighting | source authored; unvalidated |
 | [#1310](https://github.com/doublemover/PairOfCleats/issues/1310) | other | Keep CLI log/status lines compact without changing the progress-bar look | progress source a3eeb9c32; terminal regressions unrun |
 | [#1311](https://github.com/doublemover/PairOfCleats/issues/1311) | other | [Tooling] Execute dependency-aware managed provisioning instead of stopping at missing runtimes | partial immutable managed source e835f6699; concrete recipes/runtime lifetime proof open |
-| [#1312](https://github.com/doublemover/PairOfCleats/issues/1312) | other | [Tooling] Add durable per-tool install receipts and verified update, repair and removal | partial repair/lifetime source e835f6699; concrete recipes/runtime lifetime proof open |
+| [#1312](https://github.com/doublemover/PairOfCleats/issues/1312) | other | [Tooling] Add durable per-tool install receipts and verified update, repair and removal | partial exact download/admission owners 9b4740e1b and exclusive strict ordinary receipts01a1e5eb7; concrete recipes/runtime qualification open |
 | [#1313](https://github.com/doublemover/PairOfCleats/issues/1313) | other | [Tooling] Provision structural engines and operational CLI prerequisites by selected feature | partial ownership source e835f6699; concrete recipes/runtime lifetime proof open |
 | [#1314](https://github.com/doublemover/PairOfCleats/issues/1314) | other | [Diagnostics] Persist embedding child failures in run-scoped logs and advertise the actual evidence | development implemented; integration/validation deferred |
 | [#1315](https://github.com/doublemover/PairOfCleats/issues/1315) | P1 | [P1] Serialize crash-log error writes with live appenders and preserve terminal error state | development implemented; integration/validation deferred |
@@ -1133,7 +1133,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1345](https://github.com/doublemover/PairOfCleats/issues/1345) | P2 | [P2] Resolve workspace child startup settings per target instead of inheriting the launch directory | development implemented; integration/validation deferred |
 | [#1346](https://github.com/doublemover/PairOfCleats/issues/1346) | P2 | [P2] Preserve explicit validation and embedding flags across background Stage2 handoff | development implemented; integration/validation deferred |
 | [#1347](https://github.com/doublemover/PairOfCleats/issues/1347) | P2 | [P2] Do not forward the globally accepted -v version flag into mutating leaf commands | development implemented; integration/validation deferred |
-| [#1348](https://github.com/doublemover/PairOfCleats/issues/1348) | other | [Indexing] Make cross-file fidelity budgets explicit and preserve durable omission coverage | partial public retained pages 0c14a0dbe, source/work receipts fdfed91e5 and spill accounting 330402344; fine-grained resume and legacy supplied-graph quota open |
+| [#1348](https://github.com/doublemover/PairOfCleats/issues/1348) | other | [Indexing] Make cross-file fidelity budgets explicit and preserve durable omission coverage | partial public/retained evidence and actual supplied-graph/shard disk accounting5a05e0436; fine-grained resume, generic copy headroom and runtime qualification open |
 | [#1349](https://github.com/doublemover/PairOfCleats/issues/1349) | P2 | [P2] Give inline and daemon-prewarm embedding leases an explicit runtime teardown owner | development implemented; integration/validation deferred |
 | [#1350](https://github.com/doublemover/PairOfCleats/issues/1350) | P2 | [P2] Report unconfirmed LSP disposal instead of returning a successful pool drain | development implemented; integration/validation deferred |
 | [#1351](https://github.com/doublemover/PairOfCleats/issues/1351) | P2 | [P2] Preserve manifest integrity errors during graph artifact admission | development implemented; integration/validation deferred |
@@ -1183,7 +1183,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1394](https://github.com/doublemover/PairOfCleats/issues/1394) | perf | [Performance] Bound recorded-session seeks instead of replaying the entire prefix on the UI thread | source repair and regression authored; unvalidated |
 | [#1395](https://github.com/doublemover/PairOfCleats/issues/1395) | other | [Docs] Document state-preserving source upgrades and required artifact rebuilds | source state-preserving upgrade journey authored; operational proof open |
 | [#1396](https://github.com/doublemover/PairOfCleats/issues/1396) | perf | [Perf] Shard persistent tree-sitter chunks by digest instead of constant namespace prefix | source repair and regression authored; unvalidated |
-| [#1397](https://github.com/doublemover/PairOfCleats/issues/1397) | P1 | [P1] Preserve pending subprocess cleanup before releasing the build cache-writer lock | exact tracked close plus required closeout/durable writer fence b9e21009b/3f7aa30b3; regressions authored, unvalidated; whole-cache/category lifetime adoption open |
+| [#1397](https://github.com/doublemover/PairOfCleats/issues/1397) | P1 | [P1] Preserve pending subprocess cleanup before releasing the build cache-writer lock | exact tracked close and required closeout/durable writer fence b9e21009b/3f7aa30b3; authored controls unvalidated; final child/cache/host qualification open |
 | [#1398](https://github.com/doublemover/PairOfCleats/issues/1398) | P2 | [P2] Preserve exclusion and quoted-phrase gates under --match any | source repair and regression authored; unvalidated |
 | [#1399](https://github.com/doublemover/PairOfCleats/issues/1399) | P2 | [P2] Bind inlay type hints to their declaration role before assigning function returns | source repair and regression authored; unvalidated |
 | [#1400](https://github.com/doublemover/PairOfCleats/issues/1400) | P2 | [P2] Resolve CI export sources after child builds publish their generations | source repair and regression authored; unvalidated |
@@ -2296,3 +2296,87 @@ coverage obligations; none is a passing observation. Generated-surface refresh,
 locked setup and the eventual affected/front-gate/Windows cohorts must run against
 the resulting candidate. Ignored `.tmp/tasks/` hashes are historical staging
 bookkeeping, not clean-checkout evidence or acceptance artifacts.
+
+
+### Exact resource recovery and active native storage through a4f4f937f
+
+All source, Python/editor code and authored regressions here are **UNVALIDATED**.
+No tests, syntax/lint/format, bootstrap, child/native operations, builds, GUI/model
+hosts or benchmarks ran. Formatting and execution remain deferred by the user's
+development-first direction. The last qualified production/test source remains
+`d4dcba4134f6103e3a59703d90fdbde5ca54d09e`; no new issue closure, measured speedup or
+final Windows acceptance follows from publication.
+
+- **Actual download and admission owners:** 9b4740e1b observes Node response native
+  close independently of iterator completion, including successful byte EOF,
+  delayed teardown and close errors. Timeout/failure retains the exact response
+  session and stops automatic retry. Managed archive, Go index/archive and child
+  storage consumers retain the matching transaction, reservations and outer lease.
+  Failed admission after a reservation was sealed keeps its original coordinator
+  and reservation rather than inferring success from a child that never started.
+  Authored actual disposable streams and filesystem failure/recovery controls are
+  unrun. No network, package installation or user-cache operation was performed.
+- **Storage session error and partial admission:** b887fc9b1 preserves frozen,
+  readonly and nested failures with exact causes and non-enumerable capabilities;
+  combined original observers must all confirm. A callback's pending:false cannot
+  override an independently pending original owner. Source 1777b7306 attempts every
+  exact lease rollback and retains the partial session if a later admission or
+  earlier removal fails. Authored frozen/contradictory/nested and real disposable
+  rollback controls preserve both refusal and normal recovery positives.
+- **Ordinary receipt integrity:** 01a1e5eb7 uses flushed private bytes and exclusive
+  same-directory file-link publication, verifies known read-back identity and
+  preserves conflicts. Writer, lifecycle verifier and category inventory share
+  strict registered metadata admission. A version-shaped recipe is an observation,
+  not immutable upstream proof. No filesystem link operation was executed while
+  authoring; this does not introduce a symlink privilege requirement. Actual
+  Windows/filesystem/installer qualification remains open.
+- **Native selected storage:** b66a06e36 repairs the TUI/CLI discrepancy by using
+  the existing verified locator reader/selection overlay. Preview and execution
+  identity include locator path/status/hash even for a same-path selection change.
+  Invalid selection grants no fallback cleanup authority. Private canonical plans,
+  exact apply/exclusion checks and explicit environment precedence remain. Actual
+  disposable selected-cache/list/cleanup/stale/invalid controls are authored only.
+- **Graph disk accounting:** 5a05e0436 extends the existing account to supplied
+  compact graphs, actual shards, offsets, metadata and CSR. Accounted shard
+  promotion cannot silently allocate a second directory copy; non-accounted
+  callers retain default behavior. Old bytes remain charged through new output
+  close/promotion and exact retirement. Shared JSON encoding preserves typed-array
+  meaning. Supplied display input is still pre-materialized; generic semantic
+  metadata/index copy headroom, fine-grained resume, Windows disk/crash proof and
+  heap/latency measurements remain separate.
+- **Semantic candidates and retained selections:** bd1a529ba retains conditional,
+  logical and mutable constructor aliases in actual dispatch and initializer
+  consumers under shared descent/distinct-candidate bounds. compilerBindings18
+  and cfgFlow18 retire changed meaning; lspBindings22/callFlow20 stay current.
+  Source a4f4f937f owns the exact retained motif world/ref/role selection before
+  asynchronous reads and charges metadata/page progress. Caller labels cannot
+  retarget stored facts during await. Assignment-order, closure, strong-update,
+  behavior-transfer and native differential proof remain unknown.
+- **Retrieval, evaluation and editors:** a4af009e7 carries cancellation through
+  actual Lance native partitions and row projection, awaits admitted native calls
+  before release, checks original candidate membership and reuses bounded topK.
+  No-predicate fallback still materializes a full native result; no native-work,
+  recall or total-heap guarantee is claimed. Source 313d462d4 binds paired quality
+  resampling and saved-trace ordering to fixed UTF16 code units and versions the
+  changed policy/checkpoint identity. Sources 0a638469d/c70443bac share contained
+  exact source reads and CR/LF/CRLF/BOM/scalar mapping in VS Code/Sublime; original
+  byte witnesses remain distinct from live task/use attribution. Source 31c7a18d2
+  rejects observed saved-map file changes and invalid UTF8, retaining typed IDs.
+  These file signatures are observed stability, not an OS snapshot lock. Source
+  models remain materialized; supported editor/browser/native hosts and independent
+  cost/quality/source-label acceptance remain open.
+
+Source inspection confirms cache-gc already rechecks index locks before and inside
+its existing exclusion barrier. Durable writer locks strengthen that path; their
+new actual GC/runtime qualification is still unrun. Generic cache/repos category
+migration remains explicitly unsupported. An independent launch-context bridge
+is in development; no parent directory is inferred as authorization. All ongoing
+agent files remain outside these released commits until exact source handoff.
+
+
+Saved-map continuation 9cf422fd6 now awaits the exact captured FileHandle close
+before publication and retains its nonserializable reconciliation capability on
+combined original parse/read/cancellation and close failures. Frozen/nested causes
+and original pending observers survive; cancellation during close is still joined.
+No path reopen, raw descriptor or substituted close method can settle that owner.
+Those descriptor controls are authored, unrun and do not qualify native reliability.
