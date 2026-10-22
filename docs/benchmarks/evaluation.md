@@ -112,3 +112,62 @@ The new hand-enumerated geometry/provenance/eligibility/limits fixtures are
 source-authored and unrun. No representative-corpus quality, ANN recall, latency
 or memory acceptance has been established. Those campaigns remain separately
 scoped; these adapters supply reproducible independent references for them.
+
+## Saved fusion and candidate-depth sweeps
+
+`captureFusionReplay` in `src/retrieval/evaluation/fusion-replay.js` accepts explicit
+production fusion/rank inputs and an independently admitted vector evaluation
+record. It freezes ordered raw sparse/dense scores, explicit score spaces and
+channel membership, eligibility/phrase/export facts, relation/graph inputs and
+stable source mappings. Missing source scores remain null. The selected embedding
+generation and actual file/span mapping must match the vector record. Opaque
+callbacks are reduced to bounded facts, not serialized or executed during replay.
+Capture rejects a baseline that does not reproduce the actual production output
+exactly. Time-dependent graph cutoffs are unsupported for deterministic capture.
+The rank query must match the admitted query-text digest. Capture owns channel,
+metadata, relation and baseline values before yielding for the independent oracle;
+later mutations of borrowed input arrays cannot enter the saved generation.
+
+The strict version1 record binds source/model/query/filter/oracle identities,
+Node runtime and whole scoring-owner source hashes. A changed policy requires a
+fresh capture. Replay uses production calibration, fusion, gates, boosts, tie
+selection, diversity and graph owners. Its temporary scoring path preserves all
+gated union members before selecting the final bounded window; inputs and shared
+chunk metadata remain untouched. A candidate can ablate boosts or diversity,
+vary sparse/dense depths independently, and select current behavior, RRF, existing
+active-channel-renormalized blend or the explicit `fixed-missing` baseline.
+The latter retains the observed union, normalizes sparse scores by the positive
+list maximum and dense scores through production calibration, then divides the
+weighted sum by the full configured weight total. Missing normalized
+contributions count as zero only in this experimental formula; their raw source
+scores stay null. Zero-weight-only members remain in the union.
+
+`sweepFusionReplays` accepts an explicit grid of at most64 settings and256 unique
+queries sharing one model/source generation/output cap. Seeded query-identity
+hashes allocate60/20/20 train/dev/test buckets independently of input order.
+Every saved current baseline must pass parity first. Development graded nDCG
+selects a setting; a stable policy-key tie break and frozen selection receipt are
+constructed before held-out judgments are scored. Test labels cannot select the
+winner. Empty splits or missing development judgments produce incomplete receipts.
+Reports retain candidate recall and its declared original/stored reference,
+missing-channel counts, graded nDCG, positive-label recall, MRR and paired query
+deltas. The95% interval is a descriptive normal approximation; single-query
+samples have no interval, and no statistical promotion is implied.
+
+Admission is bounded to8MiB per record and16MiB per sweep,4,096 union members,
+1,000,000 candidate work units and a cooperative2s sweep deadline. Tighter-only
+record/grid/input/output/work/time bounds are accepted. Cancellation or any
+budget exhaustion yields `complete:false`, `selected:null`, and no metrics.
+Output overflow returns a minimal incomplete receipt. Checkpoint keys bind all
+record, schema, metric, source policy, grid and split identities; resume validates
+that key and restarts from zero. The saved-score replay clock includes admission
+and reports no retrieval, model, index IO or end-to-end search latency.
+
+Existing evaluation dataset entries can add `fusionReplay` (one record or at most
+four), `fusionReplayGrid` and an optional shared `fusionReplaySeed`. All selected
+entries must agree on grid/seed and query text digest. `tools/eval/run.js` adds a
+separate top-level `fusionReplay` report with `currentSearchEvidence:false`; its
+metrics do not enter live search aggregates. No production default, public config
+knob, result store or automatic live capture is added. Golden/sweep regressions
+are authored but unrun. Representative held-out, per-class, matched-work quality
+and platform/resource qualification remain open.

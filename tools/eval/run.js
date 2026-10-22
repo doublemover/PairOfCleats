@@ -10,6 +10,7 @@ import { resolveEvaluationCohorts, selectEvaluationCohort, judgmentsForCohort } 
 import { matchExpected, resolveMatchMode } from './match.js';
 import { collectExpectedJudgments, computeMRR, computeNDCG, computeRecallAtK } from './metrics.js';
 import { evaluateDatasetVectorReplay } from './vector-oracle.js';
+import { evaluateDatasetFusionReplay } from './fusion-replay.js';
 
 const argv = createCli({
   scriptName: 'eval-run',
@@ -167,6 +168,8 @@ const output = {
   summary,
   results
 };
+const fusionReplay = await evaluateDatasetFusionReplay({ cases });
+if (fusionReplay) output.fusionReplay = fusionReplay;
 
 if (argv.out) {
   fs.writeFileSync(path.resolve(argv.out), JSON.stringify(output, null, 2));
