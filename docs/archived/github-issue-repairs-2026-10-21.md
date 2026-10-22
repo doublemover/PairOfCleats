@@ -1008,20 +1008,20 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1220](https://github.com/doublemover/PairOfCleats/issues/1220) | perf | [Perf] Preserve partial embedding reuse when one chunk changes the file fingerprint | development implemented; integration/validation deferred |
 | [#1221](https://github.com/doublemover/PairOfCleats/issues/1221) | perf | [Perf] Add a validated cache-only Stage-3 path that avoids loading ONNX | pending |
 | [#1222](https://github.com/doublemover/PairOfCleats/issues/1222) | perf | [Perf] Skip unchanged embedding bundle hydration using verified coverage digests | pending |
-| [#1223](https://github.com/doublemover/PairOfCleats/issues/1223) | perf | [Perf] Solve compiler call summaries with dirty dependencies instead of full SCC rescans | pending |
-| [#1224](https://github.com/doublemover/PairOfCleats/issues/1224) | perf | [Perf] Avoid full reaching-definition Map/Set snapshots at every CFG block | pending |
-| [#1225](https://github.com/doublemover/PairOfCleats/issues/1225) | perf | [Perf] Share CFG effect and exception reachability instead of traversing suffixes per call | pending |
-| [#1226](https://github.com/doublemover/PairOfCleats/issues/1226) | perf | [Perf] Index field-path overlap candidates instead of comparing every path pair | pending |
+| [#1223](https://github.com/doublemover/PairOfCleats/issues/1223) | perf | [Perf] Solve compiler call summaries with dirty dependencies instead of full SCC rescans | source repair and regression authored; unvalidated |
+| [#1224](https://github.com/doublemover/PairOfCleats/issues/1224) | perf | [Perf] Avoid full reaching-definition Map/Set snapshots at every CFG block | source repair and regression authored; unvalidated |
+| [#1225](https://github.com/doublemover/PairOfCleats/issues/1225) | perf | [Perf] Share CFG effect and exception reachability instead of traversing suffixes per call | source repair and regression authored; unvalidated |
+| [#1226](https://github.com/doublemover/PairOfCleats/issues/1226) | perf | [Perf] Index field-path overlap candidates instead of comparing every path pair | source repair and regression authored; unvalidated |
 | [#1227](https://github.com/doublemover/PairOfCleats/issues/1227) | perf | [Perf] Avoid idle compression-worker startup for gzip sharded artifacts | development implemented; integration/validation deferred |
 | [#1228](https://github.com/doublemover/PairOfCleats/issues/1228) | perf | [Perf] Make process-pool startup demand-driven and dispatch ready children independently | development implemented; integration/validation deferred |
 | [#1229](https://github.com/doublemover/PairOfCleats/issues/1229) | perf | [Perf] Replace full pressure-telemetry cache sorts on each overflowing file | development implemented; integration/validation deferred |
 | [#1230](https://github.com/doublemover/PairOfCleats/issues/1230) | perf | [Perf] Index LSP semantic source and declaration joins and reuse the inventory digest | source repair and regression authored; unvalidated |
 | [#1231](https://github.com/doublemover/PairOfCleats/issues/1231) | perf | [Perf] Bound and share finally CFG expansion without merging abrupt completion routes | source repair and regression authored; unvalidated |
-| [#1232](https://github.com/doublemover/PairOfCleats/issues/1232) | perf | [Perf] Eliminate cross-language throttle wake storms and duplicate pressure sampling | pending |
+| [#1232](https://github.com/doublemover/PairOfCleats/issues/1232) | perf | [Perf] Eliminate cross-language throttle wake storms and duplicate pressure sampling | source repair and regression authored; unvalidated |
 | [#1233](https://github.com/doublemover/PairOfCleats/issues/1233) | perf | [Perf] Reuse parser-owned classification spans instead of reparsing every eligible chunk | pending |
 | [#1234](https://github.com/doublemover/PairOfCleats/issues/1234) | perf | [Perf] Propagate sealed semantic piece checksums into publication manifests | development implemented; integration/validation deferred |
 | [#1235](https://github.com/doublemover/PairOfCleats/issues/1235) | perf | [Perf] Compile exact query eligibility over indexed candidate domains instead of scanning all chunk metadata | development implemented; integration/validation deferred |
-| [#1236](https://github.com/doublemover/PairOfCleats/issues/1236) | perf | [Perf] Derive metadata and churn from one qualified Git history traversal | pending |
+| [#1236](https://github.com/doublemover/PairOfCleats/issues/1236) | perf | [Perf] Derive metadata and churn from one qualified Git history traversal | source repair and regression authored; unvalidated |
 | [#1237](https://github.com/doublemover/PairOfCleats/issues/1237) | perf | [Perf] Add exact score-bound pruning for broad-query JS BM25 top-k | pending |
 | [#1238](https://github.com/doublemover/PairOfCleats/issues/1238) | perf | [Perf] Reuse coverage-qualified discovery inventory in filesystem import indexing | pending |
 | [#1239](https://github.com/doublemover/PairOfCleats/issues/1239) | perf | [Perf] Build one file inventory per shared-module ledger generation | development implemented; integration/validation deferred |
@@ -1133,7 +1133,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1345](https://github.com/doublemover/PairOfCleats/issues/1345) | P2 | [P2] Resolve workspace child startup settings per target instead of inheriting the launch directory | development implemented; integration/validation deferred |
 | [#1346](https://github.com/doublemover/PairOfCleats/issues/1346) | P2 | [P2] Preserve explicit validation and embedding flags across background Stage2 handoff | development implemented; integration/validation deferred |
 | [#1347](https://github.com/doublemover/PairOfCleats/issues/1347) | P2 | [P2] Do not forward the globally accepted -v version flag into mutating leaf commands | development implemented; integration/validation deferred |
-| [#1348](https://github.com/doublemover/PairOfCleats/issues/1348) | other | [Indexing] Make cross-file fidelity budgets explicit and preserve durable omission coverage | pending |
+| [#1348](https://github.com/doublemover/PairOfCleats/issues/1348) | other | [Indexing] Make cross-file fidelity budgets explicit and preserve durable omission coverage | partial source integration; resume/capability/qualification still open |
 | [#1349](https://github.com/doublemover/PairOfCleats/issues/1349) | P2 | [P2] Give inline and daemon-prewarm embedding leases an explicit runtime teardown owner | development implemented; integration/validation deferred |
 | [#1350](https://github.com/doublemover/PairOfCleats/issues/1350) | P2 | [P2] Report unconfirmed LSP disposal instead of returning a successful pool drain | development implemented; integration/validation deferred |
 | [#1351](https://github.com/doublemover/PairOfCleats/issues/1351) | P2 | [P2] Preserve manifest integrity errors during graph artifact admission | development implemented; integration/validation deferred |
@@ -1270,7 +1270,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1481](https://github.com/doublemover/PairOfCleats/issues/1481) | P2 | [P2] Preserve Ruby and PHP callable metadata on successful native parsing | source repair and regression authored; unvalidated |
 | [#1482](https://github.com/doublemover/PairOfCleats/issues/1482) | P2 | [P2] Exclude Ruby and bodyless PHP declaration headers from call evidence | source repair and regression authored; unvalidated |
 | [#1483](https://github.com/doublemover/PairOfCleats/issues/1483) | P2 | [P2] Preserve complete quoted Bash source paths before import resolution | source repair and regression authored; unvalidated |
-| [#1484](https://github.com/doublemover/PairOfCleats/issues/1484) | P2 | [P2] Scope managed heuristic calls to declarations instead of file-wide Cartesian pairs | pending |
+| [#1484](https://github.com/doublemover/PairOfCleats/issues/1484) | P2 | [P2] Scope managed heuristic calls to declarations instead of file-wide Cartesian pairs | partial source integration; resume/capability/qualification still open |
 | [#1485](https://github.com/doublemover/PairOfCleats/issues/1485) | P2 | [P2] Preserve Jinja capture-set blocks when filters contain equals signs | source repair and regression authored; unvalidated |
 | [#1486](https://github.com/doublemover/PairOfCleats/issues/1486) | P2 | [P2] Do not name Scala extension groups after type parameters or their first methods | source repair and regression authored; unvalidated |
 | [#1487](https://github.com/doublemover/PairOfCleats/issues/1487) | P2 | [P2] Admit Scala package objects and givens without losing source or member ownership | source repair and regression authored; unvalidated |
@@ -1503,3 +1503,36 @@ sourceChunking/callFlow and Tree-sitter versions were advanced with that change.
 Spill/resume, durable completeness and full supported-language qualification are
 still open. No tests, syntax checks, formatting or performance runs were performed
 for these source checkpoints. The last qualified source remains d4dcba413.
+
+### Explicit fidelity and bounded occurrence publication
+
+Source c1665ab11 adds the strict, reviewed `indexing.crossFileFidelity` choice
+(default bounded; comprehensive admits the collected supported candidates), shared
+policy/signature identity, separate layer omission/parameter counters and bounded
+affected-source samples. Resource scheduling and automatic quality do not choose
+semantic admission. Stable file-round-robin propagation removes incidental input
+order from the global quota. Canonical raw arrays remain intact. Warm replay
+preserves the same omission receipt and complete output identity.
+
+Canonical call-site publication now awaits bounded spill admission and the existing
+32-reader merge/checkpoint owner, streaming into plain/sharded/compressed outputs.
+Native occurrence coordinates/preview bytes remain source-owned; invalid syntax
+facts fail publication rather than disappearing. Generation state, graph loading
+and risk input coverage preserve upstream receipts. Architecture/impact expose
+unknown/incomplete coverage; complete candidate admission does not establish clean
+absence or complete program analysis. Call-flow/risk/call-site identities advance
+with these semantics. Three new fixture IDs cover thresholds, summary-only global
+exhaustion, reordering, raw/warm parity, spill formats, cancellation/retry and
+conservative absence. No fixture has executed. #1348/#1484 remain open for full
+semantic frontier resume, capability sealing, exact supported occurrence sets,
+quota-failure recovery and runtime/memory/time acceptance. Generated config and
+artifact-schema reports still require their existing refresh owners later.
+
+Source c451201fe (#1232/#1236) targets language wakes/pressure refresh and shares
+qualified Git metadata/churn history traversal. Sources fa830a213 and 3cc7bc308
+(#1224/#1225/#1226/#1223) index field overlap, share immutable definition state
+and CFG suffix routes, and solve call summaries through dirty dependencies. Shared
+CFG/call-flow identities are now 17/18. Authored differential/fault/work-count
+controls are unexecuted; no native/compiler parity or measured speed claim follows.
+Formatting, bootstrap, generated refresh, affected checks and gates remain deferred
+under the development-first instruction. The last qualified source is d4dcba413.

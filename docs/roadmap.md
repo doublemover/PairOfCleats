@@ -62,7 +62,9 @@ accounting, MCP domain errors, TUI bounded flow and event timing, architecture
 detection, canonical map member/file inventory and editor generation-bound
 risk requests. Recent source also shares bounded codec admission, repairs immutable syntax
 occurrence handoff and bounds compiler construction with replay-safe identities.
-Their regressions remain unexecuted. After
+The fidelity/occurrence checkpoint adds explicit admission, durable omission
+receipts and bounded call-site spill; full semantic resume/capability sealing
+remain open. Their regressions remain unexecuted. After
 the development pass, prepare the changed dependency installation, establish
 fail-before controls where required, run affected checks and the complete front
 gate, then reconcile Windows cohorts. Do not run repeated broad suites,
