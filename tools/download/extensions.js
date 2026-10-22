@@ -17,7 +17,7 @@ import { readJsonFileSafe } from '../../src/shared/file-read.js';
 import { writeJsonFile } from '../../src/shared/json-file.js';
 import { getBinarySuffix, getPlatformKey, getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 import { fetchDownloadUrl } from './shared-fetch.js';
-import { extractArchive } from '../shared/archive-extraction.js';
+import { extractArchive, getArchiveExtractionSession, runArchiveTransaction } from '../shared/archive-extraction.js';
 
 let logger = console;
 
@@ -234,9 +234,10 @@ async function downloadSource(source, index) {
   const tempRoot = path.join(extensionDir, '.tmp');
   await fs.mkdir(tempRoot, { recursive: true });
   const transactionRoot = await fs.mkdtemp(path.join(tempRoot, 'download-'));
+  const transactionIdentity = await fs.lstat(transactionRoot, { bigint: true });
   const downloadPath = path.join(transactionRoot, `source${archiveSuffix}`);
   const stagedOutput = path.join(transactionRoot, 'extension');
-  try {
+  return runArchiveTransaction(transactionRoot, transactionIdentity, async () => {
     const existingHash = fsSync.existsSync(outputPath)
       ? crypto.createHash('sha256').update(await fs.readFile(outputPath)).digest('hex') : null;
     const existingVerified = entry.verified && entry.url === source.url
@@ -329,9 +330,7 @@ async function downloadSource(source, index) {
     };
 
     return { name: source.name, skipped: false, outputPath };
-  } finally {
-    await fs.rm(transactionRoot, { recursive: true, force: true });
-  }
+  });
 }
 
 const results = [];
@@ -343,6 +342,11 @@ for (let i = 0; i < sources.length; i++) {
     results.push(await downloadSource(source, i));
   } catch (err) {
     failedDownloads += 1;
+    const archiveSession = getArchiveExtractionSession(err);
+    if (archiveSession && !archiveSession.isSettled()) {
+      logger.error(`Extension download retains unsettled archive transaction: ${archiveSession.destination}`);
+      display.close(); throw err;
+    }
     logger.error(String(err));
   }
 }

@@ -10,7 +10,7 @@ import { acquireStorageSession, isStorageSessionReleaseFailure } from '../../src
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
-import { extractArchive } from '../shared/archive-extraction.js';
+import { extractArchive, getArchiveExtractionSession } from '../shared/archive-extraction.js';
 import { computeSha256, downloadToBuffer, settleInstallDownload } from './install-shared.js';
 import { runInstallWithStorageAdmission } from './install-storage.js';
 import { retainManagedToolInstallation } from '../../src/shared/managed-installation.js';
@@ -211,10 +211,12 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
   let verificationLease = null;
   let resourcePending = false, reconciling = null, observerOverflow = false;
   const observers = [], observed = new WeakSet(), described = new WeakSet(), ownedMetadataFailures = new WeakSet();
-  const directorySessions = new Set(), transferSessions = new Set();
+  const directorySessions = new Set(), transferSessions = new Set(), archiveSessions = new Set();
   const observeFailure = error => {
     if (!error || typeof error !== 'object' || observed.has(error) || described.has(error) || ownedMetadataFailures.has(error)) return;
     observed.add(error);
+    const archive = getArchiveExtractionSession(error);
+    if (archive) archiveSessions.add(archive);
     const directory = getStorageDirectorySession(error);
     if (directory) directorySessions.add(directory);
     if (isStorageTransferSession(error.storageTransferSession)) transferSessions.add(error.storageTransferSession);
@@ -267,7 +269,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     if (!exactResourceReceipt(receipt, transactionId)) throw new Error('Managed install child settlement is still pending.');
     if (!reconciling) reconciling = (async () => {
       if (primaryError?.downloadSession) await settleInstallDownload(primaryError);
-      for (const session of [...transferSessions, ...directorySessions]) {
+      for (const session of [...archiveSessions, ...transferSessions, ...directorySessions]) {
         const closed = await session.releaseAfterClose();
         if (!exactResourceReceipt(closed, session.resourceId) || !session.isSettled()) {
           throw new Error('Actual managed install descriptor owner did not confirm exact closure.');

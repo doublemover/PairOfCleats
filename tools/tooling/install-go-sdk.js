@@ -6,7 +6,7 @@ import {
   GO_ARCHIVE_ORIGIN, GO_RELEASE_INDEX_URL, applyManagedGoEnvironment,
   hashManagedGoFile, readManagedGoText, resolveGoSdkTarget, resolveManagedGoSdk
 } from '../../src/shared/managed-go.js';
-import { extractArchive } from '../shared/archive-extraction.js';
+import { extractArchive, getArchiveExtractionSession } from '../shared/archive-extraction.js';
 import { computeSha256, createInstallError, downloadToBuffer, settleInstallDownload } from './install-shared.js';
 import { verifyInstallerRequirementProbe } from './install-requirements.js';
 import { runInstallWithStorageAdmission } from './install-storage.js';
@@ -145,10 +145,13 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
   let operationError = null;
   let cleaned = false, resourcePending = false, reconciling = null, observerOverflow = false;
   const observers = [], observed = new WeakSet(), described = new WeakSet();
+  const archiveSessions = new Set();
   const resourceId = randomUUID();
   const observeFailure = error => {
     if (!error || typeof error !== 'object' || observed.has(error) || described.has(error)) return;
     observed.add(error);
+    const archiveSession = getArchiveExtractionSession(error);
+    if (archiveSession) archiveSessions.add(archiveSession);
     const captured = captureManagedVerificationFailure(error, resourceId);
     if (captured.observe) {
       if (observers.length < 128) observers.push(captured.observe);
@@ -187,6 +190,12 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
   const recovery = Object.freeze({ resourceId, transaction, releaseAfterClosure: async () => {
     if (!reconciling) reconciling = (async () => {
       if (operationError?.downloadSession) await settleInstallDownload(operationError);
+      for (const session of archiveSessions) {
+        const closed = await session.releaseAfterClose();
+        if (closed?.resourceId !== session.resourceId || closed?.settled !== true || closed?.pending !== false || !session.isSettled()) {
+          throw new Error('Actual Go SDK archive descriptor closure remains pending.');
+        }
+      }
       if (observerOverflow || observers.some(observe => !observe()) || resourcePending && !observers.length) {
         throw new Error('Actual Go SDK verifier child/tree closure remains pending.');
       }
