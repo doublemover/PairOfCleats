@@ -27,8 +27,20 @@ again after search. Retirement cancels transport work before dropping source
 arrays and indexes. A completed bounded file/member/detail page keeps its existing
 operation path.
 
+Preview startup now drains the shared snapshot-index initializer cooperatively,
+yielding every256 file/member/relationship rows, including a single file with a
+large member set. Cancellation closes partial indexes without publishing a
+transport or mutating the admitted source arrays. The synchronous compatibility
+initializer drains the identical steps. Directory overview fallback checks its
+128-directory allowance before copying or sorting a discarded complete directory
+table. Directed adjacency summaries likewise share one row-counting owner and
+yield in the asynchronous endpoint; self-relationships retain both directions.
+No partial summary is returned after request cancellation or session retirement.
+
 This source slice chooses no GPU/backend, source admission threshold or performance
 acceptance value. Cooperative scan latency, allocation/heap impact, concurrency and
 HTTP/worker/browser behavior remain unqualified; the authored cancellation/parity
-regression has not been run. A canonical streaming source reader is still separate
-integration work.
+and startup/summary regression sources have not been run. Saved JSON admission
+and the map producer still materialize the original graph; cooperative index
+initialization does not establish canonical source streaming. That reader remains
+separate integration work.

@@ -12,7 +12,7 @@ import { readSavedMap } from './map-saved-input.js';
 import { pinMapViewerAssets } from './map-viewer-session-assets.js';
 import { createMapPreferenceStore } from './map-viewer-preferences.js';
 import { VIEWER_SETTINGS_MAX_BYTES } from '../../src/map/isometric/client/effective-settings.js';
-import { createMapSnapshotTransport } from './map-snapshot-transport.js';
+import { createMapSnapshotTransportAsync } from './map-snapshot-transport.js';
 import { SNAPSHOT_PAGE_LIMITS } from '../../src/map/isometric/client/data/protocol.js';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -92,7 +92,7 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
     const sourceNavigation = { available: sourceAvailable, reason: sourceAvailable ? null : 'Original source checkout unavailable; recorded evidence remains inspectable.' };
     const viewerConfig = argv.input ? {} : input.model.viewer || {};
     const preferences=preferenceStore?{endpoint:'/map-preferences',repoId:preferenceStore.repoId,token:sessionToken}:null;
-    snapshotTransport=createMapSnapshotTransport({model:input.model,snapshotId:input.sha256,identity});
+    snapshotTransport=await createMapSnapshotTransportAsync({model:input.model,snapshotId:input.sha256,identity},{signal:controller.signal});
     const snapshotData={endpoint:'/map-snapshot',snapshot:input.sha256,token:sessionToken,demand:true,manifest:snapshotTransport.manifest};
     const bootstrapModel={version:input.model.version,root:input.model.root,nodes:[],edges:[],legend:input.model.legend,__poc_session_manifest:{version:1,snapshot:input.sha256},
       summary:{counts:{files:0,members:0,edges:0},scope:'manifest bootstrap; source detail is demand paged'},coverage:{source:snapshotTransport.manifest.coverage}};

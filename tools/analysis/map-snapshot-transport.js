@@ -2,14 +2,32 @@ import { MAP_DATA_PROTOCOL, SNAPSHOT_PAGE_LIMITS, snapshotRequest, sourceEntityK
 import { createSnapshotSearchIndex } from '../../src/map/isometric/client/data/search-index.js';
 import { createMemberAliasIndex } from '../../src/map/isometric/client/data/member-identity.js';
 import { snapshotSearchRecords, searchMapSnapshotRows, createSnapshotSearchPage, prepareSnapshotSearch } from './map-snapshot-search.js';
+import { setImmediate as yieldImmediate } from 'node:timers/promises';
 
 const compactMember=(member,file,ordinal)=>({id:member.id??null,name:member.name??null,kind:member.kind??member.type??null,
   type:member.type??null,range:member.range??null,exported:member.exported??null,file,ordinal});
 const compactFile=(file,row)=>({id:file.id??null,path:file.path||file.name,name:file.name||file.path,category:file.category??null,
   type:file.type??'file',ext:file.ext??null,row,memberCount:file.members?.length||0});
 
-/** Pages an already admitted immutable map; never reads live artifacts or expands its query. */
-export const createMapSnapshotTransport = ({model,snapshotId,identity,maxResponseBytes=SNAPSHOT_PAGE_LIMITS.responseBytes}) => {
+const drain = iterator => {
+  let step; do { step=iterator.next(); } while(!step.done);
+  return step.value;
+};
+const drainAsync = async (iterator,{signal=null,yieldControl=yieldImmediate}={}) => {
+  let step,visited=0;
+  try {
+    signal?.throwIfAborted();
+    while(!(step=iterator.next()).done){
+      if(++visited%256===0){await yieldControl();signal?.throwIfAborted();}
+    }
+    signal?.throwIfAborted();return step.value;
+  } catch(error){if(step?.done)step.value?.dispose?.();throw error;}
+  finally{iterator.return();}
+};
+
+/** Shared initialization steps publish no transport before every source index
+ * is ready. The synchronous compatibility API drains these same steps. */
+const initializeTransport = function* ({model,snapshotId,identity,maxResponseBytes=SNAPSHOT_PAGE_LIMITS.responseBytes}) {
   if(!Number.isSafeInteger(maxResponseBytes)||maxResponseBytes<1024||maxResponseBytes>SNAPSHOT_PAGE_LIMITS.responseBytes)throw new Error('Snapshot responses require a finite budget up to 256 KiB.');
   let retired=false;const lifetime=new AbortController();
   let files=model.nodes||[],edges=model.edges||[];
@@ -19,14 +37,24 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
   const memberRecord=id=>memberById.get(sourceEntityKey('member',id))||memberAliases.get(id);
   let searchIndex=null;
   let members=0;
+  let published=false;
+  const dispose=()=>{if(retired)return;retired=true;lifetime.abort(new DOMException('Pinned map transport retired.','AbortError'));files=[];edges=[];fileByPath.clear();memberById.clear();memberAliases.clear();adjacency.clear();directories.clear();searchIndex?.dispose();searchIndex=null;};
+  try {
   const append=(key,row)=>{if(!adjacency.has(key))adjacency.set(key,[]);adjacency.get(key).push(row);};
-  files.forEach((file,row)=>{
+  for(let row=0;row<files.length;row++){
+    const file=files[row];
     const path=file.path||file.name;fileByPath.set(path,{file,row});
     const directory=path.replaceAll('\\','/').includes('/')?path.replaceAll('\\','/').split('/')[0]:'(root)';
     const aggregate=directories.get(directory)||{key:directory,label:directory,files:0,members:0};aggregate.files++;aggregate.members+=file.members?.length||0;directories.set(directory,aggregate);
-    (file.members||[]).forEach((member,ordinal)=>{members++;if(member.id!=null){const value={file:path,member,ordinal};memberById.set(sourceEntityKey('member',member.id),value);memberAliases.set(member.id,value);}});
-  });
-  edges.forEach((edge,row)=>{
+    yield;
+    for(let ordinal=0;ordinal<(file.members?.length||0);ordinal++){
+      const member=file.members[ordinal];members++;
+      if(member.id!=null){const value={file:path,member,ordinal};memberById.set(sourceEntityKey('member',member.id),value);memberAliases.set(member.id,value);}
+      yield;
+    }
+  }
+  for(let row=0;row<edges.length;row++){
+    const edge=edges[row];
     const keys=new Set();
     for(const endpoint of [edge.from,edge.to]){
       const owner=endpoint?.member!=null?memberRecord(endpoint.member)?.file:null;
@@ -34,7 +62,8 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
       if(endpoint?.member!=null)keys.add(sourceEntityKey('member',memberRecord(endpoint.member)?.member.id??endpoint.member));
     }
     for(const key of keys)append(key,row);
-  });
+    yield;
+  }
   const manifest={protocol:MAP_DATA_PROTOCOL,snapshot:snapshotId,
     identity:{repo:model.root??null,selectedIndex:identity?.selectedIndex||model.provenance?.selectedIndex||null,
       producer:model.version??null,sourceRevision:model.provenance?.sourceRevision??null},
@@ -43,9 +72,10 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
       truncated:model.summary?.truncated??null,scope:model.summary?.scope??model.options?.scope??null},
     limits:{...SNAPSHOT_PAGE_LIMITS,responseBytes:maxResponseBytes},
     capabilities:{files:true,members:true,directedAdjacency:true,lazyDetail:true,demandPages:true,sourceQueryExpansion:false}};
-  const directoryRows=[...directories.values()].sort((a,b)=>a.key.localeCompare(b.key,'en'));
-  manifest.overview=directoryRows.length<=128&&Buffer.byteLength(JSON.stringify(directoryRows))<=64*1024
+  const directoryRows=directories.size<=128?[...directories.values()].sort((a,b)=>a.key.localeCompare(b.key,'en')):null;
+  manifest.overview=directoryRows&&Buffer.byteLength(JSON.stringify(directoryRows))<=64*1024
     ?directoryRows:[{key:'',label:'Available snapshot',files:files.length,members,all:true}];
+  directories.clear();
   const foundEntity=entity=>{
     const pointer=entity?.address;
     if(pointer){
@@ -82,12 +112,26 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
     }
     return {cursor:request.cursor,next:next<rows.length?next:null,total:rows.length,rows:result};
   };
-  return {manifest,getCompatibilityModel(){if(retired)throw new Error('Map snapshot transport has retired.');return {...metadata,nodes:files,edges};},
+  const selectedAdjacency=entity=>{
+    const selected=resolved(entity).entity,key=sourceEntityKey(selected.type,selected.type==='member'?selected.id:selected.file);
+    return {selected,rows:adjacency.get(key)||[]};
+  };
+  const summarizeAdjacency=function* ({selected,rows}){
+    let incoming=0,outgoing=0;
+    const touches=endpoint=>selected.type==='member'?(memberRecord(endpoint?.member)?.member.id??endpoint?.member)===selected.id:owner(endpoint)===selected.file;
+    for(const row of rows){if(touches(edges[row].from))outgoing++;if(touches(edges[row].to))incoming++;yield;}
+    return {incoming,outgoing,total:rows.length,complete:true};
+  };
+  const transport={manifest,getCompatibilityModel(){if(retired)throw new Error('Map snapshot transport has retired.');return {...metadata,nodes:files,edges};},
     async respondAsync(input,{signal,yieldControl}={}){
       if(retired)throw new Error('Map snapshot transport has retired.');
       const request=snapshotRequest(input);
       if(input.protocol!==MAP_DATA_PROTOCOL||request.snapshot!==snapshotId)throw new Error('Requested map generation is unavailable in this pinned session.');
       const operationSignal=signal?AbortSignal.any([lifetime.signal,signal]):lifetime.signal;operationSignal.throwIfAborted();
+      if(request.kind==='adjacency-summary'){
+        const value=await drainAsync(summarizeAdjacency(selectedAdjacency(request.entity)),{signal:operationSignal,yieldControl});
+        operationSignal.throwIfAborted();return encode(wrap(request,value));
+      }
       if(request.kind!=='search')return this.respond(input);
       const value=await searchMapSnapshotRows({files,request,wrap,maxResponseBytes,signal:operationSignal,yieldControl});
       operationSignal.throwIfAborted();return encode(wrap(request,value));
@@ -106,12 +150,9 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
       }
       if(request.kind==='edges')return encode(wrap(request,page(request,edges,(edge,row)=>({row,from:edge.from,to:edge.to,type:edge.type||'unknown'}))));
       if(request.kind==='adjacency'||request.kind==='adjacency-summary'){
-        const selected=resolved(request.entity).entity,key=sourceEntityKey(selected.type,selected.type==='member'?selected.id:selected.file),rows=adjacency.get(key)||[];
+        const selected=selectedAdjacency(request.entity),rows=selected.rows;
         if(request.kind==='adjacency-summary'){
-          let incoming=0,outgoing=0;
-          const touches=endpoint=>selected.type==='member'?(memberRecord(endpoint?.member)?.member.id??endpoint?.member)===selected.id:owner(endpoint)===selected.file;
-          for(const row of rows){if(touches(edges[row].from))outgoing++;if(touches(edges[row].to))incoming++;}
-          return encode(wrap(request,{incoming,outgoing,total:rows.length,complete:true}));
+          return encode(wrap(request,drain(summarizeAdjacency(selected))));
         }
         return encode(wrap(request,page(request,rows,row=>({row,evidence:edges[row],owners:{from:owner(edges[row].from),to:owner(edges[row].to)},endpoints:{from:endpointAddress(edges[row].from),to:endpointAddress(edges[row].to)}}))));
       }
@@ -134,6 +175,12 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
       }
       throw new Error('Unsupported map snapshot operation.');
     },
-    dispose(){retired=true;lifetime.abort(new DOMException('Pinned map transport retired.','AbortError'));files=[];edges=[];fileByPath.clear();memberById.clear();memberAliases.clear();adjacency.clear();directories.clear();searchIndex?.dispose();searchIndex=null;}
+    dispose
   };
+  model=null;published=true;return transport;
+  } finally {if(!published)dispose();}
 };
+
+/** Pages an already admitted immutable map; never expands its selected source. */
+export const createMapSnapshotTransport = input => drain(initializeTransport(input));
+export const createMapSnapshotTransportAsync = (input,options={}) => drainAsync(initializeTransport(input),options);
