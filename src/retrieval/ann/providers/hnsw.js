@@ -19,6 +19,8 @@ export function createHnswAnnProvider({ hnswAnnState, hnswAnnUsed }) {
 
   return {
     id: ANN_PROVIDER_IDS.HNSW,
+    capabilities: Object.freeze({ predicate: 'candidate-id-postfilter', exhaustiveStored: false,
+      progressiveEffort: true, cancellation: 'before-after-native-call', scoreSpace: 'index-declared-distance' }),
     isAvailable: ({ idx, mode, embedding }) => {
       const backendReady = Boolean(idx?.hnsw?.available || hnswAnnState?.[mode]?.available);
       return isAnnProviderAvailable({ embedding, backendReady });

@@ -19,6 +19,8 @@ export function createLanceDbAnnProvider({
 
   return {
     id: ANN_PROVIDER_IDS.LANCEDB,
+    capabilities: Object.freeze({ predicate: 'partitioned-candidate-id-pushdown', exhaustiveStored: false,
+      progressiveEffort: true, cancellation: 'before-after-native-call', scoreSpace: 'metadata-declared-distance' }),
     isAvailable: ({ idx, mode, embedding }) => isAnnProviderAvailable({
       embedding,
       enabled: isEnabled,

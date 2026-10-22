@@ -21,6 +21,12 @@ negative distances through reciprocal distance, and unbounded dot/IP similaritie
 through a monotone atan calibration. Pure dense blending preserves the raw ANN
 ordering and excludes sparse-only rows. RRF remains rank-based.
 
+The programmatic [count-aware ANN experiment](count-aware-ann-planning.md) adds
+explicitly bounded eligible-count routing and stored-representation exhaustive
+scoring. It is opt-in, preserves independent discovery and hard eligibility, and
+keeps filled approximate output separate from recall/completion evidence. Its
+authored source/fixture work remains unvalidated.
+
 Context expansion treats absent or null optional caps as defaults; explicit zero
 admits no work under that cap. Cap truncation requires an actual eligible omission
 witness. Derived context indexes are stored in the retrieval cache, keyed by the

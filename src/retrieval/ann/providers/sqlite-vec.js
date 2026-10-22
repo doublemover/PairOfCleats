@@ -18,6 +18,8 @@ export function createSqliteVectorAnnProvider({
 
   return {
     id: ANN_PROVIDER_IDS.SQLITE_VECTOR,
+    capabilities: Object.freeze({ predicate: 'candidate-id-pushdown', exhaustiveStored: false,
+      progressiveEffort: false, cancellation: 'before-after-native-call', scoreSpace: 'vector-extension-declared-distance' }),
     isAvailable: ({ mode, embedding }) => isAnnProviderAvailable({
       embedding,
       backendReady: hasRanker && isBackendReady(mode)

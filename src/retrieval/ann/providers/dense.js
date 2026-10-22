@@ -8,6 +8,8 @@ const hasDenseVectors = (idx) => isDenseVectorPayloadAvailable(idx?.denseVec);
 export function createDenseAnnProvider() {
   return {
     id: ANN_PROVIDER_IDS.DENSE,
+    capabilities: Object.freeze({ predicate: 'candidate-ids', exhaustiveStored: true,
+      progressiveEffort: false, cancellation: 'cooperative-scalar-blocks', scoreSpace: 'stored-affine-uint8-dot' }),
     isAvailable: ({ idx, embedding }) => (
       isAnnProviderAvailable({
         embedding,

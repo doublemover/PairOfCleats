@@ -23,6 +23,7 @@ import { compileFtsMatchQuery } from './fts-query.js';
 import { resolveSparseRequiredTables, RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from './sparse/requirements.js';
 import { rerankEvidence } from './pipeline/evidence-reranker.js';
 import { capRerankCandidates, resolveRerankPoolPolicy } from './pipeline/rerank-policy.js';
+import { resolveCountAwareAnnPolicy } from './pipeline/count-aware-ann.js';
 import { getGenerationProviderRuntime } from './pipeline/provider-runtime.js';
 import { resolveFileRelations } from './pipeline/relations.js';
 import { runCandidateStage } from './pipeline/candidate-stage.js';
@@ -259,6 +260,7 @@ export function createSearchPipeline(context) {
     reranker = null,
     rerankPolicy = null,
     rerankSourceContext = null,
+    countAwareAnnPolicy = null,
     candidatePool: candidatePoolInput,
     scoreBufferPool: scoreBufferPoolInput,
     createAnnProviders: createAnnProvidersInput
@@ -315,6 +317,7 @@ export function createSearchPipeline(context) {
     ? null
     : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
   const searchTopN = normalizePositiveInt(topN, 1) || 1;
+  const countAwarePolicy = resolveCountAwareAnnPolicy(countAwareAnnPolicy);
   const modelRerankPolicy = resolveRerankPoolPolicy({ adapter: reranker, policy: rerankPolicy, finalOutputCap: searchTopN });
   const rankOutputCap = modelRerankPolicy.poolCap;
   const expandedTopN = modelRerankPolicy.enabled
@@ -661,6 +664,7 @@ export function createSearchPipeline(context) {
           matchesQueryAst,
           hasHardSemanticConstraints,
           eligibilityPlan,
+          countAwarePolicy,
           minhashLimit,
           hasAllowedId,
           ensureAllowedSet,

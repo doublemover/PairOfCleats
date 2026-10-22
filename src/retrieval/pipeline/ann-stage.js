@@ -11,6 +11,8 @@ import {
 import { VECTOR_REQUIRED_CODE } from './constants.js';
 import { isAbortError, throwIfAborted } from '../../shared/abort.js';
 import { createEligibilityPlan } from './eligibility-plan.js';
+import { rankDenseVectorsAsync } from '../rankers.js';
+import { createCountAwareAnnWork, planCountAwareAnn, snapshotCountAwareStoredDense } from './count-aware-ann.js';
 
 const normalizeAnnHits = (hits) => {
   if (!Array.isArray(hits)) return [];
@@ -53,6 +55,7 @@ export const runAnnStage = async ({
   matchesQueryAst,
   hasHardSemanticConstraints = false,
   eligibilityPlan = null,
+  countAwarePolicy = null,
   minhashLimit,
   hasAllowedId,
   ensureAllowedSet,
@@ -107,6 +110,7 @@ export const runAnnStage = async ({
 
   if (!['independent', 'lexical-rerank'].includes(annDiscovery)) throw new TypeError('Invalid ANN discovery mode');
   const independentDiscovery = annDiscovery === 'independent';
+  if (countAwarePolicy && !independentDiscovery) throw new TypeError('Count-aware ANN planning requires independent discovery.');
   let eligibleIds = allowedIdx;
   if (hasHardSemanticConstraints) {
     const eligibility = eligibilityPlan || createEligibilityPlan({ idx, meta, mode, queryAst: null,
@@ -126,6 +130,13 @@ export const runAnnStage = async ({
     toSet: ensureAllowedSet
   });
   const annCandidates = annCandidatePolicy.set;
+  const countPlan = countAwarePolicy ? planCountAwareAnn({ policy: countAwarePolicy,
+    eligibleIds: eligibilityActive ? eligibleIds : null,
+    documentCount: eligibilityActive && eligibleIds == null ? null : Number.isSafeInteger(meta?.length) ? meta.length : null,
+    dims: idx?.denseVec?.dims, storedDenseAvailable: isDenseVectorPayloadAvailable(idx?.denseVec), requestedTopN: expandedTopN }) : null;
+  const countWork = countPlan ? createCountAwareAnnWork({ policy: countAwarePolicy, plan: countPlan, signal }) : null;
+  let countHandled = countPlan?.route === 'empty', exactStored = false;
+  if (countWork) annCandidatePolicy.explain = { ...annCandidatePolicy.explain, countAwarePolicyKey: countAwarePolicy.key };
   if (independentDiscovery) {
     annCandidatePolicy.reason = 'independentDiscovery';
     annCandidatePolicy.explain = {...annCandidatePolicy.explain, reason:'independentDiscovery', discovery:annDiscovery};
@@ -168,7 +179,7 @@ export const runAnnStage = async ({
     return bitmapToSet(candidateSet);
   };
 
-  const runAnnQuery = async (provider, candidateSet) => {
+  const runAnnQuery = async (provider, candidateSet, requestedTopN = null) => {
     throwIfAborted(signal);
     if (!provider || typeof provider.query !== 'function') {
       return { hits: [], succeeded: false };
@@ -180,9 +191,11 @@ export const runAnnStage = async ({
     const adaptiveTopN = Number.isFinite(Number(annAdaptiveStrategy?.budget?.providerTopN?.[providerId]))
       ? Number(annAdaptiveStrategy.budget.providerTopN[providerId])
       : null;
-    const resolvedTopN = Number.isFinite(adaptiveTopN) && adaptiveTopN > 0
+    const resolvedTopN = requestedTopN ?? (Number.isFinite(adaptiveTopN) && adaptiveTopN > 0
       ? Math.max(1, Math.floor(adaptiveTopN))
-      : expandedTopN;
+      : expandedTopN);
+    const reservation = countWork?.reserve(provider.id, resolvedTopN);
+    if (countWork && !reservation) return { hits: [], succeeded: false, budgetEnded: true };
     const normalizedCandidateSet = normalizeAnnCandidateSet(provider, candidateSet);
     const startedAtNs = process.hrtime.bigint();
     try {
@@ -192,20 +205,46 @@ export const runAnnStage = async ({
         embedding: queryEmbedding,
         topN: resolvedTopN,
         candidateSet: normalizedCandidateSet,
-        signal,
-        budget: annAdaptiveStrategy?.budget || null,
+        signal: reservation?.signal || signal,
+        budget: requestedTopN == null ? annAdaptiveStrategy?.budget || null : {
+          ...annAdaptiveStrategy?.budget, providerTopN: { ...annAdaptiveStrategy?.budget?.providerTopN, [providerId]: resolvedTopN } },
         route: annAdaptiveStrategy?.route || null,
         features: annAdaptiveStrategy?.features || null
       });
       throwIfAborted(signal);
+      if (reservation?.timeout.aborted) {
+        reservation.attempt.status = 'deadline'; countWork.receipt.reasonEnded = 'deadline';
+        return { hits: [], succeeded: false, budgetEnded: true };
+      }
+      if (reservation) { reservation.attempt.status = 'returned'; reservation.attempt.returned = hits?.length || 0; }
       const elapsedMs = Number(process.hrtime.bigint() - startedAtNs) / 1e6;
       providerRuntime.recordProviderSuccess(provider, mode, { latencyMs: elapsedMs });
-      return { hits: normalizeAnnHits(hits), succeeded: true };
+      const admitted = normalizeAnnHits(hits);
+      let accepted = admitted;
+      if (countWork) {
+        const distinct = new Map();
+        for (const hit of admitted) {
+          if (!Number.isSafeInteger(hit.idx) || hit.idx < 0 || hit.idx >= meta.length
+            || eligibilityActive && eligibleIds && !hasAllowedId(eligibleIds, hit.idx) || distinct.has(hit.idx)) continue;
+          distinct.set(hit.idx, hit);
+          if (distinct.size === resolvedTopN) break;
+        }
+        accepted = [...distinct.values()];
+      }
+      if (reservation) reservation.attempt.accepted = accepted.length;
+      return { hits: accepted, succeeded: true, topN: resolvedTopN };
     } catch (err) {
+      if (err?.cacheOwnershipPending) throw err;
+      if (signal?.aborted) throwIfAborted(signal);
+      if (reservation?.timeout.aborted) {
+        reservation.attempt.status = 'deadline'; countWork.receipt.reasonEnded = 'deadline';
+        return { hits: [], succeeded: false, budgetEnded: true };
+      }
       if (signal?.aborted || isAbortError(err)) {
         throwIfAborted(signal);
         throw err;
       }
+      if (reservation) { reservation.attempt.status = 'failed'; reservation.attempt.reason = err?.code || err?.message || 'provider-error'; }
       providerRuntime.recordProviderFailure(provider, mode, err?.message || 'query failed');
       return { hits: [], succeeded: false };
     }
@@ -219,9 +258,9 @@ export const runAnnStage = async ({
     || lanceAnnState?.[mode]?.available
   );
   let vectorActive = annEnabledForMode && (typeof queryEmbedding === 'function' || isEmbeddingReady(queryEmbedding)) && hasVectorArtifacts;
-  let providerAvailable = false;
+  let providerAvailable = countHandled;
 
-  if (annEnabledForMode && vectorActive) {
+  if (annEnabledForMode && vectorActive && !countHandled) {
     const providers = getAnnProviders();
     const providerCount = providers instanceof Map ? providers.size : 0;
     annAdaptiveStrategy = resolveAnnAdaptiveStrategy({
@@ -258,7 +297,39 @@ export const runAnnStage = async ({
     if (!bypassToSparse) {
       if (typeof queryEmbedding === 'function') queryEmbedding = await queryEmbedding();
       vectorActive = isEmbeddingReady(queryEmbedding);
-      for (const backend of vectorActive ? orderedBackends : []) {
+      if (vectorActive && countPlan?.route === 'stored-exhaustive'
+        && queryEmbedding.length === idx.denseVec.dims && Array.from(queryEmbedding).every(Number.isFinite)) {
+        const snapshot = snapshotCountAwareStoredDense({ dense: idx.denseVec, eligibleIds: eligibilityActive ? annCandidates : null,
+          documentCount: meta.length, policy: countAwarePolicy, signal });
+        const reservation = snapshot ? countWork.reserve(ANN_PROVIDER_IDS.DENSE, countPlan.target, { exact: true }) : null;
+        if (!snapshot) { countWork.receipt.route = 'ann'; countWork.receipt.reason = 'stored-coverage-or-quantization-unqualified'; }
+        else if (!reservation) { countHandled = true; providerAvailable = true; }
+        else {
+          const metrics = {};
+          try {
+            // No full-corpus lazy load is authorized by a small eligible count.
+            const exactHits = await rankDenseVectorsAsync(snapshot.index, Array.from(queryEmbedding),
+              countPlan.target, null, { signal: reservation.signal, metrics });
+            annHits = exactHits.map(hit => { hit.idx = snapshot.sourceIds[hit.idx]; return hit; });
+            countWork.receipt.retainedVectorBytes = snapshot.retainedVectorBytes;
+            reservation.attempt.status = 'returned'; reservation.attempt.returned = annHits.length;
+            exactStored = true; countHandled = true; providerAvailable = true; annSource = ANN_PROVIDER_IDS.DENSE;
+            countWork.finish({ hits: annHits, exact: true, metrics });
+          } catch (error) {
+            throwIfAborted(signal);
+            if (reservation.timeout.aborted) {
+              countWork.receipt.reasonEnded = 'deadline'; reservation.attempt.status = 'deadline'; countHandled = true; providerAvailable = true;
+            } else {
+              if (error?.cacheOwnershipPending) throw error;
+              reservation.attempt.status = 'failed'; reservation.attempt.reason = error?.code || error?.message || 'stored-scan-error';
+              countWork.receipt.route = 'ann'; countWork.receipt.reason = 'stored-scan-unavailable';
+            }
+          }
+        }
+      } else if (countPlan?.route === 'stored-exhaustive') {
+        countWork.receipt.route = 'ann'; countWork.receipt.reason = 'query-vector-not-qualified-for-stored-metric';
+      }
+      for (const backend of vectorActive && !countHandled ? orderedBackends : []) {
         const provider = providers.get(backend);
         if (!provider || typeof provider.query !== 'function') continue;
         if (typeof provider.preflight !== 'function' && providerRuntime.isProviderCoolingDown(provider, mode)) continue;
@@ -285,7 +356,18 @@ export const runAnnStage = async ({
         };
         const primaryResult = await runAnnQuery(provider, annCandidates);
         annHits = primaryResult.hits;
-        if (primaryResult.succeeded && (annHits.length > 0 || resolveProviderAvailability())) {
+        if (countWork && provider.capabilities?.progressiveEffort === true && primaryResult.succeeded) {
+          let effort = primaryResult.topN || expandedTopN;
+          while (annHits.length < countPlan.target && effort < countAwarePolicy.maxTopN) {
+            const nextEffort = Math.min(countAwarePolicy.maxTopN, Math.max(effort + 1, effort * 2));
+            const retry = await runAnnQuery(provider, annCandidates, nextEffort);
+            if (retry.budgetEnded) break;
+            const merged = new Map(annHits.map(hit => [hit.idx, hit]));
+            for (const hit of retry.hits) if (!merged.has(hit.idx) || hit.sim > merged.get(hit.idx).sim) merged.set(hit.idx, hit);
+            annHits = normalizeAnnHits([...merged.values()]).slice(0, countPlan.target); effort = nextEffort;
+          }
+        }
+        if ((primaryResult.succeeded || primaryResult.budgetEnded) && (annHits.length > 0 || resolveProviderAvailability())) {
           providerAvailable = true;
         }
         if (!annHits.length && shouldTryAnnFallback) {
@@ -315,7 +397,7 @@ export const runAnnStage = async ({
   const bypassedToSparse = effectiveRoute === ANN_ADAPTIVE_ROUTE.SPARSE;
 
   throwIfAborted(signal);
-  if (annEnabledForMode && !vectorOnlyProfile && !annHits.length && !bypassedToSparse) {
+  if (annEnabledForMode && !vectorOnlyProfile && !annHits.length && !bypassedToSparse && !countWork) {
     const adaptiveTopN = Number.isFinite(Number(annAdaptiveStrategy?.budget?.topN))
       ? Math.max(1, Math.floor(Number(annAdaptiveStrategy.budget.topN)))
       : expandedTopN;
@@ -382,8 +464,11 @@ export const runAnnStage = async ({
   annMetrics.budget = annAdaptiveStrategy?.budget || null;
   annMetrics.features = annAdaptiveStrategy?.features || null;
   annMetrics.bypassedToSparse = bypassedToSparse;
+  if (countWork) annMetrics.countAware = { ...countWork.finish({ hits: annHits, exact: exactStored, empty: countPlan.route === 'empty' }),
+    selectedGeneration: idx.generationTag?.buildGenerationKey || idx.generationTag?.buildId || idx.state?.buildId || null,
+    embeddingGeneration: idx.state?.embeddings?.embeddingGeneration || null };
 
-  const annCapabilityUnavailable = !vectorActive || !providerAvailable;
+  const annCapabilityUnavailable = countPlan?.route !== 'empty' && (!vectorActive || !providerAvailable);
   const emptyIndex = !Array.isArray(meta) || meta.length === 0;
   if (vectorOnlyProfile && !emptyIndex && annCapabilityUnavailable) {
     const capabilityReason = !vectorActive ? 'ann_capability_unavailable' : 'ann_provider_unavailable';

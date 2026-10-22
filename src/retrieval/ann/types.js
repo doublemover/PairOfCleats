@@ -5,6 +5,7 @@
  * @property {ArrayLike<number>|null} embedding
  * @property {number} topN
  * @property {Set<number>|null} candidateSet
+ * @property {AbortSignal|null} [signal]
  * @property {object|null} [budget]
  * @property {string|null} [route]
  * @property {object|null} [features]
@@ -20,6 +21,7 @@
 /**
  * @typedef {object} AnnProvider
  * @property {string} id
+ * @property {{predicate:string,exhaustiveStored:boolean,progressiveEffort:boolean,cancellation:string,scoreSpace:string}} [capabilities]
  * @property {(params: AnnProviderAvailabilityParams) => boolean} isAvailable
  * @property {(params: AnnQueryParams) => Promise<Array<{idx:number,sim:number}>>|Array<{idx:number,sim:number}>} query
  */
