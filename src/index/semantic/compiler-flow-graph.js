@@ -285,7 +285,13 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
         const binding = ts.isVariableDeclarationList(node.initializer) ? node.initializer.declarations[0]?.name : node.initializer;
         // The iterable is not the yielded element/key. Keep that value unknown
         // until an iterator model supplies a source-qualified producer.
-        if (binding) body = write(binding, node, body, bodyContext, 'unknown');
+        if (binding) {
+          const assigned = write(binding, node, body, bodyContext, 'unknown'), target = referenceTarget(binding);
+          // A property LHS is evaluated for each produced element/key before
+          // assigning it. The iterable is evaluated only at the loop entry.
+          body = ts.isPropertyAccessExpression(target) || ts.isElementAccessExpression(target)
+            ? reference(target, assigned, bodyContext) : assigned;
+        }
       }
       link(branch, body, 'controlTrue', anchor(condition));
       if (condition || !ts.isForStatement(node)) link(branch, next, 'controlFalse', anchor(condition));
