@@ -189,7 +189,7 @@ const buildFlowResult = (flow, index, { uriBaseId = DEFAULT_URI_BASE_ID, maxEvid
   return result;
 };
 
-const buildPartialFlowCompanion = (partialFlows, { maxPartialFlows = 3, maxEvidencePerFlow = 3 } = {}) => {
+const buildPartialFlowCompanion = (partialFlows, { maxPartialFlows = 3, maxEvidencePerFlow = 3, totalPartialFlows = null } = {}) => {
   const list = Array.isArray(partialFlows) ? partialFlows : [];
   const limited = list.slice(0, maxPartialFlows).map((flow) => ({
     partialFlowId: flow?.partialFlowId || null,
@@ -207,7 +207,7 @@ const buildPartialFlowCompanion = (partialFlows, { maxPartialFlows = 3, maxEvide
       : []
   }));
   return {
-    partialFlowSelection: buildPartialRiskFlowSelection(partialFlows, { maxPartialFlows, maxEvidencePerFlow }),
+    partialFlowSelection: buildPartialRiskFlowSelection(partialFlows, { maxPartialFlows, maxEvidencePerFlow, totalPartialFlows }),
     partialFlows: limited
   };
 };
@@ -221,7 +221,8 @@ export const renderRiskExplanationSarif = (model, {
   origin = 'risk-explain'
 } = {}) => {
   const flows = Array.isArray(model?.flows) ? model.flows.slice(0, maxFlows) : [];
-  const partialCompanion = buildPartialFlowCompanion(model?.partialFlows, { maxPartialFlows, maxEvidencePerFlow });
+  const partialCompanion = buildPartialFlowCompanion(model?.partialFlows, { maxPartialFlows, maxEvidencePerFlow,
+    totalPartialFlows: model?.partialFlowPopulation?.total });
   return {
     $schema: SARIF_SCHEMA_URL,
     version: SARIF_VERSION,
@@ -253,7 +254,7 @@ export const renderRiskExplanationSarif = (model, {
           caps: model?.caps || null,
           truncation: Array.isArray(model?.truncation) ? model.truncation.slice() : [],
           filters: model?.filters || null,
-          flowSelection: buildRiskFlowSelection(model?.flows, { maxFlows, maxEvidencePerFlow }),
+          flowSelection: buildRiskFlowSelection(model?.flows, { maxFlows, maxEvidencePerFlow, totalFlows: model?.flowPopulation?.total }),
           partialFlowSelection: partialCompanion.partialFlowSelection,
           partialFlows: partialCompanion.partialFlows
         }

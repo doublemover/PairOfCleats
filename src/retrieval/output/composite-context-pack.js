@@ -74,7 +74,7 @@ const resolveRiskSubject = (payload) => {
   };
 };
 
-const buildContextPackRiskPresentation = (payload) => {
+const buildContextPackRiskPresentation = (payload, format) => {
   if (!payload?.risk) {
     return null;
   }
@@ -82,13 +82,14 @@ const buildContextPackRiskPresentation = (payload) => {
     payload.risk,
     {
       surface: 'contextPack',
+      format,
       subject: resolveRiskSubject(payload)
     }
   );
 };
 
 const renderRisk = (payload) => {
-  const presentation = buildContextPackRiskPresentation(payload);
+  const presentation = buildContextPackRiskPresentation(payload, 'md');
   if (!presentation) {
     return 'Risk\n- (none)';
   }
@@ -96,7 +97,7 @@ const renderRisk = (payload) => {
 };
 
 const renderRiskJson = (payload) => {
-  const presentation = buildContextPackRiskPresentation(payload);
+  const presentation = buildContextPackRiskPresentation(payload, 'json');
   return presentation?.json || null;
 };
 

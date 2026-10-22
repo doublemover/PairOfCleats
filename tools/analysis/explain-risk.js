@@ -8,7 +8,9 @@ import {
   loadJsonArrayArtifact,
   loadJsonObjectArtifact
 } from '../../src/shared/artifact-io/loaders.js';
-import { loadPiecesManifest } from '../../src/shared/artifact-io/manifest.js';
+import { loadPiecesManifest, resolveArtifactPresence } from '../../src/shared/artifact-io/manifest.js';
+import { buildRiskAnalysisStatus, buildRiskArtifactStatus, classifyRiskLoadFailure } from '../../src/context-pack/assemble/risk-load.js';
+import { summarizeRiskStats } from '../../src/shared/risk-explain-summary.js';
 import {
   buildRiskExplanationPresentationFromStandalone
 } from '../../src/retrieval/output/risk-explain.js';
@@ -69,26 +71,38 @@ export async function buildRiskExplainPayload({
     });
   }
 
-  const safeLoadArray = async (name) => {
+  const artifactStatus = {}, warnings = [];
+  const readRiskArtifact = async (name, key, object = false, required = false) => {
     try {
-      return await loadJsonArrayArtifact(indexDir, name, { manifest, strict: true });
-    } catch {
-      return null;
-    }
-  };
-  const safeLoadObject = async (name) => {
-    try {
-      return await loadJsonObjectArtifact(indexDir, name, { manifest, strict: true });
-    } catch {
+      const presence = resolveArtifactPresence(indexDir, name, { manifest, strict: true });
+      const missing = presence.format === 'missing' || presence.missingMeta || presence.missingPaths?.length > 0;
+      artifactStatus[key] = buildRiskArtifactStatus({ presence, required });
+      if (missing) {
+        if (required || presence.format !== 'missing') {
+          artifactStatus[key] = 'missing';
+          warnings.push({ code: 'RISK_ARTIFACT_MISSING', artifact: name });
+        }
+        return null;
+      }
+      const load = object ? loadJsonObjectArtifact : loadJsonArrayArtifact;
+      return await load(indexDir, name, { manifest, strict: true });
+    } catch (error) {
+      artifactStatus[key] = 'load_failed';
+      warnings.push({ code: 'RISK_ARTIFACT_UNAVAILABLE', artifact: name,
+        reason: classifyRiskLoadFailure(error), nativeCode: String(error.code || 'ERR_ARTIFACT_READ') });
       return null;
     }
   };
 
-  const riskSummaries = await safeLoadArray('risk_summaries');
-  const riskFlows = await safeLoadArray('risk_flows');
-  const riskPartialFlows = includePartialFlows ? await safeLoadArray('risk_partial_flows') : null;
-  const callSites = await safeLoadArray('call_sites');
-  const stats = await safeLoadObject('risk_interprocedural_stats');
+  const stats = await readRiskArtifact('risk_interprocedural_stats', 'stats', true, true);
+  const summaryOnly = stats?.effectiveConfig?.summaryOnly === true;
+  const requireFlows = stats?.status !== 'disabled' && !summaryOnly;
+  const riskSummaries = await readRiskArtifact('risk_summaries', 'summaries');
+  const riskFlows = await readRiskArtifact('risk_flows', 'flows', false, requireFlows);
+  const riskPartialFlows = includePartialFlows
+    ? await readRiskArtifact('risk_partial_flows', 'partialFlows', false, requireFlows) : null;
+  if (!includePartialFlows) artifactStatus.partialFlows = 'not_requested';
+  let callSites;
 
   const summaryRow = Array.isArray(riskSummaries)
     ? riskSummaries.find((row) => row?.chunkUid === chunkUid)
@@ -98,11 +112,6 @@ export async function buildRiskExplainPayload({
   const summary = summaryFromChunk || summaryRow || null;
 
   const callSiteById = new Map();
-  if (Array.isArray(callSites)) {
-    for (const entry of callSites) {
-      if (entry?.callSiteId) callSiteById.set(entry.callSiteId, entry);
-    }
-  }
 
   const flows = Array.isArray(riskFlows) ? riskFlows : [];
   const relevantFlows = flows.filter((flow) => {
@@ -184,6 +193,18 @@ export async function buildRiskExplainPayload({
     const idB = b?.partialFlowId || '';
     return idA.localeCompare(idB);
   });
+  const limitedPartialFlows = includePartialFlows ? relevantPartialFlows.slice(0, maxPartials) : [];
+  const needsCallSites = [...limitedFlows, ...limitedPartialFlows]
+    .some(flow => flow?.path?.callSiteIdsByStep?.some(ids => ids?.length));
+  callSites = await readRiskArtifact('call_sites', 'callSites', false, needsCallSites);
+  for (const entry of Array.isArray(callSites) ? callSites : []) if (entry?.callSiteId) callSiteById.set(entry.callSiteId, entry);
+  const referencedCallSites = new Set([...limitedFlows, ...limitedPartialFlows]
+    .flatMap(flow => flow?.path?.callSiteIdsByStep || []).flat().filter(Boolean));
+  const unresolvedCallSites = [...referencedCallSites].filter(id => !callSiteById.has(id)).length;
+  if (unresolvedCallSites && artifactStatus.callSites === 'present') {
+    artifactStatus.callSites = 'incomplete';
+    warnings.push({ code: 'RISK_CALL_SITE_UNAVAILABLE', artifact: 'call_sites', omitted: unresolvedCallSites });
+  }
 
   const buildPartialFlowPayload = (flow) => {
     return {
@@ -205,11 +226,31 @@ export async function buildRiskExplainPayload({
     },
     summary,
     stats: stats || null,
+    artifactStatus,
+    warnings,
+    analysisStatus: buildRiskAnalysisStatus({
+      status: warnings.length ? 'unavailable' : stats?.status === 'disabled' ? 'disabled' : summaryOnly ? 'partial' : stats?.status || 'unknown',
+      reason: warnings.length ? 'required_evidence_unavailable' : summaryOnly ? 'summary_only' : stats?.reason || null,
+      degraded: warnings.length > 0 || summaryOnly, summaryOnly,
+      code: warnings.length ? 'risk_artifact_unavailable' : summaryOnly ? 'summary_only' : stats?.status || 'unknown',
+      strictFailure: warnings.length > 0, artifactStatus, stats: stats ? summarizeRiskStats(stats) : null,
+      degradedReasons: warnings.map(warning => warning.code)
+    }),
+    selection: {
+      flows: { total: matchingFlows.length, retained: limitedFlows.length,
+        omitted: matchingFlows.length - limitedFlows.length, limit: maxFlows },
+      partialFlows: { total: relevantPartialFlows.length, retained: limitedPartialFlows.length,
+        omitted: relevantPartialFlows.length - limitedPartialFlows.length, limit: maxPartials }
+    },
+    truncation: [
+      ...(matchingFlows.length > limitedFlows.length ? [{ cap: 'maxFlows', limit: maxFlows,
+        observed: matchingFlows.length, omitted: matchingFlows.length - limitedFlows.length }] : []),
+      ...(includePartialFlows && relevantPartialFlows.length > limitedPartialFlows.length ? [{ cap: 'maxPartialFlows', limit: maxPartials,
+        observed: relevantPartialFlows.length, omitted: relevantPartialFlows.length - limitedPartialFlows.length }] : [])
+    ],
     filters,
     flows: limitedFlows.map(buildFlowPayload),
-    partialFlows: includePartialFlows
-      ? relevantPartialFlows.slice(0, maxPartials).map(buildPartialFlowPayload)
-      : []
+    partialFlows: limitedPartialFlows.map(buildPartialFlowPayload)
   };
 }
 
@@ -280,15 +321,11 @@ export async function runRiskExplainCli(rawArgs = process.argv.slice(2)) {
     const maxPartialItems = Number.isFinite(argv.maxPartialFlows) ? Math.max(1, Math.floor(argv.maxPartialFlows)) : 20;
     const presentation = buildRiskExplanationPresentationFromStandalone(output, {
       surface: 'standalone',
+      format,
       maxFlows: maxItems,
       maxEvidencePerFlow: maxItems,
       maxPartialFlows: maxPartialItems
     });
-
-    if (format === 'md' && !output.flows.length && !output.partialFlows.length) {
-      console.log('No interprocedural flows found for this chunk.');
-      return { ok: true, payload: output };
-    }
 
     return emitCliOutput({
       format,

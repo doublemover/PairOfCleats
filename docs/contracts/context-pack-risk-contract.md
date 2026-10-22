@@ -68,3 +68,17 @@ Semantic-find measures its complete final envelope even for zero matches,
 range-filtered candidates and unavailable analysis coverage. An oversized result
 returns ERR_SEMANTIC_OUTPUT_LIMIT before publishing a continuation or evicting an
 existing continuation. These are authored repairs awaiting Windows qualification.
+
+Standalone risk explain retains per-artifact presence/load state and typed,
+path-free warnings. Disabled or summary-only analysis stays distinct from valid
+empty analysis, while missing required, malformed or unhydrated call-site
+evidence marks analysis unavailable/incomplete. CLI, API and MCP receive that
+same native status. Markdown always renders the status-bearing presentation.
+
+Selection metadata records the filtered matching population before query caps.
+JSON, Markdown and SARIF compose that population with any smaller presentation
+cap, preserving total/shown/omitted counts without hydrating omitted flows.
+Single-format consumers construct only the requested representation. Intentional
+dual output shares its invocation-owned narrative projection; Markdown never
+constructs discarded SARIF. These repairs have authored controls but no new
+execution or performance qualification yet.
