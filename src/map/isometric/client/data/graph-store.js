@@ -53,12 +53,13 @@ export const createGraphStore = manifest => {
     },
     async search({query='',cursor=0,limit=80,entityType=null,signal,yieldTask=()=>new Promise(resolve=>setTimeout(resolve,0))}={}){
       assertLive();if(!Number.isInteger(limit)||limit<1||limit>256||!Number.isSafeInteger(cursor)||cursor<0)throw new Error('Invalid search page.');
+      signal?.throwIfAborted();
       if(typeof query!=='string'||query.length>4096)throw new Error('Snapshot search query exceeds its bounded text contract.');
       const sourceRevision=revision,text=query.trim().toLowerCase(),rows=[];let matched=0,visited=0,pageBytes=0,pageClosed=false;
       for(const ordinal of searchIndex.candidates(text)){
         const {type:kind,value}=searchIndex.row(ordinal);
+        if(++visited%128===0){await yieldTask();signal?.throwIfAborted();assertLive();if(revision!==sourceRevision)throw new Error('Graph query superseded by newly admitted pages.');}
         if(entityType&&kind!==entityType)continue;
-        if(++visited%512===0){await yieldTask();signal?.throwIfAborted();assertLive();if(revision!==sourceRevision)throw new Error('Graph query superseded by newly admitted pages.');}
         if(text&&!value.search.includes(text))continue;
         if(matched>=cursor&&rows.length<limit&&!pageClosed){
           const row=kind==='file'?{type:'file',file:value.path,name:value.name,memberCount:value.memberCount}:{type:'member',file:value.file,id:value.id,name:value.name,range:value.range};
@@ -68,7 +69,8 @@ export const createGraphStore = manifest => {
         }
         matched++;
       }
-      signal?.throwIfAborted();return {snapshot:manifest.snapshot,rows,cursor,next:cursor+rows.length<matched?cursor+rows.length:null,total:complete?matched:null,observedMatches:matched,complete,visited};
+      signal?.throwIfAborted();if(complete&&cursor>matched)throw new Error('Snapshot search cursor exceeds its pinned matching total.');
+      return {snapshot:manifest.snapshot,rows,cursor,next:cursor+rows.length<matched?cursor+rows.length:null,total:complete?matched:null,observedMatches:matched,complete,visited};
     },
     adjacency(entity,{cursor=0,limit=80,direction='both'}={}){
       assertLive();const key=sourceEntityKey(entity.type==='member'?'member':'file',entity.type==='member'?entity.id:entity.file);

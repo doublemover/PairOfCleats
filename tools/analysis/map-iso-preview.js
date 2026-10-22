@@ -108,19 +108,23 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
       const pathname = decodePathnameSafe(new URL(request.url || '/', 'http://127.0.0.1').pathname);
       if (pathname == null) { response.writeHead(400); response.end('Malformed request path.'); return; }
       if(pathname==='/map-snapshot'){
-        const reply=(status,bytes)=>{response.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Map-Snapshot':session.snapshotSha256});response.end(bytes);};
+        const reply=(status,bytes)=>{if(response.destroyed||response.writableEnded)return;response.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Map-Snapshot':session.snapshotSha256});response.end(bytes);};
         if(request.headers['x-map-session']!==sessionToken){reply(403,JSON.stringify({error:'Pinned viewer session token required.'}));return;}
         if(request.method!=='POST'){reply(405,JSON.stringify({error:'POST required.'}));return;}
         if(!/^application\/json(?:;|$)/i.test(request.headers['content-type']||'')){reply(415,JSON.stringify({error:'JSON request required.'}));return;}
         if(activeSnapshotRequests>=SNAPSHOT_PAGE_LIMITS.inFlight){reply(429,JSON.stringify({error:'Snapshot response queue is full.'}));return;}
         activeSnapshotRequests++;
+        const requestController=new AbortController(),cancel=()=>requestController.abort(controller.signal.reason||new DOMException('Snapshot client disconnected.','AbortError'));
+        const disconnected=()=>{if(!response.writableEnded)cancel();};
+        request.once('aborted',cancel);response.once('close',disconnected);controller.signal.addEventListener('abort',cancel,{once:true});
         try{
           const chunks=[];let length=0;
           for await(const chunk of request){length+=chunk.length;if(length>SNAPSHOT_PAGE_LIMITS.requestBytes){reply(413,JSON.stringify({error:'Snapshot request exceeds its byte budget.'}));return;}chunks.push(chunk);}
           controller.signal.throwIfAborted();
-          reply(200,snapshotTransport.respond(JSON.parse(Buffer.concat(chunks,length).toString('utf8'))));
+          const bytes=await snapshotTransport.respondAsync(JSON.parse(Buffer.concat(chunks,length).toString('utf8')),{signal:requestController.signal});
+          requestController.signal.throwIfAborted();reply(200,bytes);
         }catch(error){if(!response.writableEnded)reply(400,JSON.stringify({error:error.message}));}
-        finally{activeSnapshotRequests--;}
+        finally{request.off('aborted',cancel);response.off('close',disconnected);controller.signal.removeEventListener('abort',cancel);activeSnapshotRequests--;}
         return;
       }
       if(pathname==='/map-preferences'){

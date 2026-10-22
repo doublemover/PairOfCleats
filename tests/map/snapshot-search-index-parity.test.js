@@ -31,4 +31,14 @@ rich.admit('members',Array.from({length:4},(_,ordinal)=>({file:'wide.ts',ordinal
 const firstPage=await rich.search({query:'large',limit:4});assert.equal(firstPage.rows.length,2);assert.equal(firstPage.total,4);assert.equal(firstPage.next,2);
 const secondPage=await rich.search({query:'large',cursor:firstPage.next,limit:4});assert.equal(secondPage.rows.length,2);assert.equal(secondPage.next,null);
 assert.equal(secondPage.rows[0].id,'wide:2','byte-limited search continuation cannot skip a match');rich.dispose();
+const filtered=createGraphStore({protocol:MAP_DATA_PROTOCOL,snapshot:'source:filtered',counts:{files:1,members:1000,edges:0},coverage:{upstreamDropped:null}});
+filtered.admit('files',[{path:'filtered.ts',memberCount:1000}]);
+filtered.admit('members',Array.from({length:1000},(_,ordinal)=>({file:'filtered.ts',ordinal,id:ordinal,name:`member${ordinal}`})));filtered.finish();
+const filteredAbort=new AbortController();let filteredYields=0;
+await assert.rejects(filtered.search({query:'',entityType:'file',signal:filteredAbort.signal,yieldTask:async()=>{
+  filteredYields++;filteredAbort.abort();
+}}),error=>error.name==='AbortError');
+assert.equal(filteredYields,1,'excluded entity types still count toward cooperative source work');
+await assert.rejects(filtered.search({query:'missing',cursor:1}),/matching total/);
+filtered.dispose();
 console.log('Bounded search postings retain exact fallback, typed identity, source order and substring parity.');

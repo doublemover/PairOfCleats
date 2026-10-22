@@ -31,9 +31,14 @@ try {
   assert.equal((await fetch(snapshotUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshotRequest)})).status,403);
   const firstPage=await fetch(snapshotUrl,{method:'POST',headers:{'Content-Type':'application/json','X-Map-Session':snapshotConfig.token},body:JSON.stringify(snapshotRequest)}).then(response=>response.json());
   assert.equal(firstPage.snapshot,first.ready.snapshotSha256);assert.equal(firstPage.rows[0].path,'first.ts');assert.equal(firstPage.total,1);
+  const searchRequest={...snapshotRequest,request:2,kind:'search',query:'first',entityType:'file'};
+  const searchPage=await fetch(snapshotUrl,{method:'POST',headers:{'Content-Type':'application/json','X-Map-Session':snapshotConfig.token},body:JSON.stringify(searchRequest)}).then(response=>response.json());
+  assert.equal(searchPage.rows[0].file,'first.ts');assert.equal(searchPage.total,1);assert.equal(searchPage.complete,true);
   await fs.writeFile(inputPath, JSON.stringify(model('second.ts')));
   second = await runMapPreview({ input: inputPath, 'no-open': true }, { stdout: sink, stderr: sink });
   assert.equal(await fetch(first.ready.url).then(response => response.text()), before, 'earlier listener retains its committed document');
+  const retainedSearch=await fetch(snapshotUrl,{method:'POST',headers:{'Content-Type':'application/json','X-Map-Session':snapshotConfig.token},body:JSON.stringify({...searchRequest,request:3})}).then(response=>response.json());
+  assert.equal(retainedSearch.rows[0].file,'first.ts','cooperative source search remains pinned after saved input replacement');
   assert.match(await fetch(new URL('/map.compat.html',second.ready.url)).then(response => response.text()), /second.ts/);
   assert.notEqual(first.ready.snapshotSha256, second.ready.snapshotSha256);
   const moduleUrl = new URL('/isomap/source-index.js', first.ready.url);

@@ -1,6 +1,7 @@
 import { MAP_DATA_PROTOCOL, SNAPSHOT_PAGE_LIMITS, snapshotRequest, sourceEntityKey } from '../../src/map/isometric/client/data/protocol.js';
 import { createSnapshotSearchIndex } from '../../src/map/isometric/client/data/search-index.js';
 import { createMemberAliasIndex } from '../../src/map/isometric/client/data/member-identity.js';
+import { snapshotSearchRecords, searchMapSnapshotRows, createSnapshotSearchPage, prepareSnapshotSearch } from './map-snapshot-search.js';
 
 const compactMember=(member,file,ordinal)=>({id:member.id??null,name:member.name??null,kind:member.kind??member.type??null,
   type:member.type??null,range:member.range??null,exported:member.exported??null,file,ordinal});
@@ -10,7 +11,7 @@ const compactFile=(file,row)=>({id:file.id??null,path:file.path||file.name,name:
 /** Pages an already admitted immutable map; never reads live artifacts or expands its query. */
 export const createMapSnapshotTransport = ({model,snapshotId,identity,maxResponseBytes=SNAPSHOT_PAGE_LIMITS.responseBytes}) => {
   if(!Number.isSafeInteger(maxResponseBytes)||maxResponseBytes<1024||maxResponseBytes>SNAPSHOT_PAGE_LIMITS.responseBytes)throw new Error('Snapshot responses require a finite budget up to 256 KiB.');
-  let retired=false;
+  let retired=false;const lifetime=new AbortController();
   let files=model.nodes||[],edges=model.edges||[];
   const metadata={...model};delete metadata.nodes;delete metadata.edges;
   const fileByPath=new Map(),memberById=new Map(),adjacency=new Map(),directories=new Map();
@@ -82,6 +83,15 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
     return {cursor:request.cursor,next:next<rows.length?next:null,total:rows.length,rows:result};
   };
   return {manifest,getCompatibilityModel(){if(retired)throw new Error('Map snapshot transport has retired.');return {...metadata,nodes:files,edges};},
+    async respondAsync(input,{signal,yieldControl}={}){
+      if(retired)throw new Error('Map snapshot transport has retired.');
+      const request=snapshotRequest(input);
+      if(input.protocol!==MAP_DATA_PROTOCOL||request.snapshot!==snapshotId)throw new Error('Requested map generation is unavailable in this pinned session.');
+      const operationSignal=signal?AbortSignal.any([lifetime.signal,signal]):lifetime.signal;operationSignal.throwIfAborted();
+      if(request.kind!=='search')return this.respond(input);
+      const value=await searchMapSnapshotRows({files,request,wrap,maxResponseBytes,signal:operationSignal,yieldControl});
+      operationSignal.throwIfAborted();return encode(wrap(request,value));
+    },
     respond(input){
       if(retired)throw new Error('Map snapshot transport has retired.');
       const request=snapshotRequest(input);
@@ -110,29 +120,20 @@ export const createMapSnapshotTransport = ({model,snapshotId,identity,maxRespons
         return encode(wrap(request,{detail:value.entity.type==='member'?found.member:{...found.file,members:undefined,memberCount:found.file.members?.length||0},file:value.entity.file,ordinal:value.ordinal}));
       }
       if(request.kind==='search'){
-        if(typeof request.query!=='string'||request.query.length>4096)throw new Error('Snapshot search query exceeds its text budget.');
+        const search=prepareSnapshotSearch(request);
         if(!searchIndex){
           searchIndex=createSnapshotSearchIndex();
-          files.forEach((file,fileRow)=>{
-            const path=file.path||file.name;
-            searchIndex.admit('file',{search:`${path} ${file.name||''}`.toLowerCase(),info:{type:'file',file:path,name:file.name||path,memberCount:file.members?.length||0,address:{fileRow}}});
-            (file.members||[]).forEach((member,memberOrdinal)=>{if(member.id!=null)searchIndex.admit('member',{search:`${path} ${member.name||''} ${member.kind||member.type||''} ${member.id}`.toLowerCase(),
-              info:{type:'member',id:member.id,file:path,name:member.name,range:member.range,address:{fileRow,memberOrdinal}}});});
-          });searchIndex.seal();
+          for(const {type,...value}of snapshotSearchRecords(files))searchIndex.admit(type,value);searchIndex.seal();
         }
-        const query=request.query.trim().toLowerCase(),rows=[];let total=0,closed=false;
-        for(const ordinal of searchIndex.candidates(query)){
-          const {type,value}=searchIndex.row(ordinal);if((request.entityType&&type!==request.entityType)||!value.search.includes(query))continue;
-          if(request.directory!=null){const path=value.info.file.replaceAll('\\','/'),directory=path.includes('/')?path.split('/')[0]:'(root)';if(directory!==request.directory)continue;}
-          if(total>=request.cursor&&rows.length<request.limit&&!closed){
-            const trial=wrap(request,{rows:[...rows,value.info],cursor:request.cursor,next:0,total:0,complete:true});
-            if(Buffer.byteLength(JSON.stringify(trial))>maxResponseBytes-1024){if(!rows.length)throw new Error('Search result exceeds its response budget. Use the compatibility snapshot for this record.');closed=true;}else rows.push(value.info);
-          }total++;
+        const page=createSnapshotSearchPage({request,wrap,maxResponseBytes});
+        for(const ordinal of searchIndex.candidates(search.query)){
+          const {type,value}=searchIndex.row(ordinal);if(!search.matches(value,type))continue;
+          page.admit(value.info);
         }
-        return encode(wrap(request,{rows,cursor:request.cursor,next:request.cursor+rows.length<total?request.cursor+rows.length:null,total,complete:true}));
+        return encode(wrap(request,page.finish()));
       }
       throw new Error('Unsupported map snapshot operation.');
     },
-    dispose(){retired=true;files=[];edges=[];fileByPath.clear();memberById.clear();memberAliases.clear();adjacency.clear();directories.clear();searchIndex?.dispose();searchIndex=null;}
+    dispose(){retired=true;lifetime.abort(new DOMException('Pinned map transport retired.','AbortError'));files=[];edges=[];fileByPath.clear();memberById.clear();memberAliases.clear();adjacency.clear();directories.clear();searchIndex?.dispose();searchIndex=null;}
   };
 };
