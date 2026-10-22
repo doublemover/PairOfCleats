@@ -1,3 +1,4 @@
+import { withSchedulerCpuSuspended } from '../../shared/concurrency/scheduler-task-scope.js';
 import { createSemanticCacheDependencySignatures } from './incremental/semantic-cache-dependencies.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -409,15 +410,19 @@ export function createFileProcessor(options) {
       err.code = 'FILE_PROCESS_ABORTED';
       throw err;
     };
-    const runIo = ioQueue ? (fn) => ioQueue.add(fn, { signal }) : (fn) => fn();
-    const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn, { signal }) : (fn) => fn();
-    // Keep embedding queue backpressure/concurrency controls active even when
-    // called from CPU work. Deadlock prevention is handled at scheduler-token
-    // configuration (embeddings queue avoids consuming CPU tokens).
-    const runEmbedding = embeddingQueue
-      ? (fn) => embeddingQueue.add(fn, { signal })
-      : (fn) => fn();
-    const runProc = procQueue ? (fn) => procQueue.add(fn, { signal }) : (fn) => fn();
+    // Only explicitly I/O-only callbacks may run without compute admission.
+    // Bundle/provider callbacks can parse, normalize or serialize after waiting.
+    const runIo = (fn, { waitOnly = false } = {}) => ioQueue
+      ? withSchedulerCpuSuspended(() => ioQueue.add(fn, { signal, cpu: waitOnly ? 0 : 1 }))
+      : waitOnly ? withSchedulerCpuSuspended(fn) : fn();
+    const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn, { signal,
+      bytes: Math.max(64 * 1024, Number(fileStat?.size || 0) * 4) }) : (fn) => fn();
+    // Known waits release only parent compute. Child compute obtains its own
+    // permit; source/AST/window and all retained-byte ownership stay admitted.
+    const runEmbedding = fn => embeddingQueue
+      ? withSchedulerCpuSuspended(() => embeddingQueue.add(fn, { signal })) : fn();
+    const runProc = (fn, { cpu = 1 } = {}) => procQueue
+      ? withSchedulerCpuSuspended(() => procQueue.add(fn, { signal, cpu })) : fn();
     throwIfAborted();
     const abs = typeof fileEntry === 'string' ? fileEntry : fileEntry.abs;      
     const fileStart = Date.now();
@@ -474,7 +479,7 @@ export function createFileProcessor(options) {
     try {
       fileStat = typeof fileEntry === 'object' && fileEntry.stat
         ? fileEntry.stat
-        : await runIo(() => fs.lstat(abs));
+        : await runIo(() => fs.lstat(abs), { waitOnly: true });
       updateCrashStage('pre-cpu:lstat:done', {
         size: Number.isFinite(Number(fileStat?.size)) ? Number(fileStat.size) : null
       });

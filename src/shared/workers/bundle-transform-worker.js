@@ -10,7 +10,7 @@ parentPort?.on('message', async message => {
   busy = true; let payload = message.payload, result = null;
   try {
     const heap = observeWorkerHeap();
-    if (heap.resourceLimitAcknowledged !== true) throw new Error('Bundle transform worker heap bound was not acknowledged.');
+    if (heap.resourceLimitAcknowledged !== true) throw Object.assign(new Error('Bundle transform worker heap bound was not acknowledged.'), { code: 'BUNDLE_WORKER_HEAP_UNACKNOWLEDGED' });
     if (message.operation === 'normalize-checksum' || message.operation === 'checksum-only') {
       const normalized = normalizeBundlePayload(payload?.bundle ?? null);
       const checksum = await checksumBundlePayloadLocal(normalized, { maxChecksumBytes: MAX_BUNDLE_CHECKSUM_BYTES });
@@ -20,6 +20,6 @@ parentPort?.on('message', async message => {
     const resultBytes = result === null ? 0 : estimatePayloadBytes(result);
     if (resultBytes > BUNDLE_WORKER_MAX_PAYLOAD_BYTES) throw new Error('Bundle transform result exceeds its byte allowance.');
     parentPort.postMessage({ id, ok: true, result, resultBytes });
-  } catch (error) { parentPort.postMessage({ id, ok: false, error: error?.message || String(error) }); }
+  } catch (error) { parentPort.postMessage({ id, ok: false, error: error?.message || String(error), code: error?.code || null }); }
   finally { payload = null; result = null; busy = false; }
 });

@@ -1,3 +1,4 @@
+import { withBundleTransformScope } from '../../../../shared/bundle-io/transform-owner.js';
 import { assertSemanticEnvelope } from '../../../../contracts/validators/semantic-envelopes.js';
 import path from 'node:path';
 import { reopenSemanticDiskAccount } from '../../incremental/working-set.js';
@@ -348,7 +349,11 @@ export {
   runShardSubsetsWithRetry,
   sortEntriesByOrderIndex
 };
-export const processFiles = async ({
+export const processFiles = options => withBundleTransformScope({
+  scheduler: options.runtime?.scheduler || null, signal: options.abortSignal || null
+}, () => processFilesInTransformScope(options));
+
+const processFilesInTransformScope = async ({
   mode,
   runtime,
   discovery,

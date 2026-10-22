@@ -494,11 +494,9 @@ export const createRuntimeQueues = ({
         scheduler,
         queueName: SCHEDULER_QUEUE_NAMES.embeddingsCompute,
         queueConfig: schedulerConfig?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsCompute],
-        // Embeddings are currently awaited from within Stage1 CPU tasks.
-        // Charging nested embedding work against CPU tokens can deadlock when
-        // all CPU slots are held by callers blocked on embedding completion.
-        // Use memory tokens for backpressure to keep progress deterministic.
-        tokens: { mem: 1 },
+        // The caller explicitly suspends its compute permit while this child
+        // owns compute; memory/byte backpressure remains independently charged.
+        tokens: { cpu: 1, mem: 1 },
         maxPending: maxEmbeddingPending,
         maxPendingBytes: maxEmbeddingPendingBytes,
         maxInFlightBytes: maxEmbeddingInFlightBytes,
@@ -510,10 +508,8 @@ export const createRuntimeQueues = ({
         scheduler,
         queueName: SCHEDULER_QUEUE_NAMES.stage1Proc,
         queueConfig: schedulerConfig?.queues?.[SCHEDULER_QUEUE_NAMES.stage1Proc],
-        // Proc queue tasks are awaited from within Stage1 CPU tasks; charging them
-        // against the same CPU token pool can deadlock when cpuTokens is small
-        // (e.g. --threads 1). Use memory tokens to preserve backpressure without
-        // blocking nested scheduling.
+        // Provider callbacks retain memory admission. Callers add compute for
+        // parsing/worker work after suspending the parent's compute permit.
         tokens: { mem: 1 },
         maxPending: procPendingLimit,
         maxPendingBytes: procPendingBytesLimit,

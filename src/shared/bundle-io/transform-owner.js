@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { currentSchedulerTaskLease, withSchedulerCpuSuspended } from '../concurrency/scheduler-task-scope.js';
 import { Worker } from 'node:worker_threads';
 import { runWithTimeout, createTimeoutError } from '../promise-timeout.js';
 import { createAbortError, throwIfAborted, isAbortError } from '../abort.js';
@@ -19,26 +20,29 @@ export class BundleTransformOwner {
   constructor({ scheduler = null, signal = null } = {}) {
     if (quarantine) throw quarantine;
     this.scheduler = scheduler; this.signal = signal; this.worker = null; this.closed = false;
-    this.waiters = []; this.busy = false; this.nextId = 0; this.active = null;
-    this.closePromise = null;
+    this.waiters = []; this.waitingEstimatedBytes = 0; this.busy = false; this.nextId = 0; this.active = null;
+    this.closePromise = null; this.heapUnavailable = false;
     this.metrics = { workersStarted: 0, requests: 0, estimatedInputBytes: 0, estimatedResultBytes: 0, activeEstimatedBytes: 0, peakActiveEstimatedBytes: 0 };
     scheduler?.registerQueue?.('stage1.bundle-transform', { priority: 40, weight: 1,
       maxPending: 1, maxPendingBytes: BUNDLE_WORKER_MAX_PAYLOAD_BYTES * 2 });
   }
-  async _acquire(signal) {
+  async _acquire(signal, bytes) {
     throwIfAborted(signal); if (quarantine) throw quarantine;
     if (this.closed) throw new Error('Bundle transform owner closed.');
-    if (!this.busy) { this.busy = true; return; }
+    if (!this.busy) { this.busy = true; return true; }
+    if (this.waiters.length >= 4 || this.waitingEstimatedBytes + bytes > BUNDLE_WORKER_MAX_PAYLOAD_BYTES) return false;
     await new Promise((resolve, reject) => {
-      const waiter = { resolve, reject, signal, abort: null };
-      waiter.abort = () => { const index = this.waiters.indexOf(waiter); if (index >= 0) this.waiters.splice(index, 1); reject(createAbortError()); };
-      signal?.addEventListener('abort', waiter.abort, { once: true }); this.waiters.push(waiter);
+      const waiter = { resolve, reject, signal, bytes, abort: null };
+      waiter.abort = () => { signal?.removeEventListener('abort', waiter.abort); const index = this.waiters.indexOf(waiter); if (index >= 0) { this.waiters.splice(index, 1); this.waitingEstimatedBytes -= bytes; } reject(createAbortError()); };
+      signal?.addEventListener('abort', waiter.abort, { once: true }); this.waiters.push(waiter); this.waitingEstimatedBytes += bytes;
       if (signal?.aborted) waiter.abort();
     });
+    return true;
   }
   _release() {
     const waiter = this.waiters.shift();
     if (!waiter) { this.busy = false; return; }
+    this.waitingEstimatedBytes -= waiter.bytes;
     waiter.signal?.removeEventListener('abort', waiter.abort); waiter.resolve();
   }
   async _retire() {
@@ -52,20 +56,28 @@ export class BundleTransformOwner {
           code: 'BUNDLE_WORKER_TERMINATE_TIMEOUT', retryable: false }) });
     } catch (error) { quarantine = error; throw error; }
   }
-  async run({ operation, payload, timeoutMs = BUNDLE_WORKER_TIMEOUT_MS, signal = this.signal }) {
+  async run({ operation, payload, timeoutMs = BUNDLE_WORKER_TIMEOUT_MS, signal = currentSchedulerTaskLease()?.signal || this.signal }) {
     throwIfAborted(signal);
     if (quarantine) throw quarantine;
     if (this.closed) throw new Error('Bundle transform owner closed.');
     const bytes = estimatePayloadBytes(payload);
     if (!bytes || bytes > BUNDLE_WORKER_MAX_PAYLOAD_BYTES) return { ok: false, reason: 'payload-budget' };
-    if (!bundleTransformHeapContract().supported) return { ok: false, reason: 'heap-bound-unavailable' };
-    await this._acquire(signal);
-    try {
-      const job = () => this._execute({ operation, payload, timeoutMs, signal, bytes });
-      const running = this.scheduler?.schedule
-        ? this.scheduler.schedule('stage1.bundle-transform', { cpu: 1, mem: 1, bytes: bytes * 2, signal }, job) : job();
-      this.active = running; return await running;
-    } finally { this.active = null; this._release(); }
+    if (this.heapUnavailable || !bundleTransformHeapContract().supported) return { ok: false, reason: 'heap-bound-unavailable' };
+    const admitted = async () => {
+      if (!await this._acquire(signal, bytes)) return { ok: false, reason: 'queued-input-budget' };
+      try {
+        throwIfAborted(signal);
+        if (this.closed) throw new Error('Bundle transform owner closed.');
+        const job = () => this._execute({ operation, payload, timeoutMs, signal, bytes });
+        const running = this.scheduler
+          ? this.scheduler.scheduleIfAvailable?.('stage1.bundle-transform', { cpu: 1, mem: 1, bytes: bytes * 2, signal }, job) : job();
+        if (!running) return { ok: false, reason: 'scheduler-admission-busy' };
+        this.active = running; return await running;
+      } finally { this.active = null; this._release(); }
+    };
+    // Serialized borrowers and the actual child compute own their CPU permit.
+    // The file's original bytes/window remain charged while it waits.
+    return this.scheduler ? withSchedulerCpuSuspended(admitted) : admitted();
   }
   async _execute({ operation, payload, timeoutMs, signal, bytes }) {
     throwIfAborted(signal); if (quarantine) throw quarantine;
@@ -90,7 +102,13 @@ export class BundleTransformOwner {
       const message = await runWithTimeout(() => reply, { timeoutMs: Math.max(500, Number(timeoutMs) || BUNDLE_WORKER_TIMEOUT_MS), signal,
         errorFactory: () => createTimeoutError({ message: 'Bundle transform request timed out.', code: 'BUNDLE_WORKER_TIMEOUT', retryable: false }) });
       const resultBytes = message?.resultBytes;
-      if (message?.ok !== true) return { ok: false, reason: message?.error || 'worker-error' };
+      if (message?.ok !== true) {
+        if (message?.code === 'BUNDLE_WORKER_HEAP_UNACKNOWLEDGED') {
+          this.heapUnavailable = true; await this._retire();
+          return { ok: false, reason: 'heap-bound-unavailable' };
+        }
+        return { ok: false, reason: message?.error || 'worker-error' };
+      }
       if (!Number.isSafeInteger(resultBytes) || resultBytes < 0 || resultBytes > BUNDLE_WORKER_MAX_PAYLOAD_BYTES) {
         await this._retire(); return { ok: false, reason: 'result-budget' };
       }
@@ -109,13 +127,14 @@ export class BundleTransformOwner {
     if (this.closePromise) return this.closePromise;
     this.closed = true;
     for (const waiter of this.waiters.splice(0)) { waiter.signal?.removeEventListener('abort', waiter.abort); waiter.reject(new Error('Bundle transform owner closed.')); }
+    this.waitingEstimatedBytes = 0;
     this.closePromise = (async () => {
       if (this.active) await this.active.catch(() => {});
       await this._retire();
     })();
     return this.closePromise;
   }
-  stats() { return { ...this.metrics, waitingBorrowers: this.waiters.length }; }
+  stats() { return { ...this.metrics, waitingBorrowers: this.waiters.length, queuedEstimatedInputBytes: this.waitingEstimatedBytes }; }
 }
 export const withBundleTransformScope = async (options, operation) => {
   if (context.getStore()) return operation();

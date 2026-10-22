@@ -29,7 +29,7 @@ export async function loadCachedBundleForFile({
   }));
   let result = await read();
   if (!result.cachedBundle && semanticContext && incrementalState.enabled) {
-    const sourceBytes = result.buffer || await runIo(() => fs.readFile(absPath));
+    const sourceBytes = result.buffer || await runIo(() => fs.readFile(absPath), { waitOnly: true });
     const completed = await runIo(() => readFileCompletion({
       bundleDir: incrementalState.bundleDir, relKey, sourceBytes, semanticContext
     }));

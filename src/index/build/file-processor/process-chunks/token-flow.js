@@ -413,7 +413,7 @@ export const processChunks = async (context) => {
     ? workerPool.shouldUseForFile(fileBytes)
     : false;
   const runTokenize = useWorkerForTokens && typeof workerPool?.tokenizeChunk === 'function'
-    ? (payload) => (runProc ? runProc(() => workerPool.tokenizeChunk(payload, { signal })) : workerPool.tokenizeChunk(payload, { signal }))
+    ? (payload) => (runProc ? runProc(() => workerPool.tokenizeChunk(payload, { signal }), { cpu: 1 }) : workerPool.tokenizeChunk(payload, { signal }))
     : null;
   const workerBackend = workerPool?.getExecutionBackend?.() === 'process' ? 'process-pool' : 'worker-pool';
   const initialInlineReason = workerState.tokenWorkerDisabled ? 'caller-error'
