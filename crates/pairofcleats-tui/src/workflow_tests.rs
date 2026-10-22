@@ -7,6 +7,40 @@ fn key(ui: &mut WorkflowUi, code: KeyCode) {
 }
 
 #[test]
+fn rendered_workflow_catalog_and_long_preview_reach_selected_identity_and_both_ends() {
+    use crate::overlay_viewport::render_test_rows;
+    for (width, height) in [(80u16, 24u16), (90, 18)] {
+        let mut ui = WorkflowUi::default();
+        ui.available = true;
+        ui.open("fixture"); key(&mut ui, KeyCode::Enter);
+        let id = ui.outbox.pop_front().unwrap()["jobId"].clone();
+        ui.event(&json!({"event":"job:end","jobId":id,"status":"done","resultState":"complete",
+            "result":{"method":"select","data":{"id":"scope","kind":"repo","target":format!("FIRST/{}", "long-directory/".repeat(100))}}}));
+        let id = ui.outbox.pop_front().unwrap()["jobId"].clone();
+        let commands: Vec<_> = (0..60).map(|index| json!({"id":format!("CMD-{index:02}"),"scopeKind":"repo","fields":[],"description":"long description ".repeat(20)})).collect();
+        ui.event(&json!({"event":"job:end","jobId":id,"status":"done","resultState":"complete",
+            "result":{"method":"describe","data":{"commands":commands}}}));
+        for index in 0..60 {
+            let screen = render_test_rows(ui.lines((height - 2) as usize, (width - 2) as usize), width, height);
+            assert!(screen.contains(&format!("> CMD-{index:02}")));
+            if index < 59 { key(&mut ui, KeyCode::Down); }
+        }
+        key(&mut ui, KeyCode::Enter); key(&mut ui, KeyCode::Char('p'));
+        let request = ui.outbox.pop_front().unwrap();
+        assert_eq!(request["params"]["commandId"], "CMD-59");
+        ui.event(&json!({"event":"job:end","jobId":request["jobId"],"status":"done","resultState":"complete",
+            "result":{"method":"preview","data":{"launchable":false,"canonicalArgv":["START", "界😀 ".repeat(500)],"observations":{"zz_end":"LAST"}}}}));
+        let first = render_test_rows(ui.lines((height - 2) as usize, (width - 2) as usize), width, height);
+        assert!(first.contains("FIRST"));
+        for _ in 0..10000 { key(&mut ui, KeyCode::Down); }
+        let last = render_test_rows(ui.lines((height - 2) as usize, (width - 2) as usize), width, height);
+        assert!(last.contains("LAST"));
+        for _ in 0..10000 { key(&mut ui, KeyCode::Up); }
+        assert!(render_test_rows(ui.lines((height - 2) as usize, (width - 2) as usize), width, height).contains("FIRST"));
+    }
+}
+
+#[test]
 fn passive_workflow_never_enqueues_launch_or_cancel() {
     let mut ui = WorkflowUi::default();
     ui.open("private-repository");
@@ -14,7 +48,7 @@ fn passive_workflow_never_enqueues_launch_or_cancel() {
         key(&mut ui, code);
     }
     assert!(ui.outbox.is_empty());
-    assert!(ui.lines(30).join("\n").contains("unavailable"));
+    assert!(ui.lines(30, 100).join("\n").contains("unavailable"));
 }
 
 #[test]
@@ -49,7 +83,7 @@ fn completion_before_admission_preserves_actual_failure_and_matching_job_identit
         &json!({"event":"job:end","jobId":launch_id,"status":"done","resultState":"complete",
         "result":{"method":"launch","data":{"launched":true,"jobId":"workflow-real"}}})
     ));
-    let display = ui.lines(50).join("\n");
+    let display = ui.lines(50, 100).join("\n");
     assert!(display.contains("ERR_TUI_WORKFLOW_STALE"));
     assert!(display.contains("failed"));
     key(&mut ui, KeyCode::Char('c'));

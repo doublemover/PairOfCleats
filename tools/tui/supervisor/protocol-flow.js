@@ -4,6 +4,7 @@ import path from 'node:path';
 import { formatProgressEvent } from '../../../src/shared/cli/progress-events.js';
 import { clampInt } from '../../../src/shared/limits.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
+import { splitUnicodeChunks } from '../../../src/shared/unicode-chunks.js';
 import {
   CRITICAL_EVENTS,
   FLOW_CHUNK_CHARS,
@@ -243,10 +244,7 @@ export const createFlowController = ({ runId, nextSeq, eventLogRecorder }) => {
       return null;
     }
     const chunkId = nextChunkId();
-    const chunks = [];
-    for (let offset = 0; offset < serialized.length; offset += flow.chunkChars) {
-      chunks.push(serialized.slice(offset, offset + flow.chunkChars));
-    }
+    const chunks = splitUnicodeChunks(serialized, flow.chunkChars);
     flow.chunked += 1;
     return chunks.map((chunk, index) => formatProgressEvent('event:chunk', {
       runId,

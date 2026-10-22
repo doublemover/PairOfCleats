@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde_json::{json, Value};
+use crate::overlay_viewport::ReviewViewport;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
@@ -29,7 +30,7 @@ pub(crate) struct SettingsUi {
     preview: Option<Value>,
     reset: bool,
     selected: usize,
-    scroll: usize,
+    scroll: ReviewViewport,
     status: String,
     pending: Option<(String, String)>,
     next_id: u64,
@@ -51,7 +52,7 @@ impl Default for SettingsUi {
             preview: None,
             reset: false,
             selected: 0,
-            scroll: 0,
+            scroll: ReviewViewport::default(),
             status: String::new(),
             pending: None,
             next_id: 1,
@@ -168,6 +169,7 @@ impl SettingsUi {
             return false;
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('u') {
+            self.scroll.reset();
             match self.page {
                 Page::Scope => self.target.clear(),
                 Page::Edit | Page::Preview => self.draft.clear(),
@@ -179,8 +181,13 @@ impl SettingsUi {
             }
             return false;
         }
+        if matches!(self.page, Page::Edit | Page::Scope) && matches!(key.code, KeyCode::Char(_) | KeyCode::Backspace) {
+            self.scroll.tail();
+        }
         match self.page {
             Page::Scope => match key.code {
+                KeyCode::Down => self.scroll.down(),
+                KeyCode::Up => self.scroll.up(),
                 KeyCode::Tab => self.workspace = !self.workspace,
                 KeyCode::Backspace => {
                     self.target.pop();
@@ -209,7 +216,7 @@ impl SettingsUi {
                 KeyCode::Char('R') => self.preview(true),
                 KeyCode::Char('p') => {
                     self.page = Page::Provenance;
-                    self.scroll = 0;
+                    self.scroll.reset();
                 }
                 KeyCode::Char('/') => self.page = Page::Filter,
                 KeyCode::Down => {
@@ -263,6 +270,8 @@ impl SettingsUi {
                 _ => {}
             },
             Page::Edit => match key.code {
+                KeyCode::Down => self.scroll.down(),
+                KeyCode::Up => self.scroll.up(),
                 KeyCode::Esc => {
                     self.draft.clear();
                     self.page = Page::Fields;
@@ -289,8 +298,8 @@ impl SettingsUi {
                 KeyCode::Backspace => {
                     self.draft.pop();
                 }
-                KeyCode::Down => self.scroll = self.scroll.saturating_add(1),
-                KeyCode::Up => self.scroll = self.scroll.saturating_sub(1),
+                KeyCode::Down => self.scroll.down(),
+                KeyCode::Up => self.scroll.up(),
                 KeyCode::Enter => {
                     if self.reset && self.draft != "RESET" {
                         self.status = "Reset requires typing RESET exactly; nothing saved".into();
@@ -306,8 +315,8 @@ impl SettingsUi {
             },
             Page::Provenance => match key.code {
                 KeyCode::Esc => self.page = Page::Fields,
-                KeyCode::Down => self.scroll = self.scroll.saturating_add(1),
-                KeyCode::Up => self.scroll = self.scroll.saturating_sub(1),
+                KeyCode::Down => self.scroll.down(),
+                KeyCode::Up => self.scroll.up(),
                 _ => {}
             },
         }
@@ -378,7 +387,7 @@ impl SettingsUi {
                 if data["ok"] == true {
                     self.preview = Some(data.clone());
                     self.page = Page::Preview;
-                    self.scroll = 0;
+                    self.scroll.reset();
                     self.status = "Validated preview; no file has been changed".into();
                 } else {
                     self.page = Page::Fields;
@@ -406,7 +415,7 @@ impl SettingsUi {
         true
     }
 
-    pub fn lines(&self, height: usize) -> Vec<String> {
+    pub fn lines(&self, height: usize, width: usize) -> Vec<String> {
         let scope = self
             .scope
             .as_ref()
@@ -426,10 +435,11 @@ impl SettingsUi {
         ];
         if !self.available {
             lines.push("Read only: settings are unavailable in this session. Esc closes".into());
-            return lines;
+            return lines.into_iter().take(height).map(|line| crate::fit_text(&line, width)).collect();
         }
         match self.page {
-            Page::Scope => lines.extend([
+            Page::Scope => {
+                lines.push(
                 format!(
                     "Select {} | Tab changes kind | Enter selects | Esc cancels",
                     if self.workspace {
@@ -437,13 +447,13 @@ impl SettingsUi {
                     } else {
                         "repository directory"
                     }
-                ),
-                self.target.clone(),
-            ]),
+                ));
+                return self.scroll.lines(lines, &self.target, height, width);
+            }
             Page::Fields | Page::Filter => {
                 lines.push(format!("Filter: {} | / filter | arrows select | Enter edit | r reload | R reset | s scope | p provenance | Esc close", self.query));
                 let fields = self.fields();
-                let count = height.saturating_sub(13).max(1);
+                let count = height.saturating_sub(lines.len() + 4).max(1);
                 let start = self
                     .selected
                     .saturating_sub(count / 2)
@@ -495,13 +505,11 @@ impl SettingsUi {
                     ]);
                 }
             }
-            Page::Edit => lines.extend([
-                format!(
-                    "Edit {} as JSON | Enter validates preview | Esc discards",
-                    self.selected_field().map(field_name).unwrap_or_default()
-                ),
-                self.draft.clone(),
-            ]),
+            Page::Edit => {
+                lines.push("Edit JSON | Enter validates preview | Esc discards | arrows review".into());
+                let name = self.selected_field().map(field_name).unwrap_or_default();
+                return self.scroll.lines(lines, &format!("Field: {name}\n{}", self.draft), height, width);
+            }
             Page::Preview => {
                 let preview = self.preview.as_ref().unwrap_or(&Value::Null);
                 lines.push(if self.reset {
@@ -519,13 +527,7 @@ impl SettingsUi {
                     ));
                 }
                 let text = serde_json::to_string_pretty(&preview["diff"]).unwrap_or_default();
-                let rows: Vec<_> = text.lines().collect();
-                lines.extend(
-                    rows.iter()
-                        .skip(self.scroll.min(rows.len().saturating_sub(1)))
-                        .take(height.saturating_sub(lines.len()))
-                        .map(|line| line.to_string()),
-                );
+                return self.scroll.lines(lines, &format!("Scope: {}\n{text}", self.scope.as_ref().map(Value::to_string).unwrap_or_default()), height, width);
             }
             Page::Provenance => {
                 lines.push(
@@ -538,22 +540,34 @@ impl SettingsUi {
                     record.remove("userConfig");
                 }
                 let text = serde_json::to_string_pretty(&sources).unwrap_or_default();
-                let rows: Vec<_> = text.lines().collect();
-                lines.extend(
-                    rows.iter()
-                        .skip(self.scroll.min(rows.len().saturating_sub(1)))
-                        .take(height.saturating_sub(lines.len()))
-                        .map(|line| line.to_string()),
-                );
+                return self.scroll.lines(lines, &format!("Scope: {}\n{text}", self.scope.as_ref().map(Value::to_string).unwrap_or_default()), height, width);
             }
         }
-        lines
+        lines.into_iter().take(height).map(|line| crate::fit_text(&line, width)).collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rendered_settings_keep_confirmation_visible_and_scroll_wrapped_json() {
+        use crate::overlay_viewport::render_test_rows;
+        for (width, height) in [(80u16, 24u16), (90, 18)] {
+            let mut ui = selected();
+            ui.scope = Some(json!({"id":"scope-1","kind":"repo","target":format!("FIRST/{}", "directory/".repeat(200))}));
+            ui.page = Page::Preview; ui.reset = true; ui.draft = "RESET".into();
+            ui.preview = Some(json!({"diff":{"first":"START","long":"界😀 ".repeat(500),"zz_end":"LAST"}}));
+            let screen = render_test_rows(ui.lines((height - 2) as usize, (width - 2) as usize), width, height);
+            assert!(screen.contains("confirmation: RESET"));
+            assert!(screen.contains("FIRST"));
+            for _ in 0..10000 { key(&mut ui, KeyCode::Down); }
+            assert!(render_test_rows(ui.lines((height - 2) as usize, (width - 2) as usize), width, height).contains("LAST"));
+            for _ in 0..10000 { key(&mut ui, KeyCode::Up); }
+            assert!(render_test_rows(ui.lines((height - 2) as usize, (width - 2) as usize), width, height).contains("FIRST"));
+        }
+    }
 
     fn key(ui: &mut SettingsUi, code: KeyCode) -> bool {
         ui.key(KeyEvent::new(code, KeyModifiers::NONE))

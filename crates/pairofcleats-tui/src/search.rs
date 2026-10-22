@@ -418,7 +418,12 @@ impl SearchUi {
                         hit["rank"].as_u64(),
                     )
                 });
+                let selected_id = self.rows.get(self.selected)
+                    .and_then(|hit| hit["hitId"].as_str()).map(str::to_owned);
                 self.rows = combined;
+                self.selected = selected_id.as_deref()
+                    .and_then(|id| self.rows.iter().position(|hit| hit["hitId"].as_str() == Some(id)))
+                    .unwrap_or_else(|| self.selected.min(self.rows.len().saturating_sub(1)));
                 self.result = Some(data.clone());
                 self.page = Page::Results;
                 self.status = self.results_status();
@@ -694,6 +699,7 @@ mod tests {
         key(&mut ui, KeyCode::Char('n'));
         let request = ui.outbox.pop_front().unwrap();
         assert_eq!(request["params"], json!({"resultId":"result-1"}));
+        ui.selected = 1; // User navigation while continuation is pending owns response-time selection.
         reply(
             &mut ui,
             "continue",
@@ -706,6 +712,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["c1", "c2", "p1", "p2"]
         );
+        assert_eq!(ui.rows[ui.selected]["hitId"], "p1");
         key(&mut ui, KeyCode::Char('n'));
         ui.outbox.clear();
         reply(&mut ui, "continue", page(vec![hit("code", 2, "c2")]));

@@ -13,6 +13,9 @@ mod workflows;
 use supervisor_lifetime::SupervisorLifetime;
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
+mod task_state;
+mod overlay_viewport;
+use task_state::{Lifecycle, TaskState};
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -570,7 +573,7 @@ struct AppModel {
     job_status: BTreeMap<String, String>,
     job_titles: BTreeMap<String, String>,
     job_order: VecDeque<String>,
-    task_status: BTreeMap<String, String>,
+    task_status: BTreeMap<String, TaskState>,
     task_identity: BTreeMap<String, (String, String)>,
     task_order: VecDeque<String>,
     logs: VecDeque<LogEntry>,
@@ -840,6 +843,10 @@ impl AppModel {
         status: &str,
         message: Option<&str>,
     ) {
+        if Lifecycle::from_status(status) == Lifecycle::Active
+            && self.job_status.get(job_id).is_some_and(|owner| Lifecycle::from_status(owner) != Lifecycle::Active) {
+            return;
+        }
         let key = json!([job_id, task_id]).to_string();
         if !self.task_status.contains_key(&key) {
             self.task_identity
@@ -852,13 +859,20 @@ impl AppModel {
                 }
             }
         }
-        let mut text = status.to_string();
-        if let Some(msg) = message {
-            if !msg.trim().is_empty() {
-                text = format!("{status} {msg}");
+        self.task_status.insert(key, TaskState::new(status, message));
+        self.dirty = true;
+    }
+
+    fn reconcile_terminal_tasks(&mut self, job_id: &str, owner_status: &str) {
+        for (key, task) in &mut self.task_status {
+            if self.task_identity.get(key).is_some_and(|(owner, _)| owner == job_id)
+                && task.lifecycle() == Lifecycle::Active {
+                let status = if Lifecycle::from_status(owner_status) == Lifecycle::Cancelled {
+                    "cancelled"
+                } else { "unfinished" };
+                *task = TaskState::new(status, Some(&format!("owner ended {owner_status} before task:end")));
             }
         }
-        self.task_status.insert(key, text);
         self.dirty = true;
     }
 
@@ -1140,12 +1154,21 @@ fn spawn_supervisor(
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
         let reader = BufReader::new(stdout);
+        let mut parse_failures = 0usize;
         for line in reader.lines().map_while(Result::ok) {
             if line.trim().is_empty() {
                 continue;
             }
-            if let Ok(value) = serde_json::from_str::<Value>(&line) {
-                let _ = tx.send(value);
+            match serde_json::from_str::<Value>(&line) {
+                Ok(value) => { let _ = tx.send(value); }
+                Err(error) => {
+                    parse_failures += 1;
+                    if parse_failures <= 8 {
+                        let _ = tx.send(json!({"event":"log", "level":"warn", "source":"tui-transport",
+                            "message":format!("Supervisor frame JSON rejected at line {}, column {} (diagnostic {}/8)",
+                                error.line(), error.column(), parse_failures)}));
+                    }
+                }
             }
         }
     });
@@ -1204,7 +1227,7 @@ fn frame_signature(model: &AppModel) -> String {
         "jobStatus": model.job_status,
         "jobTitles": model.job_titles,
         "tasks": model.task_order,
-        "taskStatus": model.task_status,
+        "taskStatus": model.task_status.iter().map(|(key, task)| (key, task.to_string())).collect::<BTreeMap<_, _>>(),
         "taskIdentity": model.task_identity,
         "logs": logs,
         "alerts": alerts,
@@ -1264,18 +1287,18 @@ fn contains_query(text: &str, query: &str) -> bool {
 fn matches_job_filter(status: &str, filter: JobFilter) -> bool {
     match filter {
         JobFilter::All => true,
-        JobFilter::Active => !status.contains("failed") && !status.contains("done"),
-        JobFilter::Failed => status.contains("failed") || status.contains("cancelled"),
-        JobFilter::Done => status.contains("done"),
+        JobFilter::Active => Lifecycle::from_status(status) == Lifecycle::Active,
+        JobFilter::Failed => Lifecycle::from_status(status).is_problem(),
+        JobFilter::Done => Lifecycle::from_status(status) == Lifecycle::Done,
     }
 }
 
 fn matches_task_filter(status: &str, filter: TaskFilter) -> bool {
     match filter {
         TaskFilter::All => true,
-        TaskFilter::Active => !status.contains("failed") && !status.contains("done"),
-        TaskFilter::Failed => status.contains("failed"),
-        TaskFilter::Done => status.contains("done"),
+        TaskFilter::Active => Lifecycle::from_status(status) == Lifecycle::Active,
+        TaskFilter::Failed => Lifecycle::from_status(status).is_problem(),
+        TaskFilter::Done => Lifecycle::from_status(status) == Lifecycle::Done,
     }
 }
 
@@ -1301,13 +1324,13 @@ fn job_status_counts(model: &AppModel) -> (usize, usize, usize, usize) {
     let mut done = 0usize;
     let mut cancelled = 0usize;
     for status in model.job_status.values() {
-        if status.contains("failed") {
+        if Lifecycle::from_status(status) == Lifecycle::Failed {
             failed += 1;
-        } else if status.contains("done") {
+        } else if Lifecycle::from_status(status) == Lifecycle::Done {
             done += 1;
-        } else if status.contains("cancelled") {
+        } else if Lifecycle::from_status(status) == Lifecycle::Cancelled {
             cancelled += 1;
-        } else {
+        } else if Lifecycle::from_status(status) == Lifecycle::Active {
             running += 1;
         }
     }
@@ -1318,9 +1341,9 @@ fn task_status_counts(model: &AppModel) -> (usize, usize) {
     let mut active = 0usize;
     let mut failed = 0usize;
     for status in model.task_status.values() {
-        if status.contains("failed") {
+        if status.lifecycle().is_problem() {
             failed += 1;
-        } else if !status.contains("done") {
+        } else if status.lifecycle() == Lifecycle::Active {
             active += 1;
         }
     }
@@ -1984,13 +2007,13 @@ fn build_job_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListItem
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD)
-        } else if status.contains("done") {
+        } else if Lifecycle::from_status(status) == Lifecycle::Done {
             Style::default().fg(Color::Green)
-        } else if status.contains("failed") {
+        } else if Lifecycle::from_status(status).is_problem() && Lifecycle::from_status(status) != Lifecycle::Cancelled {
             Style::default().fg(Color::Red)
-        } else if status.contains("cancelled") {
+        } else if Lifecycle::from_status(status) == Lifecycle::Cancelled {
             Style::default().fg(Color::Yellow)
-        } else if status.contains("running") {
+        } else if Lifecycle::from_status(status) == Lifecycle::Active {
             Style::default().fg(Color::Blue)
         } else {
             Style::default().fg(Color::Gray)
@@ -2063,7 +2086,7 @@ fn build_task_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListIte
         let Some(status) = model.task_status.get(key) else {
             continue;
         };
-        if !matches_task_filter(status, model.task_filter) {
+        if !matches_task_filter(&status.status, model.task_filter) {
             continue;
         }
         let task_name = identity.map(|(_, id)| id.as_str()).unwrap_or(key);
@@ -2073,9 +2096,9 @@ fn build_task_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListIte
         }
         let style = if !model.terminal_caps.color {
             Style::default()
-        } else if status.contains("failed") {
+        } else if status.lifecycle().is_problem() {
             Style::default().fg(Color::Red)
-        } else if status.contains("done") {
+        } else if status.lifecycle() == Lifecycle::Done {
             Style::default().fg(Color::Green)
         } else {
             Style::default().fg(Color::Yellow)
@@ -2529,12 +2552,11 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             let area = centered_rect(96, 94, frame.area());
             let text = model
                 .index_workflows
-                .lines(area.height.saturating_sub(2) as usize)
+                .lines(area.height.saturating_sub(2) as usize, area.width.saturating_sub(2) as usize)
                 .join("\n");
             frame.render_widget(Clear, area);
             frame.render_widget(
                 Paragraph::new(text)
-                    .wrap(Wrap { trim: false })
                     .block(panel_block(
                         "Index workflows".into(),
                         true,
@@ -2547,12 +2569,11 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             let area = centered_rect(94, 92, frame.area());
             let text = model
                 .settings
-                .lines(area.height.saturating_sub(2) as usize)
+                .lines(area.height.saturating_sub(2) as usize, area.width.saturating_sub(2) as usize)
                 .join("\n");
             frame.render_widget(Clear, area);
             frame.render_widget(
                 Paragraph::new(text)
-                    .wrap(Wrap { trim: false })
                     .block(panel_block(
                         "Settings".into(),
                         true,
@@ -3233,6 +3254,9 @@ fn handle_chunk_event(model: &mut AppModel, event: &Value) -> Option<Value> {
         }
         Err(_) => {
             model.telemetry.dropped_chunks += 1;
+            if model.telemetry.dropped_chunks <= 8 {
+                model.push_alert("warn", "Reassembled supervisor event is invalid JSON; event was not applied");
+            }
             None
         }
     }
@@ -3338,7 +3362,7 @@ fn apply_workload_fallbacks(
                 let active_jobs = model
                     .job_status
                     .values()
-                    .filter(|status| status.contains("running"))
+                    .filter(|status| Lifecycle::from_status(status) == Lifecycle::Active)
                     .count() as u64;
                 if model.service_summary.active_jobs.is_none() {
                     model.service_summary.active_jobs = Some(active_jobs);
@@ -3564,6 +3588,7 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
                 .and_then(|value| value.as_str())
                 .unwrap_or("unknown");
             model.update_job_status(job_id, status, None);
+            model.reconcile_terminal_tasks(job_id, status);
             if let Some(result_state) = event.get("resultState").and_then(Value::as_str) {
                 if matches!(result_state, "truncated" | "invalid-json" | "incomplete") {
                     model.push_alert("warn", &format!("job {job_id} result {result_state}"));
@@ -4123,10 +4148,12 @@ fn main() -> anyhow::Result<()> {
 
     let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
     let shutdown = supervisor.shutdown(|event| apply_protocol_event(live, event, 0));
-    for status in live.job_status.values_mut() {
-        if status.contains("running") || status == "queued" {
-            *status = "failed".to_string();
-        }
+    let unfinished_jobs: Vec<_> = live.job_status.iter()
+        .filter(|(_, status)| Lifecycle::from_status(status) == Lifecycle::Active)
+        .map(|(id, _)| id.clone()).collect();
+    for id in unfinished_jobs {
+        live.job_status.insert(id.clone(), "failed".to_owned());
+        live.reconcile_terminal_tasks(&id, "failed");
     }
     save_snapshot(&snapshot_path, live);
     execution.and(shutdown)
@@ -4135,6 +4162,63 @@ fn main() -> anyhow::Result<()> {
 #[cfg(test)]
 mod redraw_tests {
     use super::*;
+
+    #[test]
+    fn actual_javascript_unicode_frames_decode_and_settle_terminal_jobs() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let output = Command::new("node").arg("tests/helpers/tui/unicode-frames.js")
+            .current_dir(root).output().expect("launch bounded actual producer fixture");
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert!(output.stdout.len() < 8 * 1024 * 1024);
+        let mut expected = BTreeMap::new();
+        let mut observed = BTreeMap::new();
+        let mut model = model();
+        for line in String::from_utf8(output.stdout).unwrap().lines() {
+            let frame: Value = serde_json::from_str(line).expect("each actual wire frame must decode with serde_json Value");
+            if frame["event"] == "fixture:expected" {
+                expected.insert(frame["jobId"].as_str().unwrap().to_owned(), frame["value"].as_str().unwrap().to_owned());
+                continue;
+            }
+            let rebuilt = handle_chunk_event(&mut model, &frame);
+            if let Some(event) = rebuilt {
+                observed.insert(event["jobId"].as_str().unwrap().to_owned(), event["result"]["value"].as_str().unwrap().to_owned());
+                apply_protocol_event(&mut model, event, 0);
+            }
+        }
+        assert_eq!(observed, expected);
+        assert_eq!(model.telemetry.dropped_chunks, 0);
+        assert_eq!(job_status_counts(&model).0, 0);
+        assert!(model.job_status.values().all(|status| status == "done"));
+    }
+
+    #[test]
+    fn structured_task_status_ignores_messages_and_terminal_owner_closes_only_its_tasks() {
+        for terminal in ["done", "failed", "cancelled"] {
+            let mut model = model();
+            for job in ["owner", "other"] {
+                apply_protocol_event(&mut model, json!({"event":"job:start","jobId":job}), 0);
+                apply_protocol_event(&mut model, json!({"event":"task:progress","jobId":job,"taskId":"live",
+                    "status":"running","message":"batch done failed cancelled.rs"}), 0);
+            }
+            model.update_task_status("owner", "complete", "done", Some("preserved"));
+            assert_eq!(task_status_counts(&model), (2, 0));
+            model.selected_job = Some("owner".into());
+            model.task_filter = TaskFilter::Active;
+            assert!(screen(&model, 80, 24).contains("live"));
+            model.task_filter = TaskFilter::Done;
+            assert!(!screen(&model, 80, 24).contains("batch done failed"));
+            apply_protocol_event(&mut model, json!({"event":"job:end","jobId":"owner","status":terminal}), 0);
+            assert_eq!(task_status_counts(&model), (1, 1));
+            let key = json!(["owner","complete"]).to_string();
+            assert_eq!(model.task_status[&key].status, "done");
+            apply_protocol_event(&mut model, json!({"event":"task:progress","jobId":"owner","taskId":"live","status":"running"}), 0);
+            assert_eq!(task_status_counts(&model), (1, 1), "late progress cannot resurrect terminal ownership");
+            assert!(!matches_job_filter(terminal, JobFilter::Active));
+            apply_protocol_event(&mut model, json!({"event":"job:start","jobId":"owner"}), 0);
+            model.update_task_status("owner", "new", "running", None);
+            assert_eq!(task_status_counts(&model), (2, 0));
+        }
+    }
 
     #[test]
     fn runtime_metrics_update_telemetry_without_entering_user_logs() {

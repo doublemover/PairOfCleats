@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde_json::{json, Map, Value};
+use crate::overlay_viewport::{ReviewViewport, selected_rows};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
@@ -32,7 +33,7 @@ pub(crate) struct WorkflowUi {
     owned_job: Option<String>,
     pending: Option<(String, String)>,
     status: String,
-    scroll: usize,
+    scroll: ReviewViewport,
     next_id: u64,
     early_completion: Option<Value>,
 }
@@ -57,7 +58,7 @@ impl Default for WorkflowUi {
             owned_job: None,
             pending: None,
             status: String::new(),
-            scroll: 0,
+            scroll: ReviewViewport::default(),
             next_id: 1,
             early_completion: None,
         }
@@ -118,6 +119,7 @@ impl WorkflowUi {
             return false;
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('u') {
+            self.scroll.reset();
             if self.page == Page::Scope {
                 self.target.clear();
             }
@@ -126,8 +128,13 @@ impl WorkflowUi {
             }
             return false;
         }
+        if matches!(self.page, Page::Edit | Page::Scope) && matches!(key.code, KeyCode::Char(_) | KeyCode::Backspace) {
+            self.scroll.tail();
+        }
         match self.page {
             Page::Scope => match key.code {
+                KeyCode::Down => self.scroll.down(),
+                KeyCode::Up => self.scroll.up(),
                 KeyCode::Tab => self.workspace = !self.workspace,
                 KeyCode::Esc => return true,
                 KeyCode::Backspace => { self.target.pop(); }
@@ -166,6 +173,8 @@ impl WorkflowUi {
                 _ => {}
             },
             Page::Edit => match key.code {
+                KeyCode::Down => self.scroll.down(),
+                KeyCode::Up => self.scroll.up(),
                 KeyCode::Esc => { self.draft.clear(); self.page = Page::Fields; }
                 KeyCode::Backspace => { self.draft.pop(); }
                 KeyCode::Char(ch) if !ch.is_control() && self.draft.len() < 4096 => self.draft.push(ch),
@@ -191,8 +200,8 @@ impl WorkflowUi {
                     }
                     self.page = Page::Fields; self.preview = None;
                 }
-                KeyCode::Down => self.scroll = self.scroll.saturating_add(1),
-                KeyCode::Up => self.scroll = self.scroll.saturating_sub(1),
+                KeyCode::Down => self.scroll.down(),
+                KeyCode::Up => self.scroll.up(),
                 _ => {}
             },
             Page::Result => match key.code {
@@ -202,8 +211,8 @@ impl WorkflowUi {
                     self.status = format!("Cancellation requested for owned job {id}");
                 },
                 KeyCode::Char('t') => if let Some(scope) = &self.scope { self.request("status", json!({"scopeId":scope["id"]})); },
-                KeyCode::Down => self.scroll = self.scroll.saturating_add(1),
-                KeyCode::Up => self.scroll = self.scroll.saturating_sub(1),
+                KeyCode::Down => self.scroll.down(),
+                KeyCode::Up => self.scroll.up(),
                 _ => {}
             },
         }
@@ -216,7 +225,7 @@ impl WorkflowUi {
                 "resultState":event["resultState"], "error":event["error"], "publicationEvidence":event["workflow"], "result":event["result"]}),
         );
         self.status = "Process ended; inspect publication evidence separately. Artifacts remain in Job inspection.".into();
-        self.scroll = 0;
+        self.scroll.reset();
         self.revision += 1;
     }
 
@@ -297,7 +306,7 @@ impl WorkflowUi {
             "preview" => {
                 self.preview = Some(data.clone());
                 self.page = Page::Preview;
-                self.scroll = 0;
+                self.scroll.reset();
                 self.status = if data["launchable"] == true {
                     "Launch preview ready; Enter confirms, Esc discards".into()
                 } else {
@@ -322,7 +331,7 @@ impl WorkflowUi {
                 self.result = Some(data.clone());
                 self.preview = None;
                 self.page = Page::Result;
-                self.scroll = 0;
+                self.scroll.reset();
                 self.status = "Owned job admitted; c cancels. Process completion alone does not establish readiness.".into();
                 if let Some(end) = self.early_completion.take() {
                     if end["jobId"] == data["jobId"] {
@@ -333,7 +342,7 @@ impl WorkflowUi {
             "status" => {
                 self.result = Some(data.clone());
                 self.page = Page::Result;
-                self.scroll = 0;
+                self.scroll.reset();
                 self.status =
                     "Published generation observation; independent of process success".into();
             }
@@ -346,7 +355,7 @@ impl WorkflowUi {
         true
     }
 
-    pub fn lines(&self, height: usize) -> Vec<String> {
+    pub fn lines(&self, height: usize, width: usize) -> Vec<String> {
         let mut lines = vec![
             format!(
                 "Scope: {}",
@@ -360,17 +369,21 @@ impl WorkflowUi {
         if !self.available {
             lines
                 .push("Index workflows unavailable in replay/passive/disconnected sessions".into());
-            return lines;
+            return lines.into_iter().take(height).map(|line| crate::fit_text(&line, width)).collect();
         }
         match self.page {
-            Page::Scope => lines.extend([format!("Workflow scope: {} | Tab changes kind | Ctrl+U clears | Enter selects | Esc closes", if self.workspace {"workspace file"} else {"repository directory"}), self.target.clone()]),
+            Page::Scope => {
+                lines.push(format!("Workflow scope: {} | Tab kind | Enter selects | Esc closes | arrows review", if self.workspace {"workspace file"} else {"repository directory"}));
+                return self.scroll.lines(lines, &self.target, height, width);
+            }
             Page::Commands => {
                 lines.push("Arrows select | Enter opens typed form | t published status | s scope | Esc closes".into());
-                lines.extend(self.commands().iter().enumerate().map(|(i, command)| format!("{} {} [{}] {}", if i == self.selected {">"} else {" "}, command["id"].as_str().unwrap_or_default(), command["supportTier"].as_str().unwrap_or_default(), command["description"].as_str().unwrap_or_default())));
+                let rows = self.commands().iter().enumerate().map(|(i, command)| format!("{} {} [{}] {}", if i == self.selected {">"} else {" "}, command["id"].as_str().unwrap_or_default(), command["supportTier"].as_str().unwrap_or_default(), command["description"].as_str().unwrap_or_default())).collect();
+                return selected_rows(lines, rows, self.selected, height, width);
             }
             Page::Fields => {
                 lines.push(format!("Typed form: {} | arrows select | Enter edit JSON | Delete unsets | p preview | Esc catalog", self.command.as_ref().and_then(|command| command["id"].as_str()).unwrap_or_default()));
-                let count = height.saturating_sub(9).max(1); let start = self.selected.saturating_sub(count / 2).min(self.fields().len().saturating_sub(count));
+                let count = height.saturating_sub(lines.len() + 2).max(1); let start = self.selected.saturating_sub(count / 2).min(self.fields().len().saturating_sub(count));
                 lines.extend(self.fields().iter().enumerate().skip(start).take(count).map(|(i, field)| {
                     let name = field["name"].as_str().unwrap_or_default();
                     format!("{} {} ({}) = {}", if i == self.selected {">"} else {" "}, name, field["schema"]["type"].as_str().unwrap_or_default(), self.values.get(name).map(Value::to_string).unwrap_or_else(|| format!("unset; default {}", field["default"])))
@@ -378,16 +391,19 @@ impl WorkflowUi {
                 if let Some(field) = self.fields().get(self.selected) { lines.push(format!("{} | required: {}", field["description"].as_str().unwrap_or_default(), field["required"])); }
                 lines.push("Provider/mode and model assets use Settings and canonical build contracts; no separate embeddings command.".into());
             }
-            Page::Edit => lines.extend([format!("Edit {} as JSON | Ctrl+U clears | Enter applies draft | Esc discards", self.fields().get(self.selected).and_then(|field| field["name"].as_str()).unwrap_or_default()), self.draft.clone()]),
+            Page::Edit => {
+                lines.push("Edit JSON | Ctrl+U clears | Enter applies | Esc discards | arrows review".into());
+                let name = self.fields().get(self.selected).and_then(|field| field["name"].as_str()).unwrap_or_default();
+                return self.scroll.lines(lines, &format!("Field: {name}\n{}", self.draft), height, width);
+            }
             Page::Preview | Page::Result => {
                 lines.push(if self.page == Page::Preview {"Review exact scope/argv/readiness | Enter confirms | Esc discards | arrows scroll"} else {"Owned job result | c cancels owned job | t refreshes published status | Esc catalog | arrows scroll"}.into());
                 if let Some(job) = &self.owned_job { lines.push(format!("Owned job: {job}")); }
                 let value = if self.page == Page::Preview { self.preview.as_ref().map(|p| json!({"canonicalArgv":p["canonicalArgv"], "launchable":p["launchable"], "errors":p["errors"], "effect":p["effect"], "observations":p["observations"]})) } else {self.result.clone()};
                 let text = value.and_then(|v| serde_json::to_string_pretty(&v).ok()).unwrap_or_default();
-                let rows: Vec<&str> = text.lines().collect(); let count = height.saturating_sub(lines.len() + 1).max(1);
-                lines.extend(rows.iter().skip(self.scroll.min(rows.len().saturating_sub(count))).take(count).map(|line| line.to_string()));
+                return self.scroll.lines(lines, &format!("Scope: {}\n{text}", self.scope.as_ref().map(Value::to_string).unwrap_or_default()), height, width);
             }
         }
-        lines
+        lines.into_iter().take(height).map(|line| crate::fit_text(&line, width)).collect()
     }
 }
