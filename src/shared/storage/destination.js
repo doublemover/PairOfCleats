@@ -3,7 +3,24 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { assertNoSymlinkPath, verifyContainedFileHandle } from '../contained-file.js';
 import { isPathWithinRoot, isRootPath } from '../file-paths.js';
-import { acquireStorageSession } from './session.js';
+import { acquireStorageSession, isStorageSessionReleaseFailure } from './session.js';
+import { addStorageFailureContext } from './operation-error.js';
+
+const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+const observePending = error => {
+  try {
+    const observe = error?.cacheOwnershipReleased;
+    if (error?.cacheOwnershipPending !== true && typeof observe !== 'function') return null;
+    return () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } };
+  } catch { return () => false; }
+};
+const diagnostic = (error, fallback) => {
+  if (!error) return null;
+  let code = fallback, message = fallback;
+  try { const value = error.code; if (typeof value === 'string') code = value; } catch {}
+  try { const value = error.message; if (typeof value === 'string') message = value; } catch {}
+  return { code, message };
+};
 
 /** Native free-space observation, distinct from allocation or reclaimed bytes. */
 export const inspectStorageFreeSpace = async ({ destination, requiredBytes = 0, minimumFreeBytes = 0 } = {}) => {
@@ -58,9 +75,60 @@ export const probeStorageDestination = async ({ destination, authorizedRoots = [
   let createdDirectory = false;
   let probeFile = null;
   let operationError = null;
-  let cleanupError = null;
-  let resourceSettled = true;
-  let probeRemoved = false;
+  let writeSucceeded = false, closed = false, released = false, reconciling = null, closeMethod = null, closeCaptureError = null;
+  let fileCreated = false, probeRemoved = false;
+  let observerOverflow = false;
+  const cleanupFailures = [], observers = [], observed = new WeakSet();
+  const retainObservation = error => {
+    if (!error || observed.has(error) || isStorageSessionReleaseFailure(error, session)) return;
+    observed.add(error);
+    const observe = observePending(error);
+    if (observe) { if (observers.length < 128) observers.push(observe); else observerOverflow = true; }
+  };
+  const resourcesSettled = () => (!handle || closed) && !observerOverflow && observers.every(observe => observe());
+  const settled = () => released && resourcesSettled();
+  const retainFailure = value => {
+    const error = asError(value);
+    // Bound diagnostic history without weakening the independent observations.
+    // The original operation remains separately available on the receipt.
+    if (cleanupFailures.length === 64) cleanupFailures.splice(1, 1);
+    cleanupFailures.push(error);
+    retainObservation(error);
+    const pending = Object.assign(new Error('Destination probe cleanup remains pending.', { cause: error }), {
+      cacheOwnershipPending: true, cacheOwnershipReleased: settled
+    });
+    return addStorageFailureContext(operationError || error, { storageDestinationProbeSession: recovery, storageSession: session }, pending,
+      { nonEnumerable: ['storageDestinationProbeSession', 'storageSession'] });
+  };
+  const cleanup = async () => {
+    if (settled()) return true;
+    if (handle && !closed) {
+      if (!closeMethod) throw closeCaptureError || new Error('Destination probe descriptor close owner is unavailable.');
+      await closeMethod();
+      closed = true;
+    }
+    if (!resourcesSettled()) throw new Error('Original destination probe resource observation remains pending.');
+    if (fileCreated && !probeRemoved) {
+      if (!identity) throw new Error('Destination probe file identity was not established; unsealed evidence is preserved.');
+      assertNoSymlinkPath(path.parse(target).root, probeFile);
+      const current = await fs.lstat(probeFile, { bigint: true });
+      if (!current.isFile() || current.isSymbolicLink() || current.dev !== identity.dev || current.ino !== identity.ino || current.nlink !== 1n) {
+        throw new Error('Probe file changed; replacement is preserved.');
+      }
+      await fs.unlink(probeFile);
+      probeRemoved = true;
+    }
+    if (session.releaseAfterSettlement({ resourceId: id, settled: true, pending: false }) !== true) {
+      throw new Error('Destination probe storage metadata release was not confirmed.');
+    }
+    released = true;
+    return true;
+  };
+  const recovery = Object.freeze({ resourceId: id, releaseAfterClose: async () => {
+    if (!reconciling) reconciling = cleanup().finally(() => { reconciling = null; });
+    try { return await reconciling; }
+    catch (error) { throw retainFailure(error); }
+  } });
   try {
     try {
       const stat = await fs.lstat(target);
@@ -74,6 +142,9 @@ export const probeStorageDestination = async ({ destination, authorizedRoots = [
     const directoryIdentity = await fs.lstat(target, { bigint: true });
     probeFile = path.join(target, `.poc-storage-probe-${id}`);
     handle = await fs.open(probeFile, 'wx+', 0o600);
+    fileCreated = true;
+    try { const close = handle.close; if (typeof close !== 'function') throw new Error('Destination probe descriptor has no close owner.'); closeMethod = close.bind(handle); }
+    catch (error) { closeCaptureError = asError(error); }
     const before = await handle.stat({ bigint: true });
     identity = { dev: before.dev, ino: before.ino };
     verifyContainedFileHandle(handle, target, probeFile);
@@ -86,31 +157,17 @@ export const probeStorageDestination = async ({ destination, authorizedRoots = [
     const { bytesRead } = await handle.read(read, 0, read.length, 0);
     verifyContainedFileHandle(handle, target, probeFile);
     if (bytesRead !== payload.length || !read.equals(payload)) throw new Error('Destination probe read-back did not match its exact write.');
-  } catch (error) { operationError = error; }
-  finally {
-    if (handle) await handle.close().catch(error => { cleanupError = error; resourceSettled = false; });
-    if (probeFile && identity) {
-      try {
-        assertNoSymlinkPath(path.parse(target).root, probeFile);
-        const current = await fs.lstat(probeFile, { bigint: true });
-        if (!current.isFile() || current.dev !== identity.dev || current.ino !== identity.ino || current.nlink !== 1n) {
-          throw new Error('Probe file changed; replacement is preserved.');
-        }
-        await fs.unlink(probeFile);
-        probeRemoved = true;
-      } catch (error) { cleanupError = error; }
-    }
-    // All writes are local file operations with settled callbacks and closed
-    // handles; a failed unlink is retained evidence, not a running writer.
-    if (resourceSettled) session.releaseAfterSettlement({ resourceId: id, settled: true, pending: false });
-  }
-  const receipt = { schemaVersion: 1, destination: target, writable: !operationError,
+    writeSucceeded = true;
+  } catch (value) { operationError = asError(value); retainObservation(operationError); }
+  try { await recovery.releaseAfterClose(); } catch { /* The exact owner and all failures remain on the structured receipt. */ }
+  const receipt = { schemaVersion: 1, destination: target, get writable() { return writeSucceeded && settled(); },
     observedAt: new Date().toISOString(), createdDirectory, mutationPerformed: true,
-    probeFileRemoved: probeRemoved, cleanupPending: Boolean(cleanupError), cacheOwnershipPending: !resourceSettled,
-    recoveryPath: cleanupError ? probeFile : null,
-    error: operationError ? { code: operationError.code || 'ERR_STORAGE_DESTINATION_PROBE', message: operationError.message } : null,
-    cleanupError: cleanupError ? { code: cleanupError.code || 'ERR_STORAGE_PROBE_CLEANUP', message: cleanupError.message } : null,
+    get probeFileRemoved() { return probeRemoved; }, get cleanupPending() { return !settled(); }, get cacheOwnershipPending() { return !settled(); },
+    get recoveryPath() { return settled() ? null : probeFile || coordinationRoot; },
+    error: diagnostic(operationError, 'ERR_STORAGE_DESTINATION_PROBE'),
+    get cleanupError() { return settled() ? null : diagnostic(cleanupFailures.at(-1), 'ERR_STORAGE_PROBE_CLEANUP'); },
     ownershipAdopted: false, configurationChanged: false };
-  if (!resourceSettled) Object.defineProperty(receipt, 'storageSession', { value: session });
+  if (!settled()) Object.defineProperties(receipt, { storageSession: { value: session }, storageDestinationProbeSession: { value: recovery },
+    operationError: { value: operationError }, cleanupFailures: { get: () => [...cleanupFailures] }, cacheOwnershipReleased: { value: settled } });
   return receipt;
 };
