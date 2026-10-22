@@ -1,5 +1,8 @@
 /** Protect literal contents before applying type-expression whitespace/alias rules. */
 const protectTypeLiterals = input => {
+  // NUL is the private placeholder delimiter. Preserve unexpected input rather
+  // than allowing a provider string to impersonate another literal's token.
+  if (input.includes('\u0000')) return null;
   const literals = [];
   let masked = '';
   for (let index = 0; index < input.length;) {
@@ -22,61 +25,77 @@ const protectTypeLiterals = input => {
 const normalizePythonConstructors = text => {
   const matching = { '[': ']', '(': ')', '{': '}', '<': '>' };
   const closers = new Set(Object.values(matching));
-  const findEnd = (input, start) => {
-    const stack = [matching[input[start]]];
-    for (let index = start + 1; index < input.length; index += 1) {
-      const char = input[index];
-      if (matching[char]) stack.push(matching[char]);
-      else if (closers.has(char) && stack.pop() !== char) return -1;
-      if (!stack.length) return index;
+  // Provider type text is untrusted. Bound recursive normalization and preserve
+  // the original expression when structure exceeds this owner's allowance.
+  if (text.length > 65536) return null;
+  const pairs = new Map();
+  const stack = [];
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (matching[char]) {
+      if (stack.length >= 128) return null;
+      stack.push(index);
+    } else if (closers.has(char)) {
+      const open = stack.pop();
+      if (open == null || matching[text[open]] !== char) return null;
+      pairs.set(open, index);
     }
-    return -1;
-  };
-  const splitArguments = input => {
+  }
+  if (stack.length) return null;
+  const splitArguments = (start, end) => {
     const parts = [];
-    let start = 0;
-    for (let index = 0; index < input.length; index += 1) {
-      if (matching[input[index]]) { index = findEnd(input, index); if (index < 0) return null; }
-      else if (input[index] === ',') { parts.push(input.slice(start, index).trim()); start = index + 1; }
+    let partStart = start;
+    for (let index = start; index < end; index += 1) {
+      if (matching[text[index]]) index = pairs.get(index);
+      else if (text[index] === ',') { parts.push([partStart, index]); partStart = index + 1; }
     }
-    parts.push(input.slice(start).trim());
-    return parts.every(Boolean) ? parts : null;
+    parts.push([partStart, end]);
+    return parts.every(([from, to]) => text.slice(from, to).trim()) ? parts : null;
   };
-  const rewrite = input => {
+  const builtins = new Set(['bool', 'int', 'str', 'bytes', 'bytearray', 'memoryview',
+    'list', 'dict', 'set', 'frozenset', 'tuple', 'object', 'type', 'complex', 'float',
+    'range', 'slice']);
+  const aliases = { boolean: 'bool', integer: 'int', string: 'str' };
+  const identifierPattern = /[\p{ID_Start}_][\p{ID_Continue}]*(?:\s*\.\s*[\p{ID_Start}_][\p{ID_Continue}]*)*/uy;
+  const rewrite = (start, end) => {
     let result = '';
-    for (let index = 0; index < input.length;) {
-      const identifier = /^[A-Za-z_][A-Za-z_0-9]*/.exec(input.slice(index));
+    for (let index = start; index < end;) {
+      identifierPattern.lastIndex = index;
+      const identifier = identifierPattern.exec(text);
       if (identifier) {
-        const name = identifier[0];
-        index += name.length;
-        const spacing = /^\s*/.exec(input.slice(index))[0];
-        const open = index + spacing.length;
-        if (input[open] === '[') {
-          const end = findEnd(input, open);
-          if (end < 0) return null;
-          const inner = rewrite(input.slice(open + 1, end));
-          if (inner == null) return null;
-          const args = splitArguments(inner);
-          if (name === 'Optional' && args?.length === 1) result += args[0] + ' | None';
-          else if (name === 'Union' && args?.length) result += args.join(' | ');
-          else result += name + '[' + inner + ']';
-          index = end + 1;
+        const rawName = identifier[0].replace(/\s+/gu, '');
+        const parts = rawName.split('.');
+        const typingOwned = parts.length === 2 && ['typing', 'typing_extensions'].includes(parts[0]);
+        let name = typingOwned ? parts[1] : rawName;
+        if (parts.length === 2 && parts[0] === 'builtins' && builtins.has(parts[1])) name = parts[1];
+        if (parts.length === 1 && Object.hasOwn(aliases, name)) name = aliases[name];
+        index = identifierPattern.lastIndex;
+        let open = index;
+        while (open < end && /\s/u.test(text[open])) open += 1;
+        if (text[open] === '[') {
+          const close = pairs.get(open);
+          const args = splitArguments(open + 1, close);
+          const constructorOwned = parts.length === 1 || typingOwned;
+          if (constructorOwned && name === 'Union' && args?.length) {
+            result += args.map(([from, to]) => rewrite(from, to).trim()).join(' | ');
+          } else {
+            const inner = rewrite(open + 1, close);
+            if (constructorOwned && name === 'Optional' && args?.length === 1) result += inner.trim() + ' | None';
+            else result += name + '[' + inner + ']';
+          }
+          index = close + 1;
         } else result += name;
         continue;
       }
-      if (matching[input[index]]) {
-        const end = findEnd(input, index);
-        if (end < 0) return null;
-        const inner = rewrite(input.slice(index + 1, end));
-        if (inner == null) return null;
-        result += input[index] + inner + input[end]; index = end + 1; continue;
+      if (matching[text[index]]) {
+        const close = pairs.get(index);
+        result += text[index] + rewrite(index + 1, close) + text[close]; index = close + 1; continue;
       }
-      if (closers.has(input[index])) return null;
-      result += input[index++];
+      result += text[index++];
     }
     return result;
   };
-  return rewrite(text);
+  return rewrite(0, text.length);
 };
 
 const normalizeWhitespace = (value) => String(value || '').replace(/\s+/gu, ' ').trim();
@@ -84,9 +103,7 @@ const normalizeWhitespace = (value) => String(value || '').replace(/\s+/gu, ' ')
 const stripKnownPrefixes = (text, languageId) => {
   let next = String(text || '');
   const lang = String(languageId || '').trim().toLowerCase();
-  if (lang === 'python') {
-    next = next.replace(/\b(?:typing|typing_extensions|builtins)\./gu, '');
-  } else if (lang === 'csharp' || lang === 'cs') {
+  if (lang === 'csharp' || lang === 'cs') {
     next = next.replace(/\bglobal::/gu, '');
   } else if (lang === 'rust') {
     next = next.replace(/\b(?:std|core|alloc|crate|self|super)::/gu, '');
@@ -111,18 +128,17 @@ const normalizeLanguageAliases = (text, languageId) => {
   if (!text) return '';
   let next = String(text);
   if (lang === 'python') {
-    next = next
-      .replace(/\bboolean\b/gu, 'bool')
-      .replace(/\binteger\b/gu, 'int')
-      .replace(/\bstring\b/gu, 'str');
     next = normalizePythonConstructors(next);
   } else if (lang === 'javascript' || lang === 'typescript' || lang === 'tsx' || lang === 'jsx') {
     next = next
-      .replace(/\binteger\b/gu, 'number')
-      .replace(/\bfloat\b/gu, 'number')
-      .replace(/\bString\b/gu, 'string')
-      .replace(/\bBoolean\b/gu, 'boolean')
-      .replace(/\bNumber\b/gu, 'number');
+      .replace(/(?<![\p{ID_Continue}$\u200c\u200d.])(integer|float|String|Boolean|Number)(?![\p{ID_Continue}$\u200c\u200d]|\s*\.)/gu,
+        (name, _alias, offset, input) => {
+          // A separated dot still belongs to a qualified name.
+          let previous = offset - 1;
+          while (previous >= 0 && /\s/u.test(input[previous])) previous -= 1;
+          if (input[previous] === '.') return name;
+          return { integer: 'number', float: 'number', String: 'string', Boolean: 'boolean', Number: 'number' }[name];
+        });
   }
   return next;
 };
