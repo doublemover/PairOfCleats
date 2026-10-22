@@ -3,6 +3,8 @@ import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js'
 await guardBootstrapEntry(import.meta.url);
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { resolveToolRoot } from '../../shared/dict-utils.js';
+import { verifyMapViewerModuleGraph } from './module-graph.js';
 
 const { buildCodeMap } = await import('../../../src/map/build-map.js');
 const { renderIsometricHtml } = await import('../../../src/map/isometric-viewer.js');
@@ -55,7 +57,13 @@ const outPath = argv.out
 await fsPromises.mkdir(path.dirname(outPath), { recursive: true });
 await fsPromises.writeFile(outPath, html);
 
-const { url } = await startMapViewerStaticServer({ outPath, port: argv.port });
-console.error('Map viewer FPS benchmark ready.');
+const listener = await startMapViewerStaticServer({ outPath, port: argv.port });
+const { url } = listener;
+try { await verifyMapViewerModuleGraph({ url, toolRoot: resolveToolRoot() }); }
+catch (error) { await listener.close(); throw error; }
+for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, async () => {
+  try { await listener.close(); } catch (error) { console.error(error.message); process.exitCode = 1; }
+});
+console.error('Map viewer FPS: listener-ready and module-graph-ready. Rendered viewer/FPS qualification has not run.');
 console.error(`- Open: ${url}`);
 console.error('- Let the scene settle for 10s, then record the perf HUD stats.');

@@ -8,7 +8,8 @@ import { createCli } from '../../src/shared/cli.js';
 import selfsigned from 'selfsigned';
 import { bootstrapRuntime, resolveToolRoot } from '../shared/dict-utils.js';
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
-import { decodePathnameSafe, safeJoinUnderBase } from './map-iso-safe-join.js';
+import { resolveMapViewerAsset } from './map-viewer-assets.js';
+import { decodePathnameSafe } from './map-iso-safe-join.js';
 import { serveMapIsoStaticFileOr404 } from './map-iso-static.js';
 
 const argv = createCli({
@@ -88,12 +89,6 @@ const openBrowser = (url) => {
 runReport();
 
 const { key, cert } = await ensureCert(certDir);
-const threeRoot = path.join(toolRoot, 'node_modules', 'three');
-const threeBuildRoot = path.join(threeRoot, 'build');
-const threeExamplesRoot = path.join(threeRoot, 'examples');
-const isomapAssetsRoot = path.join(toolRoot, 'assets', 'isomap');
-const isomapClientRoot = path.join(toolRoot, 'src', 'map', 'isometric', 'client');
-
 const server = https.createServer({ key, cert }, (req, res) => {
   const url = new URL(req.url || '/', 'https://localhost');
   const pathname = decodePathnameSafe(url.pathname || '/');
@@ -106,67 +101,26 @@ const server = https.createServer({ key, cert }, (req, res) => {
     serveMapIsoStaticFileOr404(res, outPath, 'map.iso.html not found.');
     return;
   }
-  if (pathname.startsWith('/three/examples/')) {
-    const relativePath = pathname.replace('/three/examples/', '');
-    const targetPath = safeJoinUnderBase(threeExamplesRoot, relativePath);
-    if (!targetPath) {
-      res.writeHead(404);
-      res.end('three.js example asset not found.');
-      return;
-    }
-    serveMapIsoStaticFileOr404(res, targetPath, 'three.js example asset not found.');
-    return;
-  }
-  if (pathname.startsWith('/three/')) {
-    const relativePath = pathname.replace('/three/', '');
-    const targetPath = safeJoinUnderBase(threeBuildRoot, relativePath);
-    if (!targetPath) {
-      res.writeHead(404);
-      res.end('three.js asset not found.');
-      return;
-    }
-    serveMapIsoStaticFileOr404(res, targetPath, 'three.js asset not found.');
-    return;
-  }
-  if (pathname.startsWith('/assets/isomap/')) {
-    const relativePath = pathname.replace('/assets/isomap/', '');
-    const targetPath = safeJoinUnderBase(isomapAssetsRoot, relativePath);
-    if (!targetPath) {
-      res.writeHead(404);
-      res.end('isomap asset not found.');
-      return;
-    }
-    serveMapIsoStaticFileOr404(res, targetPath, 'isomap asset not found.');
-    return;
-  }
-  const sharedAssets = {
-    '/shared/config.js': path.join(toolRoot, 'src/shared/config.js'),
-    '/shared/iterables.js': path.join(toolRoot, 'src/shared/iterables.js'),
-    '/workspace/inspect.js': path.join(toolRoot, 'src/map/workspace/inspect.js')
-  };
-  if (Object.hasOwn(sharedAssets, pathname)) {
-    serveMapIsoStaticFileOr404(res, sharedAssets[pathname], 'shared viewer module not found.');
-    return;
-  }
-  if (pathname.startsWith('/isomap/')) {
-    const relativePath = pathname.replace('/isomap/', '');
-    const targetPath = safeJoinUnderBase(isomapClientRoot, relativePath);
-    if (!targetPath) {
-      res.writeHead(404);
-      res.end('isomap client asset not found.');
-      return;
-    }
-    serveMapIsoStaticFileOr404(res, targetPath, 'isomap client asset not found.');
+  const targetPath = resolveMapViewerAsset(toolRoot, pathname);
+  if (targetPath) {
+    serveMapIsoStaticFileOr404(res, targetPath, 'viewer asset not found.');
     return;
   }
   res.writeHead(404);
   res.end('Not found.');
 });
 
-server.listen(port, '127.0.0.1', () => {
-  const address = server.address();
-  const actualPort = typeof address === 'object' && address ? address.port : port;
-  const url = `https://localhost:${actualPort}/map.iso.html`;
-  console.error(`Serving map: ${url}`);
-  openBrowser(url);
+await new Promise((resolve, reject) => {
+  server.once('error', reject);
+  server.listen(port, '127.0.0.1', resolve);
 });
+const close = () => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, async () => {
+  try { await close(); process.exitCode = 0; } catch (error) { console.error(error.message); process.exitCode = 1; }
+});
+const address = server.address();
+const actualPort = typeof address === 'object' && address ? address.port : port;
+const url = `https://localhost:${actualPort}/map.iso.html`;
+console.error(`Serving map: ${url}`);
+console.error('Readiness: listener-ready; rendered viewer qualification is separate.');
+openBrowser(url);
