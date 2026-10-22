@@ -10,7 +10,6 @@ import {
   hasRequiredTables,
   recordSqlitePlanTelemetry,
   recordSqliteWalSnapshot,
-  removeSqliteSidecars,
   resolveExpectedDenseCount,
   resolveSqliteIngestPlan,
   bumpSqliteBatchStat
@@ -185,7 +184,7 @@ export async function incrementalUpdateDatabase({
   /**
    * Ensure sqlite resources are cleaned up for every exit path.
    * This includes WAL checkpoint best-effort, pragma restoration, close, and
-   * sidecar cleanup.
+   * SQLite-owned WAL lifecycle.
    *
    * @returns {Promise<void>}
    */
@@ -211,9 +210,6 @@ export async function incrementalUpdateDatabase({
     }
     try {
       db.close();
-    } catch {}
-    try {
-      await removeSqliteSidecars(outPath);
     } catch {}
   };
   try {

@@ -568,6 +568,13 @@ export function checkpointSqliteWithTelemetry(
   const start = performance.now();
   const before = dbPath ? readSqliteFileSizes(dbPath) : { dbBytes: 0, walBytes: 0, shmBytes: 0 };
   const result = db.pragma(`wal_checkpoint(${mode})`);
+  const checkpoint = Array.isArray(result) ? result[0] : result;
+  if (Number(checkpoint?.busy) !== 0) {
+    const error = new Error(`[sqlite] ${mode} checkpoint did not complete${dbPath ? `: ${dbPath}` : ''}.`);
+    error.code = 'ERR_SQLITE_CHECKPOINT_BUSY';
+    error.checkpoint = result;
+    throw error;
+  }
   const durationMs = performance.now() - start;
   const after = dbPath ? readSqliteFileSizes(dbPath) : { dbBytes: 0, walBytes: 0, shmBytes: 0 };
   const telemetry = getOrCreateSqliteRuntimeTelemetry(stats);
@@ -948,6 +955,28 @@ export async function loadIndex(dir, modelId) {
 
 const SQLITE_SIDECARS = ['-wal', '-shm'];
 
+// A committed WAL belongs to its main database. Fold it through SQLite before
+// any rename so rollback and retained backups are independently queryable.
+const settleSqliteForPublication = async (dbPath) => {
+  if (!SQLITE_SIDECARS.some(suffix => fs.existsSync(`${dbPath}${suffix}`))) return;
+  if (!fs.existsSync(dbPath)) {
+    throw Object.assign(new Error(`[sqlite] Orphaned WAL recovery requires its original database: ${dbPath}`),
+      { code: 'ERR_SQLITE_RECOVERY_REQUIRED' });
+  }
+  const { default: Database } = await import('better-sqlite3');
+  const db = new Database(dbPath, { fileMustExist: true, timeout: 0 });
+  try {
+    checkpointSqliteWithTelemetry(db, { dbPath, mode: 'TRUNCATE' });
+    const mode = db.pragma('journal_mode = DELETE', { simple: true });
+    if (String(mode).toLowerCase() !== 'delete') {
+      throw Object.assign(new Error(`[sqlite] Could not coordinate WAL publication: ${dbPath}`),
+        { code: 'ERR_SQLITE_PUBLICATION_BUSY' });
+    }
+  } finally {
+    db.close();
+  }
+};
+
 /**
  * Remove SQLite WAL/SHM sidecar files for a database path.
  * @param {string} basePath
@@ -1044,14 +1073,15 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     }
   };
 
-  await removeSqliteSidecars(tempDbPath, { logger: options.logger || null });
-  await removeSqliteSidecars(finalDbPath, { logger: options.logger || null });
+  await settleSqliteForPublication(tempDbPath);
+  await settleSqliteForPublication(finalDbPath);
   throwIfAborted(options.signal);
 
   let backupAvailable = fs.existsSync(backupPath);
   let backupFromCurrentFinal = false;
   if (finalExists) {
     if (backupAvailable) {
+      await settleSqliteForPublication(backupPath);
       await removeFileWithDiagnostics(backupPath, {
         context: 'existing backup',
         swallow: false
@@ -1137,12 +1167,4 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
       swallow: true
     });
   }
-  await removeSqliteSidecars(finalDbPath, {
-    logger: options.logger || null,
-    swallowNonBenign: true
-  });
-  await removeSqliteSidecars(backupPath, {
-    logger: options.logger || null,
-    swallowNonBenign: true
-  });
 }
