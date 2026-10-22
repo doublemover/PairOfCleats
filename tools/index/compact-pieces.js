@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { createCli } from '../../src/shared/cli.js';
 import { writeJsonLinesFile } from '../../src/shared/json-stream/jsonl-write.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
@@ -12,8 +13,8 @@ import {
   CHUNK_META_PARTS_DIR,
   TOKEN_POSTINGS_PART_PREFIX,
   TOKEN_POSTINGS_SHARDS_DIR,
-  expandMetaPartPaths,
-  listShardFiles
+  loadPiecesManifest,
+  resolveManifestArtifactSources
 } from '../../src/shared/artifact-io/manifest.js';
 import { fromPosix } from '../../src/shared/file-paths.js';
 import {
@@ -21,7 +22,8 @@ import {
   readJson,
   resolveChunkMetaShardedLayout
 } from '../../src/storage/sqlite/build/from-artifacts/sources.js';
-import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
+import { getIndexDir, getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
+import { acquireIndexLock } from '../../src/index/build/lock.js';
 
 const argv = createCli({
   scriptName: 'compact-pieces',
@@ -51,27 +53,10 @@ const preserveCompactedExtensions = (extensions) => {
 };
 
 const resolveTokenPostingsParts = async (indexDir) => {
-  const metaPath = path.join(indexDir, 'token_postings.meta.json');
-  const shardsDir = path.join(indexDir, TOKEN_POSTINGS_SHARDS_DIR);
-  if (!fsSync.existsSync(metaPath) && !fsSync.existsSync(shardsDir)) return null;
-  let parts = [];
-  let metaFields = null;
-  let metaArrays = null;
-  if (fsSync.existsSync(metaPath)) {
-    const meta = await readJson(metaPath);
-    metaFields = meta.fields || meta;
-    metaArrays = meta.arrays || meta;
-    parts = expandMetaPartPaths(metaFields.parts, indexDir);
-  }
-  if (!parts.length) {
-    parts = listShardFiles(
-      shardsDir,
-      TOKEN_POSTINGS_PART_PREFIX,
-      ['.json', '.json.gz', '.json.zst']
-    );
-  }
-  if (!parts.length) return null;
-  return { metaPath, shardsDir, parts, metaFields, metaArrays };
+  const manifest = loadPiecesManifest(indexDir, { strict: true });
+  const selected = resolveManifestArtifactSources({ dir: indexDir, manifest, name: 'token_postings', strict: true });
+  if (selected?.format !== 'sharded' || !selected.paths?.length) return null;
+  return { parts: selected.paths, metaFields: selected.meta, metaArrays: selected.meta };
 };
 
 const appendAudit = async (indexDir, line) => {
@@ -82,35 +67,13 @@ const appendAudit = async (indexDir, line) => {
   await fs.appendFile(logPath, `${line}\n`);
 };
 
-const replaceDirAtomic = async (sourceDir, targetDir) => {
-  if (dryRun) return;
-  const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  const backupDir = `${targetDir}.bak-${suffix}`;
-  await fs.rm(backupDir, { recursive: true, force: true });
-  const hasTarget = fsSync.existsSync(targetDir);
-  if (hasTarget) {
-    await fs.rename(targetDir, backupDir);
-  }
-  try {
-    await fs.rename(sourceDir, targetDir);
-    if (hasTarget) {
-      await fs.rm(backupDir, { recursive: true, force: true });
-    }
-  } catch (err) {
-    if (hasTarget) {
-      try {
-        await fs.rename(backupDir, targetDir);
-      } catch {}
-      await fs.rm(backupDir, { recursive: true, force: true });
-    }
-    throw err;
-  }
-};
-
-const compactChunkMeta = async (indexDir, targetSize) => {
-  const resolved = resolveChunkMetaShardedLayout(indexDir);
+const compactChunkMeta = async (indexDir, targetSize, generation) => {
+  const manifest = loadPiecesManifest(indexDir, { strict: true });
+  const selected = resolveManifestArtifactSources({ dir: indexDir, manifest, name: 'chunk_meta', strict: true });
+  if (selected?.format !== 'sharded') return null;
+  const resolved = resolveChunkMetaShardedLayout(indexDir, { ...selected, format: 'jsonl', dir: indexDir });
   if (!resolved) return null;
-  const { metaPath, partsDir, parts, metaFields, sources } = resolved;
+  const { parts, metaFields, sources } = resolved;
   const totalChunks = Number.isFinite(metaFields?.totalRecords)
     ? metaFields.totalRecords
     : (Number.isFinite(metaFields?.totalChunks) ? metaFields.totalChunks : null);
@@ -121,9 +84,11 @@ const compactChunkMeta = async (indexDir, targetSize) => {
       : (Number.isFinite(metaFields?.shardSize) ? metaFields.shardSize : 100000));
   if (parts.length <= 1 || target <= 0) return null;
 
-  const tmpDir = path.join(indexDir, `${CHUNK_META_PARTS_DIR}.compact`);
+  const partsRel = path.posix.join(generation, CHUNK_META_PARTS_DIR);
+  const metaRel = path.posix.join(generation, 'chunk_meta.meta.json');
+  const metaPath = path.join(indexDir, fromPosix(metaRel));
+  const tmpDir = path.join(indexDir, fromPosix(partsRel));
   if (!dryRun) {
-    await fs.rm(tmpDir, { recursive: true, force: true });
     await fs.mkdir(tmpDir, { recursive: true });
   }
   const newParts = [];
@@ -137,7 +102,7 @@ const compactChunkMeta = async (indexDir, targetSize) => {
   const flush = async () => {
     if (!buffer.length) return;
     const name = `${CHUNK_META_PART_PREFIX}${String(partIndex).padStart(5, '0')}.jsonl`;
-    const relPath = path.posix.join(CHUNK_META_PARTS_DIR, name);
+    const relPath = path.posix.join(partsRel, name);
     const outPath = path.join(tmpDir, name);
     let outBytes = 0;
     if (!dryRun) {
@@ -165,7 +130,6 @@ const compactChunkMeta = async (indexDir, targetSize) => {
     throw new Error(`chunk_meta count mismatch (${total} !== ${totalChunks})`);
   }
   if (!dryRun) {
-    await replaceDirAtomic(tmpDir, partsDir);
     await writeJsonObjectFile(metaPath, {
       fields: withGeneratedArtifactMetadata({
         schemaVersion: '0.0.1',
@@ -193,6 +157,7 @@ const compactChunkMeta = async (indexDir, targetSize) => {
     type: 'chunks',
     name: 'chunk_meta',
     metaName: 'chunk_meta_meta',
+    metaRel,
     parts: newParts,
     counts: newCounts,
     durationMs,
@@ -200,18 +165,20 @@ const compactChunkMeta = async (indexDir, targetSize) => {
   };
 };
 
-const compactTokenPostings = async (indexDir, targetSize) => {
+const compactTokenPostings = async (indexDir, targetSize, generation) => {
   const resolved = await resolveTokenPostingsParts(indexDir);
   if (!resolved) return null;
-  const { metaPath, shardsDir, parts, metaFields, metaArrays } = resolved;
+  const { parts, metaFields, metaArrays } = resolved;
   const target = Number.isFinite(Number(targetSize)) && Number(targetSize) > 0
     ? Math.floor(Number(targetSize))
     : (Number.isFinite(metaFields?.shardSize) ? metaFields.shardSize : 50000);
   if (parts.length <= 1 || target <= 0) return null;
 
-  const tmpDir = path.join(indexDir, `${TOKEN_POSTINGS_SHARDS_DIR}.compact`);
+  const partsRel = path.posix.join(generation, TOKEN_POSTINGS_SHARDS_DIR);
+  const metaRel = path.posix.join(generation, 'token_postings.meta.json');
+  const metaPath = path.join(indexDir, fromPosix(metaRel));
+  const tmpDir = path.join(indexDir, fromPosix(partsRel));
   if (!dryRun) {
-    await fs.rm(tmpDir, { recursive: true, force: true });
     await fs.mkdir(tmpDir, { recursive: true });
   }
   const newParts = [];
@@ -225,7 +192,7 @@ const compactTokenPostings = async (indexDir, targetSize) => {
   const flush = async () => {
     if (!vocabBuffer.length) return;
     const name = `${TOKEN_POSTINGS_PART_PREFIX}${String(partIndex).padStart(5, '0')}.json`;
-    const relPath = path.posix.join(TOKEN_POSTINGS_SHARDS_DIR, name);
+    const relPath = path.posix.join(partsRel, name);
     const outPath = path.join(tmpDir, name);
     if (!dryRun) {
       await writeJsonObjectFile(outPath, {
@@ -279,7 +246,6 @@ const compactTokenPostings = async (indexDir, targetSize) => {
     throw new Error(`token_postings vocab mismatch (${vocabCount} !== ${metaFields.vocabCount})`);
   }
   if (!dryRun) {
-    await replaceDirAtomic(tmpDir, shardsDir);
     await writeJsonObjectFile(metaPath, {
       fields: withGeneratedArtifactMetadata({
         avgDocLen,
@@ -299,6 +265,7 @@ const compactTokenPostings = async (indexDir, targetSize) => {
     type: 'postings',
     name: 'token_postings',
     metaName: 'token_postings_meta',
+    metaRel,
     parts: newParts,
     counts: newCounts,
     durationMs,
@@ -307,7 +274,7 @@ const compactTokenPostings = async (indexDir, targetSize) => {
 };
 
 const updateManifest = async (indexDir, updates) => {
-  if (!updates?.length) return;
+  if (!updates?.length || dryRun) return;
   const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
   if (!fsSync.existsSync(manifestPath)) return;
   const manifestRaw = await readJson(manifestPath);
@@ -323,7 +290,7 @@ const updateManifest = async (indexDir, updates) => {
   const newPieces = [...retained];
   const priorPiecesByKey = new Map(pieces.map((piece) => [`${piece?.name}|${piece?.path}`, piece]));
   const priorExtensions = (name, relPath) => preserveCompactedExtensions(
-    priorPiecesByKey.get(`${name}|${relPath}`)?.extensions
+    (priorPiecesByKey.get(`${name}|${relPath}`) || pieces.find(piece => piece?.name === name))?.extensions
   );
   for (const update of updates) {
     for (let i = 0; i < update.parts.length; i++) {
@@ -344,7 +311,7 @@ const updateManifest = async (indexDir, updates) => {
         checksum: checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : null
       });
     }
-    const metaRel = update.type === 'chunks' ? 'chunk_meta.meta.json' : 'token_postings.meta.json';
+    const metaRel = update.metaRel;
     const metaAbs = path.join(indexDir, metaRel);
     if (fsSync.existsSync(metaAbs)) {
       const stat = await fs.stat(metaAbs);
@@ -374,42 +341,55 @@ const updateManifest = async (indexDir, updates) => {
   }
 };
 
-for (const mode of modes) {
-  const indexDir = getIndexDir(root, mode, userConfig);
-  const chunkMetaTarget = argv['chunk-meta-size'];
-  const tokenPostingsTarget = argv['token-postings-size'];
-  const updates = [];
-  const chunkUpdate = await compactChunkMeta(indexDir, chunkMetaTarget);
-  if (chunkUpdate) {
-    updates.push(chunkUpdate);
-    await appendAudit(indexDir, `${new Date().toISOString()} chunk_meta compacted: parts=${chunkUpdate.parts.length}`);
-  }
-  const tokenUpdate = await compactTokenPostings(indexDir, tokenPostingsTarget);
-  if (tokenUpdate) {
-    updates.push(tokenUpdate);
-    await appendAudit(indexDir, `${new Date().toISOString()} token_postings compacted: parts=${tokenUpdate.parts.length}`);
-  }
-  if (updates.length) {
-    await updateManifest(indexDir, updates);
-  }
-  if (!updates.length) {
-    console.error(`[pieces] ${mode}: no compaction needed.`);
-  } else {
-    console.error(`[pieces] ${mode}: compaction ${dryRun ? 'planned' : 'complete'}.`);
-  }
-  if (argv.perf && updates.length) {
-    const formatPerf = (label, update) => {
-      const ms = Number(update?.durationMs) || 0;
-      const total = Number(update?.totalEntries) || 0;
-      const perSec = ms > 0 ? Math.round((total / ms) * 1000) : 0;
-      return `[perf] ${mode} ${label}: ${total.toLocaleString()} entries in ${ms}ms (${perSec.toLocaleString()}/s)`;
-    };
-    for (const update of updates) {
-      if (update.name === 'chunk_meta') {
-        console.error(formatPerf('chunk_meta', update));
-      } else if (update.name === 'token_postings') {
-        console.error(formatPerf('token_postings', update));
+const compactModes = async () => {
+  for (const mode of modes) {
+    const indexDir = getIndexDir(root, mode, userConfig);
+    // The existing manifest is the only commit boundary. Immutable generation
+    // files remain safe for readers holding either the old or new manifest.
+    loadPiecesManifest(indexDir, { strict: true });
+    const generation = `compaction-${randomUUID()}`;
+    const chunkMetaTarget = argv['chunk-meta-size'];
+    const tokenPostingsTarget = argv['token-postings-size'];
+    const updates = [];
+    const chunkUpdate = await compactChunkMeta(indexDir, chunkMetaTarget, generation);
+    if (chunkUpdate) {
+      updates.push(chunkUpdate);
+    }
+    const tokenUpdate = await compactTokenPostings(indexDir, tokenPostingsTarget, generation);
+    if (tokenUpdate) {
+      updates.push(tokenUpdate);
+    }
+    if (updates.length) {
+      await updateManifest(indexDir, updates);
+      for (const update of updates) {
+        await appendAudit(indexDir, `${new Date().toISOString()} ${update.name} compacted: parts=${update.parts.length}`);
+      }
+    }
+    if (!updates.length) {
+      console.error(`[pieces] ${mode}: no compaction needed.`);
+    } else {
+      console.error(`[pieces] ${mode}: compaction ${dryRun ? 'planned' : 'complete'}.`);
+    }
+    if (argv.perf && updates.length) {
+      const formatPerf = (label, update) => {
+        const ms = Number(update?.durationMs) || 0;
+        const total = Number(update?.totalEntries) || 0;
+        const perSec = ms > 0 ? Math.round((total / ms) * 1000) : 0;
+        return `[perf] ${mode} ${label}: ${total.toLocaleString()} entries in ${ms}ms (${perSec.toLocaleString()}/s)`;
+      };
+      for (const update of updates) {
+        if (update.name === 'chunk_meta') {
+          console.error(formatPerf('chunk_meta', update));
+        } else if (update.name === 'token_postings') {
+          console.error(formatPerf('token_postings', update));
+        }
       }
     }
   }
-}
+};
+
+const lock = dryRun ? null : await acquireIndexLock({ repoCacheRoot: getRepoCacheRoot(root, userConfig),
+  metadata: { operation: 'compact-pieces' } });
+if (!dryRun && !lock) throw new Error('[pieces] Index write lock unavailable; compaction did not start.');
+try { await compactModes(); }
+finally { await lock?.release(); }

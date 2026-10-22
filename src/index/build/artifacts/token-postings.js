@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -168,6 +168,14 @@ export async function enqueueTokenPostingsArtifacts({
 }) {
   const vocabIds = Array.isArray(postings.tokenVocabIds) ? postings.tokenVocabIds : null;
   const tokenIdMeta = vocabIds ? TOKEN_ID_META : null;
+  const exists = async target => {
+    try { await fs.stat(target); return true; }
+    catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+  };
+  const priorAuthority = await exists(path.join(outDir, 'pieces', 'manifest.json'))
+    || await exists(path.join(outDir, 'token_postings.meta.json'))
+    || await exists(path.join(outDir, 'token_postings.shards'))
+    || await exists(path.join(outDir, 'token_postings.shards.bak'));
   const writePackedTokenPostings = async () => {
     const packedPath = path.join(outDir, 'token_postings.packed.bin');
     const offsetsPath = path.join(outDir, 'token_postings.packed.offsets.bin');
@@ -226,7 +234,9 @@ export async function enqueueTokenPostingsArtifacts({
   if (tokenPostingsFormat === 'packed') {
     await writePackedTokenPostings();
   } else if (tokenPostingsUseShards) {
-    const shardsDir = path.join(outDir, 'token_postings.shards');
+    const generation = priorAuthority ? `token_postings.gen-${randomUUID()}` : '';
+    const shardsRel = path.posix.join(generation, 'token_postings.shards');
+    const shardsDir = path.join(outDir, shardsRel);
     const parts = [];
     const shardPlan = [];
     let shardIndex = 0;
@@ -240,7 +250,7 @@ export async function enqueueTokenPostingsArtifacts({
       const end = Math.min(i + tokenPostingsShardSize, postings.tokenVocab.length);
       const partCount = end - i;
       const partName = `token_postings.part-${String(shardIndex).padStart(5, '0')}.${tokenPostingsExtension}`;
-      parts.push(path.posix.join('token_postings.shards', partName));
+      parts.push(path.posix.join(shardsRel, partName));
       shardPlan.push({ start: i, end, partCount, partName });
       addPieceFile({
         type: 'postings',
@@ -251,13 +261,12 @@ export async function enqueueTokenPostingsArtifacts({
       }, path.join(shardsDir, partName));
       shardIndex += 1;
     }
-    const metaPath = path.join(outDir, 'token_postings.meta.json');
+    const metaPath = path.join(outDir, generation, 'token_postings.meta.json');
     addPieceFile({ type: 'postings', name: 'token_postings_meta', format: 'json' }, metaPath);
     enqueueWrite(
       formatArtifactLabel(shardsDir),
       async () => {
-        const tempDir = `${shardsDir}.tmp-${Date.now()}`;
-        const backupDir = `${shardsDir}.bak`;
+        const tempDir = `${shardsDir}.tmp-${randomUUID()}`;
         await removePathOrThrow(tempDir, { recursive: true });
         await fs.mkdir(tempDir, { recursive: true });
         for (const part of shardPlan) {
@@ -275,13 +284,9 @@ export async function enqueueTokenPostingsArtifacts({
             atomic: true
           });
         }
-        await removePathOrThrow(backupDir, { recursive: true });
-        try {
-          await fs.stat(shardsDir);
-          await fs.rename(shardsDir, backupDir);
-        } catch {}
+        // Prior generations stay immutable. The enclosing manifest publication
+        // selects these new paths only after every family member is complete.
         await fs.rename(tempDir, shardsDir);
-        await removePathOrThrow(backupDir, { recursive: true });
         await writeJsonObjectFile(metaPath, {
           fields: withGeneratedArtifactMetadata({
             avgDocLen: postings.avgDocLen,
@@ -397,6 +402,7 @@ export async function enqueueTokenPostingsArtifacts({
     enqueueWrite(
       formatArtifactLabel(binaryMetaPath),
       async () => {
+        if (priorAuthority) return;
         await removePathOrThrow(binaryDataPath);
         await removePathOrThrow(binaryOffsetsPath);
         await removePathOrThrow(binaryLengthsPath);
