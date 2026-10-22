@@ -1,4 +1,5 @@
 import { canonicalizeTypeText, normalizeTypeWhitespace } from '../../../../../shared/type-normalization.js';
+import { getOwn, setOwn } from '../../../../../shared/object-record.js';
 import {
   buildScopedSymbolId,
   buildSignatureKey,
@@ -38,7 +39,7 @@ export const normalizeParamTypes = (paramTypes, options = {}) => {
     if (Array.isArray(entries)) {
       const normalized = entries
         .map((entry) => (typeof entry === 'string' ? { type: entry } : entry))
-        .filter((entry) => entry?.type)
+        .filter((entry) => typeof entry?.type === 'string' && entry.type)
         .map((entry) => {
           const normalizedType = canonicalizeTypeText(entry.type, { languageId });
           return {
@@ -50,19 +51,19 @@ export const normalizeParamTypes = (paramTypes, options = {}) => {
           };
         })
         .filter((entry) => entry.type);
-      if (normalized.length) output[name] = normalized;
+      if (normalized.length) setOwn(output,name,normalized);
       continue;
     }
     if (typeof entries === 'string') {
       const normalizedType = canonicalizeTypeText(entries, { languageId });
       if (normalizedType.displayText) {
-        output[name] = [{
+        setOwn(output,name,[{
           type: normalizedType.displayText,
           normalizedType: normalizedType.canonicalText,
           originalText: normalizedType.originalText,
           confidence: defaultConfidence,
           source: 'tooling'
-        }];
+        }]);
       }
     }
   }
@@ -71,16 +72,7 @@ export const normalizeParamTypes = (paramTypes, options = {}) => {
 
 const hasParamTypes = (paramTypes) => {
   if (!paramTypes || typeof paramTypes !== 'object') return false;
-  for (const entries of Object.values(paramTypes)) {
-    if (Array.isArray(entries)) {
-      if (entries.some((entry) => normalizeTypeText(typeof entry === 'string' ? entry : entry?.type))) {
-        return true;
-      }
-      continue;
-    }
-    if (normalizeTypeText(entries)) return true;
-  }
-  return false;
+  return Object.values(paramTypes).some(hasTypedParamEntry);
 };
 
 const FUNCTION_LIKE_SYMBOL_KINDS = new Set([6, 9, 12]);
@@ -98,15 +90,18 @@ const signatureDeclaresParameters = (signature) => {
 
 const hasTypedParamEntry = (value) => {
   if (Array.isArray(value)) {
-    return value.some((entry) => normalizeTypeText(typeof entry === 'string' ? entry : entry?.type));
+    return value.some((entry) => {
+      const type=typeof entry === 'string' ? entry : entry?.type;
+      return typeof type === 'string' && normalizeTypeText(type);
+    });
   }
-  return normalizeTypeText(value) != null;
+  return typeof value === 'string' && normalizeTypeText(value) != null;
 };
 
 const hasTypedParamName = (paramTypes, name) => {
   if (!paramTypes || typeof paramTypes !== 'object') return false;
   if (!name) return false;
-  return hasTypedParamEntry(paramTypes[name]);
+  return hasTypedParamEntry(getOwn(paramTypes,name));
 };
 
 const isAmbiguousReturnType = (info) => {
@@ -210,18 +205,18 @@ const mergeParamTypesByQuality = (preferred, alternate, paramNames) => {
   ])).filter(Boolean);
   const out = {};
   for (const name of names) {
-    const preferredBucket = preferredParamTypes?.[name];
-    const alternateBucket = alternateParamTypes?.[name];
+    const preferredBucket = preferredParamTypes ? getOwn(preferredParamTypes,name) : undefined;
+    const alternateBucket = alternateParamTypes ? getOwn(alternateParamTypes,name) : undefined;
     if (hasTypedParamEntry(preferredBucket)) {
-      out[name] = preferredBucket;
+      setOwn(out,name,preferredBucket);
       continue;
     }
     if (hasTypedParamEntry(alternateBucket)) {
-      out[name] = alternateBucket;
+      setOwn(out,name,alternateBucket);
       continue;
     }
-    if (preferredBucket != null) out[name] = preferredBucket;
-    else if (alternateBucket != null) out[name] = alternateBucket;
+    if (preferredBucket != null) setOwn(out,name,preferredBucket);
+    else if (alternateBucket != null) setOwn(out,name,alternateBucket);
   }
   return Object.keys(out).length ? out : null;
 };

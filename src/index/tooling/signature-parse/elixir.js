@@ -1,4 +1,5 @@
 import { splitTopLevel } from './shared.js';
+import { setOwn } from '../../../shared/object-record.js';
 
 const ELIXIR_PARAM = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 
@@ -63,7 +64,7 @@ export const parseElixirSignature = (detail) => {
     const parsed = parseElixirParam(part);
     if (!parsed?.name) continue;
     paramNames.push(parsed.name);
-    if (parsed.type) paramTypes[parsed.name] = parsed.type;
+    if (parsed.type) setOwn(paramTypes,parsed.name,parsed.type);
   }
   if (!returnType && !paramNames.length) return null;
   return {

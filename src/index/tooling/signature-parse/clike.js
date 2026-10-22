@@ -1,4 +1,5 @@
 import { splitTopLevel, stripTopLevelAssignment } from './shared.js';
+import { setOwn } from '../../../shared/object-record.js';
 import { normalizeTypeWhitespace, transformTypeTextOutsideLiterals } from '../../../shared/type-normalization.js';
 
 const splitClikeParams = (value) => splitTopLevel(value, ',');
@@ -60,7 +61,7 @@ export const parseClikeSignature = (detail, symbolName) => {
     const parsed = parseClikeParam(part);
     if (!parsed) continue;
     paramNames.push(parsed.name);
-    paramTypes[parsed.name] = parsed.type;
+    setOwn(paramTypes,parsed.name,parsed.type);
   }
   if (!returnType && !paramNames.length) return null;
   return { signature, returnType, paramTypes, paramNames };

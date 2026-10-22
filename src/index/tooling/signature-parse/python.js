@@ -1,4 +1,5 @@
 import { findTopLevelIndex, splitTopLevel, stripTopLevelAssignment } from './shared.js';
+import { setOwn } from '../../../shared/object-record.js';
 import { normalizeTypeWhitespace, transformTypeTextOutsideLiterals } from '../../../shared/type-normalization.js';
 
 const PYTHON_NESTING = Object.freeze({ angleBrackets: false });
@@ -133,7 +134,7 @@ export const parsePythonSignature = (detail) => {
     const parsed = parsePythonParam(part);
     if (!parsed) continue;
     paramNames.push(parsed.name);
-    if (parsed.type) paramTypes[parsed.name] = normalizePythonType(parsed.type);
+    if (parsed.type) setOwn(paramTypes,parsed.name,normalizePythonType(parsed.type));
   }
 
   if (!returnType && !paramNames.length) return null;

@@ -1,4 +1,5 @@
 import { splitTopLevel, findTopLevelIndex } from './shared.js';
+import { setOwn } from '../../../shared/object-record.js';
 
 const GO_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -90,7 +91,7 @@ export const parseGoSignature = (detail) => {
     pendingNames.length = 0;
     for (const entry of entries) {
       paramNames.push(entry.name);
-      paramTypes[entry.name] = entry.type;
+      setOwn(paramTypes,entry.name,entry.type);
     }
   }
   const returnType = returnsText || null;

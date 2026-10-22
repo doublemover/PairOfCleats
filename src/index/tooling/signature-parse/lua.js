@@ -1,4 +1,5 @@
 import { splitTopLevel } from './shared.js';
+import { setOwn } from '../../../shared/object-record.js';
 import { normalizeTypeWhitespace } from '../../../shared/type-normalization.js';
 
 const LUA_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -54,7 +55,7 @@ export const parseLuaSignature = (detail) => {
     const parsed = parseLuaParam(part);
     if (!parsed) continue;
     paramNames.push(parsed.name);
-    paramTypes[parsed.name] = parsed.type;
+    setOwn(paramTypes,parsed.name,parsed.type);
   }
   if (!returnType && !paramNames.length) return null;
   return { signature, returnType, paramTypes, paramNames };

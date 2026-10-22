@@ -1,4 +1,5 @@
 import { findTopLevelIndex, splitTopLevel, stripTopLevelAssignment } from './shared.js';
+import { setOwn } from '../../../shared/object-record.js';
 
 const RUBY_PARAM = /^[*&]*([A-Za-z_][A-Za-z0-9_]*)[!?=]?$/u;
 
@@ -55,7 +56,7 @@ export const parseRubySignature = (detail) => {
     const parsed = parseRubyParam(part);
     if (!parsed?.name) continue;
     paramNames.push(parsed.name);
-    if (parsed.type) paramTypes[parsed.name] = parsed.type;
+    if (parsed.type) setOwn(paramTypes,parsed.name,parsed.type);
   }
   if (!returnType && !paramNames.length) return null;
   return {

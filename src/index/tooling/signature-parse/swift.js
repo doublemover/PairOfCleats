@@ -1,4 +1,5 @@
 import { findTopLevelIndex, splitTopLevel, stripTopLevelAssignment } from './shared.js';
+import { setOwn } from '../../../shared/object-record.js';
 
 const splitSwiftParams = (value) => splitTopLevel(value, ',');
 
@@ -157,7 +158,7 @@ export const parseSwiftSignature = (detail) => {
     const parsed = parseSwiftParam(part);
     if (!parsed) continue;
     paramNames.push(parsed.name);
-    paramTypes[parsed.name] = parsed.type;
+    setOwn(paramTypes,parsed.name,parsed.type);
   }
 
   if (!returnType && !paramNames.length) return null;
