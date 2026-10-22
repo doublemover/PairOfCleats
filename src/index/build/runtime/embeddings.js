@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
 import { DEFAULT_MODEL_ID, getModelConfig } from '../../../shared/dict-utils.js';
 import { createEmbedder } from '../../embedding.js';
-import { resolveAutoEmbeddingBatchSize } from '../../../shared/embedding-batch.js';
+import { resolveAutoEmbeddingBatchSize, resolveEmbeddingsBatchTokenBudget } from '../../../shared/embedding-batch.js';
+import { closeInlineEmbeddingBatcher } from '../../../shared/embedding-inline-batcher.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../shared/embedding-identity.js';
 import { resolveEmbeddingInputFormatting } from '../../../shared/embedding-input-format.js';
 import { resolveStubDims } from '../../../shared/embedding.js';
@@ -148,6 +149,7 @@ export const resolveEmbeddingRuntime = async ({
     if (!closing) {
       closed = true;
       closing = (async () => {
+        await closeInlineEmbeddingBatcher(getChunkEmbeddings);
         await Promise.allSettled([...operations]);
         await observationWrite;
         await embedder?.dispose?.();
@@ -217,6 +219,14 @@ export const resolveEmbeddingRuntime = async ({
     };
     getChunkEmbedding = (text) => admit(text, false);
     getChunkEmbeddings = (texts) => admit(texts, true);
+    getChunkEmbeddings.batchTokenBudget = resolveEmbeddingsBatchTokenBudget({ indexingConfig, embeddingBatchSize });
+    getChunkEmbeddings.estimateTokensBatch = texts => {
+      if (closed) return Promise.reject(Object.assign(new Error('Inline embedding runtime is closed.'), { code: 'ERR_EMBEDDING_RUNTIME_CLOSED' }));
+      const work = Promise.resolve().then(() => ensureEmbedder().getChunkEmbeddings.estimateTokensBatch(texts));
+      operations.add(work);
+      work.then(() => operations.delete(work), () => operations.delete(work));
+      return work;
+    };
   }
 
   const resolvedOnnxModelPath = embeddingEnabled && embeddingProvider === 'onnx'

@@ -1,3 +1,4 @@
+import { resolveEmbeddingsBatchTokenBudget } from '../../../src/shared/embedding-batch.js';
 import { readEffectiveMemory, estimateRetainedBytes } from '../../../src/shared/effective-memory.js';
 import { throwIfAborted, isAbortError } from '../../../src/shared/abort.js';
 import { canonicalBundleSourceKey } from '../../../src/shared/bundle-source-key.js';
@@ -309,24 +310,7 @@ export const resolveEmbeddingsCharsPerToken = (indexingConfig) => {
  * @param {{indexingConfig?:object,embeddingBatchSize?:number}} [input]
  * @returns {number}
  */
-export const resolveEmbeddingsBatchTokenBudget = ({
-  indexingConfig,
-  embeddingBatchSize
-} = {}) => {
-  const explicit = indexingConfig?.embeddings?.maxBatchTokens;
-  if (explicit !== null && explicit !== undefined && String(explicit).trim() !== '') {
-    const parsed = Math.floor(Number(explicit));
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-    return 0;
-  }
-  const batchSize = coercePositiveIntMinOne(embeddingBatchSize);
-  if (!batchSize) return 0;
-  const configuredMultiplier = Math.floor(Number(indexingConfig?.embeddings?.batchTokenMultiplier));
-  const multiplier = Number.isFinite(configuredMultiplier) && configuredMultiplier > 0
-    ? configuredMultiplier
-    : 256;
-  return Math.max(1, batchSize * multiplier);
-};
+export { resolveEmbeddingsBatchTokenBudget };
 
 /**
  * Resolve max entries for cross-file chunk dedupe map.
