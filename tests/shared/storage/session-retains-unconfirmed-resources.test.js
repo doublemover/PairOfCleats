@@ -17,6 +17,19 @@ try {
   assert.equal((await withExclusiveRepoCacheCleanup(root, () => assert.fail('live model cannot be collected'), { coordinationRoot })).protected, true);
   session.releaseAfterSettlement({ resourceId: session.resourceId, settled: true, pending: false });
   assert.equal((await inspectStorageAccess(root, { coordinationRoot })).protected, false);
+  const category = path.join(temporary, 'category'), profile = path.join(category, 'profiles', 'active');
+  const categorySession = acquireStorageSession({ roots: [profile], coordinationRoot,
+    authorizedRoots: [temporary, category], resourceId: 'nested-category-resource' });
+  assert.equal((await withExclusiveRepoCacheCleanup(category, () => assert.fail('active nested profile prevents category migration'),
+    { coordinationRoot })).protected, true);
+  categorySession.releaseAfterSettlement({ resourceId: categorySession.resourceId, settled: true, pending: false });
+  const exclusive = await withExclusiveRepoCacheCleanup(category, () => {
+    assert.throws(() => acquireStorageSession({ roots: [profile], coordinationRoot,
+      authorizedRoots: [temporary, category], resourceId: 'late-category-resource' }),
+    { code: 'ERR_REPO_CACHE_CLEANUP_BUSY' }, 'category exclusion also rejects a newly starting child session');
+    return 'exclusive';
+  }, { coordinationRoot });
+  assert.equal(exclusive.result, 'exclusive');
   let pendingError;
   const primary = Object.assign(new Error('fixture child deadline'), { cacheOwnershipPending: true });
   try {

@@ -9,7 +9,10 @@ import { isPathWithinRoot } from '../file-paths.js';
  */
 export const acquireStorageSession = ({ roots, coordinationRoot, authorizedRoots = [], scope = 'storage-asset-session',
   resourceId = randomUUID() } = {}) => {
-  if (!Array.isArray(roots) || !roots.length || roots.length > 64 || typeof coordinationRoot !== 'string' || !path.isAbsolute(coordinationRoot)
+  if (!Array.isArray(roots) || !roots.length || roots.length > 64
+    || !Array.isArray(authorizedRoots) || !authorizedRoots.length || authorizedRoots.length > 64
+    || authorizedRoots.some(root => typeof root !== 'string' || !path.isAbsolute(root))
+    || typeof coordinationRoot !== 'string' || !path.isAbsolute(coordinationRoot)
     || typeof scope !== 'string' || !scope || scope.length > 128
     || typeof resourceId !== 'string' || !resourceId || resourceId.length > 256) throw new TypeError('Storage session requires roots, owned coordination and bounded resource identity.');
   const metadataRoot = path.resolve(coordinationRoot);
@@ -20,9 +23,15 @@ export const acquireStorageSession = ({ roots, coordinationRoot, authorizedRoots
     if (!authorizedRoots.some(approved => isPathWithinRoot(root, path.resolve(approved)))) throw new Error('Session asset is outside launch-authorized storage.');
     assertNoSymlinkPath(path.parse(root).root, root, { allowMissing: true });
   }
+  // A whole configured category can move while a child profile/run is active.
+  // Pin only ancestors explicitly supplied by the launch authority, using the
+  // same exact-root exclusion handshake as category migration. Never discover
+  // or authorize arbitrary filesystem parents.
+  const protectedRoots = [...new Set([...selected, ...authorizedRoots.map(root => path.resolve(root))
+    .filter(approved => selected.some(root => isPathWithinRoot(root, approved)))])].sort();
   const leases = [];
   try {
-    for (const root of selected) leases.push(acquireRepoCacheAccessLease(root,
+    for (const root of protectedRoots) leases.push(acquireRepoCacheAccessLease(root,
       { coordinationRoot: metadataRoot, scope, resourceId, requireSettlement: true }));
   } catch (error) {
     for (const lease of leases) lease.release();

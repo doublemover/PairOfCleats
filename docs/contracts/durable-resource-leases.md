@@ -26,3 +26,10 @@ their own descendant/native/stream closure; no new such qualification is claimed
 Resource sessions that never explicitly settle remain visible protected evidence
 for their actual recovery owner. The implementation and fresh-process/lease
 regression sources remain UNVALIDATED until the deferred Windows batch runs.
+
+Sessions also pin applicable ancestor category roots explicitly supplied by the
+launch authority. A live child profile/run therefore blocks whole-category
+migration, and a category exclusion rejects newly starting child sessions. This
+reuses the exact-root lock handshake; it does not scan or authorize arbitrary
+parents or introduce a hierarchy registry. Physical managed installs already pin
+their tooling category as well as the selected physical owner.
