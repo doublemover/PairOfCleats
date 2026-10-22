@@ -82,16 +82,17 @@ const fileDirectory = (globalDir, mode) => {
  * index, whose projected references are retention authority. A failed file publication leaves reclaimable
  * unreferenced chunks, never a successfully published dangling reference.
  */
-export const createReferenceCacheWriter = ({ lock, readIndex, writeIndex, readEntries, append, upsert, merge, writeFiles }) =>
+export const createReferenceCacheWriter = ({ lock, readIndex, writeIndex, publishDelta = writeIndex, syncIndex = null, readEntries, append, upsert, writeFiles }) =>
   async ({ globalDir, globalIndex, fileDir, fileIndex, filePayload, encodedFile, chunks, mode, options = {} }) => {
     if (filePayload && path.resolve(fileDir) !== path.resolve(fileDirectory(globalDir, mode))) throw new Error('File reference escaped its profile.');
     if (chunks.some(chunk => chunk.payload.cacheMeta?.identityKey !== globalIndex.identityKey)
       || filePayload && (filePayload.cacheMeta?.identityKey !== globalIndex.identityKey || fileIndex?.identityKey !== globalIndex.identityKey
         || filePayload.chunkReferences?.identityKey !== globalIndex.identityKey)) throw new Error('Embedding reference identity mismatch.');
     return lock(globalDir, async () => {
-      const canonical = await readIndex(globalDir, globalIndex.identityKey); merge(canonical, globalIndex);
+      const canonical = await readIndex(globalDir, globalIndex.identityKey);
       canonical.chunkInputs ||= Object.create(null);
       let storedChunks = 0;
+      const changedKeys = [], changedInputs = [];
       const existing = await readEntries(globalDir, chunks.map(chunk => chunk.cacheKey), canonical);
       for (let index = 0; index < chunks.length; index++) {
         const chunk = chunks[index], old = existing[index]?.entry;
@@ -103,16 +104,19 @@ export const createReferenceCacheWriter = ({ lock, readIndex, writeIndex, readEn
         if (!valid) {
           const pointer = await append(globalDir, canonical, chunk.encodedPayload, options);
           upsert(canonical, chunk.cacheKey, chunk.payload, pointer);
+          changedKeys.push(chunk.cacheKey);
           storedChunks++;
         }
+        if (canonical.chunkInputs[chunk.inputKey] !== chunk.cacheKey) changedInputs.push(chunk.inputKey);
         canonical.chunkInputs[chunk.inputKey] = chunk.cacheKey;
       }
       if (filePayload) {
         const keys = [...new Set(filePayload.chunkReferences.records.map(record => record.key))];
         if (keys.some(key => !canonical.entries[key])) throw new Error('File cache references unpublished chunk content.');
       }
-      await writeIndex(globalDir, canonical);
-      for (const key of Object.keys(globalIndex)) delete globalIndex[key]; Object.assign(globalIndex, canonical);
+      await publishDelta(globalDir, canonical, { keys: changedKeys, inputKeys: changedInputs });
+      if (syncIndex) syncIndex(globalIndex, canonical, { keys: chunks.map(chunk => chunk.cacheKey), inputKeys: chunks.map(chunk => chunk.inputKey) });
+      else { for (const key of Object.keys(globalIndex)) delete globalIndex[key]; Object.assign(globalIndex, canonical); }
       if (filePayload) {
         const written = await writeFiles(fileDir, fileIndex, [{ cacheKey: filePayload.key, payload: filePayload, encodedPayload: encodedFile }], options);
         if (!written) throw new Error('File cache index publication did not acquire its lock.');
@@ -124,15 +128,34 @@ export const createReferenceCacheWriter = ({ lock, readIndex, writeIndex, readEn
 /** Known profile file indexes are reachability authority; unreadable ownership
  * blocks pruning, while a missing/retired file key releases its chunk pins.
  */
-export const collectReferenceProtection = async (globalDir, index) => {
+export const collectReferenceProtection = async (globalDir, index, { readIndex = null } = {}) => {
   const protectedKeys = new Set();
   if (path.basename(globalDir) !== 'global-chunks') return { incomplete: false, protectedKeys, changed: false };
   for (const mode of MODES) {
       try {
         const filename = path.join(fileDirectory(globalDir, mode), 'cache.index.json');
-        assertNoSymlinkPath(path.dirname(globalDir), filename);
-        const stat = await fs.lstat(filename); if (stat.isSymbolicLink() || !stat.isFile()) return { incomplete: true, protectedKeys };
-        const value = JSON.parse(await fs.readFile(filename, 'utf8'));
+        let observed = filename;
+        assertNoSymlinkPath(path.dirname(globalDir), observed, { allowMissing: true });
+        let stat;
+        try { stat = await fs.lstat(observed); }
+        catch (error) {
+          if (error.code !== 'ENOENT' || !readIndex) throw error;
+          observed = path.join(path.dirname(filename), 'cache.index.bin');
+          assertNoSymlinkPath(path.dirname(globalDir), observed, { allowMissing: true });
+          try { stat = await fs.lstat(observed); }
+          catch (legacyError) {
+            if (legacyError.code !== 'ENOENT') throw legacyError;
+            // A log without either checkpoint is not a retired/missing owner.
+            const log = await fs.lstat(path.join(path.dirname(filename), 'cache.index.delta')).catch(logError => {
+              if (logError.code === 'ENOENT') return null; throw logError;
+            });
+            if (log?.size) return { incomplete: true, protectedKeys };
+            continue;
+          }
+        }
+        if (stat.isSymbolicLink() || !stat.isFile()) return { incomplete: true, protectedKeys };
+        const value = readIndex ? await readIndex(path.dirname(filename), index.identityKey, { strict: true })
+          : JSON.parse(await fs.readFile(filename, 'utf8'));
         if (value.version !== 1 || !value.entries || typeof value.entries !== 'object') return { incomplete: true, protectedKeys };
         for (const entry of Object.values(value.entries)) {
           const reference = entry.chunkReferences; if (!reference) continue;

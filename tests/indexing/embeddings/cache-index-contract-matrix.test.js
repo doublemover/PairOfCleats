@@ -382,7 +382,7 @@ const toIso = (value) => new Date(value).toISOString();
   };
   await fsPromises.writeFile(jsonPath, JSON.stringify(jsonPreferredPayload, null, 2), 'utf8');
   const readWithBinary = await readCacheIndex(cacheDir, identityKey);
-  assert.equal(readWithBinary.entries?.[cacheKey]?.hits, 5, 'expected binary sidecar to be preferred when present');
+  assert.equal(readWithBinary.entries?.[cacheKey]?.hits, 99, 'canonical JSON is authority when a compatibility sidecar is stale');
 
   await fsPromises.writeFile(binaryPath, Buffer.from([0, 1, 2, 3]));
   const readWithCorruptBinary = await readCacheIndex(cacheDir, identityKey);

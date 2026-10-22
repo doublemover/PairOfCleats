@@ -1,7 +1,7 @@
+import { readEmbeddingIndex, checkpointEmbeddingIndex, appendEmbeddingIndexDelta, syncEmbeddingIndexDelta } from './cache/index-log.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { deserialize as deserializeV8, serialize as serializeV8 } from 'node:v8';
 import { sha1 } from '../../../src/shared/hash.js';
 import { buildCacheKey as buildUnifiedCacheKey } from '../../../src/shared/cache-key.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../src/shared/embedding-identity.js';
@@ -18,9 +18,7 @@ import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writer
 import { acquireFileLock } from '../../../src/shared/locks/file-lock.js';
 import { createTempPath, replaceFile } from './atomic.js';
 import {
-  createCacheIndex,
   mergeCacheIndex,
-  normalizeCacheIndex,
   resolveNextShardIdFromShards
 } from './cache/index-state.js';
 import { resolveEmbeddingCacheProfile } from '../../../src/shared/embeddings-cache/layout.js';
@@ -330,61 +328,9 @@ export const createShardAppendHandlePool = () => {
  * @param {string|null} [identityKey]
  * @returns {Promise<object>}
  */
-export const readCacheIndex = async (cacheDir, identityKey = null) => {
-  const binaryPath = resolveCacheIndexBinaryPath(cacheDir);
-  const indexPath = resolveCacheIndexPath(cacheDir);
-  const indexBinaryPath = resolveCacheIndexBinaryPath(cacheDir);
-  /**
-   * Parse on-disk cache-index payload and normalize identity.
-   *
-   * @param {string} raw
-   * @returns {object|null}
-   */
-  const parseCacheIndexPayload = (raw) => {
-    try {
-      const parsed = normalizeCacheIndex(JSON.parse(raw), identityKey);
-      if (identityKey && parsed.identityKey && parsed.identityKey !== identityKey) {
-        return createCacheIndex(identityKey);
-      }
-      return parsed;
-    } catch {
-      return null;
-    }
-  };
-  if (indexBinaryPath && fsSync.existsSync(indexBinaryPath)) {
-    try {
-      const rawBinary = await fs.readFile(indexBinaryPath);
-      const parsedFromBinary = parseCacheIndexPayload(rawBinary.toString('utf8'));
-      if (parsedFromBinary) return parsedFromBinary;
-    } catch {}
-  }
-  if (indexPath && fsSync.existsSync(indexPath)) {
-    try {
-      const raw = await fs.readFile(indexPath, 'utf8');
-      const parsedFromJson = parseCacheIndexPayload(raw);
-      if (parsedFromJson) return parsedFromJson;
-    } catch {}
-  }
-  return createCacheIndex(identityKey);
-};
-
-/**
- * Persist the cache index to disk.
- * @param {string|null} cacheDir
- * @param {object} index
- * @returns {Promise<void>}
- */
-export const writeCacheIndex = async (cacheDir, index) => {
-  const indexPath = resolveCacheIndexPath(cacheDir);
-  const indexBinaryPath = resolveCacheIndexBinaryPath(cacheDir);
-  if (!indexPath) return;
-  await fs.mkdir(path.dirname(indexPath), { recursive: true });
-  await writeJsonObjectFile(indexPath, { fields: index, atomic: true });
-  if (!indexBinaryPath) return;
-  const tempPath = await createTempPath(indexBinaryPath);
-  await fs.writeFile(tempPath, Buffer.from(JSON.stringify(index), 'utf8'));
-  await replaceFile(tempPath, indexBinaryPath);
-};
+export const readCacheIndex = (cacheDir, identityKey = null, options = {}) => readEmbeddingIndex(cacheDir, identityKey, options);
+const readCacheIndexForUpdate = (cacheDir, identityKey = null) => readEmbeddingIndex(cacheDir, identityKey, { forUpdate: true });
+export const writeCacheIndex = checkpointEmbeddingIndex;
 
 /**
  * Build stable shard pointer fingerprint used for failed-read memoization.
@@ -663,6 +609,7 @@ const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = 
     const stat = await pooled.handle.stat();
     const offset = stat.size;
     await writeCacheBuffer(pooled.handle, payload, offset);
+    await pooled.handle.sync();
     pooled.size = offset + payload.length;
     const shardMeta = cacheIndex.shards?.[shardName] || { createdAt: new Date().toISOString(), sizeBytes: 0 };
     shardMeta.sizeBytes = pooled.size;
@@ -680,6 +627,7 @@ const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = 
     const stat = await handle.stat();
     const offset = stat.size;
     await writeCacheBuffer(handle, payload, offset);
+    await handle.sync();
     const totalBytes = payload.length;
     const shardMeta = cacheIndex.shards?.[shardName] || { createdAt: new Date().toISOString(), sizeBytes: 0 };
     shardMeta.sizeBytes = offset + totalBytes;
@@ -812,8 +760,9 @@ export const upsertCacheIndexEntry = (cacheIndex, cacheKey, payload, shardEntry 
   const previousFile = typeof existing.file === 'string' && existing.file
     ? existing.file
     : null;
-  cacheIndex.entries = { ...(cacheIndex.entries || {}), [cacheKey]: next };
-  const nextFiles = { ...(cacheIndex.files || {}) };
+  cacheIndex.entries ||= Object.create(null);
+  cacheIndex.entries[cacheKey] = next;
+  const nextFiles = cacheIndex.files || Object.create(null);
   if (previousFile && previousFile !== next.file && nextFiles[previousFile] === cacheKey) {
     delete nextFiles[previousFile];
   }
@@ -839,7 +788,7 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
   const deleteShards = options.deleteShards !== false;
   if (!maxBytes && !maxAgeMs) return { removedKeys: [], removedShards: [], changed: false };
   const beforePhysical = await inspectCachePhysicalStorage(cacheDir,cacheIndex);
-  const reachability = await collectReferenceProtection(cacheDir, cacheIndex);
+  const reachability = await collectReferenceProtection(cacheDir, cacheIndex, { readIndex: readCacheIndex });
   const observedPhysicalBytes = beforePhysical.reduce((sum, file) => sum + file.sizeBytes, 0);
   if (reachability.incomplete) return { removedKeys: [], removedShards: [], changed: false,
     blocked: 'reference-ownership-unreadable', budgetExceeded: maxBytes > 0 && observedPhysicalBytes > maxBytes,
@@ -955,7 +904,7 @@ export const flushCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
   }
   const identityKey = options.identityKey || cacheIndex.identityKey || null;
   const lockResult = await withCacheLock(cacheDir, async () => {
-    const onDisk = await readCacheIndex(cacheDir, identityKey);
+    const onDisk = await readCacheIndexForUpdate(cacheDir, identityKey);
     mergeCacheIndex(onDisk, cacheIndex);
     const pruneResult = await pruneCacheIndex(cacheDir, onDisk, {
       maxBytes: options.maxBytes,
@@ -1145,18 +1094,21 @@ export const shouldFastRejectCacheLookup = ({
 export const writeCacheEntries = async (cacheDir, cacheIndex, writes, options = {}) => {
   if (!cacheDir || !cacheIndex) throw new TypeError('Batch cache writes require an index');
   return withCacheLock(cacheDir, async () => {
-    const canonical = await readCacheIndex(cacheDir, cacheIndex.identityKey);
-    mergeCacheIndex(canonical,cacheIndex);
-    const pointers=[];
+    const canonical = await readCacheIndexForUpdate(cacheDir, cacheIndex.identityKey);
+    const pointers=[], keys = [], fileKeys = new Set();
     for(const write of writes){
+      const oldFile = canonical.entries[write.cacheKey]?.file;
+      if (oldFile) fileKeys.add(oldFile);
       const buffer=Buffer.isBuffer(write.encodedPayload)?write.encodedPayload:await encodeCacheEntryPayload(write.payload);
       const pointer=await appendShardEntryUnlocked(cacheDir,canonical,buffer,options);
       upsertCacheIndexEntry(canonical,write.cacheKey,write.payload,pointer);
+      keys.push(write.cacheKey);
+      if (write.payload.file) fileKeys.add(write.payload.file);
       pointers.push(pointer);
     }
-    await writeCacheIndex(cacheDir,canonical);
-    for(const key of Object.keys(cacheIndex))delete cacheIndex[key];
-    Object.assign(cacheIndex,canonical);
+    const delta = { keys, fileKeys: [...fileKeys] };
+    await appendEmbeddingIndexDelta(cacheDir,canonical,delta);
+    syncEmbeddingIndexDelta(cacheIndex, canonical, delta);
     return pointers;
   },options.lock);
 };
@@ -1219,7 +1171,7 @@ const inspectCachePhysicalStorage = async (cacheDir,cacheIndex,summary = null) =
   for(const shard of Object.keys(cacheIndex.shards||{}))await add(resolveCacheShardPath(cacheDir,shard));
   if (summary) for (const filename of summary.paths.keys()) await add(filename);
   else for(const entry of Object.values(cacheIndex.entries||{}))if(!entry.shard)await add(entry.path||resolveCacheEntryPath(cacheDir,entry.key));
-  for(const file of [resolveCacheIndexPath(cacheDir),resolveCacheIndexBinaryPath(cacheDir),path.join(cacheDir,'cache.meta.json')])await add(file,true);
+  for(const file of [resolveCacheIndexPath(cacheDir),resolveCacheIndexBinaryPath(cacheDir),path.join(cacheDir,'cache.index.delta'),path.join(cacheDir,'cache.meta.json')])await add(file,true);
   // Orphan shard/encoded-key files are owned by this cache; other selected files are untouched.
   for(const [dir,pattern] of [[cacheDir,/^[a-f0-9]{40,64}\.(?:embcache\.zst|json)$/i],
     [resolveCacheShardDir(cacheDir),/^shard-\d{5,}\.bin$/]]){
@@ -1240,6 +1192,7 @@ const writeCacheBuffer = async (handle,buffer,offset) => {
 export { readCacheEntries, createCacheBatchReader } from './cache/batch-reader.js';
 export const withEmbeddingCacheReadLock = withCacheLock;
 export const writeReferencedCacheFile = createReferenceCacheWriter({ lock: withCacheLock,
-  readIndex: readCacheIndex, writeIndex: writeCacheIndex, append: appendShardEntryUnlocked,
+  readIndex: readCacheIndexForUpdate, writeIndex: writeCacheIndex, publishDelta: appendEmbeddingIndexDelta,
+  syncIndex: syncEmbeddingIndexDelta, append: appendShardEntryUnlocked,
   readEntries: (...args) => readReferenceEntries(...args),
-  upsert: upsertCacheIndexEntry, merge: mergeCacheIndex, writeFiles: writeCacheEntries });
+  upsert: upsertCacheIndexEntry, writeFiles: writeCacheEntries });
