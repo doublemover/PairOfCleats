@@ -30,8 +30,9 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `a148c790c` includes actual archive descriptors, native
-work prerequisites, CFG call ownership and Haskell parser/cache fidelity.
+Latest source continuation: `203b55251` adds original failure observations, Lua/lock
+close prerequisites, complete report bounds, qualified discovery reuse and normal
+texture ownership. Dispositions: 141 historical, 554 source, 161 partial, 101 pending.
 All authored checks remain unvalidated.
 
 ### Execution order
@@ -81,7 +82,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through a148c790c repairs watch/pointer and queue authority,
+Current source through `203b55251` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
@@ -120,8 +121,8 @@ Unicode type roots and own parameter/argument names reach parser/cache/public
 consumers. Complete source-checked semantic tokens and iterative symbols preserve
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
-sourceChunking10/importResolution6/typeNormalization4/compilerBindings19/
-lspBindings35/rq9/cfgFlow21/callFlow24/valueSlice7. VSCode and Sublime retain
+sourceChunking10/importResolution7/typeNormalization4/compilerBindings19/
+lspBindings36/rq10/cfgFlow22/callFlow24/valueSlice8. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 
 The rollout gate now requires explicit coherent benchmark counts and diagnostic
@@ -136,6 +137,16 @@ inventory/freshness, format/front gate and final Windows cohorts. Three Sol6.1/
 xhigh agents continue independent real-file spans while the lead owns Git and
 publication. Unreleased edits are excluded; no new issue closure, deep pass or
 measured speedup is claimed.
+
+The latest owner continuation preserves original reranker diagnostic/cancellation
+observations through pending fallback. Lua archive/stage/temp/lock recovery reuses
+existing owners; independent write/stat work gates actual lock descriptor close.
+All eight source-linked reports bound complete identity-bearing UTF-8 output.
+Wrapped writes/delete references, Rust quoted const text and returned normal-map
+textures have authored controls. #1238 reuses bounded original raw directories
+with fresh identity checks and delta scans; removed selected files cannot revive
+through old seeds. No latency or heap improvement is qualified. Full details and
+limits remain in the archived receipt. All new source and assertions are unvalidated.
 
 ## Environment and qualification boundaries
 
@@ -225,3 +236,4 @@ node tests/run.js tooling/docs/contract-matrix tooling/docs/usr-contract-checkli
 node tools/docs/generated-surfaces.js --check-freshness
 git diff --check
 ```
+
