@@ -64,6 +64,10 @@ This bounds the retained result heap
 by requested N; candidate-ID admission and native result materialization retain
 their existing bounds and the no-pushdown path still requests a complete table
 scan for filtering correctness. No native memory or speedup claim follows.
+The existing cache now retains rejected native table/connection closes and exposes
+exact reconciliation capabilities instead of clearing ownership on failure; see
+[LanceDB resource lifetime](lancedb-resource-lifetime.md). Active native work still
+has to settle before its lease can release.
 
 The stage receipt includes versioned policy key, route/reason, actual known count,
 provider attempts, requested effort, stored scalar work, omissions and exactness.

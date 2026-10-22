@@ -13,6 +13,7 @@ import { normalizeEmbeddingDims } from './ann/dims.js';
 import { createTopKReducer } from './pipeline/topk.js';
 import { throwIfAborted } from '../shared/abort.js';
 import { setImmediate as yieldImmediate } from 'node:timers/promises';
+import { createLanceDbResourceOwner, lanceDbCloseFailure, withLanceDbCleanupFailure } from './ann/lancedb-lifetime.js';
 
 const CANDIDATE_PUSH_LIMIT = 500;
 const CONNECTION_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -33,31 +34,52 @@ const loadLanceDb = async () => {
 };
 
 const connectionCache = new Map();
-
-const closeMaybe = async (resource) => {
-  if (!resource) return;
-  const close = resource.close || resource.closeSync;
-  if (typeof close !== 'function') return;
-  try {
-    const result = close.call(resource);
-    if (result && typeof result.then === 'function') {
-      await result;
-    }
-  } catch {}
-};
+// Retirement removes lookup ownership. Failed or actively leased resources stay
+// in this same cache owner's retirement set until their exact close succeeds.
+const retiredConnections = new Set();
 
 const closeConnectionEntry = async (entry) => {
   if (!entry || typeof entry !== 'object') return;
   entry.retired = true;
-  if (entry.refs > 0) return;
+  retiredConnections.add(entry);
+  if (entry.refs > 0) return Object.freeze({ settled: false, pending: true });
   if (!entry.closing) entry.closing = (async () => {
-    for (const table of entry.tables?.values() || []) await closeMaybe(table);
-    await closeMaybe(entry.db);
-    entry.tables = new Map();
-    entry.db = null;
+    // A failed admission may retire an entry while its connect is still in
+    // flight. Await it before considering any native handle settled.
+    try { await entry.pending; } catch {}
     entry.pending = null;
-  })();
-  await entry.closing;
+    const errors = [];
+    for (const [name, owner] of entry.tableOwners) {
+      try { await owner.close(); entry.tableOwners.delete(name); entry.tables.delete(name); }
+      catch (error) { errors.push(error); }
+    }
+    // A connection cannot be released while one of its tables remains owned.
+    if (entry.tableOwners.size === 0 && entry.dbOwner) {
+      try { await entry.dbOwner.close(); entry.dbOwner = null; entry.db = null; }
+      catch (error) { errors.push(error); }
+    }
+    if (errors.length) throw lanceDbCloseFailure({ owner: entry.owner, cleanupErrors: errors });
+    retiredConnections.delete(entry);
+    return Object.freeze({ settled: true, pending: false });
+  })().finally(() => { entry.closing = null; });
+  return await entry.closing;
+};
+
+const closeConnectionEntries = async entries => {
+  const failed = [], errors = [];
+  for (const entry of entries) {
+    try { await closeConnectionEntry(entry); }
+    catch (error) { failed.push(entry); errors.push(error); }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length) {
+    const owner = Object.freeze({ kind: 'lancedb-retired-connections',
+      get pending() { return failed.some(entry => entry.owner.pending); },
+      close: () => closeConnectionEntries(failed) });
+    throw lanceDbCloseFailure({ owner, cleanupErrors: errors });
+  }
+  const pending = [...entries].some(entry => entry?.owner?.pending === true);
+  return Object.freeze({ settled: !pending, pending });
 };
 
 const touchConnectionEntry = (entry, now = Date.now()) => {
@@ -97,11 +119,9 @@ const pruneConnectionCache = async ({ now = Date.now() } = {}) => {
 };
 
 export const clearLanceDbConnectionCache = async () => {
-  const entries = Array.from(connectionCache.values());
+  const entries = new Set([...retiredConnections, ...connectionCache.values()]);
   connectionCache.clear();
-  for (const entry of entries) {
-    await closeConnectionEntry(entry);
-  }
+  await closeConnectionEntries(entries);
 };
 
 const getConnection = async (dir) => {
@@ -110,12 +130,20 @@ const getConnection = async (dir) => {
   await pruneConnectionCache({ now });
   let entry = connectionCache.get(dir);
   if (!entry) {
-    entry = { db: null, tables: new Map(), openingTables: new Map(), refs: 0,
+    entry = { db: null, dbOwner: null, tables: new Map(), tableOwners: new Map(), openingTables: new Map(), refs: 0,
       retired: false, pending: null, lastAccessMs: now, expiresAtMs: now + CONNECTION_CACHE_TTL_MS };
+    const ownedEntry = entry;
+    entry.owner = Object.freeze({ kind: 'lancedb-connection-entry',
+      get pending() { return ownedEntry.refs > 0 || Boolean(ownedEntry.pending)
+        || Boolean(ownedEntry.dbOwner?.pending) || ownedEntry.tableOwners.size > 0; },
+      close: () => closeConnectionEntry(ownedEntry) });
     entry.pending = (async () => {
       const lancedb = await loadLanceDb();
       const connect = lancedb?.connect || lancedb?.default?.connect;
-      return connect ? connect(dir) : null;
+      const db = connect ? await connect(dir) : null;
+      ownedEntry.db = db;
+      if (db) ownedEntry.dbOwner = createLanceDbResourceOwner(db, 'lancedb-connection');
+      return db;
     })();
     entry.pending.catch(() => {});
     connectionCache.set(dir, entry);
@@ -133,15 +161,17 @@ const getConnection = async (dir) => {
   touchConnectionEntry(entry, now);
   try {
     await pruneConnectionCache({ now });
-    entry.db ||= await entry.pending;
+    await entry.pending;
     if (!entry.db) throw new Error('LanceDB connection unavailable.');
     entry.pending = null;
     touchConnectionEntry(entry);
     return { entry, release };
-  } catch {
+  } catch (error) {
     if (connectionCache.get(dir) === entry) connectionCache.delete(dir);
-    await closeConnectionEntry(entry);
-    await release();
+    entry.retired = true; retiredConnections.add(entry);
+    try { await release(); }
+    catch (cleanupError) { throw withLanceDbCleanupFailure(error, cleanupError); }
+    if (error?.cacheOwnershipPending) throw error;
     return null;
   }
 };
@@ -159,6 +189,7 @@ const getTable = async (dir, tableName) => {
       if (!connection.openingTables.has(tableName)) {
         const opening = Promise.resolve().then(() => connection.db.openTable(tableName)).then(table => {
           connection.tables.set(tableName, table);
+          connection.tableOwners.set(tableName, createLanceDbResourceOwner(table, 'lancedb-table'));
           return table;
         }).finally(() => connection.openingTables.delete(tableName));
         connection.openingTables.set(tableName, opening);
@@ -167,7 +198,8 @@ const getTable = async (dir, tableName) => {
     }
     return { table: connection.tables.get(tableName), release: lease.release };
   } catch (error) {
-    await lease.release();
+    try { await lease.release(); }
+    catch (cleanupError) { throw withLanceDbCleanupFailure(error, cleanupError); }
     throw error;
   }
 };
@@ -240,6 +272,7 @@ export async function rankLanceDb({
   try {
     tableLease = await getTable(dir, tableName);
   } catch (err) {
+    if (err?.cacheOwnershipPending) throw err;
     throwIfAborted(signal);
     warnOnce(
       'lancedb-table-load',
@@ -248,14 +281,12 @@ export async function rankLanceDb({
     return [];
   }
   const table = tableLease?.table;
-  if (!table || typeof table.search !== 'function') {
-    await tableLease?.release();
-    throwIfAborted(signal);
-    return [];
-  }
+  if (!tableLease) { throwIfAborted(signal); return []; }
 
+  let primaryError, hasPrimary = false;
   try {
     throwIfAborted(signal);
+    if (!table || typeof table.search !== 'function') return [];
     const limitBase = normalizePositiveInt(topN, 1) || 1;
     const candidateIds = (candidateCount && isSafeIdColumn(idColumn))
       ? normalizeCandidateSetIds(candidateSet)
@@ -333,9 +364,25 @@ export async function rankLanceDb({
       throwIfAborted(signal);
       return reducer.finish({ limit: limitBase });
     } catch (err) {
+      if (err?.cacheOwnershipPending) throw err;
       throwIfAborted(signal);
+      primaryError = err; hasPrimary = true;
       warnOnce('lancedb-query', `[ann] LanceDB query failed; falling back to other ANN backends. ${err?.message || err}`);
       return [];
     }
-  } finally { await tableLease.release(); }
+  } catch (error) {
+    primaryError = error; hasPrimary = true;
+    throw error;
+  } finally {
+    try { await tableLease.release(); }
+    catch (cleanupError) {
+      if (!hasPrimary && signal?.aborted) {
+        try { throwIfAborted(signal); }
+        catch (error) { primaryError = error; hasPrimary = true; }
+      }
+      if (hasPrimary) throw withLanceDbCleanupFailure(primaryError, cleanupError);
+      throw cleanupError;
+    }
+    throwIfAborted(signal);
+  }
 }
