@@ -45,3 +45,12 @@ extraction, compiler differential qualification, a second distinct adapter,
 imports and access-sensitive order, stack paths/specialization, scope patching,
 dependency updates across revisions, durable reuse and measured ablations.
 The authored regression source has not been executed.
+
+Retained lookup and the inert retained rename consumer now share
+`retained-lexical-inputs.js` rather than independently reading the same partition
+for every preservation query. The capture includes canonical occurrences beside
+scope/declaration rows and exposes separate inventory and admitted-profile hashes.
+Caller selections and profile maps are copied before awaited reads; the metadata
+allowance includes source manifests and retained occurrence metadata. These
+request-local captures do not introduce a persisted store, automatic profile
+admission or cross-revision reuse authority.

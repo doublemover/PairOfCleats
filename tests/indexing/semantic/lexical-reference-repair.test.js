@@ -33,6 +33,10 @@ assert.ok(partial.frontier.some(row => row.reason === 'affected-reference-univer
 const bounded = proposeLexicalRename({ ...args, maxQueries: 1 });
 assert.equal(bounded.bindingPreservation, 'unknown');
 assert.ok(bounded.frontier.some(row => row.reason === 'query-budget'));
+const evidenceBounded = proposeLexicalRename({ ...args, maxEvidenceBytes: 1024 });
+assert.equal(evidenceBounded.bindingPreservation, 'unknown');
+assert.ok(evidenceBounded.frontier.some(row => row.reason === 'evidence-byte-budget'));
+assert.ok(evidenceBounded.retainedEvidenceBytes <= 1024, 'retained resolution evidence has an allowance separate from source overlays');
 const controller = new AbortController(); controller.abort();
 assert.equal(proposeLexicalRename({ ...args, signal: controller.signal }).bindingPreservation, 'unknown');
 assert.throws(() => proposeLexicalRename({ ...args, declarationSite: site(1, 2) }), /spelling/);
@@ -40,4 +44,8 @@ assert.throws(() => proposeLexicalRename({ ...args, target: ref(999) }), /target
 assert.throws(() => proposeLexicalRename({ ...args, newName: 'x; run()' }), /lexical identifier/);
 const staleSource = { ...source, manifest: { ...source.manifest, byteHash: 'b'.repeat(64) } };
 assert.throws(() => proposeLexicalRename({ ...args, sources: [staleSource] }), /Stale/);
+let sourceGetterCalls = 0;
+const accessorSource = { manifest: source.manifest, get sourceCapability() { sourceGetterCalls++; return source.sourceCapability; } };
+assert.throws(() => proposeLexicalRename({ ...args, sources: [accessorSource] }), /Stale/);
+assert.equal(sourceGetterCalls, 0, 'the existing source admission owner rejects accessors without invocation');
 console.log('target-locked lexical source overlay contract passed');

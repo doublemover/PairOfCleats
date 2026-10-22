@@ -1,6 +1,6 @@
 import { canonicalSemanticJson, semanticHash } from '../identity.js';
 import { createSemanticSourceSnapshot } from '../source.js';
-import { readSemanticSourceCapability } from '../source-capability.js';
+import { admitOwnedSemanticSourceSnapshot } from '../source-snapshot-admission.js';
 import { resolveLexicalBinding } from '../bindings/lexical.js';
 
 const key = canonicalSemanticJson;
@@ -19,12 +19,14 @@ const invalid = message => { throw Object.assign(new TypeError(message), { code:
  */
 export const proposeLexicalRename = ({ world, profile, scopes, declarations, sources,
   target, declarationSite, occurrences, newName, referenceUniverse,
-  maxQueries = 4096, maxVisits = 4096, maxSourceBytes = 8 * 1024 * 1024, signal }) => {
+  maxQueries = 4096, maxVisits = 4096, maxCandidates = 128, maxWitnessRefs = 16384,
+  maxEvidenceBytes = 4 * 1024 * 1024, maxSourceBytes = 8 * 1024 * 1024, signal }) => {
   if (typeof newName !== 'string' || newName.length > 512 || !/^[$_\p{ID_Start}][$\u200c\u200d_\p{ID_Continue}]*$/u.test(newName)) {
     invalid('Rename requires one lexical identifier.');
   }
   if (!Array.isArray(occurrences) || occurrences.length > 16384 || !Array.isArray(sources)
-    || sources.length > 256 || !Number.isSafeInteger(maxQueries) || maxQueries < 0
+    || sources.length > 256 || !Number.isSafeInteger(maxQueries) || maxQueries < 0 || maxQueries > 32769
+    || !Number.isSafeInteger(maxEvidenceBytes) || maxEvidenceBytes < 1024 || maxEvidenceBytes > 4 * 1024 * 1024
     || !Number.isSafeInteger(maxSourceBytes) || maxSourceBytes < 1) invalid('Invalid bounded rename inputs.');
   const locked = declarations.filter(row => key(row.ref) === key(target));
   if (locked.length !== 1) invalid('Exactly one admitted target declaration is required.');
@@ -32,18 +34,13 @@ export const proposeLexicalRename = ({ world, profile, scopes, declarations, sou
   const bySource = new Map();
   let sourceBytes = 0;
   for (const source of sources) {
-    const owned = readSemanticSourceCapability(source.sourceCapability);
-    const manifest = source.manifest;
-    if (!owned || !manifest || manifest.byteHash !== owned.byteHash || manifest.textHash !== owned.byteHash
-      || manifest.repositoryNamespace !== world.repositoryNamespace
-      || manifest.coordinateUnit !== 'utf16' || manifest.textLength !== owned.text.length
-      || bySource.has(manifest.sourceUnitId)) invalid('Stale or incompatible source snapshot.');
+    let owned;
+    try { owned = admitOwnedSemanticSourceSnapshot(source, { maxBytes: maxSourceBytes, repositoryNamespace: world.repositoryNamespace }); }
+    catch { invalid('Stale or incompatible source snapshot.'); }
+    const manifest = owned.manifest;
+    if (bySource.has(manifest.sourceUnitId)) invalid('Stale or incompatible source snapshot.');
     sourceBytes += owned.byteLength;
     if (sourceBytes > maxSourceBytes) invalid('Source overlay allowance exceeded.');
-    const verified = createSemanticSourceSnapshot({ bytes: Buffer.from(owned.text),
-      repositoryNamespace: manifest.repositoryNamespace, path: manifest.path, language: manifest.language,
-      dialect: manifest.dialect, mapping: manifest.mapping });
-    if (key(verified.manifest) !== key(manifest)) invalid('Source manifest does not match its owned bytes.');
     bySource.set(manifest.sourceUnitId, { manifest, ...owned });
   }
   const validateSite = (site, spelling) => {
@@ -62,9 +59,18 @@ export const proposeLexicalRename = ({ world, profile, scopes, declarations, sou
     seen.add(id);
     validateSite(occurrence.site, occurrence.query.datumKey);
   }
-  const base = { world, profile, scopes, declarations, maxVisits, signal };
+  const base = { world, profile, scopes, declarations, maxVisits, maxCandidates, maxWitnessRefs, signal };
   const checks = [];
   const frontier = [];
+  let retainedEvidenceBytes = 0, evidenceExhausted = false;
+  const retain = value => {
+    const bytes = Buffer.byteLength(key(value));
+    if (retainedEvidenceBytes + bytes > maxEvidenceBytes) {
+      if (!evidenceExhausted) frontier.push({ reason: 'evidence-byte-budget' });
+      evidenceExhausted = true; return false;
+    }
+    retainedEvidenceBytes += bytes; return true;
+  };
   let workQueries = 0;
   for (const occurrence of occurrences) {
     if (signal?.aborted || workQueries >= maxQueries) {
@@ -73,6 +79,7 @@ export const proposeLexicalRename = ({ world, profile, scopes, declarations, sou
     }
     const before = resolveLexicalBinding({ ...base, query: occurrence.query });
     workQueries++;
+    if (!retain(before)) break;
     const editsTarget = before.completeInProfile && before.status === 'resolved'
       && key(before.targets[0]) === key(target);
     checks.push({ occurrence, before, editsTarget });
@@ -106,14 +113,16 @@ export const proposeLexicalRename = ({ world, profile, scopes, declarations, sou
   const overlayWorld = { ...world, sourceSnapshotId: overlayId };
   const overlayDeclarations = declarations.map(row => key(row.ref) === key(target) ? { ...row, datumKey: newName } : row);
   let declarationCheck = null;
-  if (!signal?.aborted && workQueries < maxQueries) {
+  if (!signal?.aborted && !evidenceExhausted && workQueries < maxQueries) {
     declarationCheck = resolveLexicalBinding({ ...base, world: overlayWorld, declarations: overlayDeclarations,
       query: { occurrence: target, startScope: declaration.scope, namespace: declaration.namespace, datumKey: newName } });
     workQueries++;
-    if (!declarationCheck.completeInProfile) frontier.push({ reason: 'declaration-binding-unknown' });
-  } else frontier.push({ reason: signal?.aborted ? 'cancelled' : 'query-budget' });
+    if (!retain(declarationCheck)) declarationCheck = null;
+    else if (!declarationCheck.completeInProfile) frontier.push({ reason: 'declaration-binding-unknown' });
+  } else if (!evidenceExhausted) frontier.push({ reason: signal?.aborted ? 'cancelled' : 'query-budget' });
   const preservation = [];
   for (const check of checks) {
+    if (evidenceExhausted) break;
     if (signal?.aborted || workQueries >= maxQueries) {
       frontier.push({ reason: signal?.aborted ? 'cancelled' : 'query-budget', occurrence: check.occurrence.query.occurrence });
       break;
@@ -121,6 +130,7 @@ export const proposeLexicalRename = ({ world, profile, scopes, declarations, sou
     const after = resolveLexicalBinding({ ...base, world: overlayWorld, declarations: overlayDeclarations,
       query: check.editsTarget ? { ...check.occurrence.query, datumKey: newName } : check.occurrence.query });
     workQueries++;
+    if (!retain(after)) break;
     const status = !check.before.completeInProfile || !after.completeInProfile ? 'unknown'
       : sameTargets(check.before, after) ? 'preserved' : 'changed';
     preservation.push({ occurrence: structuredClone(check.occurrence.query.occurrence), edited: check.editsTarget,
@@ -136,7 +146,7 @@ export const proposeLexicalRename = ({ world, profile, scopes, declarations, sou
     schemaVersion: 1, intent: 'rename', baseWorld: structuredClone(world), overlayWorld, overlayId,
     lockedTarget: structuredClone(target), targetCorrespondence: { kind: 'same-lexical-scope',
       before: structuredClone(target), afterProposalLocal: structuredClone(target) },
-    edits, overlays, preservation, declarationCheck, frontier, workQueries, sourceBytes, overlayBytes,
+    edits, overlays, preservation, declarationCheck, frontier, workQueries, retainedEvidenceBytes, sourceBytes, overlayBytes,
     bindingPreservation: changed ? 'refuted-in-model' : frontier.length ? 'unknown' : 'preserved-in-model',
     syntaxValidity: 'not-checked', nativeValidation: 'not-run', behaviorPreservation: 'not-claimed',
     authority: 'inert-proposal', applySupported: false

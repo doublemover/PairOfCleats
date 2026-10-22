@@ -7,7 +7,7 @@ import { stableStringify } from '../shared/stable-json.js';
  * annotations come from a named profile adapter; syntax coverage alone is never
  * promoted to binding-model closure. No existing default provider is replaced.
  */
-export const resolveCanonicalLexicalBinding = ({ partitions, closures, annotations, ...request }) => {
+export const projectCanonicalLexicalBindingInputs = ({ partitions, closures, annotations }) => {
   if (!Array.isArray(partitions) || partitions.length > 128
     || !(closures instanceof Map) || !(annotations instanceof Map)) throw new TypeError('Bounded admitted partitions and profile maps required.');
   const scopes = [];
@@ -38,5 +38,8 @@ export const resolveCanonicalLexicalBinding = ({ partitions, closures, annotatio
       }
     }
   }
-  return resolveLexicalBinding({ ...request, scopes, declarations });
+  return { scopes, declarations };
 };
+
+export const resolveCanonicalLexicalBinding = ({ partitions, closures, annotations, ...request }) =>
+  resolveLexicalBinding({ ...request, ...projectCanonicalLexicalBindingInputs({ partitions, closures, annotations }) });
