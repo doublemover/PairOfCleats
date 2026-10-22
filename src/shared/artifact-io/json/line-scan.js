@@ -1,5 +1,6 @@
 import { parseJsonlLine } from '../jsonl.js';
 import { toJsonTooLargeError } from '../limits.js';
+import { StringDecoder } from 'node:string_decoder';
 
 /**
  * Normalize line terminators so CRLF sources are parsed like LF-only sources.
@@ -166,6 +167,7 @@ export const scanJsonlStream = async (
   } = {}
 ) => {
   let buffer = '';
+  const decoder = new StringDecoder('utf8');
   let lineNumber = 0;
   let rows = 0;
   let bytes = 0;
@@ -186,13 +188,13 @@ export const scanJsonlStream = async (
   };
 
   for await (const chunk of stream) {
-    const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-    bytes += typeof chunk === 'string' ? Buffer.byteLength(text, 'utf8') : chunk.length;
+    const raw = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk;
+    bytes += raw.length;
     if (bytes > maxBytes) {
       throw toJsonTooLargeError(targetPath, bytes);
     }
 
-    buffer += text;
+    buffer += decoder.write(raw);
     const state = forEachCompleteLine(buffer, lineNumber, onLine);
     buffer = state.remaining;
     lineNumber = state.lineNumber;
@@ -202,6 +204,7 @@ export const scanJsonlStream = async (
     }
   }
 
+  buffer += decoder.end();
   if (buffer.length) {
     emitFinalLine(buffer, lineNumber, onLine);
   }
@@ -256,6 +259,7 @@ export const parseJsonlStreamEntries = async (
   } = {}
 ) => {
   let buffer = '';
+  const decoder = new StringDecoder('utf8');
   let lineNumber = 0;
   let rows = 0;
   let bytes = 0;
@@ -275,13 +279,13 @@ export const parseJsonlStreamEntries = async (
   };
 
   for await (const chunk of stream) {
-    const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-    bytes += typeof chunk === 'string' ? Buffer.byteLength(text, 'utf8') : chunk.length;
+    const raw = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk;
+    bytes += raw.length;
     if (bytes > maxBytes) {
       throw toJsonTooLargeError(targetPath, bytes);
     }
 
-    buffer += text;
+    buffer += decoder.write(raw);
     const state = await forEachCompleteLineAsync(buffer, lineNumber, onLine);
     buffer = state.remaining;
     lineNumber = state.lineNumber;
@@ -291,6 +295,7 @@ export const parseJsonlStreamEntries = async (
     }
   }
 
+  buffer += decoder.end();
   if (buffer.length) {
     await emitFinalLineAsync(buffer, lineNumber, onLine);
   }
