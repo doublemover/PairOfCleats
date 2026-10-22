@@ -42,13 +42,32 @@ assert.deepEqual(good.report.verify.errors, []);
 assert.deepEqual(good.report.verify.warnings, [], 'both declared hash algorithms must verify without false warnings');
 await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[{"id":2}]');
 const corrupted = await run();
-assert.equal(corrupted.result.exitCode, 0, 'checksum warnings retain their existing exit contract');
-assert.equal(corrupted.report.verify.ok, true);
-assert.equal(corrupted.report.verify.warnings.length, 1);
-assert.match(corrupted.report.verify.warnings[0], /checksum mismatch for chunk_meta\.json/);
+assert.equal(corrupted.result.exitCode, 1, 'same-size checksum corruption must fail verification');
+assert.equal(corrupted.report.verify.ok, false);
+assert.equal(corrupted.report.verify.warnings.length, 0);
+assert.equal(corrupted.report.verify.errors.length, 1);
+assert.match(corrupted.report.verify.errors[0], /checksum mismatch for chunk_meta\.json/);
 await fs.writeFile(path.join(indexDir, 'empty.bin'), 'unexpected');
 const nonempty = await run();
 assert.equal(nonempty.result.exitCode, 1);
 assert.ok(nonempty.report.verify.errors.some(error => error.includes('bytes mismatch for empty.bin (expected 0')),
   'an explicitly declared zero is still verified');
-console.log('Stats verification preserves unknown sizes, declared SHA-1/XXH64, real checksum warnings and known-zero size errors.');
+await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[{"id":1}]');
+await fs.writeFile(path.join(indexDir, 'empty.bin'), '');
+const originalChecksum = manifest.pieces[0].checksum;
+for (const checksum of ['unknown:1234', 'sha1:bad', 'not-a-checksum']) {
+  manifest.pieces[0].checksum = checksum;
+  await fs.writeFile(manifestPath, JSON.stringify(manifest));
+  const invalid = await run();
+  assert.equal(invalid.result.exitCode, 1);
+  assert.equal(invalid.report.verify.ok, false);
+  assert.ok(invalid.report.verify.errors.some(error => /malformed or unsupported checksum/.test(error)));
+}
+manifest.pieces[0].checksum = originalChecksum;
+manifest.pieces[2].checksum = `sha1:${'0'.repeat(40)}`;
+await fs.writeFile(manifestPath, JSON.stringify(manifest));
+const unreadableHash = await run();
+assert.equal(unreadableHash.result.exitCode, 1);
+assert.equal(unreadableHash.report.verify.ok, false);
+assert.ok(unreadableHash.report.verify.errors.some(error => /failed to compute checksum for dense_vectors\.lancedb/.test(error)));
+console.log('Stats verification preserves unknown sizes and SHA-1/XXH64 while failing checksum corruption and hash-read errors.');

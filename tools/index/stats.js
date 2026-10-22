@@ -212,16 +212,22 @@ const verifyManifestPieces = async (modeDir, pieces) => {
       warnings.push(`${modeDir}: bytes mismatch for ${relPath}`);
     }
     const parsedChecksum = parseChecksum(piece?.checksum);
+    if (piece?.checksum != null && (!parsedChecksum
+      || !['sha1', 'xxh64'].includes(parsedChecksum.algo)
+      || !(parsedChecksum.algo === 'sha1' ? /^[a-f0-9]{40}$/i : /^[a-f0-9]{16}$/i).test(parsedChecksum.value))) {
+      errors.push(`${modeDir}: malformed or unsupported checksum for ${relPath}`);
+      continue;
+    }
     if (parsedChecksum) {
       try {
         const computed = parsedChecksum.algo === 'sha1'
           ? { algo: 'sha1', value: await sha1File(absolutePath) }
           : await checksumFile(absolutePath);
-        if (computed?.algo !== parsedChecksum.algo || computed?.value !== parsedChecksum.value) {
-          warnings.push(`${modeDir}: checksum mismatch for ${relPath}`);
+        if (computed?.algo !== parsedChecksum.algo || computed?.value !== parsedChecksum.value.toLowerCase()) {
+          errors.push(`${modeDir}: checksum mismatch for ${relPath}`);
         }
       } catch {
-        warnings.push(`${modeDir}: failed to compute checksum for ${relPath}`);
+        errors.push(`${modeDir}: failed to compute checksum for ${relPath}`);
       }
     }
   }
