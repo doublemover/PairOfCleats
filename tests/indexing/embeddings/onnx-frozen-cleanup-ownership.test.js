@@ -59,6 +59,17 @@ for (const pendingPrimary of [Object.freeze(Object.assign(new Error('unobserved 
   assert.equal(pending.cacheOwnershipReleased(), false); assert.equal(releasedCapacity, false);
 }
 
+for (const invalidResource of [{ session: {} }, { tokenizer: { dispose: 'not a method' } },
+  { tokenizer: Object.defineProperty({}, 'dispose', { get() { throw cleanup; } }) }]) {
+  let releasedCapacity = false;
+  const pending = await releaseOnnxResources({ ...invalidResource,
+    qualificationSlot: { release() { releasedCapacity = true; } } });
+  assert.equal(pending.cacheOwnershipPending, true); assert.equal(releasedCapacity, false);
+  await assert.rejects(pending.onnxResourceOwner.release());
+}
+assert.equal(await releaseOnnxResources({ tokenizer: () => ({}) }), null,
+  'a JS-only tokenizer with no disposal API requires no native close');
+
 // Capacity release failure is itself retained, instead of replacing the primary.
 let refuseCapacity = true, nativeReleases = 0;
 const capacityFailure = Object.freeze(new Error('capacity release failed'));

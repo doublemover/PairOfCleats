@@ -12,7 +12,7 @@ const captureResource = (resource, name, required = false) => {
   try {
     method = resource?.[name];
     if (resource && typeof method !== 'function') {
-      if (required) throw new TypeError(`ONNX resource has no ${name} method.`);
+      if (required || method != null) throw new TypeError(`ONNX resource has no ${name} method.`);
       released = true;
     }
   } catch (error) { captureError = error; captureFailed = true; }
