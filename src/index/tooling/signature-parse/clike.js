@@ -1,4 +1,4 @@
-import { splitTopLevel, stripTopLevelAssignment } from './shared.js';
+import { findMatchingParen, splitTopLevel, stripTopLevelAssignment } from './shared.js';
 import { setOwn } from '../../../shared/object-record.js';
 import { normalizeTypeWhitespace, transformTypeTextOutsideLiterals } from '../../../shared/type-normalization.js';
 
@@ -49,7 +49,7 @@ const parseClikeParam = (value) => {
 export const parseClikeSignature = (detail, symbolName) => {
   if (!detail || typeof detail !== 'string') return null;
   const open = detail.indexOf('(');
-  const close = detail.lastIndexOf(')');
+  const close = findMatchingParen(detail,open);
   if (open === -1 || close === -1 || close < open) return null;
   const signature = detail.trim();
   const before = detail.slice(0, open).trim();

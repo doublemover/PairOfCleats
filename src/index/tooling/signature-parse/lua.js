@@ -1,4 +1,4 @@
-import { splitTopLevel } from './shared.js';
+import { findMatchingParen, splitTopLevel } from './shared.js';
 import { setOwn } from '../../../shared/object-record.js';
 import { normalizeTypeWhitespace } from '../../../shared/type-normalization.js';
 
@@ -42,7 +42,7 @@ export const parseLuaSignature = (detail) => {
   if (!detail || typeof detail !== 'string') return null;
   const signature = detail.trim();
   const open = signature.indexOf('(');
-  const close = signature.lastIndexOf(')');
+  const close = findMatchingParen(signature,open);
   if (open === -1 || close === -1 || close < open) return null;
   const before = stripLuaNamePrefix(signature.slice(0, open));
   if (!before) return null;

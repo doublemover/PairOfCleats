@@ -1,23 +1,10 @@
-import { splitTopLevel } from './shared.js';
+import { findMatchingParen, splitTopLevel } from './shared.js';
 import { setOwn } from '../../../shared/object-record.js';
+import { normalizeTypeWhitespace } from '../../../shared/type-normalization.js';
 
 const ELIXIR_PARAM = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 
-const normalizeType = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-
-const findMatchingParen = (text, startIndex) => {
-  if (!text || text[startIndex] !== '(') return -1;
-  let depth = 0;
-  for (let i = startIndex; i < text.length; i += 1) {
-    const ch = text[i];
-    if (ch === '(') depth += 1;
-    else if (ch === ')') {
-      depth -= 1;
-      if (depth === 0) return i;
-    }
-  }
-  return -1;
-};
+const normalizeType = (value) => normalizeTypeWhitespace(value);
 
 const stripDefault = (value) => {
   const text = normalizeType(value);

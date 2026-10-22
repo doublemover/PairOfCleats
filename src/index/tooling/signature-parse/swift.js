@@ -1,21 +1,8 @@
-import { findTopLevelIndex, splitTopLevel, stripTopLevelAssignment } from './shared.js';
+import { findMatchingParen, findTopLevelIndex, splitTopLevel, stripTopLevelAssignment } from './shared.js';
 import { setOwn } from '../../../shared/object-record.js';
+import { normalizeTypeWhitespace } from '../../../shared/type-normalization.js';
 
 const splitSwiftParams = (value) => splitTopLevel(value, ',');
-
-const findMatchingParen = (value, startIndex) => {
-  if (!value || startIndex < 0) return -1;
-  let depthParen = 0;
-  for (let i = startIndex; i < value.length; i += 1) {
-    const ch = value[i];
-    if (ch === '(') depthParen += 1;
-    if (ch === ')') {
-      depthParen -= 1;
-      if (depthParen === 0) return i;
-    }
-  }
-  return -1;
-};
 
 const stripDefaultValue = (value) => stripTopLevelAssignment(value);
 
@@ -38,7 +25,7 @@ const normalizeParamType = (value) => {
   return normalizeSwiftType(withoutAttrs);
 };
 
-const normalizeSignatureLine = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+const normalizeSignatureLine = (value) => normalizeTypeWhitespace(value);
 
 const selectSignatureLine = (detail) => {
   const lines = String(detail || '')

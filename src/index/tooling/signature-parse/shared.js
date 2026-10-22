@@ -45,7 +45,7 @@ const walkTopLevel = (value, onChar, { angleBrackets = true, rustLifetimes = fal
     }
 
     if (angleBrackets && ch === '<') depthAngle += 1;
-    if (angleBrackets && ch === '>' && depthAngle > 0 && !(rustLifetimes && source[i - 1] === '-')) depthAngle -= 1;
+    if (angleBrackets && ch === '>' && depthAngle > 0 && source[i - 1] !== '-' && source[i - 1] !== '=') depthAngle -= 1;
     if (ch === '(') depthParen += 1;
     if (ch === ')' && depthParen > 0) depthParen -= 1;
     if (ch === '[') depthBracket += 1;
@@ -105,6 +105,15 @@ export const findTopLevelIndex = (value, targetChar, options = {}) => {
   }, options);
 
   return found;
+};
+
+/** Parameter enclosures depend on quote-aware paired punctuation. Angle
+ * operators in default expressions cannot hide the matching parenthesis. */
+export const findMatchingParen = (value, open, options = {}) => {
+  const source=normalizeInput(value);
+  if (!Number.isSafeInteger(open) || open<0 || source[open]!=='(') return -1;
+  const close=findTopLevelIndex(source.slice(open),')',{...options,angleBrackets:false});
+  return close<0 ? -1 : open+close;
 };
 
 export const stripTopLevelAssignment = (value, options = {}) => {
