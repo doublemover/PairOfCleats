@@ -22,6 +22,10 @@ PairOfCleats exposes a lightweight programmatic API for build/search/status. Imp
   - Params mapped to CLI flags: `query`, `mode`, `backend`, `ann`, `annBackend`, `cursor`, `n`, `case`, `caseFile`,
     `caseTokens`, `path`, `file`, `ext`, `lang`, `json`, `explain`.
   - Use `args` to pass any other CLI flags (for example `--compact`, `--top`, `--filter`, `--meta`, `--meta-json`).
+    `argsMode: 'additional'` is the default: named parameters are serialized first,
+    then extra arguments, then the query after `--`. An empty `args` array keeps
+    named parameters. Callers with a complete argument vector must explicitly set
+    `argsMode: 'complete'`; legacy parameter validation still applies.
   - Deprecated `context: 0` is a no-op; other values fail before CLI invocation.
   - Execution options: `emitOutput`, `exitOnError`, `indexCache`, `sqliteCache`, `signal`, `scoreMode`, `root`.
 - `status(repoRoot, options)`

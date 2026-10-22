@@ -23,6 +23,18 @@
     "profile": { "type": "string", "enum": ["overview", "compare", "repo", "family", "raw"] },
     "root": { "type": "string", "minLength": 1 },
     "compareRoot": { "type": ["string", "null"] },
+    "comparison": {
+      "type": "object",
+      "required": ["schemaVersion", "mode", "currentRoot", "baselineRoot", "rows"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "mode": { "enum": ["code", "prose", "extracted-prose", "records"] },
+        "currentRoot": { "type": "string" },
+        "baselineRoot": { "type": "string" },
+        "rows": { "type": "array", "items": { "$ref": "#/$defs/comparisonRow" } }
+      },
+      "additionalProperties": false
+    },
     "filters": {
       "type": "object",
       "required": ["folder", "repo", "mode", "latest", "sort", "top"],
@@ -149,6 +161,8 @@
         "properties": {
           "folder": { "type": "string" },
           "runCount": { "type": "integer", "minimum": 0 },
+          "selectedMode": { "enum": ["code", "prose", "extracted-prose", "records"] },
+          "chunksMedian": { "type": ["number", "null"] },
           "codeChunksMedian": { "type": ["number", "null"] },
           "codeChunksP95": { "type": ["number", "null"] },
           "codeFilesMedian": { "type": ["number", "null"] },
@@ -189,6 +203,22 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "comparisonRow": {
+      "type": "object",
+      "required": ["folder", "currentChunks", "baselineChunks", "deltaChunksPct", "currentBuild", "baselineBuild", "deltaBuildPct", "label", "regressionSeverity"],
+      "properties": {
+        "folder": { "type": "string" },
+        "label": { "type": "string" },
+        "currentChunks": { "type": ["number", "null"] },
+        "baselineChunks": { "type": ["number", "null"] },
+        "deltaChunksPct": { "type": ["number", "null"] },
+        "currentBuild": { "type": ["number", "null"] },
+        "baselineBuild": { "type": ["number", "null"] },
+        "deltaBuildPct": { "type": ["number", "null"] },
+        "regressionSeverity": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
     "distribution": {
       "type": ["object", "null"],
       "properties": {

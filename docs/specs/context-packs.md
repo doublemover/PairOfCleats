@@ -8,6 +8,10 @@
 `tools/analysis/context-pack.js`, `tools/api/router/analysis.js`, and `tools/mcp/tools/handlers/analysis.js`.
 **Authoritative schema:** `COMPOSITE_CONTEXT_PACK_SCHEMA` in `src/contracts/schemas/analysis/context-pack.js`.
 
+An unresolved or ambiguous envelope without a concrete typed identity emits
+`primary.ref: null`. A resolved chunk, symbol or file identity remains typed;
+unresolved seeds do not fabricate a chunk reference with a null UID.
+
 Evidence schema 2 distinguishes working-tree previews from indexed-source identity.
 Both direct and prefetched excerpts read bounded contained bytes and key caches by
 current content hash as well as generation. `sourceIdentity` reports the current

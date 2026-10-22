@@ -22,6 +22,26 @@ Scheduler owns admission control, concurrency caps, fairness, and backpressure b
 
 ## Work model
 
+Resource discovery uses process-available parallelism and the shared minimum
+host/container/configured memory envelope. Host CPU count is diagnostic.
+Tree-sitter subprocess fanout is the minimum of the explicit fanout, effective
+CPU capacity, descriptor pressure cap and retained-memory budget. Each child
+holds its existing scheduler reservation for its complete subprocess lifetime;
+receipts distinguish configured, effective and peak observed fanout.
+
+Windows host load is unavailable unless a sampler supplies a real observation.
+An unavailable sample cannot be interpreted as idle CPU. Parent-process heap,
+GC and aggregate RSS are pressure proxies, not per-worker heap or GC readings.
+Adaptive holds preserve the previous actual scale direction for reversal guards.
+Learned scheduler profiles require the same resource/policy identity and expire
+after seven days. Repository-size profiles additionally expire from their actual
+sample timestamp; truncated scans never select a confident policy override.
+
+Incidental repository scans bound entries, directories, frontier and pending
+stats in addition to files and bytes. Incomplete scans report unknown size and
+their stopping reason. Memoization requires a complete scan and a stable ignore
+policy fingerprint, including ignore-file contents.
+
 - Work unit: one schedulable operation.
 - Resource tokens: `cpu`, `io`, `mem`.
 - Cost class: `small`, `medium`, `large`, `xlarge`.

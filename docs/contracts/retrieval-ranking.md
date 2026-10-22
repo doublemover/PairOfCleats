@@ -14,6 +14,18 @@ Phase 11 adds:
 - Dense ranking uses ANN when available (HNSW or sqlite extension).
 - When both sparse and ANN are active, results combine via RRF or blend.
 
+Explicit field-weight policies stay authoritative when selected vocabularies are
+empty: disabled body weights never enable unfielded fallback. ANN hits retain a
+score-space contract. Hybrid blending maps cosine to the unit interval, L2
+negative distances through reciprocal distance, and unbounded dot/IP similarities
+through a monotone atan calibration. Pure dense blending preserves the raw ANN
+ordering and excludes sparse-only rows. RRF remains rank-based.
+
+Context expansion treats absent or null optional caps as defaults; explicit zero
+admits no work under that cap. Cap truncation requires an actual eligible omission
+witness. Derived context indexes are stored in the retrieval cache, keyed by the
+selected directory and index signature, without writing into frozen generations.
+
 ## Explainability
 
 ### `scoreType`

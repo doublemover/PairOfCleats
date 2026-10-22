@@ -46,3 +46,15 @@ Sample dataset:
 - Recall@k: relevant hits found in the top k results.
 - MRR: mean reciprocal rank of the first relevant hit.
 - nDCG@k: rank-aware gain normalized by the ideal ordering.
+
+Judgment policy `distinct-document-one-to-one.v1` deduplicates identical expected
+labels and assigns each distinct retrieved document to at most one relevant
+slot. Overlapping file and symbol predicates use deterministic maximum matching;
+one hit cannot increase recall or gain twice. Metrics validate unique positive
+ranks and distinct relevant counts instead of clamping impossible results.
+
+Model comparisons use repository/mode-scoped stable chunk or file/range identity.
+Generation-local document ordinals qualify only with an explicit shared index
+namespace. Cross-model reports require matching corpus provenance digests that
+exclude embedding identity; missing provenance is reported as incomparable rather
+than averaged into parity metrics.

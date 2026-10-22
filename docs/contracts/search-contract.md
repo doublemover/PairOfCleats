@@ -35,6 +35,25 @@ Filter ordering and top semantics:
 
 Filters are ANDed together unless explicitly documented otherwise.
 
+Each supplied file or author argument is one value, including internal spaces
+and commas. Repeated arguments form alternatives within that filter. Filename
+prefilters must retain every exact match; an unprovable regex or short alternative
+disables that optimization for the entire alternative set. Effective extension,
+language and visibility facts are shared by exact matching and persisted filter
+indexes (`factsVersion: 2`); stale persisted facts are rebuilt.
+
+Import and usage filters require complete relation evidence from the selected
+generation, or complete inline facts. Unavailable or corrupt required relations
+are errors, rather than an empty measured relation set. Query-cache identities
+include the match policy and every control-flow minimum filter.
+
+Literal phrase evidence uses `literal-unicode.v3:preserve-case`, separately from
+the normalized sparse scoring analyzer. Default phrases fold case at comparison;
+case-sensitive phrases require current case-preserving source evidence and reject
+older indexes with `ERR_LITERAL_ANALYZER_REBUILD`. Hashed chargram pruning requires
+the complete current hash identity (version 2); stale or absent identity requires
+rebuilding rather than mixing position-dependent old hashes with corrected ones.
+
 ## Filter-only search
 
 Without query text, at least one structured filter is required. The pipeline enumerates eligible indexed chunks in stable indexed order, independently of sparse/ANN candidates, relevance, and context expansion. Pagination uses per-mode offsets bound to the exact filter and generation signature. Every indexed match is reachable by following `pagination.nextCursor`; the metadata reports total matches and continuation separately. See [Search CLI](search-cli.md#filter-only-enumeration) for coverage and type-expression identity semantics.

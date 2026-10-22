@@ -1,5 +1,18 @@
 # Benchmarks
 
+Throughput reports apply repository and latest-run selection before computing
+folder and global aggregates. Latest selection uses recorded run timestamps with
+deterministic filename ties. Focused family and comparison chunk metrics use the
+requested mode. Missing latency, memory and rate observations remain unknown;
+measured zero remains zero. Regression lists order duration increases and rate
+decreases by the same regression severity, with deterministic identity ties.
+
+`show-throughput --profile compare --compare <baseline>` prepares one comparison
+for text, JSON and CSV. JSON includes a versioned `comparison` object with both
+roots, selected mode and aligned folder rows; CSV emits those same comparison
+rows. Both formats require a baseline. The raw JSON contract is
+`docs/schemas/show-throughput-report.schema.json`.
+
 This project has two layers of benchmarking:
 - Microbenchmarks for fast component-level timing.
 - Language benchmarks for full-size repo comparisons.
