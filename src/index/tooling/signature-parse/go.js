@@ -1,12 +1,13 @@
 import { splitTopLevel, findTopLevelIndex } from './shared.js';
 import { setOwn } from '../../../shared/object-record.js';
+import { normalizeTypeWhitespace } from '../../../shared/type-normalization.js';
 
 const GO_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 const GO_NESTING = Object.freeze({ angleBrackets: false });
 const splitParams = (value) => splitTopLevel(value, ',', GO_NESTING);
 
-const normalizeType = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+const normalizeType = (value) => normalizeTypeWhitespace(value);
 
 const parseGoParamPart = (part) => {
   const cleaned = normalizeType(part);
@@ -58,20 +59,12 @@ export const parseGoSignature = (detail) => {
   const nameMatch = /^[A-Za-z_][A-Za-z0-9_]*/u.exec(signature.slice(cursor));
   if (nameMatch?.[0]) {
     cursor += nameMatch[0].length;
+    while (cursor < signature.length && /\s/u.test(signature[cursor])) cursor += 1;
     // Optional generic signature: Name[T any]
     if (signature[cursor] === '[') {
-      let depth = 0;
-      let i = cursor;
-      for (; i < signature.length; i += 1) {
-        const char = signature[i];
-        if (char === '[') depth += 1;
-        else if (char === ']') {
-          depth -= 1;
-          if (depth === 0) break;
-        }
-      }
-      if (depth !== 0) return null;
-      cursor = i + 1;
+      const offset = findTopLevelIndex(signature.slice(cursor),']',GO_NESTING);
+      if (offset < 0) return null;
+      cursor += offset + 1;
     }
     while (cursor < signature.length && /\s/u.test(signature[cursor])) cursor += 1;
   }

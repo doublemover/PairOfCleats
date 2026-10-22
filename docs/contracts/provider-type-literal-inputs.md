@@ -14,7 +14,7 @@ cannot remove a word inside a string template argument. The Lua parser preserves
 its quoted type labels. These adapters use the existing shared literal-mask
 owner; other language-specific parser limitations remain explicit.
 
-The request-cache policy is `rq7`; signature parse keys use a version4 JSON tuple
+The request-cache policy is `rq8`; signature parse keys use a version4 JSON tuple
 instead of delimiter concatenation. Both retire earlier ambiguous input meaning.
 Shared LSP producer identity also changes; canonical type-normalization rules
 themselves are unchanged. Authored actual parser/cache/cold-and-warm document
