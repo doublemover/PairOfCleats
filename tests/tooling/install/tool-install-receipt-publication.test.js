@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { buildToolInstallReceipt, readToolInstallReceipts, verifyToolInstallReceipt, writeToolInstallReceipt } from '../../../tools/tooling/install-receipts.js';
+import { getToolReceiptResourceSession } from '../../../tools/tooling/receipt-resource-owner.js';
 
 // UNVALIDATED: authored actual-owner regression; no installer or executable runs.
 const suite = path.join(process.cwd(), '.tmp', 'tasks', 'tool-install-receipt-publication');
@@ -14,6 +15,15 @@ const root = await fsp.mkdtemp(path.join(suite, 'case-'));
 const reseal = value => {
   const { receiptId, ...body } = value;
   return { ...body, receiptId: createHash('sha256').update(stableStringify(body)).digest('hex') };
+};
+const contains = (error, expected) => {
+  const queue = [error], seen = new Set();
+  while (queue.length) {
+    const current = queue.pop(); if (current === expected) return true;
+    if (!current || typeof current !== 'object' || seen.has(current)) continue;
+    seen.add(current); queue.push(current.cause, ...(Array.isArray(current.errors) ? current.errors : []));
+  }
+  return false;
 };
 try {
   const consumer = path.join(root, 'inert-consumer');
@@ -58,14 +68,19 @@ try {
   const primary = Object.freeze(Object.assign(new Error('exclusive publication denied'), { code: 'EACCES' }));
   const cleanup = new Error('private temporary cleanup denied');
   const link = fs.linkSync, remove = fs.rmSync;
+  let denyCleanup = true, retained;
   try {
     fs.linkSync = () => { throw primary; };
     fs.rmSync = targetPath => {
-      if (path.dirname(targetPath) === path.dirname(target)) throw cleanup;
+      if (denyCleanup && path.dirname(targetPath) === path.dirname(target)) throw cleanup;
       return remove(targetPath);
     };
-    assert.throws(() => writeToolInstallReceipt(root, receipt), error => error.cause === primary
-      && error.errors[0] === primary && error.errors[1] === cleanup);
+    assert.throws(() => writeToolInstallReceipt(root, receipt), error => {
+      retained = getToolReceiptResourceSession(error);
+      return error.cause === primary && contains(error, cleanup) && Boolean(retained);
+    });
+    denyCleanup = false;
+    assert.deepEqual(retained.releaseAfterClose(), { resourceId: retained.resourceId, settled: true, pending: false });
   } finally { fs.linkSync = link; fs.rmSync = remove; }
   writeToolInstallReceipt(root, receipt);
 

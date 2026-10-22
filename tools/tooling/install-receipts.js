@@ -7,6 +7,8 @@ import { identifyProvisioningExecutable } from './provisioning-plan.js';
 import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { MANAGED_CHILD_STORAGE_RETENTION_TIERS } from '../../src/shared/storage/child-environment.js';
 import { assertNoSymlinkPath, readVerifiedContainedFileSync } from '../../src/shared/contained-file.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { createReceiptResourceOwner, withToolReceiptDirectory } from './receipt-resource-owner.js';
 
 export const TOOL_INSTALL_RECEIPT_VERSION = 1;
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -131,7 +133,12 @@ const safeDirectory = (root, components, { create = false } = {}) => {
   for (const component of components) {
     current = path.join(current, component);
     if (create) {
-      try { fs.mkdirSync(current); } catch (error) { if (error.code !== 'EEXIST') throw error; }
+      try { fs.mkdirSync(current); } catch (error) {
+        let code;
+        try { code = error?.code; }
+        catch (inspection) { throw addStorageFailureContext(error, {}, inspection, { secondaryPresent: true }); }
+        if (code !== 'EEXIST') throw error;
+      }
     }
     const stat = fs.lstatSync(current);
     if (!stat.isDirectory() || stat.isSymbolicLink() || !isPathWithinRoot(fs.realpathSync(current), physicalRoot)) throw new Error('Tool receipt directory escapes its managed owner.');
@@ -170,43 +177,71 @@ export const writeToolInstallReceipt = (toolingRoot, receipt) => {
   const directory = safeDirectory(toolingRoot, ['install-receipts', toolId(receipt.toolId)], { create: true });
   const target = path.join(directory, receipt.receiptId + '.json');
   const temporary = path.join(directory, `.${randomUUID()}.tmp`);
-  let failure = null, temporaryOwned = false;
-  try {
-    fs.writeFileSync(temporary, bytes, { flag: 'wx', mode: 0o600, flush: true });
-    temporaryOwned = true;
+  const originalStat = fs.lstatSync, originalRemove = fs.rmSync, originalWrite = fs.writeFileSync, originalLink = fs.linkSync;
+  const directoryIdentity = originalStat(directory, { bigint: true });
+  const identity = stat => {
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Tool receipt temporary is not its original regular file.');
+    return Object.fromEntries(['dev', 'ino', 'birthtimeNs', 'size', 'mode', 'mtimeNs'].map(key => [key, String(stat[key])]));
+  };
+  let failed = false, temporaryOwned = false, temporaryIdentity = null;
+  const owner = createReceiptResourceOwner({ context: { receiptRecovery: Object.freeze({ temporary, target,
+    cleanupAuthority: 'original-write-return-and-exact-temporary-identity-only' }) }, cleanup: () => {
+    if (!temporaryOwned) return;
+    if (!temporaryIdentity) throw new Error('Receipt temporary identity was never confirmed; preserve its path.');
     assertNoSymlinkPath(path.parse(directory).root, temporary);
-    try { fs.linkSync(temporary, target); }
+    const parent = originalStat(directory, { bigint: true });
+    if (!parent.isDirectory() || parent.isSymbolicLink() || parent.dev !== directoryIdentity.dev || parent.ino !== directoryIdentity.ino
+      || parent.birthtimeNs !== directoryIdentity.birthtimeNs) throw new Error('Receipt temporary parent identity changed; preserve its path.');
+    const current = identity(originalStat(temporary, { bigint: true }));
+    if (Object.keys(temporaryIdentity).some(key => temporaryIdentity[key] !== current[key])) {
+      throw new Error('Receipt temporary identity changed; preserve its path.');
+    }
+    return originalRemove(temporary, { force: true });
+  } });
+  try {
+    const writeResult = originalWrite(temporary, bytes, { flag: 'wx', mode: 0o600, flush: true });
+    if (writeResult !== undefined) throw Object.assign(new Error('Receipt write returned unknown synchronous evidence.'), {
+      cacheOwnershipPending: true
+    });
+    temporaryOwned = true;
+    temporaryIdentity = identity(originalStat(temporary, { bigint: true }));
+    assertNoSymlinkPath(path.parse(directory).root, temporary);
+    try { originalLink(temporary, target); }
     catch (error) {
-      if (error.code !== 'EEXIST') throw error;
+      let code;
+      try { code = error?.code; }
+      catch (inspection) { throw addStorageFailureContext(error, {}, inspection, { secondaryPresent: true }); }
+      if (code !== 'EEXIST') throw error;
       const existing = JSON.parse(readVerifiedContainedFileSync(directory, target, { maxBytes: 1024 * 1024 }).buffer.toString('utf8'));
       validateToolInstallReceipt(existing);
       if (stableStringify(existing) !== stableStringify(receipt)) throw invalidReceipt();
     }
     const published = validateToolInstallReceipt(JSON.parse(readVerifiedContainedFileSync(directory, target, { maxBytes: 1024 * 1024 }).buffer.toString('utf8')));
     if (stableStringify(published) !== stableStringify(receipt)) throw invalidReceipt();
-  } catch (error) { failure = error; }
-  try { if (temporaryOwned) fs.rmSync(temporary, { force: true }); }
-  catch (error) {
-    failure = failure ? new AggregateError([failure, error], failure.message, { cause: failure }) : error;
-  }
-  if (failure) throw failure;
+  } catch (error) { failed = true; owner.record(error); }
+  owner.settle();
+  if (failed) throw owner.failure();
   return target;
 };
 
 export const readToolInstallReceipts = (toolingRoot, id) => {
   let directory;
   try { directory = safeDirectory(toolingRoot, ['install-receipts', toolId(id)]); }
-  catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+  catch (error) {
+    let code;
+    try { code = error?.code; }
+    catch (inspection) { throw addStorageFailureContext(error, {}, inspection, { secondaryPresent: true }); }
+    if (code === 'ENOENT') return []; throw error;
+  }
   const names = [];
-  const entries = fs.opendirSync(directory);
-  try {
+  withToolReceiptDirectory(directory, entries => {
     let entry, visited = 0;
     while ((entry = entries.readSync())) {
       if (++visited > 4096) throw new Error('Tool receipt inventory exceeds its entry bound.');
       if (/^[a-f0-9]{64}\.json$/.test(entry.name)) names.push(entry.name);
       if (names.length > 1024) throw new Error('Tool receipt inventory exceeds its bound.');
     }
-  } finally { entries.closeSync(); }
+  });
   return names.sort().map(name => {
     const file = path.join(directory, name);
     const receipt = validateToolInstallReceipt(JSON.parse(readVerifiedContainedFileSync(directory, file, { maxBytes: 1024 * 1024 }).buffer.toString('utf8')));

@@ -18,6 +18,8 @@ import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/confi
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 import { bindProvisioningCommand, createToolProvisioningPlan, probeProvisioningCommand, verifyToolProvisioningPlan } from './provisioning-plan.js';
 import { buildToolInstallReceipt, writeToolInstallReceipt } from './install-receipts.js';
+import { assertToolReceiptFailureSettled } from './receipt-resource-owner.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 import { planManagedChildStorage } from '../../src/shared/storage/child-environment.js';
 import { bindDeclaredInstallAdmission, resolveDeclaredInstallAdmission, runToolInstallChild } from './install-execution.js';
@@ -369,8 +371,13 @@ for (const result of results) {
     result.receiptId = receipt.receiptId;
     result.verification = receipt.verification;
   } catch (error) {
+    assertToolReceiptFailureSettled(error);
+    let message;
+    try { const original = error?.message; message = typeof original === 'string' ? original : 'Receipt publication failed.'; }
+    catch (inspection) { throw addStorageFailureContext(error, {}, inspection, { secondaryPresent: true }); }
+    assertToolReceiptFailureSettled(error);
     result.status = 'verification-failed';
-    result.error = 'Tool executable was observed, but durable install evidence could not be published: ' + error.message;
+    result.error = 'Tool executable was observed, but durable install evidence could not be published: ' + message;
   }
 }
 const readiness = buildToolInstallReadiness(results);
