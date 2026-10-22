@@ -1,9 +1,22 @@
 const path = require('node:path');
-const { readVerifiedSource, documentOffsets, createDocumentAuthority } = require('./document-authority.js');
+const { readVerifiedSource, documentOffsets, createDocumentAuthority, assertQualifiedEditor } = require('./document-authority.js');
 
 const LIMITS = Object.freeze({ records: 128, bytes: 65536, workMs: 250 });
 const sameGeneration = (left, right) => left?.baseBuildId === right?.baseBuildId
   && left?.semanticRevision === right?.semanticRevision;
+
+function captureSemanticData(value) {
+  const encoded = JSON.stringify(value);
+  if (typeof encoded !== 'string' || Buffer.byteLength(encoded) > LIMITS.bytes) throw new Error('Semantic editor data exceeds the existing 64 KiB response/request bound.');
+  const captured = JSON.parse(encoded);
+  const freeze = (value, depth = 0) => {
+    if (!value || typeof value !== 'object') return value;
+    if (depth > 64) throw new Error('Semantic editor data exceeds 64 nesting levels.');
+    for (const child of Object.values(value)) freeze(child, depth + 1);
+    return Object.freeze(value);
+  };
+  return freeze(captured);
+}
 
 function qualifiedBindingSeed(payload) {
   if (payload?.status !== 'resolved' || payload.binding?.status !== 'resolved'
@@ -87,23 +100,47 @@ function qualifiedDocumentOffsets(document, target) {
 function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execute, chooseTransport,
   getCursorSeed = null, resolveCursorSeed = null, discoverGeneration = null }) {
   let last = null;
+  async function pick(items, options) {
+    const issued = Object.freeze(items.map(item => item && typeof item === 'object' ? Object.freeze({ ...item }) : item));
+    const selected = await vscode.window.showQuickPick(issued, options);
+    if (!operations.isCurrent() || selected == null) return undefined;
+    if (!options.canPickMany) {
+      if (!issued.includes(selected)) throw new Error('Semantic selection is not an original item from this picker.');
+      return selected;
+    }
+    if (!Array.isArray(selected)) throw new Error('Semantic multi-selection requires original picker items.');
+    const choices = [], seen = new Set();
+    for (let index = 0; index < selected.length; index++) {
+      if (!Object.hasOwn(selected, index)) throw new Error('Semantic multi-selection requires dense original picker items.');
+      const item = selected[index];
+      if (!issued.includes(item) || seen.has(item)) throw new Error('Semantic multi-selection requires distinct original picker items.');
+      seen.add(item); choices.push(item);
+    }
+    return choices;
+  }
   async function show(payload, state) {
+    if (!operations.isCurrent()) return null;
     const document = await vscode.workspace.openTextDocument({
       content: describeSemanticEvidence(payload) + `\nSeed generation source: ${state.generationSource || 'explicit immutable generation'}`
         + '\n\n' + JSON.stringify(payload, null, 2), language: 'plaintext'
     });
+    if (!operations.isCurrent()) return null;
     await vscode.window.showTextDocument(document, { preview: true });
-    if (!operations.isCurrent()) return;
-    last = { payload, ...state };
+    if (!operations.isCurrent()) return null;
+    last = Object.freeze({ ...state, payload });
+    return last;
   }
 
   async function runOperation(operation, value, state, extra = {}) {
-    const request = buildSemanticRequest(operation, state.repoContext.repoRoot, state.generation, value, extra);
-    const payload = await execute(operation, request, state);
-    if (!payload || !operations.isCurrent()) return null;
-    if (!sameGeneration(state.generation, payload.generation)) throw new Error('Semantic generation changed; restart from the seed.');
-    await show(payload, { ...state, operation, request, value });
-    return payload;
+    if (!operations.isCurrent()) return null;
+    const generation = captureSemanticData(state.generation);
+    const selectedState = Object.freeze({ ...state, generation });
+    const request = captureSemanticData(buildSemanticRequest(operation, state.repoContext.repoRoot, generation, value, extra));
+    const original = await execute(operation, request, selectedState);
+    if (!original || !operations.isCurrent()) return null;
+    const payload = captureSemanticData(original);
+    if (!sameGeneration(generation, payload.generation)) throw new Error('Semantic generation changed; restart from the seed.');
+    return show(payload, { ...selectedState, operation, request, value: operation === 'find' ? request.selector : value });
   }
 
   async function inspect(state) {
@@ -119,7 +156,7 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
         || state.execution?.capabilities?.[`semantic-${operation}`] === true;
       if (payload.enrichment?.suggestions?.length && supported('enrichment')) actions.push({ label: 'Inspect proposed enrichment plan (does not enqueue)', action: 'plan' });
       if (payload.cursor && state.transport === 'api') actions.push({ label: 'More (bounded page, same generation)', action: 'more' });
-      const choice = await vscode.window.showQuickPick([...actions, ...candidates], {
+      const choice = await pick([...actions, ...candidates], {
         title: `Semantic evidence • ${payload.status || 'unknown'} • experimental`,
         placeHolder: 'Select a record for detail/trace, or return to the seed'
       });
@@ -130,19 +167,22 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
         continue;
       }
       if (choice.action === 'plan') {
-        await runOperation('enrichment', payload.enrichment.suggestions.slice(0, 8).map(item => item.taskId), state);
-        if (last) await inspect(last);
+        const proposed = await runOperation('enrichment', payload.enrichment.suggestions.slice(0, 8).map(item => item.taskId), state);
+        if (proposed) await inspect(proposed);
         await show(payload, state);
         continue;
       }
       if (choice.action === 'more') {
-        const next = await execute(state.operation, { ...state.request, cursor: payload.cursor }, state);
+        const original = await execute(state.operation, captureSemanticData({ ...state.request, cursor: payload.cursor }), state);
+        if (!operations.isCurrent()) return;
+        const next = captureSemanticData(original);
         if (!sameGeneration(next?.generation, state.generation)) throw new Error('Continuation generation changed. Restart from seed.');
-        await show(next, state);
-        await inspect(last);
+        const page = await show(next, state);
+        if (page) await inspect(page);
+        await show(payload, state);
         continue;
       }
-      const action = await vscode.window.showQuickPick([
+      const action = await pick([
         { label: 'Inspect source-qualified detail', value: 'detail' },
         { label: 'Trace upstream (depth 2)', value: 'trace', direction: 'upstream' },
         { label: 'Trace downstream (depth 2)', value: 'trace', direction: 'downstream' },
@@ -162,6 +202,7 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
         const editor = await vscode.window.showTextDocument(qualified.document);
         await authority.assertCurrent();
         if (!operations.isCurrent()) return;
+        assertQualifiedEditor(editor, qualified);
         editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
         editor.revealRange(editor.selection);
       } else {
@@ -170,11 +211,11 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
           const depth = await vscode.window.showInputBox({ prompt: 'Trace depth (1–64; records 128 / edges 512 / 64 KiB / 250 ms)', value: '2' });
           if (depth === undefined) continue;
           if (!/^\d+$/.test(depth) || Number(depth) < 1 || Number(depth) > 64) throw new Error('Trace depth must be between 1 and 64.');
-          const kinds = await vscode.window.showQuickPick(['flowsTo', 'defines', 'reads', 'writes', 'callTarget',
+          const kinds = await pick(['flowsTo', 'defines', 'reads', 'writes', 'callTarget',
             'constructTarget', 'argumentToParameter', 'returnToResult'], { canPickMany: true,
             title: 'Trace edge kinds (empty selection uses canonical supported kinds)' });
           if (!kinds) continue;
-          const slot = await vscode.window.showQuickPick(['Any slot', 'input', 'output', 'argument', 'receiver',
+          const slot = await pick(['Any slot', 'input', 'output', 'argument', 'receiver',
             'parameter', 'returnValue', 'propertyValue', 'element'], { title: 'Trace slot' });
           if (!slot) continue;
           extra = { ...extra, depth: Number(depth), kinds };
@@ -185,8 +226,8 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
             extra.slot = { name: slot, ordinal: Number(ordinal) };
           }
         }
-        await runOperation(action.value, choice.record.ref, state, extra);
-        if (last) await inspect(last);
+        const detail = await runOperation(action.value, choice.record.ref, state, extra);
+        if (detail) await inspect(detail);
         await show(payload, state);
       }
       } catch (error) {
@@ -200,33 +241,40 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
   return async function semanticEvidence(seedNode = null) {
     return operations.run('semantic-evidence', async () => {
       try {
-        const repoContext = await resolveRepo(seedNode);
-        if (!repoContext) return;
-        const transport = await chooseTransport(repoContext);
-        if (!transport) return;
+        const selectedChunkUid = seedNode?.hit?.chunkUid;
+        const resolved = await resolveRepo(seedNode);
+        if (!resolved || !operations.isCurrent()) return;
+        const repoContext = Object.freeze({ ...resolved });
+        const chosenTransport = await chooseTransport(repoContext);
+        if (!chosenTransport || !operations.isCurrent()) return;
+        const transport = Object.freeze({ ...chosenTransport,
+          ...(chosenTransport.execution ? { execution: Object.freeze({ ...chosenTransport.execution,
+            capabilities: Object.freeze({ ...chosenTransport.execution.capabilities }) }) } : {}),
+          ...(chosenTransport.serviceMapping ? { serviceMapping: Object.freeze({ ...chosenTransport.serviceMapping }) } : {}) });
         let cursorSeed = !seedNode && transport.transport === 'cli' ? getCursorSeed?.(repoContext) : null;
         if (!cursorSeed && !seedNode && transport.transport === 'cli' && resolveCursorSeed) {
           cursorSeed = await resolveCursorSeed(repoContext, transport);
           if (!operations.isCurrent()) return;
         }
         if (cursorSeed) {
-          const route = await vscode.window.showQuickPick([
+          cursorSeed = captureSemanticData(cursorSeed);
+          const route = await pick([
             { label: 'Use current source-qualified cursor binding', value: 'cursor' },
             { label: 'Choose selector / immutable generation', value: 'manual' }
           ], { title: 'Semantic seed: canonical binding identity or explicit selector' });
           if (!route) return;
           if (route.value === 'cursor') {
-            const fresh = getCursorSeed(repoContext);
+            const fresh = getCursorSeed?.(repoContext);
             if (!fresh || JSON.stringify(fresh) !== JSON.stringify(cursorSeed)) throw new Error('Qualified cursor identity changed. Navigate again or choose an explicit selector.');
-            await runOperation('find', fresh.selector, { repoContext, generation: fresh.generation,
+            const found = await runOperation('find', fresh.selector, { repoContext, generation: fresh.generation,
               generationSource: 'canonical current cursor navigation', ...transport });
-            if (last) await inspect(last);
+            if (found) await inspect(found);
             return;
           }
         }
         let generation = null, generationSource = 'explicit immutable generation';
         if (discoverGeneration) {
-          const route = await vscode.window.showQuickPick([
+          const route = await pick([
             { label: 'Discover published semantic generation for selected source / hit', value: 'discover' },
             { label: 'Enter immutable semantic generation', value: 'manual' }
           ], { title: 'Semantic generation (authoritative discovery or explicit selection)' });
@@ -234,9 +282,10 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
           if (route.value === 'discover') {
             try {
               const witness = await discoverGeneration(repoContext, transport, seedNode);
+              if (!operations.isCurrent()) return;
               if (witness) { generation = witness.generation; generationSource = witness.source; }
             } catch (error) {
-              const correction = await vscode.window.showQuickPick([
+              const correction = await pick([
                 { label: 'Enter immutable generation explicitly', value: 'manual' }, { label: 'Return to previous evidence', value: 'back' }
               ], { title: 'Semantic generation discovery unavailable', placeHolder: error.message.slice(0, 512) });
               if (correction?.value !== 'manual') return;
@@ -250,25 +299,25 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
           if (/[\\/:\0]/.test(buildId) || ['.', '..'].includes(buildId)) throw new Error('Use a single immutable build identifier.');
           generation = { baseBuildId: buildId.trim(), semanticRevision: 0 };
         }
-        const selectorKind = await vscode.window.showQuickPick([
-          ...(seedNode?.hit?.chunkUid ? ['Selected chunk ownership'] : []),
+        const selectorKind = await pick([
+          ...(typeof selectedChunkUid === 'string' && selectedChunkUid ? ['Selected chunk ownership'] : []),
           'Current source file', 'Structural operation', 'Exact type expression', 'Scalar literal'], {
           title: 'Semantic find selector (experimental)' });
         if (!selectorKind) return;
         let selector;
         if (selectorKind === 'Selected chunk ownership') {
-          selector = { field: 'chunkUid', value: seedNode.hit.chunkUid };
+          selector = { field: 'chunkUid', value: selectedChunkUid };
         } else if (selectorKind === 'Current source file') {
           const file = vscode.window.activeTextEditor?.document?.uri?.fsPath;
           const relative = file ? path.relative(repoContext.repoRoot, file).replace(/\\/g, '/') : '';
           if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Focus a saved file in the selected repository.');
           selector = { field: 'sourcePath', value: relative };
         } else if (selectorKind === 'Scalar literal') {
-          const type = await vscode.window.showQuickPick(['string', 'boolean', 'null', 'number', 'bigint'],
+          const type = await pick(['string', 'boolean', 'null', 'number', 'bigint'],
             { title: 'Exact parser-established scalar type (no runtime value inference)' });
           if (!type) return;
           const value = type === 'null' ? '' : type === 'boolean'
-            ? await vscode.window.showQuickPick(['true', 'false'], { title: 'Boolean representation' })
+            ? await pick(['true', 'false'], { title: 'Boolean representation' })
             : await vscode.window.showInputBox({ prompt: type === 'string' ? 'String value (empty is valid)'
               : `Exact recorded ${type} representation (decimal; bigint has no n suffix)` });
           if (value === undefined) return;
@@ -280,18 +329,18 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
             ? { typeExpression: { expression: value, match: 'exact-expression', sources: ['declared'], roles: ['local', 'parameter', 'field', 'return'] } }
             : { field: 'operation', value };
           if (selector.typeExpression) {
-            const sources = await vscode.window.showQuickPick(['declared', 'compiler'], { canPickMany: true,
+            const sources = await pick(['declared', 'compiler'], { canPickMany: true,
               title: 'Exact recorded type sources (availability is producer-specific)' });
             if (!sources?.length) return;
-            const roles = await vscode.window.showQuickPick(['local', 'parameter', 'field', 'return'], {
+            const roles = await pick(['local', 'parameter', 'field', 'return'], {
               canPickMany: true, title: 'Exact recorded type roles' });
             if (!roles?.length) return;
             selector.typeExpression.sources = sources;
             selector.typeExpression.roles = roles;
           }
         }
-        await runOperation('find', selector, { repoContext, generation, generationSource, ...transport });
-        if (last) await inspect(last);
+        const found = await runOperation('find', selector, { repoContext, generation, generationSource, ...transport });
+        if (found) await inspect(found);
       } catch (error) {
         if (operations.isCurrent()) await vscode.window.showErrorMessage(`PairOfCleats semantic evidence: ${error.message}. Previous evidence remains available.`);
       }

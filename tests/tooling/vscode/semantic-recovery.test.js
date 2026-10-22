@@ -22,8 +22,8 @@ const operations = { isCurrent: () => true, run: (_label, callback) => callback(
 function ui(choices, { mutateOnReveal = false } = {}) {
   const errors = [], copied = [], reports = [];
   let selections = 0;
-  const document = { version: 1, isDirty: false, getText: () => 'a😀z\nsecond\n', positionAt: offset => ({ offset }) };
-  const editor = { revealRange() {}, set selection(_value) { selections += 1; } };
+  const document = { uri: { scheme: 'file', fsPath: file }, version: 1, isDirty: false, getText: () => 'a😀z\nsecond\n', positionAt: offset => ({ offset }) };
+  const editor = { document, revealRange() {}, set selection(_value) { selections += 1; } };
   const vscode = { window: {
     async showQuickPick(items) {
       const choice = choices.shift();
@@ -34,7 +34,7 @@ function ui(choices, { mutateOnReveal = false } = {}) {
     async showErrorMessage(message) { errors.push(message); }
   }, workspace: { async openTextDocument(value) { if (value.fsPath) return document; reports.push(value.content); return value; } },
   env: { clipboard: { async writeText(value) { copied.push(value); } } },
-  Uri: { file: fsPath => ({ fsPath }) }, Selection: class Selection { constructor(start, end) { this.start = start; this.end = end; } } };
+  Uri: { file: fsPath => ({ scheme: 'file', fsPath }) }, Selection: class Selection { constructor(start, end) { this.start = start; this.end = end; } } };
   return { vscode, errors, copied, reports, selectionCount: () => selections };
 }
 
