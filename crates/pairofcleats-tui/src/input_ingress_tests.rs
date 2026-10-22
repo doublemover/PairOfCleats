@@ -168,3 +168,40 @@ fn bounded_turns_preserve_finite_channel_order_and_charge_only_consumed_frames()
     assert_eq!(actual.logs.iter().map(|entry| &entry.text).collect::<Vec<_>>(),
         reference.logs.iter().map(|entry| &entry.text).collect::<Vec<_>>());
 }
+
+#[test]
+fn compact_frame_keys_exclude_retained_text_and_track_same_count_mutations() {
+    let mut model = model();
+    let empty_key = frame_signature(&model);
+    for _ in 0..LOG_RING_LIMIT { model.push_log("payload-never-in-frame-key".repeat(180)); }
+    let full_key = frame_signature(&model);
+    assert!(full_key.len() < 4096);
+    assert!(!full_key.contains("payload-never-in-frame-key"));
+    assert_ne!(empty_key, full_key);
+    for input in ["focus_logs", "logs_up", "toggle_help", "toggle_help", "toggle_follow"] {
+        let before = frame_signature(&model);
+        apply_local_input(&mut model, input);
+        let after = frame_signature(&model);
+        assert_ne!(before, after, "view mutation {input}");
+        assert!(after.len() < 4096 && !after.contains("payload-never-in-frame-key"));
+    }
+    let before = frame_signature(&model);
+    model.push_log("evicts one retained entry".into());
+    assert_eq!(model.logs.len(), LOG_RING_LIMIT);
+    assert_ne!(before, frame_signature(&model));
+    model.update_job_status("job", "running", Some("original"));
+    let before = frame_signature(&model);
+    model.update_job_status("job", "running", Some("same-count title replacement"));
+    assert_ne!(before, frame_signature(&model));
+    model.update_task_status("job", "task", "running", Some("first"));
+    let before = frame_signature(&model);
+    model.update_task_status("job", "task", "running", Some("same-count message replacement"));
+    assert_ne!(before, frame_signature(&model));
+    let before = frame_signature(&model);
+    model.flow_credit_pending += 1;
+    model.telemetry.render_ms_ewma += 5.0;
+    model.last_metrics_emit = Instant::now();
+    assert_eq!(before, frame_signature(&model));
+    model.terminal_caps.color = !model.terminal_caps.color;
+    assert_ne!(before, frame_signature(&model));
+}

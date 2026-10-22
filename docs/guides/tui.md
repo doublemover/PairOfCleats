@@ -396,3 +396,12 @@ before recordings, due drawing and input dispatch. Credits count consumed frames
 only. Known native backlog or pending replay reconstruction selects a zero-time
 terminal poll; the 20-ms idle wait applies only when both are absent. This avoids
 an artificial idle delay between sustained batches without reordering events.
+
+Frame admission compares a compact render key. Collection owners advance a
+content revision for log/alert append or eviction, job/task replacement and
+replay-state restoration; view, active-overlay and workload/session inputs remain
+explicit. Key construction does not scan or serialize retained log/job/task
+collections. Render-duration feedback, clocks, credits and input bookkeeping do
+not invalidate it. Source regressions cover a full 2,048-entry log ring and
+same-count replacements; buffer parity and allocation/latency measurements remain
+unqualified until the deferred Windows validation pass.

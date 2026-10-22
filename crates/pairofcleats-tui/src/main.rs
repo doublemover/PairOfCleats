@@ -167,7 +167,7 @@ impl RuntimeTelemetry {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 struct SessionState {
     mode: String,
     source: String,
@@ -354,7 +354,7 @@ impl WorkloadKind {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 struct BenchSummary {
     lane: String,
     tier: String,
@@ -367,7 +367,7 @@ struct BenchSummary {
     timeout_state: String,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 struct IndexingSummary {
     repo: String,
     stage: String,
@@ -379,7 +379,7 @@ struct IndexingSummary {
     promotion_state: String,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 struct ServiceSummary {
     service: String,
     active_workers: Option<u64>,
@@ -619,6 +619,7 @@ struct AppModel {
     log_scroll: usize,
     dirty: bool,
     last_render_signature: String,
+    content_revision: u64,
     chunk_assemblies: HashMap<String, ChunkAssembly>,
     chunk_assembly_bytes: usize,
     terminal_caps: TerminalCapabilities,
@@ -635,6 +636,11 @@ struct AppModel {
 }
 
 impl AppModel {
+    fn content_changed(&mut self) {
+        self.content_revision = self.content_revision.wrapping_add(1);
+        self.dirty = true;
+    }
+
     fn new(
         run_id: String,
         terminal_caps: TerminalCapabilities,
@@ -694,6 +700,7 @@ impl AppModel {
             log_scroll: 0,
             dirty: true,
             last_render_signature: String::new(),
+            content_revision: 0,
             chunk_assemblies: HashMap::new(),
             chunk_assembly_bytes: 0,
             terminal_caps,
@@ -734,7 +741,7 @@ impl AppModel {
             self.logs.pop_front();
         }
         self.logs.push_back(entry);
-        self.dirty = true;
+        self.content_changed();
     }
 
     fn push_log(&mut self, message: String) {
@@ -753,7 +760,7 @@ impl AppModel {
             level: level.to_string(),
             message: message.to_string(),
         });
-        self.dirty = true;
+        self.content_changed();
     }
 
     fn update_session_state(
@@ -819,7 +826,7 @@ impl AppModel {
             self.selected_job = Some(job_id.to_string());
             self.selected_job_expired = false;
         }
-        self.dirty = true;
+        self.content_changed();
     }
 
     fn begin_job_instance(&mut self, job_id: &str) {
@@ -844,6 +851,7 @@ impl AppModel {
             self.job_order.retain(|id| id != job_id);
             self.job_order.push_back(job_id.to_owned());
         }
+        self.content_changed();
     }
 
     fn update_task_status(
@@ -870,7 +878,7 @@ impl AppModel {
             }
         }
         self.task_status.insert(key, TaskState::new(status, message));
-        self.dirty = true;
+        self.content_changed();
     }
 
     fn reconcile_terminal_tasks(&mut self, job_id: &str, owner_status: &str) {
@@ -883,7 +891,7 @@ impl AppModel {
                 *task = TaskState::new(status, Some(&format!("owner ended {owner_status} before task:end")));
             }
         }
-        self.dirty = true;
+        self.content_changed();
     }
 
     fn promote_workload_kind(&mut self, next_kind: WorkloadKind) {
@@ -1209,56 +1217,45 @@ fn tail_window_slice<T: Clone>(items: &[T], scroll: usize, height: usize) -> Vec
 }
 
 fn frame_signature(model: &AppModel) -> String {
-    // Describe rendering inputs explicitly. Runtime bookkeeping (input queues,
-    // credit counters, clocks and chunk assemblies) must not trigger idle draws.
-    let logs: Vec<_> = model
-        .logs
-        .iter()
-        .map(|entry| (&entry.text, &entry.level, &entry.source, &entry.job_id))
-        .collect();
-    let alerts: Vec<_> = model
-        .alerts
-        .iter()
-        .map(|entry| (&entry.level, &entry.message))
-        .collect();
+    // Collection owners advance one revision on replacement, append and eviction.
+    // View-only checks never traverse or serialize retained logs/jobs/tasks.
+    let workload = match model.workload_kind {
+        WorkloadKind::Generic => Value::Null,
+        WorkloadKind::Bench => json!(&model.bench_summary),
+        WorkloadKind::Indexing => json!(&model.indexing_summary),
+        WorkloadKind::Service => json!(&model.service_summary),
+    };
     json!({
-        "summaries": [session_summary_text(model, usize::MAX),
-            operator_summary_text(model, usize::MAX),
-            workload_summary_text(model, usize::MAX),
-            footer_hint_text(model, usize::MAX)],
-        // Render duration is measured by drawing this very frame. It updates
-        // when another visible change draws, but cannot cause its own redraw.
-        "runtime": [json!(job_status_counts(model)), json!(task_status_counts(model)),
-            json!(metric_label(model.telemetry.queue_depth_ewma)),
+        "contentRevision": model.content_revision,
+        "runId": model.run_id,
+        "session": &model.session,
+        "workloadKind": model.workload_kind.label(),
+        "workload": workload,
+        // Render-duration feedback and clocks/credits/input queues stay excluded.
+        "runtime": [json!(metric_label(model.telemetry.queue_depth_ewma)),
             json!(metric_label(model.telemetry.event_lag_ms_ewma)),
-            json!(model.telemetry.native_inbound_pending),
-            json!(model.session.note)],
-        "workloadTitle": model.workload_kind.label(),
-        "jobOrder": model.job_order,
-        "jobStatus": model.job_status,
-        "jobTitles": model.job_titles,
-        "tasks": model.task_order,
-        "taskStatus": model.task_status.iter().map(|(key, task)| (key, task.to_string())).collect::<BTreeMap<_, _>>(),
-        "taskIdentity": model.task_identity,
-        "logs": logs,
-        "alerts": alerts,
+            json!(model.telemetry.native_inbound_pending)],
         "selectedJob": model.selected_job,
         "selectedJobPinned": model.selected_job_pinned,
         "selectedJobExpired": model.selected_job_expired,
-        "controllable": model.session.controllable,
+        "ownsControl": model.owns_control_channel,
+        "focus": model.focus_panel.label(),
+        "follow": model.follow_updates,
+        "filters": [model.job_filter.label(), model.task_filter.label(),
+            model.log_level_filter.label(), model.log_source_filter.label()],
         "scroll": [model.job_scroll, model.task_scroll, model.log_scroll],
         "search": [&model.search_jobs, &model.search_tasks, &model.search_logs],
         "searchTarget": model.search_target.label(),
         "searchDraft": model.search_draft,
         "paletteIndex": model.palette_index,
+        "overlay": footer_hint_text(model, usize::MAX),
         "indexWorkflowRevision": if model.overlay == OverlayMode::IndexWorkflows {model.index_workflows.revision} else {0},
         "recordingRevision": if model.overlay == OverlayMode::Recordings {model.recording_revision} else {0},
         "settingsRevision": if model.overlay == OverlayMode::Settings {model.settings.revision} else {0},
         "repositorySearchRevision": if model.overlay == OverlayMode::RepositorySearch {model.repository_search.revision} else {0},
         "jobInspectionRevision": if model.overlay == OverlayMode::JobInspection {model.job_inspection.revision} else {0},
         "terminal": [model.terminal_caps.color, model.terminal_caps.unicode]
-    })
-    .to_string()
+    }).to_string()
 }
 
 fn invalidate_frame(model: &mut AppModel) {
@@ -4685,10 +4682,9 @@ mod redraw_tests {
     #[test]
     fn same_count_job_updates_redraw_but_idle_bookkeeping_does_not() {
         let mut model = model();
-        model.job_order.push_back("job-1".into());
-        model.job_status.insert("job-1".into(), "running".into());
+        model.update_job_status("job-1", "running", None);
         let running = frame_signature(&model);
-        model.job_status.insert("job-1".into(), "cancelled".into());
+        model.update_job_status("job-1", "cancelled", None);
         assert_ne!(frame_signature(&model), running);
         assert!(screen(&model, 120, 40).contains("cancelled"));
         let idle = frame_signature(&model);

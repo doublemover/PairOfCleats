@@ -70,7 +70,7 @@ impl ReplayState {
         model.chunk_assembly_bytes = self.chunk_assembly_bytes;
         model.telemetry = self.telemetry.clone();
         model.job_inspection.restore_replay_history(&self.inspection);
-        model.dirty = true;
+        model.content_changed();
         model.last_render_signature.clear();
     }
 
