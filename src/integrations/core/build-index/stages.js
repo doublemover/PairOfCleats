@@ -177,9 +177,10 @@ export const runEmbeddingsStage = async ({
   const effectiveAbortSignal = coerceAbortSignal(abortSignal);
   const started = process.hrtime.bigint();
   const fileProgressPattern = /^\[embeddings\]\s+([^:]+):\s+processed\s+(\d+)\/(\d+)\s+files\b/;
+  const modeGenerations = [];
   const recordOk = (result) => {
     recordIndexMetric('stage3', 'ok', started);
-    return result;
+    return { ...result, modeGenerations };
   };
   try {
     throwIfAborted(effectiveAbortSignal);
@@ -203,6 +204,9 @@ export const runEmbeddingsStage = async ({
         || buildInfo?.buildRoot
         || null;
       modeIndexRootCache.set(mode, resolved);
+      if (resolved) modeGenerations.push({ mode, buildRoot: resolved,
+        buildId: buildId || (buildInfo?.buildRoot === resolved ? buildInfo?.buildId : null) || null,
+        attemptId: null, receiptPath: path.join(resolved, 'build_state.json') });
       return resolved;
     };
     const borrowed = Boolean(cacheWriterLease);
@@ -237,6 +241,7 @@ export const runEmbeddingsStage = async ({
           : path.join(getCacheRoot(), 'service', 'queue');
         await ensureQueueDir(queueDir);
         const jobs = [];
+        const rejectedModes = [];
         for (const modeItem of embedModes) {
           throwIfAborted(effectiveAbortSignal);
           const modeIndexRoot = resolveModeIndexRoot(modeItem);
@@ -265,6 +270,7 @@ export const runEmbeddingsStage = async ({
             'embeddings'
           );
           if (!result.ok) {
+            rejectedModes.push({ mode: modeItem, reason: result.reason || result.code || 'queue-unavailable' });
             log(`[embeddings] Queue full or unavailable; skipped enqueue (${modeItem}).`);
             advanceEmbeddingsProgress(modeItem);
             continue;
@@ -280,6 +286,10 @@ export const runEmbeddingsStage = async ({
             queued: queuedAny,
             inline: false,
             skipped: !queuedAny,
+            notAdmitted: rejectedModes.length > 0,
+            requestedModeCount: embedModes.length,
+            admittedModeCount: jobs.length,
+            rejectedModes,
             jobs
           },
           repo: root,
@@ -297,7 +307,11 @@ export const runEmbeddingsStage = async ({
         const embedResult = await runEmbeddingsTool(args, {
           baseEnv: attachEmbeddingExecutionPlan(runtimeEnv, embeddingPlan, launchObservability),
           signal: effectiveAbortSignal,
-          onLine: (line) => {
+          onLine: (line, metadata = {}) => {
+            if (metadata.truncated || metadata.stream === 'stderr') {
+              logLine(line, { kind: 'diagnostic', ...metadata });
+              return;
+            }
             if (line.includes('lance::dataset::write::insert')
               || line.includes('No existing dataset at')) {
               return;
@@ -347,7 +361,8 @@ export const runEmbeddingsStage = async ({
           inline: true,
           cancelled: true,
           code: embedResult.code ?? null,
-          signal: embedResult.signal ?? null
+          signal: embedResult.signal ?? null,
+          diagnosticEvidence: embedResult.diagnosticEvidence || null
         },
         repo: root,
         stage: 'stage3'
@@ -614,7 +629,10 @@ export const runSqliteStage = async ({
         }
       }
       await refreshRuntimeReceipt(runtime, { lifecycle: 'succeeded' });
-      return recordOk({ modes: sqliteModes, sqlite: sqliteResult, repo: root, stage: 'stage4', buildId: runtime.buildId, runtimeAttemptId: runtime.runtimeAttempt?.attemptId });
+      return recordOk({ modes: sqliteModes, sqlite: sqliteResult, repo: root, stage: 'stage4', buildId: runtime.buildId,
+        buildRoot: runtime.buildRoot, runtimeAttemptId: runtime.runtimeAttempt?.attemptId,
+        validation: { status: 'unknown' },
+        publication: { status: promoteDone ? 'published' : 'retained', modeBuildRoots: Object.fromEntries(modeRoots.map(({ mode, indexRoot }) => [mode, indexRoot])) } });
     } catch (err) {
       const phaseFailureDetail = toPhaseFailureDetail(err);
       await markFailedPhases({
@@ -715,6 +733,7 @@ export const runStage = async (
       policy,
       observability: context?.observability || null
     });
+    await runtime.loggerScope.run(async () => {
     await attachSemanticEnrichmentRuntime(runtime, options.semanticEnrichmentDrain);
     phaseStage = runtime.stage || phaseStage;
     runtime.featureMetrics = createFeatureMetrics({
@@ -1009,6 +1028,8 @@ export const runStage = async (
         buildRoot: runtime.buildRoot,
         buildId: runtime.buildId,
         runtimeAttemptId: runtime.runtimeAttempt?.attemptId,
+        validation: { status: validationSummary.ok ? 'passed' : 'failed', ...validationSummary },
+        publication: { status: 'published', buildId: runtime.buildId, modes },
         repoCacheRoot: runtime.repoCacheRoot,
         profile: runtime.profile || null
       };
@@ -1076,6 +1097,7 @@ export const runStage = async (
       const closeoutResult = await closeout.run();
       if (closeoutResult.error) throw combineCacheWriterErrors(operationError, closeoutResult.error);
     }
+    });
   } catch (err) {
     await refreshRuntimeReceipt(runtime, { lifecycle: isAbortError(err) ? 'aborted' : 'failed', error: { code: String(err?.code || 'UNKNOWN'), message: redactDiagnosticText(err?.message || err) } });
     if (isAbortError(err)) {

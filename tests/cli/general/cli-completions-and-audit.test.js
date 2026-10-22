@@ -27,8 +27,8 @@ assert.ok(Number.isFinite(auditPayload.cliCommands), 'expected cli audit payload
 const bashResult = runCli(['cli', 'completions', '--shell', 'bash']);
 assert.equal(bashResult.status, 0, `bash completions failed: ${getCombinedOutput(bashResult, { trim: true })}`);
 assert.match(bashResult.stdout || '', /complete -F __pairofcleats_complete pairofcleats/);
-assert.match(bashResult.stdout || '', /tree\["cli"\]="audit completions"/);
-assert.match(bashResult.stdout || '', /tree\["report"\]="compare-models eval map metrics parity summary throughput"/);
+assert.match(bashResult.stdout || '', /tree\["k:cli"\]="audit completions"/);
+assert.match(bashResult.stdout || '', /tree\["k:report"\]="compare-models eval map metrics parity summary throughput"/);
 
 const powershellResult = runCli(['cli', 'completions', '--shell', 'powershell']);
 assert.equal(

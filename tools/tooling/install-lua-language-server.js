@@ -2,6 +2,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { randomUUID } from 'node:crypto';
+import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
+import { withFileLock } from '../../src/shared/locks/file-lock.js';
+import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
 import AdmZip from 'adm-zip';
 import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
@@ -228,24 +232,6 @@ const extractArchive = async ({ archivePath, archiveType, destination }) => {
   throw createInstallError('invalid_archive', `Unsupported lua-language-server archive type: ${archiveType}`, { retryable: false });
 };
 
-const removeExistingLuaLanguageServerLayout = async (toolingRoot) => {
-  const removals = [
-    path.join(toolingRoot, 'bin', 'lua-language-server.exe'),
-    path.join(toolingRoot, 'bin', 'lua-language-server'),
-    path.join(toolingRoot, 'bin', 'main.lua'),
-    path.join(toolingRoot, 'main.lua'),
-    path.join(toolingRoot, 'debugger.lua'),
-    path.join(toolingRoot, 'changelog.md'),
-    path.join(toolingRoot, 'LICENSE'),
-    path.join(toolingRoot, 'locale'),
-    path.join(toolingRoot, 'meta'),
-    path.join(toolingRoot, 'script')
-  ];
-  for (const entry of removals) {
-    await fs.rm(entry, { recursive: true, force: true }).catch(() => {});
-  }
-};
-
 const resolveToolingRoot = (argv) => {
   const scope = String(argv.scope || 'cache').trim().toLowerCase();
   if (scope !== 'cache') {
@@ -258,7 +244,7 @@ const resolveToolingRoot = (argv) => {
   return path.resolve(toolingRoot);
 };
 
-export const installLuaLanguageServer = async (argv) => {
+export const installLuaLanguageServer = async (argv, hooks = {}) => {
   const toolingRoot = resolveToolingRoot(argv);
   const timeoutMs = toInt(argv['timeout-ms'], DEFAULT_TIMEOUT_MS, 1);
   const retries = toInt(argv.retries, DEFAULT_RETRIES, 0);
@@ -309,20 +295,39 @@ export const installLuaLanguageServer = async (argv) => {
     if (!packageRoot) {
       throw createInstallError('invalid_layout', 'lua-language-server archive did not contain the expected bin/main.lua package layout.', { retryable: false });
     }
-    await fs.mkdir(toolingRoot, { recursive: true });
-    await removeExistingLuaLanguageServerLayout(toolingRoot);
-    const entries = await fs.readdir(packageRoot);
-    for (const entry of entries) {
-      await fs.cp(path.join(packageRoot, entry), path.join(toolingRoot, entry), { recursive: true, force: true });
-    }
-    const validated = validateLuaLanguageServerPackageLayout(toolingRoot);
-    const layoutChecks = await Promise.all([
-      fs.stat(validated.executablePath).then(() => true).catch(() => false),
-      fs.stat(validated.mainLuaPath).then(() => true).catch(() => false)
-    ]);
-    if (!layoutChecks.every(Boolean)) {
-      throw createInstallError('invalid_layout', 'lua-language-server install completed without the required runtime payload.', { retryable: false });
-    }
+    const owner = path.join(toolingRoot, 'servers', 'lua-language-server');
+    assertNoSymlinkPath(path.dirname(toolingRoot), owner, { allowMissing: true });
+    await fs.mkdir(owner, { recursive: true });
+    const validated = await withFileLock({ lockPath: path.join(owner, 'install.lock'), waitMs: 5000, timeoutBehavior: 'throw' }, async () => {
+      const generation = randomUUID();
+      const stage = path.join(owner, `.staging-${generation}`);
+      const final = path.join(owner, generation);
+      let staged = true, primaryError = null;
+      try {
+        await fs.mkdir(stage);
+        for (const entry of await fs.readdir(packageRoot)) {
+          await (hooks.copy || fs.cp)(path.join(packageRoot, entry), path.join(stage, entry), { recursive: true, force: false, errorOnExist: true });
+        }
+        const layout = validateLuaLanguageServerPackageLayout(stage);
+        for (const file of [layout.executablePath, layout.mainLuaPath]) {
+          assertNoSymlinkPath(stage, file);
+          const stat = await fs.stat(file);
+          if (!stat.isFile() || !stat.size) throw createInstallError('invalid_layout', 'Lua replacement has missing runtime bytes.', { retryable: false });
+        }
+        await hooks.afterValidation?.(stage);
+        await fs.rename(stage, final);
+        staged = false;
+        await hooks.beforeSelection?.(final);
+        await atomicWriteJson(path.join(owner, 'current.json'), { schemaVersion: 1, generation, sha256: archive.sha256 }, { durable: true });
+        return validateLuaLanguageServerPackageLayout(final);
+      } catch (error) { primaryError = error; throw error; }
+      finally {
+        if (staged) {
+          try { await fs.rm(stage, { recursive: true, force: true }); }
+          catch (error) { if (primaryError) primaryError.cleanupErrors = [...(primaryError.cleanupErrors || []), error]; else throw error; }
+        }
+      }
+    });
     return {
       toolingRoot,
       executablePath: validated.executablePath,

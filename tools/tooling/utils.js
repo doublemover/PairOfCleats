@@ -23,6 +23,7 @@ import {
 import { getToolingConfig, resolveToolRoot } from '../shared/dict-utils.js';
 import { resolveClangdArchiveTarget, resolveManagedClangd } from '../../src/shared/managed-clangd.js';
 import { PHPACTOR_APPROVED_RELEASE } from './approved-artifacts.js';
+import { resolveManagedLuaLanguageServer } from '../../src/shared/managed-lua.js';
 
 const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
@@ -589,7 +590,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'lua-language-server',
       label: 'lua-language-server',
       languages: ['lua'],
-      detect: { cmd: 'lua-language-server', args: ['-v'], binDirs: [binDir] },
+      detect: { cmd: 'lua-language-server', args: ['-v'], binDirs: [resolveManagedLuaLanguageServer(absoluteToolingRoot)?.binDir, binDir].filter(Boolean) },
       install: {
         cache: {
           cmd: process.execPath,

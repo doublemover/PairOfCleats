@@ -19,7 +19,14 @@ export const hasClangdTargetHeader = (command, target) => {
     const stat = fs.fstatSync(fd);
     if (!stat.isFile() || stat.size < 32 || stat.size > CLANGD_MAX_BINARY_BYTES) return false;
     const header = Buffer.alloc(4096);
-    const read = fs.readSync(fd, header, 0, header.length, 0);
+    let read = 0;
+    const wanted = Math.min(header.length, stat.size);
+    while (read < wanted) {
+      const progress = fs.readSync(fd, header, read, wanted - read, read);
+      if (!Number.isSafeInteger(progress) || progress < 0 || progress > wanted - read) throw new Error('Invalid managed binary header read progress.');
+      if (!progress) break;
+      read += progress;
+    }
     if (target.platform === 'linux') {
       return read >= 20 && header.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46]))
         && header[4] === 2 && header[5] === 1 && header.readUInt16LE(18) === 0x3e;

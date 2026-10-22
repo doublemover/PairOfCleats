@@ -1,6 +1,22 @@
 # Indexing contract
 
 ## Stages and modes
+
+Index command admission rejects unknown verbs and extra positional words. The
+legacy option-only `index` build alias remains supported; family help preserves
+an explicit help request. Stage, mode and quality values are validated before
+runtime/configuration work. Background Stage2 serializes parsed booleans,
+including embedding stubs and ordering validation, while consuming cache rebuild
+only in the parent.
+
+Core build results carry a versioned `outcome`: requested stages, per-stage and
+capability states, selected build/attempt/receipt identities, actual validation
+and publication facts, and explicit unknown values. Counts are omitted unless
+qualified to that invocation; mutable `preprocess.json` is not completion truth.
+Human and structured terminal messages distinguish publication, completed stage,
+queued/background work, configuration skips, rejected admission and cancellation.
+JSON and JSONL progress aliases receive exactly one framed terminal outcome before
+the display releases output admission and owned terminal cleanup.
 - Stage1 (sparse): discovery + chunking + token postings for each mode.
 - Stage2 (enrich): file metadata, repo maps, relations, and filter indexes.
 - Stage3 (embeddings): dense vectors + HNSW + LanceDB artifacts, index state updates, and an out-of-band embeddings cache (see `docs/specs/embeddings-cache.md`).

@@ -43,6 +43,7 @@ const riskTopTagSchema = {
 export const riskSummarySchema = {
   type: ['object', 'null'],
   properties: {
+    inputCoverage: { type: ['object', 'null'], additionalProperties: true },
     chunkUid: nullableString,
     file: nullableString,
     languageId: nullableString,
@@ -552,6 +553,8 @@ export const riskProvenanceSchema = {
 export const riskStatsSchema = {
   type: ['object', 'null'],
   properties: {
+    inputCoverage: { type: ['object', 'null'], additionalProperties: true },
+    droppedRecords: { type: 'array', items: { type: 'object' } },
     status: nullableString,
     reason: nullableString,
     summaryOnly: { type: ['boolean', 'null'] },

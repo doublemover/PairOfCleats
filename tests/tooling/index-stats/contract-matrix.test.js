@@ -240,7 +240,7 @@ const createIndexStatsRepoFixture = async (prefix, {
     buildId: 'build-verify',
     compatibilityKey: 'compat-verify',
     pieces: [
-      { name: 'chunk_meta', path: 'chunk_meta.json', bytes: 10, count: 1, checksum: 'xxh64:deadbeef' },
+      { name: 'chunk_meta', path: 'chunk_meta.json', bytes: 10, count: 1, checksum: 'xxh64:deadbeefdeadbeef' },
       { name: 'token_postings', path: 'token_postings.json', bytes: 24, count: 2 }
     ]
   });
@@ -254,7 +254,7 @@ const createIndexStatsRepoFixture = async (prefix, {
   const payload = JSON.parse(run.stdout);
   assert.equal(payload.verify?.ok, false);
   assert.ok(payload.verify.errors.some((entry) => entry.includes('missing artifact token_postings.json')));
-  assert.ok(payload.verify.warnings.some((entry) => entry.includes('checksum mismatch')));
+  assert.ok(payload.verify.errors.some((entry) => entry.includes('checksum mismatch')));
 }
 
 console.log('index stats contract matrix test passed');

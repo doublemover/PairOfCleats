@@ -2,6 +2,16 @@
 
 The `risk` section inside `CompositeContextPack` is a public machine-facing contract.
 
+Risk summaries retain local analysis admission/completion, effective caps and
+summary reduction counts as `inputCoverage`. Interprocedural stats aggregate this
+evidence independently of execution success. A completed traversal with zero flows
+can still have partial or unknown upstream coverage. Strict packs reject those
+claims, including summary row drops and legacy inputs without coverage evidence.
+Coverage is scoped to all admitted input chunks; completeness for a narrower
+requested slice remains unknown unless separately established. Piece assembly
+retains input evidence and cannot turn independent partial analyses into a
+complete cross-piece result.
+
 ## Current contract
 
 - `risk.version`: `1`

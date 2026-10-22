@@ -23,7 +23,6 @@ import {
   sumKindsByPattern,
   sumKindCounts
 } from '../reports/show-throughput/ast-summary.js';
-import { resolveBuildRootFromSqliteArtifacts } from '../reports/show-throughput/build-root.js';
 
 const argv = createCli({
   scriptName: 'report-artifacts',
@@ -70,12 +69,24 @@ const indexMetrics = {
   extractedProse: readJson(path.join(metricsDir, 'index-extracted-prose.json')),
   records: readJson(path.join(metricsDir, 'index-records.json'))
 };
+for (const [key, mode] of Object.entries({ code: 'code', prose: 'prose', extractedProse: 'extracted-prose', records: 'records' })) {
+  const selected = status.repo?.indexDirs?.[mode];
+  if (!selected || typeof indexMetrics[key]?.indexDir !== 'string'
+    || path.resolve(indexMetrics[key].indexDir) !== path.resolve(selected)) indexMetrics[key] = null;
+}
 const lmdbMetrics = {
   code: readJson(path.join(metricsDir, 'lmdb-code.json')),
   prose: readJson(path.join(metricsDir, 'lmdb-prose.json'))
 };
-const featureMetrics = readJson(path.join(metricsDir, 'feature-metrics-run.json'))
+for (const mode of ['code', 'prose']) {
+  if (!status.repo?.indexDirs?.[mode] || typeof lmdbMetrics[mode]?.indexDir !== 'string'
+    || path.resolve(lmdbMetrics[mode].indexDir) !== path.resolve(status.repo.indexDirs[mode])) lmdbMetrics[mode] = null;
+}
+let featureMetrics = readJson(path.join(metricsDir, 'feature-metrics-run.json'))
   || readJson(path.join(metricsDir, 'feature-metrics.json'));
+const selectedBuildRoots = [...new Set(Object.values(status.repo?.indexDirs || {}).map(directory => path.dirname(directory)))];
+if (selectedBuildRoots.length !== 1 || typeof featureMetrics?.buildRoot !== 'string'
+  || path.resolve(featureMetrics.buildRoot) !== path.resolve(selectedBuildRoots[0])) featureMetrics = null;
 
 const ANALYSIS_SCHEMA_VERSION = 1;
 const ANALYSIS_MODE_KEYS = ['code', 'prose', 'extracted-prose', 'records'];
@@ -96,31 +107,7 @@ const KIND_FUNCTION_PATTERNS = [
 ];
 const KIND_IMPORT_PATTERNS = ['import', 'include', 'require'];
 
-const resolveBuildRootFromStatus = (artifactReport) => {
-  const repo = artifactReport?.repo || {};
-  const sqliteBuildRoot = resolveBuildRootFromSqliteArtifacts(artifactReport, { requireExisting: false });
-  if (sqliteBuildRoot && fs.existsSync(sqliteBuildRoot)) return sqliteBuildRoot;
-  const cacheRoot = typeof repo?.cacheRoot === 'string' ? repo.cacheRoot : '';
-  if (!cacheRoot) return null;
-  const buildsRoot = path.join(cacheRoot, 'builds');
-  if (!fs.existsSync(buildsRoot)) return null;
-  const buildDirs = fs.readdirSync(buildsRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(buildsRoot, entry.name))
-    .sort((a, b) => b.localeCompare(a));
-  return buildDirs[0] || null;
-};
-
-const resolveModeIndexDir = ({ artifactReport, buildRoot, modeKey }) => {
-  const candidates = [
-    buildRoot ? path.join(buildRoot, `index-${modeKey}`) : null,
-    artifactReport?.repo?.cacheRoot ? path.join(artifactReport.repo.cacheRoot, `index-${modeKey}`) : null
-  ].filter(Boolean);
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return candidate;
-  }
-  return null;
-};
+const resolveModeIndexDir = ({ artifactReport, modeKey }) => artifactReport?.repo?.indexDirs?.[modeKey] || null;
 
 const readArtifactMetaCount = (indexDir, baseName) => {
   if (!indexDir) return null;
@@ -205,15 +192,18 @@ const buildModeAnalysis = async ({ artifactReport, buildRoot, buildState, modeKe
 };
 
 const buildAnalysis = async ({ artifactReport, indexingSummary }) => {
-  const buildRoot = resolveBuildRootFromStatus(artifactReport);
-  const buildState = buildRoot ? readJson(path.join(buildRoot, 'build_state.json')) : null;
-  if (!buildRoot && !artifactReport?.repo?.cacheRoot) return null;
+  const roots = [...new Set(Object.values(artifactReport?.repo?.indexDirs || {}).map(directory => path.dirname(directory)))];
+  if (!roots.length) return null;
+  const buildRoot = roots.length === 1 ? roots[0] : null;
   const modes = {};
   const totals = createAstGraphTotals();
   for (const modeKey of ANALYSIS_MODE_KEYS) {
+    const modeDir = resolveModeIndexDir({ artifactReport, modeKey });
+    const modeRoot = modeDir ? path.dirname(modeDir) : null;
+    const buildState = modeRoot ? readJson(path.join(modeRoot, 'build_state.json')) : null;
     const modeAnalysis = await buildModeAnalysis({
       artifactReport,
-      buildRoot,
+      buildRoot: modeRoot,
       buildState,
       modeKey,
       indexingSummary

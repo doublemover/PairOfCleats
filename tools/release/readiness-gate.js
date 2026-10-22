@@ -13,6 +13,8 @@ import {
   toPosixRelative as toPosixRelativePath
 } from './file-walk.js';
 import { toIso } from './metadata-support.js';
+import { readPackageVersion } from './metadata-support.js';
+import { qualifyReleaseReport } from './report-contract.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats release readiness-gate',
@@ -684,7 +686,8 @@ const assertReleaseReport = (label, filePath, payload) => {
     }
     return { ok: false, path: filePath ? toPosixRelative(filePath) : null };
   }
-  const shapeErrors = validateReleaseReportShape(payload);
+  const shapeErrors = [...validateReleaseReportShape(payload), ...qualifyReleaseReport(payload,
+    { root, role: label, releaseVersion: readPackageVersion(root).version })];
   if (shapeErrors.length > 0) {
     addBlocker(
       `${label}.invalid-shape`,
@@ -798,7 +801,8 @@ const run = async () => {
           : null,
         invalidJson: entry.invalidJson,
         invalidShape: !entry.invalidJson && entry.payload
-          ? validateReleaseReportShape(entry.payload).length > 0
+          ? [...validateReleaseReportShape(entry.payload), ...qualifyReleaseReport(entry.payload,
+            { root, role: 'tuiVerify', releaseVersion: readPackageVersion(root).version })].length > 0
           : false,
         ok: entry.payload?.ok === true,
         targetMismatch: false

@@ -15,6 +15,12 @@ file identities. Interrupted copies cannot replace the active selection. Prior
 generations are retained so existing readers keep their complete closure; this
 does not establish a whole-cache quota or reader-aware garbage collection policy.
 
+Embedding subprocess progress uses independent bounded stdout/stderr decoders.
+Forwarded callbacks receive `(line, metadata)` with stream, truncation and retained
+byte information. Truncated lines are diagnostic text and cannot become parsed
+progress events. Terminal child evidence keeps both streams separate, and final
+partial-line callback failures remain secondary to a failed child outcome.
+
 The `xenova` provider uses `@huggingface/transformers` 4.x. Its public provider
 name and model IDs (including `Xenova/all-MiniLM-L12-v2`) remain unchanged.
 Existing generic model downloads and inference explicitly select `dtype: 'q8'`, preserving existing

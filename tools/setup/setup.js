@@ -225,22 +225,8 @@ const useIncremental = argv.incremental || fs.existsSync(incrementalCacheRoot);
 summary.incremental = useIncremental;
 if (useIncremental) log('Incremental indexing enabled.');
 
-const nodeModules = path.join(root, 'node_modules');
-if (argv['skip-install']) {
-  recordStep('install', { skipped: true, present: fs.existsSync(nodeModules) });
-} else if (!fs.existsSync(nodeModules)) {
-  const shouldInstall = await promptYesNo('Install npm dependencies now?', true);
-  if (shouldInstall) {
-    runOrExit('install', 'npm', ['install']);
-    recordStep('install', { skipped: false, present: true, installed: true });
-  } else {
-    warn('Skipping npm install. Some commands may fail.');
-    recordStep('install', { skipped: false, present: false, installed: false, declined: true });
-  }
-} else {
-  log('Dependencies already installed.');
-  recordStep('install', { skipped: false, present: true, installed: false });
-}
+recordStep('install', { skipped: true, installed: false, toolRoot, targetRoot: root,
+  reason: 'Prepare tool dependencies explicitly with npm run bootstrap:ci in the tool checkout.' });
 
 if (argv['skip-dicts']) {
   recordStep('dictionaries', { skipped: true });

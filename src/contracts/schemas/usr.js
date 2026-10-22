@@ -1,3 +1,5 @@
+import { USR_REPORT_OVERRIDES } from './usr-report-overrides.js';
+
 const STRING = { type: 'string' };
 const BOOL = { type: 'boolean' };
 
@@ -52,7 +54,7 @@ export const USR_EVIDENCE_ENVELOPE_SCHEMA = {
   properties: {
     schemaVersion: STRING,
     artifactId: STRING,
-    generatedAt: STRING,
+    generatedAt: { type: 'string', format: 'date-time' },
     producerId: STRING,
     producerVersion: NULLABLE_STRING,
     runId: STRING,
@@ -101,7 +103,8 @@ const reportSchema = (artifactId) => ({
         type: 'object',
         additionalProperties: true
       }
-    }
+    },
+    ...(USR_REPORT_OVERRIDES[artifactId] || {})
   }
 });
 

@@ -707,7 +707,9 @@ export const buildRiskSlice = ({
   } else if (degraded) {
     statusCode = 'degraded';
   }
-  if (!degraded && (riskCaps.hits.length || riskTruncation.length)) {
+  const upstreamIncomplete = stats?.inputCoverage?.status !== 'complete'
+    || (Array.isArray(stats?.droppedRecords) && stats.droppedRecords.some(row => Number(row?.count) > 0));
+  if (!degraded && (riskCaps.hits.length || riskTruncation.length || upstreamIncomplete)) {
     statusCode = 'capped';
   }
   const strictFailure = statusCode !== 'ok';

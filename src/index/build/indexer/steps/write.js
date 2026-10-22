@@ -12,6 +12,9 @@ import { log } from '../../../../shared/progress-runtime.js';
 import { stableStringifyForSignature } from '../../../../shared/stable-json.js';
 import { computeInterproceduralRisk } from '../../../risk-interprocedural/engine.js';
 import { getTokenIdCollisionSummary } from '../../state.js';
+import { TEXT_ANALYZER_VERSION } from '../../../../shared/text-analyzer.js';
+import { SCORING_ANALYZER_VERSION } from '../../../../shared/tokenize-identifiers.js';
+import { CHARGRAM_HASH_META } from '../../../../shared/chargram-hash.js';
 
 /**
  * `artifacts.present.dense_vectors*` must describe emitted artifacts, not
@@ -121,7 +124,8 @@ export const writeIndexArtifactsForMode = async ({
         runtime,
         mode,
         log,
-        summaryTimingMs: state.riskSummaryTimingMs
+        summaryTimingMs: state.riskSummaryTimingMs,
+        summaryStats: state.riskSummaryStats
       });
       state.riskFlows = result.flowRows || [];
       state.riskPartialFlows = result.partialFlowRows || [];
@@ -230,6 +234,9 @@ export const writeIndexArtifactsForMode = async ({
         lastError: null
       },
       features: {
+        literalAnalyzer: TEXT_ANALYZER_VERSION,
+        scoringAnalyzer: SCORING_ANALYZER_VERSION,
+        chargramHash: { ...CHARGRAM_HASH_META },
         treeSitter: runtime.languageOptions?.treeSitter?.enabled !== false,
         lint: runtime.lintEnabled,
         complexity: runtime.complexityEnabled,

@@ -1,5 +1,18 @@
 # Unified Setup
 
+Selecting `--repo` never authorizes installing that repository's dependencies.
+Guided setup and fast bootstrap leave both consumer and prepared tool dependency
+graphs unchanged. Prepare the tool checkout explicitly with `npm run bootstrap:ci`.
+Optional dictionaries use selected-file readiness and download only missing assets
+with a supported recipe. Tool provisioning respects `autoInstallOnDetect` and
+detected languages; Pyright is included only through that single applicable plan.
+`tooling install --no-fallback` keeps the requested installation scope for bare,
+equals and separated boolean forms.
+
+Lua language-server updates stage and validate a complete immutable generation,
+then atomically admit its selector. Failed copies or selector publication retain
+the previous selected installation; older generations remain available to readers.
+
 Bootstrap evidence separates package loadability, per-language parser activation,
 provider initialization, and project qualification. Required registered native
 grammars activate in isolated bounded processes using the production binding

@@ -2,10 +2,10 @@
 import { guardBootstrapEntry } from './src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
 
-import fs from 'node:fs';
 import path from 'node:path';
 const { parseBuildArgs } = await import('./src/index/build/args.js');
 const { buildIndex } = await import('./src/integrations/core/index.js');
+const { createBuildIndexOutcome, describeBuildIndexOutcome } = await import('./src/integrations/core/build-index/outcome.js');
 const { createDisplay } = await import('./src/shared/cli/display.js');
 const { setProgressHandlers } = await import('./src/shared/progress-runtime.js');
 const { buildAutoPolicy } = await import('./src/shared/auto-policy/build.js');
@@ -18,7 +18,6 @@ const { setVerboseEnv } = await import('./src/shared/env.js');
 const { emitLegacyCliEntrypointWarning } = await import('./src/shared/cli/legacy-entrypoint.js');
 const { resolveConfirmedCrashEvidencePath } = await import('./src/index/build/crash-evidence.js');
 const {
-  getCurrentBuildInfo,
   getToolVersion,
   loadUserConfig,
   resolveRepoRoot
@@ -77,13 +76,31 @@ export const main = async ({
     : '[DONE]';
   const writeLine = (line) => {
     if (line === null || line === undefined) return;
-    if (argv.progress === 'jsonl') {
+    if (display.jsonl) {
       display.log(String(line));
       return;
     }
     stderr.write(`${line}\n`);
   };
   let displayClosed = false;
+  let terminalEmitted = false;
+  let outputCleanupFailed = false;
+  const emitTerminal = (outcome, message) => {
+    if (terminalEmitted) return;
+    terminalEmitted = true;
+    restoreHandlers();
+    displayClosed = true;
+    display.finalize(cleanupError => {
+      if (cleanupError) {
+        outputCleanupFailed = true;
+        outcome = { ...outcome, status: 'failed', cleanupError: { message: String(cleanupError.message || cleanupError) } };
+        message = `Index command output cleanup failed: ${cleanupError.message || cleanupError}`;
+      }
+      if (argv.json) stdout.write(`${JSON.stringify(outcome)}\n`);
+      else if (display.jsonl) display.log(message, { kind: 'terminal-outcome', outcome, forceOutput: true });
+      else stderr.write(`${message}\n`);
+    });
+  };
   const closeDisplay = () => {
     if (displayClosed) return;
     if (typeof display.flush === 'function') {
@@ -109,63 +126,19 @@ export const main = async ({
       abortSignal: abortController.signal,
       observability
     });
-    if (result?.stage3?.embeddings?.cancelled) {
-      closeDisplay();
-      const cancellation = result.stage3.embeddings;
+    if (result?.outcome?.status === 'cancelled') {
+      const cancellation = result.stage3?.embeddings || result.embeddings || {};
       const signal = cancellation.signal || abortController.signal.reason;
-      writeLine(`Index build cancelled during embeddings${signal ? ` (${signal})` : ''}; validation and promotion did not complete.`);
+      emitTerminal(result.outcome, `Index build cancelled during embeddings${signal ? ` (${signal})` : ''}; validation and promotion did not complete.`);
       return signal === 'SIGTERM' ? 143 : 130;
     }
-    const preprocessPath = repoCacheRoot
-      ? path.join(repoCacheRoot, 'preprocess.json')
-      : null;
+    const outcome = result.outcome;
     const seconds = Math.round(Math.max(0, (Date.now() - startedAt) / 1000));
-    let summary = `Index built in ${seconds} seconds.`;
-    let detailLines = [];
-    try {
-      if (preprocessPath && fs.existsSync(preprocessPath)) {
-        const stats = JSON.parse(fs.readFileSync(preprocessPath, 'utf8'));
-        const modeStats = stats?.modes || {};
-        const fmt = (value) => Number.isFinite(value) ? value.toLocaleString() : '0';
-        const code = modeStats.code || {};
-        const prose = modeStats.prose || {};
-        const extracted = modeStats['extracted-prose'] || {};
-        const records = modeStats.records || {};
-        const codeFiles = Number.isFinite(code.included) ? code.included : 0;
-        const proseFiles = Number.isFinite(prose.included) ? prose.included : 0;
-        const recordsFiles = Number.isFinite(records.included) ? records.included : 0;
-        const totalFiles = codeFiles + proseFiles + recordsFiles;
-        const codeLines = Number.isFinite(code.lines) ? code.lines : 0;
-        const proseLines = Number.isFinite(prose.lines) ? prose.lines : 0;
-        const recordsLines = Number.isFinite(records.lines) ? records.lines : 0;
-        const totalLines = codeLines + proseLines + recordsLines;
-        const extractedFiles = Number.isFinite(extracted.included) ? extracted.included : 0;
-        const extractedLines = Number.isFinite(extracted.lines) ? extracted.lines : 0;
-        summary = `Index built for ${fmt(totalFiles)} files in ${seconds} seconds (${fmt(totalLines)} lines).`;
-        const detailEntries = [
-          { label: 'Code', value: `${fmt(codeFiles)} files`, lines: fmt(codeLines) },
-          { label: 'Prose', value: `${fmt(proseFiles)} files`, lines: fmt(proseLines) },
-          { label: 'Extracted Prose', value: `${fmt(extractedFiles)} files`, lines: fmt(extractedLines) },
-          { label: 'Records', value: `${fmt(recordsFiles)} records`, lines: fmt(recordsLines) }
-        ];
-        const maxLabelLength = detailEntries.reduce((max, entry) => Math.max(max, entry.label.length), 0);
-        const maxValueLength = detailEntries.reduce((max, entry) => Math.max(max, entry.value.length), 0);
-        const colonColumn = Math.max(36, maxLabelLength + 2);
-        const baseIndent = Math.max(0, colonColumn - maxLabelLength);
-        detailLines = detailEntries.map((entry) => {
-          const labelPad = ' '.repeat(maxLabelLength - entry.label.length);
-          const valuePad = ' '.repeat(maxValueLength - entry.value.length);
-          const indent = ' '.repeat(baseIndent);
-          return `${indent}${labelPad}${entry.label}: ${entry.value}${valuePad} (${entry.lines} lines).`;
-        });
-      }
-    } catch {}
-    closeDisplay();
-    writeLine(`${doneLabel} ${summary}`);
-    for (const line of detailLines) {
-      writeLine(line);
+    emitTerminal(outcome, `${doneLabel} ${describeBuildIndexOutcome(outcome, seconds)}`);
+    for (const generation of outcome.generations) {
+      if (!argv.json && !display.jsonl && generation.receiptPath) writeLine(`Build evidence: ${generation.receiptPath}`);
     }
-    return 0;
+    return outputCleanupFailed ? 1 : 0;
   } catch (err) {
     if (isAbortError(err)) {
       display.error('Index build aborted.');
@@ -178,6 +151,8 @@ export const main = async ({
     const evidencePath = resolveConfirmedCrashEvidencePath(err?.diagnosticEvidence);
     if (evidencePath) writeLine(`Failure evidence: ${evidencePath}`);
     else if (err?.diagnosticEvidence?.writeError) writeLine(`Failure evidence unavailable: ${err.diagnosticEvidence.writeError.message}`);
+    emitTerminal(err.outcome || createBuildIndexOutcome({ repo: resolvedRoot, error: err }),
+      isAbortError(err) ? 'Index build aborted.' : `Index build failed: ${err?.message || err}`);
     return 1;
   } finally {
     process.off('SIGINT', handleSigint);

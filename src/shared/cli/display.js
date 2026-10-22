@@ -221,14 +221,23 @@ export function createDisplay(options = {}) {
     log(message, meta);
   };
 
-  const close = () => {
-    safeStream.close?.();
-    if (!interactive || !term) return;
-    if (typeof term.showCursor === 'function') term.showCursor();
-    if (canRender) {
-      term.eraseLine();
-    }
+  let closed = false;
+  const finalize = (onFinal = null) => {
+    if (closed) return;
+    closed = true;
+    let cleanupError = null;
+    try {
+      if (interactive && term) {
+        try { if (typeof term.showCursor === 'function') term.showCursor(); }
+        finally { if (canRender) term.eraseLine(); }
+      }
+    } catch (error) { cleanupError = error; }
+    try {
+      if (onFinal) onFinal(cleanupError);
+      else if (cleanupError) throw cleanupError;
+    } finally { safeStream.close?.(); }
   };
+  const close = () => finalize();
 
   const flush = () => {
     if (!interactive || !canRender) return;
@@ -253,6 +262,7 @@ export function createDisplay(options = {}) {
     task: taskFactory,
     resetTasks,
     flush,
+    finalize,
     close
   };
 }

@@ -4,7 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import AdmZip from 'adm-zip';
 
-import { validateLuaLanguageServerPackageLayout } from '../../../tools/tooling/install-lua-language-server.js';
+import { installLuaLanguageServer, validateLuaLanguageServerPackageLayout } from '../../../tools/tooling/install-lua-language-server.js';
+import { resolveManagedLuaLanguageServer } from '../../../src/shared/managed-lua.js';
 import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -54,9 +55,23 @@ try {
   await createArchive({ archivePath: goodArchivePath, includeMainLua: true });
   const goodResult = runInstaller({ toolingRoot: goodToolingRoot, archivePath: goodArchivePath });
   assert.equal(goodResult.status, 0, goodResult.stderr || goodResult.stdout);
-  const goodLayout = validateLuaLanguageServerPackageLayout(goodToolingRoot);
+  const goodLayout = validateLuaLanguageServerPackageLayout(resolveManagedLuaLanguageServer(goodToolingRoot).root);
   assert.equal(await fs.stat(goodLayout.executablePath).then(() => true).catch(() => false), true);
   assert.equal(await fs.stat(goodLayout.mainLuaPath).then(() => true).catch(() => false), true);
+  const prior = resolveManagedLuaLanguageServer(goodToolingRoot);
+  const installArgs = { scope: 'cache', 'tooling-root': goodToolingRoot, url: goodArchivePath, retries: 0 };
+  for (const hooks of [
+    { copy: async () => { throw Object.assign(new Error('copy locked'), { code: 'EPERM' }); } },
+    { afterValidation: async () => { throw new Error('post-copy rejected'); } },
+    { beforeSelection: async () => { throw new Error('selection locked'); } }
+  ]) {
+    await assert.rejects(installLuaLanguageServer(installArgs, hooks));
+    assert.equal(resolveManagedLuaLanguageServer(goodToolingRoot).root, prior.root);
+    assert.equal(await fs.readFile(prior.mainLuaPath, 'utf8'), 'print("main")\n');
+  }
+  const replaced = await installLuaLanguageServer(installArgs);
+  assert.notEqual(replaced.executablePath, prior.command);
+  assert.equal(await fs.readFile(prior.mainLuaPath, 'utf8'), 'print("main")\n', 'active old generation remains complete');
 
   const brokenArchivePath = path.join(tempRoot, 'lua-language-server-broken.zip');
   const brokenToolingRoot = path.join(tempRoot, 'tooling-broken');

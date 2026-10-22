@@ -4,24 +4,18 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { INDEX_STATS_OPTIONS } from '../../src/shared/index-tool-options.js';
 import { createCli } from '../../src/shared/cli.js';
-import { checksumFile, sha1File } from '../../src/shared/hash.js';
+import { checksumFile, sha1File, sha256File } from '../../src/shared/hash.js';
 import { formatBytes } from '../../src/shared/disk-space.js';
-import { loadPiecesManifest } from '../../src/shared/artifact-io/manifest.js';
+import { loadPiecesManifest, resolveArtifactPresence } from '../../src/shared/artifact-io/manifest.js';
+import { loadJsonObjectArtifact } from '../../src/shared/artifact-io/loaders.js';
+import { assertKnownIndexProfileId } from '../../src/contracts/index-profile.js';
+import { resolveRequiredArtifactsForProfile } from '../../src/contracts/index-profile.js';
+import { buildPrefixedPieceStats, missingRequiredStatsFamilies } from './stats-artifacts.js';
 import { fromPosix, isRelativePathEscape } from '../../src/shared/file-paths.js';
 import { getRepoId, loadUserConfig, resolveIndexRoot, resolveRepoRootArg } from '../shared/dict-utils.js';
 
 const MODE_ORDER = ['code', 'prose', 'extracted-prose', 'records'];
 const SCHEMA_VERSION = 1;
-const REQUIRED_VERIFY_FAMILIES = Object.freeze([
-  {
-    label: 'chunk_meta',
-    match: (piece) => String(piece?.name || '').startsWith('chunk_meta')
-  },
-  {
-    label: 'token_postings',
-    match: (piece) => String(piece?.name || '').startsWith('token_postings')
-  }
-]);
 
 const argv = createCli({
   scriptName: 'index-stats',
@@ -130,20 +124,6 @@ const buildFamilyStats = (pieces, {
   };
 };
 
-const buildPrefixedPieceStats = (pieces, prefix) => {
-  const selected = pieces.filter((piece) => String(piece?.name || '').startsWith(prefix));
-  const bytes = selected.reduce((sum, piece) => sum + (Number(piece?.bytes) || 0), 0);
-  const rows = selected
-    .map((piece) => normalizeCount(piece?.count))
-    .filter((value) => value != null);
-  const parts = selected.filter((piece) => String(piece?.path || '').includes('.part-')).length;
-  return {
-    rows: rows.length ? Math.max(...rows) : null,
-    parts,
-    bytes
-  };
-};
-
 const buildChunkStats = (pieces) => buildPrefixedPieceStats(pieces, 'chunk_meta');
 
 const buildTokenStats = (pieces) => buildPrefixedPieceStats(pieces, 'token_postings');
@@ -175,13 +155,16 @@ const buildEmbeddingStats = (pieces) => {
   };
 };
 
-const verifyManifestPieces = async (modeDir, pieces) => {
+const verifyManifestPieces = async (modeDir, pieces, profileId, manifest) => {
   const errors = [];
   const warnings = [];
-  for (const family of REQUIRED_VERIFY_FAMILIES) {
-    if (!pieces.some((piece) => family.match(piece))) {
-      errors.push(`${modeDir}: missing required artifact family ${family.label}`);
-    }
+  for (const family of missingRequiredStatsFamilies(pieces, profileId)) errors.push(`${modeDir}: missing required artifact family ${family}`);
+  for (const family of resolveRequiredArtifactsForProfile(profileId)) {
+    if (!pieces.some(piece => piece.name === family)) continue;
+    try {
+      const presence = resolveArtifactPresence(modeDir, family, { manifest, strict: true });
+      if (presence.error || presence.missingMeta || presence.missingPaths?.length) errors.push(`${modeDir}: incomplete required artifact family ${family}`);
+    } catch (error) { errors.push(`${modeDir}: invalid required artifact family ${family}: ${error.message}`); }
   }
   for (const piece of pieces) {
     const relPath = typeof piece?.path === 'string' ? piece.path : '';
@@ -213,8 +196,8 @@ const verifyManifestPieces = async (modeDir, pieces) => {
     }
     const parsedChecksum = parseChecksum(piece?.checksum);
     if (piece?.checksum != null && (!parsedChecksum
-      || !['sha1', 'xxh64'].includes(parsedChecksum.algo)
-      || !(parsedChecksum.algo === 'sha1' ? /^[a-f0-9]{40}$/i : /^[a-f0-9]{16}$/i).test(parsedChecksum.value))) {
+      || !['sha1', 'sha256', 'xxh64'].includes(parsedChecksum.algo)
+      || !(parsedChecksum.algo === 'sha1' ? /^[a-f0-9]{40}$/i : parsedChecksum.algo === 'sha256' ? /^[a-f0-9]{64}$/i : /^[a-f0-9]{16}$/i).test(parsedChecksum.value))) {
       errors.push(`${modeDir}: malformed or unsupported checksum for ${relPath}`);
       continue;
     }
@@ -222,7 +205,7 @@ const verifyManifestPieces = async (modeDir, pieces) => {
       try {
         const computed = parsedChecksum.algo === 'sha1'
           ? { algo: 'sha1', value: await sha1File(absolutePath) }
-          : await checksumFile(absolutePath);
+          : parsedChecksum.algo === 'sha256' ? { algo: 'sha256', value: await sha256File(absolutePath) } : await checksumFile(absolutePath);
         if (computed?.algo !== parsedChecksum.algo || computed?.value !== parsedChecksum.value.toLowerCase()) {
           errors.push(`${modeDir}: checksum mismatch for ${relPath}`);
         }
@@ -293,7 +276,10 @@ for (const { mode, dir } of selected.modes) {
   };
 
   if (argv.verify === true) {
-    const verify = await verifyManifestPieces(dir, pieces);
+    const state = pieces.some(piece => piece.name === 'index_state')
+      ? await loadJsonObjectArtifact(dir, 'index_state', { manifest, strict: true }) : null;
+    const profileId = assertKnownIndexProfileId(state?.profile?.id || manifest.profile?.id || manifest.profileId);
+    const verify = await verifyManifestPieces(dir, pieces, profileId, manifest);
     verifyErrors.push(...verify.errors);
     verifyWarnings.push(...verify.warnings);
   }

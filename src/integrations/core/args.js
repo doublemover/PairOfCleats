@@ -86,6 +86,7 @@ export const buildRawArgs = (options = {}) => {
   if (options.incremental) args.push('--incremental');
   pushFlag(args, 'cache-rebuild', options['cache-rebuild'] ?? options.cacheRebuild);
   pushFlag(args, 'stub-embeddings', options['stub-embeddings'] ?? options.stubEmbeddings);
+  pushFlag(args, 'validate-ordering', options['validate-ordering'] ?? options.validateOrdering);
   if (options.watch) args.push('--watch');
   if (options['watch-poll'] !== undefined) args.push('--watch-poll', String(options['watch-poll']));
   if (options['watch-debounce'] !== undefined) args.push('--watch-debounce', String(options['watch-debounce']));
@@ -191,7 +192,8 @@ export const buildStage2Args = ({ root, argv, rawArgv }) => {
   }
   if (argv.incremental) args.push('--incremental');
   // Rebuild is consumed by the build owner before a stage2 handoff.
-  if (rawArgv.includes('--stub-embeddings')) args.push('--stub-embeddings');
+  pushFlag(args, 'stub-embeddings', argv['stub-embeddings'] ?? argv.stubEmbeddings);
+  pushFlag(args, 'validate-ordering', argv['validate-ordering'] ?? argv.validateOrdering);
   if (typeof argv.sqlite === 'boolean') args.push(argv.sqlite ? '--sqlite' : '--no-sqlite');
   pushValueStage2Flag(args, rawArgv, 'sqlite-batch-size', argv['sqlite-batch-size'] ?? argv.sqliteBatchSize);
   pushBooleanStage2Flag(args, rawArgv, 'scheduler', argv.scheduler);

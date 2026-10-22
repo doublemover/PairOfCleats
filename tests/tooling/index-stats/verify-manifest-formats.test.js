@@ -15,8 +15,11 @@ await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[{"id":1}]');
 await fs.writeFile(path.join(indexDir, 'token_postings.json'), '{"tokens":["answer"]}');
 await fs.writeFile(path.join(indexDir, 'empty.bin'), '');
 await fs.writeFile(path.join(indexDir, 'index_state.json'), '{"compatibilityKey":"stats-formats"}');
+await fs.writeFile(path.join(indexDir, 'filelists.json'), '{}');
 const tokenChecksum = await checksumFile(path.join(indexDir, 'token_postings.json'));
 const manifest = { version: 2, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, pieces: [
+  { name: 'index_state', format: 'json', path: 'index_state.json' },
+  { name: 'filelists', format: 'json', path: 'filelists.json' },
   { name: 'chunk_meta', format: 'json', path: 'chunk_meta.json', bytes: null, count: 1,
     checksum: `sha1:${await sha1File(path.join(indexDir, 'chunk_meta.json'))}` },
   { name: 'token_postings', format: 'json', path: 'token_postings.json', count: 1,
@@ -54,17 +57,17 @@ assert.ok(nonempty.report.verify.errors.some(error => error.includes('bytes mism
   'an explicitly declared zero is still verified');
 await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[{"id":1}]');
 await fs.writeFile(path.join(indexDir, 'empty.bin'), '');
-const originalChecksum = manifest.pieces[0].checksum;
+const originalChecksum = manifest.pieces.find(piece => piece.name === 'chunk_meta').checksum;
 for (const checksum of ['unknown:1234', 'sha1:bad', 'not-a-checksum']) {
-  manifest.pieces[0].checksum = checksum;
+  manifest.pieces.find(piece => piece.name === 'chunk_meta').checksum = checksum;
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
   const invalid = await run();
   assert.equal(invalid.result.exitCode, 1);
   assert.equal(invalid.report.verify.ok, false);
   assert.ok(invalid.report.verify.errors.some(error => /malformed or unsupported checksum/.test(error)));
 }
-manifest.pieces[0].checksum = originalChecksum;
-manifest.pieces[2].checksum = `sha1:${'0'.repeat(40)}`;
+manifest.pieces.find(piece => piece.name === 'chunk_meta').checksum = originalChecksum;
+manifest.pieces.find(piece => piece.name === 'dense_vectors_lancedb').checksum = `sha1:${'0'.repeat(40)}`;
 await fs.writeFile(manifestPath, JSON.stringify(manifest));
 const unreadableHash = await run();
 assert.equal(unreadableHash.result.exitCode, 1);

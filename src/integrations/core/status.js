@@ -205,7 +205,9 @@ export async function getStatus(input = {}) {
       lmdb: {
         code: lmdbStats.code,
         prose: lmdbStats.prose
-      }
+      },
+      indexDirs: { code: indexCodeDir, prose: indexProseDir,
+        'extracted-prose': indexExtractedProseDir, records: indexRecordsDir }
     },
     health,
     runtime: await Promise.all(Array.from(new Set([

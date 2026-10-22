@@ -108,8 +108,11 @@ function resolveCommand(primary, rest) {
   }
   if (primary === 'index') {
     const sub = rest.shift();
-    if (!sub || isHelpCommand(sub)) {
+    if (!sub) {
       return { script: 'tools/index/cli-entry.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'help' || isHelpCommand(sub)) {
+      return { script: 'tools/index/cli-entry.js', extraArgs: [], args: ['--help', ...rest] };
     }
     if (sub === 'build') {
       if (readFlagValue(rest, 'workspace')) {
@@ -225,7 +228,11 @@ function resolveCommand(primary, rest) {
       );
       return { script: 'tools/index-diff.js', extraArgs: [], args: rest };
     }
-    return { script: 'tools/index/cli-entry.js', extraArgs: [], args: [sub, ...rest] };
+    if (sub.startsWith('-')) {
+      return { script: 'tools/index/cli-entry.js', extraArgs: [], args: [sub, ...rest] };
+    }
+    failCli(`Unknown index command: ${sub}`, { code: ERROR_CODES.INVALID_REQUEST,
+      hint: 'Use pairofcleats index --help for supported commands; use index build to build indexes.' });
   }
   if (primary === 'search') {
     const searchDispatch = resolveSearchDispatchArgs(rest);
@@ -1067,6 +1074,12 @@ function resolveSearchDispatchArgs(rest) {
  * @returns {Promise<never>}
  */
 async function runScript(scriptPath, extraArgs, restArgs) {
+  const terminator = restArgs.indexOf('--');
+  const optionArgs = terminator >= 0 ? restArgs.slice(0, terminator) : restArgs;
+  if (optionArgs.includes('-v') || optionArgs.includes('--version')) {
+    console.error(getToolVersion() || '0.0.0');
+    return;
+  }
   const resolved = path.join(ROOT, scriptPath);
   if (!fs.existsSync(resolved)) {
     failCli(`Script not found: ${resolved}`, {

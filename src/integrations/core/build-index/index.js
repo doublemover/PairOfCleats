@@ -31,6 +31,8 @@ import { computeCompatibilityKey } from './compatibility.js';
 import { teardownRuntime } from './runtime.js';
 import { buildSqliteIndex } from './sqlite.js';
 import { runEmbeddingsStage, runSqliteStage, runStage } from './stages.js';
+import { validateBuildIntent } from '../../../shared/cli-option-validators.js';
+import { createBuildIndexOutcome } from './outcome.js';
 
 const toolRoot = resolveToolRoot();
 const buildEmbeddingsPath = path.join(toolRoot, 'tools', 'build/embeddings.js');
@@ -80,10 +82,11 @@ export const buildStreamedStage3Result = ({
  * @param {object} [options]
  * @returns {Promise<object>}
  */
-export async function buildIndex(repoRoot, options = {}) {
+async function buildIndexRun(repoRoot, options = {}) {
   const root = getRepoRoot(repoRoot);
   const invocation = resolveBuildInvocationArgs(options);
   const baseArgv = { ...invocation.argv, repo: root };
+  validateBuildIntent(baseArgv);
   const explicitStage = normalizeStage(baseArgv.stage);
   const parsedArgv = explicitStage ? { ...baseArgv, stage: explicitStage } : baseArgv;
   const rebuild = consumeBuildCacheRebuild({ argv: parsedArgv, rawArgv: invocation.rawArgv });
@@ -148,8 +151,8 @@ export async function buildIndex(repoRoot, options = {}) {
     const pollMs = Number.isFinite(Number(argv['watch-poll'])) ? Number(argv['watch-poll']) : 2000;
     const debounceMs = Number.isFinite(Number(argv['watch-debounce'])) ? Number(argv['watch-debounce']) : 500;
     try {
-      const watchState = await watchIndex({ runtime, modes, pollMs, debounceMs, abortSignal,
-        onReady: options.onWatchReady, onStateChange: options.onWatchStateChange });
+      const watchState = await runtime.loggerScope.run(() => watchIndex({ runtime, modes, pollMs, debounceMs, abortSignal,
+        onReady: options.onWatchReady, onStateChange: options.onWatchStateChange }));
       return attachObservability({ modes, watch: true, watchState: watchState || runtime.watchState || null }, observability);
     } finally {
       await teardownRuntime(runtime);
@@ -414,3 +417,15 @@ export async function buildIndex(repoRoot, options = {}) {
 }
 
 export { buildSqliteIndex };
+
+export async function buildIndex(repoRoot, options = {}) {
+  const requestedStage = normalizeStage(options.stage);
+  try {
+    const result = await buildIndexRun(repoRoot, options);
+    return { ...result, outcome: createBuildIndexOutcome({ result, repo: repoRoot,
+      requestedStage, modes: result?.modes || options.modes || [] }) };
+  } catch (error) {
+    error.outcome = createBuildIndexOutcome({ repo: repoRoot, requestedStage, modes: options.modes || [], error });
+    throw error;
+  }
+}

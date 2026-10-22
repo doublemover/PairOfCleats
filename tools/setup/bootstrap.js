@@ -7,6 +7,7 @@ import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-inv
 import { exitLikeCommandResult, runCommand } from '../shared/cli-utils.js';
 import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
+import { resolveDictionarySetupReadiness } from './dictionary-readiness.js';
 
 const argv = createCli({
   scriptName: 'bootstrap',
@@ -159,32 +160,24 @@ async function run(cmd, args, label) {
   }
 }
 
-if (!argv['skip-install']) {
-  const nodeModules = path.join(root, 'node_modules');
-  if (!fs.existsSync(nodeModules)) {
-    await run('npm', ['install'], 'npm install');
-    recordStep('install', { skipped: false, installed: true });
-  } else {
-    recordStep('install', { skipped: false, installed: false });
-  }
-} else {
-  recordStep('install', { skipped: true });
-}
+// Dependency preparation belongs to the tool checkout's explicit bootstrap:ci
+// workflow. Selecting a repository never authorizes its package-manager scripts.
+recordStep('install', { skipped: true, installed: false, toolRoot, targetRoot: root,
+  reason: 'Tool dependencies are prepared separately with npm run bootstrap:ci in the tool checkout.' });
 
 if (!argv['skip-dicts']) {
   const dictConfig = getDictConfig(root, userConfig);
-  const englishPath = path.join(dictConfig.dir, 'en.txt');
-  if (!fs.existsSync(englishPath)) {
-    await run(process.execPath, [path.join(toolRoot, 'tools', 'download', 'dicts.js'), '--lang', 'en'], 'download English dictionary');
-  }
   const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
-  if (dictionaryPaths.length) {
-    console.error(`[bootstrap] Wordlists enabled (${dictionaryPaths.length} file(s)).`);
-    recordStep('dictionaries', { skipped: false, available: true, count: dictionaryPaths.length });
-  } else {
-    console.warn('[bootstrap] No wordlists found; identifier splitting will be limited.');
-    recordStep('dictionaries', { skipped: false, available: false, count: 0 });
-  }
+  const before = resolveDictionarySetupReadiness({ dictConfig, dictionaryPaths });
+  if (before.downloadableLanguages.length) await run(process.execPath,
+    [path.join(toolRoot, 'tools', 'download', 'dicts.js'), '--repo', root, '--dir', dictConfig.dir,
+      '--lang', before.downloadableLanguages.join(','), ...(before.replaceEmptyEnglish ? ['--force'] : [])], 'download selected dictionaries');
+  const verification = resolveDictionarySetupReadiness({ dictConfig,
+    dictionaryPaths: await getDictionaryPaths(root, dictConfig) });
+  recordStep('dictionaries', { skipped: false, ...verification, available: verification.present,
+    count: verification.usablePaths.length, status: !verification.applicable ? 'not-applicable' : verification.present ? 'available' : 'missing' });
+  if (verification.present) console.error(`[bootstrap] Wordlists enabled (${verification.usablePaths.length} file(s)).`);
+  else if (verification.applicable) console.warn(`[bootstrap] ${verification.reason}`);
 } else {
   recordStep('dictionaries', { skipped: true });
 }
@@ -222,8 +215,12 @@ if (!argv['skip-tooling']) {
         const installArgs = [path.join(toolRoot, 'tools', 'tooling', 'install.js'), '--root', root, '--scope', toolingConfig.installScope];
         if (!toolingConfig.allowGlobalFallback) installArgs.push('--no-fallback');
         await run(process.execPath, installArgs, 'install tooling');
+        recordStep('tooling', { skipped: false, status: 'installation-completed', requestedTools: missingTools.map(tool => tool.id) });
       } else if (missingTools.length) {
         console.error('[bootstrap] Optional tooling missing. Run node tools/tooling/install.js to install.');
+        recordStep('tooling', { skipped: false, status: 'not-requested', missingTools: missingTools.map(tool => tool.id) });
+      } else {
+        recordStep('tooling', { skipped: false, status: 'available', missingTools: [] });
       }
     } catch {
       console.warn('[bootstrap] Failed to parse tooling detection output.');
@@ -234,48 +231,7 @@ if (!argv['skip-tooling']) {
     recordStep('tooling', { skipped: false, detectOk: false });
   }
 
-  const pyrightEnsureArgs = [
-    path.join(toolRoot, 'tools', 'tooling', 'install.js'),
-    '--root',
-    root,
-    '--tools',
-    'pyright',
-    '--scope',
-    toolingConfig.installScope || 'cache',
-    '--json'
-  ];
-  if (!toolingConfig.allowGlobalFallback) pyrightEnsureArgs.push('--no-fallback');
-  const pyrightEnsure = runCommand(process.execPath, pyrightEnsureArgs, {
-    cwd: root,
-    encoding: 'utf8',
-    stdio: 'pipe',
-    env: baseEnv
-  });
-  if (typeof pyrightEnsure.signal === 'string' && pyrightEnsure.signal.trim()) {
-    exitLikeCommandResult(pyrightEnsure);
-  }
-  if (pyrightEnsure.status === 0) {
-    try {
-      const payload = JSON.parse(pyrightEnsure.stdout || '{}');
-      const pyrightResult = Array.isArray(payload.results)
-        ? payload.results.find((entry) => entry && entry.id === 'pyright')
-        : null;
-      const status = pyrightResult?.status;
-      if (status === 'installed') {
-        console.error('[bootstrap] Installed pyright tooling (pyright-langserver).');
-      } else if (status === 'already-installed') {
-        console.error('[bootstrap] pyright-langserver already available.');
-      } else if (status && status !== 'manual') {
-        console.warn(`[bootstrap] pyright tooling ensure status: ${status}.`);
-      }
-    } catch {
-      console.warn('[bootstrap] Failed to parse pyright tooling ensure output.');
-      recordStep('tooling', { skipped: false, pyrightEnsureParsed: false });
-    }
-  } else {
-    console.warn('[bootstrap] Failed to ensure pyright tooling; pyright-langserver may be unavailable.');
-    recordStep('tooling', { skipped: false, pyrightEnsureOk: false });
-  }
+
 } else {
   recordStep('tooling', { skipped: true });
 }

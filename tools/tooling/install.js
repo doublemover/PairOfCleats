@@ -19,7 +19,7 @@ import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 const argv = createCli({
   scriptName: 'pairofcleats tooling install',
   options: TOOLING_INSTALL_OPTIONS
-}).parse();
+}).parserConfiguration({ 'boolean-negation': false }).parse();
 
 const explicitRoot = argv.root || argv.repo;
 const root = resolveRepoRootArg(explicitRoot);

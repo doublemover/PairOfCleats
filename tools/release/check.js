@@ -469,6 +469,8 @@ const main = () => {
   const report = {
     schemaVersion: 1,
     generatedAt: finishedAt,
+    executionMode: dryRun ? 'simulated' : 'executed',
+    dryRun,
     startedAt,
     finishedAt,
     durationMs: Math.max(0, finishedAtMs - startedAtMs),
