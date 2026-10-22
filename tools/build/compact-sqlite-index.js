@@ -27,6 +27,7 @@ import {
 } from '../../src/storage/sqlite/build-helpers.js';
 import { collectManifestByNormalized } from '../../src/storage/sqlite/build/from-artifacts/sources.js';
 import { updateSqliteState } from '../../src/storage/sqlite/build/index-state.js';
+import { assertSqliteMinhashReceiver, writeSqliteMinhashHeader } from '../../src/storage/sqlite/minhash.js';
 
 
 /** Copy immutable facts and metadata in bounded batches, retaining source row order. */
@@ -378,6 +379,8 @@ export async function compactDatabase(input) {
     insertDocLengthsTx();
 
     const insertMinhashTx = outDb.transaction(() => {
+      const header = assertSqliteMinhashReceiver(sourceDb, mode);
+      if (header) writeSqliteMinhashHeader(outDb, mode, header.sampling);
       const stmt = sourceDb.prepare('SELECT doc_id, sig FROM minhash_signatures WHERE mode = ?');
       for (const row of stmt.iterate(mode)) {
         const newId = docIdMap.get(Number(row.doc_id));
