@@ -755,8 +755,32 @@ def _default_workspace_path(window):
     return os.path.join(repo_root, '.pairofcleats-workspace.jsonc')
 
 
-def _resolve_risk_index_dir(repo_root):
-    return os.path.join(repo_root, 'index-code')
+def _resolve_risk_source(repo_root, payload, seed):
+    provenance = payload.get('provenance') or {}
+    index_dir = provenance.get('indexDir')
+    signature = provenance.get('indexSignature')
+    source_repo = provenance.get('repo')
+    if (not isinstance(index_dir, str) or not index_dir.strip()
+            or not isinstance(signature, str) or not signature.strip()
+            or not isinstance(source_repo, str)
+            or os.path.normcase(os.path.abspath(os.path.join(repo_root, source_repo)))
+            != os.path.normcase(os.path.abspath(repo_root))):
+        raise ValueError('Risk seed resolution returned no qualified code generation. '
+                         'Run Risk Explain again to deliberately select the current generation.')
+    risk = payload.get('risk') or {}
+    primary = payload.get('primary') or {}
+    ref = primary.get('ref') or {}
+    chunk_uid = ((risk.get('anchor') or {}).get('chunkUid') or ref.get('chunkUid')
+                 or (ref.get('resolved') or {}).get('chunkUid'))
+    if not isinstance(chunk_uid, str) or not chunk_uid.strip():
+        raise ValueError('The selected seed has no chunk in this generation. '
+                         'Run Risk Explain again to deliberately select the current generation.')
+    return {
+        'chunkUid': chunk_uid,
+        'source': 'context-pack', 'repoRoot': os.path.abspath(repo_root), 'mode': 'code',
+        'indexDir': os.path.abspath(os.path.join(repo_root, index_dir)),
+        'indexSignature': signature, 'indexCompatKey': provenance.get('indexCompatKey'), 'seed': seed,
+    }
 
 
 class PairOfCleatsContextPackCommand(sublime_plugin.WindowCommand):
@@ -844,9 +868,9 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
         return True
 
     def run(self, chunk=None, max=DEFAULT_RISK_EXPLAIN_MAX, source_rule=None, sink_rule=None,
-            export_json=False, out_path=None):
+            export_json=False, out_path=None, source_qualification=None):
         if chunk:
-            self._execute(chunk, max, source_rule, sink_rule, export_json, out_path)
+            self._execute(chunk, max, source_rule, sink_rule, export_json, out_path, source_qualification)
             return
         view = self.window.active_view() if self.window else None
         selection = views.extract_selection(view)
@@ -858,7 +882,7 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
             lambda value: self._execute(value, max, source_rule, sink_rule, export_json, out_path) if value else None,
         )
 
-    def _execute(self, chunk_uid, max_flows, source_rule, sink_rule, export_json, out_path):
+    def _execute(self, chunk_uid, max_flows, source_rule, sink_rule, export_json, out_path, retained_source=None):
         if not chunk_uid:
             return
         context = _resolve_cli_context(self.window, workflow='risk-explain')
@@ -869,10 +893,9 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
             ui.show_error(execution['error'])
             return
         repo_root = context['repo_root']
-        index_dir = _resolve_risk_index_dir(repo_root)
         args = [
             'risk', 'explain',
-            '--index', index_dir,
+            '--index', '',
             '--chunk', chunk_uid,
             '--max', str(int(max_flows) if str(max_flows).isdigit() else DEFAULT_RISK_EXPLAIN_MAX),
             '--json',
@@ -884,15 +907,19 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
 
         def on_done(result):
             if result.returncode != 0:
-                ui.show_error(result.output.strip() or 'PairOfCleats risk explain failed.')
+                ui.show_error((result.output.strip() or 'PairOfCleats risk explain failed.') +
+                              '\nThe selected generation or chunk may no longer be available. '
+                              'Run Risk Explain again to deliberately select the current generation.')
                 return
             if result.error:
                 ui.show_error(result.error)
                 return
             payload = result.payload
-            if not isinstance(payload, dict):
-                ui.show_error('PairOfCleats risk explain returned invalid JSON.')
+            if not isinstance(payload, dict) or payload.get('ok') is False:
+                ui.show_error((payload or {}).get('message', 'PairOfCleats risk explain returned invalid JSON.')
+                              if isinstance(payload, dict) else 'PairOfCleats risk explain returned invalid JSON.')
                 return
+            payload = dict(payload, sourceQualification=source_qualification)
             hits = _collect_risk_explain_hits(payload)
             text = _render_risk_explain_text(payload, hits)
             json_path = None
@@ -906,7 +933,53 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
                 self.window.open_file(json_path)
                 ui.show_status('PairOfCleats: exported risk explain JSON.')
 
-        _run_cli_json(self.window, 'PairOfCleats risk explain', repo_root, args, on_done, context=context, workflow='risk-explain')
+        seed = chunk_uid if chunk_uid.startswith(('chunk:', 'file:', 'symbol:')) else 'chunk:' + chunk_uid
+        source_qualification = None
+
+        def on_seed_resolved(result):
+            nonlocal source_qualification
+            if result.returncode != 0 or result.error:
+                ui.show_error(result.error or result.output.strip() or
+                              'The selected code generation or chunk is unavailable. '
+                              'Run Risk Explain again to deliberately select the current generation.')
+                return
+            if not isinstance(result.payload, dict) or result.payload.get('ok') is False:
+                ui.show_error('Risk seed resolution returned invalid JSON or no index.')
+                return
+            try:
+                source_qualification = _resolve_risk_source(repo_root, result.payload, seed)
+            except ValueError as error:
+                ui.show_error(str(error))
+                return
+            args[args.index('--index') + 1] = source_qualification['indexDir']
+            args[args.index('--chunk') + 1] = source_qualification['chunkUid']
+            _run_cli_json(self.window, 'PairOfCleats risk explain', repo_root, args,
+                          on_done, context=context, workflow='risk-explain')
+
+        if retained_source is not None:
+            if (not isinstance(retained_source, dict) or retained_source.get('source') != 'context-pack'
+                    or retained_source.get('mode') != 'code' or not retained_source.get('indexSignature')
+                    or not isinstance(retained_source.get('indexDir'), str)
+                    or not isinstance(retained_source.get('repoRoot'), str)
+                    or os.path.normcase(os.path.abspath(retained_source['repoRoot']))
+                    != os.path.normcase(os.path.abspath(repo_root))):
+                ui.show_error('Saved risk request has no matching source-generation qualification. '
+                              'Run Risk Explain again to deliberately select the current generation.')
+                return
+            if not os.path.isfile(os.path.join(retained_source['indexDir'], 'pieces', 'manifest.json')):
+                ui.show_error('The selected code generation is no longer available. '
+                              'Run Risk Explain again to deliberately select the current generation.')
+                return
+            source_qualification = dict(retained_source)
+            args[args.index('--index') + 1] = source_qualification['indexDir']
+            _run_cli_json(self.window, 'PairOfCleats risk explain', repo_root, args,
+                          on_done, context=context, workflow='risk-explain')
+            return
+
+        _run_cli_json(self.window, 'PairOfCleats risk seed resolution', repo_root,
+                      ['context-pack', '--repo', repo_root, '--seed', seed, '--hops', '0',
+                       '--include-risk', '--json'], on_seed_resolved,
+                      context=context, workflow='risk-explain')
 
 
 class PairOfCleatsArchitectureCheckCommand(sublime_plugin.WindowCommand):

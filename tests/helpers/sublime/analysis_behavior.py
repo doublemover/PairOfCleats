@@ -118,6 +118,10 @@ class AnalysisBehaviorTests(unittest.TestCase):
 
         session = self.results_state.get_last_risk_explain(self.window)
         self.assertEqual(session['analysisKind'], 'risk-explain')
+        risk_call = next(call for call in self.runner_calls if call['args'][:2] == ['risk', 'explain'])
+        self.assertEqual(risk_call['args'][risk_call['args'].index('--index') + 1],
+                         os.path.join(self.fixture_repo, 'custom-cache', 'code-only', 'index-code'))
+        self.assertEqual(session['payload']['sourceQualification']['indexSignature'], 'generation-code-only')
 
         self.analysis.PairOfCleatsReopenLastRiskExplainCommand(self.window).run()
         reopened = self.window.panels[self.results.RESULTS_PANEL]
@@ -128,6 +132,48 @@ class AnalysisBehaviorTests(unittest.TestCase):
         opened = self.window.opened_files[-1]['path'].replace('\\', '/')
         self.assertIn('src/util.js:7', opened)
         self.assertEqual(self.window.current_group, 1)
+
+    def test_risk_seed_kinds_use_canonical_code_generation(self):
+        for seed in ['chunk:chunk-risk', 'file:src/index.js', 'symbol:buildWidget']:
+            self.runner_calls = []
+            self.analysis.PairOfCleatsRiskExplainCommand(self.window).run(chunk=seed)
+            resolution, explain = self.runner_calls
+            self.assertEqual(resolution['args'][0], 'context-pack')
+            self.assertEqual(resolution['args'][resolution['args'].index('--seed') + 1], seed)
+            self.assertEqual(explain['args'][explain['args'].index('--index') + 1],
+                             os.path.join(self.fixture_repo, 'custom-cache', 'code-only', 'index-code'))
+            self.assertEqual(explain['args'][explain['args'].index('--chunk') + 1], 'chunk-risk')
+
+    def test_risk_missing_source_provenance_never_uses_repo_local_fallback(self):
+        original = self._payload_for_args
+        self._payload_for_args = lambda _args: {'primary': {'ref': {'chunkUid': 'chunk-risk'}},
+                                               'indexDir': os.path.join(self.fixture_repo, 'index-code')}
+        try:
+            self.analysis.PairOfCleatsRiskExplainCommand(self.window).run(chunk='chunk-risk')
+            self.assertEqual(len(self.runner_calls), 1)
+            self.assertEqual(self.runner_calls[0]['args'][0], 'context-pack')
+        finally:
+            self._payload_for_args = original
+
+    def test_risk_retained_generation_is_pinned_and_missing_generation_does_not_retry(self):
+        with isolated_temp_directory() as temp_root:
+            generation = os.path.join(temp_root, 'retained-code')
+            os.makedirs(os.path.join(generation, 'pieces'))
+            manifest = os.path.join(generation, 'pieces', 'manifest.json')
+            with open(manifest, 'w') as handle:
+                handle.write('{}')
+            source = {'source': 'context-pack', 'repoRoot': self.fixture_repo, 'mode': 'code',
+                      'indexDir': generation, 'indexSignature': 'retained-generation'}
+            self.analysis.PairOfCleatsRiskExplainCommand(self.window).run(
+                chunk='chunk-risk', source_qualification=source)
+            self.assertEqual(len(self.runner_calls), 1)
+            self.assertEqual(self.runner_calls[0]['args'][0:2], ['risk', 'explain'])
+            self.assertIn(generation, self.runner_calls[0]['args'])
+            os.remove(manifest)
+            self.runner_calls = []
+            self.analysis.PairOfCleatsRiskExplainCommand(self.window).run(
+                chunk='chunk-risk', source_qualification=source)
+            self.assertEqual(self.runner_calls, [])
 
     def test_architecture_impact_and_suggest_tests_commands(self):
         self.analysis.PairOfCleatsArchitectureCheckCommand(self.window).run(
@@ -327,7 +373,10 @@ class AnalysisBehaviorTests(unittest.TestCase):
         args = list(args or [])
         if args and args[0] == 'context-pack':
             return {
+                'provenance': {'repo': '.', 'indexDir': os.path.join('custom-cache', 'code-only', 'index-code'),
+                               'indexSignature': 'generation-code-only'},
                 'primary': {
+                    'ref': {'type': 'chunk', 'chunkUid': 'chunk-risk'},
                     'file': 'src/index.js',
                     'range': {'startLine': 1, 'endLine': 8},
                     'excerpt': 'export function buildWidget() {'

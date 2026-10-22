@@ -12,6 +12,9 @@ fs.mkdirSync(path.join(repoRoot, 'src'), { recursive: true });
 fs.writeFileSync(path.join(repoRoot, 'bin', 'pairofcleats.js'), 'console.log("ok");\n');
 fs.writeFileSync(path.join(repoRoot, 'src', 'app.ts'), 'export function greet() { return 1; }\n');
 
+const selectedIndex = path.join(repoRoot, 'custom-cache', 'builds', 'code-only', 'index-code');
+fs.mkdirSync(path.join(selectedIndex, 'pieces'), { recursive: true });
+fs.writeFileSync(path.join(selectedIndex, 'pieces', 'manifest.json'), '{}');
 const activeFile = path.join(repoRoot, 'src', 'app.ts');
 const activeEditor = {
   document: {
@@ -178,7 +181,7 @@ try {
     stdout: JSON.stringify({
       primary: { ref: { type: 'file', path: 'src/app.ts' }, file: 'src/app.ts' },
       risk: { anchor: { chunkUid: 'ck-risk-anchor' } },
-      indexDir: 'index-code'
+      provenance: { repo: '.', indexDir: path.relative(repoRoot, selectedIndex), indexSignature: 'generation-code-only' }
     })
   });
   harness.queuedResults.push({
@@ -217,7 +220,7 @@ try {
     'explain',
     '--json',
     '--index',
-    path.join(repoRoot, 'index-code'),
+    selectedIndex,
     '--chunk',
     'ck-risk-anchor',
     '--max',

@@ -7,6 +7,7 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { EventEmitter: NodeEventEmitter } = require('node:events');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
+const { resolveRiskSource, validateRiskSource } = require('./risk-source.js');
 const {
   buildRiskExplanationModelFromStandalone,
   renderCompositeContextPack,
@@ -2791,7 +2792,8 @@ async function buildOperatorPresentation(spec, payload, inputContext) {
   }
   if (spec.id === 'pairofcleats.riskExplain') {
     return {
-      markdown: renderRiskExplainMarkdownDocument(payload),
+      markdown: renderRiskExplainMarkdownDocument(payload) + (payload.sourceQualification
+        ? `\nSource: code generation ${payload.sourceQualification.indexSignature} at ${payload.sourceQualification.indexDir}\n` : ''),
       json: JSON.stringify(payload, null, 2)
     };
   }
@@ -2865,28 +2867,11 @@ async function resolveRiskExplainSeedContext({ repoContext, cliResolution, seed,
       detail: result.detail || null
     };
   }
-  const chunkUid = String(
-    result.payload?.risk?.anchor?.chunkUid
-    || result.payload?.primary?.ref?.chunkUid
-    || result.payload?.risk?.summary?.chunkUid
-    || ''
-  ).trim();
-  if (!chunkUid) {
-    return {
-      ok: false,
-      message: 'PairOfCleats could not resolve a risk anchor chunk for the selected seed.',
-      detail: 'Try selecting a more specific file, chunk, or symbol seed.'
-    };
+  try {
+    return { ok: true, ...resolveRiskSource(result.payload, { repoRoot: repoContext.repoRoot, seed }) };
+  } catch (error) {
+    return { ok: false, message: error.message };
   }
-  const relativeIndexDir = String(result.payload?.indexDir || '').trim();
-  const indexDir = relativeIndexDir
-    ? path.resolve(repoContext.repoRoot, relativeIndexDir)
-    : path.join(repoContext.repoRoot, 'index-code');
-  return {
-    ok: true,
-    chunkUid,
-    indexDir
-  };
 }
 
 async function promptRiskExplainInput(repoContext, { cliResolution, output }) {
@@ -2904,9 +2889,7 @@ async function promptRiskExplainInput(repoContext, { cliResolution, output }) {
   if (!maxFlows) return null;
   const presentationMode = await promptPresentationMode('PairOfCleats risk explain presentation');
   if (!presentationMode) return null;
-  const resolved = seed.startsWith('chunk:')
-    ? { ok: true, chunkUid: seed.slice('chunk:'.length).trim(), indexDir: path.join(repoContext.repoRoot, 'index-code') }
-    : await resolveRiskExplainSeedContext({ repoContext, cliResolution, seed, output });
+  const resolved = await resolveRiskExplainSeedContext({ repoContext, cliResolution, seed, output });
   if (!resolved.ok) {
     if (resolved.detail) output.appendLine(resolved.detail);
     output.show?.(true);
@@ -2917,6 +2900,7 @@ async function promptRiskExplainInput(repoContext, { cliResolution, output }) {
     seed,
     chunkUid: resolved.chunkUid,
     indexDir: resolved.indexDir,
+    sourceQualification: resolved.sourceQualification,
     maxFlows,
     presentationMode
   };
@@ -3913,7 +3897,13 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
       ? vscode.window.showInformationMessage
       : vscode.window.showErrorMessage;
     show(result.message);
+    if (spec.id === 'pairofcleats.riskExplain' && result.kind !== 'cancelled') {
+      output.appendLine('The selected generation or chunk may no longer be available. Run Risk Explain again to deliberately select the current generation.');
+    }
     return;
+  }
+  if (spec.id === 'pairofcleats.riskExplain' && invocation.inputContext?.sourceQualification) {
+    result.payload = { ...result.payload, sourceQualification: invocation.inputContext.sourceQualification };
   }
   appendOutputLines(output, summarizeOperatorPayload(spec, result.payload));
   output.appendLine('- raw-json:');
@@ -3937,6 +3927,9 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
   if (result.ok) {
     vscode.window.showInformationMessage(`${spec.title} completed.`);
     return;
+  }
+  if (spec.id === 'pairofcleats.riskExplain') {
+    output.appendLine('The selected generation or chunk may no longer be available. Run Risk Explain again to deliberately select the current generation.');
   }
   vscode.window.showErrorMessage(`${spec.title} reported issues. See PairOfCleats output for details.`);
 }
@@ -3981,6 +3974,15 @@ async function runOperatorCommand(spec, { repoContext: seededRepoContext = null,
     : undefined;
   if (inputContext === null) {
     return;
+  }
+  if (spec.id === 'pairofcleats.riskExplain') {
+    const sourceError = validateRiskSource(inputContext, repoRoot);
+    if (sourceError) {
+      output.appendLine(sourceError);
+      output.show?.(true);
+      vscode.window.showErrorMessage(sourceError);
+      return;
+    }
   }
   if (execution.mode === 'api' && spec.id === 'pairofcleats.indexHealth') {
     const requestPath = `/status?repo=${encodeURIComponent(repoRoot)}`;
@@ -4905,6 +4907,7 @@ module.exports = {
     resolveRepoContext,
     resolvePassiveRepoContext,
     resolveRepoRelativePathSeed,
+    resolveRiskExplainSeedContext,
     runOperatorCommand,
     executeOperatorWorkflow,
     runSavedSearchInvocation,

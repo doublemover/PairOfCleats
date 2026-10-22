@@ -71,3 +71,9 @@ For the CLI contract and packaging behavior, see:
 
 - `src/contracts/editor-config-contract.json` (bundled with each editor package)
 - `docs/specs/editor-packaging-determinism.md`
+
+Risk Explain resolves chunk, file and symbol seeds through the canonical context-pack
+code-generation owner. Editor requests and exported results retain repository, mode,
+concrete index directory and index signature. Stale repo-local index-code artifacts
+do not provide a fallback. Saved qualified requests remain pinned; if that generation
+or chunk is unavailable, run the current command deliberately to choose current evidence.

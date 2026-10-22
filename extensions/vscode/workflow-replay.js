@@ -1,5 +1,19 @@
 const STRING_FIELDS = new Set(['rulesPath', 'direction', 'seed', 'indexDir', 'chunkUid', 'workspacePath', 'presentationMode']);
 const INTEGER_FIELDS = new Set(['depth', 'maxSuggestions', 'hops', 'maxFlows', 'concurrency']);
+const SOURCE_FIELDS = new Set(['source', 'repoRoot', 'mode', 'indexDir', 'indexSignature', 'indexCompatKey', 'seed']);
+
+function normalizeRiskSource(source) {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return null;
+  if (Object.keys(source).some(key => !SOURCE_FIELDS.has(key))) return null;
+  if (source.source !== 'context-pack' || source.mode !== 'code') return null;
+  const output = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (key === 'indexCompatKey' && value === null) output[key] = null;
+    else if (typeof value === 'string' && value.length <= 4096 && !value.includes('\0')) output[key] = value;
+    else return null;
+  }
+  return ['repoRoot', 'indexDir', 'indexSignature', 'seed'].every(key => output[key]) ? output : null;
+}
 
 // Persist semantic inputs only. Executable paths/argv are historical diagnostics.
 function normalizeWorkflowRequest(request) {
@@ -16,6 +30,10 @@ function normalizeWorkflowRequest(request) {
     } else if (key === 'changed' && Array.isArray(value) && value.length <= 128
       && value.every(entry => typeof entry === 'string' && entry.length <= 4096 && !entry.includes('\0'))) {
       output[key] = value.slice();
+    } else if (key === 'sourceQualification') {
+      const source = normalizeRiskSource(value);
+      if (!source) return null;
+      output[key] = source;
     } else return null;
   }
   if (Buffer.byteLength(JSON.stringify(output)) > 16384) return null;
@@ -28,7 +46,7 @@ function hasRequiredWorkflowInput(commandId, input) {
     'pairofcleats.architectureCheck': ['rulesPath'],
     'pairofcleats.suggestTests': ['changed', 'maxSuggestions'],
     'pairofcleats.contextPack': ['seed', 'hops'],
-    'pairofcleats.riskExplain': ['seed', 'chunkUid', 'indexDir', 'maxFlows'],
+    'pairofcleats.riskExplain': ['seed', 'chunkUid', 'indexDir', 'maxFlows', 'sourceQualification'],
     'pairofcleats.workspaceBuild': ['workspacePath', 'concurrency'],
     'pairofcleats.workspaceManifest': ['workspacePath'],
     'pairofcleats.workspaceStatus': ['workspacePath'],

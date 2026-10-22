@@ -183,3 +183,9 @@ qualification remain separate from the authored lifecycle fixtures.
 The Sublime integration is designed to use `--json` output so it can access full
 metadata when available. It does not assume the compact JSON contract used by
 other editors.
+
+Risk Explain resolves chunk, file and symbol seeds through the canonical context-pack
+code-generation owner. Editor requests and exported results retain repository, mode,
+concrete index directory and index signature. Stale repo-local index-code artifacts
+do not provide a fallback. Saved qualified requests remain pinned; if that generation
+or chunk is unavailable, run the current command deliberately to choose current evidence.
