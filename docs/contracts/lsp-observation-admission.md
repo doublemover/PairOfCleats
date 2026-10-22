@@ -20,7 +20,21 @@ not create a separately copied, uncharged store. Rejected output and source
 identity changes retain no staged items. Existing fact, item and observation
 counts remain bounded by the collector's allowances.
 
-Shared lspBindings25 retires the changed request-bound projection meaning in
+Each projected primary fact and each related hierarchy call-site range consumes
+one unit of the same collector fact allowance. `factUnits` records that charge;
+the collector's `facts` metric includes those related range units. A subsequent
+observation cannot reopen a per-call range allowance. Budget exhaustion retains
+the bounded raw response and explicit projection omissions, without claiming
+complete projected hierarchy evidence.
+
+Incoming call-site ranges must belong to the returned caller item; outgoing
+ranges must belong to the captured request's caller item. Both the range and
+that caller's enclosure need exact source coordinates. Missing/malformed range
+lists and unqualified/outside caller ranges keep the observation partial. A
+separately exact target remains target evidence, without promoting an invalid
+call origin.
+
+Shared lspBindings26 retires the changed request and range projection meaning in
 the existing semantic policy. These process-local tokens are not durable
 capabilities and introduce no new public request or configuration surface.
 

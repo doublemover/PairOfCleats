@@ -37,7 +37,7 @@ export const createLspObservationCollector = ({ identity, consumers, capabilitie
   const typeHierarchy = new Set(['prepareTypeHierarchy', 'supertypes', 'subtypes']);
   const empty = (requestClass, params, reason, state = 'unsupported') => ({ schemaVersion: 1, identity: pinned,
     requestClass, method: LSP_STRUCTURED_METHODS[requestClass] || null, params, raw: null,
-    state, reason, facts: [], omissions: [], exactCount: 0, coverage: 'unknown', projectReady });
+    state, reason, facts: [], factUnits: 0, omissions: [], exactCount: 0, coverage: 'unknown', projectReady });
   const record = ({ requestClass, params, response, positionEncoding = 'utf-16' }) => {
     assertCurrent();
     const normalizedParams = freeze(JSON.parse(canonicalSemanticJson(params)));
@@ -80,7 +80,7 @@ export const createLspObservationCollector = ({ identity, consumers, capabilitie
       return token;
     };
     const projected = projectLspObservation({ requestClass, payload: raw, uri: normalizedParams.textDocument?.uri || normalizedParams.item?.uri || pinned.uri,
-      positionEncoding, sourceForUri, maxFacts: maxFacts - facts, maxDepth, retainHierarchyItem });
+      positionEncoding, sourceForUri, maxFacts: maxFacts - facts, maxDepth, requestItem: normalizedParams.item || null, retainHierarchyItem });
     assertCurrent();
     const value = { schemaVersion: 1, identity: pinned, requestClass, method: LSP_STRUCTURED_METHODS[requestClass],
       params: normalizedParams, positionEncoding, raw, ...projected, projectReady,
@@ -91,7 +91,7 @@ export const createLspObservationCollector = ({ identity, consumers, capabilitie
     if (projectedBytes > maxBytes - bytes) return empty(requestClass, normalizedParams, 'output_budget', 'partial');
     freeze(value);
     for (const [token, retained] of pendingItems) items.set(token, retained);
-    bytes += projectedBytes; facts += projected.facts.length;
+    bytes += projectedBytes; facts += projected.factUnits;
     observations.push(value); cache.set(key, value);
     return value;
   };
