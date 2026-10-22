@@ -19,6 +19,13 @@ Pending resource aggregates forbid automatic retry, and an explicitly
 non-retryable primary retains that policy after handler failure. Ordinary errors
 with successful handlers preserve their original identity and existing policy.
 
+Automatic worker retry also requires any original resource observer to confirm
+settlement, even when the advisory pending flag is false and the operation says
+it is retryable. Unknown or unresolved ownership propagates a non-retryable
+aggregate. A throwing retry-policy getter preserves the worker and inspection
+failure independently. Explicit non-retryable data errors retain their identity;
+confirmed closure keeps existing independently retryable operation behavior.
+
 The actual queue regressions use inert observers and preserve ordinary retry and
 failure contracts. They are authored and **UNVALIDATED**. No test, formatter,
 runtime, native or performance qualification has been executed for this change.

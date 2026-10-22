@@ -14,7 +14,7 @@ const captureQueueOwnership = error => {
 const captureFailureDescriptors = error => {
   try { return Object.getOwnPropertyDescriptors(error); } catch { return null; }
 };
-const aggregateQueueFailures = (errors, message, originalObservers = [], primaryDescriptors = null) => {
+const aggregateQueueFailures = (errors, message, { originalObservers = [], primaryDescriptors = null, stopRetry = false } = {}) => {
   const failure = new AggregateError(errors, message, { cause: errors[0] });
   const observers = [...originalObservers, ...errors.map(captureQueueOwnership)].filter(Boolean);
   if (primaryDescriptors) {
@@ -29,8 +29,14 @@ const aggregateQueueFailures = (errors, message, originalObservers = [], primary
     cacheOwnershipReleased: { value: () => observers.every(observe => observe()) },
     retryable: { value: false }
   });
-  else if (primaryDescriptors?.retryable) Object.defineProperty(failure, 'retryable', primaryDescriptors.retryable);
-  else if (errors[0]?.retryable === false) failure.retryable = false;
+  else if (stopRetry) failure.retryable = false;
+  else if (primaryDescriptors?.retryable) {
+    if (Object.hasOwn(primaryDescriptors.retryable, 'value')) Object.defineProperty(failure, 'retryable', primaryDescriptors.retryable);
+    else failure.retryable = false;
+  } else {
+    try { if (errors[0]?.retryable === false) failure.retryable = false; }
+    catch { failure.retryable = false; }
+  }
   return failure;
 };
 
@@ -143,7 +149,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
       if (callbackFailed || originalObserver) error = aggregateQueueFailures(
         callbackFailed ? [primary, callbackError] : [primary],
         callbackFailed ? 'Queue task and error handler failed' : 'Queue task retained resource ownership',
-        [originalObserver], originalDescriptors
+        { originalObservers: [originalObserver], primaryDescriptors: originalDescriptors }
       );
     }
     if (bestEffort) {
@@ -181,7 +187,18 @@ export async function runWithQueue(queue, items, worker, options = {}) {
       try {
         result = await worker(item, ctx);
       } catch (err) {
-        if (err?.retryable === false) throw err;
+        const originalObserver = captureQueueOwnership(err);
+        const primaryDescriptors = captureFailureDescriptors(err);
+        if (primaryDescriptors?.retryable?.value === false) throw err;
+        if (originalObserver && !originalObserver()) throw aggregateQueueFailures([err],
+          'Queue operation retains original resource ownership', { originalObservers: [originalObserver], primaryDescriptors });
+        let retryable;
+        try { retryable = err?.retryable; }
+        catch (classificationError) {
+          throw aggregateQueueFailures([err, classificationError], 'Queue operation retry policy could not be inspected',
+            { originalObservers: [originalObserver], primaryDescriptors, stopRetry: true });
+        }
+        if (retryable === false) throw err;
         attempt += 1;
         if (attempt > retries) throw err;
         if (delayMs > 0) {

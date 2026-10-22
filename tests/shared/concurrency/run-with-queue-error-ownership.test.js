@@ -99,4 +99,41 @@ assert.equal(bestEffort.cacheOwnershipReleased(), true);
 
 const unchanged = await rejected(run(async () => { throw primary; }, { onError() {} }));
 assert.equal(unchanged, primary, 'ordinary successful error reporting preserves failure identity');
+
+let resourceClosed = false, pendingAttempts = 0;
+const retryablePending = Object.freeze(Object.assign(new Error('retryable operation with original native work'), {
+  retryable: true, cacheOwnershipPending: false,
+  cacheOwnershipReleased() { assert.equal(this, retryablePending); return resourceClosed; }
+}));
+const admission = await rejected(run(async () => { pendingAttempts++; throw retryablePending; }, { retries: 2 }));
+assert.equal(pendingAttempts, 1, 'automatic retry cannot replace an unresolved original operation');
+assert.equal(admission.cause, retryablePending);
+assert.equal(admission.retryable, false);
+assert.equal(admission.cacheOwnershipReleased(), false);
+resourceClosed = true;
+assert.equal(admission.cacheOwnershipReleased(), true);
+let settledAttempts = 0;
+assert.deepEqual(await run(async () => {
+  if (++settledAttempts === 1) throw retryablePending;
+  return 'original owner already settled';
+}, { retries: 2 }), ['original owner already settled']);
+assert.equal(settledAttempts, 2, 'confirmed original closure preserves independently retryable work');
+
+let classificationClosed = false, classificationAttempts = 0;
+const policyFailure = Object.freeze(Object.assign(new Error('original retry policy inspection owner'), {
+  cacheOwnershipPending: true, cacheOwnershipReleased() {
+    assert.equal(this, policyFailure); return classificationClosed;
+  }
+}));
+const unreadable = Object.freeze(Object.defineProperty(new Error('original worker before retry classification'), 'retryable', {
+  get() { throw policyFailure; }
+}));
+const classified = await rejected(run(async () => { classificationAttempts++; throw unreadable; }, { retries: 2 }));
+assert.equal(classificationAttempts, 1);
+assert.deepEqual(classified.errors, [unreadable, policyFailure]);
+assert.equal(classified.cause, unreadable);
+assert.equal(classified.retryable, false);
+assert.equal(classified.cacheOwnershipReleased(), false);
+classificationClosed = true;
+assert.equal(classified.cacheOwnershipReleased(), true);
 console.log('Queue error and retained ownership controls authored; execution deferred.');
