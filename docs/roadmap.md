@@ -30,8 +30,8 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `c804b6d04` includes lock/renderer ownership, exact
-runtime failures, editor binding, semantic captures and benchmark evidence admission.
+Latest source continuation: `a148c790c` includes actual archive descriptors, native
+work prerequisites, CFG call ownership and Haskell parser/cache fidelity.
 All authored checks remain unvalidated.
 
 ### Execution order
@@ -81,7 +81,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through c804b6d04 repairs watch/pointer and queue authority,
+Current source through a148c790c repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
@@ -102,12 +102,14 @@ bounded waits. Queue/shard retries cannot start around retained PDF/native work.
 Canonical database commands drain admitted use before original closes; unknown
 handles remain retained. Registry closes share one flight. Scheduler evidence is
 admitted before presentation. Runtime unwind and receipt persistence preserve
-falsey failure presence, frozen causes and exact category ownership.
+falsey failure presence, frozen causes and exact category ownership. Replay cleanup
+failures cannot skip later logger closure; async progress rejection stays observed.
 
 Generic lock publication now retains its original descriptor through explicit
 sealed rollback. Post-open failure cannot restart acquisition. The guard is
 process-local and lexical; durable cross-process/physical-alias and atomic unlink
-qualification remain open. Archive parser/writer lifetime is active source work.
+qualification remain open. Actual Zip/Tar/Tar.gz descriptors and admitted entry work now retain original
+close prerequisites and private nested recovery through their installer consumers.
 Actual renderer generations fence module/environment/scene awaits; captured
 returned resources survive partial construction, shadow detachment and listener
 registration failure. Source fallback cannot adopt a newer scene. Inaccessible
@@ -119,7 +121,7 @@ consumers. Complete source-checked semantic tokens and iterative symbols preserv
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
 sourceChunking10/importResolution6/typeNormalization4/compilerBindings19/
-lspBindings34/rq8/cfgFlow20/callFlow23/valueSlice7. VSCode and Sublime retain
+lspBindings35/rq9/cfgFlow21/callFlow24/valueSlice7. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 
 The rollout gate now requires explicit coherent benchmark counts and diagnostic
