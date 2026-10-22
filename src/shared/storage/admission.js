@@ -18,6 +18,9 @@ const fail = (reason, details = {}) => Object.assign(new Error(`Storage write ad
   code: 'ERR_STORAGE_ADMISSION', admission: 'defer-or-deny-before-write', reason, ...details
 });
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const sameRootScope = (left, right) => isPathWithinRoot(left, right) || isPathWithinRoot(right, left);
+const reservationKeys = ['schemaVersion', 'kind', 'hostname', 'scope', 'resourceId', 'pid', 'lockId', 'startedAt',
+  'root', 'device', 'requiredBytes', 'minimumFreeBytes', 'hardBytes', 'measuredBytes', 'metric', 'id'].sort().join(',');
 const readReservation = async file => {
   const read = await readVerifiedContainedFile(path.parse(file).root, file, { maxBytes: 64 * 1024 });
   return { value: JSON.parse(read.buffer.toString('utf8')), hash: read.hash, stat: read.stat };
@@ -36,10 +39,16 @@ const reservations = async directory => {
       const current = await readReservation(file);
       const value = current.value;
       if (value?.schemaVersion !== 1 || value.kind !== 'pairofcleats-storage-write-reservation'
+        || Object.keys(value).sort().join(',') !== reservationKeys || value.id !== entry.name.slice(0, -5)
         || value.hostname !== os.hostname() || !Number.isSafeInteger(value.pid) || value.pid <= 0
-        || typeof value.resourceId !== 'string' || typeof value.lockId !== 'string'
-        || typeof value.root !== 'string' || !path.isAbsolute(value.root) || typeof value.device !== 'string'
-        || !Number.isSafeInteger(value.requiredBytes) || value.requiredBytes < 0) throw fail('unreadable-or-foreign-write-reservation');
+        || typeof value.resourceId !== 'string' || !value.resourceId || typeof value.lockId !== 'string' || !value.lockId
+        || value.scope !== 'storage-write-reservation' || value.metric !== 'unique-logical-file-bytes'
+        || typeof value.startedAt !== 'string' || !Number.isFinite(Date.parse(value.startedAt))
+        || typeof value.root !== 'string' || !path.isAbsolute(value.root) || !/^\d+$/u.test(value.device)
+        || !Number.isSafeInteger(value.requiredBytes) || value.requiredBytes < 0
+        || !Number.isSafeInteger(value.minimumFreeBytes) || value.minimumFreeBytes < 0
+        || (value.hardBytes !== null && (!Number.isSafeInteger(value.hardBytes) || value.hardBytes < 0))
+        || (value.measuredBytes !== null && (!Number.isSafeInteger(value.measuredBytes) || value.measuredBytes < 0))) throw fail('unreadable-or-foreign-write-reservation');
       // Dead parent PID does not settle a possibly surviving managed child.
       entries.push({ file, ...current });
     }
@@ -74,14 +83,17 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
     const free = await freeSpaceOwner({ destination: root, requiredBytes, minimumFreeBytes });
     if (free?.complete !== true || !Number.isSafeInteger(free.availableBytes) || free.availableBytes < 0
       || typeof free.observedPath !== 'string' || !path.isAbsolute(free.observedPath)) throw fail('free-space-accounting-unknown');
+    if (!isPathWithinRoot(root, free.observedPath)) throw fail('free-space-observation-does-not-belong-to-destination');
     assertNoSymlinkPath(path.parse(free.observedPath).root, free.observedPath);
     const observed = await fs.lstat(free.observedPath, { bigint: true });
     const device = String(observed.dev);
     const reservedDeviceBytes = pending.filter(entry => entry.value.device === device)
       .reduce((sum, entry) => sum + BigInt(entry.value.requiredBytes), 0n);
-    const reservedRootBytes = pending.filter(entry => entry.value.root === root)
+    const reservedRootBytes = pending.filter(entry => sameRootScope(entry.value.root, root))
       .reduce((sum, entry) => sum + BigInt(entry.value.requiredBytes), 0n);
-    const needed = BigInt(requiredBytes) + BigInt(minimumFreeBytes) + reservedDeviceBytes;
+    const reserveFloor = pending.filter(entry => entry.value.device === device)
+      .reduce((floor, entry) => BigInt(entry.value.minimumFreeBytes) > floor ? BigInt(entry.value.minimumFreeBytes) : floor, BigInt(minimumFreeBytes));
+    const needed = BigInt(requiredBytes) + reserveFloor + reservedDeviceBytes;
     if (BigInt(free.availableBytes) < needed) throw fail('minimum-free-space-or-pending-reservations', {
       availableBytes: free.availableBytes, requiredBytes, minimumFreeBytes, pendingReservedBytesExact: String(reservedDeviceBytes)
     });
@@ -103,12 +115,13 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
     requiredBytes, minimumFreeBytes, hardBytes, measuredBytes, metric: 'unique-logical-file-bytes', id };
     await atomicWriteJson(file, value, { mkdir: false, createOnly: true });
     const sealed = await readReservation(file);
+    if (digest(sealed.value) !== digest(value) || Number(sealed.stat.nlink) !== 1) throw fail('write-reservation-publication-changed');
     let released = false;
     return Object.freeze({ schemaVersion: 1, resourceId, root, requiredBytes, reservationId: id,
       admission: 'admitted-declared-write-estimate', metric: value.metric,
       releaseAfterSettlement: async receipt => {
-        if (released) return true;
         if (receipt?.resourceId !== resourceId || receipt.settled !== true || receipt.pending !== false) throw fail('resource-settlement-unconfirmed');
+        if (released) return true;
         const releaseLock = await acquireFileLock({ lockPath, waitMs: 0, staleMs: Number.MAX_SAFE_INTEGER,
           metadata: { scope: 'storage-write-settlement', hostname: os.hostname(), resourceId } });
         if (!releaseLock) throw fail('admission-owner-busy-during-settlement');
@@ -117,7 +130,8 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
           if (current.hash !== sealed.hash || digest(current.value) !== digest(value)) throw fail('write-reservation-owner-changed');
           const stat = await fs.lstat(file, { bigint: true });
           if (!stat.isFile() || stat.nlink !== 1n || String(stat.dev) !== String(current.stat.dev)
-            || String(stat.ino) !== String(current.stat.ino)) throw fail('write-reservation-file-changed');
+            || String(stat.ino) !== String(current.stat.ino) || String(stat.dev) !== String(sealed.stat.dev)
+            || String(stat.ino) !== String(sealed.stat.ino)) throw fail('write-reservation-file-changed');
           await fs.unlink(file);
           released = true;
           return true;

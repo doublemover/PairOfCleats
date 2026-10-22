@@ -31,10 +31,10 @@ export const acquireStorageSession = ({ roots, coordinationRoot, authorizedRoots
   return Object.freeze({ schemaVersion: 1, resourceId, roots: selected, coordinationRoot: metadataRoot,
     leaseIds: leases.map(lease => lease.leaseId),
     releaseAfterSettlement: receipt => {
-      if (released) return true;
       if (receipt?.resourceId !== resourceId || receipt.settled !== true || receipt.pending === true) {
         throw Object.assign(new Error('Storage session remains retained until its exact resource lifetime settles.'), { code: 'ERR_STORAGE_SESSION_PENDING', cacheOwnershipPending: true });
       }
+      if (released) return true;
       const success = leases.map(lease => lease.release()).every(Boolean);
       if (!success) throw Object.assign(new Error('A storage session lease changed before release.'), { code: 'ERR_STORAGE_SESSION_LEASE_CHANGED', cacheOwnershipPending: true });
       released = true;

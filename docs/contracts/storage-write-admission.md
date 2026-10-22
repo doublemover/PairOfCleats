@@ -12,6 +12,10 @@ Unknown, foreign or unreadable reservations defer new writes.
 
 Admission compares native free space with declared new writes, the minimum-free
 reserve and all pending reservations on the observed device using BigInt.
+The largest minimum-free reserve promised to pending owners stays effective;
+a new caller with a lower reserve cannot spend that capacity. Parent and nested
+destination scopes count overlapping pending writes conservatively. Settlement
+pins the original reservation file object as well as its exact content.
 Optional hard budgets count unique logical file bytes, including unknown and
 saved data, plus pending/new estimates. Incomplete inventory or unsafe aggregate
 arithmetic defers admission. It never chooses saved data for eviction. These
