@@ -298,7 +298,8 @@ export const COMMAND_REGISTRY = Object.freeze([
   }),
   ...STORAGE_ACTIONS.map(action => entry(`storage.${action}`, ['storage', action], 'tools/storage/cli.js',
     action === 'cleanup-apply' ? 'Apply an exact reviewed disposable-cache plan through the cleanup owner.'
-      : `Inspect or plan storage ${action}; read-only unless explicitly applying cleanup.`, {
+      : action === 'configure-apply' ? 'Select an exact reviewed storage destination through a retained configuration receipt.'
+        : `Inspect or plan storage ${action}; mutations require their explicit reviewed apply action.`, {
       helpGroup: 'Storage', supportTier: 'operator', capability: false, extraArgs: [action],
       helpExamples: ['list', 'inspect', 'explain', 'doctor'].includes(action)
         ? [`pairofcleats storage ${action} --json`] : []

@@ -212,3 +212,23 @@ tuple parent as legacy bytes would accidentally count every nested profiles-v2
 identity. No lock is acquired or recovered during inventory. The adapter grants
 no generic cleanup/migration authority; shard pruning remains with the embedding
 owner, and consumer/runtime/quota acceptance is still deferred.
+### Reviewed configuration selection
+
+`storage configure-plan --home <absolute-home> --category <category> --path <absolute-target>`
+observes the actual compatibility location and target without creating either.
+`configure-apply --plan <file> --plan-id <id> --home <same-home> --category <same-category> --path <same-target>`
+requires that exact plan, unchanged locator and trusted configuration hashes,
+and unchanged source/destination objects. It selects only adopted categories
+(`cache`, `models`, `dictionaries`, `extensions`, `tooling`, `tmp`). A nonempty
+source requires the migration owner; a nonempty different destination is never
+implicitly adopted. No source bytes or category directories are removed or
+created by configuration.
+
+Configuration publishes a create-only, durable receipt under
+`<home>/config/storage-selections/<plan-id>.json` and atomically selects it through
+`storage-locations.json`. Consumers verify the receipt hash and exact home,
+category, target and plan identity. Missing or changed receipts fail closed.
+Migration, rollback and configuration share `config/storage-locator.lock`.
+Explicit existing environment/project overrides still take precedence; callers
+must restart to observe a new selection. These source contracts and authored
+regressions remain **UNVALIDATED** until the deferred validation phase.

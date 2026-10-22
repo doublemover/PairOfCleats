@@ -1,4 +1,4 @@
-export const STORAGE_ACTIONS = Object.freeze(['list', 'inspect', 'explain', 'doctor', 'configure-plan',
+export const STORAGE_ACTIONS = Object.freeze(['list', 'inspect', 'explain', 'doctor', 'configure-plan', 'configure-apply',
   'cleanup-plan', 'cleanup-apply', 'migration-plan', 'migration-status']);
 
 export const STORAGE_OPTIONS = {
@@ -6,7 +6,7 @@ export const STORAGE_OPTIONS = {
   repo: { type: 'string', describe: 'Repository context; no indexed reader lease is acquired by path-only diagnostics' },
   home: { type: 'string', describe: 'Explicit application home for this storage operation' },
   category: { type: 'string', describe: 'Logical storage category' },
-  path: { type: 'string', describe: 'Requested category destination for configure-plan' },
+  path: { type: 'string', describe: 'Explicit requested category destination for configuration preview/apply' },
   source: { type: 'string', describe: 'Known owned source for migration-plan' },
   destination: { type: 'string', describe: 'Owned destination for migration-plan' },
   'machine-config': { type: 'string', describe: 'Explicit trusted machine-local storage configuration outside the repository' },
@@ -15,5 +15,5 @@ export const STORAGE_OPTIONS = {
   'max-entries': { type: 'number', default: 100000, describe: 'Maximum entries for bounded inventory' },
   'max-duration-ms': { type: 'number', default: 10000, describe: 'Bounded inventory time allowance' },
   plan: { type: 'string', describe: 'Reviewed plan JSON file for apply/status' },
-  'plan-id': { type: 'string', describe: 'Exact reviewed cleanup plan ID' }
+  'plan-id': { type: 'string', describe: 'Exact reviewed storage plan ID' }
 };

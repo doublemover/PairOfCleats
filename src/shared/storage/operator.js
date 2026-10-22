@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { assertNoSymlinkPath } from '../contained-file.js';
-import { isPathWithinRoot } from '../file-paths.js';
 import { STORAGE_CLASS_CATALOG } from './catalog.js';
 import { inspectStorageOwnership, inspectStorageInventory } from './inventory.js';
 import { inspectStorageAccess } from './access.js';
+export { planStorageConfiguration, applyStorageConfiguration } from './configuration.js';
 
 /** Root metadata only; scan bytes explicitly with exact=true. */
 export const inspectStorageLayout = async (layout, { exact = false, extraRoots = [], maxEntries = 100000,
@@ -53,22 +53,3 @@ export const diagnoseStorageLayout = async (layout, options = {}) => {
     leaseCoverage: leases.coverage, mutationPerformed: false, installsPerformed: false, fullIndexScansPerformed: false };
 };
 
-/** Reviewable machine-local configuration intent. Relocation is a migration;
- * a path preference cannot claim that existing bytes were moved or adopted.
- */
-export const planStorageConfiguration = ({ layout, category, target, machineConfigPath, repoRoot = null } = {}) => {
-  const previous = layout.descriptors[category];
-  if (!previous || typeof target !== 'string' || !path.isAbsolute(target)) throw new TypeError('Configure requires a known category and absolute target.');
-  if (typeof machineConfigPath !== 'string' || !path.isAbsolute(machineConfigPath)) throw new TypeError('Configure requires an explicit machine-local configuration file.');
-  const config = path.resolve(machineConfigPath);
-  if (repoRoot && (isPathWithinRoot(config, path.resolve(repoRoot)) || isPathWithinRoot(target, path.resolve(repoRoot)))) {
-    throw new Error('Machine storage roots and cleanup authority cannot be saved inside portable project configuration.');
-  }
-  assertNoSymlinkPath(path.parse(config).root, config, { allowMissing: true });
-  return { schemaVersion: 1, kind: 'storage-configuration-plan', category, configFile: config,
-    selectedSourceBefore: previous.source, before: previous.path, after: path.resolve(target),
-    effectiveDiff: { [`categories.${category}`]: { before: previous.path, after: path.resolve(target) } },
-    migrationRequired: previous.path !== path.resolve(target), restartRequired: true,
-    writableDestination: 'unchecked-use-explicit-authorized-probe', dryRun: true, mutationPerformed: false,
-    nextAction: 'Verify and apply the category migration before selecting a new locator; saved evidence is retained.' };
-};

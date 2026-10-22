@@ -5,13 +5,14 @@ import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 import { resolveLegacyStorageLocations } from '../../src/shared/storage/catalog.js';
 import { readVerifiedContainedFile } from '../../src/shared/contained-file.js';
 import { resolveTrustedConfigPath } from '../../src/shared/config-authority.js';
-import { explainStorageLayout, inspectStorageLayout, diagnoseStorageLayout, planStorageConfiguration } from '../../src/shared/storage/operator.js';
+import { explainStorageLayout, inspectStorageLayout, diagnoseStorageLayout, planStorageConfiguration, applyStorageConfiguration } from '../../src/shared/storage/operator.js';
 import { planCacheRootCleanup, applyStorageCleanupPlan } from '../../src/shared/storage/cleanup.js';
 import { createStorageMigrationPlan } from '../../src/shared/storage/migration-plan.js';
 import { readStorageMigrationStatus } from '../../src/shared/storage/migration.js';
 import { resolveRepoConfig, resolveRepoCacheRootPath, getModelsDir, getToolingDir, getExtensionsDir, getDictConfig, getCacheRoot } from '../shared/dict-utils.js';
-import { getApplicationHome } from '../../src/shared/cache-roots.js';
 import { STORAGE_ACTIONS, STORAGE_OPTIONS } from './options.js';
+import { readStorageLocator } from '../../src/shared/storage/locator-read.js';
+import { getEnvConfig } from '../../src/shared/env.js';
 
 const argv = createCli({ scriptName: 'pairofcleats storage', options: STORAGE_OPTIONS,
   usage: `usage: pairofcleats storage <${STORAGE_ACTIONS.join('|')}> [--json]` })
@@ -49,25 +50,41 @@ try {
     overrides: argv['cache-root'] ? { cache: argv['cache-root'] } : {} });
   const cacheRoot = layout.descriptors.cache.path;
   let legacy = [];
+  let currentCache;
   try {
-    const currentCache = userConfig.cache?.root || getCacheRoot();
-    legacy = resolveLegacyStorageLocations({ home: getApplicationHome(), cacheRoot: currentCache,
-      repoRoots: [resolveRepoCacheRootPath(repoRoot, userConfig)], modelsRoot: getModelsDir(repoRoot, userConfig),
-      toolingRoot: getToolingDir(repoRoot, userConfig), extensionsRoot: getExtensionsDir(repoRoot, userConfig),
-      dictionariesRoot: getDictConfig(repoRoot, userConfig).dir });
+    const explicitLocator = readStorageLocator(layout.home.path);
+    if (explicitLocator.status === 'invalid') throw new Error(`Storage locator is invalid: ${explicitLocator.target}`);
+    const env = getEnvConfig();
+    const selected = category => explicitLocator.value.categories[category]?.path;
+    currentCache = userConfig.cache?.root || (argv.home ? env.cacheRoot ? cacheRoot
+      : selected('cache') || path.join(layout.home.path, 'cache') : getCacheRoot());
+    legacy = resolveLegacyStorageLocations({ home: layout.home.path, cacheRoot: currentCache,
+      repoRoots: argv.home ? [] : [resolveRepoCacheRootPath(repoRoot, userConfig)],
+      modelsRoot: argv.home ? env.modelsDir || userConfig.models?.dir || selected('models') || path.join(currentCache, 'models') : getModelsDir(repoRoot, userConfig),
+      toolingRoot: argv.home ? env.toolingDir || userConfig.tooling?.dir || selected('tooling') || path.join(layout.home.path, 'tooling') : getToolingDir(repoRoot, userConfig),
+      extensionsRoot: argv.home ? env.extensionsDir || userConfig.extensions?.dir || selected('extensions') || path.join(layout.home.path, 'extensions') : getExtensionsDir(repoRoot, userConfig),
+      dictionariesRoot: argv.home ? env.dictDir || userConfig.dictionary?.dir || selected('dictionaries') || path.join(layout.home.path, 'dictionaries') : getDictConfig(repoRoot, userConfig).dir });
   } catch (error) { configurationErrors.push({ source: 'current-storage-locator',
     code: error.code || 'ERR_STORAGE_CURRENT_LOCATIONS', message: error.message, authorityGranted: false }); }
   const limits = { maxEntries: argv['max-entries'], maxDurationMs: argv['max-duration-ms'] };
   let receipt;
-  if (configurationErrors.length && ['cleanup-plan', 'cleanup-apply', 'migration-plan', 'migration-status', 'configure-plan'].includes(action)) {
+  if (configurationErrors.length && ['cleanup-plan', 'cleanup-apply', 'migration-plan', 'migration-status', 'configure-plan', 'configure-apply'].includes(action)) {
     receipt = { schemaVersion: 1, action, ready: false, complete: false, mutationPerformed: false,
       blocked: [{ reason: 'configuration-incomplete-no-storage-authority-granted' }], configurationErrors };
     process.exitCode = 1;
   } else if (action === 'list' || action === 'explain') receipt = { ...explainStorageLayout(layout), currentCompatibilityLocations: legacy };
   else if (action === 'inspect') receipt = await inspectStorageLayout(layout, { ...limits, exact: argv.exact, extraRoots: legacy });
   else if (action === 'doctor') receipt = await diagnoseStorageLayout(layout, { ...limits, extraRoots: legacy });
-  else if (action === 'configure-plan') receipt = planStorageConfiguration({ layout, category: argv.category,
-    target: argv.path, machineConfigPath: configPath, repoRoot });
+  else if (action === 'configure-plan') {
+    const compatibilityId = { models: 'legacy-models', tooling: 'legacy-tooling', extensions: 'legacy-extensions',
+      dictionaries: 'legacy-dictionaries', tmp: 'legacy-scratch' }[argv.category];
+    const currentPath = argv.category === 'cache' ? currentCache
+      : legacy.find(entry => entry.id === compatibilityId)?.path;
+    receipt = await planStorageConfiguration({ layout, category: argv.category, currentPath,
+      target: argv.path, machineConfigPath: configPath, repoRoot });
+  } else if (action === 'configure-apply') receipt = await applyStorageConfiguration(await readPlan(argv.plan), {
+    approvedPlanId: argv['plan-id'], home: layout.home.path, category: argv.category, target: argv.path
+  });
   else if (action === 'cleanup-plan') receipt = await planCacheRootCleanup({ cacheRoot, authorityRoots: [cacheRoot], ...limits });
   else if (action === 'cleanup-apply') {
     const plan = await readPlan(argv.plan);
@@ -82,7 +99,7 @@ try {
   if (argv.json) console.log(JSON.stringify(receipt, null, 2));
   else console.log(JSON.stringify({ action, status: receipt.complete === true ? 'complete' : receipt.ready === false ? 'blocked' : 'review-receipt',
     mutationPerformed: receipt.mutationPerformed === true, receipt }, null, 2));
-  if (action === 'cleanup-apply' && receipt.complete !== true) process.exitCode = 1;
+  if (['cleanup-apply', 'configure-apply'].includes(action) && receipt.complete !== true) process.exitCode = 1;
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;

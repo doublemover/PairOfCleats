@@ -193,7 +193,7 @@ export const applyStorageMigration = async (plan, { approvedPlanId, authorityRoo
       await verifyCopy(plan, data, signal);
       if (await owner.verifyDestination({ plan, root: data, signal }) !== true) throw new Error('Category owner rejected the published destination.');
       await persist('published');
-      const configLock = await acquireFileLock({ lockPath: path.join(plan.coordinationRoot, 'locator.lock'), waitMs: 0,
+      const configLock = await acquireFileLock({ lockPath: path.join(plan.home, 'config', 'storage-locator.lock'), waitMs: 0,
         staleMs: Number.MAX_SAFE_INTEGER, metadata: { scope: 'storage-locator', planId: plan.planId } });
       if (!configLock) throw new Error('Storage locator is owned by another operation.');
       try {
@@ -240,7 +240,7 @@ export const applyStorageMigrationRollback = async (plan, { approvedPlanId, owne
     await verifyCopy(plan, path.join(paths.published, 'data'), signal);
     const proof = await storageMigrationOwnerProof(owner, { ...plan, phase: 'rollback', signal });
     if (storagePlanDigest(proof) !== storagePlanDigest(plan.owner)) throw new Error('Rollback category owner cannot confirm retained identities.');
-    const lock = await acquireFileLock({ lockPath: path.join(plan.coordinationRoot, 'locator.lock'), waitMs: 0,
+    const lock = await acquireFileLock({ lockPath: path.join(plan.home, 'config', 'storage-locator.lock'), waitMs: 0,
       staleMs: Number.MAX_SAFE_INTEGER, metadata: { scope: 'storage-locator-rollback', planId: plan.planId } });
     if (!lock) throw new Error('Storage locator is owned by another operation.');
     try {
