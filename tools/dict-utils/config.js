@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { buildAutoPolicy } from '../../src/shared/auto-policy/build.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { getTestEnvConfig } from '../../src/shared/env/testing.js';
-import { getCacheRoot as getResolvedCacheRoot, getCacheRootBase } from '../../src/shared/cache-roots.js';
+import { getCacheRoot as getResolvedCacheRoot, getCacheRootBase, getStorageCategorySelection } from '../../src/shared/cache-roots.js';
 import { readJsoncFile, parseJsoncText } from '../../src/shared/jsonc.js';
 import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
@@ -220,7 +220,7 @@ export function getDictConfig(repoRoot, userConfig = null) {
   );
   return {
     // Dictionaries are shared and durable across cache-key versions; keep them outside repo cache data.
-    dir: envDictDir || dict.dir || path.join(getCacheRootBase(), 'dictionaries'),
+    dir: envDictDir || dict.dir || getStorageCategorySelection('dictionaries') || path.join(getCacheRootBase(), 'dictionaries'),
     languages: Array.isArray(dict.languages) ? dict.languages : ['en'],
     files: Array.isArray(dict.files) ? dict.files : [],
     includeSlang: dict.includeSlang !== false,

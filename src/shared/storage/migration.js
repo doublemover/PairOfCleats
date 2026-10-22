@@ -1,0 +1,240 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { assertNoSymlinkPath, readVerifiedContainedFile } from '../contained-file.js';
+import { assertSafeCacheDeletion } from '../cache-deletion.js';
+import { atomicWriteJson } from '../io/atomic-write.js';
+import { acquireFileLock, releaseFileLockOrThrow } from '../locks/file-lock.js';
+import { syncParentDirectory } from '../io/persistence-helpers.js';
+import { throwIfAborted } from '../abort.js';
+import { withExclusiveStorageAccess } from './access.js';
+import { readStorageLocator, writeStorageLocator } from './locator.js';
+import { buildStorageMigrationManifest, storageMigrationOwnerProof, storagePlanDigest } from './migration-plan.js';
+import { verifyStorageFile } from './transfer.js';
+import { inspectStorageInventory } from './inventory.js';
+import { revalidateStorageAuthority } from './authority.js';
+
+const exists = async target => {
+  try { await fs.lstat(target); return true; }
+  catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+};
+const readRecord = async file => {
+  const { buffer } = await readVerifiedContainedFile(path.parse(file).root, file, { maxBytes: 32 * 1024 * 1024 });
+  return JSON.parse(buffer.toString('utf8'));
+};
+const requirePlan = (plan, approvedPlanId, owner) => {
+  const { planId, dryRun, ...body } = plan || {};
+  void dryRun;
+  if (plan?.kind !== 'pairofcleats-storage-migration-plan' || plan.schemaVersion !== 1 || !plan.ready
+    || !plan.manifest || planId !== storagePlanDigest(body) || approvedPlanId !== planId
+    || plan.owner.id !== owner?.id || plan.owner.version !== owner?.version) throw new Error('Migration requires the exact complete reviewed plan and its category owner.');
+};
+const pathsFor = plan => {
+  const root = path.join(plan.destination, '.poc-migrations');
+  return { root, stage: path.join(root, `${plan.planId}.staging`),
+    published: path.join(root, plan.planId), journal: path.join(plan.recoveryRoot, `${plan.planId}.json`),
+    savedPlan: path.join(plan.recoveryRoot, `${plan.planId}.plan.json`) };
+};
+const withExclusiveRoots = async (roots, options, action) => {
+  const ordered = [...new Set(roots)].sort();
+  const next = async index => {
+    if (index === ordered.length) return action();
+    const result = await withExclusiveStorageAccess(ordered[index], () => next(index + 1), options);
+    if (result.protected) throw Object.assign(new Error(`Migration blocked by ${result.reason}.`), { code: 'ERR_STORAGE_MIGRATION_BUSY' });
+    return result.result;
+  };
+  return next(0);
+};
+
+const verifyCopy = async (plan, data, signal) => {
+  const inventory = await inspectStorageInventory({ roots: [{ id: 'copy', path: data }],
+    includeFiles: true, ...plan.limits, signal });
+  const item = inventory.items[0];
+  if (!inventory.complete || item.status !== 'scanned'
+    || JSON.stringify(item.files.map(file => file.relativePath).sort()) !== JSON.stringify(plan.manifest.files.map(file => file.relativePath).sort())
+    || JSON.stringify(item.directories.map(directory => directory.relativePath).sort()) !== JSON.stringify(plan.manifest.directories.map(directory => directory.relativePath).sort())) {
+    throw new Error('Migration copy inventory is incomplete or contains unplanned entries.');
+  }
+  for (const directory of plan.manifest.directories) {
+    assertNoSymlinkPath(data, path.join(data, directory.relativePath));
+    if (!(await fs.lstat(path.join(data, directory.relativePath))).isDirectory()) throw new Error('Migration copy lost a directory.');
+  }
+  for (const file of plan.manifest.files) {
+    await verifyStorageFile({ root: data, file: path.join(data, file.relativePath), expectedHash: file.sha256,
+      maxBytes: file.logicalBytes, signal });
+  }
+};
+const ensureOwnedStage = async (plan, paths) => {
+  if (!(await exists(paths.stage))) {
+    assertNoSymlinkPath(path.parse(paths.root).root, paths.root, { allowMissing: true });
+    await fs.mkdir(paths.root, { recursive: true });
+    await fs.mkdir(paths.stage);
+    await atomicWriteJson(path.join(paths.stage, '.migration-owner.json'), { schemaVersion: 1, planId: plan.planId }, { mkdir: false, createOnly: true });
+    await fs.mkdir(path.join(paths.stage, 'data'));
+  } else {
+    const marker = await readRecord(path.join(paths.stage, '.migration-owner.json'));
+    if (marker.schemaVersion !== 1 || marker.planId !== plan.planId) throw new Error('Unrecognized migration staging is preserved.');
+  }
+};
+
+/** Copy/verify/publish/select. It never removes source bytes or failed staging. */
+export const applyStorageMigration = async (plan, { approvedPlanId, authorityRoots = [],
+  owner, signal = null, checkFreeSpace, hooks = {} } = {}) => {
+  requirePlan(plan, approvedPlanId, owner);
+  if (typeof checkFreeSpace !== 'function') throw new Error('Migration requires an explicit destination free-space owner.');
+  const paths = pathsFor(plan);
+  await revalidateStorageAuthority(plan.authoritySnapshots, authorityRoots);
+  for (const target of [plan.source, plan.destination, plan.home, plan.recoveryRoot]) assertSafeCacheDeletion(target, authorityRoots);
+  if (!plan.coordinationRoot) throw new Error('Whole-app migration requires an explicit owned coordinationRoot.');
+  assertSafeCacheDeletion(plan.coordinationRoot, authorityRoots);
+  await fs.mkdir(plan.recoveryRoot, { recursive: true });
+  const lock = await acquireFileLock({ lockPath: `${paths.journal}.lock`, waitMs: 0,
+    staleMs: Number.MAX_SAFE_INTEGER, metadata: { scope: 'storage-migration', planId: plan.planId } });
+  if (!lock) throw new Error('Migration is already owned by another operation.');
+  let journal = { schemaVersion: 1, planId: plan.planId, stage: 'planned', completedFiles: 0,
+    source: plan.source, destination: plan.destination, sourcePreserved: true, failures: [] };
+  const persist = async stage => {
+    journal.stage = stage;
+    journal.updatedAt = new Date().toISOString();
+    assertSafeCacheDeletion(paths.journal, authorityRoots);
+    await atomicWriteJson(paths.journal, journal, { mkdir: false });
+    await hooks.afterStage?.(stage, { ...journal });
+  };
+  try {
+    if (await exists(paths.savedPlan)) {
+      const saved = await readRecord(paths.savedPlan);
+      if (saved.planId !== plan.planId || storagePlanDigest(saved) !== storagePlanDigest(plan)) throw new Error('Migration saved plan differs from this preview.');
+    } else await atomicWriteJson(paths.savedPlan, plan, { mkdir: false, createOnly: true });
+    if (await exists(paths.journal)) {
+      journal = await readRecord(paths.journal);
+      if (journal.schemaVersion !== 1 || journal.planId !== plan.planId) throw new Error('Migration journal identity is invalid.');
+      if (journal.stage === 'rolled-back') throw new Error('Rolled-back migration requires a new reviewed plan before another cutover.');
+    }
+    return await withExclusiveRoots([plan.source, plan.destination], { coordinationRoot: plan.coordinationRoot }, async () => {
+      for (const target of [plan.source, plan.destination, plan.home, plan.recoveryRoot]) assertSafeCacheDeletion(target, authorityRoots);
+      await revalidateStorageAuthority(plan.authoritySnapshots, authorityRoots);
+      const proof = await storageMigrationOwnerProof(owner, { ...plan, phase: 'exclusive', signal });
+      if (storagePlanDigest(proof) !== storagePlanDigest(plan.owner)) throw new Error('Category migration ownership changed since preview.');
+      await buildStorageMigrationManifest({ root: plan.source, ...plan.limits, signal, expectedManifest: plan.manifest });
+      const requiredBytes = await exists(paths.published) ? 0 : plan.requiredFreeBytes;
+      const free = await checkFreeSpace({ destination: plan.destination, requiredBytes, signal });
+      if (free?.complete !== true || !Number.isSafeInteger(free.availableBytes) || free.availableBytes < requiredBytes || free.reserveSatisfied !== true) throw new Error('Destination free space/reserve is insufficient or unknown.');
+      const data = path.join(paths.published, 'data');
+      if (!(await exists(paths.published))) {
+        await ensureOwnedStage(plan, paths);
+        const stagingData = path.join(paths.stage, 'data');
+        await persist('copying');
+        for (const directory of plan.manifest.directories) {
+          const target = path.join(stagingData, directory.relativePath);
+          assertNoSymlinkPath(paths.stage, target, { allowMissing: true });
+          await fs.mkdir(target, { recursive: true, mode: directory.identity.mode & 0o777 });
+        }
+        for (let index = 0; index < plan.manifest.files.length; index += 1) {
+          throwIfAborted(signal);
+          const file = plan.manifest.files[index];
+          const target = path.join(stagingData, file.relativePath);
+          assertNoSymlinkPath(paths.stage, target, { allowMissing: true });
+          let validExisting = false;
+          if (await exists(target)) {
+            try { await verifyStorageFile({ root: stagingData, file: target, expectedHash: file.sha256, maxBytes: file.logicalBytes, signal }); validExisting = true; }
+            catch {
+              throwIfAborted(signal);
+              const recovery = path.join(paths.stage, 'failed-files');
+              await fs.mkdir(recovery, { recursive: true });
+              assertNoSymlinkPath(paths.stage, recovery);
+              await fs.rename(target, path.join(recovery, randomUUID()));
+            }
+          }
+          if (!validExisting) await verifyStorageFile({ root: plan.source, file: path.join(plan.source, file.relativePath),
+            identity: file.identity, expectedHash: file.sha256, destination: target, maxBytes: file.logicalBytes, signal });
+          journal.completedFiles = index + 1;
+          if ((index + 1) % 16 === 0) await persist('copying');
+          await hooks.afterFile?.(index, target);
+        }
+        await verifyCopy(plan, stagingData, signal);
+        if (await owner.verifyDestination({ plan, root: stagingData, signal }) !== true) throw new Error('Category owner rejected the copied destination.');
+        await buildStorageMigrationManifest({ root: plan.source, ...plan.limits, signal, expectedManifest: plan.manifest });
+        for (const directory of [...plan.manifest.directories].reverse()) {
+          await fs.chmod(path.join(stagingData, directory.relativePath), directory.identity.mode & 0o777);
+        }
+        const manifestPath = path.join(paths.stage, '.manifest.json');
+        if (await exists(manifestPath)) {
+          if (storagePlanDigest(await readRecord(manifestPath)) !== storagePlanDigest(plan.manifest)) throw new Error('Staged migration manifest changed.');
+        } else await atomicWriteJson(manifestPath, plan.manifest, { mkdir: false, createOnly: true });
+        await persist('verified');
+        assertNoSymlinkPath(path.parse(paths.root).root, paths.stage);
+        assertNoSymlinkPath(path.parse(paths.root).root, paths.published, { allowMissing: true });
+        if (await exists(paths.published)) throw new Error('Destination publication conflicted; neither copy was replaced.');
+        // Staging and immutable publication share a parent on the target volume.
+        await fs.rename(paths.stage, paths.published);
+        await syncParentDirectory(paths.published);
+      }
+      const marker = await readRecord(path.join(paths.published, '.migration-owner.json'));
+      if (marker.planId !== plan.planId) throw new Error('Published migration identity is invalid.');
+      await verifyCopy(plan, data, signal);
+      if (await owner.verifyDestination({ plan, root: data, signal }) !== true) throw new Error('Category owner rejected the published destination.');
+      await persist('published');
+      const configLock = await acquireFileLock({ lockPath: path.join(plan.coordinationRoot, 'locator.lock'), waitMs: 0,
+        staleMs: Number.MAX_SAFE_INTEGER, metadata: { scope: 'storage-locator', planId: plan.planId } });
+      if (!configLock) throw new Error('Storage locator is owned by another operation.');
+      try {
+        const current = readStorageLocator(plan.home);
+        const alreadySelected = current.value?.categories?.[plan.category]?.migrationId === plan.planId;
+        if (!alreadySelected) {
+          await revalidateStorageAuthority(plan.authoritySnapshots, authorityRoots);
+          await buildStorageMigrationManifest({ root: plan.source, ...plan.limits, signal, expectedManifest: plan.manifest });
+          await verifyCopy(plan, data, signal);
+          if (current.status === 'invalid' || current.sha256 !== plan.locatorBeforeHash) throw new Error('Storage locator changed after preview; published copy is preserved.');
+          const next = { schemaVersion: 1, categories: { ...current.value.categories,
+            [plan.category]: { path: data, migrationId: plan.planId, owner: plan.owner.id } } };
+          await writeStorageLocator(plan.home, next, { expectedHash: current.sha256 });
+        }
+      } finally { await releaseFileLockOrThrow(configLock); }
+      await persist('selected');
+      return { ...journal, selectedPath: data, complete: true, sourcePreserved: true,
+        rollback: 'applyStorageMigrationRollback with the same reviewed plan; no copy is deleted' };
+    });
+  } catch (error) {
+    journal.failures = [...(journal.failures || []).slice(-15), { code: error.code || 'ERR_STORAGE_MIGRATION', message: error.message }];
+    try { await persist(journal.stage === 'rolled-back' ? 'rolled-back' : 'interrupted'); } catch (journalError) { error.journalFailure = journalError.message; }
+    error.recovery = { journal: paths.journal, sourcePreserved: true, staging: paths.stage, published: paths.published };
+    throw error;
+  } finally { await releaseFileLockOrThrow(lock); }
+};
+
+export const readStorageMigrationStatus = async (plan, { authorityRoots = [] } = {}) => {
+  const paths = pathsFor(plan);
+  assertSafeCacheDeletion(paths.journal, authorityRoots);
+  if (!(await exists(paths.journal))) return { schemaVersion: 1, planId: plan.planId, stage: 'not-started', sourcePreserved: true };
+  const journal = await readRecord(paths.journal);
+  if (journal.planId !== plan.planId) throw new Error('Migration status identity is invalid.');
+  return journal;
+};
+
+export const applyStorageMigrationRollback = async (plan, { approvedPlanId, owner, authorityRoots = [], signal = null } = {}) => {
+  requirePlan(plan, approvedPlanId, owner);
+  const paths = pathsFor(plan);
+  await revalidateStorageAuthority(plan.authoritySnapshots, authorityRoots);
+  for (const target of [plan.source, plan.destination, plan.home, plan.recoveryRoot, plan.coordinationRoot]) assertSafeCacheDeletion(target, authorityRoots);
+  return withExclusiveRoots([plan.source, path.join(paths.published, 'data')], { coordinationRoot: plan.coordinationRoot }, async () => {
+    await buildStorageMigrationManifest({ root: plan.source, ...plan.limits, signal, expectedManifest: plan.manifest });
+    await verifyCopy(plan, path.join(paths.published, 'data'), signal);
+    const proof = await storageMigrationOwnerProof(owner, { ...plan, phase: 'rollback', signal });
+    if (storagePlanDigest(proof) !== storagePlanDigest(plan.owner)) throw new Error('Rollback category owner cannot confirm retained identities.');
+    const lock = await acquireFileLock({ lockPath: path.join(plan.coordinationRoot, 'locator.lock'), waitMs: 0,
+      staleMs: Number.MAX_SAFE_INTEGER, metadata: { scope: 'storage-locator-rollback', planId: plan.planId } });
+    if (!lock) throw new Error('Storage locator is owned by another operation.');
+    try {
+      const current = readStorageLocator(plan.home);
+      if (current.status !== 'present' || current.value.categories[plan.category]?.migrationId !== plan.planId) throw new Error('Rollback cannot replace a newer category selection.');
+      const categories = { ...current.value.categories };
+      if (plan.priorSelection) categories[plan.category] = plan.priorSelection;
+      else delete categories[plan.category];
+      await writeStorageLocator(plan.home, { schemaVersion: 1, categories }, { expectedHash: current.sha256 });
+      const journal = await readRecord(paths.journal);
+      await atomicWriteJson(paths.journal, { ...journal, stage: 'rolled-back', sourcePreserved: true,
+        destinationPreserved: true, updatedAt: new Date().toISOString() }, { mkdir: false });
+      return { schemaVersion: 1, planId: plan.planId, stage: 'rolled-back', sourcePreserved: true, destinationPreserved: true };
+    } finally { await releaseFileLockOrThrow(lock); }
+  });
+};

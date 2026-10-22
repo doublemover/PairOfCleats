@@ -99,14 +99,14 @@ await withTemporaryEnv({
   assert.equal(path.resolve(getCacheRoot()), path.resolve(cacheRoot));
   assert.equal(path.resolve(getCacheTempRoot('sqlite-build')), path.resolve(path.join(cacheRoot, 'tmp', 'sqlite-build')));
 
-  clearCacheRoot({ baseRoot, includeLegacy: false });
-  assert.equal(fs.existsSync(versionedSentinel), false);
+  assert.throws(() => clearCacheRoot({ baseRoot, includeLegacy: false }), { code: 'ERR_STORAGE_CLEANUP_PLAN_REQUIRED' });
+  assert.equal(fs.existsSync(versionedSentinel), true);
   assert.equal(fs.existsSync(legacySentinel), true);
   assert.equal(fs.existsSync(legacyCacheSentinel), true);
 
-  clearCacheRoot({ baseRoot, includeLegacy: true });
-  assert.equal(fs.existsSync(cacheRoot), false);
-  assert.equal(fs.existsSync(legacyRoot), false);
+  assert.throws(() => clearCacheRoot({ baseRoot, includeLegacy: true }), { code: 'ERR_STORAGE_CLEANUP_PLAN_REQUIRED' });
+  assert.equal(fs.existsSync(cacheRoot), true);
+  assert.equal(fs.existsSync(legacyRoot), true);
   assert.equal(fs.existsSync(baseRoot), true);
 });
 

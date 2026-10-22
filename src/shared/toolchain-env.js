@@ -1,6 +1,8 @@
 import path from 'node:path';
 import { applyManagedGoEnvironment, isGoToolchainServer } from './managed-go.js';
 import { applyManagedRubyEnvironment } from './managed-ruby.js';
+import { planManagedChildStorage } from './storage/child-environment.js';
+import { resolveStorageLayout } from './storage/layout.js';
 
 const GRADLE_DAEMON_FLAG = '-Dorg.gradle.daemon=false';
 const GRADLE_DAEMON_PATTERN = /-Dorg\.gradle\.daemon\s*=\s*\S+/i;
@@ -9,14 +11,10 @@ const normalizeEnv = (value) => (
   value && typeof value === 'object' ? { ...value } : {}
 );
 
-const resolveBeamCrashDumpPath = (env, cwd = null) => {
+const resolveBeamCrashDumpPath = (env) => {
   const explicit = String(env?.ERL_CRASH_DUMP || '').trim();
   if (explicit) return explicit;
-  const cacheRoot = String(env?.PAIROFCLEATS_CACHE_ROOT || '').trim();
-  if (cacheRoot) return path.join(cacheRoot, 'erl_crash.dump');
-  const workingDir = String(cwd || '').trim();
-  if (workingDir) return path.join(workingDir, 'erl_crash.dump');
-  return '';
+  return path.join(resolveStorageLayout({ env }).descriptors.tmp.path, 'toolchain', 'beam', 'erl_crash.dump');
 };
 
 const appendGradleDaemonFlag = (value) => {
@@ -39,10 +37,13 @@ const appendGradleDaemonFlag = (value) => {
  * @returns {NodeJS.ProcessEnv}
  */
 export const applyToolchainDaemonPolicyEnv = (baseEnv = null, options = {}) => {
-  const next = applyManagedRubyEnvironment(normalizeEnv(baseEnv), options);
+  const routed = options.managedStorage
+    ? planManagedChildStorage({ ...options.managedStorage, baseEnv: normalizeEnv(baseEnv), command: options.command }).env
+    : normalizeEnv(baseEnv);
+  const next = applyManagedRubyEnvironment(routed, options);
   next.ORG_GRADLE_DAEMON = 'false';
   next.GRADLE_OPTS = appendGradleDaemonFlag(next.GRADLE_OPTS);
-  const beamCrashDumpPath = resolveBeamCrashDumpPath(next, options?.cwd || null);
+  const beamCrashDumpPath = resolveBeamCrashDumpPath(next);
   if (beamCrashDumpPath) {
     next.ERL_CRASH_DUMP = beamCrashDumpPath;
   }

@@ -4,6 +4,7 @@ import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { isTestingEnv } from '../../../src/shared/env/testing.js';
 import { getCacheRoot, loadUserConfig } from '../config.js';
 import { getCacheRootBase, getDefaultCacheRoot } from '../cache.js';
+import { getStorageCategorySelection } from '../../../src/shared/cache-roots.js';
 import { resolveRepoCacheRootPath } from './repo.js';
 
 /**
@@ -49,7 +50,7 @@ export function getModelsDir(repoRoot, userConfig = null) {
   if (envModelsDir) return envModelsDir;
   const cacheRoot = (cfg.cache && cfg.cache.root) || getCacheRoot();
   const models = cfg.models || {};
-  return models.dir || path.join(cacheRoot, 'models');
+  return models.dir || getStorageCategorySelection('models') || path.join(cacheRoot, 'models');
 }
 
 /**
@@ -63,7 +64,7 @@ export function getToolingDir(repoRoot, userConfig = null) {
   const envConfig = getEnvConfig();
   const homeRoot = envConfig.homeRoot || getCacheRootBase();
   const tooling = cfg.tooling || {};
-  return envConfig.toolingDir || tooling.dir || path.join(homeRoot, 'tooling');
+  return envConfig.toolingDir || tooling.dir || getStorageCategorySelection('tooling') || path.join(homeRoot, 'tooling');
 }
 
 /**
@@ -229,6 +230,8 @@ export function getExtensionsDir(repoRoot, userConfig = null) {
   const sqliteVector = cfg.sqlite?.vectorExtension || {};
   if (extensions.dir) return extensions.dir;
   if (sqliteVector.dir) return sqliteVector.dir;
+  const selected = getStorageCategorySelection('extensions');
+  if (selected) return selected;
   // Extensions are shared assets and should not live under repo-scoped cache data.
   const cacheRoot = isTestingEnv()
     ? getDefaultCacheRoot()
