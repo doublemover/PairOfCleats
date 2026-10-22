@@ -9,9 +9,11 @@ import { inspectStorageInventory, sameStorageFileIdentity, storageFileIdentity }
 import { inspectStorageAccess, withExclusiveStorageAccess } from './access.js';
 import { decideStorageLifecycle } from './policy.js';
 import { captureStorageAuthority, revalidateStorageAuthority } from './authority.js';
+import { describeStorageFailure } from './failure-observation.js';
 
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-const errorRecord = error => ({ code: error.code || 'ERR_STORAGE_CLEANUP', message: error.message });
+const errorRecord = error => describeStorageFailure(error, { phase: 'storage-cleanup-report',
+  defaultCode: 'ERR_STORAGE_CLEANUP' });
 const PROBE_NAME = /^[a-f0-9]{40}\.json$/u;
 const PROBE_RELATIVE_ROOT = path.join('tooling', 'command-probes');
 
