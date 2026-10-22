@@ -48,7 +48,7 @@ const ensureDenseMetaSchema = (db) => {
   addColumn('levels', 'INTEGER');
 };
 
-const resolveSqliteDenseArtifactRows = ({ vectorsPath, modelId = null }) => {
+const resolveSqliteDenseArtifactRows = ({ vectorsPath, modelId = null, dims = null }) => {
   try {
     if (typeof vectorsPath !== 'string' || !vectorsPath.trim()) throw new Error('Missing vector artifact path.');
     const resolvedBasePath = path.resolve(vectorsPath);
@@ -58,6 +58,8 @@ const resolveSqliteDenseArtifactRows = ({ vectorsPath, modelId = null }) => {
     if (!meta || !Number.isSafeInteger(meta.count) || meta.count < 0
       || !Number.isSafeInteger(meta.dims) || meta.dims <= 0
       || !Number.isSafeInteger(meta.count * meta.dims)
+      || (sourceMeta.count != null && sourceMeta.totalRecords != null && sourceMeta.count !== sourceMeta.totalRecords)
+      || (dims != null && meta.dims !== dims)
       || (modelId && meta.model !== modelId)) throw new Error('Invalid vector artifact metadata or model identity.');
     const binaryMetaPath = `${resolvedBasePath}.bin.meta.json`;
     if (fsSync.existsSync(binaryMetaPath)) {
@@ -96,10 +98,11 @@ const resolveSqliteDenseArtifactRows = ({ vectorsPath, modelId = null }) => {
 export const resolveSqliteDenseVectorRows = ({
   vectors,
   vectorsPath = null,
-  modelId = null
+  modelId = null,
+  dims = null
 } = {}) => {
   if (Array.isArray(vectors)) return vectors;
-  return resolveSqliteDenseArtifactRows({ vectorsPath, modelId });
+  return resolveSqliteDenseArtifactRows({ vectorsPath, modelId, dims });
 };
 
 const resolveVectorTableDims = (db, table, column) => {
@@ -176,7 +179,7 @@ export const updateSqliteDense = ({
 
   // Resolve and validate the replacement before opening a mutable connection,
   // changing schema/pragmas, or touching existing vector authority.
-  const vectorRows = resolveSqliteDenseVectorRows({ vectors, vectorsPath, modelId });
+  const vectorRows = resolveSqliteDenseVectorRows({ vectors, vectorsPath, modelId, dims });
   const db = new Database(resolvedDbPath);
   try {
     assertSqliteIndexFormat({ db, repoRoot: root, indexPath: resolvedDbPath, operation: 'embedding-update' });
@@ -195,8 +198,8 @@ export const updateSqliteDense = ({
       db.pragma('synchronous = NORMAL');
     } catch {}
 
+    db.exec('BEGIN IMMEDIATE');
     let vectorAnnReady = false;
-    let vectorAnnNeedsBackfill = false;
     let vectorAnnTable = vectorExtension.table || 'dense_vectors_ann';
     let vectorAnnColumn = vectorExtension.column || 'embedding';
     let insertVectorAnn = null;
@@ -206,17 +209,15 @@ export const updateSqliteDense = ({
         if (hasVectorTable(db, vectorAnnTable)) {
           const existingDims = resolveVectorTableDims(db, vectorAnnTable, vectorAnnColumn);
           if (Number.isFinite(existingDims) && existingDims !== dims) {
-            try {
-              db.exec(`DROP TABLE IF EXISTS ${vectorAnnTable}`);
-            } catch {}
+            db.exec(`DROP TABLE IF EXISTS ${vectorAnnTable}`);
             const created = ensureVectorTable(db, vectorExtension, dims);
             if (created.ok) {
               vectorAnnReady = true;
-              vectorAnnNeedsBackfill = true;
               vectorAnnTable = created.tableName;
               vectorAnnColumn = created.column;
-            } else if (emitOutput) {
-              logger.warn(`[embeddings] Failed to recreate vector table for ${mode}: ${created.reason}`);
+            } else {
+              throw Object.assign(new Error(`[embeddings] Failed to recreate vector table for ${mode}: ${created.reason}`),
+                { code: 'ERR_SQLITE_DENSE_ANN_REBUILD' });
             }
           } else {
             vectorAnnReady = true;
@@ -225,7 +226,6 @@ export const updateSqliteDense = ({
           const created = ensureVectorTable(db, vectorExtension, dims);
           if (created.ok) {
             vectorAnnReady = true;
-            vectorAnnNeedsBackfill = true;
             vectorAnnTable = created.tableName;
             vectorAnnColumn = created.column;
           } else if (emitOutput) {
@@ -395,7 +395,9 @@ export const updateSqliteDense = ({
           existingIndex += 1;
           current = existingRows[existingIndex] || null;
         }
-        if (unchanged && !vectorAnnNeedsBackfill) {
+        // An optional extension may have been unavailable during an earlier
+        // base-only update. Equality of base bytes cannot prove ANN parity.
+        if (unchanged && !vectorAnnReady) {
           continue;
         }
 
@@ -423,6 +425,7 @@ export const updateSqliteDense = ({
       flushBatches({ force: true });
     });
     run();
+    db.exec('COMMIT');
     if (emitOutput) {
       logger.log(`[embeddings] ${mode}: SQLite dense vectors updated (${resolvedDbPath}).`);
     }
@@ -433,6 +436,9 @@ export const updateSqliteDense = ({
       ingestEncoding,
       pragmas: pragmaState?.applied || null
     };
+  } catch (error) {
+    if (db.inTransaction) db.exec('ROLLBACK');
+    throw error;
   } finally {
     db.close();
   }

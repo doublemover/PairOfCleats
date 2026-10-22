@@ -67,5 +67,12 @@ try {
       assert.deepEqual(read(file), ['base', 'committed'], 'busy finalizer preserves committed WAL rows');
     } finally { reader.exec('ROLLBACK'); reader.close(); writer.close(); }
   }
+  const final = path.join(root, 'orphan-final.db'), staged = path.join(root, 'orphan-staged.db');
+  await fs.writeFile(final, 'old authority'); await fs.writeFile(staged, 'replacement');
+  await fs.writeFile(`${final}.bak-wal`, 'orphaned recovery frames');
+  await assert.rejects(replaceSqliteDatabase(staged, final), { code: 'ERR_SQLITE_RECOVERY_REQUIRED' });
+  assert.equal(await fs.readFile(final, 'utf8'), 'old authority');
+  assert.equal(await fs.readFile(staged, 'utf8'), 'replacement');
+  assert.equal(await fs.readFile(`${final}.bak-wal`, 'utf8'), 'orphaned recovery frames');
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('SQLite WAL authority survives replacement rollback, backup, and incremental early exits');

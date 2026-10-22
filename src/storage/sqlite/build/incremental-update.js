@@ -349,6 +349,7 @@ export async function incrementalUpdateDatabase({
 
     const bundlePlan = await loadBundlesAndCollectState({
       signal,
+      repoRoot,
       changed,
       bundleDir: incrementalData.bundleDir
     });

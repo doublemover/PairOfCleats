@@ -126,6 +126,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
   let stopHeartbeat = () => {};
   let finalized = false;
   const finalize = () => {
+    process.off('exit', finalize);
     if (finalized) return;
     finalized = true;
     stopHeartbeat();

@@ -674,8 +674,8 @@ export async function buildDatabaseFromBundles({
     const insertBundle = (bundle, fileKey) => {
       const chunks = Array.isArray(bundle?.chunks) ? bundle.chunks : null;
       if (!chunks) {
-        warn(`[sqlite] Bundle missing chunks for ${fileKey}; skipping.`);
-        return;
+        throw Object.assign(new Error(`[sqlite] Bundle missing chunks for ${fileKey}.`),
+          { code: 'ERR_SQLITE_BUNDLE_INVALID' });
       }
       const normalizedFile = normalizeFilePath(fileKey);
       let chunkCount = 0;

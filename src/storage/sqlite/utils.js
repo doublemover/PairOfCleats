@@ -111,18 +111,23 @@ const createDenseBinaryRowIterator = (binPath, dims, count) => (
         const rowsThisRead = Math.min(rowsPerRead, remaining);
         const bytesThisRead = rowsThisRead * dims;
         const offset = docId * dims;
-        const { bytesRead } = await handle.read(readBuffer, 0, bytesThisRead, offset);
-        const rowsRead = Math.floor(bytesRead / dims);
-        if (rowsRead <= 0) break;
-        for (let rowIndex = 0; rowIndex < rowsRead; rowIndex += 1) {
+        let filled = 0;
+        while (filled < bytesThisRead) {
+          const { bytesRead } = await handle.read(readBuffer, filled, bytesThisRead - filled, offset + filled);
+          if (!Number.isSafeInteger(bytesRead) || bytesRead <= 0 || bytesRead > bytesThisRead - filled) {
+            throw Object.assign(new Error(`[sqlite] Dense binary ended before its declared row count: ${binPath}`),
+              { code: 'ERR_SQLITE_DENSE_BINARY_TRUNCATED' });
+          }
+          filled += bytesRead;
+        }
+        for (let rowIndex = 0; rowIndex < rowsThisRead; rowIndex += 1) {
           const start = rowIndex * dims;
           yield {
             docId: docId + rowIndex,
             vector: Uint8Array.from(readBuffer.subarray(start, start + dims))
           };
         }
-        docId += rowsRead;
-        if (rowsRead < rowsThisRead) break;
+        docId += rowsThisRead;
       }
     } finally {
       if (handle) {
@@ -1080,8 +1085,8 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
   let backupAvailable = fs.existsSync(backupPath);
   let backupFromCurrentFinal = false;
   if (finalExists) {
+    await settleSqliteForPublication(backupPath);
     if (backupAvailable) {
-      await settleSqliteForPublication(backupPath);
       await removeFileWithDiagnostics(backupPath, {
         context: 'existing backup',
         swallow: false

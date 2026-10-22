@@ -34,6 +34,11 @@ try {
   await assert.rejects(runSqliteDenseIsolateChild(payload), { code: 'ERR_SQLITE_DENSE_ARTIFACT_INVALID' });
   assert.deepEqual(await fs.readFile(dbPath), afterValid, 'disagreeing binary identity cannot mutate prior SQLite bytes');
   await fs.rm(`${vectorsPath}.bin.meta.json`);
+  await assert.rejects(runSqliteDenseIsolateChild({ ...payload, dims: 3 }), { code: 'ERR_SQLITE_DENSE_ARTIFACT_INVALID' });
+  await fs.writeFile(`${vectorsPath}.meta.json`, JSON.stringify({ count: 0, totalRecords: 2, dims: 2, model: 'fixture' }));
+  await fs.writeFile(`${vectorsPath}.bin`, '');
+  await assert.rejects(runSqliteDenseIsolateChild(payload), { code: 'ERR_SQLITE_DENSE_ARTIFACT_INVALID' });
+  assert.deepEqual(await fs.readFile(dbPath), afterValid, 'conflicting source counts cannot clear prior authority');
   await fs.writeFile(`${vectorsPath}.meta.json`, JSON.stringify({ count: 0, dims: 2, model: 'fixture' }));
   await fs.writeFile(`${vectorsPath}.bin`, '');
   assert.equal((await runSqliteDenseIsolateChild(payload)).count, 0, 'validated zero-vector replacement remains supported');

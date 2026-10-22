@@ -1,7 +1,7 @@
 import fsSync from 'node:fs';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { resolveManifestBundleNames } from '../../../../shared/bundle-io-paths.js';
-import { readBundleFile } from '../../../../shared/bundle-io.js';
+import { readIncrementalBundleSnapshot } from '../../../../index/build/incremental/bundle-snapshot.js';
 import { toArray } from '../../../../shared/iterables.js';
 import { joinPathSafe } from '../../../../shared/path-normalize.js';
 import {
@@ -24,29 +24,6 @@ const addArrayValues = (target, values) => {
   for (const value of list) {
     target.add(value);
   }
-};
-
-const mergeBundleShards = (shards) => {
-  if (!Array.isArray(shards) || !shards.length) return null;
-  let merged = null;
-  for (const shard of shards) {
-    if (!shard || typeof shard !== 'object') return null;
-    const chunks = Array.isArray(shard.chunks) ? shard.chunks : null;
-    if (!chunks) return null;
-    if (!merged) {
-      merged = {
-        ...shard,
-        chunks: [...chunks]
-      };
-      continue;
-    }
-    merged.chunks.push(...chunks);
-    if (!merged.fileRelations && shard.fileRelations) merged.fileRelations = shard.fileRelations;
-    if (!Array.isArray(merged.vfsManifestRows) && Array.isArray(shard.vfsManifestRows)) {
-      merged.vfsManifestRows = shard.vfsManifestRows;
-    }
-  }
-  return merged;
 };
 
 /**
@@ -139,7 +116,7 @@ export const resolveIncrementalChangePlan = ({
  *   {ok:false,reason:string}
  * >}
  */
-export const loadBundlesAndCollectState = async ({ changed, bundleDir, signal = null }) => {
+export const loadBundlesAndCollectState = async ({ changed, bundleDir, signal = null, repoRoot = process.cwd() }) => {
   throwIfAborted(signal);
   const bundles = new Map();
   const tokenValues = new Set();
@@ -156,7 +133,6 @@ export const loadBundlesAndCollectState = async ({ changed, bundleDir, signal = 
     if (!bundleNames.length) {
       return { ok: false, reason: `missing bundle for ${fileKey}` };
     }
-    const loadedShards = [];
     for (const bundleName of bundleNames) {
       const bundlePath = joinPathSafe(bundleDir, [bundleName]);
       if (!bundlePath) {
@@ -165,14 +141,10 @@ export const loadBundlesAndCollectState = async ({ changed, bundleDir, signal = 
       if (!fsSync.existsSync(bundlePath)) {
         return { ok: false, reason: `bundle missing for ${fileKey}` };
       }
-      const result = await readBundleFile(bundlePath);
-      throwIfAborted(signal);
-      if (!result.ok) {
-        return { ok: false, reason: `invalid bundle for ${fileKey}` };
-      }
-      loadedShards.push(result.bundle);
     }
-    const bundle = mergeBundleShards(loadedShards);
+    const snapshot = await readIncrementalBundleSnapshot({ repoRoot, bundleDir, relKey: fileKey, entry, signal });
+    throwIfAborted(signal);
+    const bundle = snapshot?.bundle;
     if (!bundle) {
       return { ok: false, reason: `invalid bundle for ${fileKey}` };
     }

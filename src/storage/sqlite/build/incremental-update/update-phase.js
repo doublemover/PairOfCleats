@@ -174,6 +174,12 @@ export const runIncrementalUpdatePhase = async ({
       vectorAnnWarned = true;
     }
   }
+  const existingAnnTable = vectorExtension.table || 'dense_vectors_ann';
+  const existingAnn = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(existingAnnTable);
+  if (existingAnn && !vectorAnn?.ready) {
+    return { ok: false, skipReason: `existing ANN table unavailable for coordinated incremental update: ${existingAnnTable}`,
+      mutated: false };
+  }
   const vectorDeleteTargets = vectorAnn?.ready
     ? [{ table: vectorAnn.tableName, column: 'rowid', withMode: false, transform: toSqliteRowId }]
     : [];

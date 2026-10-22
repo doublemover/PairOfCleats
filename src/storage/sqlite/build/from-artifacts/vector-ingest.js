@@ -216,13 +216,14 @@ export const createVectorIngestor = (ctx) => {
     } else if (hasDenseRows) {
       let fallbackDocId = 0;
       for await (const entry of dense.rows) {
-        const vec = (entry && typeof entry === 'object' && !Array.isArray(entry))
+        const isRow = entry && typeof entry === 'object' && !Array.isArray(entry) && !ArrayBuffer.isView(entry);
+        const vec = isRow
           ? (entry.vector ?? entry.values ?? null)
           : entry;
-        const entryDocIdRaw = (entry && typeof entry === 'object' && !Array.isArray(entry))
+        const entryDocIdRaw = isRow
           ? (entry.docId ?? entry.id ?? null)
           : null;
-        const entryDocId = Number.isFinite(Number(entryDocIdRaw))
+        const entryDocId = entryDocIdRaw != null && Number.isFinite(Number(entryDocIdRaw))
           ? Math.max(0, Math.floor(Number(entryDocIdRaw)))
           : null;
         const docId = entryDocId ?? fallbackDocId;
