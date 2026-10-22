@@ -75,6 +75,7 @@ export async function buildRiskExplainPayload({
   const readRiskArtifact = async (name, key, object = false, required = false) => {
     try {
       const presence = resolveArtifactPresence(indexDir, name, { manifest, strict: true });
+      if (presence.error) throw presence.error;
       const missing = presence.format === 'missing' || presence.missingMeta || presence.missingPaths?.length > 0;
       artifactStatus[key] = buildRiskArtifactStatus({ presence, required });
       if (missing) {
