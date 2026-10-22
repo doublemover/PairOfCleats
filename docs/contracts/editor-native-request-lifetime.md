@@ -22,9 +22,23 @@ fence does not promote spelling candidates or document-symbol rows to uniquely
 bound semantic evidence. Existing cancellation and child ownership remain with
 the extension operation owner.
 
+Sublime indexed navigation also records the original source view and buffer IDs,
+window, filename, change count and cursor. An equal-text/equal-version sibling
+view cannot replace that source when the response arrives or when cursor binding
+is reused. A resolved native result picker checks the original cursor/source
+again before opening; source view closure, movement between windows, rename,
+edits, context supersession and saved-byte replacement invalidate its request.
+The original source version/file/buffer check continues through deferred target
+loading before any target annotations or precise selection are changed.
+Opening the intended target may change focus, and selecting a target in the
+original source view may move its cursor deliberately; those actions do not
+require the old cursor after selection admission. Ambiguous candidate inspection
+retains its separate evidence semantics and checks source admission before the
+candidate choice.
+
 The additional registered-provider and pure request controls are authored and
 **UNVALIDATED**. No test, syntax/lint/format, bootstrap, native/child execution or
-VS Code host qualification was run. File reads provide observed consistency,
-not an atomic filesystem snapshot. This source work does not establish generated
+VS Code or Sublime host qualification was run. File reads provide observed
+consistency, not an atomic filesystem snapshot. This source work does not establish generated
 source mapping, complete semantic producer coverage, host cancellation behavior,
 native teardown, resource bounds or performance acceptance.

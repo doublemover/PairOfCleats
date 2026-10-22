@@ -7,13 +7,21 @@ from .source_authority import read_current_source, read_verified_source, source_
 _QUALIFIED_NAVIGATION = {}
 
 
+def _request_view_matches(view, window, captured, require_cursor=False):
+    if (not view or not view.is_valid() or not view.window() or view.window().id() != window.id()
+            or view.id() != captured['viewId'] or view.buffer_id() != captured['bufferId']
+            or view.file_name() != captured['file'] or view.is_dirty()
+            or str(view.change_count()) != captured['version']):
+        return False
+    selections = list(view.sel())
+    return not require_cursor or bool(selections and selections[0].begin() == captured['point'])
+
+
 def qualified_navigation_evidence(window, repo_root):
     captured = _QUALIFIED_NAVIGATION.get(window.id())
     view = window.active_view()
-    if (not captured or not view or not operations.is_current(captured['scope'])
-            or captured['root'] != repo_root or view.file_name() != captured['file']
-            or view.is_dirty() or str(view.change_count()) != captured['version']
-            or not list(view.sel()) or view.sel()[0].begin() != captured['point']):
+    if (not captured or not operations.is_current(captured['scope'])
+            or captured['root'] != repo_root or not _request_view_matches(view, window, captured, require_cursor=True)):
         return None
     try:
         source = read_verified_source(repo_root, captured['file'], captured['payload'].get('sourceHash'))
@@ -27,6 +35,8 @@ def qualified_navigation_evidence(window, repo_root):
 
 def execute_qualified_navigation(view, query, kind, on_hits, limit, title, include_declaration=True,
                                   on_evidence=None, operation_scope=None):
+    if not view or not view.is_valid() or not view.window():
+        return
     window = view.window()
     scope = operation_scope or operations.capture(window, key='navigation')
     def failed(message):
@@ -77,24 +87,39 @@ def execute_qualified_navigation(view, query, kind, on_hits, limit, title, inclu
         return
     source_hash = source['sourceHash']
     version = str(view.change_count())
+    captured = {'scope': scope, 'root': repo_root, 'file': file_name, 'version': version, 'point': point,
+                'viewId': view.id(), 'bufferId': view.buffer_id()}
+    def source_current(require_cursor=False):
+        if (not operations.is_current(scope) or _QUALIFIED_NAVIGATION.get(window.id()) is not captured
+                or not _request_view_matches(view, window, captured, require_cursor=require_cursor)
+                or require_cursor and not _request_view_matches(window.active_view(), window, captured, require_cursor=True)):
+            return False
+        try:
+            verified = read_verified_source(repo_root, file_name, source_hash)
+            return results.qualified_source_buffer(verified['sourceText'], view.substr(sublime.Region(0, view.size()))) is not None
+        except (ValueError, OSError, UnicodeError):
+            return False
     args = ['tooling', 'navigate', '--json', '--repo', repo_root, '--kind', kind,
             '--top', str(limit), '--file', file_name, '--symbol', query,
             '--source-hash', source_hash, '--source-version', version,
             '--line', str(line), '--column', str(column), '--coordinate-unit', 'utf16',
             '--include-declaration', str(bool(include_declaration)).lower()]
     def done(result):
-        if not operations.is_current(scope) or view.change_count() != int(version) or view.is_dirty():
+        if not operations.is_current(scope) or not _request_view_matches(view, window, captured, require_cursor=True):
             return
         if result.error or result.returncode != 0:
             failed(result.error or 'Indexed navigation did not complete. Inspect its task diagnostics.')
             return
         payload = result.payload or {}
+        if not isinstance(payload, dict):
+            failed('PairOfCleats: indexed navigation returned an invalid response.')
+            return
         if (payload.get('sourceHash') != source_hash or payload.get('sourceVersion') != version
                 or payload.get('coordinateUnit') != 'utf16'):
             failed('PairOfCleats: navigation did not retain the requested source identity/version.')
             return
-        _QUALIFIED_NAVIGATION[window.id()] = {'payload': payload, 'scope': scope, 'root': repo_root,
-            'file': file_name, 'version': version, 'point': point}
+        captured['payload'] = payload
+        _QUALIFIED_NAVIGATION[window.id()] = captured
         if qualified_navigation_evidence(window, repo_root) is None:
             failed('PairOfCleats: the saved source or cursor changed before indexed navigation completed.')
             return
@@ -104,7 +129,7 @@ def execute_qualified_navigation(view, query, kind, on_hits, limit, title, inclu
         if payload.get('status') == 'ambiguous' and (payload.get('binding') or {}).get('candidates'):
             candidates = payload['binding']['candidates']
             def chosen(index):
-                if index < 0 or not operations.is_current(scope):
+                if index < 0 or index >= len(candidates) or not source_current(require_cursor=True):
                     return
                 candidate = candidates[index]
                 from ..commands import semantic
@@ -127,7 +152,8 @@ def execute_qualified_navigation(view, query, kind, on_hits, limit, title, inclu
             ui.show_status('PairOfCleats: partial indexed navigation; missing occurrences remain unknown.')
         hits = [dict(row, section='indexed-' + kind + '-' + payload.get('status', 'unknown')) for row in payload.get('results', []) if row.get('coordinateUnit') == 'utf16'
                 and isinstance(row.get('sourceHash'), str) and len(row['sourceHash']) == 64]
-        on_hits(hits, repo_root, {})
+        on_hits(hits, repo_root, {'navigation_current': lambda: source_current(require_cursor=True),
+                                'navigation_source_current': source_current})
     cli = paths.resolve_cli(settings, repo_root)
     runner.run_process(cli['command'], list(cli.get('args_prefix') or []) + args,
                        cwd=repo_root, env=config.build_env(settings), window=window, title=title,

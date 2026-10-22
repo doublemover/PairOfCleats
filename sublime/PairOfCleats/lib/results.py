@@ -206,8 +206,9 @@ def apply_hit_action(window, hit, repo_root=None, action='open', rerun=None):
     return None
 
 
-def open_hit(window, hit, repo_root=None):
-    if not isinstance(hit, dict):
+def open_hit(window, hit, repo_root=None, request_current=None):
+    if (not isinstance(hit, dict)
+            or request_current is not None and (not callable(request_current) or request_current() is not True)):
         return None
     hit = dict(hit)
     file_path = resolve_hit_path(hit, repo_root)
@@ -231,8 +232,10 @@ def open_hit(window, hit, repo_root=None):
     if isinstance(start_line, int) and start_line > 0:
         encoded_path = '{0}:{1}'.format(file_path, start_line)
 
+    if request_current is not None and request_current() is not True:
+        return None
     view = window.open_file(encoded_path, sublime.ENCODED_POSITION)
-    highlight_hit(view, hit, scope=scope, repo_root=repo_root, source_file=file_path)
+    highlight_hit(view, hit, scope=scope, repo_root=repo_root, source_file=file_path, request_current=request_current)
     return view
 
 
@@ -327,7 +330,7 @@ def qualified_source_buffer(source_text, buffer_text):
     return {'removedBom': form['removedBom']} if form is not None else None
 
 
-def highlight_hit(view, hit, scope=None, repo_root=None, source_file=None):
+def highlight_hit(view, hit, scope=None, repo_root=None, source_file=None, request_current=None):
     if view is None or not isinstance(hit, dict):
         return
     hit = dict(hit)
@@ -358,6 +361,8 @@ def highlight_hit(view, hit, scope=None, repo_root=None, source_file=None):
                 sublime.status_message('PairOfCleats: source loading did not settle within the selection deadline.')
                 return
             sublime.set_timeout(apply, 10)
+            return
+        if request_current is not None and (not callable(request_current) or request_current() is not True):
             return
         if hit.get('sourceHash'):
             try:
@@ -411,7 +416,8 @@ def highlight_hit(view, hit, scope=None, repo_root=None, source_file=None):
             region = view.full_line(sublime.Region(start_pt, end_pt))
             exact_range = False
         if (scope is not None and not operations.is_current(scope)
-                or hasattr(view, 'is_valid') and not view.is_valid()):
+                or hasattr(view, 'is_valid') and not view.is_valid()
+                or request_current is not None and request_current() is not True):
             return
         if source is not None:
             try:

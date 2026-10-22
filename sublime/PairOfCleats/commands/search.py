@@ -703,14 +703,15 @@ def _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, tit
     )
 
 
-def _show_symbol_hit_picker(window, hits, repo_root):
+def _show_symbol_hit_picker(window, hits, repo_root, request_current=None, source_current=None):
     items = [results.format_quick_panel_item(hit) for hit in hits]
     scope = operations.capture(window, key='navigation-picker')
 
     def on_select(index):
-        if index < 0 or not operations.is_current(scope):
+        if (index < 0 or index >= len(hits) or not operations.is_current(scope)
+                or callable(request_current) and request_current() is not True):
             return
-        results.open_hit(window, hits[index], repo_root)
+        results.open_hit(window, hits[index], repo_root, request_current=source_current)
 
     window.show_quick_panel(items, on_select)
 
@@ -869,14 +870,18 @@ class PairOfCleatsGotoDefinitionCommand(_FileSymbolLookupMixin, sublime_plugin.T
     lookup_title = 'PairOfCleats goto definition'
 
     def handle_symbol_hits(self, query, hits, repo_root, _resolved):
+        request_current = _resolved.get('navigation_current')
+        source_current = _resolved.get('navigation_source_current')
+        if callable(request_current) and request_current() is not True:
+            return
         if not hits:
             ui.show_status('PairOfCleats: no indexed definitions found.')
             return
         ranked = hits
         if len(ranked) == 1:
-            results.open_hit(self.view.window(), ranked[0], repo_root)
+            results.open_hit(self.view.window(), ranked[0], repo_root, request_current=source_current)
             return
-        _show_symbol_hit_picker(self.view.window(), ranked, repo_root)
+        _show_symbol_hit_picker(self.view.window(), ranked, repo_root, request_current, source_current)
 
 
 class PairOfCleatsFindReferencesCommand(_FileSymbolLookupMixin, sublime_plugin.TextCommand):
@@ -888,7 +893,8 @@ class PairOfCleatsFindReferencesCommand(_FileSymbolLookupMixin, sublime_plugin.T
         if not hits:
             ui.show_status('PairOfCleats: no indexed references found.')
             return
-        _show_symbol_hit_picker(self.view.window(), hits, repo_root)
+        _show_symbol_hit_picker(self.view.window(), hits, repo_root, _resolved.get('navigation_current'),
+                                _resolved.get('navigation_source_current'))
 
 
 class PairOfCleatsCompleteSymbolCommand(sublime_plugin.TextCommand):
