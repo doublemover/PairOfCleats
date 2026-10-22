@@ -37,9 +37,10 @@ globalThis[key] = async target => {
       await fs.mkdir(path.join(dataset, 'data'));
       await fs.writeFile(path.join(dataset, '_versions/1.manifest'), 'fixture manifest');
       await fs.writeFile(path.join(dataset, 'data/1.lance'), 'fixture fragment');
-      count = rows.length;
+      count = rows.numRows;
       return {
-        async add(batch) { if (fault === 'add') throw primary; count += batch.length; },
+        async add(batch) { if (fault === 'add') throw primary; count += batch.numRows; },
+        async schema() { return rows.schema; },
         async countRows() { if (fault === 'count') throw primary; return fault === 'count-mismatch' ? count - 1 : count; },
         async close() { tableCloses++; if (closeFailure) throw cleanup; }
       };

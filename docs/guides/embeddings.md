@@ -310,3 +310,13 @@ Embedding preparation retains unpadded token rows only within adapter-local item
 The persistent text cache batches at most 256 pending vector keys or 4 MiB, flushing within 25 ms and at normal close. Access timestamps and hit counts coalesce separately for up to one second or 1,024 keys. These vectors and advisory statistics are disposable: interruption may lose pending cache updates and cannot invalidate an index artifact. Cache get sees pending rows; failed transactions discard pending updates and never mark their digests persisted. Joined inference requests promote memory without another blob upsert. Transaction, avoided-write, coalesced-touch and queue-latency counters describe this owner; they do not establish measured throughput.
 
 An aggregate file chunk fingerprint is a positive fast hint, never a reason to reject all older rows after one chunk changes. Bounded prior-cache reads still require exact embedding identity, channel availability, dimensions and per-chunk hash multiplicity before reuse. Reordering consumes prior hash occurrences with cursors and preserves missing-document markers.
+
+LanceDB vector columns use an explicit fixed-size Float32 Arrow schema regardless
+of the configured column name. IDs use signed Int64 and remain original document
+IDs across absent-channel holes. ID/vector name collisions, inconsistent dimensions
+and non-finite present vectors fail the staged build. Every batch uses the same
+schema; physical schema is checked before publication, and queries explicitly
+select the declared vector column. Typed batches obey both configured row limits
+and a 16 MiB payload limit; buffers remain leased until awaited ingestion settles.
+This removes boxed row expansion in this owner. Native conversion may still copy;
+source changes do not establish a measured latency or allocation improvement.

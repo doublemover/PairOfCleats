@@ -47,6 +47,7 @@ globalThis[key] = async dir => {
         search() {
           let ids = null, limit = 2;
           return {
+            column(name) { assert.equal(name, 'vector'); return this; },
             metricType() { return this; },
             where(expression) { ids = expression.match(/\(([^)]+)\)/)[1].split(',').map(Number); return this; },
             limit(value) { limit = value; return this; },

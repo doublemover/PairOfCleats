@@ -275,12 +275,9 @@ export async function rankLanceDb({
       : [];
 
     const createBaseQuery = () => {
-      let query;
-      if (embeddingColumn !== 'vector' && table.search.length > 1) {
-        query = table.search(embeddingArray, { vectorColumn: embeddingColumn });
-      } else {
-        query = table.search(embeddingArray);
-      }
+      let query = table.search(embeddingArray);
+      if (typeof query?.column !== 'function') throw new Error('LanceDB query builder cannot select the declared vector column.');
+      query = query.column(embeddingColumn);
       if (typeof query?.metricType === 'function') {
         query = query.metricType(metric);
       } else if (typeof query?.metric === 'function') {

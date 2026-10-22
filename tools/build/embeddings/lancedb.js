@@ -4,8 +4,6 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { tryImport } from '../../../src/shared/optional-deps.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
-import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
-import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { assertLanceDbPayload, normalizeLanceDbConfig, resolveLanceDbPaths } from '../../../src/shared/lancedb.js';
 import { publishLanceDbReplacement, recoverLanceDbReplacement } from './backend-publication.js';
 import { readContainedFile } from '../../../src/shared/contained-file.js';
@@ -37,49 +35,6 @@ const shouldIsolateLanceDb = (config, env) => {
   if (config?.isolate === true) return true;
   if (env?.isolate) return true;
   return false;
-};
-
-const createTable = async (db, tableName, rows) => {
-  if (!db || typeof db.createTable !== 'function') return null;
-  return db.createTable(tableName, rows, { mode: 'overwrite' });
-};
-
-const addRows = async (table, rows) => {
-  if (!table) return;
-  if (typeof table.add === 'function') {
-    await table.add(rows);
-    return;
-  }
-  if (typeof table.insert === 'function') {
-    await table.insert(rows);
-    return;
-  }
-  if (typeof table.append === 'function') {
-    await table.append(rows);
-  }
-};
-
-const buildBatch = (vectors, start, end, idColumn, embeddingColumn, quantization, normalize) => {
-  const rows = [];
-  for (let i = start; i < end; i += 1) {
-    const vec = vectors[i];
-    if (!vec || typeof vec.length !== 'number' || !vec.length) continue;
-    const floatVec = dequantizeUint8ToFloat32(
-      vec,
-      quantization?.minVal,
-      quantization?.maxVal,
-      quantization?.levels
-    );
-    if (!floatVec) continue;
-    if (normalize !== false) {
-      normalizeEmbeddingVectorInPlace(floatVec);
-    }
-    rows.push({
-      [idColumn]: i,
-      [embeddingColumn]: Array.from(floatVec)
-    });
-  }
-  return rows;
 };
 
 /**
@@ -234,77 +189,38 @@ export async function writeLanceDbIndex({
     let actualCount = 0;
     let buildError = null;
     try {
+      const { createLanceVectorContract } = await import('./lancedb-arrow.js');
+      const contract = createLanceVectorContract({ dims, idColumn, embeddingColumn,
+        batchSize, quantization, normalize });
+      const flush = async () => {
+        const data = contract.take();
+        if (!data) return;
+        try {
+          if (!table) table = await db.createTable(tableName, data, { mode: 'overwrite', schema: contract.schema });
+          else await table.add(data);
+          if (!table) throw new Error('LanceDB could not create a nonempty table.');
+          writtenCount += data.numRows;
+        } finally { contract.release(); }
+      };
+      const append = async (docId, vector) => {
+        // Absent channels retain their document-ID hole. Present malformed
+        // vectors fail the staged build instead of silently changing schema.
+        if (vector == null || vector.length === 0) return;
+        contract.append(docId, vector);
+        if (contract.size === contract.capacity) await flush();
+      };
       if (vectorsSource.rows && typeof vectorsSource.rows[Symbol.asyncIterator] === 'function') {
         let docId = 0;
-        let firstBatch = [];
-        let batch = [];
         for await (const entry of vectorsSource.rows) {
-          const vec = (entry && typeof entry === 'object' && !Array.isArray(entry))
-            ? (entry.vector ?? entry.values ?? null)
-            : entry;
-          if (vec && typeof vec.length === 'number' && vec.length) {
-            const floatVec = dequantizeUint8ToFloat32(
-              vec,
-              quantization?.minVal,
-              quantization?.maxVal,
-              quantization?.levels
-            );
-            if (floatVec) {
-              if (normalize !== false) {
-                normalizeEmbeddingVectorInPlace(floatVec);
-              }
-              batch.push({
-                [idColumn]: docId,
-                [embeddingColumn]: Array.from(floatVec)
-              });
-              writtenCount += 1;
-            }
-          }
-          docId += 1;
-          if (batch.length >= batchSize) {
-            if (!table) {
-              firstBatch = batch;
-              table = await createTable(db, tableName, firstBatch);
-              if (!table && typeof db.openTable === 'function') {
-                table = await db.openTable(tableName);
-                if (firstBatch.length) await addRows(table, firstBatch);
-              }
-            } else if (batch.length) {
-              await addRows(table, batch);
-            }
-            batch = [];
-          }
-        }
-        if (!table && batch.length) {
-          firstBatch = batch;
-          table = await createTable(db, tableName, firstBatch);
-          if (!table && typeof db.openTable === 'function') {
-            table = await db.openTable(tableName);
-            if (firstBatch.length) await addRows(table, firstBatch);
-          }
-        } else if (batch.length) {
-          await addRows(table, batch);
+          const vector = entry && typeof entry === 'object' && !Array.isArray(entry) && !ArrayBuffer.isView(entry)
+            ? (entry.vector ?? entry.values ?? null) : entry;
+          await append(docId++, vector);
         }
       } else {
-        const resolvedVectors = vectorsSource.vectors;
-        for (let start = 0; start < resolvedVectors.length; start += batchSize) {
-          const rows = buildBatch(
-            resolvedVectors,
-            start,
-            Math.min(start + batchSize, resolvedVectors.length),
-            idColumn,
-            embeddingColumn,
-            quantization,
-            normalize
-          );
-          if (rows.length) {
-            if (!table) table = await createTable(db, tableName, rows);
-            else await addRows(table, rows);
-            if (!table) throw new Error('LanceDB could not create a nonempty table.');
-            writtenCount += rows.length;
-          }
-        }
+        for (let docId = 0; docId < vectorsSource.vectors.length; docId++) await append(docId, vectorsSource.vectors[docId]);
       }
+      await flush();
+      if (table) contract.assertSchema(await table.schema());
       if (!writtenCount) return { skipped: true, reason: 'empty', count: 0, rowCount: vectorsSource.count };
       actualCount = table ? await table.countRows() : 0;
       if (actualCount !== writtenCount) throw new Error(`LanceDB insert count mismatch (${actualCount} of ${writtenCount}).`);

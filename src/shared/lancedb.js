@@ -65,7 +65,7 @@ const normalizeOptionalBoolean = (value) => {
 export function normalizeLanceDbConfig(raw = {}) {
   if (raw === false) return { enabled: false };
   const config = raw && typeof raw === 'object' ? raw : {};
-  return {
+  const result = {
     enabled: config.enabled !== false,
     isolate: normalizeOptionalBoolean(config.isolate),
     table: normalizeText(config.table, 'vectors'),
@@ -74,6 +74,10 @@ export function normalizeLanceDbConfig(raw = {}) {
     metric: normalizeMetric(config.metric),
     batchSize: normalizeInt(config.batchSize, 1024)
   };
+  if (result.enabled && result.idColumn === result.embeddingColumn) {
+    throw new Error('LanceDB ID and embedding columns must have distinct names.');
+  }
+  return result;
 }
 
 export function resolveLanceDbPaths(indexDir) {
