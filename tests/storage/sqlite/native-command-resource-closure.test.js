@@ -38,13 +38,15 @@ try {
   await operation;
   assert.equal(closed, true);
 
-  const primary = new Error('primary LMDB write error');
+  const primary = Object.freeze(new Error('primary LMDB write error'));
   const cleanup = new Error('native close has unknown settlement');
   let closeCalls = 0;
   await assert.rejects(runNativeDatabaseCommand({ commandIdentity: 'lmdb.build' }, async resources => {
     const handle = resources.own({ close: () => { closeCalls++; throw cleanup; } });
     await resources.use(handle, () => { throw primary; });
-  }), error => error === primary && error.nativeCleanupError === cleanup);
+  }), error => error.cause?.cause === primary && error.nativeCleanupError === cleanup
+    && error.cacheOwnershipReleased() === false && primary.nativeCleanupError === undefined,
+  'exact primary and cleanup remain separate causes without mutating a frozen operation failure');
   assert.equal(closeCalls, 1, 'an uncertain failed close is retained rather than retried or marked closed');
   await assert.rejects(runNativeDatabaseCommand({ commandIdentity: 'sqlite.compact' }, async resources => {
     await resources.close({ close() {} });
