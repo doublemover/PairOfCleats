@@ -22,3 +22,18 @@ copy and expected warnings, preserves frozen terminal errors and redaction, and
 retains the normal warning-free positive. It is unvalidated. Supported-runtime
 Windows faults, abrupt process exit, full-disk/permission behavior and bounded
 flush/close acceptance remain separate qualification.
+
+The scheduler tracker admits its crash bundle before optional presentation and
+attempts local, durable and configured external evidence before presentation
+callbacks. A throwing logger callback or enabled getter cannot prevent those
+writes. External method-getter failure is attributed to the external sink, with
+the original method's receiver retained when available. Presentation and error-log
+failures appear independently in the existing persistence receipt; rejected
+best-effort warning callbacks cannot become unhandled rejections.
+
+The additional actual tracker fixture retains tiny local/durable positives under
+synchronous, asynchronous and getter failures, checks independent external
+delivery, preserves the frozen parser error and asserts a warning-free healthy
+receipt. It remains unvalidated. The serialized persistence lifetime still joins
+accepted callbacks; this source change does not prove abrupt-exit durability or
+provide a deadline for a callback that never settles.
