@@ -5,6 +5,7 @@ import path from 'node:path';
 // another filesystem lock/lease namespace and cannot identify another process.
 const publications = new Map();
 const sessions = new WeakSet();
+const failureOwners = new WeakMap();
 const keyFor = file => process.platform === 'win32' ? path.resolve(file).toLowerCase() : path.resolve(file);
 export const isFileLockPublicationPending = file => Boolean(file) && Boolean(publications.get(keyFor(file))?.size);
 export const isFileLockPublicationSession = session => Boolean(session) && sessions.has(session);
@@ -44,6 +45,10 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
     const pending = [value];
     while (pending.length) {
       const error = pending.pop();
+      // Only this exact privately produced outward error is already represented
+      // by the original independent observations. Its own settlement predicate
+      // depends on close/removal and cannot gate that same close.
+      if (objectLike(error) && failureOwners.get(error) === session) continue;
       if (!objectLike(error) || observed.has(error)) continue;
       observed.add(error);
       const captured = captureObservation(error);
@@ -70,12 +75,14 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
       }
     }
   };
-  const resourcesSettled = () => closed && !overflow && observers.every(observe => observe());
+  const originalResourcesSettled = () => !overflow && observers.every(observe => observe());
+  const resourcesSettled = () => closed && originalResourcesSettled();
   const isSettled = () => removed && resourcesSettled();
   const closeOriginal = async () => {
     if (closed) return;
     if (closeCaptureFailed) throw closeCaptureFailure;
     if (!closing) closing = Promise.resolve().then(async () => {
+      if (!originalResourcesSettled()) throw new Error('Original file lock publication work prohibits native descriptor close.');
       const result = await closeMethod.call(handle);
       if (result === false) throw new Error('Original file lock descriptor close explicitly remained unconfirmed.');
       closed = true;
@@ -107,6 +114,7 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
       fileLockPublication: { value: Object.freeze({ lockPath, lockId,
         descriptorCloseObserved: closed, identitySealed: Boolean(snapshot), metadataRemoved: removed, state: 'publication-failed' }) }
     });
+    failureOwners.set(failure, session);
     return failure;
   };
   const currentOwned = async expected => {

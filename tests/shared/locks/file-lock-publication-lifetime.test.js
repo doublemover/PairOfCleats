@@ -218,18 +218,98 @@ try {
   // method receiver and function remain authoritative after replacement.
   for (const flag of [undefined, false, true]) {
     const lockPath = nextPath();
-    let settled = false;
+    let settled = false, closes = 0;
     const original = new Error('independent write owner');
     if (flag !== undefined) original.cacheOwnershipPending = flag;
     original.cacheOwnershipReleased = function () { assert.equal(this, original); return settled; };
-    intercept(lockPath, owned => { owned.writeFile = () => { throw original; }; });
+    intercept(lockPath, (owned, handle) => {
+      owned.writeFile = () => { throw original; };
+      owned.close = async () => { closes += 1; await handle.close(); };
+    });
     const failure = await rejected(() => acquireFileLock({ lockPath }));
+    assert.equal(closes, 0, 'rejected write promise does not authorize native close');
     original.cacheOwnershipReleased = () => true;
     const latest = await rejected(() => failure.fileLockPublicationSession.releaseAfterClose());
     assert.equal(latest.cause, original);
+    assert.equal(closes, 0, 'replacement observer cannot authorize actual descriptor destruction');
     assert.equal(await fs.readFile(lockPath, 'utf8'), '');
     settled = true;
     receipt(failure.fileLockPublicationSession, await failure.fileLockPublicationSession.releaseAfterClose());
+    assert.equal(closes, 1);
+  }
+  {
+    const lockPath = nextPath();
+    let settled = false, closes = 0, stats = 0;
+    const original = Object.assign(new Error('native stat work remains pending'), {
+      cacheOwnershipPending: false,
+      cacheOwnershipReleased() { assert.equal(this, original); return settled; }
+    });
+    intercept(lockPath, (owned, handle) => {
+      owned.stat = () => { stats += 1; throw original; };
+      owned.close = async () => { closes += 1; await handle.close(); };
+    });
+    const failure = await rejected(() => acquireFileLock({ lockPath }));
+    assert.equal(failure.cause, original); assert.equal(stats, 1); assert.equal(closes, 0);
+    original.cacheOwnershipReleased = () => true;
+    await rejected(() => failure.fileLockPublicationSession.releaseAfterClose());
+    assert.equal(stats, 1); assert.equal(closes, 0);
+    settled = true;
+    await rejected(() => failure.fileLockPublicationSession.releaseAfterClose());
+    assert.equal(closes, 1); assert.equal(stats, 1, 'failed original stat is never retried/adopted');
+    assert.equal(await fs.readFile(lockPath, 'utf8'), '', 'unsealed metadata cannot be removed after native settlement');
+    await rm(lockPath);
+    receipt(failure.fileLockPublicationSession, await failure.fileLockPublicationSession.releaseAfterClose());
+    assert.equal(closes, 1);
+  }
+  {
+    const lockPath = nextPath();
+    let settled = false, closes = 0, stats = 0;
+    const primary = Object.freeze(Object.assign(new Error('primary already confirms independent settlement'), {
+      cacheOwnershipReleased() { assert.equal(this, primary); return true; }
+    }));
+    const secondary = Object.assign(new Error('post-write stat still owns native work'), {
+      cacheOwnershipReleased() { assert.equal(this, secondary); return settled; }
+    });
+    intercept(lockPath, (owned, handle) => {
+      owned.stat = options => { stats += 1; if (stats === 2) throw secondary; return handle.stat(options); };
+      owned.writeFile = () => { throw primary; };
+      owned.close = async () => { closes += 1; await handle.close(); };
+    });
+    const failure = await rejected(() => acquireFileLock({ lockPath }));
+    assert.equal(failure.cause, primary); assert.ok(failure.errors.includes(secondary)); assert.equal(closes, 0);
+    secondary.cacheOwnershipReleased = () => true;
+    await rejected(() => failure.fileLockPublicationSession.releaseAfterClose()); assert.equal(closes, 0);
+    settled = true;
+    await rejected(() => failure.fileLockPublicationSession.releaseAfterClose()); assert.equal(closes, 1);
+    await rm(lockPath);
+    receipt(failure.fileLockPublicationSession, await failure.fileLockPublicationSession.releaseAfterClose());
+    assert.equal(stats, 2); assert.equal(closes, 1);
+  }
+  {
+    const lockPath = nextPath();
+    let phase = 'initial', failure, settled = false, calls = 0, lookalike;
+    const original = Object.freeze(new Error('first native close failed'));
+    intercept(lockPath, (owned, handle) => {
+      owned.writeFile = () => { throw new Error('rollback empty original record'); };
+      owned.close = async () => {
+        calls += 1;
+        if (phase === 'initial') throw original;
+        if (phase === 'self') throw failure;
+        if (phase === 'lookalike') throw lookalike;
+        await handle.close();
+      };
+    });
+    failure = await rejected(() => acquireFileLock({ lockPath }));
+    const session = failure.fileLockPublicationSession;
+    phase = 'self'; await rejected(() => session.releaseAfterClose()); assert.equal(calls, 2);
+    lookalike = Object.freeze(Object.assign(new Error('independent lookalike with actual session'), {
+      fileLockPublicationSession: session,
+      cacheOwnershipReleased() { assert.equal(this, lookalike); return settled; }
+    }));
+    phase = 'lookalike'; await rejected(() => session.releaseAfterClose()); assert.equal(calls, 3);
+    phase = 'success'; await rejected(() => session.releaseAfterClose()); assert.equal(calls, 3);
+    settled = true; receipt(session, await session.releaseAfterClose()); assert.equal(calls, 4);
+    assert.equal(failure.cacheOwnershipReleased(), true);
   }
   {
     const lockPath = nextPath();
