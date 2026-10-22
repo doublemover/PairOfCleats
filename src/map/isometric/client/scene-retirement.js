@@ -1,17 +1,26 @@
 const pending = new Set();
+const ownershipObservers = new WeakMap();
 const objectLike = value => value && (typeof value === 'object' || typeof value === 'function');
 const describe = error => { try { return error?.message || 'Scene resource retirement remains pending.'; } catch { return 'Scene resource retirement remains pending.'; } };
 const observe = error => {
   if (!objectLike(error)) return null;
-  const observers = [];
+  let captured = ownershipObservers.get(error);
+  if (!captured) {
+    const observers = new Map();
+    captured = { observers, released: () => [...observers.values()].map(check => check()).every(Boolean) };
+    ownershipObservers.set(error, captured);
+  }
   for (const [marker, released] of [['sceneOwnershipPending', 'sceneOwnershipReleased'], ['cacheOwnershipPending', 'cacheOwnershipReleased']]) {
+    if (captured.observers.has(marker)) continue;
     try {
       const method = error[released];
       if (error[marker] !== true && typeof method !== 'function') continue;
-      observers.push(() => { try { return typeof method === 'function' && method.call(error) === true; } catch { return false; } });
-    } catch { observers.push(() => false); }
+      captured.observers.set(marker, () => { try { return typeof method === 'function' && method.call(error) === true; } catch { return false; } });
+    } catch { captured.observers.set(marker, () => false); }
   }
-  return observers.length ? () => observers.map(check => check()).every(Boolean) : null;
+  // Absence is not settlement; a later actual owner may attach its first
+  // observation on either channel. Captured original functions never change.
+  return captured.observers.size ? captured.released : null;
 };
 export { observe as observeSceneOwnership };
 const failure = (primary, errors) => {
@@ -42,11 +51,14 @@ export const preserveSceneCleanupFailures = (primary, cleanupErrors, { hasPrimar
 
 /** Capture a resource's original method once. Lookup removal and a dispose
  * event dispatch are not proof that a throwing listener completed cleanup. */
-export const captureSceneResource = (resource, label = 'scene resource', methodName = 'dispose', args = []) => {
+export const captureSceneResource = (resource, label = 'scene resource', methodName = 'dispose', args = [], { required = false } = {}) => {
   const capturedArgs = [...args];
   let dispose = null, captureError, captureFailed = false, closed = false, lastError = null, flight = null;
   const children = new Map();
-  try { const method = resource?.[methodName]; dispose = typeof method === 'function' ? method : null; }
+  try {
+    const method = resource?.[methodName]; dispose = typeof method === 'function' ? method : null;
+    if (required && !dispose) throw new TypeError(`${label} has no original ${methodName} method.`);
+  }
   catch (error) { captureFailed = true; captureError = error; }
   const retain = error => {
     const check = observe(error); if (check && !children.has(error)) children.set(error, check);
@@ -71,10 +83,14 @@ export const captureSceneResource = (resource, label = 'scene resource', methodN
         if (result && typeof result.then === 'function') {
           const waiting = Object.assign(new Error(`${label} disposal has not settled.`), { code: 'ERR_MAP_SCENE_DISPOSAL_PENDING' });
           lastError = retain(waiting);
-          flight = Promise.resolve(result).then(() => { disposed = true; confirm(); }, error => { throw error; })
+          flight = Promise.resolve(result).then(value => {
+            if (value === false) throw Object.assign(new Error(`${label} disposal was explicitly unconfirmed.`), { code: 'ERR_MAP_SCENE_DISPOSAL_UNCONFIRMED' });
+            disposed = true; confirm();
+          }, error => { throw error; })
             .catch(error => { retain(error); }).finally(() => { flight = null; });
           throw lastError;
         }
+        if (result === false) throw Object.assign(new Error(`${label} disposal was explicitly unconfirmed.`), { code: 'ERR_MAP_SCENE_DISPOSAL_UNCONFIRMED' });
         disposed = true;
       }
       return confirm();

@@ -6,6 +6,7 @@ import { clearGroup } from './scene-utils.js';
 import { retirePicking } from './rendering/picking-owner.js';
 import { captureSceneResource, getPendingSceneResourceOwners, preserveSceneCleanupFailures } from './scene-retirement.js';
 import { createSceneConstructionOwner } from './rendering/scene-construction-owner.js';
+import { retireNormalMapState } from './normal-map-owner.js';
 
 export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
   if(!isCurrent())return null;
@@ -166,8 +167,7 @@ export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
     for (const owner of new Set([...pipeOwners, packetOwner].filter(Boolean))) run(() => captureSceneResource(owner, 'scene buffer owner').retire());
     for (const geometry of new Set(shapeCache?.values?.() || [])) run(() => captureSceneResource(geometry, 'shared scene shape geometry').retire());
     shapeCache?.clear?.();
-    if (normalMap?.texture) run(() => captureSceneResource(normalMap.texture, 'shared scene normal map').retire());
-    if (normalMap) normalMap.texture = null;
+    run(() => retireNormalMapState(normalMap));
     if (belongs) { state.stackPipeOwners=[];state.stackPipeLayers=[];state.pipeBufferMetrics=null;state.stackPacketOwner=null; }
     run(() => rendererOwner.retire()); run(() => canvasOwner.retire());
     disposalFailure = preserveSceneCleanupFailures(null, errors);

@@ -2,10 +2,13 @@ import { state } from './state.js';
 import { clamp, numberValue } from './utils.js';
 import { toArray } from '../../../shared/iterables.js';
 import { injectWorldFogPosition } from './world-fog.js';
+import { createNormalMapOwner, retireNormalMapState } from './normal-map-owner.js';
+import { getPendingSceneResourceOwners } from './scene-retirement.js';
 const heightFogMaterials = new WeakSet();
 
 export const initMaterials = () => {
   const { THREE, assets, visuals } = state;
+  retireNormalMapState(state.normalMapState);
   state.glowMaterials = [];
   state.flowMaterials = [];
   state.glassMaterials = [];
@@ -13,25 +16,39 @@ export const initMaterials = () => {
   state.glassShells = [];
   state.wireMaterials = [];
   state.gridLineMaterials = [];
-  const normalMapState = { texture: null };
-  state.normalMapState = normalMapState;
   const scene = state.scene;
-
-  if (assets.normalMapUrl) {
-    const loader = new THREE.TextureLoader();
-    loader.load(assets.normalMapUrl, (texture) => {
-      if (state.scene !== scene || state.normalMapState !== normalMapState || !state.disposeScene) {
-        texture.dispose();
-        return;
-      }
+  const current = () => state.scene === scene && state.normalMapState === normalMapState && typeof state.disposeScene === 'function';
+  const normalMapState = createNormalMapOwner({ isCurrent: current,
+    configure(texture) {
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
       texture.repeat.set(visuals.glass.normalRepeat, visuals.glass.normalRepeat);
       texture.userData = { ...(texture.userData || {}), shared: true };
-      state.normalMapState.texture = texture;
+    },
+    publish() {
+      if (!current()) return;
       applyGlassSettings();
-      state.invalidateRender?.();
-    });
+      if (current()) state.invalidateRender?.();
+    }
+  });
+  state.normalMapState = normalMapState;
+  state.normalMapFailure = null;
+  const report = failure => {
+    if (!current()) return;
+    state.normalMapFailure = failure;
+    state.sceneRetirementOwners = getPendingSceneResourceOwners();
+  };
+
+  if (assets.normalMapUrl) {
+    const loader = new THREE.TextureLoader();
+    try {
+      const returned = loader.load(assets.normalMapUrl, texture => {
+        try { normalMapState.accept(texture); } catch (failure) { report(failure); }
+      }, undefined, error => {
+        try { normalMapState.fail(error); } catch (failure) { report(failure); }
+      });
+      normalMapState.track(returned);
+    } catch (error) { normalMapState.fail(error); }
   }
 };
 
@@ -336,8 +353,11 @@ export const applyGlassSettings = () => {
     material.envMapIntensity = glass.envMapIntensity * envScale;
     material.clearcoat = glass.clearcoat;
     material.clearcoatRoughness = glass.clearcoatRoughness;
-    if (normalMapState.texture) {
-      normalMapState.texture.repeat.set(glass.normalRepeat, glass.normalRepeat);
+    const normalMap = normalMapState.texture;
+    material.normalMap = normalMap || null;
+    material.clearcoatNormalMap = normalMap || null;
+    if (normalMap) {
+      normalMap.repeat.set(glass.normalRepeat, glass.normalRepeat);
       material.normalScale = new THREE.Vector2(glass.normalScale, glass.normalScale);
       material.clearcoatNormalScale = new THREE.Vector2(glass.clearcoatNormalScale, glass.clearcoatNormalScale);
     }

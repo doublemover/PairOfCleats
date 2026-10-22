@@ -3,6 +3,7 @@ import { state } from '../../src/map/isometric/client/state.js';
 import { initScene } from '../../src/map/isometric/client/scene.js';
 import { getPendingSceneResourceOwners } from '../../src/map/isometric/client/scene-retirement.js';
 import { createRendererEnhancementOwner } from '../../src/map/isometric/client/rendering/enhancement-owner.js';
+import { createNormalMapOwner } from '../../src/map/isometric/client/normal-map-owner.js';
 
 // Actual initScene/disposeScene with inert constructors, no DOM host or Three.
 const originalState = { ...state }, originalWindow = globalThis.window, originalDocument = globalThis.document;
@@ -131,6 +132,16 @@ try {
   for(const owner of getPendingSceneResourceOwners())try{owner.release();}catch{}
   assert.equal(failedEnhancement.error.sceneOwnershipReleased(),true);assert.equal(failedRenderer.calls,2);
   failingEnhancement.dispose();
+
+  // Actual shutdown retires the loader's captured returned texture even before
+  // its completion callback, without looking up a replaced texture disposer.
+  setup(); await initScene();
+  const originalScene=state.scene,uncompletedNormal=resource('uncompleted captured normal');
+  const normalOwner=createNormalMapOwner({isCurrent:()=>state.scene===originalScene,configure(){}});
+  normalOwner.track(uncompletedNormal);state.normalMapState=normalOwner;
+  uncompletedNormal.dispose=()=>assert.fail('normal-map shutdown retains the original loader-return disposer');
+  state.disposeScene();assert.equal(uncompletedNormal.calls,1);assert.equal(normalOwner.texture,null);
+  assert.equal(state.disposeScene,null);
 } finally {
   refusing = false;
   finishConstruction?.();

@@ -137,3 +137,33 @@ successful native closes. The new actual-constructor inert controls are authored
 and unrun. Native allocations hidden inside a throwing constructor before an
 object is returned, inaccessible native children, post-installation native-work
 semantics and real resource/retry/quiescence/host acceptance remain unqualified.
+
+The normal-map loader now captures the texture returned by `TextureLoader.load`
+before completion, and deduplicates a synchronous completion callback with that
+returned object. Shutdown and material-owner replacement use the factory's
+original retirement closure. A later callback retires only that loader's actual
+received texture and cannot replace a newer scene's normal map or diagnostics.
+Failed callback cleanup remains strongly reachable through the existing scene
+resource inventory. Ordinary retirement reports known failures without retrying
+them; explicit exact capabilities remain available for reconciliation. Normal-map
+textures require an original callable disposer; an absent or throwing required
+method cannot establish closure. Other existing optional scene actions retain
+their original absence contract.
+
+An original loader/configuration failure, including a falsey value, remains the
+primary failure alongside later captured cleanup outcomes. Observed original
+native work gates its texture, including when the failure callback runs before
+the allocated texture is returned. Private original composition records delegate
+only known local failures; copied public owner/cause fields do not authorize
+dropping an independent observer. Published textures remain published if previous
+texture retirement or a post-publication callback fails. Async completion also
+assigns the accepted normal map to already created glass materials before render
+invalidation. Explicit `false` from synchronous or asynchronous captured scene
+disposal remains unconfirmed. Actual original scene/cache observer functions are
+memoized once present; absent evidence can still receive its first actual owner.
+
+The new normal-map loader/material, actual shutdown, false-result and dual-owner
+controls are authored and **UNVALIDATED**. They use inert boundaries only. This
+does not establish cancellation of image loading, native/GPU quiescence,
+constructor-internal allocation coverage, driver retry safety, browser delivery,
+raster appearance, memory/resource bounds or performance acceptance.
