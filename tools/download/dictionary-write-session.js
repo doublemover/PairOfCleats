@@ -73,7 +73,7 @@ export const runDictionaryWriteSession = async ({ dictDir, signal = null, settle
       value = await execute({ signal, resourceId: session.resourceId, trackResource,
         trackStream: stream => trackResource(observeDictionaryStream(stream)) });
     } catch (error) {
-      primaryError = error;
+      primaryError = error && typeof error === 'object' ? error : new Error(String(error), { cause: error });
       for (const resource of resources) {
         try { resource.close(); } catch (cleanupError) { primaryError.dictionaryCleanupError ||= cleanupError; }
       }
@@ -139,7 +139,7 @@ export const streamDictionaryToFile = async (stream, outputPath, { maxBytes, exp
     if (buffer.length) lastByte = buffer[buffer.length - 1];
     done(null, buffer);
   } });
-  await pipeline(stream, meter, out, { signal });
+  await pipeline(stream, meter, out, signal ? { signal } : {});
   await output.closed;
   return { tempPath, bytes: total, lastByte, hashHex: hasher ? hasher.digest('hex') : null };
 };

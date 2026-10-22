@@ -56,7 +56,9 @@ const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes, allowLoc
     response = res;
     responseClosed = res.closed === true;
     res.once('close', () => { responseClosed = true; checkClosed(); });
-    res.on('error', error => finish(reject, downloadError(url, error?.message || 'response error', error?.code || 'ERR_DOWNLOAD_NETWORK')));
+    res.on('error', error => finish(reject, signal?.aborted ? signal.reason || error : timedOut
+      ? downloadError(url, `timeout after ${timeoutMs}ms`, 'ERR_DOWNLOAD_TIMEOUT')
+      : downloadError(url, error?.message || 'response error', error?.code || 'ERR_DOWNLOAD_NETWORK')));
     const statusCode = Number(res.statusCode) || 0;
     const responseHeaders = res.headers || {};
     if (REDIRECT_STATUS_CODES.has(statusCode)) {
@@ -124,6 +126,7 @@ const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes, allowLoc
     }, timeoutMs);
 
   req.on('error', (err) => {
+    if (signal?.aborted) { finish(reject, signal.reason || err); return; }
     if (timedOut) {
       finish(reject, downloadError(url, `timeout after ${timeoutMs}ms`, 'ERR_DOWNLOAD_TIMEOUT'));
       return;
