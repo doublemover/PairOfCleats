@@ -89,6 +89,8 @@ export function loadUserConfig(repoRoot, { env = process.env, onSources = null, 
   repositoryConfig = undefined } = {}) {
   const metadata = { version: 1, files: [], repoTrusted: isRepoTrusted(repoRoot, env),
     discardedAuthorityPaths: [], trustedMerge: false, testOverlay: { applied: false, source: 'test-environment' } };
+  const schemaErrors = messages => messages.map(message => ({ code: 'schema',
+    path: /^#([^ ]*)/.exec(message)?.[1] || '/', message }));
   const readSource = (filename, source, optional = false) => {
     let raw;
     const evidence = { path: filename, source, exists: false, contentHash: null };
@@ -118,7 +120,9 @@ export function loadUserConfig(repoRoot, { env = process.env, onSources = null, 
     const result = validateConfig(schema, base);
     if (!result.ok) {
       const details = result.errors.map((err) => `- ${err}`).join('\n');
-      throw new Error(`Config errors in ${configPath}:\n${details}`);
+      throw Object.assign(new Error(`Config errors in ${configPath}:\n${details}`), {
+        code: 'ERR_REPO_CONFIG_INVALID', configPath, errors: schemaErrors(result.errors)
+      });
     }
     const trustedPath = resolveTrustedConfigPath(repoRoot, env);
     const trusted = trustedPath ? readSource(trustedPath, 'trusted-external') : {};
@@ -126,7 +130,7 @@ export function loadUserConfig(repoRoot, { env = process.env, onSources = null, 
     if (!trustedResult.ok) throw Object.assign(new Error('Invalid user-owned trusted configuration:\n'
       + trustedResult.errors.map(error => `- ${error}`).join('\n')), {
       code: 'ERR_TRUSTED_CONFIG_INVALID', configPath: trustedPath,
-      errors: trustedResult.errors.map(message => ({ code: 'schema', message }))
+      errors: schemaErrors(trustedResult.errors)
     });
     const safe = applyRepoConfigAuthority(base, repoRoot, env);
     metadata.discardedAuthorityPaths = discardedConfigPaths(base, safe);

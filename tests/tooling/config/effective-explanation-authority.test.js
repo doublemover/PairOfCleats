@@ -14,6 +14,10 @@ try {
     const report = await explainEffectiveConfiguration({ repoRoot: root });
     assert.equal(report.ok, true);
     assert.equal(report.validation.runtime, 'not-probed');
+    assert.equal(report.selected.backend.state, 'selection-deferred');
+    assert.equal(report.selected.embeddingProvider.value, 'xenova');
+    assert.match(formatEffectiveConfiguration(report), /selected embedding provider: xenova/);
+    assert.match(formatEffectiveConfiguration(report), /backend: selection-deferred/);
     const missing = await explainEffectiveConfiguration({ repoRoot: root, configPath: path.join(root, 'missing.json') });
     assert.equal(missing.ok, false);
     assert.equal(missing.errorCode, 'ENOENT');
@@ -28,6 +32,12 @@ try {
     assert.equal(preview.threads, 1);
     assert.equal(preview.tooling.autoInstallOnDetect, undefined, 'in-memory preview retains canonical repository authority filtering');
     assert.equal(await fs.readFile(path.join(root, '.pairofcleats.json'), 'utf8'), before);
+    await fs.writeFile(path.join(root, '.pairofcleats.json'), '{"threads":"secret-looking-invalid-type"}');
+    const invalid = await explainEffectiveConfiguration({ repoRoot: root });
+    assert.equal(invalid.ok, false);
+    assert.equal(invalid.errorCode, 'ERR_REPO_CONFIG_INVALID');
+    assert.equal(invalid.errors[0].path, '/threads');
+    assert.equal(JSON.stringify(invalid).includes('secret-looking-invalid-type'), false, 'schema errors retain path/code without source values');
   });
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('Effective config explanation distinguishes authority and readiness.');
