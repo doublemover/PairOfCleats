@@ -112,6 +112,8 @@ programmatic bounds only tighten; no new runtime config/CLI selector is added.
 Cancellation/budget exhaustion returns incomplete output and no metric conclusion
 or decision. A256-byte output allowance retains a minimal terminal receipt.
 Checkpoint validation binds the normalized complete trace and restarts from zero.
+Source/claim machine identities use code-unit ordering instead of host locale;
+the versioned trace policy binds this normalization for checkpoint compatibility.
 
 The frozen metadata fixture in `tests/helpers/task-span-trace-fixture.js` and the
 focused `task-span-trace-and-quality` and `task-span-primary-report-parity` test

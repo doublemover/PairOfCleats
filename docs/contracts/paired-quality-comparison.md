@@ -44,7 +44,11 @@ task sum and count for the micro ratio. Unequal family sizes therefore do not
 silently replace repository-macro weighting with family-macro weighting. The
 point estimate uses the original complete pairs. The95% interval uses interpolated
 percentiles2.5 and97.5 of the seeded cluster resamples. Stable sorting makes
-results and checkpoint keys independent of input row order.
+results and checkpoint keys independent of input row order. Identity and cluster
+sorting uses UTF-16 code-unit order, independent of host locale. The seeded
+xorshift32 stream binds the versioned comparison policy as well as seed, metric
+and slice. Its `code-unit.xorshift32.v2` policy invalidates earlier comparison and
+fusion-selection checkpoints; changing collation cannot choose different draws.
 
 Each all-tasks or explicitly declared slice reports task, pair, repository and
 independent-cluster counts. Fewer than two complete clusters yields a null

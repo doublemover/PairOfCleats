@@ -4,9 +4,9 @@ import { setImmediate as yieldImmediate } from 'node:timers/promises';
 import { stableStringify } from '../../shared/stable-json.js';
 import { QUALITY_COMPARISON_VERSION } from '../../contracts/schemas/quality-comparison.js';
 import { validatePairedQualityRequest } from '../../contracts/validators/quality-comparison.js';
-import { snapshotEvaluationData } from './plain-data.js';
+import { snapshotEvaluationData, compareEvaluationKeys } from './plain-data.js';
 
-export const PAIRED_QUALITY_POLICY = 'repository-macro.complete-paired-quality.v1;paired-cluster-percentile.v1';
+export const PAIRED_QUALITY_POLICY = 'repository-macro.complete-paired-quality.v1;paired-cluster-percentile.code-unit.xorshift32.v2';
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const fail = message => Object.assign(new Error(message), { code: 'ERR_PAIRED_QUALITY_INPUT' });
 const caps = Object.freeze({ inputBytes: 8 * 1024 * 1024, outputBytes: 1024 * 1024, work: 2 * 1024 * 1024, maxMs: 1000 });
@@ -34,7 +34,7 @@ const admit = input => {
       if (families.has(row.repoId) && families.get(row.repoId) !== row.familyId) throw fail('One repository cannot change family across paired tasks.');
       families.set(row.repoId, row.familyId);
     }
-    request[side].sort((a, b) => a.taskKey.localeCompare(b.taskKey));
+    request[side].sort((a, b) => compareEvaluationKeys(a.taskKey, b.taskKey));
   }
   request.slices.sort();
   return request;
@@ -89,18 +89,18 @@ export const comparePairedQuality = async (input, { signal = null, limits = {}, 
       if (!byRepo.has(row.repoId)) byRepo.set(row.repoId, { familyId: row.familyId, differences: [] });
       byRepo.get(row.repoId).differences.push(row.difference);
     }
-    for (const [repoId, row] of [...byRepo].sort(([a], [b]) => a.localeCompare(b))) {
+    for (const [repoId, row] of [...byRepo].sort(([a], [b]) => compareEvaluationKeys(a, b))) {
       const key = request.cluster === 'repository' ? repoId : row.familyId;
       if (!byCluster.has(key)) byCluster.set(key, { repositorySum: 0, repositories: 0, taskSum: 0, tasks: 0 });
       const cluster = byCluster.get(key);
       cluster.repositorySum += mean(row.differences); cluster.repositories++;
       cluster.taskSum += row.differences.reduce((sum, value) => sum + value, 0); cluster.tasks += row.differences.length;
     }
-    const clusters = [...byCluster].sort(([a], [b]) => a.localeCompare(b)).map(([, value]) => value), samples = { macro: [], micro: [] };
+    const clusters = [...byCluster].sort(([a], [b]) => compareEvaluationKeys(a, b)).map(([, value]) => value), samples = { macro: [], micro: [] };
     const macro = mean([...byRepo.values()].map(row => mean(row.differences))), micro = mean(complete.map(row => row.difference));
     if (clusters.length > 1) {
       if (work + request.resamples * clusters.length > budget.work) return partial('work');
-      const random = randomFor([QUALITY_COMPARISON_VERSION, request.seed, request.metric, slice]);
+      const random = randomFor([QUALITY_COMPARISON_VERSION, PAIRED_QUALITY_POLICY, request.seed, request.metric, slice]);
       for (let sample = 0; sample < request.resamples; sample++) {
         if (sample % 128 === 0) { await yieldImmediate(); if (stop()) return partial(stop()); }
         let repositorySum = 0, repositories = 0, taskSum = 0, tasks = 0;

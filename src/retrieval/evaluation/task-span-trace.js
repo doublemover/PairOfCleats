@@ -4,9 +4,9 @@ import { setImmediate as yieldImmediate } from 'node:timers/promises';
 import { stableStringify } from '../../shared/stable-json.js';
 import { TASK_SPAN_TRACE_VERSION } from '../../contracts/schemas/task-span-trace.js';
 import { validateTaskSpanTrace } from '../../contracts/validators/task-span-trace.js';
-import { snapshotEvaluationData } from './plain-data.js';
+import { snapshotEvaluationData, compareEvaluationKeys } from './plain-data.js';
 
-export const TASK_SPAN_TRACE_POLICY = 'original-utf8-half-open.union-without-double-credit.v1;observable-attribution.v1';
+export const TASK_SPAN_TRACE_POLICY = 'original-utf8-half-open.union-without-double-credit.v1;observable-attribution.v1;code-unit-order.v1';
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const fail = message => Object.assign(new Error(message), { code: 'ERR_TASK_SPAN_TRACE' });
 const stages = ['retrieved', 'explored', 'delivered', 'used'];
@@ -19,7 +19,7 @@ const union = spans => {
     if (!groups.has(span.sourceKey)) groups.set(span.sourceKey, []);
     groups.get(span.sourceKey).push([span.start, span.end]);
   }
-  return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([sourceKey, ranges]) => {
+  return [...groups].sort(([a], [b]) => compareEvaluationKeys(a, b)).map(([sourceKey, ranges]) => {
     ranges.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     const merged = [];
     for (const range of ranges) {
@@ -42,7 +42,7 @@ const intersection = (left, right) => {
   }
   return total;
 };
-const spanOrder = (a, b) => a.sourceKey.localeCompare(b.sourceKey) || a.start - b.start || a.end - b.end;
+const spanOrder = (a, b) => compareEvaluationKeys(a.sourceKey, b.sourceKey) || a.start - b.start || a.end - b.end;
 
 /** Saved opt-in observations only. Source text is never read/captured and raw
  * labels never enter retrieval or selection. Used means explicit attribution. */
@@ -67,8 +67,8 @@ export const evaluateTaskSpanTrace = async (input, { signal = null, limits = {},
   const validation = validateTaskSpanTrace(trace);
   if (!validation.ok) throw fail(`Invalid task-span trace: ${validation.errors.slice(0, 4).join('; ')}`);
   if (Buffer.byteLength(JSON.stringify(trace)) > budget.inputBytes) return partial('input-bytes');
-  trace.sources.sort((a, b) => a.key.localeCompare(b.key)); trace.events.sort((a, b) => a.sequence - b.sequence);
-  trace.claims.sort((a, b) => a.id.localeCompare(b.id)); trace.gold.sort(spanOrder);
+  trace.sources.sort((a, b) => compareEvaluationKeys(a.key, b.key)); trace.events.sort((a, b) => a.sequence - b.sequence);
+  trace.claims.sort((a, b) => compareEvaluationKeys(a.id, b.id)); trace.gold.sort(spanOrder);
   traceKey = digest({ version: TASK_SPAN_TRACE_VERSION, policy: TASK_SPAN_TRACE_POLICY, trace });
   if (resumeKey !== null && resumeKey !== traceKey) throw fail('Trace checkpoint source, task, labels or event identity changed.');
   const sources = new Map(), files = new Set();
