@@ -20,7 +20,7 @@ import {
   buildCrossFileInferenceRoiMetrics
 } from './cross-file-budget.js';
 import { buildAndStoreRiskSummaries, shouldBuildRiskSummaries } from './risk-summary.js';
-import { SCHEDULER_QUEUE_NAMES } from '../../../runtime/scheduler.js';
+import { scheduleRelationsPhysicalBaseline } from './physical-baseline.js';
 
 const safeDivide = (numerator, denominator) => {
   if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) return 0;
@@ -51,10 +51,8 @@ export const runCrossFileInference = async ({
   // Semantic execution owns its own compiler/native reservation. Budget the
   // surrounding preparation and legacy work separately so neither holds the
   // sole CPU token while awaiting that independently admitted work.
-  const withRelationsBudget = fn => runtime.scheduler?.schedule
-    ? runtime.scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2Relations,
-      { cpu: 1, mem: 1, signal: abortSignal }, fn)
-    : fn();
+  const withRelationsBudget = (stage, run) => scheduleRelationsPhysicalBaseline({ runtime, mode, stage, run,
+    chunks: state.chunks?.length || 0, files: state.fileRelations?.size || 0, signal: abortSignal });
   const policy = runtime.analysisPolicy || {};
   const typeInferenceEnabled = typeof policy?.typeInference?.local?.enabled === 'boolean'
     ? policy.typeInference.local.enabled
@@ -107,7 +105,7 @@ export const runCrossFileInference = async ({
   // Bind immutable source occurrences before the legacy resolver builds target indexes.
   // Reuse this tooling pass for legacy types instead of constructing a second Program.
   if (mode === 'code' && runtime.semanticPolicy?.enabled) {
-    const { semanticSession, semanticLspSession, toolingConfig, toolingDocuments, work } = await withRelationsBudget(async () => {
+    const { semanticSession, semanticLspSession, toolingConfig, toolingDocuments, work } = await withRelationsBudget('prepare', async () => {
       const semanticSession = await createSemanticCompilerSession({ state, runtime, signal: abortSignal });
       const semanticLspSession = await createSemanticLspSession({ state, runtime, signal: abortSignal, languages: ['javascript', 'typescript'] });
       const toolingConfig = getToolingConfig(runtime.root);
@@ -138,7 +136,7 @@ export const runCrossFileInference = async ({
     await runNativeSemanticProviders({ state, runtime, toolingConfig, log, signal: abortSignal });
   }
 
-  return withRelationsBudget(async () => {
+  return withRelationsBudget('propagate', async () => {
     if (mode === 'code' && runtime.semanticPolicy?.enabled) await persistSemanticAnalysisFrontiers({ state, runtime, signal: abortSignal });
 
     if (mode === 'code' && crossFileEnabled) {
