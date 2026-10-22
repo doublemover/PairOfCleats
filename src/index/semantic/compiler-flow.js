@@ -1,5 +1,7 @@
+import { createCfgRoutingLookup } from './compiler-cfg-routing.js';
 import { SEMANTIC_ANALYSIS_VERSIONS, resolveCfgConstructionMaxBytes } from './analysis-versions.js';
-import { propertyPathsOverlap } from './compiler-property-paths.js';
+import { createPropertyPathOverlapIndex } from './compiler-property-path-index.js';
+import { mergeDefinitionStates, createDefinitionTransfer, definitionStatesEqual, definitionBudgetError } from './compiler-definition-state.js';
 import { compilerCallAdapter } from './compiler-call-adapter.js';
 import { compilerRuntimeParameters, compilerInvocationInputs } from './compiler-invocation.js';
 import { createCompilerFieldPaths, collectCompilerAliasAssignments } from './compiler-flow-fields.js';
@@ -152,47 +154,51 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
     for(const [token,entry] of symbols) if(entry.location) {
       const key=canonicalSemanticJson(entry.location.root); if(!fieldGroups.has(key))fieldGroups.set(key,[]);fieldGroups.get(key).push([token,entry]);
     }
-    for(const group of fieldGroups.values()) for(const [token,entry] of group) {
-      const matches=[]; overlaps.set(token,matches);
-      for(const [other,value] of group) {
-        if(--fieldWork<0) {reasons.add('field_overlap_work_budget');break;}
-        if(propertyPathsOverlap(entry.location.path,value.location.path))matches.push(other);
+    for (const group of fieldGroups.values()) {
+      const index = createPropertyPathOverlapIndex(group, { resolvePath: row => row[1].location.path,
+        spend: () => --fieldWork >= 0 });
+      if (!index.complete) reasons.add('field_overlap_work_budget');
+      for (const [token, entry] of group) {
+        const result = index.query(entry.location.path, { spend: () => --fieldWork >= 0 });
+        overlaps.set(token, result.matches.map(row => row[0]));
+        if (result.truncated) reasons.add('field_overlap_work_budget');
       }
     }
     const incoming = new Map(), outgoing = new Map();
-    const merge = block => {
-      const result = new Map();
-      const parents = predecessors.get(block) || [];
-      if (block === graph.entry) return new Map([...initial].map(([key, values]) => [key, new Set(values)]));
-      for (const parent of parents) for (const [symbol, values] of outgoing.get(parent) || []) {
-        if (!result.has(symbol)) result.set(symbol, new Set());
-        for (const value of values) result.get(symbol).add(value);
-      }
-      return result;
-    };
-    const equal = (a, b) => Boolean(a && a.size === b.size && [...b].every(([key, values]) => a.has(key)
-      && a.get(key).size === values.size && [...values].every(value => a.get(key).has(value))));
+    let definitionWork = 1000000, definitionBudgetExhausted = false;
+    const spendDefinitions = amount => { definitionWork -= amount; return definitionWork >= 0; };
+    const merge = block => block === graph.entry ? initial
+      : mergeDefinitionStates((predecessors.get(block) || []).map(parent => outgoing.get(parent)), { spend: spendDefinitions });
     const queue = [graph.entry], queued = new Set(queue);
     let index = 0;
     const maxWork = policy.enrichment.maxSccIterations * Math.max(1, reachable.size);
     while (index < queue.length && index < maxWork) {
       throwIfAborted(signal);
       const block = queue[index++]; queued.delete(block);
-      const input = merge(block), output = new Map([...input].map(([key, values]) => [key, new Set(values)]));
+      try {
+      const input = merge(block), transfer = createDefinitionTransfer(input, { spend: spendDefinitions });
       incoming.set(block, input);
-      if (writes.has(block)) output.set(block.symbol, new Set([writes.get(block).local]));
+      if (writes.has(block)) transfer.set(block.symbol, new Set([writes.get(block).local]));
       // A field path is a may-location: retain older candidates rather than claiming an alias-safe kill.
       if (heapWrites.has(block)) for (const field of block.fields) {
         const strong = block.fields.length === 1 && ordered.strongAt(symbols.get(field).location, block.node);
-        for (const token of overlaps.get(field) || [field]) output.set(token,new Set([...(strong ? [] : output.get(token)||[]),heapWrites.get(block).local]));
+        for (const token of overlaps.get(field) || [field]) {
+          if (!spendDefinitions((strong ? 0 : transfer.get(token)?.size || 0) + 1)) throw definitionBudgetError();
+          transfer.set(token,new Set([...(strong ? [] : transfer.get(token)||[]),heapWrites.get(block).local]));
+        }
       }
-      for (const copy of block.orderedCopies || []) output.set(copy.targetToken, new Set([copy.value.local]));
-      if (!equal(outgoing.get(block), output)) {
+      for (const copy of block.orderedCopies || []) transfer.set(copy.targetToken, new Set([copy.value.local]));
+      const output = transfer.finish();
+      if (!definitionStatesEqual(outgoing.get(block), output, { spend: spendDefinitions })) {
         outgoing.set(block, output);
         for (const successor of block.successors) if (!queued.has(successor.to)) { queue.push(successor.to); queued.add(successor.to); }
       }
+      } catch (error) {
+        if (error.code !== 'ERR_COMPILER_DEFINITION_BUDGET') throw error;
+        definitionBudgetExhausted = true; reasons.add('reaching_definition_state_budget'); break;
+      }
     }
-    const complete = index === queue.length;
+    const complete = !definitionBudgetExhausted && index === queue.length;
     // One reverse reachability pass for all pending returns, not one graph scan per return.
     const completionReachable = new Set([graph.exit]), completionPending = [graph.exit];
     while (completionPending.length) {
@@ -213,21 +219,19 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
       }
     }
     let routingWork = 1000000;
-    const exceptionTargets = block => {
-      const targets = new Set(), seen = new Set(), pending = block.successors.filter(value => value.kind === 'exceptional' || block.event?.kind === 'throw').map(value => value.to);
-      while (pending.length) {
-        throwIfAborted(signal);
-        if (--routingWork < 0) { reasons.add('exception_and_effect_route_budget'); break; }
-        const current = pending.pop(); if (seen.has(current)) continue; seen.add(current);
-        if (catches.has(current) || current === graph.exception) { targets.add(current); continue; }
-        // A finally return/throw overrides the pending exception; do not route its payload onward.
-        if (['return', 'throw'].includes(current.event?.kind)) continue;
-        for (const next of current.successors) pending.push(next.to);
-      }
-      return targets;
+    const spendRoutingWork = () => {
+      if (--routingWork >= 0) return true;
+      reasons.add('exception_and_effect_route_budget'); return false;
     };
-    for (const entry of symbols.values()) if (entry.location?.parameter !== null && entry.location?.parameter !== undefined)
-      parameterFields.push({ parameter: entry.location.parameter, path: entry.location.path, ref: entry.unknown });
+    const exceptionLookup = createCfgRoutingLookup({ successors: block => block.successors.map(edge => edge.to),
+      select: block => catches.has(block) || block === graph.exception,
+      barrier: block => catches.has(block) || block === graph.exception || ['return', 'throw'].includes(block.event?.kind),
+      spend: spendRoutingWork, signal });
+    const readLookup = createCfgRoutingLookup({ successors: block => block.successors.map(edge => edge.to),
+      select: block => block.event?.kind === 'heapRead', spend: spendRoutingWork, signal });
+    const exceptionTargets = block => new Set(exceptionLookup.query(block.successors
+      .filter(value => value.kind === 'exceptional' || block.event?.kind === 'throw').map(value => value.to)));
+
     for (const block of reachable) {
       const event = block.event;
       // Aggregate consumers keep current modeled element inputs without using
@@ -287,13 +291,12 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
         if(ts.isNewExpression(block.node) && !orderedOperations.has(canonicalSemanticJson(block.site)))fields.rootsFor(block.node);
         if(callee?.kind===ts.SyntaxKind.SuperKeyword)fields.rootsFor(callee);
         if(callee&&(ts.isPropertyAccessExpression(callee)||ts.isElementAccessExpression(callee)) && !orderedOperations.has(canonicalSemanticJson(block.site))) fields.rootsFor(callee.expression);
-        const reads = [], seen = new Set(), pending = block.successors.filter(value => value.kind !== 'exceptional').map(value => value.to);
-        while (pending.length) {
-          throwIfAborted(signal);
-          if (--routingWork < 0) { reasons.add('exception_and_effect_route_budget'); break; }
-          const current = pending.pop(); if (seen.has(current)) continue; seen.add(current);
-          if (current.event?.kind === 'heapRead') for(const field of current.fields || []) { const location = symbols.get(field).location; reads.push({ root: location.root, path: location.path, ref: current.site }); }
-          for (const next of current.successors) pending.push(next.to);
+        const reads = [];
+        // Only the initial effect edges exclude exceptional successors. Every
+        // downstream block follows all successors, preserving the reference rule.
+        for (const current of readLookup.query(block.successors.filter(value => value.kind !== 'exceptional').map(value => value.to))) {
+          for (const field of current.fields || []) { const location = symbols.get(field).location;
+            reads.push({ root: location.root, path: location.path, ref: current.site }); }
         }
         const targets = [...exceptionTargets(block)];
         callEffects.push({ result: block.site, reads, exceptionTargets: targets.map(target => catches.get(target) || blockRefs.get(target)), exceptionEscapes: targets.includes(graph.exception) });
