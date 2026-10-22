@@ -97,7 +97,6 @@ function createArchiveLimiter(limits) {
 
 async function extractZipNode(archivePath, destDir, limits) {
   const limiter = createArchiveLimiter(limits);
-  await fs.mkdir(destDir, { recursive: true });
   const mod = await import('yauzl');
   const yauzl = mod.default || mod;
   return new Promise((resolve, reject) => {
@@ -197,7 +196,6 @@ async function extractTarNode(archivePath, destDir, gzip, limits) {
   const tarStream = mod.default || mod;
   const extract = tarStream.extract();
   const limiter = createArchiveLimiter(limits);
-  await fs.mkdir(destDir, { recursive: true });
   extract.on('entry', (header, stream, next) => {
     const rawName = header?.name || '';
     const type = header?.type || 'file';
@@ -280,17 +278,45 @@ async function extractArchiveNode(archivePath, destDir, type, limits) {
 }
 
 /**
- * Extract an archive into a destination directory.
+ * Extract into an exclusively created destination. Callers must provide an
+ * existing parent and a destination that does not exist, including empty dirs.
+ * Cleanup never removes pre-existing or identity-replaced destinations.
  * @param {string} archivePath
  * @param {string} destDir
  * @param {string} type
  * @returns {boolean}
  */
 export async function extractArchive(archivePath, destDir, type, limits) {
+  const destination = path.resolve(destDir);
   try {
-    return await extractArchiveNode(archivePath, destDir, type, limits);
+    await fs.mkdir(destination, { mode: DIR_MODE });
   } catch (error) {
-    await fs.rm(destDir, { recursive: true, force: true });
+    if (error.code !== 'EEXIST') throw error;
+    throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `Archive destination must not exist: ${destination}`);
+  }
+  // Capture the physical directory identity before extraction or recursive
+  // cleanup. Exclusivity excludes all pre-existing linked child paths.
+  const owned = await fs.lstat(destination, { bigint: true });
+  try {
+    return await extractArchiveNode(archivePath, destination, type, limits);
+  } catch (error) {
+    try {
+      const current = await fs.lstat(destination, { bigint: true }).catch(cause => {
+        if (cause.code === 'ENOENT') return null;
+        throw cause;
+      });
+      if (current) {
+        if (!owned.isDirectory() || owned.isSymbolicLink() || owned.ino === 0n
+          || !current.isDirectory() || current.isSymbolicLink()
+          || current.dev !== owned.dev || current.ino !== owned.ino) {
+          throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `Archive cleanup refused changed destination: ${destination}`);
+        }
+        await fs.rm(destination, { recursive: true, force: true });
+      }
+    } catch (cleanupError) {
+      error.cleanupError = cleanupError;
+      error.recoveryPath = destination;
+    }
     throw error;
   }
 }

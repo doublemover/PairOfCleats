@@ -282,7 +282,6 @@ async function downloadSource(source, index) {
     let extractedFrom = null;
     if (archiveType) {
       const extractDir = path.join(transactionRoot, 'extracted');
-      await fs.mkdir(extractDir, { recursive: true });
       const ok = await extractArchive(downloadPath, extractDir, archiveType, archiveLimits);
       if (!ok) {
         throw new Error(`Failed to extract ${downloadPath} (${archiveType})`);
