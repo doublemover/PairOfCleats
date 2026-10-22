@@ -3,18 +3,26 @@ import { randomUUID } from 'node:crypto';
 import { addStorageFailureContext } from './operation-error.js';
 
 const sessions = new WeakSet();
+const failureOwners = new WeakMap();
+const sealOwnershipObservation = error => {
+  const observe = Object.getOwnPropertyDescriptor(error, 'cacheOwnershipReleased')?.value;
+  Object.defineProperties(error, { cacheOwnershipPending: { value: true, writable: false, configurable: false },
+    cacheOwnershipReleased: { value: observe, writable: false, configurable: false } });
+  return error;
+};
 export const isStorageDirectorySession = session => Boolean(session) && sessions.has(session);
 export const getStorageDirectorySession = error => {
-  try { const session = error?.storageDirectorySession; return isStorageDirectorySession(session) ? session : null; }
+  if (error && typeof error === 'object' && failureOwners.has(error)) return failureOwners.get(error);
+  try { const session = Object.getOwnPropertyDescriptor(error, 'storageDirectorySession')?.value; return isStorageDirectorySession(session) ? session : null; }
   catch { return null; }
 };
-const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+const asError = value => value !== null && ['object', 'function'].includes(typeof value) ? value : new Error(String(value), { cause: value });
 const captureObservation = error => {
   try {
     const observe = error?.cacheOwnershipReleased;
-    if (error?.cacheOwnershipPending !== true && typeof observe !== 'function') return null;
-    return () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } };
-  } catch { return () => false; }
+    if (error?.cacheOwnershipPending !== true && typeof observe !== 'function') return { observe: null };
+    return { observe: () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } } };
+  } catch (inspectionError) { return { observe: () => false, inspectionFailed: true, inspectionError }; }
 };
 
 /** Own only the actual opened directory, admitted reads and original close.
@@ -24,29 +32,41 @@ const captureObservation = error => {
 export const withStorageDirectory = async (directory, action) => {
   if (typeof action !== 'function') throw new TypeError('Storage directory requires its enumeration callback.');
   const handle = await fs.opendir(directory);
-  let primary = null, closeMethod = null, closeCaptureError = null, readMethod = null;
+  let primary = null, closeMethod = null, closeCaptureError = null, readMethod = null, session = null;
   let accepting = true, closed = false, closing = null, overflow = false;
-  const inflight = new Set(), readFailures = [], observers = [], observed = new WeakSet();
+  const inflight = new Set(), readFailures = [], inspectionFailures = [], observers = [], observed = new WeakSet();
   const observeFailure = value => {
     const error = asError(value);
-    if (observed.has(error)) return error;
-    observed.add(error);
-    const observe = captureObservation(error);
-    if (observe) { if (observers.length < 128) observers.push(observe); else overflow = true; }
+    const queue = [error];
+    while (queue.length) {
+      const current = asError(queue.pop());
+      if (session && failureOwners.get(current) === session || observed.has(current)) continue;
+      observed.add(current);
+      const captured = captureObservation(current);
+      if (captured.observe) { if (observers.length < 128) observers.push(captured.observe); else overflow = true; }
+      if (captured.inspectionFailed) {
+        if (inspectionFailures.length < 64) {
+          const failure = asError(captured.inspectionError); inspectionFailures.push(failure); queue.push(failure);
+        } else overflow = true;
+      }
+    }
     return error;
   };
   try {
     closeMethod = handle.close;
     if (typeof closeMethod !== 'function') throw new TypeError('Storage directory has no original close owner.');
   } catch (error) { closeCaptureError = observeFailure(error); }
-  const isSettled = () => closed && !overflow && observers.every(observe => observe());
+  const originalResourcesSettled = () => !overflow && observers.every(observe => observe());
+  const isSettled = () => closed && originalResourcesSettled();
   const closeOwner = async () => {
     if (!closing) closing = (async () => {
       await Promise.allSettled([...inflight]);
       if (closed) return [];
       try {
+        if (!originalResourcesSettled()) throw new Error('Original storage directory work prohibits native close.');
         if (closeCaptureError) throw closeCaptureError;
-        await closeMethod.call(handle);
+        const result = await closeMethod.call(handle);
+        if (result === false) throw new Error('Storage directory close explicitly remained unconfirmed.');
         closed = true;
         return [];
       } catch (error) { return [observeFailure(error)]; }
@@ -54,15 +74,19 @@ export const withStorageDirectory = async (directory, action) => {
     return closing;
   };
   const retainFailure = failures => {
-    const pending = Object.assign(new AggregateError(failures, 'Storage directory closure remains unconfirmed.',
+    const diagnostics = [...failures, ...inspectionFailures.filter(error => !failures.includes(error))];
+    const pending = sealOwnershipObservation(Object.assign(new AggregateError(diagnostics, 'Storage directory closure remains unconfirmed.',
       failures.length ? { cause: failures[0] } : undefined), {
       code: 'ERR_STORAGE_DIRECTORY_CLOSE_PENDING', cacheOwnershipPending: true, cacheOwnershipReleased: isSettled
-    });
-    return addStorageFailureContext(primary || failures[0] || pending, { storageDirectorySession: session }, pending,
+    }));
+    failureOwners.set(pending, session);
+    const failure = addStorageFailureContext(primary || failures[0] || pending, { storageDirectorySession: session }, pending,
       { nonEnumerable: ['storageDirectorySession'] });
+    sealOwnershipObservation(failure); failureOwners.set(failure, session);
+    return failure;
   };
   const resourceId = `storage-directory:${randomUUID()}`;
-  const session = Object.freeze({ resourceId, isSettled, releaseAfterClose: async () => {
+  session = Object.freeze({ resourceId, isSettled, releaseAfterClose: async () => {
     const failures = await closeOwner();
     if (failures.length || !isSettled()) throw retainFailure(failures);
     return { resourceId, settled: true, pending: false };

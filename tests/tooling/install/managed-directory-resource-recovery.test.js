@@ -68,7 +68,8 @@ try {
     let failure;
     try { await installPinnedManagedTool({ toolingRoot, descriptor, ...dependencies }); } catch (error) { failure = error; }
     assert.equal(contains(failure, fileError), true);
-    assert.equal(contains(failure, directoryError), true);
+    assert.equal(contains(failure, directoryError), false, 'pending exact file owner prevents the first containing Dir close');
+    assert.equal(directoryCloses, 0);
     assert.ok(getStorageDirectorySession(failure));
     assert.equal(isStorageTransferSession(failure.storageTransferSession), true);
     assert.equal(verified, false, 'a failed immutable file scan cannot reach the executable verifier');
@@ -81,7 +82,7 @@ try {
     try { await held.releaseAfterSettlement(receipt); } catch (error) { directoryFailure = error; }
     assert.equal(contains(directoryFailure, directoryError), true);
     assert.equal(fileCloses, 2, 'actual file owner settles before its containing directory observer');
-    assert.equal(directoryCloses, 2);
+    assert.equal(directoryCloses, 1);
     assert.equal((await fs.stat(packageRoot)).isDirectory(), true, 'failed real directory close retains staging');
     assert.equal((await inspectStorageAccess(toolingRoot, { coordinationRoot })).protected, true);
     denyDirectory = false;
@@ -89,7 +90,7 @@ try {
     try { await directoryFailure.managedInstallSession.releaseAfterSettlement(receipt); } catch (error) { metadataFailure = error; }
     assert.equal(metadataFailure.cacheOwnershipReleased(), false);
     await assert.rejects(fs.stat(packageRoot), { code: 'ENOENT' }, 'exact staging cleanup follows both actual descriptor closes');
-    assert.equal(fileCloses, 2); assert.equal(directoryCloses, 3);
+    assert.equal(fileCloses, 2); assert.equal(directoryCloses, 2);
     assert.equal((await inspectStorageAccess(toolingRoot, { coordinationRoot })).protected, true);
     denyMetadata = false;
     assert.equal(await metadataFailure.managedInstallSession.releaseAfterSettlement(receipt), true,
@@ -97,7 +98,7 @@ try {
     assert.equal(failure.cacheOwnershipReleased(), true);
     assert.equal(metadataFailure.cacheOwnershipReleased(), true);
     assert.equal((await inspectStorageAccess(toolingRoot, { coordinationRoot })).protected, false);
-    assert.equal(fileCloses, 2); assert.equal(directoryCloses, 3);
+    assert.equal(fileCloses, 2); assert.equal(directoryCloses, 2);
     fs.open = open; fs.opendir = opendir; fsSync.rmSync = remove;
     packageRoot = null;
     assert.equal((await installPinnedManagedTool({ toolingRoot, descriptor, ...dependencies })).ok, true,

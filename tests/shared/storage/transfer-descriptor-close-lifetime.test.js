@@ -18,6 +18,7 @@ const contains = (error, expected) => {
   return false;
 };
 const open = fs.open;
+const openedHandles = [];
 try {
   const source = path.join(temporary, 'source.bin'), destination = path.join(temporary, 'destination.bin');
   const bytes = Buffer.alloc(128 * 1024, 0x41);
@@ -82,15 +83,16 @@ try {
   assert.deepEqual(await fs.readFile(copied), bytes);
 
   for (const known of [true, false]) for (const closeInitiallyDenied of [true, false]) {
-    let confirmed = false, deny = closeInitiallyDenied;
+    let confirmed = false, deny = closeInitiallyDenied, nativeCloses = 0;
     const native = Object.freeze(Object.assign(new Error('frozen independent transfer read owner'), { cacheOwnershipPending: true,
       ...(known ? { cacheOwnershipReleased() { return this === native && confirmed; } } : {}) }));
     fs.open = async (target, ...args) => {
       const handle = await open(target, ...args);
       if (target !== source) return handle;
+      openedHandles.push(handle);
       return new Proxy(handle, { get(owner, property) {
         if (property === 'read') return async () => { throw native; };
-        if (property === 'close') return async () => { if (deny) throw outputClose; await owner.close(); };
+        if (property === 'close') return async () => { nativeCloses++; if (deny) throw outputClose; await owner.close(); };
         const value = Reflect.get(owner, property, owner);
         return typeof value === 'function' ? value.bind(owner) : value;
       } });
@@ -99,10 +101,12 @@ try {
     try { await verifyStorageFile({ root: temporary, file: source }); } catch (error) { pending = error; }
     assert.equal(contains(pending, native), true);
     assert.equal(isStorageTransferSession(pending.storageTransferSession), true,
-      'a pending read owner retains its branded session even when every descriptor already closed successfully');
+      'a pending read owner retains its branded session before actual native descriptor close');
+    assert.equal(nativeCloses, 0);
     deny = false;
     await assert.rejects(pending.storageTransferSession.releaseAfterClose(), error => error.cacheOwnershipPending === true
       && error.cacheOwnershipReleased() === false, 'exact file close cannot override the original independent read owner');
+    assert.equal(nativeCloses, 0);
     confirmed = true;
     if (known) {
       await pending.storageTransferSession.releaseAfterClose();
@@ -111,8 +115,9 @@ try {
       await assert.rejects(pending.storageTransferSession.releaseAfterClose(), error => error.cacheOwnershipReleased() === false);
       assert.equal(pending.cacheOwnershipReleased(), false);
     }
-    // The actual file handle has closed in both variants. Unknown independent
-    // fixture evidence remains false without claiming a native owner settled.
+    assert.equal(nativeCloses, known ? 1 : 0);
+    // Unknown independent evidence leaves actual closure unattempted. Final
+    // fixture disposal does not constitute its resource settlement receipt.
     fs.open = open;
   }
 
@@ -138,5 +143,9 @@ try {
     fs.open = open;
     assert.equal((await inspectManagedInstallation({ toolingRoot: fixture.toolingRoot, toolId: fixture.toolId })).ok, true);
   });
-} finally { fs.open = open; await rmDirRecursive(temporary); }
+} finally {
+  fs.open = open;
+  for (const handle of openedHandles) { try { await handle.close(); } catch {} }
+  await rmDirRecursive(temporary);
+}
 console.log('Storage transfer closes both descriptors and preserves exact close recovery.');

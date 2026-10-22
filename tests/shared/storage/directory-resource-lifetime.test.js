@@ -11,6 +11,7 @@ import { inspectManagedInstallation } from '../../../tools/tooling/managed-insta
 // UNVALIDATED: actual disposable Dir owners, with inert read/close failures.
 const temporary = await makeTempDir('poc-directory-resource-');
 const opendir = fs.opendir;
+const openedDirectories = [];
 const contains = (error, expected) => {
   const pending = [error], seen = new Set();
   while (pending.length) {
@@ -88,14 +89,17 @@ try {
       ...(known ? { cacheOwnershipReleased() { return this === native && confirmed; } } : {}) }));
     fs.opendir = async (target, ...args) => {
       const directory = await opendir(target, ...args);
+      openedDirectories.push(directory);
       return { read: async () => { throw native; }, close: async () => { nativeCloses++; await directory.close(); } };
     };
     let pending;
     try { await withStorageDirectory(first, reader => reader.read()); } catch (error) { pending = error; }
     assert.equal(contains(pending, native), true);
     const owner = getStorageDirectorySession(pending);
-    assert.equal(owner.isSettled(), false, 'independent original evidence survives successful exact directory close');
+    assert.equal(owner.isSettled(), false, 'independent original evidence prohibits actual native directory close');
+    assert.equal(nativeCloses, 0);
     await assert.rejects(owner.releaseAfterClose(), error => error.cacheOwnershipReleased() === false);
+    assert.equal(nativeCloses, 0);
     confirmed = true;
     if (known) {
       await owner.releaseAfterClose();
@@ -104,7 +108,7 @@ try {
       await assert.rejects(owner.releaseAfterClose());
       assert.equal(pending.cacheOwnershipReleased(), false);
     }
-    assert.equal(nativeCloses, 1);
+    assert.equal(nativeCloses, known ? 1 : 0);
     fs.opendir = opendir;
   }
 
@@ -149,5 +153,10 @@ try {
     fs.opendir = opendir;
     assert.equal((await inspectManagedInstallation({ toolingRoot: fixture.toolingRoot, toolId: fixture.toolId })).ok, true);
   });
-} finally { fs.opendir = opendir; await rmDirRecursive(temporary); }
+} finally {
+  fs.opendir = opendir;
+  // Explicit fixture disposal does not authorize unknown original observers.
+  for (const directory of openedDirectories) { try { await directory.close(); } catch {} }
+  await rmDirRecursive(temporary);
+}
 console.log('Storage directory lifetime preserves actual read and close ownership.');
