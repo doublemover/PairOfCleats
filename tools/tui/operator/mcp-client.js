@@ -2,6 +2,7 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { MCP_PROTOCOL_VERSION } from '../../../src/integrations/mcp/protocol.js';
 import { createOwnedStdioClient } from './stdio-client.js';
+import { settleOwnedActions, combineOwnedErrors } from './settle-owned.js';
 
 /** A session-owned client for the canonical legacy MCP framing. It proves
  * initialize and tools/list responses; PID existence is never health evidence.
@@ -9,6 +10,21 @@ import { createOwnedStdioClient } from './stdio-client.js';
  */
 export const createTuiMcpClients = ({ toolRoot, requireScope, createClient = createOwnedStdioClient } = {}) => {
   const clients = new Map();
+  const close = entry => {
+    if (entry.closed) return Promise.resolve(entry.closed);
+    if (entry.closing) return entry.closing;
+    entry.phase = 'closing';
+    entry.closing = Promise.resolve().then(() => entry.client.dispose()).then(result => {
+      entry.closed = result || { closed: true };
+      if (clients.get(entry.jobId) === entry) clients.delete(entry.jobId);
+      return result;
+    }, error => {
+      entry.phase = 'closure-failed'; entry.closeErrorCode = String(error?.code || 'ERR_TUI_MCP_CLOSE');
+      throw error;
+    }).finally(() => { entry.closing = null; });
+    entry.closing.catch(() => {});
+    return entry.closing;
+  };
   const run = async ({ scope, jobId }, { signal, env, onSpawn, onActivity }) => {
     requireScope(scope.id);
     if (clients.size >= 2 || [...clients.values()].some(entry => entry.scopeId === scope.id)) {
@@ -23,6 +39,7 @@ export const createTuiMcpClients = ({ toolRoot, requireScope, createClient = cre
     const entry = { client, settlement, scopeId: scope.id, jobId, phase: 'initializing', initialized: false,
       lastHealthAt: null, healthChecks: 0, toolCount: null };
     clients.set(jobId, entry);
+    let primary = null;
     try {
       const hello = await client.request('initialize', { protocolVersion: MCP_PROTOCOL_VERSION,
         capabilities: {}, clientInfo: { name: 'pairofcleats-native', version: '1' } }, { signal });
@@ -49,22 +66,25 @@ export const createTuiMcpClients = ({ toolRoot, requireScope, createClient = cre
         finally { sleeper.abort(); }
         if (ended) break;
       }
-      const result = await client.dispose();
+      const result = await close(entry);
       return { exitCode: signal.aborted ? 130 : 1,
         stdout: JSON.stringify({ service: 'mcp', initialized: entry.initialized,
           healthChecks: entry.healthChecks, lastHealthAt: entry.lastHealthAt, stopped: true }), signal: result.signal };
-    } finally {
-      await client.dispose();
-      clients.delete(jobId); settle();
+    } catch (error) { primary = error; throw error; }
+    finally {
+      try { await close(entry); }
+      catch (error) { throw primary && primary !== error ? combineOwnedErrors(primary, [error]) : error; }
+      finally { settle(); }
     }
   };
   const status = scopeId => [...clients.values()].filter(entry => entry.scopeId === scopeId)
-    .map(({ client, settlement: _settlement, scopeId: _scope, ...entry }) => ({ service: 'mcp', ...entry, ...client.status(),
+    .map(({ client, settlement: _settlement, scopeId: _scope, closing: _closing, closed: _closed, ...entry }) => ({ service: 'mcp', ...entry, ...client.status(),
       healthMeaning: 'Last initialize/tools-list response; no search, index or tool-execution readiness claim.' }));
   const dispose = async () => {
     const owned = [...clients.values()];
-    await Promise.all(owned.map(entry => entry.client.dispose()));
-    await Promise.all(owned.map(entry => entry.settlement));
+    await settleOwnedActions(Object.fromEntries(owned.flatMap(entry => [
+      [`close:${entry.jobId}`, () => close(entry)], [`run:${entry.jobId}`, () => entry.settlement]
+    ])));
   };
   return { run, status, dispose };
 };

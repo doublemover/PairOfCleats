@@ -34,6 +34,7 @@ import { prepareTuiStorage, NATIVE_STORAGE_COMMANDS } from './storage.js';
 import { createTuiIndexer } from './indexer.js';
 import { createTuiApiServices } from './api-service.js';
 import { createTuiCacheMaintenance, NATIVE_BACKEND_MAINTENANCE } from './cache-maintenance.js';
+import { settleOwnedActions } from './settle-owned.js';
 
 const MAX_REPOS = 32;
 const MAX_PLANS = 16;
@@ -387,8 +388,9 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
   const closeContinuation = async request => {
     assertTuiWorkflowRequest('close-continuation', request); return semantic.discard(request);
   };
-  const reset = async () => { plans.clear(); await Promise.all([mcp.dispose(), api.dispose(), semantic.dispose(), indexer.dispose()]); };
+  const reset = async () => { plans.clear(); await settleOwnedActions({ mcp: () => mcp.dispose(), api: () => api.dispose(),
+    semantic: () => semantic.dispose(), indexer: () => indexer.dispose() }); };
   return { describe, preview, launch, discard, status, next, 'close-continuation': closeContinuation, reset,
     assertCacheAdmission: maintenance.assertAdmission, cacheMaintenanceStatus: maintenance.status,
-    dispose: async () => { disposed = true; await maintenance.dispose(); await reset(); } };
+    dispose: async () => { disposed = true; await settleOwnedActions({ maintenance: () => maintenance.dispose(), sessions: reset }); } };
 };
