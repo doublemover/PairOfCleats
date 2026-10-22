@@ -77,11 +77,6 @@ if (fsSync.existsSync(outDir) && !argv.force) {
     process.exit(1);
   }
 }
-if (fsSync.existsSync(outDir) && argv.force) {
-  await fs.rm(outDir, { recursive: true, force: true });
-}
-await fs.mkdir(outDir, { recursive: true });
-
 const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const mode = argv.mode || 'code';
 const strict = argv['non-strict'] !== true;
@@ -98,7 +93,21 @@ try {
     mode,
     userConfig,
     stage: argv.stage,
-    strict
+    strict,
+    prepareOutput: async () => {
+      const outputStat = fsSync.lstatSync(outDir, { throwIfNoEntry: false });
+      if (outputStat && (outputStat.isSymbolicLink() || !outputStat.isDirectory())) {
+        throw new Error(`assemble-pieces output must be an ordinary directory: ${outDir}`);
+      }
+      const canonicalOut = toRealPathSync(outDir);
+      for (const input of resolvedInputs) {
+        if (isWithinRoot(input, canonicalOut) || isWithinRoot(canonicalOut, input)) {
+          throw new Error(`assemble-pieces input/output overlap: ${input} and ${outDir}`);
+        }
+      }
+      if (outputStat && argv.force) await fs.rm(outDir, { recursive: true, force: true });
+      await fs.mkdir(outDir, { recursive: true });
+    }
   });
 } catch (err) {
   if (!strict && err?.code === 'ERR_MANIFEST_MISSING') {

@@ -6,6 +6,8 @@ import { MODULE_EXPORTS_VERSION } from '../../lang/js-ts-exports.js';
  */
 export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   moduleExports: MODULE_EXPORTS_VERSION,
+  lexicalAnalyzer: '2', importResolution: '2', pieceAssembly: '2',
+  sourceChunking: '2', typeNormalization: '2',
   compilerBindings: '10', lspBindings: '13', cfgFlow: '14', callFlow: '12',
   valueSlice: '5', storageFlow: '2', workerFlow: '6', boundaryFlow: '8', wasmFlow: '5', nativeFlow: '1'
 });

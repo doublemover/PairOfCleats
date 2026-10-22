@@ -18,7 +18,7 @@ import { MINHASH_HASH_IDENTITY } from '../../minhash.js';
 export { ARTIFACT_SCHEMA_HASH };
 
 // v12 retires polynomial MinHash signatures and unlabelled cached chunk data.
-export const SIGNATURE_VERSION = 12;
+export const SIGNATURE_VERSION = 13;
 
 const normalizeRegex = (value) => (value instanceof RegExp ? value : (value || null));
 

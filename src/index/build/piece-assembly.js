@@ -31,7 +31,8 @@ export async function assembleIndexPieces({
   userConfig,
   stage = null,
   log = defaultLog,
-  strict = true
+  strict = true,
+  prepareOutput = null
 }) {
   if (!Array.isArray(inputs) || inputs.length === 0) {
     throw new Error('assembleIndexPieces requires input index directories.');
@@ -105,7 +106,7 @@ export async function assembleIndexPieces({
     ? Array.from(uniqueCompatibilityKeys)[0]
     : null;
   for (const dir of sortedInputs) {
-    const input = await loadIndexArtifacts(dir, { strict });
+    const input = await loadIndexArtifacts(dir, { strict, expectedMode: mode });
     const { chunkCount } = mergeIndexInput({ input, dir, state, mergeState });
     stageInputs.push({ indexState: input.indexState, chunkCount });
   }
@@ -316,6 +317,9 @@ export async function assembleIndexPieces({
   assembledIndexState.filterIndex = { ready: state.chunks.length > 0 };
 
   const postingsConfig = normalizePostingsConfig(userConfig?.indexing?.postings || {});
+  // Destructive CLI output preparation belongs after every input has loaded,
+  // passed mode/identity checks and merged successfully.
+  if (prepareOutput) await prepareOutput();
   await writeIndexArtifacts({
     outDir,
     mode,
