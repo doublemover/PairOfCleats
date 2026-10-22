@@ -4,6 +4,7 @@ import { assertNoSymlinkPath } from '../contained-file.js';
 import { STORAGE_CLASS_CATALOG } from './catalog.js';
 import { inspectStorageOwnership, inspectStorageInventory } from './inventory.js';
 import { inspectStorageAccess } from './access.js';
+import { readStorageProbePolicy } from './probe-policy-read.js';
 export { planStorageConfiguration, applyStorageConfiguration } from './configuration.js';
 
 /** Root metadata only; scan bytes explicitly with exact=true. */
@@ -33,6 +34,7 @@ export const inspectStorageLayout = async (layout, { exact = false, extraRoots =
 };
 
 export const explainStorageLayout = layout => ({ schemaVersion: 1, layout,
+  commandProbePolicy: readStorageProbePolicy(layout.home.path),
   classes: STORAGE_CLASS_CATALOG, mutationPerformed: false,
   adoption: 'Version 2 descriptors are available. Existing defaults remain at their legacy locations until a verified category cutover is selected.',
   externalExceptions: STORAGE_CLASS_CATALOG.filter(entry => entry.category === null) });
@@ -40,6 +42,9 @@ export const explainStorageLayout = layout => ({ schemaVersion: 1, layout,
 export const diagnoseStorageLayout = async (layout, options = {}) => {
   const inventory = await inspectStorageLayout(layout, { ...options, exact: false });
   const findings = [...layout.diagnostics];
+  const commandProbePolicy = readStorageProbePolicy(layout.home.path);
+  if (commandProbePolicy.status === 'invalid') findings.push({ category: 'command-probes', code: 'invalid-machine-storage-policy',
+    path: commandProbePolicy.target, error: commandProbePolicy.error, operations: 'cache-use-bypassed; existing-bytes-preserved' });
   for (const item of inventory.items) {
     if (item.status === 'inaccessible') findings.push({ category: item.category, code: 'inaccessible-or-offline-root', path: item.path, error: item.error });
     if (item.ownership?.status && item.ownership.status !== 'marked') findings.push({ category: item.category,
@@ -52,6 +57,6 @@ export const diagnoseStorageLayout = async (layout, options = {}) => {
     coordinationRoot: path.join(layout.descriptors.state.path, 'storage-access') });
   if (leases.protected) findings.push({ category: 'models', code: 'active-or-unknown-storage-owner', owners: leases.owners });
   return { schemaVersion: 1, timestamp: new Date().toISOString(), findings, inventory,
-    leaseCoverage: leases.coverage, mutationPerformed: false, installsPerformed: false, fullIndexScansPerformed: false };
+    commandProbePolicy, leaseCoverage: leases.coverage, mutationPerformed: false, installsPerformed: false, fullIndexScansPerformed: false };
 };
 

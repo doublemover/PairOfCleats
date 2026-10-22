@@ -7,6 +7,7 @@ import { inspectDictionaryStorage } from '../../src/shared/storage/dictionary-ad
 import { readToolingCacheEntry } from '../../src/index/tooling/cache-storage.js';
 import { isOwnedCommandProbeCacheEntry } from '../../src/index/tooling/command-probe-persistent-cache.js';
 import { inspectEmbeddingStorageProfile } from './embedding-adapter.js';
+import { readStorageProbePolicy } from '../../src/shared/storage/probe-policy-read.js';
 
 export const STORAGE_INVENTORY_ADAPTERS = Object.freeze(['embedding-profiles', 'dictionaries', 'command-probes']);
 const errorRecord = error => ({ code: error.code || 'ERR_STORAGE_CATEGORY_INVENTORY', message: error.message });
@@ -23,6 +24,7 @@ export const inspectStorageCategory = async ({ category, root, home, request = n
   const base = { schemaVersion: 1, category, path: root, home, timestamp: new Date().toISOString(),
     external: !isPathWithinRoot(root, home), scopeProvenance: 'explicit-read-only-category-inspection',
     mutationPerformed: false, deletionAuthority: false, cleanupAuthority: false };
+  if (category === 'command-probes') base.policy = readStorageProbePolicy(home);
   if (category === 'embedding-profiles') {
     if (!request || request.schemaVersion !== 1 || request.kind !== 'embedding-storage-profile-request'
       || !request.identity || typeof request.identity !== 'object' || Array.isArray(request.identity)

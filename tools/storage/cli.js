@@ -17,6 +17,7 @@ import { readStorageLocator } from '../../src/shared/storage/locator-read.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { applyStorageLocatorSelections } from '../../src/shared/storage/selected-layout.js';
 import { inspectStorageCategory, STORAGE_INVENTORY_ADAPTERS } from './category-inventory.js';
+import { planStorageProbePolicy, applyStorageProbePolicy } from '../../src/shared/storage/probe-policy.js';
 
 const argv = createCli({ scriptName: 'pairofcleats storage', options: STORAGE_OPTIONS,
   usage: `usage: pairofcleats storage <${STORAGE_ACTIONS.join('|')}> [--json]` })
@@ -82,7 +83,7 @@ try {
     code: error.code || 'ERR_STORAGE_CURRENT_LOCATIONS', message: error.message, authorityGranted: false }); }
   const limits = { maxEntries: argv['max-entries'], maxDurationMs: argv['max-duration-ms'] };
   let receipt;
-  if (configurationErrors.length && ['cleanup-plan', 'cleanup-apply', 'migration-plan', 'migration-apply', 'migration-rollback', 'migration-status', 'configure-plan', 'configure-apply'].includes(action)) {
+  if (configurationErrors.length && ['cleanup-plan', 'cleanup-apply', 'migration-plan', 'migration-apply', 'migration-rollback', 'migration-status', 'configure-plan', 'configure-apply', 'policy-plan', 'policy-apply'].includes(action)) {
     receipt = { schemaVersion: 1, action, ready: false, complete: false, mutationPerformed: false,
       blocked: [{ reason: 'configuration-incomplete-no-storage-authority-granted' }], configurationErrors };
     process.exitCode = 1;
@@ -95,6 +96,18 @@ try {
   } else if (action === 'inspect') receipt = await inspectStorageLayout(layout, { ...limits, exact: argv.exact,
     extraRoots: legacy, category: argv.category || null });
   else if (action === 'doctor') receipt = await diagnoseStorageLayout(layout, { ...limits, extraRoots: legacy });
+  else if (action === 'policy-plan') {
+    const patch = {};
+    // An omitted yargs boolean must preserve the current policy, rather than
+    // manufacturing an explicit false from parser defaults.
+    if (process.argv.slice(2).some(token => token === '--enabled' || token === '--no-enabled' || token.startsWith('--enabled='))) patch.enabled = argv.enabled;
+    for (const [flag, field] of [['entry-limit', 'entryLimit'], ['hard-bytes', 'hardBytes'], ['max-age-ms', 'maxAgeMs']]) {
+      if (argv[flag] !== undefined) patch[field] = argv[flag];
+    }
+    receipt = await planStorageProbePolicy({ home: layout.home.path, category: argv.category, patch, repoRoot });
+  } else if (action === 'policy-apply') receipt = await applyStorageProbePolicy(await readPlan(argv.plan), {
+    approvedPlanId: argv['plan-id'], home: layout.home.path, category: argv.category, repoRoot
+  });
   else if (action === 'configure-plan') {
     const compatibilityId = { models: 'legacy-models', tooling: 'legacy-tooling', extensions: 'legacy-extensions',
       dictionaries: 'legacy-dictionaries', tmp: 'legacy-scratch' }[argv.category];
@@ -133,7 +146,7 @@ try {
   if (argv.json) console.log(JSON.stringify(receipt, null, 2));
   else console.log(JSON.stringify({ action, status: receipt.complete === true ? 'complete' : receipt.ready === false ? 'blocked' : 'review-receipt',
     mutationPerformed: receipt.mutationPerformed === true, receipt }, null, 2));
-  if (['cleanup-apply', 'configure-apply', 'migration-apply'].includes(action) && receipt.complete !== true) process.exitCode = 1;
+  if (['cleanup-apply', 'configure-apply', 'migration-apply', 'policy-apply'].includes(action) && receipt.complete !== true) process.exitCode = 1;
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;

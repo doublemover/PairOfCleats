@@ -2,7 +2,8 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
-import { getCacheRoot } from '../../shared/cache-roots.js';
+import { getApplicationHome, getCacheRoot } from '../../shared/cache-roots.js';
+import { readStorageProbePolicy } from '../../shared/storage/probe-policy-read.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { isGeneratedCacheMetadata, withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 import { resolveNoProvisionToolingEnvironment } from '../../shared/toolchain-env.js';
@@ -20,13 +21,23 @@ const COMMAND_PROBE_CACHE_SCHEMA_VERSION = 2;
 const COMMAND_PROBE_CACHE_KEY_VERSION = 'tcp3';
 const SHARED_COMMAND_PROBE_CACHE_SUBDIR = path.join('tooling', 'command-probes');
 const TOOLING_CACHE_COMMAND_PROBE_SUBDIR = 'command-probes';
-const COMMAND_PROBE_CACHE_MAX_ENTRIES = 256;
-const COMMAND_PROBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const COMMAND_PROBE_CACHE_MAX_ENTRY_BYTES = 8 * 1024 * 1024;
 
 let persistentReadCount = 0;
 let persistentHitCount = 0;
 let persistentWriteCount = 0;
+
+const readAdmittedPolicy = () => {
+  try {
+    const selected = readStorageProbePolicy(getApplicationHome());
+    const policy = selected.policy;
+    return policy?.enabled && policy.entryLimit > 0 && policy.maxAgeMs > 0 && policy.hardBytes > 0 ? selected : null;
+  } catch { return null; }
+};
+const unchangedPolicy = selected => {
+  const current = readAdmittedPolicy();
+  return current && current.target === selected.target && current.sha256 === selected.sha256;
+};
 
 /** Cache context retains only a digest, never raw environment or credentials. */
 export const createCommandProbeEnvironmentIdentity = env => createHash('sha256').update(JSON.stringify({
@@ -191,8 +202,8 @@ export const isOwnedCommandProbeCacheEntry = (payload, fileName) => {
     && isCommandProbeEntry(payload, fileName));
 };
 
-const prunePersistentCommandProbeCacheDir = (cacheDir) => {
-  if (!cacheDir) return;
+const prunePersistentCommandProbeCacheDir = (cacheDir, selected) => {
+  if (!cacheDir || !unchangedPolicy(selected)) return;
   let entries;
   try {
     assertToolingCachePath(cacheDir);
@@ -201,7 +212,7 @@ const prunePersistentCommandProbeCacheDir = (cacheDir) => {
     return;
   }
   const files = [];
-  const cutoffMs = Date.now() - COMMAND_PROBE_CACHE_MAX_AGE_MS;
+  const cutoffMs = Date.now() - selected.policy.maxAgeMs;
   for (const entry of entries) {
     if (!entry?.isFile?.() || !/^[a-f0-9]{40}\.json$/.test(entry.name)) continue;
     const fullPath = path.join(cacheDir, entry.name);
@@ -210,14 +221,15 @@ const prunePersistentCommandProbeCacheDir = (cacheDir) => {
       if (!isOwnedCommandProbeCacheEntry(payload, entry.name)) continue;
       const size = toFiniteSize(stat.size);
       const mtimeMs = toFiniteMtimeMs(stat.mtimeMs);
-      if (mtimeMs > 0 && mtimeMs < cutoffMs) {
+      if (toFiniteTimestampMs(payload.createdAt) < cutoffMs) {
+        if (!unchangedPolicy(selected)) return;
         try { removeToolingCacheEntry(fullPath, stat); } catch {}
         continue;
       }
       files.push({ path: fullPath, stat, mtimeMs, size });
     } catch {}
   }
-  if (files.length <= COMMAND_PROBE_CACHE_MAX_ENTRIES) return;
+  if (files.length <= selected.policy.entryLimit) return;
   files.sort((left, right) => (
     left.mtimeMs - right.mtimeMs
   ) || (
@@ -225,8 +237,9 @@ const prunePersistentCommandProbeCacheDir = (cacheDir) => {
   ) || (
     left.path.localeCompare(right.path)
   ));
-  const overflow = files.length - COMMAND_PROBE_CACHE_MAX_ENTRIES;
+  const overflow = files.length - selected.policy.entryLimit;
   for (const entry of files.slice(0, overflow)) {
+    if (!unchangedPolicy(selected)) return;
     try { removeToolingCacheEntry(entry.path, entry.stat); } catch {}
   }
 };
@@ -240,6 +253,8 @@ export const readPersistentCommandProbeCache = ({
   probeEnv = null,
   successTtlMs = null
 } = {}) => {
+  const selected = readAdmittedPolicy();
+  if (!selected) return null;
   const descriptor = resolvePersistentCacheDescriptor({
     providerId,
     command,
@@ -265,12 +280,11 @@ export const readPersistentCommandProbeCache = ({
     if (toFiniteSize(parsed?.command?.size) !== descriptor.fingerprint.size) return null;
     if (toFiniteMtimeMs(parsed?.command?.mtimeMs) !== descriptor.fingerprint.mtimeMs) return null;
     if (!isAttemptList(parsed?.attempted)) return null;
-    const ttlMs = Number(successTtlMs);
-    if (Number.isFinite(ttlMs) && ttlMs >= 0) {
-      const createdAtMs = toFiniteTimestampMs(parsed?.createdAt);
-      if (createdAtMs <= 0) return null;
-      if ((Date.now() - createdAtMs) > Math.floor(ttlMs)) return null;
-    }
+    const requestedTtlMs = successTtlMs === null || successTtlMs === undefined ? selected.policy.maxAgeMs : Number(successTtlMs);
+    const ttlMs = Number.isFinite(requestedTtlMs) && requestedTtlMs >= 0
+      ? Math.min(Math.floor(requestedTtlMs), selected.policy.maxAgeMs) : selected.policy.maxAgeMs;
+    const createdAtMs = toFiniteTimestampMs(parsed?.createdAt);
+    if (ttlMs === 0 || createdAtMs <= 0 || Date.now() - createdAtMs >= ttlMs || !unchangedPolicy(selected)) return null;
     persistentHitCount += 1;
     return {
       ok: true,
@@ -292,6 +306,8 @@ export const writePersistentCommandProbeCache = ({
   probeEnv = null,
   attempted
 } = {}) => {
+  const selected = readAdmittedPolicy();
+  if (!selected) return false;
   const descriptor = resolvePersistentCacheDescriptor({
     providerId,
     command,
@@ -331,7 +347,7 @@ export const writePersistentCommandProbeCache = ({
       attempted
     }, 'command-probe');
     const nextBytes = Buffer.byteLength(`${JSON.stringify(next)}\n`);
-    if (nextBytes > COMMAND_PROBE_CACHE_MAX_ENTRY_BYTES) return false;
+    if (nextBytes > COMMAND_PROBE_CACHE_MAX_ENTRY_BYTES || nextBytes > selected.policy.hardBytes) return false;
     const files = [];
     const directory = fsSync.opendirSync(descriptor.cacheDir);
     try {
@@ -352,21 +368,22 @@ export const writePersistentCommandProbeCache = ({
     const previous = files.find(file => file.path === descriptor.cachePath);
     let count = files.length + (previous ? 0 : 1);
     let bytes = files.reduce((sum, file) => sum + BigInt(file.size), 0n) - BigInt(previous?.size || 0) + BigInt(nextBytes);
-    const budget = BigInt(COMMAND_PROBE_CACHE_MAX_ENTRIES) * BigInt(COMMAND_PROBE_CACHE_MAX_ENTRY_BYTES);
+    const budget = BigInt(selected.policy.hardBytes);
     const candidates = files.filter(file => file.path !== descriptor.cachePath)
       .sort((a, b) => a.mtimeMs - b.mtimeMs || a.path.localeCompare(b.path));
     for (const candidate of candidates) {
-      if (count <= COMMAND_PROBE_CACHE_MAX_ENTRIES && bytes <= budget) break;
+      if (count <= selected.policy.entryLimit && bytes <= budget) break;
+      if (!unchangedPolicy(selected)) return false;
       const current = readToolingCacheEntry(candidate.path);
       if (!isOwnedCommandProbeCacheEntry(current.payload, path.basename(candidate.path))
         || ['dev', 'ino', 'size', 'mtimeMs'].some(key => current.stat[key] !== candidate.stat[key])
         || !removeToolingCacheEntry(candidate.path, candidate.stat)) return false;
       count -= 1; bytes -= BigInt(candidate.size);
     }
-    if (count > COMMAND_PROBE_CACHE_MAX_ENTRIES || bytes > budget) return false;
+    if (count > selected.policy.entryLimit || bytes > budget || !unchangedPolicy(selected)) return false;
     writeToolingCacheJsonSync(descriptor.cachePath, next, { spaces: 0 });
     persistentWriteCount += 1;
-    prunePersistentCommandProbeCacheDir(descriptor.cacheDir);
+    prunePersistentCommandProbeCacheDir(descriptor.cacheDir, selected);
     return true;
   } catch {
     return false;
@@ -383,6 +400,8 @@ export const invalidatePersistentCommandProbeCache = ({
   toolingConfig,
   cwd = process.cwd()
 } = {}) => {
+  const selected = readAdmittedPolicy();
+  if (!selected) return false;
   const descriptor = resolvePersistentCacheDescriptor({
     providerId,
     command,
@@ -393,7 +412,7 @@ export const invalidatePersistentCommandProbeCache = ({
   if (!descriptor) return false;
   try {
     const { payload, stat } = readToolingCacheEntry(descriptor.cachePath);
-    return isOwnedCommandProbeCacheEntry(payload, path.basename(descriptor.cachePath))
+    return unchangedPolicy(selected) && isOwnedCommandProbeCacheEntry(payload, path.basename(descriptor.cachePath))
       && removeToolingCacheEntry(descriptor.cachePath, stat);
   } catch {
     return false;
