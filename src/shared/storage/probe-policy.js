@@ -3,7 +3,8 @@ import path from 'node:path';
 import { assertNoSymlinkPath, readVerifiedContainedFile } from '../contained-file.js';
 import { isPathWithinRoot } from '../file-paths.js';
 import { atomicWriteJson } from '../io/atomic-write.js';
-import { acquireFileLock, releaseFileLockOrThrow } from '../locks/file-lock.js';
+import { acquireFileLock } from '../locks/file-lock.js';
+import { addStorageFailureContext, releaseStorageOperationLock } from './operation-error.js';
 import { storagePlanDigest } from './migration-plan.js';
 import { readStorageProbePolicy } from './probe-policy-read.js';
 import { STORAGE_POLICY_VERSION, assertCommandProbeStoragePolicy } from '../../contracts/schemas/storage-policy.js';
@@ -50,6 +51,7 @@ export const applyStorageProbePolicy = async (plan, { approvedPlanId, home, cate
   const lock = await acquireFileLock({ lockPath: path.join(selected.config, 'storage-policy.lock'), waitMs: 0,
     staleMs: Number.MAX_SAFE_INTEGER, metadata: { scope: 'storage-policy', planId } });
   if (!lock) throw new Error('Another owner is publishing storage policy.');
+  let operationError = null;
   try {
     const before = readStorageProbePolicy(selected.home);
     if (before.status === 'invalid' || before.sha256 !== body.beforeHash || before.target !== body.file) throw new Error('Storage policy changed after review.');
@@ -61,7 +63,11 @@ export const applyStorageProbePolicy = async (plan, { approvedPlanId, home, cate
     const receiptFile = path.join(directory, `${planId}.json`);
     try { await atomicWriteJson(receiptFile, receipt, { mkdir: false, createOnly: true }); }
     catch (error) {
-      if (error.code !== 'EEXIST' && error.causeCode !== 'EEXIST') throw error;
+      let code, causeCode;
+      try { code = error?.code; causeCode = error?.causeCode; }
+      catch (inspection) { throw addStorageFailureContext(error, { storagePolicyInspectionError: inspection }, inspection,
+        { secondaryPresent: true }); }
+      if (code !== 'EEXIST' && causeCode !== 'EEXIST') throw error;
       const existing = JSON.parse((await readVerifiedContainedFile(directory, receiptFile, { maxBytes: 1024 * 1024 })).buffer.toString('utf8'));
       if (storagePlanDigest(existing) !== storagePlanDigest(receipt)) throw new Error('Immutable storage policy receipt conflicts; all existing bytes are preserved.');
     }
@@ -77,5 +83,8 @@ export const applyStorageProbePolicy = async (plan, { approvedPlanId, home, cate
     return { schemaVersion: STORAGE_POLICY_VERSION, planId, category, complete: true, mutationPerformed: true,
       cacheMutationPerformed: false, file: before.target, receiptFile, policy: body.after,
       restartRequired: false, existingCacheBytesPreserved: true };
-  } finally { await releaseFileLockOrThrow(lock); }
+  } catch (value) {
+    operationError = value !== null && ['object', 'function'].includes(typeof value) ? value : new Error(String(value), { cause: value });
+    throw operationError;
+  } finally { await releaseStorageOperationLock(lock, operationError); }
 };
