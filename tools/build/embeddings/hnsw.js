@@ -9,6 +9,7 @@ import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writer
 import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess/runner.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { createTempPath, replaceFile } from './atomic.js';
+import { copyFileWithDurability } from '../../../src/shared/io/persistence-helpers.js';
 import { resolveVectorsSource } from './vector-source.js';
 
 const TRACE_ARTIFACT_IO = getEnvConfig().traceArtifactIo === true;
@@ -121,12 +122,16 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
         traceLog(`[embeddings] ${mode}/hnsw: temp index missing after write; falling back to direct write.`);
         index.writeIndexSync(path.toNamespacedPath(indexPath));
       } else {
-        try {
-          traceLog(`[embeddings] ${mode}/hnsw: deleting backup ${indexPath}.bak`);
-          await fs.rm(`${indexPath}.bak`, { force: true });
-        } catch {}
+        if (fsSync.existsSync(indexPath)) {
+          const backupPath = `${indexPath}.bak`;
+          const backupTempPath = createTempPath(backupPath);
+          try {
+            await copyFileWithDurability(indexPath, backupTempPath);
+            await replaceFile(backupTempPath, backupPath);
+          } finally { await fs.rm(backupTempPath, { force: true }); }
+        }
         traceLog(`[embeddings] ${mode}/hnsw: moving ${tempHnswPath} -> ${indexPath}`);
-        await replaceFile(tempHnswPath, indexPath, { keepBackup: true });
+        await replaceFile(tempHnswPath, indexPath);
       }
     } catch (err) {
       if (err?.code === 'ERR_TEMP_MISSING') {

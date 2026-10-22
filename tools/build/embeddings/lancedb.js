@@ -1,10 +1,14 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { tryImport } from '../../../src/shared/optional-deps.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
-import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../../../src/shared/lancedb.js';
+import { assertLanceDbPayload, normalizeLanceDbConfig, resolveLanceDbPaths } from '../../../src/shared/lancedb.js';
+import { publishLanceDbReplacement, recoverLanceDbReplacement } from './backend-publication.js';
+import { readContainedFile } from '../../../src/shared/contained-file.js';
 import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { getLanceDbEnv } from '../../../src/shared/env/runtime.js';
 import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess/runner.js';
@@ -205,146 +209,172 @@ export async function writeLanceDbIndex({
   const dir = target.dir;
   const metaPath = target.metaPath;
 
-  try {
-    if (fsSync.existsSync(dir)) {
-      if (TRACE_ARTIFACT_IO) {
-        logger.log(`[embeddings] ${label || variant}: deleting existing LanceDB dir ${dir}`);
-      }
-      await fs.rm(dir, { recursive: true, force: true });
-      if (TRACE_ARTIFACT_IO) {
-        logger.log(`[embeddings] ${label || variant}: deleted LanceDB dir ${dir}`);
-      }
-    }
-  } catch {}
-
   const connect = lancedb.connect || lancedb.default?.connect;
   if (typeof connect !== 'function') {
     return { skipped: true, reason: 'invalid module' };
   }
 
-  const db = await connect(dir);
-  const tableName = resolvedConfig.table;
-  const idColumn = resolvedConfig.idColumn;
-  const embeddingColumn = resolvedConfig.embeddingColumn;
-  const batchSize = Math.max(1, Math.floor(resolvedConfig.batchSize || 1024));
-
-  let table = null;
-  let writtenCount = 0;
-  let actualCount = 0;
+  await fs.mkdir(indexDir, { recursive: true });
+  await recoverLanceDbReplacement({ dir, metaPath });
+  const publicationId = randomUUID();
+  const stageRoot = path.join(indexDir, `.lancedb-staging-${publicationId}`);
+  await fs.mkdir(stageRoot);
+  const stagedDir = path.join(stageRoot, path.basename(dir));
+  const stagedMetaPath = path.join(stageRoot, path.basename(metaPath));
+  let primaryError = null;
   try {
-    if (vectorsSource.rows && typeof vectorsSource.rows[Symbol.asyncIterator] === 'function') {
-      let docId = 0;
-      let firstBatch = [];
-      let batch = [];
-      for await (const entry of vectorsSource.rows) {
-        const vec = (entry && typeof entry === 'object' && !Array.isArray(entry))
-          ? (entry.vector ?? entry.values ?? null)
-          : entry;
-        if (vec && typeof vec.length === 'number') {
-          const floatVec = dequantizeUint8ToFloat32(
-            vec,
-            quantization?.minVal,
-            quantization?.maxVal,
-            quantization?.levels
-          );
-          if (floatVec) {
-            if (normalize !== false) {
-              normalizeEmbeddingVectorInPlace(floatVec);
+    const db = await connect(stagedDir);
+    const tableName = resolvedConfig.table;
+    const idColumn = resolvedConfig.idColumn;
+    const embeddingColumn = resolvedConfig.embeddingColumn;
+    const batchSize = Math.max(1, Math.floor(resolvedConfig.batchSize || 1024));
+
+    let table = null;
+    let writtenCount = 0;
+    let actualCount = 0;
+    let buildError = null;
+    try {
+      if (vectorsSource.rows && typeof vectorsSource.rows[Symbol.asyncIterator] === 'function') {
+        let docId = 0;
+        let firstBatch = [];
+        let batch = [];
+        for await (const entry of vectorsSource.rows) {
+          const vec = (entry && typeof entry === 'object' && !Array.isArray(entry))
+            ? (entry.vector ?? entry.values ?? null)
+            : entry;
+          if (vec && typeof vec.length === 'number') {
+            const floatVec = dequantizeUint8ToFloat32(
+              vec,
+              quantization?.minVal,
+              quantization?.maxVal,
+              quantization?.levels
+            );
+            if (floatVec) {
+              if (normalize !== false) {
+                normalizeEmbeddingVectorInPlace(floatVec);
+              }
+              batch.push({
+                [idColumn]: docId,
+                [embeddingColumn]: Array.from(floatVec)
+              });
+              writtenCount += 1;
             }
-            batch.push({
-              [idColumn]: docId,
-              [embeddingColumn]: Array.from(floatVec)
-            });
-            writtenCount += 1;
+          }
+          docId += 1;
+          if (batch.length >= batchSize) {
+            if (!table) {
+              firstBatch = batch;
+              table = await createTable(db, tableName, firstBatch);
+              if (!table && typeof db.openTable === 'function') {
+                table = await db.openTable(tableName);
+                if (firstBatch.length) await addRows(table, firstBatch);
+              }
+            } else if (batch.length) {
+              await addRows(table, batch);
+            }
+            batch = [];
           }
         }
-        docId += 1;
-        if (batch.length >= batchSize) {
-          if (!table) {
-            firstBatch = batch;
-            table = await createTable(db, tableName, firstBatch);
-            if (!table && typeof db.openTable === 'function') {
-              table = await db.openTable(tableName);
-              if (firstBatch.length) await addRows(table, firstBatch);
-            }
-          } else if (batch.length) {
-            await addRows(table, batch);
+        if (!table) {
+          firstBatch = batch;
+          table = await createTable(db, tableName, firstBatch);
+          if (!table && typeof db.openTable === 'function') {
+            table = await db.openTable(tableName);
+            if (firstBatch.length) await addRows(table, firstBatch);
           }
-          batch = [];
+        } else if (batch.length) {
+          await addRows(table, batch);
         }
-      }
-      if (!table) {
-        firstBatch = batch;
-        table = await createTable(db, tableName, firstBatch);
-        if (!table && typeof db.openTable === 'function') {
-          table = await db.openTable(tableName);
-          if (firstBatch.length) await addRows(table, firstBatch);
-        }
-      } else if (batch.length) {
-        await addRows(table, batch);
-      }
-    } else {
-      const resolvedVectors = vectorsSource.vectors;
-      const firstBatch = buildBatch(
-        resolvedVectors,
-        0,
-        Math.min(batchSize, resolvedVectors.length),
-        idColumn,
-        embeddingColumn,
-        quantization,
-        normalize
-      );
-      writtenCount += firstBatch.length;
-      table = await createTable(db, tableName, firstBatch);
-      if (!table && typeof db.openTable === 'function') {
-        table = await db.openTable(tableName);
-        if (firstBatch.length) await addRows(table, firstBatch);
-      }
-      for (let start = batchSize; start < resolvedVectors.length; start += batchSize) {
-        const rows = buildBatch(
+      } else {
+        const resolvedVectors = vectorsSource.vectors;
+        const firstBatch = buildBatch(
           resolvedVectors,
-          start,
-          Math.min(start + batchSize, resolvedVectors.length),
+          0,
+          Math.min(batchSize, resolvedVectors.length),
           idColumn,
           embeddingColumn,
           quantization,
           normalize
         );
-        if (rows.length) {
-          await addRows(table, rows);
-          writtenCount += rows.length;
+        writtenCount += firstBatch.length;
+        table = await createTable(db, tableName, firstBatch);
+        if (!table && typeof db.openTable === 'function') {
+          table = await db.openTable(tableName);
+          if (firstBatch.length) await addRows(table, firstBatch);
+        }
+        for (let start = batchSize; start < resolvedVectors.length; start += batchSize) {
+          const rows = buildBatch(
+            resolvedVectors,
+            start,
+            Math.min(start + batchSize, resolvedVectors.length),
+            idColumn,
+            embeddingColumn,
+            quantization,
+            normalize
+          );
+          if (rows.length) {
+            await addRows(table, rows);
+            writtenCount += rows.length;
+          }
         }
       }
+      actualCount = table ? await table.countRows() : 0;
+      if (actualCount !== writtenCount) throw new Error(`LanceDB insert count mismatch (${actualCount} of ${writtenCount}).`);
+    } catch (error) {
+      buildError = error;
+      throw error;
+    } finally {
+      const closeErrors = [];
+      for (const resource of [table, db]) {
+        try { await resource?.close?.(); } catch (error) { closeErrors.push(error); }
+      }
+      if (closeErrors.length) throw new AggregateError(buildError ? [buildError, ...closeErrors] : closeErrors,
+        'LanceDB writer failed to close native resources.', { cause: buildError || closeErrors[0] });
     }
-    actualCount = table ? await table.countRows() : 0;
-    if (actualCount !== writtenCount) throw new Error(`LanceDB insert count mismatch (${actualCount} of ${writtenCount}).`);
+
+    const meta = {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      model: modelId || null,
+      dims: Number.isFinite(Number(dims)) ? Number(dims) : null,
+      count: writtenCount,
+      expectedCount: writtenCount,
+      metric: resolvedConfig.metric,
+      table: tableName,
+      embeddingColumn,
+      idColumn,
+      scale: Number.isFinite(Number(scale)) ? Number(scale) : undefined,
+      minVal: Number.isFinite(Number(quantization?.minVal)) ? Number(quantization.minVal) : undefined,
+      maxVal: Number.isFinite(Number(quantization?.maxVal)) ? Number(quantization.maxVal) : undefined,
+      levels: Number.isFinite(Number(quantization?.levels)) ? Number(quantization.levels) : undefined
+      , extensions: { lancePublicationId: publicationId }
+    };
+    assertLanceDbPayload(stagedDir, { table: tableName, count: writtenCount });
+    await writeJsonObjectFile(stagedMetaPath, { fields: meta, atomic: true });
+    const publication = await publishLanceDbReplacement({ dir, metaPath, stageRoot, stagedMetaPath, id: publicationId });
+    if (publication.cleanupError) logger.warn(`[embeddings] LanceDB published; cleanup pending at ${publication.recoveryPath}: ${publication.cleanupError}`);
+
+    if (emitOutput) {
+      const targetLabel = label || variant;
+      logger.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${writtenCount} vectors).`);
+    }
+    return { skipped: false, count: writtenCount, ...(publication.cleanupError ? { publication } : {}) };
+  } catch (error) {
+    primaryError = error;
+    throw error;
   } finally {
-    if (db?.close) {
-      await db.close();
+    let retainedForRecovery = false;
+    try {
+      const journal = JSON.parse((await readContainedFile(indexDir, `${metaPath}.publication.json`, { maxBytes: 65536 })).toString('utf8'));
+      retainedForRecovery = journal.stageRoot === path.basename(stageRoot);
+    } catch (error) { retainedForRecovery = error.code !== 'ENOENT'; }
+    if (!retainedForRecovery) {
+      try { await fs.rm(stageRoot, { recursive: true, force: true }); }
+      catch (cleanupError) {
+        if (!primaryError) throw cleanupError;
+        throw new AggregateError([primaryError, cleanupError],
+          `LanceDB build failed; staging cleanup retained at ${stageRoot}`, { cause: primaryError });
+      }
     }
   }
-
-  const meta = {
-    version: 1,
-    generatedAt: new Date().toISOString(),
-    model: modelId || null,
-    dims: Number.isFinite(Number(dims)) ? Number(dims) : null,
-    count: writtenCount,
-    expectedCount: writtenCount,
-    metric: resolvedConfig.metric,
-    table: tableName,
-    embeddingColumn,
-    idColumn,
-    scale: Number.isFinite(Number(scale)) ? Number(scale) : undefined,
-    minVal: Number.isFinite(Number(quantization?.minVal)) ? Number(quantization.minVal) : undefined,
-    maxVal: Number.isFinite(Number(quantization?.maxVal)) ? Number(quantization.maxVal) : undefined,
-    levels: Number.isFinite(Number(quantization?.levels)) ? Number(quantization.levels) : undefined
-  };
-  await writeJsonObjectFile(metaPath, { fields: meta, atomic: true });
-
-  if (emitOutput) {
-    const targetLabel = label || variant;
-    logger.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${writtenCount} vectors).`);
-  }
-  return { skipped: false, count: writtenCount };
 }

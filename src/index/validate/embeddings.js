@@ -7,7 +7,7 @@ import {
 } from '../../shared/artifact-io/manifest.js';
 import { normalizeDenseVectorMeta } from '../../shared/dense-vector-artifacts.js';
 import { joinPathSafe } from '../../shared/path-normalize.js';
-import { resolveLanceDbPaths } from '../../shared/lancedb.js';
+import { assertLanceDbPayload, resolveLanceDbPaths } from '../../shared/lancedb.js';
 import { addIssue } from './issues.js';
 import { validateSchema } from './schema.js';
 import { embeddingBindingMismatches } from '../../shared/embedding-generation.js';
@@ -255,6 +255,11 @@ export const validateEmbeddingArtifacts = ({
       });
       if (!lanceDir || !fs.existsSync(lanceDir)) {
         addIssue(report, mode, `${target.label} directory missing`, 'Rebuild embeddings for this mode.');
+      } else {
+        try { assertLanceDbPayload(lanceDir, { table: meta.table || lanceConfig.table, count: lanceCount }); }
+        catch (error) {
+          addIssue(report, mode, `${target.label} payload invalid: ${error.message}`, 'Rebuild embeddings for this mode.');
+        }
       }
     }
   }

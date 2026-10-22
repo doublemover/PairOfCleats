@@ -36,15 +36,24 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
   }
   let backupAvailable = false;
   let backupCreatedForReplace = false;
+  const recoveryPaths = new Set();
+  const cleanupErrors = [];
+  const withRecovery = (error) => {
+    error.recoveryPaths = [...recoveryPaths].filter(target => fsSync.existsSync(target));
+    if (cleanupErrors.length) error.cleanupErrors = [...cleanupErrors];
+    return error;
+  };
   const restoreBackup = async () => {
     if (!backupAvailable || !backupCreatedForReplace) return;
     const rollbackCurrentPath = createTempPath(`${finalPath}.restore-current`, { preferFallback: true });
+    recoveryPaths.add(rollbackCurrentPath);
     let movedCurrentAside = false;
     if (fsSync.existsSync(finalPath)) {
       try {
         await renameWithRetries(finalPath, rollbackCurrentPath);
         movedCurrentAside = true;
-      } catch {
+      } catch (error) {
+        cleanupErrors.push(error);
         movedCurrentAside = false;
       }
     }
@@ -55,14 +64,15 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
       if (movedCurrentAside) {
         try { await fs.rm(rollbackCurrentPath, { recursive: true, force: true }); } catch {}
       }
-    } catch {}
+    } catch (error) { cleanupErrors.push(error); }
     if (movedCurrentAside && !fsSync.existsSync(finalPath)) {
-      try { await renameWithRetries(rollbackCurrentPath, finalPath); } catch {}
+      try { await renameWithRetries(rollbackCurrentPath, finalPath); } catch (error) { cleanupErrors.push(error); }
     }
   };
   const copyDirFallback = async () => {
     const stagedPath = createTempPath(`${finalPath}.staged`, { preferFallback: true });
     const rollbackPath = createTempPath(`${finalPath}.rollback`, { preferFallback: true });
+    recoveryPaths.add(rollbackPath);
     const cleanupDir = async (targetPath) => {
       try { await fs.rm(targetPath, { recursive: true, force: true }); } catch {}
     };
@@ -91,20 +101,23 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
       await cleanupDir(rollbackPath);
       await fs.rm(tempPath, { recursive: true, force: true });
       return true;
-    } catch {
+    } catch (error) {
+      cleanupErrors.push(error);
       await cleanupDir(stagedPath);
       if (!fsSync.existsSync(finalPath) && fsSync.existsSync(rollbackPath)) {
-        try { await renameWithRetries(rollbackPath, finalPath); } catch {}
+        try { await renameWithRetries(rollbackPath, finalPath); } catch (restoreError) { cleanupErrors.push(restoreError); }
       }
-      await cleanupDir(rollbackPath);
+      // A failed restore must retain its only recoverable directory copy.
       return false;
     }
   };
+  await options.onBeforePromote?.({ backupPath: finalExists ? bakPath : null });
   if (finalExists && !backupAvailable) {
     try {
       await renameWithRetries(finalPath, bakPath);
       backupAvailable = true;
       backupCreatedForReplace = true;
+      recoveryPaths.add(bakPath);
     } catch (err) {
       if (err?.code !== 'ENOENT') throw err;
     }
@@ -118,7 +131,7 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
   } catch (err) {
     if (!RETRYABLE_DIR_RENAME_CODES.has(err?.code)) {
       await restoreBackup();
-      throw err;
+      throw withRecovery(err);
     }
     try {
       await renameWithRetries(tempPath, finalPath);
@@ -131,10 +144,11 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
         if (!keepBackup && backupAvailable) {
           try { await fs.rm(bakPath, { recursive: true, force: true }); } catch {}
         }
-        return;
+        return { backupPath: keepBackup && backupAvailable ? bakPath : null };
       }
       await restoreBackup();
-      throw renameErr;
+      throw withRecovery(renameErr);
     }
   }
+  return { backupPath: keepBackup && backupAvailable ? bakPath : null };
 };
