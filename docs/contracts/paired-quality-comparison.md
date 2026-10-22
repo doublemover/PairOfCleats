@@ -98,6 +98,9 @@ happens after the development-selected policy is frozen; test judgments cannot
 select it. One sweep currently requires one corpus generation, so its queries
 normally supply only one repository cluster and yield null cluster intervals.
 The shared metric policy participates in sweep/checkpoint/selection identities.
-Context-task reports remain a later consumer requiring independently pinned
-task/input provenance. Existing descriptive throughput reporting stays with its
-current owner.
+Saved context-task span reports now consume this owner through
+`compareTaskSpanQuality`; they require independently pinned task/input/source/gold
+and measurement-rubric identities and retain failed/censored outcomes. The
+[task-span contract](task-span-evaluation.md) distinguishes saved observations
+from still-pending live instrumentation and source-byte qualification. Existing
+descriptive throughput reporting stays with its current owner.

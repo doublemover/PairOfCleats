@@ -4,6 +4,7 @@ import { setImmediate as yieldImmediate } from 'node:timers/promises';
 import { stableStringify } from '../../shared/stable-json.js';
 import { QUALITY_COMPARISON_VERSION } from '../../contracts/schemas/quality-comparison.js';
 import { validatePairedQualityRequest } from '../../contracts/validators/quality-comparison.js';
+import { snapshotEvaluationData } from './plain-data.js';
 
 export const PAIRED_QUALITY_POLICY = 'repository-macro.complete-paired-quality.v1;paired-cluster-percentile.v1';
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
@@ -18,36 +19,9 @@ const randomFor = seed => {
   let state = Number.parseInt(digest(seed).slice(0, 8), 16) || 1;
   return () => { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; return (state >>> 0) / 4294967296; };
 };
-const snapshot = input => {
-  const active = new Set(); let bytes = 0, nodes = 0;
-  const copy = (value, depth) => {
-    if (++nodes > 200000 || depth > 8) throw fail('Comparison requires bounded plain JSON data.');
-    if (value === null || typeof value === 'boolean') { bytes += 5; return value; }
-    if (typeof value === 'number' && Number.isFinite(value)) { bytes += 32; return value; }
-    if (typeof value === 'string') {
-      bytes += Buffer.byteLength(JSON.stringify(value));
-      if (bytes > caps.inputBytes) throw fail('Paired quality input exceeds 8 MiB.');
-      return value;
-    }
-    if (!value || typeof value !== 'object' || active.has(value)
-      || (!Array.isArray(value) && ![Object.prototype, null].includes(Object.getPrototypeOf(value)))) throw fail('Comparison requires bounded acyclic plain JSON data.');
-    active.add(value);
-    const keys = Object.keys(value), result = Array.isArray(value) ? [] : Object.create(null);
-    if (keys.length > 8192 || (Array.isArray(value) && (keys.length !== value.length
-      || keys.some((key, index) => key !== String(index))))) throw fail('Comparison arrays must be bounded dense JSON data.');
-    for (const key of keys) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (!descriptor || !Object.hasOwn(descriptor, 'value')) throw fail('Comparison cannot execute input accessors.');
-      bytes += Buffer.byteLength(JSON.stringify(key)) + 2;
-      if (bytes > caps.inputBytes) throw fail('Paired quality input exceeds 8 MiB.');
-      Object.defineProperty(result, key, { value: copy(descriptor.value, depth + 1), enumerable: true, writable: true, configurable: true });
-    }
-    active.delete(value); return result;
-  };
-  return copy(input, 0);
-};
 const admit = input => {
-  const request = snapshot(input), validation = validatePairedQualityRequest(request);
+  const request = snapshotEvaluationData(input, { maxBytes: caps.inputBytes, maxDepth: 8, code: 'ERR_PAIRED_QUALITY_INPUT' });
+  const validation = validatePairedQualityRequest(request);
   if (!validation.ok) throw fail(`Invalid paired quality request: ${validation.errors.slice(0, 4).join('; ')}`);
   const families = new Map();
   if (request.slices.includes('all')) throw fail('The all slice is reserved.');

@@ -202,3 +202,21 @@ floors, missing judgments and bounds. Labels do not select production providers,
 and saved graded gain/coverage does not enter live quality aggregates or certify
 recall/cost. Malformed shadow inputs report incomplete evidence without discarding
 the primary evaluation. All new source/assertions remain unvalidated.
+
+## Saved retrieval-to-use task spans
+
+Optional dataset `taskTrace` and `taskTraceBaseline` records add a separate
+`taskSpanReplay`, with explicit `taskSpanComparison` metric/seed/cluster/resamples
+when needed. The [versioned task-span contract](../contracts/task-span-evaluation.md)
+binds original source bytes, query/input/run/generation and judgment policy,
+retains independent retrieved/explored/delivered/attributed-used stages, and
+checks atomic citation identity before accepting supplied support labels. It
+preserves unknown instrumentation, failed/censored runs and raw labels, and reuses
+shared repository/family paired-quality resampling. It captures no source text,
+performs no judge/model call and sends no gold/claim labels to search.
+
+These are saved metadata observations with `currentSearchEvidence:false`, separate
+from live judged-hit quality and latency. Missing optional records preserve the
+old report shape; trace admission failure retains primary metrics. Live producer
+instrumentation/source-byte qualification and representative task campaigns remain
+open. All new sources and regression assertions are unvalidated.

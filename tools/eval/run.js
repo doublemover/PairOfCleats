@@ -12,6 +12,7 @@ import { collectExpectedJudgments, computeMRR, computeNDCG, computeRecallAtK } f
 import { evaluateDatasetVectorReplay } from './vector-oracle.js';
 import { evaluateDatasetFusionReplay } from './fusion-replay.js';
 import { evaluateDatasetShadowRouting } from './shadow-routing.js';
+import { evaluateDatasetTaskSpans } from './task-spans.js';
 
 const argv = createCli({
   scriptName: 'eval-run',
@@ -173,6 +174,8 @@ const fusionReplay = await evaluateDatasetFusionReplay({ cases });
 if (fusionReplay) output.fusionReplay = fusionReplay;
 const shadowRouting = evaluateDatasetShadowRouting({ cases });
 if (shadowRouting) output.shadowRouting = shadowRouting;
+const taskSpanReplay = await evaluateDatasetTaskSpans({ cases });
+if (taskSpanReplay) output.taskSpanReplay = taskSpanReplay;
 
 if (argv.out) {
   fs.writeFileSync(path.resolve(argv.out), JSON.stringify(output, null, 2));
