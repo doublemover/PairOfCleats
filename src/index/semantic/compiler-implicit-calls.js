@@ -13,8 +13,9 @@ export const collectCompilerImplicitCalls = ({ts,checker,nodes,expressionFor,dec
     // Delete evaluates a reference and removes its property; it never invokes
     // that property's getter or setter. Receiver subexpressions still run.
     if(ts.isDeleteExpression(parent) && parent.expression===target)continue;
-    const assignment=ts.isBinaryExpression(parent)&&parent.left===target&&parent.operatorToken.kind===ts.SyntaxKind.EqualsToken;
-    const write=ts.isBinaryExpression(parent)&&parent.left===target&&parent.operatorToken.kind>=ts.SyntaxKind.FirstAssignment&&parent.operatorToken.kind<=ts.SyntaxKind.LastAssignment;
+    const iteration=(ts.isForOfStatement(parent)||ts.isForInStatement(parent))&&parent.initializer===target;
+    const assignment=iteration||ts.isBinaryExpression(parent)&&parent.left===target&&parent.operatorToken.kind===ts.SyntaxKind.EqualsToken;
+    const write=iteration||ts.isBinaryExpression(parent)&&parent.left===target&&parent.operatorToken.kind>=ts.SyntaxKind.FirstAssignment&&parent.operatorToken.kind<=ts.SyntaxKind.LastAssignment;
     const update=(ts.isPrefixUnaryExpression(parent)||ts.isPostfixUnaryExpression(parent))&&[ts.SyntaxKind.PlusPlusToken,ts.SyntaxKind.MinusMinusToken].includes(parent.operator);
     const symbol=compilerAliasSymbol(ts,checker,node);
     for(const setter of [false,true]) {
@@ -22,8 +23,9 @@ export const collectCompilerImplicitCalls = ({ts,checker,nodes,expressionFor,dec
       const declarations=(symbol?.declarations||[]).filter(setter?ts.isSetAccessorDeclaration:ts.isGetAccessorDeclaration),targets=declarations.map(declarationRef).filter(Boolean);
       if(!targets.length)continue;
       calls.push({node,occurrence:expressionFor(node),span:[node.getStart(),node.end],targets,incompleteTargets:true,invocationKind:setter?'setter':'getter',
-        receiver:expressionFor(node.expression),arguments:setter?[expressionFor(assignment?parent.right:parent)]:[],result:expressionFor(node),suppressResult:setter,hasSpread:false,
-        reason:'accessor_invocation_receiver_and_descriptor_mutation_conservative'});
+        receiver:expressionFor(node.expression),arguments:setter?[iteration?null:expressionFor(assignment?parent.right:parent)]:[],
+        unknownInputs:iteration?[expressionFor(parent.expression)].filter(Boolean):[],result:expressionFor(node),suppressResult:setter,hasSpread:false,
+        reason:'accessor_invocation_receiver_and_descriptor_mutation_conservative'+(iteration?';iteration_assignment_value_unresolved':'')});
     }
   }
   return calls;
