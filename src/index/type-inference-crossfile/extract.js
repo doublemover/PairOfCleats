@@ -2,6 +2,7 @@ import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { collectDeclaredReturnTypes } from '../metadata/docmeta.js';
 import { RETURN_BARE_TARGET_RX, RETURN_CALL_RX, RETURN_NEW_RX } from './constants.js';
 import { isTypeDeclaration } from './symbols.js';
+import { normalizeLiteralInput, inspectLiteralStructure, isWholeQuotedLiteral } from '../type-inference/literal-expression.js';
 
 export const createParamTypeMap = () => Object.create(null);
 
@@ -127,18 +128,23 @@ export const extractReturnCalls = (chunkText, { knownCallees = null } = {}) => {
 
 export const inferArgType = (raw) => {
   if (!raw) return null;
-  const value = String(raw).trim();
+  const value = normalizeLiteralInput(raw);
   if (!value) return null;
-  const lowered = value.toLowerCase();
-  if (lowered === 'null') return 'null';
-  if (lowered === 'undefined') return 'undefined';
-  if (lowered === 'true' || lowered === 'false') return 'boolean';
+  const structure = inspectLiteralStructure(value);
+  if (!structure) return null;
+  if (value === 'null') return 'null';
+  if (value === 'undefined') return 'undefined';
+  if (value === 'true' || value === 'false') return 'boolean';
   if (/^-?\d+(\.\d+)?$/.test(value)) return 'number';
-  if (value.startsWith('"') || value.startsWith("'") || value.startsWith('`')) return 'string';
-  if (value.startsWith('[')) return 'array';
-  if (value.startsWith('{')) return 'object';
-  const newMatch = value.match(/^new\s+([A-Za-z_$][\w$.]*)/);
-  if (newMatch) return newMatch[1];
+  if (isWholeQuotedLiteral(value)) return 'string';
+  const enclosed = structure.pairs.get(0) === value.length - 1;
+  if (value.startsWith('[') && enclosed) return 'array';
+  if (value.startsWith('{') && enclosed) return 'object';
+  const newMatch = value.match(/^new\s+([\p{ID_Start}_$][\p{ID_Continue}$\u200c\u200d]*(?:\.[\p{ID_Start}_$][\p{ID_Continue}$\u200c\u200d]*)*)/u);
+  if (newMatch) {
+    const tail = value.slice(newMatch[0].length).trim(), open = value.indexOf('(', newMatch[0].length);
+    if (!tail || tail[0] === '(' && structure.pairs.get(open) === value.length - 1) return newMatch[1];
+  }
   if (value === 'fn(...)') return 'function';
   return null;
 };
