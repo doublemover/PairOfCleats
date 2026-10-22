@@ -9,7 +9,7 @@ export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   lexicalAnalyzer: '2', importResolution: '5', pieceAssembly: '2',
   recordsProducer: '2', ignoreRules: '2', documentExtraction: '2', discoverySelection: '2',
   repoMapProducer: '2', graphRelations: '1',
-  sourceChunking: '7', typeNormalization: '3', vfsRouting: '2', complexityAnalysis: '2',
+  sourceChunking: '8', typeNormalization: '3', vfsRouting: '2', complexityAnalysis: '2',
   riskPropagation: '4', callSiteIdentity: '3',
   compilerBindings: '18', lspBindings: '25', cfgFlow: '18', callFlow: '20',
   valueSlice: '5', storageFlow: '2', workerFlow: '7', boundaryFlow: '8', wasmFlow: '5', nativeFlow: '2'

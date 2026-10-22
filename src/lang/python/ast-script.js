@@ -228,7 +228,7 @@ class Collector(ast.NodeVisitor):
         self.scope_stack = []
         self.lexical_stack = []
     def current_func(self):
-        return self.func_stack[-1] if self.func_stack else "(module)"
+        return self.lexical_stack[-1]["name"] if self.lexical_stack else "(module)"
     def current_scope(self):
         return self.scope_stack[-1] if self.scope_stack else None
     def ensure_flow(self, name):
@@ -377,6 +377,36 @@ class Collector(ast.NodeVisitor):
                 entry["fields"] = extract_fields(node)
         self.defs.append(entry)
         return entry["scopeId"]
+    def visit_definition_header(self, node):
+        # Header observations belong to the surrounding lexical declaration,
+        # not to an uncalled function body or the class body being introduced.
+        # Calls remain syntactic evidence, including deferred annotations.
+        for decorator in getattr(node, "decorator_list", []):
+            self.visit(decorator)
+        if isinstance(node, ast.ClassDef):
+            for base in node.bases:
+                self.visit(base)
+            for keyword in node.keywords:
+                self.visit(keyword.value)
+        else:
+            args = node.args
+            for default in args.defaults:
+                self.visit(default)
+            for default in args.kw_defaults:
+                if default is not None:
+                    self.visit(default)
+            parameters = list(getattr(args, "posonlyargs", [])) + list(args.args) + list(args.kwonlyargs)
+            if args.vararg is not None:
+                parameters.append(args.vararg)
+            if args.kwarg is not None:
+                parameters.append(args.kwarg)
+            for parameter in parameters:
+                if parameter.annotation is not None:
+                    self.visit(parameter.annotation)
+            if node.returns is not None:
+                self.visit(node.returns)
+        for parameter in getattr(node, "type_params", []):
+            self.visit(parameter)
     def visit_ClassDef(self, node):
         name = node.name
         base = self.lexical_stack[-1]["name"] if self.lexical_stack else ""
@@ -384,10 +414,12 @@ class Collector(ast.NodeVisitor):
         if not self.func_stack:
             self.exports.add(qualified)
         scope_id = self.record_def(node, "ClassDeclaration", qualified)
+        self.visit_definition_header(node)
         self.class_stack.append(name)
         self.scope_stack.append(scope_id)
         self.lexical_stack.append({"name": qualified, "kind": "class"})
-        self.generic_visit(node)
+        for statement in node.body:
+            self.visit(statement)
         self.scope_stack.pop()
         self.lexical_stack.pop()
         self.class_stack.pop()
@@ -400,10 +432,12 @@ class Collector(ast.NodeVisitor):
         if not self.func_stack:
             self.exports.add(qualified)
         scope_id = self.record_def(node, kind, qualified)
+        self.visit_definition_header(node)
         self.func_stack.append(qualified)
         self.scope_stack.append(scope_id)
         self.lexical_stack.append({"name": qualified, "kind": "function"})
-        self.generic_visit(node)
+        for statement in node.body:
+            self.visit(statement)
         self.scope_stack.pop()
         self.lexical_stack.pop()
         self.func_stack.pop()
