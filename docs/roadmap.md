@@ -45,7 +45,8 @@ do not assume issue-number order or turn feature requests into duplicate engines
    6.1 Sol agents at xhigh implement independent storage/publication, vectors,
    language semantics, storage layout, editor, native TUI, map and developer
    experience spans in real files. The lead owns shared integration, validation,
-   Git and publication. No peer coordination, worktree or elevation is required.
+   Git and publication. A ninth agent, Astra/high, exclusively owns issues #1504
+   and above. No peer coordination, worktree or elevation is required.
 3. Remaining P2 correctness/contract issues, then P3, grouped by owner.
 4. Perf reports: retain correctness parity and measure the changed operation;
    distinguish operation-count reductions from real latency/heap measurements.
@@ -55,7 +56,7 @@ do not assume issue-number order or turn feature requests into duplicate engines
    qualification. Keep release/real-model/optional-backend claims separate.
 
 The user's latest direction defers validation until the broad backlog development
-pass is complete. All eight agents and the lead edit real repository files and author
+pass is complete. All nine agents and the lead edit real repository files and author
 regressions without executing tests, syntax campaigns or formatting. Publish
 completed owner groups as explicitly **unvalidated development checkpoints**;
 these commits do not replace the last qualified source identified above. Recent source batches cover final response/risk
@@ -97,7 +98,7 @@ inventories, retrieval, embeddings and dependency-safe bootstrap; measurements r
 A fresh inventory adds 163 reports. New P1 CI restore publication and pending-child
 cache-lock ownership, plus 110 new P2 defects, precede remaining Perf work.
 Language declaration/source spans, retrieval contracts, extraction and evaluation
-are assigned across the eight implementation owners; the lead integrates shared contracts.
+are assigned across the nine implementation owners; the lead integrates shared contracts.
 There is no current-source deep-suite, native-host or performance claim.
 The refreshed inventory adds ten Other research/features (#1531–#1540) and
 expands modern viewer/semantic acceptance; prior source repairs retain credit

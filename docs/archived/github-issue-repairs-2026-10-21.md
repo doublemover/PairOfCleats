@@ -1839,3 +1839,33 @@ repair is in progress; this receipt does not claim it has passed or shipped yet.
 
 All source/checkpoint tests, syntax, formatting, generated refresh, bootstrap,
 gates and native/browser/performance validation remain deferred by user direction.
+
+
+### Ninth agent and data-loss/native ownership continuation
+
+The user added one Astra/high agent exclusively for issues #1504 and above.
+Eight Sol6.1/xhigh agents retain their lower-numbered spans; no other agent
+implements the new research range. Dependency reading and narrow shared seams
+flow through the lead without peer coordination or worktrees. The ninth owner
+is implementing dependency-ordered source rather than treating research claims
+as already-qualified behavior.
+
+Source 29109ba19 repairs the newly found legacy repo-GC loss path: complete
+registered producer/header/path evidence is required before planning and again
+under existing exclusion. Saved/unknown/unmarked/unreadable/incomplete/pinned/
+shared state protects the root. Exact generated-file removal and empty-only
+directory retirement replace recursive whole-root removal, preserving late
+ordinary files and swapped roots. The original unmarked fixture remains a
+protected negative alongside a genuine producer-marked positive. New race/
+error/evidence regressions remain unrun; no real cache or GC operation occurred.
+This supersedes the earlier in-progress note with an unvalidated source repair.
+
+Source 26f24450c adds native-owned bounded MCP transport/health/disposal, private
+canonical semantic-page continuations, exact reviewed storage plans and scoped
+workspace/indexer lifetimes through existing queue/worker/executor owners. The
+trusted claim predicate runs under the claim lock and leaves foreign/custom-argv
+jobs queued. Local cancellation does not publish global shutdown. Six new JS
+fixtures plus Rust page/disposal controls are authored, not executed. Native
+SQLite/LMDB exclusive child handoff and actual endpoint/ConPTY/platform/resource
+qualification remain open. No semantic producer meaning changes are intended
+from these transport/UI adapters.
