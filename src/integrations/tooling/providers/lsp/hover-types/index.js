@@ -1,6 +1,7 @@
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import { openOwnedLspDocument, closeOwnedLspDocument } from '../document-lifecycle.js';
-import { rangeToOffsets, exactRangeToOffsets, offsetToLspPosition, buildLspLineIndex } from '../../../lsp/positions.js';
+import { exactRangeToOffsets, offsetToLspPosition, buildLspLineIndex } from '../../../lsp/positions.js';
+import { lspRangeContains } from '../../../../../index/semantic/lsp-locations.js';
 import { flattenSymbols } from '../../../lsp/symbols.js';
 import { findTargetForOffsets } from '../target-index.js';
 import {
@@ -46,7 +47,6 @@ import {
 } from './concurrency.js';
 import { createHoverFileStats, summarizeHoverMetrics } from './metrics.js';
 import {
-  buildLineSignatureCandidate,
   buildSourceSignatureCandidate,
   defaultParamConfidenceForTier,
   resolveEvidenceConfidenceTier,
@@ -668,15 +668,15 @@ export const processDocumentTypes = async ({
       const sourceText = openEntry?.text || doc.text || '';
       for (const location of locations) {
         if (!allowedUris.has(String(location?.uri || ''))) continue;
-        const locationOffsets = rangeToOffsets(lineIndex, location?.range || null, {
+        const locationOffsets = exactRangeToOffsets(lineIndex, location.range, {
           text: docText,
           positionEncoding
         });
-        let candidate = buildSourceSignatureCandidate(sourceText, locationOffsets);
-        if (!candidate) {
-          const fallbackLine = Number(location?.range?.start?.line);
-          candidate = buildLineSignatureCandidate(sourceText, fallbackLine);
-        }
+        const containerOffsets = exactRangeToOffsets(lineIndex, location.targetRange, { text: docText, positionEncoding });
+        if (!locationOffsets || !containerOffsets || locationOffsets.start < containerOffsets.start
+          || locationOffsets.end > containerOffsets.end) continue;
+        const candidate = buildSourceSignatureCandidate(sourceText, containerOffsets);
+        if (!candidate) continue;
         const info = parseSignatureCached(candidate, symbol?.name);
         if (info) return info;
       }
@@ -825,10 +825,15 @@ export const processDocumentTypes = async ({
 
     for (const symbol of flattened) {
       throwIfAborted(abortSignal);
-      const offsets = exactRangeToOffsets(lineIndex, symbol.selectionRange || symbol.range, {
+      if (symbol.protocolShape === 'SymbolInformation' && (typeof symbol.uri !== 'string' || !symbol.uri
+        || symbol.uri !== uri && (!legacyUri || symbol.uri !== legacyUri))) continue;
+      if (!lspRangeContains(symbol.range, symbol.selectionRange)) continue;
+      const offsets = exactRangeToOffsets(lineIndex, symbol.selectionRange, {
         text: docText,
         positionEncoding
       });
+      const containerOffsets = exactRangeToOffsets(lineIndex, symbol.range, { text: docText, positionEncoding });
+      if (!offsets || !containerOffsets) continue;
       const target = findTargetForOffsets(docTargetIndex, offsets, symbol.name);
       if (!target) continue;
 
@@ -1077,7 +1082,7 @@ export const processDocumentTypes = async ({
               positionEncoding,
               paramNames: normalizeParamNames(record?.info?.paramNames),
               languageId,
-              declarationNameRange:record?.symbol?.selectionRange ? rangeToOffsets(lineIndex,record.symbol.selectionRange,{text:docText,positionEncoding}) : null
+              declarationNameRange:record?.symbol?.selectionRange ? exactRangeToOffsets(lineIndex,record.symbol.selectionRange,{text:docText,positionEncoding}) : null
             });
             if (!hintInfo) continue;
             record.inlayHintObservations=hintInfo.observations || [];

@@ -19,8 +19,9 @@ function flattenDocumentSymbols(symbols, parentName = '') {
       fullName,
       kind: coerceKind(symbol.kind),
       range: symbol.range,
-      selectionRange: symbol.selectionRange || symbol.range,
-      detail: symbol.detail || null
+      selectionRange: symbol.selectionRange || null,
+      detail: symbol.detail || null,
+      protocolShape: 'DocumentSymbol'
     });
     if (Array.isArray(symbol.children) && symbol.children.length) {
       out.push(...flattenDocumentSymbols(symbol.children, fullName));
@@ -42,7 +43,9 @@ function flattenSymbolInformation(symbols) {
       range: symbol.location.range,
       selectionRange: symbol.location.range,
       detail: symbol.detail || null,
-      containerName: container || null
+      containerName: container || null,
+      uri: symbol.location.uri || null,
+      protocolShape: 'SymbolInformation'
     });
   }
   return out;
