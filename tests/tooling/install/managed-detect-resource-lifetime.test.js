@@ -37,12 +37,15 @@ assert.equal(locations, 0);
 let closed = false;
 const primary = Object.assign(new Error('fixture timeout without close'), { cacheOwnershipPending: true,
   cacheOwnershipReleased: () => closed, result: { termination: { closeObserved: false, treeCleanupSettled: true, treeCleanupFailed: false } } });
-await assert.rejects(detectToolOwned(tool, {}, { ...dependencies, spawn: async (_command, _args, options) => { options.onSpawn(); throw primary; } }), error => error === primary);
+let retainedPrimary;
+await assert.rejects(detectToolOwned(tool, {}, { ...dependencies, spawn: async (_command, _args, options) => { options.onSpawn(); throw primary; } }), error => {
+  retainedPrimary = error; return error.cause === primary && Boolean(error.managedProbeSession);
+});
 assert.equal(retained, true);
 assert.equal(releases, 1);
-assert.throws(() => primary.managedProbeSession.releaseAfterClosure(), /remains pending/);
+assert.throws(() => retainedPrimary.managedProbeSession.releaseAfterClosure(), /remains pending/);
 closed = true;
-assert.equal(primary.managedProbeSession.releaseAfterClosure(), true);
+assert.equal(retainedPrimary.managedProbeSession.releaseAfterClosure(), true);
 assert.equal(releases, 2);
 
 const limited = await detectToolOwned(tool, {}, { ...dependencies, spawn: async (_command, _args, options) => {

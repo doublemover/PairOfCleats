@@ -84,7 +84,8 @@ try {
     };
     let actualMetadata;
     try { await detectToolOwned(tool, {}, dependencies); } catch (error) { actualMetadata = error; }
-    assert.equal(isStorageSessionReleaseFailure(actualMetadata, latestSession), true, 'the actual session producer brands this exact metadata failure');
+    assert.equal(isStorageSessionReleaseFailure(actualMetadata.managedProbeReleaseError, latestSession), true,
+      'the original actual session failure keeps its private producer identity under the detector wrapper');
     assert.equal(actualMetadata.cacheOwnershipReleased(), false);
     assert.equal((await inspect()).protected, true);
     denyUnlink = false;
