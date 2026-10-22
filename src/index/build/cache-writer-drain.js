@@ -1,26 +1,35 @@
 import { runBuildCleanupWithTimeout, resolveBuildCleanupTimeoutMs } from './cleanup-timeout.js';
 
+const captureClosure = error => {
+  if (!error) return null;
+  try {
+    const observer = error.cacheOwnershipReleased;
+    if (error.cacheOwnershipPending !== true && typeof observer !== 'function') return null;
+    return () => { try { return typeof observer === 'function' && observer.call(error) === true; } catch { return false; } };
+  } catch { return () => false; }
+};
+const diagnostic = (error, key, fallback) => {
+  try { const value = error?.[key]; return typeof value === 'string' && value ? value : fallback; }
+  catch { return fallback; }
+};
+
 /** Preserve the operational failure when cleanup also fails. */
 export const combineCacheWriterErrors = (operationError, cleanupError) => {
   if (!operationError) return cleanupError;
   if (operationError === cleanupError) return operationError;
-  const pending = [operationError, cleanupError].filter(error => error?.cacheOwnershipPending);
+  const pending = [operationError, cleanupError].map(captureClosure).filter(Boolean);
   return Object.assign(new AggregateError([operationError, cleanupError],
-    `${operationError.message}; cache writer cleanup also failed: ${cleanupError.message}`, { cause: operationError }),
-  { code: operationError.code || cleanupError.code, name: operationError.name,
+    `${diagnostic(operationError, 'message', 'Cache writer operation failed')}; cache writer cleanup also failed: ${diagnostic(cleanupError, 'message', 'cleanup failed')}`,
+    { cause: operationError }),
+  { code: diagnostic(operationError, 'code', null) || diagnostic(cleanupError, 'code', undefined), name: diagnostic(operationError, 'name', 'Error'),
     cacheOwnershipPending: pending.length > 0,
-    ...(pending.length ? { cacheOwnershipReleased: () => pending.every(error => {
-      try { return error.cacheOwnershipReleased?.() === true; } catch { return false; }
-    }) } : {}), operationError, cleanupError });
+    ...(pending.length ? { cacheOwnershipReleased: () => pending.every(observe => observe()) } : {}), operationError, cleanupError });
 };
 
 /** Other idle controls cannot prove that an explicitly pending child has closed. */
 export const releaseCacheWriterOwnership = async ({ lease = null, release, operationError = null, drained = true }) => {
-  if (operationError?.cacheOwnershipPending) {
-    let confirmed = false;
-    try { confirmed = operationError.cacheOwnershipReleased?.() === true; } catch {}
-    if (!confirmed) throw operationError;
-  }
+  const observe = captureClosure(operationError);
+  if (observe && !observe()) throw operationError;
   if (!drained) throw Object.assign(new Error('Cache ownership retained because writer teardown did not complete.'),
     { code: 'ERR_INDEX_CACHE_DRAIN_INCOMPLETE', cacheOwnershipPending: true });
   lease?.assertOwned?.();
