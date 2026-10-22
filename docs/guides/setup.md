@@ -21,6 +21,23 @@ language, package/version, Node version and ABI for activated routes. Parsing a
 sample does not certify a compiler/LSP project or full language semantics. A
 loadable grammar that fails `setLanguage` is not parser-activated.
 
+Bootstrap retains its preflight → locked install → patches → native verification
+barriers. Patch targets prepare in independent bounded staging directories; every
+target must validate and its original bytes must still match before any publication.
+The existing scheduler admits a finite setup dependency graph from effective CPU
+and available-memory budgets. `npm_config_jobs=1` also limits nested compiler work
+to one job. Header preparation is exclusive in ignored `.cache/native-build/headers/`;
+reviewed package-local grammar builds then use those headers as read-only inputs.
+Changed package versions, lifecycle hooks or reviewed GYP/helper hashes fall back
+to serial root npm operations. Patched runtime, Perl and Swift bindings compile
+from source. SQLite retains exclusive build, real-query validation, promotion and
+rollback. Isolated read-only probes run only after the build barrier, and readiness
+is recorded only after all required native and patch verification succeeds.
+Unknown package scripts retain their own internal compiler policy under exclusive
+admission; they are not counted as qualified parallel adapters. This scheduling
+change still requires clean/cached Windows execution and resource/timing evidence;
+it does not establish a measured bootstrap speedup.
+
 Locked checkout bootstrap requires Node 26.12.1 or newer within 26.x and includes
 development dependencies. Its required native
 verification now also creates two real node-pty sessions, checks child output and

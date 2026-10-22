@@ -7,7 +7,8 @@ import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 import { createPatchFixture, originalText, patchedText } from './patch-fixture.js';
-import { probeSqliteNative, rebuildSqliteNativeFromSource } from '../../../tools/setup/rebuild-native-sqlite.js';
+import { probeSqliteNative, rebuildSqliteNativeFromSource,
+  rebuildSqliteNativeFromSourceAsync } from '../../../tools/setup/rebuild-native-sqlite.js';
 
 const env = applyTestEnv();
 const scriptPath = path.join(process.cwd(), 'tools', 'setup', 'postinstall.js');
@@ -126,6 +127,17 @@ exports.getPrebuildPath = () => fs.existsSync(${JSON.stringify(prebuildPath)}) ?
   assert.equal(await fs.readFile(prebuildPath, 'utf8'), 'healthy');
   assert.deepEqual(await fs.readdir(path.dirname(prebuildPath)), ['host.node'], 'successful promotion must clean temporary files');
   assert.equal(probeSqliteNative(sqliteRoot).ok, true, 'normal callers must load the repaired binding');
+  await fs.writeFile(prebuildPath, 'broken');
+  let releaseBuild;
+  const buildPending = new Promise(resolve => { releaseBuild = resolve; });
+  const recovery = rebuildSqliteNativeFromSourceAsync(sqliteRoot, async () => {
+    await buildPending;
+    return { ok: true };
+  });
+  assert.equal(await fs.readFile(prebuildPath, 'utf8'), 'broken', 'pending compiler cannot publish readiness or a binding');
+  releaseBuild();
+  assert.equal((await recovery).ok, true);
+  assert.equal(await fs.readFile(prebuildPath, 'utf8'), 'healthy', 'async recovery retains the same real query/promotion owner');
   assert.deepEqual(builds[0], {
     args: ['run', 'build-release'],
     buildOptions: { cwd: sqlitePackage, buildFromSource: true }

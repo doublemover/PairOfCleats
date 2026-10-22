@@ -5,6 +5,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { exitLikeChildResult } from './postinstall-exit.js';
+import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
+import { resolveBootstrapBudget, runBootstrapTasks } from './bootstrap-tasks.js';
 
 const MAX_PATCH_BYTES = 1024 * 1024;
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
@@ -117,28 +119,48 @@ const parsePatch = (name, buffer) => {
   });
 };
 
-const runGit = (stage, patch, args) => {
+const gitOptions = stage => {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key)));
   Object.assign(env, {
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: path.join(stage, 'empty.gitconfig'),
     GIT_ATTR_NOSYSTEM: '1', GIT_CEILING_DIRECTORIES: path.dirname(stage)
   });
-  const result = spawnSync('git', ['-c', 'core.autocrlf=false', 'apply', '--whitespace=nowarn', ...args, '-'], {
-    cwd: stage, input: patch, encoding: 'utf8', env, shell: false,
-    windowsHide: true, maxBuffer: MAX_PATCH_BYTES, timeout: 30000
-  });
+  return { cwd: stage, env, shell: false, windowsHide: true };
+};
+const gitArgs = (args, input = '-') => ['-c', 'core.autocrlf=false', 'apply', '--whitespace=nowarn', ...args, input];
+const runGit = (stage, patch, args) => {
+  const result = spawnSync('git', gitArgs(args), { ...gitOptions(stage),
+    input: patch, encoding: 'utf8', maxBuffer: MAX_PATCH_BYTES, timeout: 30000 });
   if (result.error || result.signal || result.status === null) {
-    const error = new Error(`Cannot run required Git patch tool: ${result.error?.message || result.signal || 'no exit status'}`);
+    const error = new Error('Cannot run required Git patch tool: '
+      + (result.error?.message || result.signal || 'no exit status'));
     error.childResult = result;
     throw error;
   }
   return result;
 };
+const runGitAsync = async (stage, patch, args, signal) => {
+  try {
+    fs.writeFileSync(path.join(stage, 'patch.diff'), patch, { mode: 0o600 });
+    const result = await spawnResolvedSubprocess('git', gitArgs(args, 'patch.diff'), { ...gitOptions(stage),
+      outputEncoding: 'utf8', maxOutputBytes: MAX_PATCH_BYTES, timeoutMs: 30000,
+      signal, rejectOnNonZeroExit: false, stdio: 'pipe' });
+    if (result.signal || result.exitCode == null) {
+      throw Object.assign(new Error(result.signal || 'no exit status'), { result });
+    }
+    return { ...result, status: result.exitCode };
+  } catch (cause) {
+    const error = new Error('Cannot run required Git patch tool: ' + cause.message, { cause });
+    const result = cause.result;
+    if (result) error.childResult = { ...result, status: result.exitCode };
+    throw error;
+  }
+};
 
-export const applyPatches = (cwd = process.cwd(), { verifyOnly = false } = {}) => {
+const collectPatchInputs = cwd => {
   const root = fs.realpathSync(cwd);
   try { fs.lstatSync(path.join(root, 'patches')); } catch (error) {
-    if (error.code === 'ENOENT') return 0;
+    if (error.code === 'ENOENT') return { root, inputs: [] };
     throw error;
   }
   const patchesDir = checkedPath(root, 'patches', true);
@@ -149,85 +171,125 @@ export const applyPatches = (cwd = process.cwd(), { verifyOnly = false } = {}) =
     for (let entry = directory.readSync(); entry; entry = directory.readSync()) {
       if (++count > 128) throw new Error('Too many entries in patches/.');
       if (!entry.name.endsWith('.patch')) continue;
-      if (!entry.isFile()) throw new Error(`Patch must be a regular file: ${entry.name}`);
+      if (!entry.isFile()) throw new Error('Patch must be a regular file: ' + entry.name);
       names.push(entry.name);
       if (names.length > MAX_PATCHES) throw new Error('Too many package patches.');
     }
   } finally { directory.closeSync(); }
-  if (!names.length) return 0;
-  const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-package-patches-'));
-  try {
-    // Git for Windows rejects Node's device path (\\.\nul). A private empty
-    // regular file disables user configuration consistently on every platform.
-    fs.writeFileSync(path.join(stage, 'empty.gitconfig'), '', { flag: 'wx', mode: 0o600 });
-    const prepared = [];
-    const targets = new Set();
-    let totalBytes = 0;
-    for (const name of names.sort()) {
-      const sections = parsePatch(name, readBounded(checkedPath(root, `patches/${name}`), MAX_PATCH_BYTES));
-      for (const patch of sections) {
-        const packageJsonPath = checkedPath(root, `node_modules/${patch.packageName}/package.json`);
-        const installed = JSON.parse(decodeText(readBounded(packageJsonPath, MAX_PATCH_BYTES)));
-        if (installed.name !== patch.packageName || installed.version !== patch.version) {
-          throw new Error(`${name} requires exactly ${patch.packageName}@${patch.version}; found ${installed.name}@${installed.version}`);
-        }
-        const target = checkedPath(root, patch.relative);
-        if (targets.has(target.toLowerCase())) throw new Error(`Multiple patches target the same file: ${patch.relative}`);
-        targets.add(target.toLowerCase());
-        if (targets.size > MAX_TARGETS) throw new Error('Package patches exceed target file limit.');
-        const before = readBounded(target, MAX_FILE_BYTES);
-        totalBytes += before.length;
-        if (totalBytes > MAX_TOTAL_BYTES) throw new Error('Package patches exceed total input size limit.');
-        const source = decodeText(before);
-        const crlf = source.includes('\r\n');
-        if (crlf && /(^|[^\r])\n/.test(source)) throw new Error(`Mixed line endings are unsupported: ${patch.relative}`);
-        fs.writeFileSync(path.join(stage, 'target'), source.replace(/\r\n/g, '\n'));
-        const forward = runGit(stage, patch.patch, ['--check']);
-        if (verifyOnly && forward.status === 0) {
-          throw new Error(`Required patch ${name} has not been applied. Run npm run bootstrap:ci.`);
-        }
-        if (forward.status !== 0) {
-          const reverse = runGit(stage, patch.patch, ['--reverse', '--check']);
-          if (reverse.status !== 0) {
-            throw new Error(`Required patch ${name} cannot apply and is not fully applied:\n${forward.stderr.trim()}`);
-          }
-          prepared.push({ ...patch, target, before, after: null });
-          continue;
-        }
-        const result = runGit(stage, patch.patch, []);
-        if (result.status !== 0) throw new Error(`Failed to apply ${name}: ${result.stderr.trim()}`);
-        const afterText = decodeText(readBounded(path.join(stage, 'target'), MAX_FILE_BYTES));
-        const after = Buffer.from(crlf ? afterText.replace(/\n/g, '\r\n') : afterText);
-        if (before.equals(after) || runGit(stage, patch.patch, ['--reverse', '--check']).status !== 0) {
-          throw new Error(`Required patch was not completely applied: ${name}`);
-        }
-        prepared.push({ ...patch, target, before, after });
+  const inputs = [], targets = new Set();
+  let totalBytes = 0;
+  for (const name of names.sort()) {
+    const sections = parsePatch(name, readBounded(checkedPath(root, 'patches/' + name), MAX_PATCH_BYTES));
+    for (const patch of sections) {
+      const packageJsonPath = checkedPath(root, 'node_modules/' + patch.packageName + '/package.json');
+      const installed = JSON.parse(decodeText(readBounded(packageJsonPath, MAX_PATCH_BYTES)));
+      if (installed.name !== patch.packageName || installed.version !== patch.version) {
+        throw new Error(name + ' requires exactly ' + patch.packageName + '@' + patch.version
+          + '; found ' + installed.name + '@' + installed.version);
       }
+      const target = checkedPath(root, patch.relative);
+      if (targets.has(target.toLowerCase())) throw new Error('Multiple patches target the same file: ' + patch.relative);
+      targets.add(target.toLowerCase());
+      if (targets.size > MAX_TARGETS) throw new Error('Package patches exceed target file limit.');
+      const before = readBounded(target, MAX_FILE_BYTES);
+      totalBytes += before.length;
+      if (totalBytes > MAX_TOTAL_BYTES) throw new Error('Package patches exceed total input size limit.');
+      const source = decodeText(before);
+      const crlf = source.includes('\r\n');
+      if (crlf && /(^|[^\r])\n/.test(source)) throw new Error('Mixed line endings are unsupported: ' + patch.relative);
+      inputs.push({ ...patch, target, before, crlf });
     }
-    // Validate all patches first, then recheck paths and bytes before publishing.
-    for (const item of prepared) {
-      checkedPath(root, item.relative);
-      if (!readBounded(item.target, MAX_FILE_BYTES).equals(item.before)) {
-        throw new Error(`Package file changed during patch validation: ${item.target}`);
-      }
+  }
+  return { root, inputs };
+};
+
+// One state machine serves the synchronous compatibility API and async CLI.
+// Every target has its own Git working directory and private configuration.
+function* preparePatch(input, stage, verifyOnly) {
+  const { name, before, crlf } = input;
+  fs.writeFileSync(path.join(stage, 'empty.gitconfig'), '', { flag: 'wx', mode: 0o600 });
+  fs.writeFileSync(path.join(stage, 'target'), decodeText(before).replace(/\r\n/g, '\n'));
+  const forward = yield ['--check'];
+  if (verifyOnly && forward.status === 0) {
+    throw new Error('Required patch ' + name + ' has not been applied. Run npm run bootstrap:ci.');
+  }
+  if (forward.status !== 0) {
+    if ((yield ['--reverse', '--check']).status !== 0) {
+      throw new Error('Required patch ' + name + ' cannot apply and is not fully applied:\n' + forward.stderr.trim());
     }
-    for (const item of prepared) {
-      if (item.after) {
-        const temporary = fs.mkdtempSync(path.join(path.dirname(item.target), '.poc-patch-'));
-        try {
-          const staged = path.join(temporary, 'target');
-          fs.writeFileSync(staged, item.after, { mode: fs.statSync(item.target).mode & 0o777 });
-          fs.renameSync(staged, item.target);
-        } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
-      }
-      console.log(`[patches] ${item.name}: ${item.after ? 'applied' : 'already applied'}`);
+    return { ...input, after: null };
+  }
+  const applied = yield [];
+  if (applied.status !== 0) throw new Error('Failed to apply ' + name + ': ' + applied.stderr.trim());
+  const afterText = decodeText(readBounded(path.join(stage, 'target'), MAX_FILE_BYTES));
+  const after = Buffer.from(crlf ? afterText.replace(/\n/g, '\r\n') : afterText);
+  if (before.equals(after) || (yield ['--reverse', '--check']).status !== 0) {
+    throw new Error('Required patch was not completely applied: ' + name);
+  }
+  return { ...input, after };
+}
+
+const publishPatches = (root, prepared) => {
+  // Validate all patches first, then recheck paths and bytes before publishing.
+  for (const item of prepared) {
+    checkedPath(root, item.relative);
+    if (!readBounded(item.target, MAX_FILE_BYTES).equals(item.before)) {
+      throw new Error('Package file changed during patch validation: ' + item.target);
     }
-    return prepared.length;
-  } finally { fs.rmSync(stage, { recursive: true, force: true }); }
+  }
+  for (const item of prepared) {
+    if (item.after) {
+      const temporary = fs.mkdtempSync(path.join(path.dirname(item.target), '.poc-patch-'));
+      try {
+        const staged = path.join(temporary, 'target');
+        fs.writeFileSync(staged, item.after, { mode: fs.statSync(item.target).mode & 0o777 });
+        fs.renameSync(staged, item.target);
+      } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
+    }
+    console.log('[patches] ' + item.name + ': ' + (item.after ? 'applied' : 'already applied'));
+  }
+  return prepared.length;
+};
+
+export const applyPatches = (cwd = process.cwd(), { verifyOnly = false } = {}) => {
+  const { root, inputs } = collectPatchInputs(cwd);
+  const prepared = inputs.map(input => {
+    const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-package-patches-'));
+    try {
+      const iterator = preparePatch(input, stage, verifyOnly);
+      let step = iterator.next();
+      while (!step.done) step = iterator.next(runGit(stage, input.patch, step.value));
+      return step.value;
+    } finally { fs.rmSync(stage, { recursive: true, force: true }); }
+  });
+  return publishPatches(root, prepared);
+};
+
+export const applyPatchesAsync = async (cwd = process.cwd(), { verifyOnly = false, signal = null,
+  budget = resolveBootstrapBudget({ bytesPerJob: 128 * 1024 * 1024 }) } = {}) => {
+  const { root, inputs } = collectPatchInputs(cwd);
+  if (!inputs.length) return 0;
+  const outcome = await runBootstrapTasks(inputs.map((input, index) => ({
+    id: 'patch:' + index, bytes: 128 * 1024 * 1024,
+    run: async ({ signal: taskSignal }) => {
+      const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-package-patches-'));
+      try {
+        const iterator = preparePatch(input, stage, verifyOnly);
+        let step = iterator.next();
+        while (!step.done) step = iterator.next(await runGitAsync(stage, input.patch, step.value, taskSignal));
+        return step.value;
+      } finally { fs.rmSync(stage, { recursive: true, force: true }); }
+    }
+  })), { budget, signal });
+  // Input order owns diagnostics and publication even when preparation overlaps.
+  const failure = outcome.results.find(row => row.status === 'failed');
+  if (failure) throw failure.error;
+  if (!outcome.ok || signal?.aborted) throw signal?.reason || new Error('Package patch preparation cancelled.');
+  return publishPatches(root, outcome.results.map(row => row.result));
 };
 
 export const exitPatchFailure = (error) => {
-  console.error(`[patches] ${error.message}`);
+  console.error('[patches] ' + error.message);
   if (error.childResult) exitLikeChildResult(error.childResult);
   else process.exit(1);
 };
@@ -235,6 +297,6 @@ export const exitPatchFailure = (error) => {
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   try {
     if (process.argv.length !== 2) throw new Error('Usage: node tools/setup/apply-patches.js');
-    if (!applyPatches()) console.log('[patches] no patch files found; skipping patch step.');
+    if (!await applyPatchesAsync()) console.log('[patches] no patch files found; skipping patch step.');
   } catch (error) { exitPatchFailure(error); }
 }

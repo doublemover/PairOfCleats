@@ -11,6 +11,7 @@ const MAX_RECEIPT_BYTES = 8 * 1024 * 1024;
 const INPUTS = ['package.json', 'package-lock.json', '.nvmrc',
   'tools/setup/preflight.js', 'src/shared/direct-execution.js', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
+  'tools/setup/bootstrap-tasks.js', 'tools/setup/native-build-plan.js',
   'src/shared/bootstrap-readiness.js', 'src/lang/tree-sitter/native-runtime.js',
   'src/lang/tree-sitter/native-grammar-binding.js'];
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
