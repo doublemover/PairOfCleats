@@ -218,18 +218,22 @@ const readJsonFile = async (filePath, {
   buildRoot = null,
   target = 'state'
 } = {}) => {
+  const assertSize = (size) => {
+    if (!Number.isFinite(maxBytes) || maxBytes <= 0 || size <= maxBytes) return;
+    const error = new Error(`[build_state] oversized ${label} file (${size} bytes > ${maxBytes} bytes): ${filePath}`);
+    error.code = 'ERR_BUILD_STATE_TOO_LARGE';
+    error.target = target;
+    error.buildRoot = buildRoot ? path.resolve(buildRoot) : null;
+    throw error;
+  };
   try {
     if (Number.isFinite(maxBytes) && maxBytes > 0) {
       const stat = await fs.stat(filePath);
-      if (Number.isFinite(stat?.size) && stat.size > maxBytes) {
-        logLine(
-          `[build_state] Skipping oversized ${label} file (${stat.size} bytes > ${maxBytes} bytes): ${filePath}`,
-          { kind: 'warning' }
-        );
-        return null;
-      }
+      assertSize(stat.size);
     }
-    const parsed = JSON.parse(await fs.readFile(filePath, 'utf8'));
+    const bytes = await fs.readFile(filePath);
+    assertSize(bytes.length);
+    const parsed = JSON.parse(bytes.toString('utf8'));
     if (!isObjectLike(parsed)) {
       if (strict) {
         const err = new Error(`[build_state] invalid ${label} payload (expected object): ${filePath}`);
@@ -243,6 +247,7 @@ const readJsonFile = async (filePath, {
     return parsed;
   } catch (err) {
     if (err?.code === 'ENOENT') return null;
+    if (err?.code === 'ERR_BUILD_STATE_TOO_LARGE') throw err;
     if (strict) {
       const wrapped = new Error(
         `[build_state] failed to parse ${label} file: ${filePath}`,
@@ -851,7 +856,9 @@ const loadSidecar = async (buildRoot, type) => {
       return cache.progress;
     }
     const parsed = fingerprint
-      ? await readJsonFile(filePath, { maxBytes: PROGRESS_JSON_MAX_BYTES, label: 'progress' })
+      ? await readJsonFile(filePath, {
+        maxBytes: PROGRESS_JSON_MAX_BYTES, label: 'progress', strict: true, buildRoot, target: 'progress'
+      })
       : null;
     cache.progress = parsed;
     cache.progressFingerprint = fingerprint;
