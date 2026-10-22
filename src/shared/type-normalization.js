@@ -113,9 +113,22 @@ const stripKnownPrefixes = (text, languageId) => {
   let next = String(text || '');
   const lang = String(languageId || '').trim().toLowerCase();
   if (lang === 'csharp' || lang === 'cs') {
-    next = next.replace(/\bglobal::/gu, '');
+    const exposedGlobal=/global\s*::/uy;
+    next = next.replace(/(?<![\p{ID_Continue}@.:])global\s*::\s*/gu, (prefix, offset, input) => {
+      let previous=offset-1;
+      while (previous>=0 && /\s/u.test(input[previous])) previous--;
+      exposedGlobal.lastIndex=offset+prefix.length;
+      return ['.',':','@'].includes(input[previous]) || exposedGlobal.test(input) ? prefix : '';
+    });
   } else if (lang === 'rust') {
-    next = next.replace(/\b(?:std|core|alloc|crate|self|super)::/gu, '');
+    const roots=new Set(['std','core','alloc','crate','self','super']);
+    next = next.replace(/(?<![\p{ID_Continue}:#])(::\s*)?((?:r#)?[\p{ID_Start}_][\p{ID_Continue}]*(?:\s*::\s*(?:r#)?[\p{ID_Start}_][\p{ID_Continue}]*)+)/gu,
+      (path, absolute, chain) => {
+        const parts=chain.split(/\s*::\s*/u);
+        // Do not expose another removable token as a new apparent root on a
+        // second normalization pass. Keep that qualified identity unchanged.
+        return roots.has(parts[0]) && !roots.has(parts[1]) ? (absolute || '')+parts.slice(1).join('::') : path;
+      });
   } else if (lang === 'php') {
     next = next.replace(/^\??\+/u, '');
   }
