@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-21T16:19:40.882Z",
+  "generatedAt": "2026-10-22T01:35:42.318Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4817,6 +4817,7 @@
         "tests/run.js",
         "tests/security/repository-authority.test.js",
         "tests/security/tooling-cache-authority.test.js",
+        "tests/storage/vector-extension/trust-revalidation.test.js",
         "tests/tooling/api-contracts/export-identity-cli.test.js",
         "tests/tooling/api-contracts/zero-warning-cap-cli.test.js",
         "tests/tooling/ci/run-suite-script-coverage-plan.test.js",

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1036,
+    "hero": 1053,
     "matrix": 108,
     "meta": 47,
     "soak": 1,
@@ -7165,6 +7165,108 @@
     {
       "id": "shared/hash/file-close-lifetime",
       "order": 1192,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/io/replace-file-missing-temp",
+      "order": 1193,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/build-state-oversized-preservation",
+      "order": 1194,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/build-state-patch-ordering",
+      "order": 1195,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/merge-checkpoint-identity",
+      "order": 1196,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/wal-publication-preservation",
+      "order": 1197,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/compact-minhash-identity",
+      "order": 1198,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/lmdb/replacement-atomicity",
+      "order": 1199,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/sqlite-dense-artifact-authority",
+      "order": 1200,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/sqlite-dense-ann-backfill",
+      "order": 1201,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/workers/dense-channel-transfer-ownership",
+      "order": 1202,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/vector-extension/trust-revalidation",
+      "order": 1203,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/publication-readiness",
+      "order": 1204,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/cache/query-effective-identity",
+      "order": 1205,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/json-stream/artifact-keep-raw-fanout",
+      "order": 1206,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/archive-destination-ownership",
+      "order": 1207,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/service/indexer-queue-worker-batch-failure",
+      "order": 1208,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/piece-assembly-output-authority",
+      "order": 1209,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

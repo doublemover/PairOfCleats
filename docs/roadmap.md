@@ -13,7 +13,7 @@ priority and shared owner; historical implementation and acceptance remain disti
 Continue on `codex/pr557-audit-repairs-20261012` through
 [PR #572](https://github.com/doublemover/PairOfCleats/pull/572), targeting its
 existing `main` base. The latest published checkpoint is
-`8685a0decb70fde42f32896f52825009c5970dda`; publication is authorized and working.
+`480f35d7a90e9e962e0286fe424e7b88a2ca2cbc`; publication is authorized and working.
 No merge is authorized. Preserve granular commits and verify remote/PR identities.
 
 The live inventory now contains **784 open issues (#584–#1367)**: P0 0, P1 50,
@@ -38,6 +38,10 @@ do not assume issue-number order or turn feature requests into duplicate engines
 2. Other P1 publication/rollback and state recovery, queue ownership, vector
    identity, worker shutdown and installable editor packages. Combine related
    P2 cases only where they share the repaired owner and regression setup.
+   **In progress:** 23 additional repairs have focused proof and are being
+   integrated for the next front gate. Two agents work in this checkout with
+   separate storage/vector ownership; the lead owns queue/tool safety and
+   publication. No new worktrees or elevated launch is required.
 3. Remaining P2 correctness/contract issues, then P3, grouped by owner.
 4. Perf reports: retain correctness parity and measure the changed operation;
    distinguish operation-count reductions from real latency/heap measurements.

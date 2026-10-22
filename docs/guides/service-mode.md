@@ -137,6 +137,10 @@ pairofcleats service indexer compact --queue index --json
 
 ## Operator notes
 
+- A fatal claim or completion failure stops further claims, cancels executing
+  siblings and waits for their execution, resource disposal and completion writes
+  before reporting the worker stopped. Already pending claims finalize as
+  cancelled. The original failure remains the cause if sibling cleanup also fails.
 - Prefer `--json` for automation; human output is for local inspection.
 - For long-running service processes, set `PAIROFCLEATS_CACHE_ROOT` explicitly.
 - Queue status should be interpreted together with:

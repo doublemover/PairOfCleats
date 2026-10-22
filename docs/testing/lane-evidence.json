@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-22T01:07:23.560Z",
+  "generatedAt": "2026-10-22T01:35:40.051Z",
   "summary": {
     "lanes": 5,
-    "tests": 1417,
+    "tests": 1434,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 370,
+    "families": 374,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1343
+      "missingTests": 1360
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1192,
+      "totalTests": 1209,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1143
+        "missing": 1160
       }
     },
     {
@@ -98,9 +98,9 @@
   "families": [
     {
       "key": "storage/sqlite",
-      "count": 71,
+      "count": 73,
       "knownDurationMs": 25860,
-      "unknownDurationCount": 62
+      "unknownDurationCount": 64
     },
     {
       "key": "indexing/chunking",
@@ -128,9 +128,9 @@
     },
     {
       "key": "tooling/install",
-      "count": 45,
+      "count": 46,
       "knownDurationMs": 8330,
-      "unknownDurationCount": 40
+      "unknownDurationCount": 41
     },
     {
       "key": "indexing/type-inference",
@@ -218,9 +218,9 @@
     },
     {
       "key": "indexing/workers",
-      "count": 5,
+      "count": 6,
       "knownDurationMs": 1770,
-      "unknownDurationCount": 3
+      "unknownDurationCount": 4
     },
     {
       "key": "indexing/segments",
@@ -242,9 +242,9 @@
     },
     {
       "key": "shared/json-stream",
-      "count": 19,
+      "count": 20,
       "knownDurationMs": 220,
-      "unknownDurationCount": 17
+      "unknownDurationCount": 18
     },
     {
       "key": "tooling/type-inference",
@@ -290,9 +290,9 @@
     },
     {
       "key": "indexing/embeddings",
-      "count": 36,
+      "count": 39,
       "knownDurationMs": 60,
-      "unknownDurationCount": 35
+      "unknownDurationCount": 38
     },
     {
       "key": "tooling/lsp",
@@ -457,6 +457,18 @@
       "unknownDurationCount": 8
     },
     {
+      "key": "shared/io",
+      "count": 8,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 8
+    },
+    {
+      "key": "tooling/service",
+      "count": 8,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 8
+    },
+    {
       "key": "indexing/extracted-prose",
       "count": 7,
       "knownDurationMs": 0,
@@ -464,18 +476,6 @@
     },
     {
       "key": "shared/cache",
-      "count": 7,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 7
-    },
-    {
-      "key": "shared/io",
-      "count": 7,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 7
-    },
-    {
-      "key": "tooling/service",
       "count": 7,
       "knownDurationMs": 0,
       "unknownDurationCount": 7
@@ -524,6 +524,12 @@
     },
     {
       "key": "indexing/stage1",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "retrieval/cache",
       "count": 5,
       "knownDurationMs": 0,
       "unknownDurationCount": 5
@@ -584,12 +590,6 @@
     },
     {
       "key": "map/workspace",
-      "count": 4,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 4
-    },
-    {
-      "key": "retrieval/cache",
       "count": 4,
       "knownDurationMs": 0,
       "unknownDurationCount": 4
@@ -668,6 +668,12 @@
     },
     {
       "key": "services/queue",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "storage/lmdb",
       "count": 3,
       "knownDurationMs": 0,
       "unknownDurationCount": 3
@@ -763,7 +769,7 @@
       "unknownDurationCount": 2
     },
     {
-      "key": "storage/lmdb",
+      "key": "storage/vector-extension",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -1267,6 +1273,18 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "indexing/build-state-oversized-preservation",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/build-state-patch-ordering",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "indexing/callsite-id",
       "count": 1,
       "knownDurationMs": 0,
@@ -1328,6 +1346,12 @@
     },
     {
       "key": "indexing/ordering",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/piece-assembly-output-authority",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -1873,6 +1897,12 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "shared/merge-checkpoint-identity",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "shared/no-path-leak",
       "count": 1,
       "knownDurationMs": 0,
@@ -2036,12 +2066,6 @@
     },
     {
       "key": "storage/embeddings",
-      "count": 1,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 1
-    },
-    {
-      "key": "storage/vector-extension",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -2320,16 +2344,16 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 414,
+      "count": 418,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 373,
+      "unknownDurationCount": 377,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {
       "key": "sqlite-heavy",
-      "count": 71,
+      "count": 73,
       "knownDurationMs": 25860,
-      "unknownDurationCount": 62,
+      "unknownDurationCount": 64,
       "note": "SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture."
     },
     {
@@ -2348,9 +2372,9 @@
     },
     {
       "key": "embeddings-cache",
-      "count": 36,
+      "count": 39,
       "knownDurationMs": 60,
-      "unknownDurationCount": 35,
+      "unknownDurationCount": 38,
       "note": "Embedding cache and stub fast-path families frequently overlap on the same fixture/setup."
     },
     {
@@ -2383,9 +2407,9 @@
     },
     {
       "key": "lmdb-report",
-      "count": 2,
+      "count": 3,
       "knownDurationMs": 0,
-      "unknownDurationCount": 2,
+      "unknownDurationCount": 3,
       "note": "LMDB report/corruption tests can often share one built fixture and diverge only in tamper steps."
     }
   ],
