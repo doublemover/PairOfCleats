@@ -81,22 +81,21 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
 
   const expandIgnorePatterns = (patterns) => {
     const expanded = [];
-    const seen = new Set();
-    const reignored = new Set();
+    const prefixMatcher = ignore().add(ignoreMatcher);
     const hasGlob = (value) => /[*?\[\]{}]/.test(value);
     const addPattern = (value) => {
-      if (!value || seen.has(value)) return;
-      seen.add(value);
+      if (!value) return;
       expanded.push(value);
+      prefixMatcher.add(value);
     };
     for (const raw of patterns) {
-      const pattern = typeof raw === 'string' ? raw.trim() : '';
+      const pattern = typeof raw === 'string' ? raw : '';
       if (!pattern) continue;
       if (!pattern.startsWith('!')) {
         addPattern(pattern);
         continue;
       }
-      const negated = pattern.slice(1).trim();
+      const negated = pattern.slice(1);
       const rel = negated.startsWith('/') ? negated.slice(1) : negated;
       const parts = rel.split('/').filter(Boolean);
       if (parts.length > 1) {
@@ -106,11 +105,11 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
           if (!part || hasGlob(part)) break;
           current = current ? `${current}/${part}` : part;
           traversalUnignorePrefixes.add(`${current}/`);
+          // Test the complete preceding rule program before reopening traversal.
+          // Retain child exclusion so a single selected leaf does not admit siblings.
+          const excluded = prefixMatcher.ignores(`${current}/`);
           addPattern(`!${current}/`);
-          if (!reignored.has(current) && ignoreMatcher.ignores(`${current}/`)) {
-            addPattern(`${current}/**`);
-            reignored.add(current);
-          }
+          if (excluded) addPattern(`${current}/**`);
         }
       }
       addPattern(pattern);

@@ -100,3 +100,11 @@ Context packs assume code/prose indexes exist (`pairofcleats index build`) and t
 - `triage_context_pack` (builds context packs)
 
 These live alongside `search`/`build_index` and support records mode + metadata filters.
+
+## Inspector packages, timestamps and records identity
+
+AWS numeric observation timestamps are Unix seconds; fractional seconds and epoch zero are retained at millisecond precision. ISO/offset strings remain supported. Numeric strings, malformed values and out-of-range values produce diagnostics rather than a guessed unit. Reimport affected stored findings from source; historical 1970 dates cannot be repaired reliably without their original representation.
+
+Inspector `packages` retains every valid affected occurrence, sorted by canonical package evidence, with deterministic occurrence IDs. Duplicate names at different file paths/layers remain associated with their own versions and fixes. `package` is a compatibility representative; it does not indicate collection completeness. Native `fixedInVersion` wins over a conflicting legacy `fixedVersion` and produces a diagnostic. Missing remediation remains unknown. Markdown, promoted package-name/ecosystem arrays and context-pack queries retain all packages; legacy singleton records remain readable. Reimport and rebuild old lossy records.
+
+Records incremental identity version 2 covers normalized source text, canonical JSON sidecar contents or explicit absence, discovery metadata and producer/promotion policies. JSON key reordering is a no-op; metadata-only reimports invalidate SQLite input identity. Malformed or unreadable sidecars fail before replacement rather than being treated as absence. Literal phrase evidence is produced from the ordered source with preserved case, independently of scoring tokenization.

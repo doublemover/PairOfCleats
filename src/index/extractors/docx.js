@@ -138,7 +138,7 @@ export const extractZipEntry = (buffer, entry, maxOutputBytes) => {
   return null;
 };
 
-const parseDocxParagraphsFromXml = (xml) => {
+export const parseDocxParagraphsFromXml = (xml) => {
   const paragraphs = [];
   const paragraphMatches = xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g);
   let index = 0;
@@ -146,13 +146,11 @@ const parseDocxParagraphsFromXml = (xml) => {
     const paragraphXml = match[0] || '';
     const styleMatch = paragraphXml.match(/<w:pStyle\b[^>]*w:val=(?:"([^"]+)"|'([^']+)')/i);
     const style = styleMatch ? (styleMatch[1] || styleMatch[2] || null) : null;
-    const normalized = paragraphXml
-      .replace(/<w:tab\s*\/>/gi, '\t')
-      .replace(/<w:br\s*\/>/gi, '\n')
-      .replace(/<w:cr\s*\/>/gi, '\n');
     const textRuns = [];
-    for (const textMatch of normalized.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/gi)) {
-      textRuns.push(decodeXmlEntities(textMatch[1]));
+    // Read supported text and separators in document order; separators outside
+    // w:t nodes must not disappear when collecting styled text runs.
+    for (const token of paragraphXml.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>|<w:(tab|br|cr)\b[^>]*\/?>/gi)) {
+      textRuns.push(token[2] ? (token[2].toLowerCase() === 'tab' ? '\t' : '\n') : decodeXmlEntities(token[1]));
     }
     const text = normalizeExtractedText(textRuns.join(''));
     index += 1;
@@ -228,22 +226,14 @@ export async function loadDocxExtractorRuntime({ refresh = false } = {}) {
   return cachedRuntime;
 }
 
-const extractWithMammoth = async (runtime, source, policy = null) => {
-  const result = await runtime.mod.extractRawText({ buffer: source });
-  const warnings = normalizeWarnings(result?.messages);
-  const lines = String(result?.value || '')
-    .replace(/\r\n?/g, '\n')
-    .split('\n');
-  const paragraphs = [];
-  for (const rawLine of lines) {
-    const text = normalizeExtractedText(rawLine);
-    if (!text) continue;
-    paragraphs.push({ index: paragraphs.length + 1, text });
-  }
-  if (!paragraphs.length) {
-    return buildFailedResult('unsupported_scanned', warnings, { sourceType: 'docx', policy });
-  }
-  return { ok: true, paragraphs, warnings };
+const extractWithMammoth = async (runtime, source, policy) => {
+  const extracted = await runtime.mod.extractRawText({ buffer: source });
+  const warnings = normalizeWarnings(extracted?.messages);
+  // Raw Mammoth lines are display output, not Word paragraph identities. The
+  // bounded structural owner supplies physical ordinals and paragraph styles
+  // for both backends, including omitted empty paragraphs and table paragraphs.
+  const structural = parseDocxParagraphsFromBuffer(source, policy);
+  return { ...structural, warnings: normalizeWarnings([...(structural.warnings || []), ...warnings]) };
 };
 
 export async function extractDocx({

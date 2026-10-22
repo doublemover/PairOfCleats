@@ -1,3 +1,4 @@
+import { getRecordPackages } from './record-utils.js';
 /**
  * Render a triage record to a markdown view.
  * @param {object} record
@@ -61,15 +62,17 @@ export function renderRecordMarkdown(record) {
     lines.push('');
   }
 
-  if (record?.package) {
-    lines.push('## Package');
-    addLine(lines, 'Name', record.package.name);
-    addLine(lines, 'Ecosystem', record.package.ecosystem);
-    addLine(lines, 'Installed version', record.package.installedVersion);
-    addLine(lines, 'Affected range', record.package.affectedRange);
-    addLine(lines, 'Fixed version', record.package.fixedVersion);
-    addLine(lines, 'Manifest path', record.package.manifestPath);
-    addLine(lines, 'PURL', record.package.purl);
+  for (const [index, pkg] of getRecordPackages(record).entries()) {
+    lines.push(getRecordPackages(record).length > 1 ? `## Package ${index + 1}` : '## Package');
+    addLine(lines, 'Name', pkg.name);
+    addLine(lines, 'Ecosystem', pkg.ecosystem);
+    addLine(lines, 'Installed version', pkg.installedVersion);
+    addLine(lines, 'Affected range', pkg.affectedRange);
+    addLine(lines, 'Fixed version', pkg.fixedVersion);
+    addLine(lines, 'Manifest path', pkg.manifestPath);
+    addLine(lines, 'PURL', pkg.purl);
+    addLine(lines, 'Source layer', pkg.sourceLayerHash);
+    addLine(lines, 'Occurrence ID', pkg.occurrenceId);
     lines.push('');
   }
 

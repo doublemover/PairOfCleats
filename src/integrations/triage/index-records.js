@@ -1,3 +1,5 @@
+import { analyzeLiteralText } from '../../shared/text-analyzer.js';
+import { stableStringify } from '../../shared/stable-json.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getIndexDir, getRepoCacheRoot } from '../../shared/repo-paths.js';
@@ -29,6 +31,11 @@ import { throwIfAborted } from '../../shared/abort.js';
 import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { setRecordsIncrementalCapability } from '../../storage/sqlite/build/index.js';
 import { promoteRecordFields } from './record-utils.js';
+
+export const recordsLogicalContentHash = ({ text, record, recordMeta, policy }) => sha1(stableStringify({
+  schema: 'records.logical-content.v2', text,
+  sidecar: record === null ? { status: 'absent' } : { status: 'present', value: record }, recordMeta, policy
+}));
 
 /**
  * Records service-mode builds enqueue embeddings without materializing dense artifacts.
@@ -127,6 +134,8 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   recordSources.sort((a, b) => (a.relPath < b.relPath ? -1 : a.relPath > b.relPath ? 1 : 0));
   log(`→ Found ${recordSources.length} record(s).`);
 
+  const recordsPolicy = { promoteFields: triageConfig.promoteFields, postingsConfig, dictConfig: runtime.dictConfig,
+    dictionary: sha1(stableStringify([...(runtime.dictWords || [])].sort())) };
   let processed = 0;
   const progressMeta = { stage: 'records', mode: 'records' };
   for (const recordEntry of recordSources) {
@@ -206,6 +215,8 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       name: recordName,
       tokens: tokenPayload.tokens,
       seq: tokenPayload.seq,
+      phraseTokens: analyzeLiteralText(text, { caseSensitive: true }),
+      phraseTokensCasePreserved: true,
       ngrams: tokenPayload.ngrams,
       chargrams: tokenPayload.chargrams,
       codeRelations: {},
@@ -240,7 +251,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       manifest: incrementalState.manifest,
       relKey: recordFile,
       fileStat,
-      fileHash: sha1(text),
+      fileHash: recordsLogicalContentHash({ text, record, recordMeta: recordEntry.recordMeta, policy: recordsPolicy }),
       fileChunks: [{ ...chunkPayload }],
       fileRelations: null,
       vfsManifestRows: null,
@@ -390,9 +401,12 @@ async function loadRecordJson(recordsDir, mdPath) {
   const jsonPath = path.join(dir, `${base}.json`);
   try {
     const raw = await fs.readFile(jsonPath, 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return null;
+    const record = JSON.parse(raw);
+    if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error(`Invalid canonical record sidecar: ${jsonPath}`);
+    return record;
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw new Error(`Cannot establish record sidecar identity: ${jsonPath}`, { cause: error });
   }
 }
 

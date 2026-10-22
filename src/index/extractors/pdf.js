@@ -31,18 +31,16 @@ let cachedStandardFontDataUrl = undefined;
 
 const normalizeItemText = (value) => normalizeExtractedText(value);
 
-const normalizePageText = (items) => {
+export const normalizePageText = (items) => {
   let text = '';
   for (const item of items || []) {
-    const raw = item?.str;
-    if (!raw) continue;
-    const value = normalizeItemText(raw);
-    if (!value) continue;
-    if (!text) {
-      text = value;
-      continue;
+    const value = normalizeItemText(item?.str ?? '');
+    if (value) {
+      if (text && !text.endsWith('\n')) text += ' ';
+      text += value;
     }
-    text += item?.hasEOL ? `\n${value}` : ` ${value}`;
+    // PDF.js hasEOL belongs AFTER this item, including empty EOL markers.
+    if (item?.hasEOL) text += '\n';
   }
   return normalizeExtractedText(text);
 };

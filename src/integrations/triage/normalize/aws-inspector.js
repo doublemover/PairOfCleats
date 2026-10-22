@@ -9,6 +9,8 @@ import {
   pickFirst,
   toIso
 } from './helpers.js';
+import { sha1 } from '../../../shared/hash.js';
+import { stableStringify } from '../../../shared/stable-json.js';
 
 /**
  * Normalize an AWS Inspector finding into the triage record schema.
@@ -19,8 +21,18 @@ import {
  */
 export function normalizeAwsInspector(raw, meta = {}, options = {}) {
   const warnings = [];
-  const createdAt = toIso(raw?.firstObservedAt) || toIso(raw?.createdAt) || toIso(raw?.created_at) || null;
-  const updatedAt = toIso(raw?.lastObservedAt) || toIso(raw?.updatedAt) || toIso(raw?.updated_at) || createdAt;
+  const awsDate = (value, field) => {
+    if (value === null || value === undefined || value === '') return null;
+    // AWS wire numeric timestamps are Unix seconds, including fractional seconds.
+    // Numeric strings are deliberately unsupported; ISO/offset strings stay valid.
+    const candidate = typeof value === 'number' ? value * 1000
+      : typeof value === 'string' && !/^[+-]?[\d.]+$/.test(value) ? value : NaN;
+    const date = new Date(candidate);
+    if (!Number.isFinite(date.getTime())) { warnings.push(`invalid AWS timestamp: ${field}`); return null; }
+    return date.toISOString();
+  };
+  const createdAt = awsDate(raw?.firstObservedAt, 'firstObservedAt') || toIso(raw?.createdAt) || toIso(raw?.created_at);
+  const updatedAt = awsDate(raw?.lastObservedAt, 'lastObservedAt') || toIso(raw?.updatedAt) || toIso(raw?.updated_at) || createdAt;
 
   const record = buildBaseRecord({
     source: 'aws_inspector',
@@ -70,28 +82,47 @@ export function normalizeAwsInspector(raw, meta = {}, options = {}) {
     references
   };
 
-  const packages = details.vulnerablePackages || details.vulnerable_packages || details.packages || [];
-  const pkg = Array.isArray(packages) && packages.length
-    ? packages[0]
-    : (details.package || raw?.package || {});
-  const packageName = pickFirst(pkg.name, pkg.packageName, raw?.packageName, raw?.package);
-  if (!packageName) warnings.push('missing package name');
-  const packageEcosystem = pickFirst(pkg.packageManager, pkg.ecosystem, raw?.ecosystem);
-  const installedVersion = pickFirst(pkg.version, pkg.installedVersion, raw?.installedVersion);
-  const affectedRange = pickFirst(details.vulnerableVersionRange, details.affectedRange, raw?.affectedRange);
-  const fixedVersion = pickFirst(pkg.fixedVersion, details.fixedVersion, raw?.fixedVersion);
-
-  if (packageName || packageEcosystem || installedVersion || affectedRange || fixedVersion) {
-    record.package = {
-      name: packageName || null,
-      ecosystem: packageEcosystem || null,
-      installedVersion: installedVersion || null,
-      affectedRange: affectedRange || null,
-      fixedVersion: fixedVersion || null,
-      manifestPath: null,
-      purl: pickFirst(pkg.purl, raw?.purl)
-    };
+  const suppliedPackages = details.vulnerablePackages ?? details.vulnerable_packages ?? details.packages;
+  const packages = suppliedPackages === undefined
+    ? [details.package || (raw?.package && typeof raw.package === 'object' ? raw.package : {
+      name: pickFirst(raw?.packageName, raw?.package), ecosystem: raw?.ecosystem,
+      installedVersion: raw?.installedVersion, affectedRange: raw?.affectedRange, purl: raw?.purl
+    })].filter(value => value && typeof value === 'object')
+    : Array.isArray(suppliedPackages) ? suppliedPackages : [];
+  if (suppliedPackages !== undefined && !Array.isArray(suppliedPackages)) warnings.push('malformed affected packages collection');
+  const normalizedPackages = [];
+  for (const [index, pkg] of packages.entries()) {
+    if (!pkg || typeof pkg !== 'object' || Array.isArray(pkg)) { warnings.push(`malformed affected package at ${index}`); continue; }
+    const name = pickFirst(pkg.name, pkg.packageName);
+    if (!name) { warnings.push(`missing affected package name at ${index}`); continue; }
+    const nativeFix = pickFirst(pkg.fixedInVersion);
+    const legacyFix = pickFirst(pkg.fixedVersion);
+    if (nativeFix && legacyFix && nativeFix !== legacyFix) warnings.push(`conflicting fixed version for package ${name}; fixedInVersion takes precedence`);
+    normalizedPackages.push({
+      name, ecosystem: pickFirst(pkg.packageManager, pkg.ecosystem),
+      installedVersion: pickFirst(pkg.version, pkg.installedVersion),
+      affectedRange: pickFirst(pkg.vulnerableVersionRange, pkg.affectedRange, details.vulnerableVersionRange, details.affectedRange),
+      // Finding-level legacy aliases apply only to a singleton, never across packages.
+      fixedVersion: nativeFix || legacyFix || (packages.length === 1 ? pickFirst(details.fixedVersion, raw?.fixedVersion) : null),
+      manifestPath: pickFirst(pkg.filePath, pkg.manifestPath), purl: pickFirst(pkg.purl),
+      sourceLayerHash: pickFirst(pkg.sourceLayerHash), architecture: pickFirst(pkg.arch),
+      epoch: pkg.epoch ?? null, release: pickFirst(pkg.release)
+    });
   }
+  normalizedPackages.sort((a, b) => {
+    const left = stableStringify(a), right = stableStringify(b);
+    return left < right ? -1 : left > right ? 1 : 0;
+  });
+  const occurrences = new Map();
+  record.packages = normalizedPackages.map(pkg => {
+    const identity = sha1(stableStringify(pkg));
+    const ordinal = (occurrences.get(identity) || 0) + 1;
+    occurrences.set(identity, ordinal);
+    return { ...pkg, occurrenceId: `${identity}:${ordinal}` };
+  });
+  // Compatibility representative is deterministic; packages is the full authority.
+  record.package = record.packages[0] || null;
+  if (!record.packages.length && packages.length) warnings.push('no valid affected packages retained');
 
   const resource = Array.isArray(raw?.resources) ? raw.resources[0] : (raw?.resource || {});
   const assetId = pickFirst(resource.id, resource.resourceId, raw?.resourceId, raw?.assetId, raw?.instanceId, raw?.imageId);

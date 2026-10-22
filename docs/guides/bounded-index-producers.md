@@ -46,3 +46,9 @@ case-sidecar changes again. Shared-module ledgers likewise inventory the union o
 approved roots once per generation, derive boundary-aware subsets, and retain
 independent fresh inventories for reproducibility generations. Explicit root files
 authorize only themselves, never a recursive parent walk.
+
+## Ordered source contracts
+
+JSONL byte hints never control output lengths: encoded row bytes plus the newline own batching. Ignore files are ordered rule programs; repeated rules are retained and canonical parser whitespace/escape semantics are preserved. Generated ancestor traversal openings retain preceding child exclusions so selected descendants do not admit siblings.
+
+PDF EOL flags terminate their own item, including empty markers. DOCX text/separator tokens remain in source order across styled runs; both extraction backends obtain physical paragraph ordinals and direct paragraph styles from the same bounded XML owner. Custom/inherited Word styles are retained as source style IDs rather than invented heading levels.

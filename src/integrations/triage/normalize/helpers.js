@@ -64,7 +64,7 @@ export function buildStableKeyCandidate(source, value) {
  * @returns {string|null}
  */
 export function toIso(value) {
-  if (!value) return null;
+  if (value === null || value === undefined || value === '') return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return date.toISOString();

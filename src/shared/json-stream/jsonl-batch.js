@@ -228,9 +228,9 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
     if (failed) throw failed;
     if (closed) throw new Error('JSONL writer closed.');
     const buffer = Buffer.isBuffer(line) ? line : Buffer.from(line, 'utf8');
-    const bytes = Number.isFinite(Number(lineBytes))
-      ? Math.max(0, Math.floor(Number(lineBytes)))
-      : buffer.length + 1;
+    // A size hint is advisory. Only encoded bytes may size Buffer.concat or
+    // admission accounting; null, string lengths and stale hints cannot alter data.
+    const bytes = buffer.length + NEWLINE.length;
     if (pendingBytes && pendingBytes + bytes > resolvedBlockSize) {
       await flushBuffer();
     }

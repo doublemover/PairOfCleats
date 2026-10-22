@@ -14,7 +14,7 @@ const sha256 = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 export const sqliteZeroStateChecksum = payload => sha256(stableStringify(payload));
 
 /** Bind the waiver to selected source bytes, independently proving empty data. */
-export const resolveSqliteZeroStateSourceProof = async (indexDir, mode) => {
+export const resolveSqliteZeroStateSourceProof = async (indexDir, mode, { identityIndexDir = null } = {}) => {
   let manifest = null;
   try {
     const { buffer } = await readVerifiedContainedFile(indexDir,
@@ -74,7 +74,7 @@ export const resolveSqliteZeroStateSourceProof = async (indexDir, mode) => {
   identities.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
   return sqliteZeroStateChecksum({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: manifest?.buildId || null, compatibilityKey: manifest?.compatibilityKey || null,
-    mode, indexDir: path.resolve(indexDir), sources: identities });
+    mode, indexDir: identityIndexDir ?? path.resolve(indexDir), sources: identities });
 };
 
 export const validateSqliteZeroStateManifest = async ({ indexDir, mode, outputPath, payload }) => {

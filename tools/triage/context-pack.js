@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { getRecordPackages } from '../../src/integrations/triage/record-utils.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
@@ -165,16 +166,14 @@ function buildEvidenceQueries(finding) {
   const queries = new Set();
   const vulnId = finding?.vuln?.cve || finding?.vuln?.vulnId;
   if (vulnId) queries.add(vulnId);
-  const packageName = finding?.package?.name;
-  if (packageName) queries.add(packageName);
+  for (const pkg of getRecordPackages(finding)) {
+    if (pkg.name) queries.add(pkg.name);
+    if (pkg.importName) queries.add(pkg.importName);
+    if (pkg.name?.includes('/')) queries.add(pkg.name.split('/').pop());
+    if (pkg.manifestPath) queries.add(path.basename(pkg.manifestPath));
+  }
   const importName = pickImportName(finding);
   if (importName) queries.add(importName);
-  if (!importName && packageName && packageName.includes('/')) {
-    const unscoped = packageName.split('/').pop();
-    if (unscoped && unscoped !== packageName) queries.add(unscoped);
-  }
-  const manifestPath = finding?.package?.manifestPath;
-  if (manifestPath) queries.add(path.basename(manifestPath));
   const exposureEndpoint = finding?.exposure?.publicEndpoint;
   if (exposureEndpoint) queries.add(exposureEndpoint);
   return Array.from(queries).filter(Boolean);
@@ -263,8 +262,9 @@ function scoreHistoryCandidate({ record, recordId, finding, vulnId, packageName,
 
   if (decisionFindingId && decisionFindingId === recordId) score += 8;
   if (vulnId && valuesEqual(recordVulnId, vulnId)) score += 4;
-  if (packageName && valuesEqual(recordPackageName, packageName)) score += 3;
-  if (manifestName && valuesEqual(recordManifestName, manifestName)) score += 2;
+  if (getRecordPackages(finding).some(left => getRecordPackages(record).some(right => valuesEqual(left.name, right.name)))) score += 3;
+  if (getRecordPackages(finding).some(left => left.manifestPath && getRecordPackages(record).some(right => right.manifestPath
+    && valuesEqual(path.basename(left.manifestPath), path.basename(right.manifestPath))))) score += 2;
   if (serviceMatch) score += 1;
   if (envMatch) score += 1;
 
@@ -344,6 +344,7 @@ async function runSearchJson({ repoRoot, query, mode, metaFilters, top }) {
     const payload = await withSearchEnv(async () => await search(repoRoot, {
       query,
       args,
+      argsMode: 'complete',
       emitOutput: false,
       exitOnError: false,
       indexCache,
