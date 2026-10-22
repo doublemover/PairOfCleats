@@ -9,10 +9,12 @@ const { EventEmitter: NodeEventEmitter } = require('node:events');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
 const { snapshotConfiguration, renderEffectiveSettings } = require('./effective-settings.js');
 const { inspectCliVersion } = require('./installation-evidence.js');
+const { createDocumentAuthority, readVerifiedSource } = require('./document-authority.js');
+const { generationFromContextPack, contextDiscoveryRequest, contextDiscoveryCliArgs } = require('./semantic-discovery.js');
 const { normalizeFilterPagination, mergeFilterPage, continuationInvocation } = require('./filter-pagination.js');
 const { createSemanticEvidenceWorkflow, sourceQualifiedSelection, qualifiedDocumentOffsets, qualifiedBindingSeed } = require('./semantic-evidence.js');
 let latestNavigationEvidence = null;
-const { sourceNavigationArgs, qualifiedNavigationRows, verifyLocationSource } = require('./source-navigation.js');
+const { sourceNavigationArgs, qualifiedNavigationRows } = require('./source-navigation.js');
 const { readGitHead, validateServiceRoot, mapServicePayload, verifyServiceRevision } = require('./service-repository.js');
 const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask,
   boundedLogLine, retainTaskLog } = require('./progress-view.js');
@@ -2106,26 +2108,36 @@ function createRangeFromNavigationEntry(entry) {
   );
 }
 
-function createNavigationLocation(repoContext, entry) {
+async function createNavigationLocation(repoContext, entry, authority) {
   const target = resolveValidatedHitTarget(vscode, repoContext, {
     file: entry?.file || entry?.virtualPath || ''
   });
   if (!target.ok) return null;
-  const openDocument = vscode.workspace.textDocuments?.find(document => document.uri?.fsPath === target.filePath);
-  if (entry?.sourceHash && openDocument && (openDocument.isDirty
-    || createHash('sha256').update(openDocument.getText()).digest('hex') !== entry.sourceHash)) {
-    noteNavigationDegraded('changed-target-buffer', 'Indexed target buffer differs from its source witness; its precise range was not published.');
-    return null;
+  if (entry?.coordinateUnit !== 'utf16' || !entry.sourceHash) return null;
+  const qualified = await authority.qualify({ repoRoot: repoContext.repoRoot, file: target.filePath,
+    uri: target.targetUri, sourceHash: entry.sourceHash, range: entry });
+  if (!qualified) return null;
+  const range = new vscode.Range(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
+  return new vscode.Location(qualified.document.uri || target.targetUri, range);
+}
+
+async function createNavigationLocations(repoContext, rows) {
+  const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: () => operations.isCurrent(),
+    maxDocuments: NAVIGATION_RESULT_LIMIT });
+  const locations = [];
+  try {
+    for (const row of rows) {
+      const location = await createNavigationLocation(repoContext, row, authority);
+      if (!location) return [];
+      locations.push(location);
+    }
+    await authority.assertCurrent();
+    return operations.isCurrent() ? locations : [];
+  } catch (error) {
+    if (operations.isCurrent()) noteNavigationDegraded('target-document-authority',
+      `Indexed target ranges remain unavailable: ${error.message}`);
+    return [];
   }
-  if (entry?.sourceHash && !verifyLocationSource(target.filePath, entry.sourceHash)) {
-    noteNavigationDegraded('changed-target', 'Indexed target source changed; its precise range was not published.');
-    return null;
-  }
-  const range = createRangeFromNavigationEntry(entry) || new vscode.Range(
-    new vscode.Position(0, 0),
-    new vscode.Position(0, 0)
-  );
-  return new vscode.Location(target.targetUri, range);
 }
 
 function mapNavigationSymbolKind(kind) {
@@ -2455,7 +2467,7 @@ async function provideOwnedDefinitions(document, position) {
     filePath: getDocumentFilePath(document),
     limit: NAVIGATION_RESULT_LIMIT
   });
-  return rows.map((entry) => createNavigationLocation(repoContext, entry)).filter(Boolean);
+  return createNavigationLocations(repoContext, rows);
 }
 
 function provideReferencesAtPosition(document, position, context, token) {
@@ -2475,7 +2487,7 @@ async function provideOwnedReferences(document, position, context = {}) {
     filePath: getDocumentFilePath(document),
     limit: NAVIGATION_RESULT_LIMIT
   });
-  return rows.map((entry) => createNavigationLocation(repoContext, entry)).filter(Boolean);
+  return createNavigationLocations(repoContext, rows);
 }
 
 function provideDocumentSymbolsForDocument(document, token) {
@@ -4800,9 +4812,7 @@ async function executeOwnedSearchCommand({
  *
  * @returns {Promise<void>}
  */
-const runSemanticEvidence = createSemanticEvidenceWorkflow({
-  vscode, operations,
-  getCursorSeed: repoContext => {
+function currentQualifiedSemanticSeed(repoContext) {
     const captured = latestNavigationEvidence;
     const editor = vscode.window.activeTextEditor;
     const document = editor?.document;
@@ -4816,15 +4826,71 @@ const runSemanticEvidence = createSemanticEvidenceWorkflow({
         || args[args.indexOf('--source-version') + 1] !== captured.payload.sourceVersion) return null;
       return qualifiedBindingSeed(captured.payload);
     } catch { return null; }
+}
+
+const runSemanticEvidence = createSemanticEvidenceWorkflow({
+  vscode, operations,
+  getCursorSeed: currentQualifiedSemanticSeed,
+  resolveCursorSeed: async repoContext => {
+    const editor = vscode.window.activeTextEditor;
+    const document = editor?.document, position = editor?.selection?.active;
+    if (!document?.uri?.fsPath || !position) return null;
+    const relative = path.relative(repoContext.repoRoot, document.uri.fsPath);
+    if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) return null;
+    await runNavigationCommand({ kind: 'definitions', repoContext, sourceDocument: document, position,
+      query: getWordQueryAtPosition(document, position), filePath: document.uri.fsPath, limit: NAVIGATION_RESULT_LIMIT });
+    const seed = currentQualifiedSemanticSeed(repoContext);
+    if (!seed && operations.isCurrent()) vscode.window.showInformationMessage(
+      `Current indexed cursor binding is ${latestNavigationEvidence?.payload?.status || 'unavailable'}. Select a source/structural query or explicit generation; no unique semantic target was inferred.`);
+    return seed;
   },
   resolveRepo: node => node?.resultSet ? Promise.resolve(createStoredRepoContext(node.resultSet)) : resolveSearchRepoContext(),
   chooseTransport: async repoContext => {
     const config = getExtensionConfiguration(repoContext);
     const execution = await resolveExecutionMode(config, 'semantic-find');
     if (!execution.ok) throw new Error(execution.message);
+    if (execution.mode === 'api' && execution.capabilities?.['semantic-find'] !== true) throw new Error('The selected service does not advertise semantic find. Use an explicitly supported transport.');
     const mapping = execution.mode === 'api' ? await resolveServiceRepository(repoContext, execution) : null;
     if (execution.mode === 'api' && !mapping) return null;
     return { transport: execution.mode, execution, config, serviceMapping: mapping };
+  },
+  discoverGeneration: async (repoContext, state, seedNode) => {
+    const { execution, config } = state;
+    let seed = seedNode?.hit?.chunkUid ? `chunk:${seedNode.hit.chunkUid}` : null;
+    if (!seed) {
+      let file = seedNode?.hit?.file || vscode.window.activeTextEditor?.document?.uri?.fsPath || '';
+      if (path.isAbsolute(file)) file = path.relative(repoContext.repoRoot, file).replace(/\\/g, '/');
+      if (!file || file === '..' || file.startsWith('../') || path.isAbsolute(file)) {
+        file = await vscode.window.showInputBox({ prompt: 'Retained source path for canonical semantic generation discovery',
+          placeHolder: 'Repository-relative path; no directory scan or build' });
+      }
+      if (!file) throw new Error('Select a source file or search hit to discover its published semantic generation.');
+      if (file.startsWith('/') || file.includes(':') || file.split(/[\\/]/).some(part => ['.', '..'].includes(part))) throw new Error('Generation discovery source must remain inside the selected repository.');
+      seed = `file:${file.replace(/\\/g, '/')}`;
+    }
+    let payload, expectedRepo = repoContext.repoRoot;
+    if (execution.mode === 'api') {
+      if (execution.capabilities?.['context-pack'] !== true) throw new Error('Service supports semantic requests but does not advertise context-pack generation discovery. Enter a known immutable generation.');
+      expectedRepo = state.serviceMapping.serviceRoot;
+      const response = await requestApiJson(execution.baseUrl, '/analysis/context-pack', { method: 'POST',
+        payload: contextDiscoveryRequest(expectedRepo, seed), timeoutMs: execution.timeoutMs,
+        label: 'Canonical semantic generation discovery' });
+      if (!response.ok) throw new Error(response.message);
+      payload = response.payload?.result || response.payload;
+    } else {
+      const cli = resolveCli(repoContext.repoRoot, config);
+      if (!cli.ok) throw new Error(cli.message);
+      const response = await runBufferedJsonCommand({
+        spec: { title: 'Semantic generation discovery', progressTitle: 'PairOfCleats semantic generation discovery', timeoutMs: 5000 },
+        repoRoot: repoContext.repoRoot, command: cli.command, args: [...cli.argsPrefix, ...contextDiscoveryCliArgs(repoContext.repoRoot, seed)],
+        env: buildSpawnEnv(config), output: getOutputChannel() });
+      if (!response?.ok) throw new Error(response?.message || 'Canonical semantic generation discovery failed.');
+      payload = response.payload;
+    }
+    if (Buffer.byteLength(JSON.stringify(payload)) > 131072) throw new Error('Generation discovery exceeds the 128 KiB editor response bound.');
+    const witness = generationFromContextPack(payload, expectedRepo);
+    if (!witness) throw new Error('Selected source has no authoritative semantic generation section. Choose another source or an explicit immutable generation.');
+    return witness;
   },
   execute: async (operation, request, state) => {
     const { execution, config, repoContext } = state;
@@ -4916,12 +4982,29 @@ async function openCapturedEvidence() {
       if (!result.ok) vscode.window.showErrorMessage(result.message);
     } else {
       const target = resolveValidatedHitTarget(vscode, captured.repoContext, hit);
-      if (!target.ok || !verifyLocationSource(target.filePath, hit.sourceHash)) {
-        vscode.window.showErrorMessage('Captured evidence source is stale or unavailable. Re-capture context before using its range.');
-        return;
+      if (!target.ok) { vscode.window.showErrorMessage(target.message); return; }
+      try {
+        const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: () => operations.isCurrent(), maxDocuments: 1 });
+        if (hit.coordinateUnit === 'utf16' && [hit.startLine, hit.startCol, hit.endLine, hit.endCol].every(Number.isSafeInteger)) {
+          const qualified = await authority.qualify({ repoRoot: captured.repoContext.repoRoot, file: target.filePath,
+            uri: target.targetUri, sourceHash: hit.sourceHash, range: hit });
+          if (!qualified || !operations.isCurrent()) return;
+          await authority.assertCurrent();
+          const editor = await vscode.window.showTextDocument(qualified.document);
+          if (!operations.isCurrent() || qualified.document.version !== qualified.version || qualified.document.isDirty) return;
+          editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
+          editor.revealRange(editor.selection);
+        } else {
+          const source = readVerifiedSource({ repoRoot: captured.repoContext.repoRoot, file: target.filePath, sourceHash: hit.sourceHash });
+          const document = await vscode.workspace.openTextDocument(target.targetUri);
+          const offset = source.sourceText.startsWith('\ufeff') ? 1 : 0;
+          qualifiedDocumentOffsets(document, { ...source, start: offset, end: offset });
+          await vscode.window.showTextDocument(document);
+          vscode.window.showInformationMessage('Evidence source bytes were verified. Its producer supplied no exact UTF-16 range, so only the source file was opened.');
+        }
+      } catch (error) {
+        if (operations.isCurrent()) vscode.window.showErrorMessage(`Captured evidence range unavailable: ${error.message}`);
       }
-      const result = await openSearchHit(vscode, captured.repoContext, hit);
-      if (!result.ok) vscode.window.showErrorMessage(result.message);
     }
   }
 }
@@ -4947,7 +5030,9 @@ async function inspectIndexedNavigation(kind) {
         coordinateUnit: value.coordinateUnit }, { span: value.span });
       const document = await vscode.workspace.openTextDocument(vscode.Uri.file(target.file));
       const offsets = qualifiedDocumentOffsets(document, target);
+      const version = document.version;
       const editor = await vscode.window.showTextDocument(document);
+      if (!operations.isCurrent() || document.version !== version || document.isDirty) return;
       editor.selection = new vscode.Selection(document.positionAt(offsets.start), document.positionAt(offsets.end));
       editor.revealRange(editor.selection);
       vscode.window.showInformationMessage('Opened candidate evidence. The indexed binding remains ambiguous; references were not pooled.');

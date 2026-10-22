@@ -52,7 +52,9 @@ try {
   fs.appendFileSync(file, 'changed');
   assert.equal(verifyLocationSource(file, hash), false, 'stale offsets are never joined to changed source');
   const exact = { sourceHash: hash, coordinateUnit: 'utf16', startLine: 1, startCol: 1, endLine: 2, endCol: 3 };
-  assert.deepEqual(qualifiedNavigationRows({ status: 'resolved', binding: { status: 'resolved' }, results: [exact, { ...exact, sourceHash: null }] }), [exact]);
+  assert.deepEqual(qualifiedNavigationRows({ status: 'resolved', binding: { status: 'resolved' }, results: [exact] }), [exact]);
+  assert.deepEqual(qualifiedNavigationRows({ status: 'resolved', binding: { status: 'resolved' }, results: [exact, { ...exact, sourceHash: null }] }), [],
+    'dropping one unqualified row must not turn a resolved reference set into falsely complete native locations');
   assert.deepEqual(qualifiedNavigationRows({ status: 'partial', binding: { status: 'resolved' }, results: [exact] }), [], 'native providers do not imply completeness for partial reference sets');
   assert.deepEqual(qualifiedNavigationRows({ status: 'ambiguous', results: [exact] }), []);
   assert.deepEqual(qualifiedNavigationRows({ status: 'approximate', results: [exact] }), []);

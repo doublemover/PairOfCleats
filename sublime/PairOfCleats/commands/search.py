@@ -768,38 +768,53 @@ class _FileSymbolLookupMixin(object):
         raise NotImplementedError()
 
 
-def _execute_qualified_navigation(view, query, kind, on_hits, limit, title, include_declaration=True):
+def _execute_qualified_navigation(view, query, kind, on_hits, limit, title, include_declaration=True,
+                                  on_evidence=None, operation_scope=None):
     window = view.window()
+    scope = operation_scope or operations.capture(window, key='navigation')
+    def failed(message):
+        if not operations.is_current(scope):
+            return
+        if callable(on_evidence):
+            ui.show_status(message)
+            on_evidence(None, None)
+        else:
+            ui.show_error(message)
     if view.is_dirty():
-        ui.show_error('PairOfCleats: save the source before indexed navigation. Related Search remains approximate.')
+        failed('PairOfCleats: save the source before indexed navigation. Related Search remains approximate.')
         return
     file_name = view.file_name()
     repo_root, reason = paths.resolve_repo_root(window, return_reason=True, path_hint=file_name)
     if not repo_root:
-        ui.show_error(reason)
+        failed(reason)
         return
     settings = config.get_settings(window)
     execution = config.resolve_execution_mode(settings, 'navigation')
     if execution.get('error'):
-        ui.show_error(execution['error'])
+        failed(execution['error'])
         return
     errors = config.validate_settings(settings, repo_root, workflow='navigation')
     if errors:
-        ui.show_error('PairOfCleats settings need attention:\n- ' + '\n- '.join(errors))
+        failed('PairOfCleats settings need attention:\n- ' + '\n- '.join(errors))
         return
-    with open(file_name, 'rb') as handle:
-        raw = handle.read(4 * 1024 * 1024 + 1)
+    try:
+        with open(file_name, 'rb') as handle:
+            raw = handle.read(4 * 1024 * 1024 + 1)
+        disk = raw.decode('utf-8')
+    except (OSError, UnicodeError) as error:
+        failed('PairOfCleats: source bytes could not be qualified: ' + str(error))
+        return
     if len(raw) > 4 * 1024 * 1024:
-        ui.show_error('PairOfCleats: source exceeds the bounded navigation verifier.')
+        failed('PairOfCleats: source exceeds the bounded navigation verifier.')
         return
     text = view.substr(sublime.Region(0, view.size()))
-    disk = raw.decode('utf-8')
     normalization = results.qualified_source_buffer(disk, text)
     if normalization is None:
-        ui.show_error('PairOfCleats: source buffer differs from disk. Save before indexed navigation.')
+        failed('PairOfCleats: source buffer differs from disk. Save before indexed navigation.')
         return
     selections = list(view.sel())
     if not selections:
+        failed('PairOfCleats: no current source cursor is available.')
         return
     point = selections[0].begin()
     row, _column = view.rowcol(point)
@@ -814,20 +829,22 @@ def _execute_qualified_navigation(view, query, kind, on_hits, limit, title, incl
             '--source-hash', source_hash, '--source-version', version,
             '--line', str(row + 1), '--column', str(column + 1), '--coordinate-unit', 'utf16',
             '--include-declaration', str(bool(include_declaration)).lower()]
-    scope = operations.capture(window, key='navigation')
     def done(result):
         if not operations.is_current(scope) or view.change_count() != int(version) or view.is_dirty():
             return
         if result.error or result.returncode != 0:
-            ui.show_error(result.error or result.output or 'Indexed navigation failed.')
+            failed(result.error or 'Indexed navigation did not complete. Inspect its task diagnostics.')
             return
         payload = result.payload or {}
         if (payload.get('sourceHash') != source_hash or payload.get('sourceVersion') != version
                 or payload.get('coordinateUnit') != 'utf16'):
-            ui.show_error('PairOfCleats: navigation did not retain the requested source identity/version.')
+            failed('PairOfCleats: navigation did not retain the requested source identity/version.')
             return
         _QUALIFIED_NAVIGATION[window.id()] = {'payload': payload, 'scope': scope, 'root': repo_root,
             'file': file_name, 'version': version, 'point': point}
+        if callable(on_evidence):
+            on_evidence(payload, repo_root)
+            return
         if payload.get('status') == 'ambiguous' and (payload.get('binding') or {}).get('candidates'):
             candidates = payload['binding']['candidates']
             def chosen(index):

@@ -51,6 +51,21 @@ class ApiResult(object):
         self.error = error
 
 
+def read_workflow_capabilities(payload):
+    if not isinstance(payload, dict):
+        return {}
+    manifest = payload.get('runtimeManifest')
+    selected = None
+    if isinstance(manifest, dict):
+        surfaces = manifest.get('surfaces')
+        api = surfaces.get('api') if isinstance(surfaces, dict) else None
+        selected = api.get('workflowCapabilities') if isinstance(api, dict) else None
+    if not isinstance(selected, dict):
+        selected = payload.get('capabilities')
+    return {key: value for key, value in (selected or {}).items()
+            if isinstance(key, str) and isinstance(value, bool)} if isinstance(selected, dict) else {}
+
+
 class ApiHandle(object):
     def __init__(self, thread, scope=None):
         self.thread = thread

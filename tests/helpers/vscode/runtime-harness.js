@@ -357,8 +357,25 @@ export function createVsCodeRuntimeHarness({
       getConfiguration() {
         return createFakeConfiguration(normalizedConfig, globalConfigValues, explicitWorkspaceConfig);
       },
+      textDocuments: [],
       async openTextDocument(uri) {
-        const document = { uri };
+        const existing = uri?.fsPath ? this.textDocuments.find(document => document.uri?.fsPath === uri.fsPath) : null;
+        let text = typeof uri?.content === 'string' ? uri.content : '';
+        if (!existing && uri?.scheme === 'file' && fs.existsSync(uri.fsPath)) {
+          text = fs.readFileSync(uri.fsPath, 'utf8').replace(/^\ufeff/, '').replace(/\r\n/g, '\n');
+        }
+        const document = existing || { uri, version: 1, isDirty: false,
+          getText() { return text; },
+          positionAt(offset) {
+            const before = text.slice(0, Math.min(text.length, Math.max(0, offset)));
+            const lines = before.split('\n');
+            return new fakeVscode.Position(lines.length - 1, lines[lines.length - 1].length);
+          },
+          offsetAt(position) {
+            const lines = text.split('\n');
+            return lines.slice(0, position.line).reduce((size, line) => size + line.length + 1, 0) + position.character;
+          } };
+        if (!existing && uri?.fsPath) this.textDocuments.push(document);
         openedDocuments.push(document);
         return document;
       },

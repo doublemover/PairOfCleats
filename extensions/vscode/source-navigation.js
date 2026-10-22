@@ -25,10 +25,15 @@ function sourceNavigationArgs(document, position, includeDeclaration = true) {
 
 function qualifiedNavigationRows(payload) {
   if (payload?.status !== 'resolved' || payload?.binding?.status !== 'resolved') return [];
-  return (payload.results || []).filter(row => row.coordinateUnit === 'utf16'
+  const rows = payload.results;
+  if (!Array.isArray(rows)) return [];
+  const valid = row => row.coordinateUnit === 'utf16'
     && /^[a-f0-9]{64}$/.test(row.sourceHash || '') && Number.isSafeInteger(row.startLine)
     && Number.isSafeInteger(row.startCol) && Number.isSafeInteger(row.endLine)
-    && Number.isSafeInteger(row.endCol));
+    && Number.isSafeInteger(row.endCol) && row.startLine >= 1 && row.startCol >= 1
+    && row.endLine >= row.startLine && row.endCol >= 1
+    && (row.endLine !== row.startLine || row.endCol >= row.startCol);
+  return rows.every(valid) ? rows : [];
 }
 
 function verifyLocationSource(file, sourceHash) {

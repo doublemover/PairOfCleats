@@ -183,5 +183,16 @@ harness.fakeVscode.workspace.textDocuments = [{ uri: { fsPath: workspace.resolve
 harness.queuedResults.push({ code: 0, stdout: JSON.stringify(boundResult) });
 assert.deepEqual(await harness.definitionProviders[0].provider.provideDefinition(document, start, {}), [],
   'a matching disk hash cannot qualify a dirty target buffer');
+const bomTarget = workspace.resolvePath('src', 'defs.js');
+fs.writeFileSync(bomTarget, '\ufeff  WidgetBuilder\r\nnext\r\n');
+harness.fakeVscode.workspace.textDocuments = [];
+harness.queuedResults.push({ code: 0, stdout: JSON.stringify({ ...boundResult,
+  results: [{ file: 'src/defs.js', sourceHash: hashFile(bomTarget), coordinateUnit: 'utf16',
+    startLine: 1, startCol: 4, endLine: 1, endCol: 17 }] }) });
+const normalized = await harness.definitionProviders[0].provider.provideDefinition(document, start, {});
+assert.equal(normalized.length, 1);
+assert.equal(normalized[0].range.start.character, 2);
+assert.equal(normalized[0].range.end.character, 15,
+  'native provider uses the actual opened BOM-stripped target buffer rather than retained raw columns');
 
 console.log('vscode navigation providers test passed');

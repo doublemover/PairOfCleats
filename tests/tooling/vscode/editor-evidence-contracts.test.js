@@ -98,4 +98,32 @@ assert.equal(dispatched[0].operation, 'find');
 assert.deepEqual(dispatched[0].request.generation, generation);
 assert.deepEqual(dispatched[0].request.selector, { target: ref });
 assert.deepEqual(errors, []);
+let resolvedFirstUse = 0, currentSeed = null;
+const firstUse = createSemanticEvidenceWorkflow({ vscode: evidenceUi,
+  operations: { isCurrent: () => true, run: (_label, callback) => callback() },
+  resolveRepo: async () => ({ repoRoot: '/chosen' }), chooseTransport: async () => ({ transport: 'cli' }),
+  getCursorSeed: () => currentSeed,
+  resolveCursorSeed: async () => { resolvedFirstUse += 1; currentSeed = qualifiedBindingSeed(bound); return currentSeed; },
+  execute: async (operation, request) => {
+    assert.equal(operation, 'find');
+    assert.deepEqual(request.selector, { target: ref });
+    return { generation, status: 'partial', records: [], edges: [], frontier: [] };
+  } });
+await firstUse();
+assert.equal(resolvedFirstUse, 1, 'first-use source selection delegates to the injected canonical navigation owner');
+let generationDiscovery = 0;
+const apiDiscovery = createSemanticEvidenceWorkflow({ vscode: evidenceUi,
+  operations: { isCurrent: () => true, run: (_label, callback) => callback() },
+  resolveRepo: async () => ({ repoRoot: '/chosen' }),
+  chooseTransport: async () => ({ transport: 'api', execution: { capabilities: { 'semantic-find': true } } }),
+  discoverGeneration: async () => { generationDiscovery += 1; return { generation,
+    source: 'canonical-context-pack-semantic-section' }; },
+  execute: async (operation, request) => {
+    assert.equal(operation, 'find');
+    assert.deepEqual(request.generation, generation);
+    assert.deepEqual(request.selector, { field: 'chunkUid', value: 'selected-chunk' });
+    return { generation, status: 'partial', records: [], edges: [], frontier: [] };
+  } });
+await apiDiscovery({ hit: { chunkUid: 'selected-chunk' } });
+assert.equal(generationDiscovery, 1, 'API selector path receives the authoritative discovered generation without manual ID fabrication');
 console.log('Editor settings snapshots, indexed continuation and bounded semantic request contracts passed');

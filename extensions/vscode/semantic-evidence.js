@@ -1,7 +1,5 @@
-const fs = require('node:fs');
 const path = require('node:path');
-const { createHash } = require('node:crypto');
-const { TextDecoder } = require('node:util');
+const { readVerifiedSource, documentOffsets } = require('./document-authority.js');
 
 const LIMITS = Object.freeze({ records: 128, bytes: 65536, workMs: 250 });
 const sameGeneration = (left, right) => left?.baseBuildId === right?.baseBuildId
@@ -71,54 +69,28 @@ function sourceQualifiedSelection(repoContext, source, record) {
     throw new Error('Evidence source is outside the selected repository.');
   }
   const file = path.resolve(repoContext.repoRoot, relative);
-  const root = fs.realpathSync(repoContext.repoRoot);
-  const real = fs.realpathSync(file);
-  const containment = path.relative(root, real);
-  if (containment.startsWith('..') || path.isAbsolute(containment)) throw new Error('Evidence source escaped the repository.');
-  if (fs.statSync(real).size > 4 * 1024 * 1024) throw new Error('Source exceeds the editor verification bound. Open it through the normal editor and inspect indexed evidence separately.');
-  const bytes = fs.readFileSync(real);
-  if (createHash('sha256').update(bytes).digest('hex') !== source.sourceHash) throw new Error('Source differs from indexed evidence. Re-select a current generation.');
+  const verified = readVerifiedSource({ repoRoot: repoContext.repoRoot, file, sourceHash: source.sourceHash });
   const span = record?.span;
   if (!Array.isArray(span) || span.length !== 2 || !Number.isSafeInteger(span[0]) || !Number.isSafeInteger(span[1]) || span[0] < 0 || span[1] < span[0]) {
     throw new Error('This record has no exact source span.');
   }
-  const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
-  if (span[1] > text.length) throw new Error('Indexed source range exceeds its qualified document.');
-  return { file: real, start: span[0], end: span[1], sourceText: text };
+  if (span[1] > verified.sourceText.length) throw new Error('Indexed source range exceeds its qualified document.');
+  return { ...verified, start: span[0], end: span[1] };
 }
 
 function qualifiedDocumentOffsets(document, target) {
-  if (document.isDirty) throw new Error('The source buffer is dirty. Save or compare it before opening indexed ranges.');
-  const actual = document.getText();
-  const source = target.sourceText;
-  let bom = 0, crlf = false;
-  if (actual !== source) {
-    if (source.startsWith('\ufeff') && actual === source.slice(1)) bom = 1;
-    else if (actual === source.replace(/\r\n/g, '\n')) crlf = true;
-    else if (source.startsWith('\ufeff') && actual === source.slice(1).replace(/\r\n/g, '\n')) {
-      bom = 1; crlf = true;
-    } else throw new Error('Open document differs from the exact indexed source beyond supported BOM/CRLF normalization.');
-  }
-  const map = offset => {
-    if (offset < bom || (crlf && source[offset - 1] === '\r' && source[offset] === '\n')) {
-      throw new Error('Indexed range boundary intersects a character removed by host normalization.');
-    }
-    const left = source.charCodeAt(offset - 1), right = source.charCodeAt(offset);
-    if (left >= 0xd800 && left <= 0xdbff && right >= 0xdc00 && right <= 0xdfff) {
-      throw new Error('Indexed range boundary splits a UTF-16 surrogate pair.');
-    }
-    return offset - bom - (crlf ? (source.slice(0, offset).match(/\r\n/g) || []).length : 0);
-  };
-  return { start: map(target.start), end: map(target.end) };
+  return documentOffsets(document, target);
 }
 
 /** Native commands only. Every operation calls the existing typed consumer;
  * suggestions are displayed as data and never executed as response commands. */
-function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execute, chooseTransport, getCursorSeed = null }) {
+function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execute, chooseTransport,
+  getCursorSeed = null, resolveCursorSeed = null, discoverGeneration = null }) {
   let last = null;
   async function show(payload, state) {
     const document = await vscode.workspace.openTextDocument({
-      content: describeSemanticEvidence(payload) + '\n\n' + JSON.stringify(payload, null, 2), language: 'plaintext'
+      content: describeSemanticEvidence(payload) + `\nSeed generation source: ${state.generationSource || 'explicit immutable generation'}`
+        + '\n\n' + JSON.stringify(payload, null, 2), language: 'plaintext'
     });
     await vscode.window.showTextDocument(document, { preview: true });
     if (!operations.isCurrent()) return;
@@ -143,7 +115,9 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
       }));
       const actions = [{ label: 'Back to seed / previous result', action: 'back' },
         { label: 'Copy captured evidence JSON', action: 'copy' }];
-      if (payload.enrichment?.suggestions?.length) actions.push({ label: 'Inspect proposed enrichment plan (does not enqueue)', action: 'plan' });
+      const supported = operation => state.transport !== 'api'
+        || state.execution?.capabilities?.[`semantic-${operation}`] === true;
+      if (payload.enrichment?.suggestions?.length && supported('enrichment')) actions.push({ label: 'Inspect proposed enrichment plan (does not enqueue)', action: 'plan' });
       if (payload.cursor && state.transport === 'api') actions.push({ label: 'More (bounded page, same generation)', action: 'more' });
       const choice = await vscode.window.showQuickPick([...actions, ...candidates], {
         title: `Semantic evidence • ${payload.status || 'unknown'} • experimental`,
@@ -173,14 +147,17 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
         { label: 'Trace downstream (depth 2)', value: 'trace', direction: 'downstream' },
         { label: 'Explain evidence and proposed enrichment', value: 'explain', direction: 'upstream' },
         { label: 'Open exact source (requires captured source mapping)', value: 'open' }
-      ], { title: choice.label });
+      ].filter(item => item.value === 'open' || supported(item.value)), { title: choice.label,
+        placeHolder: state.transport === 'api' ? 'Only operations advertised by this service are offered' : 'Bounded canonical semantic operations' });
       if (!action) continue;
       if (action.value === 'open') {
         const source = (payload.sourceRefs || []).find(item => JSON.stringify(item.ref) === JSON.stringify(choice.record.ref));
         const target = sourceQualifiedSelection(state.repoContext, source, choice.record);
         const document = await vscode.workspace.openTextDocument(vscode.Uri.file(target.file));
         const offsets = qualifiedDocumentOffsets(document, target);
+        const version = document.version;
         const editor = await vscode.window.showTextDocument(document);
+        if (!operations.isCurrent() || document.version !== version || document.isDirty) return;
         editor.selection = new vscode.Selection(document.positionAt(offsets.start), document.positionAt(offsets.end));
         editor.revealRange(editor.selection);
       } else {
@@ -218,7 +195,11 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
         if (!repoContext) return;
         const transport = await chooseTransport(repoContext);
         if (!transport) return;
-        const cursorSeed = !seedNode && transport.transport === 'cli' ? getCursorSeed?.(repoContext) : null;
+        let cursorSeed = !seedNode && transport.transport === 'cli' ? getCursorSeed?.(repoContext) : null;
+        if (!cursorSeed && !seedNode && transport.transport === 'cli' && resolveCursorSeed) {
+          cursorSeed = await resolveCursorSeed(repoContext, transport);
+          if (!operations.isCurrent()) return;
+        }
         if (cursorSeed) {
           const route = await vscode.window.showQuickPick([
             { label: 'Use current source-qualified cursor binding', value: 'cursor' },
@@ -228,16 +209,38 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
           if (route.value === 'cursor') {
             const fresh = getCursorSeed(repoContext);
             if (!fresh || JSON.stringify(fresh) !== JSON.stringify(cursorSeed)) throw new Error('Qualified cursor identity changed. Navigate again or choose an explicit selector.');
-            await runOperation('find', fresh.selector, { repoContext, generation: fresh.generation, ...transport });
+            await runOperation('find', fresh.selector, { repoContext, generation: fresh.generation,
+              generationSource: 'canonical current cursor navigation', ...transport });
             if (last) await inspect(last);
             return;
           }
         }
-        const buildId = await vscode.window.showInputBox({ prompt: 'Exact semantic baseBuildId (from indexed evidence/manifest)',
-          value: last?.repoContext.repoRoot === repoContext.repoRoot ? last.generation.baseBuildId : '' });
-        if (!buildId?.trim()) return;
-        if (/[\\/:\0]/.test(buildId) || ['.', '..'].includes(buildId)) throw new Error('Use a single immutable build identifier.');
-        const generation = { baseBuildId: buildId.trim(), semanticRevision: 0 };
+        let generation = null, generationSource = 'explicit immutable generation';
+        if (discoverGeneration) {
+          const route = await vscode.window.showQuickPick([
+            { label: 'Discover published semantic generation for selected source / hit', value: 'discover' },
+            { label: 'Enter immutable semantic generation', value: 'manual' }
+          ], { title: 'Semantic generation (authoritative discovery or explicit selection)' });
+          if (!route) return;
+          if (route.value === 'discover') {
+            try {
+              const witness = await discoverGeneration(repoContext, transport, seedNode);
+              if (witness) { generation = witness.generation; generationSource = witness.source; }
+            } catch (error) {
+              const correction = await vscode.window.showQuickPick([
+                { label: 'Enter immutable generation explicitly', value: 'manual' }, { label: 'Return to previous evidence', value: 'back' }
+              ], { title: 'Semantic generation discovery unavailable', placeHolder: error.message.slice(0, 512) });
+              if (correction?.value !== 'manual') return;
+            }
+          }
+        }
+        if (!generation) {
+          const buildId = await vscode.window.showInputBox({ prompt: 'Exact semantic baseBuildId (from indexed evidence/manifest)',
+            value: last?.repoContext.repoRoot === repoContext.repoRoot ? last.generation.baseBuildId : '' });
+          if (!buildId?.trim()) return;
+          if (/[\\/:\0]/.test(buildId) || ['.', '..'].includes(buildId)) throw new Error('Use a single immutable build identifier.');
+          generation = { baseBuildId: buildId.trim(), semanticRevision: 0 };
+        }
         const selectorKind = await vscode.window.showQuickPick([
           ...(seedNode?.hit?.chunkUid ? ['Selected chunk ownership'] : []),
           'Current source file', 'Structural operation', 'Exact type expression', 'Scalar literal'], {
@@ -278,7 +281,7 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
             selector.typeExpression.roles = roles;
           }
         }
-        await runOperation('find', selector, { repoContext, generation, ...transport });
+        await runOperation('find', selector, { repoContext, generation, generationSource, ...transport });
         if (last) await inspect(last);
       } catch (error) {
         if (operations.isCurrent()) await vscode.window.showErrorMessage(`PairOfCleats semantic evidence: ${error.message}. Previous evidence remains available.`);
