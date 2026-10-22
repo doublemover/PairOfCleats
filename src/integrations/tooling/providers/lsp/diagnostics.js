@@ -1,5 +1,5 @@
 import { pathToFileUri } from '../../lsp/client.js';
-import { rangeToOffsets } from '../../lsp/positions.js';
+import { exactRangeToOffsets, buildLspLineIndex } from '../../lsp/positions.js';
 import { buildVfsUri } from '../../lsp/uris.js';
 import { resolveVfsDiskPath } from '../../../../index/tooling/vfs.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
@@ -189,7 +189,7 @@ export const shapeDiagnosticsByChunkUid = ({
   diskPathMap,
   resolvedRoot,
   resolvedScheme,
-  lineIndexFactory,
+  lineIndexFactory = buildLspLineIndex,
   maxDiagnosticsPerChunk,
   checks,
   checkFlags,
@@ -234,7 +234,7 @@ export const shapeDiagnosticsByChunkUid = ({
       if (rangeKey !== null && rangeTargets.has(rangeKey)) {
         target = rangeTargets.get(rangeKey);
       } else {
-        const offsets = rangeToOffsets(lineIndex, diag.range, {
+        const offsets = exactRangeToOffsets(lineIndex, diag.range, {
           text: docText,
           positionEncoding
         });

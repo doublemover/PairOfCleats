@@ -1,5 +1,6 @@
-import { positionToOffset } from '../../lsp/positions.js';
+import { positionToOffset, exactRangeToOffsets } from '../../lsp/positions.js';
 import { canonicalizeTypeText } from '../../../../shared/type-normalization.js';
+import { createInlayOwnership } from './inlay-ownership.js';
 
 const DEFAULT_SEMANTIC_CLASS_MAP = Object.freeze({
   namespace: 'namespace',
@@ -68,7 +69,7 @@ const flattenInlayLabel = (label) => {
 const buildHintOffset = (hint, lineIndex, text, positionEncoding) => {
   if (!hint || typeof hint !== 'object') return null;
   if (!hint.position || typeof hint.position !== 'object') return null;
-  return positionToOffset(lineIndex, hint.position, { text, positionEncoding });
+  return exactRangeToOffsets(lineIndex,{start:hint.position,end:hint.position},{text,positionEncoding})?.start ?? null;
 };
 
 /**
@@ -180,7 +181,8 @@ export const parseInlayHintSignalInfo = ({
   targetRange,
   positionEncoding = 'utf-16',
   paramNames = null,
-  languageId = null
+  languageId = null,
+  declarationNameRange = null
 } = {}) => {
   if (!Array.isArray(hints) || !Array.isArray(lineIndex) || !targetRange) return null;
   const startOffset = Number(targetRange.start);
@@ -189,7 +191,8 @@ export const parseInlayHintSignalInfo = ({
   const normalizedParamNames = Array.isArray(paramNames)
     ? paramNames.map((entry) => String(entry || '').trim()).filter(Boolean)
     : [];
-  const unresolvedParamNames = normalizedParamNames.slice();
+  const ownership=createInlayOwnership({text,targetRange,paramNames:normalizedParamNames,nameRange:declarationNameRange});
+  const observations=[];
   const collectedParamTypes = Object.create(null);
   let returnType = null;
   let hintCount = 0;
@@ -199,13 +202,15 @@ export const parseInlayHintSignalInfo = ({
       hint,
       offset: buildHintOffset(hint, lineIndex, text, positionEncoding)
     }))
-    .filter((entry) => Number.isFinite(entry.offset) && entry.offset >= startOffset && entry.offset <= endOffset)
+    .filter((entry) => Number.isFinite(entry.offset) && entry.offset >= startOffset && entry.offset < endOffset)
     .sort((left, right) => Number(left.offset) - Number(right.offset));
 
-  for (const { hint } of sortedHints) {
+  for (const { hint,offset } of sortedHints) {
     const label = flattenInlayLabel(hint?.label);
     if (!label) continue;
-    const returnMatch = label.match(/^(?:->|:)\s*(.+)$/u);
+    const role=hint?.kind == null || hint.kind === 1 ? ownership(offset) : null;
+    if(!role) {observations.push({label,offset,reason:'unqualified-inlay-role'});continue;}
+    const returnMatch = role.role === 'return' && label.match(/^(?:->|:)\s*(.+)$/u);
     if (returnMatch) {
       const normalized = canonicalizeTypeText(returnMatch[1], { languageId });
       if (normalized.displayText && !returnType) {
@@ -215,7 +220,7 @@ export const parseInlayHintSignalInfo = ({
       continue;
     }
     const namedParamMatch = label.match(/^([A-Za-z_][\w$]*)\s*:\s*(.+)$/u);
-    if (namedParamMatch) {
+    if (namedParamMatch && role.role === 'parameter' && namedParamMatch[1] === role.name) {
       const paramName = namedParamMatch[1];
       const normalized = canonicalizeTypeText(namedParamMatch[2], { languageId });
       if (normalized.displayText) {
@@ -231,8 +236,8 @@ export const parseInlayHintSignalInfo = ({
       continue;
     }
     const anonymousParamMatch = label.match(/^:\s*(.+)$/u);
-    if (anonymousParamMatch && unresolvedParamNames.length) {
-      const paramName = unresolvedParamNames.shift();
+    if (anonymousParamMatch && role.role === 'parameter') {
+      const paramName = role.name;
       const normalized = canonicalizeTypeText(anonymousParamMatch[1], { languageId });
       if (normalized.displayText) {
         collectedParamTypes[paramName] = [{
@@ -247,10 +252,12 @@ export const parseInlayHintSignalInfo = ({
     }
   }
 
-  if (!returnType && !Object.keys(collectedParamTypes).length) return null;
+  if (!returnType && !Object.keys(collectedParamTypes).length && !observations.length) return null;
   return {
-    ...(returnType ? { returnType } : {}),
+    ...(returnType ? { returnType,returnTypeSource:'lsp_inlay' } : {}),
     ...(Object.keys(collectedParamTypes).length ? { paramTypes: collectedParamTypes } : {}),
-    hintCount
+    hintCount,
+    observations,
+    evidenceStrength:'hint-only'
   };
 };

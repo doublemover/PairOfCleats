@@ -110,6 +110,7 @@ const hasTypedParamName = (paramTypes, name) => {
 };
 
 const isAmbiguousReturnType = (info) => {
+  if(info?.returnTypeSource === 'lsp_inlay')return true;
   const signatureText = normalizeTypeText(info?.signature);
   const hasSignatureArrow = typeof signatureText === 'string' && signatureText.includes('->');
   const normalizedReturnType = normalizeTypeText(info?.returnType);
@@ -234,6 +235,8 @@ export const mergeSignatureInfo = (base, next, options = {}) => {
   const alternateReturnAmbiguous = isAmbiguousReturnType(alternate);
   if (preferredReturnAmbiguous && !alternateReturnAmbiguous) {
     merged.returnType = alternate.returnType;
+    if(alternate.returnTypeSource)merged.returnTypeSource=alternate.returnTypeSource;
+    else delete merged.returnTypeSource;
   }
   const preferredSignature = normalizeTypeText(preferred?.signature);
   const alternateSignature = normalizeTypeText(alternate?.signature);

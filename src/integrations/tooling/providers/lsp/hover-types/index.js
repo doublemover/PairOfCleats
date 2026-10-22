@@ -1,6 +1,6 @@
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import { openOwnedLspDocument, closeOwnedLspDocument } from '../document-lifecycle.js';
-import { rangeToOffsets } from '../../../lsp/positions.js';
+import { rangeToOffsets, exactRangeToOffsets, offsetToLspPosition, buildLspLineIndex } from '../../../lsp/positions.js';
 import { flattenSymbols } from '../../../lsp/symbols.js';
 import { findTargetForOffsets } from '../target-index.js';
 import {
@@ -166,7 +166,7 @@ export const processDocumentTypes = async ({
   log,
   strict,
   parseSignature,
-  lineIndexFactory,
+  lineIndexFactory = buildLspLineIndex,
   uri,
   legacyUri,
   languageId,
@@ -410,12 +410,7 @@ export const processDocumentTypes = async ({
       });
     };
     const resolveDocumentEndPosition = () => {
-      const lines = String(openEntry?.text || doc.text || '').split(/\r?\n/u);
-      const lastLineIndex = Math.max(0, lines.length - 1);
-      return {
-        line: lastLineIndex,
-        character: String(lines[lastLineIndex] || '').length
-      };
+      return offsetToLspPosition(lineIndex,docText,docText.length,positionEncoding);
     };
 
     const requestHover = (symbol, position) => {
@@ -823,7 +818,7 @@ export const processDocumentTypes = async ({
 
     for (const symbol of flattened) {
       throwIfAborted(abortSignal);
-      const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range, {
+      const offsets = exactRangeToOffsets(lineIndex, symbol.selectionRange || symbol.range, {
         text: docText,
         positionEncoding
       });
@@ -1074,9 +1069,11 @@ export const processDocumentTypes = async ({
               targetRange: record?.target?.virtualRange || record?.target?.chunkRef?.range || null,
               positionEncoding,
               paramNames: normalizeParamNames(record?.info?.paramNames),
-              languageId
+              languageId,
+              declarationNameRange:record?.symbol?.selectionRange ? rangeToOffsets(lineIndex,record.symbol.selectionRange,{text:docText,positionEncoding}) : null
             });
             if (!hintInfo) continue;
+            record.inlayHintObservations=hintInfo.observations || [];
             record.inlayHintsSucceeded = hintInfo.hintCount > 0;
             if (record.inlayHintsSucceeded) {
               record.info = mergeSignatureInfo(record.info, hintInfo, { symbolKind: record?.symbol?.kind });

@@ -1,7 +1,6 @@
 import path from 'node:path';
-import { buildLineIndex } from '../../../shared/lines.js';
 import { languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
-import { resolveInitializeResultPositionEncoding } from '../lsp/positions.js';
+import { resolveInitializeResultPositionEncoding, buildLspLineIndex as buildLineIndex } from '../lsp/positions.js';
 import { createLspConfigurationHandler } from '../lsp/configuration.js';
 import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
 import { openOwnedLspDocument, closeOwnedLspDocuments } from './lsp/document-lifecycle.js';

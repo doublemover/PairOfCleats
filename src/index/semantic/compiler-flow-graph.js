@@ -54,7 +54,13 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     if (!node) return next;
     throwIfAborted(signal);
     if (ts.isClassExpression(node)) return classDefinition(node, next, context);
-    if (ts.isFunctionLike(node)) return eventBlock(node, { kind: 'creation' }, next, context);
+    if (ts.isFunctionLike(node)) {
+      const creation=eventBlock(node,{kind:'creation'},next,context);
+      if(ts.isObjectLiteralExpression(node.parent) && node.name && ts.isComputedPropertyName(node.name)) {
+        return expression(node.name.expression,eventBlock(node.name,{kind:'operation',target:node.name,mayThrow:true},creation,context),context);
+      }
+      return creation;
+    }
     if (ts.isIdentifier(node)) return lexicalRead(node) ? eventBlock(node, { kind: 'read', target: node }, next, context) : next;
     if (isChain(node)) return optionalChain(node, next, context, next);
     if (ts.isBinaryExpression(node)) {
@@ -115,6 +121,12 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     let head = next;
     for (let i = node.declarations.length - 1; i >= 0; i -= 1) {
       const declaration = node.declarations[i];
+      if(!declaration.initializer && !(node.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const))) {
+        // var introduces/hoists a binding; this statement performs no runtime
+        // assignment. Keep reaching parameter/initializer values intact.
+        reasons.add('var_hoisted_undefined_conservative');
+        continue;
+      }
       head = expression(declaration.initializer, write(declaration.name, declaration.initializer || declaration, head, context), context);
     }
     return head;
@@ -182,8 +194,14 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       link(block, target || exception); return block;
     }
     if (ts.isLabeledStatement(node)) {
-      const labels = new Map(context.labels); labels.set(node.label.text, { break: next, continue: null });
-      return statement(node.statement, next, { ...context, labels, label: node.label.text });
+      const labels=new Map(context.labels), iterationLabels=[];
+      let body=node;
+      while(ts.isLabeledStatement(body)) {
+        const name=body.label.text;labels.set(name,{break:next,continue:null});iterationLabels.push(name);body=body.statement;
+      }
+      const iteration=ts.isWhileStatement(body) || ts.isDoStatement(body) || ts.isForStatement(body)
+        || ts.isForOfStatement(body) || ts.isForInStatement(body);
+      return statement(body,next,{...context,labels,iterationLabels:iteration ? iterationLabels : []});
     }
     if (ts.isWhileStatement(node) || ts.isDoStatement(node) || ts.isForStatement(node)
       || ts.isForOfStatement(node) || ts.isForInStatement(node)) {
@@ -194,8 +212,8 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       let test = iteration ? branch : expression(condition, branch, context);
       let step = ts.isForStatement(node) ? expression(node.incrementor, test, context) : test;
       const labels = new Map(context.labels);
-      if (context.label) labels.set(context.label, { break: next, continue: step });
-      const bodyContext = { ...context, break: next, continue: step, labels, label: null };
+      for(const label of context.iterationLabels || []) labels.set(label,{break:next,continue:step});
+      const bodyContext = { ...context, break: next, continue: step, labels, iterationLabels: [] };
       let body = statement(node.statement, step, bodyContext);
       if (ts.isForOfStatement(node) || ts.isForInStatement(node)) {
         reasons.add('iterator_protocol_and_per_iteration_binding_conservative');
@@ -258,7 +276,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     reasons.add('unsupported_statement:' + ts.SyntaxKind[node.kind]);
     return expression(node, next, context);
   };
-  const context = { return: exit, exception, break: null, continue: null, labels: new Map(), label: null };
+  const context = { return: exit, exception, break: null, continue: null, labels: new Map(), iterationLabels: [] };
   let head = ts.isSourceFile(owner) ? statement(owner, exit, context)
     : ts.isBlock(owner.body) ? statement(owner.body, exit, context)
       : expression(owner.body, eventBlock(owner.body, { kind: 'return', value: owner.body }, exit, context), context);

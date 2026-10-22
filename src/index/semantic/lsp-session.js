@@ -13,6 +13,7 @@ import { createAnalysisPartitionId, createSymbolGroupId, semanticHash, canonical
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { persistSemanticEvidence } from './lsp-evidence.js';
 import { exactLspRange, normalizeLspLocations, offsetToLspPosition } from './lsp-locations.js';
+import { getLspLineIndex } from '../../integrations/tooling/lsp/positions.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { nativeExecutionAuthority } from './native-execution-context.js';
 import { readVerifiedContainedFile } from '../../shared/contained-file.js';
@@ -96,8 +97,8 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
       return pathToFileURL(filename).href;
     },
     prepareDocuments(documents) {
-      const result = documents.map(doc => { const item = itemForDoc(doc); return item ? { ...doc, languageId: item.source.language, semanticSourceUnitId: item.source.sourceUnitId } : doc; }), present = new Set(result.map(doc => itemForDoc(doc)?.source.sourceUnitId));
-      for (const item of inventory.values()) if (!item.source.mapping && !present.has(item.source.sourceUnitId)) result.push({ virtualPath: item.source.path, containerPath: item.source.path, languageId: item.source.language, effectiveExt: path.extname(item.source.path), text: item.text, docHash: item.source.textHash, lineIndex: item.source.lineStarts, segmentUid: null, segmentRange: { start: 0, end: item.source.textLength }, semanticSourceUnitId: item.source.sourceUnitId });
+      const result = documents.map(doc => { const item = itemForDoc(doc); return item ? { ...doc,lineIndex:getLspLineIndex(item.text,item.source),lineIndexKind:'lsp', languageId: item.source.language, semanticSourceUnitId: item.source.sourceUnitId } : doc; }), present = new Set(result.map(doc => itemForDoc(doc)?.source.sourceUnitId));
+      for (const item of inventory.values()) if (!item.source.mapping && !present.has(item.source.sourceUnitId)) result.push({ virtualPath: item.source.path, containerPath: item.source.path, languageId: item.source.language, effectiveExt: path.extname(item.source.path), text: item.text, docHash: item.source.textHash, lineIndex: getLspLineIndex(item.text,item.source), segmentUid: null, segmentRange: { start: 0, end: item.source.textLength }, semanticSourceUnitId: item.source.sourceUnitId });
       return result;
     },
     registerDocument(doc, uri) {
