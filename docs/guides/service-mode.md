@@ -148,3 +148,11 @@ pairofcleats service indexer compact --queue index --json
   - operational envelope
   - shutdown state
   - quarantine/repair summaries
+
+Build-progress monitoring is bound to one claimed execution correlation, carried
+through subprocess or daemon execution into durable runtime-attempt evidence.
+Directory recency does not prove ownership. Until the latest persisted attempt
+matches the executing claim, stage, repository and optional resumed build ID,
+logs report waiting for owned build state. Deletion, unreadable state or another
+execution taking over the aggregate state returns to pending progress rather
+than retaining predecessor counts or ETA. Monitoring cleanup drains its poll.

@@ -9,7 +9,6 @@ import {
 } from '../indexer-service-helpers.js';
 
 const BUILD_STATE_POLL_MS = 5000;
-const BUILD_STATE_LOOKBACK_MS = 5 * 60 * 1000;
 
 /**
  * Resolve the build artifacts root under one repo cache root.
@@ -22,8 +21,8 @@ const resolveBuildsRoot = (repoCacheRoot) => path.join(repoCacheRoot, 'builds');
 /**
  * Enumerate build directories that currently expose `build_state.json`.
  *
- * Returned list is sorted newest-first by state file mtime so callers can
- * prefer active/latest builds without scanning timestamps again.
+ * Mtime orders discovery only. A candidate still needs the current execution's
+ * exact persisted runtime identity before any progress can be displayed.
  *
  * @param {string} repoCacheRoot
  * @returns {Promise<Array<{buildRoot:string,statePath:string,mtimeMs:number}>>}
@@ -50,22 +49,31 @@ const listBuildStateCandidates = async (repoCacheRoot) => {
 };
 
 /**
- * Pick the newest viable build-state snapshot for stage progress reporting.
- *
- * @param {string} repoCacheRoot
- * @param {string|null} stage
- * @param {number} sinceMs
- * @returns {Promise<{buildRoot:string,state:object,path:string}|null>}
+ * Correlation comes from the executing claim, never timestamps or a previous
+ * completed build. Only the latest runtime attempt may own aggregate progress.
  */
-const pickBuildState = async (repoCacheRoot, stage, sinceMs) => {
-  const candidates = await listBuildStateCandidates(repoCacheRoot);
+export const ownsBuildProgress = ({ job, stage, state, buildRoot, repoPath }) => {
+  const correlationId = job?.observability?.correlation?.correlationId;
+  if (typeof correlationId !== 'string' || !correlationId) return false;
+  const latestId = state?.runtime?.latestAttemptId;
+  if (typeof latestId !== 'string' || !latestId || typeof state.buildId !== 'string' || !state.buildId) return false;
+  const attempt = Array.isArray(state?.runtime?.attempts)
+    ? state.runtime.attempts.find(row => row?.attemptId === latestId) : null;
+  if (!attempt || attempt.correlationId !== correlationId || attempt.buildId !== state.buildId) return false;
+  if (job.buildId && state.buildId !== job.buildId) return false;
+  if (stage && attempt.stage !== stage) return false;
+  if (typeof state.buildRoot !== 'string' || path.relative(buildRoot, state.buildRoot) !== '') return false;
+  if (repoPath && (typeof state.repoRoot !== 'string' || path.relative(repoPath, state.repoRoot) !== '')) return false;
+  return true;
+};
+
+export const pickOwnedBuildState = async ({ job, stage, repoPath, candidates,
+  readSnapshot = readServiceBuildStateSnapshot }) => {
   for (const candidate of candidates) {
-    if (Number.isFinite(sinceMs) && candidate.mtimeMs < sinceMs) continue;
-    const loaded = await readServiceBuildStateSnapshot(candidate.buildRoot);
+    const loaded = await readSnapshot(candidate.buildRoot);
     if (!loaded) continue;
     const state = loaded.state;
-    if (stage && state?.stage && state.stage !== stage) continue;
-    if (stage && state?.phases?.[stage]?.status === 'failed') continue;
+    if (!ownsBuildProgress({ job, stage, state, buildRoot: candidate.buildRoot, repoPath })) continue;
     return { buildRoot: candidate.buildRoot, state: loaded.state, path: loaded.path };
   }
   return null;
@@ -124,45 +132,53 @@ const formatProgressLine = ({ jobId, stage, state }) => {
  * @param {{job:{id:string},repoPath:string,stage?:string|null}} input
  * @returns {() => Promise<void>}
  */
-export const startBuildProgressMonitor = ({ job, repoPath, stage }) => {
+export const startBuildProgressMonitor = ({ job, repoPath, stage, repoCacheRoot: selectedCacheRoot = null,
+  log = (line) => console.error(line) }) => {
   if (!job || !repoPath) return async () => {};
-  const repoCacheRoot = getRepoCacheRoot(repoPath);
-  const startedAt = Date.now();
+  const repoCacheRoot = selectedCacheRoot || getRepoCacheRoot(repoPath);
   let active = null;
   let waitingLogged = false;
   let lastLine = '';
+  let inFlight = null;
   const lifecycle = createLifecycleRegistry({
     name: `indexer-service-progress:${job.id}`
   });
   const poll = async () => {
-    if (!active) {
-      active = await pickBuildState(repoCacheRoot, stage, startedAt - BUILD_STATE_LOOKBACK_MS);
-    }
+    const candidates = await listBuildStateCandidates(repoCacheRoot);
+    active = await pickOwnedBuildState({ job, stage, repoPath, candidates });
+    if (lifecycle.isClosed()) return;
     if (!active) {
       if (!waitingLogged) {
-        console.error(`[indexer] job ${job.id} ${stage || 'stage'} running; waiting for build state...`);
+        log(`[indexer] job ${job.id} ${stage || 'stage'} running; waiting for owned build state...`);
         waitingLogged = true;
       }
+      lastLine = '';
       return;
     }
-    const loaded = await readServiceBuildStateSnapshot(active.buildRoot);
-    if (loaded?.state) active.state = loaded.state;
+    waitingLogged = false;
     const line = formatProgressLine({ jobId: job.id, stage, state: active.state });
     if (line && line !== lastLine) {
-      console.error(line);
+      log(line);
       lastLine = line;
     }
   };
   const runPoll = () => {
-    if (lifecycle.isClosed()) return;
-    lifecycle.registerPromise(poll(), { label: 'indexer-service-progress-poll' });
+    if (lifecycle.isClosed()) return Promise.resolve();
+    if (inFlight) return inFlight;
+    inFlight = lifecycle.registerPromise(poll(), { label: 'indexer-service-progress-poll' })
+      .finally(() => { inFlight = null; });
+    return inFlight;
   };
   const timer = setInterval(() => {
-    runPoll();
+    void runPoll().catch(error => log(`[indexer] progress monitor failed: ${error?.message || error}`));
   }, BUILD_STATE_POLL_MS);
   lifecycle.registerTimer(timer, { label: 'indexer-service-progress-interval' });
-  runPoll();
-  return async () => {
-    await lifecycle.close().catch(() => {});
+  void runPoll().catch(error => log(`[indexer] progress monitor failed: ${error?.message || error}`));
+  const stop = async () => {
+    await lifecycle.close();
   };
+  // Internal diagnostic hook also lets bounded fixtures advance the actual poll
+  // without changing the production interval or introducing public controls.
+  stop.poll = runPoll;
+  return stop;
 };

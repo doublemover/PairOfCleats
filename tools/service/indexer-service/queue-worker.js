@@ -1,7 +1,18 @@
 import path from 'node:path';
 import { createLifecycleRegistry } from '../../../src/shared/lifecycle/registry.js';
+import { createCorrelationId, normalizeObservability } from '../../../src/shared/observability.js';
 
 const NOOP_ASYNC = async () => {};
+export const bindClaimedJobExecution = (job) => {
+  const parent = normalizeObservability(job.observability, {
+    surface: 'service', operation: 'indexer-job', context: { jobId: job.id }
+  });
+  return { ...job, observability: { ...parent, correlation: {
+    ...parent.correlation,
+    parentCorrelationId: parent.correlation.correlationId,
+    correlationId: createCorrelationId('service-execution')
+  } } };
+};
 const STALE_SWEEP_MIN_INTERVAL_MS = 1000;
 const SHUTDOWN_POLL_INTERVAL_MS = 250;
 const DEFAULT_SHUTDOWN_STATE = Object.freeze({
@@ -248,6 +259,9 @@ export const createQueueWorker = ({
       progressIntervalMs: queueLeasePolicy?.progressIntervalMs ?? null
     });
     if (!job) return false;
+    // A claim owns one execution correlation, even if two jobs inherit the same
+    // request correlation or explicitly resume the same build generation.
+    const executionJob = bindClaimedJobExecution(job);
     metrics.processed += 1;
     // Establish ownership before any fallible post-claim setup.
     const jobLifecycle = createLifecycleRegistry({ name: `indexer-service-job:${job.id}` });
@@ -266,7 +280,7 @@ export const createQueueWorker = ({
           ...execution.runResult, exitCode: 130, cancelled: true, shutdownMode: 'cancel'
         };
       } else {
-        const { logPath } = startJobLifecycle(job, jobLifecycle);
+        const { logPath } = startJobLifecycle(executionJob, jobLifecycle);
         await syncWorkerShutdownState();
         if (batchState?.failed) {
           abortController.abort(batchState.error);
@@ -274,7 +288,7 @@ export const createQueueWorker = ({
             ...execution.runResult, exitCode: 130, cancelled: true, shutdownMode: 'cancel'
           };
         } else {
-          execution = await executeClaimedJob({ job, jobLifecycle, logPath, abortSignal: abortController.signal });
+          execution = await executeClaimedJob({ job: executionJob, jobLifecycle, logPath, abortSignal: abortController.signal });
         }
       }
     } catch (err) {
