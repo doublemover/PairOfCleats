@@ -320,3 +320,9 @@ select the declared vector column. Typed batches obey both configured row limits
 and a 16 MiB payload limit; buffers remain leased until awaited ingestion settles.
 This removes boxed row expansion in this owner. Native conversion may still copy;
 source changes do not establish a measured latency or allocation improvement.
+
+Persistent profile isolation and shared quantized chunk payloads are specified in
+[embedding-cache-profiles](../contracts/embedding-cache-profiles.md). Legacy cache
+reads remain identity checked; new writes use profile layout 2. File-reference
+retention composes the existing shard locks and per-profile file indexes. Whole-app
+storage migration, inventory and quota policy remain separate integration owners.

@@ -149,6 +149,7 @@ export async function encodeEmbeddingsCache(payload, options = {}) {
     hash: payload?.hash || null,
     chunkSignature: payload?.chunkSignature || null,
     chunkHashes: Array.isArray(payload?.chunkHashes) ? payload.chunkHashes : null,
+    chunkReferences: payload?.chunkReferences || null,
     cacheMeta: payload?.cacheMeta || null,
     vectors: {
       count,
@@ -251,6 +252,7 @@ export async function decodeEmbeddingsCache(buffer) {
     hash: header?.hash || null,
     chunkSignature: header?.chunkSignature || null,
     chunkHashes: Array.isArray(header?.chunkHashes) ? header.chunkHashes : null,
+    chunkReferences: header?.chunkReferences || null,
     cacheMeta: header?.cacheMeta || null,
     codeVectors: codeSection.vectors,
     docVectors: docSection.vectors,

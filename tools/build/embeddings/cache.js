@@ -23,6 +23,9 @@ import {
   normalizeCacheIndex,
   resolveNextShardIdFromShards
 } from './cache/index-state.js';
+import { resolveEmbeddingCacheProfile } from '../../../src/shared/embeddings-cache/layout.js';
+import { createReferenceCacheWriter, collectReferenceProtection } from './cache/file-references.js';
+import { readCacheEntries as readReferenceEntries } from './cache/batch-reader.js';
 
 const CACHE_KEY_SCHEMA_VERSION = 'embeddings-cache-v1';
 const GLOBAL_CHUNK_CACHE_KEY_SCHEMA_VERSION = 'embeddings-global-chunk-cache-v2';
@@ -131,8 +134,11 @@ export const resolveCacheBase = (cacheRoot, identity) => resolveEmbeddingsCacheB
   cacheRoot,
   provider: identity?.provider,
   modelId: identity?.modelId,
-  dims: identity?.dims
+  dims: identity?.dims,
+  identity
 });
+export const resolveLegacyCacheDir = (cacheRoot, identity, mode) => path.join(resolveEmbeddingCacheProfile({ cacheRoot, identity }).legacy,
+  mode === 'global-chunks' ? 'global-chunks' : path.join(path.basename(resolveEmbeddingsCacheModeDir('', mode)), 'files'));
 
 /**
  * Resolve the mode-specific cache directory.
@@ -796,6 +802,8 @@ export const upsertCacheIndexEntry = (cacheIndex, cacheKey, payload, shardEntry 
     chunkCount,
     chunkHashesFingerprint,
     chunkHashesCount,
+    ...(payload.chunkReferences ? { chunkReferences: { schemaVersion: 1, identityKey: payload.chunkReferences.identityKey,
+      keys: [...new Set(payload.chunkReferences.records.map(record => record.key))] } } : {}),
     createdAt: existing.createdAt || now,
     lastAccessAt: now,
     hits: Number.isFinite(Number(existing.hits)) ? Number(existing.hits) : 0
@@ -830,12 +838,19 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
   const deleteShards = options.deleteShards !== false;
   if (!maxBytes && !maxAgeMs) return { removedKeys: [], removedShards: [], changed: false };
   const beforePhysical = await inspectCachePhysicalStorage(cacheDir,cacheIndex);
+  const reachability = await collectReferenceProtection(cacheDir, cacheIndex);
+  const observedPhysicalBytes = beforePhysical.reduce((sum, file) => sum + file.sizeBytes, 0);
+  if (reachability.incomplete) return { removedKeys: [], removedShards: [], changed: false,
+    blocked: 'reference-ownership-unreadable', budgetExceeded: maxBytes > 0 && observedPhysicalBytes > maxBytes,
+    physicalBytes: observedPhysicalBytes };
+  const protectedKeys = reachability.protectedKeys;
   const plan = planEmbeddingsCachePrune({
     entries: cacheIndex.entries || {},
     maxBytes,
     maxAgeMs,
     now: Date.now()
   });
+  plan.removeKeys = plan.removeKeys.filter(key => !protectedKeys.has(key));
   if (plan.removeKeys.length) cacheIndex.storageEpoch=(cacheIndex.storageEpoch||0)+1;
   const removeSet = new Set(plan.removeKeys);
   for (const key of plan.removeKeys) {
@@ -892,9 +907,14 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
       return entries.length?Math.max(...entries.map(entry=>Date.parse(entry.lastAccessAt||entry.createdAt)||0)):file.mtimeMs;
     };
     physical.sort((a,b)=>lru(a)-lru(b)||a.path.localeCompare(b.path));
+    const protectedPaths = new Set([...protectedKeys].map(key => {
+      const entry = cacheIndex.entries[key];
+      return entry?.shard ? resolveCacheShardPath(cacheDir, entry.shard) : entry?.path || resolveCacheEntryPath(cacheDir, key);
+    }));
     for(const file of physical){
       if(physicalBytes<=maxBytes)break;
       if(file.protected)continue;
+      if (protectedPaths.has(file.path)) continue;
       try{await fs.rm(file.path);}catch{continue;}
       physicalBytes-=file.sizeBytes;physicalRemoved.push(file.path);
       cacheIndex.storageEpoch=(cacheIndex.storageEpoch||0)+1;
@@ -909,7 +929,8 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
     if(cacheIndex.files)for(const [file,key]of Object.entries(cacheIndex.files))if(!cacheIndex.entries[key])delete cacheIndex.files[file];
   }
   cacheIndex.updatedAt = new Date().toISOString();
-  const changed=plan.removeKeys.length>0||removedShards.length>0||compaction.copiedBytes>0||physicalRemoved.length>0;
+  for (const [input, target] of Object.entries(cacheIndex.chunkInputs || {})) if (!cacheIndex.entries[target]) delete cacheIndex.chunkInputs[input];
+  const changed=reachability.changed||plan.removeKeys.length>0||removedShards.length>0||compaction.copiedBytes>0||physicalRemoved.length>0;
   return {removedKeys:[...new Set(plan.removeKeys)],removedShards,changed,physicalBytesBefore:beforePhysical.reduce((sum,file)=>sum+file.sizeBytes,0),
     physicalBytes, budgetExceeded:maxBytes>0&&physicalBytes>maxBytes, compaction, physicalRemoved};
 };
@@ -1050,14 +1071,17 @@ export const isGlobalChunkCacheValid = ({ cached, identityKey, chunkHash }) => {
  * @returns {object|null}
  */
 export const readCacheMeta = (cacheRoot, identity, mode) => {
-  const metaPath = resolveCacheMetaPath(cacheRoot, identity, mode);
-  if (!metaPath || !fsSync.existsSync(metaPath)) return null;
-  try {
-    const raw = fsSync.readFileSync(metaPath, 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return null;
+  const identityKey = buildEmbeddingIdentityKey(identity);
+  const profile = resolveEmbeddingCacheProfile({ cacheRoot, identity });
+  const paths = [resolveCacheMetaPath(cacheRoot, identity, mode),
+    path.join(resolveEmbeddingsCacheModeDir(profile.legacy, mode), 'cache.meta.json')];
+  for (const [index, metaPath] of paths.entries()) {
+    try {
+      const parsed = JSON.parse(fsSync.readFileSync(metaPath, 'utf8'));
+      if (index === 0 || parsed?.identityKey === identityKey) return parsed;
+    } catch { /* Missing/corrupt compatibility metadata is not authority. */ }
   }
+  return null;
 };
 
 /**
@@ -1214,3 +1238,8 @@ const writeCacheBuffer = async (handle,buffer,offset) => {
 };
 
 export { readCacheEntries, createCacheBatchReader } from './cache/batch-reader.js';
+export const withEmbeddingCacheReadLock = withCacheLock;
+export const writeReferencedCacheFile = createReferenceCacheWriter({ lock: withCacheLock,
+  readIndex: readCacheIndex, writeIndex: writeCacheIndex, append: appendShardEntryUnlocked,
+  readEntries: (...args) => readReferenceEntries(...args),
+  upsert: upsertCacheIndexEntry, merge: mergeCacheIndex, writeFiles: writeCacheEntries });
