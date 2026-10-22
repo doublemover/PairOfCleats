@@ -110,13 +110,15 @@ const renderMarkdown = ({ report, ownershipPath, root }) => {
 export const generateSuiteTaxonomyReport = async ({
   root = process.cwd(),
   outputJsonPath = path.join(process.cwd(), 'docs', 'testing', 'suite-taxonomy.json'),
-  outputMarkdownPath = path.join(process.cwd(), 'docs', 'testing', 'suite-taxonomy.md')
+  outputMarkdownPath = path.join(process.cwd(), 'docs', 'testing', 'suite-taxonomy.md'),
+  snapshot = null
 } = {}) => {
-  const manifestConfig = await loadLaneManifestConfig({ root });
+  snapshot?.assertRoot(root);
+  const manifestConfig = snapshot?.laneConfig || await loadLaneManifestConfig({ root });
   const manifests = new Map();
   const laneById = new Map();
   for (const lane of manifestConfig.orderedLanes.keys()) {
-    const manifest = await loadOrderedLaneManifest({ root, lane, config: manifestConfig });
+    const manifest = await (snapshot ? snapshot.manifest(lane) : loadOrderedLaneManifest({ root, lane, config: manifestConfig }));
     if (!manifest) continue;
     manifests.set(lane, manifest);
     for (const entry of Array.isArray(manifest.tests) ? manifest.tests : []) {
@@ -126,8 +128,8 @@ export const generateSuiteTaxonomyReport = async ({
     }
   }
 
-  const runRules = loadRunRules({ root });
-  const discovered = await discoverTests({
+  const runRules = snapshot?.runRules || loadRunRules({ root });
+  const discovered = snapshot?.discovered || await discoverTests({
     testsDir: path.join(root, 'tests'),
     excludedDirs: runRules.excludedDirs,
     excludedFiles: runRules.excludedFiles
@@ -136,7 +138,7 @@ export const generateSuiteTaxonomyReport = async ({
     ...test,
     suiteCategory: inferSuiteCategory({ id: test.id, lane: laneById.get(test.id) || '' }).category
   }));
-  const ownership = await loadConsolidationOwnership({ root });
+  const ownership = await loadConsolidationOwnership({ root, readText: snapshot?.readText });
   const initialReport = buildSuiteTaxonomyReport({
     tests,
     manifests,

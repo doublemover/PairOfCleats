@@ -19,7 +19,7 @@ import {
 const buildVfsRoutingToken = hashRouting.buildVfsRoutingToken || hashRouting.resolveVfsRoutingToken;
 
 assert.equal(typeof buildVfsRoutingToken, 'function', 'Expected buildVfsRoutingToken export.');
-assert.equal(hashRouting.VFS_HASH_ROUTING_SCHEMA_VERSION, '2.0.0');
+assert.equal(hashRouting.VFS_HASH_ROUTING_SCHEMA_VERSION, '3.0.0');
 
 {
   const virtualPath = '.poc-vfs/src/app.ts#seg:segu:v1:abc.ts';
@@ -108,10 +108,11 @@ assert.equal(hashRouting.VFS_HASH_ROUTING_SCHEMA_VERSION, '2.0.0');
     containerPath: doc.containerPath,
     segmentUid: doc.segmentUid,
     languageId: doc.languageId,
-    effectiveExt: doc.effectiveExt
+    effectiveExt: doc.effectiveExt,
+    segmentStart: doc.segmentRange.start, segmentEnd: doc.segmentRange.end
   });
   assert.equal(doc.virtualPath, expectedHashPath);
-  assert.equal(doc.legacyVirtualPath, '.poc-vfs/src/App.vue#seg:segu:v1:hash.ts');
+  assert.equal(doc.legacyVirtualPath, `.poc-vfs/src/App.vue#seg:segu:v1:hash#at:0-${fileText.length}.ts`);
 
   const plain = await buildToolingVirtualDocuments({
     chunks,
@@ -120,7 +121,7 @@ assert.equal(hashRouting.VFS_HASH_ROUTING_SCHEMA_VERSION, '2.0.0');
     strict: true
   });
   assert.equal(plain.documents[0].legacyVirtualPath, null);
-  assert.equal(plain.documents[0].virtualPath, '.poc-vfs/src/App.vue#seg:segu:v1:hash.ts');
+  assert.equal(plain.documents[0].virtualPath, `.poc-vfs/src/App.vue#seg:segu:v1:hash#at:0-${fileText.length}.ts`);
 }
 
 {

@@ -1,5 +1,5 @@
-import { prepareSemanticBatchEntry, semanticBatchEntryBytes, readPreparedSemanticBatchEntry } from '../../../src/index/semantic/prepared-batch.js';
 #!/usr/bin/env node
+import { prepareSemanticBatchEntry, semanticBatchEntryBytes, readPreparedSemanticBatchEntry } from '../../../src/index/semantic/prepared-batch.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';

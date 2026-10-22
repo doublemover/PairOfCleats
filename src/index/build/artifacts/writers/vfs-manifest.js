@@ -43,7 +43,9 @@ const buildVfsPathMapRow = (row) => {
     containerPath: row.containerPath,
     segmentUid: row.segmentUid,
     languageId: row.languageId,
-    effectiveExt: row.effectiveExt
+    effectiveExt: row.effectiveExt,
+    segmentStart: row.segmentStart,
+    segmentEnd: row.segmentEnd
   });
   if (!hashVirtualPath) return null;
   return {

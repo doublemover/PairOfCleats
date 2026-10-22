@@ -36,3 +36,13 @@ then report raw worker starts, byte/read/write counts, CPU, peak retained memory
 and supported-platform timings. Cancellation, corruption and teardown failures
 remain required controls. No bounds, coverage checks or performance verdict
 thresholds are raised by these implementation changes.
+
+Governance refresh owns one immutable discovery/input snapshot. Manifest generation,
+evidence, taxonomy and audit share physical/logical case discovery and source
+order/timing text while retaining their independent parsers and comparisons.
+Generated manifests are captured only after writing; comparisons still use the
+authoritative order IDs independently. A fresh refresh discovers source, rules and
+case-sidecar changes again. Shared-module ledgers likewise inventory the union of
+approved roots once per generation, derive boundary-aware subsets, and retain
+independent fresh inventories for reproducibility generations. Explicit root files
+authorize only themselves, never a recursive parent walk.

@@ -1,7 +1,7 @@
 # Spec: VFS hash routing (active contract)
 
-Status: Active optional routing policy version 2.0.0.
-Last audited: 2026-10-20.
+Status: Active optional routing policy version 3.0.0.
+Last updated: 2026-10-22.
 Owners: `src/index/tooling/vfs/virtual-path.js`, `vfs/documents.js`,
 `src/index/build/artifacts/writers/vfs-manifest.js`.
 
@@ -16,13 +16,14 @@ the original implementation and the reason its namespace is retired.
 The existing `tooling.vfs.hashRouting` boolean remains false by default. There is
 no new configuration or public CLI flag. `docHash` remains `xxh64:<hex16>` of the
 exact virtual document text. Canonical `vfs_manifest`/`vfs_index` virtual paths,
-fields and schemas remain unchanged.
+field schemas remain unchanged. Embedded canonical routes include their source occurrence range.
 
 When enabled, semantic routing uses:
 
 ```text
 origin = JSON.stringify([posix(containerPath), segmentUid || null,
-                         normalizedLanguageId || null, effectiveExt || ""])
+                         normalizedLanguageId || null, effectiveExt || "",
+                         segmentUid ? segmentStart : null, segmentUid ? segmentEnd : null])
 originHash = sha256(origin)  // lowercase hexadecimal
 hashVirtualPath = ".poc-vfs/by-hash/" + docHash + "/" + originHash + effectiveExt
 ```
@@ -38,7 +39,7 @@ than content. Coalescing remains scoped to its source container.
 When hash routing is enabled, `vfs_path_map` links each canonical virtualPath to
 its origin-scoped hashVirtualPath using that row's container, segment, language
 and extension. Its row schemaVersion remains 1.0.0: fields and types do not change.
-`VFS_HASH_ROUTING_SCHEMA_VERSION` 2.0.0 identifies the routing policy, not a new
+`VFS_HASH_ROUTING_SCHEMA_VERSION` 3.0.0 identifies the routing policy, not a new
 artifact shape. The manifest/index continue to retain canonical paths.
 
 The existing VFS disk-path owner encodes unsafe filesystem characters and rejects
@@ -72,3 +73,18 @@ positive and missing-hash fallback assertions with full origin inputs.
 
 Related contracts: [manifest](vfs-manifest-artifact.md),
 [cold start](vfs-cold-start-cache.md), [I/O batching](vfs-io-batching.md).
+
+## Document preparation
+
+One builder invocation prepares text, byte admission, content hash, line index and
+routing paths once per container/segment-range/language/extension occurrence, then
+attaches every chunk target. Equal segment bytes or content-derived segment UIDs
+at different container ranges remain separate documents in both routing modes.
+Embedded canonical paths include `#at:<start>-<end>` before the extension; scheduled
+parser jobs, contract verification, manifest rows and hash-path maps use the same
+range. Inconsistent file-hash/container/segment metadata for one occurrence fails
+in strict mode and is diagnosed/skipped in non-strict mode.
+
+The version-3 implementation and occurrence/preparation regressions are authored
+but not runtime-qualified. Previous version-2 qualification does not establish
+acceptance for the new range-qualified routing paths.

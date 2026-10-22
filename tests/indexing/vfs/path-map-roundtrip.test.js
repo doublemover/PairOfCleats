@@ -21,7 +21,8 @@ try {
     containerPath: row.containerPath,
     segmentUid: row.segmentUid,
     languageId: row.languageId,
-    effectiveExt: row.effectiveExt
+    effectiveExt: row.effectiveExt,
+    segmentStart: row.segmentStart, segmentEnd: row.segmentEnd
   });
   assert.equal(entry.hashVirtualPath, expectedHash);
   assert.equal(entry.containerPath, row.containerPath);

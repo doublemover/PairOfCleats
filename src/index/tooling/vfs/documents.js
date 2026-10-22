@@ -104,6 +104,7 @@ export const buildToolingVirtualDocuments = async ({
     return { documents: [], targets: [] };
   }
   const docMap = new Map();
+  const documentAuthority = new Map(), coalescedUids = new Map();
   const skippedSegments = new Set();
   const targets = [];
   const textSourceByPath = new Map();
@@ -135,7 +136,6 @@ export const buildToolingVirtualDocuments = async ({
     let segmentEnd = baseSegmentEnd;
     let segmentUid = segment?.segmentUid || null;
     let segmentId = segment?.segmentId || null;
-    let segmentKeyBase = `${containerPath}::${segmentUid || ''}`;
     if (segment && coalescedMap) {
       const lookupKey = resolveSegmentLookupKey({
         containerPath,
@@ -151,72 +151,51 @@ export const buildToolingVirtualDocuments = async ({
         segmentEnd = group.end;
         languageId = group.languageId;
         effectiveExt = group.effectiveExt;
-        segmentUid = await ensureCoalescedSegmentUid(group, fileText);
+        if (!coalescedUids.has(group)) coalescedUids.set(group, await ensureCoalescedSegmentUid(group, fileText));
+        segmentUid = coalescedUids.get(group);
         segmentId = group.coalesced ? null : segmentId;
-        segmentKeyBase = group.key || segmentKeyBase;
       }
     }
-    if (skippedSegments.has(segmentKeyBase)) continue;
     if (segment && !segmentUid && strict) {
       throw new Error(`Missing segmentUid for ${containerPath}`);
     }
-    const text = segment ? fileText.slice(segmentStart, segmentEnd) : fileText;
     const fileHash = chunk.fileHash || chunk.metaV2?.fileHash || null;
     const fileHashAlgo = chunk.fileHashAlgo || chunk.metaV2?.fileHashAlgo || null;
-    if (Number.isFinite(maxVirtualFileBytes) && maxVirtualFileBytes > 0) {
-      const textBytes = Buffer.byteLength(text, 'utf8');
-      if (textBytes > maxVirtualFileBytes) {
-        const message = `[vfs] virtual document exceeds maxVirtualFileBytes (${textBytes} > ${maxVirtualFileBytes}) for ${containerPath}`;
-        if (strict) throw new Error(message);
-        if (log) log(message);
-        skippedSegments.add(segmentKeyBase);
-        continue;
-      }
+    const segmentKey = JSON.stringify([containerPath, segmentUid, segmentStart, segmentEnd, languageId, effectiveExt]);
+    if (skippedSegments.has(segmentKey)) continue;
+    const authority = JSON.stringify([fileHash, fileHashAlgo, containerExt, containerLanguageId, segmentId]);
+    let doc = docMap.get(segmentKey);
+    if (doc && documentAuthority.get(segmentKey) !== authority) {
+      const message = `[vfs] inconsistent document occurrence metadata for ${containerPath}`;
+      if (strict) throw new Error(message);
+      if (log) log(message);
+      continue;
     }
-    const docHashCacheKey = buildDocHashCacheKey({
-      fileHash,
-      fileHashAlgo,
-      languageId,
-      effectiveExt,
-      segmentStart,
-      segmentEnd
-    });
-    const docHash = await computeDocHash(text, docHashCacheKey);
-    const virtualPath = resolveVfsVirtualPath({
-      containerPath,
-      segmentUid,
-      languageId,
-      effectiveExt,
-      docHash,
-      hashRouting
-    });
-    const legacyVirtualPath = hashRouting
-      ? buildVfsVirtualPath({ containerPath, segmentUid, effectiveExt })
-      : null;
-    // Byte identity may be shared; semantic document/target ownership may not.
-    const segmentKey = hashRouting
-      ? JSON.stringify([containerPath, segmentUid, languageId, effectiveExt])
-      : `${containerPath}::${segmentUid || ''}`;
-    if (!docMap.has(segmentKey)) {
-      docMap.set(segmentKey, {
+    if (!doc) {
+      const text = segment ? fileText.slice(segmentStart, segmentEnd) : fileText;
+      if (Number.isFinite(maxVirtualFileBytes) && maxVirtualFileBytes > 0) {
+        const textBytes = Buffer.byteLength(text, 'utf8');
+        if (textBytes > maxVirtualFileBytes) {
+          const message = `[vfs] virtual document exceeds maxVirtualFileBytes (${textBytes} > ${maxVirtualFileBytes}) for ${containerPath}`;
+          if (strict) throw new Error(message);
+          if (log) log(message);
+          skippedSegments.add(segmentKey);
+          continue;
+        }
+      }
+      const docHashCacheKey = buildDocHashCacheKey({ fileHash, fileHashAlgo, languageId, effectiveExt, segmentStart, segmentEnd });
+      const docHash = await computeDocHash(text, docHashCacheKey);
+      const virtualPath = resolveVfsVirtualPath({ containerPath, segmentUid, languageId, effectiveExt, docHash, hashRouting, segmentStart, segmentEnd });
+      const legacyVirtualPath = hashRouting ? buildVfsVirtualPath({ containerPath, segmentUid, effectiveExt, segmentStart, segmentEnd }) : null;
+      doc = {
         virtualPath,
         legacyVirtualPath: legacyVirtualPath && legacyVirtualPath !== virtualPath ? legacyVirtualPath : null,
-        containerPath,
-        containerExt,
-        containerLanguageId,
-        languageId,
-        effectiveExt,
-        segmentUid,
-        segmentId,
-        segmentRange: { start: segmentStart, end: segmentEnd },
-        text,
-        docHash,
-        lineIndex: buildLineIndex(text),
-        _sortKey: String(virtualPath || '')
-      });
+        containerPath, containerExt, containerLanguageId, languageId, effectiveExt,
+        segmentUid, segmentId, segmentRange: { start: segmentStart, end: segmentEnd },
+        text, docHash, lineIndex: buildLineIndex(text), _sortKey: String(virtualPath || '')
+      };
+      docMap.set(segmentKey, doc); documentAuthority.set(segmentKey, authority);
     }
-    const doc = docMap.get(segmentKey) || null;
-    if (!doc) continue;
 
     const resolveVirtualRange = () => {
       const start = Number.isFinite(chunk.start) ? chunk.start : null;
@@ -316,9 +295,7 @@ export const buildVfsManifestRowsForFile = async ({
       if (strict) throw new Error(`Missing segmentUid for ${containerPath}`);
       segmentUid = `seg:auto:${segmentStart}:${segmentEnd}:${languageId || ''}:${effectiveExt || ''}`;
     }
-    const key = segmentUid
-      ? `uid:${segmentUid}`
-      : `whole:${segmentStart}:${segmentEnd}:${languageId || ''}:${effectiveExt || ''}`;
+    const key = JSON.stringify([segmentUid, segmentStart, segmentEnd, languageId, effectiveExt]);
     if (seen.has(key)) continue;
     const entry = {
       key,
@@ -348,7 +325,9 @@ export const buildVfsManifestRowsForFile = async ({
     const virtualPath = buildVfsVirtualPath({
       containerPath: safeContainerPath,
       segmentUid: entry.segmentUid,
-      effectiveExt: entry.effectiveExt
+      effectiveExt: entry.effectiveExt,
+      segmentStart: entry.segmentStart,
+      segmentEnd: entry.segmentEnd
     });
     const lineStart = offsetToLine(resolvedLineIndex, entry.segmentStart);
     const endOffset = entry.segmentEnd > entry.segmentStart ? entry.segmentEnd - 1 : entry.segmentStart;

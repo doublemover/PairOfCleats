@@ -16,10 +16,11 @@ const parseOrderFile = async (filePath) => {
     .filter((line) => line && !line.startsWith('#'));
 };
 
-export const buildLaneAuditReport = async ({ root = process.cwd(), config } = {}) => {
-  const laneConfig = config || await loadLaneManifestConfig({ root });
-  const runRules = loadRunRules({ root });
-  const discovered = await discoverTests({
+export const buildLaneAuditReport = async ({ root = process.cwd(), config, snapshot = null } = {}) => {
+  snapshot?.assertRoot(root);
+  const laneConfig = config || snapshot?.laneConfig || await loadLaneManifestConfig({ root });
+  const runRules = snapshot?.runRules || loadRunRules({ root });
+  const discovered = snapshot?.discovered || await discoverTests({
     testsDir: path.join(root, 'tests'),
     excludedDirs: runRules.excludedDirs,
     excludedFiles: runRules.excludedFiles
@@ -34,8 +35,8 @@ export const buildLaneAuditReport = async ({ root = process.cwd(), config } = {}
   const timingOverruns = [];
 
   for (const currentLane of laneConfig.orderedLanes.values()) {
-    const orderIds = await parseOrderFile(currentLane.orderFilePath);
-    const manifest = await loadOrderedLaneManifest({
+    const orderIds = await (snapshot ? snapshot.readOrderIds(currentLane.orderFilePath) : parseOrderFile(currentLane.orderFilePath));
+    const manifest = snapshot ? await snapshot.manifest(currentLane.lane) : await loadOrderedLaneManifest({
       root,
       lane: currentLane.lane,
       config: laneConfig
