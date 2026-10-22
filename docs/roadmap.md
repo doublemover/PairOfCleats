@@ -105,8 +105,8 @@ without implying those new requirements are satisfied. Storage/category, native,
 editor, provisioning, bounded discovery and durable viewer preference releases
 now have durable partial mappings. Shared sourceChunking6/compilerBindings18/lspBindings22, callFlow20, graphRelations1
 and discoverySelection2/signature14 identify that producer meaning. The later
-current source uses sourceChunking9/importResolution6/typeNormalization3,
-compilerBindings19/lspBindings28/cfgFlow19/callFlow21.
+current source uses sourceChunking10/importResolution6/typeNormalization3,
+compilerBindings19/lspBindings30/cfgFlow19/callFlow22.
 
 Earlier source checkpoints through 0500f370a cover bounded SQLite/LMDB and vector
 ingestion/finalizers, complete lexical reuse, selective BM25 hydration, immutable
@@ -123,50 +123,31 @@ unvalidated; public research integration, full provider onboarding, fine-grained
 resume, generic migration, native service/editor/model hosts, generated freshness,
 locked setup and representative resource/performance qualification remain open.
 
-Source continuation through 77507752b retains original ONNX and outer embedding
-cache entries after failed retirement. Explicit reconciliation targets the same
-objects and captured cleanup methods; accepted work/startup and every live
-reference drain first. Background pruning and finalizers do not retry recorded
-native failures. Query/warmup preserve frozen primary and cleanup evidence.
-Real rejected-native-release retry safety remains unqualified.
+Source continuations through e0c4ff524 retain actual native/model, PDF, map,
+FileHandle and directory owners through original cleanup and independent closure
+observations. Pending work cannot be erased by advisory flags, changed callbacks,
+recipe receipts or a completed bounded wait. Latest errors preserve exact recovery
+capabilities and frozen/falsey causes. Managed cleanup settles file then directory
+owners before staging/category release; migration retains existing exclusions.
+Destination round-trip failure cannot become writable through cleanup retry.
 
-Shared storage sessions now capture original closure observers before settlement,
-even without a true pending flag. Callback replacement and contradictory receipts
-cannot erase them; unreadable evidence stays pending. Failed lease-record sealing
-and descriptor close retain both exact causes without granting deletion authority.
-Managed reuse, new publication, removal and outer admission retain every actual
-metadata/reconciliation owner through later failures, preserving frozen causes and
-unknown staging identities. Own producer-branded metadata failures may retry;
-independent native observers stay required. No installation or user cleanup ran.
+PDF retained failures now prohibit automatic queue/shard re-extraction, even when
+the original page error is retryable. Queue error handlers preserve both original
+and callback failures; best-effort aggregates retain original resource observers.
+Independent diagnostic sinks and registry release errors preserve failure evidence.
+Map resources remain owned after detachment. Real native/GPU retry safety remains
+unqualified. Earlier detailed source history is retained in the durable receipt.
 
-SQL consumers share effective lexical options and physical line ownership; R
-argument extraction and registered relations preserve literal dependency bytes.
-Python headers/local classes and parenthesized C/C++ prototypes retain their
-actual lexical/declarator roles. sourceChunking9/importResolution6 retire changed
-meaning. Immutable LSP request capture and atomic hierarchy-token admission use
-lspBindings25; typeNormalization3/compilerBindings18/cfgFlow18/callFlow20 identify
-that checkpoint. Prior map byte admission, sparse Python columns, Sublime source geometry
-and retained lens/motif evidence keep their durable mappings and limitations.
-
-Generic migration, fine-grained resume, independent source truth and actual
-native/editor/browser/model/resource qualification remain open. All new source
-and fixtures are unvalidated; no issue closure, current suite pass or measured
-speedup is claimed. The durable receipt preserves exact commits and acceptance.
-
-Further source through 7ebf32cb3 retains actual prepared-model components/tensors,
-PDF destruction promises and accepted late work, migration descriptor/exclusion
-owners, and exact Go SDK transaction identity. Frozen/falsey primary and secondary
-failures remain reachable through the latest reconciliation error. Original
-cache-writer closure observers gate lease invalidation independently of flags.
-Legacy/latest crash state/events sinks fail independently of attempt-owned copies;
-registry release errors preserve the operation failure. Map scene resources stay
-owned after detachment, with both original scene/cache observations required.
-LSP scalar/location/container admission and shared hierarchy budgets retire old
-request entries with rq4/lspBindings28. Prototype-named argument maps use own
-keys (callFlow21); class-property aliases remain conservative under checker
-identity (compilerBindings19/cfgFlow19). These are unvalidated source contracts,
-not native/GPU retry safety, full source-language completeness or performance
-evidence. Real-model/host acceptance, generated freshness and setup remain open.
+Actual JS/TS consumers share ECMAScript comment terminators; quoted type values
+survive parser, cache and source-preview normalization. Dynamic parameter names
+use own-data records through enrichment/public metadata, with inherited evidence
+rejected. Current sourceChunking10/importResolution6/typeNormalization3,
+compilerBindings19/lspBindings30/rq6/cfgFlow19/callFlow22 retire changed meaning.
+Authored actual parser/cache/consumer and nested storage/queue regressions remain
+unrun. Full language/provider completeness, native/editor/browser/model hosts,
+generic migration, fine-grained resume, generated freshness, locked setup and
+representative resource/performance qualification remain open. All new source is
+unvalidated; no issue closure, current suite pass or measured speedup is claimed.
 
 ## Environment and qualification boundaries
 
