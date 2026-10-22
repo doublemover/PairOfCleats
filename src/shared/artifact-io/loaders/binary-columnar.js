@@ -1,3 +1,4 @@
+import { beginVerifiedArtifactRead } from '../verified-read-scope.js';
 import fs from 'node:fs';
 import { constants as bufferConstants } from 'node:buffer';
 import { readVerifiedContainedFileSync, openContainedFileSync, verifyContainedFileHandle, assertNoSymlinkPath } from '../../contained-file.js';
@@ -247,6 +248,21 @@ const iterateBinaryColumnarRowPayloads = ({
   return (function* () {
     const dataHandle = containedRoot ? openContainedFileSync(containedRoot, resolvedDataPath) : fs.openSync(resolvedDataPath, 'r');
     try {
+      const witness = beginVerifiedArtifactRead(containedRoot, resolvedDataPath, dataHandle);
+      let witnessedPosition = 0;
+      // Framed producers normally cover contiguous bytes. Hash gaps on this same opened descriptor,
+      // so padding/trailing bytes remain authority too; backwards frames decline the shared witness.
+      const witnessUntil = end => {
+        if (!witness || end <= witnessedPosition) return;
+        const buffer = Buffer.alloc(Math.min(65536, end - witnessedPosition));
+        while (witnessedPosition < end) {
+          const length = Math.min(buffer.length, end - witnessedPosition);
+          const bytesRead = fs.readSync(dataHandle, buffer, 0, length, witnessedPosition);
+          if (!Number.isSafeInteger(bytesRead) || bytesRead <= 0 || bytesRead > length) throw new Error('Binary-columnar data truncated');
+          witness.update(buffer.subarray(0, bytesRead), witnessedPosition);
+          witnessedPosition += bytesRead;
+        }
+      };
       const dataSize = Number(fs.fstatSync(dataHandle)?.size || 0);
       if (enforceDataBudget) {
         assertWithinMaxBytes(dataSize, maxBytes, 'Binary-columnar data');
@@ -261,6 +277,7 @@ const iterateBinaryColumnarRowPayloads = ({
           requireSafeEnd: true
         });
         const length = end - start;
+        witnessUntil(start);
         const row = Buffer.allocUnsafe(length);
         let readOffset = 0;
         while (readOffset < length) {
@@ -270,9 +287,13 @@ const iterateBinaryColumnarRowPayloads = ({
           }
           readOffset += bytesRead;
         }
+        witness?.update(row, start);
+        witnessedPosition = Math.max(witnessedPosition, end);
         yield row;
       }
-      if (containedRoot) verifyContainedFileHandle(dataHandle, containedRoot, resolvedDataPath);
+      witnessUntil(dataSize);
+      if (witness) witness.finish(() => verifyContainedFileHandle(dataHandle, containedRoot, resolvedDataPath));
+      else if (containedRoot) verifyContainedFileHandle(dataHandle, containedRoot, resolvedDataPath);
     } finally {
       fs.closeSync(dataHandle);
     }

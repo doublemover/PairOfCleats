@@ -1,3 +1,4 @@
+import { readVerifiedArtifactJson } from '../verified-read-scope.js';
 import { performance } from 'node:perf_hooks';
 import { MAX_JSON_BYTES } from '../constants.js';
 import { cleanupBak, getBakPath } from '../cache.js';
@@ -73,7 +74,7 @@ const readJsonSource = (targetPath, maxBytes, { compression = null, cleanup = fa
  * @param {{maxBytes?: number,recoveryFallback?:boolean}} [options]
  * @returns {any}
  */
-export const readJsonFile = (
+const readJsonFileUncached = (
   filePath,
   { maxBytes = MAX_JSON_BYTES, recoveryFallback = false, containedRoot = null } = {}
 ) => {
@@ -113,3 +114,7 @@ export const readJsonFile = (
   if (preferredErr) throw preferredErr;
   throw new Error(`Missing JSON artifact: ${filePath}`);
 };
+
+export const readJsonFile = (filePath, options = {}) => readVerifiedArtifactJson(
+  filePath, options, () => readJsonFileUncached(filePath, options)
+);

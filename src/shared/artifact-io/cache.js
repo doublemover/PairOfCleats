@@ -1,3 +1,4 @@
+import { currentVerifiedArtifactReadScope } from './verified-read-scope.js';
 import fs from 'node:fs';
 import { buildLocalCacheKey } from '../cache-key.js';
 import { MAX_JSON_BYTES } from './constants.js';
@@ -39,6 +40,8 @@ const buildCacheKey = (filePath, {
 };
 
 export const readCache = (filePath, options) => {
+  // Mutable health/validation invocations require fresh descriptor bytes, never a stat-only memo.
+  if (currentVerifiedArtifactReadScope()) return null;
   const key = buildCacheKey(filePath, options);
   if (!key) return null;
   const entry = pieceCache.get(key);
@@ -47,6 +50,7 @@ export const readCache = (filePath, options) => {
 };
 
 export const writeCache = (filePath, value, options) => {
+  if (currentVerifiedArtifactReadScope()) return;
   const key = buildCacheKey(filePath, options);
   if (!key) return;
   pieceCache.set(key, { value, time: Date.now() });

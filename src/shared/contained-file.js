@@ -1,3 +1,4 @@
+import { recordVerifiedArtifactRead } from './artifact-io/verified-read-scope.js';
 import { withSchedulerCpuSuspended } from './concurrency/scheduler-task-scope.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -124,6 +125,7 @@ const finishRead = (fd, root, target, before, after, buffer, bytesRead, options)
     throw Object.assign(new Error('Contained file checksum does not match its pinned identity.'), { code: 'ERR_FILE_INTEGRITY' });
   }
   const result = { buffer, hash, stat: after };
+  recordVerifiedArtifactRead(root, target, result, options.hashAlgorithm);
   // Exact descriptor identity is internal read authority, not serialized output.
   Object.defineProperty(result, 'fileIdentity', {
     value: Object.freeze({ dev: opened.dev.toString(), ino: opened.ino.toString() })

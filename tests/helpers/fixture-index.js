@@ -1,3 +1,4 @@
+import { readFixtureHealthSnapshot } from './fixture-health-snapshot.js';
 import { applyTestEnv, withTemporaryEnv } from './test-env.js';
 
 import fs from 'node:fs';
@@ -13,16 +14,9 @@ import {
   resolveSqlitePaths,
   toRealPathSync
 } from '../../tools/shared/dict-utils.js';
-import { hasIndexMeta } from '../../src/retrieval/cli/index-loader.js';
-import { SEMANTIC_OPERATION_INDEX_SCHEMA } from '../../src/contracts/schemas/semantic-operation-index.js';
 import {
   MAX_JSON_BYTES,
-  loadChunkMeta,
-  loadMinhashSignatures,
-  loadJsonArrayArtifactSync,
-  loadPiecesManifest,
-  resolveArtifactPresence,
-  readCompatibilityKey
+  loadJsonArrayArtifactSync
 } from '../../src/shared/artifact-io.js';
 import { runSearchCli } from '../../src/retrieval/cli.js';
 import { buildSearchCliArgs } from '../../tools/shared/search-cli-harness.js';
@@ -40,7 +34,6 @@ import {
   resolveTestCachePath
 } from './test-cache.js';
 import { runNode } from './run-node.js';
-import { isWithinRoot } from '../../src/workspace/identity.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -50,36 +43,7 @@ const ensureDir = async (dir) => {
 
 const FIXTURE_MODES = new Set(['code', 'prose', 'extracted-prose', 'records']);
 const DEFAULT_REQUIRED_MODES = Object.freeze(['code', 'prose', 'extracted-prose']);
-const FIXTURE_HEALTH_VERSION = 7;
-
-// Compatibility alone does not witness mutable fixture artifacts. A killed
-// negative test may leave a damaged manifest or data file behind its old stamp.
-const readHealthAuthority = async (modeDirs, requiredModes) => {
-  const authority = {};
-  for (const mode of requiredModes) {
-    try {
-      const dir = modeDirs[mode];
-      const hash = crypto.createHash('sha256').update(toRealPathSync(dir));
-      hash.update(await fsPromises.readFile(path.join(dir, 'pieces/manifest.json')));
-      const manifest = loadPiecesManifest(dir, { strict: true });
-      for (const name of ['chunk_meta', 'file_meta', 'minhash_signatures', 'minhash_signatures_meta', ...(mode === 'code' ? ['risk_flows'] : [])]) {
-        const presence = resolveArtifactPresence(dir, name, { manifest, strict: false });
-        const paths = [...(presence.paths || [])].sort();
-        hash.update(`${name}\0${paths.length}\0`);
-        for (const file of paths) {
-          if (!isWithinRoot(toRealPathSync(file), toRealPathSync(dir))) throw new Error('Health artifact escapes index root');
-          if ((await fsPromises.stat(file)).size > MAX_JSON_BYTES) throw new Error('Health artifact exceeds reader limit');
-          hash.update(path.relative(dir, file));
-          hash.update(await fsPromises.readFile(file));
-        }
-      }
-      authority[mode] = hash.digest('hex');
-    } catch {
-      authority[mode] = null;
-    }
-  }
-  return authority;
-};
+const FIXTURE_HEALTH_VERSION = 8;
 
 const resolveCacheName = (baseName, { cacheScope = 'isolated' } = {}) => {
   const MAX_CACHE_NAME_LENGTH = 64;
@@ -202,169 +166,6 @@ const createFixtureEnv = (cacheRoot, overrides = {}, { requireCodeRiskTags = fal
       ...restOverrides
     }
   });
-};
-
-const hasChunkMeta = (dir) => hasIndexMeta(dir);
-
-const hasRiskTags = (codeDir) => {
-  try {
-    const raw = loadJsonArrayArtifactSync(codeDir, 'chunk_meta', {
-      maxBytes: MAX_JSON_BYTES,
-      strict: false
-    });
-    return Array.isArray(raw) && raw.some((entry) => {
-      const risk = entry?.metaV2?.risk || entry?.docmeta?.risk || null;
-      if (!risk) return false;
-      if (Array.isArray(risk.tags) && risk.tags.length) return true;
-      if (Array.isArray(risk.flows) && risk.flows.length) return true;
-      return false;
-    });
-  } catch {
-    return false;
-  }
-};
-
-const hasRiskWatchByStep = (codeDir) => {
-  try {
-    const flowRows = loadJsonArrayArtifactSync(codeDir, 'risk_flows', {
-      maxBytes: MAX_JSON_BYTES,
-      strict: false
-    });
-    if (!Array.isArray(flowRows) || flowRows.length === 0) return false;
-    return flowRows.every((entry) => {
-      const callSiteSteps = Array.isArray(entry?.path?.callSiteIdsByStep) ? entry.path.callSiteIdsByStep : [];
-      const watchSteps = Array.isArray(entry?.path?.watchByStep) ? entry.path.watchByStep : null;
-      return Array.isArray(watchSteps) && watchSteps.length === callSiteSteps.length;
-    });
-  } catch {
-    return false;
-  }
-};
-
-const hasMissingSqlDialectMetadata = async (codeDir) => {
-  try {
-    const chunkMeta = await loadChunkMeta(codeDir, { strict: false });
-    if (!Array.isArray(chunkMeta) || chunkMeta.length === 0) return false;
-    const fileMeta = loadJsonArrayArtifactSync(codeDir, 'file_meta', {
-      maxBytes: MAX_JSON_BYTES,
-      strict: false
-    });
-    const fileById = new Map(
-      (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
-    );
-    const isSqlFile = (file) => typeof file === 'string' && /\.(sql|psql|pgsql|mysql|sqlite)$/i.test(file);
-    const sqlFiles = new Set(
-      (Array.isArray(fileMeta) ? fileMeta : [])
-        .map((entry) => entry?.file)
-        .filter((file) => isSqlFile(file))
-    );
-    const sqlFilesWithChunks = new Set();
-    const expectedDialectByExt = new Map([
-      ['.psql', 'postgres'],
-      ['.pgsql', 'postgres'],
-      ['.mysql', 'mysql'],
-      ['.sqlite', 'sqlite']
-    ]);
-    for (const entry of chunkMeta) {
-      const filePath = entry?.file || fileById.get(entry?.fileId) || null;
-      const isSqlChunk = String(entry?.lang || '').toLowerCase() === 'sql' || isSqlFile(filePath);
-      if (!isSqlChunk) continue;
-      if (filePath) sqlFilesWithChunks.add(filePath);
-      const dialect = typeof entry?.docmeta?.dialect === 'string'
-        ? entry.docmeta.dialect.trim().toLowerCase()
-        : '';
-      if (!dialect) {
-        return true;
-      }
-      const expectedDialect = expectedDialectByExt.get(path.extname(String(filePath || '')).toLowerCase()) || null;
-      if (expectedDialect && dialect !== expectedDialect) return true;
-    }
-    for (const filePath of sqlFiles) {
-      if (!sqlFilesWithChunks.has(filePath)) return true;
-    }
-  } catch {}
-  return false;
-};
-
-const readIndexCompatibilityKey = (dir) => {
-  try {
-    return readCompatibilityKey(dir, { maxBytes: MAX_JSON_BYTES, strict: false }).key;
-  } catch {
-    return null;
-  }
-};
-
-/**
- * Determine cross-mode compatibility status for required fixture indexes.
- *
- * @param {{modeDirs:Record<string,string>,requiredModes:string[]}} input
- * @returns {{compatible:boolean,keyByMode:Record<string,string|null>,baseline:string|null}}
- */
-const getCompatibilityStatus = async ({ modeDirs, requiredModes }) => {
-  if (!Array.isArray(requiredModes) || requiredModes.length === 0) {
-    return { compatible: false, keyByMode: {}, baseline: null };
-  }
-  const keyByMode = {};
-  const keys = [];
-  for (const mode of requiredModes) {
-    const dir = modeDirs?.[mode];
-    if (!dir || !hasChunkMeta(dir)) {
-      return { compatible: false, keyByMode: {}, baseline: null };
-    }
-    try {
-      // Compatibility keys cannot admit signatures from a superseded hash family.
-      await loadMinhashSignatures(dir, { strict: true });
-    } catch {
-      return { compatible: false, keyByMode: {}, baseline: null };
-    }
-    const operationPath = path.join(dir, 'semantic_operation_index.json');
-    if (fs.existsSync(operationPath)) {
-      try {
-        const operation = JSON.parse(fs.readFileSync(operationPath, 'utf8'));
-        if (operation.schemaVersion !== SEMANTIC_OPERATION_INDEX_SCHEMA.properties.schemaVersion.const) {
-          return { compatible: false, keyByMode: {}, baseline: null };
-        }
-      } catch {
-        return { compatible: false, keyByMode: {}, baseline: null };
-      }
-    }
-    const key = readIndexCompatibilityKey(dir);
-    keyByMode[mode] = key || null;
-    keys.push(key);
-  }
-  const baseline = keys.find(Boolean) || null;
-  if (!baseline) {
-    const testing = process.env.PAIROFCLEATS_TESTING === '1' || process.env.PAIROFCLEATS_TESTING === 'true';
-    const allowMissing = testing
-      && process.env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY !== '0'
-      && process.env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY !== 'false';
-    return { compatible: allowMissing, keyByMode, baseline };
-  }
-  return {
-    compatible: keys.every((key) => !key || key === baseline),
-    keyByMode,
-    baseline
-  };
-};
-
-const hasChunkUids = async (dir) => {
-  try {
-    const chunkMeta = await loadChunkMeta(dir, { strict: false });
-    if (!Array.isArray(chunkMeta) || chunkMeta.length === 0) return false;
-    return chunkMeta.every((entry) => entry?.chunkUid || entry?.metaV2?.chunkUid);
-  } catch {
-    return false;
-  }
-};
-
-const hasMissingChunkUids = async ({ modeDirs, requiredModes }) => {
-  for (const mode of requiredModes) {
-    const dir = modeDirs?.[mode];
-    if (!dir || !await hasChunkUids(dir)) {
-      return true;
-    }
-  }
-  return false;
 };
 
 const readFixtureHealthStamp = async (stampPath) => {
@@ -517,10 +318,8 @@ export const ensureFixtureIndex = async ({
   });
   const evaluateFixtureState = async () => {
     const modeDirs = resolveModeDirs();
-    const compatibility = await getCompatibilityStatus({
-      modeDirs,
-      requiredModes: normalizedRequiredModes
-    });
+    const snapshot = await readFixtureHealthSnapshot({ modeDirs, requiredModes: normalizedRequiredModes });
+    const { compatibility, authorityByMode } = snapshot;
     const compatibleIndexes = compatibility.compatible;
     const requireSqlDialectMetadata = normalizedRequiredModes.includes('code');
     if (!compatibleIndexes) {
@@ -534,7 +333,6 @@ export const ensureFixtureIndex = async ({
       };
     }
     const healthStamp = await readFixtureHealthStamp(healthStampPath);
-    const authorityByMode = await readHealthAuthority(modeDirs, normalizedRequiredModes);
     if (canUseFixtureHealthStamp(healthStamp, {
       requiredModes: normalizedRequiredModes,
       requireRiskTags: requireCodeRiskTags,
@@ -553,15 +351,10 @@ export const ensureFixtureIndex = async ({
         usedHealthStamp: true
       };
     }
-    const needsRiskTags = requireCodeRiskTags && !hasRiskTags(modeDirs.code);
-    const missingRiskWatchByStep = requireCodeRiskWatchByStep && !hasRiskWatchByStep(modeDirs.code);
-    const missingSqlDialects = requireSqlDialectMetadata
-      ? await hasMissingSqlDialectMetadata(modeDirs.code)
-      : false;
-    const missingChunkUids = await hasMissingChunkUids({
-      modeDirs,
-      requiredModes: normalizedRequiredModes
-    });
+    const needsRiskTags = requireCodeRiskTags && !snapshot.modes.code?.hasRiskTags;
+    const missingRiskWatchByStep = requireCodeRiskWatchByStep && !snapshot.modes.code?.hasRiskWatchByStep;
+    const missingSqlDialects = requireSqlDialectMetadata && snapshot.modes.code?.missingSqlDialects === true;
+    const missingChunkUids = normalizedRequiredModes.some(mode => !snapshot.modes[mode]?.hasChunkUids);
     if (!needsRiskTags && !missingRiskWatchByStep && !missingChunkUids && !missingSqlDialects) {
       await writeFixtureHealthStamp(healthStampPath, {
         requiredModes: normalizedRequiredModes,

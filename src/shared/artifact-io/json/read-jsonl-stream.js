@@ -1,3 +1,5 @@
+import { createAbortError } from '../../abort.js';
+import { beginVerifiedArtifactRead } from '../verified-read-scope.js';
 import fs from 'node:fs';
 import { openContainedFileSync, verifyContainedFileHandle } from '../../contained-file.js';
 import { performance } from 'node:perf_hooks';
@@ -255,26 +257,7 @@ const readJsonlIteratorSingle = async function* (
               return;
             }
           }
-          if (containedRoot) {
-            const fd = openContainedFileSync(containedRoot, sourcePath);
-            try {
-              const openedStat = fs.fstatSync(fd);
-              if (openedStat.size > maxBytes) throw toJsonTooLargeError(sourcePath, openedStat.size);
-              stream = ownStream(fs.createReadStream(sourcePath, { ...range, fd, autoClose: true }));
-              const openedPath = sourcePath;
-              stream.prependOnceListener('end', () => {
-                try { verifyContainedFileHandle(fd, containedRoot, openedPath); }
-                catch (error) { containedReadError = error; }
-              });
-            } catch (error) { fs.closeSync(fd); throw error; }
-          } else {
-            stream = ownStream(fs.createReadStream(sourcePath, range || undefined));
-          }
-          if (compression === 'gzip') {
-            const gunzip = ownStream(createGunzip());
-            stream.on('error', error => gunzip.destroy(error));
-            stream = stream.pipe(gunzip);
-          } else if (compression === 'zstd') {
+          if (compression === 'zstd') {
             const zstd = resolveOptionalZstd();
             if (zstd && rawBytes <= ZSTD_STREAM_THRESHOLD) {
               const buffer = readBuffer(sourcePath, maxBytes, { containedRoot });
@@ -299,6 +282,43 @@ const readJsonlIteratorSingle = async function* (
               }));
               return;
             }
+          }
+          if (containedRoot) {
+            const fd = openContainedFileSync(containedRoot, sourcePath);
+            let descriptorOwnedByStream = false;
+            try {
+              const openedStat = fs.fstatSync(fd);
+              if (openedStat.size > maxBytes) throw toJsonTooLargeError(sourcePath, openedStat.size);
+              const openedPath = sourcePath;
+              const witness = !range ? beginVerifiedArtifactRead(containedRoot, openedPath, fd) : null;
+              stream = ownStream(fs.createReadStream(sourcePath, { ...range, fd, autoClose: true }));
+              descriptorOwnedByStream = true;
+              const rawStream = stream;
+              if (witness) rawStream.on('data', bytes => {
+                try { witness.update(bytes); } catch (error) { containedReadError = error; rawStream.destroy(error); }
+              });
+              if (typeof witness?.signal?.addEventListener === 'function') {
+                const onAbort = () => rawStream.destroy(createAbortError());
+                witness.signal.addEventListener('abort', onAbort, { once: true });
+                rawStream.once('close', () => witness.signal.removeEventListener('abort', onAbort));
+                if (witness.signal.aborted) onAbort();
+              }
+              rawStream.prependOnceListener('end', () => {
+                try {
+                  const verify = () => verifyContainedFileHandle(fd, containedRoot, openedPath);
+                  if (witness) witness.finish(verify);
+                  else verify();
+                } catch (error) { containedReadError = error; }
+              });
+            } catch (error) { if (!descriptorOwnedByStream) fs.closeSync(fd); throw error; }
+          } else {
+            stream = ownStream(fs.createReadStream(sourcePath, range || undefined));
+          }
+          if (compression === 'gzip') {
+            const gunzip = ownStream(createGunzip());
+            stream.on('error', error => gunzip.destroy(error));
+            stream = stream.pipe(gunzip);
+          } else if (compression === 'zstd') {
             const zstdStream = ownStream(createZstdDecompress());
             stream.on('error', error => zstdStream.destroy(error));
             stream = stream.pipe(zstdStream);
