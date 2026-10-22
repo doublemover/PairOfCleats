@@ -1,22 +1,17 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import {
-  REPLACE_COMMITTED_FINAL_GRACE_MS,
   REPLACE_TEMP_WAIT_ATTEMPTS,
   REPLACE_TEMP_WAIT_BASE_DELAY_MS,
   areComparablePathsEqual,
   copyFileWithDurability,
   copyFileWithDurabilitySync,
   createSiblingBackupPath,
-  hasRecentlyCommittedFinalPath,
   maybeReportExdevFallback,
   renameWithRetry,
   renameWithRetrySync,
   waitForPath
 } from './persistence-helpers.js';
-
-const committedFinalGraceMs = REPLACE_COMMITTED_FINAL_GRACE_MS
-  + REPLACE_TEMP_WAIT_BASE_DELAY_MS * (REPLACE_TEMP_WAIT_ATTEMPTS - 1) * REPLACE_TEMP_WAIT_ATTEMPTS / 2;
 
 const createTempMissingError = (tempPath) => Object.assign(
   new Error(`Temp file missing before replace: ${tempPath}`), { code: 'ERR_TEMP_MISSING' }
@@ -42,11 +37,11 @@ const samePathAlreadyCommitted = (tempPath, finalPath) => {
   throw createTempMissingError(tempPath);
 };
 
-const concurrentCommitSucceeded = (tempPath, finalPath, initialStat) => {
+const concurrentCommitSucceeded = (tempPath, finalPath, sourceStat) => {
   if (fsSync.existsSync(tempPath)) return false;
   const stat = readFinalStat(finalPath);
-  return !!stat && (!initialStat || stat.ino !== initialStat.ino
-    || stat.mtimeMs !== initialStat.mtimeMs || stat.size !== initialStat.size);
+  return !!stat && !!sourceStat && sourceStat.ino > 0n && stat.ino === sourceStat.ino && stat.dev === sourceStat.dev
+    && stat.size === sourceStat.size && stat.mtimeNs === sourceStat.mtimeNs;
 };
 
 /**
@@ -60,9 +55,9 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   if (!(await waitForPath(tempPath, {
     attempts: REPLACE_TEMP_WAIT_ATTEMPTS, baseDelayMs: REPLACE_TEMP_WAIT_BASE_DELAY_MS, signal: options.signal
   }))) {
-    if (hasRecentlyCommittedFinalPath(finalPath, committedFinalGraceMs)) return;
     throw createTempMissingError(tempPath);
   }
+  const sourceStat = fsSync.lstatSync(tempPath, { bigint: true });
   let backupPath = null, stagedPath = null, committed = false;
   try {
     if (initialStat && options.keepBackup === true) {
@@ -72,7 +67,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
     try {
       await renameWithRetry(tempPath, finalPath, { signal: options.signal });
     } catch (error) {
-      if (error.code === 'ENOENT' && concurrentCommitSucceeded(tempPath, finalPath, initialStat)) {
+      if (error.code === 'ENOENT' && concurrentCommitSucceeded(tempPath, finalPath, sourceStat)) {
         committed = true;
         return;
       }
@@ -95,9 +90,9 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
   if (samePathAlreadyCommitted(tempPath, finalPath)) return;
   const initialStat = readFinalStat(finalPath);
   if (!fsSync.existsSync(tempPath)) {
-    if (hasRecentlyCommittedFinalPath(finalPath, committedFinalGraceMs)) return;
     throw createTempMissingError(tempPath);
   }
+  const sourceStat = fsSync.lstatSync(tempPath, { bigint: true });
   let backupPath = null, stagedPath = null, committed = false;
   try {
     if (initialStat && options.keepBackup === true) {
@@ -107,7 +102,7 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
     try {
       renameWithRetrySync(tempPath, finalPath);
     } catch (error) {
-      if (error.code === 'ENOENT' && concurrentCommitSucceeded(tempPath, finalPath, initialStat)) {
+      if (error.code === 'ENOENT' && concurrentCommitSucceeded(tempPath, finalPath, sourceStat)) {
         committed = true;
         return;
       }

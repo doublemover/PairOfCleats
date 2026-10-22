@@ -12,9 +12,10 @@ try {
   const publishedDuringWait = path.join(root, 'concurrent.json');
   const publisher = setTimeout(() => fs.writeFileSync(publishedDuringWait, '{"version":1}'), 20);
   try {
-    await replaceFile(path.join(root, 'already-consumed.tmp'), publishedDuringWait);
+    await assert.rejects(replaceFile(path.join(root, 'already-consumed.tmp'), publishedDuringWait),
+      { code: 'ERR_TEMP_MISSING' });
     assert.deepEqual(JSON.parse(await fsp.readFile(publishedDuringWait, 'utf8')), { version: 1 },
-      'a concurrent completed publication preserves missing-temp idempotence');
+      'an unrelated concurrent publication cannot prove a missing source was promoted');
   } finally { clearTimeout(publisher); }
   for (const sync of [false, true]) {
     for (const keepBackup of [false, true]) {
