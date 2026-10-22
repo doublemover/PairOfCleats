@@ -117,10 +117,11 @@ const runGitProviderCommand = (args) => runGitProviderTask(() => runScmCommand('
  * @param {{repoRoot:string,headId?:string|null}} input
  * @returns {object}
  */
-const buildGitFreshnessGuard = ({ repoRoot, headId = null }) => buildScmFreshnessGuard({
+const buildGitFreshnessGuard = ({ repoRoot, headId = null, includeChurn = false }) => buildScmFreshnessGuard({
   provider: 'git',
   repoRoot,
-  repoHeadId: headId
+  repoHeadId: headId,
+  includeChurn
 });
 
 /**
@@ -317,7 +318,7 @@ export const gitProvider = {
     if (!normalizedFilePosix) {
       return toUnavailableResult();
     }
-    const freshnessGuard = buildGitFreshnessGuard({ repoRoot, headId });
+    const freshnessGuard = buildGitFreshnessGuard({ repoRoot, headId, includeChurn });
     const cachedMeta = readGitMetaPrefetchValue({
       freshnessGuard,
       config,
@@ -357,7 +358,7 @@ export const gitProvider = {
     if (!normalizedFiles.length) {
       return { fileMetaByPath: Object.create(null) };
     }
-    const freshnessGuard = buildGitFreshnessGuard({ repoRoot, headId });
+    const freshnessGuard = buildGitFreshnessGuard({ repoRoot, headId, includeChurn });
     const canUsePrefetchCache = Boolean(freshnessGuard.key && config.prefetchCacheMaxEntries > 0);
     if (canUsePrefetchCache) {
       const cachedEntry = getGitMetaPrefetchEntry(freshnessGuard, config);

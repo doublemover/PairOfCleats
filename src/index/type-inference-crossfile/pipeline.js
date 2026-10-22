@@ -185,9 +185,10 @@ export async function applyCrossFileInference({
   const symbolicMode = toolingPropagationOptions.toolingConfig?.typescript?.typeRepresentation === 'symbolic'
     || symbolicTypeGraphs.length > 0;
   // The existing fingerprint does not own all compiler/config/ambient reads.
-  // Keep durable graph publication; recompute symbolic providers until replay
+  // Keep durable graph publication; recompute tooling providers until replay
   // has a complete live context identity, rather than accepting stale facts.
-  const cachedStats = symbolicMode ? null : await readCrossFileInferenceCache({
+  const toolingReplayUnqualified = useTooling === true || symbolicMode;
+  const cachedStats = toolingReplayUnqualified ? null : await readCrossFileInferenceCache({
     cachePath: cacheContext.cachePath,
     chunks,
     crossFileFingerprint: cacheContext.crossFileFingerprint,
@@ -218,7 +219,7 @@ export async function applyCrossFileInference({
     ...toolingPropagationOptions
   });
 
-  if (!symbolicMode) await writeCrossFileInferenceCache({
+  if (!toolingReplayUnqualified) await writeCrossFileInferenceCache({
     cacheDir: cacheContext.cacheDir,
     cachePath: cacheContext.cachePath,
     chunks,

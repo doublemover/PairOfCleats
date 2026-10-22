@@ -321,7 +321,7 @@ const PROSE_CHUNKERS = [
   { id: 'docx', match: (ext) => ext === '.docx', chunk: ({ text, context }) => chunkDocxDocument(text, context) },
   {
     id: 'markdown',
-    match: (ext) => ext === '.md' || ext === '.mdx',
+    match: (ext) => ext === '.md' || ext === '.markdown' || ext === '.mdx',
     chunk: ({ text, ext, context }) => chunkMarkdown(text, ext, context)
   },
   { id: 'rst', match: (ext) => ext === '.rst', chunk: ({ text }) => chunkRst(text) },

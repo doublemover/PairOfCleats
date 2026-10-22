@@ -15,7 +15,18 @@ const shouldKeepFileMetaColumn = (column, values) => {
 const isFingerprintPrimitive = (value) => value == null
   || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
 
-export const computeFileMetaFingerprint = ({ files, fileInfoByPath }) => {
+export const computeFileMetaFingerprint = ({ files, fileInfoByPath, fileMeta = null }) => {
+  // Exact emitted rows include SCM/churn/external docs and encoding dependencies.
+  if (Array.isArray(fileMeta)) {
+    const digest = createHash('sha1');
+    digest.update('[');
+    for (let index = 0; index < fileMeta.length; index += 1) {
+      if (index) digest.update(',');
+      digest.update(stableStringifyForSignature(fileMeta[index]));
+    }
+    digest.update(']');
+    return digest.digest('hex');
+  }
   const list = files.map((file) => {
     const info = fileInfoByPath?.get?.(file) || null;
     return {
@@ -212,6 +223,6 @@ export function buildFileMeta(state) {
       churn_commits: entry.churn_commits
     });
   }
-  const fingerprint = computeFileMetaFingerprint({ files, fileInfoByPath });
+  const fingerprint = computeFileMetaFingerprint({ files, fileInfoByPath, fileMeta });
   return { fileMeta, fileIdByPath, fingerprint };
 }

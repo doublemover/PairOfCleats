@@ -3,7 +3,7 @@ import { parseDockerfileStructure } from '../../../shared/dockerfile-ast.js';
 import { parseHandlebarsStructure } from '../../../shared/handlebars-ast.js';
 import { parseMustacheStructure } from '../../../shared/mustache-structure.js';
 import { parseJinjaTemplateStructure } from '../../../shared/jinja-template-structure.js';
-import { buildChunksFromLineHeadings } from '../helpers.js';
+import { buildChunksFromLineHeadings, preserveChunkPreamble } from '../helpers.js';
 import {
   MAX_REGEX_LINE,
   applyFormatMeta,
@@ -122,11 +122,15 @@ export const createDockerfileChunker = ({ parseStructure = parseDockerfileStruct
     const chunks = buildFormattedChunksFromHeadings({ text,
       headings: structure.instructions.map((instruction) => ({ line: instruction.line, title: instruction.title })),
       lineIndex, format: 'dockerfile', kind: 'ConfigSection', fallbackName: 'Dockerfile' });
-    return chunks.map((chunk, index) => ({ ...chunk, meta: { ...chunk.meta,
+    let instructionIndex = 0;
+    return chunks.map((chunk) => {
+      const instruction = chunk.meta?.preamble ? null : structure.instructions[instructionIndex++];
+      return { ...chunk, meta: { ...chunk.meta,
       parser: structure.parser, parserCoverage: structure.coverage,
-      ...(structure.instructions[index] ? { astRange: {
-        start: structure.instructions[index].start, end: structure.instructions[index].end
-      } } : {}) } }));
+      ...(instruction ? { astRange: {
+        start: instruction.start, end: instruction.end
+      } } : {}) } };
+    });
   }
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
@@ -399,7 +403,7 @@ export const createHandlebarsChunker = ({ parseStructure = parseHandlebarsStruct
     const blocks = structure.blocks.length ? structure.blocks : [{ start: 0, end: text.length, name: 'handlebars' }];
     const dynamicPartials = structure.partials.filter((partial) => partial.kind === 'dynamic');
     let cursor = 0;
-    return blocks.map((block, index) => {
+    return preserveChunkPreamble(text, blocks.map((block, index) => {
       const end = blocks[index + 1]?.start ?? text.length;
       let unresolvedDynamicPartials = 0;
       while (cursor < dynamicPartials.length && dynamicPartials[cursor].start < end) {
@@ -410,7 +414,7 @@ export const createHandlebarsChunker = ({ parseStructure = parseHandlebarsStruct
         definitionType: block.definitionType || null, parser: structure.parser, parserCoverage: structure.coverage,
         ...(block.definitionType ? { astRange: { start: block.start, end: block.end } } : {}),
         unresolvedDynamicPartials } };
-    });
+    }), { format: 'handlebars' });
   }
   return chunkByLineRegex(text, /{{[#^]\s*([A-Za-z0-9_.-]+)\b/, HANDLEBARS_OPTIONS, context)
     .map((chunk) => ({ ...chunk, meta: { ...chunk.meta, parser: structure.parser,
@@ -433,11 +437,11 @@ export const createMustacheChunker = ({ parseStructure = parseMustacheStructure 
   const meta = { format: 'mustache', parser: structure.parser, parserCoverage: structure.coverage,
     parserFallbackReason: structure.reason, parseMetrics: structure.metrics };
   if (!structure.blocks.length) return [{ start: 0, end: source.length, name: 'mustache', kind: 'Section', meta }];
-  return structure.blocks.map((block, index) => ({ start: block.start,
+  return preserveChunkPreamble(source, structure.blocks.map((block, index) => ({ start: block.start,
     end: structure.blocks[index + 1]?.start ?? source.length, name: block.name, kind: 'Section',
     meta: { ...meta, title: block.name, definitionType: block.type === '^' ? 'inverted-section' : 'section',
       rangeSource: structure.rangeSource, tokenRange: { start: block.start, end: block.end },
-      sectionCloseStart: block.closeStart } }));
+      sectionCloseStart: block.closeStart } })), { format: 'mustache' });
 };
 
 export const chunkMustache = createMustacheChunker();
@@ -455,10 +459,10 @@ export const createJinjaChunker = ({ parseStructure = parseJinjaTemplateStructur
   const meta = { format: 'jinja', templateDialect: structure.dialect, parser: structure.parser,
     parserCoverage: structure.coverage, parserFallbackReason: structure.reason, parseMetrics: structure.metrics };
   if (!structure.headings.length) return [{ start: 0, end: source.length, name: 'jinja', kind: 'Section', meta }];
-  return structure.headings.map((heading, index) => ({ start: heading.start,
+  return preserveChunkPreamble(source, structure.headings.map((heading, index) => ({ start: heading.start,
     end: structure.headings[index + 1]?.start ?? source.length, name: heading.name, kind: 'Section',
     meta: { ...meta, title: heading.name, definitionType: heading.keyword,
-      rangeSource: structure.rangeSource, lexicalRange: { start: heading.start, end: heading.end } } }));
+      rangeSource: structure.rangeSource, lexicalRange: { start: heading.start, end: heading.end } } })), { format: 'jinja' });
 };
 
 export const chunkJinja = createJinjaChunker();

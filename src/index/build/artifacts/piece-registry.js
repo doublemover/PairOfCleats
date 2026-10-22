@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { toPosix } from '../../../shared/file-paths.js';
+import { assertArtifactFilePath } from '../../../shared/artifact-io/contained-path.js';
 
 /**
  * Track committed artifact files destined for the pieces manifest.
@@ -21,7 +22,7 @@ export const createArtifactPieceRegistry = ({
   const pieceEntriesByPath = new Map();
   let mmapHotLayoutOrder = 0;
 
-  const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
+  const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, assertArtifactFilePath(outDir, filePath, { allowMissing: true })));
 
   const resolvePieceTier = (entry, normalizedPath) => {
     const explicitTier = typeof entry?.tier === 'string' ? entry.tier.trim().toLowerCase() : null;

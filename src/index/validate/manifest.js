@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadPiecesManifestWithReadPlan } from '../../shared/artifact-io/manifest.js';
 import { existsOrBak } from '../../shared/artifact-io/fs.js';
-import { checksumFile, sha1File } from '../../shared/hash.js';
+import { checksumFile, sha1File, sha256File } from '../../shared/hash.js';
 import { fromPosix, isAbsolutePathNative, isRelativePathEscape } from '../../shared/file-paths.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../../contracts/versioning.js';
 import { isManifestPathSafe, normalizeManifestPath } from './paths.js';
@@ -78,35 +78,33 @@ export const loadAndValidateManifest = async ({ report, mode, dir, strict, modeR
         }
         const checksum = typeof piece?.checksum === 'string' ? piece.checksum : '';
         if (checksum) {
-          const [algo, expected] = checksum.split(':');
-          if (!algo || !expected) {
-            const warning = `piece checksum invalid: ${relPath}`;
-            modeReport.warnings.push(warning);
-            report.warnings.push(`[${mode}] ${warning}`);
+          const match = /^(sha1|sha256|xxh64):([0-9a-f]+)$/i.exec(checksum);
+          const lengths = { sha1: 40, sha256: 64, xxh64: 16 };
+          const algorithm = match?.[1]?.toLowerCase();
+          const expected = match?.[2]?.toLowerCase();
+          if (!algorithm || expected.length !== lengths[algorithm]) {
+            const issue = `piece checksum invalid or unsupported: ${relPath}`;
+            if (strict) {
+              modeReport.ok = false;
+              modeReport.missing.push(issue);
+              report.issues.push(`[${mode}] ${issue}`);
+            } else {
+              modeReport.warnings.push(issue);
+              report.warnings.push(`[${mode}] ${issue}`);
+            }
             continue;
           }
-          if (algo === 'sha1') {
-            const actual = await sha1File(absPath);
-            if (actual !== expected) {
-              const issue = `piece checksum mismatch: ${relPath}`;
-              modeReport.ok = false;
-              modeReport.missing.push(issue);
-              report.issues.push(`[${mode}] ${issue}`);
-              report.hints.push('Run `pairofcleats index build` to refresh index artifacts.');
-            }
-          } else if (algo === 'xxh64') {
-            const actual = await checksumFile(absPath);
-            if (!actual || actual.value !== expected) {
-              const issue = `piece checksum mismatch: ${relPath}`;
-              modeReport.ok = false;
-              modeReport.missing.push(issue);
-              report.issues.push(`[${mode}] ${issue}`);
-              report.hints.push('Run `pairofcleats index build` to refresh index artifacts.');
-            }
-          } else {
-            const warning = `piece checksum unsupported: ${relPath}`;
-            modeReport.warnings.push(warning);
-            report.warnings.push(`[${mode}] ${warning}`);
+          const actual = algorithm === 'sha1'
+            ? await sha1File(absPath, { containedRoot: strict ? dir : null })
+            : algorithm === 'sha256'
+              ? await sha256File(absPath, { containedRoot: strict ? dir : null })
+              : (await checksumFile(absPath, { containedRoot: strict ? dir : null }))?.value;
+          if (actual?.toLowerCase() !== expected) {
+            const issue = `piece checksum mismatch: ${relPath}`;
+            modeReport.ok = false;
+            modeReport.missing.push(issue);
+            report.issues.push(`[${mode}] ${issue}`);
+            report.hints.push('Run `pairofcleats index build` to refresh index artifacts.');
           }
         }
       }

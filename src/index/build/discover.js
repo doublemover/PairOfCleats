@@ -14,7 +14,7 @@ import { fileExt, isRelativePathEscape, toPosix } from '../../shared/file-paths.
 import { createRecordsClassifier } from './records.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { inspectGeneratedArtifact, isGeneratedArtifactCandidatePath } from '../../shared/generated-artifact.js';
-import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
+import { pickMinLimit, resolveFileCaps, resolveSharedDiscoveryFileCaps } from './file-processor/read.js';
 import { getEnvConfig } from '../../shared/env/runtime.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { detectShebangLanguage } from './shebang.js';
@@ -54,6 +54,7 @@ export async function discoverFiles({
 }) {
   const { entries, skippedCommon } = await discoverEntries({
     root,
+    modes: [mode],
     recordsDir,
     recordsConfig,
     scmProvider,
@@ -69,7 +70,7 @@ export async function discoverFiles({
     abortSignal
   });
   if (skippedFiles) skippedFiles.push(...skippedCommon);
-  return filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConfig);
+  return filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConfig, fileCaps);
 }
 
 /**
@@ -98,6 +99,7 @@ export async function discoverFilesForModes({
 }) {
   const { entries, skippedCommon } = await discoverEntries({
     root,
+    modes,
     recordsDir,
     recordsConfig,
     scmProvider,
@@ -116,7 +118,7 @@ export async function discoverFilesForModes({
   for (const mode of modes) {
     const skipped = skippedByMode && skippedByMode[mode] ? skippedByMode[mode] : null;
     if (skipped) skipped.push(...skippedCommon);
-    output[mode] = filterEntriesByMode(entries, mode, skipped, documentExtractionConfig);
+    output[mode] = filterEntriesByMode(entries, mode, skipped, documentExtractionConfig, fileCaps);
   }
   return output;
 }
@@ -132,6 +134,7 @@ export async function discoverFilesForModes({
  */
 export async function discoverEntries({
   root,
+  modes = null,
   recordsDir = null,
   recordsConfig = null,
   scmProvider = null,
@@ -166,7 +169,7 @@ export async function discoverEntries({
     skippedCommon.push({ file: filePath, reason, ...extra });
   };
   const resolveMaxBytesForFile = (ext, languageId) => {
-    const caps = resolveFileCaps(fileCaps, ext, languageId, null);
+    const caps = resolveSharedDiscoveryFileCaps(fileCaps, ext, languageId, modes);
     return pickMinLimit(maxBytes, caps.maxBytes);
   };
   const canonicalRoot = toRealPathSync(root);
@@ -431,11 +434,16 @@ export async function discoverEntries({
  * @param {object|null} [documentExtractionConfig]
  * @returns {Array<object>}
  */
-function filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConfig = null) {
+function filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConfig = null, fileCaps = null) {
   const documentExtractionEnabled = documentExtractionConfig?.enabled === true;
   const allowDocumentExt = mode === 'extracted-prose' && documentExtractionEnabled;
   const output = [];
   for (const entry of entries) {
+    const maxBytes = resolveFileCaps(fileCaps, entry.ext, getLanguageForFile(entry.ext, entry.rel)?.id || null, mode).maxBytes;
+    if (maxBytes && entry.stat?.size > maxBytes) {
+      skippedFiles?.push({ file: entry.abs, reason: 'oversize', bytes: entry.stat.size, maxBytes });
+      continue;
+    }
     if (entry.record) {
       if (mode === 'records') {
         output.push({

@@ -17,11 +17,12 @@ export const normalizeScmFileKey = (filePath, {
   repoRoot = null,
   rejectEscape = true
 } = {}) => {
+  if (typeof filePath !== 'string' || !filePath) return null;
   const normalized = repoRoot
     ? toRepoPosixPath(filePath, repoRoot)
-    : toPosix(String(filePath || '')).replace(/^\.\//, '').trim();
-  if (!normalized) return null;
-  if (rejectEscape && isRelativePathEscape(normalized)) return null;
+    : path.posix.normalize(toPosix(String(filePath || ''))).replace(/^\.\//, '');
+  if (!normalized || normalized === '.') return null;
+  if (rejectEscape && (isRelativePathEscape(normalized) || isAbsolutePathNative(normalized))) return null;
   return normalized;
 };
 

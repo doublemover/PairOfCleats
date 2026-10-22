@@ -88,11 +88,12 @@ export const prepareArtifactCleanup = async ({
       if (removed?.ok) {
         removePieceFile?.(targetPath);
       }
-      if (!removed.ok && exists) {
-        log?.(`[warn] [artifact-cleanup] failed to remove ${targetPath}: ${removed.error?.message || removed.error}`);
+      if (!removed?.ok) {
+        throw removed?.error || new Error(`[artifact-cleanup] failed to remove ${targetPath}`);
       }
     } catch (err) {
       log?.(`[warn] [artifact-cleanup] exception removing ${targetPath}: ${err?.message || err}`);
+      throw err;
     }
   };
   const removeArtifact = async (targetPath, options = {}) => {

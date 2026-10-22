@@ -227,9 +227,12 @@ export function appendChunk(
     : DEFAULT_POSTINGS_CONFIG.chargramMaxN;
   const chargramMinN = chargramMinRaw <= chargramMaxRaw ? chargramMinRaw : chargramMaxRaw;
   const chargramMaxN = chargramMaxRaw >= chargramMinRaw ? chargramMaxRaw : chargramMinRaw;
-  const chargramMaxTokenLength = config.chargramMaxTokenLength == null
-    ? DEFAULT_POSTINGS_CONFIG.chargramMaxTokenLength
-    : Math.max(2, Math.floor(Number(config.chargramMaxTokenLength)));
+  const chargramMaxTokenLength = config.chargramMaxTokenLength === null
+    || config.chargramMaxTokenLength === false || config.chargramMaxTokenLength === 0
+    ? null
+    : Number.isFinite(Number(config.chargramMaxTokenLength))
+      ? Math.max(2, Math.floor(Number(config.chargramMaxTokenLength)))
+      : DEFAULT_POSTINGS_CONFIG.chargramMaxTokenLength;
 
   state.totalTokens += seq.length;
   const chunkId = state.chunks.length;
@@ -307,6 +310,7 @@ export function appendChunk(
         // Historically we derived chargrams from "field" text (name + doc). Doing so
         // keeps the chargram vocab bounded even when indexing many languages.
         for (const field of chargramFields) {
+          if (maxChargramsPerChunk && charSet.size >= maxChargramsPerChunk) break;
           addFromTokens(fields[field]);
         }
         if (!charSet.size) {
@@ -380,6 +384,7 @@ export function appendChunk(
       // point of the field-based strategy is to keep phrase vocabulary bounded,
       // especially across many languages.
       const phraseFields = ['name', 'signature', 'doc', 'comment'];
+      const phraseBudget = { emitted: 0, truncated: false };
       for (const field of phraseFields) {
         const fieldTokens = Array.isArray(fields[field]) ? fields[field] : null;
         if (!fieldTokens || !fieldTokens.length) continue;
@@ -391,7 +396,8 @@ export function appendChunk(
           phraseMaxN,
           phraseGuard,
           guardContext,
-          phraseMaxPerChunk
+          phraseMaxPerChunk,
+          phraseBudget
         );
       }
     }
@@ -490,6 +496,23 @@ export function appendChunk(
  */
 export function mergeIndexState(target, source) {
   if (!target || !source) return;
+  // These identities/statistics cannot be offset by the legacy postings merge.
+  // Reject before mutating either state rather than publish an incomplete shard.
+  const populated = value => {
+    if (value instanceof Map || value instanceof Set) return value.size > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    if (value && typeof value === 'object') return Object.values(value).some(populated);
+    return value != null && value !== false && value !== 0 && value !== '';
+  };
+  const unsupported = ['tokenIdMap', 'tokenIdCollisions', 'phrasePostHashBuckets',
+    'phrasePostHashUnique', 'phraseHashStats', 'riskSummaries', 'riskSummaryStats',
+    'riskFlows', 'riskPartialFlows', 'riskInterproceduralStats', 'riskFlowCallSiteIds'];
+  for (const field of unsupported) {
+    if (populated(source[field]) || populated(target[field])) {
+      throw Object.assign(new Error(`Shard-state merge does not support populated ${field}.`),
+        { code: 'ERR_INDEX_STATE_MERGE_UNSUPPORTED', field });
+    }
+  }
   const offset = target.chunks.length;
   const srcChunks = Array.isArray(source.chunks) ? source.chunks : [];
 

@@ -5,7 +5,7 @@ export const buildSequenceFromTokens = (tokens, seqBuffer = null) => {
   if (!Array.isArray(tokens) || !tokens.length) return [];
   let hasSynonyms = false;
   for (let i = 0; i < tokens.length; i += 1) {
-    if (SYN[tokens[i]]) {
+    if (Object.hasOwn(SYN, tokens[i]) && typeof SYN[tokens[i]] === 'string' && SYN[tokens[i]]) {
       hasSynonyms = true;
       break;
     }
@@ -18,7 +18,7 @@ export const buildSequenceFromTokens = (tokens, seqBuffer = null) => {
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i];
     seq.push(token);
-    if (SYN[token]) seq.push(SYN[token]);
+    if (Object.hasOwn(SYN, token) && typeof SYN[token] === 'string' && SYN[token]) seq.push(SYN[token]);
   }
   return seqBuffer ? seq.slice() : seq;
 };

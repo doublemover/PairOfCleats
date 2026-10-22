@@ -17,6 +17,7 @@ import { createJsonWriteStream, writeChunk, writeChunkWithTiming } from '../../.
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
 import { ensureDiskSpace } from '../../../shared/disk-space.js';
 import { writeDenseVectorBinaryFile } from '../../../shared/dense-vector-artifacts.js';
+import { buildDenseVectorValidity } from '../../../shared/dense-vector-validity.js';
 import { estimateJsonBytes } from '../../../shared/cache/size.js';
 import { buildCacheKey } from '../../../shared/cache-key.js';
 import { sha1 } from '../../../shared/hash.js';
@@ -25,7 +26,7 @@ import { coerceIntAtLeast, coerceNumberAtLeast } from '../../../shared/number-co
 import { removePathWithRetry } from '../../../shared/io/remove-path-with-retry.js';
 import { resolveCompressionConfig } from '../artifacts/compression.js';
 import { getToolingConfig } from '../../../shared/dict-utils.js';
-import { buildFileMeta, buildFileMetaColumnar, computeFileMetaFingerprint } from '../artifacts/file-meta.js';
+import { buildFileMeta, buildFileMetaColumnar } from '../artifacts/file-meta.js';
 import { enqueueGraphRelationsArtifacts } from '../artifacts/graph-relations.js';
 import { enqueueRepoMapArtifacts, measureRepoMap } from '../artifacts/repo-map.js';
 import { SCHEDULER_QUEUE_NAMES } from '../runtime/scheduler.js';
@@ -395,26 +396,9 @@ export async function writeIndexArtifacts(input) {
     : Math.min(fileMetaMaxBytes, 8 * 1024 * 1024);
   const toolingConfig = getToolingConfig(root, userConfig);
   const vfsHashRouting = toolingConfig?.vfs?.hashRouting === true;
-  // Keep file_meta fingerprint source deterministic: prefer discovery order when
-  // available, otherwise fall back to sorted fileInfo keys.
-  /**
-   * Resolve deterministic file ordering for file_meta fingerprinting.
-   *
-   * @returns {string[]}
-   */
-  const resolveFileMetaFiles = () => {
-    if (Array.isArray(state?.discoveredFiles) && state.discoveredFiles.length) {
-      return state.discoveredFiles;
-    }
-    if (state?.fileInfoByPath && typeof state.fileInfoByPath.keys === 'function') {
-      return Array.from(state.fileInfoByPath.keys()).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
-    }
-    return [];
-  };
-  const fileMetaFiles = resolveFileMetaFiles();
-  let fileMetaFingerprint = fileMetaFiles.length
-    ? computeFileMetaFingerprint({ files: fileMetaFiles, fileInfoByPath: state?.fileInfoByPath })
-    : null;
+  // Build current rows once so reuse includes every emitted dependency.
+  const currentFileMeta = buildFileMeta(state);
+  let fileMetaFingerprint = currentFileMeta.fingerprint;
   const fileMetaCacheFlags = [
     `format:${fileMetaFormatConfig || 'auto'}`,
     `columnarThreshold:${fileMetaColumnarThreshold}`,
@@ -425,7 +409,7 @@ export async function writeIndexArtifacts(input) {
       repoHash: indexState?.repoId || null,
       buildConfigHash: fileMetaFingerprint,
       mode,
-      schemaVersion: 'file-meta-cache-v1',
+      schemaVersion: 'file-meta-cache-v2',
       featureFlags: fileMetaCacheFlags,
       pathPolicy: 'posix'
     }).key
@@ -464,7 +448,7 @@ export async function writeIndexArtifacts(input) {
     } catch {}
   }
   if (!fileMeta) {
-    const built = buildFileMeta(state);
+    const built = currentFileMeta;
     fileMeta = built.fileMeta;
     fileIdByPath = built.fileIdByPath;
     fileMetaFingerprint = built.fingerprint || fileMetaFingerprint;
@@ -1117,6 +1101,7 @@ export async function writeIndexArtifacts(input) {
             dims: binaryWrite.rowWidth,
             count: binaryWrite.count,
             bytes: binaryWrite.totalBytes,
+            validity: buildDenseVectorValidity(vectors),
             scale: denseScale
           },
           atomic: true

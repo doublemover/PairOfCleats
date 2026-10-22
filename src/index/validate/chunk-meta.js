@@ -145,6 +145,10 @@ export const loadAndValidateChunkMeta = async ({
       maxBytes: chunkMetaMaxBytes
     });
   } catch (err) {
+    if (strict) {
+      addIssue(report, mode, `chunk_meta primary load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.');
+      modeReport.ok = false;
+    }
     const fallback = normalizeChunkMetaFallbackPayload(
       readChunkMetaFallbackPayload(dir, chunkMetaMaxBytes)
       || readJsonArtifact('chunk_meta', { required: false, allowOversize: true })
@@ -153,7 +157,7 @@ export const loadAndValidateChunkMeta = async ({
       chunkMeta = fallback;
       modeReport.warnings.push('chunk_meta fallback parser used');
       report.warnings.push(`[${mode}] chunk_meta fallback parser used`);
-    } else {
+    } else if (!strict) {
       addIssue(report, mode, `chunk_meta load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.');
       modeReport.ok = false;
     }

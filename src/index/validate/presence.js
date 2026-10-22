@@ -24,9 +24,9 @@ export const createArtifactPresenceHelpers = ({
   };
   const presenceCache = new Map();
   const resolvePresence = (name) => {
-    if (!strict || !manifest) return null;
+    if (!manifest) return null;
     if (presenceCache.has(name)) return presenceCache.get(name);
-    const presence = resolveArtifactPresence(dir, name, { manifest, strict: true });
+    const presence = resolveArtifactPresence(dir, name, { manifest, strict });
     presenceCache.set(name, presence);
     return presence;
   };
@@ -87,6 +87,7 @@ export const createArtifactPresenceHelpers = ({
     try {
       if (manifest && (strict || manifest.pieces?.some(piece => piece.name === name))) {
         const presence = resolvePresence(name);
+        if (presence?.error) throw presence.error;
         if (!presence || presence.format === 'missing') return null;
         if (presence.format !== 'json') {
           throw new Error(`Unexpected ${name} format: ${presence.format}`);
@@ -97,7 +98,7 @@ export const createArtifactPresenceHelpers = ({
         if (presence.paths.length > 1) {
           throw new Error(`Ambiguous JSON sources for ${name}`);
         }
-        return readJsonFile(presence.paths[0], { maxBytes: resolveMaxBytes(name) });
+        return readJsonFile(presence.paths[0], { maxBytes: resolveMaxBytes(name), containedRoot: strict ? dir : null });
       }
       const jsonPath = path.join(dir, `${name}.json`);
       if (!fs.existsSync(jsonPath) && !fs.existsSync(`${jsonPath}.gz`) && !fs.existsSync(`${jsonPath}.zst`)) {

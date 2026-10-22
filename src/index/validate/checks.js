@@ -14,7 +14,7 @@ export const validatePostingsDocIds = (report, mode, label, postings, chunkCount
     if (!Array.isArray(posting)) continue;
     for (const entry of posting) {
       const docId = Array.isArray(entry) ? entry[0] : null;
-      if (!Number.isFinite(docId) || docId < 0 || docId >= chunkCount) {
+      if (!Number.isSafeInteger(docId) || docId < 0 || docId >= chunkCount) {
         if (errors < maxErrors) {
           addIssue(report, mode, `${label} docId out of range (${docId})`, 'Rebuild index artifacts for this mode.');
         }
@@ -31,7 +31,7 @@ export const validateIdPostings = (report, mode, label, postings, chunkCount) =>
   for (const posting of postings || []) {
     if (!Array.isArray(posting)) continue;
     for (const docId of posting) {
-      if (!Number.isFinite(docId) || docId < 0 || docId >= chunkCount) {
+      if (!Number.isSafeInteger(docId) || docId < 0 || docId >= chunkCount) {
         if (errors < maxErrors) {
           addIssue(report, mode, `${label} docId out of range (${docId})`, 'Rebuild index artifacts for this mode.');
         }
@@ -103,7 +103,7 @@ export const validateFileNameCollisions = (report, mode, repoMap) => {
     const lineMarker = Number.isFinite(entry?.startLine)
       ? entry.startLine
       : (Number.isFinite(entry?.start) ? entry.start : '');
-    const key = `${file}::${name}::${kind}::${signature}::${lineMarker}`;
+    const key = JSON.stringify([file, name, kind, signature, lineMarker]);
     if (seen.has(key)) {
       addIssue(
         report,
@@ -242,7 +242,7 @@ export const validateSqliteMetaV2Parity = (report, mode, chunkMeta, sqliteRows, 
     }
     const expected = pickMeta(jsonEntry.metaV2);
     const actual = pickMeta(sqliteMeta);
-    if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+    if (stableStringify(expected) !== stableStringify(actual)) {
       addIssue(report, mode, `sqlite metaV2 mismatch for chunk ${id}`, 'Rebuild index artifacts for this mode.');
       errors += 1;
     }

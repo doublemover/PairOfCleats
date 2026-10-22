@@ -30,6 +30,14 @@ export const resolveFileCaps = (fileCaps, ext, languageId = null, mode = null) =
   };
 };
 
+/** A shared traversal can reject only when every requested mode rejects. */
+export const resolveSharedDiscoveryFileCaps = (fileCaps, ext, languageId, modes = null) => {
+  const requested = Array.isArray(modes) && modes.length ? modes : ['code', 'prose', 'records', 'extracted-prose'];
+  const caps = requested.map(mode => resolveFileCaps(fileCaps, ext, languageId, mode));
+  const leastRestrictive = field => caps.some(cap => cap[field] == null) ? null : Math.max(...caps.map(cap => cap[field]));
+  return { maxBytes: leastRestrictive('maxBytes'), maxLines: leastRestrictive('maxLines') };
+};
+
 /**
  * Truncate a string to a byte limit, preserving UTF-8 boundaries.
  * @param {string} value

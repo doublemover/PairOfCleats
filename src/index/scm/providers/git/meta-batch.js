@@ -70,7 +70,7 @@ const parseGitMetaBatchOutput = ({ stdout, repoRoot }) => {
   const fileMetaByPath = Object.create(null);
   let currentMeta = null;
   for (const row of String(stdout || '').split(/\r?\n/)) {
-    const line = String(row || '').trim();
+    const line = String(row || '');
     if (!line) continue;
     if (line.startsWith(GIT_META_BATCH_FORMAT_PREFIX)) {
       const payload = line.slice(GIT_META_BATCH_FORMAT_PREFIX.length);
@@ -108,7 +108,7 @@ const parseGitMetaBatchChurnOutput = ({ stdout, repoRoot, fileMetaByPath }) => {
   const churnByPath = Object.create(null);
   let seenInCommit = null;
   for (const row of String(stdout || '').split(/\r?\n/)) {
-    const line = String(row || '').trim();
+    const line = String(row || '');
     if (!line) continue;
     if (line.startsWith(GIT_META_BATCH_FORMAT_PREFIX)) {
       seenInCommit = new Set();

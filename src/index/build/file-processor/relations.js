@@ -1,4 +1,6 @@
 const normalizeLimit = (value) => {
+  if (value == null || value === '' || typeof value === 'boolean'
+    || (typeof value === 'string' && !value.trim())) return null;
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric < 0) return null;
   return Math.max(0, Math.floor(numeric));

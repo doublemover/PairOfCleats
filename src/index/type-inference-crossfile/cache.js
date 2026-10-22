@@ -267,22 +267,8 @@ export const buildCrossFileFingerprint = ({
     const chunk = chunks[index];
     if (!chunk || typeof chunk !== 'object') continue;
     const relations = chunk.codeRelations || {};
-    const relationPayload = {
-      calls: Array.isArray(relations.calls) ? relations.calls : [],
-      callDetails: Array.isArray(relations.callDetails)
-        ? relations.callDetails.map((entry) => ({
-          callee: entry?.callee || null,
-          start: Number.isSafeInteger(entry?.start) ? entry.start : null,
-          end: Number.isSafeInteger(entry?.end) ? entry.end : null,
-          semanticFactsHash: entry?.semanticFactsHash || null,
-          compilerBinding: entry?.compilerBinding || null,
-          args: Array.isArray(entry?.args) ? entry.args : [],
-          targetChunkUid: entry?.targetChunkUid || null,
-          targetCandidates: Array.isArray(entry?.targetCandidates) ? entry.targetCandidates : []
-        }))
-        : [],
-      usages: Array.isArray(relations.usages) ? relations.usages : []
-    };
+    // Cache replay replaces the full object, so every input field owns identity.
+    const relationPayload = relations;
     chunkSignatures.push({
       id: resolveChunkIdentity(chunk, index),
       file: chunk.file || null,

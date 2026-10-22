@@ -7,6 +7,7 @@ import { normalizePositiveNumber } from '../../shared/limits.js';
 import { MINIFIED_NAME_REGEX } from './watch/shared.js';
 import { runBuildCleanupWithTimeout } from './cleanup-timeout.js';
 import { openContainedFile } from '../../shared/contained-file.js';
+import { readExactAt } from '../../shared/io/read-exact.js';
 
 const MINIFIED_SAMPLE_EXTS = new Set([...JS_EXTS, ...CSS_EXTS, ...HTML_EXTS]);
 export const FILE_TYPE_PROBE_MAX_BYTES = 8192;
@@ -95,7 +96,7 @@ export const readFileSample = async (absPath, sampleSizeBytes, repoRoot = null) 
   const handle = repoRoot ? await openContainedFile(repoRoot, absPath) : await fs.open(absPath, 'r');
   try {
     const buffer = Buffer.alloc(sampleSizeBytes);
-    const { bytesRead } = await handle.read(buffer, 0, sampleSizeBytes, 0);
+    const { bytesRead } = await readExactAt(handle, buffer, 0, buffer.length, 0);
     return bytesRead > 0 ? buffer.subarray(0, bytesRead) : null;
   } finally {
     await runBuildCleanupWithTimeout({

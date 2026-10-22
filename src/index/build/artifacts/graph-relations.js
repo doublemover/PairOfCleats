@@ -259,41 +259,13 @@ export async function enqueueGraphRelationsArtifacts({
       scheduleIo
     });
 
-    const edgeCountsRaw = Object.create(null);
-    const appendEdge = async (guard, edge, context) => {
+    // Spend edge slots only after the shared spill merge has sorted duplicates.
+    const appendEdge = async (_guard, edge) => {
       if (!edge?.s || !edge?.t) return;
-      if (guard?.disabled && guard.reason === 'maxEdges') {
-        guard.droppedEdges += 1;
-        recordGraphSample(guard, context);
-        return;
-      }
-      if (Number.isFinite(guard?.maxEdges) && guard.maxEdges >= 0) {
-        // guard.maxEdges=0 means no edges, but we still want nodes.
-        if (guard.maxEdges === 0) {
-          guard.disabled = true;
-          guard.reason = 'maxEdges';
-          guard.cap = 'maxEdges';
-          guard.droppedEdges += 1;
-          recordGraphSample(guard, context);
-          return;
-        }
-        const label = guard?.label;
-        const current = label ? (edgeCountsRaw[label] || 0) : 0;
-        if (label && current >= guard.maxEdges) {
-          guard.disabled = true;
-          guard.reason = 'maxEdges';
-          guard.cap = 'maxEdges';
-          guard.droppedEdges += 1;
-          recordGraphSample(guard, context);
-          return;
-        }
-      }
       const dedupeParts = [edge.g, edge.s, edge.t];
       const dedupeHash = hashTokenId64Parts(dedupeParts, EDGE_DEDUPE_HASH_SEED);
       const dedupeFingerprint = hashTokenId64Parts(dedupeParts, EDGE_DEDUPE_FINGERPRINT_SEED);
       await outCollector.append(edge, { dedupeHash, dedupeFingerprint });
-      await inCollector.append(edge, { dedupeHash, dedupeFingerprint });
-      if (guard?.label) edgeCountsRaw[guard.label] = (edgeCountsRaw[guard.label] || 0) + 1;
     };
 
     for (const chunk of chunks) {
@@ -400,8 +372,35 @@ export async function enqueueGraphRelationsArtifacts({
       }
     }
 
-    const outSpill = await outCollector.finalize();
+    const rawOutSpill = await outCollector.finalize();
+    const selectedOutCollector = createRowSpillCollector({
+      outDir: stagingDir, runPrefix: 'graph-relations-selected-out', compare: compareEdgesOut,
+      maxBufferBytes: spillBufferBytes, scheduleIo
+    });
+    const guards = [callGuard, usageGuard, importGuard];
+    const distinctCounts = [0, 0, 0];
+    let previousEdge = null;
+    for await (const edge of iterateEdges(rawOutSpill, { compare: compareEdgesOut })) {
+      if (previousEdge && compareEdgesOut(previousEdge, edge) === 0) continue;
+      previousEdge = edge;
+      const guard = guards[edge.g];
+      if (!guard) continue;
+      const cap = guard.maxEdges;
+      if (Number.isFinite(cap) && cap >= 0 && distinctCounts[edge.g] >= cap) {
+        guard.reason = 'maxEdges';
+        guard.cap = 'maxEdges';
+        guard.droppedEdges += 1;
+        const chunk = chunkByUid.get(edge.s);
+        recordGraphSample(guard, { file: chunk?.file || edge.s, chunkUid: chunk ? edge.s : null });
+        continue;
+      }
+      distinctCounts[edge.g] += 1;
+      await selectedOutCollector.append(edge);
+      await inCollector.append(edge);
+    }
+    const outSpill = await selectedOutCollector.finalize();
     const inSpill = await inCollector.finalize();
+    await rawOutSpill.cleanup();
 
     const capsPayload = {
       callGraph: callGuard.reason ? callGuard : null,

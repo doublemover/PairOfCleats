@@ -84,7 +84,7 @@ const resolveScopedParser = (options, parserScope) => options?.[parserScope]?.pa
  * @param {object} input
  * @returns {object}
  */
-const buildChunkPrepareOptions = ({ options, relPath, ext, parserScope, extras = null }) => ({
+export const buildChunkPrepareOptions = ({ options, relPath, ext, parserScope, extras = null }) => ({
   ...toObjectOptions(options),
   ext,
   relPath,
@@ -101,11 +101,11 @@ const buildChunkPrepareOptions = ({ options, relPath, ext, parserScope, extras =
  * @param {object} input
  * @returns {object}
  */
-const buildChunkRelationOptions = ({ options, relPath, parserScope, extras = null }) => ({
+export const buildChunkRelationOptions = ({ options, relPath, parserScope, extras = null }) => ({
+  ...toObjectOptions(options),
   relPath,
   parser: resolveScopedParser(options, parserScope),
-  ...(extras || {}),
-  ...options
+  ...(extras || {})
 });
 
 /**

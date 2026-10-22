@@ -45,6 +45,8 @@ const resolveSpillBufferBytes = (maxJsonBytes) => {
   );
 };
 
+const normalizePathIdentity = value => typeof value === 'string' && value.length ? value : null;
+
 const normalizeText = (value) => {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
@@ -168,7 +170,7 @@ const collectRows = async (chunks, { outDir, maxJsonBytes }) => {
   for (const chunk of chunks || []) {
     if (!chunk) continue;
     const meta = chunk.metaV2 || {};
-    const file = normalizeText(meta.file || chunk.file);
+    const file = normalizePathIdentity(meta.file || chunk.file);
     const chunkUid = normalizeText(meta.chunkUid || chunk.chunkUid);
     if (!file || !chunkUid) continue;
     const from = { file, chunkUid };

@@ -41,13 +41,13 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
       const fileKey = String(entry.file || '');
       const nameKey = String(entry.name || '');
       const kindKey = String(entry.kind || '');
-      const dedupeKey = [
+      const dedupeKey = JSON.stringify([
         fileKey,
         nameKey,
         kindKey,
         entry.signature == null ? '' : String(entry.signature),
         Number.isFinite(entry.startLine) ? entry.startLine : ''
-      ].join('::');
+      ]);
       if (dedupeKey === lastDedupeKey) continue;
       lastDedupeKey = dedupeKey;
       yield entry;

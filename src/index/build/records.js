@@ -99,9 +99,10 @@ export const shouldSniffRecordContent = (ext) => {
   const lowered = typeof ext === 'string' ? ext.toLowerCase() : '';
   if (!lowered) return true;
   if (RECORD_EXT_TYPES.has(lowered)) return false;
+  if (['.txt', '.text', '.err', '.stderr', '.stdout'].includes(lowered)) return true;
   if (EXTS_CODE.has(lowered)) return false;
   if (EXTS_PROSE.has(lowered)) return false;
-  return ['.txt', '.text', '.err', '.stderr', '.stdout'].includes(lowered);
+  return false;
 };
 
 export const createRecordsClassifier = ({ root, config }) => {

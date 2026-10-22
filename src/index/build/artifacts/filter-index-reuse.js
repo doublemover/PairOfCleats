@@ -1,22 +1,5 @@
-import fsSync from 'node:fs';
-import path from 'node:path';
-import { readJsonFile } from '../../../shared/artifact-io/json.js';
 import { buildSerializedFilterIndex } from './filter-index.js';
 import { summarizeFilterIndex, formatBytes } from './helpers.js';
-
-/**
- * Resolve existing artifact path, falling back to `.bak` sibling when present.
- *
- * @param {string|null|undefined} targetPath
- * @returns {string|null}
- */
-const resolveExistingOrBakPath = (targetPath) => {
-  if (!targetPath) return null;
-  if (fsSync.existsSync(targetPath)) return targetPath;
-  const bakPath = `${targetPath}.bak`;
-  if (fsSync.existsSync(bakPath)) return bakPath;
-  return null;
-};
 
 /**
  * Validate serialized filter-index shape before reuse.
@@ -50,34 +33,7 @@ export const validateSerializedFilterIndex = (candidate) => {
 };
 
 /**
- * Resolve previous filter-index metadata from pieces manifest.
- *
- * @param {{outDir:string,maxJsonBytes:number}} input
- * @returns {{piece:object|null,source:string|null}}
- */
-const resolvePreviousFilterIndex = ({ outDir, maxJsonBytes }) => {
-  const previousPiecesManifestPath = path.join(outDir, 'pieces', 'manifest.json');
-  let previousPiecesManifest = null;
-  try {
-    const source = resolveExistingOrBakPath(previousPiecesManifestPath);
-    if (source) {
-      previousPiecesManifest = readJsonFile(source, { maxBytes: maxJsonBytes });
-    }
-  } catch {}
-  const previousPieces = Array.isArray(previousPiecesManifest?.pieces) ? previousPiecesManifest.pieces : [];
-  const previousFilterIndexPiece = previousPieces.find((piece) => piece?.name === 'filter_index' && piece?.path);
-  const previousFilterIndexPath = previousFilterIndexPiece?.path
-    ? path.join(outDir, ...String(previousFilterIndexPiece.path).split('/'))
-    : null;
-  const previousFilterIndexSource = resolveExistingOrBakPath(previousFilterIndexPath);
-  return {
-    piece: previousFilterIndexPiece || null,
-    source: previousFilterIndexSource
-  };
-};
-
-/**
- * Resolve current filter-index artifact state with validated fallback reuse when
+ * Resolve current filter-index artifact state without stale fallback reuse when
  * the current build fails.
  *
  * @param {{
@@ -137,37 +93,10 @@ export const resolveFilterIndexArtifactState = ({
     log(`[warn] [filter_index] build failed; skipping. (${message})`);
     filterIndex = null;
     filterIndexStats = null;
-    const previous = resolvePreviousFilterIndex({ outDir, maxJsonBytes });
-    const previousFilterIndexSource = previous?.source || null;
-    const previousFilterIndexPiece = previous?.piece || null;
-    if (previousFilterIndexSource) {
-      const note = message ? ` (${message})` : '';
-      log(`[warn] [filter_index] build skipped; reusing previous artifact.${note}`);
-      try {
-        const previousRaw = readJsonFile(previousFilterIndexSource, { maxBytes: maxJsonBytes });
-        validateSerializedFilterIndex(previousRaw);
-        filterIndexReused = true;
-        filterIndexFallback = {
-          piece: {
-            type: previousFilterIndexPiece?.type || 'chunks',
-            name: 'filter_index',
-            format: previousFilterIndexPiece?.format || 'json'
-          },
-          path: previousFilterIndexSource
-        };
-        try {
-          filterIndexStats = summarizeFilterIndex(previousRaw);
-        } catch {
-          filterIndexStats = { reused: true };
-        }
-        if (filterIndexStats && typeof filterIndexStats === 'object') {
-          filterIndexStats.reused = true;
-        }
-      } catch (reuseErr) {
-        const reuseMessage = reuseErr?.message || String(reuseErr);
-        log(`[warn] [filter_index] failed to reuse previous artifact; validation failed. (${reuseMessage})`);
-      }
-    }
+    // A previous shape is not evidence of current chunk/config identity.
+    // Omitting this optional artifact selects the consumer's full scan path.
+    filterIndexReused = false;
+    filterIndexFallback = null;
   }
   return {
     filterIndex,

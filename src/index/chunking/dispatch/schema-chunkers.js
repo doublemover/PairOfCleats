@@ -1,4 +1,4 @@
-import { buildChunksFromLineHeadings } from '../helpers.js';
+import { buildChunksFromLineHeadings, preserveChunkPreamble } from '../helpers.js';
 import { collectHeadingRows } from './shared.js';
 import { parseGraphqlStructure } from '../../../shared/graphql-ast.js';
 import { parseProtoStructure } from '../../../shared/proto-structure.js';
@@ -61,9 +61,10 @@ const hasGraphqlCandidate = (line) => (
  */
 const mapChunksWithSchemaMeta = (chunks, headings, format) => {
   const output = new Array(chunks.length);
+  let headingIndex = 0;
   for (let i = 0; i < chunks.length; i += 1) {
     const chunk = chunks[i];
-    const heading = headings[i] || null;
+    const heading = chunk.meta?.preamble ? null : headings[headingIndex++] || null;
     output[i] = {
       ...chunk,
       kind: heading?.kind || 'Section',
@@ -109,7 +110,7 @@ export const createProtoChunker = ({ parseStructure = parseProtoStructure } = {}
   if (!structure.headings.length) return buildFallbackChunk(source, 'proto', 'proto').map((chunk) => ({ ...chunk,
     meta: { ...chunk.meta, parser: structure.parser, parserCoverage: structure.coverage,
       parserFallbackReason: structure.reason } }));
-  return structure.headings.map((heading, index) => ({ start: heading.start,
+  return preserveChunkPreamble(source, structure.headings.map((heading, index) => ({ start: heading.start,
     end: structure.headings[index + 1]?.start ?? source.length, name: heading.name,
     kind: ['syntax', 'edition'].includes(heading.keyword) ? 'ConfigDeclaration'
       : heading.keyword === 'package' ? 'NamespaceDeclaration'
@@ -117,7 +118,7 @@ export const createProtoChunker = ({ parseStructure = parseProtoStructure } = {}
     meta: { title: heading.name, format: 'proto', definitionType: heading.keyword,
       parser: structure.parser, parserCoverage: structure.coverage, reflectionName: heading.reflectionName,
       rangeSource: structure.rangeSource, lexicalRange: { start: heading.start, end: heading.end },
-      parseMetrics: structure.metrics } }));
+      parseMetrics: structure.metrics } })), { format: 'proto' });
 };
 
 export const chunkProto = createProtoChunker();
@@ -135,12 +136,12 @@ export const createGraphqlChunker = ({ parseStructure = parseGraphqlStructure } 
   if (structure.parser === 'graphql-js') {
     if (!structure.definitions.length) return buildFallbackChunk(text, 'graphql', 'graphql')
       .map((chunk) => ({ ...chunk, meta: { ...chunk.meta, parser: structure.parser, parserCoverage: structure.coverage } }));
-    return structure.definitions.map((definition, index) => ({ start: definition.start,
+    return preserveChunkPreamble(text, structure.definitions.map((definition, index) => ({ start: definition.start,
       end: structure.definitions[index + 1]?.start ?? text.length, name: definition.title,
       kind: GRAPHQL_KIND_BY_KEYWORD[definition.keyword] || 'Section', meta: { title: definition.title,
         format: 'graphql', definitionType: definition.definitionType, definitionName: definition.name || null,
         parser: structure.parser, parserCoverage: structure.coverage,
-        astRange: { start: definition.start, end: definition.end } } }));
+        astRange: { start: definition.start, end: definition.end } })), { format: 'graphql' });
   }
   const { headings, lineIndex } = collectHeadingRows(text, context, {
     skipLine: (line, trimmed) => trimmed.startsWith('#'),

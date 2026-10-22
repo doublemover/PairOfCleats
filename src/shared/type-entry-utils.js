@@ -45,7 +45,7 @@ export const normalizeTypeEntry = (entry) => {
   return {
     type: normalized.displayText,
     normalizedType: normalized.canonicalText,
-    originalText: normalized.originalText,
+    originalText: typeof entry.originalText === 'string' ? entry.originalText : normalized.originalText,
     source: sourceValue || null,
     confidence: Number.isFinite(entry.confidence) ? entry.confidence : null
   };
@@ -66,7 +66,7 @@ export const mergeTypeEntries = (existing, incoming, options = {}) => {
   const addEntry = (entry) => {
     const normalized = normalizeTypeEntry(entry);
     if (!normalized) return;
-    const key = `${normalized.normalizedType || normalized.type}:${normalized.source || ''}`;
+    const key = JSON.stringify([normalized.normalizedType || normalized.type, normalized.source || '']);
     const prior = map.get(key);
     if (!prior) {
       map.set(key, normalized);

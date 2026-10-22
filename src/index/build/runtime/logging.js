@@ -1,4 +1,4 @@
-import { configureLogger } from '../../../shared/progress-runtime.js';
+import { createLoggerScope } from '../../../shared/progress-runtime.js';
 import {
   normalizeLogFormat,
   normalizeLogLevel,
@@ -23,7 +23,7 @@ export const configureRuntimeLogger = ({
   const logLevel = normalizeLogLevel(envConfig.logLevel || loggingConfig.level);
   const ringMax = normalizeLogRingMax(loggingConfig.ringMax);
   const ringMaxBytes = normalizeLogRingMaxBytes(loggingConfig.ringMaxBytes);
-  configureLogger({
+  const loggerScope = createLoggerScope({
     enabled: effectiveFormat !== 'text',
     pretty: effectiveFormat === 'pretty',
     level: logLevel,
@@ -44,7 +44,7 @@ export const configureRuntimeLogger = ({
       operation: observability?.operation || null
     }
   });
-  return { logFormat: effectiveFormat, logLevel, ringMax, ringMaxBytes };
+  return { logFormat: effectiveFormat, logLevel, ringMax, ringMaxBytes, loggerScope, ...loggerScope };
 };
 
 /**

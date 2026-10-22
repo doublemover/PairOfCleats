@@ -1,6 +1,7 @@
 import { toPosix } from '../../../shared/file-paths.js';
 import { buildConfigTreeSitterChunks } from './config-tree-sitter.js';
 import { parseYamlStructure } from '../../../shared/yaml-structure.js';
+import { preserveChunkPreamble } from '../helpers.js';
 
 const resolveYamlChunkMode = (text, context) => {
   const config = context?.yamlChunking || {};
@@ -63,7 +64,7 @@ export const createYamlChunker = ({ parseStructure = parseYamlStructure, now = (
   }
   if (expired()) return unavailable();
   Object.freeze(outputMetrics);
-  return chunks;
+  return preserveChunkPreamble(source, chunks, { kind: 'ConfigSection', format: meta.format });
 };
 
 export const chunkYaml = createYamlChunker();

@@ -8,7 +8,7 @@ import { coerceAbortSignal, throwIfAborted } from '../../shared/abort.js';
 import { createFileScanner, readFileSample } from './file-scan.js';
 import { discoverEntries } from './discover.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
-import { pickMinLimit } from './runtime/limits.js';
+import { resolveFileCaps } from './file-processor/read.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import {
@@ -44,17 +44,12 @@ const hasMaxLinesCaps = (fileCaps) => {
   for (const entry of Object.values(byLang)) {
     if (Number.isFinite(Number(entry?.maxLines)) && Number(entry.maxLines) > 0) return true;
   }
+  for (const entry of Object.values(fileCaps?.byMode || {})) {
+    if (Number.isFinite(Number(entry?.maxLines)) && Number(entry.maxLines) > 0) return true;
+  }
   return false;
 };
 
-const resolveMaxLines = ({ ext, lang }, fileCaps) => {
-  const extKey = typeof ext === 'string' ? ext.toLowerCase() : '';
-  const langKey = typeof lang === 'string' ? lang.toLowerCase() : '';
-  const defaultCaps = fileCaps?.default || {};
-  const extCaps = extKey ? fileCaps?.byExt?.[extKey] : null;
-  const langCaps = langKey ? fileCaps?.byLanguage?.[langKey] : null;
-  return pickMinLimit(defaultCaps.maxLines, extCaps?.maxLines, langCaps?.maxLines);
-};
 
 const isSupportedEntry = (entry, mode, { documentExtractionEnabled = false } = {}) => {
   if (!entry) return false;
@@ -126,6 +121,7 @@ export async function preprocessFiles({
   const documentExtractionEnabled = documentExtractionConfig?.enabled === true;
   const { entries, skippedCommon } = await discoverEntries({
     root,
+    modes,
     recordsDir,
     recordsConfig,
     scmProvider,
@@ -273,7 +269,8 @@ export async function preprocessFiles({
   if (needsLines && supportedEntries.length) {
     throwIfAborted(effectiveAbortSignal);
     lineCountMap = await countLinesForEntries(supportedEntries, {
-      concurrency: Math.max(1, Math.floor(concurrency))
+      concurrency: Math.max(1, Math.floor(concurrency)),
+      signal: effectiveAbortSignal
     });
     throwIfAborted(effectiveAbortSignal);
     for (const entry of supportedEntries) {
@@ -306,7 +303,11 @@ export async function preprocessFiles({
       const lang = (mode === 'code' || mode === 'extracted-prose')
         ? getLanguageForFile(entry.ext, entry.rel)?.id || null
         : null;
-      const maxLines = resolveMaxLines({ ext: entry.ext, lang }, fileCaps);
+      const { maxLines, maxBytes } = resolveFileCaps(fileCaps, entry.ext, lang, mode);
+      if (maxBytes && entry.stat?.size > maxBytes) {
+        modeSkipped.push({ file: entry.abs, reason: 'oversize', bytes: entry.stat.size, maxBytes });
+        continue;
+      }
       if (maxLines && Number.isFinite(entry.lines) && entry.lines > maxLines) {
         modeSkipped.push({
           file: entry.abs,

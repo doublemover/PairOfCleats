@@ -32,6 +32,8 @@ const measureRowBytes = (row) => (
   Buffer.byteLength(JSON.stringify(row), 'utf8') + 1
 );
 
+const normalizePathIdentity = value => typeof value === 'string' && value.length ? value : null;
+
 const normalizeText = (value) => {
   if (value === null || value === undefined) return '';
   return String(value).replace(/\s+/g, ' ').trim();
@@ -116,7 +118,7 @@ const maybeTrimRow = (row) => {
 const buildCallSiteRow = ({ chunk, detail, stats }) => {
   const calleeRaw = normalizeText(detail.calleeRaw || detail.callee);
   const calleeNormalized = normalizeText(detail.calleeNormalized) || deriveCalleeNormalized(calleeRaw);
-  const file = normalizeText(chunk.file);
+  const file = normalizePathIdentity(chunk.file);
   const start = Number.isFinite(detail.start) ? detail.start : null;
   const end = Number.isFinite(detail.end) ? detail.end : null;
   const startLine = Number.isFinite(detail.startLine) ? detail.startLine : null;

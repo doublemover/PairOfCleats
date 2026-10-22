@@ -201,8 +201,6 @@ const shouldUseTreeSitterClassification = ({ context, text }) => {
     runtime.treeSitterDisabledReason = runtime.treeSitterDisabledReason || 'byte-budget';
     return false;
   }
-  runtime.remainingChunks -= 1;
-  runtime.remainingBytes = Math.max(0, runtime.remainingBytes - chunkBytes);
   return true;
 };
 
@@ -341,6 +339,11 @@ export const classifyTokenBucketsInternal = ({
     treeSitter: treeSitterConfig,
     buildTokenSequence
   });
+  if (treeSitterSets && context?.tokenClassificationRuntime) {
+    const runtime = context.tokenClassificationRuntime;
+    runtime.remainingChunks -= 1;
+    runtime.remainingBytes = Math.max(0, runtime.remainingBytes - Buffer.byteLength(text || '', 'utf8'));
+  }
 
   const identifierTokens = [];
   const keywordTokens = [];

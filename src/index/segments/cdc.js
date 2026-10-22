@@ -1,7 +1,7 @@
 import { computeSegmentUid } from '../identity/chunk-uid.js';
 
 /** Schema version for CDC segmentation metadata. */
-export const CDC_SEGMENTATION_VERSION = '1.0.0';
+export const CDC_SEGMENTATION_VERSION = '2.0.0';
 
 const DEFAULT_CDC_OPTIONS = {
   minBytes: 4 * 1024,
@@ -68,7 +68,7 @@ export const buildCdcSegments = ({ text, languageId = null, options = {} }) => {
   const input = typeof text === 'string' ? text : '';
   if (!input) return [];
   const cfg = normalizeCdcOptions(options);
-  if (cfg.minFileBytes > 0 && input.length < cfg.minFileBytes) {
+  if (cfg.minFileBytes > 0 && Buffer.byteLength(input, 'utf8') < cfg.minFileBytes) {
     return [{
       type: 'cdc',
       languageId,
@@ -89,64 +89,42 @@ export const buildCdcSegments = ({ text, languageId = null, options = {} }) => {
       }
     }];
   }
-  const minBytes = cfg.minBytes;
-  const maxBytes = cfg.maxBytes;
-  const windowBytes = cfg.windowBytes;
   const mask = (1 << cfg.maskBits) - 1;
   const segments = [];
   let start = 0;
   let size = 0;
   let hash = 0;
-  const total = input.length;
-  for (let i = 0; i < total; i += 1) {
-    const code = input.charCodeAt(i) & 0xff;
-    hash = ((hash << 1) + GEAR_TABLE[code]) >>> 0;
-    size += 1;
-    const canAnchor = size >= minBytes && size >= windowBytes;
-    const shouldCut = (canAnchor && (hash & mask) === 0) || size >= maxBytes;
-    if (!shouldCut) continue;
-    segments.push({
-      type: 'cdc',
-      languageId,
-      start,
-      end: i + 1,
-      parentSegmentId: null,
-      meta: {
-        algorithm: 'cdc',
-        cdc: {
-          minBytes: cfg.minBytes,
-          avgBytes: cfg.avgBytes,
-          maxBytes: cfg.maxBytes,
-          windowBytes: cfg.windowBytes,
-          maskBits: cfg.maskBits,
-          minFileBytes: cfg.minFileBytes
-        }
-      }
-    });
-    start = i + 1;
+  const append = (end) => {
+    if (end <= start) return;
+    segments.push({ type: 'cdc', languageId, start, end, parentSegmentId: null,
+      meta: { algorithm: 'cdc', cdc: { ...cfg, encoding: 'utf8',
+        ...(size > cfg.maxBytes ? { oversizeScalar: true } : {}) } } });
+    start = end;
     size = 0;
     hash = 0;
+  };
+  const hashByte = byte => { hash = ((hash << 1) + GEAR_TABLE[byte]) >>> 0; };
+  for (let offset = 0; offset < input.length;) {
+    const original = input.codePointAt(offset);
+    const width = original > 0xffff ? 2 : 1;
+    // A lone surrogate has the same U+FFFD byte meaning as Buffer UTF-8 encoding.
+    const code = original >= 0xd800 && original <= 0xdfff ? 0xfffd : original;
+    const byteLength = code <= 0x7f ? 1 : code <= 0x7ff ? 2 : code <= 0xffff ? 3 : 4;
+    if (size > 0 && size + byteLength > cfg.maxBytes) append(offset);
+    if (byteLength === 1) hashByte(code);
+    else if (byteLength === 2) { hashByte(0xc0 | (code >> 6)); hashByte(0x80 | (code & 63)); }
+    else if (byteLength === 3) {
+      hashByte(0xe0 | (code >> 12)); hashByte(0x80 | ((code >> 6) & 63)); hashByte(0x80 | (code & 63));
+    } else {
+      hashByte(0xf0 | (code >> 18)); hashByte(0x80 | ((code >> 12) & 63));
+      hashByte(0x80 | ((code >> 6) & 63)); hashByte(0x80 | (code & 63));
+    }
+    size += byteLength;
+    offset += width;
+    const canAnchor = size >= cfg.minBytes && size >= cfg.windowBytes;
+    if ((canAnchor && (hash & mask) === 0) || size >= cfg.maxBytes) append(offset);
   }
-  if (start < total) {
-    segments.push({
-      type: 'cdc',
-      languageId,
-      start,
-      end: total,
-      parentSegmentId: null,
-      meta: {
-        algorithm: 'cdc',
-        cdc: {
-          minBytes: cfg.minBytes,
-          avgBytes: cfg.avgBytes,
-          maxBytes: cfg.maxBytes,
-          windowBytes: cfg.windowBytes,
-          maskBits: cfg.maskBits,
-          minFileBytes: cfg.minFileBytes
-        }
-      }
-    });
-  }
+  append(input.length);
   return segments;
 };
 

@@ -1,7 +1,6 @@
 import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 import path from 'node:path';
 import PQueue from 'p-queue';
-import { toPosix } from '../../shared/file-paths.js';
 import { readJsonFileSafe } from '../../shared/file-read.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import {
@@ -15,6 +14,7 @@ import {
 } from './file-meta.js';
 import { buildScmFreshnessGuard, getScmRuntimeConfigEpoch } from './runtime.js';
 import { buildScmMetadataFailure, normalizeScmMetadataDiagnostics, preserveScmMetadataFailure } from './metadata-diagnostics.js';
+import { normalizeScmFileKey } from './paths.js';
 
 const SCM_FILE_META_SNAPSHOT_SCHEMA_VERSION = 1;
 const SCM_FILE_META_SNAPSHOT_NAME = 'file-meta-v1.json';
@@ -25,13 +25,7 @@ const normalizeRepoRoot = (value) => {
   return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 };
 
-const normalizeFileKey = (value) => {
-  const normalized = toPosix(String(value || ''))
-    .replace(/^\.\/+/, '')
-    .trim();
-  if (!normalized || normalized.startsWith('../')) return null;
-  return normalized;
-};
+const normalizeFileKey = value => normalizeScmFileKey(value);
 
 const normalizeFileMetaMap = (input) => {
   const fileMetaByPath = Object.create(null);

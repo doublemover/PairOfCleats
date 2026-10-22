@@ -1,17 +1,27 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getIndexDir, resolveSqlitePaths } from '../../shared/dict-utils.js';
+import { readJsonFile } from '../../shared/artifact-io/json.js';
+import { validateSqliteZeroStateManifest } from '../../storage/sqlite/zero-state.js';
 
 export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, report, sqliteEnabled }) => {
   const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
   const sqliteMode = userConfig.sqlite?.scoreMode === 'fts' ? 'fts' : 'bm25';
   const sqliteTargets = new Set(modes.filter((mode) => mode === 'code' || mode === 'prose'));
   const zeroStateModes = new Set();
+  const zeroStateIssues = [];
   for (const mode of sqliteTargets) {
     const modeIndexDir = getIndexDir(root, mode, userConfig, indexRoot ? { indexRoot } : {});
     const zeroStateManifestPath = path.join(modeIndexDir, 'pieces', 'sqlite-zero-state.json');
     if (fs.existsSync(zeroStateManifestPath)) {
-      zeroStateModes.add(mode);
+      try {
+        await validateSqliteZeroStateManifest({ indexDir: modeIndexDir, mode,
+          outputPath: mode === 'code' ? sqlitePaths.codePath : sqlitePaths.prosePath,
+          payload: readJsonFile(zeroStateManifestPath, { containedRoot: modeIndexDir }) });
+        zeroStateModes.add(mode);
+      } catch (error) {
+        zeroStateIssues.push(`${mode} zero-state proof invalid (${error?.message || error})`);
+      }
     }
   }
   const requireCodeDb = sqliteTargets.has('code') && !zeroStateModes.has('code');
@@ -45,7 +55,7 @@ export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, re
   sqliteReport.enabled = sqliteReport.enabled && sqliteTargets.size > 0;
 
   if (sqliteReport.enabled) {
-    const sqliteIssues = [];
+    const sqliteIssues = [...zeroStateIssues];
     if (requireCodeDb && !fs.existsSync(sqlitePaths.codePath)) sqliteIssues.push('code db missing');
     if (requireProseDb && !fs.existsSync(sqlitePaths.prosePath)) sqliteIssues.push('prose db missing');
     if (sqliteIssues.length) {

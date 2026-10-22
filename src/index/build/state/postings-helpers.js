@@ -60,7 +60,8 @@ export function appendPhraseNgramsToPostingsMap(
   maxN,
   guard = null,
   context = null,
-  maxPerChunkOverride = null
+  maxPerChunkOverride = null,
+  sharedBudget = null
 ) {
   if (!map) return;
   if (!Array.isArray(tokens) || tokens.length === 0) return;
@@ -75,7 +76,7 @@ export function appendPhraseNgramsToPostingsMap(
   const sep = '\u0001';
   const maxSpan = Math.min(max, len);
 
-  let emitted = 0;
+  const budget = sharedBudget || { emitted: 0, truncated: false };
   const maxPerChunk = Number.isFinite(maxPerChunkOverride)
     ? Math.max(0, Math.floor(maxPerChunkOverride))
     : (guard?.maxPerChunk || 0);
@@ -93,15 +94,16 @@ export function appendPhraseNgramsToPostingsMap(
       }
       key = key ? `${key}${sep}${tok}` : String(tok);
       if (n >= min) {
-        if (maxPerChunk && emitted >= maxPerChunk) {
-          if (guard) {
+        if (maxPerChunk && budget.emitted >= maxPerChunk) {
+          if (guard && !budget.truncated) {
             guard.truncatedChunks += 1;
             recordGuardSample(guard, context);
           }
+          budget.truncated = true;
           return;
         }
         appendDocIdToPostingsMap(map, key, docId, guard, context);
-        emitted += 1;
+        budget.emitted += 1;
       }
     }
   }
@@ -273,7 +275,9 @@ export function appendChargramsToSet(
   { maxTokenLength = null } = {}
 ) {
   if (!token) return;
+  if (maxPerChunk && set.size >= maxPerChunk) return;
   forEachRollingChargramHash(token, minN, maxN, { maxTokenLength }, (hash) => {
+    if (maxPerChunk && set.size >= maxPerChunk) return false;
     set.add(hash);
     if (maxPerChunk && set.size >= maxPerChunk) return false;
     return true;

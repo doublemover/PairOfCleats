@@ -79,6 +79,10 @@ const classifyToken = (token, lexicon) => {
   return null;
 };
 
+const preserveQualifiedKeywordMember = (callee, base, lexicon) => (
+  classifyToken(base, lexicon) === 'keywords' && /\.|::|->|#|\//.test(String(callee ?? ''))
+);
+
 const createStats = () => ({
   droppedCalls: 0,
   droppedUsages: 0,
@@ -224,19 +228,12 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
       if (!Array.isArray(entry) || entry.length < 2) continue;
       const caller = entry[0];
       const callee = entry[1];
-      const normalizedCallee = normalizeToken(String(callee ?? ''));
       const base = normalizeToken(extractSymbolBaseName(callee));
       if (!base) continue;
       const tokenCategory = classifyToken(base, resolvedLexicon);
       // Preserve qualified member lookups (for example `obj.default`) so
       // keyword-like member names do not get dropped as bare-language tokens.
-      const qualifiedMemberCall = normalizedCallee.includes('.')
-        || normalizedCallee.includes('::')
-        || normalizedCallee.includes('->')
-        || normalizedCallee.includes('#')
-        || normalizedCallee.includes('/');
-      const preserveQualifiedKeywordMember = qualifiedMemberCall && tokenCategory === 'keywords';
-      if (dropSet.has(base) && !preserveQualifiedKeywordMember) {
+      if (dropSet.has(base) && !preserveQualifiedKeywordMember(callee, base, resolvedLexicon)) {
         stats.droppedCalls += 1;
         bumpCategory(stats.droppedCallsByCategory, tokenCategory);
         continue;
@@ -257,7 +254,7 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
     for (const detail of rawRelations.callDetails) {
       const base = normalizeToken(extractSymbolBaseName(detail?.callee));
       if (!base) continue;
-      if (dropSet.has(base)) {
+      if (dropSet.has(base) && !preserveQualifiedKeywordMember(detail?.callee, base, resolvedLexicon)) {
         stats.droppedCallDetails += 1;
         continue;
       }
@@ -280,7 +277,7 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
     for (const detail of rawRelations.callDetailsWithRange) {
       const base = normalizeToken(extractSymbolBaseName(detail?.callee));
       if (!base) continue;
-      if (dropSet.has(base)) {
+      if (dropSet.has(base) && !preserveQualifiedKeywordMember(detail?.callee, base, resolvedLexicon)) {
         stats.droppedCallDetailsWithRange += 1;
         continue;
       }

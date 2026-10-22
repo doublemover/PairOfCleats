@@ -49,12 +49,13 @@ export const splitLinesWithIndex = (text, context = null) => {
   const sharedLineIndex = Array.isArray(context?.chunkingShared?.lineIndex)
     ? context.chunkingShared.lineIndex
     : null;
-  if (sharedLineIndex && sharedLineIndex.length === lines.length) {
+  if (sharedLineIndex && context.chunkingShared.lineIndexText === text) {
     return { lines, lineIndex: sharedLineIndex };
   }
   const lineIndex = buildLineIndexFromLines(lines);
   if (context?.chunkingShared && typeof context.chunkingShared === 'object') {
     context.chunkingShared.lineIndex = lineIndex;
+    context.chunkingShared.lineIndexText = text;
   }
   return { lines, lineIndex };
 };

@@ -25,6 +25,8 @@ const measureRowBytes = (row) => (
   Buffer.byteLength(JSON.stringify(row), 'utf8') + 1
 );
 
+const normalizePathIdentity = value => typeof value === 'string' && value.length ? value : null;
+
 const normalizeText = (value) => {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
@@ -74,8 +76,8 @@ const buildSymbolRow = (chunk, stats) => {
   const symbolKey = normalizeText(symbol.symbolKey);
   const qualifiedName = normalizeText(symbol.qualifiedName);
   const kindGroup = normalizeText(symbol.kindGroup);
-  const file = normalizeText(meta.file || chunk.file);
-  const virtualPath = normalizeText(meta.virtualPath || chunk.virtualPath || chunk.segment?.virtualPath);
+  const file = normalizePathIdentity(meta.file || chunk.file);
+  const virtualPath = normalizePathIdentity(meta.virtualPath || chunk.virtualPath || chunk.segment?.virtualPath);
   const chunkUid = normalizeText(meta.chunkUid || chunk.chunkUid);
   if (!symbolId || !scopedId || !symbolKey || !qualifiedName || !kindGroup || !file || !virtualPath || !chunkUid) {
     return null;

@@ -2,13 +2,13 @@ import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { throwIfAborted } from '../../../shared/abort.js';
 
-export const requiresSourceHashVerification = stat => Number.isFinite(stat?.mtimeMs)
-  && Math.trunc(stat.mtimeMs) % 1000 === 0;
+// Timestamp precision does not establish content identity: restore/copy tools can
+// preserve fine-grained mtimes while changing bytes just as they can coarse ones.
+export const requiresSourceHashVerification = () => true;
 
-/** Equal coarse timestamps cannot establish content identity. Fixed-size reads. */
+/** Equal timestamps cannot establish content identity. Fixed-size reads. */
 export const sourceEntryIsFresh = async ({ absPath, entry, stat, signal = null }) => {
   if (!entry || entry.size !== stat?.size || entry.mtimeMs !== stat?.mtimeMs) return false;
-  if (!requiresSourceHashVerification(stat)) return true;
   if (!absPath || !entry.hash) return false;
   let handle;
   try {
