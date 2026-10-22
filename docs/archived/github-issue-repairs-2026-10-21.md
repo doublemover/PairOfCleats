@@ -1042,21 +1042,21 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1254](https://github.com/doublemover/PairOfCleats/issues/1254) | perf | [Perf] Stream benchmark logs once into independent report reducers | source authored; unvalidated |
 | [#1255](https://github.com/doublemover/PairOfCleats/issues/1255) | perf | [Perf] Share risk witness prefixes and release consumed traversal states | source authored; unvalidated |
 | [#1256](https://github.com/doublemover/PairOfCleats/issues/1256) | perf | [Perf] Prepare immutable risk edge metadata once rather than per traversal state | development implemented; integration/validation deferred |
-| [#1257](https://github.com/doublemover/PairOfCleats/issues/1257) | other | Unify configuration guidance and retire the obsolete two-key hard-cut prescription | pending |
-| [#1258](https://github.com/doublemover/PairOfCleats/issues/1258) | other | Rewrite language onboarding and capability guidance against native-only and current inference owners | pending |
-| [#1259](https://github.com/doublemover/PairOfCleats/issues/1259) | other | Consolidate duplicated artifact and analysis prose contracts without losing stricter reader guarantees | pending |
-| [#1260](https://github.com/doublemover/PairOfCleats/issues/1260) | other | Reorganize user documentation around tasks and separate dated receipts from current guides | pending |
-| [#1261](https://github.com/doublemover/PairOfCleats/issues/1261) | other | Rewrite setup as explicit checkout-to-target recipes with readiness and download boundaries | pending |
+| [#1257](https://github.com/doublemover/PairOfCleats/issues/1257) | other | Unify configuration guidance and retire the obsolete two-key hard-cut prescription | source task navigation authored; recipe/link qualification open |
+| [#1258](https://github.com/doublemover/PairOfCleats/issues/1258) | other | Rewrite language onboarding and capability guidance against native-only and current inference owners | source config journeys authored; behavior qualification open |
+| [#1259](https://github.com/doublemover/PairOfCleats/issues/1259) | other | Consolidate duplicated artifact and analysis prose contracts without losing stricter reader guarantees | source contract consolidation authored; compatibility proof open |
+| [#1260](https://github.com/doublemover/PairOfCleats/issues/1260) | other | Reorganize user documentation around tasks and separate dated receipts from current guides | partial current/historical classification; full link/encoding audit open |
+| [#1261](https://github.com/doublemover/PairOfCleats/issues/1261) | other | Rewrite setup as explicit checkout-to-target recipes with readiness and download boundaries | source contributor journeys authored; recipe proof open |
 | [#1262](https://github.com/doublemover/PairOfCleats/issues/1262) | other | Add complete source-checkout onboarding for VS Code and native TUI instead of command-only guides | partial editor/native onboarding source; clean-checkout/host proof open |
-| [#1263](https://github.com/doublemover/PairOfCleats/issues/1263) | other | Document a complete two-repository workspace search journey and current federation limits | pending |
+| [#1263](https://github.com/doublemover/PairOfCleats/issues/1263) | other | Document a complete two-repository workspace search journey and current federation limits | source language capabilities guide authored; fine-grained registry proof open |
 | [#1264](https://github.com/doublemover/PairOfCleats/issues/1264) | other | [Storage] Unify app-owned paths behind one explainable storage layout and ownership resolver | partial source foundation; runtime adoption/qualification open |
 | [#1265](https://github.com/doublemover/PairOfCleats/issues/1265) | other | [Storage] Migrate legacy owned data with resumable verified cutover and rollback | partial source foundation; qualified category adapters open |
 | [#1266](https://github.com/doublemover/PairOfCleats/issues/1266) | other | [Storage] Add unified CLI inventory, diagnosis, configuration and safe cleanup planning | partial bounded inventory source; operator qualification open |
 | [#1267](https://github.com/doublemover/PairOfCleats/issues/1267) | other | [Storage] Coordinate lifecycle quotas and leases without deleting saved evidence or active assets | partial lifecycle source; runtime/category adoption open |
 | [#1268](https://github.com/doublemover/PairOfCleats/issues/1268) | other | [Storage] Route managed child-tool caches and scratch data into owned storage with explicit exceptions | partial managed child routing source; runtime qualification open |
-| [#1269](https://github.com/doublemover/PairOfCleats/issues/1269) | other | Refresh contributor test and benchmark recipes after source-owner moves and runner consolidation | pending |
-| [#1270](https://github.com/doublemover/PairOfCleats/issues/1270) | other | Separate shipped backend recipes from evaluation-only recommendations and dependency labels | pending |
-| [#1271](https://github.com/doublemover/PairOfCleats/issues/1271) | other | Rewrite viewer documentation as two current workflows with scoped evidence instead of campaign handoffs | pending |
+| [#1269](https://github.com/doublemover/PairOfCleats/issues/1269) | other | Refresh contributor test and benchmark recipes after source-owner moves and runner consolidation | source backend recipes authored; runtime qualification open |
+| [#1270](https://github.com/doublemover/PairOfCleats/issues/1270) | other | Separate shipped backend recipes from evaluation-only recommendations and dependency labels | source workspace/service journeys authored; behavior qualification open |
+| [#1271](https://github.com/doublemover/PairOfCleats/issues/1271) | other | Rewrite viewer documentation as two current workflows with scoped evidence instead of campaign handoffs | source self-contained viewer journey authored; modern renderer/host proof open |
 | [#1272](https://github.com/doublemover/PairOfCleats/issues/1272) | other | [Setup] Keep help and checkout diagnosis available before bootstrap readiness | partial source authored; integration/qualification open |
 | [#1273](https://github.com/doublemover/PairOfCleats/issues/1273) | other | [Viewer] Add a canonical local preview command with safe startup and recovery | partial source authored; integration/qualification open |
 | [#1274](https://github.com/doublemover/PairOfCleats/issues/1274) | other | [Config] Explain and validate effective settings instead of only raw file shape | pending |
@@ -1065,7 +1065,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1277](https://github.com/doublemover/PairOfCleats/issues/1277) | perf | [Perf] Add dependency-safe bounded concurrency to patch preparation and native bootstrap | development implemented; integration/validation deferred |
 | [#1278](https://github.com/doublemover/PairOfCleats/issues/1278) | perf | [Perf] Push selective BM25 posting and length hydration into SQLite | pending |
 | [#1279](https://github.com/doublemover/PairOfCleats/issues/1279) | perf | [Perf] Use indexed cold filter enumeration without whole-corpus metadata hydration | pending |
-| [#1280](https://github.com/doublemover/PairOfCleats/issues/1280) | perf | [Perf] Qualify a blocked contiguous exact dense-scan kernel without per-row view allocation | pending |
+| [#1280](https://github.com/doublemover/PairOfCleats/issues/1280) | perf | [Perf] Qualify a blocked contiguous exact dense-scan kernel without per-row view allocation | source dense offset/cooperative scan authored; unvalidated |
 | [#1281](https://github.com/doublemover/PairOfCleats/issues/1281) | perf | [Perf] Coalesce retrieval cache touches and avoid full cache serialization on every hit | source repair and regression authored; unvalidated |
 | [#1282](https://github.com/doublemover/PairOfCleats/issues/1282) | other | [Setup] Provision and verify the selected modern bootstrap toolchain across platforms | partial source authored; integration/qualification open |
 | [#1283](https://github.com/doublemover/PairOfCleats/issues/1283) | other | [Workspace] Guide users from two repository roots to a validated federated search | pending |
@@ -1177,11 +1177,11 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1388](https://github.com/doublemover/PairOfCleats/issues/1388) | perf | [Perf] Avoid duplicate quantized payloads across file and global chunk caches | partial source integration; shared lifecycle/qualification still open |
 | [#1389](https://github.com/doublemover/PairOfCleats/issues/1389) | P2 | [P2] Measure native TUI event lag instead of displaying a constant zero | source repair and regression authored; unvalidated |
 | [#1390](https://github.com/doublemover/PairOfCleats/issues/1390) | P2 | [P2] Make removed search-option repair hints produce valid equivalent requests | source repair and regression authored; unvalidated |
-| [#1391](https://github.com/doublemover/PairOfCleats/issues/1391) | other | [Docs] Keep service diagnosis and recovery recipes bound to one explicit config and queue | pending |
-| [#1392](https://github.com/doublemover/PairOfCleats/issues/1392) | other | [Docs] Validate authored command and config recipes against executable contracts | pending |
+| [#1391](https://github.com/doublemover/PairOfCleats/issues/1391) | other | [Docs] Keep service diagnosis and recovery recipes bound to one explicit config and queue | source config/service recipe repairs authored; execution proof open |
+| [#1392](https://github.com/doublemover/PairOfCleats/issues/1392) | other | [Docs] Validate authored command and config recipes against executable contracts | partial inert authored-recipe owner; behavioral/platform proof open |
 | [#1393](https://github.com/doublemover/PairOfCleats/issues/1393) | P2 | [P2] Resolve queued TUI keys after modal transitions instead of executing stale shortcuts | source repair and regression authored; unvalidated |
 | [#1394](https://github.com/doublemover/PairOfCleats/issues/1394) | perf | [Performance] Bound recorded-session seeks instead of replaying the entire prefix on the UI thread | source repair and regression authored; unvalidated |
-| [#1395](https://github.com/doublemover/PairOfCleats/issues/1395) | other | [Docs] Document state-preserving source upgrades and required artifact rebuilds | pending |
+| [#1395](https://github.com/doublemover/PairOfCleats/issues/1395) | other | [Docs] Document state-preserving source upgrades and required artifact rebuilds | source state-preserving upgrade journey authored; operational proof open |
 | [#1396](https://github.com/doublemover/PairOfCleats/issues/1396) | perf | [Perf] Shard persistent tree-sitter chunks by digest instead of constant namespace prefix | source repair and regression authored; unvalidated |
 | [#1397](https://github.com/doublemover/PairOfCleats/issues/1397) | P1 | [P1] Preserve pending subprocess cleanup before releasing the build cache-writer lock | source repair and regression authored; unvalidated |
 | [#1398](https://github.com/doublemover/PairOfCleats/issues/1398) | P2 | [P2] Preserve exclusion and quoted-phrase gates under --match any | source repair and regression authored; unvalidated |
@@ -1806,3 +1806,36 @@ The map guide now links the self-contained viewer workflow. Modern backend
 cutover, spatial packets/picking, physical glass, progressive workers and actual
 browser/GPU/resource measurements remain open. No test/format/build/gate/bootstrap
 or native/browser execution ran for any source in this continuation.
+
+
+### Documentation and final first-span source releases
+
+Source 1e8ea827b (#1280) scans stored dense vector bytes with scalar offsets,
+retains exact arithmetic/candidate domains and allows cooperative cancellation
+without returning partial top-k. The independent reference and actual provider
+cancellation control are authored, unrun; SIMD/wide-row/resource claims remain open.
+Source a9ebbdeec preserves unchanged pipe geometry, numeric source identities and
+static hover repaint; expanded modern spatial/backend acceptance remains open.
+
+Source c1e66676f adds exact native free-space observation, an explicitly authorized
+destination probe, incomplete/alias accounting admission and interrupted-stage
+preservation. Space observation is not reservation or reclaimed-byte evidence.
+Derived preprocess/snapshot.json is registered without granting absence/deletion
+authority. No actual destination/cache/index operation was performed.
+
+Source a5bc10b3d organizes current task journeys and preserves six dated
+documentation snapshots with deprecation/replacement notices. Human contract
+consolidation retains canonical schema/validator authority; generated outputs
+remain unchanged pending refresh. Current setup/configuration/workspace/backend/
+service/contributor/language/upgrade/viewer journeys replace competing instructions.
+Full moved-anchor/link/encoding/recipe and operational qualification remains open.
+
+A further source audit found legacy inactive-repo GC can delete saved or unknown
+data. The storage owner is repairing this under #1267 before broadening category
+cleanup: complete read-only protection, revalidation under exclusion, exact
+producer-owned file removal and empty-only directory retirement. Existing real
+caches are untouched. Unmarked files remain explicit protected negatives. The
+repair is in progress; this receipt does not claim it has passed or shipped yet.
+
+All source/checkpoint tests, syntax, formatting, generated refresh, bootstrap,
+gates and native/browser/performance validation remain deferred by user direction.
