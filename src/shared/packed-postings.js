@@ -1,22 +1,24 @@
 const MAX_VARINT_BYTES = 10;
 const DEFAULT_BLOCK_SIZE = 128;
+const invalidPackedValue = message => Object.assign(new Error(message), { code: 'ERR_VARINT_DECODE' });
 
 const decodeVarint = (buffer, offset) => {
   let result = 0;
   let shift = 0;
   let index = offset;
-  while (index < buffer.length && shift <= 63) {
+  while (index < buffer.length && index - offset < MAX_VARINT_BYTES) {
     const byte = buffer[index];
-    result |= (byte & 0x7f) << shift;
+    // Bitwise shifts truncate to signed 32-bit values. Packed IDs/frequencies
+    // use the nonnegative safe-integer Number domain, including wider varints.
+    result += (byte & 0x7f) * (2 ** shift);
+    if (!Number.isSafeInteger(result)) throw invalidPackedValue('Packed varint exceeds Number.MAX_SAFE_INTEGER.');
     index += 1;
     if ((byte & 0x80) === 0) {
       return { value: result, offset: index };
     }
     shift += 7;
   }
-  const err = new Error('Invalid varint sequence');
-  err.code = 'ERR_VARINT_DECODE';
-  throw err;
+  throw invalidPackedValue('Invalid or truncated packed varint sequence.');
 };
 
 /**
@@ -74,6 +76,11 @@ const decodeTfPostingList = (buffer, blockSize) => {
   let cursor = 0;
   const { value: count, offset } = decodeVarint(buffer, cursor);
   cursor = offset;
+  // Each admitted pair needs at least one delta byte and one frequency byte.
+  // Refuse impossible cardinality before allocating from an untrusted count.
+  if (count > Math.floor((buffer.length - cursor) / 2)) {
+    throw invalidPackedValue('Packed posting count exceeds the available pair bytes.');
+  }
   const list = new Array(count);
   let prevDoc = 0;
   for (let i = 0; i < count; i += 1) {
@@ -83,9 +90,11 @@ const decodeTfPostingList = (buffer, blockSize) => {
     const tfResult = decodeVarint(buffer, cursor);
     cursor = tfResult.offset;
     const docId = prevDoc + deltaResult.value;
+    if (!Number.isSafeInteger(docId)) throw invalidPackedValue('Packed posting document ID exceeds Number.MAX_SAFE_INTEGER.');
     prevDoc = docId;
     list[i] = [docId, tfResult.value];
   }
+  if (cursor !== buffer.length) throw invalidPackedValue('Packed posting row contains trailing bytes.');
   return list;
 };
 
