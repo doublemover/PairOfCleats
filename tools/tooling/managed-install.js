@@ -17,6 +17,7 @@ import { retainManagedToolInstallation } from '../../src/shared/managed-installa
 import { isKnownManagedInstallationDescriptor, isKnownManagedInstallationReceipt } from '../../src/shared/managed-installation-contract.js';
 import { storageFileIdentity } from '../../src/shared/storage/inventory.js';
 import { verifyStorageFile, isStorageTransferSession } from '../../src/shared/storage/transfer.js';
+import { getStorageDirectorySession, withStorageDirectory } from '../../src/shared/storage/directory.js';
 import { verifyOwnedInstallation, verifyRetainedManagedInstallation, captureManagedVerificationFailure,
   retainManagedResourceFailure } from './managed-verification.js';
 export { retainManagedToolInstallation, retainManagedToolInstallationSync } from '../../src/shared/managed-installation.js';
@@ -95,8 +96,7 @@ const captureFiles = async (root, limits = DEFAULT_LIMITS, { signal = null } = {
     const relative = pending.pop();
     const directory = path.join(root, relative);
     assertNoSymlinkPath(root, directory);
-    const handle = await fs.opendir(directory);
-    try {
+    await withStorageDirectory(directory, async handle => {
       for (let entry = await handle.read(); entry; entry = await handle.read()) {
         signal?.throwIfAborted();
         if (++entries > limits.maxEntries) throw new Error('Managed package inventory exceeds its entry limit.');
@@ -113,7 +113,7 @@ const captureFiles = async (root, limits = DEFAULT_LIMITS, { signal = null } = {
           rows.push({ path: child, bytes: verified.bytes, sha256: verified.sha256 });
         }
       }
-    } finally { await handle.close(); }
+    });
   }
   return rows.sort((left, right) => left.path.localeCompare(right.path));
 };
@@ -135,7 +135,7 @@ const inspectGeneration = async (owner, toolId, installId, { signal = null } = {
   let files;
   try { assertNoSymlinkPath(owner, root); files = await captureFiles(root, DEFAULT_LIMITS, { signal }); }
   catch (error) {
-    if (signal?.aborted || isStorageTransferSession(error.storageTransferSession)) throw error;
+    if (signal?.aborted || isStorageTransferSession(error.storageTransferSession) || getStorageDirectorySession(error)) throw error;
     return { ok: false, state: 'repair-required', reason: error.code || error.message, receipt };
   }
   if (identity(files) !== receipt.filesIdentity) return { ok: false, state: 'repair-required', reason: 'managed-file-bytes-drift', receipt };
@@ -175,7 +175,7 @@ export const inspectManagedInstallation = async ({ toolingRoot, toolId, descript
     if (identity(selector) !== identity({ schemaVersion: MANAGED_INSTALL_VERSION, toolId, descriptorId: selector.descriptorId, installId: selector.installId })) throw new Error('Managed selector has unknown ownership fields.');
     return await inspectGeneration(owner, toolId, selector.installId, { signal });
   } catch (error) {
-    if (signal?.aborted || isStorageTransferSession(error.storageTransferSession)) throw error;
+    if (signal?.aborted || isStorageTransferSession(error.storageTransferSession) || getStorageDirectorySession(error)) throw error;
     return { ok: false, state: error.code === 'ENOENT' ? 'missing' : 'repair-required', reason: error.code || error.message };
   }
 };
@@ -211,9 +211,13 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
   let verificationLease = null;
   let resourcePending = false, reconciling = null, observerOverflow = false;
   const observers = [], observed = new WeakSet(), described = new WeakSet(), ownedMetadataFailures = new WeakSet();
+  const directorySessions = new Set(), transferSessions = new Set();
   const observeFailure = error => {
     if (!error || typeof error !== 'object' || observed.has(error) || described.has(error) || ownedMetadataFailures.has(error)) return;
     observed.add(error);
+    const directory = getStorageDirectorySession(error);
+    if (directory) directorySessions.add(directory);
+    if (isStorageTransferSession(error.storageTransferSession)) transferSessions.add(error.storageTransferSession);
     const captured = captureManagedVerificationFailure(error, transactionId);
     if (captured.observe) {
       if (observers.length < 128) observers.push(captured.observe);
@@ -263,6 +267,12 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     if (!exactResourceReceipt(receipt, transactionId)) throw new Error('Managed install child settlement is still pending.');
     if (!reconciling) reconciling = (async () => {
       if (primaryError?.downloadSession) await settleInstallDownload(primaryError);
+      for (const session of [...transferSessions, ...directorySessions]) {
+        const closed = await session.releaseAfterClose();
+        if (!exactResourceReceipt(closed, session.resourceId) || !session.isSettled()) {
+          throw new Error('Actual managed install descriptor owner did not confirm exact closure.');
+        }
+      }
       if (observerOverflow || observers.some(observe => !observe())) throw new Error('Actual managed install native/resource observer remains pending.');
       resourcePending = false;
       return releaseResources();

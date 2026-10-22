@@ -4,6 +4,7 @@ import { assertNoSymlinkPath } from '../contained-file.js';
 import { CACHE_OWNER_FILE } from '../cache-deletion.js';
 import { readVerifiedContainedFile } from '../contained-file.js';
 import { inspectStorageRootFailure } from './root-availability.js';
+import { getStorageDirectorySession, withStorageDirectory } from './directory.js';
 
 const failure = (location, error) => ({ path: location, code: error?.code || 'ERR_STORAGE_SCAN',
   message: error?.message || String(error) });
@@ -101,8 +102,7 @@ export const inspectStorageInventory = async ({ roots, maxEntries = 100000, maxD
           item.directoriesCount += 1;
           observedDirectories.push({ path: current, identity: storageFileIdentity(stat) });
           if (includeFiles) item.directories.push({ relativePath: path.relative(root, current), identity: storageFileIdentity(stat) });
-          const directory = await fs.opendir(current);
-          try {
+          await withStorageDirectory(current, async directory => {
             while (!shouldStop()) {
               const entry = await directory.read();
               if (!entry) break;
@@ -110,7 +110,7 @@ export const inspectStorageInventory = async ({ roots, maxEntries = 100000, maxD
               if (stack.length + visitedEntries >= maxEntries) { stopReason = 'entry-budget'; break; }
               stack.push(path.join(current, entry.name));
             }
-          } finally { await directory.close(); }
+          });
         } else {
           if (!Number.isSafeInteger(Number(stat.size))) throw new Error('Storage file size exceeds exact accounting range.');
           item.filesCount += 1;
@@ -137,7 +137,10 @@ export const inspectStorageInventory = async ({ roots, maxEntries = 100000, maxD
           if (includeFiles) item.files.push({ relativePath: path.relative(root, current),
             identity: storageFileIdentity(stat), allocatedBytes: bytes, physicalKey: key });
         }
-      } catch (error) { item.errors.push(failure(current, error)); }
+      } catch (error) {
+        if (getStorageDirectorySession(error)) throw error;
+        item.errors.push(failure(current, error));
+      }
     }
     for (const directory of observedDirectories) {
       if (signal?.aborted || now() - started >= maxDurationMs) { stopReason = signal?.aborted ? 'cancelled' : 'time-budget'; break; }

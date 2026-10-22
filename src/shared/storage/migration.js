@@ -13,6 +13,7 @@ import { readStorageLocator, writeStorageLocator } from './locator.js';
 import { buildStorageMigrationManifest, storageMigrationOwnerProof, storagePlanDigest } from './migration-plan.js';
 import { verifyStorageFile, isStorageTransferSession } from './transfer.js';
 import { inspectStorageInventory } from './inventory.js';
+import { getStorageDirectorySession } from './directory.js';
 import { revalidateStorageAuthority } from './authority.js';
 import { assertStorageLocatorShape } from './locator-contract.js';
 
@@ -84,10 +85,10 @@ const pathsFor = plan => {
 };
 const withExclusiveRoots = async (roots, options, action) => {
   const ordered = [...new Set(roots)].sort();
-  const retained = [], released = new Set(), transfers = new Set();
+  const retained = [], released = new Set(), resourceSessions = new Set();
   let firstFailure = null, reconciling = null;
   const pendingFailure = (primary, failures = []) => {
-    const metadata = Object.assign(new AggregateError(failures, 'Migration transfer exclusions remain retained.',
+    const metadata = Object.assign(new AggregateError(failures, 'Migration descriptor exclusions remain retained.',
       failures.length ? { cause: failures[0] } : undefined), {
       cacheOwnershipPending: true, cacheOwnershipReleased: () => retained.every(item => released.has(item.lock))
     });
@@ -96,10 +97,10 @@ const withExclusiveRoots = async (roots, options, action) => {
   };
   const recovery = Object.freeze({ releaseAfterClose: async () => {
     if (!reconciling) reconciling = (async () => {
-      for (const session of transfers) {
+      for (const session of resourceSessions) {
         const receipt = await session.releaseAfterClose();
         if (receipt?.resourceId !== session.resourceId || receipt.settled !== true || receipt.pending !== false || !session.isSettled()) {
-          throw new Error('Migration transfer descriptor owner did not confirm its exact closure.');
+          throw new Error('Migration descriptor owner did not confirm its exact closure.');
         }
       }
       const results = await Promise.allSettled(retained.filter(item => !released.has(item.lock)).map(async item => {
@@ -118,8 +119,11 @@ const withExclusiveRoots = async (roots, options, action) => {
       try { return await next(index + 1, [...owners, {
         root: context.paths.root, lockId: context.lock.payload.lockId, pid: context.lock.payload.pid
       }]); } catch (error) {
-        if (isStorageTransferSession(error.storageTransferSession)) {
-          transfers.add(error.storageTransferSession);
+        const directory = getStorageDirectorySession(error);
+        const transfer = isStorageTransferSession(error.storageTransferSession) ? error.storageTransferSession : null;
+        if (transfer || directory) {
+          if (transfer) resourceSessions.add(transfer);
+          if (directory) resourceSessions.add(directory);
           firstFailure ||= error;
           retained.push({ root: context.paths.root, lock: context.lock });
           context.retainExclusion();

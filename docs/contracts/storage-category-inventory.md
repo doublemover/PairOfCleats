@@ -94,3 +94,34 @@ reader retains its own bounded lease-entry scan; diagnosis does not claim an
 interruptible syscall or instantaneous filesystem snapshot. CAS-specific and
 unadopted owner protocols remain outside this exact protocol coverage. These
 source changes and authored read-only fixtures remain **UNVALIDATED**.
+
+The bounded filesystem inventory, configuration directory preview and managed
+package capture use the same actual directory-descriptor owner. It captures
+the original `Dir.read` and `Dir.close` methods and receivers, stops read
+admission when its callback finishes, and drains every admitted read before
+closing. Read and close failures preserve exact frozen causes. An unconfirmed
+close or independent original pending observation exposes the non-enumerable,
+process-local `storageDirectorySession.releaseAfterClose()` capability. Its
+exact resource receipt requires confirmed original close and every captured
+observation; copied properties do not establish producer identity. A missing or
+throwing native observer remains unknown even after descriptor close.
+
+Inventory propagates that actual owner instead of returning ordinary incomplete
+accounting and admitting another root. Configuration still drains all already
+started independent observations and retains their exact failure graphs.
+Managed generation inspection propagates pending directory ownership instead
+of reporting repair-required. Actual managed installation recovery closes its
+captured file owners, then directory owners, before removing staging or
+releasing category metadata. Migration retains its existing exact source and
+destination exclusions for these directory sessions as it does for transfer
+sessions; only exact descriptor settlement followed by exact exclusion removal
+completes recovery. These additions create no new lease namespace, parent
+authority, filesystem mutation permission or generic cache/repos migration.
+
+Authored, unrun regressions cover actual disposable directory handles, delayed
+unawaited reads, captured method/receiver identity, dual frozen failures,
+independent known/unknown observations, stopped root admission, actual managed
+inspection, nested managed file/directory recovery plus metadata unlink faults,
+and migration directory/exclusion recovery with a successful resume. The
+configuration observation fixture retains its concurrent drain/lock checks and
+finds the exact close failure through the additional owner aggregate.

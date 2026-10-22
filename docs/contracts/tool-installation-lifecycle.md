@@ -380,3 +380,21 @@ same resource settlement decision, including an inspection error whose owner is
 missing or unconfirmed. An exact recipe receipt cannot erase that secondary
 owner. Isolated ordinary-file fixture controls preserve unknown evidence and
 allow release only after the actual original observer confirms; they are unrun.
+
+Managed immutable-package capture now retains actual opened directory ownership
+alongside its file-transfer ownership. Both use their originally captured close
+methods and receivers. Directory read admission ends with the capture callback;
+every read already started drains before close. Frozen read, file-close and
+directory-close failures remain exact causes with their process-local recovery
+capabilities, rather than becoming an ordinary repair-required result.
+
+The existing managed transaction's `managedInstallSession` recovery first closes
+its captured file owners, then directory owners, and verifies their exact
+settled:true/pending:false resource receipts. Only then may it remove the exact
+original staging directory and release its existing category metadata. Native
+pending observations remain independent; unknown observers cannot be cleared by
+a recipe receipt or directory close. Failed lease removal keeps the same latest
+outer retry path. Authored actual tiny archive/package/file/directory/category
+controls include dual frozen close failures, staging retention, exact retry,
+injected metadata unlink failure and later normal publication. They are
+UNVALIDATED and run no real installer or consumer binary.

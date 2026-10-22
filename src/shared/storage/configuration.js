@@ -8,6 +8,7 @@ import { addStorageFailureContext, releaseStorageOperationLock } from './operati
 import { readStorageLocator, writeStorageLocator } from './locator.js';
 import { storagePlanDigest } from './migration-plan.js';
 import { storageFileIdentity, sameStorageFileIdentity } from './inventory.js';
+import { withStorageDirectory } from './directory.js';
 
 // Only these existing application callers consume category selections. Adding
 // a descriptor alone must not make a configure receipt claim caller adoption.
@@ -29,15 +30,7 @@ const inspectDirectory = async target => {
     const stat = await fs.lstat(target, { bigint: true });
     observed = true;
     if (!stat.isDirectory()) return { status: 'unexpected-file', empty: false };
-    const directory = await fs.opendir(target);
-    let first, readError = null;
-    try { first = await directory.read(); }
-    catch (error) { readError = error; }
-    finally {
-      try { await directory.close(); }
-      catch (closeError) { throw addStorageFailureContext(readError || closeError, {}, readError ? closeError : null); }
-    }
-    if (readError) throw readError;
+    const first = await withStorageDirectory(target, directory => directory.read());
     const after = await fs.lstat(target, { bigint: true });
     if (!sameStorageFileIdentity(storageFileIdentity(stat), storageFileIdentity(after))) throw new Error('Storage directory changed during configuration preview.');
     return { status: 'present', empty: first === null, identity: storageFileIdentity(after) };

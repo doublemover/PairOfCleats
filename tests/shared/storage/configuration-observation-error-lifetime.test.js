@@ -6,6 +6,17 @@ import { resolveStorageLayout } from '../../../src/shared/storage/layout.js';
 import { planStorageConfiguration, applyStorageConfiguration } from '../../../src/shared/storage/configuration.js';
 import { readStorageLocator } from '../../../src/shared/storage/locator-read.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
+import { getStorageDirectorySession } from '../../../src/shared/storage/directory.js';
+
+const contains = (error, expected) => {
+  const pending = [error], seen = new Set();
+  while (pending.length) {
+    const current = pending.pop(); if (current === expected) return true;
+    if (!current || typeof current !== 'object' || seen.has(current)) continue;
+    seen.add(current); pending.push(current.cause, ...(Array.isArray(current.errors) ? current.errors : []));
+  }
+  return false;
+};
 
 // UNVALIDATED: actual configuration/directory/lock owners, no user storage.
 const temporary = await makeTempDir('poc-config-observation-failure-');
@@ -86,7 +97,7 @@ try {
     };
     await assert.rejects(planStorageConfiguration({ layout: resolveStorageLayout({ home, env: {} }),
       category: 'models', currentPath: source, target: destination }), error => error.cause === readFailure
-        && error.errors.includes(closeFailure) && error.code === 'EIO',
+        && contains(error, closeFailure) && error.code === 'EIO' && Boolean(getStorageDirectorySession(error)),
     'an observed directory read/close failure retains both originals rather than becoming a missing-directory preview');
   } finally { fs.opendir = opendir; }
 } finally { await rmDirRecursive(temporary); }
