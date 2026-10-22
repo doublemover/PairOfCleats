@@ -228,3 +228,10 @@ are refused. Qualified range helpers retain an internal original UTF-8 byte-span
 witness with contained path, source digest and original byte length; they do not
 infer task identity, generation, exploration or use telemetry. These controls are
 source-authored and unrun; supported Sublime/Python host acceptance remains separate.
+
+Exact source opening also binds the returned native view to the originally
+requested local file. Equal bytes in a sibling or scratch buffer do not supply
+that file identity. Delayed highlighting retains the original file and a copy
+of its hit fields, rechecks the view filename before publication, and refuses a
+rename or context replacement without changing that view's selection or prior
+highlight. These additional actual-opening controls are authored and unrun.

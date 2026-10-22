@@ -181,6 +181,59 @@ with isolated_temp_directory() as temporary:
         while queued:
             queued.pop(0)()
     assert view.regions == {} and view.shown == [], 'queued source selection cannot publish after its window scope is invalidated'
+
+    sibling = os.path.join(temporary, 'identical-sibling.py')
+    with open(sibling, 'wb') as handle:
+        handle.write(retained.encode('utf-8'))
+    source = authority.read_verified_source(temporary, filename, source_hash)
+    authority.assert_source_filename(source, filename)
+    for wrong_filename in (sibling, None, 'snow 雪.py'):
+        try:
+            authority.assert_source_filename(source, wrong_filename)
+            raise AssertionError('identical/scratch/relative view substituted for the original source file')
+        except ValueError:
+            pass
+    wrong_view = SourceView(sibling, 'a😀z\nsecond\n')
+    wrong_view._selection = Selection([FakeRegion(1, 2)])
+    prior_regions = [FakeRegion(1, 2)]
+    wrong_view.regions[results.HIGHLIGHT_KEY] = prior_regions
+    window.set_active_view(wrong_view)
+    original_hit = dict(hit, file='snow 雪.py')
+    with patch.object(window, 'open_file', return_value=wrong_view):
+        assert results.open_hit(window, original_hit, repo_root=temporary) is wrong_view
+    assert wrong_view.regions[results.HIGHLIGHT_KEY] is prior_regions and wrong_view.shown == []
+    assert [(row.a, row.b) for row in wrong_view.sel()] == [(1, 2)], 'actual opening refuses an identical-text sibling and preserves its existing native UI'
+    scratch = SourceView(None, 'a😀z\nsecond\n')
+    window.set_active_view(scratch)
+    with patch.object(window, 'open_file', return_value=scratch):
+        results.open_hit(window, original_hit, repo_root=temporary)
+    assert scratch.regions == {} and scratch.shown == [], 'a scratch buffer supplies no local file identity'
+
+    window.set_active_view(view)
+    view.regions.clear()
+    view.shown[:] = []
+    queued = []
+    with patch.object(sublime, 'set_timeout', side_effect=lambda callback, delay=0: queued.append(callback)):
+        results.highlight_hit(view, hit, repo_root=temporary)
+        view._file_name = sibling
+        while queued:
+            queued.pop(0)()
+    assert view.regions == {} and view.shown == [], 'queued source selection cannot follow a same-byte view rename'
+    view._file_name = filename
+
+    # A producer/UI refresh may reuse a hit dictionary while loading. Its later
+    # values cannot rewrite the original source/path/column admission.
+    mutable_hit = dict(original_hit)
+    queued = []
+    with patch.object(sublime, 'set_timeout', side_effect=lambda callback, delay=0: queued.append(callback)):
+        results.highlight_hit(view, mutable_hit, repo_root=temporary)
+        mutable_hit.update({'file': 'identical-sibling.py', 'sourceHash': 'f' * 64, 'startCol': 99, 'endCol': 99})
+        while queued:
+            queued.pop(0)()
+    assert [(row.a, row.b) for row in view.sel()] == [(4, 10)], 'deferred selection retains the captured original hit fields'
+    assert view.regions and view.shown
+    view.regions.clear()
+    view.shown[:] = []
     with open(filename, 'wb') as handle:
         handle.write(b'replaced on disk')
     results.highlight_hit(view, hit, repo_root=temporary)

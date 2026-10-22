@@ -75,6 +75,14 @@ native ranges. Final publication rechecks the actual document URI and the
 per-request cache includes the selected repository root. These source assertions
 are authored and unrun, with supported editor-host acceptance still separate.
 
+Sublime exact highlighting likewise retains the originally requested file through
+native opening/loading and binds the returned view to that file. Identical-text
+sibling or scratch views cannot supply the original location. A delayed action
+retains copied original hit fields and refuses a renamed view or replaced context
+before changing its selection/highlight. These native-consumer controls remain
+authored and unrun; line-only legacy highlighting retains its existing approximate
+behavior.
+
 Repository discovery selects the nearest `.pairofcleats.json`, `.git` directory,
 or `.git` file. This keeps a linked Git worktree or submodule rooted at its working
 directory when its metadata lives elsewhere, including inside an enclosing repo.

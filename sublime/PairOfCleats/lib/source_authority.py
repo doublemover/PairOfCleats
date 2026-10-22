@@ -43,6 +43,13 @@ def read_verified_source(repo_root, filename, source_hash):
     return source
 
 
+def assert_source_filename(source, filename):
+    """Equal bytes in a sibling/scratch buffer are not original file binding."""
+    if (not isinstance(filename, str) or not os.path.isabs(filename)
+            or os.path.normcase(os.path.realpath(filename)) != os.path.normcase(source['file'])):
+        raise ValueError('Opened source view does not identify the qualified local source file.')
+
+
 def utf16_source_position(text, offset):
     """One-based protocol position in original UTF-16, with CR/LF/CRLF lines."""
     if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:

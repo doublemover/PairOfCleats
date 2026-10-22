@@ -6,7 +6,7 @@ from .saved_search import normalize_saved_options
 from . import operations
 from . import results_state
 from .filter_pagination import selected_index, capture_selection
-from .source_authority import read_verified_source, source_buffer_form, source_range_in_buffer
+from .source_authority import assert_source_filename, read_verified_source, source_buffer_form, source_range_in_buffer
 
 HIGHLIGHT_KEY = 'pairofcleats.search.highlight'
 HIGHLIGHT_SCOPE = 'region.yellowish'
@@ -207,6 +207,9 @@ def apply_hit_action(window, hit, repo_root=None, action='open', rerun=None):
 
 
 def open_hit(window, hit, repo_root=None):
+    if not isinstance(hit, dict):
+        return None
+    hit = dict(hit)
     file_path = resolve_hit_path(hit, repo_root)
     if not file_path:
         return None
@@ -229,7 +232,7 @@ def open_hit(window, hit, repo_root=None):
         encoded_path = '{0}:{1}'.format(file_path, start_line)
 
     view = window.open_file(encoded_path, sublime.ENCODED_POSITION)
-    highlight_hit(view, hit, scope=scope, repo_root=repo_root)
+    highlight_hit(view, hit, scope=scope, repo_root=repo_root, source_file=file_path)
     return view
 
 
@@ -324,15 +327,23 @@ def qualified_source_buffer(source_text, buffer_text):
     return {'removedBom': form['removedBom']} if form is not None else None
 
 
-def highlight_hit(view, hit, scope=None, repo_root=None):
+def highlight_hit(view, hit, scope=None, repo_root=None, source_file=None):
     if view is None or not isinstance(hit, dict):
         return
+    hit = dict(hit)
     start_line = hit.get('startLine')
     end_line = hit.get('endLine') or start_line
     if not isinstance(start_line, int) or start_line <= 0:
         return
     if not isinstance(end_line, int) or end_line <= 0:
         end_line = start_line
+    if hit.get('sourceHash'):
+        if source_file is None:
+            source_file = resolve_hit_path(hit, repo_root) if hit.get('file') else view.file_name()
+        if not isinstance(source_file, str) or not os.path.isabs(source_file):
+            sublime.status_message('PairOfCleats: exact source file identity unavailable; indexed selection was not applied.')
+            return
+    source_root = repo_root or os.path.dirname(source_file or '')
 
     if scope is None and hasattr(view, 'window') and view.window():
         scope = operations.capture(view.window(), key='source-opening')
@@ -348,20 +359,28 @@ def highlight_hit(view, hit, scope=None, repo_root=None):
                 return
             sublime.set_timeout(apply, 10)
             return
+        if hit.get('sourceHash'):
+            try:
+                assert_source_filename({'file': os.path.realpath(source_file)}, view.file_name())
+            except (ValueError, OSError) as error:
+                sublime.status_message('PairOfCleats: indexed selection unavailable: ' + str(error))
+                return
         view.erase_regions(HIGHLIGHT_KEY)
         if hit.get('sourceHash') and view.is_dirty():
             sublime.status_message('PairOfCleats: dirty source; indexed selection was not applied.')
             return
         if hit.get('sourceHash'):
             try:
-                source = read_verified_source(repo_root or os.path.dirname(view.file_name()), view.file_name(), hit['sourceHash'])
+                source = read_verified_source(source_root, source_file, hit['sourceHash'])
+                assert_source_filename(source, view.file_name())
                 text = source['sourceText']
                 buffer_text = view.substr(sublime.Region(0, view.size()))
                 normalization = qualified_source_buffer(text, buffer_text)
                 if normalization is None:
                     sublime.status_message('PairOfCleats: source changed; indexed selection was not applied.')
                     return
-            except (ValueError, OSError, UnicodeError):
+            except (ValueError, OSError, UnicodeError) as error:
+                sublime.status_message('PairOfCleats: indexed selection unavailable: ' + str(error))
                 return
         start_col = hit.get('startCol')
         end_col = hit.get('endCol')
@@ -385,13 +404,25 @@ def highlight_hit(view, hit, scope=None, repo_root=None):
                 sublime.status_message('PairOfCleats: indexed selection unavailable: ' + str(error))
                 return
             region = sublime.Region(start_pt, end_pt)
-            view.sel().clear()
-            view.sel().add(region)
-            view.show(region)
+            exact_range = True
         else:
             start_pt = view.text_point(start_line - 1, 0)
             end_pt = view.text_point(end_line - 1, 0)
             region = view.full_line(sublime.Region(start_pt, end_pt))
+            exact_range = False
+        if (scope is not None and not operations.is_current(scope)
+                or hasattr(view, 'is_valid') and not view.is_valid()):
+            return
+        if source is not None:
+            try:
+                assert_source_filename(source, view.file_name())
+            except (ValueError, OSError) as error:
+                sublime.status_message('PairOfCleats: indexed selection unavailable: ' + str(error))
+                return
+        if exact_range:
+            view.sel().clear()
+            view.sel().add(region)
+            view.show(region)
         view.add_regions(HIGHLIGHT_KEY, [region], HIGHLIGHT_SCOPE, flags=0)
 
     sublime.set_timeout(apply, 0)
