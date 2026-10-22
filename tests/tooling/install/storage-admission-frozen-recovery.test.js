@@ -70,8 +70,13 @@ try {
       await assert.rejects(held.releaseAfterSettlement({ ...receipt, pending: undefined }), /exact resource receipt/);
       await assert.rejects(held.releaseAfterSettlement({ ...receipt, unknownOwner: true }), /exact resource receipt/);
       assert.equal((await inspect()).protected, true);
+      let retried;
+      try { await held.releaseAfterSettlement(receipt); } catch (error) { retried = error; }
+      assert.equal(retried.installStorageMetadataSession, held, 'the latest failed retry retains the complete exact outer capability');
+      assert.equal(retried.storageSession, metadata.storageSession);
+      assert.equal(Object.keys(retried).includes('installStorageMetadataSession'), false);
       deny = false;
-      assert.deepEqual(await Promise.all([held.releaseAfterSettlement(receipt), held.releaseAfterSettlement(receipt)]), [true, true]);
+      assert.deepEqual(await Promise.all([retried.installStorageMetadataSession.releaseAfterSettlement(receipt), held.releaseAfterSettlement(receipt)]), [true, true]);
       assert.equal(metadata.cacheOwnershipReleased(), true);
       assert.equal((await inspect()).protected, false);
     } finally { fsSync.rmSync = originalRemove; }
@@ -84,13 +89,22 @@ try {
     try { await runInstallWithStorageAdmission(input, async () => { throw pending; }); }
     catch (error) { failure = error; }
     const receipt = { resourceId: owned.resourceId, settled: true, pending: false };
-    await assert.rejects(failure.managedInstallSession.releaseAfterSettlement(receipt), /did not confirm/);
+    let latest;
+    try { await failure.managedInstallSession.releaseAfterSettlement(receipt); } catch (error) { latest = error; }
+    assert.match(latest.message, /did not confirm/);
+    assert.equal(latest.managedInstallSession, failure.managedInstallSession);
+    assert.equal(latest.storageSession, failure.storageSession);
     innerRelease = undefined;
-    await assert.rejects(failure.managedInstallSession.releaseAfterSettlement(receipt), /did not confirm/);
+    try { await latest.managedInstallSession.releaseAfterSettlement(receipt); } catch (error) { latest = error; }
+    assert.match(latest.message, /did not confirm/);
     assert.equal((await inspect()).protected, true, 'false or missing inner release evidence cannot release outer admission');
+    innerRelease = true;
+    await assert.rejects(latest.managedInstallSession.releaseAfterSettlement(receipt), /resource observer remains pending/,
+      'an inner positive cannot override the independently captured original resource observer');
+    assert.equal((await inspect()).protected, true);
     childClosed = true; innerRelease = true;
-    assert.equal(await failure.managedInstallSession.releaseAfterSettlement(receipt), true);
-    assert.equal(calls, 3);
+    assert.equal(await latest.managedInstallSession.releaseAfterSettlement(receipt), true);
+    assert.equal(calls, 4);
     assert.equal(failure.cacheOwnershipReleased(), true);
     assert.equal((await inspect()).protected, false);
   });

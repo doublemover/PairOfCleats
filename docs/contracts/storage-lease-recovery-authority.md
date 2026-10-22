@@ -122,6 +122,19 @@ Authored actual admission/reservation/category fixture controls cover frozen and
 nested errors, strict inner release evidence and injected outer unlink failure.
 They remain UNVALIDATED.
 
+Failed outer install reconciliation now preserves the complete original wrapper
+on the latest failure, along with the actual outer storage session, original
+allocation handles and any new inner session on its exact cause chain. Retrying
+the latest error therefore cannot accidentally settle only the inner owner and
+strand outer admission. These capabilities remain nonenumerable.
+
+The adapter captures the action's original pending observer before adding outer
+storage context. Every subsequent outer release still requires that original
+observer, independently of an inner positive return and the outer session's own
+metadata error. Authored actual unlink/retry controls use the latest failure's
+capability; inert inner negative and contradictory-positive controls retain outer
+admission until the original resource observation confirms. They are UNVALIDATED.
+
 The shared session boundary captures an operation's original closure observer
 and receiver before invoking settlement. An observer is authoritative even when
 the separate pending marker is absent or false. Replacing either field during
