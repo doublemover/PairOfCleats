@@ -10,6 +10,18 @@ The existing immutable member index still owns reusable structural lookups; each
 
 Constructor aliases use the same group-owned assignment inventory as callable and receiver aliases. Conditional and logical alternatives, variable initializers and indexed assignments contribute source-backed classes to `new Alias().member`, default derived-constructor forwarding and existing heap-field initializer flow. Candidate identity is the actual class definition; repeated paths do not consume distinct target slots. Mutable bindings retain an explicit order/escape reason, and alternatives do not establish which branch or assignment executes. Unsupported expressions and declarations remain unresolved.
 
+Object property and static class-property initializers also contribute visible
+class definitions. Shorthand properties follow their actual value symbol rather
+than recursively reading the shorthand's property symbol. The shared assignment
+inventory includes checker-identified property/element writes, so an indexed
+replacement class can augment the initial property value in both member
+dispatch and heap initializer flow. These paths share the existing class work
+and candidate bounds. Literal string/numeric bracket keys use the checker's
+property-symbol anchor; a dynamic key binding is not property identity.
+Property order, accessor effects, escape and runtime
+replacement remain conservative; unresolved/dynamic property symbols cannot
+invent another class definition.
+
 Each class-alias tree shares a 256-step descent allowance across its branches, in addition to its path-depth and 32-distinct-class bounds. Heritage constructor descent and each heap initializer query share that allowance across their related class queries. An exhausted allowance leaves explicit partial reasons; the structural cache replays those reasons with its immutable result. Binding and CFG producer versions both govern this change because class candidates and persisted initializer flow edges change. No assignment-order analysis, unique allocation proof or heap strong update is introduced.
 
 `indexing/semantic/compiler-dispatch-alternatives` authors direct candidate regressions for union keys, exact overrides, static lookup, declaration-only fields, uncertain computed member names and conditional/mutable constructor aliases, alongside canonical call-flow return-channel inspection. `compiler-object-alias-paths` inspects both class initializer alternatives in the actual CFG partition. `compiler-dispatch-structural-reuse` authors duplicate-diamond exhaustion and cached partial-reason regressions. Native compiler differential qualification and performance acceptance remain pending.

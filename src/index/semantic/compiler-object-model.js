@@ -1,3 +1,5 @@
+import { compilerAliasSymbol } from './compiler-property-paths.js';
+
 const spendClassWork = (work, reasons, reason) => {
   if (work.remaining <= 0) { reasons.add(reason); return false; }
   work.remaining--; return true;
@@ -31,7 +33,7 @@ export const compilerClassDefinitions = ({ ts, checker, node, reasons, assignmen
     if (append(visit(node.left))) append(visit(node.right));
     return result;
   }
-  let symbol = checker.getSymbolAtLocation(node);
+  let symbol = compilerAliasSymbol(ts, checker, node);
   if (symbol?.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
   for (const declaration of symbol?.declarations || []) {
     if (!spendClassWork(work, reasons, 'class_alias_work_budget')) return result;
@@ -40,6 +42,21 @@ export const compilerClassDefinitions = ({ ts, checker, node, reasons, assignmen
     } else if (ts.isVariableDeclaration(declaration)) {
       if (!(declaration.parent.flags & ts.NodeFlags.Const)) reasons.add('mutable_class_binding_order_and_escape_conservative');
       if (!append(visit(declaration.initializer))) return result;
+    } else if (ts.isPropertyAssignment(declaration) || ts.isPropertyDeclaration(declaration)) {
+      reasons.add('property_class_value_order_accessor_and_escape_conservative');
+      if (declaration.initializer) {
+        if (!append(visit(declaration.initializer))) return result;
+      } else reasons.add('class_property_initializer_unavailable');
+    } else if (ts.isShorthandPropertyAssignment(declaration)) {
+      reasons.add('property_class_value_order_accessor_and_escape_conservative');
+      let value = checker.getShorthandAssignmentValueSymbol(declaration);
+      if (value?.flags & ts.SymbolFlags.Alias) value = checker.getAliasedSymbol(value);
+      if (!value?.declarations?.length) reasons.add('class_shorthand_value_unresolved');
+      for (const owner of value?.declarations || []) {
+        if (!spendClassWork(work, reasons, 'class_alias_work_budget')) return result;
+        if (!owner.name || owner.name === declaration.name) { reasons.add('class_shorthand_value_unresolved'); continue; }
+        if (!append(visit(owner.name))) return result;
+      }
     } else reasons.add('class_definition_declaration_unresolved');
   }
   const assigned = assignments.get(symbol);

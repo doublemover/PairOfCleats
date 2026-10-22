@@ -1,4 +1,14 @@
 import { canonicalSemanticJson } from './identity.js';
+/** Element access has no direct checker symbol. Only literal keys have an
+ * exact property-symbol anchor; a key expression's own symbol is unrelated. */
+export const compilerAliasSymbol = (ts, checker, node) => {
+  if (ts.isElementAccessExpression(node)) {
+    const key = node.argumentExpression;
+    if (!key || !ts.isStringLiteralLike(key) && !ts.isNumericLiteral(key)) return undefined;
+    return checker.getSymbolAtLocation(key);
+  }
+  return checker.getSymbolAtLocation(node);
+};
 export const propertyKeysOverlap=(left,right)=>left===null||right===null ? !(left&&typeof left==='object'||right&&typeof right==='object') : canonicalSemanticJson(left)===canonicalSemanticJson(right);
 export const propertyKeySetsOverlap=(left,right)=>left.some(a=>right.some(b=>propertyKeysOverlap(a,b)));
 /** Null is a widened property key, distinct from the literal property named "*". */

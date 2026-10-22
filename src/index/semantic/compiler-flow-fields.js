@@ -1,11 +1,12 @@
 import { canonicalSemanticJson } from './identity.js';
 import { compilerRuntimeParameters } from './compiler-invocation.js';
 import { compilerClassDefinitions, compilerReturnExpressions } from './compiler-object-model.js';
-import { compilerPropertyKeys, propertyKeySetsOverlap } from './compiler-property-paths.js';
+import { compilerAliasSymbol, compilerPropertyKeys, propertyKeySetsOverlap } from './compiler-property-paths.js';
 export const collectCompilerAliasAssignments = (ts, checker, nodes) => {
   const assignments = new Map();
-  for (const node of nodes) if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(node.left)) {
-    const symbol = checker.getSymbolAtLocation(node.left);
+  for (const node of nodes) if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+    && (ts.isIdentifier(node.left) || ts.isPropertyAccessExpression(node.left) || ts.isElementAccessExpression(node.left))) {
+    const symbol = compilerAliasSymbol(ts, checker, node.left);
     if (symbol) { if (!assignments.has(symbol)) assignments.set(symbol, []); const values = assignments.get(symbol); if (values.length < 32) values.push(node.right); else values.truncated = true; }
   }
   return assignments;

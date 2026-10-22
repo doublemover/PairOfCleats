@@ -27,14 +27,25 @@ try {
     }
     class Base { call(){return 3;} } const Parent=Base; class Child extends Parent {}
     new Child().call();
-    class LeftCtor {value=117;} class RightCtor {value=129;}
+    class LeftCtor {value=117;call(){return 117;}} class RightCtor {value=129;call(){return 129;}}
     function classChoices(flag:boolean) {
       const ChoiceCtor=flag?LeftCtor:RightCtor;
       let MutableCtor=LeftCtor; if(flag)MutableCtor=RightCtor;
       const LogicalCtor=LeftCtor||RightCtor;
       const choiceAllocation=new ChoiceCtor(), mutableAllocation=new MutableCtor(), logicalAllocation=new LogicalCtor();
       const choiceRead=choiceAllocation.value, mutableRead=mutableAllocation.value, logicalRead=logicalAllocation.value;
-      return choiceRead+mutableRead+logicalRead;
+      const holder={Ctor:LeftCtor}; holder.Ctor=RightCtor;
+      const bracket={Ctor:LeftCtor}; bracket['Ctor']=RightCtor;
+      const numeric={0:LeftCtor}; numeric[0]=RightCtor;
+      const shorthand={LeftCtor};
+      class Registry {static Ctor=LeftCtor;} Registry.Ctor=RightCtor;
+      const propertyAllocation=new holder.Ctor(), staticAllocation=new Registry.Ctor(), shorthandAllocation=new shorthand.LeftCtor();
+      const bracketAllocation=new bracket['Ctor'](), numericAllocation=new numeric[0]();
+      const propertyRead=propertyAllocation.value, staticRead=staticAllocation.value, shorthandClassRead=shorthandAllocation.value;
+      const bracketRead=bracketAllocation.value, numericRead=numericAllocation.value;
+      const dynamicKey='Ctor'; new bracket[dynamicKey]().call();
+      new holder.Ctor().call();new Registry.Ctor().call();new shorthand.LeftCtor().call();new bracket['Ctor']().call();new numeric[0]().call();
+      return choiceRead+mutableRead+logicalRead+propertyRead+staticRead+shorthandClassRead;
     }
   ` }, {}, { withFlow: true });
   const doc = fixture.documents[0], { ts, checker, nodes, sourceFile, expressionFor } = doc;
@@ -78,7 +89,8 @@ try {
   const choiceReasons = new Set(), choiceOwner = sourceFile.statements.find(node => ts.isFunctionDeclaration(node) && node.name.text === 'classChoices');
   const choiceFields = createCompilerFieldPaths({ ts, checker, owner: choiceOwner, sourceFile,
     assignments: collectCompilerAliasAssignments(ts, checker, nodes), expressionFor, declarationFor, depthLimit: 8, reasons: choiceReasons });
-  const classInitializers = ['117', '129'].map(value => expressionFor(nodes.find(node => ts.isNumericLiteral(node) && node.text === value)));
+  const classOwners = ['LeftCtor', 'RightCtor'].map(name => sourceFile.statements.find(node => ts.isClassDeclaration(node) && node.name.text === name));
+  const classInitializers = classOwners.map(node => expressionFor(node.members.find(member => ts.isPropertyDeclaration(member) && member.name.getText() === 'value').initializer));
   for (const text of ['choiceAllocation.value', 'mutableAllocation.value', 'logicalAllocation.value']) {
     const read = find(text), initializers = choiceFields.locationsFor(read).flatMap(location => location.initializers);
     for (const initializer of classInitializers) {
@@ -88,6 +100,34 @@ try {
       assert.ok(reached.has(key(expressionFor(read))), `${text} retains the initializer in the actual CFG flow partition`);
     }
   }
+  for (const text of ['propertyAllocation.value', 'staticAllocation.value', 'bracketAllocation.value', 'numericAllocation.value']) {
+    const read = find(text), initializers = choiceFields.locationsFor(read).flatMap(location => location.initializers);
+    for (const initializer of classInitializers) {
+      assert.ok(initializers.some(ref => key(ref) === key(initializer)), `${text} retains property initializer and indexed replacement classes`);
+      const reached = new Set([key(initializer)]);
+      for (const ref of reached) for (const edge of edges) if (key(edge.from) === ref && ['packs', 'flowsTo', 'reads', 'writes', 'defines'].includes(edge.kind)) reached.add(key(edge.to));
+      assert.ok(reached.has(key(expressionFor(read))), `${text} retains both alternatives in the actual CFG partition`);
+    }
+  }
+  const shorthandInitializers = choiceFields.locationsFor(find('shorthandAllocation.value')).flatMap(location => location.initializers);
+  assert.deepEqual(new Set(shorthandInitializers.map(key)), new Set([key(classInitializers[0])]),
+    'shorthand property identity follows its actual value symbol, without borrowing the property symbol again');
+  const classMethods = classOwners.map(node => node.members.find(member => ts.isMethodDeclaration(member) && member.name.getText() === 'call'));
+  for (const text of ['new holder.Ctor().call()', 'new Registry.Ctor().call()', "new bracket['Ctor']().call()", 'new numeric[0]().call()']) {
+    const result = resolver(nodes.find(node => ts.isCallExpression(node) && node.getText() === text));
+    assert.deepEqual(new Set(result.targets.map(key)), new Set(classMethods.map(declarationRef).map(key)),
+      `${text} retains both source-backed class member candidates`);
+    assert.equal(result.incomplete, true);
+    assert.ok(result.reasons.includes('property_class_value_order_accessor_and_escape_conservative'));
+  }
+  const shorthandDispatch = resolver(nodes.find(node => ts.isCallExpression(node) && node.getText() === 'new shorthand.LeftCtor().call()'));
+  assert.deepEqual(new Set(shorthandDispatch.targets.map(key)), new Set([key(declarationRef(classMethods[0]))]));
+  assert.equal(shorthandDispatch.incomplete, true, 'a visible property initializer cannot prove final runtime dispatch');
+  const dynamicDispatch = resolver(nodes.find(node => ts.isCallExpression(node) && node.getText() === 'new bracket[dynamicKey]().call()'));
+  assert.deepEqual(dynamicDispatch.targets, [], 'an element key binding cannot stand in for the accessed property symbol');
+  assert.equal(dynamicDispatch.incomplete, true);
+  assert.ok(dynamicDispatch.reasons.includes('class_definition_expression_unresolved'));
+  assert.ok(choiceReasons.has('property_class_value_order_accessor_and_escape_conservative'));
   assert.ok(choiceReasons.has('class_definition_alternatives_modeled'));
   assert.ok(choiceReasons.has('mutable_class_binding_order_and_escape_conservative'));
   const reached = new Set([key(expressionFor(seventeen))]);
