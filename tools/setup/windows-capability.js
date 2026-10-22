@@ -148,7 +148,8 @@ export const verifyWindowsCompilerCapability = async (report, options = {}) => {
     const error = asError(value);
     let held, settlementFailure;
     try { held = error.storageSession; settlementFailure = error.storageSettlementError; }
-    catch (inspectionError) { throw addStorageFailureContext(error, { windowsCapabilityContextError: asError(inspectionError) }, inspectionError); }
+    catch (inspectionError) { throw addStorageFailureContext(error, { windowsCapabilityContextError: asError(inspectionError) }, inspectionError,
+      { secondaryPresent: true }); }
     if (!held || !(held === admitted || isStorageSessionReleaseFailure(error, held)
       || isStorageSessionReleaseFailure(settlementFailure, held))) throw error;
     let released = false, releasing = null;

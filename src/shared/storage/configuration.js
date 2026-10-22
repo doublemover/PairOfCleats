@@ -19,7 +19,12 @@ export const CONFIGURABLE_STORAGE_CATEGORIES = Object.freeze([
 const settleObservations = async operations => {
   const results = await Promise.allSettled(operations);
   const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);
-  if (failures.length) throw failures.slice(1).reduce((primary, secondary) => addStorageFailureContext(primary, {}, secondary), failures[0]);
+  if (failures.length) {
+    const first = failures[0];
+    const primary = first !== null && ['object', 'function'].includes(typeof first) ? first : addStorageFailureContext(first, {});
+    throw failures.slice(1).reduce((error, secondary) => addStorageFailureContext(error, {}, secondary,
+      { secondaryPresent: true }), primary);
+  }
   return results.map(result => result.value);
 };
 
@@ -35,7 +40,11 @@ const inspectDirectory = async target => {
     if (!sameStorageFileIdentity(storageFileIdentity(stat), storageFileIdentity(after))) throw new Error('Storage directory changed during configuration preview.');
     return { status: 'present', empty: first === null, identity: storageFileIdentity(after) };
   } catch (error) {
-    if (observed || error.code !== 'ENOENT') throw error;
+    let code;
+    try { code = error?.code; }
+    catch (inspectionError) { throw addStorageFailureContext(error, { storageObservationInspectionError: inspectionError }, inspectionError,
+      { secondaryPresent: true }); }
+    if (observed || code !== 'ENOENT') throw error;
     let ancestor = path.dirname(target);
     for (;;) {
       try {
@@ -43,7 +52,11 @@ const inspectDirectory = async target => {
         if (!stat.isDirectory()) throw new Error('Storage destination ancestor is not a directory.');
         return { status: 'missing', empty: true, ancestor, ancestorIdentity: storageFileIdentity(stat) };
       } catch (ancestorError) {
-        if (ancestorError.code !== 'ENOENT' || path.dirname(ancestor) === ancestor) throw ancestorError;
+        let ancestorCode;
+        try { ancestorCode = ancestorError?.code; }
+        catch (inspectionError) { throw addStorageFailureContext(ancestorError,
+          { storageObservationInspectionError: inspectionError }, inspectionError, { secondaryPresent: true }); }
+        if (ancestorCode !== 'ENOENT' || path.dirname(ancestor) === ancestor) throw ancestorError;
         ancestor = path.dirname(ancestor);
       }
     }

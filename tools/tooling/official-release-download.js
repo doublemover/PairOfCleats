@@ -40,11 +40,13 @@ export const downloadOfficialGitHubRelease = async ({ url, maxBytes, timeoutMs =
         catch { pending = true; }
         let reason, statusCode;
         try { reason = error.reason; statusCode = error.statusCode; }
-        catch (inspectionError) { throw addStorageFailureContext(error, { officialReleaseInspectionError: asError(inspectionError) }, inspectionError); }
+        catch (inspectionError) { throw addStorageFailureContext(error, { officialReleaseInspectionError: asError(inspectionError) }, inspectionError,
+          { secondaryPresent: true }); }
         if (response && reason === 'download_http_error' && [301, 302, 303, 307, 308].includes(statusCode) && !pending) {
           let location;
           try { location = response.headers.get('location'); }
-          catch (inspectionError) { throw addStorageFailureContext(error, { officialReleaseInspectionError: asError(inspectionError) }, inspectionError); }
+          catch (inspectionError) { throw addStorageFailureContext(error, { officialReleaseInspectionError: asError(inspectionError) }, inspectionError,
+            { secondaryPresent: true }); }
           if (!location || hop === 3) throw createInstallError('official_release_redirect_limit', 'Invalid/excessive release redirect.', { cause: error });
           current = validate(new URL(location, current).href);
           continue;

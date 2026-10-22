@@ -52,6 +52,24 @@ await assert.rejects(downloadOfficialGitHubRelease({ ...request, fetchImpl: asyn
 } }), error => error.reason === 'official_release_origin_rejected');
 assert.equal(deniedCalls, 1);
 
+for (const value of [undefined, null, false, 0, '']) {
+  let requests = 0, cancellations = 0, locationReads = 0;
+  let failure;
+  try {
+    await downloadOfficialGitHubRelease({ ...request, fetchImpl: async () => {
+      requests++;
+      return { status: 302, headers: { get(name) {
+        if (name === 'location') { locationReads++; throw value; }
+        return null;
+      } }, body: { async cancel() { cancellations++; } } };
+    } });
+  } catch (error) { failure = error; }
+  assert.ok(failure); assert.equal(requests, 1); assert.equal(cancellations, 1); assert.equal(locationReads, 1);
+  assert.equal(Object.hasOwn(failure.officialReleaseInspectionError, 'cause'), true);
+  assert.equal(failure.officialReleaseInspectionError.cause, value);
+  assert.equal(failure.errors[1].cause, value, 'an actual falsey redirect inspection failure is not a no-secondary sentinel');
+}
+
 for (const reason of ['__proto__', 'constructor', 'toString']) {
   const original = Object.assign(new Error('independent provider failure'), { reason });
   await assert.rejects(downloadOfficialGitHubRelease({ ...request,

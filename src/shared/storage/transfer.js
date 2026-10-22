@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { openContainedFile, verifyContainedFileHandle } from '../contained-file.js';
 import { throwIfAborted } from '../abort.js';
 import { sameStorageFileIdentity, storageFileIdentity } from './inventory.js';
-import { addStorageFailureContext } from './operation-error.js';
+import { addStorageFailureContext, readStorageFailureContext } from './operation-error.js';
 
 const transferSessions = new WeakSet();
 const failureOwners = new WeakMap();
@@ -15,11 +15,14 @@ const sealOwnershipObservation = error => {
 };
 export const isStorageTransferSession = session => Boolean(session) && transferSessions.has(session);
 const asError = value => value !== null && ['object', 'function'].includes(typeof value) ? value : new Error(String(value), { cause: value });
-const captureObservation = error => {
+const captureObservation = (error, retainInspection) => {
   try {
     const observe = error?.cacheOwnershipReleased;
     if (error?.cacheOwnershipPending !== true && typeof observe !== 'function') return { observe: null };
-    return { observe: () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } } };
+    return { observe: () => {
+      try { return typeof observe === 'function' && observe.call(error) === true; }
+      catch (inspectionError) { retainInspection(inspectionError); return false; }
+    } };
   } catch (inspectionError) { return { observe: () => false, inspectionFailed: true, inspectionError }; }
 };
 
@@ -30,6 +33,7 @@ export const verifyStorageFile = async ({ root, file, identity = null, expectedH
   let output = null;
   let primary = null, closing = null, overflow = false;
   const owners = [], observers = [], inspectionFailures = [], observed = new WeakSet();
+  const contexts = new Set(), contextObservations = new WeakSet();
   const adopt = handle => {
     const owner = { handle, closed: false, close: null, captureError: null };
     owners.push(owner);
@@ -41,13 +45,25 @@ export const verifyStorageFile = async ({ root, file, identity = null, expectedH
   };
   const inputOwner = adopt(handle);
   const resourceId = `storage-transfer:${randomUUID()}`;
+  const retainInspection = value => {
+    const error = asError(value);
+    if (observed.has(error)) return;
+    if (inspectionFailures.length === 64) { overflow = true; return; }
+    inspectionFailures.push(error); observeFailure(error);
+  };
+  const rememberContext = error => {
+    if (!readStorageFailureContext(error) || contexts.has(error)) return;
+    if (contexts.size === 128) { overflow = true; return; }
+    contexts.add(error);
+  };
   const observeFailure = error => {
     const queue = [error];
     while (queue.length) {
       const current = asError(queue.pop());
+      rememberContext(current);
       if (failureOwners.get(current) === session || observed.has(current)) continue;
       observed.add(current);
-      const captured = captureObservation(current);
+      const captured = captureObservation(current, retainInspection);
       if (captured.observe) { if (observers.length < 128) observers.push(captured.observe); else overflow = true; }
       if (captured.inspectionFailed) {
         if (inspectionFailures.length < 64) {
@@ -56,7 +72,23 @@ export const verifyStorageFile = async ({ root, file, identity = null, expectedH
       }
     }
   };
-  const originalResourcesSettled = () => !overflow && observers.every(observe => observe());
+  const originalResourcesSettled = () => {
+    for (const error of contexts) {
+      const context = readStorageFailureContext(error);
+      if (!context.complete) overflow = true;
+      for (const inspection of context.inspectionErrors) {
+        if (observed.has(inspection)) continue;
+        observed.add(inspection);
+        if (inspectionFailures.length < 64) inspectionFailures.push(inspection); else overflow = true;
+      }
+      for (const observation of context.inspectionObservations) {
+        if (failureOwners.get(observation.error) === session || contextObservations.has(observation)) continue;
+        contextObservations.add(observation);
+        if (observers.length < 128) observers.push(observation.observe); else overflow = true;
+      }
+    }
+    return !overflow && observers.every(observe => observe());
+  };
   const isSettled = () => owners.every(owner => owner.closed) && originalResourcesSettled();
   const closeOwners = async () => {
     if (!closing) closing = (async () => {
@@ -85,7 +117,7 @@ export const verifyStorageFile = async ({ root, file, identity = null, expectedH
     failureOwners.set(pending, session);
     const failure = addStorageFailureContext(primary || failures[0] || pending, { storageTransferSession: session }, pending,
       { nonEnumerable: ['storageTransferSession'] });
-    sealOwnershipObservation(failure); failureOwners.set(failure, session);
+    sealOwnershipObservation(failure); failureOwners.set(failure, session); rememberContext(failure);
     return failure;
   };
   const session = Object.freeze({ resourceId, isSettled, releaseAfterClose: async () => {

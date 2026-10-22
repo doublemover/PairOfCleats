@@ -153,7 +153,8 @@ export const applyWindowsPrerequisitePlan = async (approved, { approveSystemChan
     try { const capability = error.windowsCapabilitySession; if (isWindowsCapabilitySession(capability)) capabilities.add(capability); }
     catch (inspectionError) {
       overflow = true;
-      return addStorageFailureContext(error, { prerequisiteContextError: asError(inspectionError) }, inspectionError);
+      return addStorageFailureContext(error, { prerequisiteContextError: asError(inspectionError) }, inspectionError,
+        { secondaryPresent: true });
     }
     return error;
   };
