@@ -1,5 +1,6 @@
 import { readExactAt } from '../io/read-exact.js';
 import fs from 'node:fs/promises';
+import { createContainedFileResource } from '../contained-file-resource.js';
 
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 
@@ -115,16 +116,14 @@ export const readVarintDeltasAt = async (filePath, start, end) => {
   const length = finish - begin;
   if (length === 0) return [];
   const handle = await fs.open(filePath, 'r');
-  try {
+  return createContainedFileResource({ handle, sync: false }).run(async descriptor => {
     const buffer = Buffer.allocUnsafe(length);
-    const { bytesRead } = await readExactAt(handle, buffer, 0, length, begin);
+    const { bytesRead } = await readExactAt(descriptor, buffer, 0, length, begin);
     if (bytesRead !== length) {
       throw new Error(`Truncated varint read: expected ${length} bytes, got ${bytesRead}.`);
     }
     return decodeVarintDeltas(buffer.slice(0, bytesRead));
-  } finally {
-    await handle.close();
-  }
+  });
 };
 
 export const encodeVarint64List = (values) => {
