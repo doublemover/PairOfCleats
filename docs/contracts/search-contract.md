@@ -159,7 +159,7 @@ See:
 
 Bundle rankScore is the sum of 1/(60 + native rank) contributions, not a sum of native backend scores. Each hit retains its native score/type. Federated hits label their score federated_rrf and preserve sourceScore/sourceScoreType. A supplied createSearchPipeline reranker adapter (id and rerank) may score at most 64 existing members within two seconds; it must return one finite score per index and cannot add evidence. No model is acquired automatically. Overlapping source spans may yield to a comparable alternative within the bounded rerank window before graph ranking fixes membership.
 
-Search CLI presets: --preset fast disables ANN and context expansion; hybrid uses independent ANN discovery; investigate enables at most ten context hits (two per primary hit) with bounded work/time. --match auto preserves ordinary semantic intent, all enforces implicit conjunctions, and any converts implicit conjunctions to disjunctions; authored Boolean operators and quotes retain their gates. --candidates limits the candidate window separately from --top. --deadline-ms supplies cooperative cancellation across supported providers; synchronous native work may finish before cancellation is observed. --output-bytes bounds JSON packets, reports omitted hits, and fails explicitly if required identity metadata alone cannot fit. Compact output retains chunk/segment/repository/generation identities, source spans and declared followup actions.
+Search CLI presets: --preset fast disables ANN and context expansion; hybrid uses independent ANN discovery; investigate enables at most ten context hits (two per primary hit) with bounded work/time. --match auto preserves ordinary semantic intent, all enforces implicit conjunctions, and any widens only ordinary positive terms within an implicit adjacency region; phrases, exclusions, authored groups and explicit Boolean expressions retain their gates. --candidates limits the candidate window separately from --top. --deadline-ms supplies cooperative cancellation across supported providers; synchronous native work may finish before cancellation is observed. --output-bytes bounds JSON packets, reports omitted hits, and fails explicitly if required identity metadata alone cannot fit. Compact output retains chunk/segment/repository/generation identities, source spans and declared followup actions.
 
 Bundle schema 3 uses JSON tuple identities: `["file", path]` for a real path and
 `["missing-file", mode, ordinal]` for a pathless hit. A literal filename cannot
@@ -173,3 +173,22 @@ comparator before a stable head merge. Rounded RRF ties that violate local order
 use the full-sort fallback. Full hit payloads are copied only after selection;
 source scores, all four modes, admitted provenance and duplicate candidates remain.
 No production timing or memory qualification is implied by these operation changes.
+
+Metadata value filters preserve false and zero, including typed JSON and string
+scalar equivalents. Missing/null fields never satisfy a false/zero constraint.
+Existing case-insensitive substring and nonempty existence rules remain in force.
+Query parser identity is 4 and plan schema is 3; result-cache identity includes
+parser and metadata-predicate meaning. Explicit ANN intent follows the canonical
+Boolean parse, including equals and repeated forms before the option terminator.
+
+Strict federation requires every requested mode in selected enabled repositories
+unless a repository was intentionally excluded by cohort selection. Missing
+indexes reject before ranked cache reuse or fanout. Healthy zero-hit members are
+complete. Non-strict requests keep their degradation diagnostics. Federation
+cache schema 2 prevents reuse of earlier contradictory strict-success envelopes.
+
+Graph symbol candidates remain possible references. One sorted, deduplicated,
+cap-admitted projection drives outgoing, reverse and witness expansion. Candidate
+witnesses carry uncertain candidate provenance; recorded resolved witnesses keep
+their authoritative route. A zero candidate cap retains source evidence and
+omission accounting without visiting any ambiguous destination.

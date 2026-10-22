@@ -1,4 +1,4 @@
-export const defaultNormalize = (value) => String(value || '').toLowerCase();
+export const defaultNormalize = (value) => String(value ?? '').toLowerCase();
 
 export const normalizeList = (value) => {
   if (!value) return [];

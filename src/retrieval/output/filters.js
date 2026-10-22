@@ -15,7 +15,7 @@ import { createCandidateHelpers } from './filters/candidates.js';
 import { buildFileFilters, matchFileFilters } from './filters/file.js';
 import { collectFilePrefilterMatches } from './filters/file-prefilter.js';
 import { asObject, matchMetaFilters, resolveChunkDocmeta, resolveReturnTypes } from './filters/meta.js';
-import { normalizeArgumentList, normalizeList, normalizePhraseList, matchList, truthy } from './filters/predicates.js';
+import { defaultNormalize, normalizeArgumentList, normalizeList, normalizePhraseList, matchList, truthy } from './filters/predicates.js';
 import { matchStructural } from './filters/structural.js';
 import { normalizeFilePath } from '../../shared/path-normalize.js';
 import { toArray } from '../../shared/iterables.js';
@@ -69,7 +69,7 @@ const resolveDocmetaParents = (docmeta) => (
  * @returns {object}
  */
 export function compileFilterPredicates(filters = {}, { fileChargramN = null } = {}) {
-  const normalize = (value) => String(value || '').toLowerCase();
+  const normalize = defaultNormalize;
   const caseFile = filters.caseFile === true;
   const caseTokens = filters.caseTokens === true;
   const regexConfigRaw = filters.regexConfig || {};
@@ -153,7 +153,7 @@ const resolveFilterState = ({
   const compiled = options.compiled || compileFilterPredicates(filters, {
     fileChargramN: options.fileChargramN ?? filterIndex?.fileChargramN ?? null
   });
-  const normalize = (value) => String(value || '').toLowerCase();
+  const normalize = defaultNormalize;
   const caseFile = compiled.caseFile ?? filters.caseFile;
   const caseTokens = compiled.caseTokens ?? filters.caseTokens;
   const fileMatchers = compiled.fileMatchers || [];

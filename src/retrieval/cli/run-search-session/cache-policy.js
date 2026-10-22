@@ -6,6 +6,9 @@ import {
   rememberQueryCacheEntry
 } from '../../query-cache.js';
 import { resolveRetrievalCachePath } from '../cache-paths.js';
+import { randomUUID } from 'node:crypto';
+import { persistQueryCacheTouch } from '../../query-cache-touches.js';
+import { QUERY_PARSER_VERSION } from '../../query-plan-schema.js';
 
 const normalizePositiveIntOrNull = (value) => (
   Number.isFinite(Number(value)) ? Math.max(1, Math.floor(Number(value))) : null
@@ -178,7 +181,7 @@ export async function resolveQueryCacheLookup({
       explicitRef,
       asOfContext
     });
-  cacheSignature = stableStringifyForSignature(signature);
+  cacheSignature = stableStringifyForSignature({index:signature,queryParserVersion:QUERY_PARSER_VERSION,metadataPredicateVersion:2});
   const cacheKeyInfo = buildQueryCacheKey({
     query,
     backend: backendLabel,
@@ -266,6 +269,7 @@ export async function resolveQueryCacheLookup({
     cacheData = queryCachePath
       ? loadQueryCache(queryCachePath, {
         prewarm: cachePrewarmEnabled,
+        maxHotEntries: queryCacheMaxEntries,
         prewarmMaxEntries: cachePrewarmLimit
       })
       : null;
@@ -336,6 +340,18 @@ export async function resolveQueryCacheLookup({
 
   cacheHit = true;
   entry.ts = Date.now();
+  let touchPersisted = false;
+  if (entry.payloadId && queryCachePath) {
+    try { touchPersisted = await persistQueryCacheTouch({ cachePath: queryCachePath, key: cacheKey,
+      signature: cacheSignature, payloadId: entry.payloadId, ts: entry.ts, maxEntries: queryCacheMaxEntries }); }
+    catch { touchPersisted = false; }
+  }
+  if (touchPersisted) {
+    rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
+    return { queryCachePath, cacheHit, cacheKey, cacheSignature, cacheData,
+      cachedPayload, cacheShouldPersist: false, cacheHotPathHit };
+  }
+  entry.payloadId ||= randomUUID();
   rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
   if (!cacheData) {
     cacheData = loadQueryCache(queryCachePath, { prewarm: false });
@@ -347,7 +363,8 @@ export async function resolveQueryCacheLookup({
     if (existingIndex >= 0) {
       cacheData.entries[existingIndex] = {
         ...cacheData.entries[existingIndex],
-        ts: entry.ts
+        ts: entry.ts,
+        payloadId: entry.payloadId
       };
     } else {
       cacheData.entries.push(entry);

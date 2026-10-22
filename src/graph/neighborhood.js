@@ -5,7 +5,8 @@ import {
   buildImportGraphIndex,
   buildSymbolEdgesIndex,
   normalizeFileRef,
-  normalizeImportPath
+  normalizeImportPath,
+  projectSymbolRefTargets
 } from './indexes.js';
 import { normalizeDepth } from '../shared/limits.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
@@ -538,26 +539,35 @@ export const buildGraphNeighborhood = ({
           normalizedCaps.maxCandidates,
           recordTruncation
         );
-        // Candidate-cap notices also describe discarded symbol candidates.
-        if (!admitCandidate()) continue;
         const fromRef = { type: 'chunk', chunkUid: entry.edge.from.chunkUid };
-        const symbolId = entry.symbolId;
-        const symbolRef = symbolId ? { type: 'symbol', symbolId } : null;
-        // The edge retains its source orientation even when walking incoming
-        // references. The traversal target is the opposite endpoint.
-        const nextRef = currentRef.type === 'symbol' ? fromRef : symbolRef;
-        edgeCandidates.push({
-          edge: {
+        const targets = projectSymbolRefTargets(cappedToRef).filter(target =>
+          currentRef.type !== 'symbol' || target.symbolId === currentRef.symbolId);
+        const edge = {
             edgeType,
             graph: 'symbolEdges',
             from: fromRef,
             to: cappedToRef,
             confidence,
             evidence: entry.edge.reason ? { note: entry.edge.reason } : null
-          },
-          nextRef,
-          witnessEdge: symbolRef ? { from: fromRef, to: symbolRef, edgeType } : null
-        });
+        };
+        // Keep source evidence when the candidate budget admits no traversal.
+        // An explicit null prevents the generic resolved-endpoint fallback.
+        if (!targets.length) {
+          if (admitCandidate()) edgeCandidates.push({ edge, nextRef: null });
+          continue;
+        }
+        for (const target of targets) {
+          if (!admitCandidate()) continue;
+          const symbolRef = { type: 'symbol', symbolId: target.symbolId };
+          const witnessEdge = { from: fromRef, to: symbolRef, edgeType };
+          if (target.resolution === 'candidate') {
+            witnessEdge.evidence = { resolution: 'candidate', uncertain: true,
+              status: cappedToRef.status, source: 'symbol-reference-candidates' };
+          }
+          edgeCandidates.push({ edge,
+            nextRef: currentRef.type === 'symbol' ? fromRef : symbolRef,
+            witnessEdge });
+        }
       }
     }
     if (normalizedCaps.maxFanoutPerNode != null && observedCandidateCount > normalizedCaps.maxFanoutPerNode) {
@@ -588,9 +598,8 @@ export const buildGraphNeighborhood = ({
         queue.length = queueIndex;
         break;
       }
-      const nextRef = candidate.nextRef
-        ? candidate.nextRef
-        : (edge.to?.type ? edge.to : edge.to?.resolved || null);
+      const nextRef = Object.hasOwn(candidate, 'nextRef')
+        ? candidate.nextRef : (edge.to?.type ? edge.to : edge.to?.resolved || null);
       if (!nextRef || typeof nextRef !== 'object' || !nextRef.type) continue;
       const nextKey = nodeKey(nextRef);
       if (!nextKey) continue;

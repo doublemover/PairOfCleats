@@ -237,7 +237,7 @@ export function normalizeSearchOptions({
   const retrievalConfig = userConfig?.retrieval || {};
   const envConfig = getEnvConfig();
   const maxCandidates = controls.candidates ?? normalizeOptionalNumber(searchConfig.maxCandidates);
-  const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
+  const annFlagPresent = Object.prototype.hasOwnProperty.call(argv,'ann') && typeof argv.ann === 'boolean';
   const policyAnn = policy?.retrieval?.ann?.enabled;
   const annDefault = typeof searchConfig.annDefault === 'boolean'
     ? searchConfig.annDefault

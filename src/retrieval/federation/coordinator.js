@@ -19,13 +19,21 @@ import {
   findFederatedQueryCacheEntry,
   loadFederatedQueryCache,
   persistFederatedQueryCache,
+  persistFederatedQueryCacheTouch,
   touchFederatedQueryCacheEntry,
   upsertFederatedQueryCacheEntry
 } from './query-cache.js';
+
 import { selectWorkspaceRepos } from './select.js';
 import { enumerateWorkspace, withoutCursor } from './enumeration.js';
 import { parseSearchArgs, hasSearchFilterArgs } from '../cli-args.js';
 import { bindRelativeModificationArgs } from './time-filter.js';
+
+export const resolveFederatedUnavailableModes = ({repos,requestedModes,eligibleModesByRepo,cohortExcluded={}}) =>
+  (repos || []).filter(repo=>repo.enabled !== false).flatMap(repo=>(requestedModes || [])
+    .filter(mode=>!eligibleModesByRepo.get(repo.repoId)?.has(mode)
+      && !toArray(cohortExcluded[mode]).some(excluded=>excluded.repoId === repo.repoId && excluded.reason === 'cohort-excluded'))
+    .map(mode=>({repoId:repo.repoId,mode,reason:'not-eligible-for-request'})));
 
 const MODE_PAYLOAD_KEYS = Object.freeze({
   code: 'code',
@@ -635,6 +643,12 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   const rrfK = coerceNumber(request.merge?.rrfK ?? request.rrfK, 60, 1);
   const includePaths = request.debug?.includePaths === true;
   const strictFailures = request.strict === true;
+  const unavailableRequestedModes=resolveFederatedUnavailableModes({repos:selection.selectedRepos,requestedModes,
+    eligibleModesByRepo:repoEligibleModesById,cohortExcluded:cohortResult.excluded});
+  if(strictFailures && unavailableRequestedModes.length) {
+    throw Object.assign(createError(ERROR_CODES.NO_INDEX,'Some requested repository modes are unavailable for workspace search.'),
+      {unavailable:unavailableRequestedModes});
+  }
 
   const basePerRepoArgs = bindRelativeModificationArgs(request.rawArgs
     ? buildPerRepoArgsFromCli({ rawArgs: request.rawArgs, perRepoTop })
@@ -665,9 +679,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
         }
       }
     });
-    const unavailable = selection.selectedRepos.flatMap((repo) => requestedModes
-      .filter((mode) => !repoEligibleModesById.get(repo.repoId)?.has(mode))
-      .map((mode) => ({ repoId: repo.repoId, mode, reason: 'not-eligible-for-request' })));
+    const unavailable = unavailableRequestedModes;
     if (strictFailures && unavailable.length) {
       throw createError(ERROR_CODES.NO_INDEX, 'Some requested repository modes are unavailable for workspace enumeration.');
     }
@@ -741,7 +753,9 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     await verifyRankedGeneration();
     touchFederatedQueryCacheEntry(cacheData, cacheKeyInfo.keyHash, new Date(timeAnchor).toISOString());
     try {
-      await persistFederatedQueryCache({ cachePath, cache: cacheData });
+      const touched = await persistFederatedQueryCacheTouch({ cachePath, cache: cacheData,
+        keyHash: cacheKeyInfo.keyHash, maxEntries: cachePolicy.maxEntries });
+      if (!touched) await persistFederatedQueryCache({ cachePath, cache: cacheData });
     } catch {}
     return JSON.parse(stableStringify(cachedEntry.result));
   }
@@ -869,6 +883,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       warnings: [...toArray(selection.warnings), ...toArray(cohortResult?.warnings)]
     });
     const stable = toStableResponse(emptyResponse, includePaths);
+    await verifyRankedGeneration();
     await persistCachedResult(stable);
     return stable;
   }
@@ -1097,6 +1112,10 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   });
 
   const stable = toStableResponse(response, includePaths);
+  if(strictFailures && toArray(response.repos).some(repo=>activeRepoIds.includes(repo.repoId)
+    && toArray(repo.modes?.eligible).some(mode=>!toArray(repo.modes?.fulfilled).includes(mode)))) {
+    throw createError(ERROR_CODES.NO_INDEX,'Federated search did not fulfill every admitted requested mode.');
+  }
   // Avoid pinning degraded non-strict responses when any repo failed during fanout.
   if (!perRepoErrors.length) {
     await persistCachedResult(stable);
