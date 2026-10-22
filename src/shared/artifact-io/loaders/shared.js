@@ -50,7 +50,7 @@ const warnMaterializeFallback = (dir, name, format) => {
 const readJsonFileCached = (filePath, options) => {
   const cachePolicy = { maxBytes: options?.maxBytes, view: 'json' };
   // Recovery may return a sibling/backup whose identity is not the primary path.
-  const useCache = options?.recoveryFallback !== true;
+  const useCache = options?.recoveryFallback !== true && !options?.containedRoot;
   const cached = useCache ? readCache(filePath, cachePolicy) : null;
   if (cached) return cached;
   const value = readJsonFile(filePath, options);
@@ -135,10 +135,10 @@ const validatedOffsets = new Set();
  * @param {string} offsetsPath
  * @returns {Promise<boolean>}
  */
-const ensureOffsetsValid = async (jsonlPath, offsetsPath) => {
+const ensureOffsetsValid = async (jsonlPath, offsetsPath, options = {}) => {
   const key = `${jsonlPath}::${offsetsPath}`;
   if (validatedOffsets.has(key)) return true;
-  await validateOffsetsAgainstFile(jsonlPath, offsetsPath);
+  await validateOffsetsAgainstFile(jsonlPath, offsetsPath, options);
   validatedOffsets.add(key);
   return true;
 };

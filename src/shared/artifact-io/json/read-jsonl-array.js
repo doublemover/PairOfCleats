@@ -43,6 +43,7 @@ export const readJsonLinesArray = async (
     requiredKeys = null,
     validationMode = 'strict',
     concurrency = null,
+    containedRoot = null,
     recoveryFallback = false
   } = {}
 ) => {
@@ -52,7 +53,8 @@ export const readJsonLinesArray = async (
       maxBytes,
       requiredKeys,
       validationMode,
-      recoveryFallback
+      recoveryFallback,
+      containedRoot
     })) {
       parsed.push(entry);
     }
@@ -100,6 +102,7 @@ export const readJsonLinesArraySync = (
     maxBytes = MAX_JSON_BYTES,
     requiredKeys = null,
     validationMode = 'strict',
+    containedRoot = null,
     recoveryFallback = false
   } = {}
 ) => {
@@ -107,6 +110,7 @@ export const readJsonLinesArraySync = (
     maxBytes,
     requiredKeys,
     validationMode,
+    containedRoot,
     recoveryFallback,
     useCache: !requiredKeys
   });
@@ -132,6 +136,7 @@ export const readJsonLinesEachSync = (
     maxBytes = MAX_JSON_BYTES,
     requiredKeys = null,
     validationMode = 'strict',
+    containedRoot = null,
     recoveryFallback = false
   } = {}
 ) => {
@@ -140,6 +145,7 @@ export const readJsonLinesEachSync = (
     maxBytes,
     requiredKeys,
     validationMode,
+    containedRoot,
     recoveryFallback,
     onEntry
   });
@@ -152,13 +158,14 @@ const readJsonLinesSyncWithFallback = (
     requiredKeys,
     validationMode,
     recoveryFallback,
+    containedRoot = null,
     useCache = false,
     onEntry = null
   }
 ) => {
   const collectRows = typeof onEntry !== 'function';
   const cachePolicy = { maxBytes, view: 'jsonl', validationMode, recoveryFallback };
-  const readCached = (targetPath) => (useCache ? readCache(targetPath, cachePolicy) : null);
+  const readCached = (targetPath) => (useCache && !containedRoot ? readCache(targetPath, cachePolicy) : null);
   const readJsonlFromBuffer = (buffer, sourcePath) => {
     const parsed = collectRows ? [] : null;
     const scan = scanJsonlBuffer(buffer, sourcePath, {
@@ -181,10 +188,10 @@ const readJsonLinesSyncWithFallback = (
     const start = shouldMeasure ? performance.now() : 0;
     const compression = detectCompression(targetPath);
     if (compression) {
-      const buffer = readBuffer(targetPath, maxBytes);
+      const buffer = readBuffer(targetPath, maxBytes, { containedRoot });
       const decompressed = decompressBuffer(buffer, compression, maxBytes, targetPath);
       const parsed = readJsonlFromBuffer(decompressed, targetPath);
-      if (cleanup) cleanupBak(targetPath);
+      if (cleanup && !containedRoot) cleanupBak(targetPath);
       if (useCache) writeCache(targetPath, parsed, cachePolicy);
       if (shouldMeasure) {
         recordArtifactRead({
@@ -201,7 +208,7 @@ const readJsonLinesSyncWithFallback = (
     }
     let raw = null;
     try {
-      raw = fs.readFileSync(targetPath);
+      raw = readBuffer(targetPath, maxBytes, { containedRoot });
     } catch (err) {
       if (shouldTreatAsTooLarge(err)) {
         throw toJsonTooLargeError(targetPath, stat.size);
@@ -209,7 +216,7 @@ const readJsonLinesSyncWithFallback = (
       throw err;
     }
     const parsed = readJsonlFromBuffer(raw, targetPath);
-    if (cleanup) cleanupBak(targetPath);
+    if (cleanup && !containedRoot) cleanupBak(targetPath);
     if (useCache) writeCache(targetPath, parsed, cachePolicy);
     if (shouldMeasure) {
       recordArtifactRead({

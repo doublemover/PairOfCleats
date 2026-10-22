@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import { constants as bufferConstants } from 'node:buffer';
+import { readVerifiedContainedFileSync, openContainedFileSync, verifyContainedFileHandle, assertNoSymlinkPath } from '../../contained-file.js';
 import { existsOrBak, resolvePathOrBak } from '../fs.js';
 import { decodeBinaryRowFrameLengths, decodeU64Offsets } from '../binary-columnar.js';
 import { joinPathSafe } from '../../path-normalize.js';
@@ -7,6 +9,11 @@ import {
   coerceNonNegativeInt
 } from '../../number-coerce.js';
 import { resolveArtifactMetaEnvelope } from './shared.js';
+
+const readPart = (target, maxBytes, containedRoot) => containedRoot
+  ? readVerifiedContainedFileSync(containedRoot, target, {
+    maxBytes: Number.isSafeInteger(maxBytes) && maxBytes > 0 ? maxBytes : bufferConstants.MAX_LENGTH
+  }).buffer : fs.readFileSync(target);
 
 const SUPPORTED_BINARY_COLUMNAR_FORMAT = 'binary-columnar-v1';
 const SUPPORTED_BINARY_BYTE_ORDER = new Set(['le', 'little', 'little-endian']);
@@ -68,6 +75,7 @@ const resolveBinaryColumnarFrameMetadata = ({
   count,
   offsetsBuffer = null,
   lengthsBuffer = null,
+  containedRoot = null,
   maxBytes = null
 }) => {
   const hasOffsetsBuffer = Buffer.isBuffer(offsetsBuffer) || offsetsBuffer instanceof Uint8Array;
@@ -82,10 +90,10 @@ const resolveBinaryColumnarFrameMetadata = ({
   const resolvedLengthsPath = hasLengthsBuffer ? null : resolvePathOrBak(lengthsPath);
   const resolvedOffsetsBuffer = hasOffsetsBuffer
     ? (Buffer.isBuffer(offsetsBuffer) ? offsetsBuffer : Buffer.from(offsetsBuffer))
-    : fs.readFileSync(resolvedOffsetsPath);
+    : readPart(resolvedOffsetsPath, maxBytes, containedRoot);
   const resolvedLengthsBuffer = hasLengthsBuffer
     ? (Buffer.isBuffer(lengthsBuffer) ? lengthsBuffer : Buffer.from(lengthsBuffer))
-    : fs.readFileSync(resolvedLengthsPath);
+    : readPart(resolvedLengthsPath, maxBytes, containedRoot);
   assertWithinMaxBytes(resolvedOffsetsBuffer.length, maxBytes, 'Binary-columnar offsets');
   assertWithinMaxBytes(resolvedLengthsBuffer.length, maxBytes, 'Binary-columnar lengths');
   const offsets = decodeU64Offsets(resolvedOffsetsBuffer);
@@ -109,6 +117,7 @@ const resolveSafeLayoutPath = (dir, candidate, fallback, label) => {
   if (!resolved) {
     throw new Error(`Invalid ${label} path: ${String(relPath)}`);
   }
+  assertNoSymlinkPath(dir, resolved, { allowMissing: true });
   return resolved;
 };
 
@@ -132,7 +141,8 @@ const loadBinaryColumnarRowPayloads = ({
   offsetsBuffer = null,
   lengthsBuffer = null,
   maxBytes = null,
-  enforceDataBudget = true
+  enforceDataBudget = true,
+  containedRoot = null
 }) => {
   const resolvedCount = resolveStrictNonNegativeSafeInt(count, 'binary-columnar row count');
   const hasDataBuffer = Buffer.isBuffer(dataBuffer) || dataBuffer instanceof Uint8Array;
@@ -142,13 +152,14 @@ const loadBinaryColumnarRowPayloads = ({
   const resolvedDataPath = hasDataBuffer ? null : resolvePathOrBak(dataPath);
   const resolvedDataBuffer = hasDataBuffer
     ? (Buffer.isBuffer(dataBuffer) ? dataBuffer : Buffer.from(dataBuffer))
-    : fs.readFileSync(resolvedDataPath);
+    : readPart(resolvedDataPath, enforceDataBudget ? maxBytes : null, containedRoot);
   const metadata = resolveBinaryColumnarFrameMetadata({
     offsetsPath,
     lengthsPath,
     count: resolvedCount,
     offsetsBuffer,
     lengthsBuffer,
+    containedRoot,
     maxBytes
   });
   if (!metadata) return null;
@@ -215,7 +226,8 @@ const iterateBinaryColumnarRowPayloads = ({
   offsetsBuffer = null,
   lengthsBuffer = null,
   maxBytes = null,
-  enforceDataBudget = false
+  enforceDataBudget = false,
+  containedRoot = null
 }) => {
   const resolvedCount = resolveStrictNonNegativeSafeInt(count, 'binary-columnar row count');
   if (!existsOrBak(dataPath)) return null;
@@ -225,6 +237,7 @@ const iterateBinaryColumnarRowPayloads = ({
     count: resolvedCount,
     offsetsBuffer,
     lengthsBuffer,
+    containedRoot,
     maxBytes
   });
   if (!metadata) return null;
@@ -232,7 +245,7 @@ const iterateBinaryColumnarRowPayloads = ({
   const resolvedDataPath = resolvePathOrBak(dataPath);
   const max = toPositiveFinite(maxBytes);
   return (function* () {
-    const dataHandle = fs.openSync(resolvedDataPath, 'r');
+    const dataHandle = containedRoot ? openContainedFileSync(containedRoot, resolvedDataPath) : fs.openSync(resolvedDataPath, 'r');
     try {
       const dataSize = Number(fs.fstatSync(dataHandle)?.size || 0);
       if (enforceDataBudget) {
@@ -259,6 +272,7 @@ const iterateBinaryColumnarRowPayloads = ({
         }
         yield row;
       }
+      if (containedRoot) verifyContainedFileHandle(dataHandle, containedRoot, resolvedDataPath);
     } finally {
       fs.closeSync(dataHandle);
     }

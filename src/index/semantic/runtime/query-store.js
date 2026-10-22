@@ -1,3 +1,4 @@
+import { readExactAt } from '../../../shared/io/read-exact.js';
 import { openContainedFile } from '../../../shared/contained-file.js';
 import { readRuntimeMemberBytes, readRuntimeMemberJson } from './verified-reads.js';
 import path from 'node:path';
@@ -48,7 +49,7 @@ export const openRuntimeQueryFamily = async ({ destination, generationId, signal
       if (start > BigInt(Number.MAX_SAFE_INTEGER) || end - start !== BigInt(entry.byte_length)
         || end > BigInt(manifest.evidence.byteLength)) throw runtimeImportError('Runtime lookup offset range mismatch.');
       const bytes = Buffer.alloc(entry.byte_length);
-      const read = await evidence.read(bytes, 0, bytes.length, Number(start));
+      const read = await readExactAt(evidence, bytes, 0, bytes.length, Number(start), { signal });
       if (metrics) metrics.verificationBytes = (metrics.verificationBytes || 0) + read.bytesRead;
       if (read.bytesRead !== bytes.length
         || bytes.at(-1) !== 10 || runtimeByteHash(bytes) !== entry.row_hash) throw runtimeImportError('Runtime selected evidence row hash mismatch.');

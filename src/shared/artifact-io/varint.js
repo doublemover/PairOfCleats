@@ -1,3 +1,4 @@
+import { readExactAt } from '../io/read-exact.js';
 import fs from 'node:fs/promises';
 
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
@@ -105,7 +106,7 @@ export const readVarintDeltasAt = async (filePath, start, end) => {
   const handle = await fs.open(filePath, 'r');
   try {
     const buffer = Buffer.allocUnsafe(length);
-    const { bytesRead } = await handle.read(buffer, 0, length, begin);
+    const { bytesRead } = await readExactAt(handle, buffer, 0, length, begin);
     if (bytesRead !== length) {
       throw new Error(`Truncated varint read: expected ${length} bytes, got ${bytesRead}.`);
     }

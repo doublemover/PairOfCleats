@@ -1,3 +1,4 @@
+import { readExactAt } from '../../../shared/io/read-exact.js';
 import { readRuntimeMemberJson, readRuntimeMemberBytes, openVerifiedRuntimeMember } from './verified-reads.js';
 import { withRuntimeDestinationWriter } from './ownership.js';
 import { closeRuntimeResources } from './close-resources.js';
@@ -201,7 +202,7 @@ const queryClaims = async ({ destination, request, signal = null }) => {
         break;
       }
       const bytes = Buffer.alloc(row.byteLength);
-      if ((await handle.read(bytes, 0, bytes.length, row.start)).bytesRead !== bytes.length || runtimeByteHash(bytes) !== row.hash) fail('Claim row integrity mismatch.');
+      if ((await readExactAt(handle, bytes, 0, bytes.length, row.start, { signal: check.signal })).bytesRead !== bytes.length || runtimeByteHash(bytes) !== row.hash) fail('Claim row integrity mismatch.');
       const claim = JSON.parse(bytes.toString('utf8'));
       if (claim.evidenceId !== row.evidenceId) fail('Claim row identity mismatch.');
       validateClaims([claim], verified.records); claims.push(claim); outputBytes += row.byteLength;

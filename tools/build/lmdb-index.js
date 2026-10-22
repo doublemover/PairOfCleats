@@ -23,6 +23,7 @@ import { withGeneratedArtifactMetadata } from '../../src/shared/generated-artifa
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../src/storage/lmdb/schema.js';
 import { loadLmdbMinhashArtifact } from '../../src/storage/lmdb/minhash.js';
 import { replaceLmdbEntries } from '../../src/storage/lmdb/replace.js';
+import { loadLmdbOptionalArray } from '../../src/storage/lmdb/optional-arrays.js';
 import { getIndexDir, getMetricsDir, resolveIndexRoot, resolveLmdbPaths, resolveRepoConfig } from '../shared/dict-utils.js';
 import { resolveAsOfContext, resolveSingleRootForModes } from '../../src/index/as-of.js';
 import { createIndexBuildToolCli } from './index-tool-cli.js';
@@ -300,7 +301,7 @@ const loadArtifactsForMode = async (indexDir, mode) => {
   };
   const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES });
   const tokenPostings = loadTokenPostings(indexDir, { maxBytes: MAX_JSON_BYTES });
-  const fileMeta = readJsonOptional(path.join(indexDir, 'file_meta.json'));
+  const fileMeta = await loadLmdbOptionalArray(indexDir, 'file_meta', manifest);
   const fileRelations = (() => {
     try {
       return loadJsonArrayArtifactSync(indexDir, 'file_relations', { maxBytes: MAX_JSON_BYTES });
@@ -317,7 +318,7 @@ const loadArtifactsForMode = async (indexDir, mode) => {
   })();
   const filterIndex = readJsonOptional(path.join(indexDir, 'filter_index.json'));
   const fieldPostings = readJsonOptional(path.join(indexDir, 'field_postings.json'));
-  const fieldTokens = readJsonOptional(path.join(indexDir, 'field_tokens.json'));
+  const fieldTokens = await loadLmdbOptionalArray(indexDir, 'field_tokens', manifest);
   const phraseNgrams = readJsonOptional(path.join(indexDir, 'phrase_ngrams.json'));
   const chargramPostings = readJsonOptional(path.join(indexDir, 'chargram_postings.json'));
   const minhashSignatures = await loadLmdbMinhashArtifact(indexDir);

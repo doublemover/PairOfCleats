@@ -1,4 +1,5 @@
-import fs from 'node:fs';
+import { constants as bufferConstants } from 'node:buffer';
+import { readBuffer } from '../compression.js';
 import {
   iterateBinaryColumnarRowPayloads,
   loadBinaryColumnarRowPayloads
@@ -38,11 +39,12 @@ const loadBinaryColumnarJsonRows = ({
     manifest,
     maxBytes,
     strict,
-    enforceDataBudget
+    enforceDataBudget,
+    containedRoot: strict ? dir : null
   });
-  const dataBuffer = fs.readFileSync(resolvedDataPath);
-  const offsetsBuffer = fs.readFileSync(resolvedOffsetsPath);
-  const lengthsBuffer = fs.readFileSync(resolvedLengthsPath);
+  const dataBuffer = readBuffer(resolvedDataPath, enforceDataBudget ? maxBytes : bufferConstants.MAX_LENGTH, { containedRoot: strict ? dir : null });
+  const offsetsBuffer = readBuffer(resolvedOffsetsPath, maxBytes, { containedRoot: strict ? dir : null });
+  const lengthsBuffer = readBuffer(resolvedLengthsPath, maxBytes, { containedRoot: strict ? dir : null });
   verifyManifestChecksum({
     validator: dataValidator,
     buffer: dataBuffer,
@@ -70,7 +72,8 @@ const loadBinaryColumnarJsonRows = ({
     offsetsBuffer,
     lengthsBuffer,
     maxBytes,
-    enforceDataBudget
+    enforceDataBudget,
+    containedRoot: strict ? dir : null
   });
   if (!payloads) {
     throw createLoaderError(
@@ -114,10 +117,11 @@ const iterateBinaryColumnarJsonRows = function* ({
     manifest,
     maxBytes,
     strict,
-    enforceDataBudget
+    enforceDataBudget,
+    containedRoot: strict ? dir : null
   });
-  const offsetsBuffer = fs.readFileSync(resolvedOffsetsPath);
-  const lengthsBuffer = fs.readFileSync(resolvedLengthsPath);
+  const offsetsBuffer = readBuffer(resolvedOffsetsPath, maxBytes, { containedRoot: strict ? dir : null });
+  const lengthsBuffer = readBuffer(resolvedLengthsPath, maxBytes, { containedRoot: strict ? dir : null });
   verifyManifestChecksum({
     validator: offsetsValidator,
     buffer: offsetsBuffer,
@@ -133,6 +137,7 @@ const iterateBinaryColumnarJsonRows = function* ({
   verifyManifestChecksumFromFile({
     validator: dataValidator,
     artifactPath: resolvedDataPath,
+    containedRoot: strict ? dir : null,
     baseName
   });
   const payloads = iterateBinaryColumnarRowPayloads({
@@ -143,7 +148,8 @@ const iterateBinaryColumnarJsonRows = function* ({
     offsetsBuffer,
     lengthsBuffer,
     maxBytes,
-    enforceDataBudget
+    enforceDataBudget,
+    containedRoot: strict ? dir : null
   });
   if (!payloads) {
     throw createLoaderError(

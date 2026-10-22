@@ -49,7 +49,7 @@ export const loadFileMetaRows = async function* (
   });
   if (sources.format === 'json') {
     for (const sourcePath of sources.paths) {
-      const payload = readJsonFile(sourcePath, { maxBytes });
+      const payload = readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot });
       if (!Array.isArray(payload)) {
         throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid json payload for file_meta');
       }
@@ -61,7 +61,7 @@ export const loadFileMetaRows = async function* (
   }
   if (sources.format === 'columnar') {
     for (const sourcePath of sources.paths) {
-      const payload = readJsonFile(sourcePath, { maxBytes });
+      const payload = readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot });
       const iterator = iterateColumnarRows(payload);
       if (!iterator) {
         throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid columnar payload for file_meta');
@@ -88,6 +88,7 @@ export const loadFileMetaRows = async function* (
   }
   for await (const row of streamJsonlRowsFromSources(sources.paths, sources.offsets, {
     maxBytes,
+    containedRoot: sources.containedRoot,
     requiredKeys: resolvedKeys,
     validationMode,
     maxInFlight,

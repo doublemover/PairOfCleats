@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import { openContainedFileSync, verifyContainedFileHandle } from '../../contained-file.js';
+import { readBuffer } from '../compression.js';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from '../constants.js';
 import { existsOrBak, resolvePathOrBak } from '../fs.js';
@@ -13,8 +15,7 @@ import {
 import {
   DEFAULT_PACKED_BLOCK_SIZE,
   decodePackedOffsets,
-  unpackTfPostingSlice,
-  unpackTfPostings
+  unpackTfPostingSlice
 } from '../../packed-postings.js';
 import { joinPathSafe } from '../../path-normalize.js';
 import { formatHash64 } from '../../token-id.js';
@@ -93,12 +94,13 @@ const tryLoadTokenPostingsBinaryColumnar = (
   dir,
   {
     maxBytes = MAX_JSON_BYTES,
-    enforceDataBudget = true
+    enforceDataBudget = true,
+    containedRoot = null
   } = {}
 ) => {
   const metaPath = path.join(dir, 'token_postings.binary-columnar.meta.json');
   if (!existsOrBak(metaPath)) return null;
-  const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes });
+  const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes, containedRoot });
   try {
     assertSupportedBinaryColumnarMeta(metaRaw, 'token_postings binary-columnar');
   } catch (error) {
@@ -135,7 +137,8 @@ const tryLoadTokenPostingsBinaryColumnar = (
     lengthsPath,
     count,
     maxBytes,
-    enforceDataBudget
+    enforceDataBudget,
+    containedRoot
   });
   if (!payloads) return null;
   const postings = new Array(payloads.length);
@@ -236,7 +239,7 @@ export const loadTokenPostings = (
     }
     const resolvedPackedPath = resolvePathOrBak(packedPath);
     const resolvedMetaPath = resolvePathOrBak(metaPath);
-    const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes });
+    const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes, containedRoot: strict ? dir : null });
     const fields = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const arrays = metaRaw?.arrays && typeof metaRaw.arrays === 'object' ? metaRaw.arrays : metaRaw;
     const vocab = Array.isArray(arrays?.vocab) ? arrays.vocab : [];
@@ -253,7 +256,7 @@ export const loadTokenPostings = (
       throw new Error('Missing token_postings packed offsets');
     }
     const resolvedOffsetsPath = resolvePathOrBak(offsetsPath);
-    const offsetsBuffer = fs.readFileSync(resolvedOffsetsPath);
+    const offsetsBuffer = readBuffer(resolvedOffsetsPath, maxBytes, { containedRoot: strict ? dir : null });
     const offsetsChecksum = createManifestChecksumValidator(
       offsetsPath,
       'token_postings_offsets',
@@ -283,7 +286,12 @@ export const loadTokenPostings = (
     const readWindow = (fd, startToken, endToken) => {
       const byteStart = offsets[startToken] ?? 0;
       const byteEnd = offsets[endToken] ?? byteStart;
-      const byteLen = Math.max(0, byteEnd - byteStart);
+      const byteLen = byteEnd - byteStart;
+      if (!Number.isSafeInteger(byteStart) || !Number.isSafeInteger(byteEnd)
+        || byteStart < 0 || byteEnd < byteStart || byteLen > resolvedWindowBytes) {
+        throw Object.assign(new Error('Packed token_postings window exceeds its bounded read allowance.'),
+          { code: 'ERR_ARTIFACT_TOO_LARGE' });
+      }
       if (!byteLen) {
         for (let i = startToken; i < endToken; i += 1) {
           postings[i] = [];
@@ -291,9 +299,15 @@ export const loadTokenPostings = (
         return;
       }
       const windowBuffer = Buffer.allocUnsafe(byteLen);
-      const bytesRead = fs.readSync(fd, windowBuffer, 0, byteLen, byteStart);
-      if (bytesRead < byteLen) {
-        throw new Error('Packed token_postings truncated');
+      let bytesRead = 0;
+      while (bytesRead < byteLen) {
+        const remaining = byteLen - bytesRead;
+        const read = fs.readSync(fd, windowBuffer, bytesRead, remaining, byteStart + bytesRead);
+        if (!Number.isSafeInteger(read) || read <= 0 || read > remaining) {
+          throw Object.assign(new Error('Packed token_postings truncated or invalid read progress.'),
+            { code: 'ERR_ARTIFACT_CORRUPT' });
+        }
+        bytesRead += read;
       }
       if (packedChecksum) {
         packedChecksum.update(windowBuffer, 0, bytesRead);
@@ -308,52 +322,22 @@ export const loadTokenPostings = (
         postings[i] = unpackTfPostingSlice(windowBuffer.subarray(localStart, localEnd), { blockSize });
       }
     };
-    const fallbackFullRead = () => {
-      const buffer = fs.readFileSync(resolvedPackedPath);
-      const fallbackChecksum = createManifestChecksumValidator(
-        packedPath,
-        'token_postings',
-        'token_postings packed'
-      );
-      if (fallbackChecksum) {
-        fallbackChecksum.update(buffer);
-        fallbackChecksum.verify();
-      }
-      return unpackTfPostings(buffer, offsets, { blockSize });
-    };
     let fd = null;
     try {
-      fd = fs.openSync(resolvedPackedPath, 'r');
+      fd = strict ? openContainedFileSync(dir, resolvedPackedPath) : fs.openSync(resolvedPackedPath, 'r');
       let startToken = 0;
       while (startToken < totalTokens) {
-        let endToken = Math.min(totalTokens, startToken + resolvedWindowTokens);
-        // Keep each decode window bounded in bytes for lower peak RSS.
-        while (endToken < totalTokens) {
-          const candidateBytes = (offsets[endToken] ?? 0) - (offsets[startToken] ?? 0);
-          if (candidateBytes >= resolvedWindowBytes) break;
+        let endToken = Math.min(totalTokens, startToken + 1);
+        while (endToken < totalTokens && endToken - startToken < resolvedWindowTokens) {
+          const candidateBytes = offsets[endToken + 1] - offsets[startToken];
+          if (candidateBytes > resolvedWindowBytes) break;
           endToken += 1;
-        }
-        if (endToken <= startToken) {
-          endToken = Math.min(totalTokens, startToken + 1);
         }
         readWindow(fd, startToken, endToken);
         startToken = endToken;
       }
       if (packedChecksum) packedChecksum.verify();
-    } catch {
-      return {
-        ...fields,
-        avgDocLen: Number.isFinite(fields?.avgDocLen) ? fields.avgDocLen : (
-          docLengths.length
-            ? docLengths.reduce((sum, len) => sum + (Number(len) || 0), 0) / docLengths.length
-            : 0
-        ),
-        totalDocs: Number.isFinite(fields?.totalDocs) ? fields.totalDocs : docLengths.length,
-        vocab,
-        ...(vocabIds.length ? { vocabIds } : {}),
-        postings: fallbackFullRead(),
-        docLengths
-      };
+      if (strict) verifyContainedFileHandle(fd, dir, resolvedPackedPath);
     } finally {
       if (fd !== null) {
         try { fs.closeSync(fd); } catch {}
@@ -397,7 +381,7 @@ export const loadTokenPostings = (
       }
     };
     for (const shardPath of shardPaths) {
-      const shard = readJsonFile(shardPath, { maxBytes });
+      const shard = readJsonFile(shardPath, { maxBytes, containedRoot: strict ? dir : null });
       const shardVocab = Array.isArray(shard?.vocab)
         ? shard.vocab
         : (Array.isArray(shard?.arrays?.vocab) ? shard.arrays.vocab : []);
@@ -425,6 +409,7 @@ export const loadTokenPostings = (
   if (useBinaryColumnar) {
     const binary = tryLoadTokenPostingsBinaryColumnar(dir, {
       maxBytes,
+      containedRoot: strict ? dir : null,
       enforceDataBudget: enforceBinaryDataBudget
     });
     if (binary) return binary;
@@ -443,7 +428,7 @@ export const loadTokenPostings = (
     if (sources.paths.length > 1) {
       throw new Error('Ambiguous JSON sources for token_postings');
     }
-    return readJsonFile(sources.paths[0], { maxBytes });
+    return readJsonFile(sources.paths[0], { maxBytes, containedRoot: strict ? dir : null });
   }
   if (sources.format === 'packed') {
     if (sources.paths.length > 1) {
@@ -457,6 +442,7 @@ export const loadTokenPostings = (
   if (sources.format === 'binary-columnar') {
     const binary = tryLoadTokenPostingsBinaryColumnar(dir, {
       maxBytes,
+      containedRoot: strict ? dir : null,
       enforceDataBudget: enforceBinaryDataBudget
     });
     if (binary) return binary;

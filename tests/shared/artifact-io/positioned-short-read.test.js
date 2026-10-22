@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import { readOffsetsAt, readOffsetAt } from '../../../src/shared/artifact-io/offsets.js';
+import { readVarintDeltasAt } from '../../../src/shared/artifact-io/varint.js';
+const bytes=Buffer.alloc(24);[0n,5n,9n].forEach((value,index)=>bytes.writeBigUInt64LE(value,index*8));
+const handle={async read(buffer,offset,length,position){const count=Math.min(3,length,Math.max(0,bytes.length-position));bytes.copy(buffer,offset,position,position+count);return {bytesRead:count};}};
+assert.deepEqual([...await readOffsetsAt('unused',[0,1,2],{handle})],[[0,0],[1,5],[2,9]]);assert.equal(await readOffsetAt('unused',1,{handle}),5);assert.equal(await readOffsetAt('unused',3,{handle}),null);
+const open=fs.open;let closes=0;fs.open=async()=>({read:async(buffer,offset,length,position)=>{const input=Buffer.from('AB');const count=Math.min(1,length,Math.max(0,input.length-position));input.copy(buffer,offset,position,position+count);return {bytesRead:count};},close:async()=>{closes++;}});
+try{assert.deepEqual(await readVarintDeltasAt('unused',0,2),[65,131]);await assert.rejects(readVarintDeltasAt('unused',0,3),/Truncated varint read/);}finally{fs.open=open;}assert.equal(closes,2);
+console.log('offset and varint consumers retain valid rows across positive short reads');

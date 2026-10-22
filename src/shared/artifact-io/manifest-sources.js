@@ -75,9 +75,9 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
   if (metaEntry) {
     const metaPath = resolveManifestPath(dir, metaEntry.path, strict);
     if (metaPath) {
-      const cachePolicy = { maxBytes, view: 'json' };
+      const cachePolicy = { maxBytes, view: 'json', containedRoot: strict ? dir : null };
       const cachedMeta = readCache(metaPath, cachePolicy);
-      const metaRaw = cachedMeta || readJsonFile(metaPath, { maxBytes });
+      const metaRaw = cachedMeta || readJsonFile(metaPath, { maxBytes, containedRoot: strict ? dir : null });
       if (!cachedMeta) writeCache(metaPath, metaRaw, cachePolicy);
       const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
       const parts = normalizeMetaParts(meta?.parts);
@@ -107,6 +107,7 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
         if (paths.length) {
           return {
             format: resolveMetaFormat(meta, 'jsonl'),
+            containedRoot: strict ? dir : null,
             paths,
             meta,
             metaPath,
@@ -147,6 +148,7 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
     : null;
   return {
     format,
+    containedRoot: strict ? dir : null,
     paths,
     entries: resolvedEntries,
     ...(binaryColumnar

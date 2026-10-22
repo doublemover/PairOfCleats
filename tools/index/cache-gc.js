@@ -603,11 +603,12 @@ export const runCacheGc = async ({ repoOnly = false } = {}) => {
 };
 
 if (import.meta.main) runCacheGc().catch((error) => {
-  if (argv.json && error?.code === 'ERR_CAS_GC_INCOMPLETE_MARK') {
+  if (argv.json && ['ERR_CAS_GC_INCOMPLETE_MARK', 'ERR_CAS_LEASE_INCOMPLETE'].includes(error?.code)) {
     console.log(JSON.stringify({ ok: false, mode: 'cas', deferred: true,
       dryRun: argv.apply !== true || argv['dry-run'] === true,
       code: error.code, message: error.message,
-      mark: { complete: false, failures: [error.markFailure] },
+      mark: { complete: error?.code !== 'ERR_CAS_GC_INCOMPLETE_MARK', failures: error.markFailure ? [error.markFailure] : [] },
+      leases: { complete: error?.code !== 'ERR_CAS_LEASE_INCOMPLETE', failures: error.leaseFailure ? [error.leaseFailure] : [] },
       counts: { plannedDeletes: 0, deleted: 0 }, bytes: { planned: 0, deleted: 0 }
     }, null, 2));
   } else console.error(error?.message || error);

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { readVerifiedContainedFileSync } from '../contained-file.js';
 import { gunzipSync, zstdDecompressSync as zstdDecompressSyncNative } from 'node:zlib';
 import { getBakPath } from './cache.js';
 import { shouldAbortForHeap, shouldTreatAsTooLarge, toJsonTooLargeError } from './limits.js';
@@ -148,7 +149,15 @@ export const decompressBuffer = (buffer, compression, maxBytes, sourcePath) => {
   return buffer;
 };
 
-export const readBuffer = (targetPath, maxBytes) => {
+export const readBuffer = (targetPath, maxBytes, { containedRoot = null } = {}) => {
+  if (containedRoot) {
+    try {
+      return readVerifiedContainedFileSync(containedRoot, targetPath, { maxBytes }).buffer;
+    } catch (error) {
+      if (error?.code === 'ERR_FILE_TOO_LARGE') throw toJsonTooLargeError(targetPath, maxBytes);
+      throw error;
+    }
+  }
   const stat = fs.statSync(targetPath);
   if (stat.size > maxBytes) {
     throw toJsonTooLargeError(targetPath, stat.size);

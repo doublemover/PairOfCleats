@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { openContainedFileSync, verifyContainedFileHandle } from './contained-file.js';
 
 let backendOverride = null;
 let backendName = null;
@@ -27,14 +28,27 @@ export function sha1(str) {
   return crypto.createHash('sha1').update(str).digest('hex');
 }
 
-const withFileHashStream = async (filePath, compute) => {
-  const stream = fs.createReadStream(filePath);
+const withFileHashStream = async (filePath, compute, { containedRoot = null } = {}) => {
+  let stream;
+  let verificationError = null;
+  if (containedRoot) {
+    const fd = openContainedFileSync(containedRoot, filePath);
+    try {
+      stream = fs.createReadStream(filePath, { fd, autoClose: true });
+      stream.prependOnceListener('end', () => {
+        try { verifyContainedFileHandle(fd, containedRoot, filePath); }
+        catch (error) { verificationError = error; }
+      });
+    } catch (error) { fs.closeSync(fd); throw error; }
+  } else stream = fs.createReadStream(filePath);
   // The owner may need to dispose before the consumer attaches its listeners.
   // Consumers still propagate read failures; cleanup must not emit unhandled errors.
   stream.on('error', () => {});
   const closed = new Promise(resolve => stream.once('close', resolve));
   try {
-    return await compute(stream);
+    const result = await compute(stream);
+    if (verificationError) throw verificationError;
+    return result;
   } finally {
     stream.destroy();
     await closed;
@@ -46,19 +60,19 @@ const withFileHashStream = async (filePath, compute) => {
  * @param {string} filePath
  * @returns {Promise<string>}
  */
-export function sha1File(filePath) {
-  return digestFile(filePath, 'sha1');
+export function sha1File(filePath, options = {}) {
+  return digestFile(filePath, 'sha1', options);
 }
 
-const digestFile = (filePath, algorithm) => withFileHashStream(filePath, async stream => {
+const digestFile = (filePath, algorithm, options) => withFileHashStream(filePath, async stream => {
   const hash = crypto.createHash(algorithm);
   for await (const bytes of stream) hash.update(bytes);
   return hash.digest('hex');
-});
+}, options);
 
 /** Compute SHA256 and settle only after the owned descriptor has closed. */
-export function sha256File(filePath) {
-  return digestFile(filePath, 'sha256');
+export function sha256File(filePath, options = {}) {
+  return digestFile(filePath, 'sha256', options);
 }
 
 export async function checksumString(input) {
@@ -67,10 +81,10 @@ export async function checksumString(input) {
   return { algo: 'xxh64', value };
 }
 
-export async function checksumFile(filePath) {
+export async function checksumFile(filePath, options = {}) {
   const { hash64Stream } = await import('./hash/xxhash-backend.js');
   const backend = await getBackend();
-  const value = await withFileHashStream(filePath, stream => hash64Stream(stream, backend));
+  const value = await withFileHashStream(filePath, stream => hash64Stream(stream, backend), options);
   return { algo: 'xxh64', value };
 }
 

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { assertNoSymlinkPath } from '../../contained-file.js';
 import { readJsonFile } from '../json.js';
 import { createManifestChecksumValidator } from './core-binary-columnar-checksum.js';
 import { createLoaderError, resolveArtifactMetaEnvelope } from './shared.js';
@@ -13,9 +14,10 @@ const SUPPORTED_BINARY_COLUMNAR_FORMAT = 'binary-columnar-v1';
 const parseBinaryColumnarMeta = ({
   metaPath,
   maxBytes,
-  baseName
+  baseName,
+  containedRoot
 }) => {
-  const raw = readJsonFile(metaPath, { maxBytes });
+  const raw = readJsonFile(metaPath, { maxBytes, containedRoot });
   const { fields } = resolveArtifactMetaEnvelope(raw);
   const format = typeof fields?.format === 'string'
     ? fields.format.trim().toLowerCase()
@@ -140,7 +142,8 @@ export const resolveBinaryColumnarContext = ({
   const { fields, count } = parseBinaryColumnarMeta({
     metaPath: resolvedMetaPath,
     maxBytes,
-    baseName
+    baseName,
+    containedRoot: strict ? dir : null
   });
   const resolvedDataPath = resolveBinaryColumnarPartPath({
     dir,
@@ -163,6 +166,11 @@ export const resolveBinaryColumnarContext = ({
     baseName,
     label: 'binary-columnar lengths'
   });
+  if (strict) {
+    for (const target of [resolvedDataPath, resolvedMetaPath, resolvedOffsetsPath, resolvedLengthsPath]) {
+      assertNoSymlinkPath(dir, target);
+    }
+  }
   if (enforceDataBudget) {
     assertBinaryPartWithinMaxBytes(resolvedDataPath, maxBytes, `${baseName} binary-columnar data`);
   }

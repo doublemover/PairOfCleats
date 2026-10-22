@@ -69,6 +69,7 @@ export const executeSqliteModeBuilds = async ({
   bail,
   modeList,
   indexRoot,
+  modeIndexRoots = null,
   modeIndexDirs,
   modeOutputPaths,
   modeChunkCountHints,
@@ -104,11 +105,12 @@ export const executeSqliteModeBuilds = async ({
 
   for (const mode of modeList) {
     throwIfAborted(signal);
+    const modeIndexRoot = modeIndexRoots?.[mode] || indexRoot;
     const stageCheckpoints = createStageCheckpointRecorder({
-      buildRoot: indexRoot,
+      buildRoot: modeIndexRoot,
       metricsDir,
       mode,
-      buildId: indexRoot ? path.basename(indexRoot) : null
+      buildId: modeIndexRoot ? path.basename(modeIndexRoot) : null
     });
     const startTs = Date.now();
     const {
@@ -140,7 +142,7 @@ export const executeSqliteModeBuilds = async ({
       outputPath,
       root,
       userConfig,
-      indexRoot,
+      indexRoot: modeIndexRoot,
       schemaVersion,
       threadLimits,
       stageCheckpoints,

@@ -1,4 +1,6 @@
+import { readExactAt } from '../io/read-exact.js';
 import fs from 'node:fs/promises';
+import { openContainedFile } from '../contained-file.js';
 import { createHash } from 'node:crypto';
 import { throwIfAborted } from '../abort.js';
 import { parseJsonlLine } from './jsonl.js';
@@ -148,7 +150,7 @@ export const readOffsetsFile = async (offsetsPath) => {
 
 const readSingleOffsetAtWithHandle = async (handle, index) => {
   const buffer = Buffer.allocUnsafe(OFFSET_BYTES);
-  const { bytesRead } = await handle.read(buffer, 0, OFFSET_BYTES, index * OFFSET_BYTES);
+  const { bytesRead } = await readExactAt(handle, buffer, 0, OFFSET_BYTES, index * OFFSET_BYTES);
   if (bytesRead === 0) return null;
   if (bytesRead !== OFFSET_BYTES) {
     throw createOffsetsInvalidError(`Offsets sidecar truncated at index ${index}`);
@@ -172,7 +174,8 @@ const readOffsetsAtWithHandle = async (handle, indexes) => {
     return out;
   }
   const spanBuffer = Buffer.allocUnsafe(spanBytes);
-  const { bytesRead } = await handle.read(spanBuffer, 0, spanBytes, minIndex * OFFSET_BYTES);
+  const { bytesRead } = await readExactAt(handle, spanBuffer, 0, spanBytes, minIndex * OFFSET_BYTES);
+  if (bytesRead % OFFSET_BYTES !== 0) throw createOffsetsInvalidError('Offsets sidecar has a partial trailing offset.');
   for (const index of sorted) {
     const relative = index - minIndex;
     const offset = relative * OFFSET_BYTES;
@@ -245,8 +248,9 @@ export const resolveOffsetsCount = async (
 
 // Both opens can finish independently. A rejected peer must not strand the
 // successful handle, including when it resolves after the rejection.
-const openJsonlHandles = async (jsonlPath, offsetsPath) => {
-  const pending = [fs.open(jsonlPath, 'r'), fs.open(offsetsPath, 'r')];
+const openJsonlHandles = async (jsonlPath, offsetsPath, { containedRoot = null } = {}) => {
+  const open = target => containedRoot ? openContainedFile(containedRoot, target) : fs.open(target, 'r');
+  const pending = [open(jsonlPath), open(offsetsPath)];
   try {
     return await Promise.all(pending);
   } catch (error) {
@@ -302,7 +306,7 @@ export const readJsonlRowAt = async (
       throw toJsonTooLargeError(jsonlPath, length);
     }
     const buffer = Buffer.allocUnsafe(length);
-    const { bytesRead } = await jsonlHandle.read(buffer, 0, length, start);
+    const { bytesRead } = await readExactAt(jsonlHandle, buffer, 0, length, start);
     assertExactRead(bytesRead, length, `JSONL row short read at index ${index} for ${jsonlPath}`);
     const line = buffer.slice(0, bytesRead).toString('utf8');
     if (metrics && typeof metrics === 'object') {
@@ -416,7 +420,7 @@ const readJsonlRowsAtWithHandles = async (
     const length = range.end - range.start;
     if (length <= 0) continue;
     const buffer = Buffer.allocUnsafe(length);
-    const { bytesRead } = await jsonlHandle.read(buffer, 0, length, range.start);
+    const { bytesRead } = await readExactAt(jsonlHandle, buffer, 0, length, range.start);
     assertExactRead(bytesRead, length, `JSONL row short read for ${jsonlPath}`);
     if (metrics && typeof metrics === 'object') {
       const currentRead = Number.isFinite(metrics.bytesRead) ? metrics.bytesRead : 0;
@@ -605,7 +609,7 @@ const validateOffsetsAgainstSources = async (jsonlPath, offsetsPath, { signal = 
 
 export const validateOffsetsAgainstFile = async (jsonlPath, offsetsPath, options = {}) => {
   throwIfAborted(options.signal);
-  const handles = await openJsonlHandles(jsonlPath, offsetsPath);
+  const handles = await openJsonlHandles(jsonlPath, offsetsPath, options);
   try { return await validateOffsetsAgainstSources(jsonlPath, offsetsPath, options, handles); }
   finally { await Promise.allSettled(handles.map(handle => handle.close())); }
 };

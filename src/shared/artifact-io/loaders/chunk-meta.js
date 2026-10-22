@@ -61,7 +61,7 @@ const loadChunkMetaColdRows = async ({
     if (sources.paths.length > 1) {
       throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', 'Ambiguous JSON sources for chunk_meta_cold');
     }
-    const rows = readJsonFile(sources.paths[0], { maxBytes });
+    const rows = readJsonFile(sources.paths[0], { maxBytes, containedRoot: sources.containedRoot });
     return Array.isArray(rows) ? rows : null;
   }
   if (sources.format === 'columnar') {
@@ -71,7 +71,7 @@ const loadChunkMetaColdRows = async ({
         'Ambiguous columnar sources for chunk_meta_cold'
       );
     }
-    const payload = readJsonFile(sources.paths[0], { maxBytes });
+    const payload = readJsonFile(sources.paths[0], { maxBytes, containedRoot: sources.containedRoot });
     const inflated = inflateColumnarRows(payload);
     if (!inflated) {
       throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid columnar chunk_meta_cold payload');
@@ -80,6 +80,7 @@ const loadChunkMetaColdRows = async ({
   }
   return await readJsonLinesArray(sources.paths, {
     maxBytes,
+    containedRoot: sources.containedRoot,
     requiredKeys,
     validationMode
   });
@@ -183,6 +184,7 @@ export const loadChunkMetaRows = async function* (
   if (useBinaryColumnar) {
     const binaryRows = await iterateChunkMetaBinaryColumnarRowsLazy(dir, {
       maxBytes,
+      containedRoot: strict ? dir : null,
       enforceDataBudget: enforceBinaryDataBudget
     });
     if (binaryRows) {
@@ -196,7 +198,7 @@ export const loadChunkMetaRows = async function* (
     if (sources.paths.length > 1) {
       throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', 'Ambiguous JSON sources for chunk_meta');
     }
-    const rows = readJsonFile(sources.paths[0], { maxBytes });
+    const rows = readJsonFile(sources.paths[0], { maxBytes, containedRoot: sources.containedRoot });
     if (!Array.isArray(rows)) {
       throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid json chunk_meta payload');
     }
@@ -209,7 +211,7 @@ export const loadChunkMetaRows = async function* (
     if (sources.paths.length > 1) {
       throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', 'Ambiguous columnar sources for chunk_meta');
     }
-    const payload = readJsonFile(sources.paths[0], { maxBytes });
+    const payload = readJsonFile(sources.paths[0], { maxBytes, containedRoot: sources.containedRoot });
     const inflated = inflateColumnarRows(payload);
     if (!inflated) {
       throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid columnar chunk_meta payload');
@@ -222,6 +224,7 @@ export const loadChunkMetaRows = async function* (
   if (sources.format === 'binary-columnar') {
     const binaryRows = await iterateChunkMetaBinaryColumnarRowsLazy(dir, {
       maxBytes,
+      containedRoot: strict ? dir : null,
       enforceDataBudget: enforceBinaryDataBudget
     });
     if (!binaryRows) {
@@ -235,6 +238,7 @@ export const loadChunkMetaRows = async function* (
   for (const partPath of sources.paths) {
     for await (const row of readJsonLinesIterator(partPath, {
       maxBytes,
+      containedRoot: sources.containedRoot,
       requiredKeys,
       validationMode
     })) {

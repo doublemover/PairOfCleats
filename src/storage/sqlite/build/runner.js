@@ -173,11 +173,14 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       outPath,
       modeOutputPaths,
       hasBuildState,
+      buildStateRoots,
       indexRoot,
       threadLimits,
       incrementalRequested
     } = selection;
-    stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage4') : () => {};
+    const stateRoots = buildStateRoots || (hasBuildState ? [indexRoot] : []);
+    const heartbeats = stateRoots.map(buildRoot => startBuildHeartbeat(buildRoot, 'stage4'));
+    stopHeartbeat = () => Promise.all(heartbeats.map(stop => stop()));
 
     if (emitOutput && argv.verbose === true) {
       log(
@@ -191,9 +194,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       return bail('Cannot use --compact and --no-compact together.');
     }
 
-    if (hasBuildState) {
-      await markBuildPhase(indexRoot, 'stage4', 'running');
-    }
+    for (const buildRoot of stateRoots) await markBuildPhase(buildRoot, 'stage4', 'running');
 
     await executeSqliteModeBuilds({
       signal,
@@ -210,9 +211,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       ...selection
     });
 
-    if (hasBuildState) {
-      await markBuildPhase(indexRoot, 'stage4', 'done');
-    }
+    for (const buildRoot of stateRoots) await markBuildPhase(buildRoot, 'stage4', 'done');
 
     if (emitOutput && incrementalRequested) {
       const summary = modeList.length > 1 ? 'indexes updated' : 'index updated';

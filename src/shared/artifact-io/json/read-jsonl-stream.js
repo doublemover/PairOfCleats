@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { openContainedFileSync, verifyContainedFileHandle } from '../../contained-file.js';
 import { performance } from 'node:perf_hooks';
 import { createGunzip, createZstdDecompress } from 'node:zlib';
 import { MAX_JSON_BYTES } from '../constants.js';
@@ -130,6 +131,7 @@ const readJsonlIteratorSingle = async function* (
     onBackpressure = null,
     onResume = null,
     byteRange = null,
+    containedRoot = null,
     recoveryFallback = false
   } = {}
 ) {
@@ -141,12 +143,23 @@ const readJsonlIteratorSingle = async function* (
   let compression = null;
   let cleanup = null;
   let stream = null;
-  const destroyStream = () => {
-    if (!stream) return;
-    try {
-      stream.destroy();
-    } catch {}
+  const ownedStreams = new Map();
+  let containedReadError = null;
+  const ownStream = (owned) => {
+    const closed = owned.closed ? Promise.resolve() : new Promise(resolve => owned.once('close', resolve));
+    // Ownership cleanup must also be safe before the row parser is attached.
+    owned.on('error', () => {});
+    ownedStreams.set(owned, closed);
+    return owned;
+  };
+  const destroyStream = async () => {
+    const streams = [...ownedStreams];
+    for (const [owned] of streams) {
+      try { owned.destroy(); } catch {}
+    }
     stream = null;
+    await Promise.all(streams.map(([, closed]) => closed));
+    for (const [owned] of streams) ownedStreams.delete(owned);
   };
   let sourcePath = targetPath;
   const queue = createRowQueue({
@@ -191,7 +204,7 @@ const readJsonlIteratorSingle = async function* (
         try {
           sourcePath = candidate.path;
           compression = candidate.compression ?? detectCompression(candidate.path);
-          cleanup = candidate.cleanup;
+          cleanup = containedRoot ? false : candidate.cleanup;
           if (range && compression) {
             throw new Error(
               `[artifact-io] byteRange requires an uncompressed JSONL source: ${sourcePath}`
@@ -205,7 +218,7 @@ const readJsonlIteratorSingle = async function* (
           const plan = resolveJsonlReadPlan(stat.size);
           if (!range && (plan.smallFile || (compression === 'gzip' && stat.size <= SMALL_JSONL_BYTES))) {
             if (compression === 'gzip') {
-              const buffer = readBuffer(sourcePath, maxBytes);
+              const buffer = readBuffer(sourcePath, maxBytes, { containedRoot });
               const decompressed = decompressBuffer(buffer, 'gzip', maxBytes, sourcePath);
               ({ rows, bytes } = await emitBufferedJsonlEntries({
                 sourcePath,
@@ -224,7 +237,7 @@ const readJsonlIteratorSingle = async function* (
               return;
             }
             if (!compression) {
-              const buffer = readBuffer(sourcePath, maxBytes);
+              const buffer = readBuffer(sourcePath, maxBytes, { containedRoot });
               ({ rows, bytes } = await emitBufferedJsonlEntries({
                 sourcePath,
                 buffer,
@@ -242,14 +255,29 @@ const readJsonlIteratorSingle = async function* (
               return;
             }
           }
-          stream = fs.createReadStream(sourcePath, range || undefined);
+          if (containedRoot) {
+            const fd = openContainedFileSync(containedRoot, sourcePath);
+            try {
+              const openedStat = fs.fstatSync(fd);
+              if (openedStat.size > maxBytes) throw toJsonTooLargeError(sourcePath, openedStat.size);
+              stream = ownStream(fs.createReadStream(sourcePath, { ...range, fd, autoClose: true }));
+              const openedPath = sourcePath;
+              stream.prependOnceListener('end', () => {
+                try { verifyContainedFileHandle(fd, containedRoot, openedPath); }
+                catch (error) { containedReadError = error; }
+              });
+            } catch (error) { fs.closeSync(fd); throw error; }
+          } else {
+            stream = ownStream(fs.createReadStream(sourcePath, range || undefined));
+          }
           if (compression === 'gzip') {
-            const gunzip = createGunzip();
+            const gunzip = ownStream(createGunzip());
+            stream.on('error', error => gunzip.destroy(error));
             stream = stream.pipe(gunzip);
           } else if (compression === 'zstd') {
             const zstd = resolveOptionalZstd();
             if (zstd && rawBytes <= ZSTD_STREAM_THRESHOLD) {
-              const buffer = readBuffer(sourcePath, maxBytes);
+              const buffer = readBuffer(sourcePath, maxBytes, { containedRoot });
               const decoded = await zstd.decompress(buffer);
               const payload = Buffer.isBuffer(decoded) ? decoded : Buffer.from(decoded);
               if (payload.length > maxBytes || shouldAbortForHeap(payload.length)) {
@@ -271,7 +299,8 @@ const readJsonlIteratorSingle = async function* (
               }));
               return;
             }
-            const zstdStream = createZstdDecompress();
+            const zstdStream = ownStream(createZstdDecompress());
+            stream.on('error', error => zstdStream.destroy(error));
             stream = stream.pipe(zstdStream);
           }
           break;
@@ -289,7 +318,7 @@ const readJsonlIteratorSingle = async function* (
             fallbackErr = captureFallbackReadError(fallbackErr, err);
           }
           lastErr = err;
-          destroyStream();
+          await destroyStream();
         }
       }
       if (!stream) {
@@ -306,6 +335,7 @@ const readJsonlIteratorSingle = async function* (
           await queue.push(entry);
         }
       }));
+      if (containedReadError) throw containedReadError;
       if (cleanup) cleanupBak(sourcePath);
       queue.finish();
       recordJsonlRead({
@@ -320,7 +350,7 @@ const readJsonlIteratorSingle = async function* (
     } catch (err) {
       queue.finish(err);
     } finally {
-      destroyStream();
+      await destroyStream();
     }
   })();
 
@@ -330,7 +360,7 @@ const readJsonlIteratorSingle = async function* (
     }
   } finally {
     queue.cancel();
-    destroyStream();
+    await destroyStream();
     await producer.catch(() => {});
   }
 };

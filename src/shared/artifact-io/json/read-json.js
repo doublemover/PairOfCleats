@@ -36,14 +36,14 @@ const parseJsonBuffer = (buffer, sourcePath, maxBytes) => {
   }
 };
 
-const readJsonSource = (targetPath, maxBytes, { compression = null, cleanup = false } = {}) => {
+const readJsonSource = (targetPath, maxBytes, { compression = null, cleanup = false, containedRoot = null } = {}) => {
   const shouldMeasure = hasArtifactReadObserver();
   const start = shouldMeasure ? performance.now() : 0;
-  const buffer = readBuffer(targetPath, maxBytes);
+  const buffer = readBuffer(targetPath, maxBytes, { containedRoot });
   const resolvedCompression = compression || detectCompression(targetPath) || null;
   const decompressed = decompressBuffer(buffer, resolvedCompression, maxBytes, targetPath);
   const parsed = parseJsonBuffer(decompressed, targetPath, maxBytes);
-  if (cleanup) cleanupBak(targetPath);
+  if (cleanup && !containedRoot) cleanupBak(targetPath);
   if (shouldMeasure) {
     recordArtifactRead({
       path: targetPath,
@@ -75,12 +75,12 @@ const readJsonSource = (targetPath, maxBytes, { compression = null, cleanup = fa
  */
 export const readJsonFile = (
   filePath,
-  { maxBytes = MAX_JSON_BYTES, recoveryFallback = false } = {}
+  { maxBytes = MAX_JSON_BYTES, recoveryFallback = false, containedRoot = null } = {}
 ) => {
   const bakPath = getBakPath(filePath);
   let primaryErr = null;
   try {
-    return readJsonSource(filePath, maxBytes, { cleanup: true });
+    return readJsonSource(filePath, maxBytes, { cleanup: true, containedRoot });
   } catch (err) {
     primaryErr = err;
     if (!canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback)) {
@@ -94,7 +94,8 @@ export const readJsonFile = (
       try {
         return readJsonSource(candidate.path, maxBytes, {
           compression: candidate.compression,
-          cleanup: candidate.cleanup
+          cleanup: candidate.cleanup,
+          containedRoot
         });
       } catch (err) {
         fallbackErr = captureFallbackReadError(fallbackErr, err);
@@ -103,7 +104,7 @@ export const readJsonFile = (
   }
 
   try {
-    return readJsonSource(bakPath, maxBytes);
+    return readJsonSource(bakPath, maxBytes, { containedRoot });
   } catch (bakErr) {
     fallbackErr = captureFallbackReadError(fallbackErr, bakErr);
   }

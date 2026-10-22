@@ -1,4 +1,7 @@
+import { readExactAt } from '../../io/read-exact.js';
 import fs from 'node:fs';
+import { openContainedFile, verifyContainedFileHandle } from '../../contained-file.js';
+import { readBuffer } from '../compression.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getHeapStatistics } from 'node:v8';
@@ -131,7 +134,7 @@ const resolvePackedMinhashArtifacts = ({
   }
   const resolvedPackedPath = packedState.path;
   const resolvedMetaPath = metaState.path;
-  const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes });
+  const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes, containedRoot: sources.containedRoot });
   const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
   const hashIdentity = assertMinhashHashIdentity(meta?.hashIdentity);
   const dims = toStrictPositiveSafeInt(meta?.dims, 'dims');
@@ -200,7 +203,7 @@ export const loadMinhashSignatures = async (
     if (packedSize !== packed.totalBytes) {
       throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures size mismatch');
     }
-    const buffer = fs.readFileSync(packed.resolvedPackedPath);
+    const buffer = readBuffer(packed.resolvedPackedPath, maxBytes, { containedRoot: sources.containedRoot });
     if (buffer.byteLength % BYTES_PER_U32 !== 0) {
       throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures invalid byte alignment');
     }
@@ -294,7 +297,7 @@ export const loadMinhashSignatureRows = async function* (
     if (packedSize !== totalBytes) {
       throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures size mismatch');
     }
-    const handle = await fsPromises.open(packed.resolvedPackedPath, 'r');
+    const handle = sources.containedRoot ? await openContainedFile(sources.containedRoot, packed.resolvedPackedPath) : await fsPromises.open(packed.resolvedPackedPath, 'r');
     const resolvedBatchSize = Math.max(1, Math.floor(Number(batchSize)) || 2048);
     const cappedBatchSize = Math.max(1, Math.floor(streamBudgetBytes / bytesPerSig));
     const safeBatchSize = Math.min(resolvedBatchSize, cappedBatchSize);
@@ -306,7 +309,7 @@ export const loadMinhashSignatureRows = async function* (
         const remaining = count - docId;
         const batchCount = Math.min(safeBatchSize, remaining);
         const bytesToRead = batchCount * bytesPerSig;
-        const { bytesRead } = await handle.read(buffer, 0, bytesToRead, docId * bytesPerSig);
+        const { bytesRead } = await readExactAt(handle, buffer, 0, bytesToRead, docId * bytesPerSig);
         if (bytesRead < bytesToRead) {
           throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures truncated');
         }
@@ -325,6 +328,7 @@ export const loadMinhashSignatureRows = async function* (
         docId += batchCount;
       }
       packed.checksumValidator?.verify();
+      if (sources.containedRoot) verifyContainedFileHandle(handle, sources.containedRoot, packed.resolvedPackedPath);
     } finally {
       await handle.close();
     }

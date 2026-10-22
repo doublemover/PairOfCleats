@@ -70,6 +70,7 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
   const resolvedBlockSize = resolveBlockSize(blockSize, resolvedCompression);
   const { stream, done, getBytesWritten } = createJsonWriteStream(filePath, {
     compression: useWorkerCompression ? null : resolvedCompression,
+    gzipOptions,
     atomic,
     highWaterMark,
     signal,

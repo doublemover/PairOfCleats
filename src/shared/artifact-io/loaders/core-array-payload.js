@@ -17,7 +17,7 @@ const appendRows = (target, rows) => {
 const loadJsonArraySources = (sources, { baseName, maxBytes }) => {
   const out = [];
   for (const sourcePath of sources.paths) {
-    const payload = readJsonFile(sourcePath, { maxBytes });
+    const payload = readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot });
     if (!Array.isArray(payload)) {
       throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid json payload for ${baseName}`);
     }
@@ -29,7 +29,7 @@ const loadJsonArraySources = (sources, { baseName, maxBytes }) => {
 const loadColumnarSources = (sources, { baseName, maxBytes }) => {
   const out = [];
   for (const sourcePath of sources.paths) {
-    const payload = readJsonFile(sourcePath, { maxBytes });
+    const payload = readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot });
     const inflated = inflateColumnarRows(payload);
     if (!inflated) {
       throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
@@ -110,6 +110,7 @@ export const streamJsonlRowsFromSources = async function* (
     maxInFlight = 0,
     onBackpressure = null,
     onResume = null,
+    containedRoot = null,
     rowMapper = null
   }
 ) {
@@ -118,10 +119,11 @@ export const streamJsonlRowsFromSources = async function* (
     const partPath = paths[i];
     const offsetsPath = hasOffsets ? offsetsPaths[i] : null;
     if (offsetsPath) {
-      await ensureOffsetsValid(partPath, offsetsPath);
+      await ensureOffsetsValid(partPath, offsetsPath, { containedRoot });
     }
     for await (const row of readJsonLinesIterator(partPath, {
       maxBytes,
+      containedRoot,
       requiredKeys,
       validationMode,
       maxInFlight,
@@ -160,6 +162,7 @@ export const loadArrayPayloadFromSources = async (
   }
   return await readJsonLinesArray(sources.paths, {
     maxBytes,
+    containedRoot: sources.containedRoot,
     requiredKeys,
     validationMode,
     concurrency
@@ -194,6 +197,7 @@ export const loadArrayPayloadFromSourcesSync = (
   for (const partPath of sources.paths) {
     const part = readJsonLinesArraySync(partPath, {
       maxBytes,
+      containedRoot: sources.containedRoot,
       requiredKeys,
       validationMode
     });
@@ -220,7 +224,7 @@ export const loadManifestJsonObjectFromSources = ({
   if (sources.paths.length > 1 && strict) {
     throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', `Ambiguous JSON sources for ${baseName}`);
   }
-  return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes });
+  return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes, containedRoot: sources.containedRoot });
 };
 
 export { iterateBinaryColumnarRows };

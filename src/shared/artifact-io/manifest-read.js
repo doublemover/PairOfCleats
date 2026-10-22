@@ -1,3 +1,4 @@
+import { assertNoSymlinkPath } from '../contained-file.js';
 import { retainCachePathAccess } from '../cache/repo-access-reader.js';
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import path from 'node:path';
@@ -61,11 +62,12 @@ export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = tr
   retainCachePathAccess(dir);
   const manifestPath = path.join(dir, 'pieces', 'manifest.json');
   if (!existsOrBak(manifestPath)) return assertPiecesManifestFormat(dir, null, repoRoot);
+  if (strict) assertNoSymlinkPath(dir, manifestPath, { allowMissing: true });
   const resolvedMaxBytes = resolveManifestMaxBytes(maxBytes, { strict });
   const cachePolicy = { maxBytes: resolvedMaxBytes, view: 'manifest', strict: Boolean(strict) };
   const cached = readCache(manifestPath, cachePolicy);
   if (cached) return assertPiecesManifestFormat(dir, cached, repoRoot);
-  const raw = readJsonFile(manifestPath, { maxBytes: resolvedMaxBytes });
+  const raw = readJsonFile(manifestPath, { maxBytes: resolvedMaxBytes, containedRoot: strict ? dir : null });
   const manifest = normalizeManifest(raw);
   assertPiecesManifestFormat(dir, manifest, repoRoot);
   if (!manifest && strict) {

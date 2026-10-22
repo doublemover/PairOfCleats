@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { openContainedFileSync, verifyContainedFileHandle } from '../../contained-file.js';
 import { createPackedChecksumValidator } from '../checksum.js';
 import { resolveManifestPieceByPath } from '../manifest-sources.js';
 import { createLoaderError } from './shared.js';
@@ -53,6 +54,7 @@ export const verifyManifestChecksum = ({
 export const verifyManifestChecksumFromFile = ({
   validator,
   artifactPath,
+  containedRoot = null,
   baseName
 }) => {
   if (!validator) return;
@@ -60,12 +62,13 @@ export const verifyManifestChecksumFromFile = ({
   let handle = null;
   let readError = null;
   try {
-    handle = fs.openSync(artifactPath, 'r');
+    handle = containedRoot ? openContainedFileSync(containedRoot, artifactPath) : fs.openSync(artifactPath, 'r');
     while (true) {
       const bytesRead = fs.readSync(handle, chunk, 0, chunk.length, null);
       if (!Number.isFinite(bytesRead) || bytesRead <= 0) break;
       validator.update(bytesRead === chunk.length ? chunk : chunk.subarray(0, bytesRead));
     }
+    if (containedRoot) verifyContainedFileHandle(handle, containedRoot, artifactPath);
   } catch (err) {
     readError = err instanceof Error ? err : new Error(String(err));
   } finally {

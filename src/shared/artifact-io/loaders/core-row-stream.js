@@ -24,7 +24,7 @@ export const streamArrayArtifactRowsFromSources = async function* (
 ) {
   if (sources.format === 'json') {
     for (const sourcePath of sources.paths) {
-      const payload = readJsonFile(sourcePath, { maxBytes });
+      const payload = readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot });
       const rows = Array.isArray(payload) ? payload : [];
       for (const row of rows) yield row;
     }
@@ -32,7 +32,7 @@ export const streamArrayArtifactRowsFromSources = async function* (
   }
   if (sources.format === 'columnar') {
     for (const sourcePath of sources.paths) {
-      const payload = readJsonFile(sourcePath, { maxBytes });
+      const payload = readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot });
       const rows = iterateColumnarRows(payload);
       if (!rows) {
         throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
@@ -57,6 +57,7 @@ export const streamArrayArtifactRowsFromSources = async function* (
   }
   for await (const row of streamJsonlRowsFromSources(sources.paths, sources.offsets, {
     maxBytes,
+    containedRoot: sources.containedRoot,
     requiredKeys,
     validationMode,
     maxInFlight,
