@@ -34,6 +34,7 @@ export const resolveManagedLuaLanguageServer = toolingRoot => {
       assertNoSymlinkPath(owner, file);
       const stat = fs.statSync(file);
       if (!stat.isFile() || !stat.size) return null;
+      if (process.platform !== 'win32' && file === command && (stat.mode & 0o111) === 0) return null;
     }
     return { root, command, mainLuaPath, binDir: path.dirname(command) };
   } catch { return null; }

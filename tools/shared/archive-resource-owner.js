@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
+import { isFileLockPublicationSession } from '../../src/shared/locks/file-lock-publication.js';
 
 const sessions = new WeakSet(), failureSessions = new WeakMap();
 const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
@@ -29,6 +30,7 @@ export const createArchiveResourceOwner = destination => {
   let primary, hasFailure = false, message = 'Archive extraction or resource cleanup failed.';
   let stopped = false, overflow = false, cleaned = false, cleanup = null, closing = null, reconciling = null;
   let cleanupFailure, cleanupFailed = false;
+  let recoveryContext = null;
   const record = value => {
     const queue = [value];
     while (queue.length) {
@@ -48,6 +50,10 @@ export const createArchiveResourceOwner = destination => {
       if (!objectLike(error)) continue;
       const child = getArchiveExtractionSession(error);
       if (child && child !== session) children.add(child);
+      try {
+        const publication = Object.getOwnPropertyDescriptor(error, 'fileLockPublicationSession')?.value;
+        if (isFileLockPublicationSession(publication)) children.add(publication);
+      } catch (inspectionError) { observers.push(() => false); queue.push(inspectionError); }
       try {
         const observe = error.cacheOwnershipReleased;
         if (error.cacheOwnershipPending === true || typeof observe === 'function') {
@@ -96,7 +102,8 @@ export const createArchiveResourceOwner = destination => {
       try {
         for (const field of Reflect.ownKeys(primary)) {
           if (['cause', 'errors', 'message', 'stack', 'cacheOwnershipPending', 'cacheOwnershipReleased',
-            'archiveExtractionSession', 'archiveResourceErrors', 'cleanupError', 'recoveryPath'].includes(field)) continue;
+            'archiveExtractionSession', 'archiveResourceErrors', 'cleanupError', 'recoveryPath'].includes(field)
+            || field === 'recovery' && recoveryContext) continue;
           const descriptor = Object.getOwnPropertyDescriptor(primary, field);
           if (descriptor) Object.defineProperty(result, field, descriptor);
         }
@@ -107,6 +114,7 @@ export const createArchiveResourceOwner = destination => {
       cacheOwnershipPending: { value: !isSettled() }, cacheOwnershipReleased: { value: isSettled },
       archiveExtractionSession: { value: session }, archiveResourceErrors: { value: Object.freeze([...result.errors]) },
       recoveryPath: { value: destination, enumerable: true },
+      ...(recoveryContext ? { recovery: { value: recoveryContext, enumerable: true } } : {}),
       ...(cleanupFailed ? { cleanupError: { value: cleanupFailure, enumerable: true } } : {})
     });
     failureSessions.set(result, session);
@@ -179,6 +187,7 @@ export const createArchiveResourceOwner = destination => {
   return { session, record, open, read, write, range, closeOne, drain,
     stat: owner => track(() => owner.stat.call(owner.handle, { bigint: true })),
     setCleanup: callback => { cleanup = callback; },
+    setRecoveryContext: context => { recoveryContext = Object.freeze({ ...context }); },
     finish: async ({ cleanupOnSuccess = false } = {}) => {
       stopped = true;
       await drain();
