@@ -1185,3 +1185,10 @@ tooling/install/perl-patch-roundtrip
 tooling/install/tree-sitter-patch-roundtrip
 tui/operator-recording-request-contract
 tui/operator-recordings
+services/registry-prune-authority
+services/snapshot-staging-dry-run
+services/snapshot-pruning-policy
+services/snapshot-freeze-integrity
+services/snapshot-piece-integrity
+services/snapshot-source-authority
+shared/hash/file-close-lifetime

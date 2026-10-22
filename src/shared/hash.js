@@ -27,19 +27,29 @@ export function sha1(str) {
   return crypto.createHash('sha1').update(str).digest('hex');
 }
 
+const withFileHashStream = async (filePath, compute) => {
+  const stream = fs.createReadStream(filePath);
+  const closed = new Promise(resolve => stream.once('close', resolve));
+  try {
+    return await compute(stream);
+  } finally {
+    stream.destroy();
+    await closed;
+  }
+};
+
 /**
  * Compute a SHA1 hash for a file on disk.
  * @param {string} filePath
  * @returns {Promise<string>}
  */
 export function sha1File(filePath) {
-  return new Promise((resolve, reject) => {
+  return withFileHashStream(filePath, stream => new Promise((resolve, reject) => {
     const hash = crypto.createHash('sha1');
-    const stream = fs.createReadStream(filePath);
     stream.on('error', reject);
     stream.on('data', (chunk) => hash.update(chunk));
     stream.on('end', () => resolve(hash.digest('hex')));
-  });
+  }));
 }
 
 export async function checksumString(input) {
@@ -49,10 +59,9 @@ export async function checksumString(input) {
 }
 
 export async function checksumFile(filePath) {
-  const { hash64Stream, hashFileStream } = await import('./hash/xxhash-backend.js');
+  const { hash64Stream } = await import('./hash/xxhash-backend.js');
   const backend = await getBackend();
-  const stream = hashFileStream(filePath);
-  const value = await hash64Stream(stream, backend);
+  const value = await withFileHashStream(filePath, stream => hash64Stream(stream, backend));
   return { algo: 'xxh64', value };
 }
 

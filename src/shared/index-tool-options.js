@@ -38,7 +38,7 @@ export const SNAPSHOT_COMMANDS = {
   } },
   freeze: { command: 'freeze <snapshotId>', description: 'Freeze a pointer snapshot into immutable frozen roots',
     positional: { snapshotId: { type: 'string', demandOption: true } }, options: {
-      repo: { type: 'string' }, modes: { type: 'string' }, method: { type: 'string', default: 'hardlink' },
+      repo: { type: 'string' }, modes: { type: 'string' }, method: { type: 'string', default: 'copy' },
       verify: { type: 'boolean', default: true }, 'include-sqlite': { type: 'string', default: 'auto' },
       'include-lmdb': { type: 'boolean', default: false }, 'retention-tier': { type: 'string' },
       'wait-ms': { type: 'number', default: 0 }, json: { type: 'boolean', default: false }

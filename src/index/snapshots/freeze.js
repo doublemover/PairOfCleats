@@ -14,14 +14,20 @@ import {
   loadFrozen,
   loadSnapshot,
   loadSnapshotsManifest,
+  resolveSnapshotDir,
   writeFrozen,
   writeSnapshotsManifest
 } from './registry.js';
-import { copySnapshotModeArtifacts } from './copy-pieces.js';
+import {
+  assertSnapshotSourcePath,
+  copySnapshotDirectory,
+  copySnapshotFile,
+  copySnapshotModeArtifacts
+} from './copy-pieces.js';
 import {
   buildSnapshotLockConflict,
   buildSnapshotRetention,
-  normalizeSnapshotRetentionTier
+  resolveSnapshotRetentionPolicy
 } from './support.js';
 
 const SNAPSHOT_ID_RE = /^snap-[A-Za-z0-9._-]+$/;
@@ -41,8 +47,8 @@ const ensureSnapshotId = (snapshotId) => {
 };
 
 const normalizeMethod = (method) => {
-  const normalized = String(method || 'hardlink').trim().toLowerCase();
-  if (normalized === 'copy' || normalized === 'hardlink') return normalized;
+  const normalized = String(method || 'copy').trim().toLowerCase();
+  if (normalized === 'copy' || normalized === 'hardlink') return 'copy';
   throw invalidRequest(`Invalid freeze method "${method}". Use hardlink|copy.`);
 };
 
@@ -119,56 +125,9 @@ const withSnapshotLock = async (repoCacheRoot, options, worker) => {
   });
 };
 
-const linkOrCopyFile = async (srcPath, destPath, method) => {
-  if (method === 'copy') {
-    await fsPromises.copyFile(srcPath, destPath);
-    return 'copy';
-  }
-  try {
-    await fsPromises.link(srcPath, destPath);
-    return 'hardlink';
-  } catch (err) {
-    if (!['EXDEV', 'EPERM', 'EACCES', 'EEXIST'].includes(err?.code)) {
-      throw err;
-    }
-    await fsPromises.copyFile(srcPath, destPath);
-    return 'copy';
-  }
-};
-
-const copyOptionalDir = async ({
-  sourceDir,
-  targetDir,
-  method
-}) => {
-  const copiedFiles = [];
-  const walk = async (srcDir, dstDir) => {
-    await fsPromises.mkdir(dstDir, { recursive: true });
-    const entries = await fsPromises.readdir(srcDir, { withFileTypes: true });
-    for (const entry of entries) {
-      const srcPath = path.join(srcDir, entry.name);
-      const dstPath = path.join(dstDir, entry.name);
-      if (entry.isDirectory()) {
-        await walk(srcPath, dstPath);
-        continue;
-      }
-      await fsPromises.mkdir(path.dirname(dstPath), { recursive: true });
-      const copyMethod = await linkOrCopyFile(srcPath, dstPath, method);
-      const stat = await fsPromises.stat(dstPath);
-      copiedFiles.push({
-        sourcePath: srcPath,
-        targetPath: dstPath,
-        method: copyMethod,
-        bytes: Number(stat.size || 0)
-      });
-    }
-  };
-  await walk(sourceDir, targetDir);
-  return copiedFiles;
-};
-
-const hasSqliteArtifact = async (sqliteDir) => {
+const hasSqliteArtifact = async (sqliteDir, sourceRoot) => {
   if (!fs.existsSync(sqliteDir)) return false;
+  await assertSnapshotSourcePath(sourceRoot, sqliteDir);
   const entries = await fsPromises.readdir(sqliteDir, { withFileTypes: true });
   return entries.some((entry) => (
     entry.isFile()
@@ -249,7 +208,7 @@ export const freezeSnapshot = async ({
   userConfig = null,
   snapshotId,
   modes = [],
-  method = 'hardlink',
+  method = 'copy',
   verify = true,
   includeSqlite = 'auto',
   includeLmdb = false,
@@ -278,11 +237,11 @@ export const freezeSnapshot = async ({
       snapshotId
     }
   }, async (lock) => {
+    const manifest = loadSnapshotsManifest(repoCacheRoot);
     await cleanupStaleFrozenStagingDirs(repoCacheRoot, {
       lock,
       maxAgeHours: stagingMaxAgeHours
     });
-    const manifest = loadSnapshotsManifest(repoCacheRoot);
     const entry = manifest.snapshots?.[snapshotId];
     if (!entry) {
       throw notFound(`Snapshot not found: ${snapshotId}`);
@@ -291,7 +250,7 @@ export const freezeSnapshot = async ({
     if (!snapshotJson) {
       throw notFound(`snapshot.json missing for ${snapshotId}`);
     }
-    const snapshotDir = path.join(repoCacheRoot, 'snapshots', snapshotId);
+    const snapshotDir = resolveSnapshotDir(repoCacheRoot, snapshotId);
     const frozenDir = path.join(snapshotDir, 'frozen');
     const existingFrozen = loadFrozen(repoCacheRoot, snapshotId);
     if (entry.hasFrozen === true && existingFrozen && fs.existsSync(frozenDir)) {
@@ -340,7 +299,7 @@ export const freezeSnapshot = async ({
       const dominantSourceRoot = sourceRootByMode.code || sourceRootByMode[selectedModes[0]];
       const sourceSqliteDir = dominantSourceRoot ? path.join(dominantSourceRoot, 'index-sqlite') : null;
       const includeSqliteResolved = includeSqliteMode === 'auto'
-        ? await hasSqliteArtifact(sourceSqliteDir)
+        ? await hasSqliteArtifact(sourceSqliteDir, dominantSourceRoot)
         : includeSqliteMode === true;
       const includeLmdbResolved = includeLmdbEnabled === true;
       const optionalCopies = [];
@@ -348,10 +307,10 @@ export const freezeSnapshot = async ({
         if (!sourceSqliteDir || !fs.existsSync(sourceSqliteDir)) {
           throw notFound(`index-sqlite source missing for snapshot ${snapshotId}.`);
         }
-        const copied = await copyOptionalDir({
+        const copied = await copySnapshotDirectory({
           sourceDir: sourceSqliteDir,
           targetDir: path.join(stagingDir, 'index-sqlite'),
-          method: normalizedMethod
+          verify: verifyEnabled
         });
         optionalCopies.push(...copied);
       }
@@ -361,10 +320,10 @@ export const freezeSnapshot = async ({
         if (!sourceLmdbDir || !fs.existsSync(sourceLmdbDir)) {
           throw notFound(`index-lmdb source missing for snapshot ${snapshotId}.`);
         }
-        const copied = await copyOptionalDir({
+        const copied = await copySnapshotDirectory({
           sourceDir: sourceLmdbDir,
           targetDir: path.join(stagingDir, 'index-lmdb'),
-          method: normalizedMethod
+          verify: verifyEnabled
         });
         optionalCopies.push(...copied);
       }
@@ -373,7 +332,8 @@ export const freezeSnapshot = async ({
         ? path.join(dominantSourceRoot, 'build_state.json')
         : null;
       if (sourceBuildStatePath && fs.existsSync(sourceBuildStatePath)) {
-        await linkOrCopyFile(sourceBuildStatePath, path.join(stagingDir, 'build_state.json'), normalizedMethod);
+        await copySnapshotFile({ sourceRoot: dominantSourceRoot, sourcePath: sourceBuildStatePath,
+          targetPath: path.join(stagingDir, 'build_state.json'), verify: verifyEnabled });
       }
 
       if (fs.existsSync(frozenDir)) {
@@ -382,8 +342,10 @@ export const freezeSnapshot = async ({
       await fsPromises.rename(stagingDir, frozenDir);
 
       const checkedAt = new Date().toISOString();
-      const filesChecked = modeResults.reduce((sum, entry) => sum + Number(entry.result.filesChecked || 0), 0);
-      const bytesChecked = modeResults.reduce((sum, entry) => sum + Number(entry.result.bytesChecked || 0), 0);
+      const filesChecked = modeResults.reduce((sum, entry) => sum + Number(entry.result.filesChecked || 0), 0)
+        + (verifyEnabled ? optionalCopies.length : 0);
+      const bytesChecked = modeResults.reduce((sum, entry) => sum + Number(entry.result.bytesChecked || 0), 0)
+        + (verifyEnabled ? optionalCopies.reduce((sum, entry) => sum + entry.bytes, 0) : 0);
       const filesCopied = modeResults.reduce((sum, entry) => sum + Number(entry.result.filesCopied || 0), 0)
         + optionalCopies.length;
       const bytesCopied = modeResults.reduce((sum, entry) => sum + Number(entry.result.bytesCopied || 0), 0)
@@ -402,7 +364,8 @@ export const freezeSnapshot = async ({
         },
         verification: {
           checkedAt,
-          ok: true,
+          ok: verifyEnabled,
+          status: verifyEnabled ? 'verified' : 'skipped',
           filesChecked: verifyEnabled ? filesChecked : null,
           bytesChecked: verifyEnabled ? bytesChecked : null,
           failures: []
@@ -420,7 +383,7 @@ export const freezeSnapshot = async ({
         ...entry,
         hasFrozen: true,
         retention: buildSnapshotRetention({
-          retentionTier,
+          retentionTier: retentionTier ?? (entry?.retention?.tier === 'pinned' ? 'pinned' : null),
           tags: Array.isArray(entry?.tags) ? entry.tags : [],
           hasFrozen: true
         })
@@ -484,11 +447,12 @@ export const gcSnapshots = async ({
       operation: 'gc'
     }
   }, async (lock) => {
+    const manifest = loadSnapshotsManifest(repoCacheRoot);
     const staleCleanup = await cleanupStaleFrozenStagingDirs(repoCacheRoot, {
       lock,
-      maxAgeHours: stagingMaxAgeHours
+      maxAgeHours: stagingMaxAgeHours,
+      dryRun: dryRunEnabled
     });
-    const manifest = loadSnapshotsManifest(repoCacheRoot);
     const entries = sortedSnapshotEntries(manifest);
     const protectedIds = new Set();
     const removedEntries = [];
@@ -503,10 +467,8 @@ export const gcSnapshots = async ({
       const tagProtected = tags.some((tag) => (
         keepTagPatterns.some((pattern) => matchesTagPattern(tag, pattern))
       ));
-      const retentionTier = normalizeSnapshotRetentionTier(
-        entry?.retention?.tier,
-        entry?.hasFrozen === true ? 'forensic' : 'cache'
-      );
+      const policy = resolveSnapshotRetentionPolicy(entry, { tagProtected });
+      const retentionTier = policy.tier;
       if (tagProtected) protectedIds.add(snapshotId);
       const createdAtMs = parseCreatedAtMs(entry.createdAt);
       const youngerThanCutoff = maxAgeCutoffMs == null || createdAtMs >= maxAgeCutoffMs;
@@ -515,8 +477,8 @@ export const gcSnapshots = async ({
       let reason = 'cache_budget';
       if (tagProtected) {
         reason = 'tag_pattern';
-      } else if (retentionTier === 'pinned') {
-        reason = 'pinned';
+      } else if (policy.protectionReason) {
+        reason = policy.protectionReason;
       } else if (retentionTier === 'forensic') {
         const withinKeep = keptFrozen < keepFrozenCount;
         if (withinKeep || youngerThanCutoff) {
@@ -558,7 +520,7 @@ export const gcSnapshots = async ({
     const removed = removedEntries.map((entry) => entry.snapshotId);
     if (!dryRunEnabled && removed.length) {
       for (const snapshotId of removed) {
-        await fsPromises.rm(path.join(repoCacheRoot, 'snapshots', snapshotId), {
+        await fsPromises.rm(resolveSnapshotDir(repoCacheRoot, snapshotId), {
           recursive: true,
           force: true
         });

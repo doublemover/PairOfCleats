@@ -12,11 +12,13 @@ import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import { withRegistryLock } from '../registry-support.js';
 import {
   buildSnapshotLockConflict,
-  buildSnapshotRetention
+  buildSnapshotRetention,
+  resolveSnapshotRetentionPolicy
 } from './support.js';
 import {
   loadSnapshot,
   loadSnapshotsManifest,
+  resolveSnapshotDir,
   writeSnapshot,
   writeSnapshotsManifest
 } from './registry.js';
@@ -178,7 +180,8 @@ const prunePointerSnapshots = async ({
   for (const entry of pointerEntries) {
     const snapshotId = entry.snapshotId;
     if (!snapshotId) continue;
-    if (protectedByTag.has(snapshotId)) {
+    const policy = resolveSnapshotRetentionPolicy(entry, { tagProtected: protectedByTag.has(snapshotId) });
+    if (!policy.pointerBudgetEligible) {
       keepIds.add(snapshotId);
       continue;
     }
@@ -194,11 +197,12 @@ const prunePointerSnapshots = async ({
     const snapshotId = entry.snapshotId;
     if (!snapshotId) continue;
     if (keepIds.has(snapshotId)) {
+      const policy = resolveSnapshotRetentionPolicy(entry, { tagProtected: protectedByTag.has(snapshotId) });
       decisions.push({
         snapshotId,
         retentionTier: entry?.retention?.tier || null,
         action: 'keep',
-        reason: protectedByTag.has(snapshotId) ? 'tagged' : 'pointer_budget'
+        reason: policy.protectionReason || (policy.tier === 'forensic' ? 'forensic_retention' : 'pointer_budget')
       });
       continue;
     }
@@ -211,7 +215,7 @@ const prunePointerSnapshots = async ({
     });
     if (!dryRun) {
       delete manifest.snapshots[snapshotId];
-      await fsPromises.rm(path.join(repoCacheRoot, 'snapshots', snapshotId), {
+      await fsPromises.rm(resolveSnapshotDir(repoCacheRoot, snapshotId), {
         recursive: true,
         force: true
       });
@@ -439,7 +443,7 @@ export const removeSnapshot = async ({
     if (entry.hasFrozen === true && force !== true) {
       throw invalidRequest(`Snapshot ${snapshotId} is frozen. Use --force to remove.`);
     }
-    await fsPromises.rm(path.join(repoCacheRoot, 'snapshots', snapshotId), {
+    await fsPromises.rm(resolveSnapshotDir(repoCacheRoot, snapshotId), {
       recursive: true,
       force: true
     });

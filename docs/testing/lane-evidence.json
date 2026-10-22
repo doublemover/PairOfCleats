@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-21T16:19:35.825Z",
+  "generatedAt": "2026-10-22T01:07:23.560Z",
   "summary": {
     "lanes": 5,
-    "tests": 1410,
+    "tests": 1417,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 364,
+    "families": 370,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1336
+      "missingTests": 1343
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1185,
+      "totalTests": 1192,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1136
+        "missing": 1143
       }
     },
     {
@@ -236,9 +236,9 @@
     },
     {
       "key": "shared/hash",
-      "count": 1,
+      "count": 2,
       "knownDurationMs": 250,
-      "unknownDurationCount": 0
+      "unknownDurationCount": 1
     },
     {
       "key": "shared/json-stream",
@@ -1621,6 +1621,12 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "services/registry-prune-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "services/risk-explain-adapter-matrix",
       "count": 1,
       "knownDurationMs": 0,
@@ -1639,7 +1645,37 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "services/snapshot-freeze-integrity",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/snapshot-piece-integrity",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/snapshot-pruning-policy",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "services/snapshot-ref-contract-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/snapshot-source-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/snapshot-staging-dry-run",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

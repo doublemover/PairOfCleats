@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import path from 'node:path';
+import { toRealPathSync } from '../workspace/identity.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { isAbsolutePathAny, toPosix } from '../shared/file-paths.js';
 import { releaseFileLockOrThrow } from '../shared/locks/file-lock.js';
@@ -55,6 +57,38 @@ export const normalizeRegistryRelativePath = (value, label) => {
 export const ensureRegistryId = (value, pattern, message) => {
   if (typeof value !== 'string' || !pattern.test(value)) {
     throw registryInvalidRequest(message);
+  }
+};
+
+export const assertRegistryDirectory = (directory) => {
+  const stat = fs.lstatSync(directory, { throwIfNoEntry: false });
+  if (stat && (stat.isSymbolicLink() || !stat.isDirectory())) {
+    throw registryInvalidRequest(`Registry directory must not be a link or file: ${directory}`);
+  }
+};
+
+export const resolveRegistryChildDirectory = (root, id, pattern) => {
+  ensureRegistryId(id, pattern, `Invalid registry id: ${id}`);
+  assertRegistryDirectory(root);
+  const target = path.resolve(root, id);
+  if (path.dirname(target) !== path.resolve(root)) {
+    throw registryInvalidRequest(`Registry entry escapes its root: ${id}`);
+  }
+  assertRegistryDirectory(target);
+  if (path.dirname(toRealPathSync(target)) !== toRealPathSync(root)) {
+    throw registryInvalidRequest(`Registry entry escapes its canonical root: ${id}`);
+  }
+  return target;
+};
+
+export const assertRegistryEntryIds = (entries, idField, pattern, resolveDirectory) => {
+  if (!isRegistryObject(entries)) throw registryInvalidRequest('Registry entries must be an object.');
+  for (const [id, entry] of Object.entries(entries)) {
+    ensureRegistryId(id, pattern, `Invalid registry id: ${id}`);
+    if (!isRegistryObject(entry) || entry[idField] !== id) {
+      throw registryInvalidRequest(`Registry key and ${idField} must match: ${id}`);
+    }
+    resolveDirectory(id);
   }
 };
 

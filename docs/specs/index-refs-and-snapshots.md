@@ -350,7 +350,7 @@ Notes:
   "version": 1,
   "snapshotId": "snap-...",
   "frozenAt": "2026-01-24T00:05:00.000Z",
-  "method": "hardlink",
+  "method": "copy",
   "frozenRoot": "snapshots/snap-.../frozen",
   "included": {
     "modes": ["code", "prose"],
@@ -430,7 +430,7 @@ Purpose: materialize an immutable copy of all selected artifacts under `snapshot
 
 Inputs:
 - `--snapshot <snapshotId | IndexRef>` (accept `snap:` or bare snapshotId; reject others)
-- `--method hardlink|copy` (default: `hardlink`)
+- `--method hardlink|copy` (default: `copy`; legacy `hardlink` requests use independent copies)
 - `--include-sqlite true|false` (default: `auto`)
 - `--include-lmdb true|false` (default: `false`)
 - `--verify true|false` (default: `true`)
@@ -456,16 +456,18 @@ Atomic, crash-safe algorithm:
      - `dstFile = path.join(dstDir, relPath)`
      - Ensure parent directories exist.
      - Copy strategy:
-       - If method==hardlink: try `fs.link(srcFile, dstFile)`
-         - On `EXDEV`, `EPERM`, `EACCES`, fall back to copy for that file.
-       - Else copy: `fs.copyFile(srcFile, dstFile)`
+       - Copy into an exclusively owned destination; a filesystem copy-on-write clone is allowed.
+       - Never share mutable hardlink bytes, including for legacy `hardlink` requests.
+       - Reject source file/directory links, junctions, unsupported entries and changed source identities.
      - If `verify==true`:
        - Compute checksum using `src/shared/hash.js#checksumFile(dstFile)`
-       - Compare to `entry.checksum` (`algo:value`)
+       - Compare to the supported declared `entry.checksum` (`algo:value`).
+       - If no checksum is declared, compare the destination with a source digest captured before copying.
+       - Reject malformed/unsupported declared checksums; do not count unchecked bytes as verified.
        - Record failures.
 6. Optionally include sqlite/lmdb:
-   - If include-sqlite: recursively copy/link `sourceBaseRoot/index-sqlite` to `<staging>/index-sqlite`
-   - If include-lmdb: recursively copy/link `sourceBaseRoot/index-lmdb` to `<staging>/index-lmdb`
+   - If include-sqlite: recursively copy `sourceBaseRoot/index-sqlite` to `<staging>/index-sqlite`
+   - If include-lmdb: recursively copy `sourceBaseRoot/index-lmdb` to `<staging>/index-lmdb`
    - These directories are not in pieces manifests and MUST be copied by direct directory walk.
 7. Optionally write `build_state.json` into staging:
    - Prefer copying from the dominant source base root (the one used for `code` if present else first mode).
@@ -568,3 +570,24 @@ Update `bin/pairofcleats.js`:
 - Tag-selected snapshot IDs and pre-parsed build/snapshot IDs retain the same validation
   as textual refs. Explicit `path:` refs keep their documented nonportable behavior.
 - Path IndexRefs MUST NOT be stored in registries.
+
+### Maintenance authority and verification details
+
+Manifest keys and stored snapshot/diff IDs must match and satisfy their canonical
+ID syntax before any plan or mutation. Registry roots and deletion targets must
+be regular directories inside the canonical registry root; linked entries are
+rejected. Validation precedes stale-staging cleanup. GC dry runs return stale
+staging `planned` paths with an empty `removed` list and preserve all bytes.
+
+Create-time and explicit pointer pruning apply the same retention classification
+as GC: pinned entries and tagged entries are protected, forensic entries are
+reserved for the explicit GC age policy, and only cache entries consume the
+pointer budget. Freeze preserves existing pinned protection unless a new tier
+is explicitly requested.
+
+A frozen record uses `verification.status: verified` and `ok: true` only after
+verification; `--verify false` uses `status: skipped`, `ok: false` and null checked
+counts. Optional SQLite/LMDB copies use the same independent-copy, no-link and
+byte-verification owner. Directory pieces retain empty directories and deduplicated
+overlapping descendants. These snapshot copies are not a live-database checkpoint
+contract; callers still supply the published generation named by the pointer.

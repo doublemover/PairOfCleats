@@ -161,6 +161,7 @@ export const SNAPSHOT_DIFF_ARTIFACT_SCHEMA_DEFS = {
         properties: {
           checkedAt: { type: 'string' },
           ok: { type: 'boolean' },
+          status: { enum: ['verified', 'skipped'] },
           filesChecked: nullableInt,
           bytesChecked: nullableInt,
           failures: { type: ['array', 'null'], items: { type: 'string' } }
