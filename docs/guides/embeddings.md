@@ -304,3 +304,9 @@ History archive refresh retains an interval index inside each bounded immutable
 source run. Fragment lookup visits intersecting spans, preserving original span
 order and duplicate-range policy. The index is discarded with the existing source
 plan. This changes span-selection work, without establishing model-throughput gains.
+
+Embedding preparation retains unpadded token rows only within adapter-local item, byte and lifetime bounds. Count estimation does not allocate longest-row padding; request completion or failure releases its preparation lease. Exact-length batch candidates must fit the same admitted window and cannot exceed the source plan in calls or estimated padded tokens. Source order wins equal-cost ties.
+
+The persistent text cache batches at most 256 pending vector keys or 4 MiB, flushing within 25 ms and at normal close. Access timestamps and hit counts coalesce separately for up to one second or 1,024 keys. These vectors and advisory statistics are disposable: interruption may lose pending cache updates and cannot invalidate an index artifact. Cache get sees pending rows; failed transactions discard pending updates and never mark their digests persisted. Joined inference requests promote memory without another blob upsert. Transaction, avoided-write, coalesced-touch and queue-latency counters describe this owner; they do not establish measured throughput.
+
+An aggregate file chunk fingerprint is a positive fast hint, never a reason to reject all older rows after one chunk changes. Bounded prior-cache reads still require exact embedding identity, channel availability, dimensions and per-chunk hash multiplicity before reuse. Reordering consumes prior hash occurrences with cursors and preserves missing-document markers.

@@ -8,6 +8,7 @@ import {
   getNamedChildCount
 } from './ast.js';
 import { LANG_CONFIG, LANGUAGE_GRAMMAR_KEYS } from './config.js';
+import { resolveDeclarationPrefixRange } from './declaration-roles.js';
 import { isTreeSitterEnabled } from './options.js';
 import { getNativeTreeSitterParser, loadNativeTreeSitterGrammar } from './native-runtime.js';
 import { resolveTreeSitterLanguageForExt } from './language-id.js';
@@ -357,13 +358,22 @@ function extractNodeName(node, text, config) {
  * @param {object} config
  * @returns {object|null}
  */
-function findNearestType(node, config) {
+function findLexicalScopes(node, text, config) {
+  const scopes = [];
   let current = node?.parent || null;
   while (current) {
-    if (config.typeNodes.has(current.type) && (!config.includeNode || config.includeNode(current))) return current;
+    if ((config.typeNodes.has(current.type) || config.memberNodes.has(current.type))
+      && (!config.includeNode || config.includeNode(current))) {
+      const name = extractNodeName(current, text, config);
+      if (name) {
+        let kind = config.kindMap[current.type] || 'Declaration';
+        kind = config.resolveKind?.(current, kind, text) || kind;
+        scopes.push({ node: current, name, kind, member: config.memberNodes.has(current.type) });
+      }
+    }
     current = current.parent;
   }
-  return null;
+  return scopes;
 }
 
 /**
@@ -507,17 +517,20 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
   if (typeof config.resolveKind === 'function') {
     kind = config.resolveKind(node, kind, text) || kind;
   }
-  const start = node.startIndex;
-  const end = node.endIndex;
-  const parentType = findNearestType(node, config);
-  let fullName = name;
+  const range = config.resolveRange?.(node, text) || resolveDeclarationPrefixRange(node);
+  const start = range?.start ?? node.startIndex;
+  const end = range?.end ?? node.endIndex;
+  const scopes = findLexicalScopes(node, text, config);
+  const nearest = scopes[0];
+  let fullName = [...scopes].reverse().map(scope => scope.name).concat(name).join('.');
+  const lexicalPrefix = [...scopes].reverse().map(scope => scope.name).join('.');
+  if (lexicalPrefix && name.startsWith(`${lexicalPrefix}.`)) fullName = name;
   let finalKind = kind;
-  if (parentType && config.memberNodes.has(node.type)) {
-    const parentName = extractNodeName(parentType, text, config);
-    if (parentName) fullName = `${parentName}.${name}`;
-    if (kind === 'FunctionDeclaration') finalKind = 'MethodDeclaration';
+  if (nearest && config.memberNodes.has(node.type)) {
+    const isTypeMember = !nearest.member && !['ModuleDeclaration', 'NamespaceDeclaration'].includes(nearest.kind);
+    if (kind === 'FunctionDeclaration' && isTypeMember) finalKind = 'MethodDeclaration';
   }
-  if (!parentType && config.memberNodes.has(node.type)
+  if (!scopes.length && config.memberNodes.has(node.type)
     && typeof config.resolveMemberName === 'function') {
     const resolved = config.resolveMemberName(node, name, text);
     if (resolved?.name) fullName = resolved.name;
@@ -540,6 +553,8 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
     meta: {
       startLine,
       endLine,
+      definitionStartLine: offsetToLine(lineIndex, node.startIndex),
+      ...(['function_declarator', 'operator_cast', 'function_signature_item'].includes(node.type) ? { bodyless: true } : {}),
       signature,
       docstring
     }

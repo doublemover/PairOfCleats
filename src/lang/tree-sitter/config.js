@@ -1,6 +1,8 @@
 import { findDescendantByType } from './ast.js';
-// v3 excludes Perl heredoc bodies from declarations after scanner state repair.
-export const TREE_SITTER_CHUNK_VERSION = '3';
+import { includeCDeclaration, resolveCDeclarationRange, resolveCName, resolveCppName, resolveSwiftKind, resolveSwiftName, resolveKotlinKind,
+  includeDartDeclaration, resolveDartName, resolveDartKind, resolveDartRange, resolveGoRange, resolveObjCName } from './declaration-roles.js';
+// v4 binds declaration names, lexical scopes and attached source ranges to grammar roles.
+export const TREE_SITTER_CHUNK_VERSION = '4';
 
 const LANGUAGE_GRAMMAR_KEYS = {
   javascript: 'native:javascript',
@@ -271,6 +273,8 @@ const LANG_CONFIG = {
       'function_declaration',
       'initializer_declaration',
       'deinitializer_declaration',
+      'init_declaration',
+      'deinit_declaration',
       'subscript_declaration'
     ]),
     kindMap: {
@@ -283,25 +287,18 @@ const LANG_CONFIG = {
       function_declaration: 'FunctionDeclaration',
       initializer_declaration: 'Initializer',
       deinitializer_declaration: 'Deinitializer',
+      init_declaration: 'Initializer',
+      deinit_declaration: 'Deinitializer',
       subscript_declaration: 'SubscriptDeclaration'
     },
     docComments: { linePrefixes: ['///', '//'] },
-    resolveKind: (node, kind, text) => {
-      if (node.type !== 'class_declaration') return kind;
-      const head = text.slice(node.startIndex, Math.min(text.length, node.startIndex + 40));
-      const match = head.match(/^\s*(struct|class|extension)\b/);
-      if (!match) return kind;
-      if (match[1] === 'struct') return 'StructDeclaration';
-      if (match[1] === 'extension') return 'ExtensionDeclaration';
-      return kind;
-    }
+    nameFields: ['name'], resolveName: resolveSwiftName, resolveKind: resolveSwiftKind
   },
   kotlin: {
     typeNodes: new Set([
       'class_declaration',
       'object_declaration',
-      'interface_declaration',
-      'enum_class_body'
+      'interface_declaration'
     ]),
     memberNodes: new Set([
       'function_declaration',
@@ -315,7 +312,9 @@ const LANG_CONFIG = {
       function_declaration: 'FunctionDeclaration',
       secondary_constructor: 'ConstructorDeclaration'
     },
-    docComments: { linePrefixes: ['//'], blockStarts: ['/**'] }
+    docComments: { linePrefixes: ['//'], blockStarts: ['/**'] },
+    resolveName: node => node.type === 'secondary_constructor' ? 'constructor' : null,
+    resolveKind: resolveKotlinKind
   },
   csharp: {
     typeNodes: new Set([
@@ -342,9 +341,12 @@ const LANG_CONFIG = {
       property_declaration: 'PropertyDeclaration',
       event_declaration: 'EventDeclaration'
     },
-    docComments: { linePrefixes: ['///', '//'] }
+    docComments: { linePrefixes: ['///', '//'] },
+    nameFields: ['name']
   },
   clike: {
+    includeNode: includeCDeclaration, resolveRange: resolveCDeclarationRange,
+    resolveName: resolveCName,
     typeNodes: new Set([
       'struct_specifier',
       'class_specifier',
@@ -354,7 +356,8 @@ const LANG_CONFIG = {
     memberNodes: new Set([
       'function_definition',
       'function_declaration',
-      'method_definition'
+      'method_definition',
+      'function_declarator'
     ]),
     kindMap: {
       struct_specifier: 'StructDeclaration',
@@ -363,11 +366,13 @@ const LANG_CONFIG = {
       union_specifier: 'UnionDeclaration',
       function_definition: 'FunctionDeclaration',
       function_declaration: 'FunctionDeclaration',
+      function_declarator: 'FunctionDeclaration',
       method_definition: 'MethodDeclaration'
     },
     docComments: { linePrefixes: ['///', '//'], blockStarts: ['/**'] }
   },
   cpp: {
+    includeNode: includeCDeclaration, resolveRange: resolveCDeclarationRange,
     typeNodes: new Set([
       'class_specifier',
       'struct_specifier',
@@ -378,7 +383,9 @@ const LANG_CONFIG = {
     memberNodes: new Set([
       'function_definition',
       'function_declaration',
-      'method_definition'
+      'method_definition',
+      'function_declarator',
+      'operator_cast'
     ]),
     kindMap: {
       class_specifier: 'ClassDeclaration',
@@ -388,29 +395,19 @@ const LANG_CONFIG = {
       namespace_definition: 'NamespaceDeclaration',
       function_definition: 'FunctionDeclaration',
       function_declaration: 'FunctionDeclaration',
+      function_declarator: 'FunctionDeclaration',
+      operator_cast: 'FunctionDeclaration',
       method_definition: 'MethodDeclaration'
     },
     docComments: { linePrefixes: ['///', '//'], blockStarts: ['/**'] },
     nameFields: ['name'],
-    resolveName: (node, rawText) => {
-      if (!node || typeof rawText !== 'string' || typeof node.childForFieldName !== 'function') return null;
-      const nameNode = node.childForFieldName('name');
-      if (nameNode) {
-        const raw = rawText.slice(nameNode.startIndex, nameNode.endIndex).trim();
-        if (raw) return raw;
-      }
-      const declarator = node.childForFieldName('declarator');
-      if (!declarator) return null;
-      const raw = rawText.slice(declarator.startIndex, declarator.endIndex).trim();
-      if (!raw) return null;
-      const match = raw.match(/([A-Za-z_~][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\s*\(/);
-      if (match) return match[1];
-      return raw.replace(/\s*\(.*$/, '').trim();
-    }
+    resolveName: resolveCppName
   },
   objc: {
+    resolveName: resolveObjCName,
     typeNodes: new Set([
       'class_interface',
+      'class_implementation',
       'protocol_declaration',
       'category_interface'
     ]),
@@ -422,6 +419,7 @@ const LANG_CONFIG = {
     ]),
     kindMap: {
       class_interface: 'ClassDeclaration',
+      class_implementation: 'ClassDeclaration',
       protocol_declaration: 'ProtocolDeclaration',
       category_interface: 'CategoryDeclaration',
       method_definition: 'MethodDeclaration',
@@ -432,9 +430,10 @@ const LANG_CONFIG = {
     docComments: { linePrefixes: ['///', '//'], blockStarts: ['/**'] }
   },
   go: {
+    nameFields: ['name'], resolveRange: resolveGoRange,
     typeNodes: new Set([
       'type_spec',
-      'type_declaration'
+      'type_alias'
     ]),
     memberNodes: new Set([
       'function_declaration',
@@ -442,13 +441,14 @@ const LANG_CONFIG = {
     ]),
     kindMap: {
       type_spec: 'TypeDeclaration',
+      type_alias: 'TypeAlias',
       type_declaration: 'TypeDeclaration',
       function_declaration: 'FunctionDeclaration',
       method_declaration: 'MethodDeclaration'
     },
     docComments: { linePrefixes: ['//'], blockStarts: ['/**'] },
     resolveKind: (node, kind) => {
-      if (node.type !== 'type_spec' && node.type !== 'type_declaration') return kind;
+      if (node.type !== 'type_spec') return kind;
       const structNode = findDescendantByType(node, new Set(['struct_type']));
       if (structNode) return 'StructDeclaration';
       const ifaceNode = findDescendantByType(node, new Set(['interface_type']));
@@ -473,6 +473,7 @@ const LANG_CONFIG = {
     ]),
     memberNodes: new Set([
       'function_item',
+      'function_signature_item',
       'function_definition',
       'method_definition',
       'macro_definition'
@@ -484,6 +485,7 @@ const LANG_CONFIG = {
       impl_item: 'ImplDeclaration',
       mod_item: 'ModuleDeclaration',
       function_item: 'FunctionDeclaration',
+      function_signature_item: 'FunctionDeclaration',
       function_definition: 'FunctionDeclaration',
       method_definition: 'MethodDeclaration',
       macro_definition: 'MacroDeclaration'
@@ -496,24 +498,32 @@ const LANG_CONFIG = {
       'class_declaration',
       'interface_declaration',
       'enum_declaration',
-      'record_declaration'
+      'record_declaration',
+      'annotation_type_declaration'
     ]),
     memberNodes: new Set([
       'method_declaration',
-      'constructor_declaration'
+      'constructor_declaration',
+      'compact_constructor_declaration',
+      'annotation_type_element_declaration'
     ]),
     kindMap: {
       class_declaration: 'ClassDeclaration',
       interface_declaration: 'InterfaceDeclaration',
       enum_declaration: 'EnumDeclaration',
       record_declaration: 'RecordDeclaration',
+      annotation_type_declaration: 'AnnotationDeclaration',
       method_declaration: 'MethodDeclaration',
-      constructor_declaration: 'ConstructorDeclaration'
+      constructor_declaration: 'ConstructorDeclaration',
+      compact_constructor_declaration: 'ConstructorDeclaration',
+      annotation_type_element_declaration: 'MethodDeclaration'
     },
     docComments: { linePrefixes: ['//'], blockStarts: ['/**'] },
     nameFields: ['name']
   },
   dart: {
+    includeNode: includeDartDeclaration, resolveName: resolveDartName,
+    resolveRange: resolveDartRange, resolveKind: resolveDartKind,
     typeNodes: new Set([
       'class_definition',
       'enum_declaration',
@@ -643,11 +653,11 @@ const LANG_CONFIG = {
       const raw = rawText.slice(node.startIndex, node.endIndex);
       if (!raw) return null;
       if (node.type === 'function_definition') {
-        const fnMatch = raw.match(/^\s*function\s+([A-Za-z_][A-Za-z0-9_!.]*)\b/);
+        const fnMatch = raw.match(/^\s*function\s+([A-Za-z_][A-Za-z0-9_!.]*)(?=\s|\(|\{|$)/);
         if (fnMatch?.[1]) return fnMatch[1];
       }
       if (node.type === 'macro_definition') {
-        const macroMatch = raw.match(/^\s*macro\s+([A-Za-z_][A-Za-z0-9_!]*)\b/);
+        const macroMatch = raw.match(/^\s*macro\s+([A-Za-z_][A-Za-z0-9_!]*)(?=\s|\(|$)/);
         if (macroMatch?.[1]) return macroMatch[1];
       }
       if (node.type === 'struct_definition') {

@@ -14,7 +14,7 @@ import {
   statSize
 } from './onnx-embeddings/config.js';
 import { createRunQueue } from './onnx-embeddings/run-queue.js';
-import { __tokenizeBatchWithCacheForTests, tokenizeBatchWithCache } from './onnx-embeddings/tokenization.js';
+import { __tokenizeBatchWithCacheForTests, tokenizeBatchWithCache, prepareTokenRowsWithCache, createPreparedTokenRows } from './onnx-embeddings/tokenization.js';
 
 export {
   normalizeEmbeddingProvider,
@@ -355,6 +355,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
     cache: new Map()
   };
   const runScratch = new Map();
+  const preparedRows = createPreparedTokenRows();
   // Every adapter for this native session enters the same run queue.
   const queueSessionRun = (step) => {
     const enqueuedAt = performance.now();
@@ -380,7 +381,8 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
       texts,
       wantsTokenTypeIds,
       truncation: DEFAULT_EMBEDDING_TRUNCATION,
-      tokenizationCache: tokenizationCache.enabled ? tokenizationCache : null
+      tokenizationCache: tokenizationCache.enabled ? tokenizationCache : null,
+      preparedRows
     });
     sessionEntry.measurements.tokenizerMs += performance.now() - startedAt;
     return encoded;
@@ -408,17 +410,21 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
     const list = Array.isArray(texts) ? texts : [];
     if (!list.length) return [];
     const { tokenizer, session } = await embedderPromise;
-    const encoded = encodeTexts(tokenizer, session, list);
-    const masks = Array.isArray(encoded?.attention_mask) ? encoded.attention_mask : [];
+    const wantsTokenTypeIds = session.inputNames?.includes('token_type_ids') === true;
+    const startedAt = performance.now();
+    const rows = prepareTokenRowsWithCache({ tokenizer, texts: list, wantsTokenTypeIds,
+      truncation: DEFAULT_EMBEDDING_TRUNCATION, tokenizationCache: tokenizationCache.enabled ? tokenizationCache : null });
+    sessionEntry.measurements.tokenizerMs += performance.now() - startedAt;
     const counts = new Array(list.length);
     for (let i = 0; i < list.length; i += 1) {
-      const row = Array.isArray(masks[i]) ? masks[i] : [];
+      const row = rows[i]?.attention_mask || [];
       let tokenCount = 0;
       for (let j = 0; j < row.length; j += 1) {
         tokenCount += Number(row[j]) ? 1 : 0;
       }
       counts[i] = Math.max(1, tokenCount);
     }
+    Object.defineProperty(counts, 'release', { value: preparedRows.retain(list, rows, wantsTokenTypeIds) });
     return counts;
   };
   const prewarm = async ({ tokenizer = true, model = false, texts = null } = {}) => {
@@ -450,6 +456,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
         sessionOwners.unregister(ownerToken);
         disposePromise = Promise.allSettled([...operations]).then(() => {
           tokenizationCache.cache.clear();
+          preparedRows.clear();
           runScratch.clear();
           return releaseEntry(sessionEntry);
         });

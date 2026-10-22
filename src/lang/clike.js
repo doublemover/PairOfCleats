@@ -492,16 +492,20 @@ export function buildCLikeRelations(text, relPath, options = {}) {
   const calls = [];
   const callPairs = new Set();
   const usages = new Set();
-  const clikeChunks = Array.isArray(relPath) ? relPath : null;
   const ext = String(typeof relPath === 'string'
     ? path.extname(relPath)
     : (typeof options?.ext === 'string' ? options.ext : '')).trim().toLowerCase();
   const keywordSets = resolveCLikeKeywordSets(ext, text);
+  // Keep the legacy path overload explicit: a path is never silently treated
+  // as declaration data. Registry callers provide their already prepared rows.
+  const clikeChunks = Array.isArray(relPath) ? relPath
+    : typeof relPath === 'string' ? buildCLikeChunks(text, ext, options) : null;
   if (Array.isArray(clikeChunks)) {
     for (const chunk of clikeChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
       if (CLIKE_EXPORT_KINDS.has(chunk.kind)) exports.add(chunk.name);
       if (!CLIKE_CALLABLE_KINDS.has(chunk.kind)) continue;
+      if (chunk.meta?.bodyless) continue;
       const bounds = resolveChunkBodyBounds(text, chunk);
       const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
       const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;

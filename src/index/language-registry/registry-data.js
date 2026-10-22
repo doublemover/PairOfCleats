@@ -497,8 +497,9 @@ const MANAGED_LANGUAGE_ADAPTERS = [
     id: 'clike',
     match: (ext) => isCLike(ext),
     collectImports: collectCLikeImports,
-    buildRelations: ({ text, relPath, options }) => buildCLikeRelations(text, relPath, options),
-    extractDocMeta: ({ text, chunk, fileRelations }) => extractCLikeDocMeta(text, chunk, fileRelations),
+    prepare: ({ text, ext, options }) => ({ clikeChunks: buildCLikeChunks(text, ext, options) }),
+    buildRelations: ({ text, ext, context, options }) => buildCLikeRelations(text, context.clikeChunks, { ...options, ext }),
+    extractDocMeta: ({ chunk }) => extractCLikeDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeCLikeFlow(text, chunk, flowOptions(options)),
     attachName: true
   },

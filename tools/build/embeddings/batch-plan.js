@@ -22,11 +22,9 @@ export const planEmbeddingBatches = ({ estimates, maxItems, tokenBudget, groups 
     return { batches, paddedTokens, strategy };
   };
   const baseline = pack(sourceOrder, 'source-order');
-  if (!Array.isArray(groups) || groups.length !== estimates.length) {
-    return { ...baseline, baselinePaddedTokens: baseline.paddedTokens };
-  }
+  const hasGroups = Array.isArray(groups) && groups.length === estimates.length;
   const groupOrder = new Map();
-  for (const group of groups) {
+  for (const group of hasGroups ? groups : []) {
     if (!groupOrder.has(group?.groupId)) groupOrder.set(group?.groupId, groupOrder.size);
   }
   const bucket = index => Math.ceil(Math.log2(estimates[index]));
@@ -34,10 +32,11 @@ export const planEmbeddingBatches = ({ estimates, maxItems, tokenBudget, groups 
   // Ascending buckets can strand long items in the final short batch. Compare
   // both directions against the unchanged source-order plan. Never trade more
   // calls or more estimated padded work for an unmeasured locality benefit.
-  for (const direction of [1, -1]) {
-    const order = sourceOrder.slice().sort((a, b) => direction * (bucket(a) - bucket(b))
-      || groupOrder.get(groups[a]?.groupId) - groupOrder.get(groups[b]?.groupId) || a - b);
-    const candidate = pack(order, direction === 1 ? 'length-ascending' : 'length-descending');
+  for (const exact of [false, true]) for (const direction of [1, -1]) {
+    const length = exact ? index => estimates[index] : bucket;
+    const order = sourceOrder.slice().sort((a, b) => direction * (length(a) - length(b))
+      || (hasGroups ? groupOrder.get(groups[a]?.groupId) - groupOrder.get(groups[b]?.groupId) : 0) || a - b);
+    const candidate = pack(order, `${exact ? 'exact' : 'bucket'}-length-${direction === 1 ? 'ascending' : 'descending'}`);
     if (candidate.batches.length > baseline.batches.length || candidate.paddedTokens > baseline.paddedTokens) continue;
     if (candidate.paddedTokens < selected.paddedTokens
       || (candidate.paddedTokens === selected.paddedTokens && candidate.batches.length < selected.batches.length)) {

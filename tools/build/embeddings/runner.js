@@ -1,6 +1,7 @@
 import { readEffectiveMemory, estimateRetainedBytes } from '../../../src/shared/effective-memory.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
 import { canonicalBundleSourceKey } from '../../../src/shared/bundle-source-key.js';
+import { reusePriorChunkVectors } from './prior-chunk-reuse.js';
 import { readIncrementalBundleSnapshot, writeIncrementalBundleSnapshot } from '../../../src/index/build/incremental/bundle-snapshot.js';
 import { embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from '../../../src/shared/embedding-artifact-identity.js';
 import { createStage3RuntimeReceipts } from './runtime-receipt.js';
@@ -448,6 +449,9 @@ export const createEmbeddingTextReuseCache = ({
           persistentStore.set(text, vector);
         } catch {}
       }
+    },
+    promote(text, vector) {
+      if (canCache(text) && isVectorLike(vector) && vector.length > 0) promote(text, vector);
     },
     canCache,
     size: () => cache.size,
@@ -2511,12 +2515,14 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             try {
               const estimated = await getChunkEmbeddings.estimateTokensBatch(texts);
               if (!Array.isArray(estimated) || estimated.length !== texts.length) return null;
-              return estimated.map((value, index) => {
+              const counts = estimated.map((value, index) => {
                 const numeric = Math.floor(Number(value));
                 return Number.isFinite(numeric) && numeric > 0
                   ? numeric
                   : estimateEmbeddingTokensFallback(texts[index]);
               });
+              if (typeof estimated.release === 'function') Object.defineProperty(counts, 'release', { value: estimated.release });
+              return counts;
             } catch {
               return null;
             }
@@ -3489,42 +3495,17 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                 if (!priorIndexEntry) {
                   clearStalePriorFileKey();
                 } else {
-                  const canCheckFingerprint = typeof chunkHashesFingerprint === 'string'
-                  && !!priorIndexEntry?.chunkHashesFingerprint;
-                  const fingerprintMatches = !canCheckFingerprint
-                  || priorIndexEntry.chunkHashesFingerprint === chunkHashesFingerprint;
-                  const priorResult = fingerprintMatches
-                    ? await cacheBatchReader.read(priorKey)
-                    : null;
+                  // Changed aggregate hashes are expected after a local edit.
+                  // The existing bounded reader and exact identity/chunk proof
+                  // decide reuse; a changed fingerprint is never stale evidence.
+                  const priorResult = await cacheBatchReader.read(priorKey);
                   const priorEntry = priorResult?.entry;
                   if (!priorEntry) {
                     clearStalePriorFileKey();
                   } else if (Array.isArray(priorEntry.chunkHashes) && Array.isArray(chunkHashes)) {
-                    const hashMap = new Map();
-                    for (let i = 0; i < priorEntry.chunkHashes.length; i += 1) {
-                      const hash = priorEntry.chunkHashes[i];
-                      if (!hash) continue;
-                      const list = hashMap.get(hash) || [];
-                      list.push(i);
-                      hashMap.set(hash, list);
-                    }
-                    const priorCode = ensureVectorArrays(priorEntry.codeVectors, priorEntry.chunkHashes.length);
-                    const priorDoc = ensureVectorArrays(priorEntry.docVectors, priorEntry.chunkHashes.length);
-                    const priorMerged = ensureVectorArrays(priorEntry.mergedVectors, priorEntry.chunkHashes.length);
-                    for (let i = 0; i < items.length; i += 1) {
-                      const hash = chunkHashes[i];
-                      const list = hashMap.get(hash);
-                      if (!list || !list.length) continue;
-                      const priorIndex = list.shift();
-                      const codeVec = priorCode[priorIndex] || null;
-                      const docVec = priorDoc[priorIndex] || null;
-                      const mergedVec = priorMerged[priorIndex] || null;
-                      if (isNonEmptyVector(codeVec) && isNonEmptyVector(docVec) && isNonEmptyVector(mergedVec)) {
-                        reuse.code[i] = codeVec;
-                        reuse.doc[i] = docVec;
-                        reuse.merged[i] = mergedVec;
-                      }
-                    }
+                    reusePriorChunkVectors({ prior: priorEntry, chunkHashes, docTexts: chunkDocTexts,
+                      identityKey: cacheIdentityKey, expectedDims: configuredDims || priorEntry.cacheMeta?.identity?.dims,
+                      reuse });
                     updateCacheIndexAccess(cacheIndex, priorKey);
                     markCacheIndexDirty();
                   }

@@ -316,10 +316,18 @@ export const createFileEmbeddingsProcessor = ({
     for (let i = 0; i < texts.length; i += 1) {
       const text = texts[i];
       const cacheable = canUseTextCache && canCacheText(text);
+      if (typeof text === 'string' && uniqueByText.has(text)) {
+        const slot = uniqueByText.get(text);
+        if (slot.cached) vectors[i] = slot.cached;
+        else uniqueIndices[slot.index].push(i);
+        batchDedupHits += 1;
+        continue;
+      }
       if (cacheable) {
         const cached = embeddingTextCache.get(text);
         if (isVectorLike(cached) && cached.length > 0) {
           vectors[i] = cached;
+          uniqueByText.set(text, { cached });
           cacheHits += 1;
           continue;
         }
@@ -327,13 +335,7 @@ export const createFileEmbeddingsProcessor = ({
       }
 
       if (typeof text === 'string') {
-        const priorSlot = uniqueByText.get(text);
-        if (priorSlot != null) {
-          uniqueIndices[priorSlot].push(i);
-          batchDedupHits += 1;
-          continue;
-        }
-        uniqueByText.set(text, uniqueTexts.length);
+        uniqueByText.set(text, { index: uniqueTexts.length });
       }
       uniqueTexts.push(text);
       uniqueIndices.push([i]);
@@ -367,9 +369,11 @@ export const createFileEmbeddingsProcessor = ({
       }
 
       let tokenEstimates = null;
+      let releaseTokenRows = null;
       if (estimateTokensBatch && computeTexts.length > 0) {
         try {
           const estimated = await estimateTokensBatch(computeTexts, label);
+          releaseTokenRows = typeof estimated?.release === 'function' ? estimated.release : null;
           if (Array.isArray(estimated) && estimated.length === computeTexts.length) {
             tokenEstimates = estimated.map((value) => Math.max(1, Math.floor(Number(value) || 1)));
           }
@@ -378,11 +382,11 @@ export const createFileEmbeddingsProcessor = ({
         }
       }
 
-      onEmbeddingPrepared?.({ groupId: groups[0]?.groupId, delta: true,
-        tokens: computeTexts.reduce((sum, text, index) => sum + resolveTokenEstimate(text, tokenEstimates?.[index]), 0)
-          - texts.reduce((sum, text) => sum + resolveTokenEstimate(text), 0) });
       let computed = [];
       try {
+        onEmbeddingPrepared?.({ groupId: groups[0]?.groupId, delta: true,
+          tokens: computeTexts.reduce((sum, text, index) => sum + resolveTokenEstimate(text, tokenEstimates?.[index]), 0)
+            - texts.reduce((sum, text) => sum + resolveTokenEstimate(text), 0) });
         if (computeTexts.length > 0) {
           if (globalBatchingEnabled) {
             computed = await enqueueGlobalBatchRequest({
@@ -417,6 +421,8 @@ export const createFileEmbeddingsProcessor = ({
           slot.claim?.reject?.(err);
         }
         throw err;
+      } finally {
+        releaseTokenRows?.();
       }
 
       for (let i = 0; i < computeSlots.length; i += 1) {
@@ -438,7 +444,7 @@ export const createFileEmbeddingsProcessor = ({
             vectors[targetIndex] = vector;
           }
           if (canUseTextCache && canCacheText(claim.text) && isVectorLike(vector) && vector.length > 0) {
-            embeddingTextCache.set(claim.text, vector);
+            (embeddingTextCache.promote || embeddingTextCache.set).call(embeddingTextCache, claim.text, vector);
           }
         }));
       }

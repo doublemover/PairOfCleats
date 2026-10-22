@@ -75,6 +75,8 @@ export function buildPythonChunksFromAst(text, astData) {
       kind: current.kind || 'FunctionDeclaration',
       meta: {
         startLine: current.startLine,
+        definitionStartLine: current.definitionStartLine ?? current.startLine,
+        definitionStartCol: current.definitionStartCol ?? current.startCol,
         endLine,
         decorators: current.decorators || [],
         signature: current.signature || null,

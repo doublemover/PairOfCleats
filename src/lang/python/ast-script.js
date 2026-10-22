@@ -226,6 +226,7 @@ class Collector(ast.NodeVisitor):
         self.call_map = {}
         self.flow = {}
         self.scope_stack = []
+        self.lexical_stack = []
     def current_func(self):
         return self.func_stack[-1] if self.func_stack else "(module)"
     def current_scope(self):
@@ -351,6 +352,13 @@ class Collector(ast.NodeVisitor):
             "paramDefaults": param_defaults,
             "visibility": visibility
         }
+        entry["scopeId"] = name + "@" + str(node.lineno) + ":" + str(node.col_offset)
+        entry["definitionStartLine"] = entry["startLine"]
+        entry["definitionStartCol"] = entry["startCol"]
+        if getattr(node, "decorator_list", []):
+            first = min(node.decorator_list, key=lambda d: (d.lineno, d.col_offset))
+            entry["startLine"] = first.lineno
+            entry["startCol"] = max(0, first.col_offset - 1)
         entry["modifiers"] = {
             "async": False,
             "generator": False,
@@ -368,30 +376,36 @@ class Collector(ast.NodeVisitor):
             if is_dataclass_decorator(decorators):
                 entry["fields"] = extract_fields(node)
         self.defs.append(entry)
+        return entry["scopeId"]
     def visit_ClassDef(self, node):
         name = node.name
-        qualified = ".".join(self.class_stack + [name]) if self.class_stack else name
+        base = self.lexical_stack[-1]["name"] if self.lexical_stack else ""
+        qualified = base + "." + name if base else name
         if not self.func_stack:
             self.exports.add(qualified)
-        self.record_def(node, "ClassDeclaration", qualified)
+        scope_id = self.record_def(node, "ClassDeclaration", qualified)
         self.class_stack.append(name)
-        self.scope_stack.append(qualified)
+        self.scope_stack.append(scope_id)
+        self.lexical_stack.append({"name": qualified, "kind": "class"})
         self.generic_visit(node)
         self.scope_stack.pop()
+        self.lexical_stack.pop()
         self.class_stack.pop()
     def visit_FunctionDef(self, node):
         name = node.name
-        base = self.func_stack[-1] if self.func_stack else (".".join(self.class_stack) if self.class_stack else "")
+        base = self.lexical_stack[-1]["name"] if self.lexical_stack else ""
         qualified = base + "." + name if base else name
-        is_method = bool(self.class_stack) and not self.func_stack
+        is_method = bool(self.lexical_stack) and self.lexical_stack[-1]["kind"] == "class"
         kind = "MethodDeclaration" if is_method else "FunctionDeclaration"
         if not self.func_stack:
             self.exports.add(qualified)
-        self.record_def(node, kind, qualified)
+        scope_id = self.record_def(node, kind, qualified)
         self.func_stack.append(qualified)
-        self.scope_stack.append(qualified)
+        self.scope_stack.append(scope_id)
+        self.lexical_stack.append({"name": qualified, "kind": "function"})
         self.generic_visit(node)
         self.scope_stack.pop()
+        self.lexical_stack.pop()
         self.func_stack.pop()
     def visit_AsyncFunctionDef(self, node):
         self.visit_FunctionDef(node)
@@ -422,7 +436,7 @@ class Collector(ast.NodeVisitor):
         if callee:
             caller = self.current_func()
             self.calls.append([caller, callee])
-            self.call_map.setdefault(caller, set()).add(callee)
+            self.call_map.setdefault(self.current_scope() or "(module)", set()).add(callee)
             args = []
             for arg in node.args:
                 args.append(format_arg_value(arg))
@@ -577,9 +591,9 @@ def parse_source(source, filename=None, dataflow_flag=True, control_flow_flag=Tr
     collector = Collector()
     collector.visit(tree)
     for entry in collector.defs:
-        calls = collector.call_map.get(entry["name"])
+        calls = collector.call_map.get(entry["scopeId"])
         entry["calls"] = sorted(calls) if calls else []
-        flow = collector.flow.get(entry["name"])
+        flow = collector.flow.get(entry["scopeId"])
         if flow:
             if dataflow_enabled:
                 entry["dataflow"] = {

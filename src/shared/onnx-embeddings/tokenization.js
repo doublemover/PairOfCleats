@@ -67,7 +67,7 @@ const setTokenCacheValue = (cache, key, value, maxEntries) => {
 
 const buildTokenizationCacheKey = (text, wantsTokenTypeIds) => `${wantsTokenTypeIds ? 1 : 0}:${text}`;
 
-const buildPaddedBatchEncoding = (rows, { wantsTokenTypeIds = false, padTokenId = 0 } = {}) => {
+export const buildPaddedBatchEncoding = (rows, { wantsTokenTypeIds = false, padTokenId = 0 } = {}) => {
   const width = rows.reduce((max, row) => Math.max(max, row?.input_ids?.length || 0), 0);
   const input_ids = new Array(rows.length);
   const attention_mask = new Array(rows.length);
@@ -99,20 +99,17 @@ const buildPaddedBatchEncoding = (rows, { wantsTokenTypeIds = false, padTokenId 
   };
 };
 
-export const tokenizeBatchWithCache = ({
+export const prepareTokenRowsWithCache = ({
   tokenizer,
   texts,
   wantsTokenTypeIds = false,
   truncation = DEFAULT_EMBEDDING_TRUNCATION,
-  tokenizationCache = null
+  tokenizationCache = null,
+  preparedRows = null
 }) => {
   const list = Array.isArray(texts) ? texts.map((text) => (typeof text === 'string' ? text : String(text ?? ''))) : [];
   if (!list.length) {
-    return {
-      input_ids: [],
-      attention_mask: [],
-      token_type_ids: wantsTokenTypeIds ? [] : undefined
-    };
+    return [];
   }
   const rows = new Array(list.length);
   const missingByText = new Map();
@@ -123,6 +120,8 @@ export const tokenizeBatchWithCache = ({
     : 0;
   for (let i = 0; i < list.length; i += 1) {
     const text = list[i];
+    const prepared = preparedRows?.take(text, wantsTokenTypeIds);
+    if (prepared) { rows[i] = prepared; continue; }
     if (cacheEnabled) {
       const key = buildTokenizationCacheKey(text, wantsTokenTypeIds);
       const cached = getTokenCacheValue(cache, key);
@@ -163,8 +162,54 @@ export const tokenizeBatchWithCache = ({
       }
     }
   }
-  const padTokenId = normalizeTokenValue(tokenizer?.pad_token_id, 0);
-  return buildPaddedBatchEncoding(rows, { wantsTokenTypeIds, padTokenId });
+  return rows;
 };
+
+// Adapter-local, bounded ownership between planning and dispatch. A lease is
+// released by the admitted request even on failure; expiry also bounds callers
+// that estimate without subsequently dispatching.
+export const createPreparedTokenRows = ({ maxEntries = 4096, maxBytes = 16 * 1024 * 1024, ttlMs = 60000 } = {}) => {
+  const entries = new Map();
+  let bytes = 0, timer = null;
+  const remove = key => {
+    const entry = entries.get(key);
+    if (entry) { entries.delete(key); bytes -= entry.bytes; }
+    if (!entries.size && timer) { clearTimeout(timer); timer = null; }
+  };
+  const expire = () => {
+    timer = null;
+    const now = Date.now();
+    for (const [key, entry] of entries) if (entry.expiresAt <= now) remove(key);
+    if (entries.size) { timer = setTimeout(expire, ttlMs); timer.unref?.(); }
+  };
+  return {
+    retain(texts, rows, wantsTokenTypeIds) {
+      const owner = {}, keys = [];
+      for (let i = 0; i < texts.length; i++) {
+        const key = buildTokenizationCacheKey(texts[i], wantsTokenTypeIds), row = rows[i];
+        const size = key.length * 2 + 128 + (row.input_ids.length + row.attention_mask.length + (row.token_type_ids?.length || 0)) * 8;
+        if (size > maxBytes) continue;
+        remove(key);
+        while (entries.size >= maxEntries || bytes + size > maxBytes) remove(entries.keys().next().value);
+        entries.set(key, { owner, row, bytes: size, expiresAt: Date.now() + ttlMs }); bytes += size; keys.push(key);
+      }
+      if (entries.size && !timer) { timer = setTimeout(expire, ttlMs); timer.unref?.(); }
+      return () => { for (const key of keys) if (entries.get(key)?.owner === owner) remove(key); };
+    },
+    take(text, wantsTokenTypeIds) {
+      const key = buildTokenizationCacheKey(text, wantsTokenTypeIds), entry = entries.get(key);
+      if (!entry) return null;
+      remove(key);
+      return entry.expiresAt > Date.now() ? entry.row : null;
+    },
+    clear() { for (const key of entries.keys()) remove(key); },
+    stats: () => ({ entries: entries.size, bytes, maxEntries, maxBytes })
+  };
+};
+
+export const tokenizeBatchWithCache = input => buildPaddedBatchEncoding(prepareTokenRowsWithCache(input), {
+  wantsTokenTypeIds: input.wantsTokenTypeIds,
+  padTokenId: normalizeTokenValue(input.tokenizer?.pad_token_id, 0)
+});
 
 export const __tokenizeBatchWithCacheForTests = (input = {}) => tokenizeBatchWithCache(input);

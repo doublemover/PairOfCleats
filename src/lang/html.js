@@ -242,7 +242,8 @@ function extractTagSignature(text, start, end) {
 function walkHtml(node, visitor) {
   if (!node || typeof node !== 'object') return;
   visitor(node);
-  const children = node.childNodes || node.content?.childNodes || [];
+  const children = node.tagName === 'template' && node.content
+    ? node.content.childNodes : node.childNodes;
   if (!Array.isArray(children)) return;
   for (const child of children) walkHtml(child, visitor);
 }
@@ -414,6 +415,7 @@ function resolveEmbeddedChunks(language, text, options) {
 
 function buildEmbeddedChunks(text, blocks, options = {}) {
   const chunks = [];
+  const lines = buildLineIndex(text);
   for (const block of blocks) {
     if (!block || block.start == null || block.end == null || block.end <= block.start) continue;
     const slice = text.slice(block.start, block.end);
@@ -421,11 +423,14 @@ function buildEmbeddedChunks(text, blocks, options = {}) {
     if (Array.isArray(embedded) && embedded.length) {
       for (const chunk of embedded) {
         if (!chunk) continue;
+        const start = chunk.start + block.start, end = chunk.end + block.start;
         chunks.push({
           ...chunk,
-          start: chunk.start + block.start,
-          end: chunk.end + block.start,
-          meta: { ...chunk.meta, embeddedLanguage: block.language, embeddedTag: block.tag }
+          start,
+          end,
+          meta: { ...chunk.meta, startLine: offsetToLine(lines, start),
+            endLine: offsetToLine(lines, end > start ? end - 1 : start),
+            embeddedLanguage: block.language, embeddedTag: block.tag }
         });
       }
       continue;

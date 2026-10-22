@@ -1,0 +1,11 @@
+# Native declaration names, scopes and source coverage
+
+Declaration identities use authoritative grammar name fields and declarator roles. A return type, parameter, body identifier, enum entry or grouping wrapper cannot supply a declaration name. Special Swift and Kotlin members use their stable declaration role (`init`, `deinit`, `subscript`, `constructor`); overload signatures remain separate metadata. Objective-C selectors retain all keyword pieces and colons, with `+` or `-` distinguishing class and instance members. C++ explicit `::` qualification maps to the existing dotted owner convention without duplicating a lexical owner.
+
+Lexical qualification includes enclosing modules, namespaces, types and callables. Only a callable whose nearest admitted lexical owner is a semantic type becomes a method. A function inside a method remains a function with its full lexical path. Python call and flow accumulation uses a declaration occurrence identity as well as its qualified display name, so distinct declarations cannot merge facts through a shared short name.
+
+Each emitted callable includes its complete implementation or bodyless declaration. Dart signatures include their own following body; nested signature wrappers do not emit duplicate callables. Go type groups emit individual type specifications rather than a container impersonating the first child. C-family prototypes are admitted by callable declarator roles, preserving multiple declarations and excluding function-pointer variables. Tagged type uses do not create declarations; definitions and standalone forwards remain distinct supported forms.
+
+Attached Python decorators, Rust attributes and C++ template wrappers belong to the declaration's source range. `definitionStartLine` retains the semantic declaration coordinate when the covered source begins earlier. HTML embedded offsets and line metadata both refer to the host document; template fragments are traversed once for static metadata and embedded discovery.
+
+The tree-sitter chunk cache producer version changes with these semantics. Shared semantic source-chunking and call-flow versions must also invalidate derived replay. Newly authored regression sources describe required acceptance; development-only source checkpoints do not establish supported-runtime, parser-lifecycle, full-index or performance qualification.
