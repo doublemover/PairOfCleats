@@ -3,7 +3,8 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
 import { resolveQueueLeasePolicy } from './lease-policy.js';
-import { buildQueueJobIdempotencyKey } from './queue-idempotency.js';
+import { buildQueueJobIdempotencyKey, groupQueueJobsByIdempotency, normalizeQueueEmbeddingPayloadVersion,
+  queueJobsShareIdempotency, resolveQueueIdempotencySource } from './queue-idempotency.js';
 import {
   appendQueueJournalEntries,
   createQueueJournalEntry,
@@ -19,6 +20,7 @@ import {
 } from './admission-policy.js';
 import { resolveQueueRetentionPolicy } from './retention-policy.js';
 import { normalizeObservability } from '../../src/shared/observability.js';
+import { admitQueueJobPaths, assertQueueArtifactPath, assertQueueJobId } from './queue-authority.js';
 
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
 const VALID_JOB_STATUSES = new Set(['queued', 'running', 'done', 'failed']);
@@ -49,12 +51,14 @@ const readJson = async (filePath, fallback) => {
   try {
     const raw = await fs.readFile(filePath, 'utf8');
     return JSON.parse(raw);
-  } catch {
-    return fallback;
+  } catch (error) {
+    if (error.code === 'ENOENT') return fallback;
+    throw error;
   }
 };
 
 const withPartitionLock = async (lockPath, worker) => {
+  assertQueueArtifactPath(path.dirname(lockPath), lockPath);
   let lock = null;
   try {
     lock = await acquireQueueFileLock({
@@ -332,6 +336,7 @@ const recordReplayEvent = (job, {
 };
 
 const normalizeJobRecord = (job = {}) => {
+  assertQueueJobId(job?.id);
   const status = VALID_JOB_STATUSES.has(job?.status) ? job.status : 'queued';
   const attempts = Number.isFinite(Number(job?.attempts))
     ? Math.max(0, Math.trunc(Number(job.attempts)))
@@ -377,6 +382,7 @@ const normalizeJobRecord = (job = {}) => {
   normalized.idempotencyKey = typeof job?.idempotencyKey === 'string' && job.idempotencyKey.trim()
     ? job.idempotencyKey.trim()
     : buildQueueJobIdempotencyKey(normalized, normalized.queueName || null);
+  normalized.idempotencySource = resolveQueueIdempotencySource(job);
   return normalized;
 };
 
@@ -496,13 +502,13 @@ const recordProgress = (job, { at, kind, note = null }) => {
 
 const isActiveJobStatus = (status) => status === 'queued' || status === 'running';
 
-const findActiveDuplicateJob = (jobs, idempotencyKey, excludeJobId = null) => {
+const findActiveDuplicateJob = (jobs, idempotencyKey, excludeJobId = null, identity = null) => {
   let queuedMatch = null;
   for (const entry of Array.isArray(jobs) ? jobs : []) {
     if (
       entry?.id === excludeJobId
       || !entry?.idempotencyKey
-      || entry.idempotencyKey !== idempotencyKey
+      || (identity ? !queueJobsShareIdempotency(entry, identity) : entry.idempotencyKey !== idempotencyKey)
       || !isActiveJobStatus(entry.status)
     ) {
       continue;
@@ -539,7 +545,7 @@ const suppressClaimSideDuplicates = (queue, claimedJob, nowIso) => {
   for (const entry of queue.jobs) {
     if (entry.id === claimedJob.id) continue;
     if (entry.status !== 'queued') continue;
-    if (entry.idempotencyKey !== claimedJob.idempotencyKey) continue;
+    if (!queueJobsShareIdempotency(entry, claimedJob)) continue;
     const updated = suppressQueuedDuplicateJob(entry, {
       at: nowIso,
       duplicateOfJob: claimedJob,
@@ -561,12 +567,16 @@ const isLeaseExpired = (job, nowMs, queueName = null) => {
 };
 
 export async function ensureQueueDir(dirPath) {
+  assertQueueArtifactPath(dirPath, dirPath);
   await fs.mkdir(dirPath, { recursive: true });
+  assertQueueArtifactPath(dirPath, dirPath);
 }
 
 const ensureJobDirs = async (dirPath) => {
   const logsDir = path.join(dirPath, 'logs');
   const reportsDir = path.join(dirPath, 'reports');
+  assertQueueArtifactPath(dirPath, logsDir);
+  assertQueueArtifactPath(dirPath, reportsDir);
   await fs.mkdir(logsDir, { recursive: true });
   await fs.mkdir(reportsDir, { recursive: true });
   return { logsDir, reportsDir };
@@ -761,15 +771,19 @@ export function getQuarantinePaths(dirPath, queueName = null) {
 
 export async function loadQueue(dirPath, queueName = null) {
   const { queuePath } = getQueuePaths(dirPath, queueName);
+  assertQueueArtifactPath(dirPath, queuePath);
   const payload = await readJson(queuePath, { jobs: [] });
+  if (!Array.isArray(payload?.jobs)) throw createQueueError('QUEUE_INVALID_STATE', 'Queue jobs must be an array.');
   return {
-    jobs: Array.isArray(payload.jobs) ? payload.jobs.map((job) => normalizeJobRecord(job)) : []
+    jobs: payload.jobs.map(job => normalizeJobRecord(admitQueueJobPaths(dirPath, job)))
   };
 }
 
 export async function saveQueue(dirPath, queue, queueName = null) {
   const { queuePath } = getQueuePaths(dirPath, queueName);
-  await atomicWriteJson(queuePath, queue, { spaces: 2 });
+  assertQueueArtifactPath(dirPath, queuePath);
+  if (!Array.isArray(queue?.jobs)) throw createQueueError('QUEUE_INVALID_STATE', 'Queue jobs must be an array.');
+  await atomicWriteJson(queuePath, { ...queue, jobs: queue.jobs.map(job => admitQueueJobPaths(dirPath, job)) }, { spaces: 2 });
 }
 
 const normalizeQuarantineState = (value) => {
@@ -832,11 +846,13 @@ const applyQuarantineMetadata = (job, {
 
 export async function loadQuarantine(dirPath, queueName = null) {
   const { quarantinePath } = getQuarantinePaths(dirPath, queueName);
+  assertQueueArtifactPath(dirPath, quarantinePath);
   const payload = await readJson(quarantinePath, { jobs: [] });
+  if (!Array.isArray(payload?.jobs)) throw createQueueError('QUEUE_INVALID_STATE', 'Quarantine jobs must be an array.');
   return {
     jobs: Array.isArray(payload.jobs)
       ? payload.jobs.map((job) => {
-        const normalized = normalizeJobRecord(job);
+        const normalized = normalizeJobRecord(admitQueueJobPaths(dirPath, job));
         normalized.quarantine = normalizeQuarantineMetadata(normalized);
         return normalized;
       })
@@ -846,7 +862,9 @@ export async function loadQuarantine(dirPath, queueName = null) {
 
 export async function saveQuarantine(dirPath, quarantine, queueName = null) {
   const { quarantinePath } = getQuarantinePaths(dirPath, queueName);
-  await atomicWriteJson(quarantinePath, quarantine, { spaces: 2 });
+  assertQueueArtifactPath(dirPath, quarantinePath);
+  if (!Array.isArray(quarantine?.jobs)) throw createQueueError('QUEUE_INVALID_STATE', 'Quarantine jobs must be an array.');
+  await atomicWriteJson(quarantinePath, { ...quarantine, jobs: quarantine.jobs.map(job => admitQueueJobPaths(dirPath, job)) }, { spaces: 2 });
 }
 
 const buildJournalEntry = ({
@@ -873,7 +891,8 @@ const createQueuedJobRecord = (job, {
   logsDir,
   reportsDir,
   resolvedQueueName,
-  idempotencyKey
+  idempotencyKey,
+  idempotencySource
 }) => {
   const maxRetries = job.maxRetries != null && job.maxRetries !== ''
     && Number.isFinite(Number(job.maxRetries)) && Number(job.maxRetries) >= 0
@@ -894,6 +913,7 @@ const createQueuedJobRecord = (job, {
     indexDir: job.indexDir || null,
     indexRoot: job.indexRoot || null,
     idempotencyKey,
+    idempotencySource,
     configHash: job.configHash || null,
     observability: job.observability
       ? normalizeObservability(job.observability, {
@@ -910,9 +930,7 @@ const createQueuedJobRecord = (job, {
     embeddingPlan: job.embeddingPlan || null,
     embeddingIdentity: job.embeddingIdentity || null,
     embeddingIdentityKey: job.embeddingIdentityKey || null,
-    embeddingPayloadFormatVersion: Number.isFinite(Number(job.embeddingPayloadFormatVersion))
-      ? Math.max(1, Math.floor(Number(job.embeddingPayloadFormatVersion)))
-      : null,
+    embeddingPayloadFormatVersion: normalizeQueueEmbeddingPayloadVersion(job.embeddingPayloadFormatVersion),
     args: Array.isArray(job.args) && job.args.length ? job.args : null,
     attempts: 0,
     maxRetries,
@@ -975,6 +993,8 @@ const createQueuedJobRecord = (job, {
  * @returns {Promise<{ok:boolean,job?:object,message?:string,duplicate?:boolean,replaySuppressed?:boolean,idempotencyKey?:string,code?:string,backpressure?:object}>}
  */
 export async function enqueueJob(dirPath, job, maxQueued = null, queueName = null, options = {}) {
+  assertQueueJobId(job?.id);
+  admitQueueJobPaths(dirPath, job);
   await ensureQueueDir(dirPath);
   const { logsDir, reportsDir } = await ensureJobDirs(dirPath);
   const resolvedQueueName = resolveQueueName(queueName, job);
@@ -984,8 +1004,10 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
     const idempotencyKey = typeof job?.idempotencyKey === 'string' && job.idempotencyKey.trim()
       ? job.idempotencyKey.trim()
       : buildQueueJobIdempotencyKey(job, resolvedQueueName || 'index');
+    const idempotencySource = typeof job?.idempotencyKey === 'string' && job.idempotencyKey.trim() ? 'explicit' : 'derived';
+    const identity = { ...job, queueName: resolvedQueueName || 'index', idempotencyKey, idempotencySource };
     if (options.forceDuplicate !== true) {
-      const duplicate = findActiveDuplicateJob(queue.jobs, idempotencyKey);
+      const duplicate = findActiveDuplicateJob(queue.jobs, idempotencyKey, null, identity);
       if (duplicate) {
         return {
           ok: true,
@@ -1054,7 +1076,8 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
       logsDir,
       reportsDir,
       resolvedQueueName,
-      idempotencyKey
+      idempotencyKey,
+      idempotencySource
     });
     if (backpressureBlock?.action === 'defer') {
       recordProgress(next, {
@@ -1136,7 +1159,7 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
     for (const entry of queue.jobs) {
       if (entry.status !== 'queued') continue;
       if (entry.idempotencyKey) {
-        const runningDuplicate = findActiveDuplicateJob(queue.jobs, entry.idempotencyKey, entry.id);
+        const runningDuplicate = findActiveDuplicateJob(queue.jobs, entry.idempotencyKey, entry.id, entry);
         if (runningDuplicate?.status === 'running') {
           const suppressed = suppressQueuedDuplicateJob(entry, {
             at: nowIso,
@@ -1222,10 +1245,11 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
 }
 
 export async function completeJob(dirPath, jobId, status, result, queueName = null, options = {}) {
+  assertQueueJobId(jobId);
   const resolvedQueueName = resolveQueueName(queueName, null);
   const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
-    const { reportsDir } = await ensureJobDirs(dirPath);
+    await ensureJobDirs(dirPath);
     const queue = await loadQueue(dirPath, resolvedQueueName);
     const job = queue.jobs.find((entry) => entry.id === jobId);
     if (!job) return null;
@@ -1285,7 +1309,7 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
       })
     ]);
     await saveQueue(dirPath, queue, resolvedQueueName);
-    const reportPath = job.reportPath || path.join(reportsDir, `${job.id}.json`);
+    const reportPath = admitQueueJobPaths(dirPath, job).reportPath;
     try {
       await atomicWriteJson(reportPath, {
         updatedAt: nowIso,
@@ -1299,10 +1323,11 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
 }
 
 export async function quarantineJob(dirPath, jobId, reason, queueName = null, options = {}) {
+  assertQueueJobId(jobId);
   const resolvedQueueName = resolveQueueName(queueName, null);
   const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
-    const { reportsDir } = await ensureJobDirs(dirPath);
+    await ensureJobDirs(dirPath);
     const queue = await loadQueue(dirPath, resolvedQueueName);
     const quarantine = await loadQuarantine(dirPath, resolvedQueueName);
     const jobIndex = queue.jobs.findIndex((entry) => entry.id === jobId);
@@ -1385,7 +1410,7 @@ export async function quarantineJob(dirPath, jobId, reason, queueName = null, op
     ]);
     await saveQueue(dirPath, queue, resolvedQueueName);
     await saveQuarantine(dirPath, quarantine, resolvedQueueName);
-    const reportPath = job.reportPath || path.join(reportsDir, `${job.id}.json`);
+    const reportPath = admitQueueJobPaths(dirPath, job).reportPath;
     try {
       await atomicWriteJson(reportPath, {
         updatedAt: nowIso,
@@ -1400,6 +1425,7 @@ export async function quarantineJob(dirPath, jobId, reason, queueName = null, op
 }
 
 export async function touchJobHeartbeat(dirPath, jobId, queueName = null, options = {}) {
+  assertQueueJobId(jobId);
   const resolvedQueueName = resolveQueueName(queueName, null);
   const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
@@ -1480,7 +1506,7 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
   const resolvedQueueName = resolveQueueName(queueName, null);
   const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
-    const { reportsDir } = await ensureJobDirs(dirPath);
+    await ensureJobDirs(dirPath);
     const queue = await loadQueue(dirPath, resolvedQueueName);
     const quarantine = await loadQuarantine(dirPath, resolvedQueueName);
     const now = Date.now();
@@ -1606,7 +1632,7 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
     }
     await saveQueue(dirPath, queue, resolvedQueueName);
     for (const update of reportUpdates) {
-      const reportPath = update.job.reportPath || path.join(reportsDir, `${update.job.id}.json`);
+      const reportPath = admitQueueJobPaths(dirPath, update.job).reportPath;
       try {
         await atomicWriteJson(reportPath, {
           updatedAt: update.nowIso,
@@ -1638,32 +1664,21 @@ export async function quarantineSummary(dirPath, queueName = null) {
 export async function listDuplicateJobGroups(dirPath, queueName = null) {
   const queue = await loadQueue(dirPath, queueName);
   const quarantine = await loadQuarantine(dirPath, queueName);
-  const grouped = new Map();
-  for (const job of [...queue.jobs, ...quarantine.jobs]) {
-    if (!job?.idempotencyKey) continue;
-    if (!grouped.has(job.idempotencyKey)) {
-      grouped.set(job.idempotencyKey, []);
-    }
-    grouped.get(job.idempotencyKey).push({
-      id: job.id,
-      status: job.status,
-      queueName: job.queueName || queueName || 'index',
-      attempts: job.attempts || 0,
-      replayOfJobId: job.delivery?.replayOfJobId || null,
-      quarantined: (job.quarantine?.state || null) === 'quarantined'
-    });
-  }
-  return Array.from(grouped.entries())
-    .filter(([, jobs]) => jobs.length > 1)
-    .map(([idempotencyKey, jobs]) => ({
+  return groupQueueJobsByIdempotency([...queue.jobs, ...quarantine.jobs])
+    .filter(({ jobs }) => jobs.length > 1)
+    .map(({ idempotencyKey, jobs }) => ({
       idempotencyKey,
       deliverySemantics: QUEUE_DELIVERY_SEMANTICS,
-      jobs: jobs.slice().sort((left, right) => String(left.id || '').localeCompare(String(right.id || '')))
+      jobs: jobs.map(job => ({ id: job.id, status: job.status, queueName: job.queueName || queueName || 'index',
+        attempts: job.attempts || 0, replayOfJobId: job.delivery?.replayOfJobId || null,
+        quarantined: (job.quarantine?.state || null) === 'quarantined' }))
+        .sort((left, right) => String(left.id || '').localeCompare(String(right.id || '')))
     }))
     .sort((left, right) => String(left.idempotencyKey || '').localeCompare(String(right.idempotencyKey || '')));
 }
 
 export async function inspectJobReplayState(dirPath, jobId, queueName = null) {
+  assertQueueJobId(jobId);
   const queue = await loadQueue(dirPath, queueName);
   const quarantine = await loadQuarantine(dirPath, queueName);
   const allJobs = [...queue.jobs, ...quarantine.jobs];
@@ -1673,7 +1688,7 @@ export async function inspectJobReplayState(dirPath, jobId, queueName = null) {
     .filter((entry) => (
       entry.id !== job.id
       && (
-        (job.idempotencyKey && entry.idempotencyKey === job.idempotencyKey)
+        queueJobsShareIdempotency(job, entry)
         || entry.delivery?.replayOfJobId === job.id
         || job.delivery?.replayOfJobId === entry.id
       )
@@ -1704,6 +1719,7 @@ export async function inspectJobReplayState(dirPath, jobId, queueName = null) {
 }
 
 export async function retryQuarantinedJob(dirPath, jobId, queueName = null, options = {}) {
+  assertQueueJobId(jobId);
   const resolvedQueueName = resolveQueueName(queueName, null);
   const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
@@ -1716,9 +1732,10 @@ export async function retryQuarantinedJob(dirPath, jobId, queueName = null, opti
       && (entry.quarantine?.state || 'quarantined') === 'quarantined'
     ));
     if (!quarantinedJob) return null;
-    const idempotencyKey = buildQueueJobIdempotencyKey(quarantinedJob, resolvedQueueName || 'index');
+    const idempotencyKey = quarantinedJob.idempotencyKey
+      || buildQueueJobIdempotencyKey(quarantinedJob, resolvedQueueName || 'index');
     if (options.forceDuplicate !== true) {
-      const duplicate = findActiveDuplicateJob(queue.jobs, idempotencyKey);
+      const duplicate = findActiveDuplicateJob(queue.jobs, idempotencyKey, null, quarantinedJob);
       if (duplicate) {
         return {
           ok: true,
@@ -1739,7 +1756,8 @@ export async function retryQuarantinedJob(dirPath, jobId, queueName = null, opti
       logsDir,
       reportsDir,
       resolvedQueueName,
-      idempotencyKey
+      idempotencyKey,
+      idempotencySource: resolveQueueIdempotencySource(quarantinedJob)
     });
     nextJob.delivery = {
       ...normalizeDelivery(nextJob),
@@ -1968,7 +1986,7 @@ export async function readQueueJournal(dirPath, queueName = null) {
 }
 
 export async function replayQueueStateFromJournal(dirPath, queueName = null) {
-  return replayQueueJournal(await loadQueueJournal(dirPath, queueName));
+  return replayQueueJournal(await loadQueueJournal(dirPath, queueName), { dirPath });
 }
 
 export async function describeQueueBackpressure(dirPath, queueName = null, options = {}) {
