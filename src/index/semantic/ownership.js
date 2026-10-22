@@ -1,3 +1,4 @@
+import { createCallOccurrenceRefJoin } from './call-occurrence-refs.js';
 import { prepareSemanticBatchEntry, semanticBatchEntryBytes } from './prepared-batch.js';
 import { createSemanticFactsRef } from './file-ref.js';
 import { SEMANTIC_OWNERSHIP_VERSION, SEMANTIC_OWNERSHIP_PRODUCER_HASH } from './analysis-versions.js';
@@ -43,6 +44,7 @@ export const collectSemanticOwnership = async ({ facts, chunks, bytes,
     diskAccount, signal, scheduleIo, batchRows: policy.storage.batchRows, batchBytes: policy.storage.batchBytes });
   const store = createArtifactSemanticStore({ root: stagingRoot, repoRoot: repositoryNamespace,
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: { baseBuildId: 'staging', semanticRevision: 0 }, partitions: [facts.partition] });
+  const callOccurrenceRefs = createCallOccurrenceRefJoin({ chunks, source, partitionId: facts.partition.partitionId });
   let rows = [], byteCount = 0, sequence = 0;
   const flush = async () => {
     if (!rows.length) return;
@@ -50,6 +52,7 @@ export const collectSemanticOwnership = async ({ facts, chunks, bytes,
   };
   try {
     for await (const row of store.iterateRows(facts.partition.partitionId, 'semantic_records', { signal })) {
+      callOccurrenceRefs.observe(row);
       if (!row.span) continue;
       const matches = lookup.find(row.span);
       let primary = false;
@@ -64,7 +67,9 @@ export const collectSemanticOwnership = async ({ facts, chunks, bytes,
       }
     }
     await flush();
+    const ownershipPartition = await sink.finalizeSource();
+    callOccurrenceRefs.finish();
     return createSemanticFactsRef({ source, syntaxPartitionId: facts.partition.partitionId, storage,
-      coverage: facts.coverage, partitions: [facts.partition, ...(facts.analysisPartitions || []), await sink.finalizeSource()] });
+      coverage: facts.coverage, partitions: [facts.partition, ...(facts.analysisPartitions || []), ownershipPartition] });
   } catch (error) { await abortSemanticPartitionOnFailure(sink, error); }
 };

@@ -1,3 +1,4 @@
+import { createCallSiteSemanticRefResolver, unavailableCallSiteSemanticRef } from './call-site-semantic-refs.js';
 import { mergeRunsWithPlanner, readJsonlRows } from '../../../../shared/merge.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import fs from 'node:fs/promises';
@@ -116,7 +117,7 @@ const maybeTrimRow = (row) => {
   };
 };
 
-const buildCallSiteRow = ({ chunk, detail, stats }) => {
+const buildCallSiteRow = ({ chunk, detail, stats, semanticRef = null }) => {
   const calleeRaw = detail.source === 'tree-sitter' && typeof detail.calleeRaw === 'string'
     ? detail.calleeRaw : normalizeText(detail.calleeRaw || detail.callee);
   const calleeNormalized = normalizeText(detail.calleeNormalized) || deriveCalleeNormalized(calleeRaw);
@@ -181,6 +182,8 @@ const buildCallSiteRow = ({ chunk, detail, stats }) => {
       rawPreviewTruncated: detail.rawPreviewTruncated === true
     } };
   }
+  row.extensions ||= {};
+  row.extensions.semanticRef = semanticRef || unavailableCallSiteSemanticRef();
   const trimmedResult = maybeTrimRow(row);
   if (!trimmedResult.row) {
     if (detail.source === 'tree-sitter') {
@@ -227,15 +230,31 @@ function* iterateCallSites(chunks, stats) {
 export const createCallSites = ({ chunks, stats = null } = {}) =>
   [...iterateCallSites(chunks, stats)].sort(compareCallSites);
 
-const collectCallSites = async ({ chunks, outDir, maxJsonBytes, abortSignal, maxBufferBytes, maxBufferRows }) => {
+const collectCallSites = async ({ state, chunks, outDir, buildRoot, buildId, maxJsonBytes, abortSignal, maxBufferBytes, maxBufferRows }) => {
   const stats = createTrimStats();
   const spillStats = createTrimStats();
   const collector = createRowSpillCollector({ outDir, runPrefix: 'call_sites', compare: compareCallSites,
     maxJsonBytes, maxBufferBytes, maxBufferRows, stats: spillStats });
-  for (const row of iterateCallSites(chunks, stats)) {
-    throwIfAborted(abortSignal);
-    // Admission awaits each spill; no Promise queue can outrun the byte owner.
-    await collector.append(row);
+  const semanticRefs = createCallSiteSemanticRefResolver({ state, outDir, buildRoot, buildId, signal: abortSignal });
+  stats.semanticReferences = { available: 0, unavailable: 0 };
+  for (const chunk of chunks || []) {
+    if (!chunk?.codeRelations?.callDetails?.length) continue;
+    await semanticRefs.withChunk(chunk, async resolveRef => {
+      for (const detail of chunk.codeRelations.callDetails) {
+        throwIfAborted(abortSignal);
+        if (!detail || typeof detail !== 'object') {
+          recordTrimStats(stats, { dropped: true, trimReasons: [TRIM_REASONS.dropRequiredFields] });
+          continue;
+        }
+        const semanticRef = await resolveRef(detail);
+        const row = buildCallSiteRow({ chunk, detail, stats, semanticRef });
+        if (row) {
+          stats.semanticReferences[semanticRef.status] += 1;
+          // Await each spill before admitting another bounded row.
+          await collector.append(row);
+        }
+      }
+    });
   }
   throwIfAborted(abortSignal);
   const collected = await collector.finalize();
@@ -246,6 +265,8 @@ const collectCallSites = async ({ chunks, outDir, maxJsonBytes, abortSignal, max
 export const enqueueCallSitesArtifacts = async ({
   state,
   outDir,
+  buildRoot = null,
+  buildId = null,
   abortSignal = null,
   spillBufferBytes = 2 * 1024 * 1024,
   spillBufferRows = 5000,
@@ -262,7 +283,7 @@ export const enqueueCallSitesArtifacts = async ({
 }) => {
   throwIfAborted(abortSignal);
   const resolvedMaxBytes = Number.isFinite(Number(maxJsonBytes)) ? Math.max(0, Math.floor(Number(maxJsonBytes))) : 0;
-  const collected = await collectCallSites({ chunks: state?.chunks || [], outDir,
+  const collected = await collectCallSites({ state, chunks: state?.chunks || [], outDir, buildRoot, buildId,
     maxJsonBytes: resolvedMaxBytes, abortSignal,
     maxBufferBytes: Math.min(2 * 1024 * 1024, Math.max(1, spillBufferBytes)),
     maxBufferRows: Math.min(5000, Math.max(1, spillBufferRows)) });
@@ -270,7 +291,7 @@ export const enqueueCallSitesArtifacts = async ({
   const totalRows = stats.totalRows;
   if (state) state.callSitesCoverage = { schemaVersion: 1,
     status: stats.droppedRows ? 'incomplete' : 'complete', emitted: totalRows,
-    dropped: stats.droppedRows, trimmed: stats.trimmedRows };
+    dropped: stats.droppedRows, trimmed: stats.trimmedRows, semanticReferences: stats.semanticReferences };
   if (!totalRows && !forceEmpty) { await collected.cleanup(); return null; }
   const totalBytes = stats.totalBytes, maxLineBytes = stats.maxRowBytes;
   const withRows = async write => {

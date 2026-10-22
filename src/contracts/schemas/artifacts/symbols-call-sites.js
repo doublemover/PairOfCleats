@@ -1,3 +1,5 @@
+import { CALL_SITE_SEMANTIC_REF_SCHEMA } from '../call-site-semantic-ref.js';
+
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
 const nullableInt = { type: ['integer', 'null'], minimum: 0 };
@@ -195,6 +197,7 @@ const callSiteEntry = {
     targetCandidates: { type: 'array', items: { type: 'string' } },
     snippetHash: nullableString,
     extensions: { type: 'object', properties: {
+      semanticRef: CALL_SITE_SEMANTIC_REF_SCHEMA,
       syntax: { type: 'object', additionalProperties: false,
         required: ['producer', 'coordinateSystem', 'role', 'resolution', 'reason', 'rawPreviewTruncated'],
         properties: {

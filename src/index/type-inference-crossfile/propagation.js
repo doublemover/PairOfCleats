@@ -252,7 +252,7 @@ export async function runCrossFilePropagation({
   let droppedCallLinks = 0;
   let droppedCallSummaries = 0;
   let droppedUsageLinks = 0;
-  const category = () => ({ visited: 0, unsupported: 0, unresolved: 0, self: 0, dropped: 0 });
+  const category = () => ({ visited: 0, unsupported: 0, unresolved: 0, ambiguous: 0, dynamic: 0, self: 0, dropped: 0 });
   const admission = { policy: fidelity, calls: category(), callDetails: category(), usages: category(), affectedChunks: [],
     parameterSamplesDropped: 0, parameterTypesDropped: 0, inferenceLiteEnabled };
   let candidateWork = 0;
@@ -559,7 +559,8 @@ export async function runCrossFilePropagation({
           });
           if (!symbolRef || symbolRef.status === 'unresolved') admission.calls.unresolved += 1;
           if (!symbolRef) continue;
-          if (symbolRef.resolved?.chunkUid && symbolRef.resolved.chunkUid === fromChunkUid) { admission.calls.self += 1; continue; }
+          if (symbolRef.status === 'ambiguous') admission.calls.ambiguous += 1;
+          if (symbolRef.resolved?.chunkUid && symbolRef.resolved.chunkUid === fromChunkUid) admission.calls.self += 1;
           const resolvedEntry = symbolRef.resolved?.chunkUid
             ? entryByUid.get(symbolRef.resolved.chunkUid)
             : null;
@@ -597,13 +598,20 @@ export async function runCrossFilePropagation({
           await admitCandidate(admission.callDetails);
           const detail = relations.callDetails[detailIndex];
           const callee = detail?.callee;
-          if (!callee) { admission.callDetails.unsupported += 1; continue; }
-          const symbolRef = detail.compilerBinding?.symbolRef || resolveSymbolRefCached({
+          const dynamicSyntax = !callee && detail?.source === 'tree-sitter'
+            && detail.coordinateSystem === 'utf16' && typeof detail.calleeRaw === 'string' && detail.calleeRaw.length > 0;
+          if (!callee && !dynamicSyntax) { admission.callDetails.unsupported += 1; continue; }
+          // Supported dynamic syntax is unresolved evidence, not unsupported
+          // extraction. A display spelling must never become a static target.
+          const symbolRef = detail.compilerBinding?.symbolRef || (callee ? resolveSymbolRefCached({
             targetName: callee,
             kindHint: null,
             fromFile: chunk.file
-          });
+          }) : null);
           if (!symbolRef || symbolRef.status === 'unresolved') admission.callDetails.unresolved += 1;
+          if (symbolRef?.status === 'ambiguous') admission.callDetails.ambiguous += 1;
+          if (dynamicSyntax) admission.callDetails.dynamic += 1;
+          if (symbolRef?.resolved?.chunkUid === fromChunkUid) admission.callDetails.self += 1;
           syncCallDetailResolution(detail, symbolRef);
           const resolvedEntry = symbolRef?.resolved?.chunkUid
             ? entryByUid.get(symbolRef.resolved.chunkUid)
@@ -611,7 +619,10 @@ export async function runCrossFilePropagation({
           const args = Array.isArray(detail.args) ? detail.args : [];
           const summary = {
             v: 1,
-            name: callee,
+            name: callee || detail.calleeRaw,
+            role: detail.role || 'call',
+            resolution: symbolRef?.status || 'unresolved',
+            reason: symbolRef?.reason || detail.reason || (dynamicSyntax ? 'dynamic-call-target' : 'syntax-target-unresolved'),
             start: detail.start ?? null, end: detail.end ?? null, callSiteRef: detail.semanticRecordRef || null,
             args,
             calleeRef: symbolRef || null,
@@ -685,7 +696,8 @@ export async function runCrossFilePropagation({
           });
           if (!symbolRef || symbolRef.status === 'unresolved') admission.usages.unresolved += 1;
           if (!symbolRef) continue;
-          if (symbolRef.resolved?.chunkUid && symbolRef.resolved.chunkUid === fromChunkUid) { admission.usages.self += 1; continue; }
+          if (symbolRef.status === 'ambiguous') admission.usages.ambiguous += 1;
+          if (symbolRef.resolved?.chunkUid && symbolRef.resolved.chunkUid === fromChunkUid) admission.usages.self += 1;
           const resolvedEntry = symbolRef.resolved?.chunkUid
             ? entryByUid.get(symbolRef.resolved.chunkUid)
             : null;

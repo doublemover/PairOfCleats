@@ -2122,6 +2122,8 @@ async function writeIndexArtifactsInCodecScope(input) {
     ? await enqueueCallSitesArtifacts({
       state,
       outDir,
+      buildRoot,
+      buildId: indexState?.buildId || null,
       maxJsonBytes: callSitesMaxBytes,
       abortSignal: effectiveAbortSignal,
       byteBudget: callSitesBudget,
