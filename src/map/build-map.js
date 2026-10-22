@@ -239,6 +239,7 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     try {
       meta = await loadChunkMeta(indexDir, { strict });
     } catch (err) {
+      if (strict && err.code !== 'ERR_MANIFEST_ENTRY_MISSING') throw err;
       warnings.push(`chunk_meta missing: ${err?.message || err}`);
     }
     return {

@@ -79,6 +79,10 @@ try {
   assert.equal(qualified.memberById.get('sym:v1:overload').exported, true);
   assert.equal(qualified.memberById.get('sym:v1:alpha').exported, null);
   assert.throws(() => build(chunks, [{ ...repoMap[0], file: 'src/other.js' }]), /disagrees/);
+  const durableDisplay = build(chunks, [{ ...repoMap[0], signature: 'legacy display preview', endLine: 99 }]);
+  assert.equal(durableDisplay.memberById.size, 2);
+  assert.equal(durableDisplay.memberById.get('sym:v1:alpha').exported, true);
+  assert.equal(durableDisplay.memberById.get('sym:v1:alpha').range.endLine, 2);
 } finally {
   await fs.rm(dir, { recursive: true, force: true });
 }

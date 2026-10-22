@@ -101,7 +101,10 @@ export const buildMapMembers = ({ repoMap, chunkMeta, fileMeta, fileRelations, i
       throw new Error(`Conflicting repo_map member identity: ${file}::${name}`);
     }
     let member = memberById.get(uidId) || symbolMember || null;
-    if (member && (member.file !== file || member.name !== name || !compatible(member, entry))) {
+    // Durable identity proves the join even when a producer's display signature
+    // or physical chunk range differs from the canonical symbol metadata.
+    if (member && (member.file !== file || member.name !== name
+      || (originOf(entry) && member.virtualPath && member.virtualPath !== originOf(entry)))) {
       throw new Error(`repo_map identity disagrees with chunk_meta: ${file}::${name}`);
     }
     const candidates = [...(byLocation.get(locationKey(file, name)) || [])]
