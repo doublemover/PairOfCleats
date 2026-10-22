@@ -15,7 +15,9 @@ node tools/setup/preflight.js --json
 npm run bootstrap:ci
 ```
 
-The first command only discovers prerequisites. The second performs the locked
+The first command discovers prerequisites and, on Windows, compiles/links the
+selected target capability in owned scratch; it does not record readiness.
+The second performs the locked
 application install, required package patches, native builds/probes and readiness
 receipt. `npm run bootstrap` uses dependency resolution and belongs to an
 intentional dependency update. It is different from target provisioning with

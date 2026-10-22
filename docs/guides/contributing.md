@@ -56,3 +56,21 @@ See [the runner contract](../testing/test-runner-interface.md),
 platform, command, passed/failed/skipped scope and unrun work. Earlier green runs
 are not final-head acceptance. If a development phase explicitly defers validation,
 label its source/fixtures **UNVALIDATED** and carry proof forward as pending.
+
+## Review documentation navigation
+
+The source-authored `node tools/docs/check-markdown.js --json` audit inventories
+the README and all Markdown/MDX under `docs/`, including archives. Use repeated
+`--file <source.md>` selections for bounded corrections. It checks local target
+paths and exact casing, percent encoding, conventional heading/HTML anchors,
+duplicate headings, reference links and suspicious UTF-8/control characters.
+It ignores code fences/spans and never executes a displayed command or checks
+remote reachability. Renderer-specific extensions and non-Markdown fragments
+remain partial evidence. The audit and its inert fixtures are **UNVALIDATED**;
+no full-corpus pass or acceptance is claimed for this development batch. The
+existing CI path-only checker remains a separate, narrower gate.
+
+Fix the source or link destination and preserve original historical evidence.
+Archive a superseded specification with its replacement, reason, date and
+source commit rather than deleting it. Reorganizing prose or accepting a link
+does not establish that its commands work on a current runtime/platform/head.
