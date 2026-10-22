@@ -18,6 +18,8 @@ scoped release capability removes the fence after the resource owner confirms
 closure. A rejected/unknown close, lost parent or unreadable/partial record stays
 protected. Missing automatic recovery is deliberate: elapsed time, a dead PID or
 an install ID alone does not constitute external-resource settlement.
+The exact session receipt requires matching resourceId, settled:true and
+pending:false. An omitted or null pending flag cannot release its fence.
 
 This repairs the pending-parent durability gap when a bounded subprocess timeout
 returns and the initiating CLI exits. It does not turn direct-child close into a

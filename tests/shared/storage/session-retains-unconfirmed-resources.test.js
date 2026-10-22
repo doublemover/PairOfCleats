@@ -14,6 +14,8 @@ try {
   const session = acquireStorageSession(input);
   assert.equal((await inspectStorageAccess(root, { coordinationRoot })).protected, true);
   assert.throws(() => session.releaseAfterSettlement({ resourceId: 'old-session', settled: true }), /exact resource/);
+  assert.throws(() => session.releaseAfterSettlement({ resourceId: session.resourceId, settled: true }),
+    { code: 'ERR_STORAGE_SESSION_PENDING' }, 'omitting pending:false does not prove resource closure');
   assert.equal((await withExclusiveRepoCacheCleanup(root, () => assert.fail('live model cannot be collected'), { coordinationRoot })).protected, true);
   session.releaseAfterSettlement({ resourceId: session.resourceId, settled: true, pending: false });
   assert.equal((await inspectStorageAccess(root, { coordinationRoot })).protected, false);
