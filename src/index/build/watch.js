@@ -41,6 +41,7 @@ import { startChokidarWatcher } from './watch/backends/chokidar.js';
 import { startParcelWatcher } from './watch/backends/parcel.js';
 import { createWatchAttemptManager } from './watch/attempts.js';
 import { normalizeRoot } from './watch/shared.js';
+import { createWatchProgress } from './watch/progress.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { detectShebangLanguage } from './shebang.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
@@ -96,6 +97,7 @@ export async function watchIndex({
     startChokidarWatcher,
     startParcelWatcher,
     resolveWatcherBackend,
+    createWatchProgress,
     ...(deps || {})
   };
   const runtimeRef = {
@@ -167,6 +169,11 @@ export async function watchIndex({
     lastEventAt: null,
     shutdownSignal: null
   };
+  const watchProgress = resolvedDeps.createWatchProgress({ runtime: runtimeRef });
+  const observeStartup = async work => {
+    try { return await work(); }
+    catch (error) { watchProgress.degraded('startup', error, watchState); throw error; }
+  };
   const watchStatePath = runtimeRef.repoCacheRoot
     ? path.join(runtimeRef.repoCacheRoot, 'watch-state.json')
     : null;
@@ -235,6 +242,7 @@ export async function watchIndex({
       onStateChange(snapshot);
     }
     persistWatchState(snapshot);
+    watchProgress.observe(snapshot);
     return snapshot;
   };
 
@@ -334,6 +342,7 @@ export async function watchIndex({
         requireSignal: true,
         signalLabel: 'build.watch.runWithQueue',
         onError: (err, ctx) => {
+          watchProgress.degraded('update', err, watchState);
           log(`[watch] Update failed for ${ctx?.item || 'file'}: ${err?.message || err}`);
         }
       }
@@ -365,7 +374,9 @@ export async function watchIndex({
           throw err;
         }
       }
+      watchProgress.recovered(watchState, ['update-queue']);
     } catch (err) {
+      if (!abortSignal?.aborted) watchProgress.degraded('update-queue', err, watchState);
       if (!abortSignal?.aborted) {
         log(`[watch] Update queue failed: ${err?.message || err}`);
       }
@@ -672,6 +683,7 @@ export async function watchIndex({
       });
       if (!lock) {
         status = 'unknown';
+        watchProgress.degraded('lock-contention', { code: 'ERR_WATCH_LOCK_BUSY' }, watchState);
         pending = true;
         return;
       }
@@ -769,6 +781,7 @@ export async function watchIndex({
       assertBeforePublication();
       if (!validation.ok) {
         status = 'error';
+        watchProgress.degraded('validation', { code: 'ERR_WATCH_VALIDATION' }, watchState);
         await resolvedDeps.markBuildPhase(attemptRuntime.buildRoot, 'validation', 'failed');
         validationDone = true;
         log('[watch] Index update failed validation; skipping promotion.');
@@ -799,6 +812,7 @@ export async function watchIndex({
     } catch (err) {
       operationError = err;
       status = isAbortError(err) ? 'aborted' : 'error';
+      if (status === 'error') watchProgress.degraded('build', err, watchState);
       log(status === 'aborted' ? (publicationCommitted ? '[watch] Index bookkeeping aborted after publication.' : '[watch] Index update aborted before publication.')
         : `[watch] Index update failed: ${err?.message || err}`);
     } finally {
@@ -817,6 +831,7 @@ export async function watchIndex({
           );
         } catch (err) {
           status = 'error';
+          watchProgress.degraded('phase-state', err, watchState);
           log(`[watch] Failed to write build phase state: ${err?.message || err}`);
         }
       }
@@ -844,6 +859,7 @@ export async function watchIndex({
         } catch (err) {
           status = 'error';
           releaseError = err;
+          watchProgress.degraded('cache-drain', err, watchState);
           terminalError = combineCacheWriterErrors(operationError, err);
           requestShutdown('cache-writer-drain-incomplete');
           log(`[watch] Index lock release failed: ${err?.message || err}`);
@@ -857,6 +873,7 @@ export async function watchIndex({
         } catch (err) {
           status = 'error';
           outcomeError = err;
+          watchProgress.degraded('outcome', err, watchState);
           log(`[watch] Failed to record attempt outcome: ${err?.message || err}`);
         }
       }
@@ -904,6 +921,7 @@ export async function watchIndex({
         pending = true;
       }
       emitWatchState();
+      if (status === 'ok') watchProgress.recovered(watchState);
       // Also runs for recoverable early returns such as lock contention.
       if (pending && !shouldExit) {
         pending = false;
@@ -921,7 +939,10 @@ export async function watchIndex({
     onSchedule: () => incWatchDebounce('scheduled'),
     onCancel: () => incWatchDebounce('canceled'),
     onFire: () => incWatchDebounce('fired'),
-    onError: (err) => log(`[watch] Debounced build failed: ${err?.message || err}`)
+    onError: (err) => {
+      watchProgress.degraded('scheduler', err, watchState);
+      log(`[watch] Debounced build failed: ${err?.message || err}`);
+    }
   });
 
   const clearStabilityRetry = (absPath) => {
@@ -1003,7 +1024,7 @@ export async function watchIndex({
   };
 
   const skippedByMode = {};
-  const discoveredByMode = await resolvedDeps.discoverFilesForModes({
+  const discoveredByMode = await observeStartup(() => resolvedDeps.discoverFilesForModes({
     root,
     modes,
     recordsDir: runtimeRef.recordsDir,
@@ -1018,7 +1039,7 @@ export async function watchIndex({
     fileCaps,
     maxDepth: maxDepthCap,
     maxFiles: maxFilesCap
-  });
+  }));
   for (const mode of modes) {
     const entries = Array.isArray(discoveredByMode[mode]) ? discoveredByMode[mode] : [];
     const modeMap = ensureModeMap(mode);
@@ -1074,10 +1095,11 @@ export async function watchIndex({
   };
   const handleError = (err) => {
     incWatchEvent('error');
+    watchProgress.degraded('watcher', err, watchState);
     log(`[watch] Watcher error: ${err?.message || err}`);
   };
   const ignored = buildIgnoredMatcher({ root, ignoreMatcher });
-  const watcher = resolvedDeps.startWatcher
+  const watcher = await observeStartup(async () => resolvedDeps.startWatcher
     ? await resolvedDeps.startWatcher({
       root,
       ignored,
@@ -1096,15 +1118,17 @@ export async function watchIndex({
         onError: handleError,
         pollMs,
         awaitWriteFinishMs: debounceMs
-      }));
+      })));
 
   emitWatchState();
+  watchProgress.monitoring(watchState);
   if (typeof onReady === 'function') {
     onReady();
   }
 
   if (shouldExit) stop();
   await exitPromise;
+  let shutdownError = null;
   try {
     await runBuildCleanupWithTimeout({
       label: 'watch.watcher.close',
@@ -1126,7 +1150,8 @@ export async function watchIndex({
         swallowTimeout: false
       });
     }
-  } finally {
+  } catch (error) { shutdownError = error; throw error; }
+  finally {
     if (handleSignals) {
       process.off('SIGINT', handleSigint);
       process.off('SIGTERM', handleSigterm);
@@ -1135,6 +1160,7 @@ export async function watchIndex({
       abortSignal.removeEventListener('abort', abortHandler);
     }
     emitWatchState();
+    watchProgress.stopped(watchState, shutdownError || terminalError);
     await watchStatePersistChain.catch(() => {});
     log(`[watch] Shutdown complete${shutdownSignal ? ` (${shutdownSignal})` : ''}.`);
   }
