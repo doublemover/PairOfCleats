@@ -1,3 +1,5 @@
+import { withJsonlCompressionScope } from '../../../shared/json-stream/jsonl-compression-scope.js';
+import { sealTokenPostingsFamily } from '../artifacts/token-postings-reuse.js';
 import { enqueueSemanticArtifacts } from '../artifacts/writers/semantic/family.js';
 import { MINHASH_HASH_IDENTITY, assertMinhashHashIdentity } from '../../minhash.js';
 import { enqueueSymbolicTypeArtifacts } from '../artifacts/writers/symbolic-types.js';
@@ -204,6 +206,12 @@ const extractFieldPostingsShardBody = (content, shardPath) => {
  * @param {object} input
  */
 export async function writeIndexArtifacts(input) {
+  return withJsonlCompressionScope({ scheduler: input.scheduler, signal: input.abortSignal,
+    cpuBudget: input.codecCpuBudget ?? input.scheduler?.stats?.()?.tokens?.cpu?.total ?? 1 },
+  () => writeIndexArtifactsInCodecScope(input));
+}
+
+async function writeIndexArtifactsInCodecScope(input) {
   const normalizedInput = normalizeArtifactWriteInput(input);
   const {
     scheduler,
@@ -1612,8 +1620,9 @@ export async function writeIndexArtifacts(input) {
     await removePackedMinhash({ outDir, removeArtifact });
   }
   const tokenPostingsCompression = resolveShardCompression('token_postings');
+  let tokenPostingsFamilyPlan = null;
   if (sparseArtifactsEnabled) {
-    await enqueueTokenPostingsArtifacts({
+    tokenPostingsFamilyPlan = await enqueueTokenPostingsArtifacts({
       outDir,
       postings,
       state,
@@ -1624,6 +1633,8 @@ export async function writeIndexArtifacts(input) {
       tokenPostingsCompression,
       writePriority: 210,
       tokenPostingsEstimatedBytes: tokenPostingsEstimate?.estimatedBytes || null,
+      reuseContext: { root, userConfig, mode, enabled: incrementalEnabled === true, signal: effectiveAbortSignal,
+        policy: input.tokenPostingsReusePolicy || null },
       enqueueJsonObject: tokenPostingWrites.enqueueJsonObject,
       enqueueWrite: tokenPostingWrites.enqueueWrite,
       addPieceFile,
@@ -2336,6 +2347,9 @@ export async function writeIndexArtifacts(input) {
     writeHeartbeat,
     ultraLightWriteThresholdBytes
   });
+  await sealTokenPostingsFamily({ outDir, plan: tokenPostingsFamilyPlan, entries: listPieceEntries(),
+    addPieceFile, signal: effectiveAbortSignal });
+  if (tokenPostingsFamilyPlan && timing) timing.tokenPostingsFamilyReuse = tokenPostingsFamilyPlan;
   let pieceEntries = listPieceEntries();
   if (vectorOnlyProfile) {
     const deniedPieces = pieceEntries

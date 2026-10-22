@@ -1,4 +1,5 @@
 import { resolveZstd } from './compress.js';
+import { borrowJsonlCompressionPool } from './jsonl-compression-scope.js';
 import { createJsonlCompressionPool } from './jsonl-compression-pool.js';
 import { createJsonWriteStream, writeChunk } from './streams.js';
 import { createAbortError } from './runtime.js';
@@ -33,14 +34,11 @@ const createSemaphore = (limit) => {
       return;
     }
     await new Promise((resolve, reject) => waiters.push({ resolve, reject }));
-    inFlight += 1;
   };
   const release = () => {
-    inFlight = Math.max(0, inFlight - 1);
     const waiter = waiters.shift();
-    if (waiter) {
-      waiter.resolve();
-    }
+    if (waiter) waiter.resolve(); // transfer the already-counted slot
+    else inFlight = Math.max(0, inFlight - 1);
   };
   const abort = (err) => {
     while (waiters.length) {
@@ -78,7 +76,7 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
   });
 
   let ownedPool = false;
-  let compressionPool = pool;
+  let compressionPool = pool || (useWorkerCompression ? borrowJsonlCompressionPool(options) : null);
   if (useWorkerCompression) {
     resolveZstd(options);
     if (!compressionPool) {
@@ -95,8 +93,8 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
 
   const maxInFlight = useWorkerCompression
     ? Math.max(
-      2,
-      Number.isFinite(Number(workerMaxInFlight))
+      1,
+      workerMaxInFlight != null && Number.isFinite(Number(workerMaxInFlight))
         ? Math.max(1, Math.floor(Number(workerMaxInFlight)))
         : compressionPool.size * 2
     )
@@ -105,6 +103,7 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
 
   const pendingChunks = [];
   let pendingBytes = 0;
+  let pendingLease = null;
   let nextBlockId = 0;
   let nextToWrite = 0;
   let pendingBlocks = 0;
@@ -147,7 +146,10 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
       closed = true;
       if (semaphore) semaphore.abort(failed);
       rejectDrain(failed);
+      for (const block of ready.values()) block.lease?.release();
       ready.clear();
+      pendingLease?.release(); pendingLease = null;
+      pendingChunks.length = 0; pendingBytes = 0;
       pendingBlocks = 0;
       try { stream.destroy(failed); } catch {}
       try { await done; } catch {}
@@ -170,9 +172,9 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
       do {
         flushQueued = false;
         while (!failed && ready.has(nextToWrite)) {
-          const data = ready.get(nextToWrite);
+          const { data, lease } = ready.get(nextToWrite);
           ready.delete(nextToWrite);
-          await writeChunk(stream, data);
+          try { await writeChunk(stream, data); } finally { lease?.release(); }
           nextToWrite += 1;
           pendingBlocks = Math.max(0, pendingBlocks - 1);
           if (semaphore) semaphore.release();
@@ -186,26 +188,28 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
     }
   };
 
-  const enqueueCompressedBlock = async (block) => {
+  const enqueueCompressedBlock = async (block, lease) => {
     if (!compressionPool) {
       throw new Error('Missing compression pool.');
     }
     await semaphore.acquire();
     if (failed) {
       if (semaphore) semaphore.release();
+      lease?.release();
       throw failed;
     }
     const blockId = nextBlockId;
     nextBlockId += 1;
     pendingBlocks += 1;
     compressionPool
-      .compress(block)
+      .compress(block, { signal, lease })
       .then((compressed) => {
-        if (failed) return;
-        ready.set(blockId, compressed);
+        if (failed) { lease?.release(); return; }
+        ready.set(blockId, { data: compressed, lease });
         flushReady();
       })
       .catch(async (err) => {
+        lease?.release();
         if (semaphore) semaphore.release();
         pendingBlocks = Math.max(0, pendingBlocks - 1);
         await fail(err);
@@ -215,29 +219,33 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
   const flushBuffer = async () => {
     if (!pendingBytes) return;
     const block = Buffer.concat(pendingChunks, pendingBytes);
+    const lease = pendingLease; pendingLease = null;
     pendingChunks.length = 0;
     pendingBytes = 0;
     if (!useWorkerCompression) {
       await writeChunk(stream, block);
       return;
     }
-    await enqueueCompressedBlock(block);
+    try { await enqueueCompressedBlock(block, lease); } catch (error) { lease?.release(); throw error; }
   };
 
   const writeLine = async (line, lineBytes = null) => {
     if (failed) throw failed;
     if (closed) throw new Error('JSONL writer closed.');
     const buffer = Buffer.isBuffer(line) ? line : Buffer.from(line, 'utf8');
-    // A size hint is advisory. Only encoded bytes may size Buffer.concat or
-    // admission accounting; null, string lengths and stale hints cannot alter data.
-    const bytes = buffer.length + NEWLINE.length;
-    if (pendingBytes && pendingBytes + bytes > resolvedBlockSize) {
-      await flushBuffer();
-    }
-    pendingChunks.push(buffer, NEWLINE);
-    pendingBytes += bytes;
-    if (pendingBytes >= resolvedBlockSize || bytes > resolvedBlockSize) {
-      await flushBuffer();
+    // Encoded bytes own admission. Even one oversized line is sliced into
+    // bounded codec blocks; concatenated frames preserve the exact JSONL bytes.
+    for (const source of [buffer, NEWLINE]) {
+      let offset = 0;
+      while (offset < source.length) {
+        if (useWorkerCompression && !pendingLease && compressionPool.acquireBlock) {
+          pendingLease = await compressionPool.acquireBlock(resolvedBlockSize, signal);
+        }
+        if (failed) { pendingLease?.release(); pendingLease = null; throw failed; }
+        const length = Math.min(source.length - offset, resolvedBlockSize - pendingBytes);
+        pendingChunks.push(source.subarray(offset, offset + length)); pendingBytes += length; offset += length;
+        if (pendingBytes >= resolvedBlockSize) await flushBuffer();
+      }
     }
   };
 
@@ -247,6 +255,7 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
       fail(createAbortError());
     };
     signal.addEventListener('abort', handler, { once: true });
+    if (signal.aborted) handler();
     return () => signal.removeEventListener('abort', handler);
   };
 
@@ -262,7 +271,7 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
       await flushBuffer();
       if (useWorkerCompression) {
         await waitForDrain();
-        if (compressionPool?.waitForIdle) {
+        if (ownedPool && compressionPool?.waitForIdle) {
           await compressionPool.waitForIdle();
         }
       }

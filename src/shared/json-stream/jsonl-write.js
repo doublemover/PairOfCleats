@@ -73,7 +73,9 @@ const runJsonlWrite = async (filePath, items, options = {}) => {
     gzipOptions,
     highWaterMark,
     signal,
-    preallocateBytes
+    preallocateBytes,
+    pool: options.pool, workerCount: options.workerCount, workerMaxInFlight: options.workerMaxInFlight,
+    blockSize: options.blockSize, level: options.level, zstdLevel: options.zstdLevel
   });
   const offsetsWriter = createOffsetsTarget(offsets, atomic, highWaterMark);
   try {

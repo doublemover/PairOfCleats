@@ -1,3 +1,4 @@
+import { tokenPostingsDictionaryProof } from '../../artifacts/token-postings-reuse.js';
 import { writeIndexArtifacts } from '../../artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../contracts/versioning.js';
 import { sha1 } from '../../../../shared/hash.js';
@@ -191,6 +192,7 @@ export const writeIndexArtifactsForMode = async ({
   }
   await writeIndexArtifacts({
     scheduler: runtime.scheduler,
+    codecCpuBudget: runtime.cpuConcurrency,
     abortSignal,
     telemetry: runtime.telemetry,
     buildRoot: runtime.buildRoot,
@@ -203,6 +205,8 @@ export const writeIndexArtifactsForMode = async ({
     modelId: runtime.modelId,
     useStubEmbeddings: runtime.useStubEmbeddings,
     dictSummary: runtime.dictSummary,
+    tokenPostingsReusePolicy: { dictionarySignature: tokenPostingsDictionaryProof(runtime), dictionary: runtime.dictConfig,
+      postings: runtime.postingsConfig, lexicalMode: mode, codeDictionaryLanguages: [...(runtime.codeDictLanguages || [])].sort() },
     timing,
     root: runtime.root,
     userConfig: runtime.userConfig,

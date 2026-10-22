@@ -2,6 +2,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createTempPath, replaceDir } from './atomic.js';
 import { createJsonlBatchWriter } from './jsonl-batch.js';
+import { borrowJsonlCompressionPool } from './jsonl-compression-scope.js';
 import { createJsonlCompressionPool } from './jsonl-compression-pool.js';
 import { createOffsetsWriter } from './offsets.js';
 import { throwIfAborted } from './runtime.js';
@@ -215,17 +216,17 @@ const runShardedWrite = async (input, useAsyncIterable) => {
   await removeTempDirOrThrow(tempPartsDir);
   await fsPromises.mkdir(tempPartsDir, { recursive: true });
 
-  let compressionPool = null;
+  let compressionPool = input?.pool || null;
+  let ownedCompressionPool = false;
   const closeCompressionPool = async () => {
-    if (!compressionPool) return;
+    if (!compressionPool || !ownedCompressionPool) return;
     await compressionPool.close();
     compressionPool = null;
   };
-  if (resolvedCompression === 'zstd') {
-    compressionPool = createJsonlCompressionPool({
-      compression: resolvedCompression,
-      gzipOptions
-    });
+  if (resolvedCompression === 'zstd' && !compressionPool) {
+    const codecOptions = { compression: resolvedCompression, gzipOptions };
+    compressionPool = borrowJsonlCompressionPool(codecOptions);
+    if (!compressionPool) { compressionPool = createJsonlCompressionPool(codecOptions); ownedCompressionPool = true; }
   }
 
   const state = createShardedWriterState({
