@@ -272,18 +272,22 @@ export function applyToolLayoutValidation(tool, detectedPath, probe) {
   return probe;
 }
 
-async function scanRepo(root) {
+async function scanRepo(root, { signal = null } = {}) {
   const extCounts = new Map();
   const lowerNames = new Set();
   let workflowCount = 0;
   const visit = async (dir) => {
+    signal?.throwIfAborted();
     let entries;
     try {
       entries = await fsPromises.readdir(dir, { withFileTypes: true });
-    } catch {
+    } catch (error) {
+      if (signal?.aborted) throw error;
       return;
     }
+    signal?.throwIfAborted();
     for (const entry of entries) {
+      signal?.throwIfAborted();
       const abs = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         if (SKIP_DIRS.has(entry.name)) continue;
@@ -347,8 +351,9 @@ function buildFormatHits(extCounts, lowerNames, workflowCount) {
   return hits;
 }
 
-export async function detectRepoLanguages(root) {
-  const { extCounts, lowerNames, workflowCount } = await scanRepo(root);
+export async function detectRepoLanguages(root, { signal = null } = {}) {
+  signal?.throwIfAborted();
+  const { extCounts, lowerNames, workflowCount } = await scanRepo(root, { signal });
   const languages = buildLangHits(extCounts);
   const formats = buildFormatHits(extCounts, lowerNames, workflowCount);
   return { languages, formats, extCounts };
@@ -831,9 +836,11 @@ export function hasCommand(cmd) {
 }
 
 export async function buildToolingReport(root, languageOverride = null, options = {}) {
+  const signal = options.signal || null;
+  signal?.throwIfAborted();
   const toolingConfig = getToolingConfig(root);
   const skipScan = options.skipScan === true;
-  const detected = skipScan ? { languages: {}, formats: {} } : await detectRepoLanguages(root);
+  const detected = skipScan ? { languages: {}, formats: {} } : await detectRepoLanguages(root, { signal });
   const languages = detected.languages || {};
   const formats = detected.formats || {};
   const languageList = languageOverride && languageOverride.length
@@ -849,7 +856,9 @@ export async function buildToolingReport(root, languageOverride = null, options 
   if (options.skipToolDetection !== true) {
     const detect = options.detectTool || (await import('./owned-detect.js')).detectToolOwned;
     for (const tool of resolveToolsForLanguages(languageList, toolingConfig.dir, root, toolingConfig)) {
-    const status = await detect(tool);
+    signal?.throwIfAborted();
+    const status = await detect(tool, { signal });
+    signal?.throwIfAborted();
     tools.push({
       id: tool.id,
       label: tool.label,

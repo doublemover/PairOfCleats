@@ -25,6 +25,13 @@ assert.equal(result.installId, installId);
 assert.equal(result.probe.verificationLevel, 'bounded-command-transport-and-layout');
 assert.equal(retained, false);
 assert.equal(releases, 1);
+const cancelled = new AbortController();
+cancelled.abort(new Error('fixture pre-cancelled tool detection'));
+let locations = 0;
+await assert.rejects(detectToolOwned(tool, { signal: cancelled.signal }, { ...dependencies,
+  locate: () => { locations++; throw new Error('cancelled detection cannot locate commands'); }
+}), /fixture pre-cancelled tool detection/);
+assert.equal(locations, 0);
 
 let closed = false;
 const primary = Object.assign(new Error('fixture timeout without close'), { cacheOwnershipPending: true,

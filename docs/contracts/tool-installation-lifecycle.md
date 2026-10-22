@@ -155,3 +155,25 @@ cannot be overwritten merely because the inode stayed the same. On conflict it
 preserves the current receipt and verified unselected replacement and reports
 both recovery paths without granting deletion authority. Permission or other
 transaction-cleanup errors remain visible instead of being treated as absence.
+
+First-search apply checks an already-aborted signal before target re-planning
+and marks that validation was not performed. Its pending execution handle needs
+the actual child owner's closure predicate and an exact `pending:false` receipt;
+duplicate settled release is idempotent. Plan identity includes the current
+managed receipt, routing, allocation, locator and model acquisition contract
+sources so those reviewed boundaries cannot change silently before apply.
+
+Ordinary guided setup also uses the existing asynchronous child owner for
+configuration validation, asset acquisition, tooling, restoration and build
+steps. Its prompts and children share the CLI cancellation signal. Interruptions
+stop subsequent steps, close readline, preserve `130`/`143`, and emit one blocked
+JSON readiness summary with a separate cancelled or settlement-pending lifecycle
+state. Unknown teardown errors are preserved and cannot become a normal optional
+step failure followed by another acquisition or build. This source adoption and
+its inert responsiveness regression remain UNVALIDATED.
+
+Repository language discovery and tooling reports propagate that signal into
+the actual owned detector. Cancelled discovery does not become an empty language
+report, and a cancelled probe cannot start the next selected tool. The standalone
+detection CLI keeps `130`/`143`, reports interrupted or unsettled readiness in
+JSON, and completes its handler cleanup without an immediate success exit.

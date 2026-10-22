@@ -20,7 +20,7 @@ import {
   resolveRuntimeEnv,
   resolveToolRoot
 } from '../shared/dict-utils.js';
-import { exitLikeCommandResult, runCommand as runCommandBase } from '../shared/cli-utils.js';
+import { runSetupCommand } from './owned-command.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 import { verifyVectorExtensionArtifact } from '../sqlite/extension-trust.js';
 import { buildSetupReadiness } from './readiness.js';
@@ -42,9 +42,11 @@ const jsonOutput = argv.json === true;
 if (argv.plan || argv['apply-plan']) {
   let payload;
   const cancellation = new AbortController();
-  const onInterrupt = () => cancellation.abort(new Error('First-search setup interrupted.'));
+  let cancellationExitCode = null;
+  const onInterrupt = () => { cancellationExitCode = 130; cancellation.abort(new Error('First-search setup interrupted.')); };
+  const onTerminate = () => { cancellationExitCode = 143; cancellation.abort(new Error('First-search setup terminated.')); };
   process.once('SIGINT', onInterrupt);
-  process.once('SIGTERM', onInterrupt);
+  process.once('SIGTERM', onTerminate);
   try {
   if (!explicitRoot) throw new Error('Plan/apply requires --repo <target> (or --root) so target selection is explicit.');
   if (argv.plan && argv['apply-plan']) throw new Error('Choose either --plan or --apply-plan.');
@@ -57,7 +59,7 @@ if (argv.plan || argv['apply-plan']) {
     payload = await applyFirstSearchPlan(approved, { jsonOutput, signal: cancellation.signal });
   } else {
     payload = await createFirstSearchPlan({ repoRoot: root, profile: argv.profile, model: argv.model,
-      backend: argv.backend, tools: String(argv.tools || '').split(',').map(value => value.trim()).filter(Boolean) });
+      backend: argv.backend, tools: String(argv.tools || '').split(',').map(value => value.trim()).filter(Boolean), signal: cancellation.signal });
   }
   } catch (error) {
     payload = { schemaVersion: 1, kind: 'setup-plan-result', repoRoot: root,
@@ -67,7 +69,7 @@ if (argv.plan || argv['apply-plan']) {
         nextAction: 'Retain the active setup owner and lock until its actual child settlement is confirmed.' } } : {}) };
   } finally {
     process.removeListener('SIGINT', onInterrupt);
-    process.removeListener('SIGTERM', onInterrupt);
+    process.removeListener('SIGTERM', onTerminate);
   }
   if (jsonOutput) console.log(JSON.stringify(payload, null, 2));
   else {
@@ -75,9 +77,16 @@ if (argv.plan || argv['apply-plan']) {
     console.error(JSON.stringify(payload, null, 2));
     if (argv.plan) console.error('Review with --plan --json > setup-plan.json, then explicitly --apply-plan setup-plan.json --repo <same target>.');
   }
-  process.exitCode = payload.kind === 'first-search-plan' ? payload.blockers.length ? 1 : 0 : payload.state === 'complete' ? 0 : 1;
+  process.exitCode = cancellationExitCode || (payload.kind === 'first-search-plan' ? payload.blockers.length ? 1 : 0 : payload.state === 'complete' ? 0 : 1);
 } else {
 const nonInteractive = argv['non-interactive'] === true;
+const cancellation = new AbortController();
+let cancellationExitCode = null;
+let activeStep = 'config';
+const onInterrupt = () => { cancellationExitCode = 130; cancellation.abort(new Error('Guided setup interrupted.')); };
+const onTerminate = () => { cancellationExitCode = 143; cancellation.abort(new Error('Guided setup terminated.')); };
+process.once('SIGINT', onInterrupt);
+process.once('SIGTERM', onTerminate);
 const rl = nonInteractive ? null : readline.createInterface({ input: process.stdin, output: jsonOutput ? process.stderr : process.stdout });
 const stdoutGuard = createStdoutGuard({ enabled: jsonOutput, stream: process.stdout, label: 'setup stdout' });
 
@@ -101,15 +110,16 @@ const summary = {
 };
 const requiredSteps = String(argv['require-steps'] || '').split(',').map((id) => id.trim()).filter(Boolean);
 const knownSteps = new Set(['config', 'install', 'dictionaries', 'models', 'extensions', 'tooling', 'artifacts', 'index', 'sqlite']);
-if (requiredSteps.some((id) => !knownSteps.has(id))) throw new Error('Unknown setup step in --require-steps.');
 
 function finishSetup() {
   summary.readiness = buildSetupReadiness(summary, { requiredIds: requiredSteps });
+  if (summary.lifecycle) summary.readiness = { ...summary.readiness, state: 'blocked', ready: false, exitCode: 1,
+    blockedIds: [...new Set([...summary.readiness.blockedIds, summary.lifecycle.step])] };
   if (summary.readiness.state === 'ready') log('Setup complete.');
   else if (summary.readiness.state === 'blocked') warn(`Setup blocked: ${summary.readiness.blockedIds.join(', ')}.`);
   else warn(`Setup finished with limited readiness: ${summary.readiness.omittedIds.join(', ')}.`);
   if (jsonOutput) stdoutGuard.writeJson(summary);
-  process.exitCode = summary.readiness.exitCode;
+  process.exitCode = cancellationExitCode || summary.readiness.exitCode;
 }
 
 function recordStep(name, data) {
@@ -133,7 +143,8 @@ async function readSetupAnswer(question) {
     rl.once('close', onClose);
   });
   try {
-    return await Promise.race([rl.question(question), closed]);
+    cancellation.signal.throwIfAborted();
+    return await Promise.race([rl.question(question, { signal: cancellation.signal }), closed]);
   } catch (error) {
     if (error?.code === 'ERR_USE_AFTER_CLOSE') throw inputClosed();
     throw error;
@@ -143,6 +154,7 @@ async function readSetupAnswer(question) {
 }
 
 async function promptYesNo(question, defaultYes) {
+  cancellation.signal.throwIfAborted();
   if (nonInteractive) return defaultYes;
   const suffix = defaultYes ? 'Y/n' : 'y/N';
   const answer = (await readSetupAnswer(`${question} [${suffix}] `)).trim().toLowerCase();
@@ -151,6 +163,7 @@ async function promptYesNo(question, defaultYes) {
 }
 
 async function promptChoice(question, choices, defaultChoice) {
+  cancellation.signal.throwIfAborted();
   if (nonInteractive) return defaultChoice;
   const choiceList = choices.join('/');
   const answer = (await readSetupAnswer(`${question} (${choiceList}) [${defaultChoice}] `)).trim().toLowerCase();
@@ -171,14 +184,15 @@ let runtimeEnv = resolveRuntimeEnv(null, process.env);
  *
  * @param {string} cmd
  * @param {string[]} args
- * @param {import('node:child_process').SpawnSyncOptions} [options]
- * @returns {{ok:boolean,status:number|null,stdout?:string,stderr?:string}}
+ * @param {object} [options]
+ * @returns {Promise<{ok:boolean,status:number|null,stdout?:string,stderr?:string}>}
  */
-function runCommand(cmd, args, options = {}) {
+async function runCommand(cmd, args, options = {}) {
   const spawnOptions = {
     cwd: root,
     ...options,
-    env: { ...runtimeEnv, ...(options.env || {}) }
+    env: { ...runtimeEnv, ...(options.env || {}) },
+    signal: options.signal ? AbortSignal.any([cancellation.signal, options.signal]) : cancellation.signal
   };
   if (!('stdio' in spawnOptions)) {
     spawnOptions.stdio = jsonOutput ? ['ignore', 'ignore', 'inherit'] : 'inherit';
@@ -186,29 +200,11 @@ function runCommand(cmd, args, options = {}) {
   if (jsonOutput && !('encoding' in spawnOptions)) {
     spawnOptions.encoding = 'utf8';
   }
-  return runCommandBase(cmd, args, spawnOptions);
+  return runSetupCommand(cmd, args, spawnOptions);
 }
 
-/**
- * Run a setup step and terminate immediately when it fails.
- *
- * @param {string} label
- * @param {string} cmd
- * @param {string[]} args
- * @param {import('node:child_process').SpawnSyncOptions} [options]
- * @returns {{ok:boolean,status:number|null,stdout?:string,stderr?:string}}
- */
-function runOrExit(label, cmd, args, options = {}) {
-  const result = runCommand(cmd, args, options);
-  if (!result.ok) {
-    recordError(label, result, 'command failed');
-    console.error(`[setup] Failed: ${label}`);
-    finishSetup();
-    exitLikeCommandResult(result);
-  }
-  return result;
-}
-
+try {
+if (requiredSteps.some((id) => !knownSteps.has(id))) throw new Error('Unknown setup step in --require-steps.');
 log(`Starting setup in ${root}`);
 
 const configPath = path.join(root, '.pairofcleats.json');
@@ -222,7 +218,7 @@ if (argv['skip-validate']) shouldValidateConfig = false;
 if (shouldValidateConfig && configExists) {
   const args = [path.join(toolRoot, 'tools', 'config', 'validate.js'), '--config', configPath];
   if (jsonOutput) args.push('--json');
-  const result = runCommand(process.execPath, args);
+  const result = await runCommand(process.execPath, args);
   recordStep('config', { skipped: false, ok: result.ok, configPath });
   if (!result.ok) {
     recordError('config', result, 'validation failed');
@@ -230,9 +226,7 @@ if (shouldValidateConfig && configExists) {
       ? false
       : await promptYesNo('Config validation failed. Continue setup anyway?', false);
     if (!continueSetup) {
-      if (rl) await rl.close();
-      finishSetup();
-      exitLikeCommandResult(result);
+      throw Object.assign(new Error('Setup stopped after configuration validation failed.'), { result });
     }
   }
 } else {
@@ -250,6 +244,7 @@ if (useIncremental) log('Incremental indexing enabled.');
 recordStep('install', { skipped: true, installed: false, toolRoot, targetRoot: root,
   reason: 'Prepare tool dependencies explicitly with npm run bootstrap:ci in the tool checkout.' });
 
+activeStep = 'dictionaries';
 if (argv['skip-dicts']) {
   recordStep('dictionaries', { skipped: true });
 } else {
@@ -261,7 +256,7 @@ if (argv['skip-dicts']) {
   if (before.downloadableLanguages.length) {
     const shouldDownload = await promptYesNo('Download English dictionary wordlist?', true);
     if (shouldDownload) {
-      const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download', 'dicts.js'),
+      const result = await runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download', 'dicts.js'),
         '--lang', before.downloadableLanguages.join(','), '--repo', root, '--dir', dictConfig.dir,
         ...(before.replaceEmptyEnglish ? ['--force'] : [])]);
       if (!result.ok) {
@@ -294,6 +289,7 @@ if (argv['skip-dicts']) {
   });
 }
 
+activeStep = 'models';
 if (argv['skip-models']) {
   recordStep('models', { skipped: true });
 } else {
@@ -306,7 +302,7 @@ if (argv['skip-models']) {
   if (!before.present) {
     const shouldDownload = await promptYesNo(`Download embedding model ${modelConfig.id}?`, true);
     if (shouldDownload) {
-      const result = runCommand(process.execPath, [
+      const result = await runCommand(process.execPath, [
         path.join(toolRoot, 'tools', 'download', 'models.js'),
         '--model',
         modelConfig.id,
@@ -329,6 +325,7 @@ if (argv['skip-models']) {
   recordStep('models', { skipped: false, ...resolveModels(), beforePresent: before.present, downloaded, declined });
 }
 
+activeStep = 'extensions';
 if (argv['skip-extensions']) {
   recordStep('extensions', { skipped: true });
 } else {
@@ -341,7 +338,7 @@ if (argv['skip-extensions']) {
     if (!hasExtension) {
       const shouldDownload = await promptYesNo('Download SQLite ANN extension?', true);
       if (shouldDownload) {
-        const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download', 'extensions.js'), '--repo', root]);
+        const result = await runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download', 'extensions.js'), '--repo', root]);
         if (!result.ok) {
           warn('Extension download failed.');
           recordError('extensions', result, 'download failed');
@@ -376,6 +373,7 @@ if (argv['skip-extensions']) {
   }
 }
 
+activeStep = 'tooling';
 if (argv['skip-tooling']) {
   recordStep('tooling', { skipped: true });
 } else {
@@ -385,13 +383,13 @@ if (argv['skip-tooling']) {
   let toolingDetected = false;
   let toolingReadiness = null;
   let toolingDeclined = false;
-  const detectResult = runCommand(
+  const detectResult = await runCommand(
     process.execPath,
     [path.join(toolRoot, 'tools', 'tooling', 'detect.js'), '--root', root, '--json'],
     { encoding: 'utf8', stdio: 'pipe' }
   );
   if (typeof detectResult.signal === 'string' && detectResult.signal.trim()) {
-    exitLikeCommandResult(detectResult);
+    throw Object.assign(new Error('Tooling detection terminated before readiness was reported.'), { result: detectResult });
   }
   if (detectResult.status === 0 && detectResult.stdout) {
     try {
@@ -410,7 +408,7 @@ if (argv['skip-tooling']) {
           const installArgs = [path.join(toolRoot, 'tools', 'tooling', 'install.js'), '--root', root, '--scope', scope,
             '--tools', toolingMissing.map(tool => tool.id).join(','), '--json'];
           if (!toolingConfig.allowGlobalFallback) installArgs.push('--no-fallback');
-          const result = runCommand(process.execPath, installArgs, { encoding: 'utf8', stdio: 'pipe' });
+          const result = await runCommand(process.execPath, installArgs, { encoding: 'utf8', stdio: 'pipe' });
           let installedReport;
           try { installedReport = JSON.parse(result.stdout || '{}'); }
           catch {
@@ -436,7 +434,8 @@ if (argv['skip-tooling']) {
           toolingDeclined = true;
         }
       }
-    } catch {
+    } catch (error) {
+      if (error.cacheOwnershipPending || cancellation.signal.aborted) throw error;
       warn('Failed to parse tooling detection output.');
       recordError('tooling', detectResult, 'parse failed');
     }
@@ -454,6 +453,7 @@ if (argv['skip-tooling']) {
   });
 }
 
+activeStep = 'artifacts';
 let restoredArtifacts = false;
 const artifactsAvailable = fs.existsSync(path.join(root, 'ci-artifacts', 'manifest.json'));
 if (!argv['skip-artifacts']) {
@@ -462,7 +462,7 @@ if (!argv['skip-artifacts']) {
   if (fs.existsSync(manifestPath)) {
     const shouldRestore = await promptYesNo('Restore CI artifacts from ci-artifacts?', true);
     if (shouldRestore) {
-      const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--from', artifactsDir, '--repo', root]);
+      const result = await runCommand(process.execPath, [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--from', artifactsDir, '--repo', root]);
       restoredArtifacts = result.ok;
       if (!result.ok) {
         warn('CI artifact restore failed.');
@@ -477,6 +477,7 @@ recordStep('artifacts', {
   restored: restoredArtifacts
 });
 
+activeStep = 'index';
 const codeIndexDir = getIndexDir(root, 'code', userConfig);
 const proseIndexDir = getIndexDir(root, 'prose', userConfig);
 /**
@@ -503,7 +504,7 @@ if (!argv['skip-index'] && !restoredArtifacts) {
   if (shouldBuild) {
     const args = [path.join(toolRoot, 'build_index.js'), '--repo', root];
     if (useIncremental) args.push('--incremental');
-    const result = runCommand(process.execPath, args);
+    const result = await runCommand(process.execPath, args);
     if (!result.ok) {
       warn('Index build failed.');
       recordError('index', result, 'build failed');
@@ -514,6 +515,7 @@ if (!argv['skip-index'] && !restoredArtifacts) {
   }
 }
 
+activeStep = 'sqlite';
 let sqliteBuilt = false;
 let sqliteOk = true;
 let sqliteRequested = false;
@@ -530,7 +532,7 @@ if (!argv['skip-sqlite']) {
       if (shouldBuildIndex && !argv['skip-index']) {
         const args = [path.join(toolRoot, 'build_index.js'), '--repo', root];
         if (useIncremental) args.push('--incremental');
-        const result = runCommand(process.execPath, args);
+        const result = await runCommand(process.execPath, args);
         if (!result.ok) {
           warn('Index build failed; skipping SQLite build.');
           recordError('index', result, 'build failed (sqlite dependency)');
@@ -543,7 +545,7 @@ if (!argv['skip-sqlite']) {
     if (indexReady) {
       const sqliteArgs = [path.join(toolRoot, 'build_index.js'), '--stage', '4', '--repo', root];
       if (useIncremental) sqliteArgs.push('--incremental');
-      const result = runCommand(process.execPath, sqliteArgs);
+      const result = await runCommand(process.execPath, sqliteArgs);
       sqliteBuilt = true;
       if (!result.ok) {
         warn('SQLite build failed.');
@@ -571,8 +573,18 @@ recordStep('index', {
   ok: indexBuildOk
 });
 
-if (rl) rl.close();
-
+} catch (error) {
+  const result = error.result ? { ...error.result, status: error.result.status ?? error.result.exitCode ?? null } : null;
+  recordError(activeStep, result, redactDiagnosticText(error.message || String(error), 2048));
+  summary.lifecycle = { state: error.cacheOwnershipPending ? 'settlement-pending' : cancellation.signal.aborted ? 'cancelled' : 'blocked',
+    step: activeStep, code: error.code || null,
+    settlement: error.cacheOwnershipPending ? 'actual-child-resource-owner-unconfirmed' : 'no-pending-owner-reported' };
+  if (error.cacheOwnershipPending) warn('Actual child teardown remains unconfirmed; retained resource owners require settlement before retry.');
+} finally {
+  if (rl) rl.close();
+  process.removeListener('SIGINT', onInterrupt);
+  process.removeListener('SIGTERM', onTerminate);
+}
 finishSetup();
-log('Tip: run pairofcleats index validate to verify index artifacts.');
+if (!summary.lifecycle) log('Tip: run pairofcleats index validate to verify index artifacts.');
 }

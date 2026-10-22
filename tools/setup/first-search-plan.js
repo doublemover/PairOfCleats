@@ -25,7 +25,8 @@ const readOptional = file => {
   } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
 };
 
-export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', model = null, backend = 'memory', tools = [] } = {}) => {
+export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', model = null, backend = 'memory', tools = [], signal = null } = {}) => {
+  signal?.throwIfAborted();
   repoRoot = fs.realpathSync(repoRoot);
   if (!['sparse', 'semantic'].includes(profile) || !['memory', 'sqlite', 'lmdb'].includes(backend)) throw new Error('Unsupported setup profile/backend.');
   if (profile === 'semantic' && !model) throw new Error('Semantic planning requires an explicit --model; no download is chosen by default.');
@@ -83,7 +84,8 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
   const selectedModel = getModelConfig(repoRoot, proposedEffective);
   const modelReadiness = profile === 'semantic' ? resolveModelSetupReadiness({ root: repoRoot, modelConfig: selectedModel,
     embeddingsConfig: proposedEffective.indexing?.embeddings || {} }) : { state: 'not-requested', runtime: 'not-probed' };
-  const detected = await buildToolingReport(repoRoot, null, { skipToolDetection: true });
+  const detected = await buildToolingReport(repoRoot, null, { skipToolDetection: true, signal });
+  signal?.throwIfAborted();
   const operations = [];
   if (profile === 'semantic') operations.push({ id: 'models', command: process.execPath,
     args: [path.join(toolRoot, 'tools/download/models.js'), '--repo', repoRoot, '--model', model],
@@ -113,7 +115,13 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
         'tools/setup/model-readiness.js', 'tools/dict-utils/config.js', 'tools/tooling/install.js', 'tools/tooling/utils.js', 'tools/tooling/provisioning-plan.js',
         'tools/tooling/install-execution.js', 'tools/tooling/install-storage.js', 'tools/tooling/managed-install.js', 'tools/tooling/install-go-sdk.js',
         'tools/tooling/owned-detect.js', 'tools/tooling/install-preview.js', 'src/shared/managed-installation.js',
-        'src/shared/managed-installation-retain.js', 'src/shared/storage/session.js', 'src/shared/storage/managed-child-session.js']
+        'src/shared/managed-installation-retain.js', 'src/shared/managed-installation-contract.js', 'src/shared/toolchain-env.js',
+        'src/shared/managed-go.js', 'tools/tooling/install-receipts.js', 'tools/tooling/install-requirements.js',
+        'src/shared/storage/session.js', 'src/shared/storage/managed-child-session.js', 'src/shared/storage/child-environment.js',
+        'src/shared/storage/admission.js', 'src/shared/storage/layout.js', 'src/shared/storage/locator-contract.js',
+        'src/shared/storage/locator-read.js', 'src/shared/storage/selected-layout.js', 'src/shared/storage/inventory.js',
+        'src/shared/storage/transfer.js', 'tools/download/models.js', 'src/shared/embedding-model-profile.js',
+        'src/shared/embedding-model-loading.js']
         .map(relative => [relative, hash(fs.readFileSync(path.join(toolRoot, relative)))]) },
     prerequisites: prerequisitePlans,
     operations, readiness: 'not-probed',
@@ -132,7 +140,10 @@ const executeSetupStep = async (command, args, options) => {
 };
 
 export const applyFirstSearchPlan = async (approved, { execute = executeSetupStep, signal = null, jsonOutput = false } = {}) => {
-  const current = await createFirstSearchPlan({ repoRoot: approved.repoRoot, ...approved.choices });
+  if (signal?.aborted) return { schemaVersion: 1, kind: 'setup-plan-result', planId: approved?.planId || null,
+    repoRoot: approved?.repoRoot || null, state: 'cancelled', completed: [], pending: ['config'],
+    validation: 'not-performed-cancelled-before-planning', mutationPerformed: false };
+  const current = await createFirstSearchPlan({ repoRoot: approved.repoRoot, ...approved.choices, signal });
   if (approved.schemaVersion !== 1 || current.planId !== approved.planId) throw Object.assign(new Error('Setup plan is stale or changed. Generate and review a new plan.'), { code: 'ERR_SETUP_PLAN_STALE' });
   if (current.blockers.length) return { schemaVersion: 1, kind: 'setup-plan-result', planId: current.planId,
     repoRoot: current.repoRoot, state: 'blocked', blockers: current.blockers, completed: [], pending: ['config', ...current.operations.map(step => step.id)] };
@@ -184,11 +195,16 @@ export const applyFirstSearchPlan = async (approved, { execute = executeSetupSte
     if (error.cacheOwnershipPending) {
       pendingSettlement = true;
       outcome.state = 'settlement-pending';
+      let released = false;
+      let releasing = null;
       Object.defineProperty(error, 'setupPlanSession', { configurable: true, value: { resourceId: lock.payload.lockId,
         releaseAfterSettlement: receipt => {
-          if (receipt?.resourceId !== lock.payload.lockId || receipt.settled !== true || receipt.pending === true) throw new Error('Setup child settlement remains unconfirmed.');
+          if (receipt?.resourceId !== lock.payload.lockId || receipt.settled !== true || receipt.pending !== false) throw new Error('Setup child settlement remains unconfirmed.');
+          if (released) return true;
           if (error.cacheOwnershipReleased?.() !== true) throw new Error('Setup child settlement remains unconfirmed by its actual execution owner.');
-          return releaseFileLockOrThrow(lock);
+          if (!releasing) releasing = releaseFileLockOrThrow(lock).then(() => { released = true; return true; })
+            .catch(releaseError => { releasing = null; throw releaseError; });
+          return releasing;
         } } });
       error.setupOutcome = outcome;
       throw error;

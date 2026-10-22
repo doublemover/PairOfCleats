@@ -9,6 +9,7 @@ import { applyToolLayoutValidation, locateToolExecutable, resolveDetectArgCandid
 import { resolveToolRoot } from '../shared/dict-utils.js';
 
 export const detectToolOwned = async (tool, { signal = null, env = process.env } = {}, dependencies = {}) => {
+  signal?.throwIfAborted();
   const located = (dependencies.locate || locateToolExecutable)(tool);
   if (!located.found || !located.path) return located;
   signal?.throwIfAborted();
@@ -43,6 +44,7 @@ export const detectToolOwned = async (tool, { signal = null, env = process.env }
           timeoutMs: 4000, outputEncoding: 'utf8', maxOutputBytes: 65536, rejectOnNonZeroExit: false,
           onSpawn: () => { spawned = true; } });
         closeObserved = true;
+        signal?.throwIfAborted();
         if (identify(command).sha256 !== identity.sha256) throw new Error('Selected tool command bytes changed during probe.');
         const truncated = result.outputCapture?.stdout?.truncated || result.outputCapture?.stderr?.truncated;
         const recognized = !truncated && result.exitCode !== 0 && isNonZeroToolingProbeSuccess({ providerId: tool.id, command,

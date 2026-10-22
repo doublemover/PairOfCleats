@@ -45,6 +45,7 @@ try {
   const beforeCancelled = await fs.readdir(root);
   const cancelled = await applyFirstSearchPlan(await createFirstSearchPlan({ repoRoot: root }), { signal: controller.signal });
   assert.equal(cancelled.state, 'cancelled');
+  assert.equal(cancelled.validation, 'not-performed-cancelled-before-planning');
   assert.deepEqual(cancelled.pending[0], 'config');
   assert.deepEqual(await fs.readdir(root), beforeCancelled, 'pre-cancelled apply creates no lock or config file');
   const partial = await applyFirstSearchPlan(await createFirstSearchPlan({ repoRoot: root }), {
@@ -66,7 +67,11 @@ try {
   assert.throws(() => pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true, pending: false }), /actual execution owner/,
     'knowing the exact lock id cannot fabricate child settlement');
   actualChildClosed = true;
+  assert.throws(() => pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true }), /unconfirmed/,
+    'actual closure still requires an explicitly complete settlement receipt');
   await pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true, pending: false });
+  assert.equal(await pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true, pending: false }), true,
+    'duplicate settlement does not try to unlink an already released lock');
   await assert.rejects(fs.stat(path.join(root, '.pairofcleats.json.setup-lock')), { code: 'ENOENT' });
 } finally { await fs.rm(root, { recursive: true, force: true }); await fs.rm(trusted, { force: true }); }
 console.log('First-search planning is read-only and rejects stale apply.');
