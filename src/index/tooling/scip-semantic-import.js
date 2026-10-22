@@ -10,8 +10,9 @@ import path from 'node:path';
 import { createArtifactSemanticStore } from '../../semantic/artifact-store.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { readRetainedSemanticSourceSnapshot } from '../../semantic/retained-source-snapshot.js';
+import { captureSourceLinkedInput } from './source-linked-input.js';
 
-export const SCIP_SEMANTIC_IMPORT_VERSION = '2';
+export const SCIP_SEMANTIC_IMPORT_VERSION = '3';
 const adapterIdentity = () => ({ version: SCIP_SEMANTIC_IMPORT_VERSION, sourceCoordinates: SEMANTIC_ANALYSIS_VERSIONS.lspBindings });
 const fail = message => Object.assign(new Error(message), { code: 'ERR_SCIP_IMPORT_IDENTITY' });
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
@@ -80,18 +81,27 @@ export const loadScipSemanticSources = async ({ state, runtime, maxSources = 256
 export const prepareScipSemanticImport = ({ bytes, producingReceipt, expectedReceiptHash,
   generation, repositoryNamespace, projectVariant, producerRoot, admittedSources,
   maxBytes = 1048576, maxDocuments = 256, maxOccurrences = 4096, signal = null }) => {
-  throwIfAborted(signal);
   for (const [value, maximum] of [[maxBytes, 16 * 1048576], [maxDocuments, 1024], [maxOccurrences, 16384]]) {
     if (!Number.isSafeInteger(value) || value < 1 || value > maximum) throw fail('Invalid SCIP import bound.');
   }
   if (!(bytes instanceof Uint8Array) || bytes.byteLength > maxBytes) throw fail('SCIP artifact byte budget exhausted.');
+  bytes = Buffer.from(bytes);
   const artifactHash = createHash('sha256').update(bytes).digest('hex');
   let index;
   try { index = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { throw fail('Only bounded complete UTF-8 SCIP JSON indexes are supported; binary/JSONL need an admitted converter profile.'); }
   if (!index || !Array.isArray(index.documents) || !index.metadata || index.documents.length > maxDocuments) throw fail('Malformed or oversized SCIP index framing.');
-  if (!producingReceipt || !digest(expectedReceiptHash)) return { status: 'non-authoritative', reason: 'source_receipt_unavailable', artifactHash,
-    documents: [], rejected: 0, omitted: index.documents.reduce((count, doc) => count + (doc.occurrences?.length || 0), 0) };
-  if (semanticHash('tooling.scip-producing-receipt.v1', producingReceipt) !== expectedReceiptHash
+  if (!producingReceipt || !digest(expectedReceiptHash)) { throwIfAborted(signal); return { status: 'non-authoritative', reason: 'source_receipt_unavailable', artifactHash,
+    documents: [], rejected: 0, omitted: index.documents.reduce((count, doc) => count + (doc.occurrences?.length || 0), 0) }; }
+  // Pin all independently supplied authority before an external abort hook can
+  // mutate its receipt, context or artifact. The existing import allowance is
+  // also the per-input capture bound; source inventories retain their own owner.
+  const admission = { maxBytes, fail, message: 'SCIP producing receipt/context byte budget exhausted.' };
+  const captured = captureSourceLinkedInput(producingReceipt, { ...admission, domain: 'tooling.scip-producing-receipt.v1' });
+  producingReceipt = captured.value;
+  generation = captureSourceLinkedInput(generation, admission).value;
+  projectVariant = captureSourceLinkedInput(projectVariant, admission).value;
+  throwIfAborted(signal);
+  if (captured.identity !== expectedReceiptHash
     || producingReceipt.schemaVersion !== 1 || producingReceipt.artifactHash !== artifactHash
     || !digest(producingReceipt.profileHash) || producingReceipt.repositoryNamespace !== repositoryNamespace
     || canonicalSemanticJson(producingReceipt.generation) !== canonicalSemanticJson(generation)

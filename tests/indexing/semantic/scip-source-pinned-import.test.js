@@ -45,6 +45,29 @@ try {
   }
   const prepared = prepare(index);
   assert.deepEqual(prepared.adapterIdentity, { version: SCIP_SEMANTIC_IMPORT_VERSION, sourceCoordinates: SEMANTIC_ANALYSIS_VERSIONS.lspBindings });
+  const mutableVariant = { name: 'debug', settings: { target: 'fixture' } }, mutableGeneration = { ...f.generation };
+  const mutableReceipt = receiptFor(index); mutableReceipt.projectVariant = mutableVariant;
+  mutableReceipt.generation = { ...mutableGeneration };
+  const mutableBytes = Buffer.from(JSON.stringify(index));
+  const expectedReceiptHash = semanticHash('tooling.scip-producing-receipt.v1', mutableReceipt);
+  let inspected = false;
+  const pinned = prepareScipSemanticImport({ bytes: mutableBytes, producingReceipt: mutableReceipt, expectedReceiptHash,
+    generation: mutableGeneration, projectVariant: mutableVariant, repositoryNamespace: f.source.repositoryNamespace,
+    producerRoot: index.metadata.projectRoot, admittedSources, signal: { get aborted() {
+      if (!inspected) {
+        inspected = true; mutableGeneration.semanticRevision++; mutableVariant.settings.target = 'caller-replaced';
+        mutableReceipt.sources[0].byteHash = '0'.repeat(64); mutableBytes.fill(0);
+      }
+      return false;
+    } } });
+  assert.ok(inspected); assert.equal(pinned.status, 'admitted');
+  assert.deepEqual(pinned.generation, f.generation);
+  assert.deepEqual(pinned.projectVariant, { name: 'debug', settings: { target: 'fixture' } });
+  mutableGeneration.baseBuildId = 'changed-after-return'; mutableVariant.name = 'changed-after-return';
+  assert.deepEqual(pinned.generation, f.generation);
+  assert.equal(pinned.projectVariant.name, 'debug');
+  assert.equal(pinned.artifactHash, createHash('sha256').update(Buffer.from(JSON.stringify(index))).digest('hex'));
+  assert.equal(pinned.documents[0].original.relativePath, 'original.js');
   const splitScalar = structuredClone(index);
   splitScalar.documents[0].occurrences.push({ symbol: 'scip npm fixture 1 value().', symbolRoles: 0, range: [0, 0, 1] });
   assert.equal(prepare(splitScalar).rejected, 1, 'UTF16 roundtrip alone cannot admit half of the leading emoji');
@@ -52,7 +75,9 @@ try {
   await assert.rejects(writeScipSemanticImport({ prepared: oldMeaning }), { code: 'ERR_SCIP_IMPORT_IDENTITY' });
   const legacyMeaning = { ...prepared }; delete legacyMeaning.adapterIdentity;
   await assert.rejects(writeScipSemanticImport({ prepared: legacyMeaning }), { code: 'ERR_SCIP_IMPORT_IDENTITY' });
-  const result = await writeScipSemanticImport({ prepared, state, policy: normalizeSemanticConfig({ enabled: true }),
+  await assert.rejects(writeScipSemanticImport({ prepared: { ...prepared, adapterIdentity: { ...prepared.adapterIdentity, version: '2' } } }),
+    { code: 'ERR_SCIP_IMPORT_IDENTITY' }, 'old receipt ownership meaning cannot be published');
+  const result = await writeScipSemanticImport({ prepared: pinned, state, policy: normalizeSemanticConfig({ enabled: true }),
     semanticSink: createSemanticProviderResultSink({ state, runtime }) });
   assert.equal(result.persisted, 1);
   assert.equal(result.output.contexts[0].providerVersion, SCIP_SEMANTIC_IMPORT_VERSION);
@@ -73,5 +98,21 @@ try {
   const unknown = prepareScipSemanticImport({ bytes: Buffer.from(JSON.stringify(index)), producingReceipt: null });
   assert.equal(unknown.status, 'non-authoritative');
   assert.equal((await writeScipSemanticImport({ prepared: unknown })).persisted, 0);
+  const boundedOptions = { bytes: Buffer.from(JSON.stringify(index)), producingReceipt: { extra: '\u0000'.repeat(180000) },
+    expectedReceiptHash: 'a'.repeat(64), generation: f.generation, projectVariant: 'debug',
+    repositoryNamespace: f.source.repositoryNamespace, producerRoot: index.metadata.projectRoot, admittedSources };
+  assert.throws(() => prepareScipSemanticImport(boundedOptions), error => error.code === 'ERR_SCIP_IMPORT_IDENTITY'
+    && /receipt\/context byte budget/.test(error.message));
+  const largerReceipt = receiptFor(index); largerReceipt.extra = 'x'.repeat(1024 * 1024);
+  const largerOptions = { ...boundedOptions, producingReceipt: largerReceipt,
+    expectedReceiptHash: semanticHash('tooling.scip-producing-receipt.v1', largerReceipt) };
+  assert.throws(() => prepareScipSemanticImport(largerOptions), { code: 'ERR_SCIP_IMPORT_IDENTITY' });
+  assert.equal(prepareScipSemanticImport({ ...largerOptions, maxBytes: 2 * 1024 * 1024 }).status, 'admitted',
+    'the existing explicitly selected SCIP allowance remains available instead of imposing the report adapters ceiling');
+  let getters = 0;
+  assert.throws(() => prepareScipSemanticImport({ ...boundedOptions, producingReceipt: { get sources() { getters++; return []; } } }), /getters/);
+  assert.equal(getters, 0);
+  const controller = new AbortController(); controller.abort();
+  assert.throws(() => prepareScipSemanticImport({ ...boundedOptions, producingReceipt: receiptFor(index), signal: controller.signal }), { name: 'AbortError' });
   console.log('SCIP source receipt, exact UTF-8/16/32 ranges, canonical sink and binding detail');
 } finally { await f.cleanup(); }
