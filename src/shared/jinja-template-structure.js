@@ -92,7 +92,7 @@ export const createJinjaTemplateStructureParser = ({ now = () => performance.now
         for (let index = start + 2; index < source.length; index += 1) {
           if ((index & 127) === 0) checkTime();
           if (index - start > MAX_TOKEN_CHARS) throw new TemplateBoundaryError('tag-length-limit');
-          const char = source[index];
+          const char = String.fromCodePoint(source.codePointAt(index));
           if (quote) {
             if (char === '\\') { index += 1; continue; }
             if (char === quote) quote = null;
@@ -123,7 +123,7 @@ export const createJinjaTemplateStructureParser = ({ now = () => performance.now
         while (index < tag.bodyEnd) {
           checkTime();
           const start = index;
-          const char = source[index];
+          const char = String.fromCodePoint(source.codePointAt(index));
           if (/\s/u.test(char)) { index += 1; continue; }
           if (char === '"' || char === "'") {
             const quote = char;
@@ -143,15 +143,15 @@ export const createJinjaTemplateStructureParser = ({ now = () => performance.now
             }
             if (!closed) throw new TemplateBoundaryError('unterminated-string');
             append('string', start, index, supported ? value : null);
-          } else if (/[A-Za-z_]/u.test(char)) {
-            index += 1;
-            while (index < tag.bodyEnd && /[A-Za-z0-9_]/u.test(source[index])) {
+          } else if (/[_\p{ID_Start}]/u.test(char)) {
+            index += char.length;
+            while (index < tag.bodyEnd && /[_\p{ID_Continue}]/u.test(String.fromCodePoint(source.codePointAt(index)))) {
               if ((index & 127) === 0) checkTime();
-              index += 1;
+              index += String.fromCodePoint(source.codePointAt(index)).length;
             }
             append('identifier', start, index, source.slice(start, index));
           } else {
-            index += 1;
+            index += char.length;
             append('punctuation', start, index, char);
           }
         }
@@ -243,8 +243,18 @@ export const createJinjaTemplateStructureParser = ({ now = () => performance.now
         if (keyword === 'endraw' || keyword === 'endverbatim' || keyword === 'endcomment') {
           throw new TemplateBoundaryError('unopened-opaque-block');
         }
+        let assignment = false, expressionDepth = 0;
+        for (const token of tokens.slice(1)) {
+          if (token.kind === 'string') continue;
+          if (['(', '[', '{'].includes(token.value)) expressionDepth++;
+          else if ([')', ']', '}'].includes(token.value)) expressionDepth--;
+          else if (token.value === '=' && expressionDepth === 0) { assignment = true; break; }
+          // A top-level filter starts the capture-expression region. Keyword
+          // assignments within that expression do not turn set into Assign.
+          else if (token.value === '|' && expressionDepth === 0) break;
+        }
         const block = COMMON_BLOCKS.has(keyword) || (dialect === 'jinja' && JINJA_BLOCKS.has(keyword))
-          || (dialect === 'jinja' && keyword === 'set' && !tokens.some((token) => token.value === '='));
+          || (dialect === 'jinja' && keyword === 'set' && !assignment);
         if (block) {
           if (blocks.length >= MAX_DEPTH) throw new TemplateBoundaryError('depth-limit');
           blocks.push({ keyword, name: tokens[1]?.value });

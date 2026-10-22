@@ -1,4 +1,6 @@
 import path from 'node:path';
+import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
+import { syntaxRelationsForChunks } from '../../../lang/tree-sitter/call-facts.js';
 
 import {
   CMAKE_EXTS,
@@ -16,6 +18,7 @@ import {
 } from '../../constants.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from '../../../lang/flow.js';
 import { buildSimpleRelations } from '../simple-relations.js';
+import { buildDefaultDocMeta } from '../../../lang/shared.js';
 import { collectCmakeImports } from '../import-collectors/cmake.js';
 import { collectDartImports } from '../import-collectors/dart.js';
 import { createDockerfileImportCollector } from '../import-collectors/dockerfile.js';
@@ -364,7 +367,8 @@ const buildHeuristicManagedRelations = ({
   collectImports,
   symbolPatterns,
   usageCollector,
-  adapterId
+  adapterId,
+  chunks = null
 }) => {
   const budgetContext = createCollectorBudgetContext({
     text,
@@ -375,25 +379,25 @@ const buildHeuristicManagedRelations = ({
   try {
     const source = budgetContext.source;
     const base = buildSimpleRelations({ imports: collectImports(source, options) });
-    const symbols = collectPatternNames(source, symbolPatterns, budgetContext.scanBudget);
+    const symbols = Array.isArray(chunks) && chunks.length ? sortUnique(chunks.map(chunk=>chunk.name))
+      : collectPatternNames(source, symbolPatterns, budgetContext.scanBudget);
+    if (Array.isArray(chunks) && chunks.some(chunk=>Array.isArray(chunk.meta?.syntaxCalls))) {
+      return {...base,exports:symbols,...syntaxRelationsForChunks(chunks),
+        callCoverage: chunks.some(chunk=>chunk.meta?.syntaxCallCoverage?.startsWith('partial')) ? 'partial-traversal-budget' : 'supported-syntax'};
+    }
     const callees = typeof usageCollector === 'function'
       ? usageCollector(source, budgetContext.scanBudget)
       : collectHeuristicCallees(source, budgetContext.scanBudget);
+    // File-wide co-occurrence is usage evidence, never caller attribution.
+    // A grammar-backed owner above supplies occurrence-level calls. Unsupported
+    // lexical adapters retain explicit partial coverage instead of false pairs.
     const calls = [];
-    const callers = symbols.length ? symbols : ['<module>'];
-    for (const caller of callers) {
-      for (const callee of callees) {
-        if (!callee || callee === caller) continue;
-        calls.push([caller, callee]);
-        if (calls.length >= 96) break;
-      }
-      if (calls.length >= 96) break;
-    }
     return {
       ...base,
       exports: symbols,
       calls,
-      usages: callees
+      usages: callees,
+      callCoverage:'partial-no-syntax-owner'
     };
   } finally {
     budgetContext.finalize();
@@ -404,6 +408,7 @@ const extractHeuristicManagedDocMeta = (chunk) => {
   const symbol = typeof chunk?.name === 'string' ? chunk.name.trim() : '';
   if (!symbol) return {};
   return {
+    ...buildDefaultDocMeta(chunk,{includeReturnType:true,includeModifiers:true,includeVisibility:true}),
     symbol,
     source: 'managed-heuristic-adapter'
   };
@@ -458,14 +463,15 @@ export const createHeuristicManagedAdapter = ({
     id,
     match,
     collectImports: (text, options) => normalizeImports(text, options),
-    prepare: async () => ({}),
-    buildRelations: ({ text, options }) => buildHeuristicManagedRelations({
+    prepare: async ({text,options}) => ({[`${id}Chunks`]:buildTreeSitterChunks({text,languageId:id,options})}),
+    buildRelations: ({ text, options, context }) => buildHeuristicManagedRelations({
       text,
       options,
       collectImports: normalizeImports,
       symbolPatterns,
       usageCollector,
-      adapterId: id
+      adapterId: id,
+      chunks:context?.[`${id}Chunks`]
     }),
     extractDocMeta: ({ chunk }) => extractHeuristicManagedDocMeta(chunk),
     flow: ({ text, chunk, options }) => buildHeuristicManagedFlow(text, chunk, flowOptions(options)),
@@ -474,6 +480,8 @@ export const createHeuristicManagedAdapter = ({
   if (typeof collectImportEntries === 'function') {
     adapter.collectImportEntries = (text, options) => collectImportEntries(text, options);
   }
+  if (['handlebars','mustache','jinja'].includes(id)) adapter.collectImportEntries = (text,options) =>
+    normalizeImports(text,options).map(specifier=>({specifier,provenance:'parsed-literal'}));
   if (capabilityProfile) adapter.capabilityProfile = capabilityProfile;
   return adapter;
 };
@@ -652,7 +660,7 @@ export const createHandlebarsManagedAdapter = ({ parseStructure = parseHandlebar
         }
         if (calls.length >= 96) break;
       }
-      return { ...buildSimpleRelations({ imports: collectHandlebarsImports(budgetContext.source, options) }),
+      return { ...buildSimpleRelations({ imports: collectHandlebarsImports(budgetContext.source, options), literalImports:true }),
         exports, usages, calls };
     } finally {
       if (lineLimited) {
@@ -756,7 +764,7 @@ export const createMustacheManagedAdapter = ({ parseStructure = parseMustacheStr
         if (!inWindow(entry)) continue;
         if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch()) break;
         addBudgetedCollectorImport(imports, entry.name, context.scanBudget,
-          { stripSurroundingQuotes: false, stripTrailingPunctuation: false });
+          { literal:true });
       }
       const exports = sortUnique(symbols);
       const usages = sortUnique(references);
@@ -811,7 +819,7 @@ export const createJinjaManagedAdapter = ({ parseStructure = parseJinjaTemplateS
         if (!inWindow(entry)) continue;
         if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch()) break;
         addBudgetedCollectorImport(imports, entry.value, context.scanBudget,
-          { stripSurroundingQuotes: false, stripTrailingPunctuation: false });
+          { literal:true });
       }
       for (const entry of structure.referenceEntries) {
         if (!inWindow(entry)) continue;

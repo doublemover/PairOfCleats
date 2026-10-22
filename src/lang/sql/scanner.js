@@ -114,13 +114,20 @@ function matchesDelimiterAt(text, offset, delimiter, delimiterLength, delimiterF
   return text.startsWith(delimiter, offset);
 }
 
-function createSqlScannerState() {
+export function createSqlScannerState(options = {}) {
+  const dialect = String(options.dialect || 'generic').toLowerCase();
   return {
     inSingle: false,
     inDouble: false,
+    inBacktick:false,
     inLineComment: false,
     inBlockComment: false,
-    dollarTag: null
+    dollarTag: null,
+    blockDepth:0,
+    nestedComments:['generic','postgres','postgresql','pg'].includes(dialect),
+    mysqlEscapes:['mysql','mariadb'].includes(dialect),
+    standardConformingStrings:options.standardConformingStrings !== false,
+    singleBackslashEscape:false
   };
 }
 
@@ -147,8 +154,9 @@ function consumeActiveSqlState(text, index, state, { preserveLineCommentNewline 
   }
 
   if (state.inBlockComment) {
+    if (state.nestedComments && ch === '/' && next === '*') {state.blockDepth++;return {handled:true,nextIndex:index+1,emit:null};}
     if (ch === '*' && next === '/') {
-      state.inBlockComment = false;
+      state.inBlockComment = --state.blockDepth > 0;
       return { handled: true, nextIndex: index + 1, emit: null };
     }
     return { handled: true, nextIndex: index, emit: null };
@@ -158,7 +166,7 @@ function consumeActiveSqlState(text, index, state, { preserveLineCommentNewline 
 }
 
 function enterSqlCommentState(text, index, state) {
-  if (state.inSingle || state.inDouble) return { handled: false, nextIndex: index };
+  if (state.inSingle || state.inDouble || state.inBacktick) return { handled: false, nextIndex: index };
 
   const ch = text[index];
   const next = text[index + 1];
@@ -168,6 +176,7 @@ function enterSqlCommentState(text, index, state) {
   }
   if (ch === '/' && next === '*') {
     state.inBlockComment = true;
+    state.blockDepth = 1;
     return { handled: true, nextIndex: index + 1 };
   }
   return { handled: false, nextIndex: index };
@@ -177,14 +186,27 @@ function advanceSqlQuoteState(text, index, state, { emitQuoteText = false } = {}
   const ch = text[index];
   const next = text[index + 1];
 
+  const escaped = () => {
+    let count = 0;
+    for(let cursor=index-1;cursor>=0 && text[cursor] === '\\';cursor--) count++;
+    return count % 2 === 1;
+  };
+  if (!state.inSingle && !state.inDouble && ch === '`') {
+    if(state.inBacktick && next === '`') return {handled:true,nextIndex:index+1,emit:emitQuoteText?'``':null};
+    state.inBacktick=!state.inBacktick;
+    return {handled:true,nextIndex:index,emit:emitQuoteText?ch:null};
+  }
+  if(state.inBacktick) return {handled:true,nextIndex:index,emit:emitQuoteText?ch:null};
   if (!state.inDouble && ch === '\'') {
     if (state.inSingle) {
       if (next === '\'') {
         return { handled: true, nextIndex: index + 1, emit: emitQuoteText ? "''" : null };
       }
-      if (text[index - 1] !== '\\') state.inSingle = false;
+      if (!state.singleBackslashEscape || !escaped()) state.inSingle = false;
     } else {
       state.inSingle = true;
+      state.singleBackslashEscape = state.mysqlEscapes || !state.standardConformingStrings
+        || /[eE]/.test(text[index-1] || '') && !/[A-Za-z0-9_]/.test(text[index-2] || '');
     }
     return { handled: true, nextIndex: index, emit: emitQuoteText ? ch : null };
   }
@@ -194,7 +216,7 @@ function advanceSqlQuoteState(text, index, state, { emitQuoteText = false } = {}
       if (next === '"') {
         return { handled: true, nextIndex: index + 1, emit: emitQuoteText ? '""' : null };
       }
-      if (text[index - 1] !== '\\') state.inDouble = false;
+      if (!state.mysqlEscapes || !escaped()) state.inDouble = false;
     } else {
       state.inDouble = true;
     }
@@ -205,7 +227,7 @@ function advanceSqlQuoteState(text, index, state, { emitQuoteText = false } = {}
 }
 
 function enterDollarQuoteState(text, index, state, { emitDollarQuoteText = false } = {}) {
-  if (state.inSingle || state.inDouble || text[index] !== '$') {
+  if (state.inSingle || state.inDouble || state.inBacktick || text[index] !== '$') {
     return { handled: false, nextIndex: index, emit: null };
   }
 
@@ -230,10 +252,10 @@ function enterDollarQuoteState(text, index, state, { emitDollarQuoteText = false
  * @param {string} text
  * @returns {Array<{start:number,end:number}>}
  */
-export function splitSqlStatements(text) {
+export function splitSqlStatements(text,options = {}) {
   const statements = [];
   let start = 0;
-  const state = createSqlScannerState();
+  const state = createSqlScannerState(options);
   let delimiter = ';';
   let delimiterLength = delimiter.length;
   let delimiterFirstCode = delimiter.charCodeAt(0);
@@ -254,7 +276,7 @@ export function splitSqlStatements(text) {
       continue;
     }
 
-    if (lineStart && !state.inSingle && !state.inDouble) {
+    if (lineStart && !state.inSingle && !state.inDouble && !state.inBacktick) {
       let j = i;
       while (j < text.length) {
         const code = text.charCodeAt(j);
@@ -288,7 +310,7 @@ export function splitSqlStatements(text) {
       continue;
     }
 
-    if (!state.inSingle && !state.inDouble) {
+    if (!state.inSingle && !state.inDouble && !state.inBacktick) {
       if (matchesDelimiterAt(text, i, delimiter, delimiterLength, delimiterFirstCode)) {
         const end = i + delimiterLength;
         if (hasNonWhitespace(text, start, end)) statements.push({ start, end });
@@ -311,6 +333,18 @@ export function splitSqlStatements(text) {
 
   return statements;
 }
+
+/** Shared passive lexical cursor for include admission at client line boundaries. */
+export const advanceSqlScannerState = (text,index,state) => {
+  const active = consumeActiveSqlState(text,index,state);
+  if(active.handled) return active.nextIndex;
+  const comment = enterSqlCommentState(text,index,state);
+  if(comment.handled) return comment.nextIndex;
+  const quote = advanceSqlQuoteState(text,index,state);
+  if(quote.handled) return quote.nextIndex;
+  const dollar = enterDollarQuoteState(text,index,state);
+  return dollar.handled ? dollar.nextIndex : index;
+};
 
 /**
  * Remove SQL comments while preserving quoted literal content.

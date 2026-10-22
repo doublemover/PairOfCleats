@@ -254,7 +254,10 @@ export function buildRubyChunks(text, options = {}) {
         methodName = `${currentScope}.${defName}`;
       } else if (defName.startsWith('self.')) {
         const base = defName.replace(/^self\./, '');
-        methodName = currentScope ? `${currentScope}.${base}` : base;
+        methodName = currentScope ? `${currentScope}.self.${base}` : `self.${base}`;
+      } else if (defName.includes('.')) {
+        const dot = defName.lastIndexOf('.');
+        methodName = `${defName.slice(0,dot)}.self.${defName.slice(dot+1)}`;
       }
       blockStack.push({
         kind: 'def',
@@ -293,7 +296,14 @@ export function buildRubyRelations(text, rubyChunks) {
         exports.add(chunk.name);
       }
       if (!['MethodDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
-      const slice = text.slice(chunk.start, chunk.end);
+      if (Array.isArray(chunk.meta?.syntaxCalls)) {
+        for (const detail of chunk.meta.syntaxCalls) if (detail.callee) { calls.push([chunk.name,detail.callee]); usages.add(detail.callee); }
+        continue;
+      }
+      // Fallback: discard the declaration header, including its optional
+      // parenthesized name. Real recursive calls in the body remain intact.
+      const start = text.indexOf('\n',chunk.start);
+      const slice = start >= 0 && start < chunk.end ? text.slice(start+1,chunk.end) : '';
       const { calls: chunkCalls, usages: chunkUsages } = collectRubyCallsAndUsages(slice);
       for (const callee of chunkCalls) calls.push([chunk.name, callee]);
       for (const usage of chunkUsages) usages.add(usage);

@@ -234,27 +234,27 @@ const CODE_CHUNKERS = [
   {
     id: 'dart',
     match: (ext) => DART_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'dart', context) || chunkDart(text, context)
+    chunk: ({ text, context }) => context?.dartChunks || tryTreeSitterChunks(text, 'dart', context) || chunkDart(text, context)
   },
   {
     id: 'scala',
     match: (ext) => SCALA_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'scala', context) || chunkScala(text, context)
+    chunk: ({ text, context }) => context?.scalaChunks || tryTreeSitterChunks(text, 'scala', context) || chunkScala(text, context)
   },
   {
     id: 'groovy',
     match: (ext) => GROOVY_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'groovy', context) || chunkGroovy(text, context)
+    chunk: ({ text, context }) => context?.groovyChunks || tryTreeSitterChunks(text, 'groovy', context) || chunkGroovy(text, context)
   },
   {
     id: 'r',
     match: (ext) => R_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'r', context) || chunkR(text, context)
+    chunk: ({ text, context }) => context?.rChunks || tryTreeSitterChunks(text, 'r', context) || chunkR(text, context)
   },
   {
     id: 'julia',
     match: (ext) => JULIA_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'julia', context) || chunkJulia(text, context)
+    chunk: ({ text, context }) => context?.juliaChunks || tryTreeSitterChunks(text, 'julia', context) || chunkJulia(text, context)
   },
   {
     id: 'handlebars',

@@ -338,7 +338,7 @@ const normalizeImportEntriesWithHints = (entries) => {
   for (const entry of Array.isArray(entries) ? entries : []) {
     const specifier = sanitizeImportSpecifier(
       typeof entry === 'string' ? entry : entry?.specifier,
-      { stripTrailingPunctuation: false }
+      { literal:true }
     );
     if (!specifier) continue;
     imports.push(specifier);
@@ -346,7 +346,9 @@ const normalizeImportEntriesWithHints = (entries) => {
     if (!hint) continue;
     hints[specifier] = mergeCollectorHints(hints[specifier], hint);
   }
-  const normalizedImports = normalizeImports(imports);
+  // Registry entries and persisted import-cache rows are already admitted
+  // semantic specifiers. Reapplying scanner syntax cleanup corrupts literals.
+  const normalizedImports = [...new Set(imports)].sort((a,b)=>a<b?-1:a>b?1:0);
   const filteredHints = Object.create(null);
   for (const specifier of normalizedImports) {
     if (hints[specifier]) filteredHints[specifier] = hints[specifier];

@@ -2,7 +2,7 @@ import path from 'node:path';
 import { LINGUIST_LANGUAGES } from './linguist-data.js';
 import { buildLinguistRoutingMaps, normalizeLinguistName } from './linguist-routing.js';
 import { toArray } from '../../shared/iterables.js';
-import { normalizeImportSpecifiers } from '../shared/import-specifier.js';
+import { normalizeImportSpecifiers, sanitizeImportSpecifier } from '../shared/import-specifier.js';
 import { LANGUAGE_REGISTRY } from './registry-data.js';
 import { LANGUAGE_ROUTE_DESCRIPTORS } from './descriptors.js';
 import { normalizeCollectorHint } from './import-collectors/utils.js';
@@ -70,7 +70,7 @@ const coerceImportEntry = (value) => {
   if (typeof value === 'string') return { specifier: value.trim(), collectorHint: null };
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const specifier = typeof value.specifier === 'string'
-    ? value.specifier.trim()
+    ? value.provenance === 'parsed-literal' ? value.specifier : value.specifier.trim()
     : (
       typeof value.import === 'string'
         ? value.import.trim()
@@ -79,6 +79,7 @@ const coerceImportEntry = (value) => {
   if (!specifier) return null;
   return {
     specifier,
+    provenance:value.provenance === 'parsed-literal' ? 'parsed-literal' : null,
     collectorHint: normalizeCollectorHint(value.collectorHint)
   };
 };
@@ -88,7 +89,8 @@ const normalizeImportEntries = (entries) => {
   for (const rawEntry of Array.isArray(entries) ? entries : []) {
     const normalized = coerceImportEntry(rawEntry);
     if (!normalized) continue;
-    const normalizedSpecifierList = normalizeImportSpecifiers([normalized.specifier]);
+    const normalizedSpecifierList = normalized.provenance === 'parsed-literal'
+      ? [sanitizeImportSpecifier(normalized.specifier,{literal:true})] : normalizeImportSpecifiers([normalized.specifier]);
     const specifier = normalizedSpecifierList[0];
     if (!specifier) continue;
     const existing = deduped.get(specifier);
@@ -96,6 +98,7 @@ const normalizeImportEntries = (entries) => {
       deduped.set(specifier, {
         specifier,
         collectorHint: normalized.collectorHint
+        , ...(normalized.provenance ? {provenance:normalized.provenance} : {})
       });
       continue;
     }

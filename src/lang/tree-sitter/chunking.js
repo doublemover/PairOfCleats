@@ -9,6 +9,8 @@ import {
 } from './ast.js';
 import { LANG_CONFIG, LANGUAGE_GRAMMAR_KEYS } from './config.js';
 import { resolveDeclarationPrefixRange } from './declaration-roles.js';
+import { callableGrammarMetadata } from './declaration-metadata.js';
+import { attachSyntaxCallFacts } from './call-facts.js';
 import { isTreeSitterEnabled } from './options.js';
 import { getNativeTreeSitterParser, loadNativeTreeSitterGrammar } from './native-runtime.js';
 import { resolveTreeSitterLanguageForExt } from './language-id.js';
@@ -525,6 +527,7 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
   let fullName = [...scopes].reverse().map(scope => scope.name).concat(name).join('.');
   const lexicalPrefix = [...scopes].reverse().map(scope => scope.name).join('.');
   if (lexicalPrefix && name.startsWith(`${lexicalPrefix}.`)) fullName = name;
+  fullName = config.resolveQualifiedName?.(node,name,scopes,text) || fullName;
   let finalKind = kind;
   if (nearest && config.memberNodes.has(node.type)) {
     const isTypeMember = !nearest.member && !['ModuleDeclaration', 'NamespaceDeclaration'].includes(nearest.kind);
@@ -554,6 +557,8 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
       startLine,
       endLine,
       definitionStartLine: offsetToLine(lineIndex, node.startIndex),
+      ...callableGrammarMetadata(node,text),
+      ...(config.resolveMetadata?.(node,text) || {}),
       ...(['function_declarator', 'operator_cast', 'function_signature_item'].includes(node.type) ? { bodyless: true } : {}),
       signature,
       docstring
@@ -779,6 +784,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
 
     if (queryResult?.usedQuery) {
       if (Array.isArray(queryResult.chunks) && queryResult.chunks.length) {
+        attachSyntaxCallFacts(rootNode,text,queryResult.chunks,{maxNodes:traversalBudget.maxAstNodes});
         queryResult.chunks = withParserCoverage(queryResult.chunks, resolvedId, parserRecovered);
         if (cacheKey && cacheRef) {
           storeCachedChunks({
@@ -870,6 +876,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       return null;
     }
 
+    attachSyntaxCallFacts(rootNode,text,traversalResult.chunks,{maxNodes:traversalBudget.maxAstNodes});
     traversalResult.chunks = withParserCoverage(traversalResult.chunks, resolvedId, parserRecovered);
 
     if (cacheKey && cacheRef) {

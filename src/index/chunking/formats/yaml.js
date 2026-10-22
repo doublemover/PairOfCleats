@@ -53,14 +53,28 @@ export const createYamlChunker = ({ parseStructure = parseYamlStructure, now = (
     return true;
   };
   const unavailable = () => [{ start: 0, end: source.length, name: workflow ? 'workflow' : 'root', kind: 'ConfigSection', meta }];
-  if (structure.reason || expired() || !headings.length) return unavailable();
-  for (let index = 0; index < headings.length; index += 1) {
+  if (structure.reason || expired()) return unavailable();
+  const documents=Array.isArray(structure.documentRanges) && structure.documentRanges.length
+    ? structure.documentRanges : [{start:0,end:source.length,documentIndex:0}];
+  for(let documentIndex=0;documentIndex<documents.length;documentIndex++) {
+    const document=documents[documentIndex];
+    const indexValue=document.documentIndex ?? documentIndex;
+    const start=documentIndex === 0 ? 0 : document.start;
+    const end=documents[documentIndex+1]?.start ?? source.length;
+    const entries=headings.filter(heading=>heading.documentIndex === indexValue);
+    if(!entries.length) {
+      chunks.push({start,end,name:`document ${indexValue}`,kind:'ConfigSection',meta:{...meta,documentIndex:indexValue,
+        documentRange:{start:document.start,end:document.end},sectionRangeSource:'application-document-boundaries'}});
+      continue;
+    }
+  for (let index = 0; index < entries.length; index += 1) {
     if (expired()) return unavailable();
-    const heading = headings[index];
-    chunks.push({ start: heading.sectionStart, end: headings[index + 1]?.sectionStart ?? source.length,
+    const heading = entries[index];
+    chunks.push({ start: index === 0 ? start : heading.sectionStart, end: entries[index + 1]?.sectionStart ?? end,
       name: heading.name, kind: 'ConfigSection', meta: { ...meta, title: heading.name, documentIndex: heading.documentIndex,
         keyRange: heading.keyRange, valueRange: heading.valueRange, propertyRange: heading.propertyRange,
         sectionRangeSource: 'application-line-boundaries', propertyRangeSource: 'application-key/value-span' } });
+  }
   }
   if (expired()) return unavailable();
   Object.freeze(outputMetrics);

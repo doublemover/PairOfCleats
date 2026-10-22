@@ -36,6 +36,8 @@ export const createXmlChunker = ({ parseStructure = parseXmlStructure, now = () 
         nameRange: section.nameRange, openingRange: section.openingRange, sectionRangeSource: 'application-sibling-boundaries' } });
   }
   if (expired()) return wholeContent();
+  if(chunks[0]?.start > 0) chunks.unshift({start:0,end:chunks[0].start,name:'root-preamble',kind:'ConfigSection',
+    meta:{...meta,sourceCoverage:'container-preamble',sectionRangeSource:'application-container-prefix'}});
   return chunks;
 };
 

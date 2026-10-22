@@ -209,19 +209,33 @@ export const chunkCmake = (text, context = null) => chunkByLineRegex(
 export const chunkStarlark = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
+  let quote=null,triple=false,escaped=false,depth=0;
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
-    if (line.length > MAX_REGEX_LINE) continue;
     const trimmed = line.trim();
-    if (trimmed.startsWith('#')) continue;
-    if (!(line.includes('def') || line.includes('class') || line.includes('('))) continue;
-    const defMatch = line.match(STARLARK_DEF_RX);
-    if (defMatch) {
-      headings.push({ line: i, title: `${defMatch[1]} ${defMatch[2]}` });
-      continue;
+    const topLevel=!quote && depth === 0 && !/^\s/u.test(line) && !trimmed.startsWith('#');
+    if(topLevel && line.length <= MAX_REGEX_LINE) {
+      const defMatch=line.match(STARLARK_DEF_RX);
+      const callMatch=!defMatch && line.match(STARLARK_CALL_RX);
+      if(defMatch) headings.push({line:i,title:`${defMatch[1]} ${defMatch[2]}`});
+      else if(callMatch) headings.push({line:i,title:callMatch[1]});
     }
-    const callMatch = line.match(STARLARK_CALL_RX);
-    if (callMatch) headings.push({ line: i, title: callMatch[1] });
+    for(let cursor=0;cursor<line.length;cursor++) {
+      const char=line[cursor];
+      if(quote) {
+        if(escaped) {escaped=false;continue;}
+        if(char === '\\') {escaped=true;continue;}
+        if(triple && line.startsWith(quote.repeat(3),cursor)) {quote=null;triple=false;cursor+=2;}
+        else if(!triple && char === quote) quote=null;
+        continue;
+      }
+      if(char === '#') break;
+      if(char === '"' || char === "'") {quote=char;triple=line.startsWith(char.repeat(3),cursor);if(triple) cursor+=2;continue;}
+      if('([{'.includes(char)) depth++;
+      else if(')]}'.includes(char)) depth=Math.max(0,depth-1);
+    }
+    if(!triple && !escaped) quote=null;
+    escaped=false;
   }
   return buildFormattedChunksFromHeadings({
     text,

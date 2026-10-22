@@ -27,7 +27,7 @@ export const createHandlebarsImportCollector = ({ parseStructure = parseHandleba
       if (partial.kind !== 'static') continue;
       if (budgetContext.budget.maxLines > 0 && partial.line >= budgetContext.budget.maxLines) continue;
       if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()) break;
-      addBudgetedCollectorImport(imports, partial.name, budgetContext.scanBudget);
+      addBudgetedCollectorImport(imports, partial.name, budgetContext.scanBudget,{literal:true});
     }
     return [...imports];
   } finally {

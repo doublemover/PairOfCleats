@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import { buildTreeSitterChunks } from '../../../src/lang/tree-sitter/chunking.js';
+import { buildCssChunks } from '../../../src/lang/css.js';
+const options={treeSitter:{enabled:true,strict:true,chunkCache:false,adaptive:false}};
+const r='alpha <-\n function(x){x}\nbeta <<- function(y){y}\n.alpha <- function(x){x}\n`alpha beta` <- function(x){x}\n';
+const rChunks=buildTreeSitterChunks({text:r,languageId:'r',options});
+assert.deepEqual(rChunks.map(chunk=>chunk.name),['alpha','beta','.alpha','alpha beta']);
+assert.ok(r.slice(rChunks[0].start,rChunks[0].end).startsWith('alpha <-'));
+const scala='package object demo {val uniqueValue=7; def work():Int=uniqueValue}\nextension [A](value:List[A]) {def second:A=value(1)}\ngiven intOrdering: Ordering[Int] = Ordering.Int\n';
+const scalaChunks=buildTreeSitterChunks({text:scala,languageId:'scala',options});
+assert.ok(scalaChunks.some(chunk=>chunk.name === 'demo' && chunk.kind === 'ObjectDeclaration'));
+assert.ok(scalaChunks.some(chunk=>chunk.name === 'demo.work'));
+assert.ok(scalaChunks.some(chunk=>chunk.kind === 'ExtensionDeclaration' && chunk.name.startsWith('extension[A]')));
+assert.ok(scalaChunks.some(chunk=>chunk.name === 'intOrdering' && chunk.kind === 'GivenDeclaration'));
+const css='.one,\n.two {color:red}\n[data-x="{"]{color:blue}\n[data-x=";"]{color:green}\n@scope (.panel) to (.nested) {.title {color:red}}\n';
+const chunks=buildCssChunks(css,options);
+for(const name of ['.one, .two','[data-x="{"]','[data-x=";"]','@scope (.panel) to (.nested)']) assert.equal(chunks.filter(chunk=>chunk.name === name).length,1,name);
+console.log('native container and assignment binding roles passed');

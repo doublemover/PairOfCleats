@@ -1,3 +1,5 @@
+import { sanitizeImportSpecifier } from '../shared/import-specifier.js';
+
 export const normalizeImportToken = (raw) => {
   if (!raw) return '';
   return String(raw)
@@ -18,7 +20,7 @@ export const buildSimpleRelations = (imports) => {
     ? Math.max(0, Math.floor(configuredMaxImports))
     : DEFAULT_MAX_SIMPLE_IMPORTS;
   const normalized = list
-    .map((entry) => normalizeImportToken(entry))
+    .map((entry) => imports?.literalImports === true ? sanitizeImportSpecifier(entry,{literal:true}) : normalizeImportToken(entry))
     .filter(Boolean);
   const unique = Array.from(new Set(normalized));
   unique.sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));

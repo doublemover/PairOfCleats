@@ -76,6 +76,7 @@ const RULE_NODES = new Set([
   'keyframes_statement',
   'media_statement',
   'supports_statement',
+  'scope_statement',
   'font_face_statement',
   'at_rule'
 ]);
@@ -147,14 +148,13 @@ function resolveParseTimeoutMs(options) {
 }
 
 function extractRuleName(text, node) {
-  const limit = Math.min(node.endIndex, node.startIndex + 240);
-  const slice = text.slice(node.startIndex, limit);
-  const newline = slice.indexOf('\n');
-  const brace = slice.indexOf('{');
-  const semi = slice.indexOf(';');
-  const candidates = [newline, brace, semi].filter((idx) => idx >= 0);
-  const cutoff = candidates.length ? Math.min(...candidates) : slice.length;
-  return slice.slice(0, cutoff).replace(/\s+/g, ' ').trim();
+  const selectors = node.childForFieldName?.('selectors')
+    || Array.from({length:getNamedChildCount(node)},(_,i)=>getNamedChild(node,i)).find(child=>child.type === 'selectors');
+  const block = Array.from({length:getNamedChildCount(node)},(_,i)=>getNamedChild(node,i)).find(child=>child.type === 'block');
+  const end = selectors?.endIndex ?? block?.startIndex ?? node.endIndex;
+  // The grammar already resolved punctuation inside strings and selector lists.
+  // Keep the complete normalized prelude as identity; signature is the preview.
+  return text.slice(selectors?.startIndex ?? node.startIndex,end).replace(/\s+/g,' ').replace(/;\s*$/,'').trim();
 }
 
 function gatherRuleNodes(root, budget) {

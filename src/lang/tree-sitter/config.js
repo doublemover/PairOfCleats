@@ -1,6 +1,7 @@
 import { findDescendantByType } from './ast.js';
 import { includeCDeclaration, resolveCDeclarationRange, resolveCName, resolveCppName, resolveSwiftKind, resolveSwiftName, resolveKotlinKind,
   includeDartDeclaration, resolveDartName, resolveDartKind, resolveDartRange, resolveGoRange, resolveObjCName } from './declaration-roles.js';
+import { phpGrammarMetadata, rubyGrammarMetadata, resolveRubyQualifiedName, resolveScalaName, resolveRName, resolveRRange } from './declaration-metadata.js';
 // v4 binds declaration names, lexical scopes and attached source ranges to grammar roles.
 export const TREE_SITTER_CHUNK_VERSION = '4';
 
@@ -560,22 +561,27 @@ const LANG_CONFIG = {
     nameFields: ['name']
   },
   scala: {
+    resolveName: resolveScalaName,
     typeNodes: new Set([
       'class_definition',
       'object_definition',
       'trait_definition',
-      'enum_definition'
+      'enum_definition',
+      'package_object',
+      'given_definition',
+      'extension_definition'
     ]),
     memberNodes: new Set([
       'function_definition',
-      'function_declaration',
-      'extension_definition'
+      'function_declaration'
     ]),
     kindMap: {
       class_definition: 'ClassDeclaration',
       object_definition: 'ObjectDeclaration',
       trait_definition: 'TraitDeclaration',
       enum_definition: 'EnumDeclaration',
+      package_object: 'ObjectDeclaration',
+      given_definition: 'GivenDeclaration',
       function_definition: 'FunctionDeclaration',
       function_declaration: 'FunctionDeclaration',
       extension_definition: 'ExtensionDeclaration'
@@ -608,6 +614,7 @@ const LANG_CONFIG = {
     nameFields: ['name']
   },
   r: {
+    resolveRange: resolveRRange,
     typeNodes: new Set([]),
     memberNodes: new Set([
       'function_definition'
@@ -616,18 +623,7 @@ const LANG_CONFIG = {
       function_definition: 'FunctionDeclaration'
     },
     docComments: { linePrefixes: ['#'] },
-    nameFields: ['name'],
-    resolveName: (node, rawText) => {
-      if (!node || node.type !== 'function_definition' || typeof rawText !== 'string') return null;
-      const raw = rawText.slice(node.startIndex, node.endIndex);
-      if (!raw) return null;
-      const match = raw.match(/^\s*([A-Za-z_][A-Za-z0-9_.]*)\s*(?:<-|=)\s*function\b/);
-      if (match?.[1]) return match[1];
-      const lineStart = rawText.lastIndexOf('\n', Math.max(0, node.startIndex - 1)) + 1;
-      const prefix = rawText.slice(lineStart, node.startIndex);
-      const lhsMatch = prefix.match(/([A-Za-z_][A-Za-z0-9_.]*)\s*(?:<-|=)\s*$/);
-      return lhsMatch?.[1] || null;
-    }
+    resolveName: resolveRName
   },
   julia: {
     typeNodes: new Set([
@@ -672,9 +668,13 @@ const LANG_CONFIG = {
     }
   },
   ruby: {
+    resolveMetadata: rubyGrammarMetadata, resolveQualifiedName: resolveRubyQualifiedName,
+    resolveName: (node,text) => node.type === 'singleton_class' ? node.childForFieldName('value')?.text === 'self'
+      ? 'self' : `singleton@${node.startIndex}` : null,
     typeNodes: new Set([
       'class',
-      'module'
+      'module',
+      'singleton_class'
     ]),
     memberNodes: new Set([
       'method',
@@ -683,6 +683,7 @@ const LANG_CONFIG = {
     kindMap: {
       class: 'ClassDeclaration',
       module: 'ModuleDeclaration',
+      singleton_class: 'ClassDeclaration',
       method: 'MethodDeclaration',
       singleton_method: 'MethodDeclaration'
     },
@@ -690,11 +691,13 @@ const LANG_CONFIG = {
     nameFields: ['name']
   },
   php: {
+    resolveMetadata: phpGrammarMetadata,
     typeNodes: new Set([
       'namespace_definition',
       'class_declaration',
       'interface_declaration',
-      'trait_declaration'
+      'trait_declaration',
+      'enum_declaration'
     ]),
     memberNodes: new Set([
       'function_definition',
@@ -705,6 +708,7 @@ const LANG_CONFIG = {
       class_declaration: 'ClassDeclaration',
       interface_declaration: 'InterfaceDeclaration',
       trait_declaration: 'TraitDeclaration',
+      enum_declaration: 'EnumDeclaration',
       function_definition: 'FunctionDeclaration',
       method_declaration: 'MethodDeclaration'
     },

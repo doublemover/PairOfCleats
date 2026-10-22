@@ -450,8 +450,15 @@ export function buildBraceDelimitedMethodRelations(text, chunks, options) {
       if (isExported(chunk)) exports.add(chunk.name);
       if (!callableKinds.has(chunk.kind)) continue;
       if (!shouldScanCallable(chunk)) continue;
+      if (Array.isArray(chunk.meta?.syntaxCalls)) {
+        for (const detail of chunk.meta.syntaxCalls) if (detail.callee) {
+          calls.push([chunk.name,detail.callee]); usages.add(detail.callee);
+        }
+        continue;
+      }
       const bounds = findBodyBounds(text, chunk.start);
-      const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
+      if (chunk.meta?.bodyless || !(bounds.bodyStart >= chunk.start && bounds.bodyStart < chunk.end)) continue;
+      const scanStart = bounds.bodyStart + 1;
       const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
       const slice = text.slice(scanStart, scanEnd);
       const { calls: chunkCalls, usages: chunkUsages } = collectCallsAndUsages(slice);
