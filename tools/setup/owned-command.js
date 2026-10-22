@@ -11,7 +11,8 @@ export const runSetupCommand = async (command, args, options = {}, { spawn = spa
   const result = await spawn(command, Array.isArray(args) ? args : [], { ...childOptions,
     outputEncoding: options.outputEncoding || encoding || 'utf8',
     maxOutputBytes: options.maxOutputBytes ?? maxBuffer ?? 1024 * 1024,
-    captureStdout: true, captureStderr: true, outputMode: 'string', rejectOnNonZeroExit: false });
+    captureStdout: options.captureStdout !== false, captureStderr: options.captureStderr !== false,
+    outputMode: 'string', rejectOnNonZeroExit: false });
   options.signal?.throwIfAborted();
   return { ok: result.exitCode === 0, status: result.exitCode ?? null,
     signal: typeof result.signal === 'string' ? result.signal : null,

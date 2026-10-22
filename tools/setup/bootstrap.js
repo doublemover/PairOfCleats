@@ -1,271 +1,177 @@
 #!/usr/bin/env node
+// Source and focused regressions are UNVALIDATED in this development batch.
 import { BOOTSTRAP_OPTIONS } from '../shared/operator-cli-options.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
-import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
-import { exitLikeCommandResult, runCommand } from '../shared/cli-utils.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
+import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 import { resolveDictionarySetupReadiness } from './dictionary-readiness.js';
+import { runSetupCommand } from './owned-command.js';
 
-const argv = createCli({
-  scriptName: 'bootstrap',
-  options: BOOTSTRAP_OPTIONS,
-  aliases: { s: 'with-sqlite', i: 'incremental' }
-}).strictOptions().parse();
-
-const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
-const toolRoot = resolveToolRoot();
-const jsonOutput = argv.json === true;
-const stdoutGuard = createStdoutGuard({ enabled: jsonOutput, stream: process.stdout, label: 'bootstrap stdout' });
-const summary = {
-  root,
-  incremental: false,
-  restoredArtifacts: false,
-  steps: {}
-};
-
-const recordStep = (name, data) => {
-  summary.steps[name] = { ...(summary.steps[name] || {}), ...data };
-};
-
-/**
- * Execute a child process while keeping JSON mode stdout clean.
- *
- * In `--json` mode we must reserve stdout for the final JSON payload, so
- * all child stdout/stderr is redirected to stderr.
- *
- * @param {string} cmd
- * @param {string[]} args
- * @param {{cwd?:string,env?:NodeJS.ProcessEnv}} [options]
- * @returns {Promise<{ok:boolean,status:number|null,signal:string|null}>}
+/** Run selected target preparation through the same actual child owner as
+ * guided setup. A pending owner is terminal for this run, including optional
+ * tooling and artifact restoration; it must never admit a following build.
  */
-const streamChildOutputToStderr = async (cmd, args, { cwd = root, env = process.env } = {}) => {
+export const runBootstrap = async (argv, {
+  signal, command = runSetupCommand, log = console.error, writeProgress = chunk => process.stderr.write(chunk)
+} = {}) => {
+  const summary = { root: path.resolve(argv.repo || process.cwd()), incremental: false, restoredArtifacts: false, steps: {} };
+  let activeStep = 'config';
+  let baseEnv = process.env;
+  let root = summary.root;
+  const jsonOutput = argv.json === true;
+  const recordStep = (name, data) => { summary.steps[name] = { ...(summary.steps[name] || {}), ...data }; };
+  const execute = async (args, { capture = false, env = baseEnv } = {}) => {
+    signal?.throwIfAborted();
+    const result = await command(process.execPath, args, { cwd: root, env, signal, encoding: 'utf8',
+      ...(capture ? { stdio: 'pipe' } : jsonOutput ? {
+        stdio: ['inherit', 'pipe', 'pipe'], captureStdout: false, captureStderr: false,
+        onStdout: writeProgress, onStderr: writeProgress
+      } : { stdio: 'inherit' }) });
+    signal?.throwIfAborted();
+    return result;
+  };
+  const requireOk = (result, label) => {
+    if (result.ok) return;
+    throw Object.assign(new Error(`Failed: ${label}`), { code: 'ERR_BOOTSTRAP_STEP_FAILED', result });
+  };
+  const run = async (args, label) => { requireOk(await execute(args), label); };
   try {
-    const result = await spawnResolvedSubprocess(cmd, args, {
-      cwd,
-      env,
-      stdio: ['inherit', 'pipe', 'pipe'],
-      captureStdout: false,
-      captureStderr: false,
-      onStdout: (chunk) => process.stderr.write(chunk),
-      onStderr: (chunk) => process.stderr.write(chunk),
-      rejectOnNonZeroExit: false
-    });
-    return {
-      ok: result.exitCode === 0,
-      status: result.exitCode ?? null,
-      signal: typeof result.signal === 'string' ? result.signal : null
-    };
-  } catch (err) {
-    const result = err?.result && typeof err.result === 'object' ? err.result : {};
-    const signal = typeof result.signal === 'string' ? result.signal : null;
-    return {
-      ok: false,
-      status: Number.isFinite(Number(result.exitCode))
-        ? Number(result.exitCode)
-        : (signal ? null : 1),
-      signal
-    };
-  }
-};
-
-/**
- * Mirror captured child output to stderr in JSON mode only.
- *
- * @param {{stdout?:string,stderr?:string}|null|undefined} result
- */
-const relayChildOutputToStderr = (result) => {
-  if (!jsonOutput || !result || typeof result !== 'object') return;
-  if (typeof result.stdout === 'string' && result.stdout.length > 0) {
-    process.stderr.write(result.stdout);
-  }
-  if (typeof result.stderr === 'string' && result.stderr.length > 0) {
-    process.stderr.write(result.stderr);
-  }
-};
-
-const configPath = path.join(root, '.pairofcleats.json');
-if (argv['validate-config'] && fs.existsSync(configPath)) {
-  const result = jsonOutput
-    ? await streamChildOutputToStderr(
-      process.execPath,
-      [path.join(toolRoot, 'tools', 'config', 'validate.js'), '--config', configPath],
-      { cwd: root, env: process.env }
-    )
-    : runCommand(
-      process.execPath,
-      [path.join(toolRoot, 'tools', 'config', 'validate.js'), '--config', configPath],
-      { cwd: root, stdio: 'inherit', encoding: 'utf8' }
-    );
-  if (!jsonOutput) {
-    relayChildOutputToStderr(result);
-  }
-  if (!result.ok) {
-    exitLikeCommandResult(result);
-  }
-}
-
-const runtimeConfig = getRuntimeConfig(root, userConfig);
-const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
-const vectorExtension = getVectorExtensionConfig(root, userConfig);
-const repoCacheRoot = getRepoCacheRoot(root, userConfig);
-const incrementalCacheRoot = path.join(repoCacheRoot, 'incremental');
-const useIncremental = argv.incremental || fs.existsSync(incrementalCacheRoot);
-summary.incremental = useIncremental;
-if (useIncremental) {
-  console.error('[bootstrap] Incremental indexing enabled.');
-}
-const artifactsDir = path.join(root, 'ci-artifacts');
-let restoredArtifacts = false;
-
-/**
- * Run a bootstrap step under the resolved runtime environment and abort on
- * non-zero exit.
- *
- * In `--json` mode child output is routed to stderr so stdout remains a single
- * machine-parseable summary payload.
- *
- * @param {string} cmd
- * @param {string[]} args
- * @param {string} label
- */
-async function run(cmd, args, label) {
-  const result = jsonOutput
-    ? await streamChildOutputToStderr(cmd, args, { cwd: root, env: baseEnv })
-    : runCommand(cmd, args, {
-      cwd: root,
-      stdio: 'inherit',
-      encoding: 'utf8',
-      env: baseEnv
-    });
-  if (!jsonOutput) {
-    relayChildOutputToStderr(result);
-  }
-  if (!result.ok) {
-    console.error(`Failed: ${label || cmd}`);
-    exitLikeCommandResult(result);
-  }
-}
-
-// Dependency preparation belongs to the tool checkout's explicit bootstrap:ci
-// workflow. Selecting a repository never authorizes its package-manager scripts.
-recordStep('install', { skipped: true, installed: false, toolRoot, targetRoot: root,
-  reason: 'Tool dependencies are prepared separately with npm run bootstrap:ci in the tool checkout.' });
-
-if (!argv['skip-dicts']) {
-  const dictConfig = getDictConfig(root, userConfig);
-  const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
-  const before = resolveDictionarySetupReadiness({ dictConfig, dictionaryPaths });
-  if (before.downloadableLanguages.length) await run(process.execPath,
-    [path.join(toolRoot, 'tools', 'download', 'dicts.js'), '--repo', root, '--dir', dictConfig.dir,
-      '--lang', before.downloadableLanguages.join(','), ...(before.replaceEmptyEnglish ? ['--force'] : [])], 'download selected dictionaries');
-  const verification = resolveDictionarySetupReadiness({ dictConfig,
-    dictionaryPaths: await getDictionaryPaths(root, dictConfig) });
-  recordStep('dictionaries', { skipped: false, ...verification, available: verification.present,
-    count: verification.usablePaths.length, status: !verification.applicable ? 'not-applicable' : verification.present ? 'available' : 'missing' });
-  if (verification.present) console.error(`[bootstrap] Wordlists enabled (${verification.usablePaths.length} file(s)).`);
-  else if (verification.applicable) console.warn(`[bootstrap] ${verification.reason}`);
-} else {
-  recordStep('dictionaries', { skipped: true });
-}
-
-if (vectorExtension.enabled) {
-  const extPath = resolveVectorExtensionPath(vectorExtension);
-  if (!extPath || !fs.existsSync(extPath)) {
-    console.warn('[bootstrap] SQLite ANN extension missing; run node tools/download/extensions.js to install.');
-    recordStep('extensions', { skipped: false, available: false });
-  } else {
-    console.error(`[bootstrap] SQLite ANN extension found (${extPath}).`);
-    recordStep('extensions', { skipped: false, available: true, path: extPath });
-  }
-} else {
-  recordStep('extensions', { skipped: true, enabled: false });
-}
-
-if (!argv['skip-tooling']) {
-  const toolingConfig = getToolingConfig(root, userConfig);
-  const detectResult = runCommand(
-    process.execPath,
-    [path.join(toolRoot, 'tools', 'tooling', 'detect.js'), '--root', root, '--json'],
-    { cwd: root, encoding: 'utf8', stdio: 'pipe', env: baseEnv }
-  );
-  if (typeof detectResult.signal === 'string' && detectResult.signal.trim()) {
-    exitLikeCommandResult(detectResult);
-  }
-  if (detectResult.status === 0 && detectResult.stdout) {
-    try {
-      const report = JSON.parse(detectResult.stdout);
-      const missingTools = Array.isArray(report.tools)
-        ? report.tools.filter((tool) => tool && tool.found === false)
-        : [];
-      if (toolingConfig.autoInstallOnDetect && missingTools.length) {
-        const installArgs = [path.join(toolRoot, 'tools', 'tooling', 'install.js'), '--root', root, '--scope', toolingConfig.installScope];
-        if (!toolingConfig.allowGlobalFallback) installArgs.push('--no-fallback');
-        await run(process.execPath, installArgs, 'install tooling');
-        recordStep('tooling', { skipped: false, status: 'installation-completed', requestedTools: missingTools.map(tool => tool.id) });
-      } else if (missingTools.length) {
-        console.error('[bootstrap] Optional tooling missing. Run node tools/tooling/install.js to install.');
-        recordStep('tooling', { skipped: false, status: 'not-requested', missingTools: missingTools.map(tool => tool.id) });
-      } else {
-        recordStep('tooling', { skipped: false, status: 'available', missingTools: [] });
-      }
-    } catch {
-      console.warn('[bootstrap] Failed to parse tooling detection output.');
-      recordStep('tooling', { skipped: false, detectParsed: false });
+    signal?.throwIfAborted();
+    const resolved = resolveRepoConfig(argv.repo);
+    root = resolved.repoRoot;
+    summary.root = root;
+    const userConfig = resolved.userConfig;
+    const toolRoot = resolveToolRoot();
+    const configPath = path.join(root, '.pairofcleats.json');
+    if (argv['validate-config'] && fs.existsSync(configPath)) {
+      await run([path.join(toolRoot, 'tools', 'config', 'validate.js'), '--config', configPath], 'validate config');
     }
-  } else if (detectResult.status !== 0) {
-    console.warn('[bootstrap] Tooling detection failed.');
-    recordStep('tooling', { skipped: false, detectOk: false });
+    baseEnv = resolveRuntimeEnv(getRuntimeConfig(root, userConfig), process.env);
+    const vectorExtension = getVectorExtensionConfig(root, userConfig);
+    const useIncremental = argv.incremental || fs.existsSync(path.join(getRepoCacheRoot(root, userConfig), 'incremental'));
+    summary.incremental = Boolean(useIncremental);
+    if (useIncremental) log('[bootstrap] Incremental indexing enabled.');
+
+    // Target selection never authorizes application or target package scripts.
+    recordStep('install', { skipped: true, installed: false, toolRoot, targetRoot: root,
+      reason: 'Tool dependencies are prepared separately with npm run bootstrap:ci in the tool checkout.' });
+
+    activeStep = 'dictionaries';
+    signal?.throwIfAborted();
+    if (!argv['skip-dicts']) {
+      const dictConfig = getDictConfig(root, userConfig);
+      const before = resolveDictionarySetupReadiness({ dictConfig, dictionaryPaths: await getDictionaryPaths(root, dictConfig) });
+      if (before.downloadableLanguages.length) await run([
+        path.join(toolRoot, 'tools', 'download', 'dicts.js'), '--repo', root, '--dir', dictConfig.dir,
+        '--lang', before.downloadableLanguages.join(','), ...(before.replaceEmptyEnglish ? ['--force'] : [])
+      ], 'download selected dictionaries');
+      signal?.throwIfAborted();
+      const verification = resolveDictionarySetupReadiness({ dictConfig, dictionaryPaths: await getDictionaryPaths(root, dictConfig) });
+      recordStep('dictionaries', { skipped: false, ...verification, available: verification.present,
+        count: verification.usablePaths.length, status: !verification.applicable ? 'not-applicable' : verification.present ? 'available' : 'missing' });
+      if (verification.present) log(`[bootstrap] Wordlists enabled (${verification.usablePaths.length} file(s)).`);
+      else if (verification.applicable) log(`[bootstrap] ${verification.reason}`);
+    } else recordStep('dictionaries', { skipped: true });
+
+    activeStep = 'extensions';
+    signal?.throwIfAborted();
+    if (vectorExtension.enabled) {
+      const extPath = resolveVectorExtensionPath(vectorExtension);
+      const available = Boolean(extPath && fs.existsSync(extPath));
+      recordStep('extensions', { skipped: false, available, ...(available ? { path: extPath } : {}) });
+      log(available ? `[bootstrap] SQLite ANN extension found (${extPath}).`
+        : '[bootstrap] SQLite ANN extension missing; run node tools/download/extensions.js to install.');
+    } else recordStep('extensions', { skipped: true, enabled: false });
+
+    activeStep = 'tooling';
+    signal?.throwIfAborted();
+    if (!argv['skip-tooling']) {
+      const toolingConfig = getToolingConfig(root, userConfig);
+      const detected = await execute([path.join(toolRoot, 'tools', 'tooling', 'detect.js'), '--root', root, '--json'], { capture: true });
+      if (detected.signal) requireOk(detected, 'detect tooling');
+      let report = null;
+      if (detected.ok && detected.stdout) {
+        try { report = JSON.parse(detected.stdout); }
+        catch { recordStep('tooling', { skipped: false, detectParsed: false }); }
+      }
+      if (report) {
+        const missingTools = Array.isArray(report.tools) ? report.tools.filter(tool => tool && tool.found === false) : [];
+        if (toolingConfig.autoInstallOnDetect && missingTools.length) {
+          const installArgs = [path.join(toolRoot, 'tools', 'tooling', 'install.js'), '--root', root,
+            '--tools', missingTools.map(tool => tool.id).join(','), '--scope', toolingConfig.installScope];
+          if (!toolingConfig.allowGlobalFallback) installArgs.push('--no-fallback');
+          // Installation is deliberately outside the JSON parse catch: actual
+          // cancellation/pending teardown cannot become a parse warning.
+          await run(installArgs, 'install tooling');
+          recordStep('tooling', { skipped: false, status: 'installation-completed', requestedTools: missingTools.map(tool => tool.id) });
+        } else if (missingTools.length) {
+          log('[bootstrap] Optional tooling missing. Run node tools/tooling/install.js to install.');
+          recordStep('tooling', { skipped: false, status: 'not-requested', missingTools: missingTools.map(tool => tool.id) });
+        } else recordStep('tooling', { skipped: false, status: 'available', missingTools: [] });
+      } else if (!detected.ok) {
+        log('[bootstrap] Tooling detection failed.');
+        recordStep('tooling', { skipped: false, detectOk: false });
+      }
+    } else recordStep('tooling', { skipped: true });
+
+    activeStep = 'artifacts';
+    signal?.throwIfAborted();
+    const artifactsDir = path.join(root, 'ci-artifacts');
+    if (!argv['skip-artifacts'] && fs.existsSync(path.join(artifactsDir, 'manifest.json'))) {
+      summary.restoredArtifacts = (await execute([path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--from', artifactsDir, '--repo', root])).ok;
+    }
+    recordStep('artifacts', { skipped: argv['skip-artifacts'] === true, restored: summary.restoredArtifacts });
+
+    activeStep = 'index';
+    signal?.throwIfAborted();
+    if (!argv['skip-index'] && !summary.restoredArtifacts) {
+      await run([path.join(toolRoot, 'build_index.js'), '--repo', root, ...(useIncremental ? ['--incremental'] : [])], 'build index');
+      recordStep('index', { skipped: false, built: true });
+    } else recordStep('index', { skipped: argv['skip-index'] === true, built: false });
+
+    activeStep = 'sqlite';
+    signal?.throwIfAborted();
+    if (argv['with-sqlite']) {
+      await run([path.join(toolRoot, 'build_index.js'), '--repo', root, '--stage', '4', ...(useIncremental ? ['--incremental'] : [])], 'build sqlite index');
+      recordStep('sqlite', { skipped: false, built: true });
+    } else recordStep('sqlite', { skipped: true, built: false });
+    signal?.throwIfAborted();
+    log('[bootstrap] Tip: run pairofcleats index validate to verify index artifacts.');
+    log('Bootstrap complete.');
+    return { summary, exitCode: 0 };
+  } catch (error) {
+    const state = error.cacheOwnershipPending ? 'settlement-pending' : signal?.aborted ? 'cancelled' : 'blocked';
+    summary.lifecycle = { state, step: activeStep, code: error.code || null,
+      settlement: error.cacheOwnershipPending ? 'actual-child-resource-owner-unconfirmed' : 'no-pending-owner-reported' };
+    summary.errors = [{ step: activeStep, status: error.result?.status ?? null, signal: error.result?.signal || null,
+      message: redactDiagnosticText(error.message || String(error), 2048) }];
+    recordStep(activeStep, { completed: false, state });
+    log(`[bootstrap] ${state}: ${summary.errors[0].message}`);
+    return { summary, exitCode: error.result?.signal === 'SIGINT' ? 130 : error.result?.signal === 'SIGTERM' ? 143
+      : Number.isInteger(error.result?.status) && error.result.status > 0 ? error.result.status : 1 };
   }
+};
 
-
-} else {
-  recordStep('tooling', { skipped: true });
-}
-
-if (!argv['skip-artifacts'] && fs.existsSync(path.join(artifactsDir, 'manifest.json'))) {
-  const result = jsonOutput
-    ? await streamChildOutputToStderr(
-      process.execPath,
-      [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--from', artifactsDir],
-      { cwd: root, env: baseEnv }
-    )
-    : runCommand(
-      process.execPath,
-      [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--from', artifactsDir],
-      { cwd: root, stdio: 'inherit', encoding: 'utf8', env: baseEnv }
-    );
-  if (!jsonOutput) {
-    relayChildOutputToStderr(result);
+if (isDirectExecution(import.meta.url)) {
+  const argv = createCli({ scriptName: 'bootstrap', options: BOOTSTRAP_OPTIONS,
+    aliases: { s: 'with-sqlite', i: 'incremental' } }).strictOptions().parse();
+  const cancellation = new AbortController();
+  let cancellationExitCode = null;
+  const onInterrupt = () => { cancellationExitCode = 130; cancellation.abort(new Error('Bootstrap interrupted.')); };
+  const onTerminate = () => { cancellationExitCode = 143; cancellation.abort(new Error('Bootstrap terminated.')); };
+  process.once('SIGINT', onInterrupt);
+  process.once('SIGTERM', onTerminate);
+  try {
+    const result = await runBootstrap(argv, { signal: cancellation.signal });
+    if (argv.json) createStdoutGuard({ enabled: true, stream: process.stdout, label: 'bootstrap stdout' }).writeJson(result.summary);
+    process.exitCode = cancellationExitCode || result.exitCode;
+  } finally {
+    process.removeListener('SIGINT', onInterrupt);
+    process.removeListener('SIGTERM', onTerminate);
   }
-  restoredArtifacts = result.ok;
-}
-summary.restoredArtifacts = restoredArtifacts;
-recordStep('artifacts', { skipped: argv['skip-artifacts'] === true, restored: restoredArtifacts });
-
-if (!argv['skip-index'] && !restoredArtifacts) {
-  const indexArgs = [path.join(toolRoot, 'build_index.js')];
-  if (useIncremental) indexArgs.push('--incremental');
-  await run(process.execPath, indexArgs, 'build index');
-  recordStep('index', { skipped: false, built: true });
-} else {
-  recordStep('index', { skipped: argv['skip-index'] === true, built: false });
-}
-
-if (argv['with-sqlite']) {
-  const sqliteArgs = [path.join(toolRoot, 'build_index.js'), '--stage', '4'];
-  if (useIncremental) sqliteArgs.push('--incremental');
-  await run(process.execPath, sqliteArgs, 'build sqlite index');
-  recordStep('sqlite', { skipped: false, built: true });
-} else {
-  recordStep('sqlite', { skipped: true, built: false });
-}
-
-console.error('[bootstrap] Tip: run pairofcleats index validate to verify index artifacts.');
-console.error('\nBootstrap complete.');
-if (jsonOutput) {
-  stdoutGuard.writeJson(summary);
 }

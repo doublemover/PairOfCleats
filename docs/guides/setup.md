@@ -54,6 +54,11 @@ requirements, immutable sources, trusted policy and platform blockers first.
 Unknown download sizes remain unknown. A requested tool with an unsupported
 recipe remains blocked; installed bytes, version output, protocol initialization,
 model inference and project qualification are separate evidence.
+`tooling install --dry-run` now takes a separate metadata-only source path:
+located executables are labeled `located-not-probed`, prerequisite commands are
+not executed and recipe environment values are omitted. Unknown allocation or
+missing qualified recipes produce visible blockers and a nonzero status; a
+preview never reports an installation ready. This new path is **UNVALIDATED**.
 
 ## Existing interactive and unattended setup
 
@@ -78,6 +83,15 @@ and child progress use stderr. `--require-steps <csv>` makes named prerequisites
 required but does not enable a skipped operation. Read the readiness summary:
 `ready`, limited/degraded scope and blocked prerequisites mean different things.
 A skipped requested capability is not complete.
+
+Guided setup and fast `bootstrap --repo ...` await the shared asynchronous child
+owner. `SIGINT` and `SIGTERM` stop later stages and retain exit status `130` and
+`143`. JSON mode reports one terminal summary; `lifecycle.state` distinguishes
+`cancelled`, `blocked` and `settlement-pending`. An unconfirmed child teardown
+stops the run even in an optional step. Keep its resource owners until actual
+settlement is established. Target index, SQLite and artifact-restore children
+receive the selected repository explicitly, including nested project folders.
+These source changes and their inert regressions are **UNVALIDATED**.
 
 Dictionaries download selected supported missing wordlists; models acquire the
 selected model; tooling can execute installers; extensions acquire approved

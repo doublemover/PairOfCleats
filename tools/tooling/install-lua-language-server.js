@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
 import { withFileLock } from '../../src/shared/locks/file-lock.js';
 import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
+import { readManagedLuaSelection } from '../../src/shared/managed-lua.js';
 import AdmZip from 'adm-zip';
 import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
@@ -70,21 +72,19 @@ export const validateLuaLanguageServerPackageLayout = (rootDir) => {
   const executableName = process.platform === 'win32' ? 'lua-language-server.exe' : 'lua-language-server';
   const executablePath = path.join(root, 'bin', executableName);
   const mainLuaPath = path.join(root, 'bin', 'main.lua');
-  return {
-    ok: Boolean(root && executablePath && mainLuaPath),
-    root,
-    executablePath,
-    mainLuaPath
-  };
+  try {
+    for (const file of [executablePath, mainLuaPath]) {
+      assertNoSymlinkPath(root, file);
+      const stat = fsSync.lstatSync(file);
+      if (!stat.isFile() || stat.size === 0) throw new Error('Lua package requires nonempty regular runtime files.');
+    }
+    return { ok: true, root, executablePath, mainLuaPath, verificationLevel: 'nonempty-contained-runtime-files' };
+  } catch (error) { return { ok: false, root, executablePath, mainLuaPath, reason: error.code || 'invalid-runtime-files' }; }
 };
 
 const findLuaLanguageServerPackageRoot = async (extractRoot) => {
   const direct = validateLuaLanguageServerPackageLayout(extractRoot);
-  const directExists = await Promise.all([
-    fs.stat(direct.executablePath).then(() => true).catch(() => false),
-    fs.stat(direct.mainLuaPath).then(() => true).catch(() => false)
-  ]);
-  if (directExists.every(Boolean)) return direct.root;
+  if (direct.ok) return direct.root;
   let entries = [];
   try {
     entries = await fs.readdir(extractRoot, { withFileTypes: true });
@@ -94,11 +94,7 @@ const findLuaLanguageServerPackageRoot = async (extractRoot) => {
   const subdirs = entries.filter((entry) => entry.isDirectory());
   if (subdirs.length !== 1) return null;
   const nested = validateLuaLanguageServerPackageLayout(path.join(extractRoot, subdirs[0].name));
-  const nestedExists = await Promise.all([
-    fs.stat(nested.executablePath).then(() => true).catch(() => false),
-    fs.stat(nested.mainLuaPath).then(() => true).catch(() => false)
-  ]);
-  return nestedExists.every(Boolean) ? nested.root : null;
+  return nested.ok ? nested.root : null;
 };
 
 const fetchJson = async (url, timeoutMs) => {
@@ -246,6 +242,15 @@ const resolveToolingRoot = (argv) => {
 
 export const installLuaLanguageServer = async (argv, hooks = {}) => {
   const toolingRoot = resolveToolingRoot(argv);
+  const beforeSelection = readManagedLuaSelection(toolingRoot);
+  if (beforeSelection.status === 'invalid') throw createInstallError('invalid_existing_selection',
+    'Existing Lua selection is unknown or unreadable; its receipt and generations were preserved.');
+  const requireUnchangedSelection = () => {
+    const current = readManagedLuaSelection(toolingRoot);
+    if (current.status !== beforeSelection.status || current.sha256 !== beforeSelection.sha256) {
+      throw createInstallError('lua_selection_changed', 'Lua selection changed after installation began; current receipt and generations were preserved.');
+    }
+  };
   const timeoutMs = toInt(argv['timeout-ms'], DEFAULT_TIMEOUT_MS, 1);
   const retries = toInt(argv.retries, DEFAULT_RETRIES, 0);
   const retryBaseMs = toInt(argv['retry-base-ms'], DEFAULT_RETRY_BASE_MS, 0);
@@ -299,6 +304,7 @@ export const installLuaLanguageServer = async (argv, hooks = {}) => {
     assertNoSymlinkPath(path.dirname(toolingRoot), owner, { allowMissing: true });
     await fs.mkdir(owner, { recursive: true });
     const validated = await withFileLock({ lockPath: path.join(owner, 'install.lock'), waitMs: 5000, timeoutBehavior: 'throw' }, async () => {
+      requireUnchangedSelection();
       const generation = randomUUID();
       const stage = path.join(owner, `.staging-${generation}`);
       const final = path.join(owner, generation);
@@ -309,18 +315,20 @@ export const installLuaLanguageServer = async (argv, hooks = {}) => {
           await (hooks.copy || fs.cp)(path.join(packageRoot, entry), path.join(stage, entry), { recursive: true, force: false, errorOnExist: true });
         }
         const layout = validateLuaLanguageServerPackageLayout(stage);
-        for (const file of [layout.executablePath, layout.mainLuaPath]) {
-          assertNoSymlinkPath(stage, file);
-          const stat = await fs.stat(file);
-          if (!stat.isFile() || !stat.size) throw createInstallError('invalid_layout', 'Lua replacement has missing runtime bytes.', { retryable: false });
-        }
+        if (!layout.ok) throw createInstallError('invalid_layout', 'Lua replacement has missing runtime bytes.', { retryable: false });
         await hooks.afterValidation?.(stage);
         await fs.rename(stage, final);
         staged = false;
         await hooks.beforeSelection?.(final);
-        await atomicWriteJson(path.join(owner, 'current.json'), { schemaVersion: 1, generation, sha256: archive.sha256 }, { durable: true });
+        await atomicWriteJson(path.join(owner, 'current.json'), { schemaVersion: 1, generation, sha256: archive.sha256 },
+          { durable: true, createOnly: beforeSelection.status === 'missing', beforeCommit: requireUnchangedSelection });
         return validateLuaLanguageServerPackageLayout(final);
-      } catch (error) { primaryError = error; throw error; }
+      } catch (error) {
+        primaryError = error;
+        if (!staged) error.recovery = { currentPointer: beforeSelection.target, retainedReplacement: final,
+          priorGenerationRetained: true, deletionAuthority: false };
+        throw error;
+      }
       finally {
         if (staged) {
           try { await fs.rm(stage, { recursive: true, force: true }); }

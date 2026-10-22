@@ -52,6 +52,8 @@ const runInstaller = ({ toolingRoot, archivePath, allowFailure = false }) => run
 try {
   const goodArchivePath = path.join(tempRoot, 'lua-language-server-good.zip');
   const goodToolingRoot = path.join(tempRoot, 'tooling-good');
+  assert.equal(validateLuaLanguageServerPackageLayout(path.join(tempRoot, 'not-installed')).ok, false,
+    'constructing expected filenames cannot qualify missing runtime bytes');
   await createArchive({ archivePath: goodArchivePath, includeMainLua: true });
   const goodResult = runInstaller({ toolingRoot: goodToolingRoot, archivePath: goodArchivePath });
   assert.equal(goodResult.status, 0, goodResult.stderr || goodResult.stdout);
@@ -60,6 +62,22 @@ try {
   assert.equal(await fs.stat(goodLayout.mainLuaPath).then(() => true).catch(() => false), true);
   const prior = resolveManagedLuaLanguageServer(goodToolingRoot);
   const installArgs = { scope: 'cache', 'tooling-root': goodToolingRoot, url: goodArchivePath, retries: 0 };
+  const pointer = path.join(goodToolingRoot, 'servers', 'lua-language-server', 'current.json');
+  const selectedReceipt = await fs.readFile(pointer);
+  const unknownReceipt = Buffer.from(JSON.stringify({ ...JSON.parse(selectedReceipt), pinned: 'future retention owner' }));
+  await fs.writeFile(pointer, unknownReceipt);
+  assert.equal(resolveManagedLuaLanguageServer(goodToolingRoot), null);
+  let unknownCopies = 0;
+  await assert.rejects(installLuaLanguageServer(installArgs, { copy: async () => { unknownCopies++; } }),
+    error => error.reason === 'invalid_existing_selection');
+  assert.equal(unknownCopies, 0);
+  assert.deepEqual(await fs.readFile(pointer), unknownReceipt, 'a requested update cannot normalize away unknown retained metadata');
+  await fs.writeFile(pointer, selectedReceipt);
+  await assert.rejects(installLuaLanguageServer(installArgs, { beforeSelection: async () => { await fs.writeFile(pointer, unknownReceipt); } }),
+    error => error.reason === 'lua_selection_changed' && error.recovery?.priorGenerationRetained === true);
+  assert.deepEqual(await fs.readFile(pointer), unknownReceipt, 'publication rechecks current receipt bytes after replacement preparation');
+  assert.equal(await fs.readFile(prior.mainLuaPath, 'utf8'), 'print("main")\n');
+  await fs.writeFile(pointer, selectedReceipt);
   for (const hooks of [
     { copy: async () => { throw Object.assign(new Error('copy locked'), { code: 'EPERM' }); } },
     { afterValidation: async () => { throw new Error('post-copy rejected'); } },

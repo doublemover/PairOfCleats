@@ -28,4 +28,13 @@ await assert.rejects(runSetupCommand('fixture-child', [], { signal: controller.s
   spawn: async () => { cancelledSpawns++; }
 }), /fixture already interrupted/);
 assert.equal(cancelledSpawns, 0);
+const streaming = [];
+await runSetupCommand('fixture-child', [], { captureStdout: false, captureStderr: false,
+  onStdout: chunk => streaming.push(chunk) }, { spawn: async (_command, _args, options) => {
+  assert.equal(options.captureStdout, false, 'stream-only setup children do not retain unbounded output');
+  assert.equal(options.captureStderr, false);
+  options.onStdout('inert progress');
+  return { exitCode: 0 };
+} });
+assert.deepEqual(streaming, ['inert progress']);
 console.log('Guided setup uses responsive async child ownership and preserves pending cancellation errors.');

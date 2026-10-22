@@ -177,3 +177,28 @@ the actual owned detector. Cancelled discovery does not become an empty language
 report, and a cancelled probe cannot start the next selected tool. The standalone
 detection CLI keeps `130`/`143`, reports interrupted or unsettled readiness in
 JSON, and completes its handler cleanup without an immediate success exit.
+
+The existing Lua sibling publisher also preserves unknown or unreadable current
+selection metadata before acquisition. It pins the exact current receipt bytes
+and checks them again under publication, including after replacement staging.
+Conflicts retain the prepared replacement and prior generation. Lua layout
+results now require nonempty contained regular runtime files; constructing their
+expected filenames alone is not availability or protocol readiness.
+
+Fast target bootstrap uses the same asynchronous command owner for validation,
+tooling detection/installation, dictionary acquisition, restore and build work.
+It preserves terminal pending ownership instead of converting it into an
+optional failure followed by a build. Streaming child progress is forwarded to
+stderr without retaining the full output; tooling JSON alone is bounded and
+captured. The bootstrap CLI handles cancellation through one terminal summary
+and cleanup, and forwards the exact selected repository to restore/index/SQLite
+children. The source and inert command regressions remain UNVALIDATED.
+
+Bootstrap regression replacement keeps the old meaningful boundaries: a real
+CLI smoke against a disposable target still requires one JSON stdout payload
+and stderr logs, and a tiny actual Node child still streams more than one MiB
+through the async adapter with an exact byte count and tail marker. The parent
+retains only that marker suffix. The obsolete fake npm-in-target invocation is
+replaced by explicit assertions that target dependency installation is omitted.
+Inert owner tests separately cover pending teardown, cancellation and target
+argument propagation. All these authored fixtures remain UNVALIDATED.
