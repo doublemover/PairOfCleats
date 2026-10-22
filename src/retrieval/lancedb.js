@@ -271,14 +271,7 @@ export async function rankLanceDb({
 
   const limitBase = normalizePositiveInt(topN, 1) || 1;
   const candidateCount = getCandidateSetSize(candidateSet);
-  const initialLimit = candidateCount
-    ? Math.min(Math.max(limitBase * 4, limitBase + 10), candidateCount)
-    : limitBase;
-  const maxLimit = candidateCount
-    ? Math.min(candidateCount, Math.max(initialLimit, limitBase * 32))
-    : initialLimit;
-
-  const candidateIds = (candidateCount && candidateCount <= CANDIDATE_PUSH_LIMIT && isSafeIdColumn(idColumn))
+  const candidateIds = (candidateCount && isSafeIdColumn(idColumn))
     ? normalizeCandidateSetIds(candidateSet)
     : [];
 
@@ -302,10 +295,10 @@ export async function rankLanceDb({
   const supportsWhere = Boolean(candidateIds.length) && typeof createBaseQuery()?.where === 'function';
   const canPushdown = Boolean(candidateIds.length && supportsWhere);
 
-  const buildQuery = (limit) => {
+  const buildQuery = (limit, ids = candidateIds) => {
     let query = createBaseQuery();
     if (canPushdown && typeof query?.where === 'function') {
-      query = query.where(`${idColumn} IN (${candidateIds.join(',')})`);
+      query = query.where(`${idColumn} IN (${ids.join(',')})`);
     }
     if (typeof query?.limit === 'function') {
       query = query.limit(limit);
@@ -317,40 +310,26 @@ export async function rankLanceDb({
     return query;
   };
 
-  let rows = [];
-  let limit = initialLimit;
-  const maxIterations = candidateCount && !canPushdown ? 4 : 1;
-  for (let attempt = 0; attempt < maxIterations; attempt += 1) {
-    try {
+  try {
+    let rows = [];
+    if (canPushdown) {
+      // Every candidate batch contributes its top N. Their union therefore
+      // contains the global filtered top N, regardless of global ANN position.
+      for (let start = 0; start < candidateIds.length; start += CANDIDATE_PUSH_LIMIT) {
+        rows.push(...await toArray(buildQuery(limitBase, candidateIds.slice(start, start + CANDIDATE_PUSH_LIMIT))));
+      }
+    } else {
+      // Without backend filtering, a complete scan is required. A multiplier
+      // based on candidate count cannot bound the nearest allowed row's rank.
+      const limit = candidateCount ? Number(await table.countRows?.()) : limitBase;
+      if (!Number.isSafeInteger(limit) || limit <= 0) return [];
       rows = await toArray(buildQuery(limit));
-    } catch (err) {
-      warnOnce(
-        'lancedb-query',
-        `[ann] LanceDB query failed; falling back to other ANN backends. ${err?.message || err}`
-      );
-      return [];
     }
-    const limitedHits = filterSortLimitHits({
-      hits: rowsToHits(rows, idColumn, metric),
-      candidateCount,
-      canPushdown,
-      candidateSet,
-      limitBase
+    return filterSortLimitHits({
+      hits: rowsToHits(rows, idColumn, metric), candidateCount, canPushdown, candidateSet, limitBase
     });
-    if (limitedHits.length >= limitBase) {
-      return limitedHits;
-    }
-    if (!rows || rows.length < limit) break;
-    const nextLimit = Math.min(maxLimit, limit * 2);
-    if (nextLimit <= limit) break;
-    limit = nextLimit;
+  } catch (err) {
+    warnOnce('lancedb-query', `[ann] LanceDB query failed; falling back to other ANN backends. ${err?.message || err}`);
+    return [];
   }
-
-  return filterSortLimitHits({
-    hits: rowsToHits(rows, idColumn, metric),
-    candidateCount,
-    canPushdown,
-    candidateSet,
-    limitBase
-  });
 }
