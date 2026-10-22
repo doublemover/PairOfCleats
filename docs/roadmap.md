@@ -104,7 +104,7 @@ The refreshed inventory adds ten Other research/features (#1531–#1540) and
 expands modern viewer/semantic acceptance; prior source repairs retain credit
 without implying those new requirements are satisfied. Storage/category, native,
 editor, provisioning, bounded discovery and durable viewer preference releases
-now have durable partial mappings. Shared compilerBindings12/lspBindings16 and
+now have durable partial mappings. Shared compilerBindings13/lspBindings17 and
 discoverySelection2/signature14 identify the new acquisition/selection meaning.
 
 Source checkpoints through 101f3641f add local loaded-response find, source-qualified
@@ -118,6 +118,14 @@ semantic sink with shared meaning versions advanced. Navigation mappings, full
 provider onboarding, cache migration, native service ownership and representative
 performance remain partial. Every new regression is unexecuted; generated surfaces,
 changed dependency bootstrap and the final Windows validation batch are deferred.
+
+Latest source-only continuation adds exact semantic navigation pins, reviewed
+category destination selection, retained native-child authority, bounded complete
+lexical reuse, selective SQLite BM25 hydration, owned setup/download lifetimes
+and map snapshot workers. Astra has staged internal slices for #1504-#1507;
+public/operational integration and all new qualification remain open. See the
+current repair receipt for exact commits and remaining obligations. No current
+source suite or speedup is claimed.
 
 ## Environment and qualification boundaries
 
