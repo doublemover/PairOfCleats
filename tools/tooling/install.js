@@ -112,7 +112,7 @@ for (const tool of tools) {
   }
   // Launch requirements are checked even when server bytes already exist.
   const provisioning = await verifyToolProvisioningPlan(createToolProvisioningPlan({ tool,
-    selection: verifiedPath ? { ...selection, plan: null } : selection, isAllowed: isAllowedRequirementCommand }),
+    selection: verifiedPath ? { ...selection, plan: null } : selection, isAllowed: isAllowedRequirementCommand, signal: cancellation.signal }),
   { signal: cancellation.signal, cwd: installationCwd });
   const blockedPrerequisites = provisioning.steps.filter(step => ['missing', 'incompatible'].includes(step.state)
     && step.id !== 'go');

@@ -253,3 +253,18 @@ immutable upstream source or transitive integrity. New observation receipts set
 descriptors retain their separate existing integrity owner and are not treated
 as ordinary command recipes. These publication, conflict and metadata controls
 are authored source and fixtures only and remain UNVALIDATED.
+
+Prerequisite executable identity now reads bounded bytes through the existing
+contained-descriptor verifier after resolving the selected physical path.
+Planning rechecks trust for that physical target. Synchronous and asynchronous
+version probes execute that identified path and compare its original physical
+path, digest and byte count before and after probing. Successful output cannot
+bless bytes replaced during the probe, and a previous alias-shaped plan cannot
+launch a newly redirected alias while hashing the old physical file.
+
+The actual installer forwards cancellation into prerequisite planning as well
+as asynchronous verification. Cancellation after a probe stops further probes
+and qualification. These checks preserve existing bounded child ownership;
+pre/post identification does not claim an atomic operating-system executable
+launch guarantee for independently mutable external files. Authored inert-probe
+and actual-file identity fixtures remain UNVALIDATED.

@@ -6,17 +6,18 @@ import { findBinaryOnPath } from '../../src/index/tooling/binary-utils.js';
 import { resolveInstallerRequirementProbeArgs, verifyInstallerRequirementProbe } from './install-requirements.js';
 import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
+import { readVerifiedContainedFileSync } from '../../src/shared/contained-file.js';
 
 const digest = value => createHash('sha256').update(value).digest('hex');
-export const identifyProvisioningExecutable = command => {
+export const identifyProvisioningExecutable = (command, { signal = null } = {}) => {
+  signal?.throwIfAborted();
   const physical = fs.realpathSync(command);
-  const before = fs.statSync(physical);
-  if (!before.isFile() || before.size > 256 * 1024 * 1024) throw new Error('Provisioning executable must be a bounded regular file.');
-  const sha256 = digest(fs.readFileSync(physical));
-  const after = fs.statSync(physical);
-  if (before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) throw new Error('Provisioning executable changed during identification.');
-  return { path: physical, sha256, size: before.size };
+  const { hash: sha256, stat } = readVerifiedContainedFileSync(path.parse(physical).root, physical,
+    { maxBytes: 256 * 1024 * 1024, signal });
+  return { path: physical, sha256, size: stat.size };
 };
+const sameExecutable = (actual, expected) => actual.path === expected.path && actual.sha256 === expected.sha256
+  && actual.size === expected.size;
 
 /** A single declaration is attached to the canonical tool registry, not another tool catalog. */
 export const normalizeToolProvisioningDeclaration = tool => {
@@ -66,26 +67,38 @@ export const orderProvisioningRequirements = requirements => {
 };
 
 export const createToolProvisioningPlan = ({ tool, selection, probe = null, resolve = findBinaryOnPath,
-  isAllowed = () => true, env = process.env } = {}) => {
+  isAllowed = () => true, env = process.env, signal = null } = {}) => {
+  signal?.throwIfAborted();
   const declared = [...(tool.prerequisites || []).filter(entry => entry.phase !== 'analysis'), ...(selection.plan?.prerequisites || [])];
   const requirements = orderProvisioningRequirements(declared);
   const steps = requirements.map(requirement => {
+    signal?.throwIfAborted();
     const command = path.isAbsolute(requirement.command) ? requirement.command : resolve(requirement.command);
     if (!command || !isAllowed(command)) return { ...requirement, state: 'missing', reason: 'command-missing-or-untrusted',
       nextAction: requirement.systemAction || requirement.recipe || 'No qualified managed recipe is declared for this requirement/platform.' };
     let executable;
-    try { executable = identifyProvisioningExecutable(command); }
-    catch (error) { return { ...requirement, command, state: 'missing', reason: 'command-bytes-unavailable',
-      errorCode: error.code || 'ERR_PREREQUISITE_BYTES', nextAction: 'Repair the exact selected command path, then re-plan; no fallback was executed.' }; }
-    if (!probe) return { ...requirement, command, state: 'not-probed', verificationLevel: null, executable };
+    try { executable = identifyProvisioningExecutable(command, { signal }); }
+    catch (error) {
+      if (signal?.aborted || error.cacheOwnershipPending === true) throw error;
+      return { ...requirement, command, state: 'missing', reason: 'command-bytes-unavailable',
+        errorCode: error.code || 'ERR_PREREQUISITE_BYTES', nextAction: 'Repair the exact selected command path, then re-plan; no fallback was executed.' };
+    }
+    const selected = executable.path;
+    if (!isAllowed(selected)) return { ...requirement, command: selected, state: 'missing', reason: 'command-missing-or-untrusted',
+      nextAction: 'The resolved physical prerequisite is not trusted; select an approved runtime and re-plan.' };
+    if (!probe) return { ...requirement, command: selected, state: 'not-probed', verificationLevel: null, executable };
     let verification = null;
     for (const args of resolveInstallerRequirementProbeArgs(requirement.family || requirement.id)) {
-      const outcome = probe(command, args, { env: resolveNoProvisionToolingEnvironment(env, { command, providerId: requirement.id }),
+      signal?.throwIfAborted();
+      if (!sameExecutable(identifyProvisioningExecutable(selected, { signal }), executable)) throw new Error('Prerequisite bytes changed before verification: ' + requirement.id);
+      const outcome = probe(selected, args, { signal, env: resolveNoProvisionToolingEnvironment(env, { command: selected, providerId: requirement.id }),
         timeoutMs: 4000, maxOutputBytes: 65536, stdio: 'pipe', outputEncoding: 'utf8' });
+      signal?.throwIfAborted();
+      if (!sameExecutable(identifyProvisioningExecutable(selected, { signal }), executable)) throw new Error('Prerequisite bytes changed during verification: ' + requirement.id);
       verification = verifyInstallerRequirementProbe(requirement.family || requirement.id, outcome, requirement);
-      if (verification.ok) return { ...requirement, command, args, state: 'verified', ...verification, executable: identifyProvisioningExecutable(command) };
+      if (verification.ok) return { ...requirement, command: selected, args, state: 'verified', ...verification, executable };
     }
-    return { ...requirement, command, state: 'incompatible', ...verification,
+    return { ...requirement, command: selected, state: 'incompatible', ...verification,
       nextAction: 'Retain explicit selections; repair the reported runtime/components, then re-plan.' };
   });
   const body = { schemaVersion: 1, kind: 'tool-provisioning-plan', toolId: tool.id, scope: selection.scope,
@@ -102,7 +115,7 @@ export const bindProvisioningCommand = (action, plan, baseEnv = process.env) => 
   childEnv[pathKey] = [...directories, childEnv[pathKey] || ''].filter(Boolean).join(path.delimiter);
   for (const step of plan.steps.filter(entry => entry.state === 'verified')) {
     const current = identifyProvisioningExecutable(step.executable.path);
-    if (current.sha256 !== step.executable.sha256) throw new Error(`Prerequisite bytes changed after verification: ${step.id}`);
+    if (!sameExecutable(current, step.executable)) throw new Error(`Prerequisite bytes changed after verification: ${step.id}`);
   }
   return { command: manager && action.cmd === action.requires ? manager.executable.path : action.cmd,
     args: action.args, env: childEnv, prerequisites: plan.steps };
@@ -131,16 +144,19 @@ export const verifyToolProvisioningPlan = async (plan, { env = process.env, sign
   for (const step of plan.steps) {
     signal?.throwIfAborted();
     if (step.state === 'missing') { steps.push(step); continue; }
-    if (!step.executable || identifyProvisioningExecutable(step.executable.path).sha256 !== step.executable.sha256) throw new Error('Prerequisite bytes changed before async verification: ' + step.id);
+    if (!step.executable || !sameExecutable(identifyProvisioningExecutable(step.executable.path, { signal }), step.executable)) throw new Error('Prerequisite bytes changed before async verification: ' + step.id);
     let verification = null, acceptedArgs = null;
     for (const args of resolveInstallerRequirementProbeArgs(step.family || step.id)) {
-      const result = await probe(step.command, args, { cwd, signal, env: resolveNoProvisionToolingEnvironment(env, { command: step.command, providerId: step.id }),
+      signal?.throwIfAborted();
+      const command = step.executable.path;
+      const result = await probe(command, args, { cwd, signal, env: resolveNoProvisionToolingEnvironment(env, { command, providerId: step.id }),
         timeoutMs: 4000, maxOutputBytes: 65536 });
-      if (identifyProvisioningExecutable(step.executable.path).sha256 !== step.executable.sha256) throw new Error('Prerequisite bytes changed during async verification: ' + step.id);
+      signal?.throwIfAborted();
+      if (!sameExecutable(identifyProvisioningExecutable(command, { signal }), step.executable)) throw new Error('Prerequisite bytes changed during async verification: ' + step.id);
       verification = verifyInstallerRequirementProbe(step.family || step.id, result, step);
       if (verification.ok) { acceptedArgs = args; break; }
     }
-    steps.push({ ...step, ...verification, state: verification?.ok ? 'verified' : 'incompatible',
+    steps.push({ ...step, command: step.executable.path, ...verification, state: verification?.ok ? 'verified' : 'incompatible',
       ...(acceptedArgs ? { args: acceptedArgs } : { nextAction: 'Repair the exact selected runtime/components, then re-plan.' }) });
   }
   const { planId: _previousIdentity, ...body } = plan;
