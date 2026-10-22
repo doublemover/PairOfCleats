@@ -57,7 +57,10 @@ The user's latest direction defers validation until the broad backlog developmen
 pass is complete. Both agents and the lead edit real repository files and author
 regressions without executing tests, syntax campaigns or formatting. Publish
 completed owner groups as explicitly **unvalidated development checkpoints**;
-these commits do not replace the last qualified source identified above. After
+these commits do not replace the last qualified source identified above. Recent source batches cover final response/risk
+accounting, MCP domain errors, TUI bounded flow and event timing, architecture
+detection, canonical map member/file inventory and editor generation-bound
+risk requests. Their regressions remain unexecuted. After
 the development pass, prepare the changed dependency installation, establish
 fail-before controls where required, run affected checks and the complete front
 gate, then reconcile Windows cohorts. Do not run repeated broad suites,

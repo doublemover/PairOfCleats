@@ -1159,31 +1159,31 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1370](https://github.com/doublemover/PairOfCleats/issues/1370) | other | [Viewer] Keep semantic selection, highlight and source actions coherent outside drawn scope | pending |
 | [#1371](https://github.com/doublemover/PairOfCleats/issues/1371) | P2 | [P2] Serve the complete viewer module graph in FPS and LOD benchmark previews | pending |
 | [#1372](https://github.com/doublemover/PairOfCleats/issues/1372) | P2 | [P2] Gate Three.js browser qualification on phase-local errors and a rendered scene | pending |
-| [#1373](https://github.com/doublemover/PairOfCleats/issues/1373) | P2 | [P2] Reconcile repo-map and canonical chunk identities before building map members | pending |
-| [#1374](https://github.com/doublemover/PairOfCleats/issues/1374) | P2 | [P2] Keep indexed files and import edges when a file has no named map member | pending |
-| [#1375](https://github.com/doublemover/PairOfCleats/issues/1375) | P2 | [P2] Preserve alias dataflow evidence through code-map normalization | pending |
-| [#1376](https://github.com/doublemover/PairOfCleats/issues/1376) | P3 | [P3] Preserve opaque IDs when resolving connected-entity highlights | pending |
+| [#1373](https://github.com/doublemover/PairOfCleats/issues/1373) | P2 | [P2] Reconcile repo-map and canonical chunk identities before building map members | source repair and regression authored; unvalidated |
+| [#1374](https://github.com/doublemover/PairOfCleats/issues/1374) | P2 | [P2] Keep indexed files and import edges when a file has no named map member | source repair and regression authored; unvalidated |
+| [#1375](https://github.com/doublemover/PairOfCleats/issues/1375) | P2 | [P2] Preserve alias dataflow evidence through code-map normalization | source repair and regression authored; unvalidated |
+| [#1376](https://github.com/doublemover/PairOfCleats/issues/1376) | P3 | [P3] Preserve opaque IDs when resolving connected-entity highlights | source repair and regression authored; unvalidated |
 | [#1377](https://github.com/doublemover/PairOfCleats/issues/1377) | other | [Viewer] Compute height fog from actual instance and line world positions | pending |
-| [#1378](https://github.com/doublemover/PairOfCleats/issues/1378) | P2 | [P2] Resolve editor risk explain against the selected code generation instead of repo-local index-code | pending |
+| [#1378](https://github.com/doublemover/PairOfCleats/issues/1378) | P2 | [P2] Resolve editor risk explain against the selected code generation instead of repo-local index-code | source repair and regression authored; unvalidated |
 | [#1379](https://github.com/doublemover/PairOfCleats/issues/1379) | P2 | [P2] Discover validation modes from the explicit index root rather than the current generation | pending |
 | [#1380](https://github.com/doublemover/PairOfCleats/issues/1380) | P2 | [P2] Resolve index stats from every published mode root instead of one latest build | pending |
 | [#1381](https://github.com/doublemover/PairOfCleats/issues/1381) | other | [Viewer] Stream generation-pinned graph data through a worker-owned incremental scene pipeline | pending |
 | [#1382](https://github.com/doublemover/PairOfCleats/issues/1382) | perf | [Perf] Replace cubic map adjacency ordering with incremental candidate scores | pending |
 | [#1383](https://github.com/doublemover/PairOfCleats/issues/1383) | P2 | [P2] Preserve setup's explicit repository target across index and artifact-restore children | pending |
 | [#1384](https://github.com/doublemover/PairOfCleats/issues/1384) | P2 | [P2] Make index health honor selected modes and intentionally absent optional backends | pending |
-| [#1385](https://github.com/doublemover/PairOfCleats/issues/1385) | P2 | [P2] Keep the TUI flow queue hard-bounded when no queued log can be evicted | pending |
-| [#1386](https://github.com/doublemover/PairOfCleats/issues/1386) | P2 | [P2] Preserve task terminal events under TUI progress backpressure | pending |
+| [#1385](https://github.com/doublemover/PairOfCleats/issues/1385) | P2 | [P2] Keep the TUI flow queue hard-bounded when no queued log can be evicted | source repair and regression authored; unvalidated |
+| [#1386](https://github.com/doublemover/PairOfCleats/issues/1386) | P2 | [P2] Preserve task terminal events under TUI progress backpressure | source repair and regression authored; unvalidated |
 | [#1387](https://github.com/doublemover/PairOfCleats/issues/1387) | perf | [Perf] Partition persistent embedding indexes by complete identity to preserve warm profiles | pending |
 | [#1388](https://github.com/doublemover/PairOfCleats/issues/1388) | perf | [Perf] Avoid duplicate quantized payloads across file and global chunk caches | pending |
-| [#1389](https://github.com/doublemover/PairOfCleats/issues/1389) | P2 | [P2] Measure native TUI event lag instead of displaying a constant zero | pending |
-| [#1390](https://github.com/doublemover/PairOfCleats/issues/1390) | P2 | [P2] Make removed search-option repair hints produce valid equivalent requests | pending |
+| [#1389](https://github.com/doublemover/PairOfCleats/issues/1389) | P2 | [P2] Measure native TUI event lag instead of displaying a constant zero | source repair and regression authored; unvalidated |
+| [#1390](https://github.com/doublemover/PairOfCleats/issues/1390) | P2 | [P2] Make removed search-option repair hints produce valid equivalent requests | source repair and regression authored; unvalidated |
 | [#1391](https://github.com/doublemover/PairOfCleats/issues/1391) | other | [Docs] Keep service diagnosis and recovery recipes bound to one explicit config and queue | pending |
 | [#1392](https://github.com/doublemover/PairOfCleats/issues/1392) | other | [Docs] Validate authored command and config recipes against executable contracts | pending |
-| [#1393](https://github.com/doublemover/PairOfCleats/issues/1393) | P2 | [P2] Resolve queued TUI keys after modal transitions instead of executing stale shortcuts | pending |
+| [#1393](https://github.com/doublemover/PairOfCleats/issues/1393) | P2 | [P2] Resolve queued TUI keys after modal transitions instead of executing stale shortcuts | source repair and regression authored; unvalidated |
 | [#1394](https://github.com/doublemover/PairOfCleats/issues/1394) | perf | [Performance] Bound recorded-session seeks instead of replaying the entire prefix on the UI thread | pending |
 | [#1395](https://github.com/doublemover/PairOfCleats/issues/1395) | other | [Docs] Document state-preserving source upgrades and required artifact rebuilds | pending |
 | [#1396](https://github.com/doublemover/PairOfCleats/issues/1396) | perf | [Perf] Shard persistent tree-sitter chunks by digest instead of constant namespace prefix | pending |
-| [#1397](https://github.com/doublemover/PairOfCleats/issues/1397) | P1 | [P1] Preserve pending subprocess cleanup before releasing the build cache-writer lock | pending |
+| [#1397](https://github.com/doublemover/PairOfCleats/issues/1397) | P1 | [P1] Preserve pending subprocess cleanup before releasing the build cache-writer lock | source repair and regression authored; unvalidated |
 | [#1398](https://github.com/doublemover/PairOfCleats/issues/1398) | P2 | [P2] Preserve exclusion and quoted-phrase gates under --match any | pending |
 | [#1399](https://github.com/doublemover/PairOfCleats/issues/1399) | P2 | [P2] Bind inlay type hints to their declaration role before assigning function returns | pending |
 | [#1400](https://github.com/doublemover/PairOfCleats/issues/1400) | P2 | [P2] Resolve CI export sources after child builds publish their generations | pending |
@@ -1199,7 +1199,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1410](https://github.com/doublemover/PairOfCleats/issues/1410) | P2 | [P2] Preserve PDF.js end-of-line markers after their text items | pending |
 | [#1411](https://github.com/doublemover/PairOfCleats/issues/1411) | P2 | [P2] Retain tabs and breaks between DOCX fallback text runs | pending |
 | [#1412](https://github.com/doublemover/PairOfCleats/issues/1412) | perf | [Perf] Map document chunks to units without rescanning every page or paragraph | pending |
-| [#1413](https://github.com/doublemover/PairOfCleats/issues/1413) | P2 | [P2] Preserve omitted architecture caps instead of silently skipping every rule check | pending |
+| [#1413](https://github.com/doublemover/PairOfCleats/issues/1413) | P2 | [P2] Preserve omitted architecture caps instead of silently skipping every rule check | source repair and regression authored; unvalidated |
 | [#1414](https://github.com/doublemover/PairOfCleats/issues/1414) | P2 | [P2] Preserve significant whitespace and escapes in ignore-rule text | pending |
 | [#1415](https://github.com/doublemover/PairOfCleats/issues/1415) | P2 | [P2] Populate literal phrase evidence in records index chunks | pending |
 | [#1416](https://github.com/doublemover/PairOfCleats/issues/1416) | P2 | [P2] Preserve per-mode build identity when freezing mixed-generation snapshots | pending |
@@ -1210,16 +1210,16 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1421](https://github.com/doublemover/PairOfCleats/issues/1421) | P2 | [P2] Preserve ambiguous symbol candidates across graph lookup and traversal caps | pending |
 | [#1422](https://github.com/doublemover/PairOfCleats/issues/1422) | P2 | [P2] Mark watchdog-killed test attempts as interrupted instead of passed | pending |
 | [#1423](https://github.com/doublemover/PairOfCleats/issues/1423) | P2 | [P2] Reject malformed benchmark waivers instead of granting indefinite global exceptions | pending |
-| [#1424](https://github.com/doublemover/PairOfCleats/issues/1424) | P2 | [P2] Preserve domain classification and structured evidence in MCP tool errors | pending |
-| [#1425](https://github.com/doublemover/PairOfCleats/issues/1425) | P3 | [P3] Enforce semantic-find response bytes when no records survive filtering | pending |
-| [#1426](https://github.com/doublemover/PairOfCleats/issues/1426) | P2 | [P2] Report mean function cyclomatic complexity instead of the module aggregate | pending |
-| [#1427](https://github.com/doublemover/PairOfCleats/issues/1427) | P2 | [P2] Stop silently dropping complexity metadata for valid ESM imports and exports | pending |
+| [#1424](https://github.com/doublemover/PairOfCleats/issues/1424) | P2 | [P2] Preserve domain classification and structured evidence in MCP tool errors | source repair and regression authored; unvalidated |
+| [#1425](https://github.com/doublemover/PairOfCleats/issues/1425) | P3 | [P3] Enforce semantic-find response bytes when no records survive filtering | source repair and regression authored; unvalidated |
+| [#1426](https://github.com/doublemover/PairOfCleats/issues/1426) | P2 | [P2] Report mean function cyclomatic complexity instead of the module aggregate | source repair and regression authored; unvalidated |
+| [#1427](https://github.com/doublemover/PairOfCleats/issues/1427) | P2 | [P2] Stop silently dropping complexity metadata for valid ESM imports and exports | source repair and regression authored; unvalidated |
 | [#1428](https://github.com/doublemover/PairOfCleats/issues/1428) | P2 | [P2] Keep changed files without coverage observations visible in policy reports | pending |
 | [#1429](https://github.com/doublemover/PairOfCleats/issues/1429) | P2 | [P2] Preserve configured LanceDB vector columns with an explicit queryable schema | pending |
 | [#1430](https://github.com/doublemover/PairOfCleats/issues/1430) | perf | [Perf] Reuse verified operation-index reads within semantic-find pages | pending |
-| [#1431](https://github.com/doublemover/PairOfCleats/issues/1431) | P2 | [P2] Convert indexed UTF-16 spans before slicing context excerpts from UTF-8 source | pending |
-| [#1432](https://github.com/doublemover/PairOfCleats/issues/1432) | P2 | [P2] Enforce context-pack response bytes after JSON and SARIF rendering | pending |
-| [#1433](https://github.com/doublemover/PairOfCleats/issues/1433) | P3 | [P3] Hydrate call sites only after risk-flow budget admission | pending |
+| [#1431](https://github.com/doublemover/PairOfCleats/issues/1431) | P2 | [P2] Convert indexed UTF-16 spans before slicing context excerpts from UTF-8 source | source repair and regression authored; unvalidated |
+| [#1432](https://github.com/doublemover/PairOfCleats/issues/1432) | P2 | [P2] Enforce context-pack response bytes after JSON and SARIF rendering | source repair and regression authored; unvalidated |
+| [#1433](https://github.com/doublemover/PairOfCleats/issues/1433) | P3 | [P3] Hydrate call sites only after risk-flow budget admission | source repair and regression authored; unvalidated |
 | [#1434](https://github.com/doublemover/PairOfCleats/issues/1434) | P2 | [P2] Use C# declaration name fields instead of naming members after their return types | pending |
 | [#1435](https://github.com/doublemover/PairOfCleats/issues/1435) | P2 | [P2] Include Dart function bodies and emit one chunk per declaration | pending |
 | [#1436](https://github.com/doublemover/PairOfCleats/issues/1436) | P2 | [P2] Preserve Julia bang-suffixed names in native declaration chunks | pending |
@@ -1234,13 +1234,13 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1445](https://github.com/doublemover/PairOfCleats/issues/1445) | P2 | [P2] Preserve every affected package in AWS Inspector findings | pending |
 | [#1446](https://github.com/doublemover/PairOfCleats/issues/1446) | P2 | [P2] Map AWS Inspector fixedInVersion into canonical remediation evidence | pending |
 | [#1447](https://github.com/doublemover/PairOfCleats/issues/1447) | P2 | [P2] Fix Windows SQLite Unicode path prefetch leaving deleted chunks searchable | pending |
-| [#1448](https://github.com/doublemover/PairOfCleats/issues/1448) | P2 | [P2] Keep unavailable risk-explain evidence distinct from a successful zero-flow report | pending |
+| [#1448](https://github.com/doublemover/PairOfCleats/issues/1448) | P2 | [P2] Keep unavailable risk-explain evidence distinct from a successful zero-flow report | source repair and regression authored; unvalidated |
 | [#1449](https://github.com/doublemover/PairOfCleats/issues/1449) | P2 | [P2] Include canonical JSON sidecars in records incremental SQLite identity | pending |
 | [#1450](https://github.com/doublemover/PairOfCleats/issues/1450) | P2 | [P2] Give inference-history hybrid search its own valid continuation contract | pending |
 | [#1451](https://github.com/doublemover/PairOfCleats/issues/1451) | perf | [Perf] Reuse unchanged record bundles before tokenization and inline embedding | pending |
-| [#1452](https://github.com/doublemover/PairOfCleats/issues/1452) | P2 | [P2] Preserve omitted-flow counts when risk explain applies its result caps | pending |
+| [#1452](https://github.com/doublemover/PairOfCleats/issues/1452) | P2 | [P2] Preserve omitted-flow counts when risk explain applies its result caps | source repair and regression authored; unvalidated |
 | [#1453](https://github.com/doublemover/PairOfCleats/issues/1453) | perf | [Perf] Reuse the task-turn lookup when reading history context and timelines | pending |
-| [#1454](https://github.com/doublemover/PairOfCleats/issues/1454) | P3 | [P3] Avoid building unused risk-report formats and duplicate SARIF projections | pending |
+| [#1454](https://github.com/doublemover/PairOfCleats/issues/1454) | P3 | [P3] Avoid building unused risk-report formats and duplicate SARIF projections | source repair and regression authored; unvalidated |
 | [#1455](https://github.com/doublemover/PairOfCleats/issues/1455) | P2 | [P2] Admit Swift init/deinit nodes and name subscripts by their declaration role | pending |
 | [#1456](https://github.com/doublemover/PairOfCleats/issues/1456) | P2 | [P2] Resolve Swift declaration kinds from grammar tokens rather than an unmodified text prefix | pending |
 | [#1457](https://github.com/doublemover/PairOfCleats/issues/1457) | P2 | [P2] Emit Kotlin enums and interfaces from their declaration nodes, not enum bodies | pending |
@@ -1262,34 +1262,34 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1473](https://github.com/doublemover/PairOfCleats/issues/1473) | P2 | [P2] Preserve C++ qualified and operator names instead of regex-truncating declarators | pending |
 | [#1474](https://github.com/doublemover/PairOfCleats/issues/1474) | P2 | [P2] Capture C and C++ function prototypes from the grammar's declaration nodes | pending |
 | [#1475](https://github.com/doublemover/PairOfCleats/issues/1475) | P2 | [P2] Pass C-family chunks through registry relations and doc-metadata adapters | pending |
-| [#1476](https://github.com/doublemover/PairOfCleats/issues/1476) | P2 | [P2] Preserve assignment-style Lua functions beside native declarations | pending |
-| [#1477](https://github.com/doublemover/PairOfCleats/issues/1477) | P2 | [P2] Exclude Lua declaration headers from call relations without removing real recursion | pending |
-| [#1478](https://github.com/doublemover/PairOfCleats/issues/1478) | P2 | [P2] Extract Bash call summaries from command roles instead of line-start words | pending |
-| [#1479](https://github.com/doublemover/PairOfCleats/issues/1479) | P2 | [P2] Preserve Ruby singleton receivers before name-keyed call attribution | pending |
-| [#1480](https://github.com/doublemover/PairOfCleats/issues/1480) | P2 | [P2] Admit PHP enums without dropping their source and method ownership | pending |
-| [#1481](https://github.com/doublemover/PairOfCleats/issues/1481) | P2 | [P2] Preserve Ruby and PHP callable metadata on successful native parsing | pending |
-| [#1482](https://github.com/doublemover/PairOfCleats/issues/1482) | P2 | [P2] Exclude Ruby and bodyless PHP declaration headers from call evidence | pending |
-| [#1483](https://github.com/doublemover/PairOfCleats/issues/1483) | P2 | [P2] Preserve complete quoted Bash source paths before import resolution | pending |
+| [#1476](https://github.com/doublemover/PairOfCleats/issues/1476) | P2 | [P2] Preserve assignment-style Lua functions beside native declarations | source repair and regression authored; unvalidated |
+| [#1477](https://github.com/doublemover/PairOfCleats/issues/1477) | P2 | [P2] Exclude Lua declaration headers from call relations without removing real recursion | source repair and regression authored; unvalidated |
+| [#1478](https://github.com/doublemover/PairOfCleats/issues/1478) | P2 | [P2] Extract Bash call summaries from command roles instead of line-start words | source repair and regression authored; unvalidated |
+| [#1479](https://github.com/doublemover/PairOfCleats/issues/1479) | P2 | [P2] Preserve Ruby singleton receivers before name-keyed call attribution | source repair and regression authored; unvalidated |
+| [#1480](https://github.com/doublemover/PairOfCleats/issues/1480) | P2 | [P2] Admit PHP enums without dropping their source and method ownership | source repair and regression authored; unvalidated |
+| [#1481](https://github.com/doublemover/PairOfCleats/issues/1481) | P2 | [P2] Preserve Ruby and PHP callable metadata on successful native parsing | source repair and regression authored; unvalidated |
+| [#1482](https://github.com/doublemover/PairOfCleats/issues/1482) | P2 | [P2] Exclude Ruby and bodyless PHP declaration headers from call evidence | source repair and regression authored; unvalidated |
+| [#1483](https://github.com/doublemover/PairOfCleats/issues/1483) | P2 | [P2] Preserve complete quoted Bash source paths before import resolution | source repair and regression authored; unvalidated |
 | [#1484](https://github.com/doublemover/PairOfCleats/issues/1484) | P2 | [P2] Scope managed heuristic calls to declarations instead of file-wide Cartesian pairs | pending |
-| [#1485](https://github.com/doublemover/PairOfCleats/issues/1485) | P2 | [P2] Preserve Jinja capture-set blocks when filters contain equals signs | pending |
-| [#1486](https://github.com/doublemover/PairOfCleats/issues/1486) | P2 | [P2] Do not name Scala extension groups after type parameters or their first methods | pending |
-| [#1487](https://github.com/doublemover/PairOfCleats/issues/1487) | P2 | [P2] Admit Scala package objects and givens without losing source or member ownership | pending |
-| [#1488](https://github.com/doublemover/PairOfCleats/issues/1488) | P2 | [P2] Preserve literal template dependency identities through import normalization | pending |
-| [#1489](https://github.com/doublemover/PairOfCleats/issues/1489) | P2 | [P2] Retain CSS @scope containers when native parsing finds nested rules | pending |
-| [#1490](https://github.com/doublemover/PairOfCleats/issues/1490) | P2 | [P2] Derive CSS selector names from syntax instead of quoted punctuation | pending |
-| [#1491](https://github.com/doublemover/PairOfCleats/issues/1491) | P2 | [P2] Parse logical CMake commands before collecting literal imports | pending |
-| [#1492](https://github.com/doublemover/PairOfCleats/issues/1492) | P2 | [P2] Keep Make recipes and assignments out of logical prerequisite imports | pending |
-| [#1493](https://github.com/doublemover/PairOfCleats/issues/1493) | P2 | [P2] Preserve Starlark argument lexical roles when collecting build imports | pending |
-| [#1494](https://github.com/doublemover/PairOfCleats/issues/1494) | P2 | [P2] Preserve Unicode Jinja and Django identifiers instead of publishing ASCII fragments | pending |
-| [#1495](https://github.com/doublemover/PairOfCleats/issues/1495) | P2 | [P2] Resolve R function identities from assignment ASTs instead of keyword name fields | pending |
-| [#1496](https://github.com/doublemover/PairOfCleats/issues/1496) | P2 | [P2] Retain native signatures and docs in shared heuristic adapter projections | pending |
-| [#1497](https://github.com/doublemover/PairOfCleats/issues/1497) | P2 | [P2] Parse R library and require arguments without corrupting dependency specifiers | pending |
-| [#1498](https://github.com/doublemover/PairOfCleats/issues/1498) | P2 | [P2] Preserve SQL declaration identities when mixed statements select the fallback chunker | pending |
-| [#1499](https://github.com/doublemover/PairOfCleats/issues/1499) | P2 | [P2] Make SQL statement splitting honor dialect-specific quoting and nested comments | pending |
-| [#1500](https://github.com/doublemover/PairOfCleats/issues/1500) | P2 | [P2] Ignore SQL include directives inside literals and decode quoted include paths | pending |
-| [#1501](https://github.com/doublemover/PairOfCleats/issues/1501) | P2 | [P2] Preserve XML root metadata and leading mixed content in indexed chunks | pending |
-| [#1502](https://github.com/doublemover/PairOfCleats/issues/1502) | P2 | [P2] Keep YAML top-level chunks inside their original document boundaries | pending |
-| [#1503](https://github.com/doublemover/PairOfCleats/issues/1503) | P2 | [P2] Preserve Starlark function bodies instead of heading-splitting nested calls and strings | pending |
+| [#1485](https://github.com/doublemover/PairOfCleats/issues/1485) | P2 | [P2] Preserve Jinja capture-set blocks when filters contain equals signs | source repair and regression authored; unvalidated |
+| [#1486](https://github.com/doublemover/PairOfCleats/issues/1486) | P2 | [P2] Do not name Scala extension groups after type parameters or their first methods | source repair and regression authored; unvalidated |
+| [#1487](https://github.com/doublemover/PairOfCleats/issues/1487) | P2 | [P2] Admit Scala package objects and givens without losing source or member ownership | source repair and regression authored; unvalidated |
+| [#1488](https://github.com/doublemover/PairOfCleats/issues/1488) | P2 | [P2] Preserve literal template dependency identities through import normalization | source repair and regression authored; unvalidated |
+| [#1489](https://github.com/doublemover/PairOfCleats/issues/1489) | P2 | [P2] Retain CSS @scope containers when native parsing finds nested rules | source repair and regression authored; unvalidated |
+| [#1490](https://github.com/doublemover/PairOfCleats/issues/1490) | P2 | [P2] Derive CSS selector names from syntax instead of quoted punctuation | source repair and regression authored; unvalidated |
+| [#1491](https://github.com/doublemover/PairOfCleats/issues/1491) | P2 | [P2] Parse logical CMake commands before collecting literal imports | source repair and regression authored; unvalidated |
+| [#1492](https://github.com/doublemover/PairOfCleats/issues/1492) | P2 | [P2] Keep Make recipes and assignments out of logical prerequisite imports | source repair and regression authored; unvalidated |
+| [#1493](https://github.com/doublemover/PairOfCleats/issues/1493) | P2 | [P2] Preserve Starlark argument lexical roles when collecting build imports | source repair and regression authored; unvalidated |
+| [#1494](https://github.com/doublemover/PairOfCleats/issues/1494) | P2 | [P2] Preserve Unicode Jinja and Django identifiers instead of publishing ASCII fragments | source repair and regression authored; unvalidated |
+| [#1495](https://github.com/doublemover/PairOfCleats/issues/1495) | P2 | [P2] Resolve R function identities from assignment ASTs instead of keyword name fields | source repair and regression authored; unvalidated |
+| [#1496](https://github.com/doublemover/PairOfCleats/issues/1496) | P2 | [P2] Retain native signatures and docs in shared heuristic adapter projections | source repair and regression authored; unvalidated |
+| [#1497](https://github.com/doublemover/PairOfCleats/issues/1497) | P2 | [P2] Parse R library and require arguments without corrupting dependency specifiers | source repair and regression authored; unvalidated |
+| [#1498](https://github.com/doublemover/PairOfCleats/issues/1498) | P2 | [P2] Preserve SQL declaration identities when mixed statements select the fallback chunker | source repair and regression authored; unvalidated |
+| [#1499](https://github.com/doublemover/PairOfCleats/issues/1499) | P2 | [P2] Make SQL statement splitting honor dialect-specific quoting and nested comments | source repair and regression authored; unvalidated |
+| [#1500](https://github.com/doublemover/PairOfCleats/issues/1500) | P2 | [P2] Ignore SQL include directives inside literals and decode quoted include paths | source repair and regression authored; unvalidated |
+| [#1501](https://github.com/doublemover/PairOfCleats/issues/1501) | P2 | [P2] Preserve XML root metadata and leading mixed content in indexed chunks | source repair and regression authored; unvalidated |
+| [#1502](https://github.com/doublemover/PairOfCleats/issues/1502) | P2 | [P2] Keep YAML top-level chunks inside their original document boundaries | source repair and regression authored; unvalidated |
+| [#1503](https://github.com/doublemover/PairOfCleats/issues/1503) | P2 | [P2] Preserve Starlark function bodies instead of heading-splitting nested calls and strings | source repair and regression authored; unvalidated |
 | [#1504](https://github.com/doublemover/PairOfCleats/issues/1504) | other | [Research] Build anytime hybrid retrieval with certified frontiers and lossless continuation | pending |
 | [#1505](https://github.com/doublemover/PairOfCleats/issues/1505) | other | Build revision-pinned change-obligation investigations with resumable evidence packets | pending |
 | [#1506](https://github.com/doublemover/PairOfCleats/issues/1506) | other | Build reusable binding queries with file-local paths and dependency-confirmed resolution | pending |
@@ -1356,3 +1356,43 @@ front gate, native/bootstrap execution or measurements ran in this continuation.
 The dependency installation remains stale after the lockfile-only VSIX dependency
 change and setup-owner edits. The last qualified source remains d4dcba413; the
 current tree has no full deep-suite or performance acceptance.
+
+### Root continuation: contracts, maps and editor source generations
+
+Unvalidated commits c40e5a7c6 through 1dd90a72b implement root-owned reports
+#1424, #1385/#1386/#1389/#1393, #1413, #1390, #1448/#1452/#1454,
+#1373/#1374/#1375/#1376 and #1378. Earlier source-only root commits
+4995c8539/a5007d30f cover #1431/#1432/#1433/#1425 and #1426/#1427.
+No issue is closed or newly qualified by these implementation mappings.
+
+MCP reuses authoritative semantic error classification and projects bounded typed
+evidence. Architecture preserves absent caps, continues violation detection beyond
+the detail cap and refuses incomplete clean verdicts. Removed-option remedies retain
+request intent. Risk payloads preserve unavailable/disabled evidence and pre-cap
+matching populations; selected-format rendering shares its narrative projection.
+
+The TUI flow owner has a hard frame bound, atomic chunk admission and explicit
+lifecycle-loss reporting. Native ingress records real arrival/dequeue residence;
+unknown telemetry remains unknown. Modal keys are interpreted after preceding
+queued transitions. Rust/Node/ConPTY compilation and execution remain outstanding.
+
+Map model 1.1/cache producer 3 joins repo-map metadata with canonical source
+identities, preserves zero-member files via the canonical sharded/columnar file
+inventory loader and retains all string alias evidence under the existing caps.
+Ambiguous legacy declarations cannot select arbitrary overloads or acquire export
+authority. Opaque colon/Unicode IDs survive connected highlighting and reset.
+VS Code and Sublime resolve all risk seed kinds through context-pack provenance,
+retain the selected code-generation source and refuse missing retained generations
+without an automatic current-generation substitution. Real cache/index and editor
+host acceptance are still required; authored fixtures are not passing evidence.
+
+Language source checkpoint 6739dcf37 adds 27 report mappings #1476-#1503,
+excluding #1484. It preserves syntax-owned call/declaration metadata, template/build
+literal imports and SQL/XML/YAML document boundaries. Four grouped fixtures are
+authored. Shared importResolution/sourceChunking/callFlow identities advance to
+3/4/14 and native tree chunk identity to 5. #1484 retains an explicit integration
+obligation for canonical occurrence persistence, bounded spill/backpressure and
+interruption/resume; attribution fixes alone do not complete that report.
+
+No tests, syntax checks, formatter, bootstrap, native commands or measurements ran.
+The installation remains stale and d4dcba413 remains the last qualified source.
