@@ -510,10 +510,13 @@ export const processDocumentTypes = async ({
             }, { timeoutMs: guardTimeout }),
             { label: 'semanticTokens', ...(resolvedHoverTimeout ? { timeoutOverride: resolvedHoverTimeout } : {}) }
           ));
-          const decoded = decodeSemanticTokens({
+          const decoded = payload === null ? [] : decodeSemanticTokens({
             data: payload?.data,
             legend: semanticTokensLegend,
-            providerId: requestCacheProviderId
+            providerId: requestCacheProviderId,
+            lineIndex,
+            text: docText,
+            positionEncoding
           });
           fileHoverStats.semanticTokensSucceeded += 1;
           hoverMetrics.semanticTokensSucceeded += 1;
