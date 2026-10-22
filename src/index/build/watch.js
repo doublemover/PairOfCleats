@@ -179,6 +179,7 @@ export async function watchIndex({
         buildId: value.buildId || null,
         buildRoot: value.buildRoot || null,
         status: value.status || null,
+        publicationCommitted: value.publicationCommitted === true,
         startedAt: value.startedAt || null,
         finishedAt: value.finishedAt || null
       }
@@ -657,6 +658,8 @@ export async function watchIndex({
     let validationDone = false;
     let promoteRunning = false;
     let promoteDone = false;
+    // Pointer commit owns retention even if subsequent diagnostics fail.
+    let publicationCommitted = false;
     const assertBeforePublication = () => {
       throwIfAborted(activeBuildAbort?.signal);
       if (shouldExit) throw createAbortError('Watch shutdown requested before publication.');
@@ -788,6 +791,7 @@ export async function watchIndex({
           compatibilityKey: attemptRuntime.compatibilityKey || null,
           abortSignal: activeBuildAbort.signal
         });
+        publicationCommitted = true;
         await resolvedDeps.markBuildPhase(attemptRuntime.buildRoot, 'promote', 'done');
         promoteDone = true;
         log('[watch] Index update complete.');
@@ -795,11 +799,11 @@ export async function watchIndex({
     } catch (err) {
       operationError = err;
       status = isAbortError(err) ? 'aborted' : 'error';
-      log(status === 'aborted' ? '[watch] Index update aborted before publication.'
+      log(status === 'aborted' ? (publicationCommitted ? '[watch] Index bookkeeping aborted after publication.' : '[watch] Index update aborted before publication.')
         : `[watch] Index update failed: ${err?.message || err}`);
     } finally {
       if (attemptRuntime) {
-        if (promoteRunning && !promoteDone) {
+        if (promoteRunning && !promoteDone && !publicationCommitted) {
           try { await resolvedDeps.markBuildPhase(attemptRuntime.buildRoot, 'promote', 'failed'); } catch {}
         }
         if (validationRunning && !validationDone) {
@@ -849,7 +853,7 @@ export async function watchIndex({
       let outcomeError = null;
       if (attempt) {
         try {
-          await attemptManager.recordOutcome(attempt, status === 'ok');
+          await attemptManager.recordOutcome(attempt, status === 'ok', { committed: publicationCommitted });
         } catch (err) {
           status = 'error';
           outcomeError = err;
@@ -861,14 +865,16 @@ export async function watchIndex({
         watchState.lastAttemptedGeneration = {
           ...watchState.lastAttemptedGeneration,
           status,
+          publicationCommitted,
           finishedAt: generationFinishedAt
         };
       }
-      if (status === 'ok' && attemptRuntime?.buildId) {
+      if (publicationCommitted && attemptRuntime?.buildId) {
         watchState.lastConsistentGeneration = {
           buildId: attemptRuntime.buildId,
           buildRoot: attemptRuntime.buildRoot,
           status: 'ok',
+          publicationCommitted: true,
           startedAt: watchState.lastAttemptedGeneration?.startedAt || generationFinishedAt,
           finishedAt: generationFinishedAt
         };
@@ -898,11 +904,12 @@ export async function watchIndex({
         pending = true;
       }
       emitWatchState();
-    }
-    if (pending) {
-      pending = false;
-      emitWatchState();
-      if (!shouldExit) scheduleBuild();
+      // Also runs for recoverable early returns such as lock contention.
+      if (pending && !shouldExit) {
+        pending = false;
+        emitWatchState();
+        scheduleBuild();
+      }
     }
   };
 

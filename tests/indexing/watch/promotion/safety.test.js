@@ -104,7 +104,7 @@ try {
   await fs.mkdir(validBuildRoot, { recursive: true });
   await seedPublishedArtifacts({ buildRoot: validBuildRoot, mode: 'code', buildId: 'parse-recovery-build' });
   await fs.writeFile(currentPath, '{invalid-json', 'utf8');
-  await assert.doesNotReject(
+  await assert.rejects(
     () => promoteBuild({
       repoRoot,
       userConfig,
@@ -112,22 +112,12 @@ try {
       buildRoot: validBuildRoot,
       modes: ['code']
     }),
-    'expected malformed current.json to be treated as empty prior state'
+    { code: 'ERR_CURRENT_POINTER_UNREADABLE' },
+    'malformed current.json cannot authorize dropping prior mode roots'
   );
-  const recovered = getCurrentBuildInfo(repoRoot, userConfig);
-  assert.equal(recovered?.buildId, 'parse-recovery-build');
-  assert.equal(
-    normalizePath(recovered?.buildRoot || ''),
-    normalizePath(validBuildRoot),
-    'expected promotion to recover from malformed current.json pointer'
-  );
+  assert.equal(await fs.readFile(currentPath, 'utf8'), '{invalid-json');
 
   const warnings = getRecentLogEvents().slice(logStart).filter(event => /\bwarning:/i.test(event.msg));
-  assert.deepEqual(warnings.map(event => event.msg), [
-    '[build] warning: failed to read existing current.json; proceeding with empty prior roots.'
-  ], 'the intentionally malformed pointer owns exactly one asserted warning');
-  assert.deepEqual(JSON.parse(warnings[0].meta), {
-    fileOnlyLine: '[build] warning: current.json read failed (parse, UNKNOWN); proceeding with empty prior roots.'
-  });
+  assert.deepEqual(warnings, [], 'unreadable authority is a hard failure instead of a warning followed by publication');
   console.log('promotion safety tests passed');
 } finally { await fs.rm(tempRoot, { recursive: true, force: true }); }

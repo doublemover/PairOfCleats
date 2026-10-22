@@ -66,9 +66,9 @@ const resolved = resolveCurrentBuildRoots(
   }
 );
 assert.equal(
-  normalizePath(resolved.activeRoot),
-  normalizePath(validRoot),
-  'expected active root fallback to skip empty index dirs'
+  resolved.activeRoot,
+  null,
+  'missing pinned artifacts cannot authorize an unrelated marker-discovered build'
 );
 assert.equal(
   buildGenerationKey(resolved),

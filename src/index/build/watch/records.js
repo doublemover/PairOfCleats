@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { readExactAt } from '../../../shared/io/read-exact.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 import { normalizeRoot } from './shared.js';
 import { isWithinRoot, toRealPathSync } from '../../../workspace/identity.js';
@@ -20,7 +21,7 @@ export const readRecordSample = async (absPath, maxBytes) => {
     const handle = await fs.open(absPath, 'r');
     try {
       const buffer = Buffer.alloc(limit);
-      const result = await handle.read(buffer, 0, limit, 0);
+      const result = await readExactAt(handle, buffer, 0, limit, 0);
       return buffer.subarray(0, result.bytesRead || 0).toString('utf8');
     } finally {
       await runBuildCleanupWithTimeout({

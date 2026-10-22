@@ -1,6 +1,5 @@
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import path from 'node:path';
 import {
   getBuildsRoot,
@@ -56,7 +55,10 @@ export async function promoteBuild({
   const currentPath = path.join(buildsRoot, 'current.json');
   let priorRoots = {};
   let priorExtensions = null;
-  if (fsSync.existsSync(currentPath)) {
+  let currentExists = false;
+  try { await fs.lstat(currentPath); currentExists = true; }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (currentExists) {
     let currentReadError = null;
     const current = await readJsonFileSafe(currentPath, {
       fallback: null,
@@ -66,32 +68,39 @@ export async function promoteBuild({
       }
     });
     if (currentReadError) {
-      const errorCode = typeof currentReadError.error?.code === 'string'
-        ? currentReadError.error.code
-        : 'UNKNOWN';
-      log('[build] warning: failed to read existing current.json; proceeding with empty prior roots.', {
-        fileOnlyLine: (
-          `[build] warning: current.json read failed (${currentReadError.phase}, ${errorCode}); `
-          + 'proceeding with empty prior roots.'
-        )
-      });
+      throw Object.assign(new Error('Cannot preserve existing mode generations: current.json is unreadable. Repair the pointer before promotion.',
+        { cause: currentReadError.error }), { code: 'ERR_CURRENT_POINTER_UNREADABLE' });
     }
-    if (current && typeof current === 'object' && current.artifactSurfaceVersion === ARTIFACT_SURFACE_VERSION) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
+      throw Object.assign(new Error('Cannot preserve existing mode generations: current.json must be an object.'),
+        { code: 'ERR_CURRENT_POINTER_UNREADABLE' });
+    }
+    assertCurrentIndexFormat({ operation: 'publish', component: 'existing build pointer',
+      foundVersion: current.artifactSurfaceVersion, repoRoot, indexPath: currentPath });
+    {
+      for (const field of ['buildRootsByMode', 'buildRoots']) {
+        if (current[field] != null && (typeof current[field] !== 'object' || Array.isArray(current[field]))) {
+          throw new Error(`Existing current.json ${field} must be a mode-root map.`);
+        }
+      }
       if (current.extensions && typeof current.extensions === 'object' && !Array.isArray(current.extensions)) {
         priorExtensions = current.extensions;
       }
       if (current.buildRootsByMode && typeof current.buildRootsByMode === 'object' && !Array.isArray(current.buildRootsByMode)) {
         for (const [mode, value] of Object.entries(current.buildRootsByMode)) {
           const normalized = normalizeRelativeRoot(value);
-          if (normalized) priorRoots[mode] = normalized;
+          if (!normalized) throw new Error(`Existing mode build root is invalid: ${mode}`);
+          priorRoots[mode] = normalized;
         }
       } else if (current.buildRoots && typeof current.buildRoots === 'object' && !Array.isArray(current.buildRoots)) {
         for (const [mode, value] of Object.entries(current.buildRoots)) {
           const normalized = normalizeRelativeRoot(value);
-          if (normalized) priorRoots[mode] = normalized;
+          if (!normalized) throw new Error(`Existing mode build root is invalid: ${mode}`);
+          priorRoots[mode] = normalized;
         }
       } else if (typeof current.buildRoot === 'string' && Array.isArray(current.modes)) {
         const normalized = normalizeRelativeRoot(current.buildRoot);
+        if (!normalized) throw new Error('Existing build root is invalid.');
         if (normalized) {
           for (const mode of current.modes) {
             if (typeof mode !== 'string') continue;

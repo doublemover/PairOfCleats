@@ -1,6 +1,7 @@
 import path from 'node:path';
+import fs from 'node:fs';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
-import { getIndexDir } from '../shared/repo-paths.js';
+import { getBuildsRoot, getCurrentBuildInfo, getIndexDir } from '../shared/repo-paths.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { buildIndexSignatureInfo } from './index-cache.js';
 import { probeFileSignature } from '../shared/file-signature.js';
@@ -118,6 +119,8 @@ export async function loadIndex(dir, options) {
       dir,
       baseName: descriptor.baseName,
       meta,
+      manifest,
+      strict,
       modelId: modelIdDefault || null
     });
   };
@@ -280,7 +283,7 @@ export async function loadIndex(dir, options) {
 }
 
 /**
- * Resolve the index directory (cache-first, local fallback).
+ * Resolve the explicitly selected index or the authoritative current mode root.
  * @param {string} root
  * @param {'code'|'prose'|'records'|'extracted-prose'} mode
  * @param {object} userConfig
@@ -302,15 +305,14 @@ export function resolveIndexDir(root, mode, userConfig, options = {}) {
   if (hasExplicitRef) {
     throw createError(ERROR_CODES.NO_INDEX, `[search] ${mode} index is unavailable for explicit as-of target.`);
   }
-  const cached = getIndexDir(root, mode, userConfig);
-  if (hasChunkMetaArtifacts(cached)) {
-    return cached;
+  if (fs.existsSync(path.join(getBuildsRoot(root, userConfig), 'current.json'))) {
+    const current = getCurrentBuildInfo(root, userConfig, { mode });
+    if (!current?.activeRoot) {
+      throw createError(ERROR_CODES.NO_INDEX, `[search] ${mode} published generation is unavailable. Repair or rebuild its current pointer.`);
+    }
+    return path.join(current.activeRoot, `index-${mode}`);
   }
-  const local = path.join(root, `index-${mode}`);
-  if (hasChunkMetaArtifacts(local)) {
-    return local;
-  }
-  return cached;
+  return getIndexDir(root, mode, userConfig);
 }
 
 /**

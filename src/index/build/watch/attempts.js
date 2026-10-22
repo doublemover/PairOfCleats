@@ -1,17 +1,17 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { getBuildsRoot } from '../../../shared/dict-utils.js';
+import { getBuildsRoot, getCurrentBuildInfo } from '../../../shared/dict-utils.js';
+import { assertNoSymlinkPath } from '../../../shared/contained-file.js';
+import { sameIdentityPath } from '../../../shared/indexing/build-pointer.js';
 
 const DEFAULT_KEEP_SUCCESS = 2;
 const DEFAULT_KEEP_FAILED = 1;
 
 const removeAttemptRoot = async (buildRoot, log) => {
   if (!buildRoot) return;
-  try {
-    await fs.rm(buildRoot, { recursive: true, force: true });
-    if (log) log(`[watch] Removed old attempt root: ${buildRoot}`);
-  } catch {}
+  await fs.rm(buildRoot, { recursive: true, force: true });
+  if (log) log(`[watch] Removed old attempt root: ${buildRoot}`);
 };
 
 export const createWatchAttemptManager = ({ repoRoot, userConfig, log }) => {
@@ -38,15 +38,36 @@ export const createWatchAttemptManager = ({ repoRoot, userConfig, log }) => {
 
   const trimAttempts = async (list, keep) => {
     if (!Number.isFinite(keep)) return;
-    while (list.length > keep) {
+    let remaining = list.length;
+    while (list.length > keep && remaining-- > 0) {
       const oldest = list.shift();
-      await removeAttemptRoot(oldest?.buildRoot, log);
+      const target = path.resolve(oldest.buildRoot);
+      if (!sameIdentityPath(path.dirname(target), attemptsRoot)) {
+        list.unshift(oldest);
+        throw new Error(`Watch retention target is not a direct attempt root: ${target}`);
+      }
+      try {
+        await fs.lstat(path.join(buildsRoot, 'current.json'));
+        const current = getCurrentBuildInfo(repoRoot, userConfig);
+        if (!current) throw new Error('Cannot establish published roots for watch retention.');
+        const protectedRoots = [current.buildRoot, current.activeRoot, ...Object.values(current.buildRoots || {})];
+        if (protectedRoots.some(root => root && sameIdentityPath(root, target))) {
+          list.push(oldest);
+          continue;
+        }
+      } catch (error) {
+        if (error.code !== 'ENOENT') { list.unshift(oldest); throw error; }
+      }
+      try {
+        assertNoSymlinkPath(attemptsRoot, target, { allowMissing: true });
+        await removeAttemptRoot(oldest?.buildRoot, log);
+      } catch (error) { list.unshift(oldest); throw error; }
     }
   };
 
-  const recordOutcome = async (attempt, ok) => {
+  const recordOutcome = async (attempt, ok, { committed = false } = {}) => {
     if (!attempt?.buildRoot) return;
-    if (ok) {
+    if (ok || committed) {
       successAttempts.push(attempt);
       await trimAttempts(successAttempts, keepSuccess);
       await trimAttempts(failedAttempts, keepFailed);
