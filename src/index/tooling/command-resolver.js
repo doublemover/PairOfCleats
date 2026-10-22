@@ -11,7 +11,9 @@ import {
   resolveGlobalToolingBinDirs,
   resolveLocalToolingBinDirs
 } from '../../shared/tooling-bin-dirs.js';
-import { createLspClient, pathToFileUri } from '../../integrations/tooling/lsp/client.js';
+import { pathToFileUri } from '../../integrations/tooling/lsp/client.js';
+import { createRetainedLspClient } from '../../integrations/tooling/lsp/managed-client.js';
+import { runWithManagedCommandInstallationSync } from './managed-command-lifetime.js';
 import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from './binary-utils.js';
 import {
   __getPersistentCommandProbeCacheRuntimeStatsForTests,
@@ -49,7 +51,9 @@ const runProbeCommand = (cmd, args = [], options = {}) => {
     ? Math.max(100, Math.floor(Number(options.timeoutMs)))
     : DEFAULT_PROBE_TIMEOUT_MS;
   const cwd = String(options.cwd || process.cwd());
-  return spawnResolvedSubprocessSync(cmd, args, {
+  return runWithManagedCommandInstallationSync({
+    toolingRoot: options.toolingConfig?.dir || options.env?.PAIROFCLEATS_TOOLING_DIR || null, command: cmd
+  }, () => spawnResolvedSubprocessSync(cmd, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     cwd,
     env: options.env || resolveNoProvisionToolingEnvironment(process.env, { cwd, command: cmd,
@@ -61,7 +65,7 @@ const runProbeCommand = (cmd, args = [], options = {}) => {
     outputEncoding: 'utf8',
     maxOutputBytes,
     timeoutMs
-  });
+  }));
 };
 
 const summarizeProbeText = (value, maxChars = 400) => {
@@ -666,6 +670,9 @@ const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutM
         stdout: summarizeProbeText(result?.stdout || err?.stdout || ''),
         errorCode: err?.code || null
       });
+      if (err?.cacheOwnershipPending === true) return { ok: false, attempted, cached: false,
+        cacheSource: null, cacheOwnershipPending: true,
+        validationFailure: { reasonCode: 'tooling_managed_installation_settlement_pending' } };
     }
   }
   setBoundedCacheEntry(
@@ -898,8 +905,9 @@ export const probeLspInitializeHandshake = async (input) => {
   const timeoutMs = Number.isFinite(Number(input?.timeoutMs))
     ? Math.max(750, Math.floor(Number(input.timeoutMs)))
     : 4000;
-  const client = createLspClient({
+  const client = await createRetainedLspClient({
     cmd,
+    toolingRoot: input?.toolingConfig?.dir || null,
     args,
     cwd,
     env: resolveNoProvisionToolingEnvironment(process.env, { cwd, command: cmd,
@@ -947,6 +955,7 @@ export const probeLspInitializeHandshake = async (input) => {
     };
   } finally {
     await Promise.resolve(client.kill());
+    await client.releaseManagedInstallation();
     if (typeof input?.onMetrics === 'function') {
       try { input.onMetrics(client.getMetrics()); } catch {}
     }

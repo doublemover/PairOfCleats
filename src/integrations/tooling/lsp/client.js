@@ -177,7 +177,8 @@ export function createLspClient(options) {
     maxBufferBytes,
     maxHeaderBytes,
     maxMessageBytes,
-    spawnProcess
+    spawnProcess,
+    beforeSpawn
   } = options || {};
   if (!cmd) throw new Error('createLspClient requires a command.');
   const useShell = typeof shell === 'boolean'
@@ -199,6 +200,12 @@ export function createLspClient(options) {
   let trackedChildProcess = null;
   const unregisterChildProcessByChild = new WeakMap();
   const pendingTerminations = new Set();
+  const childResources = new Set();
+  const resourceClosures = new Map();
+  const pendingTreeCleanup = new Set();
+  const failedTreeCleanup = new Set();
+  const resourceSettlementObservers = new Set();
+  let unknownSpawnResource = false;
   const staleReapInFlight = new WeakMap();
   const STALE_REAP_RETRY_MS = 500;
   let nextId = 1;
@@ -303,6 +310,38 @@ export function createLspClient(options) {
     && child.signalCode === null
   );
 
+  const trackTreeCleanup = (child, promise) => {
+    const tracked = Promise.resolve(promise).then(value => {
+      failedTreeCleanup.delete(child);
+      return value;
+    }, error => {
+      failedTreeCleanup.add(child);
+      throw error;
+    }).finally(() => {
+      pendingTreeCleanup.delete(tracked);
+      notifyResourceSettlement();
+    });
+    pendingTreeCleanup.add(tracked);
+    return tracked;
+  };
+
+  const ownChildResource = child => {
+    if (!child || !isEventEmitterLike(child)) {
+      unknownSpawnResource = true;
+      return;
+    }
+    childResources.add(child);
+    // Exit does not settle inherited stdio or a still-running tree escalation.
+    // Even malformed spawn candidates remain owned until their actual close.
+    resourceClosures.set(child, new Promise(resolve => child.once('close', () => {
+      childResources.delete(child);
+      resourceClosures.delete(child);
+      clearTrackedChild({ force: true, child });
+      resolve();
+      notifyResourceSettlement();
+    })));
+  };
+
   const clearTrackedChild = ({ force = false, child = null } = {}) => {
     const targetChild = child || trackedChildProcess;
     if (!targetChild) return;
@@ -353,12 +392,12 @@ export function createLspClient(options) {
       child.stderr?.destroy?.();
     } catch {}
     try {
-      killChildProcessTree(child, {
+      trackTreeCleanup(child, killChildProcessTree(child, {
         killTree: true,
         detached: killTreeDetached,
         graceMs: 0,
         awaitGrace: false
-      }).catch(() => {});
+      })).catch(() => {});
     } catch {
       try {
         child.kill?.('SIGKILL');
@@ -380,12 +419,12 @@ export function createLspClient(options) {
     const nowMs = Date.now();
     if (lastAttemptAt > 0 && (nowMs - lastAttemptAt) < STALE_REAP_RETRY_MS) return;
     staleReapInFlight.set(child, nowMs);
-    killChildProcessTree(child, {
+    trackTreeCleanup(child, killChildProcessTree(child, {
       killTree: true,
       detached: killTreeDetached,
       graceMs: 0,
       awaitGrace: true
-    }).then((outcome) => {
+    })).then((outcome) => {
       if (!outcome || typeof outcome !== 'object') return;
       if (clearTrackedChildIfTerminated(child)) {
         staleReapInFlight.delete(child);
@@ -417,12 +456,12 @@ export function createLspClient(options) {
     } catch {}
     setTimeout(() => {
       if (isChildRunning(child)) {
-        killChildProcessTree(child, {
+        trackTreeCleanup(child, killChildProcessTree(child, {
           killTree: true,
           detached: killTreeDetached,
           graceMs: 0,
           awaitGrace: false
-        }).then(() => {
+        })).then(() => {
           clearTrackedChildIfTerminated(child);
         }).catch(() => {});
       }
@@ -574,10 +613,11 @@ export function createLspClient(options) {
   };
 
   const start = () => {
+    beforeSpawn?.();
     if (proc) {
       if (proc.killed || proc.exitCode !== null || writerClosed) {
         const staleChild = proc;
-        if (writerClosed) {
+        if (isChildRunning(staleChild)) {
           reapStaleChildProcess(staleChild, 'writer_closed_restart');
           if (isChildRunning(staleChild)) {
             const err = new Error('LSP restart blocked: previous writer-closed process is still running.');
@@ -596,6 +636,11 @@ export function createLspClient(options) {
       } else {
         return proc;
       }
+    }
+    if (childResources.size || pendingTreeCleanup.size || failedTreeCleanup.size || unknownSpawnResource) {
+      const error = new Error('LSP restart blocked until previous child resources settle.');
+      error.code = 'ERR_LSP_RESTART_STALE_PROCESS';
+      throw error;
     }
     const now = Date.now();
     if (nextStartAt && now < nextStartAt) {
@@ -626,6 +671,7 @@ export function createLspClient(options) {
         useShell
       })
       : spawn(spawnCmd, spawnArgs, spawnOptions);
+    ownChildResource(child);
     if (!child || !isEventEmitterLike(child)) {
       cleanupInvalidSpawnCandidate(child, 'spawn_override_invalid_child');
       throw new Error('createLspClient spawnProcess override must return a ChildProcess-like object.');
@@ -663,12 +709,12 @@ export function createLspClient(options) {
           kind: 'protocol_parse_error',
           message: err?.message || String(err)
         });
-        killChildProcessTree(child, {
+        trackTreeCleanup(child, killChildProcessTree(child, {
           killTree: true,
           detached: killTreeDetached,
           graceMs: 0,
           awaitGrace: false
-        }).catch(() => {});
+        })).catch(() => {});
       },
       maxBufferBytes,
       maxHeaderBytes,
@@ -887,12 +933,12 @@ export function createLspClient(options) {
     const current = proc;
     // Subscribe before signalling; signal delivery does not reap a child handle.
     const exited = waitForChildExit(current);
-    const terminatePromise = Promise.all([killChildProcessTree(current, {
+    const terminatePromise = Promise.all([trackTreeCleanup(current, killChildProcessTree(current, {
       killTree: true,
       detached: killTreeDetached,
       graceMs: 0,
       awaitGrace: true
-    }).catch(() => null), exited]).then(([outcome, exitObserved]) => {
+    })).catch(() => null), exited]).then(([outcome, exitObserved]) => {
       if (exitObserved) clearTrackedChild({ force: true, child: current });
       const result = { ...outcome, terminated: exitObserved, exitObserved };
       if (exitObserved && !outcome?.fallbackAttempted) return result;
@@ -906,7 +952,10 @@ export function createLspClient(options) {
         fallbackTerminated: Number(outcome?.fallbackTerminated || 0)
       });
       return result;
-    }).finally(() => pendingTerminations.delete(terminatePromise));
+    }).finally(() => {
+      pendingTerminations.delete(terminatePromise);
+      notifyResourceSettlement();
+    });
     pendingTerminations.add(terminatePromise);
     rejectPendingTransportClosed();
     if (current.stdin) closeJsonRpcWriter(current.stdin);
@@ -922,12 +971,12 @@ export function createLspClient(options) {
     } catch {}
     setTimeout(() => {
       if (isChildRunning(current)) {
-        killChildProcessTree(current, {
+        trackTreeCleanup(current, killChildProcessTree(current, {
           killTree: true,
           detached: killTreeDetached,
           graceMs: 0,
           awaitGrace: false
-        }).then(() => {
+        })).then(() => {
           clearTrackedChildIfTerminated(current);
         }).catch(() => {});
       }
@@ -952,7 +1001,8 @@ export function createLspClient(options) {
         killTree: true,
         detached: killTreeDetached
       });
-    } catch {}
+      failedTreeCleanup.delete(current);
+    } catch { failedTreeCleanup.add(current); }
     rejectPendingTransportClosed();
     if (current.stdin) closeJsonRpcWriter(current.stdin);
     try {
@@ -975,6 +1025,33 @@ export function createLspClient(options) {
       kind: 'kill_sync',
       pid: Number.isFinite(Number(current?.pid)) ? Number(current.pid) : null
     });
+  };
+
+  const getTerminationEvidence = () => ({ exitObserved: !trackedChildProcess && pendingTerminations.size === 0,
+    closeObserved: childResources.size === 0 && !unknownSpawnResource,
+    settled: !trackedChildProcess && childResources.size === 0 && !unknownSpawnResource
+      && pendingTerminations.size === 0 && pendingTreeCleanup.size === 0 && failedTreeCleanup.size === 0,
+    pending: pendingTerminations.size + pendingTreeCleanup.size, pendingChildren: childResources.size,
+    treeCleanupFailed: failedTreeCleanup.size > 0, unknownSpawnResource,
+    pid: trackedChildProcess?.pid ?? null });
+
+  function notifyResourceSettlement() {
+    if (getTerminationEvidence().settled !== true) return;
+    for (const observer of resourceSettlementObservers) {
+      try { observer(); } catch (error) { log(`[lsp] resource-settlement observer failed: ${error?.message || error}`); }
+    }
+  }
+
+  const waitForResourceSettlement = async ({ timeoutMs = 2500 } = {}) => {
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 8000) throw new TypeError('Invalid LSP resource-settlement wait.');
+    let timer;
+    try {
+      await Promise.race([
+        Promise.allSettled([...resourceClosures.values(), ...pendingTerminations, ...pendingTreeCleanup]),
+        new Promise(resolve => { timer = setTimeout(resolve, timeoutMs); })
+      ]);
+    } finally { clearTimeout(timer); }
+    return getTerminationEvidence();
   };
 
   return {
@@ -1019,8 +1096,13 @@ export function createLspClient(options) {
       return cachedMetricsSnapshot;
     },
     shutdownAndExit,
-    getTerminationEvidence: () => ({ exitObserved: !trackedChildProcess && pendingTerminations.size === 0,
-      pending: pendingTerminations.size, pid: trackedChildProcess?.pid ?? null }),
+    getTerminationEvidence,
+    waitForResourceSettlement,
+    onResourcesSettled(observer) {
+      if (typeof observer !== 'function') throw new TypeError('LSP resource observer must be a function.');
+      resourceSettlementObservers.add(observer);
+      return () => resourceSettlementObservers.delete(observer);
+    },
     kill,
     killSync
   };

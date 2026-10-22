@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { createLspClient } from '../../lsp/client.js';
+import { createRetainedLspClient } from '../../lsp/managed-client.js';
 import { createToolingGuard, createToolingLifecycleHealth } from '../shared.js';
 import { coercePositiveInt } from '../../../../shared/number-coerce.js';
 import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-timeout.js';
@@ -263,6 +263,7 @@ const buildSessionKey = ({
   providerId,
   workspaceKey,
   cmd,
+  toolingRoot,
   args,
   env,
   initializationOptions,
@@ -282,6 +283,7 @@ const buildSessionKey = ({
     providerId: String(providerId || ''),
     workspaceKey: String(workspaceKey || ''),
     cmd: String(cmd || ''),
+    toolingRoot: String(toolingRoot || ''),
     args: normalizeArgs(args),
     envFingerprint: buildEnvFingerprint(env),
     initializationOptions: initializationOptions ?? null,
@@ -370,8 +372,14 @@ const disposeSessionClient = async (session) => {
     );
     const confirmsExit = value => Array.isArray(value) ? value.length > 0 && value.every(confirmsExit)
       : value?.exitObserved === true;
+    const resourceWait = typeof session.client?.waitForResourceSettlement === 'function'
+      ? await awaitWithTimeout(session.client.waitForResourceSettlement(), DEFAULT_KILL_TIMEOUT_MS)
+      : { timedOut: false };
+    // Ask the retained owner even on pending disposal so its exact delayed
+    // child-close notification can reconcile ownership without a pool lease.
+    await session.client?.releaseManagedInstallation?.();
     const evidence = session.client?.getTerminationEvidence?.();
-    if (outcome.timedOut || !(evidence ? evidence.exitObserved === true : confirmsExit(outcome.value))) {
+    if (outcome.timedOut || resourceWait.timedOut || !(evidence ? (evidence.settled ?? evidence.exitObserved) === true : confirmsExit(outcome.value))) {
       throw Object.assign(new Error('LSP disposal did not confirm child exit.'), {
         code: 'ERR_LSP_DISPOSAL_UNCONFIRMED', termination: { timedOut: outcome.timedOut, ...evidence, result: outcome.value },
         ...(shutdownError ? { cleanupErrors: [shutdownError] } : {})
@@ -605,7 +613,7 @@ const shouldInitializeSession = (session) => {
   return initializedGeneration !== transportGeneration || session.state !== SESSION_STATE.READY;
 };
 
-const createSession = (options) => {
+const createSession = async (options) => {
   const key = buildSessionKey(options);
   const now = Date.now();
   const healthRecord = options.healthRecord || getOrCreateSessionHealthRecord(key);
@@ -622,8 +630,9 @@ const createSession = (options) => {
     stderrFilter: typeof options.stderrFilter === 'function' ? options.stderrFilter : null,
     onStderrLine: typeof options.onStderrLine === 'function' ? options.onStderrLine : null
   };
-  const client = createLspClient({
+  const client = await createRetainedLspClient({
     cmd: options.cmd,
+    toolingRoot: options.toolingRoot,
     args: options.args,
     cwd: options.cwd,
     env: options.env,
@@ -870,7 +879,7 @@ const getOrCreateSession = async (options) => {
       maxEntries: options?.sessionPoolMaxEntries,
       protectedKey: key
     });
-    const next = createSession({ ...options, healthRecord });
+    const next = await createSession({ ...options, healthRecord });
     sessions.set(key, next);
     await evictIdleSessionsForCapacity({
       maxEntries: options?.sessionPoolMaxEntries,
@@ -981,7 +990,7 @@ export const drainLspSessionPool = async (options = {}) => {
  *   initializationOptions?:object|null
  * }} options
  * @param {(lease:{
- *   client:ReturnType<typeof createLspClient>,
+ *   client:Awaited<ReturnType<typeof createRetainedLspClient>>,
  *   guard:ReturnType<typeof createToolingGuard>,
  *   lifecycleHealth:ReturnType<typeof createToolingLifecycleHealth>,
  *   pooled:boolean,
@@ -995,7 +1004,7 @@ export const drainLspSessionPool = async (options = {}) => {
 export const withLspSession = async (options, fn) => {
   const enabled = options?.enabled !== false;
   if (!enabled) {
-    const singleSession = createSession({
+    const singleSession = await createSession({
       ...options,
       providerId: options?.providerId || options?.cmd || 'lsp',
       workspaceKey: options?.workspaceKey || options?.repoRoot || options?.cwd || ''

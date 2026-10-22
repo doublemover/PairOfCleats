@@ -487,6 +487,7 @@ export async function collectLspTypes({
     workspaceKey: resolvedWorkspaceKey || rootDir,
     cmd,
     args,
+    toolingRoot,
     cwd: resolvedWorkspaceRootDir,
     env: applyToolchainDaemonPolicyEnv(process.env, { toolingRoot, providerId: resolvedProviderId, command: cmd }),
     log,

@@ -4,6 +4,7 @@ import { combineSemanticProviderOutputs } from './result-dispatch.js';
 import { assertSemanticEnvelope } from '../../contracts/validators/semantic-envelopes.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { spawnSubprocess } from '../../shared/subprocess/runner.js';
+import { runWithManagedCommandInstallation } from './managed-command-lifetime.js';
 import { isRepoTrusted } from '../../shared/config-authority.js';
 import { providerProfileCacheIdentity, verifyProviderProfileReceipt } from './provider-profile.js';
 
@@ -120,7 +121,7 @@ export const importProviderJsonlReport = async ({ chunks, request, semanticSink 
 /** A subprocess is not an OS sandbox. Run only a launch-selected, observed
  * command under the existing exact repository trust authority. */
 export const runJsonlProvider = async ({ command, profile, request, repoRoot, semanticSink = null,
-  rowWriter = null, timeoutMs = 30000, maxInputBytes = 1048576, maxStderrBytes = 65536, signal = null, ...budgets }) => {
+  rowWriter = null, toolingRoot = null, timeoutMs = 30000, maxInputBytes = 1048576, maxStderrBytes = 65536, signal = null, ...budgets }) => {
   throwIfAborted(signal);
   if (!Array.isArray(command) || !command.length || command.some(value => typeof value !== 'string' || !value || value.includes('\0'))
     || !Array.isArray(profile?.tool?.resolvedCommand)
@@ -136,14 +137,16 @@ export const runJsonlProvider = async ({ command, profile, request, repoRoot, se
   if (Buffer.byteLength(input) > maxInputBytes) throw fail('Provider input byte budget exhausted.');
   const decoder = createProviderJsonlDecoder({ request, signal, ...budgets });
   let stderrBytes = 0, stderr = '';
-  const processResult = await spawnSubprocess(command[0], command.slice(1), { cwd: repoRoot, input,
+  const processResult = await runWithManagedCommandInstallation({
+    toolingRoot: toolingRoot || process.env.PAIROFCLEATS_TOOLING_DIR || null, command: command[0]
+  }, ({ onSpawn }) => spawnSubprocess(command[0], command.slice(1), { cwd: repoRoot, input, onSpawn,
     signal, timeoutMs, shell: false, killTree: true, captureStdout: false, captureStderr: false,
     outputEncoding: 'latin1', onStdout: text => decoder.push(Buffer.from(text, 'latin1')),
     onStderr: text => {
       stderrBytes += Buffer.byteLength(text, 'latin1');
       if (stderrBytes > maxStderrBytes) throw fail('Provider diagnostic byte budget exhausted.');
       if (stderr.length < 4096) stderr += text.slice(0, 4096 - stderr.length);
-    } });
+    } }));
   throwIfAborted(signal);
   if (!isRepoTrusted(repoRoot)) throw fail('Provider repository execution authority was revoked.', 'ERR_TOOLING_PROVIDER_DENIED');
   await verifyProviderProfileReceipt(profile, { signal });

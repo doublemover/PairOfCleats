@@ -181,7 +181,9 @@ export const segmentAstro = ({ text, relPath }) => {
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
     segments.push({
       type: 'embedded',
-      languageId: 'javascript',
+      // Astro component scripts always use its TypeScript dialect, including
+      // frontmatter without annotations. The exact slice stays authoritative.
+      languageId: 'typescript',
       start,
       end,
       parentSegmentId: null,
