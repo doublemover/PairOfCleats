@@ -20,6 +20,7 @@ export const createDeferredEmbeddingAdapter = ({ acquire, provider, methods }) =
         disposing = pending ? pending.then(value => value.dispose?.(), error => {
           if (error?.cacheOwnershipPending) throw error;
         }) : Promise.resolve();
+        disposing = disposing.catch(error => { disposing = null; throw error; });
       }
       return disposing;
     }

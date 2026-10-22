@@ -1,6 +1,7 @@
 import { runOnnxEmbeddingSession, decodeOnnxEmbeddingOutput } from './onnx-embeddings/output.js';
 import { acquireOnnxQualificationSlot } from './onnx-embeddings/qualification.js';
 import { createOnnxResourceOwner, releaseOnnxResources } from './onnx-embeddings/resource-lifetime.js';
+import { createOnnxCacheLifetime } from './onnx-embeddings/cache-lifetime.js';
 import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from './embedding-artifact-identity.js';
 import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-lease.js';
 import { createDeferredEmbeddingAdapter } from './embedding-deferred-adapter.js';
@@ -33,29 +34,10 @@ export { __tokenizeBatchWithCacheForTests } from './onnx-embeddings/tokenization
 const ONNX_CACHE_TTL_MS = 15 * 60 * 1000;
 const ONNX_CACHE_MAX_ENTRIES = 8;
 const onnxCache = new Map();
-
-const retireEntry = (key, entry) => {
-  if (onnxCache.get(key) === entry) onnxCache.delete(key);
-  entry.retired = true;
-  if (entry.references || entry.releasing) return;
-  entry.releasing = entry.queue.onIdle().then(async () => {
-    const loaded = await entry.promise.catch(error => {
-      if (error?.cacheOwnershipPending) throw error;
-      return null;
-    });
-    const failure = await releaseOnnxResources({ resourceOwner: loaded?.resourceOwner, session: loaded?.session, tokenizer: loaded?.tokenizer,
-      qualificationSlot: entry.qualificationSlot, qualificationLease: entry.qualificationLease, owner: entry });
-    if (failure) throw failure;
-  });
-  // GC/cache retirement has no caller to receive disposal failure.
-  entry.releasing.catch(() => {});
-};
-const releaseEntry = (entry) => {
-  entry.references = Math.max(0, entry.references - 1);
-  if (!entry.references) retireEntry(entry.key, entry);
-  return entry.releasing || Promise.resolve();
-};
-const sessionOwners = new FinalizationRegistry((entry) => { void releaseEntry(entry); });
+const cacheLifetime = createOnnxCacheLifetime(onnxCache);
+const retireEntry = cacheLifetime.retire;
+const sessionOwners = new FinalizationRegistry(reference => { void cacheLifetime.releaseReference(reference); });
+export const getRetiredOnnxSessionOwners = () => cacheLifetime.retiredOwners();
 export const __resetOnnxSessionCacheForTests = () => {
   for (const [key, entry] of onnxCache) retireEntry(key, entry);
 };
@@ -242,10 +224,10 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
     const sessionOptions = qualificationSlot
       ? { ...buildSessionOptions(normalized, { lowMemory }), ...qualificationSlot.options }
       : buildSessionOptions(normalized, { lowMemory });
-    sessionEntry = { key: cacheKey, queue: createRunQueue(), references: 0, retired: false, qualificationSlot, qualificationLease,
+    sessionEntry = cacheLifetime.adopt({ key: cacheKey, queue: createRunQueue(), references: 0, retired: false, qualificationSlot, qualificationLease,
       measurements: { scope: 'shared-session-lifetime', runs: 0, failures: 0, active: 0,
         peakActive: 0, providerBusyMs: 0, queueWaitMs: 0, initializationMs: 0, tokenizerMs: 0 },
-      lastAccessAt: now, expiresAt: now + ONNX_CACHE_TTL_MS, promise: null };
+      lastAccessAt: now, expiresAt: now + ONNX_CACHE_TTL_MS, promise: null });
     const creatingEntry = sessionEntry;
     const initializationStartedAt = performance.now();
     const promise = (async () => {
@@ -262,6 +244,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
         try {
           session = await InferenceSession.create(resolvedModelPath, sessionOptions);
         } catch (err) {
+          if (err?.cacheOwnershipPending) throw err;
           if (!lowMemory && !qualificationSlot) {
             const fallbackOptions = buildSessionOptions(normalized, { lowMemory: true });
             effectiveSessionOptions = fallbackOptions;
@@ -274,25 +257,28 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
         if (embeddingArtifactReusable(selectedArtifact)) assertEmbeddingArtifactCompatibility(selectedArtifact, observedArtifact);
         const resourceOwner = createOnnxResourceOwner({ session, tokenizer, qualificationSlot, qualificationLease,
           owner: { session, tokenizer, qualificationSlot, selectedArtifact, resolvedModelPath } });
+        cacheLifetime.observeResourceOwner(creatingEntry, resourceOwner);
         return { tokenizer, session, Tensor, observedArtifact, effectiveSessionOptions, resourceOwner };
       } catch (error) {
-        throw await releaseOnnxResources({ session, tokenizer, qualificationSlot, qualificationLease, primaryError: error,
+        const resourceOwner = createOnnxResourceOwner({ session, tokenizer, qualificationSlot, qualificationLease, primaryError: error,
           owner: { session, tokenizer, qualificationSlot, selectedArtifact, resolvedModelPath } });
+        cacheLifetime.observeResourceOwner(creatingEntry, resourceOwner);
+        throw await releaseOnnxResources({ resourceOwner, primaryError: error });
       }
-    })().then((loaded) => { creatingEntry.measurements.initializationMs = performance.now() - initializationStartedAt; creatingEntry.loaded = loaded; return loaded; }).catch((err) => {
-      if (onnxCache.get(cacheKey) === creatingEntry) onnxCache.delete(cacheKey);
-      throw err;
+    })().then((loaded) => { cacheLifetime.startupLoaded(creatingEntry); creatingEntry.measurements.initializationMs = performance.now() - initializationStartedAt; creatingEntry.loaded = loaded; return loaded; }).catch((err) => {
+      throw cacheLifetime.startupFailed(creatingEntry, err);
     });
     sessionEntry.promise = promise;
     onnxCache.set(cacheKey, sessionEntry);
-    pruneOnnxCache(now);
   }
   sessionEntry.references += 1;
+  pruneOnnxCache(now);
   const embedderPromise = sessionEntry.promise;
   const ownerToken = {};
   let disposed = false;
   let disposePromise = null;
   const operations = new Set();
+  const sessionReference = cacheLifetime.createReference(sessionEntry, operations);
   const ownOperation = (fn) => (...args) => {
     if (disposed) return Promise.reject(new Error('ONNX adapter is disposed.'));
     const work = Promise.resolve().then(() => fn(...args));
@@ -407,8 +393,8 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
           tokenizationCache.cache.clear();
           preparedRows.clear();
           runScratch.clear();
-          return releaseEntry(sessionEntry);
-        });
+          return cacheLifetime.releaseReference(sessionReference, { retry: sessionReference.released });
+        }).catch(error => { disposePromise = null; throw error; });
       }
       return disposePromise;
     },
@@ -417,6 +403,6 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
       return list[0] || [];
     }
   };
-  sessionOwners.register(adapter, sessionEntry, ownerToken);
+  sessionOwners.register(adapter, sessionReference, ownerToken);
   return adapter;
 }

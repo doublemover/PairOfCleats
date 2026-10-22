@@ -43,6 +43,7 @@ export const createOnnxResourceOwner = ({ session, tokenizer, qualificationSlot 
   };
   retain(primaryError);
   let flight = null, settled = false;
+  const settlementObservers = new Set();
   const sessionOwner = owner || Object.freeze({ session, tokenizer, qualificationSlot });
   const failure = failures => {
     const primary = primaryError ?? failures[0];
@@ -90,11 +91,19 @@ export const createOnnxResourceOwner = ({ session, tokenizer, qualificationSlot 
       settled = native.released && tokens.released && capacity.released
         && [...observers.values()].every(observe => observe());
       if (!settled) throw failure(failures);
+      for (const observe of settlementObservers) {
+        try { observe(); } catch { /* Observers cannot undo confirmed native settlement. */ }
+      }
+      settlementObservers.clear();
       return true;
     }).finally(() => { flight = null; });
     return flight;
   };
-  const resourceOwner = Object.freeze({ release, get settled() { return settled; },
+  const resourceOwner = Object.freeze({ release, onSettled: observe => {
+    if (typeof observe !== 'function') throw new TypeError('ONNX settlement observer must be a function.');
+    if (settled) observe(); else settlementObservers.add(observe);
+    return () => settlementObservers.delete(observe);
+  }, get settled() { return settled; },
     get pending() { return !settled; } });
   return resourceOwner;
 };

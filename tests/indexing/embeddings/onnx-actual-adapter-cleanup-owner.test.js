@@ -39,7 +39,8 @@ try {
   assert.equal(loaded.session, session);
   session.release = () => { assert.fail('cleanup uses the captured native method'); };
   pending = await adapter.dispose().then(() => assert.fail('failed native release must reject disposal'), error => error);
-  assert.equal(pending.cause, cleanup); assert.equal(pending.message, cleanup.message);
+  assert.equal(pending.cause, pending.retirementError); assert.equal(pending.retirementError.cause, cleanup);
+  assert.deepEqual(pending.errors, [pending.retirementError]); assert.equal(pending.message, cleanup.message);
   assert.equal(pending.cacheOwnershipPending, true); assert.equal(pending.onnxResourceOwner, loaded.resourceOwner);
   assert.equal(pending.onnxSessionOwner.session, session);
   assert.equal(cleanup.cacheOwnershipPending, undefined);
@@ -61,7 +62,8 @@ try {
   await fs.writeFile(startupPath, 'different inert graph');
   startupAdapter = createOnnxEmbedder({ rootDir: dir, modelsDir: dir, modelId, onnxConfig: { modelPath: startupPath } });
   startupPending = await startupAdapter.embedderPromise.then(() => assert.fail('startup must reject'), error => error);
-  assert.equal(startupPending.cause, startupPrimary); assert.ok(startupPending.errors.includes(cleanup));
+  assert.equal(startupPending.cause, startupPending.retirementError);
+  assert.equal(startupPending.retirementError.cause, startupPrimary); assert.ok(startupPending.retirementError.errors.includes(cleanup));
   assert.equal(startupPending.onnxSessionOwner.tokenizer, startupTokenizer);
   await assert.rejects(startupAdapter.dispose(), error => error === startupPending,
     'actual deferred startup disposal preserves the exact initialization cleanup capability');
