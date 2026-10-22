@@ -1,14 +1,19 @@
 # Platform and performance qualification
 
-Audited: 2026-10-21. Source contracts and workflow definitions describe required
+Audited: 2026-10-22. Source contracts and workflow definitions describe required
 behavior; a configured job is not evidence that the current candidate passed it.
 Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
 
-The current repair program executes on Windows with Node 26.12.1. Its locked
-bootstrap verifies 37 required packages and 33 language routes without warnings
-or errors; activation remains separate from runtime qualification. The
+The repair program targets Windows with Node 26.12.1. The recorded locked
+bootstrap at source 8685a0dec verified 37 required packages and 33 language routes
+without warnings or errors. That historical receipt does not qualify the changed
+dependency inputs or current source; fresh locked bootstrap is still required.
+Activation remains separate from runtime qualification. The last qualified
+production/test source is d4dcba4134f6103e3a59703d90fdbde5ca54d09e. Later development
+commits and authored regressions are unvalidated, with execution explicitly
+deferred until the broad development pass is complete. The
 [current issue receipt](../archived/github-issue-repairs-2026-10-21.md) records
 the new snapshot, storage, embedding and lifecycle batches and their exact limits.
 The current batch adds real native HNSW backup recovery and LanceDB payload
@@ -20,6 +25,24 @@ and injected link metadata without elevation or creating links. The existing
 program, not a completion prerequisite or a claimed pass. Historical Linux and
 physical-link results below retain their original source and scope; no new Linux
 execution is part of this program.
+
+## Current implementation awaiting qualification
+
+| Owner | Authored source and regressions | Required proof still outstanding |
+| --- | --- | --- |
+| Native database commands | Exact delegated entry/root/target admission; actual SQLite, WAL-publication and LMDB close owners; pending-close refusal | Real canonical child operations, cancellation/fault/restart, supervisor drain, terminal lifetime and descendant settlement |
+| Storage and provisioning | Complete probe authority, write reservations, immutable install generations, real dictionary stream/writer lifetimes and reviewed migration routes | Actual scoped caller/cleanup races, destination accounting, Windows permission owner, portable recipes and installation/runtime lifetime |
+| Semantic/editor navigation | Canonical artifact/SQLite source pins, bounded projections, generation discovery and observed BOM/CRLF buffer mapping | Original query/cursor/schema negatives, cold/warm parity, actual editor hosts, packages and remote topologies |
+| Index/retrieval execution | Bounded token batches, complete lexical reuse, coalesced durable parts, selective BM25 facts and conservative WAND | Independent numerical/content parity, faults and retained-evidence equality before resource/latency measurements |
+| Embedding execution | Ordinal vector spool, complete cache-only admission and metadata-qualified output selection | Real native/model correctness, disposal, disk/cancellation faults, exact generation parity, peak RSS and end-to-end latency |
+| Map presentation | Bounded snapshot transport/search/residency, revision cancellation and optional spatial packets | Manifest-first demand/eviction adoption, actual browser/GPU correctness, resource measurements and reviewed backend/default choice |
+| Research consumers | Opt-in RRF, finite lexical/heap/capsule and task-evidence slices | Public/producer integration, independent domain oracles, complete world/closure admission and representative empirical qualification |
+
+Resource bounds, import-count budgets and latency assertions establish different
+properties. Preserve their existing thresholds. Performance qualification compares
+equal retained facts/results, includes preparation/invalidation, keeps raw cold
+and warm samples, and runs measured cases serially. No new speedup follows from
+source changes, helper-only controls or smaller displayed pages.
 
 ## What exists
 
