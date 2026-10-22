@@ -204,7 +204,9 @@ const writeHnswIndexInProcess = async ({
     : resolveVectorsSource(vectorsPath, {
       includeCanonicalBase: true,
       requireManifestDeclaration: true,
-      tryCandidateJson: true
+      tryCandidateJson: true,
+      expectedDims: dims,
+      expectedModelId: modelId
     });
   if (!vectorsSource || !Number.isFinite(vectorsSource.count) || vectorsSource.count <= 0) {
     return { skipped: true, reason: 'empty' };

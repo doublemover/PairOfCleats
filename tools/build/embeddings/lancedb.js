@@ -77,7 +77,7 @@ export async function writeLanceDbIndex({
   const lanceEnv = getLanceDbEnv();
   const vectorsSource = Array.isArray(vectors) && vectors.length
     ? { count: vectors.length, vectors, rows: null }
-    : resolveVectorsSource(vectorsPath, { stopOnShardMetaWithoutManifest: true });
+    : resolveVectorsSource(vectorsPath, { stopOnShardMetaWithoutManifest: true, expectedDims: dims, expectedModelId: modelId });
   if (TRACE_ARTIFACT_IO && vectorsPath) {
     const exists = fsSync.existsSync(vectorsPath)
       || fsSync.existsSync(`${vectorsPath}.gz`)

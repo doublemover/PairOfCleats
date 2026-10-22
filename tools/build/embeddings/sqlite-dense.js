@@ -18,11 +18,12 @@ import {
 } from '../../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
 import { applyBuildPragmas } from '../../../src/storage/sqlite/build/pragmas.js';
-import {
-  loadDenseVectorBinaryFromMetaSync,
-  materializeDenseVectorRows,
-  normalizeDenseVectorMeta
-} from '../../../src/shared/dense-vector-artifacts.js';
+import { normalizeDenseVectorMeta } from '../../../src/shared/dense-vector-meta.js';
+import { resolveDenseVectorBinaryPayloadPath } from '../../../src/shared/dense-vector-binary.js';
+import { openDenseVectorBinarySourceSync } from '../../../src/shared/dense-vector-stream.js';
+import { readContainedFileSync } from '../../../src/shared/contained-file.js';
+import { stableStringify } from '../../../src/shared/stable-json.js';
+import { throwIfAborted } from '../../../src/shared/abort.js';
 
 const hasTable = (db, table) => {
   try {
@@ -48,12 +49,15 @@ const ensureDenseMetaSchema = (db) => {
   addColumn('levels', 'INTEGER');
 };
 
-const resolveSqliteDenseArtifactRows = ({ vectorsPath, modelId = null, dims = null }) => {
+const resolveSqliteDenseArtifactSource = ({ vectorsPath, modelId = null, dims = null, signal = null, metrics = null }) => {
   try {
     if (typeof vectorsPath !== 'string' || !vectorsPath.trim()) throw new Error('Missing vector artifact path.');
     const resolvedBasePath = path.resolve(vectorsPath);
     const metaPath = `${resolvedBasePath}.meta.json`;
-    const sourceMeta = normalizeDenseVectorMeta(JSON.parse(fsSync.readFileSync(metaPath, 'utf8')));
+    const dir = path.dirname(resolvedBasePath);
+    const readMeta = filename => normalizeDenseVectorMeta(JSON.parse(readContainedFileSync(dir, filename,
+      { maxBytes: 64 * 1024 * 1024, signal }).toString('utf8')));
+    const sourceMeta = readMeta(metaPath);
     const meta = sourceMeta ? { ...sourceMeta, count: sourceMeta.count ?? sourceMeta.totalRecords } : null;
     if (!meta || !Number.isSafeInteger(meta.count) || meta.count < 0
       || !Number.isSafeInteger(meta.dims) || meta.dims <= 0
@@ -63,34 +67,22 @@ const resolveSqliteDenseArtifactRows = ({ vectorsPath, modelId = null, dims = nu
       || (modelId && meta.model !== modelId)) throw new Error('Invalid vector artifact metadata or model identity.');
     const binaryMetaPath = `${resolvedBasePath}.bin.meta.json`;
     if (fsSync.existsSync(binaryMetaPath)) {
-      const binaryMeta = normalizeDenseVectorMeta(JSON.parse(fsSync.readFileSync(binaryMetaPath, 'utf8')));
+      const binaryMeta = readMeta(binaryMetaPath);
       if (!binaryMeta || binaryMeta.count !== meta.count || binaryMeta.dims !== meta.dims
         || binaryMeta.model !== meta.model || JSON.stringify(binaryMeta.validity ?? null) !== JSON.stringify(meta.validity ?? null)
         || (binaryMeta.bytes != null && binaryMeta.bytes !== meta.count * meta.dims)) {
         throw new Error('Binary and sharded vector metadata disagree.');
       }
+      for (const key of ['embeddingIdentity', 'embeddingGeneration', 'minVal', 'maxVal', 'levels', 'scale']) {
+        if (stableStringify(sourceMeta[key]) !== stableStringify(binaryMeta[key])) throw new Error(`Binary and sharded vector ${key} disagree.`);
+      }
       if (binaryMeta.path != null) meta.path = binaryMeta.path;
     }
-    if (meta.count === 0) {
-      const relPath = meta.path || `${path.basename(resolvedBasePath)}.bin`;
-      if (path.isAbsolute(relPath) || relPath.split(/[\\/]/).includes('..')) throw new Error('Invalid binary artifact path.');
-      if (fsSync.statSync(path.join(path.dirname(resolvedBasePath), relPath)).size !== 0) {
-        throw new Error('Empty vector artifact contains unexpected binary data.');
-      }
-      return [];
-    }
-    const payload = loadDenseVectorBinaryFromMetaSync({
-      dir: path.dirname(resolvedBasePath),
-      baseName: path.basename(resolvedBasePath),
-      meta,
-      modelId
-    });
-    const rows = materializeDenseVectorRows(payload);
-    if (!payload || rows.length !== meta.count || payload.buffer.byteLength !== meta.count * meta.dims) {
-      throw new Error('Vector artifact binary is missing, truncated, or inconsistent.');
-    }
-    return rows;
+    const filename = resolveDenseVectorBinaryPayloadPath({ dir, baseName: path.basename(resolvedBasePath), meta });
+    if (!filename) throw new Error('Invalid vector artifact binary path.');
+    return openDenseVectorBinarySourceSync({ root: dir, filename, meta, signal, metrics });
   } catch (cause) {
+    throwIfAborted(signal);
     throw Object.assign(new Error(`SQLite dense input artifact is unreadable: ${vectorsPath || '<missing>'}`, { cause }),
       { code: 'ERR_SQLITE_DENSE_ARTIFACT_INVALID' });
   }
@@ -103,8 +95,14 @@ export const resolveSqliteDenseVectorRows = ({
   dims = null
 } = {}) => {
   if (Array.isArray(vectors)) return vectors;
-  return resolveSqliteDenseArtifactRows({ vectorsPath, modelId, dims });
+  const source = resolveSqliteDenseArtifactSource({ vectorsPath, modelId, dims });
+  try { return Array.from(source, row => row.vector); } finally { source.close(); }
 };
+
+const resolveSqliteDenseVectorSource = ({ vectors, ...options }) => Array.isArray(vectors)
+  ? { count: vectors.length, close: () => {}, *[Symbol.iterator]() {
+    for (let docId = 0; docId < vectors.length; docId++) yield { docId, vector: vectors[docId] };
+  } } : resolveSqliteDenseArtifactSource(options);
 
 const resolveVectorTableDims = (db, table, column) => {
   if (!db || !table || !column) return null;
@@ -143,7 +141,8 @@ export const updateSqliteDense = ({
   writeBatchSize = 256,
   emitOutput = true,
   warnOnMissing = true,
-  logger = console
+  logger = console,
+  signal = null
 }) => {
   const vectorExtensionBase = getVectorExtensionConfig(root, userConfig);
   const vectorExtension = resolveVectorExtensionConfigForMode(
@@ -180,9 +179,12 @@ export const updateSqliteDense = ({
 
   // Resolve and validate the replacement before opening a mutable connection,
   // changing schema/pragmas, or touching existing vector authority.
-  const vectorRows = resolveSqliteDenseVectorRows({ vectors, vectorsPath, modelId, dims });
-  const db = new Database(resolvedDbPath);
+  const work = { oldRowsScanned: 0, newRowsScanned: 0, rowsCompared: 0, baseWrites: 0, baseDeletes: 0,
+    annWrites: 0, annDeletes: 0, peakOldVectorBytes: 0 };
+  const vectorSource = resolveSqliteDenseVectorSource({ vectors, vectorsPath, modelId, dims, signal, metrics: work });
+  let db = null, validCount = 0, primaryFailure = null;
   try {
+    db = new Database(resolvedDbPath);
     assertSqliteIndexFormat({ db, repoRoot: root, indexPath: resolvedDbPath, operation: 'embedding-update' });
     if (!hasTable(db, 'dense_vectors') || !hasTable(db, 'dense_meta')) {
       if (emitOutput && warnOnMissing) {
@@ -190,16 +192,17 @@ export const updateSqliteDense = ({
       }
       return { skipped: true, reason: 'missing dense tables', vectorAnn: vectorAnnState };
     }
-    ensureDenseMetaSchema(db);
     let pragmaState = null;
     try {
-      const estimatedInputBytes = Math.max(1, Math.floor((vectors?.length || 0) * Math.max(1, Number(dims) || 1)));
+      const estimatedInputBytes = Math.max(1, Math.floor(vectorSource.count * Math.max(1, Number(dims) || 1)));
       pragmaState = applyBuildPragmas(db, { inputBytes: estimatedInputBytes });
       // Embedding updates trade some throughput for safer crash behavior.
       db.pragma('synchronous = NORMAL');
     } catch {}
 
+    const transactionStarted = process.hrtime.bigint();
     db.exec('BEGIN IMMEDIATE');
+    ensureDenseMetaSchema(db);
     let vectorAnnReady = false;
     let vectorAnnTable = vectorExtension.table || 'dense_vectors_ann';
     let vectorAnnColumn = vectorExtension.column || 'embedding';
@@ -249,9 +252,10 @@ export const updateSqliteDense = ({
     }
 
     const deleteMeta = db.prepare('DELETE FROM dense_meta WHERE mode = ?');
-    const selectDenseByMode = db.prepare(
-      'SELECT doc_id, vector FROM dense_vectors WHERE mode = ? ORDER BY doc_id ASC'
+    const selectDensePage = db.prepare(
+      'SELECT doc_id, length(vector) AS vector_bytes FROM dense_vectors WHERE mode = ? AND doc_id > ? ORDER BY doc_id ASC LIMIT ?'
     );
+    const selectDenseVector = db.prepare('SELECT vector FROM dense_vectors WHERE mode = ? AND doc_id = ?');
     const insertDense = db.prepare(
       'INSERT OR REPLACE INTO dense_vectors (mode, doc_id, vector) VALUES (?, ?, ?)'
     );
@@ -304,6 +308,7 @@ export const updateSqliteDense = ({
           deleteDenseBatchStmtCache.set(ids.length, stmt);
         }
         stmt.run(mode, ...ids);
+        work.baseDeletes += ids.length;
       };
       const runVectorAnnDeleteBatch = (rowIds) => {
         if (!vectorAnnReady || !Array.isArray(rowIds) || !rowIds.length) return;
@@ -314,6 +319,7 @@ export const updateSqliteDense = ({
           deleteVectorAnnBatchStmtCache.set(rowIds.length, stmt);
         }
         stmt.run(...rowIds);
+        work.annDeletes += rowIds.length;
       };
       const flushBatches = ({ force = false } = {}) => {
         if (
@@ -337,12 +343,14 @@ export const updateSqliteDense = ({
           const rows = denseUpsertBatch.splice(0, batchSize);
           for (const row of rows) {
             insertDense.run(mode, row.docId, row.packed);
+            work.baseWrites++;
           }
         }
         while (vectorAnnUpsertBatch.length) {
           const rows = vectorAnnUpsertBatch.splice(0, batchSize);
           for (const row of rows) {
             insertVectorAnn.run(row.rowId, row.encoded);
+            work.annWrites++;
           }
         }
       };
@@ -357,44 +365,63 @@ export const updateSqliteDense = ({
         resolvedQuantization.levels
       );
 
-      const existingRows = selectDenseByMode.all(mode);
-      let existingIndex = 0;
-      let current = existingRows[existingIndex] || null;
-      for (let docId = 0; docId < vectorRows.length; docId += 1) {
+      // Only bounded ID/length pages are retained. Old payloads are fetched one
+      // at a time when their width can equal the incoming row. Each next page
+      // is selected before processing new ordinals beyond the prior page's
+      // final old ID, so our own inserts cannot reappear as old input.
+      let oldPage = [], pageIndex = 0, lastOldId = -1, exhausted = false;
+      const nextOld = () => {
+        throwIfAborted(signal);
+        if (pageIndex === oldPage.length && !exhausted) {
+          oldPage = selectDensePage.all(mode, lastOldId, 256); pageIndex = 0;
+          exhausted = oldPage.length < 256;
+          if (oldPage.length) {
+            const finalId = Number(oldPage[oldPage.length - 1].doc_id);
+            if (!Number.isSafeInteger(finalId) || finalId <= lastOldId) throw new Error('Invalid SQLite dense ordinal ordering.');
+            lastOldId = finalId;
+          }
+        }
+        const row = oldPage[pageIndex++] || null;
+        if (row) work.oldRowsScanned++;
+        return row;
+      };
+      let current = nextOld();
+      for (const { docId, vector: vec } of vectorSource) {
+        throwIfAborted(signal); work.newRowsScanned++;
         while (current && Number(current.doc_id) < docId) {
           const staleDocId = Number(current.doc_id);
           denseDeleteBatch.push(staleDocId);
           if (vectorAnnReady) vectorAnnDeleteBatch.push(toSqliteRowId(staleDocId));
-          existingIndex += 1;
-          current = existingRows[existingIndex] || null;
+          current = nextOld();
           flushBatches();
         }
 
         const hasExisting = Boolean(current) && Number(current.doc_id) === docId;
-        const vec = vectorRows[docId];
         const hasVector = (Array.isArray(vec) || (ArrayBuffer.isView(vec) && !(vec instanceof DataView))) && vec.length > 0;
 
         if (!hasVector) {
           if (hasExisting) {
             denseDeleteBatch.push(docId);
             if (vectorAnnReady) vectorAnnDeleteBatch.push(toSqliteRowId(docId));
-            existingIndex += 1;
-            current = existingRows[existingIndex] || null;
+            current = nextOld();
             flushBatches();
           }
           continue;
         }
 
+        validCount++;
         const packed = packUint8(vec);
-        const existingPacked = hasExisting ? toComparableBuffer(current?.vector) : null;
+        const existingPacked = hasExisting && Number(current.vector_bytes) === packed.byteLength
+          ? toComparableBuffer(selectDenseVector.get(mode, docId)?.vector) : null;
+        if (hasExisting) work.rowsCompared++;
+        work.peakOldVectorBytes = Math.max(work.peakOldVectorBytes, existingPacked?.byteLength || 0);
         const unchanged = Boolean(
           existingPacked
           && existingPacked.byteLength === packed.byteLength
           && existingPacked.equals(packed)
         );
         if (hasExisting) {
-          existingIndex += 1;
-          current = existingRows[existingIndex] || null;
+          current = nextOld();
         }
         // An optional extension may have been unavailable during an earlier
         // base-only update. Equality of base bytes cannot prove ANN parity.
@@ -419,31 +446,43 @@ export const updateSqliteDense = ({
         const staleDocId = Number(current.doc_id);
         denseDeleteBatch.push(staleDocId);
         if (vectorAnnReady) vectorAnnDeleteBatch.push(toSqliteRowId(staleDocId));
-        existingIndex += 1;
-        current = existingRows[existingIndex] || null;
+        current = nextOld();
         flushBatches();
       }
       flushBatches({ force: true });
     });
     run();
     db.exec('COMMIT');
+    work.transactionMs = Number(process.hrtime.bigint() - transactionStarted) / 1e6;
     if (emitOutput) {
       logger.log(`[embeddings] ${mode}: SQLite dense vectors updated (${resolvedDbPath}).`);
     }
     return {
       skipped: false,
-      count: vectorRows.length,
-      rowCount: vectorRows.length,
-      validCount: vectorRows.filter(vector => vector?.length > 0).length,
+      count: vectorSource.count,
+      rowCount: vectorSource.count,
+      validCount,
+      work,
       vectorAnn: vectorAnnState,
       ingestEncoding,
       pragmas: pragmaState?.applied || null
     };
   } catch (error) {
-    if (db.inTransaction) db.exec('ROLLBACK');
+    primaryFailure = error;
+    if (db?.inTransaction) {
+      try { db.exec('ROLLBACK'); }
+      catch (rollbackError) {
+        primaryFailure = new AggregateError([error, rollbackError], 'SQLite dense update and rollback failed.', { cause: error });
+        throw primaryFailure;
+      }
+    }
     throw error;
   } finally {
-    db.close();
+    const closeErrors = [];
+    try { db?.close(); } catch (error) { closeErrors.push(error); }
+    try { vectorSource.close(); } catch (error) { closeErrors.push(error); }
+    if (closeErrors.length) throw new AggregateError(primaryFailure ? [primaryFailure, ...closeErrors] : closeErrors,
+      'SQLite dense resource cleanup failed.', { cause: primaryFailure || closeErrors[0] });
   }
 };
 

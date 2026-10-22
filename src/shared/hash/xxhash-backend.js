@@ -27,6 +27,17 @@ export const formatXxhashHex = (value) => {
   return '';
 };
 
+/** Incremental owner for bounded readers that already control their byte
+ * windows. Uses the same xxh64 algorithm and formatting as hash64Stream. */
+export const createXxhash64HasherFactory = async () => {
+  const { create64 } = await loadWasmState();
+  return () => {
+    const hasher = create64();
+    return { update: bytes => hasher.update(bytes), digest: () => formatXxhashHex(hasher.digest()) };
+  };
+};
+export const createXxhash64Hasher = async () => (await createXxhash64HasherFactory())();
+
 const createWasmBackend = async () => {
   if (wasmBackendPromise) return wasmBackendPromise;
   wasmBackendPromise = (async () => {

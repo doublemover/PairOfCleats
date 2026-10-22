@@ -11,6 +11,7 @@ import {
 } from '../../../src/shared/artifact-io/loaders.js';
 import { materializeDenseVectorRows } from '../../../src/shared/dense-vector-artifacts.js';
 import { decodeDenseVectorValidity, isDenseVectorRowPresent } from '../../../src/shared/dense-vector-validity.js';
+import { resolveBinaryVectorsSource } from './vector-source-binary.js';
 
 export const toCanonicalArtifactBase = (base) => {
   if (!base || typeof base !== 'string') return '';
@@ -103,19 +104,34 @@ export const resolveVectorsSource = (vectorsPath, {
   includeCanonicalBase = false,
   requireManifestDeclaration = false,
   tryCandidateJson = false,
-  stopOnShardMetaWithoutManifest = false
+  stopOnShardMetaWithoutManifest = false,
+  preferBinary = true,
+  expectedDims = null,
+  expectedModelId = null,
+  expectedEmbeddingIdentity = null,
+  expectedEmbeddingGeneration = null,
+  signal = null,
+  metrics = null
 } = {}) => {
   if (!vectorsPath) return null;
   const dir = path.dirname(vectorsPath);
   const base = path.basename(vectorsPath, path.extname(vectorsPath));
   const ext = path.extname(vectorsPath) || '.json';
-  const manifestNames = requireManifestDeclaration
-    ? collectManifestNames(loadPiecesManifest(dir, { strict: false }))
-    : new Set();
+  const manifest = requireManifestDeclaration || fsSync.existsSync(path.join(dir, 'pieces', 'manifest.json'))
+    || fsSync.existsSync(path.join(dir, 'pieces', 'manifest.json.bak')) ? loadPiecesManifest(dir, { strict: false }) : null;
+  const manifestNames = collectManifestNames(manifest);
   const baseCandidates = resolveArtifactBaseCandidates(base, { includeCanonical: includeCanonicalBase })
     .filter(candidate => !requireManifestDeclaration
       || resolveManifestAliasNames(candidate).some(name => manifestNames.has(name)));
   if (!baseCandidates.length) return null;
+
+  if (preferBinary) {
+    for (const artifactBase of baseCandidates) {
+      const binary = resolveBinaryVectorsSource({ dir, artifactBase, manifest, expectedDims, expectedModelId,
+        expectedEmbeddingIdentity, expectedEmbeddingGeneration, signal, metrics });
+      if (binary) return binary;
+    }
+  }
 
   for (const artifactBase of baseCandidates) {
     const metaPath = path.join(dir, `${artifactBase}.meta.json`);
