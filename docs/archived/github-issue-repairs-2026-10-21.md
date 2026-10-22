@@ -518,10 +518,10 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#730](https://github.com/doublemover/PairOfCleats/issues/730) | P3 | [P3] Avoid repeatedly serializing unchanged oversized context packs during response budgeting | development implemented; integration/validation deferred |
 | [#731](https://github.com/doublemover/PairOfCleats/issues/731) | P2 | [P2] Let explicit test-discovery patterns admit non-JavaScript test files | development implemented; integration/validation deferred |
 | [#732](https://github.com/doublemover/PairOfCleats/issues/732) | P2 | [P2] Close compressed JSONL source streams when artifact iteration stops early | development implemented; validation deferred |
-| [#733](https://github.com/doublemover/PairOfCleats/issues/733) | other | [Enhancement] Replace TUI full-model JSON frame signatures with revision-based invalidation | pending |
+| [#733](https://github.com/doublemover/PairOfCleats/issues/733) | other | [Enhancement] Replace TUI full-model JSON frame signatures with revision-based invalidation | source repair and regression authored; unvalidated |
 | [#734](https://github.com/doublemover/PairOfCleats/issues/734) | other | [Enhancement] Batch stack bases and member shapes across bounded spatial cells | pending |
 | [#735](https://github.com/doublemover/PairOfCleats/issues/735) | other | [Enhancement] Find and navigate entities across the loaded workspace response | pending |
-| [#736](https://github.com/doublemover/PairOfCleats/issues/736) | other | [Enhancement] Format only visible TUI job and task rows and reuse filtered identities | pending |
+| [#736](https://github.com/doublemover/PairOfCleats/issues/736) | other | [Enhancement] Format only visible TUI job and task rows and reuse filtered identities | source repair and regression authored; unvalidated |
 | [#737](https://github.com/doublemover/PairOfCleats/issues/737) | other | [Enhancement] Cache immutable TUI preview text and materialize only visible detail lines | pending |
 | [#738](https://github.com/doublemover/PairOfCleats/issues/738) | other | [Enhancement] Preserve structured search diagnostics in editor and TUI results | pending |
 | [#739](https://github.com/doublemover/PairOfCleats/issues/739) | other | [Enhancement] Bound TUI log-wrap materialization and reuse width-keyed layouts | pending |
@@ -1184,18 +1184,18 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1395](https://github.com/doublemover/PairOfCleats/issues/1395) | other | [Docs] Document state-preserving source upgrades and required artifact rebuilds | pending |
 | [#1396](https://github.com/doublemover/PairOfCleats/issues/1396) | perf | [Perf] Shard persistent tree-sitter chunks by digest instead of constant namespace prefix | pending |
 | [#1397](https://github.com/doublemover/PairOfCleats/issues/1397) | P1 | [P1] Preserve pending subprocess cleanup before releasing the build cache-writer lock | source repair and regression authored; unvalidated |
-| [#1398](https://github.com/doublemover/PairOfCleats/issues/1398) | P2 | [P2] Preserve exclusion and quoted-phrase gates under --match any | pending |
-| [#1399](https://github.com/doublemover/PairOfCleats/issues/1399) | P2 | [P2] Bind inlay type hints to their declaration role before assigning function returns | pending |
+| [#1398](https://github.com/doublemover/PairOfCleats/issues/1398) | P2 | [P2] Preserve exclusion and quoted-phrase gates under --match any | source repair and regression authored; unvalidated |
+| [#1399](https://github.com/doublemover/PairOfCleats/issues/1399) | P2 | [P2] Bind inlay type hints to their declaration role before assigning function returns | source repair and regression authored; unvalidated |
 | [#1400](https://github.com/doublemover/PairOfCleats/issues/1400) | P2 | [P2] Resolve CI export sources after child builds publish their generations | pending |
-| [#1401](https://github.com/doublemover/PairOfCleats/issues/1401) | P2 | [P2] Preserve all iteration labels when resolving compiler CFG continue targets | pending |
+| [#1401](https://github.com/doublemover/PairOfCleats/issues/1401) | P2 | [P2] Preserve all iteration labels when resolving compiler CFG continue targets | source repair and regression authored; unvalidated |
 | [#1402](https://github.com/doublemover/PairOfCleats/issues/1402) | P1 | [P1] Stage and validate CI artifact restores before replacing live indexes | pending |
-| [#1403](https://github.com/doublemover/PairOfCleats/issues/1403) | P2 | [P2] Do not kill reaching definitions for uninitialized var redeclarations | pending |
-| [#1404](https://github.com/doublemover/PairOfCleats/issues/1404) | P2 | [P2] Evaluate object method computed keys in the enclosing compiler CFG | pending |
-| [#1405](https://github.com/doublemover/PairOfCleats/issues/1405) | P2 | [P2] Preserve false and zero values in metadata search predicates | pending |
+| [#1403](https://github.com/doublemover/PairOfCleats/issues/1403) | P2 | [P2] Do not kill reaching definitions for uninitialized var redeclarations | source repair and regression authored; unvalidated |
+| [#1404](https://github.com/doublemover/PairOfCleats/issues/1404) | P2 | [P2] Evaluate object method computed keys in the enclosing compiler CFG | source repair and regression authored; unvalidated |
+| [#1405](https://github.com/doublemover/PairOfCleats/issues/1405) | P2 | [P2] Preserve false and zero values in metadata search predicates | source repair and regression authored; unvalidated |
 | [#1406](https://github.com/doublemover/PairOfCleats/issues/1406) | P2 | [P2] Preserve repeated ignore rules instead of changing last-match-wins order | pending |
 | [#1407](https://github.com/doublemover/PairOfCleats/issues/1407) | P2 | [P2] Keep ignored siblings excluded when expanding a nested include | pending |
 | [#1408](https://github.com/doublemover/PairOfCleats/issues/1408) | P2 | [P2] Parse Git changed-file output with NUL framing before metadata invalidation | source repair and regression authored; unvalidated |
-| [#1409](https://github.com/doublemover/PairOfCleats/issues/1409) | P2 | [P2] Respect exclusive source ends when assigning LSP symbols and diagnostics to chunks | pending |
+| [#1409](https://github.com/doublemover/PairOfCleats/issues/1409) | P2 | [P2] Respect exclusive source ends when assigning LSP symbols and diagnostics to chunks | source repair and regression authored; unvalidated |
 | [#1410](https://github.com/doublemover/PairOfCleats/issues/1410) | P2 | [P2] Preserve PDF.js end-of-line markers after their text items | pending |
 | [#1411](https://github.com/doublemover/PairOfCleats/issues/1411) | P2 | [P2] Retain tabs and breaks between DOCX fallback text runs | pending |
 | [#1412](https://github.com/doublemover/PairOfCleats/issues/1412) | perf | [Perf] Map document chunks to units without rescanning every page or paragraph | pending |
@@ -1203,11 +1203,11 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1414](https://github.com/doublemover/PairOfCleats/issues/1414) | P2 | [P2] Preserve significant whitespace and escapes in ignore-rule text | pending |
 | [#1415](https://github.com/doublemover/PairOfCleats/issues/1415) | P2 | [P2] Populate literal phrase evidence in records index chunks | pending |
 | [#1416](https://github.com/doublemover/PairOfCleats/issues/1416) | P2 | [P2] Preserve per-mode build identity when freezing mixed-generation snapshots | source repair and regression authored; unvalidated |
-| [#1417](https://github.com/doublemover/PairOfCleats/issues/1417) | P2 | [P2] Encode the inlay request EOF using the negotiated LSP position units | pending |
+| [#1417](https://github.com/doublemover/PairOfCleats/issues/1417) | P2 | [P2] Encode the inlay request EOF using the negotiated LSP position units | source repair and regression authored; unvalidated |
 | [#1418](https://github.com/doublemover/PairOfCleats/issues/1418) | P2 | [P2] Preserve DOCX source paragraphs and headings in the preferred Mammoth path | pending |
-| [#1419](https://github.com/doublemover/PairOfCleats/issues/1419) | P2 | [P2] Enforce strict completeness for manifest-ineligible ranked federation members | pending |
-| [#1420](https://github.com/doublemover/PairOfCleats/issues/1420) | P2 | [P2] Use protocol line boundaries for LSP source mapping instead of parser or LF-only indexes | pending |
-| [#1421](https://github.com/doublemover/PairOfCleats/issues/1421) | P2 | [P2] Preserve ambiguous symbol candidates across graph lookup and traversal caps | pending |
+| [#1419](https://github.com/doublemover/PairOfCleats/issues/1419) | P2 | [P2] Enforce strict completeness for manifest-ineligible ranked federation members | source repair and regression authored; unvalidated |
+| [#1420](https://github.com/doublemover/PairOfCleats/issues/1420) | P2 | [P2] Use protocol line boundaries for LSP source mapping instead of parser or LF-only indexes | source repair and regression authored; unvalidated |
+| [#1421](https://github.com/doublemover/PairOfCleats/issues/1421) | P2 | [P2] Preserve ambiguous symbol candidates across graph lookup and traversal caps | source repair and regression authored; unvalidated |
 | [#1422](https://github.com/doublemover/PairOfCleats/issues/1422) | P2 | [P2] Mark watchdog-killed test attempts as interrupted instead of passed | source repair and regression authored; unvalidated |
 | [#1423](https://github.com/doublemover/PairOfCleats/issues/1423) | P2 | [P2] Reject malformed benchmark waivers instead of granting indefinite global exceptions | source repair and regression authored; unvalidated |
 | [#1424](https://github.com/doublemover/PairOfCleats/issues/1424) | P2 | [P2] Preserve domain classification and structured evidence in MCP tool errors | source repair and regression authored; unvalidated |
@@ -1215,7 +1215,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1426](https://github.com/doublemover/PairOfCleats/issues/1426) | P2 | [P2] Report mean function cyclomatic complexity instead of the module aggregate | source repair and regression authored; unvalidated |
 | [#1427](https://github.com/doublemover/PairOfCleats/issues/1427) | P2 | [P2] Stop silently dropping complexity metadata for valid ESM imports and exports | source repair and regression authored; unvalidated |
 | [#1428](https://github.com/doublemover/PairOfCleats/issues/1428) | P2 | [P2] Keep changed files without coverage observations visible in policy reports | source repair and regression authored; unvalidated |
-| [#1429](https://github.com/doublemover/PairOfCleats/issues/1429) | P2 | [P2] Preserve configured LanceDB vector columns with an explicit queryable schema | pending |
+| [#1429](https://github.com/doublemover/PairOfCleats/issues/1429) | P2 | [P2] Preserve configured LanceDB vector columns with an explicit queryable schema | source repair and regression authored; unvalidated |
 | [#1430](https://github.com/doublemover/PairOfCleats/issues/1430) | perf | [Perf] Reuse verified operation-index reads within semantic-find pages | source repair and regression authored; unvalidated |
 | [#1431](https://github.com/doublemover/PairOfCleats/issues/1431) | P2 | [P2] Convert indexed UTF-16 spans before slicing context excerpts from UTF-8 source | source repair and regression authored; unvalidated |
 | [#1432](https://github.com/doublemover/PairOfCleats/issues/1432) | P2 | [P2] Enforce context-pack response bytes after JSON and SARIF rendering | source repair and regression authored; unvalidated |
@@ -1224,7 +1224,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1435](https://github.com/doublemover/PairOfCleats/issues/1435) | P2 | [P2] Include Dart function bodies and emit one chunk per declaration | pending |
 | [#1436](https://github.com/doublemover/PairOfCleats/issues/1436) | P2 | [P2] Preserve Julia bang-suffixed names in native declaration chunks | pending |
 | [#1437](https://github.com/doublemover/PairOfCleats/issues/1437) | P2 | [P2] Do not emit Go grouped type containers as duplicate first-type declarations | pending |
-| [#1438](https://github.com/doublemover/PairOfCleats/issues/1438) | P2 | [P2] Preserve explicit equals-form ANN booleans through search option resolution | pending |
+| [#1438](https://github.com/doublemover/PairOfCleats/issues/1438) | P2 | [P2] Preserve explicit equals-form ANN booleans through search option resolution | source repair and regression authored; unvalidated |
 | [#1439](https://github.com/doublemover/PairOfCleats/issues/1439) | P2 | [P2] Resolve huge-repo profile intent from one accepted configuration namespace | source repair and regression authored; unvalidated |
 | [#1440](https://github.com/doublemover/PairOfCleats/issues/1440) | P2 | [P2] Preserve selected records and extracted-prose hits in retrieval evaluation | source repair and regression authored; unvalidated |
 | [#1441](https://github.com/doublemover/PairOfCleats/issues/1441) | P2 | [P2] Invalidate bakeoff resume when evaluation dataset contents change | source repair and regression authored; unvalidated |
@@ -1236,7 +1236,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1447](https://github.com/doublemover/PairOfCleats/issues/1447) | P2 | [P2] Fix Windows SQLite Unicode path prefetch leaving deleted chunks searchable | pending |
 | [#1448](https://github.com/doublemover/PairOfCleats/issues/1448) | P2 | [P2] Keep unavailable risk-explain evidence distinct from a successful zero-flow report | source repair and regression authored; unvalidated |
 | [#1449](https://github.com/doublemover/PairOfCleats/issues/1449) | P2 | [P2] Include canonical JSON sidecars in records incremental SQLite identity | pending |
-| [#1450](https://github.com/doublemover/PairOfCleats/issues/1450) | P2 | [P2] Give inference-history hybrid search its own valid continuation contract | pending |
+| [#1450](https://github.com/doublemover/PairOfCleats/issues/1450) | P2 | [P2] Give inference-history hybrid search its own valid continuation contract | source repair and regression authored; unvalidated |
 | [#1451](https://github.com/doublemover/PairOfCleats/issues/1451) | perf | [Perf] Reuse unchanged record bundles before tokenization and inline embedding | pending |
 | [#1452](https://github.com/doublemover/PairOfCleats/issues/1452) | P2 | [P2] Preserve omitted-flow counts when risk explain applies its result caps | source repair and regression authored; unvalidated |
 | [#1453](https://github.com/doublemover/PairOfCleats/issues/1453) | perf | [Perf] Reuse the task-turn lookup when reading history context and timelines | pending |
@@ -1250,9 +1250,9 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1461](https://github.com/doublemover/PairOfCleats/issues/1461) | P2 | [P2] Preserve Objective-C selectors and implementation owners in native chunks | pending |
 | [#1462](https://github.com/doublemover/PairOfCleats/issues/1462) | P2 | [P2] Traverse parse5 template content instead of stopping at an empty childNodes array | pending |
 | [#1463](https://github.com/doublemover/PairOfCleats/issues/1463) | P2 | [P2] Rebase embedded HTML chunk line numbers along with source offsets | pending |
-| [#1464](https://github.com/doublemover/PairOfCleats/issues/1464) | P3 | [P3] Preserve lexicon filter statistics across Stage2 bundle replacement | pending |
-| [#1465](https://github.com/doublemover/PairOfCleats/issues/1465) | P3 | [P3] Keep bundle patches equivalent to the payload used for their checksum | pending |
-| [#1466](https://github.com/doublemover/PairOfCleats/issues/1466) | P2 | [P2] Include finalized risk metadata in incremental bundle reuse decisions | pending |
+| [#1464](https://github.com/doublemover/PairOfCleats/issues/1464) | P3 | [P3] Preserve lexicon filter statistics across Stage2 bundle replacement | source repair and regression authored; unvalidated |
+| [#1465](https://github.com/doublemover/PairOfCleats/issues/1465) | P3 | [P3] Keep bundle patches equivalent to the payload used for their checksum | source repair and regression authored; unvalidated |
+| [#1466](https://github.com/doublemover/PairOfCleats/issues/1466) | P2 | [P2] Include finalized risk metadata in incremental bundle reuse decisions | source repair and regression authored; unvalidated |
 | [#1467](https://github.com/doublemover/PairOfCleats/issues/1467) | P2 | [P2] Emit Rust required-trait and foreign function declarations from function_signature_item | pending |
 | [#1468](https://github.com/doublemover/PairOfCleats/issues/1468) | P2 | [P2] Distinguish native lexical scopes from type ownership before classifying functions as methods | pending |
 | [#1469](https://github.com/doublemover/PairOfCleats/issues/1469) | P2 | [P2] Preserve Python local-class scopes instead of merging distinct methods and their flow facts | pending |
@@ -1450,3 +1450,31 @@ page/phase using errors, submitted scene identity and pixel variation. Authored
 HTTP/MIME/module-byte, negative-page and desktop/narrow browser workflows have not
 run. Depth/compositing #1367 and per-instance fog #1377 remain separate; no FPS,
 hardware, browser, full-suite or performance qualification is inferred.
+
+### Compact native presentation and remaining correctness integration
+
+Native source 0a81ce30e (#733) replaces full retained-history frame signatures
+with collection revisions and explicit compact view/session/workload keys. Owner
+mutations cover replacement, append, eviction and replay restoration; render timing,
+credits and idle clocks remain excluded. Source 08dae9799 (#736) filters identities
+before viewport formatting and shares the selection marker sequence. Empty searches
+avoid row-text construction; arbitrary nonempty searches still inspect eligible
+text. Full-ring, same-count and viewport presentation controls are authored only.
+
+The seventeen-report source integration in 3e0d1a36a/b7a00f991/4ef439bad/
+1319ff499/5fafdc7f4 covers #1398/#1399/#1401/#1403/#1404/#1405/#1409/
+#1417/#1419/#1420/#1421/#1429/#1438/#1450/#1464/#1465/#1466. It preserves
+compiler execution roles and LSP protocol units/boundaries, query hard gates and
+false/zero metadata, ambiguous symbol candidates, strict federation scope,
+serialized bundle unset/legacy-read meaning, explicit typed LanceDB columns and
+bounded history pagination that refuses lexical continuation reuse. Shared cfgFlow
+and lspBindings identities advance to 15/14. Eleven new fixture IDs plus retained
+native controls remain unexecuted. No native Arrow conversion, compiler-solver,
+actual editor/LSP request, full cache roundtrip or performance result is claimed.
+#1216 typed batching still needs native allocation/timing qualification; #1251/
+#1281 cache-maintenance work remains in flight and is not counted completed.
+
+Root work now addresses #1348 and the still-open #1484 persistence obligation.
+Supported syntax occurrence preservation, resumable bounded production and durable
+coverage across inference/publication/readers are separate from the completed
+attribution source repair. No arbitrary cap increase substitutes for that work.
