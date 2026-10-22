@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { once } from 'node:events';
+import { createHash } from 'node:crypto';
 import { createJsonlBatchWriter } from './json-stream/jsonl-batch.js';
 import { writeJsonObjectFile } from './json-stream/json-writers.js';
 import { atomicWriteJson } from './io/atomic-write.js';
@@ -339,6 +340,22 @@ const writeCheckpoint = async (checkpointPath, payload) => {
   await atomicWriteJson(checkpointPath, payload, { spaces: 2, newline: false });
 };
 
+const hashRunFile = async (runPath) => {
+  const hash = createHash('sha256');
+  for await (const bytes of fs.createReadStream(runPath)) hash.update(bytes);
+  return hash.digest('hex');
+};
+
+const identifyMergeInputs = async (runs, options) => {
+  const identities = [];
+  for (const run of runs) {
+    const runPath = resolveRunPath(run);
+    if (!runPath) throw new Error('Merge run is missing its input path.');
+    identities.push({ path: path.resolve(runPath), sha256: await hashRunFile(runPath) });
+  }
+  return createHash('sha256').update(JSON.stringify({ runs: identities, ...options })).digest('hex');
+};
+
 /**
  * Read optional planner hint metadata from disk.
  * Hints are best-effort and ignored when unreadable or invalid.
@@ -372,6 +389,9 @@ const writePlannerHints = async (plannerHintsPath, payload) => {
  * Merge sorted run files using a staged planner/checkpoint strategy.
  * Planner hints are keyed by `plannerInputKey`; `plannerHintUsed` is surfaced
  * in stats so callers can track hint reuse hit-rate.
+ * Checkpoint reuse requires a nonempty `compareId`. Callers must change this ID
+ * or `plannerInputKey` when captured comparator, reader, or serializer semantics
+ * change; function source text cannot identify closure state.
  *
  * @param {object} input
  * @returns {Promise<{outputPath:string,stats:object,cleanup:()=>Promise<void>}>}
@@ -404,11 +424,24 @@ export const mergeRunsWithPlanner = async ({
     && plannerInputKey
     && plannerHints.inputKey === plannerInputKey
   );
-  const checkpoint = await readCheckpoint(checkpointPath);
+  const inputIdentity = checkpointPath && typeof compareId === 'string' && compareId.trim()
+    ? await identifyMergeInputs(runs, {
+      compareId,
+      compare: String(compare || compareStrings),
+      readRun: String(readRun),
+      serialize: String(serialize),
+      plannerInputKey,
+      maxOpenRuns,
+      outputPath: path.resolve(outputPath)
+    }) : null;
+  const candidateCheckpoint = await readCheckpoint(checkpointPath);
+  const checkpoint = candidateCheckpoint?.inputIdentity === inputIdentity && inputIdentity
+    ? candidateCheckpoint : null;
   let passIndex = 0;
   let currentRuns = runs.slice();
   const checkpointState = checkpoint || {
     version: MERGE_RUN_SCHEMA_VERSION,
+    inputIdentity,
     createdAt: new Date().toISOString(),
     passes: {}
   };
@@ -419,13 +452,15 @@ export const mergeRunsWithPlanner = async ({
     const passKey = String(passIndex);
     const passState = checkpointState.passes[passKey] || {};
     for (let i = 0; i < groups.length; i += 1) {
-      const cached = passState[i];
-      if (cached && cached.path && fs.existsSync(cached.path)) {
-        nextRuns.push(cached.path);
-        continue;
-      }
       const runPath = createRunPath(resolvedTempDir, runPrefix, passIndex, i);
       const manifestPath = `${runPath}.meta.json`;
+      const cached = passState[i];
+      if (cached?.path === runPath && cached.sha256 && fs.existsSync(runPath)
+        && await hashRunFile(runPath) === cached.sha256) {
+        cleanupPaths.push(runPath, manifestPath);
+        nextRuns.push(runPath);
+        continue;
+      }
       const stats = await mergeSortedRunsToFile({
         runs: groups[i],
         outputPath: runPath,
@@ -444,7 +479,7 @@ export const mergeRunsWithPlanner = async ({
       });
       await writeMergeRunManifest(manifestPath, manifest);
       cleanupPaths.push(runPath, manifestPath);
-      passState[i] = { path: runPath, manifestPath };
+      passState[i] = { path: runPath, manifestPath, sha256: await hashRunFile(runPath) };
       checkpointState.passes[passKey] = passState;
       await writeCheckpoint(checkpointPath, checkpointState);
       nextRuns.push(runPath);
