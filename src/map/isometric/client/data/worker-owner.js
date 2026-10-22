@@ -58,20 +58,20 @@ export const createSnapshotWorkerOwner = ({fetchPage,post}) => {
       if(request.kind==='init'){await load(request);return;}
       if(request.kind==='cancel'){stopLane(request.lane);return;}
       if(request.kind==='dispose'){this.dispose();return;}
-      const lane=request.kind;stopLane(lane);const controller=new AbortController();lanes.set(lane,controller);
+      const lane=request.lane||request.kind,kind=request.kind;stopLane(lane);const controller=new AbortController();lanes.set(lane,controller);
       try{
         if(acceptedDemand?.snapshot===request.snapshot){
-          const own=acceptedDemand,value=await own.query(lane,request.payload,controller.signal,request.revision);
+          const own=acceptedDemand,value=await own.query(kind,request.payload,controller.signal,request.revision);
           controller.signal.throwIfAborted();if(own===acceptedDemand&&lanes.get(lane)===controller)reply(request,{event:'result',value});return;
         }
         if(!accepted||accepted.snapshot!==request.snapshot)throw new Error('Requested graph generation is not ready; retained source navigation remains available.');
         const store=accepted;let value;
-        if(lane==='search')value=await store.search({...request.payload,signal:controller.signal});
-        else if(lane==='adjacency')value=store.adjacency(request.payload.entity,request.payload);
-        else if(lane==='detail'){
+        if(kind==='search')value=await store.search({...request.payload,signal:controller.signal});
+        else if(kind==='adjacency')value=store.adjacency(request.payload.entity,request.payload);
+        else if(kind==='detail'){
           const query=snapshotRequest({snapshot:request.snapshot,request:++serial,revision:request.revision,kind:'detail',entity:request.payload.entity});
           value=acceptSnapshotResponse(await fetchPage(query,controller.signal),query);
-        }else if(lane==='layout'){
+        }else if(kind==='layout'){
           await new Promise(resolve=>setTimeout(resolve,0));controller.signal.throwIfAborted();
           const index=store.sourceIndex(),plan=planSourceResidency(index,request.payload.selection,request.payload.budgets);
           const model=buildStackModel(plan.nodes,plan.edges,{...request.payload.layout,maxFiles:plan.limits.files,maxMembers:plan.limits.members,maxEdges:plan.limits.edges,fileByMember:index.fileByMember});

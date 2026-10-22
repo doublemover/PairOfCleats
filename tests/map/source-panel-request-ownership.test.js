@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { Window } from 'happy-dom';
+import { createSourceViewRequestOwner } from '../../src/map/isometric/client/data/view-request-owner.js';
+
+const window=new Window(),document=window.document,a=document.createElement('section'),b=document.createElement('section');document.body.append(a,b);
+const calls=[],request=async(kind,payload,options)=>{calls.push({kind,payload,...options});return payload;};
+const one=createSourceViewRequestOwner({host:a,request}),two=createSourceViewRequestOwner({host:b,request});
+await one.query('members',{fileRow:0});await two.query('members',{fileRow:1});
+assert.notEqual(calls[0].lane,calls[1].lane,'independent source disclosures do not supersede the same operation kind');
+await one.query('members',{fileRow:0,cursor:40});assert.equal(calls[0].lane,calls[2].lane,'the same panel continuation supersedes its own old page');
+a.remove();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(calls[0].signal.aborted,true);assert.equal(calls[1].signal.aborted,false);
+await assert.rejects(one.query('detail',{}),error=>error.name==='AbortError');
+two.dispose();two.dispose();assert.equal(calls[1].signal.aborted,true);await window.happyDOM.close();
+console.log('Source panel continuation lanes and actual disconnect cancellation authored; browser lifecycle qualification deferred.');

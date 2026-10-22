@@ -1,6 +1,7 @@
-import { snapshotRequest, acceptSnapshotResponse, SNAPSHOT_PAGE_LIMITS, MAP_DATA_PROTOCOL } from './protocol.js';
+import { snapshotRequest, acceptSnapshotResponse, SNAPSHOT_PAGE_LIMITS } from './protocol.js';
 import { createSnapshotPageCache } from './page-cache.js';
 import { buildStackModel } from '../stack-model.js';
+import { validateSnapshotManifest, validateSnapshotPage, validateResolvedSnapshotEntity, freezeSnapshotResponse } from './page-authority.js';
 
 const limit=(value,fallback,max)=>Math.min(max,Math.max(0,Number.isFinite(value)?Math.floor(value):fallback));
 const address=entity=>entity.address?{type:entity.type,address:entity.address}:{type:entity.type,id:entity.id,file:entity.file};
@@ -14,14 +15,20 @@ export const createDemandSnapshotSource = ({snapshot,fetchPage}) => {
     if(cached)return cached;
     const request=snapshotRequest({snapshot,request:++serial,revision,kind,...fields});
     const value=acceptSnapshotResponse(await fetchPage(request,signal),request);
-    signal?.throwIfAborted();if(retired)throw new Error('Demand source retired during fetch.');cache.set(key,value);return value;
+    signal?.throwIfAborted();if(retired)throw new Error('Demand source retired during fetch.');
+    if(kind==='manifest')validateSnapshotManifest(value.manifest,snapshot);
+    else{
+      validateSnapshotPage(value,request,manifest);
+      if(kind==='resolve')validateResolvedSnapshotEntity(value,manifest);
+    }
+    freezeSnapshotResponse(value);cache.set(key,value);return value;
   };
   const resolve=(entity,signal,revision)=>get('resolve',{entity:address(entity)},signal,revision);
   return {
     snapshot,
     async init(signal,revision=0){
       const value=await get('manifest',{},signal,revision);manifest=value.manifest;
-      if(manifest?.snapshot!==snapshot||manifest.protocol!==MAP_DATA_PROTOCOL||['files','members','edges'].some(key=>!Number.isSafeInteger(manifest.counts?.[key])||manifest.counts[key]<0))throw new Error('Demand manifest generation/counts mismatch.');return manifest;
+      return manifest;
     },
     async query(kind,payload={},signal,revision=0){
       if(!manifest)throw new Error('Demand source manifest is not ready.');
@@ -45,9 +52,10 @@ export const createDemandSnapshotSource = ({snapshot,fetchPage}) => {
       const discovery={observed:0,selectedAdjacencyTotal:null,evidenceBytes:0,complete:false,byteLimited:false},readLimit=Math.max(1,limits.edges),byteLimit=4*1024*1024;
       const ownerFor=endpoint=>endpoint?.member!=null?owners.get(String(endpoint.member)):endpoint?.file;
       const collect=async(entity,choosePeers)=>{
-        let cursor=0;
+        let cursor=0,total=null;
         while(discovery.observed<readLimit&&discovery.evidenceBytes<byteLimit){
           const page=await get('adjacency',{entity:address(entity),cursor,limit:Math.min(SNAPSHOT_PAGE_LIMITS.rows,readLimit-discovery.observed)},signal,revision);
+          if(total!==null&&page.total!==total)throw new Error('Pinned adjacency total changed during resident discovery.');total=page.total;
           if(choosePeers)discovery.selectedAdjacencyTotal=page.total;
           for(const row of page.rows){
             discovery.observed++;const evidence=row.evidence;
@@ -69,6 +77,7 @@ export const createDemandSnapshotSource = ({snapshot,fetchPage}) => {
         const members=[];let cursor=start;
         while(members.length<count&&cursor<file.memberCount){
           const page=await get('members',{fileRow:file.row,cursor,limit:Math.min(256,count-members.length)},signal,revision);
+          if(page.total!==file.memberCount)throw new Error('Pinned member page total does not match its resolved source file.');
           if(!page.rows.length)throw new Error('Demand member continuation made no progress.');
           members.push(...page.rows);layoutBytes+=new TextEncoder().encode(JSON.stringify(page.rows)).length;
           if(layoutBytes>8*1024*1024)throw new Error('Resident detail exceeds its byte budget. Reduce the render working set; source evidence remains pageable.');

@@ -1,12 +1,13 @@
 import { state } from '../state.js';
 import { createDemandSnapshotSource } from './demand-source.js';
 import { readBoundedJsonResponse, sourceEntityKey } from './protocol.js';
+import { createSnapshotRequestQueue } from './request-queue.js';
 
 /** Main thread retains the selected record and current resident compact model only. */
 export const createRemoteSource = config => {
   const manifest=config.manifest,snapshot=Object.freeze({id:config.snapshot,summary:{dropped:manifest.coverage.upstreamDropped}});
   const files=new Map(),members=new Map(),typedMembers=new Map(),fileByMember=new Map(),residentPaths=new Set();let selection=null,disposed=false,navigationEpoch=0,navigationController=null;
-  const lifetime=new AbortController();
+  const lifetime=new AbortController(),directQueue=createSnapshotRequestQueue();
   const direct=createDemandSnapshotSource({snapshot:config.snapshot,fetchPage:async(request,signal)=>{
     const response=await fetch(config.endpoint,{method:'POST',signal,headers:{'Content-Type':'application/json','X-Map-Session':config.token},body:JSON.stringify(request)});
     return readBoundedJsonResponse(response,{signal});
@@ -15,8 +16,10 @@ export const createRemoteSource = config => {
   const request=async(kind,payload,options={})=>{
     if(disposed)throw new Error('Remote source has retired.');
     if(state.graphWorkerReady)return state.graphWorkerClient.request(kind,payload,options);
-    directReady ||= direct.init(lifetime.signal);
-    await directReady;return direct.query(kind,payload,options.signal,options.revision||0);
+    return directQueue.request({lane:options.lane||kind,signal:options.signal,run:async signal=>{
+      directReady ||= direct.init(lifetime.signal).catch(error=>{directReady=null;throw error;});
+      await directReady;signal.throwIfAborted();return direct.query(kind,payload,signal,options.revision||0);
+    }});
   };
   const registerMember=(file,member)=>{if(member.id!=null){const value={file,member};typedMembers.set(sourceEntityKey('member',member.id),value);members.set(String(member.id),value);fileByMember.set(String(member.id),file);}};
   const registerSelection=record=>{
@@ -54,6 +57,7 @@ export const createRemoteSource = config => {
     },
     async detail(info,signal){return (await request('detail',{entity:info},{signal})).detail;},
     releaseFallbackPages(){direct.releasePages();},
-    dispose(){disposed=true;navigationEpoch++;navigationController?.abort();lifetime.abort();direct.dispose();files.clear();members.clear();typedMembers.clear();fileByMember.clear();selection=null;}
+    stats(){return {directRequests:directQueue.stats(),workerRequests:state.graphWorkerClient?.stats?.()||null};},
+    dispose(){disposed=true;navigationEpoch++;navigationController?.abort();lifetime.abort();directQueue.dispose();direct.dispose();files.clear();members.clear();typedMembers.clear();fileByMember.clear();selection=null;}
   };
 };

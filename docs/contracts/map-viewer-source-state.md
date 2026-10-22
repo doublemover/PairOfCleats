@@ -220,3 +220,15 @@ routing uses the committed layer address, not a changing subset position. The
 pattern grammar is metadata/text in this slice; the accepted thin-line backend
 has not been replaced with width-capable physical cores, nor have overlap pixels,
 dash rendering, glass capture or resource/frame budgets been qualified.
+
+Source operations now use a bounded queue in both module-worker and direct-demand
+callers: two operations can run, sixteen more can wait, and overflow fails with
+an explicit retry explanation. Supersession belongs to an operation lane within
+the actual source panel; two member disclosures no longer cancel each other
+merely because both request members. A cancelled operation retains its physical
+queue slot until its runner settles. Source panel removal and disclosure close
+abort pending work, with one shared document removal observer. Worker failure
+retires queued and pending requests with the original failure; direct manifest
+initialization can be retried after a failed attempt. These bounds concern
+requests and retained queue entries, not total source admission or measured
+network/worker/browser latency. Host integration and regressions remain unrun.
