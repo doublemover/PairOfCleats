@@ -6,8 +6,11 @@ import { clearGroup } from './scene-utils.js';
 import { retirePicking } from './rendering/picking-owner.js';
 import { captureSceneResource, getPendingSceneResourceOwners, preserveSceneCleanupFailures } from './scene-retirement.js';
 
-export const initScene = async () => {
-  state.disposeScene?.();
+export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
+  if(!isCurrent())return null;
+  const previousDispose=state.disposeScene;
+  if(typeof previousDispose==='function')previousDispose.call(state);
+  if(!isCurrent())return null;
   const { THREE, dom, RGBELoader, assets, visuals } = state;
   const { app } = dom;
 
@@ -172,6 +175,7 @@ export const initScene = async () => {
     if (state.disposeScene === disposeScene) state.disposeScene = null;
   };
   Object.assign(state,{scene,renderer,disposeScene,contextLost:false});
+  onSceneOwner?.({scene,renderer,disposeScene});
 
   const envCanvas = document.createElement('canvas');
   envCanvas.width = 32;
@@ -228,6 +232,7 @@ export const initScene = async () => {
   if (visuals?.enableExtraLights === false) {
     extraLights.forEach((light) => { light.visible = false; });
   }
+  return {scene,renderer,disposeScene};
 };
 
 

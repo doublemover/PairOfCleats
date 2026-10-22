@@ -99,3 +99,20 @@ source/disposer. After cleanup awaits, a superseded fallback returns its full ol
 failure and retains existing pending resource capabilities without replacing the
 current renderer's failure, retirement state or status. Gated sibling replacement
 and overlapping fallback controls are also authored and unrun.
+
+The viewer's enhancement owner now fences each module/environment import and
+scene-initialization await by its original request, source and document owner.
+Imported modules remain local until that owner is current. The actual scene
+producer reports its installed scene/renderer/disposer synchronously; the
+enhancement captures that original function and receiver for later retirement.
+An older initializer failure cannot look up a newer scene's disposer or enter a
+new fallback against that scene. A stale import which acquired no scene does
+not retire the shared scene it observed before importing. Page retirement stops
+later publication without claiming that dynamic imports have been cancelled.
+
+The authored enhancement controls cover out-of-order imports/environment loads,
+source replacement, page retirement, original disposer capture and the actual
+inert `initScene` producer followed by a delayed older rejection. They remain
+unrun. This source slice does not close the separate partial-construction gap
+before the scene shutdown owner is installed, qualify reentrant browser/Three
+callbacks, or establish GPU/native quiescence or retry safety.

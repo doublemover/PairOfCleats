@@ -11,7 +11,7 @@ export const describeRendererFailure = error => {
 
 /** Always restore the source capability/status even if exact scene cleanup fails.
  * Failed owners remain with their existing scoped reconciliation capabilities. */
-export const enterSourceRendererFallback = async ({state,summary,retry,error}) => {
+export const enterSourceRendererFallback = async ({state,summary,retry,error,cleanup=null}) => {
   const cleanupErrors=[];
   const fallback={source:state.sourceIndex,remote:state.remoteSource,scene:state.scene,renderer:state.renderer};
   fallbacks.set(state,fallback);
@@ -25,7 +25,8 @@ export const enterSourceRendererFallback = async ({state,summary,retry,error}) =
     try{return fallbacks.get(state)===fallback&&state.sourceIndex===fallback.source&&state.remoteSource===fallback.remote
       &&state.scene===fallback.scene&&state.renderer===fallback.renderer&&(captureFailed||state.disposeScene===dispose);}catch{return false;}
   };
-  if(typeof dispose==='function')try{await dispose.call(state);}catch(cleanup){cleanupErrors.push(cleanup);}
+  const perform=typeof cleanup==='function'?cleanup:typeof dispose==='function'?()=>dispose.call(state):null;
+  if(perform)try{await perform();}catch(cleanup){cleanupErrors.push(cleanup);}
   const failure=preserveSceneCleanupFailures(error,cleanupErrors,{hasPrimary:true,forceAggregate:true});
   // A retry/source replacement may publish while this exact disposer drains.
   // Its result keeps the old failure; it cannot adopt the new scene's state.

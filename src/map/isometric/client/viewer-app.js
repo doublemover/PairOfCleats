@@ -24,7 +24,7 @@ import { initViewerShell } from './workspace-shell.js';
 import { loadViewerSettingsSession } from './settings-client.js';
 import { applyViewerAppearance, initAppearanceEditor } from './appearance.js';
 import { initResidencyOwner } from './data/residency-owner.js';
-import { enterSourceRendererFallback, invalidateRendererFallback } from './rendering/failure-state.js';
+import { createRendererEnhancementOwner } from './rendering/enhancement-owner.js';
 import { initSnapshotData } from './data/session-owner.js';
 import { createRemoteSource } from './data/remote-source.js';
 import { buildSnapshotOverview } from './rendering/snapshot-overview.js';
@@ -201,16 +201,14 @@ const initViewer = async () => {
     state.map=next.map;state.displayLimits=next.limits;initMapData();state.refreshStackNavigation?.();
     initUi();rebuildScene();applyViewerAppearance(state,fresh.appearance);initAppearanceEditor(state,document,dom.menuVisuals);renderSummary();
   };
-  const enhance=async()=>{
-    invalidateRendererFallback(state);
-    retry.remove();
-    dom.summary.textContent='Source browser ready · loading local 3D assets…';
-    try {
+  const enhancement=createRendererEnhancementOwner({state,summary:dom.summary,retry,
+    loadModules:()=>{
       if(!config.threeUrl)throw new Error('Missing local three.js module reference');
-      Object.assign(state,await loadThreeModules(config.threeUrl));
-      state.RGBELoader=assets.hdrEnvUrl?await loadRgbeLoader(assets.rgbeLoaderUrl,config.threeUrl):null;
-      dom.summary.textContent='Source browser ready · constructing 3D scene…';
-      await initScene();
+      return loadThreeModules(config.threeUrl);
+    },
+    loadEnvironment:()=>assets.hdrEnvUrl?loadRgbeLoader(assets.rgbeLoaderUrl,config.threeUrl):null,
+    construct:initScene,
+    initialize:()=>{
       initMaterials();
       initUi();
       rebuildScene();
@@ -220,11 +218,9 @@ const initViewer = async () => {
       initControls();
       initResidencyOwner();
       state.scheduleRebuild=scheduleRebuild;
-      renderSummary();
-    } catch(error) {
-      await enterSourceRendererFallback({state,summary:dom.summary,retry,error});
-    }
-  };
+    },renderSummary});
+  const enhance=()=>enhancement.enhance();
+  window.addEventListener('pagehide',()=>enhancement.dispose(),{once:true});
   await enhance();
 };
 
