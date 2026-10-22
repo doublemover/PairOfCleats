@@ -15,6 +15,7 @@ import {
   sleep
 } from './request-utils.js';
 import { createJobWatchdogController, resolveWatchdogPolicy } from './watchdog.js';
+import { ownedCleanupIsPending, combineOwnedErrors } from '../operator/settle-owned.js';
 
 /**
  * Build and expose job lifecycle operations for the supervisor runtime.
@@ -37,9 +38,24 @@ import { createJobWatchdogController, resolveWatchdogPolicy } from './watchdog.j
  */
 export const createJobController = ({ state, runId, root, emit, emitLog, buildFlowSnapshot,
   beginArtifactJob = null, captureArtifactInventory = null, assertWorkAdmission = null }) => {
-  const assertAcceptingWork = () => {
+  const assertAcceptingWork = ({ allowPending = false } = {}) => {
     if (state.shuttingDown) throw Object.assign(new Error('Supervisor is shutting down.'),
       { code: 'ERR_TUI_SHUTTING_DOWN' });
+    for (const job of state.jobs.values()) {
+      if (!allowPending && ownedCleanupIsPending(job.resourceError)) {
+        throw Object.assign(new Error('An owned job still has unconfirmed resource cleanup.'), {
+          code: 'ERR_TUI_RESOURCE_PENDING', cacheOwnershipPending: true,
+          cacheOwnershipReleased: () => !ownedCleanupIsPending(job.resourceError)
+        });
+      }
+      cleanupFinalizedJob(job.id, job);
+    }
+  };
+  const retainPendingResource = (job, error) => {
+    if (error?.cacheOwnershipPending !== true) return;
+    job.resourceError = job.resourceError && job.resourceError !== error
+      ? combineOwnedErrors(job.resourceError, [error]) : error;
+    job.cleanupPending = () => ownedCleanupIsPending(job.resourceError);
   };
   /**
    * Return one tracked job by id.
@@ -58,7 +74,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
   const cleanupFinalizedJob = (jobId, expectedJob = null) => {
     const job = getJob(jobId);
     if (!job || !job.finalized || (expectedJob && job !== expectedJob)
-      || (job.settlement && job.settled !== true)) return;
+      || (job.settlement && job.settled !== true) || ownedCleanupIsPending(job.resourceError)) return;
     state.jobs.delete(jobId);
   };
 
@@ -90,6 +106,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
    */
   const emitArtifacts = async (job, request, { cwd } = {}) => {
     try {
+      if (ownedCleanupIsPending(job.resourceError)) throw job.resourceError;
       assertWorkAdmission?.({ kind: 'artifacts', request });
       const artifacts = await collectJobArtifacts({ request, cwd });
       const inventory = job.artifactGeneration && captureArtifactInventory
@@ -159,18 +176,23 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
     state.jobs.set(jobId, job);
 
     const completeAttempt = async payload => {
-      if (afterRun) {
+      if (afterRun && !ownedCleanupIsPending(job.resourceError)) {
         try {
           const observation = await afterRun({ payload, signal: job.abortController.signal });
           if (Buffer.byteLength(JSON.stringify(observation) || '') > 1024 * 1024) throw new Error('Oversized workflow observation.');
           Object.assign(payload, observation);
         } catch (error) {
+          retainPendingResource(job, error);
           payload.workflow = { observed: false, errorCode: String(error.code || 'ERR_TUI_WORKFLOW_OBSERVATION') };
+          if (ownedCleanupIsPending(job.resourceError)) {
+            payload.status = payload.status === 'cancelled' ? 'cancelled' : 'failed';
+            payload.error = { code: 'ERR_TUI_RESOURCE_PENDING', message: 'Workflow resource cleanup remains unconfirmed.' };
+          }
         }
       }
       if (job.nativeTaskStarted) emit('task:end', { taskId: 'native-owner', status: payload.status,
-        message: payload.workflow?.maintenance?.pending === true
-          ? 'Owned child closed with unresolved backend ownership; cache admission remains fenced.'
+        message: payload.workflow?.maintenance?.pending === true || ownedCleanupIsPending(job.resourceError)
+          ? 'Owned execution ended with unconfirmed resource cleanup; admission remains fenced.'
           : 'Owned workflow execution settled.' }, { jobId });
       finalizeJob(job, payload);
     };
@@ -328,6 +350,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
         await completeAttempt(payload);
         await emitArtifacts(job, request, { cwd });
       } catch (error) {
+        retainPendingResource(job, error);
         job.timedOut = error?.code === 'SUBPROCESS_TIMEOUT' || job.cancelReason === 'watchdog_timeout';
         const cancelled = job.abortController.signal.aborted || error?.name === 'AbortError';
         const cancelReason = job.cancelReason || String(job.abortController.signal.reason || '');
@@ -347,7 +370,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
               : cancelled ? (cancelReason || 'CANCELLED') : beforeRun ? (error.code || 'SPAWN_FAILED') : 'SPAWN_FAILED'
           }
         };
-        if (!cancelled && attempt < retryPolicy.maxAttempts) {
+        if (!cancelled && error?.cacheOwnershipPending !== true && attempt < retryPolicy.maxAttempts) {
           emitLog(jobId, 'warn', `attempt ${attempt} failed; retrying (${attempt + 1}/${retryPolicy.maxAttempts})`, {
             attempt,
             maxAttempts: retryPolicy.maxAttempts,
@@ -367,6 +390,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
     };
 
     job.settlement = runAttempt(1).catch(async (error) => {
+      retainPendingResource(job, error);
       if (job.finalized) return;
       finalizeJob(job, {
         status: 'failed',
@@ -446,7 +470,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
    */
   const startOperation = async ({ jobId, method }, execute,
     { timeoutMs = 15000, title = 'Settings', isCommitted = data => data?.saved === true } = {}) => {
-    assertAcceptingWork();
+    assertAcceptingWork({ allowPending: ['status', 'describe', 'services', 'stop-service'].includes(method) });
     assertWorkAdmission?.({ kind: 'operation', method });
     if (typeof jobId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(jobId)) {
       throw new Error('Internal operation requires a bounded jobId.');
@@ -475,9 +499,11 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
         finish({ status: 'done', exitCode: 0, resultState: 'complete', result: { method, data } });
       }
     }).catch(error => {
+      retainPendingResource(job, error);
       const aborted = job.abortController.signal.aborted;
       finish({ status: aborted && !job.timedOut ? 'cancelled' : 'failed', exitCode: null, result: null,
-        error: { code: job.timedOut ? 'ERR_TUI_OPERATION_TIMEOUT' : aborted ? 'ABORT_ERR'
+        error: { code: ownedCleanupIsPending(job.resourceError) ? 'ERR_TUI_RESOURCE_PENDING'
+          : job.timedOut ? 'ERR_TUI_OPERATION_TIMEOUT' : aborted ? 'ABORT_ERR'
           : String(error?.code ?? 'ERR_TUI_OPERATION_FAILED').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 80) } });
     }).finally(() => { job.settled = true; clearTimeout(timer); cleanupFinalizedJob(jobId, job); });
     job.settlement.catch(() => {});

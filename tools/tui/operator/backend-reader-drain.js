@@ -14,7 +14,8 @@ export const drainTuiBackendReaders = async ({ jobs, jobId, launcherJob, leaseId
     if (jobs.get(jobId) !== maintenance || maintenance.finalized) {
       fail('ERR_TUI_BACKEND_JOB', 'Maintenance job is no longer active.');
     }
-    const other = [...jobs.values()].some(job => (!job.finalized || job.settlement && job.settled !== true) && job !== maintenance
+    const other = [...jobs.values()].some(job => (!job.finalized || job.settlement && job.settled !== true
+      || job.cleanupPending?.() === true) && job !== maintenance
       && !(job === launcherJob && job.internal === true));
     if (other) fail('ERR_TUI_BACKEND_ACTIVE_JOBS', 'Stop or finish other supervised work before exclusive backend maintenance.');
   };

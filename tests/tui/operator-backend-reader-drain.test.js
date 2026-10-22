@@ -50,6 +50,13 @@ const fixture = () => {
 }
 {
   const f = fixture();
+  f.jobs.set('terminal-pending-child', { id: 'terminal-pending-child', finalized: true,
+    settlement: Promise.resolve(), settled: true, cleanupPending: () => true });
+  await assert.rejects(drainTuiBackendReaders(f.input), { code: 'ERR_TUI_BACKEND_ACTIVE_JOBS' });
+  assert.deepEqual(f.calls, [], 'execution completion cannot release an unknown child lifetime before backend exclusion');
+}
+{
+  const f = fixture();
   await assert.rejects(drainTuiBackendReaders({ ...f.input, closeSearch: async () => {
     f.jobs.set('late-work', { id: 'late-work', finalized: false });
   } }), { code: 'ERR_TUI_BACKEND_ACTIVE_JOBS' });

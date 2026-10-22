@@ -26,6 +26,14 @@ An unfinished promise remains unfinished; an elapsed timeout cannot manufacture 
 closure receipt. The native lifetime owner retains its existing bounded platform
 containment fallback. Unknown database settlement retains canonical exclusion.
 
+An execution that reports pending child cleanup retains its exact job registry
+entry after job:end and promise completion. It cannot retry, publish artifact
+observations, admit later work or grant backend exclusivity. Status/describe and
+owned service stop controls remain available. Only the original settlement
+observer can permit removal and same-ID reuse; old cleanup cannot remove a newer
+job. Shutdown reports such an owner as failed/unconfirmed even after its execution
+promise completes. No timer manufactures a release or changes the public CLI.
+
 Final output drains use write callbacks and a bounded flush wait. A failed pipe or
 expired flush wait reports incomplete output and makes an otherwise successful
 exit nonzero. Existing nonzero signal status is preserved. The supervisor borrows

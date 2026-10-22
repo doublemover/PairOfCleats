@@ -37,6 +37,7 @@ export const createSupervisorShutdown = ({ state, cancelJob, closeOwners, stopMe
           throw Object.assign(new Error('Admitted job has no settlement owner.'), { code: 'ERR_TUI_JOB_SETTLEMENT' });
         }
         await job.settlement;
+        if (job.cleanupPending?.() === true) throw job.resourceError;
       }));
       await Promise.all([...cancellations, ...owners, ...jobs]);
       let transport = { complete: false, failed: true, errorCode: 'ERR_TUI_OUTPUT_DRAIN' };
