@@ -60,6 +60,8 @@ impl ReplayState {
         model.task_identity = self.task_identity.clone();
         model.task_order = self.task_order.clone();
         model.logs = self.logs.clone();
+        model.log_layout_cache.borrow_mut().clear();
+        model.next_log_id = model.next_log_id.max(model.logs.iter().map(|entry| entry.id).max().unwrap_or(0).saturating_add(1));
         model.alerts = self.alerts.clone();
         model.session = self.session.clone();
         model.workload_kind = self.workload_kind;

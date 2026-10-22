@@ -484,3 +484,48 @@ fn paused_filtered_log_anchor_survives_matching_and_unmatched_arrivals() {
     assert!(build_log_lines(&model, 60, 3).contains("LMARK10"));
     assert!(screen(&model, 140, 24).contains("LMARK10"));
 }
+
+#[test]
+fn log_presentation_cache_reuses_immutable_tail_and_tracks_entry_eviction() {
+    let mut model = model();
+    model.logs.clear();
+    model.log_layout_cache.borrow_mut().clear();
+    model.push_log("long-tail ".repeat(6554));
+    let actual = build_log_lines(&model, 80, 10);
+    let all = wrap_text_lines(&render_log_entry(model.logs.back().unwrap()), 80, usize::MAX);
+    assert_eq!(actual, all[all.len().saturating_sub(10)..].join("\n"));
+    let scans = model.log_layout_cache.borrow().scans;
+    let owned = model.log_layout_cache.borrow().owned_rows;
+    assert_eq!(owned, 10, "hidden wrapped rows never become owned presentation strings");
+    for _ in 0..20 { assert_eq!(build_log_lines(&model, 80, 10), actual); }
+    assert_eq!(model.log_layout_cache.borrow().scans, scans);
+    assert!(model.log_layout_cache.borrow().hits >= 20);
+    build_log_lines(&model, 79, 10);
+    assert_eq!(model.log_layout_cache.borrow().scans, scans + 1);
+    let old_id = model.logs.back().unwrap().id;
+    for index in 0..LOG_RING_LIMIT { model.push_log(format!("replacement-{index}")); }
+    model.log_scroll = usize::MAX;
+    assert!(build_log_lines(&model, 80, 1).contains("replacement-0"));
+    assert!(!model.logs.iter().any(|entry| entry.id == old_id));
+    assert!(model.log_layout_cache.borrow().bytes() <= 2 * 1024 * 1024);
+    model.search_logs = "REPLACEMENT-19".into(); model.log_scroll = 0;
+    assert!(build_log_lines(&model, 80, 10).contains("replacement-19"));
+}
+
+#[test]
+fn empty_log_search_formats_only_visible_entries_and_identity_rollover_is_safe() {
+    let mut model = model();
+    model.logs.clear();
+    for index in 0..LOG_RING_LIMIT { model.push_log(format!("entry-{index}")); }
+    LOG_FORMATS.with(|count| count.set(0));
+    let first = build_log_lines(&model, 80, 10);
+    assert_eq!(LOG_FORMATS.with(|count| count.get()), 10);
+    assert_eq!(build_log_lines(&model, 80, 10), first);
+    assert_eq!(LOG_FORMATS.with(|count| count.get()), 10, "unchanged redraw does not reformat cached text");
+    let retained = model.log_layout_cache.borrow().bytes();
+    model.next_log_id = u64::MAX;
+    model.push_log("after-renumber".into());
+    assert!(build_log_lines(&model, 80, 1).contains("after-renumber"));
+    assert!(model.log_layout_cache.borrow().bytes() <= retained + 4096);
+    assert_eq!(model.logs.iter().map(|entry| entry.id).collect::<std::collections::HashSet<_>>().len(), LOG_RING_LIMIT);
+}

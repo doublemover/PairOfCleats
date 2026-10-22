@@ -1,3 +1,4 @@
+mod log_layout;
 mod inspection;
 mod event_ingress;
 #[cfg(test)]
@@ -185,6 +186,7 @@ struct AlertEntry {
 
 #[derive(Clone)]
 struct LogEntry {
+    id: u64,
     text: String,
     level: String,
     source: String,
@@ -587,6 +589,8 @@ struct AppModel {
     task_identity: BTreeMap<String, (String, String)>,
     task_order: VecDeque<String>,
     logs: VecDeque<LogEntry>,
+    next_log_id: u64,
+    log_layout_cache: std::cell::RefCell<log_layout::LogLayoutCache>,
     alerts: VecDeque<AlertEntry>,
     session: SessionState,
     // Set only by the owner of the real local child transport, never by data.
@@ -659,6 +663,8 @@ impl AppModel {
             task_identity: BTreeMap::new(),
             task_order: VecDeque::new(),
             logs: VecDeque::new(),
+            next_log_id: 1,
+            log_layout_cache: std::cell::RefCell::new(log_layout::LogLayoutCache::default()),
             alerts: VecDeque::new(),
             session: SessionState {
                 mode: "supervised".to_string(),
@@ -728,7 +734,15 @@ impl AppModel {
         source: &str,
         job_id: Option<&str>,
     ) {
+        if self.next_log_id == u64::MAX {
+            self.log_layout_cache.borrow_mut().clear();
+            for (index, retained) in self.logs.iter_mut().enumerate() { retained.id = index as u64 + 1; }
+            self.next_log_id = self.logs.len() as u64 + 1;
+        }
+        let id = self.next_log_id;
+        self.next_log_id += 1;
         let entry = LogEntry {
+            id,
             text,
             level: level.to_string(),
             source: source.to_string(),
@@ -738,7 +752,7 @@ impl AppModel {
             self.log_scroll = self.log_scroll.saturating_add(1);
         }
         if self.logs.len() >= LOG_RING_LIMIT {
-            self.logs.pop_front();
+            if let Some(old) = self.logs.pop_front() { self.log_layout_cache.borrow_mut().remove(old.id); }
         }
         self.logs.push_back(entry);
         self.content_changed();
@@ -1205,6 +1219,7 @@ fn send_request(child: &mut std::process::Child, payload: Value) -> anyhow::Resu
     Ok(())
 }
 
+#[cfg(test)]
 fn tail_window_slice<T: Clone>(items: &[T], scroll: usize, height: usize) -> Vec<T> {
     if items.is_empty() {
         return Vec::new();
@@ -1438,6 +1453,7 @@ fn block_title(base: &str, focused: bool, extra: &[String]) -> String {
     parts.join(" | ")
 }
 
+#[cfg(test)]
 fn wrap_text_lines(text: &str, width: usize, max_lines: usize) -> Vec<String> {
     if width == 0 || max_lines == 0 {
         return Vec::new();
@@ -2103,7 +2119,11 @@ fn build_task_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListIte
     }).collect()
 }
 
+#[cfg(test)]
+thread_local! { static LOG_FORMATS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
+
 fn render_log_entry(entry: &LogEntry) -> String {
+    #[cfg(test)] LOG_FORMATS.with(|count| count.set(count.get() + 1));
     let text = entry.text.trim();
     match entry.level.as_str() {
         "warn" | "error" => format!("{} | {} | {}", entry.level, entry.source, text),
@@ -2121,47 +2141,45 @@ fn logs_empty_reason(model: &AppModel) -> String {
     "(no logs yet)".to_string()
 }
 
+fn cached_log_tail(model: &AppModel, entry: &LogEntry, width: usize, height: usize) -> Vec<String> {
+    model.log_layout_cache.borrow_mut().tail(entry.id, width, height, || render_log_entry(entry))
+}
+
 fn build_log_lines(model: &AppModel, width: usize, height: usize) -> String {
-    if width == 0 || height == 0 {
-        return String::new();
-    }
-    let filtered: Vec<&LogEntry> = model
-        .logs
-        .iter()
-        .filter(|entry| matches_log_entry(model, entry))
-        .collect();
-    let visible_logs = tail_window_slice(
-        &filtered,
-        model.log_scroll.min(filtered.len().saturating_sub(1)),
-        filtered.len(),
-    );
+    if width == 0 || height == 0 { return String::new(); }
+    let query = model.search_logs.trim().to_lowercase();
+    let mut matched = 0usize;
+    let mut oldest_match = None;
     let mut lines = Vec::new();
-    for entry in visible_logs.into_iter().rev() {
-        let wrapped = wrap_text_lines(&render_log_entry(entry), width, usize::MAX);
-        for line in wrapped.into_iter().rev() {
-            lines.push(line);
-            if lines.len() >= height {
-                break;
-            }
+    for entry in model.logs.iter().rev().filter(|entry| matches_log_entry_with_query(model, entry, &query)) {
+        oldest_match = Some(entry);
+        if matched >= model.log_scroll {
+            lines.extend(cached_log_tail(model, entry, width, height - lines.len()).into_iter().rev());
+            if lines.len() >= height { break; }
         }
-        if lines.len() >= height {
-            break;
-        }
+        matched += 1;
     }
+    // Retain the original entry-based clamp when scroll exceeds all matches.
     if lines.is_empty() {
-        lines.push(logs_empty_reason(model));
+        if let Some(entry) = oldest_match {
+            lines.extend(cached_log_tail(model, entry, width, height).into_iter().rev());
+        } else { lines.push(logs_empty_reason(model)); }
     }
     lines.reverse();
     lines.join("\n")
 }
 
-fn matches_log_entry(model: &AppModel, entry: &LogEntry) -> bool {
+fn matches_log_entry_with_query(model: &AppModel, entry: &LogEntry, query: &str) -> bool {
     (entry.job_id.is_none()
         || (!model.selected_job_expired
             && (model.selected_job.is_none() || entry.job_id == model.selected_job)))
         && matches_log_level_filter(&entry.level, model.log_level_filter)
         && matches_log_source_filter(&entry.source, model.log_source_filter)
-        && contains_query(&render_log_entry(entry), &model.search_logs)
+        && (query.is_empty() || render_log_entry(entry).to_lowercase().contains(query))
+}
+
+fn matches_log_entry(model: &AppModel, entry: &LogEntry) -> bool {
+    matches_log_entry_with_query(model, entry, &model.search_logs.trim().to_lowercase())
 }
 
 fn toggle_follow(model: &mut AppModel) {
