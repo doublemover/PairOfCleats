@@ -1,8 +1,10 @@
 /** Passive lexical argument tokens; callers retain their existing source budget. */
-export const tokenizeStaticArguments = source => {
+export const tokenizeStaticArguments = (source, { shouldContinue = () => true } = {}) => {
   const tokens = [];
+  const identifierPattern = /[\p{ID_Start}_.][\p{ID_Continue}_.]*/uy;
   let index = 0;
   while (index < source.length) {
+    if (!shouldContinue()) return null;
     const start = index, char = source[index];
     if (/\s/u.test(char)) { index++; continue; }
     if (char === '#') { while (index < source.length && !/[\r\n]/u.test(source[index])) index++; continue; }
@@ -12,6 +14,7 @@ export const tokenizeStaticArguments = source => {
       index += close.length;
       let value = '', closed = false;
       while (index < source.length) {
+        if ((index & 1023) === 0 && !shouldContinue()) return null;
         if (source.startsWith(close,index)) { index += close.length; closed = true; break; }
         if (source[index] === '\\' && index + 1 < source.length) {
           const escaped = source[++index];
@@ -21,8 +24,9 @@ export const tokenizeStaticArguments = source => {
       if (!closed) return null;
       tokens.push({kind:'string',value,start,end:index}); continue;
     }
-    const identifier = source.slice(index).match(/^[\p{ID_Start}_.][\p{ID_Continue}_.]*/u);
-    if (identifier) { index += identifier[0].length; tokens.push({kind:'identifier',value:identifier[0],start,end:index}); continue; }
+    identifierPattern.lastIndex = index;
+    const identifier = identifierPattern.exec(source);
+    if (identifier) { index = identifierPattern.lastIndex; tokens.push({kind:'identifier',value:identifier[0],start,end:index}); continue; }
     tokens.push({kind:'punctuation',value:char,start,end:++index});
   }
   return tokens;
@@ -46,20 +50,21 @@ export const staticKeywordArgument = (tokens,key) => {
   return arg?.length === 3 && arg[2].kind === 'string' ? arg[2].value : null;
 };
 
-export const scanStaticCalls = (source,names) => {
-  const tokens = tokenizeStaticArguments(source);
-  if (!tokens) return [];
-  const calls = [];
-  for (let index = 0; index < tokens.length; index++) {
-    if (tokens[index].kind !== 'identifier' || !names.has(tokens[index].value) || tokens[index+1]?.value !== '(') continue;
-    let depth = 1, end = index + 2;
-    for (; end < tokens.length && depth; end++) if (tokens[end].kind === 'punctuation') {
-      if (tokens[end].value === '(') depth++;
-      else if (tokens[end].value === ')') depth--;
-    }
-    if (depth) break;
-    calls.push({name:tokens[index].value,args:tokens.slice(index+2,end-1)});
-    index = end-1;
+export function* scanStaticCalls(source, names, { shouldContinue = () => true } = {}) {
+  const tokens = tokenizeStaticArguments(source, { shouldContinue });
+  if (!tokens) return;
+  const stack = [], closes = new Map();
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (!shouldContinue()) return;
+    if (tokens[index].kind !== 'punctuation') continue;
+    if (tokens[index].value === '(') stack.push(index);
+    else if (tokens[index].value === ')' && stack.length) closes.set(stack.pop(), index);
   }
-  return calls;
-};
+  for (let index = 0; index < tokens.length; index++) {
+    if (!shouldContinue()) return;
+    if (tokens[index].kind !== 'identifier' || !names.has(tokens[index].value) || tokens[index+1]?.value !== '(') continue;
+    const end = closes.get(index + 1);
+    if (end === undefined) continue;
+    yield {name:tokens[index].value,args:tokens.slice(index+2,end)};
+  }
+}
