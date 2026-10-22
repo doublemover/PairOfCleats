@@ -2,6 +2,8 @@
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
 import crypto from 'node:crypto';
+import { evaluationFileIdentity, bakeoffGenerationIdentity } from './evaluation-identity.js';
+import { stableStringify } from '../../../src/shared/stable-json.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -506,6 +508,15 @@ if (runCompare && models.length > 1 && configCacheRoot && !buildIndex) {
   process.exit(1);
 }
 
+const evaluationInputIdentity = {
+  schema: 'bakeoff-evaluation.v2', repository: { root: toRealPathSync(root), repoId },
+  dataset: runEval ? evaluationFileIdentity(datasetPath, { canonicalJson: true }) : null,
+  queries: runCompare && queriesPath ? evaluationFileIdentity(queriesPath) : null,
+  policies: Object.fromEntries([...(runEval ? [evalScript,
+    path.join(toolRoot, 'tools', 'eval', 'metrics.js'), path.join(toolRoot, 'tools', 'eval', 'match.js'),
+    path.join(toolRoot, 'tools', 'eval', 'cohorts.js')] : []), ...(runCompare ? [compareScript] : [])].map(file => [path.relative(toolRoot, file), evaluationFileIdentity(file)]))
+};
+const currentModelGeneration = modelId => bakeoffGenerationIdentity(path.join(resolveVersionedCacheRoot(modelCacheRoot(modelId)), 'repos', repoId));
 const outputSettings = {
   models,
   baseline,
@@ -526,6 +537,7 @@ const outputSettings = {
   runCompare,
   datasetPath,
   queriesPath,
+  evaluationInputIdentity,
   cacheRootBase
 };
 const settingsSignature = JSON.stringify(outputSettings);
@@ -656,6 +668,9 @@ const loadResumedModelReports = async () => {
     for (const modelId of models) {
       const entry = byId.get(modelId);
       if (!isModelReportComplete(entry)) continue;
+      const generation = await currentModelGeneration(modelId);
+      if (!generation || entry.resumeIdentity?.generation !== generation
+        || entry.resumeIdentity?.input !== stableStringify(evaluationInputIdentity)) continue;
       resumed.push(entry);
     }
     return resumed;
@@ -829,6 +844,7 @@ for (const modelId of models) {
     const cacheBytes = await directorySizeBytes(env.PAIROFCLEATS_CACHE_ROOT);
     modelReports.push({
       modelId,
+      resumeIdentity: { generation: await currentModelGeneration(modelId), input: stableStringify(evaluationInputIdentity) },
       cacheRoot: env.PAIROFCLEATS_CACHE_ROOT,
       inputFormatting: resolveEmbeddingInputFormatting(modelId),
       build: {

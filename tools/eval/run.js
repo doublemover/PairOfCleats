@@ -5,6 +5,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { createToolDisplay } from '../shared/cli-display.js';
 import { search as coreSearch } from '../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
+import { resolveEvaluationCohorts, selectEvaluationCohort, judgmentsForCohort } from './cohorts.js';
 import { matchExpected, resolveMatchMode } from './match.js';
 import { collectExpectedJudgments, computeMRR, computeNDCG, computeRecallAtK } from './metrics.js';
 
@@ -67,7 +68,7 @@ const isMatch = (hit, expected) => matchExpected(hit, expected, matchMode);
 
 const runSearch = async (query, mode) => {
   const args = ['--json', '--repo', repoRoot, '-n', String(topN)];
-  if (mode && mode !== 'both') args.push('--mode', mode);
+  if (mode) args.push('--mode', mode);
   if (backend && backend !== 'auto') args.push('--backend', backend);
   if (annFlag === true) args.push('--ann');
   if (annFlag === false) args.push('--no-ann');
@@ -80,10 +81,7 @@ const runSearch = async (query, mode) => {
     indexCache: evalCaches.indexCache,
     sqliteCache: evalCaches.sqliteCache
   });
-  if (mode === 'code') return payload.code || [];
-  if (mode === 'prose') return payload.prose || [];
-  if (mode === 'extracted-prose') return payload.extractedProse || [];
-  return [...(payload.code || []), ...(payload.prose || [])];
+  return payload;
 };
 
 const evalCaches = {
@@ -97,64 +95,62 @@ if (!cases.length) {
   fail(`No eval cases found at ${datasetPath}`);
 }
 
+for (const entry of cases) resolveEvaluationCohorts(entry.mode ?? null, [...(entry.relevant || entry.expect || []), ...(entry.gold || [])]);
 const results = [];
 const queryTask = display.task('Queries', { total: cases.length, stage: 'queries' });
 let processedCases = 0;
 for (const entry of cases) {
   const query = String(entry?.query || '').trim();
   if (!query) continue;
-  const mode = entry.mode || 'both';
+  const mode = entry.mode ?? null;
   const silver = Array.isArray(entry.relevant)
     ? entry.relevant
     : (Array.isArray(entry.expect) ? entry.expect : []);
   const gold = Array.isArray(entry.gold) ? entry.gold : [];
 
-  const hits = await runSearch(query, mode);
-  const silverJudgments = collectExpectedJudgments(hits, silver, isMatch, { mode });
-  const goldJudgments = collectExpectedJudgments(hits, gold, isMatch, { mode });
-  const { ranks, totalRelevant } = silverJudgments;
-  const { ranks: goldRanks, totalRelevant: totalGold } = goldJudgments;
-
-  const metrics = {
-    recallAtK: Object.fromEntries(ks.map((k) => [k, computeRecallAtK(ranks, totalRelevant, k)])),
-    mrr: computeMRR(ranks),
-    ndcgAtK: Object.fromEntries(ks.map((k) => [k, computeNDCG(ranks, totalRelevant, k)]))
-  };
-  const goldMetrics = gold.length
-    ? {
-      recallAtK: Object.fromEntries(ks.map((k) => [k, computeRecallAtK(goldRanks, totalGold, k)])),
-      mrr: computeMRR(goldRanks),
-      ndcgAtK: Object.fromEntries(ks.map((k) => [k, computeNDCG(goldRanks, totalGold, k)]))
-    }
-    : null;
-
-  results.push({
-    query,
-    mode,
-    totals: {
-      relevant: totalRelevant,
-      gold: totalGold,
-      hits: hits.length
-    },
-    metrics,
-    goldMetrics
+  const selection = resolveEvaluationCohorts(mode, [...silver, ...gold]);
+  const payload = await runSearch(query, selection.requestMode);
+  const cohorts = selection.modes.map(cohortMode => {
+    const hits = selectEvaluationCohort(payload, cohortMode);
+    const scopedSilver = judgmentsForCohort(silver, cohortMode), scopedGold = judgmentsForCohort(gold, cohortMode);
+    const silverJudgments = collectExpectedJudgments(hits, scopedSilver, isMatch, { mode: cohortMode });
+    const goldJudgments = collectExpectedJudgments(hits, scopedGold, isMatch, { mode: cohortMode });
+    const metric = ({ ranks, totalRelevant }) => totalRelevant ? {
+      recallAtK: Object.fromEntries(ks.map(k => [k, computeRecallAtK(ranks, totalRelevant, k)])),
+      mrr: computeMRR(ranks), ndcgAtK: Object.fromEntries(ks.map(k => [k, computeNDCG(ranks, totalRelevant, k)]))
+    } : null;
+    return { mode: cohortMode, totals: { relevant: silverJudgments.totalRelevant, gold: goldJudgments.totalRelevant, hits: hits.length },
+      metrics: metric(silverJudgments), goldMetrics: metric(goldJudgments) };
   });
+  const macroMetrics = key => {
+    const observed = cohorts.map(row => row[key]).filter(Boolean);
+    if (!observed.length) return null;
+    const average = getter => observed.reduce((sum, row) => sum + getter(row), 0) / observed.length;
+    return { recallAtK: Object.fromEntries(ks.map(k => [k, average(row => row.recallAtK[k])])),
+      ndcgAtK: Object.fromEntries(ks.map(k => [k, average(row => row.ndcgAtK[k])])), mrr: average(row => row.mrr) };
+  };
+  results.push({ query, mode: selection.requestMode || 'default', cohorts,
+    totals: { relevant: cohorts.reduce((sum, row) => sum + row.totals.relevant, 0),
+      gold: cohorts.reduce((sum, row) => sum + row.totals.gold, 0), hits: cohorts.reduce((sum, row) => sum + row.totals.hits, 0) },
+    metrics: macroMetrics('metrics'), goldMetrics: macroMetrics('goldMetrics') });
   processedCases += 1;
   queryTask.set(processedCases, cases.length);
 }
 
 const aggregate = (field) => {
-  if (!results.length) return 0;
-  const sum = results.reduce((acc, entry) => acc + (entry.metrics?.[field] || 0), 0);
-  return sum / results.length;
+  const judged = results.filter(entry => entry.metrics);
+  if (!judged.length) return null;
+  const sum = judged.reduce((acc, entry) => acc + entry.metrics[field], 0);
+  return sum / judged.length;
 };
 
 const aggregateMap = (key) => {
   const totals = {};
-  if (!results.length) return totals;
+  const judged = results.filter(entry => entry.metrics);
+  if (!judged.length) return totals;
   for (const k of ks) {
-    const sum = results.reduce((acc, entry) => acc + (entry.metrics?.[key]?.[k] || 0), 0);
-    totals[k] = sum / results.length;
+    const sum = judged.reduce((acc, entry) => acc + entry.metrics[key][k], 0);
+    totals[k] = sum / judged.length;
   }
   return totals;
 };
@@ -175,7 +171,7 @@ const output = {
   topN,
   ann: annFlag,
   ks,
-  relevancePolicy: 'distinct-document-one-to-one.v1',
+  relevancePolicy: 'mode-qualified-cohort-macro.v2:distinct-document-one-to-one.v1',
   summary,
   results
 };
