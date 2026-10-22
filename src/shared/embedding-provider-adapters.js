@@ -1,4 +1,5 @@
-import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from './embedding-artifact-identity.js';
+import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from './embedding-artifact-identity.js';
+import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-lease.js';
 import { resolveStubDims, stubEmbedding } from './embedding.js';
 import { createOnnxEmbedder } from './onnx-embeddings.js';
 import {
@@ -22,7 +23,7 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
       const startedAt = performance.now();
       embedderPromise = loadPipeline(modelId, modelsDir, modelProfile, localFilesOnly, sessionOptions, modelFileName, modelArtifact).then(async (embedder) => {
         try {
-          observedArtifact = resolveEmbeddingArtifactIdentity({ provider: 'xenova', modelId, modelsDir, modelProfile });
+          observedArtifact = await resolveEmbeddingArtifactIdentityAsync({ provider: 'xenova', modelId, modelsDir, modelProfile }, { phase: 'loaded' });
           if (embeddingArtifactReusable(modelArtifact)) assertEmbeddingArtifactCompatibility(modelArtifact, observedArtifact);
         } catch (error) {
           try { await embedder.dispose?.(); } catch { /* Preserve artifact verification failure. */ }

@@ -1,10 +1,14 @@
 import { resolveEmbeddingsBatchTokenBudget } from '../../../src/shared/embedding-batch.js';
+import { digestBundleMappingInventory, observeBundleCoverageFiles, checkBundleCoverageReceipt,
+  createBundleCoverageReceipt } from './runner/bundle-coverage-receipt.js';
+import { encodeIncrementalManifest, INCREMENTAL_MANIFEST_MAX_BYTES } from '../../../src/index/build/incremental/manifest-codec.js';
 import { readEffectiveMemory, estimateRetainedBytes } from '../../../src/shared/effective-memory.js';
 import { throwIfAborted, isAbortError } from '../../../src/shared/abort.js';
 import { canonicalBundleSourceKey } from '../../../src/shared/bundle-source-key.js';
 import { reusePriorChunkVectors } from './prior-chunk-reuse.js';
 import { readIncrementalBundleSnapshot, writeIncrementalBundleSnapshot } from '../../../src/index/build/incremental/bundle-snapshot.js';
-import { embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from '../../../src/shared/embedding-artifact-identity.js';
+import { embeddingArtifactReusable } from '../../../src/shared/embedding-artifact-identity.js';
+import { resolveEmbeddingArtifactIdentityAsync } from '../../../src/shared/embedding-artifact-lease.js';
 import { createStage3RuntimeReceipts } from './runtime-receipt.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -999,6 +1003,8 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
     return { attempted: 0, rewritten: 0, manifestWritten: false, completeCoverage: false };
   }
   const manifest = structuredClone(incremental.manifest);
+  let receiptBudget = Math.max(0, INCREMENTAL_MANIFEST_MAX_BYTES - Buffer.byteLength(encodeIncrementalManifest(manifest, { repoRoot,
+    indexPath: incremental.manifestPath })) - 64 * 1024);
   const manifestFiles = manifest.files && typeof manifest.files === 'object'
     ? manifest.files
     : {};
@@ -1025,6 +1031,16 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
   }
 
   const mappingIndex = createIncrementalChunkMappingIndex(chunksByFile);
+  const mappingDigest = digestBundleMappingInventory(mappingIndex);
+  const work = { bundleSnapshotsRead: 0, bundleSnapshotsDecoded: 0, chunksCompared: 0, skippedByProof: 0, receiptsRejected: 0, invalidatedReasons: {} };
+  const admittedReceipts = new Set();
+  let manifestChanged = false;
+  const admitReceipt = (entry, receipt) => {
+    if (!receipt) return;
+    const bytes = Buffer.byteLength(JSON.stringify(receipt)) + 64;
+    if (bytes > receiptBudget) { work.receiptsRejected++; return; }
+    receiptBudget -= bytes; entry.embeddingCoverageReceipt = receipt; admittedReceipts.add(entry); manifestChanged = true;
+  };
 
   const resolvedBundleFormat = normalizeBundleFormat(manifest.bundleFormat);
   const scanned = orderedManifestEntries.length;
@@ -1058,6 +1074,20 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
       skippedInvalidBundle += 1;
       return;
     }
+    const selection = { normalizedFile, mappingDigest, embeddingIdentityKey, embeddingMode };
+    const beforeFiles = await scheduleIo(() => observeBundleCoverageFiles({ bundleDir: incremental.bundleDir, entry,
+      fallbackFormat: resolvedBundleFormat, signal }));
+    const proof = checkBundleCoverageReceipt({ entry, observedFiles: beforeFiles, mergedVectors, ...selection });
+    if (proof.reuse) {
+      if (proof.chunkCount) { eligible++; covered++; } else skippedEmptyBundle++;
+      work.skippedByProof++; return;
+    }
+    work.invalidatedReasons[proof.reason] = (work.invalidatedReasons[proof.reason] || 0) + 1;
+    if (entry.embeddingCoverageReceipt) {
+      receiptBudget += Buffer.byteLength(JSON.stringify(entry.embeddingCoverageReceipt)) + 64;
+      delete entry.embeddingCoverageReceipt; manifestChanged = true;
+    }
+    work.bundleSnapshotsRead++;
     const snapshot = await scheduleIo(() => readIncrementalBundleSnapshot({
       repoRoot, bundleDir: incremental.bundleDir, relKey: normalizedFile, entry,
       fallbackFormat: resolvedBundleFormat, signal
@@ -1066,6 +1096,7 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
       skippedInvalidBundle += 1;
       return;
     }
+    work.bundleSnapshotsDecoded++;
     const bundleShards = snapshot.shards;
 
     const totalChunks = bundleShards.reduce(
@@ -1074,6 +1105,9 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
     );
     if (!totalChunks) {
       skippedEmptyBundle += 1;
+      const afterFiles = await scheduleIo(() => observeBundleCoverageFiles({ bundleDir: incremental.bundleDir, entry,
+        fallbackFormat: resolvedBundleFormat, signal }));
+      admitReceipt(entry, createBundleCoverageReceipt({ entry, observedFiles: afterFiles, priorFiles: beforeFiles, vectorIndices: [], mergedVectors, ...selection }));
       return;
     }
     eligible += 1;
@@ -1081,11 +1115,13 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
     let changed = false;
     let fileCovered = true;
     let fileNoMappingCounted = false;
+    const vectorIndices = [];
 
     for (const shard of bundleShards) {
       const shardChunks = Array.isArray(shard.bundle?.chunks) ? shard.bundle.chunks : [];
       for (const chunk of shardChunks) {
         if (!chunk || typeof chunk !== 'object') continue;
+        work.chunksCompared++;
         const mappingResult = resolveBundleChunkVectorIndex({
           chunk,
           normalizedFile,
@@ -1097,6 +1133,7 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
         const vectorIndex = mappingResult.vectorIndex;
         const vector = vectorIndex != null ? mergedVectors[vectorIndex] : null;
         const mappedButMissingVector = vectorIndex != null && !hasVectorPayload(vector);
+        if (vectorIndex != null && hasVectorPayload(vector)) vectorIndices.push(vectorIndex);
         if (vectorIndex == null || mappedButMissingVector) {
           if (chunk.embedding_u8 !== undefined) {
             delete chunk.embedding_u8;
@@ -1134,6 +1171,12 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
 
     if (!changed) {
       if (fileCovered) covered += 1;
+      if (fileCovered && vectorIndices.length === totalChunks) {
+        const afterFiles = await scheduleIo(() => observeBundleCoverageFiles({ bundleDir: incremental.bundleDir, entry,
+          fallbackFormat: resolvedBundleFormat, signal }));
+        const receipt = createBundleCoverageReceipt({ entry, observedFiles: afterFiles, priorFiles: beforeFiles, vectorIndices, mergedVectors, ...selection });
+        admitReceipt(entry, receipt);
+      }
       return;
     }
     try {
@@ -1143,8 +1186,25 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
         diskAccount: incremental.diskAccount || null, signal
       }));
       Object.assign(entry, replacement);
+      manifestChanged = true;
       rewritten += 1;
       if (fileCovered) covered += 1;
+      if (fileCovered && vectorIndices.length === totalChunks) {
+        const priorFiles = await scheduleIo(() => observeBundleCoverageFiles({ bundleDir: incremental.bundleDir, entry,
+          fallbackFormat: resolvedBundleFormat, signal }));
+        // Validate a replacement after its immutable writer closes before
+        // recording the opened-file identity used by future proof-only reads.
+        work.bundleSnapshotsRead++;
+        const verified = await scheduleIo(() => readIncrementalBundleSnapshot({ repoRoot, bundleDir: incremental.bundleDir,
+          relKey: normalizedFile, entry, fallbackFormat: resolvedBundleFormat, signal }));
+        if (verified) {
+          work.bundleSnapshotsDecoded++;
+          const observedFiles = await scheduleIo(() => observeBundleCoverageFiles({ bundleDir: incremental.bundleDir, entry,
+            fallbackFormat: resolvedBundleFormat, signal }));
+          const receipt = createBundleCoverageReceipt({ entry, observedFiles, priorFiles, vectorIndices, mergedVectors, ...selection });
+          admitReceipt(entry, receipt);
+        }
+      }
     } catch (err) {
       rewriteFailures += 1;
       warn(`[embeddings] ${mode}: failed to refresh bundle ${filePath}: ${err?.message || err}`);
@@ -1169,11 +1229,23 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
     manifest.bundleEmbeddingMode = embeddingMode || null;
     manifest.bundleEmbeddingIdentityKey = embeddingIdentityKey || null;
     manifest.bundleEmbeddingStage = 'stage3';
-    manifestWritten = await scheduleIo(
-      () => writeIncrementalManifest(incremental.manifestPath, manifest)
-    );
+    const metadataKeys = Object.keys(manifest).filter(key => key.startsWith('bundleEmbedding'));
+    manifestChanged ||= metadataKeys.some(key => manifest[key] !== incremental.manifest[key]);
+    // Coverage receipts are optional acceleration metadata. Required source and
+    // coverage publication must not fail solely because these proofs fill the
+    // bounded manifest after replacement metadata grows during this attempt.
+    if (manifestChanged && admittedReceipts.size) {
+      try { encodeIncrementalManifest(manifest, { repoRoot, indexPath: incremental.manifestPath }); }
+      catch (error) {
+        if (error.code !== 'ERR_INCREMENTAL_MANIFEST_CAPACITY') throw error;
+        for (const entry of admittedReceipts) delete entry.embeddingCoverageReceipt;
+        work.receiptsRejected += admittedReceipts.size;
+        encodeIncrementalManifest(manifest, { repoRoot, indexPath: incremental.manifestPath });
+      }
+    }
+    if (manifestChanged) manifestWritten = await scheduleIo(() => writeIncrementalManifest(incremental.manifestPath, manifest));
     if (manifestWritten) incremental.manifest = manifest;
-    if (!manifestWritten) {
+    if (manifestChanged && !manifestWritten) {
       warn(`[embeddings] ${mode}: failed to persist incremental manifest embedding metadata.`);
     }
   } else {
@@ -1216,7 +1288,8 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
     manifestWritten,
     completeCoverage,
     coverage,
-    rewriteFailures
+    rewriteFailures,
+    work, manifestUnchanged: !manifestChanged
   };
 };
 
@@ -1425,7 +1498,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
     })
     : null;
   let runtimeEmbeddingProvider = embeddingProvider;
-  let modelArtifact = resolveEmbeddingArtifactIdentity({ provider: embeddingProvider,
+  let modelArtifact = await resolveEmbeddingArtifactIdentityAsync({ provider: embeddingProvider,
     modelId, modelsDir, rootDir: root, onnx: embeddingOnnx, modelProfile, stub: useStubEmbeddings });
   const buildCacheIdentityForProvider = (provider) => {
     const identityPayload = buildCacheIdentity({
@@ -1732,7 +1805,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         `${priorProvider} -> ${runtimeEmbeddingProvider}.`
       );
     }
-    modelArtifact = resolveEmbeddingArtifactIdentity({ provider: runtimeEmbeddingProvider,
+    modelArtifact = await resolveEmbeddingArtifactIdentityAsync({ provider: runtimeEmbeddingProvider,
       modelId, modelsDir, rootDir: root, onnx: embeddingOnnx, modelProfile });
     // Resolve dimensions before any cache keys, pending state, or incremental
     // bundles are written; a ready identity must never carry unknown dims=0.

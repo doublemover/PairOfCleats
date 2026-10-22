@@ -1,4 +1,6 @@
 import { embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from './embedding-artifact-identity.js';
+import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-lease.js';
+import { createDeferredEmbeddingAdapter } from './embedding-deferred-adapter.js';
 import { createPreparedTextEncoder, normalizeEg2SessionOptions, normalizeEg2ModelFileName } from './embedding-prepared.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig } from './onnx-embeddings.js';
 import {
@@ -243,7 +245,7 @@ export const __setAdapterFactoryForTests = (factory) => {
  * @param {boolean} [options.retainInCache] Keep a bounded cache owner after query leases return.
  * @returns {object}
  */
-export function getEmbeddingAdapter(options) {
+function getVerifiedEmbeddingAdapter(options) {
   const resolvedProvider = normalizeEmbeddingProvider(options?.provider, { strict: true });
   const normalizedOnnxConfig = normalizeOnnxConfig(options?.onnxConfig);
   const normalize = options?.normalize !== false;
@@ -301,6 +303,20 @@ export function getEmbeddingAdapter(options) {
   if (retainInCache) retainAdapterEntry(entry, now);
   pruneCache(adapterCache, { maxEntries: ADAPTER_CACHE_MAX_ENTRIES, now, onEvict: retireAdapterEntry });
   return leaseAdapter(entry);
+}
+
+export function getEmbeddingAdapter(options = {}) {
+  if (options.modelArtifact) return getVerifiedEmbeddingAdapter(options);
+  const provider = normalizeEmbeddingProvider(options.provider, { strict: true });
+  const modelProfile = resolveEmbeddingModelProfile(options.modelId, options.modelProfile);
+  const sessionOptions = normalizeEg2SessionOptions(options.sessionOptions), modelFileName = normalizeEg2ModelFileName(options.modelFileName);
+  if (modelFileName && !modelProfile) throw new Error('modelFileName requires the qualified EG2 profile.');
+  validateEmbeddingModelProfile(modelProfile, { provider, normalize: options.normalize !== false });
+  const verification = { provider, modelId: options.modelId, modelsDir: options.modelsDir,
+    rootDir: options.rootDir, onnx: normalizeOnnxConfig(options.onnxConfig), modelProfile, stub: options.useStub === true };
+  if (verification.stub || modelProfile?.revision) return getVerifiedEmbeddingAdapter({ ...options, modelArtifact: resolveEmbeddingArtifactIdentity(verification) });
+  return createDeferredEmbeddingAdapter({ provider, methods: [...LEASE_OPERATIONS],
+    acquire: async () => getVerifiedEmbeddingAdapter({ ...options, sessionOptions, modelFileName, modelProfile, modelArtifact: await resolveEmbeddingArtifactIdentityAsync(verification) }) });
 }
 
 /**

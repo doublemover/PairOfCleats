@@ -1,4 +1,5 @@
-import { embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from '../../../shared/embedding-artifact-identity.js';
+import { embeddingArtifactReusable } from '../../../shared/embedding-artifact-identity.js';
+import { resolveEmbeddingArtifactIdentityAsync } from '../../../shared/embedding-artifact-lease.js';
 import fs from 'node:fs/promises';
 import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
 import { DEFAULT_MODEL_ID, getModelConfig } from '../../../shared/dict-utils.js';
@@ -102,7 +103,7 @@ export const resolveEmbeddingRuntime = async ({
     } catch {}
   }
 
-  const modelArtifact = embeddingEnabled ? resolveEmbeddingArtifactIdentity({
+  const modelArtifact = embeddingEnabled ? await resolveEmbeddingArtifactIdentityAsync({
     provider: embeddingProvider, modelId, modelsDir, rootDir, onnx: embeddingOnnx, modelProfile, stub: useStubEmbeddings
   }) : null;
   if (embeddingEnabled && !embeddingArtifactReusable(modelArtifact)) {

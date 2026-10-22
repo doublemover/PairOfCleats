@@ -78,11 +78,11 @@ export const resolveEmbeddingArtifactRoot = (id, modelsDir) => {
 };
 
 /** No provider loading or network I/O. Unknown evidence is scoped to one attempt. */
-export const resolveEmbeddingArtifactIdentity = ({ provider, modelId, modelsDir, rootDir,
+export const planEmbeddingArtifactInventory = ({ provider, modelId, modelsDir, rootDir,
   onnx = null, modelProfile = null, stub = false } = {}) => {
-  if (stub) return { status: 'stub', reuse: 'allow', digest: null, revision: null, method: 'deterministic-stub' };
-  if (modelProfile?.revision) return { status: 'immutable-revision', reuse: 'allow',
-    digest: null, revision: modelProfile.revision, method: 'qualified-model-profile' };
+  if (stub) return { immediate: { status: 'stub', reuse: 'allow', digest: null, revision: null, method: 'deterministic-stub' } };
+  if (modelProfile?.revision) return { immediate: { status: 'immutable-revision', reuse: 'allow',
+    digest: null, revision: modelProfile.revision, method: 'qualified-model-profile' } };
   const modelPath = provider === 'onnx' ? resolveOnnxModelPath({
     rootDir, modelPath: onnx?.resolvedModelPath || onnx?.modelPath, modelsDir, modelId
   }) : null;
@@ -103,10 +103,23 @@ export const resolveEmbeddingArtifactIdentity = ({ provider, modelId, modelsDir,
     : rootFiles;
   const hasWeights = files.some(({ filePath }) => /\.onnx$/u.test(filePath));
   const hasTokenizer = tokenizerFiles.some(({ filePath }) => /(?:tokenizer\.json|vocab\.(?:json|txt)|(?:tokenizer|spiece)\.model|sentencepiece\.bpe\.model)$/u.test(filePath));
-  if (!hasWeights || !hasTokenizer) return unknown(modelPath ? fingerprintFile(modelPath).sha256 : null);
   const seen = new Set();
-  const inventory = files.filter(({ rel }) => !seen.has(rel) && seen.add(rel))
-    .sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0))
+  const selected = files.filter(({ rel }) => !seen.has(rel) && seen.add(rel))
+    .sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+  if (selected.length > 128) throw new Error('Embedding artifact inventory exceeds its bounded file count.');
+  return { files: selected, modelPath, hasWeights, hasTokenizer };
+};
+
+export const buildVerifiedEmbeddingArtifact = inventory => ({ status: 'verified', reuse: 'allow', revision: null, method: 'opened-local-artifacts-sha256',
+  digest: crypto.createHash('sha256').update(JSON.stringify(inventory)).digest('hex'), inventory });
+export const unknownEmbeddingArtifact = unknown;
+
+/** Compatibility synchronous resolver; async runtime owners use verification leases. */
+export const resolveEmbeddingArtifactIdentity = options => {
+  const plan = planEmbeddingArtifactInventory(options);
+  if (plan.immediate) return plan.immediate;
+  if (!plan.hasWeights || !plan.hasTokenizer) return unknown(plan.modelPath ? fingerprintFile(plan.modelPath).sha256 : null);
+  const inventory = plan.files
     .map(({ rel, filePath, expected }) => {
       const identity = fingerprintFile(filePath);
       if (expected && (identity.bytes !== expected.bytes || identity.sha256 !== expected.sha256)) {
@@ -114,9 +127,7 @@ export const resolveEmbeddingArtifactIdentity = ({ provider, modelId, modelsDir,
       }
       return { path: rel, ...identity };
     });
-  if (inventory.length > 128) throw new Error('Embedding artifact inventory exceeds its bounded file count.');
-  return { status: 'verified', reuse: 'allow', revision: null, method: 'opened-local-artifacts-sha256',
-    digest: crypto.createHash('sha256').update(JSON.stringify(inventory)).digest('hex'), inventory };
+  return buildVerifiedEmbeddingArtifact(inventory);
 };
 
 export const embeddingArtifactReusable = (artifact) => artifact?.reuse === 'allow'

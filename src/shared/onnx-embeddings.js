@@ -1,4 +1,6 @@
-import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from './embedding-artifact-identity.js';
+import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from './embedding-artifact-identity.js';
+import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-lease.js';
+import { createDeferredEmbeddingAdapter } from './embedding-deferred-adapter.js';
 import path from 'node:path';
 import {
   DEFAULT_EMBEDDING_TRUNCATION,
@@ -269,9 +271,10 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
       `ONNX model path not found. Set indexing.embeddings.onnx.modelPath or run tools/download/models.js (expected near ${basePath || 'models dir'}).`
     );
   }
-  const selectedArtifact = modelArtifact || resolveEmbeddingArtifactIdentity({
-    provider: 'onnx', modelId, modelsDir, rootDir, onnx: normalized
-  });
+  if (!modelArtifact) return createDeferredEmbeddingAdapter({ provider: 'onnx', methods: ['getEmbedding', 'getEmbeddings', 'estimateTokens', 'prewarm'],
+    acquire: async () => createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, normalize,
+      modelArtifact: await resolveEmbeddingArtifactIdentityAsync({ provider: 'onnx', modelId, modelsDir, rootDir, onnx: normalized }) }) });
+  const selectedArtifact = modelArtifact;
   const modelSize = statSize(resolvedModelPath);
   const lowMemory = Number.isFinite(modelSize) && modelSize >= LARGE_MODEL_BYTES;
   const tokenizerId = normalized.tokenizerId || modelId;
@@ -321,7 +324,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
         }
       }
       try {
-        const observedArtifact = resolveEmbeddingArtifactIdentity({ provider: 'onnx', modelId, modelsDir, rootDir, onnx: normalized });
+        const observedArtifact = await resolveEmbeddingArtifactIdentityAsync({ provider: 'onnx', modelId, modelsDir, rootDir, onnx: normalized }, { phase: 'loaded' });
         if (embeddingArtifactReusable(selectedArtifact)) assertEmbeddingArtifactCompatibility(selectedArtifact, observedArtifact);
         return { tokenizer, session, Tensor, observedArtifact, effectiveSessionOptions };
       } catch (error) {
