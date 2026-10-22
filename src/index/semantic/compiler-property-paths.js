@@ -1,4 +1,12 @@
 import { canonicalSemanticJson } from './identity.js';
+/** Erased expression wrappers preserve their runtime value/reference identity. */
+export const isCompilerTransparentExpression = (ts, node) => Boolean(node && (ts.isParenthesizedExpression(node)
+  || ts.isAsExpression(node) || ts.isTypeAssertionExpression(node) || ts.isNonNullExpression(node)
+  || ts.isSatisfiesExpression(node)));
+export const unwrapCompilerExpression = (ts, node) => {
+  while (isCompilerTransparentExpression(ts, node)) node = node.expression;
+  return node;
+};
 /** Element access has no direct checker symbol. Only literal keys have an
  * exact property-symbol anchor; a key expression's own symbol is unrelated. */
 export const compilerAliasSymbol = (ts, checker, node) => {

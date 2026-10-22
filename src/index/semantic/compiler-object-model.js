@@ -1,4 +1,4 @@
-import { compilerAliasSymbol } from './compiler-property-paths.js';
+import { compilerAliasSymbol, isCompilerTransparentExpression } from './compiler-property-paths.js';
 
 const spendClassWork = (work, reasons, reason) => {
   if (work.remaining <= 0) { reasons.add(reason); return false; }
@@ -20,7 +20,7 @@ export const compilerClassDefinitions = ({ ts, checker, node, reasons, assignmen
   if (seen.has(node) || seen.size >= 32) { reasons.add('class_alias_candidate_budget'); return []; }
   seen = new Set(seen).add(node);
   const visit = value => compilerClassDefinitions({ ts, checker, node: value, reasons, assignments, seen, work });
-  if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isNonNullExpression(node) || ts.isTypeAssertionExpression(node)) return visit(node.expression);
+  if (isCompilerTransparentExpression(ts, node)) return visit(node.expression);
   if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) return [node];
   const result = [], append = candidates => appendClassCandidates(result, candidates, reasons, 'class_candidate_budget');
   if (ts.isConditionalExpression(node)) {

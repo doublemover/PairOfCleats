@@ -1,4 +1,4 @@
-import { compilerAliasSymbol } from './compiler-property-paths.js';
+import { compilerAliasSymbol, isCompilerTransparentExpression } from './compiler-property-paths.js';
 
 /** Accessor invocation candidates use the existing call-site summary contract. */
 export const collectCompilerImplicitCalls = ({ts,checker,nodes,expressionFor,declarationRef}) => {
@@ -6,9 +6,7 @@ export const collectCompilerImplicitCalls = ({ts,checker,nodes,expressionFor,dec
   for(const node of nodes) {
     if(!ts.isPropertyAccessExpression(node)&&!ts.isElementAccessExpression(node))continue;
     let target=node;
-    while(target.parent && target.parent.expression===target && (ts.isParenthesizedExpression(target.parent)
-      || ts.isNonNullExpression(target.parent) || ts.isAsExpression(target.parent) || ts.isTypeAssertionExpression(target.parent)
-      || ts.isSatisfiesExpression(target.parent))) target=target.parent;
+    while(target.parent && target.parent.expression===target && isCompilerTransparentExpression(ts,target.parent)) target=target.parent;
     const parent=target.parent;
     // Delete evaluates a reference and removes its property; it never invokes
     // that property's getter or setter. Receiver subexpressions still run.

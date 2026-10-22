@@ -1,3 +1,4 @@
+import { isCompilerTransparentExpression } from './compiler-property-paths.js';
 /** Runtime value inputs shared by CFG emission and the immutable value slice.
  * Syntax children are not interchangeable with value inputs: types, property
  * names, template text and evaluated-but-discarded operands stay separate.
@@ -7,8 +8,7 @@ export const compilerOperationDependencies = (ts, node) => {
   const input = (value, kind = 'flowsTo', certainty = 'exact-static', condition = null) =>
     ({ node: value, kind, certainty, condition });
   const result = (inputs = [], extra = {}) => ({ inputs, reason: null, mayThrow: false, requiresCfg: false, ...extra });
-  if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)
-    || ts.isNonNullExpression(node) || ts.isSatisfiesExpression(node)) return result([input(node.expression)]);
+  if (isCompilerTransparentExpression(ts, node)) return result([input(node.expression)]);
   if (ts.isTemplateExpression(node)) return result(node.templateSpans.map(span => input(span.expression, 'flowsTo', 'modeled')),
     { mayThrow: true });
   if (ts.isTemplateSpan(node)) return result([input(node.expression)]);

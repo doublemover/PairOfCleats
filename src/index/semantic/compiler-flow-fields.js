@@ -1,12 +1,13 @@
 import { canonicalSemanticJson } from './identity.js';
 import { compilerRuntimeParameters } from './compiler-invocation.js';
 import { compilerClassDefinitions, compilerReturnExpressions } from './compiler-object-model.js';
-import { compilerAliasSymbol, compilerPropertyKeys, propertyKeySetsOverlap } from './compiler-property-paths.js';
+import { compilerAliasSymbol, compilerPropertyKeys, propertyKeySetsOverlap, unwrapCompilerExpression } from './compiler-property-paths.js';
 export const collectCompilerAliasAssignments = (ts, checker, nodes) => {
   const assignments = new Map();
-  for (const node of nodes) if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
-    && (ts.isIdentifier(node.left) || ts.isPropertyAccessExpression(node.left) || ts.isElementAccessExpression(node.left))) {
-    const symbol = compilerAliasSymbol(ts, checker, node.left);
+  for (const node of nodes) if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+    const left = unwrapCompilerExpression(ts, node.left);
+    if (!ts.isIdentifier(left) && !ts.isPropertyAccessExpression(left) && !ts.isElementAccessExpression(left)) continue;
+    const symbol = compilerAliasSymbol(ts, checker, left);
     if (symbol) { if (!assignments.has(symbol)) assignments.set(symbol, []); const values = assignments.get(symbol); if (values.length < 32) values.push(node.right); else values.truncated = true; }
   }
   return assignments;
@@ -15,7 +16,7 @@ export const collectCompilerAliasAssignments = (ts, checker, nodes) => {
  * an unknown binding root; no assignment-order or unique-alias claim is made. */
 export const createCompilerFieldPaths = ({ ts, checker, owner, sourceFile, assignments = new Map(), expressionFor, declarationFor, depthLimit, reasons }) => {
   const aliases = new Map(), accesses = new Map();
-  const unwrap = node => { while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isNonNullExpression(node) || ts.isTypeAssertionExpression(node))) node = node.expression; return node; };
+  const unwrap = node => unwrapCompilerExpression(ts, node);
   const unique = values => {
     const result = [...new Map(values.filter(Boolean).map(value => [canonicalSemanticJson({root:value.root,path:value.path}), value])).values()];
     if (result.length > 32) reasons.add('field_alias_candidate_budget');

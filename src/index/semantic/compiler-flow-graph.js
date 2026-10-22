@@ -1,5 +1,6 @@
 import { throwIfAborted } from '../../shared/abort.js';
 import { compilerOperationDependencies } from './compiler-operation-dependencies.js';
+import { unwrapCompilerExpression } from './compiler-property-paths.js';
 /** Structured intraprocedural CFG. Nodes are syntax anchors, not runtime executions. */
 export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, signal, constructionLimits = null }) => {
   const blocks = [], reasons = new Set();
@@ -68,11 +69,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     if (event?.mayThrow) link(block, context.exception, 'exceptional');
     return block;
   };
-  const referenceTarget = node => {
-    while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)
-      || ts.isNonNullExpression(node) || ts.isSatisfiesExpression(node))) node = node.expression;
-    return node;
-  };
+  const referenceTarget = node => unwrapCompilerExpression(ts, node);
   const write = (target, value, next, context, origin = 'definition') => {
     target = referenceTarget(target);
     if (ts.isIdentifier(target)) return eventBlock(target, { kind: 'write', target, value, origin }, next, context);

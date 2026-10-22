@@ -1,6 +1,6 @@
 import { canonicalSemanticJson } from './identity.js';
 import { createCompilerStructuralQueries } from './compiler-structural-queries.js';
-import { compilerPropertyKeys, propertyKeySetsOverlap } from './compiler-property-paths.js';
+import { compilerPropertyKeys, propertyKeySetsOverlap, unwrapCompilerExpression } from './compiler-property-paths.js';
 import { collectCompilerAliasAssignments } from './compiler-flow-fields.js';
 /** Source-backed call candidates augment checker signatures. Property/prototype
  * lookup stays modeled: getters, proxies, escaping receivers and replacement are
@@ -9,14 +9,14 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
   nodes=[...nodes];
   const writes = new Map(), assignments=collectCompilerAliasAssignments(ts,checker,nodes);
   const structural = createCompilerStructuralQueries({ ts, checker, assignments });
-  const unwrap = node => { while(node && (ts.isParenthesizedExpression(node)||ts.isAsExpression(node)||ts.isNonNullExpression(node)||ts.isTypeAssertionExpression(node))) node=node.expression; return node; };
+  const unwrap = node => unwrapCompilerExpression(ts, node);
   const symbolFor = node => { let symbol=checker.getSymbolAtLocation(node); if(symbol?.flags & ts.SymbolFlags.Alias) symbol=checker.getAliasedSymbol(symbol); return symbol; };
   for(const node of nodes) if(ts.isBinaryExpression(node)&&node.operatorToken.kind===ts.SyntaxKind.EqualsToken) {
-    const left=node.left;
+    const left=unwrap(node.left);
     if(!ts.isPropertyAccessExpression(left)&&!ts.isElementAccessExpression(left)) continue;
-    let receiver=left.expression;
+    let receiver=unwrap(left.expression);
     const prototype=ts.isPropertyAccessExpression(receiver)&&receiver.name.text==='prototype';
-    if(prototype)receiver=receiver.expression;
+    if(prototype)receiver=unwrap(receiver.expression);
     const symbol=symbolFor(receiver); if(!symbol)continue;
     if(!writes.has(symbol))writes.set(symbol,[]);
     const list=writes.get(symbol); if(list.length<64)list.push({left,value:node.right,prototype}); else list.truncated=true;
