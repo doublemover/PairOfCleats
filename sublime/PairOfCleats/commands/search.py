@@ -1,3 +1,4 @@
+import os
 import sublime
 import sublime_plugin
 
@@ -12,6 +13,8 @@ from ..lib import search as search_lib
 from ..lib import tasks
 from ..lib import ui
 from ..lib import views
+from ..lib.saved_search import normalize_saved_options
+from ..lib.completion_target import capture_target, target_is_current, apply_target
 
 LIMIT_CHOICES = [10, 25, 50, 100, 200]
 
@@ -50,8 +53,9 @@ def _has_last_query(window):
 
 def _resolve_defaults(settings, overrides=None):
     overrides = overrides or {}
+    saved_scope = overrides.get('scopeComplete') is True
     mode = overrides.get('mode') or settings.get('index_mode_default') or 'both'
-    backend = overrides.get('backend') or settings.get('search_backend_default') or ''
+    backend = overrides.get('backend') if saved_scope else overrides.get('backend') or settings.get('search_backend_default') or ''
     limit = overrides.get('limit') or settings.get('search_limit') or 25
     ann = overrides['ann'] if 'ann' in overrides else settings.get('search_ann_default')
     allow_sparse_fallback = overrides.get('allow_sparse_fallback')
@@ -63,13 +67,13 @@ def _resolve_defaults(settings, overrides=None):
         as_of = settings.get('search_as_of_default') or ''
         snapshot = settings.get('search_snapshot_default') or ''
     filter_value = overrides.get('filter')
-    advanced = search_lib.normalize_advanced_search_defaults(settings.get('search_advanced_defaults'))
-    if filter_value is None:
+    advanced = {} if saved_scope else search_lib.normalize_advanced_search_defaults(settings.get('search_advanced_defaults'))
+    if filter_value is None and not saved_scope:
         filter_value = settings.get('search_filter_default') or ''
     if filter_value:
         advanced['filter'] = str(filter_value)
     advanced.update(search_lib.normalize_advanced_search_defaults(overrides.get('advanced')))
-    return {
+    resolved = {
         'mode': mode,
         'backend': backend,
         'limit': limit,
@@ -79,6 +83,22 @@ def _resolve_defaults(settings, overrides=None):
         'snapshot': snapshot or '',
         'advanced': advanced,
     }
+    if saved_scope:
+        resolved.update({'repoRoot': overrides.get('repoRoot'), 'scopeComplete': True, 'schemaVersion': 1})
+    return resolved
+
+
+def _saved_scope_available(options):
+    if not isinstance(options, dict):
+        return True
+    if options.get('scopeComplete') is False:
+        ui.show_error('PairOfCleats: this legacy search has incomplete saved scope. Run a new search with explicit options.')
+        return False
+    root = options.get('repoRoot')
+    if root and not os.path.isdir(root):
+        ui.show_error('PairOfCleats: saved search repository is unavailable: {0}'.format(root))
+        return False
+    return True
 
 
 def _search_transport_kwargs(resolved):
@@ -126,7 +146,6 @@ def _prompt_options(window, settings, defaults, on_done, force_prompt=False):
 
     def on_mode_select(index):
         if index < 0:
-            on_done(options)
             return
         options['mode'] = mode_choices[index]
         _prompt_backend(window, options, on_done)
@@ -156,7 +175,6 @@ def _prompt_backend(window, options, on_done):
 
     def on_backend_select(index):
         if index < 0:
-            on_done(options)
             return
         options['backend'] = backend_choices[index][0]
         _prompt_ann(window, options, on_done)
@@ -179,7 +197,6 @@ def _prompt_ann(window, options, on_done):
 
     def on_ann_select(index):
         if index < 0:
-            on_done(options)
             return
         options['ann'] = ann_choices[index][0]
         _prompt_temporal(window, options, on_done)
@@ -211,7 +228,6 @@ def _prompt_temporal(window, options, on_done):
 
     def on_temporal_select(index):
         if index < 0:
-            on_done(options)
             return
         actions[index]()
 
@@ -272,7 +288,6 @@ def _prompt_limit(window, options, on_done):
 
     def on_limit_select(index):
         if index < 0:
-            on_done(options)
             return
         if index < len(limit_values):
             options['limit'] = limit_values[index]
@@ -282,17 +297,14 @@ def _prompt_limit(window, options, on_done):
         def on_custom_done(value):
             value = value.strip()
             if not value:
-                on_done(options)
                 return
             try:
                 parsed = int(value)
             except Exception:
                 ui.show_error('Limit must be an integer.')
-                on_done(options)
                 return
             if parsed < 1:
                 ui.show_error('Limit must be at least 1.')
-                on_done(options)
                 return
             options['limit'] = parsed
             on_done(options)
@@ -309,11 +321,14 @@ def _prompt_limit(window, options, on_done):
 
 
 def _execute_search(window, query, overrides=None, explain=False):
+    if not _saved_scope_available(overrides):
+        return
     if not query:
         return
 
     settings = config.get_settings(window)
-    repo_root, reason = _resolve_repo_root(window)
+    saved_root = overrides.get('repoRoot') if isinstance(overrides, dict) else None
+    repo_root, reason = (saved_root, None) if saved_root else _resolve_repo_root(window)
     if not repo_root:
         ui.show_error('PairOfCleats: {0}'.format(reason))
         return
@@ -329,6 +344,7 @@ def _execute_search(window, query, overrides=None, explain=False):
         return
 
     resolved = _resolve_defaults(settings, overrides)
+    resolved = normalize_saved_options(resolved, repo_root)
     execution = config.resolve_execution_mode(settings, 'search-explain' if explain else 'search')
     if execution.get('error'):
         ui.show_error(execution['error'])
@@ -662,6 +678,8 @@ def _resolve_completion_text(hit):
 
 
 def _search_with_query(window, query, overrides=None, force_prompt=False):
+    if not _saved_scope_available(overrides):
+        return
     if not query:
         ui.show_status('PairOfCleats: empty query.')
         return
@@ -786,8 +804,13 @@ class PairOfCleatsCompleteSymbolCommand(sublime_plugin.TextCommand):
         if not query:
             ui.show_status('PairOfCleats: no symbol prefix under cursor.')
             return
+        target = capture_target(self.view)
+        if target is None:
+            return
 
         def on_hits(hits, _repo_root, _resolved):
+            if not target_is_current(self.view, target) or not self.view.window():
+                return
             if not hits:
                 ui.show_status('PairOfCleats: no indexed completions found.')
                 return
@@ -805,11 +828,11 @@ class PairOfCleatsCompleteSymbolCommand(sublime_plugin.TextCommand):
             items = [results.format_quick_panel_item(hit) for _, hit in candidates]
 
             def on_select(index):
-                if index < 0:
+                if index < 0 or index >= len(candidates) or not target_is_current(self.view, target):
                     return
                 self.view.run_command(
                     'pair_of_cleats_apply_completion',
-                    {'text': candidates[index][0]},
+                    {'text': candidates[index][0], 'target': target},
                 )
 
             self.view.window().show_quick_panel(items, on_select)
@@ -830,16 +853,9 @@ class PairOfCleatsApplyCompletionCommand(sublime_plugin.TextCommand):
     def is_visible(self):
         return False
 
-    def run(self, edit, text=''):
-        if not text:
-            return
-        selection = self.view.sel()
-        if not selection:
-            return
-        region = selection[0]
-        word = self.view.word(region)
-        self.view.erase(edit, word)
-        self.view.insert(edit, word.a, text)
+    def run(self, edit, text='', target=None):
+        if not apply_target(self.view, edit, text, target):
+            ui.show_status('PairOfCleats: completion target changed; request a new completion.')
 
 
 class PairOfCleatsSearchHistoryCommand(sublime_plugin.WindowCommand):
@@ -990,7 +1006,7 @@ def _show_result_action_choices(window, session, hit):
 
 def _run_result_action(window, session, hit, action):
     repo_root = session.get('repoRoot')
-    options = session.get('options')
+    options = normalize_saved_options(session.get('options'), repo_root)
 
     def rerun(query):
         _search_with_query(window, query, overrides=options)

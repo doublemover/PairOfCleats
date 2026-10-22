@@ -58,13 +58,25 @@ class FakeRegion:
     def empty(self):
         return self.a == self.b
 
+    def begin(self):
+        return min(self.a, self.b)
+
+    def end(self):
+        return max(self.a, self.b)
+
 
 class FakeSelection(list):
     pass
 
 
 class FakeView:
+    _next_id = 1
+
     def __init__(self, file_name=None, text=''):
+        self._id = FakeView._next_id
+        FakeView._next_id += 1
+        self._change_count = 0
+        self._valid = True
         self._file_name = file_name
         self._settings = FakeSettings()
         self.appended = ''
@@ -79,6 +91,25 @@ class FakeView:
 
     def file_name(self):
         return self._file_name
+
+    def id(self):
+        return self._id
+
+    def buffer_id(self):
+        return self._id
+
+    def change_count(self):
+        return self._change_count
+
+    def is_valid(self):
+        return self._valid
+
+    def size(self):
+        return len(self.text)
+
+    def replace(self, edit, region, text):
+        self.text = self.text[:region.begin()] + text + self.text[region.end():]
+        self._change_count += 1
 
     def window(self):
         return self._window
@@ -106,7 +137,8 @@ class FakeView:
         elif name == 'right_delete':
             self.appended = ''
         elif name == 'pair_of_cleats_apply_completion':
-            self.text = args.get('text', '')
+            from PairOfCleats.commands.search import PairOfCleatsApplyCompletionCommand
+            PairOfCleatsApplyCompletionCommand(self).run(None, **args)
 
     def erase_regions(self, key):
         self.regions.pop(key, None)

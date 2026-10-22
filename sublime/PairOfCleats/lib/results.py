@@ -1,6 +1,7 @@
 import os
 
 import sublime
+from .saved_search import normalize_saved_options
 
 HIGHLIGHT_KEY = 'pairofcleats.search.highlight'
 HIGHLIGHT_SCOPE = 'region.yellowish'
@@ -54,11 +55,7 @@ def build_session(query, options, repo_root, hits, target, explain=False):
         'hits': [normalize_hit(hit) for hit in hits],
     }
     if isinstance(options, dict):
-        session['options'] = {
-            'mode': options.get('mode'),
-            'backend': options.get('backend'),
-            'limit': options.get('limit'),
-        }
+        session['options'] = normalize_saved_options(options, repo_root)
     if explain:
         session['text'] = format_explain_text(session['hits'])
     elif target in ('new_tab', 'output_panel'):

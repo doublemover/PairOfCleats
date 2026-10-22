@@ -137,7 +137,9 @@ Operational command behavior:
 
 - setup/bootstrap/doctor/config-dump/index-health run against the selected local repo root
 - setup/bootstrap/doctor use the configured CLI resolution path
-- config-dump uses `tools/config/dump.js --json --repo <repo>`
+- Config Dump, Index Health and Index Validate use the configured CLI's canonical
+  `config dump`, `index report` and `index validate` commands with `--json --repo`.
+  The selected consumer repository supplies indexed content, not tool scripts.
 - index-health uses `tools/index/report-artifacts.js --json --repo <repo>`
 - code-map uses `pairofcleats report map --json --format html-iso --out ...` and opens the generated map artifact
 - architecture-check uses `pairofcleats architecture-check --json --repo <repo> --rules <path>`
@@ -145,6 +147,23 @@ Operational command behavior:
 - suggest-tests uses `pairofcleats suggest-tests --json --repo <repo> ...` with prompted changed paths
 - workspace commands use `pairofcleats workspace manifest|status|build|catalog --json --workspace <path>`
 - long-running workflow commands persist session metadata in workspace state, drive a status bar item keyed to the active repo context, and expose rerun/recent-workflow commands without requiring a second task runner stack
+
+Reruns resolve the current registered command, configured CLI, repository and
+transport policy. Saved executable paths remain diagnostic history. New sessions
+retain bounded semantic inputs; older sessions missing required inputs are shown
+as unavailable for exact replay. Workflow Status stops the displayed session by
+its stable identity even if repository focus changes while the picker is open.
+`apiExecutionMode=require` rejects CLI-only operator and managed workflows before
+dispatch, consistently with Explain Search.
+
+Explain Search shows the selected hit's supplied score components and captured
+routing/trust facts in the PairOfCleats output view, then keeps validated source
+navigation available. Reopened result entries show their captured evidence rather
+than recomputing ranking. Missing components are reported as unavailable. Display
+and history projection cap each breakdown at 4 KiB, query facts at 8 KiB and all
+stored breakdowns in one result set at 64 KiB, with explicit truncation notes.
+`searchModifiedSince` accepts an empty setting or a nonnegative safe integer;
+CLI output serializes the integer while HTTP sends a JSON number, including zero.
 - search runs persist normalized result sets in workspace state, populate the `PairOfCleats Results` explorer view, and support grouping by query, section, or file
 - saved result-set actions support open, reveal-in-explorer, copy-path, reopen-last-results, and rerun from history
 - command output is summarized in the `PairOfCleats` output channel with the raw JSON payload appended below the summary
@@ -174,7 +193,20 @@ Packaging/publish hardening:
  
 ## Sublime package
 
-The Sublime package source lives under `sublime/PairOfCleats` and is emitted as `dist/sublime/pairofcleats.sublime-package`.
+The Sublime package source lives under `sublime/PairOfCleats` and is emitted as `dist/sublime/PairOfCleats.sublime-package`.
+
+The archive contains plugin.py and its resources directly at the ZIP root, matching
+an unpacked `Packages/PairOfCleats/` installation. Startup diagnostics explain old
+lowercase/nested archives and loose files shadowing a packed revision without
+deleting user files. Archive verification and copied Python imports do not qualify
+actual editor installation; supported-host acceptance remains separate.
+
+Saved searches and result sessions preserve repository, temporal selector, ANN,
+sparse fallback and advanced filters. Repeat/history/context actions keep that
+scope after settings or active folders change. Legacy entries without complete
+scope require a new explicit search. Escape in an options picker cancels before
+dispatch. Indexed completions retain the original buffer, change count, request
+and replacement range; stale or superseded responses cannot edit another word.
 
 Repository discovery selects the nearest `.pairofcleats.json`, `.git` directory,
 or `.git` file. This keeps a linked Git worktree or submodule rooted at its working
