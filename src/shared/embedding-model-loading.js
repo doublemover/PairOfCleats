@@ -1,5 +1,7 @@
 import path from 'node:path';
 import { isEmbeddingModelRepositoryId, resolveEmbeddingArtifactRoot } from './embedding-artifact-identity.js';
+import { createTransformersResourceScope } from './embedding-transformers-resources.js';
+import { preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
 
 export const EMBEDDING_ACQUISITION_RECEIPT = '.pairofcleats-acquisition.json';
 
@@ -41,9 +43,18 @@ export const loadEmbeddingModelComponents = async (mod, {
   config.vision_config = null;
   config.audio_config = null;
   const tokenizer = await AutoTokenizer.from_pretrained(modelId, options);
-  const model = await AutoModel.from_pretrained(modelId, {
-    ...options, config, device: 'cpu', dtype: plan.dtype, session_options: sessionOptions,
-    ...(modelFileName ? { model_file_name: modelFileName } : {})
-  });
-  return { plan, config, tokenizer, model };
+  const resourceOwner = createTransformersResourceScope('embedding model components');
+  resourceOwner.adopt(tokenizer, 'embedding tokenizer');
+  try {
+    const model = await AutoModel.from_pretrained(modelId, {
+      ...options, config, device: 'cpu', dtype: plan.dtype, session_options: sessionOptions,
+      ...(modelFileName ? { model_file_name: modelFileName } : {})
+    });
+    resourceOwner.adopt(model, 'embedding text model');
+    return { plan, config, tokenizer, model, resourceOwner };
+  } catch (error) {
+    resourceOwner.retainFailure(error);
+    try { await resourceOwner.close(); } catch (cleanup) { throw preserveEmbeddingCleanupFailure(error, cleanup); }
+    throw error;
+  }
 };

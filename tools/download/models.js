@@ -10,6 +10,8 @@ import { DEFAULT_MODEL_ID, getModelConfig, resolveRepoConfig } from '../shared/d
 import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile } from '../../src/shared/embedding-model-profile.js';
 import { EMBEDDING_ACQUISITION_RECEIPT, loadEmbeddingModelComponents, resolveEmbeddingAcquisitionRoot } from '../../src/shared/embedding-model-loading.js';
 import { installOnnxArtifactClosure } from '../../src/shared/onnx-model-install.js';
+import { captureTransformersResource } from '../../src/shared/embedding-transformers-resources.js';
+import { preserveEmbeddingCleanupFailure } from '../../src/shared/embedding-cache-lifetime.js';
 
 const argv = createCli({
   scriptName: 'download-models',
@@ -41,6 +43,8 @@ transformers.env.cacheDir = cacheDir;
 
 // Preserve the quantized model filename used by existing model caches.
 const acquired = await loadEmbeddingModelComponents(transformers, { modelId, modelsDir: cacheDir, modelProfile });
+const downloadOwner = acquired.resourceOwner || captureTransformersResource(acquired.pipeline, 'downloaded embedding pipeline');
+let acquisitionFailure, acquisitionFailed = false;
 try {
   if (modelProfile) {
     // Ask the pinned upstream registry for graph/external-data components using
@@ -54,8 +58,10 @@ try {
     const receiptPath = path.join(assetRoot, EMBEDDING_ACQUISITION_RECEIPT);
     await fs.writeFile(receiptPath, JSON.stringify({ plan: acquired.plan, files: requiredFiles }));
   }
-} finally {
-  await (acquired.model || acquired.pipeline)?.dispose?.();
+} catch (error) { acquisitionFailed = true; acquisitionFailure = error; throw error; }
+finally {
+  try { if (acquired.resourceOwner) await downloadOwner.close(); else await downloadOwner.retire(); }
+  catch (cleanup) { throw acquisitionFailed ? preserveEmbeddingCleanupFailure(acquisitionFailure, cleanup) : cleanup; }
 }
 
 let onnxResolvedPath = null;

@@ -235,7 +235,15 @@ async function loadPipeline(modelId, modelsDir, modelProfile = null, localFilesO
         });
         if (components.pipeline) return pipelineLifetime.loaded(entry, components.pipeline);
         const { tokenizer, model } = components;
-        return pipelineLifetime.loaded(entry, createPreparedTextEncoder({ tokenizer, model, Tensor: mod.Tensor, profile: modelProfile, sessionOptions, modelFileName }));
+        try {
+          return pipelineLifetime.loaded(entry, createPreparedTextEncoder({ tokenizer, model, Tensor: mod.Tensor, profile: modelProfile,
+            sessionOptions, modelFileName, resourceOwner: components.resourceOwner }));
+        } catch (error) {
+          components.resourceOwner.retainFailure(error);
+          try { await components.resourceOwner.close(); }
+          catch (cleanup) { throw preserveEmbeddingCleanupFailure(error, cleanup); }
+          throw error;
+        }
       })
       .catch(err => { throw pipelineLifetime.failed(entry, err); });
   pipelineCache.set(cacheKey, entry);

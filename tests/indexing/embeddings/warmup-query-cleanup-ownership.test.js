@@ -72,6 +72,16 @@ try {
 
   __setAdapterFactoryForTests(() => ({ embedOne: async () => { throw primary; }, dispose: async () => {} }));
   assert.equal(await getQueryEmbedding({ ...options, text: 'ordinary unavailable', dims: 2 }), null);
+
+  for (const thrown of [undefined, null, false, 0, '']) {
+    let falseyCloses = 0;
+    __setAdapterFactoryForTests(() => ({ embedOne: async () => { throw thrown; }, dispose: async () => {
+      falseyCloses++; if (falseyCloses === 1) throw cleanup;
+    } }));
+    const falseyFailure = await rejected(getQueryEmbedding({ ...options, text: 'falsey primary', dims: 2 }));
+    assert.equal(falseyFailure.cause, thrown); assert.equal(falseyFailure.errors[0], thrown);
+    await falseyFailure.cleanupErrors[0].embeddingCacheOwner.release(); assert.equal(falseyCloses, 2);
+  }
 } finally {
   releaseExternal?.();
   for (const owner of getRetiredEmbeddingCacheOwners()) await owner.release().catch(() => {});

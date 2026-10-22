@@ -3,6 +3,7 @@ import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-leas
 import { resolveStubDims, stubEmbedding } from './embedding.js';
 import { createOnnxEmbedder } from './onnx-embeddings.js';
 import { observeEmbeddingOwnership, preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
+import { captureTransformersResource } from './embedding-transformers-resources.js';
 import {
   DEFAULT_EMBEDDING_POOLING,
   normalizeEmbeddingBatchOutput
@@ -16,8 +17,8 @@ import {
 export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipeline, modelProfile, localFilesOnly = false, sessionOptions = {}, modelFileName = null, modelArtifact = null }) => {
   let embedderPromise = null;
   let resolvedEmbedder = null;
-  let acquiredEmbedder = null, acquiredDispose = null, acquiredClosed = false;
-  let startupFailure = null, startupFailureReported = false, disposed = false, disposing = null;
+  let acquiredEmbedder = null, acquiredOwner = null;
+  let startupFailure = null, startupFailureReported = false, disposed = false, disposing = null, disposeRequested = false;
   let observedArtifact = modelArtifact;
   const measurements = { scope: 'adapter-lifetime', initializationMs: 0, runs: 0,
     providerBusyMs: 0, active: 0, peakActive: 0, failures: 0 };
@@ -26,15 +27,14 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
     if (!embedderPromise) {
       const startedAt = performance.now();
       embedderPromise = loadPipeline(modelId, modelsDir, modelProfile, localFilesOnly, sessionOptions, modelFileName, modelArtifact).then(async (embedder) => {
-        acquiredEmbedder = embedder; acquiredClosed = false; startupFailure = null; startupFailureReported = false;
-        acquiredDispose = embedder.dispose;
+        acquiredEmbedder = embedder; startupFailure = null; startupFailureReported = false;
+        acquiredOwner = captureTransformersResource(embedder, 'Xenova acquired pipeline lease');
         try {
           observedArtifact = await resolveEmbeddingArtifactIdentityAsync({ provider: 'xenova', modelId, modelsDir, modelProfile }, { phase: 'loaded' });
           if (embeddingArtifactReusable(modelArtifact)) assertEmbeddingArtifactCompatibility(modelArtifact, observedArtifact);
         } catch (error) {
           try {
-            if (typeof acquiredDispose === 'function') await acquiredDispose.call(acquiredEmbedder);
-            acquiredClosed = true;
+            await acquiredOwner.retire();
           } catch (cleanup) { throw preserveEmbeddingCleanupFailure(error, cleanup); }
           throw error;
         }
@@ -104,6 +104,7 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
     },
     dispose: () => {
       if (!disposing) {
+        const retry = disposeRequested; disposeRequested = true;
         disposed = true;
         disposing = Promise.resolve().then(async () => {
           if (embedderPromise) { try { await embedderPromise; } catch {} }
@@ -111,10 +112,7 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
           if (observe && !observe() && !startupFailureReported) {
             startupFailureReported = true; throw startupFailure;
           }
-          if (acquiredEmbedder && !acquiredClosed) {
-            if (typeof acquiredDispose === 'function') await acquiredDispose.call(acquiredEmbedder);
-            acquiredClosed = true;
-          }
+          if (acquiredEmbedder) { if (retry) await acquiredOwner.release(); else await acquiredOwner.retire(); }
           if (observe && !observe()) throw startupFailure;
         }).catch(error => { disposing = null; throw error; });
       }

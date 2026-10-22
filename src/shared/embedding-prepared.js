@@ -2,6 +2,8 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { normalizeEmbeddingGemma2Output } from './embedding-model-profile.js';
 import { createRunQueue } from './onnx-embeddings/run-queue.js';
+import { observeEmbeddingOwnership, preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
+import { createTransformersResourceScope, trackPendingTransformersOwner, transformersCleanupFailure } from './embedding-transformers-resources.js';
 
 const INTEGER_OPTIONS = new Set(['intraOpNumThreads', 'interOpNumThreads']);
 const BOOLEAN_OPTIONS = new Set(['enableCpuMemArena', 'enableMemPattern', 'enableProfiling']);
@@ -59,7 +61,11 @@ export const normalizeEg2ModelFileName = (value) => {
 };
 
 /** Keep prepared IDs private, bound each admission, and pad without tokenizing twice. */
-export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, sessionOptions, modelFileName = null }) => {
+export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, sessionOptions, modelFileName = null, resourceOwner = null }) => {
+  const components = resourceOwner || createTransformersResourceScope('prepared encoder model components');
+  if (resourceOwner) {
+    if (!components.pending || !components.owns(tokenizer) || !components.owns(model)) throw new Error('Prepared encoder components belong to another resource owner or are already closed.');
+  } else { components.adopt(tokenizer, 'prepared encoder tokenizer'); components.adopt(model, 'prepared encoder text model'); }
   const preparedRows = new WeakMap();
   const metrics = { preparationCalls: 0, inferenceCalls: 0, preparationMs: 0, assemblyMs: 0, inferenceMs: 0, outputMs: 0 };
   let lastBatch = null;
@@ -67,11 +73,41 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
   let disposed = false;
   let active = false;
   const admission = createRunQueue({ maxQueued: 64 });
-  let disposing = null;
+  const tensorScopes = new Set(), profilingOperations = new Set(), workFailures = new Map();
+  let disposing = null, disposeRequested = false, queueDrained = false, stopped = false, lastWorkFailure = null;
+  const retainWorkFailure = error => {
+    const observe = observeEmbeddingOwnership(error);
+    if (observe && !workFailures.has(error)) workFailures.set(error, observe);
+    if (observe && !observe()) { stopped = true; lastWorkFailure = error; trackPendingTransformersOwner(encoderOwner); }
+  };
+  const captureValues = (scope, record) => {
+    if (!record || typeof record !== 'object') return;
+    if (typeof Tensor === 'function' && record instanceof Tensor) { scope.adopt(record, 'prepared encoder tensor'); return; }
+    for (const key of Object.keys(record)) {
+      const value = record[key];
+      if (!value || (typeof value !== 'object' && typeof value !== 'function') || Array.isArray(value) || ArrayBuffer.isView(value)) continue;
+      scope.adopt(value, 'prepared encoder tensor');
+    }
+  };
+  const withTensorScope = async work => {
+    assertAvailable();
+    const scope = createTransformersResourceScope('prepared encoder operation tensors', { drainFailuresBeforeResources: true });
+    tensorScopes.add(scope);
+    let value, primaryError, hasPrimary = false, cleanupError, cleanupFailed = false;
+    try { value = await work(scope); }
+    catch (error) { hasPrimary = true; primaryError = error; scope.retainFailure(error); retainWorkFailure(error); }
+    try { await scope.close(); }
+    catch (error) { cleanupFailed = true; cleanupError = error; retainWorkFailure(error); }
+    if (!scope.pending) tensorScopes.delete(scope);
+    if (cleanupFailed) throw hasPrimary ? preserveEmbeddingCleanupFailure(primaryError, cleanupError) : cleanupError;
+    if (hasPrimary) throw primaryError;
+    return value;
+  };
   const assertAvailable = () => {
     if (disposed) throw new Error('EG2 session has been explicitly disposed.');
+    if (stopped) throw lastWorkFailure;
   };
-  const prepare = async (texts) => {
+  const prepare = async (texts) => withTensorScope(async scope => {
     assertAvailable();
     if (!Array.isArray(texts) || texts.length > 1024 || texts.some((text) => typeof text !== 'string')) {
       throw new Error('Prepared embedding inputs require at most 1024 strings.');
@@ -84,6 +120,7 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
     const encoded = await tokenizer(texts, {
       padding: false, truncation: true, max_length: profile.maxLength, return_tensor: false
     });
+    captureValues(scope, encoded);
     const fields = Object.keys(encoded);
     if (!fields.includes('input_ids') || !fields.includes('attention_mask')) throw new Error('Tokenizer omitted required prepared inputs.');
     const rows = texts.map((_, index) => {
@@ -103,8 +140,8 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
     metrics.preparationCalls += 1;
     metrics.preparationMs += performance.now() - started;
     return rows;
-  };
-  const run = async (inputs, count, batch) => {
+  });
+  const run = async (inputs, count, batch, scope) => {
     assertAvailable();
     if (active) throw new Error('EG2 adapter allows only one inference in flight.');
     if (profilingEnded && sessionOptions.enableProfiling) throw new Error('Profiled EG2 session has ended; use a new session.');
@@ -112,6 +149,7 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
     const started = performance.now();
     try {
       const output = await model(inputs);
+      captureValues(scope, output);
       const inferred = performance.now();
       const vectors = normalizeEmbeddingGemma2Output(output, count, profile.dimensions);
       const ended = performance.now();
@@ -124,7 +162,7 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
       active = false;
     }
   };
-  const embedPrepared = async (items) => {
+  const embedPrepared = async (items) => withTensorScope(async scope => {
     assertAvailable();
     if (!Array.isArray(items) || items.length > 64) throw new Error('Prepared inference requires at most 64 items.');
     if (!items.length) return [];
@@ -148,7 +186,7 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
         const offset = index * longest + (side === 'left' ? longest - items[index].tokenLength : 0);
         data.set(row[field], offset);
       });
-      inputs[field] = new Tensor('int64', data, [items.length, longest]);
+      inputs[field] = scope.adopt(new Tensor('int64', data, [items.length, longest]), 'prepared encoder input tensor');
     }
     const assemblyMs = performance.now() - started;
     metrics.assemblyMs += assemblyMs;
@@ -156,19 +194,24 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
       count: items.length, usefulTokens: items.reduce((sum, item) => sum + item.tokenLength, 0),
       paddedTokens: items.length * longest, attentionWork: items.length * longest * longest,
       longestInput: longest, assemblyMs
-    });
-  };
-  const embed = async (texts) => {
+    }, scope);
+  });
+  const embed = async (texts) => withTensorScope(async scope => {
     assertAvailable();
     const started = performance.now();
     const inputs = await tokenizer(texts, { padding: true, truncation: true, max_length: profile.maxLength });
+    captureValues(scope, inputs);
     metrics.preparationCalls += 1;
     metrics.preparationMs += performance.now() - started;
-    return run(inputs, texts.length, { count: texts.length, prepared: false });
+    return run(inputs, texts.length, { count: texts.length, prepared: false }, scope);
+  });
+  const admit = (work, options) => {
+    try { assertAvailable(); } catch (error) { return Promise.reject(error); }
+    return admission(work, options);
   };
-  const admittedEmbed = (texts, options = {}) => admission(() => embed(texts), options);
-  admittedEmbed.prepare = (texts, options = {}) => admission(() => prepare(texts), options);
-  admittedEmbed.embedPrepared = (items, options = {}) => admission(() => embedPrepared(items), options);
+  const admittedEmbed = (texts, options = {}) => admit(() => embed(texts), options);
+  admittedEmbed.prepare = (texts, options = {}) => admit(() => prepare(texts), options);
+  admittedEmbed.embedPrepared = (items, options = {}) => admit(() => embedPrepared(items), options);
   admittedEmbed.executionInfo = () => ({
     device: 'cpu', executionProviders: ['cpu'], modelFileName, requestedSessionOptions: structuredClone(sessionOptions),
     effectiveNativeThreads: null, effectiveGraphExecutionMode: null,
@@ -177,7 +220,7 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
     optimizedModelFilePath: sessionOptions.optimizedModelFilePath ?? null,
     metrics: { ...metrics }, lastBatch: lastBatch ? { ...lastBatch } : null
   });
-  admittedEmbed.endProfiling = async () => {
+  const endProfiling = async () => {
     assertAvailable();
     if (active) throw new Error('Cannot end profiling while inference is active.');
     if (!sessionOptions.enableProfiling) return { enabled: false, sessions: [] };
@@ -192,21 +235,45 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
           const output = await session.endProfiling();
           results.push({ name, status: 'ended', output: output ?? null });
         } catch (error) {
+          const observe = observeEmbeddingOwnership(error);
+          if (observe && !observe()) { retainWorkFailure(error); throw error; }
           results.push({ name, status: 'error', message: error.message });
         }
       }
     }
     return { enabled: true, profileFilePrefix: sessionOptions.profileFilePrefix ?? null, sessions: results };
   };
+  admittedEmbed.endProfiling = (...args) => {
+    const work = endProfiling(...args); profilingOperations.add(work);
+    work.then(() => profilingOperations.delete(work), error => { profilingOperations.delete(work); retainWorkFailure(error); });
+    return work;
+  };
   admittedEmbed.dispose = () => {
     if (!disposing) {
+      const retry = disposeRequested; disposeRequested = true; disposed = true; stopped = true;
       disposing = (async () => {
         await admission.close();
-        disposed = true;
-        await model.dispose?.();
-      })();
+        await Promise.allSettled([...profilingOperations]); queueDrained = true;
+        const errors = [];
+        for (const scope of tensorScopes) {
+          try { await scope.close({ retry }); } catch (error) { errors.push(error); }
+          if (!scope.pending) tensorScopes.delete(scope);
+        }
+        for (const [error, observe] of workFailures) if (!observe()) errors.push(error);
+        if (errors.length) throw transformersCleanupFailure(encoderOwner, errors);
+        try { await components.close({ retry }); }
+        catch (error) { throw transformersCleanupFailure(encoderOwner, [error]); }
+        trackPendingTransformersOwner(encoderOwner);
+        return true;
+      })().catch(error => { disposing = null; trackPendingTransformersOwner(encoderOwner); throw error; });
     }
     return disposing;
   };
+  const encoderOwner = Object.freeze({ kind: 'prepared embedding encoder',
+    get pending() { return !disposeRequested || !queueDrained || tensorScopes.size > 0 || components.pending
+      || [...workFailures.values()].some(observe => !observe()); },
+    get components() { return components; }, get pendingTensorScopes() { return Object.freeze([...tensorScopes]); },
+    release: () => admittedEmbed.dispose() });
+  admittedEmbed.transformersResourceOwner = encoderOwner;
   return admittedEmbed;
 };

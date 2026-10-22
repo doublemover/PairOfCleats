@@ -159,6 +159,18 @@ try {
   lifetime.recordFailure(privateLoaded, unknown);
   await rejected(lifetime.retire(privateLoaded)); await rejected(privateLoaded.owner.release());
   assert.equal(privateCloses, 1); assert.equal(privateLoaded.owner.pending, true);
+  for (const thrown of [undefined, null, false, 0, '']) {
+    let reads = 0;
+    const failedCapture = lifetime.adopt({ key: `capture-${String(thrown)}`, references: 0 });
+    const capturedObject = Object.defineProperty({}, 'dispose', { get() { reads++; throw thrown; } });
+    let captured = false;
+    try { lifetime.loaded(failedCapture, capturedObject); } catch (error) { captured = true; assert.equal(error, thrown); }
+    assert.equal(captured, true); failedCapture.promise = Promise.reject(thrown); failedCapture.promise.catch(() => {});
+    lifetime.failed(failedCapture, thrown);
+    const captureFailure = await rejected(lifetime.retire(failedCapture));
+    assert.equal(captureFailure.cause, thrown); await rejected(failedCapture.owner.release());
+    assert.equal(reads, 1); assert.equal(failedCapture.owner.pending, true); assert.equal(failedCapture.owner.resource, capturedObject);
+  }
 
   // Actual Xenova provider + shared pipeline: mutation during loaded-byte
   // verification preserves both the artifact failure and failed exact close.
@@ -183,7 +195,8 @@ try {
   const verificationFailure = await rejected(verified.embedOne('verification failure'));
   assert.equal(verificationFailure.code, 'ERR_EMBEDDING_ARTIFACT_INCOMPATIBLE');
   assert.equal(verificationFailure.cause.code, 'ERR_EMBEDDING_ARTIFACT_INCOMPATIBLE');
-  assert.equal(verificationFailure.cleanupErrors[0].cause, nativeFailure); assert.equal(pipelineCloses, 1);
+  assert.equal(verificationFailure.cleanupErrors[0].cause.cause, nativeFailure);
+  assert.equal(verificationFailure.cleanupErrors[0].transformersResourceOwner.role, 'Xenova acquired pipeline lease'); assert.equal(pipelineCloses, 1);
   rawPipeline.dispose = () => assert.fail('must keep original raw pipeline dispose');
   assert.equal(await rejected(verified.embedOne('no automatic reload')), verificationFailure);
   const verificationDisposal = await rejected(verified.dispose()); assert.equal(pipelineCloses, 1);

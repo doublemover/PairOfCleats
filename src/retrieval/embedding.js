@@ -75,7 +75,7 @@ export async function getQueryEmbedding({
       kind: 'query',
       formatting: resolvedInputFormatting
     });
-    let primaryError = null;
+    let primaryError, primaryCaught = false;
     try {
       const embedding = await adapter.embedOne(formattedText);
       if (!embedding || !embedding.length) return null;
@@ -88,10 +88,10 @@ export async function getQueryEmbedding({
         assertEmbeddingArtifactCompatibility(modelArtifact, execution.modelArtifact);
       }
       return embedding;
-    } catch (error) { primaryError = error; throw error; }
+    } catch (error) { primaryCaught = true; primaryError = error; throw error; }
     finally {
       try { await adapter.dispose?.(); }
-      catch (cleanup) { throw primaryError ? preserveEmbeddingCleanupFailure(primaryError, cleanup) : cleanup; }
+      catch (cleanup) { throw primaryCaught ? preserveEmbeddingCleanupFailure(primaryError, cleanup) : cleanup; }
     }
   } catch (err) {
     const observe = observeEmbeddingOwnership(err);

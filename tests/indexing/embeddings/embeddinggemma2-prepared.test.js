@@ -117,7 +117,7 @@ const broken = createPreparedTextEncoder({ tokenizer, model: brokenModel, Tensor
 await assert.rejects(() => broken.dispose(), /uncertain native disposal/);
 await assert.rejects(() => broken.dispose(), /uncertain native disposal/);
 await assert.rejects(() => broken.prepare(['x']), /disposed/);
-assert.equal(failedDisposals, 1, 'uncertain disposal must not be retried automatically');
+assert.equal(failedDisposals, 2, 'a later explicit disposal retries only the captured original model; no automatic acquisition retry');
 
 const loads = [];
 __setTransformersModuleLoaderForTests(async () => ({

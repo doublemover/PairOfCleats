@@ -91,7 +91,7 @@ export const createEmbeddingCacheLifetime = ({ cache, kind }) => {
       // Its original pending child observer remains authoritative.
       try { await entry.promise; } catch (error) { recordFailure(entry, error); }
       if (entry.resource && !entry.disposeCompleted) {
-        if (entry.disposeError) throw entry.disposeError;
+        if (entry.disposeCaptureFailed) throw entry.disposeError;
         if (entry.dispose) await entry.dispose.call(entry.resource);
         entry.disposeCompleted = true;
       }
@@ -111,7 +111,7 @@ export const createEmbeddingCacheLifetime = ({ cache, kind }) => {
   };
   const adopt = entry => {
     Object.assign(entry, { retired: false, closed: false, releasing: null, releaseError: null, waiting: null,
-      startup: 'pending', resource: null, dispose: null, disposeError: null, disposeCompleted: false, pendingFailures: new Map() });
+      startup: 'pending', resource: null, dispose: null, disposeError: null, disposeCaptureFailed: false, disposeCompleted: false, pendingFailures: new Map() });
     entry.owner = Object.freeze({ kind, get pending() { return !entry.closed; },
       get references() { return entry.references; }, get startup() { return entry.startup; },
       get resource() { return entry.resource; }, get lastError() { return entry.releaseError; },
@@ -121,7 +121,7 @@ export const createEmbeddingCacheLifetime = ({ cache, kind }) => {
   const loaded = (entry, resource) => {
     entry.resource = resource; entry.startup = 'fulfilled';
     try { const dispose = resource?.dispose; entry.dispose = typeof dispose === 'function' ? dispose : null; }
-    catch (error) { entry.disposeError = error; throw error; }
+    catch (error) { entry.disposeCaptureFailed = true; entry.disposeError = error; throw error; }
     return resource;
   };
   const failed = (entry, error) => {
