@@ -9,7 +9,7 @@ const { EventEmitter: NodeEventEmitter } = require('node:events');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
 const { snapshotConfiguration, renderEffectiveSettings } = require('./effective-settings.js');
 const { inspectCliVersion } = require('./installation-evidence.js');
-const { createDocumentAuthority, readVerifiedSource, assertQualifiedEditor } = require('./document-authority.js');
+const { createDocumentAuthority, assertQualifiedEditor } = require('./document-authority.js');
 const { createTaskObservations, taskRecoveryActions } = require('./task-observations.js');
 const taskObservations = createTaskObservations();
 const { generationFromContextPack, contextDiscoveryRequest, contextDiscoveryCliArgs } = require('./semantic-discovery.js');
@@ -24,6 +24,7 @@ const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, desc
   boundedLogLine, retainTaskLog } = require('./progress-view.js');
 const { readWatchProgress } = require('./watch-progress.js');
 const { collectEvidenceSources, createEvidenceCollection } = require('./evidence-collection.js');
+const { createCapturedEvidenceOpener } = require('./captured-evidence-open.js');
 let latestAnalysisEvidence = null;
 const { resolveRiskSource, validateRiskSource } = require('./risk-source.js');
 const {
@@ -5041,58 +5042,10 @@ const copySelectedContext = createEvidenceCollection({
   }
 });
 
-async function openCapturedEvidence() {
-  const captured = latestAnalysisEvidence;
-  if (!captured) { vscode.window.showInformationMessage('Run Context Pack or Risk Explain to capture evidence first.'); return; }
-  const sources = collectEvidenceSources(captured.payload);
-  const selected = await vscode.window.showQuickPick(sources.map(hit => ({ label: hit.name || hit.file,
-    description: `${hit.kind} • ${hit.file}:${hit.startLine || 1}`, hit })),
-    { title: 'Open captured context / risk evidence', placeHolder: 'Exact ranges require a captured source hash; unknown freshness is shown explicitly' });
-  if (!selected) return;
-  const action = await vscode.window.showQuickPick(['Open Source', 'Create Context from This Evidence'], { title: selected.label });
-  if (action === 'Create Context from This Evidence') {
-    await copySelectedContext({ hit: selected.hit, resultSet: { repoRoot: captured.repoContext.repoRoot,
-      repoUri: captured.repoContext.repoUri?.toString?.(), hits: sources } });
-  } else if (action === 'Open Source') {
-    const hit = selected.hit;
-    if (!hit.sourceHash) {
-      vscode.window.showInformationMessage('Captured evidence has no full source hash. Opening the file; indexed range freshness is unknown.');
-      const result = await openSearchHit(vscode, captured.repoContext, { file: hit.file });
-      if (!result.ok) vscode.window.showErrorMessage(result.message);
-    } else {
-      const target = resolveValidatedHitTarget(vscode, captured.repoContext, hit);
-      if (!target.ok) { vscode.window.showErrorMessage(target.message); return; }
-      try {
-        const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: () => operations.isCurrent(), maxDocuments: 1 });
-        if (hit.coordinateUnit === 'utf16' && [hit.startLine, hit.startCol, hit.endLine, hit.endCol].every(Number.isSafeInteger)) {
-          const qualified = await authority.qualify({ repoRoot: captured.repoContext.repoRoot, file: target.filePath,
-            uri: target.targetUri, sourceHash: hit.sourceHash, range: hit });
-          if (!qualified || !operations.isCurrent()) return;
-          await authority.assertCurrent();
-          const editor = await vscode.window.showTextDocument(qualified.document);
-          await authority.assertCurrent();
-          if (!operations.isCurrent() || qualified.document.version !== qualified.version || qualified.document.isDirty) return;
-          assertQualifiedEditor(editor, qualified);
-          editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
-          editor.revealRange(editor.selection);
-        } else {
-          const source = readVerifiedSource({ repoRoot: captured.repoContext.repoRoot, file: target.filePath, sourceHash: hit.sourceHash });
-          const offset = source.sourceText.startsWith('\ufeff') ? 1 : 0;
-          const qualified = await authority.qualify({ repoRoot: captured.repoContext.repoRoot, file: target.filePath,
-            uri: target.targetUri, sourceHash: hit.sourceHash, span: { start: offset, end: offset } });
-          if (!qualified) return;
-          const editor = await vscode.window.showTextDocument(qualified.document);
-          await authority.assertCurrent();
-          if (!operations.isCurrent()) return;
-          assertQualifiedEditor(editor, qualified);
-          vscode.window.showInformationMessage('Evidence source bytes were verified. Its producer supplied no exact UTF-16 range, so only the source file was opened.');
-        }
-      } catch (error) {
-        if (operations.isCurrent()) vscode.window.showErrorMessage(`Captured evidence range unavailable: ${error.message}`);
-      }
-    }
-  }
-}
+const openCapturedEvidence = createCapturedEvidenceOpener({ vscode, operations,
+  getEvidence: () => latestAnalysisEvidence, collectSources: collectEvidenceSources,
+  resolveTarget: (repoContext, hit) => resolveValidatedHitTarget(vscode, repoContext, hit),
+  createContext: (node, isCurrent) => copySelectedContext(node, isCurrent) });
 
 function inspectIndexedNavigation(kind) {
   return operations.run('indexed-navigation-picker', () => inspectOwnedIndexedNavigation(kind), { key: 'indexed-navigation-picker' });
@@ -5534,7 +5487,7 @@ function activate(context) {
     vscode.commands.registerCommand('pairofcleats.semanticEvidence', runSemanticEvidence),
     vscode.commands.registerCommand('pairofcleats.selectServiceRepository', selectServiceRepository),
     vscode.commands.registerCommand('pairofcleats.inspectTasks', inspectTasks),
-    vscode.commands.registerCommand('pairofcleats.copyContext', copySelectedContext),
+    vscode.commands.registerCommand('pairofcleats.copyContext', node => copySelectedContext(node)),
     vscode.commands.registerCommand('pairofcleats.openEvidence', openCapturedEvidence),
     vscode.commands.registerCommand('pairofcleats.navigateDefinitions', () => inspectIndexedNavigation('definitions')),
     vscode.commands.registerCommand('pairofcleats.navigateReferences', () => inspectIndexedNavigation('references'))

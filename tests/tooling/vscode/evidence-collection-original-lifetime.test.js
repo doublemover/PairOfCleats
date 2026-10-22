@@ -117,6 +117,27 @@ try {
   const inspectedResult = await inspected.copy(); assert.equal(inspectedResult.primaryError, primary);
   assert.deepEqual(inspectedResult.inspectionErrors, [originalInspection]); assert.equal(messageReads, 1);
   assert.equal(inspectedResult.inspectionErrors[0].cacheOwnershipReleased(), false, 'independent original inspection owner remains available without a settled claim');
+
+  const deniedParent = fixture(); await deniedParent.copy(undefined, () => false);
+  assert.equal(deniedParent.sourcePicks, 0); assert.equal(deniedParent.fetched.length, 0);
+  for (const boundary of ['purpose', 'fetch', 'display', 'save']) {
+    const revoked = fixture(); let current = true;
+    if (boundary === 'purpose') revoked.onPurpose = () => { current = false; };
+    if (boundary === 'fetch') revoked.fetch = () => { current = false; return revoked.packet; };
+    if (boundary === 'display') revoked.onDisplay = document => { current = false; return { document }; };
+    if (boundary === 'save') { revoked.chooseAction = () => 'Export JSON'; revoked.onSave = () => {
+      current = false; return { scheme: 'file', fsPath: 'C:/chosen/revoked.json' }; }; }
+    await revoked.copy(undefined, () => current);
+    assert.equal(revoked.copies.length, 0); assert.equal(revoked.writes.length, 0, `${boundary} cannot reacquire parent publication authority`);
+  }
+  for (const failure of [undefined, null, false, 0, '']) {
+    const failedParent = fixture(); let calls = 0;
+    const result = await failedParent.copy(undefined, () => { calls++; throw failure; });
+    assert.equal(result.primaryError, failure); assert.equal(calls, 1, 'original failing prerequisite is not retried for diagnostics');
+    assert.equal(failedParent.sourcePicks, 0); assert.equal(failedParent.copies.length, 0);
+  }
+  const invalidParent = fixture(); const invalidResult = await invalidParent.copy(undefined, { isCurrent: () => true });
+  assert.equal(invalidResult.ok, false); assert.equal(invalidParent.sourcePicks, 0, 'lookalike prerequisite cannot authorize collection');
 } finally {
   for (const gate of gates) gate.resolve();
   for (const value of fixtures) await value.operations.dispose();

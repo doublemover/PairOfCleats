@@ -8,6 +8,15 @@ different repository or seed after selection. The existing eight-selection and
 128-source limits remain in place. A newer collection revokes its predecessor
 through the existing keyed operation owner.
 
+An internal parent source prerequisite may additionally revoke a nested
+collection. The captured-evidence opener supplies its own original keyed scope
+and publication identity; a current child scope cannot revive a revoked parent.
+The collector checks that predicate at each existing asynchronous admission
+boundary, latches a false observation and retains a thrown value without
+retrying the original callback for diagnostics. It grants no source/generation
+or resource-release authority. Direct collection callers keep the existing
+behavior when no parent prerequisite is supplied.
+
 Returned packets are captured as bounded immutable JSON data before review.
 Additional metadata, producer provenance, evidence/coverage and warnings remain
 in that original JSON representation. Review choices must be distinct original

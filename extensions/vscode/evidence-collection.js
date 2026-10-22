@@ -83,21 +83,34 @@ function renderEvidencePreview(packets, purpose, omitted = []) {
 }
 
 function createEvidenceCollection({ vscode, operations, getResults, fetchContext }) {
-  const showPreview = async text => {
+  const showPreview = async (text, isCurrent) => {
     const document = await vscode.workspace.openTextDocument({ content: text, language: 'plaintext' });
-    if (!operations.isCurrent()) return null;
+    if (!isCurrent()) return null;
     const qualified = { document, version: document.version };
     const editor = await vscode.window.showTextDocument(document, { preview: true });
-    if (!operations.isCurrent()) return null;
+    if (!isCurrent()) return null;
     const assertCurrent = () => {
       assertQualifiedEditor(editor, qualified);
       if (document.getText() !== text) throw new Error('Evidence preview changed before the reviewed export action.');
     };
     assertCurrent(); return Object.freeze({ assertCurrent });
   };
-  return async function copyContext(node) {
+  return async function copyContext(node, sourceCurrent = null) {
     return operations.run('evidence-collection', async () => {
+      let revoked = false, failed = false, sourceError;
+      const isCurrent = () => {
+        if (!operations.isCurrent() || revoked) return false;
+        if (failed) throw sourceError;
+        if (sourceCurrent === null) return true;
+        try {
+          if (typeof sourceCurrent !== 'function') throw new TypeError('Evidence source prerequisite must be an original callback.');
+          const accepted = sourceCurrent() === true;
+          if (!accepted) revoked = true;
+          return accepted;
+        } catch (error) { failed = true; sourceError = error; throw error; }
+      };
       try {
+        if (!isCurrent()) return;
         const resultSet = node?.resultSet || getResults();
         const selectedHit = node?.hit;
         const hits = selectedHit ? [selectedHit] : resultSet?.hits || [];
@@ -123,18 +136,18 @@ function createEvidenceCollection({ vscode, operations, getResults, fetchContext
           seeds.set(item, evidenceSeed(hit)); return item;
         }));
         const selected = await vscode.window.showQuickPick(items, { canPickMany: true, title: 'Select source evidence (at most 8; preview before copying)' });
-        if (!operations.isCurrent()) return;
+        if (!isCurrent()) return;
         const choices = originalChoices(selected, items, MAX_SELECTED);
         if (!choices) return;
         const purpose = await vscode.window.showInputBox({ prompt: 'Purpose of this context (included in Markdown preview)' });
-        if (purpose === undefined || !operations.isCurrent()) return;
+        if (purpose === undefined || !isCurrent()) return;
         const packets = [], omitted = [];
         for (const choice of choices) {
-          if (!operations.isCurrent()) return;
+          if (!isCurrent()) return;
           const seed = seeds.get(choice);
           if (!seed) { omitted.push('Selected item has no canonical file/chunk/symbol seed.'); continue; }
           const packet = await fetchContext(seed, authority);
-          if (!operations.isCurrent()) return;
+          if (!isCurrent()) return;
           const captured = capturePacket(packet);
           if (!captured?.version || !captured.primary || !captured.provenance || !captured.evidence) {
             throw new Error('The context owner did not return a canonical context packet.');
@@ -144,31 +157,31 @@ function createEvidenceCollection({ vscode, operations, getResults, fetchContext
         let initial;
         try { initial = renderEvidencePreview(packets, purpose, omitted); }
         catch { initial = { markdown: 'The current selection exceeds the export bound. Exclude packets in the review picker; the final bounded output will be previewed before copying or saving.' }; }
-        if (!await showPreview(initial.markdown)) return;
+        if (!await showPreview(initial.markdown, isCurrent)) return;
         const review = Object.freeze(packets.map((packet, index) => Object.freeze({
           label: packet.primary.file || `Context ${index + 1}`,
           description: `${Buffer.byteLength(JSON.stringify(packet))} JSON bytes • captured source evidence`, packet, picked: true
         })));
         const kept = await vscode.window.showQuickPick(review, { canPickMany: true, title: 'Review evidence: exclude any packet before copy/export' });
-        if (!operations.isCurrent()) return;
+        if (!isCurrent()) return;
         const retained = originalChoices(kept, review, MAX_SELECTED);
         if (!retained) return;
         const final = renderEvidencePreview(retained.map(choice => choice.packet), purpose,
           [...omitted, ...(retained.length < packets.length ? [`${packets.length - retained.length} packet(s) excluded by user`] : [])]);
-        const finalPreview = await showPreview(final.markdown);
+        const finalPreview = await showPreview(final.markdown, isCurrent);
         if (!finalPreview) return;
         const actions = Object.freeze(['Copy JSON', 'Copy Markdown', 'Export JSON', 'Export Markdown']);
         const action = await vscode.window.showQuickPick(actions,
           { title: `Reviewed context • ${retained.length} item(s) • ${final.bytes} JSON bytes`,
             placeHolder: 'JSON is an array of unchanged canonical context packets; no external transmission' });
-        if (!actions.includes(action) || !operations.isCurrent()) return;
+        if (!actions.includes(action) || !isCurrent()) return;
         finalPreview.assertCurrent();
         const text = action.endsWith('JSON') ? final.json : final.markdown;
         if (action.startsWith('Copy')) await vscode.env.clipboard.writeText(text);
         else {
           const target = await vscode.window.showSaveDialog({ saveLabel: 'Export Reviewed Evidence',
             filters: action.endsWith('JSON') ? { JSON: ['json'] } : { Markdown: ['md'] } });
-          if (!target || !operations.isCurrent()) return;
+          if (!target || !isCurrent()) return;
           finalPreview.assertCurrent();
           if (vscode.workspace.fs?.writeFile) await vscode.workspace.fs.writeFile(target, Buffer.from(text));
           else if (target.scheme === 'file') fs.writeFileSync(target.fsPath, text, 'utf8');
@@ -178,7 +191,9 @@ function createEvidenceCollection({ vscode, operations, getResults, fetchContext
         const inspectionErrors = []; let message = 'Evidence operation failed.';
         try { const value = error?.message; if (typeof value === 'string') message = value; }
         catch (inspection) { inspectionErrors.push(inspection); }
-        if (operations.isCurrent()) {
+        let report = false;
+        try { report = isCurrent(); } catch (inspection) { if (inspection !== error) inspectionErrors.push(inspection); }
+        if (report) {
           try { vscode.window.showErrorMessage(`PairOfCleats evidence: ${message}`); }
           catch (inspection) { inspectionErrors.push(inspection); }
         }
