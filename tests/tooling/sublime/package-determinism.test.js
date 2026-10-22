@@ -28,8 +28,8 @@ if (second.status !== 0) {
   process.exit(second.status ?? 1);
 }
 
-const checksumA = fs.readFileSync(path.join(outA, 'pairofcleats.sublime-package.sha256'), 'utf8').trim();
-const checksumB = fs.readFileSync(path.join(outB, 'pairofcleats.sublime-package.sha256'), 'utf8').trim();
+const checksumA = fs.readFileSync(path.join(outA, 'PairOfCleats.sublime-package.sha256'), 'utf8').trim();
+const checksumB = fs.readFileSync(path.join(outB, 'PairOfCleats.sublime-package.sha256'), 'utf8').trim();
 if (checksumA !== checksumB) {
   console.error('package-determinism test failed: checksum mismatch across runs');
   process.exit(1);

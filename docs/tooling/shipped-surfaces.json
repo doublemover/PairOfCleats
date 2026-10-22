@@ -344,7 +344,7 @@
           {
             "id": "vscode.install.unpack",
             "phase": "install",
-            "label": "editor archive unpack verification (vscode)",
+            "label": "VSIX archive verification; official host qualification required",
             "command": [
               "$NODE",
               "tools/release/verify-surface.js",
@@ -386,9 +386,9 @@
           "tools/package-sublime.js"
         ],
         "outputs": [
-          "dist/sublime/pairofcleats.sublime-package",
-          "dist/sublime/pairofcleats.sublime-package.sha256",
-          "dist/sublime/pairofcleats.sublime-package.manifest.json"
+          "dist/sublime/PairOfCleats.sublime-package",
+          "dist/sublime/PairOfCleats.sublime-package.sha256",
+          "dist/sublime/PairOfCleats.sublime-package.manifest.json"
         ]
       },
       "install": {
@@ -411,15 +411,15 @@
               "--smoke"
             ],
             "artifacts": [
-              "dist/sublime/pairofcleats.sublime-package",
-              "dist/sublime/pairofcleats.sublime-package.sha256",
-              "dist/sublime/pairofcleats.sublime-package.manifest.json"
+              "dist/sublime/PairOfCleats.sublime-package",
+              "dist/sublime/PairOfCleats.sublime-package.sha256",
+              "dist/sublime/PairOfCleats.sublime-package.manifest.json"
             ]
           },
           {
             "id": "sublime.install.unpack",
             "phase": "install",
-            "label": "editor archive unpack verification (sublime)",
+            "label": "Sublime archive verification; supported host qualification required",
             "command": [
               "$NODE",
               "tools/release/verify-surface.js",

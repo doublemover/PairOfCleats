@@ -10,7 +10,7 @@ export const withReleaseArchiveFixture = async (callback) => {
   await fs.mkdir(cache, { recursive: true });
   return withDirectoryLock(path.join(cache, 'release-editor-archives'), async () => {
     const snapshots = [];
-    for (const relative of ['dist/vscode/pairofcleats.vsix', 'dist/sublime/pairofcleats.sublime-package']) {
+    for (const relative of ['dist/vscode/pairofcleats.vsix', 'dist/sublime/PairOfCleats.sublime-package']) {
       for (const filename of [path.join(root, relative), path.join(root, relative + '.manifest.json')]) {
         try { snapshots.push([filename, await fs.readFile(filename)]); }
         catch (error) { if (error.code !== 'ENOENT') throw error; snapshots.push([filename, null]); }

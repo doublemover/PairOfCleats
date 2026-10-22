@@ -28,10 +28,15 @@ await withReleaseArchiveFixture(async () => {
     'verify-surface vscode:install',
     root,
     process.env,
-    { stdio: 'pipe', encoding: 'utf8', timeoutMs: 30000 }
+    { stdio: 'pipe', encoding: 'utf8', timeoutMs: 30000, allowFailure: true }
   );
   const vscodePayload = JSON.parse(vscodeVerify.stdout || '{}');
-  assert.equal(vscodePayload.ok, true, 'expected vscode install verification to succeed');
+  assert.notEqual(vscodeVerify.status, 0, 'archive extraction cannot establish a host install');
+  assert.equal(vscodePayload.ok, false);
+  assert.equal(vscodePayload.status, 'blocked');
+  assert.equal(vscodePayload.checks.archive, true);
+  assert.equal(vscodePayload.checks.container, true);
+  assert.equal(vscodePayload.checks.hostInstall, false);
   assert.equal(fs.existsSync(vscodeOut), true, 'expected vscode verification artifact');
 
   runNode([sublimePackageScript, '--smoke'], 'package-sublime smoke', root, process.env, {
@@ -45,10 +50,14 @@ await withReleaseArchiveFixture(async () => {
     'verify-surface sublime:install',
     root,
     process.env,
-    { stdio: 'pipe', encoding: 'utf8', timeoutMs: 30000 }
+    { stdio: 'pipe', encoding: 'utf8', timeoutMs: 30000, allowFailure: true }
   );
   const sublimePayload = JSON.parse(sublimeVerify.stdout || '{}');
-  assert.equal(sublimePayload.ok, true, 'expected sublime install verification to succeed');
+  assert.notEqual(sublimeVerify.status, 0, 'archive extraction cannot establish a host install');
+  assert.equal(sublimePayload.ok, false);
+  assert.equal(sublimePayload.status, 'blocked');
+  assert.equal(sublimePayload.checks.archive, true);
+  assert.equal(sublimePayload.checks.hostInstall, false);
   assert.equal(fs.existsSync(sublimeOut), true, 'expected sublime verification artifact');
 
   console.log('release verify-surface archive test passed');

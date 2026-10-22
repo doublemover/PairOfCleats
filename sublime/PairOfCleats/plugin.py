@@ -4,6 +4,7 @@ import sublime_plugin
 from .lib import config
 from .lib import tasks
 from .lib import watch
+from .lib.installation import report_installation_diagnostics
 from .commands import analysis as _analysis_commands
 from .commands import index as _index_commands
 from .commands import map as _map_commands
@@ -17,6 +18,7 @@ PLUGIN_NAME = 'PairOfCleats'
 
 
 def plugin_loaded():
+    report_installation_diagnostics(sublime)
     config.prime_settings()
 
 

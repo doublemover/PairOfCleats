@@ -94,7 +94,7 @@ const createChecksumBundle = (sourceCommit = '0123456789abcdef0123456789abcdef01
   sourceCommit,
   artifacts: [
     { path: 'dist/vscode/pairofcleats.vsix', sizeBytes: 10, sha256: 'a'.repeat(64) },
-    { path: 'dist/sublime/pairofcleats.sublime-package', sizeBytes: 20, sha256: 'b'.repeat(64) }
+    { path: 'dist/sublime/PairOfCleats.sublime-package', sizeBytes: 20, sha256: 'b'.repeat(64) }
   ]
 });
 

@@ -17,7 +17,10 @@ with tempfile.TemporaryDirectory() as temporary:
     package = os.path.join(packages, 'PairOfCleats')
     if zipfile.is_zipfile(source):
         with zipfile.ZipFile(source) as archive:
-            archive.extractall(packages)
+            assert os.path.basename(source) == 'PairOfCleats.sublime-package'
+            assert 'plugin.py' in archive.namelist()
+            assert 'PairOfCleats/plugin.py' not in archive.namelist()
+            archive.extractall(package)
     else:
         shutil.copytree(source, package, ignore=shutil.ignore_patterns('__pycache__'))
     sys.path = [packages] + [entry for entry in sys.path if entry != PACKAGE_ROOT]
