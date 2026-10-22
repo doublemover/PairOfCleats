@@ -142,7 +142,10 @@ try {
       checkFreeSpace: input => inspectStorageFreeSpace(input) };
     receipt = action === 'migration-apply' ? await applyStorageMigration(plan, options) : await applyStorageMigrationRollback(plan, options);
   } else if (action === 'migration-status') receipt = await readStorageMigrationStatus(await readPlan(argv.plan), { authorityRoots: [layout.home.path] });
-  receipt = { ...receipt, configurationErrors };
+  // Reviewed plan bytes are a sealed authority input. Appending even an empty
+  // diagnostic field after computing planId would make saved CLI JSON fail
+  // exact apply admission. Configuration failures already block plan creation.
+  if (!receipt.planId) receipt = { ...receipt, configurationErrors };
   if (argv.json) console.log(JSON.stringify(receipt, null, 2));
   else console.log(JSON.stringify({ action, status: receipt.complete === true ? 'complete' : receipt.ready === false ? 'blocked' : 'review-receipt',
     mutationPerformed: receipt.mutationPerformed === true, receipt }, null, 2));
