@@ -38,6 +38,7 @@ try {
   const projected = await projectRetainedSemanticRoleView({ store, world, nodes });
   assert.equal(projected.projection, 'retained-canonical-semantic-records/v1');
   assert.equal(projected.truncated, false);
+  assert.ok(projected.retainedMetadataBytes > 0 && projected.retainedMetadataBytes <= 4 * 1024 * 1024);
   assert.equal(projected.otherContextEdges, 1);
   assert.equal(projected.evidence.length, 3, 'parallel target observations retain their distinct original evidence');
   assert.equal(projected.normalization.status, 'checked-in-model');
@@ -60,9 +61,44 @@ try {
   const partial = await projectRetainedSemanticRoleView({ store, world, nodes, maxIncidentRows: 1 });
   assert.equal(partial.truncated, true);
   assert.equal(partial.view.coverage, 'partial');
+  const mutableWorld = structuredClone(world), mutableNodes = structuredClone(nodes);
+  const pinned = await projectRetainedSemanticRoleView({ world: mutableWorld, nodes: mutableNodes,
+    store: { ...store, getRecords: async (...args) => {
+      const rows = await store.getRecords(...args);
+      mutableWorld.contextKey = 'changed-after-read';
+      mutableWorld.generation.baseBuildId = 'changed-after-read';
+      mutableNodes[0].roles[0] = 'publisher'; mutableNodes[1].ref.localId = 2;
+      return rows;
+    } } });
+  assert.deepEqual(pinned.view.world, world, 'the original world is pinned before the first awaited store read');
+  assert.equal(findSourceMotifs({ view: pinned.view, motifId: 'shared-call-target/v1' }).matches.length, 1,
+    'later role and record-ref mutation cannot rewrite the selected structural question');
+  let selectionReads = 0, getterCalls = 0;
+  const countedStore = { ...store, getRecords: (...args) => { selectionReads++; return store.getRecords(...args); } };
+  const accessorNodes = [{ ref: ref(0), get roles() { getterCalls++; return ['leftCall']; } }];
+  await assert.rejects(projectRetainedSemanticRoleView({ store: countedStore, world, nodes: accessorNodes }), /getters/);
+  assert.equal(getterCalls, 0, 'selection accessors are rejected without invocation');
+  await assert.rejects(projectRetainedSemanticRoleView({ store: countedStore, world: { ...world, unqualified: true }, nodes }), /generation-pinned/);
+  const excessiveMetadata = Array.from({ length: 64 }, (_, id) => ({ ref: ref(id), roles: Array(16).fill('r'.repeat(4096)) }));
+  await assert.rejects(projectRetainedSemanticRoleView({ store: countedStore, world, nodes: excessiveMetadata }), /metadata allowance/);
+  assert.equal(selectionReads, 0, 'unadmitted selections fail before canonical source or record acquisition');
+  for (const malformed of [
+    page => ({ ...page, done: 'yes' }),
+    page => ({ ...page, edges: null }),
+    page => ({ ...page, offset: 0, done: true, edges: [projected.evidence[0].edge] }),
+    page => ({ ...page, offset: 128, edges: Array(129).fill(projected.evidence[0].edge) })
+  ]) {
+    await assert.rejects(projectRetainedSemanticRoleView({ world, nodes,
+      store: { ...store, getNeighbors: async (...args) => malformed(await store.getNeighbors(...args)) } }), /bounded progress/);
+  }
   await assert.rejects(projectRetainedSemanticRoleView({ store, world: { ...world,
     generation: { ...f.generation, baseBuildId: 'wrong-generation' } }, nodes }), /generation-pinned/);
   const abort = new AbortController(); abort.abort();
   await assert.rejects(projectRetainedSemanticRoleView({ store, world, nodes, signal: abort.signal }), { name: 'AbortError' });
+  const lateAbort = new AbortController();
+  await assert.rejects(projectRetainedSemanticRoleView({ world, nodes, signal: lateAbort.signal,
+    store: { ...store, getNeighbors: async (...args) => {
+      const page = await store.getNeighbors(...args); lateAbort.abort(); return page;
+    } } }), { name: 'AbortError' });
 } finally { await f.cleanup(); }
 console.log('canonical retained semantic records, call motifs and source lens controls passed');

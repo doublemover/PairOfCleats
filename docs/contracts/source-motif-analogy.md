@@ -24,6 +24,17 @@ coverage and transfer across build contexts remain explicitly unknown. The
 adapter bounds actual incident rows scanned and retained source bytes; exhaustion
 leaves a partial view rather than implying absent calls.
 
+Before its first store read, the retained adapter canonically copies the exact
+world and selected refs/role arrays. Accessors, extra selection/world fields and
+oversized selections fail before source acquisition; caller mutation while a
+read is pending cannot change that view's question or build context. A separate
+4 MiB metadata allowance covers the captured selections, source manifests,
+selected record metadata, scanned edge records and projected relations. Page
+completion must be boolean, and emitted edges cannot exceed the charged incident
+row advance. Source bytes and actual row advances keep their existing allowances.
+These are bounded encoded-retention contracts, not a measured process-memory or
+latency guarantee.
+
 This canonical projection also supplies an actual consumer for the checked
 occurrence-bag sum owner. Selected incident groups preserve original canonical
 edge/support/source IDs. An independent bag-equivalence receipt permits only
