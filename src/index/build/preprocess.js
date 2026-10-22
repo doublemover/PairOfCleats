@@ -7,6 +7,7 @@ import { runWithConcurrency } from '../../shared/concurrency/run-with-queue.js';
 import { coerceAbortSignal, throwIfAborted } from '../../shared/abort.js';
 import { createFileScanner, readFileSample } from './file-scan.js';
 import { discoverEntries } from './discover.js';
+import { forwardDiscoveryDirectoryInventory } from './discovery/directory-inventory.js';
 import { createPreprocessSnapshotSession } from './preprocess-snapshot.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
 import { resolveFileCaps } from './file-processor/read.js';
@@ -372,7 +373,7 @@ export async function preprocessFiles({
         ...(entry.record ? { record: entry.record } : {})
       });
     }
-    entriesByMode[mode] = modeEntries;
+    entriesByMode[mode] = forwardDiscoveryDirectoryInventory(entries, modeEntries);
     skippedByMode[mode] = modeSkipped;
     const modeLineCounts = new Map();
     for (const entry of modeEntries) {

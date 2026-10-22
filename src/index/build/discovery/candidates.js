@@ -119,25 +119,30 @@ const sortCandidateRows = async function* (source, { scratch, signal, metrics })
   finally { await scratch.remove(final); }
 };
 
-const readDirectoryRows = async function* (canonicalRoot, dir, { signal, strictTraversal, onError, metrics }) {
+const readDirectoryRows = async function* (canonicalRoot, dir, { signal, strictTraversal, onError, metrics, directoryInventory }) {
   throwIfAborted(signal);
   let handle = null;
   let primary = null;
+  let inventory = null;
   try {
     const before = await fs.lstat(dir, { bigint: true });
     if (before.isSymbolicLink() || !before.isDirectory()) throw directoryChanged();
     const canonical = await fs.realpath(dir);
     if (!isPathWithinRoot(canonical, canonicalRoot)) throw directoryChanged();
+    inventory = directoryInventory?.beginDirectory(dir, before, canonical) || null;
     handle = await fs.opendir(dir, { bufferSize: 32 });
     metrics.directoriesEnumerated = (metrics.directoriesEnumerated || 0) + 1;
     for await (const entry of handle) {
       throwIfAborted(signal);
       metrics.directoryEntries = (metrics.directoryEntries || 0) + 1;
-      yield { name: entry.name, kind: entry.isSymbolicLink() ? 'link' : entry.isDirectory() ? 'directory' : entry.isFile() ? 'file' : 'other' };
+      const row = { name: entry.name, kind: entry.isSymbolicLink() ? 'link' : entry.isDirectory() ? 'directory' : entry.isFile() ? 'file' : 'other' };
+      inventory?.add(row);
+      yield row;
     }
     handle = null; // async directory iteration has completed its close.
     const after = await fs.lstat(dir, { bigint: true });
     if (after.isSymbolicLink() || directoryStamp(before).some((value, index) => value !== directoryStamp(after)[index])) throw directoryChanged();
+    inventory?.complete(after);
   } catch (error) {
     primary = error;
     throwIfAborted(signal);
@@ -145,6 +150,7 @@ const readDirectoryRows = async function* (canonicalRoot, dir, { signal, strictT
     onError?.(dir, error);
     if (strictTraversal) throw error;
   } finally {
+    inventory?.cancel();
     if (handle) {
       try { await handle.close(); } catch (error) {
         if (error?.code !== 'ERR_DIR_CLOSED') {
@@ -158,7 +164,7 @@ const readDirectoryRows = async function* (canonicalRoot, dir, { signal, strictT
 
 /** Deterministic breadth-first parent order and UTF-16 lexical child order. No whole-tree path list. */
 export const iterateFilesystemCandidates = async function* ({ root, canonicalRoot, ignoreMatcher, maxDepth = null,
-  strictTraversal = false, signal = null, onError = null, metrics = {} }) {
+  strictTraversal = false, signal = null, onError = null, metrics = {}, directoryInventory = null }) {
   const scratch = await createCandidateScratch(metrics);
   let primary = null;
   try {
@@ -172,7 +178,7 @@ export const iterateFilesystemCandidates = async function* ({ root, canonicalRoo
       try {
         for await (const current of parents) {
           throwIfAborted(signal);
-          const source = readDirectoryRows(canonicalRoot, current.dir, { signal, strictTraversal, onError, metrics });
+          const source = readDirectoryRows(canonicalRoot, current.dir, { signal, strictTraversal, onError, metrics, directoryInventory });
           for await (const entry of sortCandidateRows(source, { scratch, signal, metrics })) {
             const fullPath = path.join(current.dir, entry.name);
             if (entry.kind === 'directory') {

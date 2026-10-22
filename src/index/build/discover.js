@@ -2,6 +2,7 @@ import { performance } from 'node:perf_hooks';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { iterateFilesystemCandidates, iterateScmCandidates } from './discovery/candidates.js';
+import { createDiscoveryDirectoryInventory, forwardDiscoveryDirectoryInventory } from './discovery/directory-inventory.js';
 import {
   EXTS_CODE,
   EXTS_PROSE,
@@ -73,7 +74,7 @@ export async function discoverFiles({
     metrics
   });
   if (skippedFiles) skippedFiles.push(...skippedCommon);
-  return filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConfig, fileCaps);
+  return forwardDiscoveryDirectoryInventory(entries, filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConfig, fileCaps));
 }
 
 /**
@@ -123,7 +124,7 @@ export async function discoverFilesForModes({
   for (const mode of modes) {
     const skipped = skippedByMode && skippedByMode[mode] ? skippedByMode[mode] : null;
     if (skipped) skipped.push(...skippedCommon);
-    output[mode] = filterEntriesByMode(entries, mode, skipped, documentExtractionConfig, fileCaps);
+    output[mode] = forwardDiscoveryDirectoryInventory(entries, filterEntriesByMode(entries, mode, skipped, documentExtractionConfig, fileCaps));
   }
   return output;
 }
@@ -225,11 +226,12 @@ export async function discoverEntries({
   };
 
   const scmResult = await listScmFiles();
+  const directoryInventory = !scmResult ? createDiscoveryDirectoryInventory({ root, canonicalRoot, metrics }) : null;
   if (!scmResult) metrics.source = 'filesystem-bounded';
   const candidates = scmResult
     ? iterateScmCandidates({ files: scmResult.files, repoRoot: scmResult.repoRoot, ordered: scmResult.ordered, signal: abortSignal, metrics })
     : iterateFilesystemCandidates({ root, canonicalRoot, ignoreMatcher, maxDepth: maxDepthValue,
-      strictTraversal, signal: abortSignal, metrics,
+      strictTraversal, signal: abortSignal, metrics, directoryInventory,
       onError: (dir, error) => recordSkip(dir, 'traversal-failed', { code: error?.code || 'ERR_DISCOVERY_DIRECTORY' }) });
 
   throwIfAborted(abortSignal);
@@ -403,6 +405,7 @@ export async function discoverEntries({
     if (reasonA > reasonB) return 1;
     return 0;
   });
+  directoryInventory?.seal(entries);
   return { entries, skippedCommon, metrics };
 }
 
