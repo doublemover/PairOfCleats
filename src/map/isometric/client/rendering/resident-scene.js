@@ -6,6 +6,7 @@ import { setSelection, setSemanticSelection } from '../selection.js';
 import { updateFileOpacity, updateMemberOpacity } from '../materials.js';
 import { applyViewerAppearance } from '../appearance.js';
 import { retirePicking } from './picking-owner.js';
+import { captureSceneResource, getPendingSceneResourceOwners, preserveSceneCleanupFailures } from '../scene-retirement.js';
 
 const groups=['fileGroup','memberGroup','labelGroup','edgeGroup','wireGroup'];
 const arrays=['fileMeshes','fileInstancedMeshes','fileInstancedInnerMeshes','memberMeshes','memberInstancedMeshes','memberInnerInstancedMeshes','chunkMeshes','memberClusters','fileBuckets','pickTargets','edgeMeshes','edgeSegments','edgeCullingTargets','edgeTypes','stackPipeLayers','stackPipeOwners','stackVisibleRows','labelMaterials','stackMaterials'];
@@ -15,11 +16,16 @@ const keys=[...groups,...arrays,...maps,...metadata,'highlightedMemberIds','high
 const capture=()=>Object.fromEntries(keys.map(key=>[key,state[key]]));
 
 export const retireResidentScene = candidate => {
-  if(candidate.retired||candidate.published)return;
+  if(candidate.published)return;
+  if(candidate.retired){if(candidate.retirementError)throw candidate.retirementError;return;}
   candidate.retired=true;
-  for(const key of groups)clearGroup(candidate.values[key]);
-  for(const owner of candidate.values.stackPipeOwners||[])owner.dispose();
-  candidate.values.stackPacketOwner?.dispose();
+  const errors=[];
+  for(const key of groups)try{clearGroup(candidate.values[key]);}catch(error){errors.push(error);}
+  for(const owner of new Set([...(candidate.values.stackPipeOwners||[]),candidate.values.stackPacketOwner].filter(Boolean))){
+    try{captureSceneResource(owner,'resident scene buffer owner').retire();}catch(error){errors.push(error);}
+  }
+  candidate.retirementError=preserveSceneCleanupFailures(null,errors);
+  if(candidate.retirementError)throw candidate.retirementError;
 };
 
 /** Build into detached groups; no await while the singleton builder is borrowed. */
@@ -33,7 +39,7 @@ export const prepareResidentScene = async (request, operation) => {
   const previous=capture(),stage={retired:false,published:false,values:{}},preparedGroups={};
   try{
     for(const key of groups){const group=new state.THREE.Group();preparedGroups[key]=group;group.visible=previous[key]?.visible!==false;group.userData={...previous[key]?.userData};group.renderOrder=previous[key]?.renderOrder||0;}
-  }catch(error){for(const group of Object.values(preparedGroups))clearGroup(group);throw error;}
+  }catch(error){const errors=[];for(const group of Object.values(preparedGroups))try{clearGroup(group);}catch(cleanup){errors.push(cleanup);}throw preserveSceneCleanupFailures(error,errors);}
   try{
     Object.assign(state,preparedGroups);state.stackPacketOwner=null;
     for(const key of arrays)state[key]=[];
@@ -45,7 +51,7 @@ export const prepareResidentScene = async (request, operation) => {
     buildStackMeshes();buildStackPipes();updateFileOpacity();updateMemberOpacity();
     stage.values=capture();stage.values.preparingScene=false;
     return stage;
-  }catch(error){stage.values=capture();retireResidentScene(stage);throw error;}
+  }catch(error){stage.values=capture();try{retireResidentScene(stage);}catch(cleanup){throw preserveSceneCleanupFailures(error,[cleanup]);}throw error;}
   finally{Object.assign(state,previous);}
 };
 
@@ -59,9 +65,13 @@ export const commitResidentScene = (candidate,request) => {
   state.remoteSource?.registerPlan(request);
   retirePicking();
   state.geometryRevision=(state.geometryRevision||0)+1;
-  for(const key of groups){state.scene.remove(previous[key]);try{clearGroup(previous[key]);}catch(error){state.sceneRetirementError=error.message;}}
-  try{previous.stackPacketOwner?.dispose();}catch(error){state.sceneRetirementError=error.message;}
-  for(const owner of previous.stackPipeOwners||[])try{owner.dispose();}catch(error){state.sceneRetirementError=error.message;}
+  const retirementErrors=[];
+  for(const key of groups){try{state.scene.remove(previous[key]);}catch(error){retirementErrors.push(error);}try{clearGroup(previous[key]);}catch(error){retirementErrors.push(error);}}
+  for(const owner of new Set([...(previous.stackPipeOwners||[]),previous.stackPacketOwner].filter(Boolean))){
+    try{captureSceneResource(owner,'previous resident scene buffer owner').retire();}catch(error){retirementErrors.push(error);}
+  }
+  if(retirementErrors.length){const failure=preserveSceneCleanupFailures(null,retirementErrors);state.sceneRetirementError=failure.message;
+    state.sceneRetirementFailure=failure;state.sceneRetirementOwners=getPendingSceneResourceOwners();}
   state.hovered=null;state.hoveredRef=null;state.selected=null;
   try{
     const selected=request.selected,reference=selected.type==='member'?state.memberInstanceById.get(selected.id):state.fileInstanceByKey.get(selected.file);

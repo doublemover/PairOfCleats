@@ -4,6 +4,7 @@ import { toArray } from '../../../shared/iterables.js';
 import { createEnvironmentOwner } from './environment-owner.js';
 import { clearGroup } from './scene-utils.js';
 import { retirePicking } from './rendering/picking-owner.js';
+import { captureSceneResource, getPendingSceneResourceOwners, preserveSceneCleanupFailures } from './scene-retirement.js';
 
 export const initScene = async () => {
   state.disposeScene?.();
@@ -18,6 +19,8 @@ export const initScene = async () => {
   };
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  const rendererOwner = captureSceneResource(renderer, 'scene renderer');
+  const canvasOwner = captureSceneResource(renderer.domElement, 'scene renderer canvas', 'remove');
   const pixelRatioCap = numberValue(visuals.pixelRatioCap, 2);
   renderer.setPixelRatio(Math.min(pixelRatioCap, window.devicePixelRatio || 1));
   const initialViewport = getViewport();
@@ -123,27 +126,49 @@ export const initScene = async () => {
   };
   renderer.domElement.addEventListener('webglcontextlost',lost);
   renderer.domElement.addEventListener('webglcontextrestored',restored);
+  const listenerOwners = [
+    captureSceneResource(renderer.domElement, 'scene lost-context listener', 'removeEventListener', ['webglcontextlost', lost]),
+    captureSceneResource(renderer.domElement, 'scene restored-context listener', 'removeEventListener', ['webglcontextrestored', restored])
+  ];
+  let disposalFailure = null;
   const disposeScene = () => {
-    if (disposed) return;
+    if (disposed) {
+      if (disposalFailure && !disposalFailure.sceneOwnershipReleased?.()) throw disposalFailure;
+      if (state.disposeScene === disposeScene) state.disposeScene = null;
+      return;
+    }
     disposed = true;
-    renderer.domElement.removeEventListener('webglcontextlost',lost);
-    renderer.domElement.removeEventListener('webglcontextrestored',restored);
-    state.disposeControls?.();
-    state.disposeResidency?.();
-    if (state.rebuildTimer) clearTimeout(state.rebuildTimer);
-    state.rebuildTimer = null;
-    environment.dispose();
-    scene.traverse(object=>object.shadow?.dispose?.());
-    clearGroup(scene);
-    for(const owner of state.stackPipeOwners||[])owner.dispose();
-    state.stackPipeOwners=[];state.stackPipeLayers=[];state.pipeBufferMetrics=null;
-    state.stackPacketOwner?.dispose();state.stackPacketOwner=null;
-    for (const geometry of state.shapeGeometryCache?.values?.() || []) geometry.dispose?.();
-    state.shapeGeometryCache?.clear?.();
-    state.normalMapState?.texture?.dispose?.();
-    if (state.normalMapState) state.normalMapState.texture = null;
-    renderer.dispose();
-    renderer.domElement.remove();
+    const errors = [], belongs = state.scene === scene;
+    const pipeOwners = belongs ? [...(state.stackPipeOwners || [])] : [];
+    const packetOwner = belongs ? state.stackPacketOwner : null;
+    const shapeCache = belongs ? state.shapeGeometryCache : null;
+    const normalMap = belongs ? state.normalMapState : null;
+    const run = action => { try { action(); } catch (error) { errors.push(error); } };
+    for (const owner of listenerOwners) run(() => owner.retire());
+    if (belongs) {
+      for (const method of ['disposeControls', 'disposeResidency']) {
+        run(() => captureSceneResource(state, `scene ${method}`, method).retire());
+      }
+      if (state.rebuildTimer) clearTimeout(state.rebuildTimer);
+      state.rebuildTimer = null;
+    }
+    run(() => environment.dispose());
+    run(() => scene.traverse(object => {
+      if (object.shadow) run(() => captureSceneResource(object.shadow, 'scene light shadow').retire());
+    }));
+    run(() => clearGroup(scene));
+    for (const owner of new Set([...pipeOwners, packetOwner].filter(Boolean))) run(() => captureSceneResource(owner, 'scene buffer owner').retire());
+    for (const geometry of new Set(shapeCache?.values?.() || [])) run(() => captureSceneResource(geometry, 'shared scene shape geometry').retire());
+    shapeCache?.clear?.();
+    if (normalMap?.texture) run(() => captureSceneResource(normalMap.texture, 'shared scene normal map').retire());
+    if (normalMap) normalMap.texture = null;
+    if (belongs) { state.stackPipeOwners=[];state.stackPipeLayers=[];state.pipeBufferMetrics=null;state.stackPacketOwner=null; }
+    run(() => rendererOwner.retire()); run(() => canvasOwner.retire());
+    disposalFailure = preserveSceneCleanupFailures(null, errors);
+    if (disposalFailure) {
+      if (belongs) { state.sceneRetirementError=disposalFailure.message;state.sceneRetirementFailure=disposalFailure;state.sceneRetirementOwners=getPendingSceneResourceOwners(); }
+      throw disposalFailure;
+    }
     if (state.disposeScene === disposeScene) state.disposeScene = null;
   };
   Object.assign(state,{scene,renderer,disposeScene,contextLost:false});
@@ -165,7 +190,7 @@ export const initScene = async () => {
     const rgbe = new RGBELoader();
     rgbe.load(assets.hdrEnvUrl, (hdrTexture) => {
       try { environment.replace(hdrTexture); if(!disposed)state.invalidateRender?.(); }
-      catch (error) { if (!disposed) state.environmentError = error.message; }
+      catch (error) { if (state.scene === scene) { state.environmentError = error.message;state.environmentFailure=error;state.sceneRetirementOwners=getPendingSceneResourceOwners(); } }
     }, undefined, (error) => {
       if (!disposed) state.environmentError = error?.message || 'Optional environment unavailable; using local lighting.';
     });

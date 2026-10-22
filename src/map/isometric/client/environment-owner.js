@@ -1,40 +1,59 @@
-// The PMREM result is caller-owned. Disposing its generator does not retire it.
+import { captureSceneResource, preserveSceneCleanupFailures } from './scene-retirement.js';
+
+// The PMREM result, generator and input texture are independent acquired owners.
 export const createEnvironmentOwner = ({ THREE, renderer, scene }) => {
-  let retired = false;
-  let target = null;
+  let retired = false, disposing = false, target = null;
+  const resources = new Set(), captured = new WeakMap();
+  const adopt = (resource, label) => {
+    const reusable = resource && (typeof resource === 'object' || typeof resource === 'function');
+    if (reusable && captured.has(resource)) return captured.get(resource);
+    const owner = captureSceneResource(resource, label);
+    if (reusable) captured.set(resource, owner);
+    resources.add(owner); return owner;
+  };
+  const release = (owner, errors, retry = false) => {
+    if (!owner) return;
+    try { if (retry) owner.release(); else owner.retire(); }
+    catch (error) { errors.push(error); }
+    if (!owner.pending) resources.delete(owner);
+  };
   return {
+    get pendingOwners() { return Object.freeze([...resources].filter(owner => owner.pending)); },
     replace(texture) {
       if (!texture) return false;
+      const input = adopt(texture, 'environment input texture'), errors = [];
       if (retired) {
-        texture.dispose?.();
+        release(input, errors);
+        const failure = preserveSceneCleanupFailures(null, errors); if (failure) throw failure;
         return false;
       }
-      let generator;
-      let next;
+      let generator = null, next = null, primary = null, published = false;
       try {
         texture.mapping = THREE.EquirectangularReflectionMapping;
-        generator = new THREE.PMREMGenerator(renderer);
-        next = generator.fromEquirectangular(texture);
-        if (!next?.texture) throw new Error('Environment conversion produced no texture.');
+        const converter = new THREE.PMREMGenerator(renderer);
+        generator = adopt(converter, 'environment PMREM generator');
+        const output = converter.fromEquirectangular(texture);
+        if (output) next = adopt(output, 'environment PMREM render target');
+        if (!output?.texture) throw new Error('Environment conversion produced no texture.');
         const previous = target;
-        target = next;
-        scene.environment = next.texture;
-        previous?.dispose();
-        return true;
-      } catch (error) {
-        if (next && next !== target) next.dispose?.();
-        throw error;
-      } finally {
-        generator?.dispose();
-        texture.dispose?.();
-      }
+        scene.environment = output.texture;
+        target = next; published = true;
+        if (previous !== target) release(previous, errors);
+      } catch (error) { primary = error; }
+      // Independent transient cleanup cannot replace a conversion failure.
+      if (next && !published) release(next, errors);
+      release(generator, errors); release(input, errors);
+      const failure = preserveSceneCleanupFailures(primary, errors); if (failure) throw failure;
+      return true;
     },
     dispose() {
-      if (retired) return;
-      retired = true;
-      if (scene.environment === target?.texture) scene.environment = null;
-      target?.dispose();
+      const retry = disposing; disposing = true; retired = true;
+      const errors = [];
+      try { if (scene.environment === target?.resource?.texture) scene.environment = null; }
+      catch (error) { errors.push(error); }
       target = null;
+      for (const owner of [...resources]) release(owner, errors, retry);
+      const failure = preserveSceneCleanupFailures(null, errors); if (failure) throw failure;
     }
   };
 };
