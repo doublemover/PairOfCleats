@@ -70,8 +70,12 @@ piece assembly, bounded artifact reads, chunk/source/SCM identities, import and
 resource policy repairs, verified model installation/leases, request-pinned
 retrieval/API lifetimes, canonical editor packages and semantic workflow replay.
 TUI task state, Unicode framing, selection identity and width-aware review panes
-also have source repairs and authored regressions. Remaining editor-wide request
-ownership and inline freshness continue alongside the agents' remaining P2 spans.
+also have source repairs and authored regressions. Scheduler hard admission,
+observed tokenization evidence, bounded extraction, SCM/metadata authority, CLI
+terminal outcomes, setup selection and generated USR contracts have development
+checkpoints. A further 47 storage/index P3 reports have implementation mappings.
+Editor-wide request ownership and inline freshness continue alongside retrieval
+P3 work; completed independent owners are moving into the performance backlog.
 There is no current-source deep-suite, native-host or performance claim.
 
 ## Environment and qualification boundaries
