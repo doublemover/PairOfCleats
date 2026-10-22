@@ -50,8 +50,8 @@ including frozen/nested causes, independent failures, original method capture,
 late environment input, async settlement, resident aliases and stale scene
 shutdown. All source and assertions are **UNVALIDATED**. No Three import, browser
 host, WebGL context, actual GPU release/retry, raster, memory, timing or hardware
-qualification was performed. Partial renderer construction before the scene
-shutdown owner is installed remains separate work.
+qualification was performed. The construction owner described below extends
+ownership to observed returned resources before shutdown installation.
 
 Captured getter failures and caught conversion/preparation failures use explicit
 presence observations, so `undefined`, `null`, `false`, zero and empty-string
@@ -113,6 +113,27 @@ later publication without claiming that dynamic imports have been cancelled.
 The authored enhancement controls cover out-of-order imports/environment loads,
 source replacement, page retirement, original disposer capture and the actual
 inert `initScene` producer followed by a delayed older rejection. They remain
-unrun. This source slice does not close the separate partial-construction gap
-before the scene shutdown owner is installed, qualify reentrant browser/Three
-callbacks, or establish GPU/native quiescence or retry safety.
+unrun. The separate construction owner below covers returned resources before
+shutdown installation. Reentrant browser/Three callbacks and GPU/native
+quiescence or retry safety still require separate qualification.
+
+Scene construction captures the renderer and its original canvas immediately,
+returned scene groups and every returned light shadow, including a shadow whose
+light has not yet been attached. Listener removal captures the original method,
+event and callback before registration, so a partially admitted registration can
+still be retired. Before shutdown installation, independent resource retirement
+runs through that construction owner and preserves the exact original falsey or
+immutable construction failure alongside every cleanup failure. Original pending
+native-work observers gate pre-installation retirement; neither rejection nor a
+replacement observer establishes settlement. Failed scopes retain their exact
+resources through the existing strong scene resource inventory.
+
+After shutdown installation, constructor cleanup delegates to that same captured
+shutdown function. Renderer, canvas and initial shadow capabilities are reused;
+known initial shadows are retained even if later detached or replaced. A scene
+that was successfully closed after an initialization failure remains owned by
+that attempt for source fallback, without adopting another scene or repeating
+successful native closes. The new actual-constructor inert controls are authored
+and unrun. Native allocations hidden inside a throwing constructor before an
+object is returned, inaccessible native children, post-installation native-work
+semantics and real resource/retry/quiescence/host acceptance remain unqualified.

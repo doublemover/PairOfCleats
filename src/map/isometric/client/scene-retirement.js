@@ -13,6 +13,7 @@ const observe = error => {
   }
   return observers.length ? () => observers.map(check => check()).every(Boolean) : null;
 };
+export { observe as observeSceneOwnership };
 const failure = (primary, errors) => {
   const result = new AggregateError(errors, describe(primary), { cause: primary });
   if (objectLike(primary)) {

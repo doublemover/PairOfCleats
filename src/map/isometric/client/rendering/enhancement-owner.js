@@ -13,7 +13,7 @@ export const createRendererEnhancementOwner = ({state,summary,retry,loadModules,
     const originalOwner=captureSceneResource(state,'enhancement original scene','disposeScene');
     const current=()=>!disposed&&latest===attempt&&state.sourceIndex===attempt.source&&state.remoteSource===attempt.remote&&state.dom===attempt.dom;
     const ownsScene=()=>state.scene===attempt.scene&&state.renderer===attempt.renderer
-      &&(state.disposeScene===attempt.initialDisposer||!attempt.acquired&&state.disposeScene===null);
+      &&(state.disposeScene===attempt.initialDisposer||state.disposeScene===null);
     const retire=({createdOnly=false}={})=>{
       const errors=[];
       const owners=attempt.acquired?attempt.owners:createdOnly?[]:[originalOwner];

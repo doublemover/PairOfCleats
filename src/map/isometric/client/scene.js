@@ -5,12 +5,15 @@ import { createEnvironmentOwner } from './environment-owner.js';
 import { clearGroup } from './scene-utils.js';
 import { retirePicking } from './rendering/picking-owner.js';
 import { captureSceneResource, getPendingSceneResourceOwners, preserveSceneCleanupFailures } from './scene-retirement.js';
+import { createSceneConstructionOwner } from './rendering/scene-construction-owner.js';
 
 export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
   if(!isCurrent())return null;
   const previousDispose=state.disposeScene;
   if(typeof previousDispose==='function')previousDispose.call(state);
   if(!isCurrent())return null;
+  const construction=createSceneConstructionOwner();
+  try{
   const { THREE, dom, RGBELoader, assets, visuals } = state;
   const { app } = dom;
 
@@ -22,15 +25,16 @@ export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
   };
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  const rendererOwner = captureSceneResource(renderer, 'scene renderer');
-  const canvasOwner = captureSceneResource(renderer.domElement, 'scene renderer canvas', 'remove');
+  const rendererOwner = construction.capture(renderer, 'scene renderer');
+  const canvas=renderer.domElement;
+  const canvasOwner = construction.capture(canvas, 'scene renderer canvas', 'remove');
   const pixelRatioCap = numberValue(visuals.pixelRatioCap, 2);
   renderer.setPixelRatio(Math.min(pixelRatioCap, window.devicePixelRatio || 1));
   const initialViewport = getViewport();
   const lineResolution = { width: initialViewport.width, height: initialViewport.height };
   renderer.setSize(initialViewport.width, initialViewport.height);
-  renderer.domElement.style.width = '100%';
-  renderer.domElement.style.height = '100%';
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
   renderer.physicallyCorrectLights = true;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.9;
@@ -39,18 +43,18 @@ export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
   if (renderer.outputColorSpace !== undefined) {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
   }
-  app.appendChild(renderer.domElement);
+  app.appendChild(canvas);
 
-  const scene = new THREE.Scene();
+  const scene = construction.scene(new THREE.Scene());
   scene.background = new THREE.Color('#0f1115');
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.9);
+  const ambient = construction.light(new THREE.AmbientLight(0xffffff, 0.9));
   scene.add(ambient);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  const dirLight = construction.light(new THREE.DirectionalLight(0xffffff, 1.2));
   dirLight.position.set(50, 80, 30);
   dirLight.castShadow = visuals.enableShadows === true;
   scene.add(dirLight);
-  const purpleSun = new THREE.DirectionalLight(0x8f6bff, 2.6);
+  const purpleSun = construction.light(new THREE.DirectionalLight(0x8f6bff, 2.6));
   purpleSun.position.set(220, 12, -190);
   purpleSun.castShadow = visuals.enableShadows === true;
   purpleSun.shadow.mapSize.set(2048, 2048);
@@ -63,14 +67,14 @@ export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
   purpleSun.shadow.camera.top = 220;
   purpleSun.shadow.camera.bottom = -220;
   scene.add(purpleSun);
-  const hemiLight = new THREE.HemisphereLight(0x6fb1ff, 0x2b2f3a, 0.8);
+  const hemiLight = construction.light(new THREE.HemisphereLight(0x6fb1ff, 0x2b2f3a, 0.8));
   scene.add(hemiLight);
-  const fillLight = new THREE.PointLight(0x9fd3ff, 1.0, 260);
+  const fillLight = construction.light(new THREE.PointLight(0x9fd3ff, 1.0, 260));
   fillLight.position.set(-40, 35, -20);
   scene.add(fillLight);
-  const rimLight = new THREE.DirectionalLight(0x6fb1ff, 1.4);
+  const rimLight = construction.light(new THREE.DirectionalLight(0x6fb1ff, 1.4));
   rimLight.position.set(-80, 60, 80);
-  const accentLight = new THREE.PointLight(0xffe6b5, 1.2, 220);
+  const accentLight = construction.light(new THREE.PointLight(0xffe6b5, 1.2, 220));
   accentLight.position.set(40, 50, -70);
   const extraLights = [rimLight, accentLight];
   extraLights.forEach((light) => scene.add(light));
@@ -127,12 +131,11 @@ export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
     try { state.rebuildAfterContextRestore?.(); state.invalidateRender?.(); }
     catch(error){state.onRendererStatus?.(`3D restore failed: ${error.message}. Source evidence remains available.`);}
   };
-  renderer.domElement.addEventListener('webglcontextlost',lost);
-  renderer.domElement.addEventListener('webglcontextrestored',restored);
-  const listenerOwners = [
-    captureSceneResource(renderer.domElement, 'scene lost-context listener', 'removeEventListener', ['webglcontextlost', lost]),
-    captureSceneResource(renderer.domElement, 'scene restored-context listener', 'removeEventListener', ['webglcontextrestored', restored])
-  ];
+  const listenerOwners=[];
+  for(const [event,callback,label] of [['webglcontextlost',lost,'scene lost-context listener'],['webglcontextrestored',restored,'scene restored-context listener']]){
+    const owner=construction.capture(canvas,label,'removeEventListener',[event,callback]);
+    listenerOwners.push(owner);canvas.addEventListener(event,callback);
+  }
   let disposalFailure = null;
   const disposeScene = () => {
     if (disposed) {
@@ -156,9 +159,9 @@ export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
       state.rebuildTimer = null;
     }
     run(() => environment.dispose());
-    run(() => scene.traverse(object => {
-      if (object.shadow) run(() => captureSceneResource(object.shadow, 'scene light shadow').retire());
-    }));
+    const shadowOwners=new Set(construction.shadowOwners);
+    run(() => scene.traverse(object => {const shadow=object.shadow;if(shadow)shadowOwners.add(construction.capture(shadow,'scene light shadow'));}));
+    for(const owner of shadowOwners)run(()=>owner.retire());
     run(() => clearGroup(scene));
     for (const owner of new Set([...pipeOwners, packetOwner].filter(Boolean))) run(() => captureSceneResource(owner, 'scene buffer owner').retire());
     for (const geometry of new Set(shapeCache?.values?.() || [])) run(() => captureSceneResource(geometry, 'shared scene shape geometry').retire());
@@ -174,6 +177,8 @@ export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
     }
     if (state.disposeScene === disposeScene) state.disposeScene = null;
   };
+  if(!isCurrent())throw Object.assign(new Error('Renderer enhancement superseded before scene publication'),{name:'AbortError',code:'ABORT_ERR'});
+  construction.install(disposeScene,state);
   Object.assign(state,{scene,renderer,disposeScene,contextLost:false});
   onSceneOwner?.({scene,renderer,disposeScene});
 
@@ -233,6 +238,11 @@ export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
     extraLights.forEach((light) => { light.visible = false; });
   }
   return {scene,renderer,disposeScene};
+  }catch(error){
+    construction.retainFailure(error);
+    const cleanupErrors=[];try{construction.retire();}catch(cleanup){cleanupErrors.push(cleanup);}
+    throw preserveSceneCleanupFailures(error,cleanupErrors,{hasPrimary:true,forceAggregate:true});
+  }
 };
 
 
