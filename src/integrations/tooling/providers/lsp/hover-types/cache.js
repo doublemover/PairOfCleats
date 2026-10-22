@@ -13,7 +13,7 @@ import {
 } from './concurrency.js';
 
 export const DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES = 50000;
-export const LSP_REQUEST_CACHE_POLICY_VERSION = 'rq4';
+export const LSP_REQUEST_CACHE_POLICY_VERSION = 'rq5';
 const LSP_REQUEST_CACHE_SCHEMA_VERSION = 1;
 const LSP_REQUEST_CACHE_MAX_READ_BYTES = 16 * 1024 * 1024;
 const LSP_REQUEST_CACHE_NEGATIVE_TTL_MS = 30 * 1000;
@@ -244,7 +244,7 @@ export const buildLspRequestCacheKey = ({
 };
 
 export const normalizeSignatureCacheText = (value) => (
-  String(value || '').replace(/\s+/g, ' ').trim()
+  normalizeTypeText(value) || ''
 );
 
 export const buildSignatureParseCacheKey = ({
@@ -257,7 +257,7 @@ export const buildSignatureParseCacheKey = ({
   const normalizedDetail = normalizeSignatureCacheText(detailText);
   if (!normalizedDetail) return null;
   const parts = [
-    'v3',
+    'v4',
     String(languageId || '').trim(),
     String(parserKey || '').trim() || 'default',
     normalizedDetail
@@ -265,7 +265,7 @@ export const buildSignatureParseCacheKey = ({
   if (symbolSensitive !== false) {
     parts.push(String(symbolName || '').trim());
   }
-  return parts.join('::');
+  return JSON.stringify(parts);
 };
 
 export const readRequestCacheEntry = ({

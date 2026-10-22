@@ -1,4 +1,5 @@
 import { findTopLevelIndex, splitTopLevel, stripTopLevelAssignment } from './shared.js';
+import { normalizeTypeWhitespace, transformTypeTextOutsideLiterals } from '../../../shared/type-normalization.js';
 
 const PYTHON_NESTING = Object.freeze({ angleBrackets: false });
 const splitPythonParams = (value) => splitTopLevel(value, ',', PYTHON_NESTING);
@@ -20,16 +21,23 @@ const parsePythonParam = (value) => {
 
 const normalizePythonType = (value) => {
   if (!value) return value;
-  return value.replace(/\b(?:builtins|typing|typing_extensions|collections\.abc)\./g, '');
+  return transformTypeTextOutsideLiterals(value, text => text.replace(
+    /(?<![\p{ID_Continue}.])[\p{ID_Start}_][\p{ID_Continue}]*(?:\s*\.\s*[\p{ID_Start}_][\p{ID_Continue}]*)+/gu,
+    name => {
+      const parts=name.split(/\s*\.\s*/u);
+      if (['builtins','typing','typing_extensions'].includes(parts[0])) return parts.slice(1).join('.');
+      if (parts.length>2 && parts[0]==='collections' && parts[1]==='abc') return parts.slice(2).join('.');
+      return name;
+    }
+  ));
 };
 
-const normalizeLine = (value) => String(value || '')
+const normalizeLine = (value) => normalizeTypeWhitespace(String(value || '')
   .replace(/^\s*(?:>\s*)+/, '')
   .replace(/^\s*[-*]\s+/, '')
   .replace(/^`+/, '')
   .replace(/`+$/, '')
-  .replace(/\s+/g, ' ')
-  .trim();
+  .trim());
 
 const stripCodeFenceMarkers = (detail) => String(detail || '')
   .split(/\r?\n/)

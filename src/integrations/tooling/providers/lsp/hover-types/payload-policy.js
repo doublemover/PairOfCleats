@@ -1,4 +1,4 @@
-import { canonicalizeTypeText } from '../../../../../shared/type-normalization.js';
+import { canonicalizeTypeText, normalizeTypeWhitespace } from '../../../../../shared/type-normalization.js';
 import {
   buildScopedSymbolId,
   buildSignatureKey,
@@ -9,7 +9,7 @@ import { createHoverSkipCounters, createHoverStageCounters } from './metric-coun
 
 export const normalizeTypeText = (value) => {
   if (!value) return null;
-  return String(value).replace(/\s+/g, ' ').trim() || null;
+  return normalizeTypeWhitespace(value) || null;
 };
 
 export const normalizeParamNames = (value) => {

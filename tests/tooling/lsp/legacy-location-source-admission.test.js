@@ -74,6 +74,6 @@ assert.equal(buildSourceSignatureCandidate('f()', {start:0,end:2}),null,'exclusi
 assert.equal(buildSourceSignatureCandidate('f()', {start:0,end:3}),'f()');
 assert.equal(buildSourceSignatureCandidate('f()', {start:0,end:99}),null);
 const keyInput={providerId:'fixture',virtualPath,uri,generation:{baseBuildId:'admission',semanticRevision:0},docHash:'source',requestKind:'definition',position:callerName.start};
-assert.equal(LSP_REQUEST_CACHE_POLICY_VERSION,'rq4');
+assert.ok(buildLspRequestCacheKey(keyInput).startsWith(LSP_REQUEST_CACHE_POLICY_VERSION+'|'));
 assert.notEqual(buildLspRequestCacheKey(keyInput),buildLspRequestCacheKey({...keyInput,policyVersion:'rq3'}));
 console.log('legacy source signatures preserve protocol shapes, exact enclosures, URI ownership and cache identity');

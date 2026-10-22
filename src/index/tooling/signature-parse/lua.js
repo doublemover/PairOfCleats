@@ -1,8 +1,9 @@
 import { splitTopLevel } from './shared.js';
+import { normalizeTypeWhitespace } from '../../../shared/type-normalization.js';
 
 const LUA_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-const normalizeType = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+const normalizeType = (value) => normalizeTypeWhitespace(value);
 
 const splitParams = (value) => splitTopLevel(value, ',');
 

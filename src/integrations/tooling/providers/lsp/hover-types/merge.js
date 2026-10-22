@@ -1,4 +1,4 @@
-import { canonicalizeTypeText } from '../../../../../shared/type-normalization.js';
+import { canonicalizeTypeText, normalizeTypeWhitespace } from '../../../../../shared/type-normalization.js';
 import {
   buildFallbackReasonCodes,
   buildLspProvenanceEntry,
@@ -30,7 +30,7 @@ export const buildSourceSignatureCandidate = (text, virtualRange) => {
   const cut = lineBreakIdx >= 0
     ? lastParen + 1 + lineBreakIdx
     : candidate.length;
-  return String(candidate.slice(0, cut)).replace(/\s+/g, ' ').trim();
+  return normalizeTypeWhitespace(candidate.slice(0, cut));
 };
 
 export const buildLineSignatureCandidate = (text, lineNumber) => {
@@ -45,7 +45,7 @@ export const buildLineSignatureCandidate = (text, lineNumber) => {
   if (terminators.length) {
     candidate = candidate.slice(0, Math.min(...terminators));
   }
-  return String(candidate).replace(/\s+/g, ' ').trim();
+  return normalizeTypeWhitespace(candidate);
 };
 
 export const resolveEvidenceTier = (record) => {

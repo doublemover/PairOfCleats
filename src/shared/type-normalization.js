@@ -100,6 +100,15 @@ const normalizePythonConstructors = text => {
 
 const normalizeWhitespace = (value) => String(value || '').replace(/\s+/gu, ' ').trim();
 
+/** Trusted syntax rewrites operate on masked text, never on literal contents.
+ * Malformed quoting or private-token input is preserved without rewriting. */
+export const transformTypeTextOutsideLiterals = (value, transform) => {
+  const original = String(value ?? '');
+  const protectedText = protectTypeLiterals(original);
+  return protectedText ? protectedText.restore(transform(protectedText.masked)) : original;
+};
+export const normalizeTypeWhitespace = value => transformTypeTextOutsideLiterals(value, normalizeWhitespace);
+
 const stripKnownPrefixes = (text, languageId) => {
   let next = String(text || '');
   const lang = String(languageId || '').trim().toLowerCase();

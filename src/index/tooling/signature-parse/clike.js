@@ -1,11 +1,10 @@
 import { splitTopLevel, stripTopLevelAssignment } from './shared.js';
+import { normalizeTypeWhitespace, transformTypeTextOutsideLiterals } from '../../../shared/type-normalization.js';
 
 const splitClikeParams = (value) => splitTopLevel(value, ',');
 
-const stripQualifiers = (value) => value
-  .replace(/\b(static|inline|constexpr|virtual|extern|friend|typename)\b/g, '')
-  .replace(/\s+/g, ' ')
-  .trim();
+const stripQualifiers = (value) => normalizeTypeWhitespace(transformTypeTextOutsideLiterals(value,
+  text => text.replace(/\b(static|inline|constexpr|virtual|extern|friend|typename)\b/g, '')));
 
 const inferReturnType = (before, symbolName) => {
   if (!before) return null;

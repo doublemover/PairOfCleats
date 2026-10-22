@@ -7,6 +7,7 @@ import {
   buildLspRequestCacheKey,
   buildSignatureParseCacheKey,
   buildSymbolPositionCacheKey,
+  LSP_REQUEST_CACHE_POLICY_VERSION,
   loadLspRequestCache,
   persistLspRequestCache
 } from '../../../src/integrations/tooling/providers/lsp/hover-types.js';
@@ -33,7 +34,7 @@ const betaFunctionKey = buildLspRequestCacheKey({
   requestKind: 'signature_help'
 });
 
-assert.equal(alphaFunctionKey?.startsWith('rq2|'), true, 'expected request cache key policy prefix');
+assert.equal(alphaFunctionKey?.startsWith(LSP_REQUEST_CACHE_POLICY_VERSION + '|'), true, 'expected request cache key policy prefix');
 assert.equal(alphaFunctionKey, alphaVariableKey, 'expected request cache key to stay deterministic');
 assert.notEqual(alphaFunctionKey, betaFunctionKey, 'expected request cache key to vary by request kind');
 for (const change of [{ virtualPath: 'package-b/source.py' }, { uri: 'file:///repo/package-b/source.py' },
