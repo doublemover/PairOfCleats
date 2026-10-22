@@ -574,6 +574,7 @@ export async function updateBundlesWithChunks({
         size: entry.size,
         chunks: fileChunks,
         parseCheckpoint: existingBundle?.parseCheckpoint || null,
+        ...(Object.hasOwn(existingBundle || {},'lexiconFilterStats') ? {lexiconFilterStats:existingBundle.lexiconFilterStats} : {}),
         dependencySignatures: entry.dependencySignatures || null,
         fileRelations: relations,
         vfsManifestRows,

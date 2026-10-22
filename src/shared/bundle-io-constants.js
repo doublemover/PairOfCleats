@@ -2,7 +2,7 @@ export const BUNDLE_FORMAT_TAG = 'pairofcleats.bundle';
 export const BUNDLE_VERSION = 1;
 export const MSGPACK_EXTENSIONS = new Set(['.mpk', '.msgpack', '.msgpackr']);
 export const BUNDLE_PATCH_FORMAT_TAG = 'pairofcleats.bundle.patch';
-export const BUNDLE_PATCH_VERSION = 1;
+export const BUNDLE_PATCH_VERSION = 2;
 export const BUNDLE_PATCH_FIELD_KEYS = [
   'file',
   'hash',
@@ -12,7 +12,13 @@ export const BUNDLE_PATCH_FIELD_KEYS = [
   'vfsManifestRows',
   'encoding',
   'encodingFallback',
-  'encodingConfidence'
+  'encodingConfidence',
+  'encodingFallbackClass',
+  'encodingFallbackRisk',
+  'parseCheckpoint',
+  'dependencySignatures',
+  'lexiconFilterStats',
+  'artifactSurfaceVersion'
 ];
 export const BUNDLE_PATCH_SUFFIX = '.patch.jsonl';
 export const BUNDLE_PATCH_LOCK_SUFFIX = '.lock';

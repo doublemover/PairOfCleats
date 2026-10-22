@@ -2,6 +2,8 @@ import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fs from 'node:fs/promises';
 import { atomicWriteJson, atomicWriteText } from '../io/atomic-write.js';
 import { stringifyJsonValue } from '../json-stream/encode.js';
+import { canonicalizeBundlePayloadForChecksum } from '../bundle-checksum.js';
+import { stableStringify } from '../stable-json.js';
 import {
   BUNDLE_PATCH_FIELD_KEYS,
   BUNDLE_PATCH_FORMAT_TAG,
@@ -47,11 +49,13 @@ const buildBundlePatch = async ({ previousBundle, nextBundle }) => {
   const { buildBundlePatchPayload } = await loadBundlePatchModule();
   const payload = buildBundlePatchPayload({ previousBundle, nextBundle });
   if (!payload) return null;
+  if(payload.requiresFullRewrite)return payload;
   return {
     format: BUNDLE_PATCH_FORMAT_TAG,
     version: BUNDLE_PATCH_VERSION,
     chunks: payload.chunks || null,
-    set: payload.set || null
+    set: payload.set || null,
+    unset:payload.unset || null
   };
 };
 
@@ -66,11 +70,13 @@ const buildBundlePatchAsync = async ({ previousBundle, nextBundle }) => {
     if (workerResult.ok) {
       const patch = workerResult.result;
       if (!patch) return null;
+      if(patch.requiresFullRewrite)return patch;
       return {
         format: BUNDLE_PATCH_FORMAT_TAG,
         version: BUNDLE_PATCH_VERSION,
         chunks: patch.chunks || null,
-        set: patch.set || null
+        set: patch.set || null,
+        unset:patch.unset || null
       };
     }
   }
@@ -79,12 +85,12 @@ const buildBundlePatchAsync = async ({ previousBundle, nextBundle }) => {
 
 export const validateBundlePatch = (patch) => {
   if (!isPlainObject(patch)) return { ok: false, reason: 'invalid patch envelope' };
-  if (patch.format !== BUNDLE_PATCH_FORMAT_TAG || patch.version !== BUNDLE_PATCH_VERSION) {
+  if (patch.format !== BUNDLE_PATCH_FORMAT_TAG || ![1,BUNDLE_PATCH_VERSION].includes(patch.version)) {
     return { ok: false, reason: 'unsupported patch envelope' };
   }
   const keys = Object.keys(patch);
   for (const key of keys) {
-    if (key !== 'format' && key !== 'version' && key !== 'chunks' && key !== 'set') {
+    if (key !== 'format' && key !== 'version' && key !== 'chunks' && key !== 'set' && !(key === 'unset' && patch.version >= 2)) {
       return { ok: false, reason: 'invalid patch envelope' };
     }
   }
@@ -109,7 +115,11 @@ export const validateBundlePatch = (patch) => {
       if (!BUNDLE_PATCH_FIELD_KEY_SET.has(key)) return { ok: false, reason: 'invalid patch set' };
     }
   }
-  if (patch.chunks == null && patch.set == null) {
+  if(patch.unset != null) {
+    if(patch.version < 2 || !Array.isArray(patch.unset) || patch.unset.some(key=>typeof key !== 'string'
+      || !BUNDLE_PATCH_FIELD_KEY_SET.has(key) || Object.hasOwn(patch.set || {},key))) return {ok:false,reason:'invalid patch unset'};
+  }
+  if (patch.chunks == null && patch.set == null && !patch.unset?.length) {
     return { ok: false, reason: 'invalid patch payload' };
   }
   return { ok: true, reason: null };
@@ -121,6 +131,7 @@ export const applyBundlePatch = ({ bundle, patch }) => {
     throw new Error(result.reason || 'invalid bundle patch');
   }
   const next = isPlainObject(bundle) ? { ...bundle } : {};
+  for(const key of patch.unset || []) delete next[key];
   if (isPlainObject(patch.set)) {
     for (const key of Object.keys(patch.set)) {
       next[key] = patch.set[key];
@@ -182,7 +193,7 @@ export const readBundlePatches = async (bundlePath, { repoRoot = process.cwd() }
     } catch {
       return { ok: false, reason: 'invalid bundle patch' };
     }
-    assertCurrentIndexFormat({ operation: 'import', component: 'bundle patch schema', expectedVersion: BUNDLE_PATCH_VERSION,
+    if (parsed?.version !== 1) assertCurrentIndexFormat({ operation: 'import', component: 'bundle patch schema', expectedVersion: BUNDLE_PATCH_VERSION,
       foundVersion: parsed?.version, repoRoot, indexPath: patchPath });
     const validation = validateBundlePatch(parsed);
     if (!validation.ok) {
@@ -246,7 +257,13 @@ export async function writeBundlePatch({
   nextBundle = normalizeBundleWriteIdentity(nextBundle, bundlePath);
   const patch = await buildBundlePatchAsync({ previousBundle, nextBundle });
   if (!patch) return { applied: false, reason: 'no-changes' };
+  if(patch.requiresFullRewrite)return {applied:false,reason:'full-rewrite-required',field:patch.field};
   const serialized = `${stringifyJsonValue(patch)}\n`;
+  // Prove the persisted patch reconstructs the same persisted payload before
+  // acquiring publication artifacts or writing the checksum for nextBundle.
+  const reconstructed=applyBundlePatch({bundle:previousBundle,patch:JSON.parse(serialized)});
+  const canonical=value=>stableStringify(canonicalizeBundlePayloadForChecksum(value,{typedArraysBeforeToJSON:true}));
+  if(canonical(reconstructed) !== canonical(nextBundle)) return {applied:false,reason:'full-rewrite-required'};
   const bytes = Buffer.byteLength(serialized, 'utf8');
   if (!Number.isFinite(bytes) || bytes <= 0 || bytes > MAX_BUNDLE_PATCH_ENTRY_BYTES) {
     return { applied: false, reason: 'patch-entry-too-large' };
