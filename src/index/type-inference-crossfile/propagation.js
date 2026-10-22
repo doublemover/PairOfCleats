@@ -630,7 +630,7 @@ export async function runCrossFilePropagation({
           }
           const paramNames = Array.isArray(summary.params) ? summary.params : [];
           if (args.length && paramNames.length) {
-            const argMap = {};
+            const argMap = Object.create(null);
             for (let i = 0; i < paramNames.length && i < args.length; i += 1) {
               const paramName = paramNames[i];
               const argValue = args[i];
@@ -740,7 +740,7 @@ export async function runCrossFilePropagation({
             const confidence = confidenceForHop(hopCount);
             for (let i = 0; i < paramNames.length && i < Math.max(args.length, paramNames.length); i += 1) {
               const name = paramNames[i];
-              const argValue = argMap[name] || args[i];
+              const argValue = Object.hasOwn(argMap, name) ? argMap[name] : args[i];
               if (!name || !argValue) continue;
               const type = inferArgType(argValue);
               if (!type) continue;
