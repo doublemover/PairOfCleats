@@ -1,4 +1,4 @@
-import { rankDenseVectors } from '../../rankers.js';
+import { rankDenseVectorsAsync } from '../../rankers.js';
 import { ANN_PROVIDER_IDS } from '../types.js';
 import { canRunAnnQuery, isAnnProviderAvailable } from '../utils.js';
 import { isDenseVectorPayloadAvailable } from '../../../shared/dense-vector-artifacts.js';
@@ -22,11 +22,11 @@ export function createDenseAnnProvider() {
         return Promise.resolve(idx.loadDenseVectors()).then(() => {
           const reloadedReady = hasDenseVectors(idx);
           if (!canRunAnnQuery({ signal, embedding, candidateSet, backendReady: reloadedReady })) return [];
-          return rankDenseVectors(idx, embedding, topN, candidateSet);
+          return rankDenseVectorsAsync(idx, embedding, topN, candidateSet, { signal });
         });
       }
       if (!canRunAnnQuery({ signal, embedding, candidateSet, backendReady })) return [];
-      return rankDenseVectors(idx, embedding, topN, candidateSet);
+      return rankDenseVectorsAsync(idx, embedding, topN, candidateSet, { signal });
     }
   };
 }

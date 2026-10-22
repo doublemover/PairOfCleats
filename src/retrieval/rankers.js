@@ -3,7 +3,8 @@ import { createTopKReducer } from './pipeline/topk.js';
 import { bitmapHas, bitmapToArray, getBitmapSize } from './bitmap.js';
 import { normalizeEmbeddingDims } from './ann/dims.js';
 import { createVocabIndex } from './vocab-index.js';
-import { isDenseVectorRowPresent } from '../shared/dense-vector-validity.js';
+import { decodeDenseVectorValidity } from '../shared/dense-vector-validity.js';
+import { throwIfAborted } from '../shared/abort.js';
 import { withAnnScoreSpace } from '../shared/ann-similarity.js';
 import { assertBm25Parameters } from './bm25-policy.js';
 import { hasAdmittedPostingOrder } from '../shared/posting-order.js';
@@ -336,7 +337,7 @@ export function rankMinhash(idx, tokens, topN, candidateSet = null) {
  * @param {Set<number>|object|null} candidateSet
  * @returns {Array<{idx:number,sim:number}>}
  */
-export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
+const createDenseVectorRanker = (idx, queryEmbedding, topN, metrics = null) => {
   const vectors = idx.denseVec?.vectors;
   const denseBuffer = idx.denseVec?.buffer;
   const hasBuffer = !!(
@@ -380,39 +381,81 @@ export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
     buildPayload: (entry) => withAnnScoreSpace({ idx: entry.id, sim: entry.score }, { kind: 'dot-product', metric: 'dot', backend: 'dense' })
   });
   let order = 0;
+  const validity = decodeDenseVectorValidity(idx.denseVec);
+  const validityCount = idx.denseVec.validity?.count ?? null;
 
   const processVectorId = (id) => {
-    if (!isDenseVectorRowPresent(idx.denseVec, id)) return;
-    let vec = null;
+    if (metrics) metrics.rowsVisited = (metrics.rowsVisited || 0) + 1;
+    if (!Number.isSafeInteger(id) || id < 0 || id >= vectorCount) return;
+    if (validity ? id >= validityCount || !(validity[id >> 3] & (1 << (id & 7)))
+      : Array.isArray(vectors) && !vectors[id]?.length) return;
+    let dot = 0;
     if (hasBuffer) {
       const start = id * dims;
       const end = start + dims;
       if (start < 0 || end > denseBuffer.length) return;
-      vec = denseBuffer.subarray(start, end);
+      // Preserve the scalar operation/accumulation order exactly. Computing
+      // query-side coefficients or reassociating rows would change near ties.
+      for (let i = 0; i < dims; i++) {
+        const v = denseBuffer[start + i] * scale + minVal;
+        dot += v * queryVector[i];
+      }
     } else {
-      vec = vectors[id];
+      const vec = vectors[id];
+      const isArrayLike = Array.isArray(vec) || ArrayBuffer.isView(vec);
+      if (!isArrayLike || vec.length < dims) return;
+      for (let i = 0; i < dims; i++) {
+        const v = vec[i] * scale + minVal;
+        dot += v * queryVector[i];
+      }
     }
-    const isArrayLike = Array.isArray(vec) || ArrayBuffer.isView(vec);
-    if (!isArrayLike || vec.length < dims) return;
-    let dot = 0;
-    for (let i = 0; i < dims; i++) {
-      const v = vec[i] * scale + minVal;
-      dot += v * queryVector[i];
-    }
+    if (metrics) { metrics.vectorsScored = (metrics.vectorsScored || 0) + 1; metrics.coordinatesScored = (metrics.coordinatesScored || 0) + dims; }
     reducer.pushRaw(dot, id, order);
     order += 1;
   };
+  return { reducer, processVectorId, vectorCount };
+};
 
-  if (candidateSet) {
-    const ids = bitmapToArray(candidateSet);
-    for (const id of ids) {
-      processVectorId(id);
-    }
-  } else {
-    for (let id = 0; id < vectorCount; id += 1) {
-      processVectorId(id);
-    }
+const denseCandidateIds = (candidateSet, vectorCount, metrics) => {
+  if (!candidateSet) return (function* () { for (let id = 0; id < vectorCount; id++) yield id; })();
+  if (typeof candidateSet[Symbol.iterator] === 'function') return candidateSet;
+  if (typeof candidateSet.values === 'function') return candidateSet.values();
+  const ids = bitmapToArray(candidateSet);
+  if (metrics) metrics.candidateIdsCopied = (metrics.candidateIdsCopied || 0) + ids.length;
+  return ids;
+};
+
+export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet, { signal = null, metrics = null } = {}) {
+  throwIfAborted(signal);
+  const plan = createDenseVectorRanker(idx, queryEmbedding, topN, metrics);
+  if (Array.isArray(plan)) return plan;
+  if (metrics) { metrics.rowViewsCreated = 0; metrics.candidateIdsCopied ||= 0; }
+  let processed = 0;
+  for (const id of denseCandidateIds(candidateSet, plan.vectorCount, metrics)) {
+    if (processed++ % 128 === 0) throwIfAborted(signal);
+    plan.processVectorId(id);
   }
+  throwIfAborted(signal);
+  return plan.reducer.finish({ limit: topN });
+}
 
-  return reducer.finish({ limit: topN });
+/** The actual async provider yields between bounded scalar blocks so a caller's
+ * cancellation can be observed without returning an incomplete top-k. */
+export async function rankDenseVectorsAsync(idx, queryEmbedding, topN, candidateSet, { signal = null, metrics = null } = {}) {
+  throwIfAborted(signal);
+  const plan = createDenseVectorRanker(idx, queryEmbedding, topN, metrics);
+  if (Array.isArray(plan)) return plan;
+  if (metrics) { metrics.rowViewsCreated = 0; metrics.candidateIdsCopied ||= 0; metrics.yieldedBlocks = 0; }
+  let processed = 0, checkpoint = performance.now();
+  for (const id of denseCandidateIds(candidateSet, plan.vectorCount, metrics)) {
+    if (processed && (processed % 128 === 0 || performance.now() - checkpoint >= 8)) {
+      throwIfAborted(signal);
+      await new Promise(resolve => setImmediate(resolve));
+      throwIfAborted(signal); checkpoint = performance.now();
+      if (metrics) metrics.yieldedBlocks++;
+    }
+    plan.processVectorId(id); processed++;
+  }
+  throwIfAborted(signal);
+  return plan.reducer.finish({ limit: topN });
 }
