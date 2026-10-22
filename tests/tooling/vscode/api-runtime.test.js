@@ -1,168 +1,84 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { getRuntimeCapabilityManifest } from '../../../src/shared/runtime-capability-manifest.js';
+import { createVsCodeRuntimeHarness, prepareVsCodeFixtureWorkspace } from '../../helpers/vscode/runtime-harness.js';
+import { prepareServiceMappingFixture } from '../../helpers/vscode/service-mapping-fixture.js';
 
-import {
-  createVsCodeRuntimeHarness,
-  prepareVsCodeFixtureWorkspace
-} from '../../helpers/vscode/runtime-harness.js';
-
-const workspace = await prepareVsCodeFixtureWorkspace('vscode/workspace-root', {
-  prefix: 'poc-vscode-api-'
-});
-
-const remoteWorkspaceUri = {
-  scheme: 'vscode-remote',
-  fsPath: '/workspace/repo',
-  path: '/workspace/repo',
-  toString() {
-    return `${this.scheme}:${this.path}`;
-  }
-};
-const remoteFileUri = {
-  scheme: 'vscode-remote',
-  fsPath: '/workspace/repo/src/app.ts',
-  path: '/workspace/repo/src/app.ts',
-  toString() {
-    return `${this.scheme}:${this.path}`;
-  }
-};
-
+const workspace = await prepareVsCodeFixtureWorkspace('vscode/workspace-root', { prefix: 'poc-vscode-api-' });
+const baseUrl = 'http://127.0.0.1:4311';
+const serviceRoot = '/srv/\u96ea repository';
+const runtimeManifest = getRuntimeCapabilityManifest();
 const apiHarness = createVsCodeRuntimeHarness({
-  repoRoot: workspace.root,
-  workspaceFolders: [{ name: 'remote', uri: remoteWorkspaceUri }],
-  activeEditor: { document: { uri: remoteFileUri } },
-  configValues: {
-    apiServerUrl: 'http://127.0.0.1:4311',
-    apiExecutionMode: 'require',
-    apiTimeoutMs: 4321,
-    searchMode: 'code'
-  }
+  repoRoot: workspace.root, workspaceFolders: [{ name: 'editor-checkout', path: workspace.root }],
+  activeFile: workspace.resolvePath('src', 'app.ts'),
+  globalConfigValues: { apiServerUrl: baseUrl, apiExecutionMode: 'require' },
+  configValues: { apiTimeoutMs: 4321, searchMode: 'code' }
 });
-const runtimeManifest = getRuntimeCapabilityManifest({
-  runtimeCapabilities: {
-    watcher: { chokidar: false, parcel: false },
-    regex: { re2: false, re2js: false },
-    hash: { nodeRsXxhash: false, wasmXxhash: false },
-    compression: { gzip: true, zstd: false },
-    extractors: { pdf: false, docx: false },
-    mcp: { sdk: false, legacy: true },
-    externalBackends: { tantivy: false, lancedb: false },
-    nativeAccel: { enabled: false, runtimeKind: 'js', abiVersion: 1, featureBits: 0 }
-  }
-});
-
+const mapping = prepareServiceMappingFixture(apiHarness, { repoRoot: workspace.root, baseUrl, serviceRoot });
 try {
   apiHarness.activate();
   apiHarness.inputQueue.push('AuthToken');
   apiHarness.quickPickQueue.push(null);
-  apiHarness.queuedFetchResults.push({
-    status: 200,
-    json: {
-      ok: true,
-      runtimeManifest
-    }
-  });
-  apiHarness.queuedFetchResults.push({
-    status: 200,
-    json: {
-      ok: true,
-      result: {
-        code: [{ file: 'src/app.ts', score: 1, startLine: 1 }]
-      }
-    }
-  });
+  apiHarness.queuedFetchResults.push({ status: 200, json: { ok: true, runtimeManifest } },
+    { status: 200, json: mapping.status },
+    { status: 200, json: { ok: true, result: { code: [{ file: `${serviceRoot}/src/app.ts`, score: 1, startLine: 1 }] } } });
   await apiHarness.runCommand('pairofcleats.search');
-
-  assert.equal(apiHarness.spawnCalls.length, 0, 'API search should not spawn CLI');
-  assert.equal(apiHarness.fetchCalls.length, 2, 'API search should probe capabilities then search');
+  assert.equal(apiHarness.spawnCalls.length, 0, 'API search never falls back to CLI in require mode');
+  assert.equal(apiHarness.fetchCalls.length, 3, 'capabilities and source-qualified status precede search');
   assert.ok(String(apiHarness.fetchCalls[0].url).endsWith('/capabilities'));
-  assert.ok(String(apiHarness.fetchCalls[1].url).endsWith('/search'));
-  const postedPayload = JSON.parse(String(apiHarness.fetchCalls[1].options.body || '{}'));
-  assert.equal(postedPayload.repo, '/workspace/repo');
-  assert.equal(postedPayload.query, 'AuthToken');
+  assert.ok(String(apiHarness.fetchCalls[1].url).includes(`/status?repo=${encodeURIComponent(serviceRoot)}`));
+  const posted = JSON.parse(String(apiHarness.fetchCalls[2].options.body));
+  assert.equal(posted.repo, serviceRoot, 'service-host filesystem root is independent of editor root');
+  assert.equal(posted.query, 'AuthToken');
   const history = apiHarness.workspaceStateStore.get('pairofcleats.searchHistory');
   assert.equal(history.length, 1);
+  assert.equal(history[0].repoRoot, workspace.root);
+  assert.equal(history[0].repoUri, apiHarness.fakeVscode.Uri.file(workspace.root).toString());
+  assert.equal(history[0].hits[0].file, 'src/app.ts', 'service absolute path is contained and translated before persistence');
   assert.equal(history[0].invocation.kind, 'api-search');
-  assert.equal(history[0].invocation.baseUrl, 'http://127.0.0.1:4311');
+  assert.equal(history[0].invocation.baseUrl, baseUrl);
   assert.equal(history[0].invocation.timeoutMs, 4321);
-  assert.equal(history[0].invocation.payload.query, 'AuthToken');
-  assert.equal(history[0].repoUri, 'vscode-remote:/workspace/repo');
+  assert.equal(history[0].invocation.payload.repo, serviceRoot);
 
-  apiHarness.queuedFetchResults.push({
-    status: 200,
-    json: {
-      ok: true,
-      result: {
-        code: [{ file: 'src/app.ts', score: 1, startLine: 1 }]
-      }
-    }
-  });
+  apiHarness.queuedFetchResults.push({ status: 200, json: { ok: true,
+    result: { code: [{ file: `${serviceRoot}/src/app.ts`, score: 1, startLine: 1 }] } } });
   await apiHarness.runCommand('pairofcleats.rerunResultSet', history[0]);
-  assert.equal(apiHarness.fetchCalls.length, 3, 'rerun should reuse API invocation');
-  assert.ok(String(apiHarness.fetchCalls[2].url).endsWith('/search'));
-
-  apiHarness.queuedFetchResults.push({
-    status: 200,
-    json: {
-      ok: true,
-      status: {
-        repo: {
-          root: '/workspace/repo',
-          cacheRoot: '/workspace/repo/.cache',
-          totalBytes: 0,
-          sqlite: { code: true, prose: false, extractedProse: false, records: false }
-        },
-        health: { issues: [], hints: [] }
-      }
-    }
-  });
+  assert.equal(apiHarness.fetchCalls.length, 4, 'explicit rerun retains captured service scope');
+  apiHarness.queuedFetchResults.push({ status: 200, json: mapping.status }, { status: 200, json: mapping.status });
   await apiHarness.runCommand('pairofcleats.indexHealth');
-  assert.equal(apiHarness.spawnCalls.length, 0, 'API index health should not spawn CLI');
-  assert.ok(
-    apiHarness.fetchCalls.some((call) => String(call.url).includes('/status?repo=')),
-    'API index health should issue a status request'
-  );
-  assert.ok(apiHarness.infoMessages.some((message) => /Index Health completed/i.test(message)));
-
+  assert.equal(apiHarness.fetchCalls.length, 6, 'health mapping is requalified before its scoped status read');
+  assert.equal(apiHarness.spawnCalls.length, 0);
+  assert.ok(apiHarness.infoMessages.some(message => /Index Health completed/i.test(message)));
   await apiHarness.extension._test.runExplainSearch();
-  assert.ok(apiHarness.errorMessages.some((message) => /API mode is not supported for explain search/i.test(message)));
-} finally {
-  apiHarness.restoreGlobals();
-}
+  assert.ok(apiHarness.errorMessages.some(message => /API mode is not supported for explain search/i.test(message)));
+} finally { apiHarness.restoreGlobals(); }
 
-const preferHarness = createVsCodeRuntimeHarness({
-  repoRoot: workspace.root,
-  workspaceFolders: [{ name: 'repo', path: workspace.root }],
-  configValues: {
-    apiServerUrl: 'http://127.0.0.1:4311',
-    apiExecutionMode: 'prefer',
-    cliArgs: ['--trace']
-  }
-});
-
+const remoteUri = { scheme: 'vscode-remote', path: '/workspace/repo', fsPath: '/workspace/repo',
+  toString() { return 'vscode-remote://unqualified/workspace/repo'; } };
+const virtual = createVsCodeRuntimeHarness({ repoRoot: workspace.root,
+  workspaceFolders: [{ name: 'virtual', uri: remoteUri }], activeEditor: { document: { uri: remoteUri } },
+  globalConfigValues: { apiServerUrl: baseUrl, apiExecutionMode: 'require' } });
 try {
-  preferHarness.activate();
-  preferHarness.inputQueue.push('fallback query');
-  preferHarness.quickPickQueue.push(null);
-  preferHarness.queuedFetchResults.push({
-    status: 500,
-    json: {
-      message: 'capabilities offline'
-    }
-  });
-  preferHarness.queuedResults.push({
-    code: 0,
-    stdout: JSON.stringify({
-      code: [{ file: 'src/app.ts', score: 1, startLine: 1 }]
-    })
-  });
-  await preferHarness.runCommand('pairofcleats.search');
-  assert.equal(preferHarness.fetchCalls.length, 1, 'prefer mode should still probe API first');
-  assert.equal(preferHarness.spawnCalls.length, 1, 'prefer mode should fall back to CLI');
-  assert.ok(preferHarness.outputEvents.some((event) => event.kind === 'append' && /capabilities offline/i.test(event.line)));
-} finally {
-  preferHarness.restoreGlobals();
-}
+  virtual.activate();
+  virtual.queuedFetchResults.push({ status: 200, json: { ok: true, runtimeManifest } });
+  await virtual.runCommand('pairofcleats.search');
+  assert.equal(virtual.spawnCalls.length, 0);
+  assert.equal(virtual.fetchCalls.length, 1, 'virtual URI cannot become a local filesystem identity or service search');
+  assert.ok(virtual.errorMessages.some(message => /Virtual\/non-file URI roots cannot be source-qualified/i.test(message)));
+} finally { virtual.restoreGlobals(); }
 
-console.log('vscode api runtime test passed');
+const prefer = createVsCodeRuntimeHarness({ repoRoot: workspace.root,
+  workspaceFolders: [{ name: 'repo', path: workspace.root }],
+  globalConfigValues: { apiServerUrl: baseUrl, apiExecutionMode: 'prefer', cliArgs: ['--trace'] } });
+try {
+  prefer.activate();
+  prefer.inputQueue.push('fallback query');
+  prefer.quickPickQueue.push(null);
+  prefer.queuedFetchResults.push({ status: 500, json: { message: 'capabilities offline' } });
+  prefer.queuedResults.push({ code: 0, stdout: JSON.stringify({ code: [{ file: 'src/app.ts', score: 1, startLine: 1 }] }) });
+  await prefer.runCommand('pairofcleats.search');
+  assert.equal(prefer.fetchCalls.length, 1);
+  assert.equal(prefer.spawnCalls.length, 1, 'prefer mode retains its declared capability-failure CLI fallback');
+  assert.ok(prefer.outputEvents.some(event => event.kind === 'append' && /capabilities offline/i.test(event.line)));
+} finally { prefer.restoreGlobals(); }
+console.log('VS Code explicit service repository mapping, virtual-workspace admission and transport policy fixtures passed');

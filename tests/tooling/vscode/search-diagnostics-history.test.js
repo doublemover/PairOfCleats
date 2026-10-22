@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { prepareServiceMappingFixture } from '../../helpers/vscode/service-mapping-fixture.js';
 import { buildSearchDiagnostics } from '../../../src/retrieval/output/search-diagnostics.js';
 import { explainEmptyResults } from '../../../src/retrieval/output/empty-results.js';
 import { getRuntimeCapabilityManifest } from '../../../src/shared/runtime-capability-manifest.js';
@@ -11,13 +12,14 @@ retrieval.emptyResults = explainEmptyResults({ filtersActive: true, backend: ret
 retrieval.diagnostics = buildSearchDiagnostics(retrieval);
 const payload = { code: [], prose: [], records: [], extractedProse: [], retrieval };
 for (const transport of ['cli', 'api']) {
-  const harness = createVsCodeRuntimeHarness({ repoRoot: workspace.root, configValues: {
-    searchMode: 'code', apiExecutionMode: transport === 'api' ? 'require' : 'cli', apiServerUrl: 'http://127.0.0.1:4311' } });
+  const harness = createVsCodeRuntimeHarness({ repoRoot: workspace.root, configValues: { searchMode: 'code' },
+    globalConfigValues: { apiExecutionMode: transport === 'api' ? 'require' : 'cli', apiServerUrl: 'http://127.0.0.1:4311' } });
+  const mapping = transport === 'api' ? prepareServiceMappingFixture(harness, { repoRoot: workspace.root }) : null;
   try {
     harness.activate();
     harness.inputQueue.push('zero-hit-query');
     if (transport === 'api') harness.queuedFetchResults.push({ json: { ok: true, runtimeManifest: getRuntimeCapabilityManifest() } },
-      { json: { ok: true, result: payload } });
+      { json: mapping.status }, { json: { ok: true, result: payload } });
     else harness.queuedResults.push({ code: 0, stdout: JSON.stringify(payload) });
     await harness.runCommand('pairofcleats.search');
     const original = harness.workspaceStateStore.get('pairofcleats.searchHistory')[0];

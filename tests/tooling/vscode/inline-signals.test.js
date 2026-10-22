@@ -76,9 +76,11 @@ const harness = createVsCodeRuntimeHarness({
   workspaceFolders: [{ name: 'repo', path: workspace.root }],
   activeFile,
   activeEditor,
-  configValues: {
+  globalConfigValues: {
     cliPath: workspace.resolvePath('bin', 'pairofcleats.js'),
-    cliArgs: ['--trace'],
+    cliArgs: ['--trace']
+  },
+  configValues: {
     inlineHoverEnabled: true,
     inlineDiagnosticsEnabled: true,
     inlineDecorationsEnabled: true,

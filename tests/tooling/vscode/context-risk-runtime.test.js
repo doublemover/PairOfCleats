@@ -48,8 +48,8 @@ const harness = createVsCodeRuntimeHarness({
   repoRoot,
   activeFile,
   activeEditor,
-  configValues: {
-    cliPath: './bin/pairofcleats.js',
+  globalConfigValues: {
+    cliPath: path.join(repoRoot, 'bin', 'pairofcleats.js'),
     cliArgs: ['--trace']
   }
 });

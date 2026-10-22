@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 
 import {
   createVsCodeRuntimeHarness,
@@ -14,7 +16,7 @@ const harness = createVsCodeRuntimeHarness({
   repoRoot: workspace.root,
   workspaceFolders: [{ name: 'repo', path: workspace.root }],
   activeFile,
-  configValues: {
+  globalConfigValues: {
     cliPath: workspace.resolvePath('bin', 'pairofcleats.js'),
     cliArgs: ['--trace']
   }
@@ -27,9 +29,15 @@ assert.equal(harness.referenceProviders.length, 1, 'expected reference provider 
 assert.equal(harness.documentSymbolProviders.length, 1, 'expected document symbol provider registration');
 
 const symbol = 'WidgetBuilder';
+const sourceText = symbol + '\n'.repeat(6);
+fs.writeFileSync(activeFile, sourceText);
+fs.writeFileSync(workspace.resolvePath('src', 'defs.js'), '\n'.repeat(11) + '  WidgetBuilder\n');
+fs.writeFileSync(workspace.resolvePath('src', 'consumer.ts'), '\n'.repeat(8) + '    WidgetBuilder();\n');
+const hashFile = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const start = new harness.fakeVscode.Position(0, 0);
 const end = new harness.fakeVscode.Position(0, symbol.length);
 const document = {
+  version: 1, isDirty: false,
   uri: {
     scheme: 'file',
     fsPath: activeFile,
@@ -41,18 +49,18 @@ const document = {
   getWordRangeAtPosition() {
     return { start, end };
   },
-  getText() {
-    return symbol;
+  getText(range) {
+    return range ? symbol : sourceText;
   }
 };
 
 harness.queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
-    ok: true,
+    ok: true, status: 'resolved', binding: { status: 'resolved' },
     results: [
       {
-        file: 'src/defs.js',
+        file: 'src/defs.js', coordinateUnit: 'utf16', sourceHash: hashFile(workspace.resolvePath('src', 'defs.js')),
         virtualPath: 'src/defs.js',
         startLine: 12,
         endLine: 12,
@@ -74,20 +82,20 @@ assert.equal(definitions[0].range.start.character, 2);
 harness.queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
-    ok: true,
+    ok: true, status: 'resolved', binding: { status: 'resolved' },
     results: [
       {
-        file: 'src/app.ts',
+        file: 'src/app.ts', coordinateUnit: 'utf16', sourceHash: hashFile(activeFile),
         virtualPath: 'src/app.ts',
-        startLine: 4,
-        endLine: 4,
+        startLine: 1,
+        endLine: 1,
         startCol: 1,
         endCol: 14,
         kind: 'FunctionDeclaration',
         name: 'WidgetBuilder'
       },
       {
-        file: 'src/consumer.ts',
+        file: 'src/consumer.ts', coordinateUnit: 'utf16', sourceHash: hashFile(workspace.resolvePath('src', 'consumer.ts')),
         virtualPath: 'src/consumer.ts',
         startLine: 9,
         endLine: 9,
@@ -100,7 +108,7 @@ harness.queuedResults.push({
   })
 });
 
-const references = await harness.referenceProviders[0].provider.provideReferences(document, start, {}, {});
+const references = await harness.referenceProviders[0].provider.provideReferences(document, start, { includeDeclaration: false }, {});
 assert.equal(references.length, 2);
 assert.equal(references[1].uri.fsPath, harness.resolvePath('src', 'consumer.ts'));
 
@@ -147,12 +155,18 @@ assert.deepEqual(
     '--file',
     activeFile,
     '--symbol',
-    'WidgetBuilder'
+    'WidgetBuilder',
+    '--source-hash', hashFile(activeFile),
+    '--source-version', '1',
+    '--coordinate-unit', 'utf16',
+    '--line', '1', '--column', '1',
+    '--include-declaration', 'true'
   ]
 );
 
 assert.equal(harness.spawnCalls[1].args[4], '--json');
 assert.equal(harness.spawnCalls[1].args[8], 'references');
+assert.equal(harness.spawnCalls[1].args[harness.spawnCalls[1].args.indexOf('--include-declaration') + 1], 'false');
 assert.equal(harness.spawnCalls[2].args[8], 'document-symbols');
 
 console.log('vscode navigation providers test passed');

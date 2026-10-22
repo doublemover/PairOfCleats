@@ -2,6 +2,7 @@
 import importlib
 import json
 import os
+import threading
 
 from runtime_harness import FakeRegion, FakeWindow, install_fake_modules, isolated_temp_directory
 
@@ -16,6 +17,7 @@ results = importlib.import_module('PairOfCleats.lib.results')
 tasks = importlib.import_module('PairOfCleats.lib.tasks')
 operations = importlib.import_module('PairOfCleats.lib.operations')
 service = importlib.import_module('PairOfCleats.lib.service_repository')
+api = importlib.import_module('PairOfCleats.lib.api_client')
 operations.activate()
 window = FakeWindow()
 sublime.set_active_window(window)
@@ -73,8 +75,48 @@ assert detail['limits'] == {'records': 128, 'bytes': 65536, 'workMs': 250, 'rows
 trace = semantic.request_for('trace', '/repo', generation, ref, 'downstream')
 assert trace['generation'] == generation and trace['limits']['edges'] == 512
 assert trace['direction'] == 'downstream' and trace['limits']['depth'] == 2
+slotted = semantic.request_for('trace', '/repo', generation, ref, 'upstream', {
+    'depth': 3, 'kinds': ['argumentToParameter'], 'slot': {'name': 'argument', 'ordinal': 2}})
+assert slotted['limits']['depth'] == 3 and slotted['limits']['edges'] == 512
+assert slotted['slot'] == {'name': 'argument', 'ordinal': 2}
+assert slotted['kinds'] == ['argumentToParameter']
+assert semantic.scalar_literal_selector('string', '')['literal']['representation'] == '""'
+assert semantic.scalar_literal_selector('string', '雪😀')['literal']['representation'] == '"雪😀"'
+assert semantic.scalar_literal_selector('boolean', 'false')['literal']['representation'] == 'false'
+assert semantic.scalar_literal_selector('null')['literal']['representation'] == 'null'
+assert semantic.scalar_literal_selector('number', '-0')['literal']['representation'] == '-0'
+assert semantic.scalar_literal_selector('bigint', '9007199254740993')['literal']['representation'] == '9007199254740993'
+for literal_type, representation in [('number', 'Infinity'), ('number', '1\n'), ('bigint', '1n'), ('boolean', 'False')]:
+    try:
+        semantic.scalar_literal_selector(literal_type, representation)
+        raise AssertionError('invalid scalar representation was admitted')
+    except ValueError:
+        pass
 assert semantic.request_for('enrichment', '/repo', generation, ['task'])['action'] == 'plan'
 assert 'does not prove absence of flow' in semantic.describe({'status': 'partial', 'generation': generation})
+
+
+class TraceWindow(FakeWindow):
+    def show_input_panel(self, caption, initial, on_done, on_change, on_cancel):
+        self.input_panel = {'caption': caption, 'initial': initial, 'done': on_done, 'cancel': on_cancel}
+
+
+trace_window = TraceWindow()
+trace_options = []
+trace_context = {'scope': operations.capture(trace_window, key='semantic-evidence')}
+semantic.choose_trace_options(trace_window, trace_context, lambda value: trace_options.append(value), lambda: None)
+trace_window.input_panel['done']('3')
+trace_window.quick_panel_callback(1)
+assert '[x] flowsTo' in trace_window.quick_panel_items
+trace_window.quick_panel_callback(0)
+trace_window.quick_panel_callback(3)
+trace_window.input_panel['done']('2')
+assert trace_options == [{'depth': 3, 'kinds': ['flowsTo'], 'slot': {'name': 'argument', 'ordinal': 2}}]
+trace_options[:] = []
+semantic.choose_trace_options(trace_window, trace_context, lambda value: trace_options.append(value), lambda: None)
+trace_window.set_folders(['/changed-context'])
+trace_window.input_panel['done']('2')
+assert trace_options == [], 'late native input cannot acquire authority in a replacement context'
 
 cancelled = []
 first_task = tasks.start_task(window, 'first', repo_root='/one', cancellable=True, cancel=lambda: cancelled.append('one'), show_panel=False)
@@ -88,6 +130,57 @@ assert second_task['status'] == 'starting'
 assert tasks.cancel_task(window, second_task['id']) is second_task
 assert cancelled == ['two'] and first_task['status'] == 'indexing'
 assert tasks.cancel_task(window, 9999999) is None
+assert tasks.note_structured_progress(window, second_task, json.dumps(frame))
+assert second_task['status'] == 'cancelling', 'late progress cannot replace the stopping state'
+for index in range(200):
+    tasks.note_log(first_task, ('{0}:雪'.format(index) * 4096) + '\n')
+tasks.note_log(second_task, 'only task two\n')
+assert first_task['logTailBytes'] <= 65536 and len(first_task['logTail']) <= 128
+assert first_task['logTailTruncated'] is True
+assert second_task['logTail'] == ['only task two\n']
+
+entered, released = threading.Event(), threading.Event()
+completed = []
+api_task = tasks.start_task(window, 'controlled HTTP settlement', show_panel=False)
+
+
+def held_request():
+    entered.set()
+    assert released.wait(2), 'controlled request was not released'
+    return {'ok': True}, {}
+
+
+handle = api.run_async(held_request, lambda value: completed.append(value), window=window, task=api_task)
+try:
+    assert entered.wait(2)
+    assert tasks.cancel_task(window, api_task['id']) is api_task
+    assert api_task['status'] == 'cancelling' and api_task.get('completedAt') is None
+    assert api_task in tasks.active_tasks(window), 'HTTP cancellation keeps the owned request active until settlement'
+    released.set()
+    assert handle.wait(2)
+    assert api_task['status'] == 'cancelled' and api_task.get('completedAt') is not None
+    assert completed == [], 'cancelled result cannot publish a late success'
+    tasks.mark_cancelling(window, api_task)
+    assert api_task['status'] == 'cancelled', 'settled task cannot reenter stopping'
+finally:
+    released.set()
+    handle.wait(2)
+
+queued = []
+original_timeout = sublime.set_timeout
+late_task = tasks.start_task(window, 'settled HTTP with queued UI', show_panel=False)
+try:
+    sublime.set_timeout = lambda callback, delay=0: queued.append(callback)
+    late = api.run_async(lambda: ({'ok': True}, {}), lambda value: completed.append(value),
+                         window=window, task=late_task)
+    assert late.wait(2) and late.settled
+    late.cancel()
+    while queued:
+        queued.pop(0)()
+    assert late_task['status'] == 'cancelled' and late_task.get('completedAt') is not None
+    assert completed == [], 'cancellation between resource settlement and queued UI still reaches a terminal state'
+finally:
+    sublime.set_timeout = original_timeout
 
 packet = {'version': '1.0.0', 'seed': {'type': 'file', 'path': 'a.py'},
           'primary': {'ref': None, 'file': 'a.py', 'excerpt': '[do not execute](command:example)'},

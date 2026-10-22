@@ -3,6 +3,8 @@ import json
 import os
 import tempfile
 import hashlib
+import math
+import re
 
 import sublime
 import sublime_plugin
@@ -11,9 +13,35 @@ from ..lib import api_client, config, operations, paths, results, runner, ui, se
 
 _LAST = {}
 LIMITS = {'records': 128, 'bytes': 65536, 'workMs': 250}
+TRACE_KINDS = ('flowsTo', 'defines', 'reads', 'writes', 'callTarget', 'constructTarget',
+               'argumentToParameter', 'returnToResult')
+TRACE_SLOTS = ('input', 'output', 'argument', 'receiver', 'parameter', 'returnValue', 'propertyValue', 'element')
 
 
-def request_for(operation, root, generation, value, direction='upstream'):
+def scalar_literal_selector(type_name, value=''):
+    representation = str(value)
+    if type_name == 'string':
+        representation = json.dumps(representation, ensure_ascii=False)
+    elif type_name == 'null':
+        representation = 'null'
+    elif type_name == 'boolean':
+        if representation not in ('true', 'false'):
+            raise ValueError('Boolean representation must be true or false.')
+    elif type_name == 'number':
+        if (not re.match(r'^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?\Z', representation)
+                or not math.isfinite(float(representation))):
+            raise ValueError('Use a finite recorded decimal number representation.')
+    elif type_name == 'bigint':
+        if not re.match(r'^(?:0|-?[1-9]\d*)\Z', representation):
+            raise ValueError('Use a canonical decimal bigint representation without an n suffix.')
+    else:
+        raise ValueError('Unsupported scalar literal type.')
+    if len(representation.encode('utf-8')) > 65536:
+        raise ValueError('Scalar representation exceeds the 64 KiB selector bound.')
+    return {'literal': {'type': type_name, 'representation': representation}}
+
+
+def request_for(operation, root, generation, value, direction='upstream', extra=None):
     request = {'repoRoot': root, 'generation': dict(generation), 'limits': dict(LIMITS)}
     if operation == 'enrichment':
         return {'schemaVersion': 1, 'repoRoot': root, 'generation': dict(generation),
@@ -25,9 +53,91 @@ def request_for(operation, root, generation, value, direction='upstream'):
                         'include': ['operands', 'names', 'ownership']})
         request['limits']['rows'] = 512
     else:
+        extra = extra or {}
+        depth = extra.get('depth', 2)
+        if not isinstance(depth, int) or isinstance(depth, bool) or not 1 <= depth <= 64:
+            raise ValueError('Trace depth must be between 1 and 64.')
         request.update({'seed': value, 'direction': direction})
-        request['limits'].update({'edges': 512, 'depth': 2})
+        request['limits'].update({'edges': 512, 'depth': depth})
+        if extra.get('kinds'):
+            if any(kind not in TRACE_KINDS for kind in extra['kinds']):
+                raise ValueError('Unsupported trace edge kind.')
+            request['kinds'] = sorted(set(extra['kinds']))
+        if extra.get('slot'):
+            slot = extra['slot']
+            ordinal = slot.get('ordinal')
+            if (slot.get('name') not in TRACE_SLOTS or not isinstance(ordinal, int)
+                    or isinstance(ordinal, bool) or not 0 <= ordinal <= 9007199254740991):
+                raise ValueError('Trace slot requires a supported name and nonnegative safe ordinal.')
+            request['slot'] = dict(slot)
     return request
+
+
+def choose_trace_options(window, context, on_done, on_cancel):
+    """Native keyboard panels; every trace keeps the shared operation bounds."""
+    chosen_kinds = []
+    extra = {}
+    def current():
+        return operations.is_current(context['scope'])
+    def cancel():
+        if current() and callable(on_cancel):
+            on_cancel()
+    def depth_done(value):
+        if not current():
+            return
+        if len(value) > 2 or not re.match(r'^\d+\Z', value) or not 1 <= int(value) <= 64:
+            ui.show_error('Trace depth must be between 1 and 64. Previous evidence remains available.')
+            cancel()
+            return
+        extra['depth'] = int(value)
+        choose_kinds()
+    def choose_kinds():
+        if not current():
+            return
+        items = ['Continue with selected kinds (none uses canonical defaults)'] + [
+            '[{0}] {1}'.format('x' if kind in chosen_kinds else ' ', kind) for kind in TRACE_KINDS]
+        def selected(index):
+            if not current():
+                return
+            if index < 0:
+                cancel()
+            elif index == 0:
+                if chosen_kinds:
+                    extra['kinds'] = list(chosen_kinds)
+                choose_slot()
+            else:
+                kind = TRACE_KINDS[index - 1]
+                if kind in chosen_kinds:
+                    chosen_kinds.remove(kind)
+                else:
+                    chosen_kinds.append(kind)
+                choose_kinds()
+        window.show_quick_panel(items, selected)
+    def choose_slot():
+        if not current():
+            return
+        def selected(index):
+            if not current():
+                return
+            if index < 0:
+                cancel()
+            elif index == 0:
+                on_done(extra)
+            else:
+                name = TRACE_SLOTS[index - 1]
+                def ordinal_done(value):
+                    if not current():
+                        return
+                    if len(value) > 16 or not re.match(r'^\d+\Z', value) or int(value) > 9007199254740991:
+                        ui.show_error('Slot ordinal must be a nonnegative safe integer.')
+                        cancel()
+                        return
+                    extra['slot'] = {'name': name, 'ordinal': int(value)}
+                    on_done(extra)
+                window.show_input_panel(name + ' ordinal (zero based)', '0', ordinal_done, None, cancel)
+        window.show_quick_panel(['Any slot'] + list(TRACE_SLOTS), selected)
+    window.show_input_panel('Trace depth 1-64; records 128 / edges 512 / 64 KiB / 250 ms',
+                            '2', depth_done, None, cancel)
 
 
 def describe(payload):
@@ -47,6 +157,8 @@ def describe(payload):
 
 def execute(window, operation, request, context, on_done):
     scope = context['scope']
+    if not operations.is_current(scope):
+        return
     settings = context['settings']
     execution = config.resolve_execution_mode(settings, 'semantic-' + operation)
     if execution.get('error'):
@@ -205,9 +317,11 @@ def inspect(window, state, on_back=None):
             execute(window, 'enrichment', request, state['context'], lambda next_state: inspect(window, next_state, restore))
             return
         record = records[index - base]
-        actions = ['Detail', 'Trace upstream (depth 2)', 'Trace downstream (depth 2)', 'Explain proposed evidence',
+        actions = ['Detail', 'Trace upstream (choose bounds)', 'Trace downstream (choose bounds)', 'Explain proposed evidence',
                    'Open Exact Source (requires captured source mapping)']
         def action(chosen):
+            if not operations.is_current(state['context']['scope']):
+                return
             if chosen < 0:
                 inspect(window, state)
                 return
@@ -218,9 +332,14 @@ def inspect(window, state, on_back=None):
                     ui.show_error(str(error))
                 return
             operation = 'detail' if chosen == 0 else 'explain' if chosen == 3 else 'trace'
-            request = request_for(operation, state['context']['root'], state['request']['generation'],
-                                  record['ref'], 'downstream' if chosen == 2 else 'upstream')
-            execute(window, operation, request, state['context'], lambda next_state: inspect(window, next_state, restore))
+            def submit(extra=None):
+                request = request_for(operation, state['context']['root'], state['request']['generation'],
+                                      record['ref'], 'downstream' if chosen == 2 else 'upstream', extra)
+                execute(window, operation, request, state['context'], lambda next_state: inspect(window, next_state, restore))
+            if operation in ('trace', 'explain'):
+                choose_trace_options(window, state['context'], submit, restore)
+            else:
+                submit()
         window.show_quick_panel(actions, action)
     def restore():
         ui.write_output_panel(window, 'pairofcleats-semantic', describe(state['payload']))
@@ -242,17 +361,19 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
             context = {'root': root, 'settings': settings,
                        'scope': operations.capture(self.window, key='semantic-evidence')}
             def generation(value):
+                if not operations.is_current(context['scope']):
+                    return
                 if not value.strip():
                     return
                 if value in ('.', '..') or any(char in value for char in '/\\:\0'):
                     ui.show_error('Use a single immutable semantic build identifier.')
                     return
                 pinned = {'baseBuildId': value.strip(), 'semanticRevision': 0}
-                selectors = ['Current source file', 'Structural operation', 'Exact type expression', 'Scalar string literal']
+                selectors = ['Current source file', 'Structural operation', 'Exact type expression', 'Scalar literal']
                 if hit and hit.get('chunkUid'):
                     selectors.append('Selected chunk ownership')
                 def selector(index):
-                    if index < 0:
+                    if index < 0 or not operations.is_current(context['scope']):
                         return
                     if index == 4:
                         submit({'field': 'chunkUid', 'value': hit['chunkUid']})
@@ -264,23 +385,43 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
                             ui.show_error('Focus a saved file in the selected repository.')
                             return
                         submit({'field': 'sourcePath', 'value': relative})
+                    elif index == 3:
+                        def scalar_type(chosen_type):
+                            if chosen_type < 0 or not operations.is_current(context['scope']):
+                                return
+                            type_name = ['string', 'boolean', 'null', 'number', 'bigint'][chosen_type]
+                            def scalar_value(text):
+                                if not operations.is_current(context['scope']):
+                                    return
+                                try:
+                                    submit(scalar_literal_selector(type_name, text))
+                                except ValueError as error:
+                                    ui.show_error(str(error))
+                            if type_name == 'null':
+                                scalar_value('')
+                            elif type_name == 'boolean':
+                                self.window.show_quick_panel(['true', 'false'], lambda choice: (
+                                    scalar_value(['true', 'false'][choice]) if choice >= 0 else None))
+                            else:
+                                prompt = ('String value (empty is valid)' if type_name == 'string' else
+                                    'Exact recorded {0} representation (decimal; bigint has no n suffix)'.format(type_name))
+                                self.window.show_input_panel(prompt, '', scalar_value, None, None)
+                        self.window.show_quick_panel(['string', 'boolean', 'null', 'number', 'bigint'], scalar_type)
                     else:
                         def value_done(text):
-                            if not text:
+                            if not text or not operations.is_current(context['scope']):
                                 return
                             selected = {'field': 'operation', 'value': text}
                             if index == 2:
                                 selected = {'typeExpression': {'expression': text, 'match': 'exact-expression',
                                     'sources': ['declared'], 'roles': ['local', 'parameter', 'field', 'return']}}
-                            elif index == 3:
-                                selected = {'literal': {'type': 'string', 'representation': json.dumps(text, ensure_ascii=False)}}
                             if index == 2:
                                 def source(chosen_source):
-                                    if chosen_source < 0:
+                                    if chosen_source < 0 or not operations.is_current(context['scope']):
                                         return
                                     selected['typeExpression']['sources'] = [['declared'], ['compiler'], ['declared', 'compiler']][chosen_source]
                                     def role(chosen_role):
-                                        if chosen_role < 0:
+                                        if chosen_role < 0 or not operations.is_current(context['scope']):
                                             return
                                         selected['typeExpression']['roles'] = (['local', 'parameter', 'field', 'return'] if chosen_role == 0
                                             else [['local'], ['parameter'], ['field'], ['return']][chosen_role - 1])
@@ -291,6 +432,8 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
                                 submit(selected)
                         self.window.show_input_panel(selectors[index] + ': exact value', '', value_done, None, None)
                 def submit(selected):
+                    if not operations.is_current(context['scope']):
+                        return
                     execute(self.window, 'find', request_for('find', root, pinned, selected), context,
                             lambda state: inspect(self.window, state))
                 self.window.show_quick_panel(selectors, selector)

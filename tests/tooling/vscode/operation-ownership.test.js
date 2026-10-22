@@ -68,12 +68,40 @@ for (const order of ['old-first', 'new-first']) {
     operations.trackChild(child);
     child.once('close', () => { terminalCallbacks += 1; });
   });
+  const stopped = await operations.stopChild(child);
+  assert.equal(stopped.ok, false, 'helper failure is not an acknowledged process-tree stop');
+  assert.match(stopped.message, /controlled helper failure/);
   const result = await operations.dispose();
   assert.equal(helperCalls, 1);
   assert.equal(terminalCallbacks, 1, 'cancelled callbacks still settle their owner');
   assert.equal(result.children, 0);
   assert.equal(result.ok, false, 'direct-child fallback does not prove descendant reaping');
   assert.match(result.failures.join('\n'), /controlled helper failure/);
+}
+
+{
+  let helperCalls = 0;
+  const helper = new EventEmitter();
+  const operations = createEditorOperations({ platform: 'win32', spawn() {
+    helperCalls += 1;
+    return helper;
+  } });
+  const child = new EventEmitter();
+  child.pid = 12345;
+  await operations.run('ordered-stop', () => operations.trackChild(child));
+  const stopping = operations.stopChild(child);
+  assert.equal(operations.stopChild(child), stopping, 'one owned process gets one stop helper');
+  let settled = false;
+  stopping.then(() => { settled = true; });
+  child.emit('close', null);
+  await Promise.resolve();
+  assert.equal(settled, false, 'parent close cannot acknowledge a still-running descendant helper');
+  helper.emit('close', 0);
+  assert.equal((await stopping).ok, true);
+  assert.equal((await operations.stopChild(child)).ok, false,
+    'a saved PID cannot regain termination authority after ownership ends');
+  assert.equal(helperCalls, 1);
+  assert.equal((await operations.dispose()).ok, true);
 }
 
 {

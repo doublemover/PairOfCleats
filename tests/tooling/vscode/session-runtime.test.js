@@ -36,6 +36,7 @@ const staleSession = {
 };
 const harness = createVsCodeRuntimeHarness({
   repoRoot: repoA,
+  globalConfigValues: { cliPath: path.join(repoA, 'bin', 'pairofcleats.js') },
   workspaceFolders: [
     { name: 'repo-a', path: repoA },
     { name: 'repo-b', path: repoB }

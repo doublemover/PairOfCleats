@@ -11,13 +11,15 @@ import { copyFixtureToTemp } from '../fixtures.js';
 const require = createRequire(import.meta.url);
 const extensionPath = path.resolve('extensions/vscode/extension.js');
 
-function createFakeConfiguration(values, globalValues = {}) {
+function createFakeConfiguration(values, globalValues = {}, workspaceValues = values) {
+  const properties = require('../../../extensions/vscode/package.json').contributes.configuration.properties;
   return {
     get(key) {
-      return values[key];
+      return Object.hasOwn(workspaceValues, key) ? workspaceValues[key] : globalValues[key] ?? values[key];
     },
     inspect(key) {
-      return { globalValue: globalValues[key], workspaceValue: values[key] };
+      return { defaultValue: properties[`pairofcleats.${key}`]?.default,
+        globalValue: globalValues[key], workspaceValue: workspaceValues[key] };
     }
   };
 }
@@ -275,8 +277,10 @@ export function createVsCodeRuntimeHarness({
     env: {},
     ...configValues
   };
+  const explicitWorkspaceConfig = { ...configValues };
   const workspaceStateStore = new Map(Object.entries(workspaceState));
   const outputEvents = [];
+  const progressEvents = [];
   const errorMessages = [];
   const infoMessages = [];
   const openExternalCalls = [];
@@ -351,7 +355,7 @@ export function createVsCodeRuntimeHarness({
         }) || null;
       },
       getConfiguration() {
-        return createFakeConfiguration(normalizedConfig, globalConfigValues);
+        return createFakeConfiguration(normalizedConfig, globalConfigValues, explicitWorkspaceConfig);
       },
       async openTextDocument(uri) {
         const document = { uri };
@@ -372,7 +376,7 @@ export function createVsCodeRuntimeHarness({
             return { dispose() {} };
           }
         };
-        return task({}, token);
+        return task({ report: value => progressEvents.push(value) }, token);
       },
       async showInputBox() {
         return inputQueue.shift();
@@ -683,6 +687,7 @@ export function createVsCodeRuntimeHarness({
     fakeVscode,
     context,
     outputEvents,
+    progressEvents,
     errorMessages,
     infoMessages,
     openExternalCalls,
@@ -727,6 +732,11 @@ export function createVsCodeRuntimeHarness({
     },
     setConfiguration(values) {
       Object.assign(normalizedConfig, values);
+      Object.assign(explicitWorkspaceConfig, values);
+      for (const handler of documentHandlers.get('onDidChangeConfiguration')) handler({ affectsConfiguration: () => true });
+    },
+    setGlobalConfiguration(values) {
+      Object.assign(globalConfigValues, values);
       for (const handler of documentHandlers.get('onDidChangeConfiguration')) handler({ affectsConfiguration: () => true });
     },
     fireDocumentEvent(event, document) {

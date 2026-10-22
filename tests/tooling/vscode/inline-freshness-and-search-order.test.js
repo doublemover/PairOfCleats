@@ -4,7 +4,7 @@ import { createVsCodeRuntimeHarness, prepareVsCodeFixtureWorkspace } from '../..
 const fixture = await prepareVsCodeFixtureWorkspace('vscode/workspace-root', { prefix: 'poc-inline-freshness-' });
 const harness = createVsCodeRuntimeHarness({
   repoRoot: fixture.root, workspaceFolders: [{ path: fixture.root }],
-  configValues: { cliPath: fixture.resolvePath('bin', 'pairofcleats.js') }
+  globalConfigValues: { cliPath: fixture.resolvePath('bin', 'pairofcleats.js') }
 });
 const flush = async () => { await new Promise(setImmediate); await new Promise(setImmediate); };
 const pack = (name) => JSON.stringify({ risk: { status: 'partial', flows: [] }, warnings: [{ code: name, message: name }] });

@@ -9,7 +9,7 @@ const tools = createVsCodeRuntimeTempRepo({ prefix: 'separate-tool-owner-' });
 const cliPath = path.join(tools, 'bin/pairofcleats.js');
 const harness = createVsCodeRuntimeHarness({ repoRoot: repoA,
   workspaceFolders: [{ name: 'A', path: repoA }, { name: 'B', path: repoB }],
-  configValues: { cliPath, cliArgs: ['--trace'] } });
+  globalConfigValues: { cliPath, cliArgs: ['--trace'] } });
 harness.activate();
 try {
   for (const [id, command] of [['configDump', ['config', 'dump']], ['indexHealth', ['index', 'report']], ['indexValidate', ['index', 'validate']]]) {
@@ -56,7 +56,7 @@ try {
 } finally { harness.restoreGlobals(); }
 
 for (const id of ['setup', 'doctor', 'indexBuild', 'indexWatchStart', 'serviceApiStart']) {
-  const required = createVsCodeRuntimeHarness({ repoRoot: repoA, configValues: { cliPath, apiExecutionMode: 'require' } });
+  const required = createVsCodeRuntimeHarness({ repoRoot: repoA, globalConfigValues: { cliPath, apiExecutionMode: 'require' } });
   try {
     required.activate();
     await required.runCommand(`pairofcleats.${id}`);

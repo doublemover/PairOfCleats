@@ -4,7 +4,7 @@ import { createVsCodeRuntimeHarness, prepareVsCodeFixtureWorkspace } from '../..
 const fixture = await prepareVsCodeFixtureWorkspace('vscode/workspace-root', { prefix: 'poc-provider-cancel-' });
 const harness = createVsCodeRuntimeHarness({
   repoRoot: fixture.root, workspaceFolders: [{ path: fixture.root }],
-  configValues: { cliPath: fixture.resolvePath('bin', 'pairofcleats.js') }
+  globalConfigValues: { cliPath: fixture.resolvePath('bin', 'pairofcleats.js') }
 });
 const listeners = new Set();
 const token = {

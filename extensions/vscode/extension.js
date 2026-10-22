@@ -13,7 +13,8 @@ const { createSemanticEvidenceWorkflow, sourceQualifiedSelection } = require('./
 let latestNavigationEvidence = null;
 const { sourceNavigationArgs, qualifiedNavigationRows, verifyLocationSource } = require('./source-navigation.js');
 const { readGitHead, validateServiceRoot, mapServicePayload, verifyServiceRevision } = require('./service-repository.js');
-const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask } = require('./progress-view.js');
+const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask,
+  boundedLogLine, retainTaskLog } = require('./progress-view.js');
 const { collectEvidenceSources, createEvidenceCollection } = require('./evidence-collection.js');
 let latestAnalysisEvidence = null;
 const { resolveRiskSource, validateRiskSource } = require('./risk-source.js');
@@ -4137,11 +4138,14 @@ function appendExecutionFallbackNote(output, execution) {
 }
 
 async function stopManagedProcessEntry(entry, { reason = 'cancelled', summaryLine } = {}) {
-  if (!entry || entry.stopping) return false;
+  if (!entry) return { ok: false };
+  if (entry.stopping || entry.settling) return entry.completion;
   entry.stopping = true;
   entry.stopReason = reason;
   entry.stopSummaryLine = summaryLine || '';
-  killChildProcess(entry.child);
+  entry.progress = { ...entry.progress, phase: 'stopping', cancellationRequestedAt: Date.now(),
+    message: 'Cancellation requested; waiting for owned process and termination-helper settlement.' };
+  entry.termination = Promise.resolve().then(() => operations.stopChild(entry.child));
   return entry.completion;
 }
 
@@ -4177,10 +4181,14 @@ async function stopManagedCommand(stopSpec, { sessionId = null, repoRoot = null 
   const output = getOutputChannel();
   output.appendLine(`[managed] stopping ${managedSpec.title}`);
   output.show?.(true);
-  await stopManagedProcessEntry(active, {
+  const result = await stopManagedProcessEntry(active, {
     reason: 'cancelled',
     summaryLine: `${managedSpec.title} stopped.`
   });
+  if (result?.ok !== true) {
+    vscode.window.showErrorMessage('PairOfCleats could not confirm the selected process-tree stop. Inspect Tasks and logs for recovery.');
+    return;
+  }
   vscode.window.showInformationMessage(`${managedSpec.title} stopped.`);
 }
 
@@ -4230,6 +4238,15 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
   const resolved = useShellWrapper
     ? resolveWindowsCmdInvocation(invocation.command, invocation.args)
     : { command: invocation.command, args: invocation.args };
+  // Persist the operation identity before spawning. No await may separate a
+  // successful spawn from attaching its output/terminal listeners.
+  const session = await beginWorkflowSession(spec, repoContext, {
+    kind: 'managed-process',
+    command: invocation.command,
+    args: invocation.args,
+    timeoutMs: Number.isFinite(spec.timeoutMs) ? spec.timeoutMs : 0,
+    persistent: spec.persistent === true
+  });
   const spawned = spawnBufferedProcess(cp, resolved.command, resolved.args, {
     cwd: repoRoot,
     env: resolved.env ? { ...env, ...resolved.env } : env,
@@ -4239,19 +4256,13 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
   });
   if (!spawned.ok) {
     const failure = summarizeSpawnFailure(spec.title, spawned.error);
+    await finishWorkflowSession(session.sessionId, { status: 'failed', summaryLine: failure.message });
     output.appendLine(failure.detail || failure.message);
     output.show?.(true);
     vscode.window.showErrorMessage(failure.message);
     return;
   }
   const child = spawned.child;
-  const session = await beginWorkflowSession(spec, repoContext, {
-    kind: 'managed-process',
-    command: invocation.command,
-    args: invocation.args,
-    timeoutMs: Number.isFinite(spec.timeoutMs) ? spec.timeoutMs : 0,
-    persistent: spec.persistent === true
-  });
   noteRepoContext(repoContext);
   let timedOut = false;
   let resolvedCompletion = false;
@@ -4262,19 +4273,25 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
   const finalize = async ({ code = 0, error = null } = {}) => {
     if (resolvedCompletion) return;
     resolvedCompletion = true;
-    managedProcesses.delete(key);
+    entry.settling = true;
+    entry.progress = { ...entry.progress, phase: entry.stopping ? 'stopping' : 'settling' };
     entry.stdoutDecoder?.flush();
     entry.stderrDecoder?.flush();
+    const termination = entry.termination ? await entry.termination : null;
+    const stopUnconfirmed = entry.stopping && termination?.ok !== true;
+    if (managedProcesses.get(key) === entry) managedProcesses.delete(key);
     const stoppedByUser = entry.stopReason === 'cancelled';
-    const failed = Boolean(error) || timedOut || (!stoppedByUser && code !== 0);
-    const status = stoppedByUser ? 'cancelled' : failed ? 'failed' : 'succeeded';
-    const summaryLine = stoppedByUser
+    const failed = Boolean(error) || timedOut || stopUnconfirmed || (!stoppedByUser && code !== 0);
+    const status = failed ? 'failed' : stoppedByUser ? 'cancelled' : 'succeeded';
+    const summaryLine = stopUnconfirmed
+      ? `${spec.title} stop remains unconfirmed: ${termination?.message || 'owned termination did not settle successfully'}`
+      : stoppedByUser
       ? (entry.stopSummaryLine || `${spec.title} stopped.`)
       : failed
         ? `${spec.title} exited with code ${code}.`
         : `${spec.title} completed.`;
     await finishWorkflowSession(session.sessionId, { status, summaryLine });
-    if (!stoppedByUser) {
+    if (!stoppedByUser || stopUnconfirmed) {
       if (failed) {
         output.appendLine(`[managed] ${summaryLine}`);
         vscode.window.showErrorMessage(`${summaryLine} See PairOfCleats output for details.`);
@@ -4307,23 +4324,31 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
   }
   const taskText = (prefix, line, truncated) => {
     entry.progress.lastActivityAt = Date.now();
-    if (spec.id === 'pairofcleats.serviceApiStart' && prefix === '[stdout] ') {
+    if (!entry.stopping && !entry.settling && managedProcesses.get(key) === entry
+      && spec.id === 'pairofcleats.serviceApiStart' && prefix === '[stdout] ') {
       const endpoint = !truncated && apiReadinessFrame(line);
-      if (endpoint) {
+      if (endpoint && entry.progress.endpoint !== endpoint) {
         entry.progress = { ...entry.progress, phase: 'ready', endpoint,
           message: 'API listener readiness observed in its authoritative startup frame.' };
         vscode.window.showInformationMessage(`${spec.title} ready at ${endpoint}.`);
       }
     }
-    if (entry.logBytes >= 1024 * 1024) return;
-    const bounded = line.slice(0, 8192);
+    if (!line) return;
+    retainTaskLog(entry, prefix, line);
+    if (entry.logBytes >= 1024 * 1024 || (entry.logLinesShown || 0) >= 4096) return;
+    const bounded = boundedLogLine(line, Math.min(8192, 1024 * 1024 - entry.logBytes));
     entry.logBytes += Buffer.byteLength(bounded);
+    entry.logLinesShown = (entry.logLinesShown || 0) + 1;
     output.appendLine(`${prefix}${bounded}${truncated ? ' [line truncated]' : ''}`);
-    if (entry.logBytes >= 1024 * 1024) output.appendLine('[managed] Raw task log reached its 1 MiB display bound. Structured status remains active.');
+    if (entry.logBytes >= 1024 * 1024 || entry.logLinesShown >= 4096) output.appendLine('[managed] Raw task log reached its byte/line display bound. Inspect Tasks retains a bounded tail; structured status remains active.');
   };
   for (const [stream, prefix] of [[child.stdout, '[stdout] '], [child.stderr, '[stderr] ']]) {
     const decoder = createEditorProgressDecoder({
-      onEvent: event => { entry.progress = applyProgressEvent(entry.progress, event); entry.progressReporter?.report({ message: `${entry.progress.stage}: ${entry.progress.message}` }); },
+      onEvent: event => {
+        if (entry.stopping || entry.settling || managedProcesses.get(key) !== entry) return;
+        entry.progress = applyProgressEvent(entry.progress, event);
+        entry.progressReporter?.report?.({ message: `${entry.progress.stage}: ${entry.progress.message}` });
+      },
       onText: (line, truncated) => taskText(prefix, line, truncated)
     });
     if (prefix === '[stdout] ') entry.stdoutDecoder = decoder;
@@ -4809,7 +4834,7 @@ async function openCapturedEvidence() {
   if (!captured) { vscode.window.showInformationMessage('Run Context Pack or Risk Explain to capture evidence first.'); return; }
   const sources = collectEvidenceSources(captured.payload);
   const selected = await vscode.window.showQuickPick(sources.map(hit => ({ label: hit.name || hit.file,
-    description: `${hit.kind} • ${hit.file}:${hit.startLine || 1}`, hit })),
+    description: `${hit.kind} â€¢ ${hit.file}:${hit.startLine || 1}`, hit })),
     { title: 'Open captured context / risk evidence', placeHolder: 'Exact ranges require a captured source hash; unknown freshness is shown explicitly' });
   if (!selected) return;
   const action = await vscode.window.showQuickPick(['Open Source', 'Create Context from This Evidence'], { title: selected.label });
@@ -4845,7 +4870,7 @@ async function inspectIndexedNavigation(kind) {
   if (!locations?.length && latestNavigationEvidence?.payload?.binding?.candidates?.length) {
     const evidence = latestNavigationEvidence;
     const candidate = await vscode.window.showQuickPick(evidence.payload.binding.candidates.map(value => ({
-      label: `${value.status || 'candidate'} • ${value.targetId}`, description: value.file || 'external source',
+      label: `${value.status || 'candidate'} â€¢ ${value.targetId}`, description: value.file || 'external source',
       detail: `Binding remains ${evidence.payload.status}; inspect one candidate without pooling references`, candidate: value
     })), { title: 'Inspect ambiguous indexed binding candidates' });
     if (!candidate) return;
@@ -4908,7 +4933,7 @@ async function inspectTasks() {
   const entries = Array.from(managedProcesses.values());
   if (!entries.length) { await showWorkflowStatus(); return; }
   const picked = await vscode.window.showQuickPick(entries.map(entry => ({
-    label: entry.spec.title, description: `${entry.repoRoot} • ${entry.progress?.phase || 'starting'}`,
+    label: entry.spec.title, description: `${entry.repoRoot} â€¢ ${entry.progress?.phase || 'starting'}`,
     detail: entry.sessionId, entry
   })), { title: 'PairOfCleats exact task', placeHolder: 'Choose the repository and operation to inspect' });
   if (!picked) return;
@@ -4916,8 +4941,13 @@ async function inspectTasks() {
   const document = await vscode.workspace.openTextDocument({ content: describeTask(entry), language: 'plaintext' });
   await vscode.window.showTextDocument(document, { preview: true });
   const action = await vscode.window.showQuickPick(['Inspect Logs', 'Stop Selected Task', 'Open Effective Settings', 'Tooling Doctor'],
-    { title: `${entry.spec.title} • ${entry.repoRoot}`, placeHolder: 'Safe registered recovery actions' });
-  if (action === 'Inspect Logs') getOutputChannel().show?.(true);
+    { title: `${entry.spec.title} â€¢ ${entry.repoRoot}`, placeHolder: 'Safe registered recovery actions' });
+  if (action === 'Inspect Logs') {
+    const text = [describeTask(entry), '', `Task log tail${entry.logTailTruncated ? ' (older lines omitted)' : ''}:`,
+      ...(entry.logTail || []).map(row => row.text)].join('\n');
+    const logs = await vscode.workspace.openTextDocument({ content: text, language: 'plaintext' });
+    await vscode.window.showTextDocument(logs, { preview: true });
+  }
   else if (action === 'Open Effective Settings') await showEffectiveSettings();
   else if (action === 'Tooling Doctor') await vscode.commands.executeCommand('pairofcleats.doctor');
   else if (action === 'Stop Selected Task') {
@@ -4945,7 +4975,7 @@ async function selectServiceRepository() {
 
 async function browseIndexedMatches() {
   const filter = await promptTextInput({ prompt: 'Browse indexed metadata: filter expression',
-    placeHolder: 'e.g. lang:javascript — current repo, modes, backend and time settings apply' });
+    placeHolder: 'e.g. lang:javascript â€” current repo, modes, backend and time settings apply' });
   if (!filter?.trim()) return;
   await executeSearchCommand({ enumeration: true, optionOverrides: { filter: filter.trim() } });
 }

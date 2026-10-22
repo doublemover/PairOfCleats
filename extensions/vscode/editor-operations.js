@@ -27,17 +27,25 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
 
   function stopChild(child) {
     const record = children.get(child);
-    if (!record || record.closed || record.stopping) return record?.stopping || Promise.resolve();
+    if (!record || record.closed || record.stopping) return record?.stopping
+      || Promise.resolve(record?.closed ? { ok: true, alreadyClosed: true }
+        : { ok: false, message: 'No live owned process remains to confirm tree termination.' });
     record.stopping = retain(new Promise((resolve) => {
       // Only a still-owned live process may seed taskkill's descendant walk.
       // Never target a saved PID after the child's close/exit observation.
       if (platform !== 'win32' || !Number.isInteger(child.pid) || child.pid <= 0) {
-        try { child.kill('SIGKILL'); } catch (error) { teardownFailures.push(String(error)); }
-        resolve();
+        try {
+          const killed = child.kill('SIGKILL');
+          if (killed === false) throw new Error('Owned process rejected its termination signal.');
+          resolve({ ok: true });
+        } catch (error) {
+          teardownFailures.push(String(error));
+          resolve({ ok: false, message: String(error) });
+        }
         return;
       }
       if (child.exitCode != null || child.signalCode != null) {
-        resolve();
+        resolve({ ok: false, message: 'Owned parent exited before descendant termination could be confirmed.' });
         return;
       }
       let helper;
@@ -51,7 +59,7 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
           teardownFailures.push(failure);
           try { child.kill('SIGKILL'); } catch {}
         }
-        resolve();
+        resolve(failure ? { ok: false, message: failure } : { ok: true });
       };
       try {
         helper = spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {

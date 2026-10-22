@@ -7,7 +7,8 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { sourceNavigationArgs, qualifiedNavigationRows, verifyLocationSource } = require('../../../extensions/vscode/source-navigation.js');
 const { readGitHead, serviceRelativeFile, validateServiceRoot, verifyServiceRevision } = require('../../../extensions/vscode/service-repository.js');
-const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask } = require('../../../extensions/vscode/progress-view.js');
+const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask,
+  boundedLogLine, retainTaskLog } = require('../../../extensions/vscode/progress-view.js');
 const { collectEvidenceSources, evidenceSeed, renderEvidencePreview } = require('../../../extensions/vscode/evidence-collection.js');
 
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-editor-source-contract-'));
@@ -63,9 +64,20 @@ try {
   assert.equal(state.current, 2);
   assert.equal(state.phase, 'indexing');
   assert.equal(apiReadinessFrame('[api] listening at http://localhost:7345'), null);
-  assert.equal(apiReadinessFrame(JSON.stringify({ ok: true, port: 7345, baseUrl: 'http://127.0.0.1:7345' })), 'http://127.0.0.1:7345');
-  assert.equal(apiReadinessFrame(JSON.stringify({ ok: true, port: 7345, baseUrl: 'http://token:secret@127.0.0.1:7345' })), null);
+  assert.equal(apiReadinessFrame(JSON.stringify({ ok: true, host: '127.0.0.1', port: 7345, baseUrl: 'http://127.0.0.1:7345' })), 'http://127.0.0.1:7345');
+  assert.equal(apiReadinessFrame(JSON.stringify({ ok: true, host: '127.0.0.1', port: 7345, baseUrl: 'http://token:secret@127.0.0.1:7345' })), null);
+  assert.equal(apiReadinessFrame(JSON.stringify({ ok: true, host: 'localhost', port: 7345, baseUrl: 'http://127.0.0.1:7345' })), null,
+    'inconsistent startup host facts do not establish readiness');
+  assert.equal(apiReadinessFrame(JSON.stringify({ ok: true, port: 7345, baseUrl: 'http://127.0.0.1:7345' })), null);
   assert.match(describeTask({ spec: { title: 'Build' }, repoRoot: '/repo', sessionId: 'exact-2', stopping: true, progress: state }, 300), /State: stopping/);
+  assert.equal(boundedLogLine('a😀z', 4), 'a', 'line clipping does not split a UTF-8 code point');
+  const tail = {}, independent = {};
+  for (let index = 0; index < 200; index += 1) retainTaskLog(tail, '[stdout] ', `${index}:雪`.repeat(4096));
+  retainTaskLog(independent, '[stderr] ', 'only task B');
+  assert.ok(tail.logTailBytes <= 65536 && tail.logTail.length <= 128);
+  assert.equal(tail.logTailTruncated, true);
+  assert.deepEqual(independent.logTail.map(row => row.text), ['[stderr] only task B']);
+  assert.equal(tail.logTail.some(row => row.text.includes('only task B')), false);
 
   const packet = { version: '1.0.0', seed: { type: 'file', path: 'a.js' }, primary: { file: 'a.js', ref: null, excerpt: 'literal [command](command:do-not-run)' },
     provenance: { repo: '/repo', indexSignature: 'generation-a', generatedAt: '2026-10-22T10:00:00.000Z', capsUsed: {} }, evidence: { schemaVersion: 1, complete: false, semantic: { included: true, state: 'partial' } },

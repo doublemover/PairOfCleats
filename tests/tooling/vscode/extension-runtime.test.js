@@ -21,8 +21,8 @@ const nestedSourceFile = workspace.resolvePath('packages', 'nested', 'src', 'ser
 const harness = createVsCodeRuntimeHarness({
   repoRoot: workspace.root,
   workspaceFolders: [{ name: 'repo', path: workspace.root }],
-  configValues: {
-    cliPath: './bin/pairofcleats.js',
+  globalConfigValues: {
+    cliPath: workspace.resolvePath('bin', 'pairofcleats.js'),
     cliArgs: ['--trace']
   }
 });
@@ -169,6 +169,7 @@ harness.fakeVscode.workspace.workspaceFolders = [
 harness.setActiveEditor(null);
 harness.inputQueue.push('symbol');
 harness.fakeVscode.workspace.getConfiguration = () => ({
+  inspect(key) { return { globalValue: key === 'cliPath' ? invalidCliDir : key === 'cliArgs' ? ['--trace'] : undefined }; },
   get(key) {
     const values = {
       cliPath: invalidCliDir,

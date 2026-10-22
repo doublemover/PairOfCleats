@@ -249,6 +249,7 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
         with activity_lock:
             state['last_activity_at'] = time.time()
         if task and window and operations.is_current(scope):
+            tasks.note_log(task, line)
             if not tasks.note_structured_progress(window, task, line):
                 detail = line.strip() or 'Output received.'
                 tasks.note_progress(window, task, details=detail[:200])

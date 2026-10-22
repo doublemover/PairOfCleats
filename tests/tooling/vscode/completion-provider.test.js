@@ -14,7 +14,7 @@ const harness = createVsCodeRuntimeHarness({
   repoRoot: workspace.root,
   workspaceFolders: [{ name: 'repo', path: workspace.root }],
   activeFile,
-  configValues: { cliPath: workspace.resolvePath('bin', 'pairofcleats.js') }
+  globalConfigValues: { cliPath: workspace.resolvePath('bin', 'pairofcleats.js') }
 });
 
 harness.activate();

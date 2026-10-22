@@ -61,8 +61,8 @@ try {
   fs.writeFileSync(path.join(temp, 'tools/config/dump.js'), 'throw new Error("explicit operator fixture only");');
   const workspaceNode = path.join(temp, 'untrusted-workspace-node.exe');
   const harness = createVsCodeRuntimeHarness({ repoRoot: temp,
-    configValues: { cliPath: entry, nodePath: workspaceNode, env: { PATH: temp } },
-    globalConfigValues: { nodePath: process.execPath } });
+    configValues: { nodePath: workspaceNode, env: { PATH: temp } },
+    globalConfigValues: { cliPath: entry, nodePath: process.execPath } });
   harness.activate();
   try {
     const result = harness.extension._test.resolveCli(temp, harness.fakeVscode.workspace.getConfiguration());
@@ -73,7 +73,8 @@ try {
     await harness.extension._test.runOperatorCommand(spec);
     assert.equal(harness.spawnCalls.length, 1);
     assert.equal(harness.spawnCalls[0].command, actual.command);
-    assert.equal(harness.spawnCalls[0].args[0], path.join(temp, 'tools/config/dump.js'));
+    assert.deepEqual(harness.spawnCalls[0].args, [entry, 'config', 'dump', '--json', '--repo', temp],
+      'operators dispatch through the configured installation, never a target-owned script');
     for (const call of harness.nodeProbeCalls) {
       assert.equal(call.command, process.execPath, 'only the global executable setting approves a runtime');
       assert.equal(call.options.timeout, 3000);
@@ -91,7 +92,7 @@ try {
   } finally { harness.restoreGlobals(); }
 
   const incompatible = createVsCodeRuntimeHarness({ repoRoot: temp,
-    configValues: { cliPath: entry }, nodeProbeResult: probe('24.0.0') });
+    globalConfigValues: { cliPath: entry, nodePath: process.execPath }, nodeProbeResult: probe('24.0.0') });
   incompatible.activate();
   try {
     assert.equal(incompatible.extension._test.resolveCli(temp, incompatible.fakeVscode.workspace.getConfiguration()).ok, false);

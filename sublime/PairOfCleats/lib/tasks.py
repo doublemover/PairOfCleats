@@ -66,7 +66,7 @@ def start_task(window, title, kind='task', repo_root=None, cancellable=False, ca
 
 
 def note_progress(window, task, details=None):
-    if not task:
+    if not task or task.get('completedAt') is not None:
         return
     task['lastActivityAt'] = _now()
     if details is not None:
@@ -74,9 +74,22 @@ def note_progress(window, task, details=None):
     _render(window)
 
 
+def note_log(task, line):
+    if not task or task.get('completedAt') is not None or not line:
+        return
+    raw = line.encode('utf-8')[:8192]
+    text = raw.decode('utf-8', 'ignore')
+    rows = task.setdefault('logTail', [])
+    rows.append(text)
+    task['logTailBytes'] = task.get('logTailBytes', 0) + len(text.encode('utf-8'))
+    while len(rows) > 128 or task['logTailBytes'] > 65536:
+        task['logTailBytes'] -= len(rows.pop(0).encode('utf-8'))
+        task['logTailTruncated'] = True
+
+
 def note_structured_progress(window, task, line):
     """Consume poc.progress@2; never derive stages or readiness from log prose."""
-    if not task or len(line.encode('utf-8')) > 65536:
+    if not task or task.get('completedAt') is not None or len(line.encode('utf-8')) > 65536:
         return False
     try:
         event = json.loads(line)
@@ -99,6 +112,10 @@ def note_structured_progress(window, task, line):
             return False
     except (ValueError, KeyError, TypeError):
         return False
+    if task.get('status') == 'cancelling':
+        task['lastActivityAt'] = _now()
+        _render(window)
+        return True
     task['stage'] = str(event.get('stage') or event.get('name') or task.get('stage') or 'indeterminate')[:256]
     task['details'] = str(event.get('message') or event.get('text') or task.get('details') or '')[:1024]
     for field in ('current', 'total'):
@@ -114,7 +131,7 @@ def note_structured_progress(window, task, line):
 
 
 def note_watchdog(window, task, details=None):
-    if not task:
+    if not task or task.get('completedAt') is not None:
         return
     task['lastWatchdogAt'] = _now()
     task['watchdogCount'] += 1
@@ -124,7 +141,7 @@ def note_watchdog(window, task, details=None):
 
 
 def mark_cancelling(window, task, details=None):
-    if not task:
+    if not task or task.get('completedAt') is not None:
         return
     task['status'] = 'cancelling'
     task['lastActivityAt'] = _now()

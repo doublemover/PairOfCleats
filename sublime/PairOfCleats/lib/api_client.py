@@ -59,6 +59,7 @@ class ApiHandle(object):
         self.response = None
         self.response_lock = threading.Lock()
         self.on_cancel = None
+        self.settled = False
 
     def cancel(self):
         if self._cancelled:
@@ -230,7 +231,13 @@ def run_async(request_fn, on_done, on_progress=None, window=None, scope=None, ta
     handle = ApiHandle(None, scope=scope)
     if task is not None:
         from . import tasks
-        handle.on_cancel = lambda: tasks.complete_task(window, task, status='cancelled', details='Cancelled.')
+        def cancelled_task():
+            tasks.mark_cancelling(window, task,
+                details='Cancellation requested; waiting for owned HTTP request settlement.')
+            if handle.settled:
+                sublime.set_timeout(lambda: tasks.complete_task(window, task, status='cancelled',
+                    details='Cancelled after owned HTTP request settlement.'), 0)
+        handle.on_cancel = cancelled_task
         task['cancellable'] = True
         task['cancel'] = handle.cancel
 
@@ -256,6 +263,11 @@ def run_async(request_fn, on_done, on_progress=None, window=None, scope=None, ta
         finally:
             _REQUEST_CONTEXT.handle = None
             operations.release(handle)
+            handle.settled = True
+            if task is not None and handle.is_cancelled():
+                from . import tasks
+                sublime.set_timeout(lambda: tasks.complete_task(window, task, status='cancelled',
+                    details='Cancelled after owned HTTP request settlement.'), 0)
         if handle.is_cancelled():
             return
         sublime.set_timeout(lambda: on_done(result) if not handle.is_cancelled() else None, 0)

@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { snapshotConfiguration, renderEffectiveSettings } = require('../../../extensions/vscode/effective-settings.js');
 const { normalizeFilterPagination, mergeFilterPage, continuationInvocation } = require('../../../extensions/vscode/filter-pagination.js');
-const { buildSemanticRequest, describeSemanticEvidence } = require('../../../extensions/vscode/semantic-evidence.js');
+const { buildSemanticRequest, scalarLiteralSelector, describeSemanticEvidence } = require('../../../extensions/vscode/semantic-evidence.js');
 const { buildSearchArgs, buildSearchPayload } = require('../../../extensions/vscode/search-contract.js');
 
 const source = {
@@ -52,6 +52,19 @@ assert.equal(detail.limits.rows, 512);
 const trace = buildSemanticRequest('trace', '/chosen', generation, ref, { direction: 'downstream', depth: 999 });
 assert.equal(trace.limits.depth, 64);
 assert.equal(trace.limits.edges, 512);
+const slotted = buildSemanticRequest('trace', '/chosen', generation, ref, { direction: 'upstream', depth: 3,
+  kinds: ['argumentToParameter'], slot: { name: 'argument', ordinal: 2 } });
+assert.deepEqual(slotted.slot, { name: 'argument', ordinal: 2 });
+assert.deepEqual(slotted.kinds, ['argumentToParameter']);
+assert.deepEqual(scalarLiteralSelector('string', ''), { literal: { type: 'string', representation: '""' } });
+assert.equal(scalarLiteralSelector('string', '雪😀').literal.representation, '"雪😀"');
+assert.equal(scalarLiteralSelector('boolean', 'false').literal.representation, 'false');
+assert.equal(scalarLiteralSelector('null').literal.representation, 'null');
+assert.equal(scalarLiteralSelector('number', '-0').literal.representation, '-0');
+assert.equal(scalarLiteralSelector('bigint', '9007199254740993').literal.representation, '9007199254740993');
+for (const [type, value] of [['number', 'Infinity'], ['number', '1\n'], ['bigint', '1n'], ['boolean', 'False']]) {
+  assert.throws(() => scalarLiteralSelector(type, value), /representation/);
+}
 const planned = buildSemanticRequest('enrichment', '/chosen', generation, ['task']);
 assert.equal(planned.action, 'plan', 'editor enrichment starts with planning, never execution');
 assert.match(describeSemanticEvidence({ generation, status: 'partial', frontier: [{ reason: 'work_budget' }] }), /does not prove absence of flow/);

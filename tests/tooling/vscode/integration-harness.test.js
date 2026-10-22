@@ -19,9 +19,11 @@ const harness = createVsCodeRuntimeHarness({
   repoRoot: workspace.root,
   workspaceFolders: [{ name: 'root', path: workspace.root }],
   activeFile: nestedSourceFile,
+  globalConfigValues: {
+    cliPath: workspace.resolvePath('bin', 'pairofcleats.js'),
+    cliArgs: ['--trace']
+  },
   configValues: {
-    cliPath: './bin/pairofcleats.js',
-    cliArgs: ['--trace'],
     searchMode: 'code',
     searchBackend: 'sqlite'
   }

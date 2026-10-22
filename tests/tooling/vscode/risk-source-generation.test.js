@@ -17,7 +17,7 @@ for (const dir of [selected, old]) {
 }
 const sourcePayload = { primary: { ref: { chunkUid: 'chunk-current' } },
   provenance: { repo: '.', indexDir: path.relative(repoRoot, selected), indexSignature: 'selected-code-generation' } };
-const harness = createVsCodeRuntimeHarness({ repoRoot, configValues: { cliPath: './bin/pairofcleats.js' } });
+const harness = createVsCodeRuntimeHarness({ repoRoot, globalConfigValues: { cliPath: path.join(repoRoot, 'bin', 'pairofcleats.js') } });
 try {
   harness.activate();
   const spec = harness.extension._test.OPERATOR_COMMAND_SPECS.find(item => item.id === 'pairofcleats.riskExplain');

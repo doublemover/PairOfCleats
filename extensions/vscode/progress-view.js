@@ -52,6 +52,8 @@ function apiReadinessFrame(line) {
   if (frame?.ok !== true || !Number.isInteger(frame.port) || frame.port < 1 || frame.port > 65535) return null;
   try {
     const url = new URL(frame.baseUrl);
+    const host = typeof frame.host === 'string' ? frame.host.trim().toLowerCase() : '';
+    if (!host || url.hostname.toLowerCase().replace(/^\[|\]$/g, '') !== host.replace(/^\[|\]$/g, '')) return null;
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash
       || url.pathname !== '/' || Number(url.port || (url.protocol === 'https:' ? 443 : 80)) !== frame.port) return null;
     return url.toString().replace(/\/$/, '');
@@ -70,4 +72,25 @@ function describeTask(entry, now = Date.now()) {
     'No percentage or ETA is inferred from unstructured logs.'].join('\n');
 }
 
-module.exports = { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask };
+function boundedLogLine(value, maxBytes = 8192) {
+  const bytes = Buffer.from(String(value || ''));
+  let end = Math.min(bytes.length, Math.max(0, maxBytes));
+  while (end < bytes.length && end > 0 && (bytes[end] & 0xc0) === 0x80) end -= 1;
+  return bytes.subarray(0, end).toString('utf8');
+}
+
+function retainTaskLog(entry, prefix, line) {
+  const text = `${prefix}${boundedLogLine(line)}`;
+  const row = { text, bytes: Buffer.byteLength(text) };
+  entry.logTail ||= [];
+  entry.logTailBytes = (entry.logTailBytes || 0) + row.bytes;
+  entry.logTail.push(row);
+  while (entry.logTail.length > 128 || entry.logTailBytes > 65536) {
+    entry.logTailBytes -= entry.logTail.shift().bytes;
+    entry.logTailTruncated = true;
+  }
+  return text;
+}
+
+module.exports = { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask,
+  boundedLogLine, retainTaskLog };

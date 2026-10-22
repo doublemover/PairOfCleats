@@ -55,7 +55,11 @@ class PairOfCleatsInspectTasksCommand(sublime_plugin.WindowCommand):
             actions = ['Inspect Task Logs', 'Cancel Selected Task', 'Show Effective Settings', 'Tooling Doctor']
             def action(chosen):
                 if chosen == 0:
-                    self.window.run_command('show_panel', {'panel': 'output.pairofcleats'})
+                    ui.write_output_panel(self.window, 'pairofcleats-task-logs',
+                        'Task {0}: {1}\nRepository: {2}\nBounded log tail{3}:\n\n{4}'.format(
+                            task['id'], task.get('title'), task.get('repoRoot'),
+                            ' (older lines omitted)' if task.get('logTailTruncated') else '',
+                            ''.join(task.get('logTail') or [])))
                 elif chosen == 1:
                     if not tasks.cancel_task(self.window, task['id']):
                         ui.show_status('PairOfCleats: selected task already settled or is not cancellable.')

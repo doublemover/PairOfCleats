@@ -6,6 +6,24 @@ const LIMITS = Object.freeze({ records: 128, bytes: 65536, workMs: 250 });
 const sameGeneration = (left, right) => left?.baseBuildId === right?.baseBuildId
   && left?.semanticRevision === right?.semanticRevision;
 
+function scalarLiteralSelector(type, value = '') {
+  let representation = String(value);
+  if (type === 'string') representation = JSON.stringify(representation);
+  else if (type === 'null') representation = 'null';
+  else if (type === 'boolean') {
+    if (!['true', 'false'].includes(representation)) throw new Error('Boolean representation must be true or false.');
+  } else if (type === 'number') {
+    if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(representation)
+      || representation !== representation.trim()
+      || !Number.isFinite(Number(representation))) throw new Error('Use a finite recorded decimal number representation.');
+  } else if (type === 'bigint') {
+    if (!/^(?:0|-?[1-9]\d*)$/.test(representation)
+      || representation !== representation.trim()) throw new Error('Use a canonical decimal bigint representation without an n suffix.');
+  } else throw new Error('Unsupported scalar literal type.');
+  if (Buffer.byteLength(representation) > 65536) throw new Error('Scalar representation exceeds the 64 KiB selector bound.');
+  return { literal: { type, representation } };
+}
+
 function buildSemanticRequest(operation, repoRoot, generation, value, extra = {}) {
   if (!generation?.baseBuildId || generation.semanticRevision !== 0) throw new Error('A pinned semantic generation is required.');
   const common = { repoRoot, generation };
@@ -169,7 +187,7 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
         const generation = { baseBuildId: buildId.trim(), semanticRevision: 0 };
         const selectorKind = await vscode.window.showQuickPick([
           ...(seedNode?.hit?.chunkUid ? ['Selected chunk ownership'] : []),
-          'Current source file', 'Structural operation', 'Exact type expression', 'Scalar string literal'], {
+          'Current source file', 'Structural operation', 'Exact type expression', 'Scalar literal'], {
           title: 'Semantic find selector (experimental)' });
         if (!selectorKind) return;
         let selector;
@@ -180,13 +198,22 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
           const relative = file ? path.relative(repoContext.repoRoot, file).replace(/\\/g, '/') : '';
           if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Focus a saved file in the selected repository.');
           selector = { field: 'sourcePath', value: relative };
+        } else if (selectorKind === 'Scalar literal') {
+          const type = await vscode.window.showQuickPick(['string', 'boolean', 'null', 'number', 'bigint'],
+            { title: 'Exact parser-established scalar type (no runtime value inference)' });
+          if (!type) return;
+          const value = type === 'null' ? '' : type === 'boolean'
+            ? await vscode.window.showQuickPick(['true', 'false'], { title: 'Boolean representation' })
+            : await vscode.window.showInputBox({ prompt: type === 'string' ? 'String value (empty is valid)'
+              : `Exact recorded ${type} representation (decimal; bigint has no n suffix)` });
+          if (value === undefined) return;
+          selector = scalarLiteralSelector(type, value);
         } else {
           const value = await vscode.window.showInputBox({ prompt: `${selectorKind}: exact value` });
           if (!value) return;
           selector = selectorKind === 'Exact type expression'
             ? { typeExpression: { expression: value, match: 'exact-expression', sources: ['declared'], roles: ['local', 'parameter', 'field', 'return'] } }
-            : selectorKind === 'Scalar string literal' ? { literal: { type: 'string', representation: JSON.stringify(value) } }
-              : { field: 'operation', value };
+            : { field: 'operation', value };
           if (selector.typeExpression) {
             const sources = await vscode.window.showQuickPick(['declared', 'compiler'], { canPickMany: true,
               title: 'Exact recorded type sources (availability is producer-specific)' });
@@ -207,5 +234,5 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
   };
 }
 
-module.exports = { LIMITS, buildSemanticRequest, sameGeneration, describeSemanticEvidence,
+module.exports = { LIMITS, buildSemanticRequest, scalarLiteralSelector, sameGeneration, describeSemanticEvidence,
   sourceQualifiedSelection, createSemanticEvidenceWorkflow };

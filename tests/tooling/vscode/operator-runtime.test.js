@@ -17,9 +17,11 @@ fs.writeFileSync(path.join(repoRoot, 'tools', 'index', 'report-artifacts.js'), '
 
 const harness = createVsCodeRuntimeHarness({
   repoRoot,
+  globalConfigValues: {
+    cliPath: path.join(repoRoot, 'bin', 'pairofcleats.js'),
+    cliArgs: ['--trace']
+  },
   configValues: {
-    cliPath: './bin/pairofcleats.js',
-    cliArgs: ['--trace'],
     searchMode: 'code'
   }
 });
