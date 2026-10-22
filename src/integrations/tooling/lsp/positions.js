@@ -131,6 +131,10 @@ export const exactRangeToOffsets = (lineIndex,range,options={}) => {
   const offsets=rangeToOffsets(lineIndex,range,options);
   if(offsets.end<offsets.start)return null;
   for(const key of ['start','end']) {
+    const offset=offsets[key];
+    if(offset>0 && offset<text.length && text.charCodeAt(offset-1)>=0xd800
+      && text.charCodeAt(offset-1)<=0xdbff && text.charCodeAt(offset)>=0xdc00
+      && text.charCodeAt(offset)<=0xdfff)return null;
     const back=offsetToLspPosition(lineIndex,text,offsets[key],options.positionEncoding);
     if(back.line!==range[key].line || back.character!==range[key].character)return null;
   }

@@ -6,6 +6,9 @@ encode UTF-16 source offsets into the negotiated UTF-8, UTF-16 or UTF-32 unit.
 Incoming ranges must roundtrip exactly; clamped and reversed ranges contribute
 no source ownership. Chunks use half-open ranges. A zero-width insertion belongs
 to the nonempty containing chunk on its right; document EOF belongs to none.
+The shared exact-coordinate helper also rejects an endpoint between a UTF-16
+surrogate pair. Canonical evidence, legacy symbol enrichment and diagnostic
+projection use that same check; an invalid diagnostic consumes no chunk quota.
 
 Location and LocationLink retain their distinct required fields. A link cannot
 substitute its whole target range for an absent target selection. Canonical
