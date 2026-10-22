@@ -56,9 +56,9 @@ export function normalizeLegacyCacheRootPath(targetPath) {
  * Resolve the default cache root directory (ignores test overrides).
  * @returns {string}
  */
-export function getDefaultCacheRoot() {
-  if (process.env.LOCALAPPDATA) return path.join(process.env.LOCALAPPDATA, 'PairOfCleats');
-  if (process.env.XDG_CACHE_HOME) return path.join(process.env.XDG_CACHE_HOME, 'pairofcleats');
+export function getDefaultCacheRoot({ env = process.env } = {}) {
+  if (env.LOCALAPPDATA) return path.join(env.LOCALAPPDATA, 'PairOfCleats');
+  if (env.XDG_CACHE_HOME) return path.join(env.XDG_CACHE_HOME, 'pairofcleats');
   return path.join(os.homedir(), '.cache', 'pairofcleats');
 }
 
@@ -88,24 +88,24 @@ export function resolveCacheFilesystemProfile(baseRoot = null, platform = proces
  * Resolve the base (unversioned) cache root directory.
  * @returns {string}
  */
-export function getCacheRootBase() {
-  const envConfig = getEnvConfig();
+export function getCacheRootBase({ env = process.env } = {}) {
+  const envConfig = getEnvConfig(env);
   const envRoot = envConfig.cacheRoot || envConfig.homeRoot || '';
   if (envRoot) return envRoot;
-  return getDefaultCacheRoot();
+  return getDefaultCacheRoot({ env });
 }
 
 /** App home is distinct from the cache-only compatibility alias. */
-export function getApplicationHome() {
-  return path.resolve(getEnvConfig().homeRoot || getDefaultCacheRoot());
+export function getApplicationHome({ env = process.env } = {}) {
+  return path.resolve(getEnvConfig(env).homeRoot || getDefaultCacheRoot({ env }));
 }
 
 /** Read-only verified cutover selection. Explicit category overrides retain
  * precedence in their existing owners. Malformed selection is actionable and
  * cannot silently redirect consumers back to a different generation.
  */
-export function getStorageCategorySelection(category) {
-  const locator = readStorageLocator(getApplicationHome());
+export function getStorageCategorySelection(category, { env = process.env } = {}) {
+  const locator = readStorageLocator(getApplicationHome({ env }));
   if (locator.status === 'invalid') throw Object.assign(new Error(`Storage locator is unreadable or incompatible: ${locator.target}`), {
     code: 'ERR_STORAGE_LOCATOR', cause: locator.error
   });
@@ -116,12 +116,12 @@ export function getStorageCategorySelection(category) {
  * Resolve the cache root directory.
  * @returns {string}
  */
-export function getCacheRoot() {
-  if (!getEnvConfig().cacheRoot) {
-    const selected = getStorageCategorySelection('cache');
+export function getCacheRoot({ env = process.env } = {}) {
+  if (!getEnvConfig(env).cacheRoot) {
+    const selected = getStorageCategorySelection('cache', { env });
     if (selected) return normalizeLegacyCacheRootPath(selected);
   }
-  return resolveVersionedCacheRoot(getCacheRootBase());
+  return resolveVersionedCacheRoot(getCacheRootBase({ env }));
 }
 
 /**

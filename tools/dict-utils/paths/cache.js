@@ -43,14 +43,14 @@ export function getCacheRuntimeConfig(repoRoot, userConfig = null) {
  * @param {object|null} userConfig
  * @returns {string}
  */
-export function getModelsDir(repoRoot, userConfig = null) {
-  const cfg = userConfig || loadUserConfig(repoRoot);
-  const envConfig = getEnvConfig();
+export function getModelsDir(repoRoot, userConfig = null, { env = process.env } = {}) {
+  const cfg = userConfig || loadUserConfig(repoRoot, { env });
+  const envConfig = getEnvConfig(env);
   const envModelsDir = envConfig.modelsDir || '';
   if (envModelsDir) return envModelsDir;
-  const cacheRoot = (cfg.cache && cfg.cache.root) || getCacheRoot();
+  const cacheRoot = (cfg.cache && cfg.cache.root) || getCacheRoot({ env });
   const models = cfg.models || {};
-  return models.dir || getStorageCategorySelection('models') || path.join(cacheRoot, 'models');
+  return models.dir || getStorageCategorySelection('models', { env }) || path.join(cacheRoot, 'models');
 }
 
 /**
