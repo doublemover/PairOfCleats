@@ -2,8 +2,11 @@ import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from 
 import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-lease.js';
 import { resolveStubDims, stubEmbedding } from './embedding.js';
 import { createOnnxEmbedder } from './onnx-embeddings.js';
-import { observeEmbeddingOwnership, preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
-import { captureTransformersResource } from './embedding-transformers-resources.js';
+import { getEmbeddingCacheLeaseOwner, getEmbeddingFailureProvenance, observeEmbeddingOwnership,
+  preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
+import { captureTransformersResource, createTransformersResourceScope, trackPendingTransformersOwner,
+  transformersCleanupFailure, getTransformersFailureProvenance } from './embedding-transformers-resources.js';
+import { getPreparedTextEncoderOwner } from './embedding-prepared.js';
 import {
   DEFAULT_EMBEDDING_POOLING,
   normalizeEmbeddingBatchOutput
@@ -18,7 +21,9 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
   let embedderPromise = null;
   let resolvedEmbedder = null;
   let acquiredEmbedder = null, acquiredOwner = null;
-  let startupFailure = null, startupFailureReported = false, disposed = false, disposing = null, disposeRequested = false;
+  let startupFailure = null, startupObserver = null, startupFailureReported = false, disposed = false, disposing = null, disposeRequested = false;
+  let acceptedDrained = false, stopped = false, lastWorkFailure = null;
+  const acceptedWork = new Set(), outputScopes = new Set(), workFailures = new Map();
   let observedArtifact = modelArtifact;
   const measurements = { scope: 'adapter-lifetime', initializationMs: 0, runs: 0,
     providerBusyMs: 0, active: 0, peakActive: 0, failures: 0 };
@@ -27,7 +32,7 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
     if (!embedderPromise) {
       const startedAt = performance.now();
       embedderPromise = loadPipeline(modelId, modelsDir, modelProfile, localFilesOnly, sessionOptions, modelFileName, modelArtifact).then(async (embedder) => {
-        acquiredEmbedder = embedder; startupFailure = null; startupFailureReported = false;
+        acquiredEmbedder = embedder; startupFailure = null; startupObserver = null; startupFailureReported = false;
         acquiredOwner = captureTransformersResource(embedder, 'Xenova acquired pipeline lease');
         try {
           observedArtifact = await resolveEmbeddingArtifactIdentityAsync({ provider: 'xenova', modelId, modelsDir, modelProfile }, { phase: 'loaded' });
@@ -42,49 +47,127 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
         resolvedEmbedder = embedder;
         return embedder;
       }).catch((err) => {
-        startupFailure = err;
+        startupFailure = err; startupObserver = observeEmbeddingOwnership(err);
         // An original pending child cannot authorize a fresh pipeline or be
         // erased by the existing ordinary initialization recovery policy.
-        if (!observeEmbeddingOwnership(err)) embedderPromise = null;
+        if (!startupObserver) embedderPromise = null;
         resolvedEmbedder = null;
         throw err;
       });
     }
     return embedderPromise;
   };
+  const independentBlockers = error => {
+    const cacheOwner = getEmbeddingCacheLeaseOwner(acquiredEmbedder);
+    const encoderOwner = getPreparedTextEncoderOwner(acquiredEmbedder) || getPreparedTextEncoderOwner(cacheOwner?.resource);
+    const owns = owner => owner === acquiredOwner || owner === cacheOwner || outputScopes.has(owner)
+      || (encoderOwner && (owner === encoderOwner || owner === encoderOwner.components
+        || encoderOwner.components.resources.includes(owner) || encoderOwner.pendingTensorScopes.includes(owner)
+        || encoderOwner.pendingTensorScopes.some(scope => scope.resources.includes(owner))));
+    const pending = [error], seen = new Set(), blockers = [];
+    while (pending.length) {
+      const value = pending.pop(), observe = observeEmbeddingOwnership(value);
+      if (!observe || observe()) continue;
+      if (seen.has(value)) continue;
+      seen.add(value);
+      const provenance = getTransformersFailureProvenance(value) || getEmbeddingFailureProvenance(value);
+      // Only original producer records may split a composed receipt. A copied
+      // owner field/cause cannot authorize skipping its independent observer.
+      if (!provenance || (provenance.owner && !owns(provenance.owner))) {
+        blockers.push({ error: value, observe }); continue;
+      }
+      for (const child of provenance.children) pending.push(child);
+    }
+    return blockers;
+  };
+  const retainWorkFailure = error => {
+    const observe = observeEmbeddingOwnership(error);
+    if (!observe || observe()) return;
+    stopped = true; lastWorkFailure = error;
+    for (const blocker of independentBlockers(error)) if (!workFailures.has(blocker.error)) workFailures.set(blocker.error, blocker.observe);
+    trackPendingTransformersOwner(providerOwner);
+  };
+  const track = invoke => {
+    if (disposed) return Promise.reject(new Error('Embedding provider adapter is disposed.'));
+    if (stopped) return Promise.reject(lastWorkFailure);
+    const work = Promise.resolve().then(invoke); acceptedWork.add(work);
+    work.then(() => acceptedWork.delete(work), error => { acceptedWork.delete(work); retainWorkFailure(error); });
+    return work;
+  };
+  const captureOutput = (scope, output) => {
+    const pending = [output], seen = new Set();
+    while (pending.length) {
+      const value = pending.pop();
+      if (!value || (typeof value !== 'object' && typeof value !== 'function') || ArrayBuffer.isView(value) || seen.has(value)) continue;
+      seen.add(value);
+      if ('dispose' in value) { scope.adopt(value, 'Xenova output tensor'); continue; }
+      if (Array.isArray(value)) { for (const entry of value) pending.push(entry); continue; }
+      const prototype = Object.getPrototypeOf(value);
+      if (prototype === Object.prototype || prototype === null) for (const key of Object.keys(value)) pending.push(value[key]);
+    }
+  };
   const pipelineOptions = {
     pooling: DEFAULT_EMBEDDING_POOLING,
     normalize: normalize !== false
   };
-  const embed = async (texts, options = {}) => {
+  const embed = (texts, options = {}) => track(async () => {
     const list = Array.isArray(texts) ? texts : [];
     if (!list.length) return [];
     const embedder = await ensureEmbedder();
     const startedAt = performance.now();
     measurements.runs++; measurements.active++; measurements.peakActive = Math.max(measurements.peakActive, measurements.active);
+    const scope = createTransformersResourceScope('Xenova output tensors', { drainFailuresBeforeResources: true });
+    outputScopes.add(scope);
+    let result, primaryError, hasPrimary = false, cleanupError, cleanupFailed = false;
     try {
       const output = await embedder(list, modelProfile ? options : pipelineOptions);
-      return normalizeEmbeddingBatchOutput(output, list.length);
-    } catch (error) { measurements.failures++; throw error; }
+      captureOutput(scope, output);
+      result = normalizeEmbeddingBatchOutput(output, list.length);
+      const outputBuffers = new Set();
+      for (const owner of scope.resources) {
+        const data = owner.resource?.data;
+        if (ArrayBuffer.isView(data)) outputBuffers.add(data.buffer);
+      }
+      // The normalizer already copies tensor-shaped rows. Copy only vectors
+      // that still alias an owned output's buffer (not those existing copies).
+      if (outputBuffers.size) result = result.map(vector => outputBuffers.has(vector.buffer) ? vector.slice() : vector);
+    } catch (error) {
+      hasPrimary = true; primaryError = error;
+      // Delegate only producer-proven owned closure; every unrelated original
+      // observer remains a blocker even in a mixed known/unknown aggregate.
+      if (scope.resources.length) scope.retainFailure(error);
+      else for (const blocker of independentBlockers(error)) scope.retainFailure(blocker.error);
+      measurements.failures++;
+    }
     finally { measurements.active--; measurements.providerBusyMs += performance.now() - startedAt; }
-  };
+    try { await scope.close(); } catch (error) { cleanupFailed = true; cleanupError = error; }
+    if (!scope.pending) outputScopes.delete(scope);
+    if (cleanupFailed) throw hasPrimary ? preserveEmbeddingCleanupFailure(primaryError, cleanupError) : cleanupError;
+    if (hasPrimary) throw primaryError;
+    return result;
+  });
   const embedOne = async (text, options = {}) => {
     const list = await embed([text], options);
     return list[0] || new Float32Array(0);
   };
-  return {
+  const providerOwner = Object.freeze({ kind: 'Xenova provider lifetime',
+    get pending() { return !disposeRequested || !acceptedDrained || outputScopes.size > 0 || acquiredOwner?.pending === true
+      || [...workFailures.values()].some(observe => !observe()) || Boolean(startupObserver && !startupObserver()); },
+    get resource() { return acquiredEmbedder; }, get pipelineOwner() { return acquiredOwner; },
+    get pendingOutputScopes() { return Object.freeze([...outputScopes]); }, release: () => adapter.dispose() });
+  const adapter = {
     embed,
     embedOne,
-    prepare: async (texts, options = {}) => {
+    prepare: (texts, options = {}) => track(async () => {
       const embedder = await ensureEmbedder();
       if (!embedder.prepare) throw new Error('Prepared token inputs require the EG2 adapter.');
       return embedder.prepare(texts, options);
-    },
-    embedPrepared: async (items, options = {}) => {
+    }),
+    embedPrepared: (items, options = {}) => track(async () => {
       const embedder = await ensureEmbedder();
       if (!embedder.embedPrepared) throw new Error('Prepared token inputs require the EG2 adapter.');
       return embedder.embedPrepared(items, options);
-    },
+    }),
     executionInfo: () => ({
       provider: 'xenova', requestedProvider: 'xenova', stub: false, measurements: { ...measurements },
       loaded: resolvedEmbedder !== null, loading: embedderPromise !== null && resolvedEmbedder === null,
@@ -98,23 +181,36 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
       optimizedModelFilePath: sessionOptions.optimizedModelFilePath ?? null,
       ...(resolvedEmbedder?.executionInfo?.() ?? {})
     }),
-    endProfiling: async () => {
+    endProfiling: () => track(async () => {
       const embedder = await ensureEmbedder();
       return embedder.endProfiling?.() ?? { enabled: false, sessions: [] };
-    },
+    }),
     dispose: () => {
       if (!disposing) {
         const retry = disposeRequested; disposeRequested = true;
         disposed = true;
         disposing = Promise.resolve().then(async () => {
+          await Promise.allSettled([...acceptedWork]); acceptedDrained = true;
           if (embedderPromise) { try { await embedderPromise; } catch {} }
-          const observe = observeEmbeddingOwnership(startupFailure);
+          const errors = [];
+          for (const scope of outputScopes) {
+            try { await scope.close({ retry }); } catch (error) { errors.push(error); }
+            if (!scope.pending) outputScopes.delete(scope);
+          }
+          for (const [error, observe] of workFailures) if (!observe()) errors.push(error);
+          const observe = startupObserver;
           if (observe && !observe() && !startupFailureReported) {
-            startupFailureReported = true; throw startupFailure;
+            startupFailureReported = true; errors.push(startupFailure);
+          }
+          if (errors.length) {
+            const unique = [...new Set(errors)];
+            if (unique.length === 1 && unique[0] === startupFailure) throw startupFailure;
+            throw transformersCleanupFailure(providerOwner, unique);
           }
           if (acquiredEmbedder) { if (retry) await acquiredOwner.release(); else await acquiredOwner.retire(); }
           if (observe && !observe()) throw startupFailure;
-        }).catch(error => { disposing = null; throw error; });
+          trackPendingTransformersOwner(providerOwner);
+        }).catch(error => { disposing = null; trackPendingTransformersOwner(providerOwner); throw error; });
       }
       return disposing;
     },
@@ -128,6 +224,7 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
     provider: 'xenova',
     supportsParallelDispatch: !modelProfile
   };
+  return adapter;
 };
 
 export const createEmbeddingProviderAdapter = ({

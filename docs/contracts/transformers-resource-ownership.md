@@ -61,3 +61,33 @@ GC, memory/allocator/thread/resource, numerical quality, latency or performance
 qualification was executed. Tensor ownership follows the observed upstream
 object/disposal contract; native internal child release and retry safety retain
 their separate qualification requirements.
+
+Generic Xenova inference also captures disposable output tensors, including
+aliases in returned arrays/records. Vectors backed by those outputs are copied
+before disposal; plain JS vectors keep their existing identity without that
+extra copy. Accepted direct-provider work includes async output cleanup before
+its pipeline lease can close. A failed output keeps that original pipeline and
+provider strongly retained, stops new inference and uses explicit existing-owner
+reconciliation. Original unknown native-work observers gate closure.
+
+Known prepared encoder/component/tensor capabilities delegate to that same
+encoder's guarded closure, identified by private original encoder/lease bindings
+and original failure-producer records. Copied owner fields and causal membership
+alone are not closure authority. Producer records split only their own composed
+receipt; every independent original child observer remains a prerequisite.
+An empty generic output scope cannot become a prerequisite for the prepared
+cleanup it must drive. The original captured pipeline cleanup capability also
+delegates through that pipeline. No sibling capability is adopted. The startup
+observer is captured once with its original receiver.
+
+The mixed known-owner/unknown-child negative retains the unknown observer even
+after the known child settles. Original pending observers are cached by exact
+error identity, so a later getter/property replacement cannot supply a different
+closure receipt. An earlier absence is not cached as settlement: a later actual
+owner can supply its first observation on that same error. These controls remain
+authored and unrun.
+
+Warm lookup retirement treats pending cleanup as ownership failure even when its
+primary name/code still represents cancellation or queue admission. Ordinary
+admission cancellation retains the existing warm policy. The additional generic
+output/delegation/cancellation controls are inert, authored and **UNVALIDATED**.

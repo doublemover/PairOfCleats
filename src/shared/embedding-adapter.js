@@ -82,6 +82,7 @@ const acquirePipeline = async (entry) => {
       return methods.get(key);
     }
   });
+  pipelineLifetime.bindLease(reference, lease);
   pipelineLeaseOwners.register(lease, reference, token);
   return lease;
 };
@@ -118,8 +119,9 @@ const leaseAdapter = (entry) => {
     operations.add(work);
     work.then(() => operations.delete(work), error => {
       operations.delete(work); adapterLifetime.recordFailure(entry, error);
-      const admissionRejected = isAbortError(error)
-        || ['ERR_EMBEDDING_QUEUE_FULL', 'ERR_EMBEDDING_QUEUE_CLOSED'].includes(error?.code);
+      const observe = observeEmbeddingOwnership(error);
+      const admissionRejected = !(observe && !observe()) && (isAbortError(error)
+        || ['ERR_EMBEDDING_QUEUE_FULL', 'ERR_EMBEDDING_QUEUE_CLOSED'].includes(error?.code));
       if (entry.cacheOwned && !admissionRejected) retireAdapterEntry(entry).catch(() => {});
     });
     return work;

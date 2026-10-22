@@ -1,6 +1,8 @@
 import { observeEmbeddingOwnership } from './embedding-cache-lifetime.js';
 
 const pendingResources = new Set();
+const failureProvenance = new WeakMap();
+export const getTransformersFailureProvenance = error => objectLike(error) ? failureProvenance.get(error) || null : null;
 export const trackPendingTransformersOwner = owner => {
   if (owner.pending) pendingResources.add(owner); else pendingResources.delete(owner);
 };
@@ -22,6 +24,7 @@ export const transformersCleanupFailure = (owner, errors, { primaryError, hasPri
   const released = () => !owner.pending && observers.every(observe => observe());
   Object.defineProperties(failure, { cleanupErrors: { value: Object.freeze([...errors]) }, transformersResourceOwner: { value: owner },
     cacheOwnershipPending: { get: () => !released() }, cacheOwnershipReleased: { value: released } });
+  failureProvenance.set(failure, Object.freeze({ owner, children: Object.freeze([...causes]) }));
   return failure;
 };
 

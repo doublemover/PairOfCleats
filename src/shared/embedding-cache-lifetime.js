@@ -1,14 +1,24 @@
 const objectLike = value => value && (typeof value === 'object' || typeof value === 'function');
+const failureProvenance = new WeakMap(), leaseOwners = new WeakMap(), ownershipObservers = new WeakMap();
+export const getEmbeddingFailureProvenance = error => objectLike(error) ? failureProvenance.get(error) || null : null;
+export const getEmbeddingCacheLeaseOwner = lease => objectLike(lease) ? leaseOwners.get(lease) || null : null;
 
 /** Capture the original observer and receiver. A marker without an observer is
  * unknown ownership, never evidence that a native child has settled. */
 export const observeEmbeddingOwnership = error => {
   if (!objectLike(error)) return null;
+  if (ownershipObservers.has(error)) return ownershipObservers.get(error);
+  let observe = null;
   try {
     const observer = error.cacheOwnershipReleased;
-    if (error.cacheOwnershipPending !== true && typeof observer !== 'function') return null;
-    return () => { try { return typeof observer === 'function' && observer.call(error) === true; } catch { return false; } };
-  } catch { return () => false; }
+    if (error.cacheOwnershipPending === true || typeof observer === 'function') {
+      observe = () => { try { return typeof observer === 'function' && observer.call(error) === true; } catch { return false; } };
+    }
+  } catch { observe = () => false; }
+  // Absence is not a settlement receipt. A later actual owner may attach its
+  // first observation to this same error; only captured evidence is immutable.
+  if (observe) ownershipObservers.set(error, observe);
+  return observe;
 };
 
 const copyFailure = (primary, errors) => {
@@ -37,6 +47,7 @@ export const preserveEmbeddingCleanupFailure = (primary, cleanup) => {
   const released = () => observers.every(observe => observe());
   Object.defineProperties(failure, { cleanupErrors: { value: Object.freeze([cleanup]) },
     cacheOwnershipPending: { get: () => !released() }, cacheOwnershipReleased: { value: released } });
+  failureProvenance.set(failure, Object.freeze({ owner: null, children: Object.freeze([primary, cleanup]) }));
   return failure;
 };
 
@@ -78,6 +89,7 @@ export const createEmbeddingCacheLifetime = ({ cache, kind }) => {
     if (!Object.hasOwn(failure, 'code')) failure.code = 'ERR_EMBEDDING_CACHE_RESOURCE_PENDING';
     Object.defineProperties(failure, { embeddingCacheOwner: { value: entry.owner },
       cacheOwnershipPending: { get: () => !entry.closed }, cacheOwnershipReleased: { value: () => entry.closed } });
+    failureProvenance.set(failure, Object.freeze({ owner: entry.owner, children: Object.freeze([error]) }));
     return failure;
   };
   const retire = (entry, { retry = false } = {}) => {
@@ -143,6 +155,7 @@ export const createEmbeddingCacheLifetime = ({ cache, kind }) => {
     return reference.releasing;
   };
   return Object.freeze({ adopt, loaded, failed, retire, createReference, releaseReference, recordFailure, retainFailure,
+    bindLease: (reference, lease) => { leaseOwners.set(lease, reference.entry.owner); },
     retiredOwners: () => Object.freeze([...retired].map(entry => entry.owner)),
     retireAll: () => {
       const entries = new Set([...cache.values(), ...retired]);

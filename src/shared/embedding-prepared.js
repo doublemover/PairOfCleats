@@ -16,6 +16,9 @@ const ENUM_OPTIONS = {
 const EXTRA_OPTIONS = new Set([
   'session.intra_op.allow_spinning', 'session.inter_op.allow_spinning'
 ]);
+const encoderOwners = new WeakMap();
+export const getPreparedTextEncoderOwner = encoder => encoder && (typeof encoder === 'function' || typeof encoder === 'object')
+  ? encoderOwners.get(encoder) || null : null;
 
 /** Strict CPU session knobs. Native effective pool sizes are not inferred. */
 export const normalizeEg2SessionOptions = (value) => {
@@ -275,5 +278,6 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
     get components() { return components; }, get pendingTensorScopes() { return Object.freeze([...tensorScopes]); },
     release: () => admittedEmbed.dispose() });
   admittedEmbed.transformersResourceOwner = encoderOwner;
+  encoderOwners.set(admittedEmbed, encoderOwner);
   return admittedEmbed;
 };
