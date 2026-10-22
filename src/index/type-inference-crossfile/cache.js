@@ -13,7 +13,7 @@ import { mergeSymbolicTypeGraphs, validateTypeExpressionReferences } from '../..
 import { isRequiredToolingComputationError } from '../tooling/required-computation.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from '../semantic/analysis-versions.js';
 
-export const CROSS_FILE_CACHE_SCHEMA_VERSION = 4;
+export const CROSS_FILE_CACHE_SCHEMA_VERSION = 5;
 export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference-format-' + ARTIFACT_SURFACE_VERSION;
 export const DEFAULT_CROSS_FILE_CACHE_MAX_BYTES = 8 * 1024 * 1024;
 export const DEFAULT_CROSS_FILE_CACHE_READ_MAX_BYTES = 12 * 1024 * 1024;
@@ -62,6 +62,7 @@ const normalizeCacheMaxBytes = (value) => {
 
 const normalizeCacheStats = (cacheStats) => ({
   admission: cacheStats?.admission || null,
+  sourceReadCoverage: cacheStats?.sourceReadCoverage || null,
   linkedCallSummaries: Number(cacheStats?.linkedCallSummaries) || 0,
   linkedCalls: Number(cacheStats?.linkedCalls) || 0,
   linkedUsages: Number(cacheStats?.linkedUsages) || 0,
@@ -276,6 +277,8 @@ export const buildCrossFileFingerprint = ({
     chunkSignatures.push({
       id: resolveChunkIdentity(chunk, index),
       file: chunk.file || null,
+      fileHash: chunk.fileHash ?? chunk.metaV2?.fileHash ?? null,
+      fileHashAlgo: chunk.fileHashAlgo ?? chunk.metaV2?.fileHashAlgo ?? null,
       name: chunk.name || null,
       kind: chunk.kind || null,
       start: Number.isFinite(chunk.start) ? chunk.start : 0,

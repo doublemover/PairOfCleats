@@ -1,10 +1,9 @@
 import { setImmediate as yieldPropagation } from 'node:timers/promises';
 import { resolveCrossFileFidelity, resolveCrossFilePropagationBudget, orderCrossFileChunks } from '../cross-file-fidelity.js';
 import { createSymbolRefCacheMaintenance } from './symbol-ref-cache-maintenance.js';
-import path from 'node:path';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { mergeSymbolicTypeGraphs } from '../../shared/symbolic-types.js';
-import { readTextFile } from '../../shared/encoding.js';
+import { createCrossFileSourceReader } from './source-inputs.js';
 import { FLOW_CONFIDENCE, FLOW_SOURCE } from './constants.js';
 import { addInferredParam, addInferredReturn } from './apply.js';
 import {
@@ -135,7 +134,8 @@ export async function runCrossFilePropagation({
   toolingBreaker = 3,
   toolingLogDir = null,
   symbolicTypeGraphs: inputSymbolicTypeGraphs = [],
-  abortSignal = null
+  abortSignal = null,
+  onProgress = null
 }) {
   throwIfAborted(abortSignal);
   chunks = orderCrossFileChunks(chunks);
@@ -271,21 +271,9 @@ export async function runCrossFilePropagation({
   const isUsageBudgetExhausted = () => maxTotalUsageLinks != null && linkedUsages >= maxTotalUsageLinks;
   const fileUsageFallbackApplied = new Set();
 
-  const fileTextByRel = new Map();
-  const fileTextByAbs = new Map();
-  const getFileText = async (relPath) => {
-    if (!relPath) return '';
-    const absPath = path.join(rootDir, relPath);
-    if (fileTextByAbs.has(absPath)) return fileTextByAbs.get(absPath) || '';
-    let text = '';
-    try {
-      const result = await readTextFile(absPath);
-      text = result?.text || '';
-    } catch {}
-    fileTextByAbs.set(absPath, text);
-    fileTextByRel.set(relPath, text);
-    return text;
-  };
+  const sourceReader = createCrossFileSourceReader({ rootDir, chunks, signal: abortSignal });
+  const fileTextByRel = sourceReader.fileTextByFile;
+  const getFileText = sourceReader.getText;
 
   let symbolicTypeGraphs = mergeSymbolicTypeGraphs([], inputSymbolicTypeGraphs);
   const toolingEnabled = useTooling && enableTypeInference && toolingConfig?.autoEnableOnDetect !== false;
@@ -897,6 +885,9 @@ export async function runCrossFilePropagation({
       log
     });
     chunkCursor = bundleEnd;
+    if (onProgress) await onProgress({ observedCompletedChunks: chunkCursor,
+      totalChunks: chunks.length, linkedCalls, linkedCallSummaries, linkedUsages, inferredReturns, riskFlows });
+    throwIfAborted(abortSignal);
   }
 
   if (largeRepoBudget && typeof log === 'function') {
@@ -915,6 +906,7 @@ export async function runCrossFilePropagation({
   admission.usages.dropped = droppedUsageLinks;
   return {
     admission,
+    sourceReadCoverage: sourceReader.coverage(),
     linkedCalls,
     linkedCallSummaries,
     linkedUsages,

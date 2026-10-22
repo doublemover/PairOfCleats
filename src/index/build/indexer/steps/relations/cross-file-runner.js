@@ -13,6 +13,7 @@ import { throwIfAborted } from '../../../../../shared/abort.js';
 import { mergeReuseSummaries } from '../../../../../shared/reuse-diagnostics.js';
 import { applyCrossFileInference } from '../../../../type-inference-crossfile.js';
 import { mergeSymbolicTypeGraphs } from '../../../../../shared/symbolic-types.js';
+import { createCrossFileWorkReporter } from '../../../build-state/cross-file.js';
 import {
   applyCrossFileInferenceBudgetPlan,
   buildCrossFileInferenceBudgetPlan,
@@ -197,6 +198,7 @@ export const runCrossFileInference = async ({
         inferenceLite: inferenceLiteEnabled,
         inferenceLiteHighSignalOnly,
         symbolicTypeGraphs: state.symbolicTypeGraphs || [],
+        onProgress: createCrossFileWorkReporter({ buildRoot: runtime.buildRoot, buildId: runtime.buildId, mode }),
         abortSignal
       });
       state.crossFileCoverage = buildCrossFileCoverage({ fidelity, budgetStats, propagationStats: crossFileStats });
