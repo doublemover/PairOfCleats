@@ -12,6 +12,33 @@ collector to retain interfaces, annotations and indexed-access types instead of
 routing them through the JavaScript parser. The canonical embedded-linear map,
 source hashing and storage contracts remain authoritative.
 
+Compiler and LSP document joins now require a supplied semantic source ID to
+agree with its exact retained container or embedded route. Equal text cannot
+move that ID to another path or override a different pinned segment. LSP source
+inventory rejects competing canonical paths and duplicate retained source IDs;
+an unpinned embedded route with multiple equal-text candidates is an ambiguity
+error. An exact matching source ID may disambiguate that route. No first-match
+selection or plain-parent fallback upgrades an inconsistent source assertion.
+The extended immutable-join and embedded-cache controls are authored and unrun.
+
+The version-one embedded-linear map now has an authoritative schema/validator
+used by its writer and common retained reader. Compiler, LSP and embedded-cache
+consumers share one contained checksum-verified canonical sidecar read. They
+check local coordinates, language, quality and immediate parent identity;
+exact mappings additionally compare the two actual retained source slices and
+reject UTF-16 surrogate splits. Cache relocation verifies supplied parent bytes
+against the admitted parent hash before interpreting any segment map.
+
+The LSP session retains verified parent source metadata for mapped segments even
+when its selected provider languages exclude the container. This preserves
+ordinary typed-script routing under a Vue-like parent without enabling that
+container's provider or inventing framework binding completeness. Missing parent
+authority and corrupt/noncanonical maps remain errors. Synthetic/coarse quality
+stays explicit and cannot become exact merely because a segment is routable.
+The map/source/cache and filtered-parent integration fixtures are authored and
+unexecuted; published discovery-to-consumer and platform qualification remain
+pending.
+
 This follows the [Astro TypeScript contract](https://docs.astro.build/en/guides/typescript/).
 The authored `indexing/semantic/astro-frontmatter-dialect` fixture exercises the
 actual app parser and TypeScript collector with Unicode, CRLF, a browser script,

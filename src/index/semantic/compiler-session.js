@@ -15,7 +15,6 @@ import { collectCompilerWorkerFlow } from './compiler-worker-flow.js';
 import { collectCompilerCrossFileFlow } from './compiler-cross-file-flow.js';
 import { collectCompilerFlow } from './compiler-flow.js';
 import { collectCompilerValueSlice } from './compiler-value-slice.js';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -24,9 +23,9 @@ import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { createAnalysisPartitionId, createSymbolGroupId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { createSemanticFactsRef } from './file-ref.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
-import { resolveSemanticPartPath } from '../../semantic/artifact-store.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { readRetainedSemanticSourceSnapshot } from '../../semantic/retained-source-snapshot.js';
+import { readRetainedEmbeddedSourceMap, assertRetainedEmbeddedSourceRange } from './embedded-map-read.js';
 
 const hashText = text => createHash('sha256').update(text, 'utf8').digest('hex');
 const keyPath = file => process.platform === 'win32' ? path.resolve(file).toLowerCase() : path.resolve(file);
@@ -36,6 +35,7 @@ const order = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 /** One build-owned session. Inventories hold declarations; full rows live only for the active document. */
 export const createSemanticCompilerSession = async ({ state, runtime, signal = null }) => {
   const policy = runtime.semanticPolicy, inventory = new Map(), texts = new Map(), wasmModules = new Map();
+  const sourceManifests = new Map();
   const emitted = [], contexts = [], groups = [], declarationChunks = new Map();
   const factsBySource = new Map(), factsByContainer = new Map();
   const unique = (map, key, value, label) => {
@@ -71,16 +71,14 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
     if (!source || !['javascript', 'typescript'].includes(source.language)) continue;
     let sourceMap = null;
     if (source.mapping) {
-      const mapBytes = await fs.readFile(await resolveSemanticPartPath(root, source.mapping.mapRef));
-      sourceMap = JSON.parse(mapBytes.toString('utf8'));
-      if (createHash('sha256').update(mapBytes).digest('hex') !== path.basename(source.mapping.mapRef, '.json') || semanticHash('semantic.embedded-map.v1', sourceMap) !== source.mapping.identity) throw new Error('Compiler embedded mapping mismatch.');
       const parent = factsBySource.get(source.mapping.parentSourceUnitId)?.[1];
-      if (!parent || sourceMap.parentSourceUnitId !== parent.sourceUnitId || sourceMap.parentByteHash !== parent.sourceHash || sourceMap.localEnd !== source.textLength || sourceMap.quality !== source.mapping.quality) throw new Error('Compiler embedded parent mismatch.');
+      sourceMap = await readRetainedEmbeddedSourceMap({ store, source, parentFacts: parent, signal });
       if (source.mapping.quality !== 'exact') continue;
     }
     const captured = await readRetainedSemanticSourceSnapshot({ store, partitionId: syntax.partitionId, signal,
       maxBytes: 64 * 1024 * 1024 });
     source = captured.source;
+    sourceManifests.set(source.sourceUnitId, source);
     const { text } = captured;
     const declarations = new Map(), callables = new Map();
     for await (const row of store.iterateRows(syntax.partitionId, 'semantic_records', { signal })) {
@@ -105,11 +103,16 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
     const root = path.join(runtime.buildRoot, parent.storage.relativePath);
     const store = createArtifactSemanticStore({ root, repoRoot: runtime.root, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       generation: parent.storage.generation, partitions: parent.partitions });
-    for await (const source of store.iterateRows(parent.syntaxPartitionId, 'semantic_sources', { signal })) {
-      const { text } = await readRetainedSemanticSourceSnapshot({ store, partitionId: parent.syntaxPartitionId,
-        signal, maxBytes: 64 * 1024 * 1024 });
-      texts.set(parentFile, text);
-    }
+    const captured = await readRetainedSemanticSourceSnapshot({ store, partitionId: parent.syntaxPartitionId,
+      signal, maxBytes: 64 * 1024 * 1024 });
+    sourceManifests.set(captured.source.sourceUnitId, captured.source);
+    texts.set(parentFile, captured.text);
+  }
+  for (const item of inventory.values()) if (item.source.mapping) {
+    const [parentFile] = factsBySource.get(item.source.mapping.parentSourceUnitId) || [];
+    assertRetainedEmbeddedSourceRange({ map: item.sourceMap, source: item.source,
+      localText: texts.get(item.source.path), parentText: texts.get(parentFile),
+      parentSource: sourceManifests.get(item.source.mapping.parentSourceUnitId) });
   }
   const inventoryBySource = new Map(), inventoryBySegment = new Map();
   const segmentKey = (container, uid, start, end) => JSON.stringify([container, uid, start, end]);
@@ -124,14 +127,16 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
     }
   }
   const sourceForDoc = doc => {
+    const container = keyPath(path.resolve(runtime.root, doc.containerPath || doc.virtualPath));
     if (doc.semanticSourceUnitId && !doc.segmentUid) {
       const item = inventoryBySource.get(doc.semanticSourceUnitId);
-      return item && !item.source.mapping ? item : undefined;
+      return item && !item.source.mapping && container === keyPath(path.join(runtime.root, item.source.path))
+        && (typeof doc.text !== 'string' || texts.get(item.source.path) === doc.text) ? item : undefined;
     }
-    const container = keyPath(path.resolve(runtime.root, doc.containerPath || doc.virtualPath));
     if (!doc.segmentUid) return inventory.get(container);
     const key = segmentKey(container, doc.segmentUid, doc.segmentRange?.start, doc.segmentRange?.end);
-    const matches = (inventoryBySegment.get(key) || []).filter(item => item.sourceMap.localEnd === doc.text.length && texts.get(item.source.path) === doc.text);
+    const matches = (inventoryBySegment.get(key) || []).filter(item => item.sourceMap.localEnd === doc.text.length
+      && texts.get(item.source.path) === doc.text && (!doc.semanticSourceUnitId || doc.semanticSourceUnitId === item.source.sourceUnitId));
     if (matches.length > 1) throw Object.assign(new Error('Ambiguous compiler embedded source.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
     return matches[0];
   };

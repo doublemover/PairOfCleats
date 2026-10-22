@@ -1,10 +1,7 @@
 import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import { collectSemanticTargetScopes, resolveSemanticSourcePolicy, semanticTargetMatchesRecord, semanticPhasePolicy } from './policy.js';
 import { planSemanticSource } from './planning.js';
-import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
-import { resolveSemanticPartPath } from '../../semantic/artifact-store.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createArtifactSemanticStore } from '../../semantic/artifact-store.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
@@ -21,14 +18,18 @@ import { createLspSourceIndex } from './lsp-source-index.js';
 import { createLspObservationCollector } from '../../integrations/tooling/providers/lsp/structured-observations.js';
 import { writeStructuredLspEvidence } from './lsp-structured-evidence.js';
 import { readRetainedSemanticSourceSnapshot } from '../../semantic/retained-source-snapshot.js';
+import { readRetainedEmbeddedSourceMap, assertRetainedEmbeddedSourceRange } from './embedded-map-read.js';
 const refKey = ref => canonicalSemanticJson(ref);
 /** One build-owned LSP lane; this owns no server, Program, or request scheduler. */
 export const createSemanticLspSession = async ({ state, runtime, signal = null, languages = null, eagerOnly = false }) => {
   const inventory = new Map(), byUri = new Map(), texts = new Map(), emitted = [], contexts = new Map(), completed = new Set();
   const policy = runtime.semanticPolicy;
   const nativeAuthority = nativeExecutionAuthority(state);
-  const sourcePaths = new Map();
-  for (const [file, facts] of state.semanticFactsByFile || []) if (!sourcePaths.has(facts.sourceUnitId)) sourcePaths.set(facts.sourceUnitId, file);
+  const sourcePaths = new Map(), factsBySource = new Map();
+  for (const [file, facts] of state.semanticFactsByFile || []) {
+    if (factsBySource.has(facts.sourceUnitId)) throw Object.assign(new Error('Duplicate retained LSP source identity.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
+    sourcePaths.set(facts.sourceUnitId, file); factsBySource.set(facts.sourceUnitId, facts);
+  }
   state.semanticEvidenceArtifacts ||= [];
   for (const [file, facts] of state.semanticFactsByFile || []) {
     throwIfAborted(signal);
@@ -66,20 +67,35 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
     const unresolvedCount = [...occurrenceIds].filter(key => !resolved.has(key)).length;
     let sourceMap = null;
     if (source.mapping) {
-      if (!/^semantic-evidence\/[a-f0-9]{64}\.json$/.test(source.mapping.mapRef)) throw new Error('Invalid embedded mapping sidecar path.');
-      const mapBytes = await fs.readFile(await resolveSemanticPartPath(root, source.mapping.mapRef));
-      if (createHash('sha256').update(mapBytes).digest('hex') !== path.basename(source.mapping.mapRef, '.json')) throw new Error('Embedded mapping sidecar hash mismatch.');
-      sourceMap = JSON.parse(mapBytes.toString('utf8'));
-      if (semanticHash('semantic.embedded-map.v1', sourceMap) !== source.mapping.identity || sourceMap.parentSourceUnitId !== source.mapping.parentSourceUnitId || sourceMap.localEnd !== source.textLength) throw new Error('Embedded map identity mismatch.');
+      sourceMap = await readRetainedEmbeddedSourceMap({ store, source,
+        parentFacts: factsBySource.get(source.mapping.parentSourceUnitId), signal });
     }
     const sourcePath = source.mapping ? sourcePaths.get(source.mapping.parentSourceUnitId) || source.path : source.path;
     const sourcePolicy = resolveSemanticSourcePolicy(policy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, language: source.language, path: sourcePath });
     const plan = state.semanticPlanningBySource?.get(source.sourceUnitId) || planSemanticSource(sourcePolicy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, syntaxPartitionId: syntax.partitionId });
     const item = { sourceMap, policy: sourcePolicy, plan, invocationFor, unresolvedCount, file, facts, root, store, syntax, source, text, bytes, declarations, resolved };
+    if (inventory.has(source.sourceUnitId)) throw Object.assign(new Error('Duplicate retained LSP source identity.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
     inventory.set(source.sourceUnitId, item);
     if (!source.mapping) { texts.set(source.path, text); byUri.set(pathToFileURL(path.join(runtime.root, source.path)).href, item); }
   }
-  const sourceIndex = createLspSourceIndex({ inventory, repoRoot: runtime.root });
+  const parentSources = new Map(), parentSnapshots = new Map();
+  for (const item of inventory.values()) if (item.source.mapping) {
+    const id = item.source.mapping.parentSourceUnitId;
+    let parent = parentSnapshots.get(id) || inventory.get(id);
+    if (!parent) {
+      const facts = factsBySource.get(id);
+      const store = createArtifactSemanticStore({ root: path.join(runtime.buildRoot, facts.storage.relativePath),
+        repoRoot: runtime.root, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+        generation: facts.storage.generation, partitions: facts.partitions });
+      parent = await readRetainedSemanticSourceSnapshot({ store, partitionId: facts.syntaxPartitionId,
+        signal, maxBytes: 64 * 1024 * 1024 });
+      parentSnapshots.set(id, { source: parent.source, text: parent.text });
+    }
+    assertRetainedEmbeddedSourceRange({ map: item.sourceMap, source: item.source, localText: item.text,
+      parentSource: parent.source, parentText: parent.text });
+    parentSources.set(id, parent.source);
+  }
+  const sourceIndex = createLspSourceIndex({ inventory, parentSources, repoRoot: runtime.root });
   const itemForDoc = sourceIndex.itemForDocument;
   const contextFor = ({ item, uri, providerId, providerVersion, workspaceKey, positionEncoding }) => {
     const context = { providerId, providerVersion, compilerVersion: null,

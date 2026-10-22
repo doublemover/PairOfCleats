@@ -11,6 +11,7 @@ import { createSemanticPartitionSink, abortSemanticPartitionOnFailure } from '..
 import { createSemanticFactsRef } from './file-ref.js';
 import { persistSemanticEvidence } from './lsp-evidence.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { assertEmbeddedSourceMap } from '../../contracts/validators/embedded-source-map.js';
 const languages = { js: 'javascript', javascript: 'javascript', jsx: 'javascript', ts: 'typescript', typescript: 'typescript', tsx: 'typescript' };
 export const embeddedSegmentKey = segment => [segment.start, segment.end, segment.languageId || 'unknown'].join(':');
 export const getSegmentSemanticContext = (contexts, segment) => contexts?.get(embeddedSegmentKey(segment)) || {};
@@ -27,8 +28,8 @@ export const collectEmbeddedSemanticSources = async ({ parentFacts, segments, te
     const segmentText = typeof segment.text === 'string' ? segment.text : text.slice(segment.start, segment.end);
     const language = languages[segment.languageId] || segment.languageId || 'unknown';
     const quality = segmentText !== text.slice(segment.start, segment.end) ? 'synthetic' : segment.mappingQuality === 'coarse' || segment.mappingQuality === 'synthetic' ? segment.mappingQuality : 'exact';
-    const map = { schemaVersion: 1, kind: 'embedded-linear-range', quality, parentSourceUnitId: parent.sourceUnitId, parentByteHash: parent.byteHash,
-      parentStart: segment.start, parentEnd: segment.end, localStart: 0, localEnd: segmentText.length, coordinateUnit: 'utf16', segmentUid: segment.segmentUid, language };
+    const map = assertEmbeddedSourceMap({ schemaVersion: 1, kind: 'embedded-linear-range', quality, parentSourceUnitId: parent.sourceUnitId, parentByteHash: parent.byteHash,
+      parentStart: segment.start, parentEnd: segment.end, localStart: 0, localEnd: segmentText.length, coordinateUnit: 'utf16', segmentUid: segment.segmentUid, language });
     const identity = semanticHash('semantic.embedded-map.v1', map);
     const mapRef = await persistSemanticEvidence({ value: map, stagingRoot, diskAccount, inventory: evidenceArtifacts, signal });
     const bytes = Buffer.from(segmentText, 'utf8');

@@ -2,22 +2,25 @@ import path from 'node:path';
 import { semanticHash } from './identity.js';
 
 /** Immutable session inventory; all authority/text checks remain with the caller. */
-export const createLspSourceIndex = ({ inventory, repoRoot, platform = process.platform }) => {
+export const createLspSourceIndex = ({ inventory, parentSources = new Map(), repoRoot, platform = process.platform }) => {
   const keyPath = file => {
     const absolute = path.resolve(file);
     return platform === 'win32' ? absolute.toLowerCase() : absolute;
   };
   const byPath = new Map(), embedded = new Map(), declarationIndexes = new WeakMap();
+  const ambiguous = message => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
   const stats = { inventoryDigests: 1, sourceLookups: 0, declarationNodesVisited: 0 };
   const segmentKey = (container, uid, range) => JSON.stringify([keyPath(container), uid, range?.start, range?.end]);
   for (const item of inventory.values()) {
     if (!item.source.mapping) {
       const key = keyPath(path.join(repoRoot, item.source.path));
-      if (!byPath.has(key)) byPath.set(key, item);
+      if (byPath.has(key) && byPath.get(key) !== item) throw ambiguous('Multiple retained LSP source identities occupy the same canonical path.');
+      byPath.set(key, item);
     } else {
-      const parent = inventory.get(item.source.mapping.parentSourceUnitId);
+      const parent = inventory.get(item.source.mapping.parentSourceUnitId)?.source
+        || parentSources.get(item.source.mapping.parentSourceUnitId);
       if (!parent) continue;
-      const key = segmentKey(path.join(repoRoot, parent.source.path), item.sourceMap?.segmentUid,
+      const key = segmentKey(path.join(repoRoot, parent.path), item.sourceMap?.segmentUid,
         { start: item.sourceMap?.parentStart, end: item.sourceMap?.parentEnd });
       if (!embedded.has(key)) embedded.set(key, []);
       embedded.get(key).push(item);
@@ -56,13 +59,17 @@ export const createLspSourceIndex = ({ inventory, repoRoot, platform = process.p
     itemForPath(file) { stats.sourceLookups++; return byPath.get(keyPath(file)); },
     itemForDocument(doc) {
       stats.sourceLookups++;
+      const container = path.resolve(repoRoot, doc.containerPath || doc.virtualPath);
       if (doc.semanticSourceUnitId && !doc.segmentUid) {
         const item = inventory.get(doc.semanticSourceUnitId);
-        if (!item?.source.mapping) return item;
+        return item && !item.source.mapping && keyPath(container) === keyPath(path.join(repoRoot, item.source.path))
+          && (typeof doc.text !== 'string' || doc.text === item.text) ? item : undefined;
       }
-      const container = path.resolve(repoRoot, doc.containerPath || doc.virtualPath);
       if (!doc.segmentUid) return byPath.get(keyPath(container));
-      return embedded.get(segmentKey(container, doc.segmentUid, doc.segmentRange))?.find(item => item.text === doc.text);
+      const candidates = (embedded.get(segmentKey(container, doc.segmentUid, doc.segmentRange)) || [])
+        .filter(item => item.text === doc.text && (!doc.semanticSourceUnitId || item.source.sourceUnitId === doc.semanticSourceUnitId));
+      if (candidates.length > 1) throw ambiguous('LSP embedded document has multiple retained source identities.');
+      return candidates[0];
     }
   };
 };

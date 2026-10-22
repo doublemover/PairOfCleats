@@ -29,4 +29,20 @@ const overlapping = item('nested', 'nested.ts', [{ span: [0, 100], ref: 'outer' 
 assert.equal(index.containingDeclarations(overlapping, [12, 13]).length, 2, 'retain ambiguity instead of selecting the smallest declaration');
 const windows = createLspSourceIndex({ inventory, repoRoot, platform: 'win32' });
 assert.equal(windows.itemForPath(path.join(repoRoot, 'A.TS')), ordinary);
+assert.equal(index.itemForDocument({ virtualPath: 'b.ts', semanticSourceUnitId: ordinary.source.sourceUnitId,
+  text: ordinary.text }), undefined, 'equal text cannot move a pinned source ID to another container');
+assert.equal(index.itemForDocument({ virtualPath: 'a.ts', semanticSourceUnitId: a.source.sourceUnitId,
+  text: ordinary.text }), undefined, 'an embedded source ID cannot fall back to its plain parent');
+const embeddedDoc = { virtualPath: 'virtual', containerPath: 'a.ts', segmentUid: 'same-segment',
+  segmentRange: { start: 20, end: 30 }, text: 'same text' };
+assert.equal(index.itemForDocument({ ...embeddedDoc, semanticSourceUnitId: b.source.sourceUnitId }), undefined,
+  'a supplied source ID must match the exact embedded route');
+const competing = segment('embedded-competing', 'parent-a', 20);
+const ambiguous = createLspSourceIndex({ inventory: new Map([...inventory, [competing.source.sourceUnitId, competing]]), repoRoot });
+assert.throws(() => ambiguous.itemForDocument(embeddedDoc), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
+assert.equal(ambiguous.itemForDocument({ ...embeddedDoc, semanticSourceUnitId: a.source.sourceUnitId }), a,
+  'an exact source ID may disambiguate equal segment text');
+const samePath = item('different-source', 'a.ts');
+assert.throws(() => createLspSourceIndex({ inventory: new Map([...inventory, [samePath.source.sourceUnitId, samePath]]), repoRoot }),
+  { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
 console.log('LSP immutable inventory digest, full embedded identity and bounded declaration cardinality');
