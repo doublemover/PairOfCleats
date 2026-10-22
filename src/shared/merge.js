@@ -9,6 +9,7 @@ import { writeJsonObjectFile } from './json-stream/json-writers.js';
 import { atomicWriteJson } from './io/atomic-write.js';
 import { compareStrings } from './sort.js';
 import { compareWithAntisymmetryInvariant } from './invariants.js';
+import { beginMergeDiskOutput, writeMergeDiskJson, removeMergeDiskFile } from './merge-disk.js';
 
 export const MERGE_RUN_FORMAT = 'jsonl';
 export const MERGE_RUN_SCHEMA_VERSION = 1;
@@ -177,8 +178,9 @@ export const createMergeRunManifest = ({
   createdAt: createdAt || new Date().toISOString()
 });
 
-export const writeMergeRunManifest = async (manifestPath, manifest) => {
+export const writeMergeRunManifest = async (manifestPath, manifest, { diskAccount = null } = {}) => {
   if (!manifestPath) return;
+  if (diskAccount) return writeMergeDiskJson(manifestPath, manifest, { diskAccount });
   await writeJsonObjectFile(manifestPath, { fields: manifest, atomic: true });
 };
 
@@ -189,9 +191,11 @@ export const writeJsonlRunFile = async (
     atomic = true,
     serialize = null,
     maxBufferRows = DEFAULT_MAX_BUFFER_ROWS,
-    maxBufferBytes = DEFAULT_MAX_BUFFER_BYTES
+    maxBufferBytes = DEFAULT_MAX_BUFFER_BYTES,
+    diskAccount = null
   } = {}
 ) => {
+  const diskOutput = await beginMergeDiskOutput(filePath, diskAccount);
   const writer = createJsonlBatchWriter(filePath, { atomic });
   const stringify = typeof serialize === 'function' ? serialize : (value) => JSON.stringify(value);
   const bufferedWriter = createBufferedJsonlRunWriter(writer, { maxBufferRows, maxBufferBytes });
@@ -199,10 +203,12 @@ export const writeJsonlRunFile = async (
     for (const entry of rows) {
       const line = stringify(entry);
       const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
+      diskOutput.reserve(lineBytes);
       await bufferedWriter.writeLine(line, lineBytes);
     }
     if (bufferedWriter.pending) await bufferedWriter.flush();
     await writer.close();
+    await diskOutput.commit();
   } catch (err) {
     try { await writer.destroy(err); } catch {}
     throw err;
@@ -234,6 +240,8 @@ export const mergeSortedRuns = async function* (
     return a.order - b.order;
   });
   const iterators = [];
+  let primaryError = null;
+  let failed = false;
   try {
     for (let i = 0; i < runs.length; i += 1) {
       const runPath = resolveRunPath(runs[i]);
@@ -251,12 +259,20 @@ export const mergeSortedRuns = async function* (
       const hasMore = await advance(best);
       if (hasMore) heap.push(best);
     }
+  } catch (error) {
+    failed = true;
+    primaryError = error;
+    throw error;
   } finally {
     // Consumers can fail while a writer is admitting a row. Close every child
     // before their task-owned paths are eligible for retirement or cleanup.
     const outcomes = await Promise.allSettled(iterators.map(iterator => iterator.return?.()));
     const failures = outcomes.filter(outcome => outcome.status === 'rejected').map(outcome => outcome.reason);
-    if (failures.length) throw new AggregateError(failures, 'Merge run readers failed to close.');
+    if (failures.length) {
+      const cleanupError = new AggregateError(failures, 'Merge run readers failed to close.');
+      if (!failed) throw cleanupError;
+      if (primaryError && typeof primaryError === 'object' && Object.isExtensible(primaryError)) primaryError.cleanupError ||= cleanupError;
+    }
   }
 };
 
@@ -270,9 +286,11 @@ export const mergeSortedRunsToFile = async ({
   maxBufferBytes = DEFAULT_MAX_BUFFER_BYTES,
   validateComparator = false,
   atomic = true,
-  onStats = null
+  onStats = null,
+  diskAccount = null
 } = {}) => {
   if (!outputPath) throw new Error('mergeSortedRunsToFile requires outputPath');
+  const diskOutput = await beginMergeDiskOutput(outputPath, diskAccount);
   const stringify = typeof serialize === 'function' ? serialize : (value) => JSON.stringify(value);
   const writer = createJsonlBatchWriter(outputPath, { atomic });
   const bufferedWriter = createBufferedJsonlRunWriter(writer, { maxBufferRows, maxBufferBytes });
@@ -288,6 +306,7 @@ export const mergeSortedRunsToFile = async ({
     for await (const row of mergeSortedRuns(runs, { compare, readRun, validateComparator })) {
       const line = stringify(row);
       const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
+      diskOutput.reserve(lineBytes);
       stats.rows += 1;
       stats.bytes += lineBytes;
       stats.maxRowBytes = Math.max(stats.maxRowBytes, lineBytes);
@@ -295,6 +314,7 @@ export const mergeSortedRunsToFile = async ({
     }
     if (bufferedWriter.pending) await bufferedWriter.flush();
     await writer.close();
+    await diskOutput.commit();
   } catch (err) {
     try { await writer.destroy(err); } catch {}
     throw err;
@@ -336,8 +356,9 @@ const readCheckpoint = async (checkpointPath) => {
   }
 };
 
-const writeCheckpoint = async (checkpointPath, payload) => {
+const writeCheckpoint = async (checkpointPath, payload, diskAccount = null) => {
   if (!checkpointPath) return;
+  if (diskAccount) return writeMergeDiskJson(checkpointPath, payload, { diskAccount, spaces: 2 });
   await atomicWriteJson(checkpointPath, payload, { spaces: 2, newline: false });
 };
 
@@ -377,8 +398,9 @@ const readPlannerHints = async (plannerHintsPath) => {
  * @param {object|null} payload
  * @returns {Promise<void>}
  */
-const writePlannerHints = async (plannerHintsPath, payload) => {
+const writePlannerHints = async (plannerHintsPath, payload, diskAccount = null) => {
   if (!plannerHintsPath || !payload) return;
+  if (diskAccount) return writeMergeDiskJson(plannerHintsPath, payload, { diskAccount, spaces: 2 });
   await atomicWriteJson(plannerHintsPath, payload, { spaces: 2, newline: false });
 };
 
@@ -406,7 +428,8 @@ export const mergeRunsWithPlanner = async ({
   validateComparator = false,
   checkpointPath = null,
   plannerHintsPath = null,
-  plannerInputKey = null
+  plannerInputKey = null,
+  diskAccount = null
 } = {}) => {
   if (!Array.isArray(runs) || !runs.length) {
     throw new Error('mergeRunsWithPlanner requires runs');
@@ -464,7 +487,8 @@ export const mergeRunsWithPlanner = async ({
         compare,
         readRun,
         serialize,
-        validateComparator
+        validateComparator,
+        diskAccount
       });
       const manifest = createMergeRunManifest({
         runPath,
@@ -474,11 +498,11 @@ export const mergeRunsWithPlanner = async ({
         format: MERGE_RUN_FORMAT,
         sources: groups[i].map(resolveRunPath).filter(Boolean)
       });
-      await writeMergeRunManifest(manifestPath, manifest);
+      await writeMergeRunManifest(manifestPath, manifest, { diskAccount });
       cleanupPaths.push(runPath, manifestPath);
       passState[i] = { path: runPath, manifestPath, sha256: await hashRunFile(runPath) };
       checkpointState.passes[passKey] = passState;
-      await writeCheckpoint(checkpointPath, checkpointState);
+      await writeCheckpoint(checkpointPath, checkpointState, diskAccount);
       nextRuns.push(runPath);
     }
     currentRuns = nextRuns;
@@ -491,7 +515,8 @@ export const mergeRunsWithPlanner = async ({
     compare,
     readRun,
     serialize,
-    validateComparator
+    validateComparator,
+    diskAccount
   });
   if (finalStats) {
     finalStats.runsMerged = runs.length;
@@ -499,7 +524,7 @@ export const mergeRunsWithPlanner = async ({
     finalStats.plannerUsed = true;
     finalStats.plannerHintUsed = plannerHintUsed;
   }
-  await writeCheckpoint(checkpointPath, checkpointState);
+  await writeCheckpoint(checkpointPath, checkpointState, diskAccount);
   await writePlannerHints(plannerHintsPath, {
     version: MERGE_RUN_SCHEMA_VERSION,
     inputKey: plannerInputKey || null,
@@ -507,14 +532,14 @@ export const mergeRunsWithPlanner = async ({
     runsMerged: runs.length,
     passes: passIndex,
     updatedAt: new Date().toISOString()
-  });
+  }, diskAccount);
 
   const cleanup = async () => {
     for (const entry of cleanupPaths) {
-      try { await fsPromises.rm(entry, { force: true, recursive: true }); } catch {}
+      try { await removeMergeDiskFile(entry, diskAccount); } catch (error) { if (diskAccount) throw error; }
     }
     if (checkpointPath) {
-      try { await fsPromises.rm(checkpointPath, { force: true }); } catch {}
+      try { await removeMergeDiskFile(checkpointPath, diskAccount); } catch (error) { if (diskAccount) throw error; }
     }
   };
 

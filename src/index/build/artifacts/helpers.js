@@ -6,6 +6,7 @@ import { compareStrings } from '../../../shared/sort.js';
 import { compareWithAntisymmetryInvariant } from '../../../shared/invariants.js';
 import { createOrderingHasher, stableOrder } from '../../../shared/order.js';
 import { writeJsonlRunFile } from '../../../shared/merge.js';
+import { removeMergeDiskDirectory } from '../../../shared/merge-disk.js';
 import { encodeVarintDeltas } from '../../../shared/artifact-io/varint.js';
 import {
   OFFSETS_COMPRESSION,
@@ -154,7 +155,8 @@ export const createRowSpillCollector = ({
   stats = createTrimStats(),
   mapRow = null,
   serialize = null,
-  scheduleIo = null
+  scheduleIo = null,
+  diskAccount = null
 } = {}) => {
   const buffer = [];
   let bufferBytes = 0;
@@ -185,7 +187,7 @@ export const createRowSpillCollector = ({
     const runPath = path.join(dir, runName);
     runIndex += 1;
     const spillBytes = bufferBytes;
-    await schedule(() => writeJsonlRunFile(runPath, buffer, { atomic: true, serialize: serializeRow }));
+    await schedule(() => writeJsonlRunFile(runPath, buffer, { atomic: true, serialize: serializeRow, diskAccount }));
     runs.push(runPath);
     if (stats) {
       stats.runsSpilled = (stats.runsSpilled || 0) + 1;
@@ -258,7 +260,7 @@ export const createRowSpillCollector = ({
         stats,
         cleanup: async () => {
           if (runsDir) {
-            await schedule(() => fs.promises.rm(runsDir, { recursive: true, force: true }));
+            await schedule(() => removeMergeDiskDirectory(runsDir, diskAccount));
           }
         }
       };
@@ -269,7 +271,7 @@ export const createRowSpillCollector = ({
       stats,
       cleanup: async () => {
         if (runsDir) {
-          await schedule(() => fs.promises.rm(runsDir, { recursive: true, force: true }));
+          await schedule(() => removeMergeDiskDirectory(runsDir, diskAccount));
         }
       }
     };

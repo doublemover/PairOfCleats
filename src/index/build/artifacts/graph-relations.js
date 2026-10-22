@@ -107,7 +107,7 @@ const compareEdgesIn = (a, b) => {
   return compareStrings(a.s, b.s);
 };
 
-const iterateEdges = async function* (collection, { compare, signal = null } = {}) {
+const iterateEdges = async function* (collection, { compare, signal = null, diskAccount = null } = {}) {
   if (!collection) return;
   if (Array.isArray(collection.rows)) {
     for (const row of collection.rows) { throwIfAborted(signal); yield row; }
@@ -122,7 +122,7 @@ const iterateEdges = async function* (collection, { compare, signal = null } = {
     const merged = await mergeRunsWithPlanner({ runs: collection.runs, compare, readRun,
       outputPath: path.join(directory, 'ordered.jsonl'), tempDir: directory,
       checkpointPath: path.join(directory, 'merge-checkpoint.json'), runPrefix: compareId,
-      compareId, plannerInputKey: compareId, maxOpenRuns: 32, validateComparator: true });
+      compareId, plannerInputKey: compareId, maxOpenRuns: 32, validateComparator: true, diskAccount });
     // Keep original runs/checkpoint on interruption; dispose only consumed merge
     // intermediates. The existing planner verifies exact input bytes on replay.
     for await (const row of readRun(merged.outputPath)) yield row;
@@ -216,6 +216,12 @@ export async function enqueueGraphRelationsArtifacts({
     const stagingDir = path.join(outDir, 'graph_relations.staging');
     await schedule(() => fs.rm(stagingDir, { recursive: true, force: true }));
     await schedule(() => fs.mkdir(stagingDir, { recursive: true }));
+    // Open the shared physical inventory before admitting the first spill,
+    // rather than discovering its cost only when final adjacency is written.
+    const retainedDiskAccount = diskAccount || (await reopenSemanticDiskAccount({
+      limit: diskLimit ?? normalizeSemanticConfig().storage.maxDiskWorkingSetBytes,
+      roots: [outDir], signal: abortSignal
+    })).account;
 
     const chunkByUid = new Map();
     const chunkUids = [];
@@ -265,14 +271,16 @@ export async function enqueueGraphRelationsArtifacts({
       runPrefix: 'graph-relations-out',
       compare: compareEdgesOut,
       maxBufferBytes: spillBufferBytes,
-      scheduleIo
+      scheduleIo,
+      diskAccount: retainedDiskAccount
     });
     const inCollector = createRowSpillCollector({
       outDir: stagingDir,
       runPrefix: 'graph-relations-in',
       compare: compareEdgesIn,
       maxBufferBytes: spillBufferBytes,
-      scheduleIo
+      scheduleIo,
+      diskAccount: retainedDiskAccount
     });
 
     // Spend edge slots only after the shared spill merge has sorted duplicates.
@@ -386,7 +394,7 @@ export async function enqueueGraphRelationsArtifacts({
     const retainedCounts = [0, 0, 0];
     const retainedRows = (async function* () {
       let previous = null;
-      for await (const edge of iterateEdges(rawOutSpill, { compare: compareEdgesOut, signal: abortSignal })) {
+      for await (const edge of iterateEdges(rawOutSpill, { compare: compareEdgesOut, signal: abortSignal, diskAccount: retainedDiskAccount })) {
         if (previous && compareEdgesOut(previous, edge) === 0) continue;
         previous = edge;
         retainedCounts[edge.g] += 1;
@@ -395,10 +403,6 @@ export async function enqueueGraphRelationsArtifacts({
     })();
     // Canonical retained adjacency is independent of display caps. Each edge is
     // small; high-degree nodes never require one giant neighbor-array row here.
-    const retainedDiskAccount = diskAccount || (await reopenSemanticDiskAccount({
-      limit: diskLimit ?? normalizeSemanticConfig().storage.maxDiskWorkingSetBytes,
-      roots: [outDir], signal: abortSignal
-    })).account;
     const retainedPartBytes = Number.isSafeInteger(maxJsonBytes) && maxJsonBytes > 0
       ? Math.min(maxJsonBytes, 1024 * 1024) : 1024 * 1024;
     const graphOrdinal = new Map(GRAPH_RELATION_GRAPHS.map((name, index) => [name, index]));
@@ -440,12 +444,12 @@ export async function enqueueGraphRelationsArtifacts({
     addPieceFile({ type: 'relations', name: 'graph_relation_edges_meta', format: 'json' }, retainedMetaPath);
     const selectedOutCollector = createRowSpillCollector({
       outDir: stagingDir, runPrefix: 'graph-relations-selected-out', compare: compareEdgesOut,
-      maxBufferBytes: spillBufferBytes, scheduleIo
+      maxBufferBytes: spillBufferBytes, scheduleIo, diskAccount: retainedDiskAccount
     });
     const guards = [callGuard, usageGuard, importGuard];
     const distinctCounts = [0, 0, 0];
     let previousEdge = null;
-    for await (const edge of iterateEdges(rawOutSpill, { compare: compareEdgesOut, signal: abortSignal })) {
+    for await (const edge of iterateEdges(rawOutSpill, { compare: compareEdgesOut, signal: abortSignal, diskAccount: retainedDiskAccount })) {
       if (previousEdge && compareEdgesOut(previousEdge, edge) === 0) continue;
       previousEdge = edge;
       const guard = guards[edge.g];
@@ -483,20 +487,22 @@ export async function enqueueGraphRelationsArtifacts({
     const edgeCounts = [0, 0, 0];
 
     const outGroups = groupNeighbors(
-      iterateEdges(outSpill, { compare: compareEdgesOut, signal: abortSignal }),
+      iterateEdges(outSpill, { compare: compareEdgesOut, signal: abortSignal, diskAccount: retainedDiskAccount }),
       { key: (edge) => edge.s, neighbor: (edge) => edge.t }
     )[Symbol.asyncIterator]();
     const inGroups = groupNeighbors(
-      iterateEdges(inSpill, { compare: compareEdgesIn, signal: abortSignal }),
+      iterateEdges(inSpill, { compare: compareEdgesIn, signal: abortSignal, diskAccount: retainedDiskAccount }),
       { key: (edge) => edge.t, neighbor: (edge) => edge.s }
     )[Symbol.asyncIterator]();
-
-    let nextOut = await outGroups.next();
-    let nextIn = await inGroups.next();
 
     const nodeLists = [callNodes.ids, usageNodes.ids, importNodes.ids];
 
     const rows = (async function* () {
+      let primaryError = null;
+      let failed = false;
+      try {
+      let nextOut = await outGroups.next();
+      let nextIn = await inGroups.next();
       let totalBytes = 0;
       for (let g = 0; g < GRAPH_RELATION_GRAPHS.length; g += 1) {
         const graphName = GRAPH_RELATION_GRAPHS[g];
@@ -545,7 +551,21 @@ export async function enqueueGraphRelationsArtifacts({
             totalBytes += lineBytes;
           }
           orderingHasher.update(line);
+          retainedDiskAccount.reserve(lineBytes + 8);
           yield row;
+        }
+      }
+      } catch (error) {
+        failed = true;
+        primaryError = error;
+        throw error;
+      } finally {
+        const outcomes = await Promise.allSettled([outGroups.return?.(), inGroups.return?.()]);
+        const failures = outcomes.filter(outcome => outcome.status === 'rejected').map(outcome => outcome.reason);
+        if (failures.length) {
+          const cleanupError = new AggregateError(failures, 'Graph spill readers failed to close.');
+          if (!failed) throw cleanupError;
+          if (primaryError && typeof primaryError === 'object' && Object.isExtensible(primaryError)) primaryError.cleanupError ||= cleanupError;
         }
       }
     })();
@@ -575,8 +595,9 @@ export async function enqueueGraphRelationsArtifacts({
       compression: 'none'
     });
 
-    await schedule(() => writeJsonObjectFile(graphMetaPath, {
-      fields: withGeneratedArtifactMetadata({
+    await schedule(() => writeSemanticJson({ filename: graphMetaPath,
+      diskAccount: retainedDiskAccount, signal: abortSignal,
+      value: withGeneratedArtifactMetadata({
         schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
         artifact: 'graph_relations',
         format: 'jsonl-sharded',
@@ -621,8 +642,7 @@ export async function enqueueGraphRelationsArtifacts({
           ...(offsetsMeta ? { offsets: offsetsMeta } : {}),
           ...(Number.isFinite(maxRowBytes) ? { maxRowBytes } : {})
         }
-      }, 'sharded-meta', 'graph_relations'),
-      atomic: true
+      }, 'sharded-meta', 'graph_relations')
     }));
 
     for (let i = 0; i < result.parts.length; i += 1) {
