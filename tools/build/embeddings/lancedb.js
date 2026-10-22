@@ -9,12 +9,11 @@ import { publishLanceDbReplacement, recoverLanceDbReplacement } from './backend-
 import { readContainedFile } from '../../../src/shared/contained-file.js';
 import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { getLanceDbEnv } from '../../../src/shared/env/runtime.js';
-import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess/runner.js';
+import { runIsolatedBackendJobs } from './backend-isolate.js';
 import { resolveVectorsSource } from './vector-source.js';
+import { throwIfAborted } from '../../../src/shared/abort.js';
 
 let warnedMissing = false;
-const CHILD_ENV = 'PAIROFCLEATS_LANCEDB_CHILD';
-const PAYLOAD_ENV = 'PAIROFCLEATS_LANCEDB_PAYLOAD';
 const TRACE_ARTIFACT_IO = getEnvConfig().traceArtifactIo === true;
 
 const loadLanceDb = async (logger) => {
@@ -29,7 +28,7 @@ const loadLanceDb = async (logger) => {
   return result.mod?.default || result.mod;
 };
 
-const shouldIsolateLanceDb = (config, env) => {
+export const shouldIsolateLanceDb = (config, env) => {
   if (env?.child) return false;
   if (config?.isolate === false) return false;
   if (config?.isolate === true) return true;
@@ -70,14 +69,15 @@ export async function writeLanceDbIndex({
   skipIsolate = false,
   emitOutput = true,
   label = null,
-  logger = console
+  logger = console,
+  signal = null
 }) {
   const resolvedConfig = normalizeLanceDbConfig(config);
   if (!resolvedConfig.enabled) return { skipped: true, reason: 'disabled' };
   const lanceEnv = getLanceDbEnv();
   const vectorsSource = Array.isArray(vectors) && vectors.length
     ? { count: vectors.length, vectors, rows: null }
-    : resolveVectorsSource(vectorsPath, { stopOnShardMetaWithoutManifest: true, expectedDims: dims, expectedModelId: modelId });
+    : resolveVectorsSource(vectorsPath, { stopOnShardMetaWithoutManifest: true, expectedDims: dims, expectedModelId: modelId, signal });
   if (TRACE_ARTIFACT_IO && vectorsPath) {
     const exists = fsSync.existsSync(vectorsPath)
       || fsSync.existsSync(`${vectorsPath}.gz`)
@@ -92,69 +92,12 @@ export async function writeLanceDbIndex({
     return { skipped: true, reason: 'empty' };
   }
   if (!skipIsolate && shouldIsolateLanceDb(resolvedConfig, lanceEnv)) {
-    if (!vectorsPath) {
-      return { skipped: true, reason: 'missing vectors path for isolate' };
-    }
-    const moduleUrl = new URL('./lancedb.js', import.meta.url).href;
-    const payload = {
-      indexDir,
-      variant,
-      vectorsPath,
-      dims,
-      modelId,
-      quantization,
-      scale,
-      normalize,
-      config: resolvedConfig,
-      emitOutput: false,
-      label
-    };
-    const script = `
-      const payload = JSON.parse(process.env.${PAYLOAD_ENV} || '{}');
-      const moduleUrl = payload.moduleUrl;
-      const run = async () => {
-        const mod = await import(moduleUrl);
-        const result = await mod.writeLanceDbIndex(payload);
-        process.stdout.write(JSON.stringify(result || {}));
-      };
-      run().catch((err) => {
-        console.error(err && err.message ? err.message : String(err));
-        process.exit(2);
-      });
-    `;
-    payload.moduleUrl = moduleUrl;
-    const result = runIsolatedNodeScriptSync({
-      script,
-      env: {
-        ...process.env,
-        [CHILD_ENV]: '1',
-        [PAYLOAD_ENV]: JSON.stringify(payload)
-      },
-      maxOutputBytes: 1024 * 1024,
-      outputMode: 'string',
-      captureStdout: true,
-      captureStderr: true,
-      rejectOnNonZeroExit: false,
-      name: 'lancedb'
-    });
-    if (result.exitCode !== 0) {
-      const detail = typeof result.stderr === 'string' ? result.stderr.trim() : '';
-      if (emitOutput && detail) {
-        logger.warn(`[embeddings] ${label || variant}: LanceDB isolate failed: ${detail}`);
-      }
-      return { skipped: true, reason: 'isolate failed' };
-    }
-    let parsed = {};
-    try {
-      parsed = typeof result.stdout === 'string' ? JSON.parse(result.stdout) : {};
-    } catch {}
-    if (emitOutput && parsed && parsed.count) {
-      const targetLabel = label || variant;
-      logger.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${parsed.count} vectors).`);
-    }
-    return parsed || { skipped: false };
+    if (!vectorsPath) return { skipped: true, reason: 'missing vectors path for isolate' };
+    const batch = await runIsolatedBackendJobs({ backend: 'lancedb', signal,
+      jobs: [{ target: variant, payload: { indexDir, variant, vectorsPath, dims, modelId,
+        quantization, scale, normalize, config: resolvedConfig, label } }] });
+    return batch.results[variant];
   }
-
   const lancedb = await loadLanceDb(logger);
   if (!lancedb) return { skipped: true, reason: 'missing dependency' };
 
@@ -203,6 +146,7 @@ export async function writeLanceDbIndex({
         } finally { contract.release(); }
       };
       const append = async (docId, vector) => {
+        throwIfAborted(signal);
         // Absent channels retain their document-ID hole. Present malformed
         // vectors fail the staged build instead of silently changing schema.
         if (vector == null || vector.length === 0) return;
@@ -255,6 +199,7 @@ export async function writeLanceDbIndex({
       , extensions: { lancePublicationId: publicationId }
     };
     assertLanceDbPayload(stagedDir, { table: tableName, count: writtenCount });
+    throwIfAborted(signal);
     await writeJsonObjectFile(stagedMetaPath, { fields: meta, atomic: true });
     const publication = await publishLanceDbReplacement({ dir, metaPath, stageRoot, stagedMetaPath, id: publicationId });
     if (publication.cleanupError) logger.warn(`[embeddings] LanceDB published; cleanup pending at ${publication.recoveryPath}: ${publication.cleanupError}`);

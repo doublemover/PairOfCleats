@@ -1817,6 +1817,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
     scheduler,
     scheduleCompute,
     scheduleIo,
+    scheduleNative,
     envelopeCpuConcurrency
   } = createEmbeddingsScheduler({
     argv,
@@ -3705,19 +3706,22 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         }
 
         const backendStageRoot = path.join(modeIndexRoot || indexDir, '.embeddings-backend-staging');
-        const backendStageDir = path.join(backendStageRoot, `index-${mode}`);
-        await scheduleIo(async () => {
-          await fs.rm(backendStageDir, { recursive: true, force: true });
-          await fs.mkdir(backendStageDir, { recursive: true });
+        const backendStageDir = await scheduleIo(async () => {
+          await fs.mkdir(backendStageRoot, { recursive: true });
+          return fs.mkdtemp(path.join(backendStageRoot, `index-${mode}-`));
         });
         const stagedHnswPaths = {
           merged: resolveHnswPaths(backendStageDir, 'merged'),
           doc: resolveHnswPaths(backendStageDir, 'doc'),
           code: resolveHnswPaths(backendStageDir, 'code')
         };
-        let backendPublication;
+        let backendPublication, backendFailure = null;
+        const nativeBackendWork = { hnsw: null, lancedb: null };
         try {
-          Object.assign(hnswResults, await scheduleIo(() => writeHnswBackends({
+          const nativeAdmissionBytes = totalChunks * (finalDims * 4 + Math.max(1, Number(hnswConfig.m) || 16) * 16 + 64);
+          const recordBackendFailure = failure => crashLogger.logError({ phase: `embeddings:${mode}`,
+            stage: 'ann-child', mode, ...failure });
+          const hnswBackendResults = await scheduleNative(() => writeHnswBackends({
             mode,
             hnswConfig,
             hnswIsolate,
@@ -3736,10 +3740,14 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             normalize: embeddingNormalize,
             logger,
             log,
-            warn
-          })));
+            warn,
+            signal: config.signal || null,
+            recordFailure: recordBackendFailure
+          }), { estimatedBytes: nativeAdmissionBytes });
+          Object.assign(hnswResults, hnswBackendResults);
+          nativeBackendWork.hnsw = hnswBackendResults.work || { childStarts: 0 };
 
-          const lanceResults = await scheduleIo(() => writeLanceDbBackends({
+          const lanceResults = await scheduleNative(() => writeLanceDbBackends({
             mode,
             indexDir: backendStageDir,
             lanceConfig,
@@ -3755,16 +3763,34 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             scale: denseScale,
             normalize: embeddingNormalize,
             logger,
-            warn
-          }));
+            warn,
+            signal: config.signal || null,
+            recordFailure: recordBackendFailure
+          }), { estimatedBytes: totalChunks * (finalDims * 4 + 64) });
+          nativeBackendWork.lancedb = lanceResults.work || { childStarts: 0 };
           backendPublication = await scheduleIo(() => publishBackendGeneration({
             stageDir: backendStageDir, indexDir, embeddingIdentity: cacheIdentity, embeddingGeneration,
             results: { hnsw: hnswResults, lancedb: lanceResults },
             enabled: { hnsw: hnswConfig.enabled === true, lancedb: lanceConfig.enabled === true }, warn
           }));
           backendTask.set(2, 5, { message: 'updating sqlite dense vectors' });
+        } catch (error) {
+          backendFailure = error;
+          if (error.cacheOwnershipPending) error.backendStagePath = backendStageDir;
+          throw error;
         } finally {
-          await scheduleIo(() => fs.rm(backendStageDir, { recursive: true, force: true }));
+          // An unreaped child still owns this exact attempt's staging paths.
+          // Cancellation cannot return that ownership early or let the next
+          // invocation reuse/delete its directory. Ordinary cleanup must not
+          // enqueue through the already-aborted production scheduler.
+          if (!backendFailure?.cacheOwnershipPending) {
+            try { await fs.rm(backendStageDir, { recursive: true, force: true }); }
+            catch (error) {
+              if (backendFailure) throw new AggregateError([backendFailure, error],
+                `ANN build failed; cleanup retained at ${backendStageDir}`, { cause: backendFailure });
+              throw error;
+            }
+          }
         }
 
         let sqliteVecState = { enabled: false, available: false };
@@ -3890,6 +3916,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             hnsw: hnswState.available ? (hnswState.count || 0) : 0,
             lancedb: lancedbState.available ? (lancedbState.count || 0) : 0,
             sqliteVec: sqliteVecState.available ? (sqliteVecState.count || 0) : 0
+            , nativeBackendWork
           }
         });
 
@@ -3898,6 +3925,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         indexState.updatedAt = now;
         indexState.mode = indexState.mode || mode;
         if (!indexState.extensions || typeof indexState.extensions !== 'object') indexState.extensions = {};
+        indexState.extensions.annBuildWork = { schemaVersion: 1, ...nativeBackendWork };
         indexState.extensions.bundleEmbeddingSynchronization = {
           schemaVersion: 1, stage: 'stage3-bundle-synchronization',
           observation: refreshedBundles.coverage ? 'observed' : 'unknown',
