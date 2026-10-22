@@ -1855,7 +1855,8 @@ export const processFiles = async ({
       abortProcessing(err);
       void terminateTrackedSubprocesses({
         reason: 'stage1_processing_stall_timeout',
-        force: false
+        force: false,
+        ownershipPrefix: stage1OwnershipPrefix
       }).then((cleanup) => {
         if (!cleanup || cleanup.attempted <= 0) return;
         logLine(
@@ -3312,7 +3313,8 @@ export const processFiles = async ({
               onTimeout: async () => {
                 const cleanup = await terminateTrackedSubprocesses({
                   reason: 'tree_sitter_scheduler_close_timeout',
-                  force: true
+                  force: true,
+                  ownershipPrefix: stage1OwnershipPrefix
                 });
                 if (cleanup?.attempted > 0) {
                   logLine(
