@@ -1,19 +1,77 @@
 import fs from 'node:fs/promises';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { openContainedFile, verifyContainedFileHandle } from '../contained-file.js';
 import { throwIfAborted } from '../abort.js';
 import { sameStorageFileIdentity, storageFileIdentity } from './inventory.js';
+import { addStorageFailureContext } from './operation-error.js';
+
+const transferSessions = new WeakSet();
+export const isStorageTransferSession = session => Boolean(session) && transferSessions.has(session);
+const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+const captureObservation = error => {
+  try {
+    const observe = error?.cacheOwnershipReleased;
+    if (error?.cacheOwnershipPending !== true && typeof observe !== 'function') return null;
+    return () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } };
+  } catch { return () => false; }
+};
 
 /** Bounded streaming read/copy through the existing contained descriptor owner. */
 export const verifyStorageFile = async ({ root, file, identity = null, expectedHash = null,
   destination = null, signal = null, deadline = null, maxBytes = Number.MAX_SAFE_INTEGER }) => {
   const handle = await openContainedFile(root, file, { expectedFileIdentity: identity ? { dev: identity.dev, ino: identity.ino } : null });
   let output = null;
+  let primary = null, closing = null, overflow = false;
+  const owners = [], observers = [], observed = new WeakSet();
+  const adopt = handle => {
+    const owner = { handle, closed: false, close: null, captureError: null };
+    owners.push(owner);
+    try {
+      owner.close = handle.close;
+      if (typeof owner.close !== 'function') throw new TypeError('Storage transfer descriptor has no close owner.');
+    } catch (error) { owner.captureError = asError(error); }
+  };
+  adopt(handle);
+  const resourceId = `storage-transfer:${randomUUID()}`;
+  const observeFailure = error => {
+    if (observed.has(error)) return;
+    observed.add(error);
+    const observe = captureObservation(error);
+    if (observe) { if (observers.length < 128) observers.push(observe); else overflow = true; }
+  };
+  const isSettled = () => !overflow && owners.every(owner => owner.closed) && observers.every(observe => observe());
+  const closeOwners = async () => {
+    if (!closing) closing = (async () => {
+      const results = await Promise.allSettled(owners.filter(owner => !owner.closed).map(async owner => {
+        if (owner.captureError) throw owner.captureError;
+        await owner.close.call(owner.handle);
+        owner.closed = true;
+      }));
+      const failures = results.filter(result => result.status === 'rejected').map(result => asError(result.reason));
+      for (const failure of failures) observeFailure(failure);
+      return failures;
+    })().finally(() => { closing = null; });
+    return closing;
+  };
+  const retainFailure = failures => {
+    const pending = Object.assign(new AggregateError(failures, 'Storage transfer descriptor closure remains unconfirmed.',
+      failures.length ? { cause: failures[0] } : undefined), {
+      code: 'ERR_STORAGE_TRANSFER_CLOSE_PENDING', cacheOwnershipPending: true, cacheOwnershipReleased: isSettled
+    });
+    return addStorageFailureContext(primary || failures[0] || pending, { storageTransferSession: session }, pending,
+      { nonEnumerable: ['storageTransferSession'] });
+  };
+  const session = Object.freeze({ resourceId, isSettled, releaseAfterClose: async () => {
+    const failures = await closeOwners();
+    if (failures.length || !isSettled()) throw retainFailure(failures);
+    return { resourceId, settled: true, pending: false };
+  } });
+  transferSessions.add(session);
   try {
     const before = storageFileIdentity(await handle.stat({ bigint: true }));
     if (!Number.isSafeInteger(before.size) || before.size < 0 || before.size > maxBytes
       || (identity && !sameStorageFileIdentity(before, identity))) throw new Error('Migration source identity or byte budget changed.');
-    if (destination) output = await fs.open(destination, 'wx', before.mode & 0o777);
+    if (destination) { output = await fs.open(destination, 'wx', before.mode & 0o777); adopt(output); }
     const hash = createHash('sha256');
     const buffer = Buffer.alloc(64 * 1024);
     let bytes = 0;
@@ -46,8 +104,12 @@ export const verifyStorageFile = async ({ root, file, identity = null, expectedH
       await output.sync();
     }
     return { sha256, bytes, identity: after };
+  } catch (value) {
+    primary = asError(value);
+    observeFailure(primary);
+    throw primary;
   } finally {
-    if (output) await output.close();
-    await handle.close();
+    const failures = await closeOwners();
+    if (failures.length || !isSettled()) throw retainFailure(failures);
   }
 };

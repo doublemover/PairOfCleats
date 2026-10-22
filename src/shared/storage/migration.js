@@ -4,14 +4,14 @@ import { randomUUID } from 'node:crypto';
 import { assertNoSymlinkPath, readVerifiedContainedFile } from '../contained-file.js';
 import { assertSafeCacheDeletion } from '../cache-deletion.js';
 import { atomicWriteJson } from '../io/atomic-write.js';
-import { acquireFileLock } from '../locks/file-lock.js';
+import { acquireFileLock, releaseFileLockOrThrow } from '../locks/file-lock.js';
 import { addStorageFailureContext, releaseStorageOperationLock } from './operation-error.js';
 import { syncParentDirectory } from '../io/persistence-helpers.js';
 import { throwIfAborted } from '../abort.js';
 import { withExclusiveStorageAccess } from './access.js';
 import { readStorageLocator, writeStorageLocator } from './locator.js';
 import { buildStorageMigrationManifest, storageMigrationOwnerProof, storagePlanDigest } from './migration-plan.js';
-import { verifyStorageFile } from './transfer.js';
+import { verifyStorageFile, isStorageTransferSession } from './transfer.js';
 import { inspectStorageInventory } from './inventory.js';
 import { revalidateStorageAuthority } from './authority.js';
 import { assertStorageLocatorShape } from './locator-contract.js';
@@ -84,11 +84,50 @@ const pathsFor = plan => {
 };
 const withExclusiveRoots = async (roots, options, action) => {
   const ordered = [...new Set(roots)].sort();
+  const retained = [], released = new Set(), transfers = new Set();
+  let firstFailure = null, reconciling = null;
+  const pendingFailure = (primary, failures = []) => {
+    const metadata = Object.assign(new AggregateError(failures, 'Migration transfer exclusions remain retained.',
+      failures.length ? { cause: failures[0] } : undefined), {
+      cacheOwnershipPending: true, cacheOwnershipReleased: () => retained.every(item => released.has(item.lock))
+    });
+    return addStorageFailureContext(primary, { storageMigrationTransferSession: recovery }, metadata,
+      { nonEnumerable: ['storageMigrationTransferSession'] });
+  };
+  const recovery = Object.freeze({ releaseAfterClose: async () => {
+    if (!reconciling) reconciling = (async () => {
+      for (const session of transfers) {
+        const receipt = await session.releaseAfterClose();
+        if (receipt?.resourceId !== session.resourceId || receipt.settled !== true || receipt.pending !== false || !session.isSettled()) {
+          throw new Error('Migration transfer descriptor owner did not confirm its exact closure.');
+        }
+      }
+      const results = await Promise.allSettled(retained.filter(item => !released.has(item.lock)).map(async item => {
+        await releaseFileLockOrThrow(item.lock); released.add(item.lock);
+      }));
+      const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);
+      if (failures.length) throw pendingFailure(firstFailure, failures);
+      return true;
+    })().finally(() => { reconciling = null; });
+    try { return await reconciling; }
+    catch (error) { throw pendingFailure(firstFailure || error, [error]); }
+  } });
   const next = async (index, owners = []) => {
     if (index === ordered.length) return action(owners);
-    const result = await withExclusiveStorageAccess(ordered[index], context => next(index + 1, [...owners, {
-      root: context.paths.root, lockId: context.lock.payload.lockId, pid: context.lock.payload.pid
-    }]), options);
+    const result = await withExclusiveStorageAccess(ordered[index], async context => {
+      try { return await next(index + 1, [...owners, {
+        root: context.paths.root, lockId: context.lock.payload.lockId, pid: context.lock.payload.pid
+      }]); } catch (error) {
+        if (isStorageTransferSession(error.storageTransferSession)) {
+          transfers.add(error.storageTransferSession);
+          firstFailure ||= error;
+          retained.push({ root: context.paths.root, lock: context.lock });
+          context.retainExclusion();
+          throw pendingFailure(error);
+        }
+        throw error;
+      }
+    }, options);
     if (result.protected) throw Object.assign(new Error(`Migration blocked by ${result.reason}.`), { code: 'ERR_STORAGE_MIGRATION_BUSY' });
     return result.result;
   };

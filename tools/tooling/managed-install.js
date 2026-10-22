@@ -16,7 +16,7 @@ import { runInstallWithStorageAdmission } from './install-storage.js';
 import { retainManagedToolInstallation } from '../../src/shared/managed-installation.js';
 import { isKnownManagedInstallationDescriptor, isKnownManagedInstallationReceipt } from '../../src/shared/managed-installation-contract.js';
 import { storageFileIdentity } from '../../src/shared/storage/inventory.js';
-import { verifyStorageFile } from '../../src/shared/storage/transfer.js';
+import { verifyStorageFile, isStorageTransferSession } from '../../src/shared/storage/transfer.js';
 import { verifyOwnedInstallation, verifyRetainedManagedInstallation, captureManagedVerificationFailure,
   retainManagedResourceFailure } from './managed-verification.js';
 export { retainManagedToolInstallation, retainManagedToolInstallationSync } from '../../src/shared/managed-installation.js';
@@ -135,7 +135,7 @@ const inspectGeneration = async (owner, toolId, installId, { signal = null } = {
   let files;
   try { assertNoSymlinkPath(owner, root); files = await captureFiles(root, DEFAULT_LIMITS, { signal }); }
   catch (error) {
-    if (signal?.aborted) throw error;
+    if (signal?.aborted || isStorageTransferSession(error.storageTransferSession)) throw error;
     return { ok: false, state: 'repair-required', reason: error.code || error.message, receipt };
   }
   if (identity(files) !== receipt.filesIdentity) return { ok: false, state: 'repair-required', reason: 'managed-file-bytes-drift', receipt };
@@ -175,7 +175,7 @@ export const inspectManagedInstallation = async ({ toolingRoot, toolId, descript
     if (identity(selector) !== identity({ schemaVersion: MANAGED_INSTALL_VERSION, toolId, descriptorId: selector.descriptorId, installId: selector.installId })) throw new Error('Managed selector has unknown ownership fields.');
     return await inspectGeneration(owner, toolId, selector.installId, { signal });
   } catch (error) {
-    if (signal?.aborted) throw error;
+    if (signal?.aborted || isStorageTransferSession(error.storageTransferSession)) throw error;
     return { ok: false, state: error.code === 'ENOENT' ? 'missing' : 'repair-required', reason: error.code || error.message };
   }
 };

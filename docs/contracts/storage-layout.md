@@ -335,3 +335,26 @@ owner failures stop planning/apply instead of becoming ordinary blocked-proof
 diagnostics followed by more work. Actual disposable-directory/lock/copy/resume
 and rollback controls are authored but UNVALIDATED; no saved source, staged copy
 or published recovery evidence becomes newly disposable.
+
+Actual file transfer attempts every owned input/output descriptor close, even
+when one rejects. Failed closes preserve the original operation and all close
+errors, with an exact nonenumerable `storageTransferSession` for the same native
+handles. Reconciliation never infers close from pathname absence or a copied
+session-shaped object. Original independent pending observers remain required.
+
+Migration uses the existing `retainExclusion` callback for those actual transfer
+owners. Its admitted source/destination exclusions stay held until the same
+descriptors confirm close and every original metadata lock releases. Failed
+metadata removal attempts the other exact exclusions and keeps a coalesced
+`storageMigrationTransferSession` for retry. This introduces no lease namespace
+or child-process census: the owned resources are process-local Node file handles.
+Managed installation inspection propagates pending descriptor ownership instead
+of converting it to ordinary repair status. Authored actual copy/close/exclusion
+and inspection fixtures remain UNVALIDATED.
+
+Transfer captures each descriptor's original close method and receiver once;
+reconciliation cannot adopt a replacement method. A reported independent read
+owner also retains the branded transfer session when both descriptors already
+closed successfully. Descriptor closure alone cannot authorize releasing that
+owner or its migration exclusions. Authored original-method and no-close-error
+pending-read controls are unexecuted.
