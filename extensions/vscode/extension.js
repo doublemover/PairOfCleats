@@ -13,7 +13,7 @@ const { createDocumentAuthority, readVerifiedSource } = require('./document-auth
 const { createTaskObservations, taskRecoveryActions } = require('./task-observations.js');
 const taskObservations = createTaskObservations();
 const { generationFromContextPack, contextDiscoveryRequest, contextDiscoveryCliArgs } = require('./semantic-discovery.js');
-const { normalizeFilterPagination, admitFilterPage, mergeFilterPage, continuationInvocation } = require('./filter-pagination.js');
+const { normalizeFilterPagination, admitFilterPage, mergeFilterPage, carryFilterPageHistory, continuationInvocation } = require('./filter-pagination.js');
 const { resultTreeItemId, resultTreeHitOccurrences } = require('./results-tree-identity.js');
 const { createSemanticEvidenceWorkflow, sourceQualifiedSelection, qualifiedBindingSeed } = require('./semantic-evidence.js');
 let latestNavigationEvidence = null;
@@ -1373,6 +1373,7 @@ function normalizeSearchResultSet(rawResultSet) {
   const hits = Array.isArray(rawResultSet.hits)
     ? rawResultSet.hits.map((hit) => normalizeSearchHit(hit)).filter(Boolean)
     : [];
+  carryFilterPageHistory(rawResultSet.hits, hits);
   let explanationBytes = 64 * 1024;
   for (const hit of hits) {
     if (!hit.scoreBreakdown) continue;

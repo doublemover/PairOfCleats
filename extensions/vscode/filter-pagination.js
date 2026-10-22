@@ -1,3 +1,10 @@
+const { createHash } = require('node:crypto');
+
+// Display progress only. Digests never decode, resume or grant cursor authority.
+// History follows actual retained arrays and is not fabricated after restart.
+const cursorHistories = new WeakMap();
+const cursorDigest = cursor => createHash('sha256').update(cursor).digest('hex');
+
 function normalizeFilterPagination(value) {
   if (value?.kind !== 'filter' || typeof value.generation !== 'string'
     || value.generation.length !== 64 || !/^[a-f0-9]{64}$/.test(value.generation)
@@ -46,6 +53,12 @@ function mergeFilterPage(previous, next, hits) {
   if (next.hasMore && next.nextCursor === previous.pagination.nextCursor) {
     throw new Error('Indexed continuation did not advance. Restart browsing; the previous result set is retained.');
   }
+  const priorHistory = cursorHistories.get(previous.hits);
+  const cursors = new Set(priorHistory?.generation === next.generation ? priorHistory.cursors : []);
+  if (typeof previous.pagination.nextCursor === 'string') cursors.add(cursorDigest(previous.pagination.nextCursor));
+  if (next.hasMore && cursors.has(cursorDigest(next.nextCursor))) {
+    throw new Error('Indexed continuation repeated an earlier cursor. Restart browsing; the previous result set is retained.');
+  }
   const seen = new Set(previous.hits.map(hit => filterHitIdentity(hit)).filter(Boolean));
   const added = hits.filter(hit => {
     const key = filterHitIdentity(hit);
@@ -54,10 +67,27 @@ function mergeFilterPage(previous, next, hits) {
     seen.add(key);
     return true;
   });
+  if (next.hasMore && !added.length) {
+    throw new Error('Indexed continuation returned no new source identities. Restart browsing; the previous result set is retained.');
+  }
   if (previous.hits.length + added.length > 2000) {
     throw new Error('This editor view reached its 2,000 hit bound. Narrow the filters and restart browsing.');
   }
-  return [...previous.hits, ...added];
+  const merged = [...previous.hits, ...added], total = next.total ?? previous.pagination.total;
+  if (total != null && merged.length > total) {
+    throw new Error('Indexed loaded membership exceeds its captured matching total. Restart browsing; the previous result set is retained.');
+  }
+  if (next.hasMore) cursors.add(cursorDigest(next.nextCursor));
+  cursorHistories.set(merged, { generation: next.generation, cursors });
+  return merged;
+}
+
+/** Normalization copies hit objects/arrays. Carry only the actual merge owner's
+ * private progress record; a serialized public field cannot manufacture it. */
+function carryFilterPageHistory(originalHits, normalizedHits) {
+  if (!Array.isArray(originalHits) || !Array.isArray(normalizedHits)) return;
+  const history = cursorHistories.get(originalHits);
+  if (history) cursorHistories.set(normalizedHits, history);
 }
 
 function continuationInvocation(invocation, cursor) {
@@ -75,4 +105,4 @@ function continuationInvocation(invocation, cursor) {
   return { ...invocation, args };
 }
 
-module.exports = { normalizeFilterPagination, admitFilterPage, filterHitIdentity, mergeFilterPage, continuationInvocation };
+module.exports = { normalizeFilterPagination, admitFilterPage, filterHitIdentity, mergeFilterPage, carryFilterPageHistory, continuationInvocation };
