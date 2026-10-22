@@ -16,7 +16,7 @@ import { updateStackVisibility } from '../../src/map/isometric/client/stack-scen
 import { rebuildScene } from '../../src/map/isometric/client/rebuild.js';
 import { clearGroup } from '../../src/map/isometric/client/scene-utils.js';
 import { layoutDefaults,visualDefaults,performanceDefaults } from '../../src/map/isometric/client/defaults.js';
-const map={nodes:[{path:'input/read.ts',category:'source',members:[{id:0,name:'receive',kind:'function',range:{startLine:1,endLine:4}},{id:1,name:'Payload',kind:'class'}]},{path:'output/write.ts',category:'source',members:[{id:2,name:'emit',kind:'function'}]}],edges:[{type:'call',from:{file:'input/read.ts',member:0},to:{file:'output/write.ts',member:2},certainty:'inferred'},{type:'usage',from:{file:'input/read.ts',member:1},to:{file:'output/write.ts',member:2}}],summary:{}};
+const map={nodes:[{path:'input/read.ts',id:'input/read.ts',category:'source',members:[{id:0,name:'receive',kind:'function',range:{startLine:1,endLine:4}},{id:1,name:'Payload',kind:'class'}]},{path:'output/write.ts',id:'output/write.ts',category:'source',members:[{id:2,name:'emit',kind:'function'}]}],edges:[{type:'call',from:{file:'input/read.ts',member:0},to:{file:'output/write.ts',member:2},certainty:'inferred'},{type:'usage',from:{file:'input/read.ts',member:1},to:{file:'output/write.ts',member:2}}],summary:{}};
 const first=buildStackModel(map.nodes,map.edges),again=buildStackModel([...map.nodes].reverse(),map.edges);
 assert.deepEqual(first.files.map(row=>[row.key,row.x,row.z]),again.files.map(row=>[row.key,row.x,row.z]));
 assert.equal(first.levels.segments.length,2);assert.equal(first.levels.pipeline.length,2);assert.equal(first.files[0].members[0].id,'0');
@@ -35,6 +35,26 @@ for(const key of ['fileMeshes','fileInstancedMeshes','fileInstancedInnerMeshes',
 for(const key of ['fileInstanceByKey','fileColorByPath','fileAnchors','memberInstanceById','memberColorById','memberClusterByMemberId','memberAnchors','edgeTypeGroups','fileWireByKey','wireByMesh','fileMeshByKey','memberMeshById','fileBucketByKey'])state[key]=new Map();
 state.highlightedMemberIds=new Set();state.highlightedFileKeys=new Set();
 initMapData();computeLayout();initStackNavigation();buildMeshes();buildEdges();
+// Selection changes may affect visibility without changing full-level vertices.
+for(const tier of ['pipeline','stacks','segments']){
+  state.stackMode=tier;state.stackAllConnections=true;updateStackVisibility(true);
+  const layers=state.stackPipeLayers.filter(layer=>layer.level===tier);
+  const geometries=layers.map(layer=>layer.mesh.geometry);
+  const positions=geometries.map(geometry=>Array.from(geometry.attributes.position.array));
+  let disposed=0;const note=()=>{disposed++;};geometries.forEach(geometry=>geometry.addEventListener('dispose',note));
+  for(let index=0;index<20;index++){
+    state.selectedInfo={type:'file',file:index%2?'input/read.ts':'output/write.ts'};updateStackVisibility(true);
+    layers.forEach((layer,offset)=>{assert.strictEqual(layer.mesh.geometry,geometries[offset]);assert.deepEqual(Array.from(layer.mesh.geometry.attributes.position.array),positions[offset]);});
+  }
+  assert.equal(disposed,0,`${tier}: full-level selection changes retire no pipe geometry`);
+  geometries.forEach(geometry=>geometry.removeEventListener('dispose',note));
+}
+state.stackAllConnections=false;
+navigateStack({type:'file',file:'input/read.ts',id:'input/read.ts'});
+const edgeSummary=[...state.dom.selectionBody.querySelectorAll('.sel-section')].find(section=>section.querySelector('.sel-title')?.textContent==='Edges');
+const outgoing=[...edgeSummary.querySelectorAll('.sel-row')].find(row=>row.querySelector('.sel-label')?.textContent==='Outgoing');
+assert.match(outgoing.textContent,/call: 1/);assert.match(outgoing.textContent,/usage: 1/);
+assert.match(state.dom.selectionBody.textContent,/→ call/,'typed summary agrees with the directed relationship actions');
 assert.equal(state.drawCounts.members,3);assert.equal(state.chunkMeshes.length,0,'no invented decorative chunks');
 for(const mesh of [...state.fileInstancedMeshes,...state.memberInstancedMeshes]){for(let index=0;index<mesh.count;index++){const matrix=new THREE.Matrix4();mesh.getMatrixAt(index,matrix);assert.ok(matrix.elements.every(Number.isFinite));assert.ok(matrix.determinant()>0);}}
 navigateStack({type:'member',id:0,file:'input/read.ts',name:'receive'});assert.equal(state.selectedInfo.id,'0');assert.match(state.dom.selectionBody.textContent,/Directed relationships/);assert.match(state.dom.selectionBody.textContent,/All source fields/);
@@ -43,7 +63,10 @@ navigateStack({type:'member',id:2,file:'output/write.ts',name:'emit'});document.
 const search=document.getElementById('stack-search');search.value='receive';search.dispatchEvent(new window.Event('input'));assert.match(document.getElementById('stack-tree').textContent,/receive/);assert.doesNotMatch(document.getElementById('stack-tree').textContent,/output\/write/);
 for(let index=0;index<20;index++){state.stackMode=['pipeline','stacks','segments'][index%3];updateStackVisibility(true);}assert.equal(state.stackPipeLayers.length,6);assert.ok(state.camera.position.toArray().every(Number.isFinite));
 document.getElementById('stack-plumbing').click();assert.match(state.dom.selectionBody.textContent,/dependency plumbing/);assert.match(state.dom.selectionBody.textContent,/source relations/);
-const oldGeometry=state.stackPipeLayers[0].mesh.geometry;let disposed=false;oldGeometry.addEventListener('dispose',()=>{disposed=true;});clearGroup(state.edgeGroup);assert.equal(disposed,true);assert.equal(state.edgeGroup.children.length,0);
+const oldGeometry=state.stackPipeLayers[0].mesh.geometry;let disposed=false;oldGeometry.addEventListener('dispose',()=>{disposed=true;});
+const retired=new Map();for(const layer of state.stackPipeLayers)for(const geometry of layer.mesh.userData.ownedGeometries){retired.set(geometry,0);geometry.addEventListener('dispose',()=>retired.set(geometry,retired.get(geometry)+1));}
+clearGroup(state.edgeGroup);assert.equal(disposed,true);assert.equal(state.edgeGroup.children.length,0);
+assert.ok([...retired.values()].every(count=>count===1),'full and selected-neighborhood geometries retire exactly once');
 Object.assign(state,{scene:new THREE.Scene(),visualDefaults,controlDefaults:{zoomMin:0.05,zoomMax:80},fogBounds:{maxSpan:80},lineResolution:{width:1200,height:750},cameraBase:40,groundPlane:new THREE.Plane(new THREE.Vector3(0,1,0),0),lockIsometric:()=>{},cameraInitialized:true,flowLights:[]});
 for(let index=0;index<3;index++)rebuildScene();
 assert.equal(state.fileInstancedMeshes.length,2);assert.equal(state.memberInstancedMeshes.length,3);assert.equal(state.stackPipeLayers.length,6);assert.equal(state.drawCounts.members,3);assert.equal(state.selectedInfo.id,'2');

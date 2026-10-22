@@ -31,11 +31,13 @@ export const disposeObject = (object, context = disposalContext()) => {
   // InstancedMesh owns renderer bindings and instance buffers independently of
   // the shared geometry/material lifecycle.
   if (object.isInstancedMesh) object.dispose?.();
-  const geometry = object.geometry;
-  if (geometry && !geometry.userData?.shared && !context.geometries.has(geometry)) {
-    context.geometries.add(geometry);
-    geometry.dispose?.();
+  const ownedGeometries = object.userData?.ownedGeometries;
+  const geometries = ownedGeometries instanceof Set ? [...ownedGeometries, object.geometry] : [object.geometry];
+  for (const geometry of geometries) {
+    if (!geometry || geometry.userData?.shared || context.geometries.has(geometry)) continue;
+    context.geometries.add(geometry); geometry.dispose?.();
   }
+  ownedGeometries?.clear?.();
   if (object.material) disposeMaterial(object.material, context);
 };
 

@@ -3,6 +3,7 @@ import { setSelection, renderSelectionDetails } from './selection.js';
 import { inspectValue } from '../../workspace/inspect.js';
 import { STACK_KINDS } from './stack-model.js';
 import { updateStackVisibility } from './stack-scene.js';
+import { selectionEndpointMatcher, endpointFile } from './selection-endpoints.js';
 const makeButton=(label,callback)=>{const button=document.createElement('button');button.textContent=label;button.type='button';button.onclick=callback;return button;};
 const entityKey=info=>info?.type==='member'?`member:${info.id}`:info?.file?`file:${info.file}`:null;
 export function focusStack(info=null){
@@ -47,14 +48,14 @@ export function initStackNavigation(){
     const file=state.nodeByPath?.get(info.file),source=info.type==='member'?(file?.members||[]).find(row=>String(row.id)===String(info.id)):file;
     if(source){const all=document.createElement('details'),title=document.createElement('summary');title.textContent='All source fields · lazy inspector';all.append(title);let loaded=false;all.addEventListener('toggle',()=>{if(all.open&&!loaded){loaded=true;all.append(inspectValue(source));}});state.dom.selectionBody.append(all);}
     const heading=document.createElement('h3');heading.textContent='Directed relationships · admitted scope';state.dom.selectionBody.append(heading);
-    const touches=endpoint=>info.type==='member'?endpoint?.member!=null&&String(endpoint.member)===String(info.id):endpoint?.file===info.file||state.fileByMember?.get(endpoint?.member)===info.file;
+    const touches=selectionEndpointMatcher(info,{fileByMember:state.fileByMember});
     const rows=(state.edges||[]).filter(edge=>touches(edge.from)||touches(edge.to));let offset=0;const more=makeButton('More relationships',append);
     function append(){more.remove();for(const edge of rows.slice(offset,offset+40)){
       const out=touches(edge.from),other=out?edge.to:edge.from;
       state.dom.selectionBody.append(makeButton(`${out?'→':'←'} ${edge.type} · ${other?.member??other?.file??'unresolved'}`,()=>{
         const host=state.dom.selectionBody;host.replaceChildren(inspectValue(edge));
         for(const [label,endpoint] of [['Source',edge.from],['Target',edge.to]]){
-          const file=endpoint?.file||state.fileByMember?.get(endpoint?.member);
+          const file=endpointFile(endpoint,state.fileByMember);
           const available=endpoint?.member!=null?state.memberInstanceById?.has(String(endpoint.member)):state.fileInstanceByKey?.has(file);
           const action=makeButton(`Go to ${label.toLowerCase()}${available?'':' · outside drawn scope'}`,()=>navigateStack({type:endpoint.member!=null?'member':'file',file,id:endpoint.member}));action.disabled=!available;host.append(action);
         }

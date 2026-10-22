@@ -8,6 +8,7 @@ import { buildEdges } from './edges.js';
 import { applyHighlights, renderSelectionDetails, setSelection } from './selection.js';
 
 const resetScene = () => {
+  state.invalidateHover?.();
   clearGroup(state.fileGroup);
   clearGroup(state.memberGroup);
   clearGroup(state.labelGroup);

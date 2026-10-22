@@ -6,8 +6,28 @@ import { applyHighlights, setSelection, openSelection } from './selection.js';
 import { applyBucketCulling, applyEdgeCulling, forceBucketVisible } from './culling.js';
 import { resolveLodTier, applyLodTier } from './lod.js';
 import { updatePerfStats } from './telemetry.js';
+import { createHoverFrame } from './hover-frame.js';
 
 export const initControls = () => {
+  state.disposeControls?.();
+  let disposed = false, animationFrame = null, hover = null;
+  const listeners = [];
+  const listen = (target, event, callback, options) => {
+    target.addEventListener(event, callback, options);
+    listeners.push(() => target.removeEventListener(event, callback, options));
+  };
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+    for (const remove of listeners.splice(0)) remove();
+    hover?.dispose();
+    if (state.disposeControls === dispose) state.disposeControls = null;
+    if (state.invalidateHover === invalidateHover) state.invalidateHover = null;
+  };
+  const invalidateHover = () => hover?.invalidate();
+  state.disposeControls = dispose;
+  state.invalidateHover = invalidateHover;
   const {
     THREE,
     dom,
@@ -68,17 +88,17 @@ export const initControls = () => {
     cullMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     cullFrustum.setFromProjectionMatrix(cullMatrix);
 
+    const selected = state.selectedInfo;
+    const selectedId = selected?.type === 'member' && selected.id != null ? String(selected.id) : null;
+    const selectedCluster = selectedId !== null ? state.memberClusterByMemberId?.get(selectedId) : null;
     for (const cluster of state.memberClusters) {
       if (!cluster?.group || !cluster?.sphere) continue;
-      cluster.group.visible = cullFrustum.intersectsSphere(cluster.sphere);
+      const visible = cluster === selectedCluster || cluster.group === selectedCluster || cluster.group === selectedCluster?.group
+        || cullFrustum.intersectsSphere(cluster.sphere);
+      if (cluster.group.visible !== visible) invalidateHover();
+      cluster.group.visible = visible;
     }
 
-    const selected = state.selectedInfo;
-    const selectedId = selected?.type === 'member' && selected.id ? String(selected.id) : null;
-    if (selectedId && state.memberClusterByMemberId?.has(selectedId)) {
-      const target = state.memberClusterByMemberId.get(selectedId);
-      if (target?.group) target.group.visible = true;
-    }
   };
 
   const updateFileCulling = () => {
@@ -86,13 +106,15 @@ export const initControls = () => {
     if (state.fileGroup?.visible === false) return;
     cullMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     cullFrustum.setFromProjectionMatrix(cullMatrix);
-    applyBucketCulling({ frustum: cullFrustum, buckets: state.fileBuckets, hiddenMatrix });
-
     const selected = state.selectedInfo;
     const fileKey = selected?.type === 'file' ? (selected.file || selected.name) : null;
+    const selectedBucket = fileKey ? state.fileBucketByKey?.get(fileKey) : null;
+    const changed = applyBucketCulling({ frustum: cullFrustum, buckets: state.fileBuckets, hiddenMatrix, forceVisible: selectedBucket });
+    if (changed.size) invalidateHover();
+
     if (fileKey && state.fileBucketByKey?.has(fileKey)) {
       const bucket = state.fileBucketByKey.get(fileKey);
-      forceBucketVisible(bucket);
+      if (bucket.visible === false) forceBucketVisible(bucket);
     }
   };
 
@@ -107,6 +129,7 @@ export const initControls = () => {
 
   const getPointerNdc = (event) => {
     const rect = renderer.domElement.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
     const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     return { x, y, rect };
@@ -122,6 +145,8 @@ export const initControls = () => {
 
   const onPointer = (event) => {
     const ndc = getPointerNdc(event);
+    if (!ndc) return;
+    hover.move(event);
     pointer.x = ndc.x;
     pointer.y = ndc.y;
     raycaster.setFromCamera(pointer, camera);
@@ -136,6 +161,8 @@ export const initControls = () => {
 
   const startDrag = (event) => {
     dragging = true;
+    hover.move(event);
+    hover.startDrag();
     dragMoved = false;
     lastPointer = { x: event.clientX, y: event.clientY };
   };
@@ -147,6 +174,7 @@ export const initControls = () => {
     if (Math.abs(dx) + Math.abs(dy) > 1) dragMoved = true;
     lastPointer = { x: event.clientX, y: event.clientY };
     const ndc = getPointerNdc(event);
+    if (!ndc) return;
     const rect = ndc.rect;
     if (!rect.width || !rect.height) return;
     const viewWidth = (camera.right - camera.left) / camera.zoom;
@@ -169,6 +197,7 @@ export const initControls = () => {
   const updateHover = (event) => {
     if (dragging) return;
     const ndc = getPointerNdc(event);
+    if (!ndc) { state.hovered = null; applyHighlights(); return; }
     pointer.x = ndc.x;
     pointer.y = ndc.y;
     raycaster.setFromCamera(pointer, camera);
@@ -187,26 +216,30 @@ export const initControls = () => {
 
   const endDrag = () => {
     dragging = false;
+    hover.endDrag();
   };
 
-  renderer.domElement.addEventListener('pointerdown', startDrag);
-  window.addEventListener('pointermove', moveDrag);
-  window.addEventListener('pointerup', endDrag);
-  renderer.domElement.addEventListener('pointerleave', endDrag);
-  renderer.domElement.addEventListener('pointermove', updateHover);
-  renderer.domElement.addEventListener('pointerleave', () => {
-    state.hovered = null;
-    applyHighlights();
+  hover = createHoverFrame({ pick: updateHover, clear: () => {
+    if (state.hovered !== null) { state.hovered = null; applyHighlights(); }
+  } });
+
+  listen(renderer.domElement, 'pointerdown', startDrag);
+  listen(window, 'pointermove', moveDrag);
+  listen(window, 'pointerup', endDrag);
+  listen(renderer.domElement, 'pointerleave', endDrag);
+  listen(renderer.domElement, 'pointermove', (event) => hover.move(event));
+  listen(renderer.domElement, 'pointerleave', () => {
+    hover.leave();
   });
 
-  renderer.domElement.addEventListener('click', (event) => {
+  listen(renderer.domElement, 'click', (event) => {
     if (dragMoved) {
       dragMoved = false;
       return;
     }
     onPointer(event);
   });
-  renderer.domElement.addEventListener('dblclick', (event) => {
+  listen(renderer.domElement, 'dblclick', (event) => {
     if (dragMoved) {
       dragMoved = false;
       return;
@@ -216,20 +249,20 @@ export const initControls = () => {
   });
 
   let focused = false;
-  dom.app.addEventListener('pointerdown', (event) => {
+  listen(dom.app, 'pointerdown', (event) => {
     if(event.target?.closest?.('input,textarea,select,button,summary'))return;
     focused = true;
     dom.app.focus();
   });
-  window.addEventListener('blur', () => { focused = false; });
+  listen(window, 'blur', () => { focused = false; });
 
   const keys = {};
-  window.addEventListener('keydown', (event) => {
+  listen(window, 'keydown', (event) => {
     if (!focused || /INPUT|TEXTAREA|SELECT|BUTTON/.test(event.target?.tagName) || event.target?.isContentEditable) return;
     if(state.layoutStyle==='stacks' && ['KeyF','Home','Escape'].includes(event.code)){event.preventDefault();if(event.code==='Escape')setSelection(null);else focusStack(event.code==='Home'?null:state.selectedInfo);return;}
     keys[event.code] = true;
   });
-  window.addEventListener('keyup', (event) => {
+  listen(window, 'keyup', (event) => {
     if (!focused) return;
     keys[event.code] = false;
   });
@@ -283,15 +316,31 @@ export const initControls = () => {
     const deltaModeScale = event.deltaMode === 1 ? 18 : (event.deltaMode === 2 ? 360 : 1);
     const delta = -rawDelta * deltaModeScale * 0.0025;
     const ndc = getPointerNdc(event);
+    if (!ndc) return;
     zoomPointer = { x: ndc.x, y: ndc.y };
     zoomVelocity += delta * zoomSensitivity;
   };
-  renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
+  listen(renderer.domElement, 'wheel', onWheel, { passive: false });
 
   let lastTime = performance.now();
   let fpsState = { start: lastTime, frames: 0 };
+  const cameraSnapshot = new Float64Array(32).fill(NaN);
+  let fileVisibleSnapshot, memberVisibleSnapshot;
+  const refreshHoverCamera = () => {
+    camera.updateMatrixWorld();
+    const world = camera.matrixWorld.elements, projection = camera.projectionMatrix.elements;
+    let changed = false;
+    for (let index = 0; index < 16; index += 1) {
+      if (cameraSnapshot[index] !== world[index] || cameraSnapshot[index + 16] !== projection[index]) changed = true;
+      cameraSnapshot[index] = world[index]; cameraSnapshot[index + 16] = projection[index];
+    }
+    if (fileVisibleSnapshot !== state.fileGroup?.visible || memberVisibleSnapshot !== state.memberGroup?.visible) changed = true;
+    fileVisibleSnapshot = state.fileGroup?.visible; memberVisibleSnapshot = state.memberGroup?.visible;
+    if (changed) invalidateHover();
+  };
   const animate = () => {
-    requestAnimationFrame(animate);
+    if (disposed) return;
+    animationFrame = requestAnimationFrame(animate);
     const now = performance.now();
     const frameMs = now - lastTime;
     const dt = Math.min(0.05, frameMs / 1000);
@@ -443,6 +492,8 @@ export const initControls = () => {
       updateEdgeCulling();
     }
 
+    refreshHoverCamera();
+    hover.frame();
     renderer.render(state.scene, camera);
   };
   animate();
@@ -475,6 +526,8 @@ export const initControls = () => {
     renderer.setSize(viewport.width, viewport.height);
     lockIsometric();
   };
-  window.addEventListener('resize', onResize);
+  listen(window, 'resize', onResize);
+  listen(window, 'scroll', invalidateHover, true);
+  listen(window, 'pagehide', dispose);
   onResize();
 };

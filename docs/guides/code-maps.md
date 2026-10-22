@@ -119,3 +119,18 @@ verifies its generated TLS certificate and retrieves the actual HTML/client/shar
 These tests do not establish WebGL performance, label occlusion, mobile
 usability, native pointer picking or real-browser interaction. The owner requested continuing
 with alternate validation rather than asking for browser sign-in/setup.
+
+Workspace local paging materializes details only for admitted rows and reuses the
+validated first-page projection. Relationship options describe the complete
+loaded response, so later-page types remain selectable. Returning to a retained
+selection restores its overview and currently filtered relationships without
+adding history or loading remote detail automatically.
+
+Stack selection summaries and relationship actions share explicit file/member
+endpoint ownership, including member ID zero. Full-level pipe geometry remains
+owned by its admitted model; selection-only updates reuse it. Filtered segment
+geometry changes only with its effective row subset, and full rebuilds retire
+both geometry forms. Hover moves coalesce to the latest pointer per render
+frame, with explicit camera/culling/visibility invalidation and disposal. These
+are implementation contracts; authored CPU/DOM fixtures do not establish
+browser responsiveness, GPU/FPS or retained-memory improvements.

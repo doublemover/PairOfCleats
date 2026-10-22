@@ -28,7 +28,10 @@ export const initMapData = () => {
       const hasMemberId = member?.id === 0 || Boolean(member?.id);
       if (hasMemberId) memberById.set(member.id, member);
       const filePath = member?.file || node.path || node.name || '';
-      if (hasMemberId) fileByMember.set(member.id, filePath);
+      if (hasMemberId) {
+        fileByMember.set(member.id, filePath);
+        fileByMember.set(String(member.id), filePath);
+      }
       const rangeKey = buildMemberKey(filePath, member?.name || '', member?.range || {});
       memberByKey.set(rangeKey, member);
       const nameKey = buildMemberNameKey(filePath, member?.name || '');

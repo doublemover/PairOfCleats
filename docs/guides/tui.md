@@ -339,3 +339,9 @@ Use `node tools/tui/capture-fixtures.js --list` to see the bundled fixtures, or 
 ## Session refinement recovery
 
 The saved session restores the selected job, panel search strings, job/task/log filters, focused panel, follow setting, and scroll offsets. Older snapshots without these fields retain the normal defaults. An unfinished search draft is not committed by recovery; reopen search to refine the restored filter. This restores UI state, not running jobs or index freshness.
+
+Rejected settings edits remain volatile and bound to the selected scope, field
+and inspected revision. Schema rejection returns to the editor with the input
+intact. A stale revision retains unsaved input but requires Ctrl-r reload and a
+new validation preview before saving. Explicit discard, scope selection and a
+successful save clear the draft. Draft text is excluded from snapshots and logs.

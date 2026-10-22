@@ -56,6 +56,21 @@ function pipePositions(rows,level){
     positions.push(b.x-0.22*s,b.y+0.5*s,b.z,b.x,b.y,b.z,b.x+0.22*s,b.y+0.5*s,b.z,b.x,b.y,b.z);
   });return positions;
 }
+const pipeGeometry=(rows,level)=>{
+  const geometry=new state.THREE.BufferGeometry();
+  geometry.setAttribute('position',new state.THREE.Float32BufferAttribute(pipePositions(rows,level),3));
+  return geometry;
+};
+const sameRows=(left,right)=>left===right||(left?.length===right?.length&&left.every((row,index)=>row===right[index]));
+function setPipeRows(layer,rows){
+  if(sameRows(layer.geometryRows,rows))return;
+  const previous=layer.subsetGeometry;
+  layer.subsetGeometry=rows===layer.rows?null:pipeGeometry(rows,layer.level);
+  layer.mesh.geometry=layer.subsetGeometry||layer.fullGeometry;
+  layer.geometryRows=rows;
+  if(previous){layer.mesh.userData.ownedGeometries.delete(previous);previous.dispose();}
+  if(layer.subsetGeometry)layer.mesh.userData.ownedGeometries.add(layer.subsetGeometry);
+}
 export function buildStackPipes(){
   const {THREE,stackModel:model}=state;state.stackPipeLayers=[];state.stackVisibilityKey=null;
   const types=[...new Set(state.edges.map(row=>row.type||'unknown'))].sort();state.edgeTypes=types;
@@ -63,9 +78,11 @@ export function buildStackPipes(){
     const group=new THREE.Group();group.visible=state.edgeVisibility.get(type)!==false;state.edgeGroup.add(group);state.edgeTypeGroups.set(type,group);
     for(const level of ['pipeline','stacks','segments']){
       const rows=model.levels[level].filter(row=>row.type===type);if(!rows.length)continue;
-      const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(pipePositions(rows,level),3));
+      const geometry=pipeGeometry(rows,level);
       const mesh=new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({color:state.map?.legend?.edgeStyles?.[type]?.color||edgeColors[type]||'#adb8cc',transparent:true,opacity:0.8,depthWrite:false}));
-      mesh.userData={stackLevel:level,edgeType:type};group.add(mesh);state.stackPipeLayers.push({mesh,rows,level,type});
+      mesh.userData={stackLevel:level,edgeType:type,ownedGeometries:new Set([geometry])};
+      group.add(mesh);state.stackPipeLayers.push({mesh,rows,level,type,fullGeometry:geometry,subsetGeometry:null,geometryRows:rows,
+        model,scale:state.scaleFactor||1});
     }
   }
   state.drawCounts.edges=model.levels.segments.length;
@@ -78,8 +95,9 @@ export function updateStackVisibility(force=false){
   const pixels=sample*width*state.camera.zoom/Math.max(1,state.camera.right-state.camera.left);
   const tier=resolveStackTier({projectedFilePixels:pixels,mode:state.stackMode||'auto',previous:state.stackTier});
   const selected=state.selectedInfo,focus=selected?.file||null,member=selected?.type==='member'?String(selected.id):null;
-  const key=JSON.stringify([tier,focus,member,state.stackAllConnections===true]);if(!force&&key===state.stackVisibilityKey)return;
-  state.stackVisibilityKey=key;state.stackTier=tier;
+  const key=JSON.stringify([tier,focus,member,state.stackAllConnections===true,state.scaleFactor||1]);
+  if(!force&&key===state.stackVisibilityKey&&state.stackVisibilityModel===state.stackModel)return;
+  state.stackVisibilityKey=key;state.stackVisibilityModel=state.stackModel;state.stackTier=tier;
   state.edgeGroup.visible=state.edgeGroup.userData?.userHidden!==true;
   const memberHidden=state.memberGroup.userData?.userHidden===true;state.memberGroup.visible=!memberHidden;
   // Keep the stack silhouette at every scale; only connections and labels change semantic resolution.
@@ -87,10 +105,18 @@ export function updateStackVisibility(force=false){
   for(const layer of state.stackPipeLayers||[]){
     layer.mesh.visible=layer.level===tier;
     if(!layer.mesh.visible)continue;
+    if(layer.model!==state.stackModel||layer.scale!==(state.scaleFactor||1)){
+      for(const geometry of layer.mesh.userData.ownedGeometries)geometry.dispose();
+      layer.mesh.userData.ownedGeometries.clear();
+      layer.rows=state.stackModel.levels[layer.level].filter(row=>row.type===layer.type);
+      layer.fullGeometry=pipeGeometry(layer.rows,layer.level);layer.subsetGeometry=null;
+      layer.mesh.geometry=layer.fullGeometry;layer.mesh.userData.ownedGeometries.add(layer.fullGeometry);
+      layer.geometryRows=layer.rows;layer.model=state.stackModel;layer.scale=state.scaleFactor||1;
+    }
     const rows=tier==='segments'&&!state.stackAllConnections
       ?layer.rows.filter(row=>member!==null?row.fromMember===member||row.toMember===member:focus?row.fromFile===focus||row.toFile===focus:false)
       :layer.rows;
-    const geometry=new state.THREE.BufferGeometry();geometry.setAttribute('position',new state.THREE.Float32BufferAttribute(pipePositions(rows,tier),3));layer.mesh.geometry.dispose();layer.mesh.geometry=geometry;admitted+=rows.length;represented+=rows.reduce((sum,row)=>sum+row.count,0);
+    setPipeRows(layer,rows);admitted+=rows.length;represented+=rows.reduce((sum,row)=>sum+row.count,0);
   }
   for(const label of state.labelGroup.children)label.visible=label.userData.stackLabelLevel==='pipeline'||tier!=='pipeline';
   const status=document.getElementById('stack-status');if(status)status.textContent=`${tier} · ${admitted} pipes / ${represented} source relations · ${state.stackModel.coverage.unresolvedEdges} unresolved · display scope only${tier==='segments'&&!focus?' · select a segment or stack to trace connections':''}`;

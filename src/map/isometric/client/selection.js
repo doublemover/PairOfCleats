@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { clamp } from './utils.js';
 import { toArray } from '../../../shared/iterables.js';
 import { configureWireMaterial } from './materials.js';
+import { selectionEndpointMatcher } from './selection-endpoints.js';
 
 const formatPrimitive = (value) => {
   if (value === null || value === undefined || value === '') return 'None';
@@ -177,24 +178,12 @@ const formatListWithLimit = (values, limit = 10) => {
 
 const collectEdgesForSelection = (selectionInfo, member, node) => {
   if (!selectionInfo) return { incoming: [], outgoing: [] };
-  const memberId = member?.id || selectionInfo.id || null;
-  const fileKey = selectionInfo.file || node?.path || node?.name || '';
+  const touches = selectionEndpointMatcher(selectionInfo, { member, node, fileByMember: state.fileByMember });
   const incoming = [];
   const outgoing = [];
   state.edges.forEach((edge) => {
-    const from = edge.from || {};
-    const to = edge.to || {};
-    const fromMemberId = from.member === 0 || from.member ? String(from.member) : null;
-    const toMemberId = to.member === 0 || to.member ? String(to.member) : null;
-    const fromMemberFile = fromMemberId ? (state.fileByMember.get(fromMemberId) || state.fileByMember.get(from.member)) : null;
-    const toMemberFile = toMemberId ? (state.fileByMember.get(toMemberId) || state.fileByMember.get(to.member)) : null;
-
-    const fromMatch = memberId
-      ? (fromMemberId === String(memberId))
-      : (from.file === fileKey || fromMemberFile === fileKey);
-    const toMatch = memberId
-      ? (toMemberId === String(memberId))
-      : (to.file === fileKey || toMemberFile === fileKey);
+    const fromMatch = touches(edge.from);
+    const toMatch = touches(edge.to);
     if (fromMatch) outgoing.push(edge);
     if (toMatch) incoming.push(edge);
   });
