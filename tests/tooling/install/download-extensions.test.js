@@ -74,6 +74,7 @@ const address = server.address();
 const port = typeof address === 'object' && address ? address.port : 0;
 
 const failures = [];
+const expectedBinaryHash = crypto.createHash('sha256').update('stub-extension\n').digest('hex');
 for (const entry of cases) {
   const extensionDir = path.join(tempRoot, entry.label);
   const url = `http://127.0.0.1:${port}/${entry.archive}`;
@@ -143,6 +144,8 @@ for (const entry of cases) {
       'win32',
       '--arch',
       'x64',
+      '--sha256',
+      expectedBinaryHash,
       '--no-load',
       '--json'
     ],
@@ -159,6 +162,10 @@ for (const entry of cases) {
   if (!verifyPayload.exists) {
     failures.push(`${entry.label} verify-extensions missing path`);
   }
+  assert.equal(verifyPayload.verification?.ok, true);
+  assert.equal(verifyPayload.verification?.sha256, expectedBinaryHash);
+  assert.equal(verifyPayload.verification?.verificationLevel, 'artifact-existence-and-approved-integrity');
+  assert.equal(verifyPayload.load.attempted, false, 'fixture bytes must never be loaded as native code');
 }
 
 for (const entry of maliciousCases) {
