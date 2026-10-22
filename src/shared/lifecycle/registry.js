@@ -61,6 +61,7 @@ export const createLifecycleRegistry = ({ name = 'lifecycle', onError = null } =
   const resources = new Set();
   const pending = new Set();
   let closed = false;
+  let closePromise = null;
 
   const reportError = (err) => {
     if (typeof onError !== 'function') return;
@@ -73,12 +74,12 @@ export const createLifecycleRegistry = ({ name = 'lifecycle', onError = null } =
     if (closed) {
       throw new Error(`[lifecycle] ${name} is closed; cannot register ${label}.`);
     }
-    const closeHook = typeof close === 'function'
-      ? close
-      : (typeof resource?.close === 'function' ? () => resource.close() : null);
-    const drainHook = typeof drain === 'function'
-      ? drain
-      : (typeof resource?.drain === 'function' ? () => resource.drain() : null);
+    const originalClose = typeof close === 'function' ? close : resource?.close;
+    const originalDrain = typeof drain === 'function' ? drain : resource?.drain;
+    const closeHook = typeof originalClose === 'function'
+      ? (typeof close === 'function' ? close : () => originalClose.call(resource)) : null;
+    const drainHook = typeof originalDrain === 'function'
+      ? (typeof drain === 'function' ? drain : () => originalDrain.call(resource)) : null;
     if (!closeHook && !drainHook) {
       throw new Error(`[lifecycle] ${name} ${label} must provide close or drain.`);
     }
@@ -149,20 +150,25 @@ export const createLifecycleRegistry = ({ name = 'lifecycle', onError = null } =
     await runLifecycleHooks(Array.from(resources), 'drain', errors);
     await collectPendingErrors(pending, errors);
     const error = toLifecycleError(name, 'drain', errors);
-    if (error) throw error;
+    if (errors.length) throw error;
   };
 
-  const close = async () => {
-    if (closed) return;
-    closed = true;
-    const errors = [];
-    const entries = Array.from(resources).reverse();
-    resources.clear();
-    await runLifecycleHooks(entries, 'close', errors);
-    await runLifecycleHooks(entries, 'drain', errors);
-    await collectPendingErrors(pending, errors);
-    const error = toLifecycleError(name, 'close', errors);
-    if (error) throw error;
+  const close = () => {
+    if (!closePromise) {
+      closed = true;
+      const entries = Array.from(resources).reverse();
+      resources.clear();
+      closePromise = Promise.resolve().then(async () => {
+        const errors = [];
+        await runLifecycleHooks(entries, 'close', errors);
+        await runLifecycleHooks(entries, 'drain', errors);
+        await collectPendingErrors(pending, errors);
+        const error = toLifecycleError(name, 'close', errors);
+        if (errors.length) throw error;
+      });
+      closePromise.catch(() => {});
+    }
+    return closePromise;
   };
 
   return {
