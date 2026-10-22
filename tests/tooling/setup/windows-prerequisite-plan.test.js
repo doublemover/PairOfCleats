@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { WINDOWS_PREREQUISITE_CATALOG } from '../../../tools/setup/windows-prerequisite-catalog.js';
-import { createWindowsPrerequisitePlan, applyWindowsPrerequisitePlan } from '../../../tools/setup/windows-prerequisite-plan.js';
+import { createWindowsPrerequisitePlan, applyWindowsPrerequisitePlan, inspectWindowsPrerequisiteInstaller } from '../../../tools/setup/windows-prerequisite-plan.js';
 import { runPrerequisiteCli } from '../../../tools/setup/prerequisites.js';
 
 const request = { mode: 'install', arch: 'x64', installPath: 'C:\\fixture\\BuildTools',
@@ -41,6 +41,27 @@ await runPrerequisiteCli(['--apply-plan', 'inert.json', '--approve-system-change
 assert.equal(appliedOptions.approveSystemChanges, true);
 assert.equal(appliedOptions.acceptInstallerTerms, true);
 await assert.rejects(runPrerequisiteCli(['--plan', 'inert.json', '--approve-system-changes'], { readInput: async () => request }), /only to explicit/);
+const cancelled = new AbortController();
+const interruption = new Error('inert prerequisite inspection interrupted');
+let discoveries = 0;
+await assert.rejects(createWindowsPrerequisitePlan(request, { ...dependencies, signal: cancelled.signal,
+  inspectInstaller: async () => { cancelled.abort(interruption); throw interruption; },
+  discoverTarget: async () => { discoveries++; return { state: 'absent' }; }
+}), error => error === interruption);
+assert.equal(discoveries, 0, 'cancelled inspection cannot become a blocker followed by another native discovery');
+await assert.rejects(inspectWindowsPrerequisiteInstaller(request.bootstrapperPath, { signal: cancelled.signal,
+  env: {}, spawn: async () => { throw new Error('pre-cancelled native inspection must not launch'); }
+}), error => error === interruption);
+let inputReads = 0;
+await assert.rejects(runPrerequisiteCli(['--plan', 'inert.json'], { signal: cancelled.signal,
+  readInput: async () => { inputReads++; return request; }
+}), error => error === interruption);
+assert.equal(inputReads, 0);
+const forwarded = new AbortController();
+await runPrerequisiteCli(['--plan', 'inert.json'], { signal: forwarded.signal,
+  readInput: async (_file, options) => { assert.equal(options.signal, forwarded.signal); return request; },
+  plan: async (_request, options) => { assert.equal(options.signal, forwarded.signal); return plan; }
+});
 
 if (process.platform === 'win32') {
   const parent = path.join(process.cwd(), '.tmp', 'tasks', 'windows-prerequisite-plan');
@@ -51,11 +72,31 @@ if (process.platform === 'win32') {
       writes: [{ root: stateRoot, requiredBytes: 64, source: 'inert-fixture-only-not-a-production-estimate' }] } };
     const options = { ...dependencies, catalog: fixtureCatalog };
     const approved = await createWindowsPrerequisitePlan({ ...request, stateRoot }, options);
+    const compiler = path.win32.join(request.installPath, 'fixture-cl.exe');
+    const discovery = { platform: 'win32', arch: request.arch,
+      toolchain: { compiler: { installationPath: request.installPath, executable: compiler } },
+      childEnv: { npm_config_python: 'fixture-python' } };
+    const capability = { schemaVersion: 1, kind: 'windows-compiler-capability', state: 'compile-link-target-verified',
+      platform: 'win32', arch: request.arch, selected: { compiler } };
     const outcome = await applyWindowsPrerequisitePlan(approved, { ...options, approveSystemChanges: true, acceptInstallerTerms: true,
-      discover: () => ({ childEnv: { npm_config_python: 'fixture-python' } }), verifyCapability: async () => ({ state: 'fixture' }) });
+      discover: async () => discovery, verifyCapability: async () => capability });
     assert.equal(outcome.state, 'prerequisites-verified-locked-bootstrap-required');
     assert.equal(outcome.readinessRecorded, false);
     assert.equal(outcome.childEnv.npm_config_python, 'fixture-python');
+    await assert.rejects(applyWindowsPrerequisitePlan(approved, { ...options, approveSystemChanges: true, acceptInstallerTerms: true,
+      discover: () => ({ childEnv: {} }), verifyCapability: async () => { throw new Error('unknown discovery cannot start compilation'); }
+    }), /did not select the exact reviewed/);
+    await assert.rejects(applyWindowsPrerequisitePlan(approved, { ...options, approveSystemChanges: true, acceptInstallerTerms: true,
+      discover: () => discovery, verifyCapability: async () => ({ state: 'failed' })
+    }), /canonical verified target receipt/);
+    const interruptedApply = new AbortController();
+    let postInstallDiscoveries = 0;
+    await assert.rejects(applyWindowsPrerequisitePlan(approved, { ...options, signal: interruptedApply.signal,
+      approveSystemChanges: true, acceptInstallerTerms: true,
+      spawn: async () => { interruptedApply.abort(interruption); return { exitCode: 0 }; },
+      discover: () => { postInstallDiscoveries++; return discovery; }
+    }), error => error === interruption && error.prerequisiteOutcome.state === 'cancelled');
+    assert.equal(postInstallDiscoveries, 0, 'settled cancellation cannot start post-install compilation');
     const reboot = await applyWindowsPrerequisitePlan(approved, { ...options, approveSystemChanges: true, acceptInstallerTerms: true,
       spawn: async () => ({ exitCode: 3010 }) });
     assert.equal(reboot.state, 'reboot-required');

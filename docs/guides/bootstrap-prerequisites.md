@@ -84,6 +84,16 @@ native modules or qualify every custom compiler configuration. The new Windows
 capability/repair source is **UNVALIDATED** in this development batch; authored
 fake-child regressions have not been executed.
 
+The explicit prerequisite plan/apply front door shares its CLI cancellation
+signal with bounded contained input reads, installer signature inspection,
+target discovery, vendor execution and capability verification. Interrupted
+inspection stops before the next native probe and preserves `130`/`143` in the
+terminal JSON result. A vendor exit of zero still needs exact post-install
+Windows instance/architecture discovery and the canonical successful compiler
+capability receipt. Missing discovery fields or an unqualified capability
+result cannot become verified prerequisites. This path still honors declared
+allocation blockers and never records application bootstrap readiness.
+
 After discovery, locked bootstrap installs development dependencies, applies
 patches, builds required native sources and verifies packages/language routes
 before recording readiness. A preflight pass alone never records readiness.

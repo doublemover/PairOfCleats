@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import { stableStringify } from '../../src/shared/stable-json.js';
-import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
+import { assertNoSymlinkPath, readVerifiedContainedFile } from '../../src/shared/contained-file.js';
 import { acquireFileLock, releaseFileLockOrThrow } from '../../src/shared/locks/file-lock.js';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { WINDOWS_PREREQUISITE_CATALOG } from './windows-prerequisite-catalog.js';
@@ -16,35 +16,35 @@ const base = path.dirname(fileURLToPath(import.meta.url));
 const ownSources = ['windows-prerequisite-plan.js', 'windows-prerequisite-catalog.js', 'windows-capability.js', 'preflight.js'];
 const signatureScript = '$ErrorActionPreference="Stop"; $p=$env:PAIROFCLEATS_PREREQUISITE_FILE; $s=Get-AuthenticodeSignature -LiteralPath $p; $v=(Get-Item -LiteralPath $p).VersionInfo; @{status=[string]$s.Status;subject=$s.SignerCertificate.Subject;thumbprint=$s.SignerCertificate.Thumbprint;issuer=$s.SignerCertificate.Issuer;productVersion=$v.ProductVersion;fileVersion=$v.FileVersion} | ConvertTo-Json -Compress';
 
-const boundedFile = async (file, maxBytes) => {
-  assertNoSymlinkPath(path.parse(file).root, file);
-  const before = await fs.lstat(file);
-  if (!before.isFile() || before.isSymbolicLink() || before.size <= 0 || before.size > maxBytes) throw new Error('Prerequisite input must be a bounded regular file.');
-  const bytes = await fs.readFile(file);
-  const after = await fs.stat(file);
-  if (bytes.length !== before.size || after.mtimeMs !== before.mtimeMs || after.size !== before.size) throw new Error('Prerequisite input changed while reading.');
-  return { path: file, bytes: bytes.length, sha256: hash(bytes) };
+const boundedFile = async (file, maxBytes, signal) => {
+  signal?.throwIfAborted();
+  const read = await readVerifiedContainedFile(path.parse(file).root, file, { maxBytes, signal });
+  if (!read.buffer.length) throw new Error('Prerequisite input must be a nonempty bounded regular file.');
+  return { path: file, bytes: read.buffer.length, sha256: read.hash };
 };
 
 export const inspectWindowsPrerequisiteInstaller = async (file, { env = process.env, signal = null, spawn = spawnResolvedSubprocess } = {}) => {
-  const before = await boundedFile(file, 256 * 1024 * 1024);
+  const before = await boundedFile(file, 256 * 1024 * 1024, signal);
   if (!env.SystemRoot) throw new Error('Windows SystemRoot is required for the native signature inspector.');
   const powershell = path.win32.join(env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   const result = await spawn(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', signatureScript], {
     env: { ...env, PAIROFCLEATS_PREREQUISITE_FILE: file }, signal, timeoutMs: 15000,
     outputEncoding: 'utf8', maxOutputBytes: 65536, rejectOnNonZeroExit: false
   });
+  signal?.throwIfAborted();
   if (result.exitCode !== 0 || result.outputCapture?.stdout?.truncated) throw new Error('Native prerequisite signature inspection failed.');
   const signature = JSON.parse(String(result.stdout || '').replace(/^\uFEFF/, ''));
-  const after = await boundedFile(file, 256 * 1024 * 1024);
+  const after = await boundedFile(file, 256 * 1024 * 1024, signal);
   if (before.sha256 !== after.sha256) throw new Error('Installer bytes changed during signature inspection.');
   return { ...before, signature, verification: 'actual-local-bytes-and-native-authenticode' };
 };
 
 const discoverTarget = async (request, { env, spawn, signal }) => {
+  signal?.throwIfAborted();
   const roots = [...new Set([env['ProgramFiles(x86)'], env.ProgramFiles].filter(Boolean))];
   let locator = null;
   for (const root of roots) {
+    signal?.throwIfAborted();
     const candidate = path.win32.join(root, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe');
     try { if ((await fs.stat(candidate)).isFile()) { locator = candidate; break; } } catch { /* Missing locator is explicit below. */ }
   }
@@ -52,8 +52,10 @@ const discoverTarget = async (request, { env, spawn, signal }) => {
     try { await fs.stat(request.installPath); return { state: 'unknown-existing-target', instance: null }; }
     catch (error) { if (error.code !== 'ENOENT') throw error; return { state: 'absent', instance: null }; }
   }
+  signal?.throwIfAborted();
   const result = await spawn(locator, ['-all', '-products', '*', '-format', 'json', '-utf8'], { signal, env,
     timeoutMs: 5000, maxOutputBytes: 1024 * 1024, outputEncoding: 'utf8', rejectOnNonZeroExit: false });
+  signal?.throwIfAborted();
   if (result.exitCode !== 0 || result.outputCapture?.stdout?.truncated) throw new Error('Visual Studio target discovery did not complete.');
   const instances = JSON.parse(result.stdout);
   if (!Array.isArray(instances) || instances.length > 256) throw new Error('Invalid Visual Studio target inventory.');
@@ -72,6 +74,7 @@ export const createWindowsPrerequisitePlan = async (input, dependencies = {}) =>
   const spawn = dependencies.spawn || spawnResolvedSubprocess;
   const catalog = dependencies.catalog || WINDOWS_PREREQUISITE_CATALOG;
   const signal = dependencies.signal || null;
+  signal?.throwIfAborted();
   if (platform !== 'win32') throw new Error('Windows prerequisite repair is only available for an explicitly selected Windows host.');
   if (!input || !['install', 'modify'].includes(input.mode) || !['x64', 'arm64'].includes(input.arch)
     || !path.win32.isAbsolute(input.installPath || '') || !path.win32.isAbsolute(input.bootstrapperPath || '')
@@ -82,13 +85,15 @@ export const createWindowsPrerequisitePlan = async (input, dependencies = {}) =>
   let installer = null;
   try { installer = await (dependencies.inspectInstaller || inspectWindowsPrerequisiteInstaller)(request.bootstrapperPath, { env, signal, spawn }); }
   catch (error) {
-    if (error.cacheOwnershipPending) throw error;
+    if (error.cacheOwnershipPending || signal?.aborted) throw error;
     blockers.push({ code: 'installer-acquisition-or-inspection-required', reason: error.code || error.message, source: catalog.url });
   }
+  signal?.throwIfAborted();
   if (installer && (installer.sha256 !== catalog.sha256 || (catalog.bytes !== null && installer.bytes !== catalog.bytes)
     || installer.signature?.status !== 'Valid' || !/(?:^|,\s*)O=Microsoft Corporation(?:,|$)/.test(installer.signature?.subject || '')
     || !/^[a-fA-F0-9]{40,128}$/.test(installer.signature?.thumbprint || ''))) blockers.push({ code: 'installer-identity-or-signature-disagrees' });
   const target = await (dependencies.discoverTarget || discoverTarget)(request, { env, spawn, signal });
+  signal?.throwIfAborted();
   if (request.mode === 'install' && target.state !== 'absent') blockers.push({ code: 'install-target-already-present-or-unknown' });
   if (request.mode === 'modify' && (target.state !== 'registered' || target.instance?.productId !== catalog.productId
     || !String(target.instance?.installationVersion || '').startsWith('17.') || target.instance?.isComplete !== true)) blockers.push({ code: 'modify-requires-complete-exact-build-tools-2022-instance' });
@@ -98,6 +103,7 @@ export const createWindowsPrerequisitePlan = async (input, dependencies = {}) =>
     ...(request.mode === 'modify' ? ['--productId', catalog.productId] : []),
     ...catalog.components[request.arch].flatMap(component => ['--add', component])];
   const sources = await Promise.all(ownSources.map(async file => ({ file, sha256: hash(await fs.readFile(path.join(base, file))) })));
+  signal?.throwIfAborted();
   const body = { schemaVersion: 1, kind: 'windows-prerequisite-plan', request, provider: catalog.id,
     catalogIdentity: identity(catalog), implementation: sources, target, installer,
     action: { command: request.bootstrapperPath, args }, blockers,
@@ -113,6 +119,7 @@ export const createWindowsPrerequisitePlan = async (input, dependencies = {}) =>
 
 export const applyWindowsPrerequisitePlan = async (approved, { approveSystemChanges = false, acceptInstallerTerms = false,
   signal = null, ...dependencies } = {}) => {
+  signal?.throwIfAborted();
   if (!approveSystemChanges || !acceptInstallerTerms) throw new Error('Prerequisite apply needs explicit system-change approval and installer terms acceptance.');
   if (approved?.kind !== 'windows-prerequisite-plan' || approved.schemaVersion !== 1) throw new Error('Unknown prerequisite plan.');
   const current = await createWindowsPrerequisitePlan(approved.request, { ...dependencies, signal });
@@ -120,6 +127,7 @@ export const applyWindowsPrerequisitePlan = async (approved, { approveSystemChan
   const { planId: currentId, ...currentBody } = current;
   if (currentId !== approvedId || identity(approvedBody) !== identity(currentBody)) throw new Error('Prerequisite plan inputs, target, installer or implementation changed; review a fresh plan.');
   if (current.blockers.length) return { schemaVersion: 1, kind: 'windows-prerequisite-result', state: 'blocked', planId: current.planId, blockers: current.blockers, systemChanged: false };
+  signal?.throwIfAborted();
   const stateRoot = path.resolve(current.request.stateRoot);
   assertNoSymlinkPath(path.parse(stateRoot).root, stateRoot, { allowMissing: true });
   await fs.mkdir(stateRoot, { recursive: true });
@@ -133,10 +141,12 @@ export const applyWindowsPrerequisitePlan = async (approved, { approveSystemChan
     // Recheck actual pinned bytes after exclusion. Never execute saved arbitrary argv.
     const rechecked = await createWindowsPrerequisitePlan(current.request, { ...dependencies, signal });
     if (rechecked.planId !== current.planId) throw new Error('Prerequisite state changed during apply admission.');
+    signal?.throwIfAborted();
     const result = await (dependencies.spawn || spawnResolvedSubprocess)(current.action.command, current.action.args, {
       cwd: stateRoot, env: dependencies.env || process.env, signal, outputEncoding: 'utf8', maxOutputBytes: 1024 * 1024,
       rejectOnNonZeroExit: false, timeoutMs: 30 * 60 * 1000
     });
+    signal?.throwIfAborted();
     const code = result.exitCode;
     const state = code === 0 ? 'installed-reverification-required' : code === 3010 ? 'reboot-required' : code === 1641 ? 'reboot-initiated'
       : [1001, 1618].includes(code) ? 'another-installation-running' : code === 740 ? 'elevation-required'
@@ -146,12 +156,20 @@ export const applyWindowsPrerequisitePlan = async (approved, { approveSystemChan
       next: current.next, systemChanged: [0, 3010, 1641].includes(code) ? true : 'vendor-operation-may-have-partially-changed-state' };
     if (code === 0) {
       if (typeof dependencies.discover !== 'function') throw new Error('Prerequisite apply requires the canonical post-install discovery owner.');
-      const discovery = dependencies.discover();
-      if (discovery.platform && (discovery.platform !== 'win32' || discovery.arch !== current.request.arch
-        || path.win32.normalize(discovery.toolchain?.compiler?.installationPath || '').toLowerCase() !== current.request.installPath.toLowerCase())) {
+      const discovery = await dependencies.discover();
+      signal?.throwIfAborted();
+      if (discovery?.platform !== 'win32' || discovery.arch !== current.request.arch
+        || path.win32.normalize(discovery.toolchain?.compiler?.installationPath || '').toLowerCase() !== current.request.installPath.toLowerCase()) {
         throw new Error('Post-install discovery did not select the exact reviewed Windows instance/target; repair the explicit selection before bootstrap.');
       }
       outcome.capability = await (dependencies.verifyCapability || verifyWindowsCompilerCapability)(discovery, { scratchRoot: path.join(stateRoot, 'capability'), signal });
+      signal?.throwIfAborted();
+      if (outcome.capability?.schemaVersion !== 1 || outcome.capability.kind !== 'windows-compiler-capability'
+        || outcome.capability.state !== 'compile-link-target-verified' || outcome.capability.platform !== 'win32'
+        || outcome.capability.arch !== current.request.arch
+        || outcome.capability.selected?.compiler !== discovery.toolchain.compiler.executable) {
+        throw new Error('Selected Windows compiler capability did not return its canonical verified target receipt.');
+      }
       outcome.childEnv = discovery.childEnv;
       outcome.state = 'prerequisites-verified-locked-bootstrap-required';
     }
@@ -160,7 +178,7 @@ export const applyWindowsPrerequisitePlan = async (approved, { approveSystemChan
   } catch (error) {
     primary = error;
     pending = error.cacheOwnershipPending === true;
-    error.prerequisiteOutcome = { planId: current.planId, state: pending ? 'teardown-pending' : 'failed', systemChanged: 'unknown', readinessRecorded: false };
+    error.prerequisiteOutcome = { planId: current.planId, state: pending ? 'teardown-pending' : signal?.aborted ? 'cancelled' : 'failed', systemChanged: 'unknown', readinessRecorded: false };
     if (pending) Object.defineProperty(error, 'prerequisiteApplySession', { configurable: true, value: {
       planId: current.planId, releaseAfterClosure: async () => {
         if (error.cacheOwnershipReleased?.() !== true) throw new Error('Actual prerequisite child/tree closure remains pending.');
