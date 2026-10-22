@@ -24,11 +24,14 @@ export const createLanceVectorContract = ({ dims, idColumn, embeddingColumn, bat
       if (!Number.isSafeInteger(id) || id < 0) throw new Error('LanceDB document ID is invalid.');
       if (!vector || vector.length !== dims) throw new Error(`LanceDB vector dimension mismatch at document ${id}.`);
       for (let i = 0; i < dims; i++) if (!Number.isFinite(vector[i])) throw new Error(`LanceDB vector is non-finite at document ${id}.`);
-      const decoded = dequantizeUint8ToFloat32(vector, quantization?.minVal, quantization?.maxVal, quantization?.levels);
+      // Decode directly into this batch's owned row. The shared decoder retains
+      // identical Float32 rounding before normalization without a per-row buffer
+      // allocation and subsequent copy into the contiguous column.
+      const destination = values.subarray(count * dims, (count + 1) * dims);
+      const decoded = dequantizeUint8ToFloat32(vector, quantization?.minVal, quantization?.maxVal, quantization?.levels, destination);
       if (!decoded || !decoded.every(Number.isFinite)) throw new Error('LanceDB decoded vector is invalid.');
       if (normalize !== false) normalizeEmbeddingVectorInPlace(decoded);
       ids[count] = BigInt(id);
-      values.set(decoded, count * dims);
       count++;
     },
     take() {

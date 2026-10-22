@@ -5,6 +5,7 @@ import { connect } from '@lancedb/lancedb';
 import { writeLanceDbIndex } from '../../../tools/build/embeddings/lancedb.js';
 import { rankLanceDb, clearLanceDbConnectionCache } from '../../../src/retrieval/lancedb.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 const { dir } = await prepareIsolatedTestCacheDir('lancedb-custom-column-roundtrip');
 const vectors = [[255, 128], [], [128, 255], [64, 255]];
 for (const embeddingColumn of ['vector', 'embedding', 'features']) {
@@ -27,6 +28,8 @@ for (const embeddingColumn of ['vector', 'embedding', 'features']) {
       assert.equal(vectorType.listSize, 2); assert.equal(vectorType.children[0].type.toString(), 'Float32');
       const rows = await table.query().select(['document', embeddingColumn]).toArray();
       assert.deepEqual(rows.map(row => Number(row.document)).sort((a, b) => a - b), [0, 2, 3]);
+      for (const row of rows) assert.deepEqual([...row[embeddingColumn]], [...dequantizeUint8ToFloat32(vectors[Number(row.document)])],
+        'native stored float values retain the original decoder output');
       const hits = await rankLanceDb({ lancedbInfo: { available: true, dir: target,
         meta: { table: 'vectors', dims: 2, metric: 'cosine', embeddingColumn, idColumn: 'document' } }, queryEmbedding: [1, 0], topN: 3 });
       assert.equal(hits.length, 3); assert.equal(hits[0].idx, 0);
