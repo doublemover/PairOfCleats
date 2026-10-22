@@ -207,6 +207,15 @@ export const queryNavigationData = async ({
   limit = DEFAULT_LIMIT,
   symbolLimit = DEFAULT_SYMBOL_LIMIT,
   completionLimit = DEFAULT_COMPLETION_LIMIT,
+  sourceHash = null,
+  sourceVersion = null,
+  line = null,
+  column = null,
+  coordinateUnit = 'utf16',
+  includeDeclaration = true,
+  generation = null,
+  signal = null,
+  qualified = false,
   artifactReader = null
 }) => {
   const userConfig = loadUserConfig(repoRoot);
@@ -217,6 +226,14 @@ export const queryNavigationData = async ({
   const normalizedVirtualPath = relativeVirtualPath(repoRoot, normalizedFilePath);
   const resolvedLimit = toPositiveInt(limit, DEFAULT_LIMIT);
   const resolvedSymbolLimit = toPositiveInt(symbolLimit, DEFAULT_SYMBOL_LIMIT);
+  if (['definitions', 'references'].includes(normalizedKind)
+    && (qualified || sourceHash !== null || sourceVersion !== null || line !== null || column !== null
+      || coordinateUnit !== 'utf16' || includeDeclaration !== true || generation !== null)) {
+    const { queryQualifiedNavigation } = await import('./navigation-qualified.js');
+    return queryQualifiedNavigation({ repoRoot, userConfig, kind: normalizedKind, query: normalizedQuery,
+      filePath: normalizedFilePath, sourceHash, sourceVersion, line, column, coordinateUnit,
+      includeDeclaration, generation, signal, limit: resolvedLimit });
+  }
   const payload = {
     ok: true,
     kind: normalizedKind,
@@ -226,8 +243,11 @@ export const queryNavigationData = async ({
     filePath: normalizedFilePath || null,
     virtualPath: normalizedVirtualPath || null,
     degraded: [],
+    status: ['definitions', 'references'].includes(normalizedKind) ? 'approximate' : 'partial',
+    binding: { status: 'unqualified-spelling', targetId: null, candidates: [] },
     results: []
   };
+  if (['definitions', 'references'].includes(normalizedKind)) payload.degraded.push('spelling_search_without_source_binding');
   const readArtifact = async (name) => {
     if (typeof artifactReader === 'function') return artifactReader(name);
     const legacyJsonPath = path.join(indexDir, `${name}.json`);
@@ -433,6 +453,7 @@ export const queryNavigationData = async ({
 const printUsage = () => {
   process.stderr.write(
     'Usage: pairofcleats tooling navigate --kind <definitions|references|document-symbols|completions> [--symbol <name>] [--file <path>] [--repo <root>] [--top N] [--json]\n'
+    + 'Qualified definitions/references require --source-hash <sha256> --source-version <document version> --line <1-based> --column <1-based UTF-16> --coordinate-unit utf16; --include-declaration true|false.\n'
   );
 };
 
@@ -457,12 +478,23 @@ if (isDirectExecution(import.meta.url)) {
     process.exit(1);
   }
   const repoRoot = getRepoRoot(repoOverride || null, process.cwd());
+  const qualifiedFlags = ['source-hash', 'source-version', 'line', 'column', 'coordinate-unit', 'include-declaration'];
+  const qualified = argv.some(arg => qualifiedFlags.some(name => arg === `--${name}` || arg.startsWith(`--${name}=`)));
+  const includeDeclaration = readFlagValue(argv, 'include-declaration');
   const payload = await queryNavigationData({
     repoRoot,
     kind,
     query,
     filePath,
-    limit
+    limit,
+    sourceHash: readFlagValue(argv, 'source-hash') ?? null,
+    sourceVersion: readFlagValue(argv, 'source-version') ?? null,
+    line: readFlagValue(argv, 'line') === null ? null : Number(readFlagValue(argv, 'line')),
+    column: readFlagValue(argv, 'column') === null ? null : Number(readFlagValue(argv, 'column')),
+    coordinateUnit: readFlagValue(argv, 'coordinate-unit') ?? 'utf16',
+    includeDeclaration: !argv.some(arg => arg === '--include-declaration' || arg.startsWith('--include-declaration=')) ? true
+      : includeDeclaration === 'true' ? true : includeDeclaration === 'false' ? false : null,
+    qualified
   });
   if (json) {
     process.stdout.write(`${JSON.stringify(payload)}\n`);
