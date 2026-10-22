@@ -289,3 +289,38 @@ export const findCoveredUnitRange = ({
     end: Number(last?.[endField]) || Number(last?.[startField]) || fallbackEnd
   };
 };
+
+/** Operation-owned coordinate snapshot. Ordered unit/query streams use two
+ * monotonic cursors; arbitrary query order uses binary lookup. Malformed or
+ * unsorted coordinates retain the exported helper's full-scan semantics. */
+export const createDocumentUnitRangeLookup = units => {
+  const rows = Array.isArray(units) ? units.map(unit => ({ ...unit, start: Number(unit?.start), end: Number(unit?.end) })) : [];
+  const ordered = rows.every((unit, index) => Number.isFinite(unit.start) && Number.isFinite(unit.end)
+    && unit.end >= unit.start && (!index || (unit.start >= rows[index - 1].start && unit.end >= rows[index - 1].end)));
+  let firstCursor = 0, endCursor = 0, previousStart = -Infinity, previousEnd = -Infinity;
+  const lowerBound = (value, field, strict) => {
+    let left = 0, right = rows.length;
+    while (left < right) {
+      const middle = (left + right) >>> 1;
+      if (strict ? rows[middle][field] <= value : rows[middle][field] < value) left = middle + 1;
+      else right = middle;
+    }
+    return left;
+  };
+  return input => {
+    const { startOffset, endOffset, startField, endField, fallbackStart = 1, fallbackEnd = fallbackStart } = input;
+    if (!ordered) return findCoveredUnitRange({ units: rows, ...input });
+    if (!rows.length || endOffset <= startOffset || !Number.isFinite(startOffset) || !Number.isFinite(endOffset)) {
+      return findCoveredUnitRange({ units: rows, ...input });
+    }
+    if (startOffset >= previousStart) while (firstCursor < rows.length && rows[firstCursor].end <= startOffset) firstCursor++;
+    else firstCursor = lowerBound(startOffset, 'end', true);
+    if (endOffset >= previousEnd) while (endCursor < rows.length && rows[endCursor].start < endOffset) endCursor++;
+    else endCursor = lowerBound(endOffset, 'start', false);
+    previousStart = startOffset; previousEnd = endOffset;
+    const first = rows[firstCursor], last = rows[endCursor - 1];
+    if (firstCursor >= endCursor || !first || !last) return { start: fallbackStart, end: fallbackEnd };
+    return { start: Number(first[startField]) || fallbackStart,
+      end: Number(last[endField]) || Number(last[startField]) || fallbackEnd };
+  };
+};

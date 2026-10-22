@@ -274,7 +274,7 @@ export const writeArtifactPublicationRecord = async ({
       const rel = toPosix(path.relative(buildRoot, requiredPath));
       throw new Error(
         `[artifact-publication] cannot publish ${mode}: missing committed artifact ${rel} `
-        + `(${error?.message || error})`
+        + `(${error?.message || error})`, { cause: error }
       );
     }
   }
@@ -357,7 +357,7 @@ export const assertArtifactPublicationReady = async ({
     } catch (error) {
       throw new Error(
         `[artifact-publication] missing publication record for ${mode}: ${publicationPath} `
-        + `(${error?.message || error})`
+        + `(${error?.message || error})`, { cause: error }
       );
     }
     if (payload?.status !== 'published') {
@@ -399,7 +399,7 @@ export const assertArtifactPublicationReady = async ({
     } catch (error) {
       throw new Error(
         `[artifact-publication] ${mode} manifest missing for published generation: ${payload.manifestPath} `
-        + `(${error?.message || error})`
+        + `(${error?.message || error})`, { cause: error }
       );
     }
   }

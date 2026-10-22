@@ -1,3 +1,4 @@
+import { tokenPostingsRepresentationProof, reuseTokenPostingsFamily } from './token-postings-reuse.js';
 import { randomUUID } from 'node:crypto';
 import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 import fs from 'node:fs/promises';
@@ -164,8 +165,14 @@ export async function enqueueTokenPostingsArtifacts({
   enqueueWrite,
   addPieceFile,
   updatePieceMetadata,
-  formatArtifactLabel
+  formatArtifactLabel,
+  reuseContext = null
 }) {
+  const proof = tokenPostingsRepresentationProof({ state, postings, policy: reuseContext?.policy,
+    format: { tokenPostingsFormat, tokenPostingsUseShards, tokenPostingsShardSize,
+      tokenPostingsBinaryColumnar, tokenPostingsCompression, blockSize: DEFAULT_PACKED_BLOCK_SIZE } });
+  const familyPlan = await reuseTokenPostingsFamily({ ...reuseContext, outDir, proof, addPieceFile });
+  if (familyPlan.reused) return familyPlan;
   const vocabIds = Array.isArray(postings.tokenVocabIds) ? postings.tokenVocabIds : null;
   const tokenIdMeta = vocabIds ? TOKEN_ID_META : null;
   const exists = async target => {
@@ -407,4 +414,5 @@ export async function enqueueTokenPostingsArtifacts({
       }
     );
   }
+  return familyPlan;
 }

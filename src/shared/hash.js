@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { createAbortError, throwIfAborted } from './abort.js';
 import fs from 'node:fs';
 import { openContainedFileSync, verifyContainedFileHandle } from './contained-file.js';
 
@@ -28,7 +29,8 @@ export function sha1(str) {
   return crypto.createHash('sha1').update(str).digest('hex');
 }
 
-const withFileHashStream = async (filePath, compute, { containedRoot = null } = {}) => {
+const withFileHashStream = async (filePath, compute, { containedRoot = null, signal = null } = {}) => {
+  throwIfAborted(signal);
   let stream;
   let verificationError = null;
   if (containedRoot) {
@@ -45,11 +47,16 @@ const withFileHashStream = async (filePath, compute, { containedRoot = null } = 
   // Consumers still propagate read failures; cleanup must not emit unhandled errors.
   stream.on('error', () => {});
   const closed = new Promise(resolve => stream.once('close', resolve));
+  const onAbort = () => stream.destroy(createAbortError());
+  signal?.addEventListener('abort', onAbort, { once: true });
+  if (signal?.aborted) onAbort();
   try {
     const result = await compute(stream);
+    throwIfAborted(signal);
     if (verificationError) throw verificationError;
     return result;
   } finally {
+    signal?.removeEventListener('abort', onAbort);
     stream.destroy();
     await closed;
   }

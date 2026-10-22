@@ -1,3 +1,5 @@
+import { recordsReusePolicy, readReusableRecordChunk } from './records-reuse.js';
+import { readVerifiedContainedFile } from '../../shared/contained-file.js';
 import { analyzeLiteralText } from '../../shared/text-analyzer.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import fs from 'node:fs/promises';
@@ -136,6 +138,8 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
 
   const recordsPolicy = { promoteFields: triageConfig.promoteFields, postingsConfig, dictConfig: runtime.dictConfig,
     dictionary: sha1(stableStringify([...(runtime.dictWords || [])].sort())) };
+  const reusePolicy = recordsReusePolicy({ runtime, policy: recordsPolicy, stop: STOP, synonyms: SYN instanceof Map ? SYN : Object.entries(SYN) });
+  const reuseCounts = { hits: 0, misses: 0, reasons: {} };
   let processed = 0;
   const progressMeta = { stage: 'records', mode: 'records' };
   for (const recordEntry of recordSources) {
@@ -145,13 +149,18 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     const relPath = recordEntry.relPath;
     let text;
     try {
-      text = await fs.readFile(absPath, 'utf8');
-    } catch {
-      continue;
+      const source = await readVerifiedContainedFile(path.dirname(absPath), absPath, { maxBytes: 32 * 1024 * 1024, signal: abortSignal });
+      text = source.buffer.toString('utf8');
+    } catch (error) {
+      if (error.code === 'ENOENT') continue;
+      throw error;
     }
     if (!text) continue;
     text = text.normalize('NFKD');
-    const fileStat = await fs.stat(absPath).catch(() => null);
+    const fileStat = await fs.stat(absPath).catch(error => {
+      if (error.code === 'ENOENT') return null;
+      throw error;
+    });
     if (!fileStat) continue;
 
     const isTriage = recordEntry.source === 'triage'
@@ -163,6 +172,27 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       || record?.recordId
       || path.basename(relPath, path.extname(relPath));
 
+    const recordFile = isTriage ? `triage/records/${relPath}` : relPath;
+    const logicalHash = recordsLogicalContentHash({ text, record, recordMeta: recordEntry.recordMeta, policy: reusePolicy.snapshot });
+    const reused = await readReusableRecordChunk({ incrementalState, repoRoot: runtime.root, file: recordFile,
+      logicalHash, policy: reusePolicy, textLength: text.length, signal: abortSignal });
+    if (reused.chunk) {
+      // Admission reads exact current inputs; recheck after asynchronous bundle I/O.
+      const again = await readVerifiedContainedFile(path.dirname(absPath), absPath, { maxBytes: 32 * 1024 * 1024, signal: abortSignal });
+      const currentRecord = isTriage ? await loadRecordJson(recordsDir, absPath) : null;
+      if (recordsLogicalContentHash({ text: again.buffer.toString('utf8').normalize('NFKD'), record: currentRecord,
+        recordMeta: recordEntry.recordMeta, policy: reusePolicy.snapshot }) !== logicalHash) throw new Error(`Record changed during replay admission: ${recordFile}`);
+      const chunk = reused.chunk;
+      chunk.id = state.chunks.length; // IDs belong to this build's global ordering.
+      appendChunk(state, chunk, postingsConfig, null, { sparsePostingsEnabled });
+      seenFiles.add(recordFile); state.scannedFiles.push(recordFile);
+      state.scannedFilesTimes.push({ file: recordFile, duration_ms: Date.now() - started, cached: true });
+      reuseCounts.hits++;
+      processed++; showProgress('Records', processed, recordSources.length, progressMeta);
+      continue;
+    }
+    reuseCounts.misses++;
+    reuseCounts.reasons[reused.reason] = (reuseCounts.reasons[reused.reason] || 0) + 1;
     const recordExt = path.extname(absPath) || '.txt';
     const tokenPayload = tokenizeRecord(
       text,
@@ -199,7 +229,6 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     const startLine = 1;
     const endLine = lines.length;
 
-    const recordFile = isTriage ? `triage/records/${relPath}` : relPath;
     const recordLang = getLanguageForFile(recordExt, recordFile);
     const effectiveLanguageId = recordLang?.id || 'unknown';
     const chunkPayload = {
@@ -251,7 +280,8 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       manifest: incrementalState.manifest,
       relKey: recordFile,
       fileStat,
-      fileHash: recordsLogicalContentHash({ text, record, recordMeta: recordEntry.recordMeta, policy: recordsPolicy }),
+      fileHash: logicalHash,
+      dependencySignatures: { recordsProducer: reusePolicy.key },
       fileChunks: [{ ...chunkPayload }],
       fileRelations: null,
       vfsManifestRows: null,
@@ -285,6 +315,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   showProgress('Records', recordSources.length, recordSources.length, progressMeta);
   throwIfAborted(abortSignal);
 
+  log(`[records-reuse] hits=${reuseCounts.hits} misses=${reuseCounts.misses} reasons=${JSON.stringify(reuseCounts.reasons)}`);
   log(`   → Indexed ${state.chunks.length} chunks, total tokens: ${state.totalTokens.toLocaleString()}`);
 
   throwIfAborted(abortSignal);
@@ -400,7 +431,8 @@ async function loadRecordJson(recordsDir, mdPath) {
   const dir = path.dirname(mdPath);
   const jsonPath = path.join(dir, `${base}.json`);
   try {
-    const raw = await fs.readFile(jsonPath, 'utf8');
+    const source = await readVerifiedContainedFile(dir, jsonPath, { maxBytes: 16 * 1024 * 1024 });
+    const raw = source.buffer.toString('utf8');
     const record = JSON.parse(raw);
     if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error(`Invalid canonical record sidecar: ${jsonPath}`);
     return record;

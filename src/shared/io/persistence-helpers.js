@@ -111,8 +111,8 @@ export const syncParentDirectorySync = (targetPath) => {
   }
 };
 
-export const copyFileWithDurability = async (sourcePath, targetPath) => {
-  await fs.copyFile(sourcePath, targetPath);
+export const copyFileWithDurability = async (sourcePath, targetPath, { exclusive = false } = {}) => {
+  await fs.copyFile(sourcePath, targetPath, exclusive ? fsSync.constants.COPYFILE_EXCL : 0);
   let targetHandle = null;
   try {
     targetHandle = await fs.open(targetPath, 'r+');

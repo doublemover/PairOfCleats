@@ -1,6 +1,6 @@
 import {
   buildDocumentAnchor,
-  findCoveredUnitRange,
+  createDocumentUnitRangeLookup,
   normalizeDocumentChunkingBudgets,
   splitRangeByCharBudget
 } from './document-common.js';
@@ -89,12 +89,13 @@ const buildParagraphWindows = (text, paragraphUnits, budgets) => {
 const buildDocxChunk = ({
   text,
   paragraphUnits,
+  lookupUnitRange,
   startOffset,
   endOffset,
   headingPath,
   windowIndex = null
 }) => {
-  const paragraphRange = findCoveredUnitRange({
+  const paragraphRange = lookupUnitRange({
     units: paragraphUnits,
     startOffset,
     endOffset,
@@ -166,6 +167,7 @@ export const chunkDocxDocument = (text, context = null) => {
       }
     }];
   }
+  const lookupUnitRange = createDocumentUnitRangeLookup(paragraphUnits);
   const budgets = normalizeDocumentChunkingBudgets(context);
   const windows = buildParagraphWindows(value, paragraphUnits, budgets);
   const chunks = [];
@@ -181,6 +183,7 @@ export const chunkDocxDocument = (text, context = null) => {
       chunks.push(buildDocxChunk({
         text: value,
         paragraphUnits,
+        lookupUnitRange,
         startOffset: split.start,
         endOffset: split.end,
         headingPath: window.headingPath,
