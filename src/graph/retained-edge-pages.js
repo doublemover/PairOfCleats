@@ -1,4 +1,4 @@
-import { GRAPH_RELATION_EDGES_VERSION } from '../contracts/schemas/graph-relation-edges.js';
+import { validateArtifact } from '../contracts/artifact-schemas.js';
 import { createRetainedEvidencePages } from './retained-evidence-pages.js';
 
 const GRAPHS = new Set(['callGraph', 'usageGraph', 'importGraph']);
@@ -29,7 +29,5 @@ const matches = (row, filter) => (!filter.graph || row.graph === filter.graph)
 export const createRetainedEdgePages = options => createRetainedEvidencePages({ ...options,
   family: 'graph_relation_edges', ordering: 'graph-from-to-v1', errorPrefix: 'GRAPH_EDGE',
   normalizeFilter, matches,
-  validateRow: row => !!row && row.schemaVersion === GRAPH_RELATION_EDGES_VERSION
-    && Object.keys(row).sort().join(',') === 'from,graph,schemaVersion,to' && GRAPHS.has(row.graph) && typeof row.from === 'string' && !!row.from
-    && typeof row.to === 'string' && !!row.to
+  validateRow: row => validateArtifact('graph_relation_edges', [row]).ok
 });

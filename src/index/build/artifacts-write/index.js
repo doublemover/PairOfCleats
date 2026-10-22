@@ -2233,6 +2233,8 @@ async function writeIndexArtifactsInCodecScope(input) {
     graphRelations,
     upstreamCoverage: state?.crossFileCoverage || null,
     abortSignal: effectiveAbortSignal,
+    diskAccount: state?.semanticDiskAccount || null,
+    diskLimit: indexingConfig?.semantic?.storage?.maxDiskWorkingSetBytes ?? null,
     chunks: state?.chunks || [],
     fileRelations: state?.fileRelations || null,
     caps: indexingConfig?.graph?.caps || null,

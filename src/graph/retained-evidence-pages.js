@@ -1,4 +1,6 @@
 import path from 'node:path';
+import { validateArtifact } from '../contracts/artifact-schemas.js';
+import { readVerifiedContainedFile } from '../shared/contained-file.js';
 import { MAX_JSON_BYTES } from '../shared/artifact-io/constants.js';
 import { readJsonFile } from '../shared/artifact-io/json.js';
 import { assertPiecesManifestFormat } from '../shared/artifact-io/manifest-read.js';
@@ -15,8 +17,8 @@ const MAX_ROW_BYTES = 32768;
 const normalizeManifest = raw => raw?.fields && typeof raw.fields === 'object' ? raw.fields : raw;
 const manifestHash = manifest => semanticHash('graph.retained-evidence.publication.v1', manifest);
 const checksum = (piece, fail) => {
-  const match = /^(sha1|sha256):([a-f0-9]+)$/.exec(piece?.checksum || '');
-  if (!match || match[2].length !== (match[1] === 'sha1' ? 40 : 64)) throw fail('Retained-evidence paging requires registered content checksums.');
+  const match = /^(sha1|sha256|xxh64):([a-f0-9]+)$/.exec(piece?.checksum || '');
+  if (!match || match[2].length !== ({ sha1: 40, sha256: 64, xxh64: 16 }[match[1]])) throw fail('Retained-evidence paging requires registered content checksums.');
   return { algorithm: match[1], value: match[2] };
 };
 const bounded = (value, fallback, maximum) => {
@@ -38,14 +40,41 @@ export const createRetainedEvidencePages = ({ indexDir, manifest, maxBytes = MAX
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new TypeError('Retained-evidence piece read allowance must be positive and bounded.');
   const pinned = structuredClone(manifest);
   assertPiecesManifestFormat(indexDir, pinned);
-  const scope = semanticHash('graph.retained-evidence.cursor-scope.v1', {
+  const scope = semanticHash('graph.retained-evidence.cursor-scope.v2', {
     root: path.resolve(indexDir), manifest: pinned, family, ordering: ORDER
   });
   const pinnedHash = manifestHash(pinned);
-  const pieces = sortManifestEntries(pinned.pieces.filter(piece => piece.name === family));
+  let parts = null;
+  const loadParts = async signal => {
+    if (parts) return parts;
+  let pieces = sortManifestEntries(pinned.pieces.filter(piece => piece.name === family));
   if (new Set(pieces.map(piece => piece.path)).size !== pieces.length) throw fail('Duplicate retained-evidence physical inventory.');
-  if (!pieces.length) throw fail('Retained-evidence family is not registered.', 'ERR_CALL_SITE_PAGING_UNAVAILABLE');
-  const parts = pieces.map(piece => {
+  const metadata = pinned.pieces.filter(piece => piece.name === family + '_meta');
+  if (metadata.length > 1) throw fail('Ambiguous retained-evidence metadata.');
+  if (metadata.length) {
+    const piece = metadata[0], expected = checksum(piece, fail);
+    if (!Number.isSafeInteger(piece.bytes) || piece.bytes < 0 || piece.bytes > maxBytes) throw fail('Invalid retained-evidence metadata byte allowance.');
+    const { buffer } = await readVerifiedContainedFile(indexDir, resolveManifestPath(indexDir, piece.path, true), {
+      maxBytes, expectedBytes: piece.bytes, signal,
+      ...(expected.algorithm === 'xxh64' ? {} : { expectedHash: expected.value, hashAlgorithm: expected.algorithm })
+    });
+    if (expected.algorithm === 'xxh64') {
+      const hasher = await (await import('../shared/hash/xxhash-backend.js')).createXxhash64Hasher();
+      hasher.update(buffer);
+      if (hasher.digest() !== expected.value) throw fail('Retained-evidence metadata checksum mismatch.');
+    }
+    const meta = normalizeManifest(JSON.parse(buffer.toString('utf8')));
+    if (!validateArtifact(family + '_meta', meta).ok || meta.artifact !== family || meta.compression !== 'none') {
+      throw fail('Unsupported or invalid retained-evidence metadata.', 'ERR_CALL_SITE_PAGING_UNAVAILABLE');
+    }
+    const byPath = new Map(pieces.map(part => [part.path, part]));
+    const paths = meta.parts.map(part => typeof part === 'string' ? part : part.path);
+    if (paths.length !== pieces.length || new Set(paths).size !== paths.length || paths.some(file => !byPath.has(file))
+      || meta.totalRecords !== pieces.reduce((sum, part) => sum + part.count, 0)
+      || meta.totalBytes !== pieces.reduce((sum, part) => sum + part.bytes, 0)) throw fail('Retained-evidence metadata disagrees with registered physical inventory.');
+    pieces = paths.map(file => byPath.get(file));
+  } else if (!pieces.length) throw fail('Retained-evidence family is not registered.', 'ERR_CALL_SITE_PAGING_UNAVAILABLE');
+  const selected = pieces.map(piece => {
     if (!piece.path?.endsWith('.jsonl') || piece.compression && piece.compression !== 'none') {
       throw fail('This retained evidence representation has no positioned JSONL page route.', 'ERR_CALL_SITE_PAGING_UNAVAILABLE');
     }
@@ -57,6 +86,10 @@ export const createRetainedEvidencePages = ({ indexDir, manifest, maxBytes = MAX
       || piece.bytes > maxBytes) throw fail('Retained-evidence piece/offset inventory is incomplete or exceeds its read allowance.');
     return { piece, offsets, dataHash: checksum(piece, fail), offsetsHash: checksum(offsets, fail) };
   });
+  throwIfAborted(signal);
+  parts = selected;
+  return parts;
+  };
   const assertPublication = () => {
     // Bypass timestamp caches: equal metadata does not qualify the same generation.
     const current = normalizeManifest(readJsonFile(path.join(indexDir, 'pieces', 'manifest.json'), {
@@ -66,6 +99,8 @@ export const createRetainedEvidencePages = ({ indexDir, manifest, maxBytes = MAX
   };
   const readPage = async ({ filter: inputFilter = {}, cursor = null, limit = 128,
     scanRows = 1024, maxPageBytes = 1024 * 1024, signal = null } = {}) => {
+    throwIfAborted(signal);
+    await loadParts(signal);
     throwIfAborted(signal);
     const filter = normalizeFilter(inputFilter);
     const rowsLimit = bounded(limit, 128, MAX_ROWS);

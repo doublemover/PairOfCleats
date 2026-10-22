@@ -4,15 +4,19 @@ import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
+import { buildCallSiteId } from '../../src/index/callsite-id.js';
 import { createGraphStore } from '../../src/graph/store.js';
+import { buildShardedJsonlMetaFields } from '../../src/index/build/artifacts/writers/_common.js';
 import { writeJsonLinesFileAsync } from '../../src/shared/json-stream/jsonl-write.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'call-site-pages-'));
 const hash = bytes => 'sha1:' + createHash('sha1').update(bytes).digest('hex');
 const rows = Array.from({ length: 137 }, (_, ordinal) => ({
-  callSiteId: 'site-' + ordinal, callerChunkUid: ordinal % 2 ? 'caller-b' : 'caller-a',
+  callSiteId: buildCallSiteId({ file: 'src/Unicode-λ.js', startLine: 1, startCol: ordinal * 10 + 1,
+    endLine: 1, endCol: ordinal * 10 + 5, calleeRaw: 'invoke' }), callerChunkUid: ordinal % 2 ? 'caller-b' : 'caller-a',
   targetChunkUid: ordinal % 7 === 0 ? null : 'target', targetCandidates: ordinal % 7 === 0 ? ['may-a', 'may-b'] : [],
   file: 'src/Unicode-λ.js', start: ordinal * 10, end: ordinal * 10 + 4,
+  startLine: 1, startCol: ordinal * 10 + 1, endLine: 1, endCol: ordinal * 10 + 5, languageId: 'javascript', args: [],
   calleeRaw: 'invoke', calleeNormalized: 'invoke',
   extensions: { syntax: { producer: 'tree-sitter', coordinateSystem: 'utf16', role: 'call',
     resolution: ordinal % 7 === 0 ? 'ambiguous' : 'resolved', reason: 'fixture', rawPreviewTruncated: false } }
@@ -34,8 +38,11 @@ try {
         count: selected.length, bytes: bytes.length, checksum: hash(bytes) });
     }
   }
-  const meta = { format: 'jsonl-sharded', parts: pieces.filter(piece => piece.name === 'call_sites').map(piece => piece.path),
-    offsets: pieces.filter(piece => piece.name === 'call_sites_offsets').map(piece => piece.path) };
+  const dataPieces = pieces.filter(piece => piece.name === 'call_sites');
+  const meta = buildShardedJsonlMetaFields({ artifact: 'call_sites',
+    result: { total: rows.length, totalBytes: dataPieces.reduce((sum, piece) => sum + piece.bytes, 0),
+      maxPartRecords: 70, maxPartBytes: Math.max(...dataPieces.map(piece => piece.bytes)), targetMaxBytes: 65536 },
+    parts: dataPieces.map(piece => ({ path: piece.path, records: piece.count, bytes: piece.bytes })) });
   const metaBytes = Buffer.from(JSON.stringify(meta));
   await fs.writeFile(path.join(root, 'call_sites.meta.json'), metaBytes);
   pieces.push({ name: 'call_sites_meta', path: 'call_sites.meta.json', format: 'json',
@@ -54,7 +61,7 @@ try {
   assert.deepEqual(collected, rows, 'every supported occurrence survives across shards, repeated edges and unresolved targets');
   const unresolved = [];
   for await (const row of store.iterateCallSites({ filter: { resolution: 'unresolved' }, scanRows: 1 })) unresolved.push(row);
-  assert.deepEqual(unresolved.map(row => row.callSiteId), ['site-136'], 'empty filtered pages still advance');
+  assert.deepEqual(unresolved.map(row => row.callSiteId), [rows[136].callSiteId], 'empty filtered pages still advance');
   const ambiguous = [];
   for await (const row of store.iterateCallSites({ filter: { resolution: 'ambiguous' }, limit: 3 })) ambiguous.push(row);
   assert.deepEqual(ambiguous, rows.filter(row => row.extensions.syntax.resolution === 'ambiguous'));
@@ -62,6 +69,22 @@ try {
   await assert.rejects(store.readCallSitesPage({ cursor: first.cursor, filter: { callerChunkUid: 'caller-b' } }),
     { code: 'ERR_CALL_SITE_CURSOR_SCOPE' });
   await assert.rejects(store.readCallSitesPage({ maxPageBytes: 1 }), { code: 'ERR_CALL_SITE_PAGE_BYTES' });
+  const malformedRoot = path.join(root, 'malformed'), malformedFile = path.join(malformedRoot, 'call_sites.jsonl');
+  await fs.mkdir(path.join(malformedRoot, 'pieces'), { recursive: true });
+  const malformed = { ...rows[0], callerChunkUid: 'unmatched-caller' }; delete malformed.args;
+  await writeJsonLinesFileAsync(malformedFile, [malformed], { atomic: true,
+    offsets: { path: malformedFile + '.offsets.bin', atomic: true } });
+  const malformedPieces = [];
+  for (const [name, location] of [['call_sites', 'call_sites.jsonl'], ['call_sites_offsets', 'call_sites.jsonl.offsets.bin']]) {
+    const bytes = await fs.readFile(path.join(malformedRoot, location));
+    malformedPieces.push({ name, path: location, format: name === 'call_sites' ? 'jsonl' : 'bin',
+      count: 1, bytes: bytes.length, checksum: hash(bytes) });
+  }
+  await fs.writeFile(path.join(malformedRoot, 'pieces', 'manifest.json'), JSON.stringify({
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId: 'malformed-generation', pieces: malformedPieces
+  }));
+  await assert.rejects(createGraphStore({ indexDir: malformedRoot }).readCallSitesPage({ filter: { callerChunkUid: 'caller-a' } }),
+    { code: 'ERR_CALL_SITE_PAGE_INTEGRITY' }, 'canonical validation precedes filtering even for an unmatched checksum-qualified row');
   const controller = new AbortController(); controller.abort();
   await assert.rejects(store.readCallSitesPage({ signal: controller.signal }), { name: 'AbortError' });
   const graph = await store.loadGraphIndex({ graphs: ['callGraph'] });

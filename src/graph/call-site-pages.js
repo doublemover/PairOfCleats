@@ -1,3 +1,4 @@
+import { validateArtifact } from '../contracts/artifact-schemas.js';
 import { createRetainedEvidencePages } from './retained-evidence-pages.js';
 
 const normalizeFilter = filter => {
@@ -31,5 +32,5 @@ const matches = (row, filter) => (!filter.file || row.file === filter.file)
 export const createCallSitePages = options => createRetainedEvidencePages({ ...options,
   family: 'call_sites', ordering: 'canonical-call-sites-physical-v1', errorPrefix: 'CALL_SITE',
   normalizeFilter, matches,
-  validateRow: row => !!row && typeof row.callSiteId === 'string' && !!row.callSiteId
+  validateRow: row => validateArtifact('call_sites', [row]).ok
 });

@@ -33,7 +33,8 @@ const bufferReadSource = bytes => ({
 const hashReadSource = async (source, expectedBytes, signal, snapshot, algorithm) => {
   const before = await source.stat();
   if (before.size !== expectedBytes) throw contentChanged();
-  const hash = createHash(algorithm);
+  const hash = algorithm === 'xxh64'
+    ? await (await import('../hash/xxhash-backend.js')).createXxhash64Hasher() : createHash(algorithm);
   const scratch = Buffer.allocUnsafe(Math.max(1, Math.min(expectedBytes, VERIFIED_SNAPSHOT_BYTES)));
   const captured = snapshot ? Buffer.alloc(expectedBytes) : null;
   const blocks = snapshot ? null : [];
@@ -472,9 +473,9 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) =
       if (pending.size) throw new Error('JSONL integrity must be initialized before reading.');
       if (![jsonlBytes, offsetsBytes].every(value => Number.isSafeInteger(value) && value >= 0)
         || ![[jsonlHash, jsonlHashAlgorithm], [offsetsHash, offsetsHashAlgorithm]].every(([value, algorithm]) =>
-          ['sha1', 'sha256'].includes(algorithm) && typeof value === 'string'
-          && new RegExp('^[a-f0-9]{' + (algorithm === 'sha1' ? 40 : 64) + '}$').test(value))) {
-        throw new TypeError('JSONL verification requires bounded byte counts and explicit SHA-1/SHA-256 hashes.');
+          ['sha1', 'sha256', 'xxh64'].includes(algorithm) && typeof value === 'string'
+          && new RegExp('^[a-f0-9]{' + ({ sha1: 40, sha256: 64, xxh64: 16 }[algorithm]) + '}$').test(value))) {
+        throw new TypeError('JSONL verification requires bounded byte counts and explicit SHA-1/SHA-256/xxh64 hashes.');
       }
       verification = track((async () => {
         const snapshot = jsonlBytes <= VERIFIED_SNAPSHOT_BYTES && offsetsBytes <= VERIFIED_SNAPSHOT_BYTES;

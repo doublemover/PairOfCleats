@@ -10,7 +10,11 @@ import { createOrderingHasher, stableOrder } from '../../../shared/order.js';
 import { normalizeCap } from '../../../shared/limits.js';
 import { mergeRunsWithPlanner, readJsonlRows } from '../../../shared/merge.js';
 import { throwIfAborted } from '../../../shared/abort.js';
-import { writeShardedJsonlMeta, buildShardedPartEntries } from './writers/_common.js';
+import { buildShardedJsonlMetaFields } from './writers/_common.js';
+import { writeSemanticQueryIndex } from './writers/semantic/query-index.js';
+import { writeSemanticJson } from '../../semantic/disk-writes.js';
+import { normalizeSemanticConfig } from '../../semantic/config.js';
+import { reopenSemanticDiskAccount } from '../incremental/working-set.js';
 import { compareStrings } from '../../../shared/sort.js';
 import { resolveChunkId } from '../../chunk-id.js';
 import { resolveRelativeImport } from '../../type-inference-crossfile/resolve-relative-import.js';
@@ -177,6 +181,8 @@ export async function enqueueGraphRelationsArtifacts({
   graphRelations,
   upstreamCoverage = null,
   abortSignal = null,
+  diskAccount = null,
+  diskLimit = null,
   chunks = null,
   fileRelations = null,
   callSites = null,
@@ -389,22 +395,47 @@ export async function enqueueGraphRelationsArtifacts({
     })();
     // Canonical retained adjacency is independent of display caps. Each edge is
     // small; high-degree nodes never require one giant neighbor-array row here.
-    const retained = await schedule(() => writeJsonLinesShardedAsync({ dir: outDir,
-      partsDirName: 'graph_relation_edges.parts', partPrefix: 'graph_relation_edges.part-',
-      items: retainedRows, maxBytes: maxJsonBytes, atomic: true,
-      offsets: { suffix: 'offsets.bin' }, signal: abortSignal }));
+    const retainedDiskAccount = diskAccount || (await reopenSemanticDiskAccount({
+      limit: diskLimit ?? normalizeSemanticConfig().storage.maxDiskWorkingSetBytes,
+      roots: [outDir], signal: abortSignal
+    })).account;
+    const retainedPartBytes = Number.isSafeInteger(maxJsonBytes) && maxJsonBytes > 0
+      ? Math.min(maxJsonBytes, 1024 * 1024) : 1024 * 1024;
+    const graphOrdinal = new Map(GRAPH_RELATION_GRAPHS.map((name, index) => [name, index]));
+    const physical = await writeSemanticQueryIndex({ root: outDir, generation: null, partitions: [], store: null,
+      diskAccount: retainedDiskAccount, signal: abortSignal, scheduleIo: schedule,
+      orderedEntries: retainedRows, batchRows: 1024, batchBytes: retainedPartBytes,
+      directoryPrefix: 'graph-relation-edges-', offsetsSuffix: '.offsets.bin',
+      compareRows: (left, right) => graphOrdinal.get(left.graph) - graphOrdinal.get(right.graph)
+        || compareStrings(left.from, right.from) || compareStrings(left.to, right.to),
+      keyForRow: row => [row.graph, row.from, row.to],
+      validateIndex: descriptor => {
+        if (descriptor.rowCount !== retainedCounts.reduce((sum, count) => sum + count, 0)
+          || descriptor.pieces.reduce((sum, piece) => sum + piece.count, 0) !== descriptor.rowCount) {
+          throw new Error('Retained graph adjacency physical inventory differs from its admitted rows.');
+        }
+        return descriptor;
+      } });
+    const retained = { parts: physical.pieces.map(piece => piece.path), counts: physical.pieces.map(piece => piece.count),
+      bytes: physical.pieces.map(piece => piece.bytes), offsets: physical.pieces.map(piece => piece.offsetsPath),
+      total: physical.rowCount, totalBytes: physical.pieces.reduce((sum, piece) => sum + piece.bytes, 0),
+      maxPartRecords: physical.pieces.reduce((maximum, piece) => Math.max(maximum, piece.count), 0),
+      maxPartBytes: physical.pieces.reduce((maximum, piece) => Math.max(maximum, piece.bytes), 0),
+      targetMaxBytes: retainedPartBytes };
     const retainedMetaPath = path.join(outDir, 'graph_relation_edges.meta.json');
-    await schedule(() => writeShardedJsonlMeta({ metaPath: retainedMetaPath,
-      artifact: 'graph_relation_edges', result: retained, parts: buildShardedPartEntries(retained),
+    const retainedFields = buildShardedJsonlMetaFields({ artifact: 'graph_relation_edges', result: retained,
+      parts: physical.pieces.map(piece => ({ path: piece.path, records: piece.count, bytes: piece.bytes })),
       extensions: { upstreamCoverage, ordering: 'graph-from-to-v1',
         scope: 'resolved-collected-adjacency', distinctEdges: retainedCounts,
         occurrenceMultiplicity: 'canonical-call-sites',
-        offsets: createOffsetsMeta({ suffix: 'offsets.bin', parts: retained.offsets, compression: 'none' }) } }));
-    for (let index = 0; index < retained.parts.length; index += 1) {
-      addPieceFile({ type: 'relations', name: 'graph_relation_edges', format: 'jsonl', count: retained.counts[index] },
-        path.join(outDir, fromPosix(retained.parts[index])));
-      addPieceFile({ type: 'relations', name: 'graph_relation_edges_offsets', format: 'bin', count: retained.counts[index] },
-        path.join(outDir, fromPosix(retained.offsets[index])));
+        offsets: createOffsetsMeta({ suffix: 'offsets.bin', parts: retained.offsets, compression: 'none' }) } });
+    await schedule(() => writeSemanticJson({ filename: retainedMetaPath, value: retainedFields,
+      diskAccount: retainedDiskAccount, signal: abortSignal }));
+    for (const piece of physical.pieces) {
+      addPieceFile({ type: 'relations', name: 'graph_relation_edges', format: 'jsonl', count: piece.count,
+        bytes: piece.bytes, checksum: 'sha256:' + piece.hash }, path.join(outDir, fromPosix(piece.path)));
+      addPieceFile({ type: 'relations', name: 'graph_relation_edges_offsets', format: 'bin', count: piece.count,
+        bytes: piece.count * 8, checksum: 'sha256:' + piece.offsetsHash }, path.join(outDir, fromPosix(piece.offsetsPath)));
     }
     addPieceFile({ type: 'relations', name: 'graph_relation_edges_meta', format: 'json' }, retainedMetaPath);
     const selectedOutCollector = createRowSpillCollector({

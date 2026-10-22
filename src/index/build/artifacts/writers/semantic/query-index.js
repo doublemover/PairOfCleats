@@ -11,12 +11,25 @@ import { throwIfAborted } from '../../../../../shared/abort.js';
 import { compareQueryIndexRows, queryIndexKey } from '../../../../../semantic/query-index.js';
 
 const members = ['semantic_operands', 'semantic_lookup', 'semantic_ownership', 'semantic_records', 'semantic_edges'];
+const withOwnedHandle = async (file, flags, run) => {
+  const handle = await fs.open(file, flags);
+  let primary = null;
+  try { return await run(handle); }
+  catch (error) { primary = error; throw error; }
+  finally {
+    try { await handle.close(); }
+    catch (error) { if (primary) primary.cleanupError ||= error; else throw error; }
+  }
+};
+
 /** Publication-time physical index; canonical partition identities exclude this layout. */
 export const writeSemanticQueryIndex = async ({ root, generation, partitions, store,
   diskAccount, signal = null, scheduleIo = (fn) => fn(), batchRows = 1024, batchBytes = 1048576,
-  maxOpenRuns = 16, entries = null, compareRows = compareQueryIndexRows, keyForRow = queryIndexKey,
+  maxOpenRuns = 16, entries = null, orderedEntries = null, compareRows = compareQueryIndexRows, keyForRow = queryIndexKey,
   validateIndex = assertSemanticQueryIndex, directoryPrefix = 'semantic-query-index-', schemaVersion = 1,
-  metrics = null, onMergeGroup = null }) => {
+  metrics = null, onMergeGroup = null, offsetsSuffix = '.offsets' }) => {
+  if (orderedEntries !== null && entries !== null) throw new TypeError('Choose one query index entry producer.');
+  if (!/^\.[a-z0-9.]+$/.test(offsetsSuffix)) throw new TypeError('Invalid query index offsets suffix.');
   if (!diskAccount?.reserve || !diskAccount?.release) throw new TypeError('Shared semantic disk account required.');
   for (const limit of [batchRows, batchBytes, maxOpenRuns]) if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('Positive query index bounds required.');
   if (maxOpenRuns < 2) throw new TypeError('Query index merge fan-in must be at least two.');
@@ -50,7 +63,9 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
   const inventory = [...partitions].sort((a, b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0);
   let rowCount = 0;
   try {
-    if (entries) {
+    if (orderedEntries) {
+      // The final loop still verifies strict increasing order for every row.
+    } else if (entries) {
       for await (const entry of entries) {
         throwIfAborted(signal); const line = canonicalSemanticJson(entry);
         reserveWork(Buffer.byteLength(line) + 1); await collector.append(entry, { line });
@@ -72,7 +87,7 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
         rowOrdinal += 1;
       }
     }
-    const collected = await collector.finalize();
+    const collected = orderedEntries ? { rows: orderedEntries, async cleanup() {} } : await collector.finalize();
     let runs = collected.runs || [];
     for (const filename of runs) ownedRuns.set(filename, (await fs.stat(filename)).size);
     if (runs.length && [...ownedRuns.values()].reduce((sum, bytes) => sum + bytes, 0) !== workingReserved) {
@@ -97,7 +112,10 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
             await writer.writeLine(line, bytes);
           }
           await writer.close();
-        } catch (error) { await writer.destroy(error); throw error; }
+        } catch (error) {
+          try { await writer.destroy(error); } catch (cleanupError) { error.cleanupError ||= cleanupError; }
+          throw error;
+        }
         ownedRuns.set(target, targetBytes);
         next.push(target);
         await retire(inputs);
@@ -130,15 +148,16 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
             hash.update(line).update('\n'); position += length;
           }
           await writer.close();
-        } catch (error) { await writer.destroy(error); throw error; }
-        const offsetsHandle = await fs.open(file + '.offsets', 'wx');
-        try { await offsetsHandle.writeFile(offsets); await offsetsHandle.sync(); } finally { await offsetsHandle.close(); }
-        const dataHandle = await fs.open(file, 'r+');
-        try { await dataHandle.sync(); } finally { await dataHandle.close(); }
+        } catch (error) {
+          try { await writer.destroy(error); } catch (cleanupError) { error.cleanupError ||= cleanupError; }
+          throw error;
+        }
+        await withOwnedHandle(file + offsetsSuffix, 'wx', async handle => { await handle.writeFile(offsets); await handle.sync(); });
+        await withOwnedHandle(file, 'r+', handle => handle.sync());
         await syncParentDirectory(file);
         await syncParentDirectory(directory);
       });
-      pieces.push({ path: prefix + '/' + filename, offsetsPath: prefix + '/' + filename + '.offsets',
+      pieces.push({ path: prefix + '/' + filename, offsetsPath: prefix + '/' + filename + offsetsSuffix,
         hash: hash.digest('hex'), offsetsHash: createHash('sha256').update(offsets).digest('hex'),
         count: batch.length, bytes: position, firstRow: rowCount,
         firstKey: keyForRow(batch[0]), lastKey: keyForRow(batch[batch.length - 1]) });
@@ -146,7 +165,10 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
     };
     for await (const entry of rows) {
       throwIfAborted(signal);
-      if (previous && compareRows(previous, entry) >= 0) throw new Error('Duplicate or unordered query index row.');
+      if (previous) {
+        const order = compareRows(previous, entry);
+        if (!Number.isFinite(order) || order >= 0) throw new Error('Duplicate or unordered query index row.');
+      }
       previous = entry;
       const length = Buffer.byteLength(canonicalSemanticJson(entry)) + 1;
       if (length > batchBytes) throw new Error('Query index row exceeds allowance.');
@@ -161,9 +183,15 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
     return validateIndex({ schemaVersion, generation, partitionHashes: inventory.map(({ partitionId, canonicalHash }) => ({ partitionId, canonicalHash })), pieces, rowCount });
   } catch (error) {
     // The directory is a verified child created here, never a live generation root.
-    await fs.rm(directory, { recursive: true, force: true });
-    diskAccount.release(workingReserved + finalReserved);
-    workingReserved = 0; finalReserved = 0; ownedRuns.clear(); observeWork();
+    try {
+      await fs.rm(directory, { recursive: true, force: true });
+      diskAccount.release(workingReserved + finalReserved);
+      workingReserved = 0; finalReserved = 0; ownedRuns.clear(); observeWork();
+    } catch (cleanupError) {
+      // A failed deletion leaves recoverable physical bytes and their credits.
+      // Preserve the original quota/IO/cancellation error as the primary cause.
+      error.cleanupError ||= cleanupError;
+    }
     throw error;
   }
 };

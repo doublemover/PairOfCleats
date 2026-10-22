@@ -65,6 +65,24 @@ try {
   assert.ok(display.callGraph.edgeCount <= 1);
   const meta = JSON.parse(await fs.readFile(path.join(root, 'graph_relations.meta.json'), 'utf8'));
   assert.deepEqual((meta.fields || meta).extensions.retainedEdges.distinctEdges, [41, 41, 41]);
+  const emptyRoot = path.join(root, 'empty'), emptyPieces = [];
+  await fs.mkdir(emptyRoot);
+  await enqueueGraphRelationsArtifacts({ chunks: [{ ...chunks[0], codeRelations: {} }], outDir: emptyRoot, maxJsonBytes: 1024,
+    addPieceFile: (entry, file) => emptyPieces.push({ ...entry, path: path.relative(emptyRoot, file).replaceAll('\\', '/') }),
+    formatArtifactLabel: value => value });
+  await writePiecesManifest({ pieceEntries: emptyPieces, outDir: emptyRoot, mode: 'code',
+    indexState: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId: 'empty-retained-generation' } });
+  const emptyPage = await createGraphStore({ indexDir: emptyRoot }).readGraphEdgesPage();
+  assert.deepEqual(emptyPage.rows, []); assert.equal(emptyPage.done, true); assert.equal(emptyPage.cursor, null);
+  const missingManifest = JSON.parse(await fs.readFile(path.join(emptyRoot, 'pieces', 'manifest.json'), 'utf8'));
+  missingManifest.pieces = missingManifest.pieces.filter(piece => piece.name !== 'graph_relation_edges_meta');
+  await fs.writeFile(path.join(emptyRoot, 'pieces', 'manifest.json'), JSON.stringify(missingManifest));
+  await assert.rejects(createGraphStore({ indexDir: emptyRoot, manifest: missingManifest }).readGraphEdgesPage(),
+    { code: 'ERR_GRAPH_EDGE_PAGING_UNAVAILABLE' }, 'missing family never means complete empty evidence');
+  const quotaRoot = path.join(root, 'quota'); await fs.mkdir(quotaRoot);
+  await assert.rejects(enqueueGraphRelationsArtifacts({ chunks, fileRelations, outDir: quotaRoot, maxJsonBytes: 1024,
+    diskLimit: 1, addPieceFile() {}, formatArtifactLabel: value => value }), { code: 'ERR_SEMANTIC_DISK_LIMIT' });
+  await assert.rejects(fs.stat(path.join(quotaRoot, 'graph_relation_edges.meta.json')), { code: 'ENOENT' });
   const controller = new AbortController(); controller.abort();
   await assert.rejects(enqueueGraphRelationsArtifacts({ chunks, fileRelations, outDir: root,
     maxJsonBytes: 1024, abortSignal: controller.signal }), { name: 'AbortError' });
