@@ -140,14 +140,18 @@ const runTestOnce = async ({
     detached: process.platform !== 'win32',
     stdio: captureOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit'
   });
-  if (typeof onChildStart === 'function' && Number.isFinite(child.pid)) {
-    onChildStart(child.pid);
-  }
-  if (typeof onActivity === 'function') onActivity();
   let timedOut = false;
+  let interruption = null;
   let timeoutHandle = null;
   let resolved = false;
   let termination = null;
+  const interrupt = reason => {
+    if (resolved || interruption) return;
+    interruption = { kind: 'watchdog', reason, at: new Date().toISOString() };
+    timedOut = true;
+  };
+  if (typeof onChildStart === 'function' && Number.isFinite(child.pid)) onChildStart(child.pid, interrupt);
+  if (typeof onActivity === 'function') onActivity();
   const execution = { executable: process.execPath, resolvedExecutable: realpathSync(process.execPath), args, cwd,
     runtime: { node: process.version, v8: process.versions.v8, modules: process.versions.modules, platform: process.platform, arch: process.arch, basis: 'same executable as parent' },
     pid: child.pid ?? null, startedAt: new Date(start).toISOString(), captureOutput, lastPhase: null, spawnError: null, statusSource: null };
@@ -172,7 +176,8 @@ const runTestOnce = async ({
     execution.endedAt = new Date().toISOString();
     for (const stream of ['stdout', 'stderr']) execution[stream] = { observedStringUnits: observed[stream], retainedStringUnits: (result[stream] || '').length,
       truncated: observed[stream] > (result[stream] || '').length, configuredLimit: maxOutputBytes, limitUnit: 'javascript-string-units' };
-    resolve(normalizeResult({ ...result, execution }));
+    execution.interruption = interruption;
+    resolve(normalizeResult({ ...result, execution, interruption }));
   };
   if (timeoutMs > 0) {
     timeoutHandle = setTimeout(async () => {
@@ -243,13 +248,16 @@ const runTestWithRetries = async ({
   attemptOffset = 0,
   onChildStart = null,
   onChildStop = null,
-  onActivity = null
+  onActivity = null,
+  getRunInterruption = () => null
 }) => {
   const maxAttempts = retries + 1;
   const logs = [];
   let lastResult = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const attemptNumber = attemptOffset + attempt;
+    const stopped = getRunInterruption();
+    if (stopped) return normalizeResult({ status: 'failed', attempts: attemptNumber - 1, logs, interruption: stopped });
     const result = await runTestOnce({
       test,
       passThrough,
@@ -282,6 +290,7 @@ const runTestWithRetries = async ({
     if (logPath) logs.push(logPath);
     const receiptPath = await writeFailureReceipt({ test, attempt: attemptNumber, result, logPath });
     if (receiptPath) logs.push(receiptPath);
+    if (result.interruption?.kind === 'watchdog') return normalizeResult({ ...result, attempts: attemptNumber, logs });
     if (result.status === 'passed' || result.status === 'skipped') {
       return normalizeResult({ ...result, attempts: attemptNumber, logs });
     }
@@ -317,23 +326,27 @@ const createRetryRunOptions = ({
   maxOutputBytes: context.maxOutputBytes,
   redoExitCodes,
   attemptOffset,
-  onChildStart: (pid) => {
-    activeChildren.add(pid);
+  onChildStart: (pid, interrupt) => {
+    activeChildren.set(pid, interrupt);
     markActivity();
   },
   onChildStop: (pid) => {
     activeChildren.delete(pid);
     markActivity();
   },
-  onActivity: markActivity
+  onActivity: markActivity,
+  getRunInterruption: () => context.watchdogState?.triggered
+    ? { kind: 'watchdog', reason: context.watchdogState.reason } : null
 });
 
 export const runTests = async ({ selection, context, reportResult, reportDirect }) => {
   const results = new Array(selection.length);
+  context.watchdogState ||= { triggered: false, reason: null };
   let failFastTriggered = false;
   const redoQueue = [];
   const queue = new PQueue({ concurrency: context.jobs });
-  const activeChildren = new Set();
+  const activeChildren = new Map();
+  let watchdogTriggered = false;
   let lastActivityAt = Date.now();
   const markActivity = () => {
     lastActivityAt = Date.now();
@@ -342,16 +355,20 @@ export const runTests = async ({ selection, context, reportResult, reportDirect 
   const watchdogMs = Number(context.watchdogMs);
   if (Number.isFinite(watchdogMs) && watchdogMs > 0) {
     watchdogTimer = setInterval(async () => {
-      if (!activeChildren.size) return;
+      if (!activeChildren.size || watchdogTriggered) return;
       if (Date.now() - lastActivityAt < watchdogMs) return;
       failFastTriggered = true;
+      watchdogTriggered = true;
       if (context.watchdogState && typeof context.watchdogState === 'object') {
         context.watchdogState.triggered = true;
         context.watchdogState.reason = `no test activity for ${Math.floor(watchdogMs)}ms`;
       }
-      for (const pid of Array.from(activeChildren)) {
+      const reason = `no test activity for ${Math.floor(watchdogMs)}ms`;
+      // Mark every active attempt before the first await or termination signal.
+      for (const interrupt of activeChildren.values()) interrupt(reason);
+      for (const pid of Array.from(activeChildren.keys())) {
         try {
-          await killProcessTree(pid, { graceMs: context.timeoutGraceMs });
+          await (context.terminateWatchdogChild || killProcessTree)(pid, { graceMs: context.timeoutGraceMs });
         } catch {}
       }
       markActivity();
@@ -364,6 +381,8 @@ export const runTests = async ({ selection, context, reportResult, reportDirect 
         let result = null;
         if (test.presetStatus === 'skipped') {
           result = normalizeResult({ status: 'skipped', durationMs: 0, skipReason: test.skipReason || '' });
+        } else if (watchdogTriggered) {
+          result = normalizeResult({ status: 'failed', durationMs: 0, interruption: { kind: 'watchdog', reason: 'run watchdog stopped admission' } });
         } else if (context.failFast && failFastTriggered) {
           result = normalizeResult({ status: 'skipped', durationMs: 0, skipReason: '' });
         } else {
@@ -390,7 +409,7 @@ export const runTests = async ({ selection, context, reportResult, reportDirect 
       });
     });
     await queue.onIdle();
-    if (redoQueue.length) {
+    if (redoQueue.length && !watchdogTriggered) {
       const redoRunner = new PQueue({ concurrency: context.jobs });
       redoQueue.forEach(({ test, index, prior }) => {
         redoRunner.add(async () => {
@@ -423,7 +442,7 @@ export const runTests = async ({ selection, context, reportResult, reportDirect 
   } finally {
     if (watchdogTimer) clearInterval(watchdogTimer);
     if (activeChildren.size > 0) {
-      const reapTargets = Array.from(activeChildren);
+      const reapTargets = Array.from(activeChildren.keys());
       activeChildren.clear();
       await Promise.allSettled(
         reapTargets.map((pid) => killProcessTree(pid, { graceMs: context.timeoutGraceMs }))

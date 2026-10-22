@@ -26,7 +26,7 @@ export const buildFailureReceipt = ({ test, attempt, result, logPath }) => {
       signedDecimal: unsigned === null ? null : unsigned | 0, hex: unsigned === null ? null : '0x' + unsigned.toString(16).toUpperCase().padStart(8, '0'),
       interpretation: process.platform === 'win32' && unsigned === 0xC0000005 ? 'Windows STATUS_ACCESS_VIOLATION value; faulting module and cause unknown' : null,
       signal: result.signal || null, spawnError: execution.spawnError || null, timedOut: result.timedOut,
-      termination: result.termination || null, statusSource: execution.statusSource || 'unknown',
+      termination: result.termination || null, interruption: result.interruption || null, statusSource: execution.statusSource || 'unknown',
       propagation: 'Parent recorded the directly spawned test process status; descendant status propagation is not inferred.' },
     phase: { crashPhase: 'unknown', lastObservedMarker: execution.lastPhase || null, basis: 'Last captured child log marker; not a native stack or proof of crash location.' },
     output: { logPath, captured: execution.captureOutput === true, stdout: execution.stdout || null, stderr: execution.stderr || null,

@@ -890,7 +890,7 @@ const main = async () => {
     }
   }
 
-  process.exit(resolveAcceptanceExitCode(finalResults, { perfBudgetViolations }));
+  process.exit(resolveAcceptanceExitCode(finalResults, { perfBudgetViolations, watchdogState: context.watchdogState }));
 };
 
 main().catch((error) => {
