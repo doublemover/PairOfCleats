@@ -273,3 +273,30 @@ Pending rollback also keeps its original target locator and source hash. If a
 different category selection changes that source before cutover, resume stops
 with both the new selection and original intent intact instead of silently
 rebasing the rollback.
+
+Canonical index writer admission now accepts the actual launch repository and
+effective configuration through the existing index lock. Its adapter resolves
+the selected cache root using that same configuration/environment/locator owner,
+requires the exact canonical `repos/<repo-id>` namespace, and pins that root,
+the declared `repos` container and selected cache category under the existing
+`<application-home>/state/storage-access` handshake. It does not discover or
+authorize filesystem parents from an arbitrary index path. Explicit low-level
+locks without that launch context retain their existing repository-only scope.
+
+Build stages, standalone mode writers, watch attempts, explicit repository cache
+rebuild, piece compaction and CI artifact transfer pass their known launch
+context. Such locks retain resource settlement even if their initiating process
+dies. The actual index owner must confirm release before category leases are
+removed; concurrent releases share that operation, and a failed category release
+retains its exact session and retry handle. Writer admission rechecks the verified
+locator after acquiring the index lock and refuses a changed selection before
+starting writer work.
+
+This adoption does not enable generic cache/repos migration: their generation,
+registry/reference and permission owner is still required, and the existing
+generic prohibition remains. Runtime initialization before index writer
+admission, ordinary process-lifetime readers and other category consumers are
+separate adoption boundaries. A rejected file-lock acquisition that provides no
+returned owner cannot prove its internal write/close settled; the admitted
+category session is retained with the error. These source changes and actual
+file/lease conflict, release-order and locator-change fixtures are UNVALIDATED.

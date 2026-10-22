@@ -4,16 +4,19 @@ import {
 } from '../shared/locks/file-lock.js';
 import { attachCleanupSignalHandlers } from '../shared/process-signals.js';
 import { requiresLockResourceSettlement } from '../shared/locks/file-lock-info.js';
-import { runBuildCleanupWithTimeout } from './build/cleanup-timeout.js';
+import { isOwnedBuildCleanupTimeout, runBuildCleanupWithTimeout } from './build/cleanup-timeout.js';
 
 export function createLockReleaseHandle({
   lock,
   lockPath = lock?.lockPath,
   releaseLabel,
+  releaseTimeoutMs = undefined,
   log = () => {}
 }) {
   let released = false;
   let signalCleaned = false;
+  let releaseOperation = null;
+  const releaseDeadlineOwner = {};
   const handlers = [];
   const cleanupSync = () => {
     if (released) return;
@@ -56,13 +59,34 @@ export function createLockReleaseHandle({
         if (signalCleaned === true) {
           released = true;
         } else {
-          await runBuildCleanupWithTimeout({
-            label: releaseLabel,
-            cleanup: () => releaseFileLockOrThrow(lock),
-            log,
-            swallowTimeout: false
-          });
-          released = true;
+          if (!releaseOperation) {
+            const operation = Promise.resolve().then(() => releaseFileLockOrThrow(lock));
+            releaseOperation = operation;
+            operation.then(() => {
+              released = true;
+              detachHandlers();
+            }, () => {
+              if (releaseOperation === operation) releaseOperation = null;
+            });
+          }
+          const operation = releaseOperation;
+          try {
+            await runBuildCleanupWithTimeout({
+              label: releaseLabel,
+              cleanup: () => operation,
+              deadlineOwner: releaseDeadlineOwner,
+              ...(releaseTimeoutMs === undefined ? {} : { timeoutMs: releaseTimeoutMs }),
+              log,
+              swallowTimeout: false
+            });
+          } catch (error) {
+            if (isOwnedBuildCleanupTimeout(error, releaseDeadlineOwner) && error.cacheOwnershipPending === true) {
+              // This exact deadline observes only our metadata removal promise.
+              // It says nothing about an independent child/native resource.
+              error.cacheOwnershipReleased = () => released;
+            }
+            throw error;
+          }
         }
       }
       detachHandlers();

@@ -94,9 +94,10 @@ const attachIndexLockSignalCleanup = (lock, options) => {
  * @param {{repoCacheRoot:string,log:(line:string)=>void,metadata?:object|null}} input
  * @returns {Promise<{release:()=>Promise<void>}>}
  */
-const acquireBuildIndexLock = async ({ repoCacheRoot, log, metadata = null, signal = null, requireSettlement = false }) => {
+const acquireBuildIndexLock = async ({ repoCacheRoot, storageContext, log, metadata = null, signal = null, requireSettlement = false }) => {
   const lock = await acquireIndexLock({
     repoCacheRoot,
+    storageContext,
     signal,
     requireSettlement,
     waitMs: BUILD_INDEX_LOCK_WAIT_MS,
@@ -213,6 +214,7 @@ export const runEmbeddingsStage = async ({
     const borrowed = Boolean(cacheWriterLease);
     const lock = borrowed ? assertIndexCacheLease(cacheWriterLease, repoCacheRoot)
       : await acquireBuildIndexLock({ repoCacheRoot, log, signal: effectiveAbortSignal,
+        storageContext: { repoRoot: root, userConfig },
         requireSettlement: true, metadata: { operation: 'stage3-embeddings' } });
     // Graceful abort drains the child before ownership ends. An unknown resource
     // survives parent exit; only the drained owner may explicitly release it.
@@ -592,6 +594,7 @@ export const runSqliteStage = async ({
       if (shouldPromote) {
         lock = await acquireBuildIndexLock({
           repoCacheRoot: runtime.repoCacheRoot,
+          storageContext: { repoRoot: runtime.root, userConfig: runtime.userConfig },
           log,
           metadata: {
             operation: 'stage4-promote'
@@ -775,6 +778,7 @@ export const runStage = async (
     try {
       throwIfAborted(effectiveAbortSignal);
       lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log,
+        storageContext: { repoRoot: runtime.root, userConfig: runtime.userConfig },
         signal: effectiveAbortSignal, requireSettlement: true, metadata: { operation: `${phaseStage}-cache-writer` } });
       runtime.cacheWriterLease = createIndexCacheLease(lock, runtime.repoCacheRoot);
 

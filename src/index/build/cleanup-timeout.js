@@ -2,6 +2,13 @@ import { createTimeoutError, runWithTimeout } from '../../shared/promise-timeout
 
 export const DEFAULT_BUILD_CLEANUP_TIMEOUT_MS = 30_000;
 const pendingCleanupOperations = new Set();
+const ownedTimeoutErrors = new WeakMap();
+
+/** Identity is held by the actual deadline producer, never reconstructed from
+ * a caller's error code, label or serialized pending marker.
+ */
+export const isOwnedBuildCleanupTimeout = (error, owner) => owner && typeof owner === 'object'
+  && ownedTimeoutErrors.get(error) === owner;
 
 const trackPendingCleanupOperation = (promise) => {
   if (!promise || typeof promise.then !== 'function') return promise;
@@ -62,6 +69,7 @@ export const runBuildCleanupWithTimeout = async ({
   timeoutMs = DEFAULT_BUILD_CLEANUP_TIMEOUT_MS,
   log = null,
   onTimeout = null,
+  deadlineOwner = null,
   swallowTimeout = true
 } = {}) => {
   if (typeof cleanup !== 'function') {
@@ -90,7 +98,8 @@ export const runBuildCleanupWithTimeout = async ({
       runCleanup,
       {
         timeoutMs: resolvedTimeoutMs,
-        errorFactory: () => createTimeoutError({
+        errorFactory: () => {
+          const error = createTimeoutError({
           message: `[cleanup] ${label} timed out after ${resolvedTimeoutMs}ms.`,
           code: 'BUILD_CLEANUP_TIMEOUT',
           retryable: false,
@@ -98,7 +107,10 @@ export const runBuildCleanupWithTimeout = async ({
             label,
             timeoutMs: resolvedTimeoutMs
           }
-        })
+          });
+          if (deadlineOwner && typeof deadlineOwner === 'object') ownedTimeoutErrors.set(error, deadlineOwner);
+          return error;
+        }
       }
     );
     return {

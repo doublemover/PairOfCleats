@@ -53,3 +53,17 @@ The outer storage session adopts this exact last lease even though acquisition
 threw before returning normally. Its rollback attempts all earlier admissions;
 unknown metadata never becomes an inferred owner. Authored direct/outer refusal,
 unlink failure, exact retry and forged/copy refusal controls remain unexecuted.
+
+Index metadata release now retains one actual file-lock removal operation across
+its cleanup deadline. The deadline producer binds an error to a process-local
+owner token; matching error codes, labels or serialized properties cannot supply
+that identity. Only that owned metadata deadline gains an observer for eventual
+successful release. A late exact unlink is therefore observed before retrying
+category lease release, without attempting to remove an already-absent lock.
+Independent child/native pending markers still require their original observers.
+The generic cleanup timeout still makes no native resource settlement claim.
+
+Path-only index lock consumers load no storage launch-resolution adapter. The
+category bridge is imported only for explicit launch context. Authored actual
+file-lock/gated-unlink/deadline controls, an unbranded pending-marker negative
+and the import-boundary fixture remain UNVALIDATED.

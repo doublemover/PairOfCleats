@@ -118,7 +118,8 @@ const rebindZeroState = async ({ outDir, buildRoot, mode, authority }) => {
 const withIndexAuthority = async ({ root, userConfig }, action) => {
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   retainRepoCacheAccess(repoCacheRoot);
-  const lock = await acquireIndexLock({ repoCacheRoot, metadata: { operation: 'ci-artifacts' } });
+  const lock = await acquireIndexLock({ repoCacheRoot, storageContext: { repoRoot: root, userConfig },
+    metadata: { operation: 'ci-artifacts' } });
   if (!lock) throw new Error('Repository index writer is active; retry CI artifact transfer after it finishes.');
   let error = null;
   try { return await action(); }

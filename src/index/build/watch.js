@@ -678,6 +678,7 @@ export async function watchIndex({
     try {
       lock = await resolvedDeps.acquireIndexLockWithBackoff({
         repoCacheRoot: runtimeRef.repoCacheRoot,
+        storageContext: { repoRoot: runtimeRef.root, userConfig: runtimeRef.userConfig },
         shouldExit: () => shouldExit,
         log
       });

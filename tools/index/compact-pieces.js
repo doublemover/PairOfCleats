@@ -389,6 +389,7 @@ const compactModes = async () => {
 };
 
 const lock = dryRun ? null : await acquireIndexLock({ repoCacheRoot: getRepoCacheRoot(root, userConfig),
+  storageContext: { repoRoot: root, userConfig },
   metadata: { operation: 'compact-pieces' } });
 if (!dryRun && !lock) throw new Error('[pieces] Index write lock unavailable; compaction did not start.');
 try { await compactModes(); }
