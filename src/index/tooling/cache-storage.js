@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { constants as bufferConstants } from 'node:buffer';
 import { assertNoSymlinkPath, openContainedFileSync } from '../../shared/contained-file.js';
+import { createContainedFileResource } from '../../shared/contained-file-resource.js';
 import { atomicWriteJson, atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 import { resolveSystemCacheAlias } from '../../shared/system-cache-alias.js';
 
@@ -22,28 +24,32 @@ export const ensureToolingCacheDir = (dir) => {
 
 /** Read a bounded regular, singly linked cache artifact through its checked handle. */
 export const readToolingCacheEntry = (target, maxBytes = 8 * 1024 * 1024) => {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > bufferConstants.MAX_LENGTH) {
+    throw new TypeError('Tooling cache reads require a bounded nonnegative byte allowance.');
+  }
   const resolved = assertToolingCachePath(target);
+  const methods = { receiver: fs, close: fs.closeSync, stat: fs.fstatSync, read: fs.readSync };
   const fd = openContainedFileSync(path.parse(resolved).root, resolved);
-  try {
-    const stat = fs.fstatSync(fd);
-    if (stat.nlink !== 1 || stat.size > maxBytes) {
+  const owner = createContainedFileResource({ fd, sync: true, methods });
+  return owner.runSync(descriptor => {
+    const stat = descriptor.stat();
+    if (!stat.isFile() || stat.nlink !== 1 || !Number.isSafeInteger(stat.size) || stat.size < 0 || stat.size > maxBytes) {
       throw Object.assign(new Error('Unowned or oversized tooling cache artifact.'), { code: 'ERR_TOOLING_CACHE_ENTRY' });
     }
     const bytes = Buffer.alloc(stat.size);
     let offset = 0;
     while (offset < bytes.length) {
-      const read = fs.readSync(fd, bytes, offset, bytes.length - offset, offset);
+      const read = descriptor.read(bytes, offset, bytes.length - offset, offset);
+      if (!Number.isInteger(read) || read < 0 || read > bytes.length - offset) throw new Error('Tooling cache read made invalid progress.');
       if (!read) break;
       offset += read;
     }
-    const after = fs.fstatSync(fd);
-    if (after.size !== stat.size || after.mtimeMs !== stat.mtimeMs) {
+    const after = descriptor.stat();
+    if (offset !== stat.size || ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs', 'nlink'].some(key => after[key] !== stat[key])) {
       throw new Error('Tooling cache artifact changed during read.');
     }
-    return { payload: JSON.parse(bytes.subarray(0, offset).toString('utf8')), stat };
-  } finally {
-    fs.closeSync(fd);
-  }
+    return { payload: JSON.parse(bytes.toString('utf8')), stat };
+  });
 };
 
 export const writeToolingCacheJson = async (target, payload, options = {}) => {

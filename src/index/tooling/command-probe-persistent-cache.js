@@ -5,6 +5,7 @@ import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import { getApplicationHome, getCacheRoot } from '../../shared/cache-roots.js';
 import { readStorageProbePolicy } from '../../shared/storage/probe-policy-read.js';
 import { isStorageObservationFailure, observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { getContainedFileSession } from '../../shared/contained-file-resource.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { isGeneratedCacheMetadata, withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 import { resolveNoProvisionToolingEnvironment } from '../../shared/toolchain-env.js';
@@ -28,13 +29,17 @@ let persistentReadCount = 0;
 let persistentHitCount = 0;
 let persistentWriteCount = 0;
 
+const rethrowRetainedFailure = error => {
+  if (isStorageObservationFailure(error) || getContainedFileSession(error)) throw error;
+};
+
 const readAdmittedPolicy = () => {
   try {
     const selected = readStorageProbePolicy(getApplicationHome());
     const policy = selected.policy;
     return policy?.enabled && policy.entryLimit > 0 && policy.maxAgeMs > 0 && policy.hardBytes > 0 ? selected : null;
   } catch (error) {
-    if (isStorageObservationFailure(error)) throw error;
+    rethrowRetainedFailure(error);
     observeStorageResource(error, { phase: 'command-probe-policy' }).requireSettled();
     return null;
   }
@@ -232,7 +237,7 @@ const prunePersistentCommandProbeCacheDir = (cacheDir, selected) => {
         continue;
       }
       files.push({ path: fullPath, stat, mtimeMs, size });
-    } catch (error) { if (isStorageObservationFailure(error)) throw error; }
+    } catch (error) { rethrowRetainedFailure(error); }
   }
   if (files.length <= selected.policy.entryLimit) return;
   files.sort((left, right) => (
@@ -298,7 +303,7 @@ export const readPersistentCommandProbeCache = ({
       cacheSource: 'persistent'
     };
   } catch (error) {
-    if (isStorageObservationFailure(error)) throw error;
+    rethrowRetainedFailure(error);
     return null;
   }
 };
@@ -335,6 +340,7 @@ export const writePersistentCommandProbeCache = ({
       const { payload } = readToolingCacheEntry(descriptor.cachePath);
       if (!isOwnedCommandProbeCacheEntry(payload, path.basename(descriptor.cachePath))) return false;
     } catch (error) {
+      rethrowRetainedFailure(error);
       if (error?.code !== 'ENOENT') return false;
     }
     const next = withGeneratedCacheMetadata({
@@ -392,7 +398,7 @@ export const writePersistentCommandProbeCache = ({
     prunePersistentCommandProbeCacheDir(descriptor.cacheDir, selected);
     return true;
   } catch (error) {
-    if (isStorageObservationFailure(error)) throw error;
+    rethrowRetainedFailure(error);
     return false;
   } finally {
     if (admissionLock) removeLockFileSyncIfOwned(admissionPath, admissionLock);
@@ -422,7 +428,7 @@ export const invalidatePersistentCommandProbeCache = ({
     return unchangedPolicy(selected) && isOwnedCommandProbeCacheEntry(payload, path.basename(descriptor.cachePath))
       && removeToolingCacheEntry(descriptor.cachePath, stat);
   } catch (error) {
-    if (isStorageObservationFailure(error)) throw error;
+    rethrowRetainedFailure(error);
     return false;
   }
 };
