@@ -117,15 +117,16 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
     const sealed = await readReservation(file);
     if (digest(sealed.value) !== digest(value) || Number(sealed.stat.nlink) !== 1) throw fail('write-reservation-publication-changed');
     let released = false;
-    return Object.freeze({ schemaVersion: 1, resourceId, root, requiredBytes, reservationId: id,
-      admission: 'admitted-declared-write-estimate', metric: value.metric,
-      releaseAfterSettlement: async receipt => {
-        if (receipt?.resourceId !== resourceId || receipt.settled !== true || receipt.pending !== false) throw fail('resource-settlement-unconfirmed');
-        if (released) return true;
-        const releaseLock = await acquireFileLock({ lockPath, waitMs: 0, staleMs: Number.MAX_SAFE_INTEGER,
-          metadata: { scope: 'storage-write-settlement', hostname: os.hostname(), resourceId } });
-        if (!releaseLock) throw fail('admission-owner-busy-during-settlement');
-        try {
+    let removed = false;
+    let releasing = null;
+    let settlementLock = null;
+    const settle = async () => {
+      let operationError = null;
+      try {
+        if (!removed) {
+          settlementLock ||= await acquireFileLock({ lockPath, waitMs: 0, staleMs: Number.MAX_SAFE_INTEGER,
+            metadata: { scope: 'storage-write-settlement', hostname: os.hostname(), resourceId } });
+          if (!settlementLock) throw fail('admission-owner-busy-during-settlement');
           const current = await readReservation(file);
           if (current.hash !== sealed.hash || digest(current.value) !== digest(value)) throw fail('write-reservation-owner-changed');
           const stat = await fs.lstat(file, { bigint: true });
@@ -133,9 +134,34 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
             || String(stat.ino) !== String(current.stat.ino) || String(stat.dev) !== String(sealed.stat.dev)
             || String(stat.ino) !== String(sealed.stat.ino)) throw fail('write-reservation-file-changed');
           await fs.unlink(file);
-          released = true;
-          return true;
-        } finally { await releaseFileLockOrThrow(releaseLock); }
+          removed = true;
+        }
+      } catch (error) { operationError = error; throw error; }
+      finally {
+        if (settlementLock) {
+          try { await releaseFileLockOrThrow(settlementLock); settlementLock = null; }
+          catch (cleanupError) {
+            const error = operationError ? new AggregateError([operationError, cleanupError], operationError.message,
+              { cause: operationError }) : cleanupError;
+            if (operationError?.code) error.code = operationError.code;
+            if (operationError?.reason) error.reason = operationError.reason;
+            error.cacheOwnershipPending = true;
+            throw error;
+          }
+        }
+      }
+      // Removing the record alone is not the complete owner release. A failed
+      // lock release keeps its exact handle for retry, without unlinking again.
+      released = true;
+      return true;
+    };
+    return Object.freeze({ schemaVersion: 1, resourceId, root, requiredBytes, reservationId: id,
+      admission: 'admitted-declared-write-estimate', metric: value.metric,
+      releaseAfterSettlement: async receipt => {
+        if (receipt?.resourceId !== resourceId || receipt.settled !== true || receipt.pending !== false) throw fail('resource-settlement-unconfirmed');
+        if (released) return true;
+        if (!releasing) releasing = settle().finally(() => { releasing = null; });
+        return releasing;
       } });
   } finally { await releaseFileLockOrThrow(lock); }
 };

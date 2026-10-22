@@ -45,3 +45,10 @@ Quota plans distinguish proposed reclamation from actual admission. A plan that
 would satisfy budgets after cleanup returns `defer-reviewed-cleanup-required`;
 selected bytes have not already become available. Unsafe sums and incomplete
 accounting never nominate eviction candidates.
+Settled reservation release coalesces concurrent callers around the same exact
+record and coordinator lock. Success is recorded after both record removal and
+lock release succeed. If the lock release fails after unlink, the owner retains
+that exact lock handle and retries its release without requiring a now-absent
+reservation file or removing another owner's lock. Primary operation failures
+remain the cause if lock cleanup also fails. These source changes and authored
+filesystem-race regressions remain **UNVALIDATED**.
