@@ -1,7 +1,7 @@
 import { canonicalSemanticJson, semanticHash, createAnalysisPartitionId } from '../semantic/identity.js';
 import { writeSemanticAnalysis } from '../semantic/analysis-write.js';
 import { validateSemanticRecord } from '../../contracts/validators/semantic.js';
-import { providerProfileCacheIdentity } from './provider-profile.js';
+import { providerProfileCacheIdentity, verifyProviderProfileReceipt } from './provider-profile.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { combineSemanticProviderOutputs } from './result-dispatch.js';
 import path from 'node:path';
@@ -46,6 +46,8 @@ export const createCanonicalProviderRowWriter = ({ request, profile, sources, st
   return async report => {
     throwIfAborted(signal);
     if (completed || report?.schemaVersion !== 1 || report.kind !== 'canonical-rows-v1' || !Array.isArray(report.batches)) throw fail('Invalid or repeated completed row report.');
+    completed = true;
+    await verifyProviderProfileReceipt(profile, { signal });
     const groups = new Map();
     let retainedRows = 0, retainedBytes = 0;
     for (const batch of report.batches) {
@@ -85,7 +87,6 @@ export const createCanonicalProviderRowWriter = ({ request, profile, sources, st
         structuralSlots: [], diskAccount: state.semanticDiskAccount, signal }));
     }
     throwIfAborted(signal);
-    completed = true;
     return combineSemanticProviderOutputs([{ schemaVersion: 1, contexts: partitions.length ? [context] : [],
       partitions, coverageRef: null, diagnosticsRef: null }]);
   };

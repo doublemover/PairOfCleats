@@ -13,6 +13,13 @@ export const defineInProcessSemanticProvider = ({ declaration, produce }) => {
       semanticFacts: true }, getConfigHash: ctx => hashProviderConfig(ctx.toolingConfig?.[declaration.providerId] || {}),
     async run(ctx, inputs) {
       const output = await produce(ctx, inputs);
+      const families = new Set(declaration.facts.map(fact => fact.family));
+      if (output?.semanticFacts != null && ![...families].some(family => !['legacyTypes', 'symbolicTypes'].includes(family))) {
+        throw Object.assign(new Error('Provider emitted an undeclared canonical fact channel.'), { code: 'ERR_TOOLING_UNSUPPORTED_OUTPUT' });
+      }
+      if (output?.symbolicTypeGraphs?.length && !families.has('symbolicTypes')) {
+        throw Object.assign(new Error('Provider emitted an undeclared symbolic type channel.'), { code: 'ERR_TOOLING_UNSUPPORTED_OUTPUT' });
+      }
       if (output?.semanticFacts !== undefined) assertSemanticEnvelope('provider', output.semanticFacts);
       return output;
     } };

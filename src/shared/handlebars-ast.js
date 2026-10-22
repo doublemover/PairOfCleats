@@ -38,7 +38,7 @@ export const createHandlebarsStructureParser = ({ loadParser = () =>
   const parse = (text) => {
     const source = String(text || '');
     const fallback = (reason) => ({ parser: 'heuristic-handlebars', coverage: 'heuristic', reason,
-      blocks: [], definitions: [], partials: [], imports: [], referenceEntries: [] });
+      blocks: [], definitions: [], partials: [], imports: [], referenceEntries: [], invocations: [] });
     if (source.length > MAX_CHARS) return fallback('source-limit');
     // Reuse only a previously successful immutable model. Its identical source
     // already passed the fixed line/node limits and parser initialization.
@@ -72,6 +72,7 @@ export const createHandlebarsStructureParser = ({ loadParser = () =>
       const definitions = [];
       const partials = [];
       const referenceEntries = [];
+      const invocations = [];
       const imports = new Set();
       const append = (list, entry) => {
         if (list.length >= MAX_ENTRIES) throw new ParserBoundaryError('entry-limit');
@@ -84,6 +85,10 @@ export const createHandlebarsStructureParser = ({ loadParser = () =>
         for (let current = scope; current; current = current.parent) {
           if (current.names.has(name)) return true;
         }
+        return false;
+      };
+      const isLocalValue = (name, scope) => {
+        for (let current = scope; current; current = current.parent) if (current.values.has(name)) return true;
         return false;
       };
       const stack = [{ node: document, depth: 0, blockDepth: 0, scope: null }];
@@ -102,7 +107,7 @@ export const createHandlebarsStructureParser = ({ loadParser = () =>
             const name = inlineName(child);
             if (typeof name === 'string') names.add(name);
           }
-          scope = { names, parent: scope };
+          scope = { names, values: new Set(node.blockParams || []), parent: scope };
         }
         const localDefinition = inlineName(node);
         if (typeof localDefinition === 'string') append(definitions, { name: localDefinition, ...rangeOf(node) });
@@ -128,6 +133,14 @@ export const createHandlebarsStructureParser = ({ loadParser = () =>
         if (node.type === 'PathExpression' && typeof node.original === 'string' && node.parts?.length) {
           append(referenceEntries, { value: node.original, ...rangeOf(node) });
         }
+        if (['MustacheStatement', 'BlockStatement', 'SubExpression', 'Decorator', 'DecoratorBlock'].includes(node.type)
+          && node.path?.type === 'PathExpression' && typeof node.path.original === 'string') {
+          const pathNode = node.path;
+          append(invocations, { name: pathNode.original, statementType: node.type, ...rangeOf(pathNode),
+            simple: !pathNode.data && !pathNode.this && pathNode.depth === 0 && pathNode.parts?.length === 1,
+            localValue: isLocalValue(pathNode.parts?.[0], scope),
+            explicitCall: node.type === 'SubExpression' || Boolean(node.params?.length || node.hash?.pairs?.length) });
+        }
         const nextDepth = depth + 1;
         const nextBlockDepth = blockDepth + (isBlock ? 1 : 0);
         for (const [key, value] of Object.entries(node)) {
@@ -147,13 +160,15 @@ export const createHandlebarsStructureParser = ({ loadParser = () =>
       definitions.sort((left, right) => left.start - right.start);
       partials.sort((left, right) => left.start - right.start);
       referenceEntries.sort((left, right) => left.start - right.start);
+      invocations.sort((left, right) => left.start - right.start);
       for (let index = 1; index < blocks.length; index += 1) {
         if (blocks[index].start < blocks[index - 1].end) return fallback('invalid-source-range');
       }
       previousText = source;
       previousResult = Object.freeze({ parser: 'handlebars-parser', coverage: 'syntax-only', reason: null,
         sourceLines: lines.length, blocks: Object.freeze(blocks), definitions: Object.freeze(definitions),
-        partials: Object.freeze(partials), imports: Object.freeze([...imports]), referenceEntries: Object.freeze(referenceEntries) });
+        partials: Object.freeze(partials), imports: Object.freeze([...imports]), referenceEntries: Object.freeze(referenceEntries),
+        invocations: Object.freeze(invocations) });
       return previousResult;
     } catch (error) {
       return fallback(error instanceof ParserBoundaryError ? error.message : 'parse-failed');

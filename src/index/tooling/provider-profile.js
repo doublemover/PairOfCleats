@@ -49,7 +49,7 @@ export const observeProviderProfile = async ({ providerId, adapterVersion, contr
     if (entry.absent === true) {
       assertNoSymlinkPath(authorizedRoot, filename, { allowMissing: true });
       try { await fs.lstat(filename); } catch (error) {
-        if (error.code === 'ENOENT') return { path: filename, state: 'absent', hash: null, bytes: 0 };
+        if (error.code === 'ENOENT') return { root: authorizedRoot, path: filename, state: 'absent', hash: null, bytes: 0 };
         throw error;
       }
       throw fail('A recorded negative resolution is now present.');
@@ -59,7 +59,7 @@ export const observeProviderProfile = async ({ providerId, adapterVersion, contr
       expectedHash: entry.hash ?? null, maxBytes: maxBytes - retainedBytes, signal
     });
     retainedBytes += bytes.length;
-    return { path: filename, state: 'present', hash: hash(bytes), bytes: bytes.length };
+    return { root: authorizedRoot, path: filename, state: 'present', hash: hash(bytes), bytes: bytes.length };
   };
   const files = async (entries, purpose, defaultRoot) => {
     if (!Array.isArray(entries)) throw fail(`Expected ${purpose} file inventory.`);
@@ -96,13 +96,13 @@ export const observeProviderProfile = async ({ providerId, adapterVersion, contr
     adapterVersion: requireText(adapterVersion, 'adapter version'), contractVersion,
     tool: { hash: toolHash, files: tool, configuredCommand: configured, resolvedCommand: resolved,
       observedVersion, apiProfile, capabilities: capabilityProfile, selection, expectedToolHash },
-    project: { root, variant: project.variant ?? null, targets: structuredClone(project.targets ?? []),
+    project: { root, variant: structuredClone(project.variant ?? null), targets: structuredClone(project.targets ?? []),
       configHash: semanticHash('tooling.project-config.v1', projectFiles),
       moduleResolutionHash: semanticHash('tooling.project-dependencies.v1', dependencies),
       sdkHash: semanticHash('tooling.project-sdk.v1', sdkFiles),
       vfsMappingHash: semanticHash('tooling.project-vfs.v1', project.vfsMappings ?? []),
       files: projectFiles, sdkFiles, dependencies, dependencyClosure },
-    sources, durable: reasons.length === 0, reasons };
+    sources, observationBounds: { maxFiles, maxBytes }, durable: reasons.length === 0, reasons };
   const receipt = { ...identity, profileHash: semanticHash('tooling.provider-profile.v1', identity) };
   throwIfAborted(signal);
   return freeze(receipt);
@@ -110,6 +110,7 @@ export const observeProviderProfile = async ({ providerId, adapterVersion, contr
 
 /** Validate a host-observed receipt before using it as cache provenance. */
 export const providerProfileCacheIdentity = (receipt, { providerId, adapterVersion, repoRoot } = {}) => {
+  if (receipt) canonicalSemanticJson(receipt);
   if (!receipt || receipt.schemaVersion !== PROVIDER_PROFILE_VERSION || receipt.durable !== true
     || !digest(receipt.profileHash) || receipt.providerId !== providerId || receipt.adapterVersion !== adapterVersion
     || (repoRoot && path.resolve(receipt.project?.root || '') !== path.resolve(repoRoot))) return null;
@@ -118,4 +119,39 @@ export const providerProfileCacheIdentity = (receipt, { providerId, adapterVersi
   // Canonicalization also rejects accessors, exotic objects and non-JSON values.
   canonicalSemanticJson(identity);
   return profileHash;
+};
+
+/** Re-observe every admitted byte and negative dependency immediately before
+ * reuse/invocation and after a process result. A saved receipt alone is not a
+ * freshness proof; no command/version probe or dependency discovery occurs. */
+export const verifyProviderProfileReceipt = async (receipt, { signal = null } = {}) => {
+  // Capture caller-owned JSON once before asynchronous reads. A caller cannot
+  // replace an expected hash or negative dependency while verification awaits.
+  receipt = JSON.parse(canonicalSemanticJson(receipt));
+  const identity = providerProfileCacheIdentity(receipt, { providerId: receipt?.providerId, adapterVersion: receipt?.adapterVersion });
+  if (!identity || !receipt.observationBounds) throw fail('A durable observed provider profile is required.');
+  const { maxFiles, maxBytes } = receipt.observationBounds;
+  if (!Number.isSafeInteger(maxFiles) || maxFiles < 1 || maxFiles > 16384
+    || !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 256 * 1048576) throw fail('Invalid saved provider observation bounds.');
+  if (await fs.realpath(receipt.project.root) !== receipt.project.root) throw fail('Provider project root identity changed.');
+  const entries = [...receipt.tool.files, ...receipt.sources, ...receipt.project.files,
+    ...receipt.project.sdkFiles, ...receipt.project.dependencies];
+  if (entries.length > maxFiles) throw fail('Provider file inventory exceeds its original observation allowance.');
+  let bytes = 0;
+  for (const entry of entries) {
+    throwIfAborted(signal);
+    if (typeof entry.root !== 'string' || !path.isAbsolute(entry.root) || !path.isAbsolute(entry.path)
+      || await fs.realpath(entry.root) !== entry.root) throw fail('Provider file root identity changed.');
+    if (entry.state === 'absent') {
+      assertNoSymlinkPath(entry.root, entry.path, { allowMissing: true });
+      try { await fs.lstat(entry.path); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+      throw fail('A recorded negative provider dependency is now present.');
+    }
+    if (entry.state !== 'present' || !digest(entry.hash)) throw fail('Invalid observed provider file identity.');
+    const verified = await readVerifiedContainedFile(entry.root, entry.path, { expectedHash: entry.hash,
+      expectedBytes: entry.bytes, maxBytes: maxBytes - bytes, signal });
+    bytes += verified.buffer.length;
+  }
+  throwIfAborted(signal);
+  return identity;
 };

@@ -49,10 +49,18 @@ export const createLspObservationCollector = ({ identity, consumers, capabilitie
     const key = semanticHash('lsp.structured-request.v1', { identity: pinned, requestClass, params: normalizedParams, positionEncoding });
     if (cache.has(key)) return cache.get(key);
     if (performance.now() - startedAt >= maxMs) return empty(requestClass, normalizedParams, 'wall_budget', 'partial');
+    if (observations.length >= maxRequests) return empty(requestClass, normalizedParams, 'observation_budget', 'partial');
     if (response?.attempted !== true) return empty(requestClass, normalizedParams, response?.skipReason || 'request_not_admitted');
     if (response.error) {
       if (response.error.code === -32601 || response.error.code === 'METHOD_NOT_FOUND') disabled.add(requestClass);
-      const value = { ...empty(requestClass, normalizedParams, 'request_failed', 'failed'), error: structuredClone(response.error) };
+      const value = { ...empty(requestClass, normalizedParams, 'request_failed', 'failed'), error: {
+        code: typeof response.error.code === 'number' && Number.isFinite(response.error.code) ? response.error.code
+          : String(response.error.code || 'ERR_LSP_REQUEST').slice(0, 128),
+        message: String(response.error.message || 'LSP request failed').slice(0, 1024)
+      } };
+      const retainedBytes = Buffer.byteLength(canonicalSemanticJson(value));
+      if (retainedBytes > maxBytes - bytes) return empty(requestClass, normalizedParams, 'output_budget', 'partial');
+      bytes += retainedBytes;
       freeze(value); observations.push(value); cache.set(key, value); return value;
     }
     if (!Object.hasOwn(response, 'payload') || response.payload === undefined) return empty(requestClass, normalizedParams, 'raw_payload_unavailable', 'partial');

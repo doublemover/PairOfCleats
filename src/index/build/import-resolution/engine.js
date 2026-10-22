@@ -259,7 +259,8 @@ export function resolveImportLinks({
   fsExistsIndex = null,
   resolverPlugins = null,
   generatedPolicy = null,
-  budgetRuntimeSignals = null
+  budgetRuntimeSignals = null,
+  configuredBuildSnapshot = null
 }) {
   const fsMemo = createFsMemo(fsMeta);
   const cacheState = cache && typeof cache === 'object' ? cache : null;
@@ -316,7 +317,8 @@ export function resolveImportLinks({
     resolverPlugins,
     rootAbs: resolvedLookup.rootAbs,
     fsMemo,
-    generatedPolicy
+    generatedPolicy,
+    configuredSnapshot: configuredBuildSnapshot
   });
   const fsExistsIndexFingerprint = resolveFsExistsIndexCacheFingerprint(resolverPlugins);
   const budgetPolicy = createImportResolutionBudgetPolicy({

@@ -16,6 +16,8 @@ const same = (left, right) => canonicalSemanticJson(left) === canonicalSemanticJ
 export const mergeSemanticProviderOutput = async ({ output, state, runtime, signal }) => {
   throwIfAborted(signal);
   assertSemanticEnvelope('provider', output);
+  canonicalSemanticJson(output);
+  output = structuredClone(output);
   if (output.coverageRef !== null || output.diagnosticsRef !== null) throw fail('Unsupported provider sidecar reference.');
   const contexts = new Map((state.semanticCompilerContexts || []).map(context => [context.contextKey, context]));
   const inventory = new Map(), bySource = new Map();

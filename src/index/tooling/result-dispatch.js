@@ -10,6 +10,7 @@ const conflict = (kind) => Object.assign(new Error(`Conflicting provider ${kind}
 export const combineSemanticProviderOutputs = (outputs = []) => {
   const contexts = new Map(), partitions = new Map();
   const retain = (inventory, key, value, kind) => {
+    canonicalSemanticJson(value);
     const previous = inventory.get(key);
     if (previous && canonicalSemanticJson(previous) !== canonicalSemanticJson(value)) throw conflict(kind);
     if (!previous) inventory.set(key, structuredClone(value));
@@ -36,6 +37,9 @@ export const combineSemanticProviderOutputs = (outputs = []) => {
  * is supplied by the build owner, never by an untrusted provider result. */
 export const dispatchToolingProviderResult = async ({ result, semanticSink = null, signal = null }) => {
   throwIfAborted(signal);
+  if (result?.semanticFacts !== undefined && !Array.isArray(result.semanticFacts)) throw Object.assign(new Error('Provider semantic result channel must be an array of canonical envelopes.'), {
+    code: 'ERR_TOOLING_UNSUPPORTED_OUTPUT'
+  });
   const outputs = Array.isArray(result?.semanticFacts) ? result.semanticFacts : [];
   const output = combineSemanticProviderOutputs(outputs);
   const emitted = outputs.reduce((count, value) => count + value.partitions.length, 0);

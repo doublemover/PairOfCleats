@@ -18,7 +18,8 @@ import {
 } from '../../shared/reuse-diagnostics.js';
 import { selectToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
-import { providerProfileCacheIdentity } from './provider-profile.js';
+import { providerProfileCacheIdentity, verifyProviderProfileReceipt } from './provider-profile.js';
+import { canonicalSemanticJson } from '../semantic/identity.js';
 import { ToolingRequiredComputationError, isRequiredToolingComputationError } from './required-computation.js';
 import { isAbortError } from '../../shared/abort.js';
 import { mergeSymbolicTypeGraphs, normalizeTypeExpressions, symbolicTypeError,
@@ -190,9 +191,11 @@ const resolveProviderCachedExecution = async ({
   const planTargets = Array.isArray(plan?.targets) ? plan.targets : [];
   const configHash = provider.getConfigHash(ctx);
   const generation = resolveGenerationIdentity(ctx);
-  const profile = ctx.providerProfiles instanceof Map ? ctx.providerProfiles.get(providerId) : ctx.providerProfiles?.[providerId];
+  const suppliedProfile = ctx.providerProfiles instanceof Map ? ctx.providerProfiles.get(providerId) : ctx.providerProfiles?.[providerId];
+  const profile = suppliedProfile ? JSON.parse(canonicalSemanticJson(suppliedProfile)) : null;
   const profileHash = profile ? providerProfileCacheIdentity(profile, { providerId,
     adapterVersion: provider.version, repoRoot: ctx.repoRoot }) : null;
+  if (profileHash) await verifyProviderProfileReceipt(profile, { signal: ctx.signal });
   const cacheKey = computeCacheKey({
     providerId,
     providerVersion: provider.version,
@@ -280,7 +283,8 @@ const resolveProviderCachedExecution = async ({
     outputFromCache,
     outputSource,
     generation,
-    profile: profile || null
+    profile: profile || null,
+    profileHash
   };
 };
 
@@ -1187,6 +1191,9 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       let output = execution.output;
       let outputFromCache = execution.outputFromCache;
       try {
+        // Preflight/other providers may have awaited since cache admission.
+        // Recheck saved provenance before consuming either cached or live work.
+        if (execution.profileHash) await verifyProviderProfileReceipt(execution.profile, { signal: ctx.signal });
         if (!output) {
           providerProgressPhase = 'live-run';
           const providerInputs = {
@@ -1197,6 +1204,14 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
           };
           try {
             output = await provider.run(ctx, providerInputs);
+            if (execution.profileHash) {
+              try { await verifyProviderProfileReceipt(execution.profile, { signal: ctx.signal }); } catch (cause) {
+                if (isAbortError(cause)) throw cause;
+                throw new ToolingRequiredComputationError(`Observed ${providerId} profile changed during provider execution.`, {
+                  operation: 'provider-profile-freshness', reason: 'profile_changed', cause
+                });
+              }
+            }
             if (output) {
               // An owned process boundary may return an immutable result.
               // Attach orchestration identity without mutating provider ownership.

@@ -73,4 +73,16 @@ const mask = probeLspCapabilities({ capabilities: { callHierarchyProvider: true,
 assert.equal(mask.prepareCallHierarchy, true);
 assert.equal(buildLspCapabilityGate({ capabilityMask: mask }).requested.incomingCalls, false, 'hierarchy never becomes a default request sweep');
 assert.equal(buildLspCapabilityGate({ capabilityMask: mask, structuredRequestClasses: ['incomingCalls'] }).effective.incomingCalls, true);
+const failures = createLspObservationCollector({ ...options, maxRequests: 2, maxBytes: 8192 });
+for (let index = 0; index < 3; index += 1) {
+  const result = failures.record({ requestClass: 'definition', params: { textDocument: { uri }, position: { line: 0, character: index } },
+    response: { attempted: true, error: { code: 'X'.repeat(2048), message: 'E'.repeat(16384) } } });
+  if (index < 2) {
+    assert.equal(result.error.code.length, 128);
+    assert.equal(result.error.message.length, 1024);
+    assert.ok(Object.isFrozen(result));
+  } else assert.equal(result.reason, 'observation_budget');
+}
+assert.equal(failures.observations().length, 2, 'failed responses consume the same bounded observation inventory');
+assert.ok(failures.metrics().bytes <= 8192);
 console.log('structured LSP observations, hierarchy scope, raw request reuse and diagnostics versions');

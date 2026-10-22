@@ -3,7 +3,7 @@ import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { canonicalSemanticJson, semanticHash } from '../semantic/identity.js';
 import { offsetToLspPosition } from '../semantic/lsp-locations.js';
-import { providerProfileCacheIdentity } from './provider-profile.js';
+import { providerProfileCacheIdentity, verifyProviderProfileReceipt } from './provider-profile.js';
 import { readVerifiedContainedFile } from '../../shared/contained-file.js';
 import { isRepoTrusted } from '../../shared/config-authority.js';
 import { throwIfAborted, isAbortError } from '../../shared/abort.js';
@@ -62,6 +62,7 @@ export const runRequestLocalBindingRefinement = async ({ request, grant, profile
   const boundedSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
   try {
     throwIfAborted(boundedSignal);
+    await verifyProviderProfileReceipt(profile, { signal: boundedSignal });
     const [occurrence] = await store.getRecords([pinned.ref], ['span', 'data'], { signal: boundedSignal });
     if (occurrence?.kind !== 'occurrence' || !occurrence.span) return { ...result, reason: 'source_occurrence_required' };
     let source;
@@ -111,6 +112,7 @@ export const runRequestLocalBindingRefinement = async ({ request, grant, profile
       positionEncoding: provider.positionEncoding || 'utf-16' });
     throwIfAborted(boundedSignal);
     if (!authorized()) return { ...result, status: 'denied', reason: 'execution_grant_revoked' };
+    await verifyProviderProfileReceipt(profile, { signal: boundedSignal });
     // Live bytes must still match after execution. No late result can join a
     // changed source, even when the provider retained the original open text.
     await readVerifiedContainedFile(pinned.repoRoot, filename, { expectedHash: source.byteHash,

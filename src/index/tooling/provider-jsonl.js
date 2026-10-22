@@ -5,7 +5,7 @@ import { assertSemanticEnvelope } from '../../contracts/validators/semantic-enve
 import { throwIfAborted } from '../../shared/abort.js';
 import { spawnSubprocess } from '../../shared/subprocess/runner.js';
 import { isRepoTrusted } from '../../shared/config-authority.js';
-import { providerProfileCacheIdentity } from './provider-profile.js';
+import { providerProfileCacheIdentity, verifyProviderProfileReceipt } from './provider-profile.js';
 
 export const PROVIDER_JSONL_VERSION = 1;
 const fail = (message, code = 'ERR_TOOLING_PROVIDER_PROTOCOL') => Object.assign(new Error(message), { code });
@@ -128,6 +128,7 @@ export const runJsonlProvider = async ({ command, profile, request, repoRoot, se
     || !isRepoTrusted(repoRoot)) throw fail('Provider command has no exact repository execution authority.', 'ERR_TOOLING_PROVIDER_DENIED');
   const profileHash = providerProfileCacheIdentity(profile, { providerId: profile.providerId, adapterVersion: profile.adapterVersion, repoRoot });
   if (!profileHash || request.profileHash !== profileHash) throw fail('Provider request does not match its observed profile.');
+  await verifyProviderProfileReceipt(profile, { signal });
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000
     || !Number.isSafeInteger(maxInputBytes) || maxInputBytes < 1 || maxInputBytes > 1048576
     || !Number.isSafeInteger(maxStderrBytes) || maxStderrBytes < 1 || maxStderrBytes > 1048576) throw fail('Invalid provider process budget.');
@@ -145,11 +146,13 @@ export const runJsonlProvider = async ({ command, profile, request, repoRoot, se
     } });
   throwIfAborted(signal);
   if (!isRepoTrusted(repoRoot)) throw fail('Provider repository execution authority was revoked.', 'ERR_TOOLING_PROVIDER_DENIED');
+  await verifyProviderProfileReceipt(profile, { signal });
   const result = { ...decoder.finish(), process: { exitCode: processResult.exitCode, stderrBytes, stderr } };
   if (result.output.kind === 'canonical-rows-v1') {
     if (typeof rowWriter !== 'function') throw fail('Canonical provider rows require a host-owned writer.');
     result.output = await rowWriter(result.output, { signal });
   }
+  if (!isRepoTrusted(repoRoot)) throw fail('Provider repository execution authority was revoked.', 'ERR_TOOLING_PROVIDER_DENIED');
   if (semanticSink) result.admission = await semanticSink(result.output, { signal });
   return result;
 };

@@ -7,6 +7,7 @@ import { createGeneratedArtifactsPlugin } from './plugins/generated-artifacts.js
 import { createNixFlakePlugin } from './plugins/nix-flake.js';
 import { createMakefileArtifactsPlugin } from './plugins/makefile-artifacts.js';
 import { createTypeScriptEmitPlugin } from './plugins/typescript-emit.js';
+import { assertConfiguredBuildSnapshot } from '../../../tooling/configured-build-snapshot.js';
 
 const normalizePluginConfig = (resolverPlugins) => (
   resolverPlugins && typeof resolverPlugins === 'object'
@@ -59,9 +60,11 @@ export const createImportBuildContext = ({
   resolverPlugins = null,
   rootAbs = '',
   fsMemo = null,
-  generatedPolicy = null
+  generatedPolicy = null,
+  configuredSnapshot = null
 } = {}) => {
   const normalizedConfig = normalizePluginConfig(resolverPlugins);
+  if (configuredSnapshot) assertConfiguredBuildSnapshot(configuredSnapshot);
   const buildContextConfig = normalizedConfig.buildContext
     && typeof normalizedConfig.buildContext === 'object'
     ? normalizedConfig.buildContext
@@ -102,7 +105,8 @@ export const createImportBuildContext = ({
   }
 
   plugins.sort(stablePluginComparator);
-  const fingerprint = `build-context-v5|${buildPluginFingerprint(plugins)}|${buildGeneratedPolicyFingerprint(generatedPolicy)}`;
+  const fingerprint = `build-context-v5|${buildPluginFingerprint(plugins)}|${buildGeneratedPolicyFingerprint(generatedPolicy)}`
+    + (configuredSnapshot ? `|configured:${configuredSnapshot.identity}` : '');
 
   const classifyUnresolved = ({ importerRel = '', spec = '', rawSpec = '' } = {}) => {
     for (const plugin of plugins) {
@@ -139,6 +143,8 @@ export const createImportBuildContext = ({
       priority: plugin.priority
     })),
     expectedArtifactsIndex,
+    configuredSnapshot: configuredSnapshot?.metadata || null,
+    configuredDependenciesFor: input => configuredSnapshot ? configuredSnapshot.dependenciesFor(input) : [],
     classifyUnresolved,
     resolveGeneratedExpectation
   });
