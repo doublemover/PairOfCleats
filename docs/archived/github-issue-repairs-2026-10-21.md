@@ -1015,8 +1015,8 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1227](https://github.com/doublemover/PairOfCleats/issues/1227) | perf | [Perf] Avoid idle compression-worker startup for gzip sharded artifacts | development implemented; integration/validation deferred |
 | [#1228](https://github.com/doublemover/PairOfCleats/issues/1228) | perf | [Perf] Make process-pool startup demand-driven and dispatch ready children independently | development implemented; integration/validation deferred |
 | [#1229](https://github.com/doublemover/PairOfCleats/issues/1229) | perf | [Perf] Replace full pressure-telemetry cache sorts on each overflowing file | development implemented; integration/validation deferred |
-| [#1230](https://github.com/doublemover/PairOfCleats/issues/1230) | perf | [Perf] Index LSP semantic source and declaration joins and reuse the inventory digest | pending |
-| [#1231](https://github.com/doublemover/PairOfCleats/issues/1231) | perf | [Perf] Bound and share finally CFG expansion without merging abrupt completion routes | pending |
+| [#1230](https://github.com/doublemover/PairOfCleats/issues/1230) | perf | [Perf] Index LSP semantic source and declaration joins and reuse the inventory digest | source repair and regression authored; unvalidated |
+| [#1231](https://github.com/doublemover/PairOfCleats/issues/1231) | perf | [Perf] Bound and share finally CFG expansion without merging abrupt completion routes | source repair and regression authored; unvalidated |
 | [#1232](https://github.com/doublemover/PairOfCleats/issues/1232) | perf | [Perf] Eliminate cross-language throttle wake storms and duplicate pressure sampling | pending |
 | [#1233](https://github.com/doublemover/PairOfCleats/issues/1233) | perf | [Perf] Reuse parser-owned classification spans instead of reparsing every eligible chunk | pending |
 | [#1234](https://github.com/doublemover/PairOfCleats/issues/1234) | perf | [Perf] Propagate sealed semantic piece checksums into publication manifests | development implemented; integration/validation deferred |
@@ -1032,9 +1032,9 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1244](https://github.com/doublemover/PairOfCleats/issues/1244) | perf | [Perf] Choose cardinality-aware Set and bitmap filter intersections | development implemented; integration/validation deferred |
 | [#1245](https://github.com/doublemover/PairOfCleats/issues/1245) | perf | [Perf] Share a run-scoped discovery snapshot across governance reports | development implemented; integration/validation deferred |
 | [#1246](https://github.com/doublemover/PairOfCleats/issues/1246) | perf | [Perf] Skip physical-core subprocess probes when test jobs are explicit | development implemented; integration/validation deferred |
-| [#1247](https://github.com/doublemover/PairOfCleats/issues/1247) | perf | [Perf] Reuse immutable dispatch member and accessor summaries across call sites | pending |
-| [#1248](https://github.com/doublemover/PairOfCleats/issues/1248) | perf | [Perf] Index worker message peers and propagate changed port facts only | pending |
-| [#1249](https://github.com/doublemover/PairOfCleats/issues/1249) | perf | [Perf] Reuse bounded declaration-alias closures across provider call-target joins | pending |
+| [#1247](https://github.com/doublemover/PairOfCleats/issues/1247) | perf | [Perf] Reuse immutable dispatch member and accessor summaries across call sites | source repair and regression authored; unvalidated |
+| [#1248](https://github.com/doublemover/PairOfCleats/issues/1248) | perf | [Perf] Index worker message peers and propagate changed port facts only | source repair and regression authored; unvalidated |
+| [#1249](https://github.com/doublemover/PairOfCleats/issues/1249) | perf | [Perf] Reuse bounded declaration-alias closures across provider call-target joins | source repair and regression authored; unvalidated |
 | [#1250](https://github.com/doublemover/PairOfCleats/issues/1250) | perf | [Perf] Amortize bundle-transform workers and return only requested results | pending |
 | [#1251](https://github.com/doublemover/PairOfCleats/issues/1251) | perf | [Perf] Prewarm query hot caches once per disk generation instead of rebuilding on misses | pending |
 | [#1252](https://github.com/doublemover/PairOfCleats/issues/1252) | perf | [Perf] Fuse manifest integrity reads with artifact decoding during validation | pending |
@@ -1150,12 +1150,12 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1362](https://github.com/doublemover/PairOfCleats/issues/1362) | P2 | [P2] Reject unavailable relation evidence instead of returning false-empty filtered search | development implemented; integration/validation deferred |
 | [#1363](https://github.com/doublemover/PairOfCleats/issues/1363) | perf | [Perf] Reuse bounded prepared artifact rows across projection, sizing and output passes | pending |
 | [#1364](https://github.com/doublemover/PairOfCleats/issues/1364) | perf | [Perf] Make field-postings shards byte-bounded and stream the compatibility merge | pending |
-| [#1365](https://github.com/doublemover/PairOfCleats/issues/1365) | perf | [Perf] Share active artifact compression workers under the build CPU and byte budget | pending |
+| [#1365](https://github.com/doublemover/PairOfCleats/issues/1365) | perf | [Perf] Share active artifact compression workers under the build CPU and byte budget | source repair and regression authored; unvalidated |
 | [#1366](https://github.com/doublemover/PairOfCleats/issues/1366) | perf | [Perf] Plan one required sparse artifact representation before emitting compatibility copies | pending |
 | [#1367](https://github.com/doublemover/PairOfCleats/issues/1367) | other | [Viewer] Fix world-depth occlusion and glass/path compositing instead of drawing overlays through files | pending |
 
 | [#1368](https://github.com/doublemover/PairOfCleats/issues/1368) | P2 | [P2] Derive JSONL block length from encoded bytes instead of trusting optional lineBytes | pending |
-| [#1369](https://github.com/doublemover/PairOfCleats/issues/1369) | perf | [Perf] Reuse dependency-qualified artifact families during partial rebuilds | pending |
+| [#1369](https://github.com/doublemover/PairOfCleats/issues/1369) | perf | [Perf] Reuse dependency-qualified artifact families during partial rebuilds | source repair and regression authored; unvalidated |
 | [#1370](https://github.com/doublemover/PairOfCleats/issues/1370) | other | [Viewer] Keep semantic selection, highlight and source actions coherent outside drawn scope | pending |
 | [#1371](https://github.com/doublemover/PairOfCleats/issues/1371) | P2 | [P2] Serve the complete viewer module graph in FPS and LOD benchmark previews | source repair and regression authored; unvalidated |
 | [#1372](https://github.com/doublemover/PairOfCleats/issues/1372) | P2 | [P2] Gate Three.js browser qualification on phase-local errors and a rendered scene | source repair and regression authored; unvalidated |
@@ -1198,7 +1198,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1409](https://github.com/doublemover/PairOfCleats/issues/1409) | P2 | [P2] Respect exclusive source ends when assigning LSP symbols and diagnostics to chunks | source repair and regression authored; unvalidated |
 | [#1410](https://github.com/doublemover/PairOfCleats/issues/1410) | P2 | [P2] Preserve PDF.js end-of-line markers after their text items | pending |
 | [#1411](https://github.com/doublemover/PairOfCleats/issues/1411) | P2 | [P2] Retain tabs and breaks between DOCX fallback text runs | pending |
-| [#1412](https://github.com/doublemover/PairOfCleats/issues/1412) | perf | [Perf] Map document chunks to units without rescanning every page or paragraph | pending |
+| [#1412](https://github.com/doublemover/PairOfCleats/issues/1412) | perf | [Perf] Map document chunks to units without rescanning every page or paragraph | source repair and regression authored; unvalidated |
 | [#1413](https://github.com/doublemover/PairOfCleats/issues/1413) | P2 | [P2] Preserve omitted architecture caps instead of silently skipping every rule check | source repair and regression authored; unvalidated |
 | [#1414](https://github.com/doublemover/PairOfCleats/issues/1414) | P2 | [P2] Preserve significant whitespace and escapes in ignore-rule text | pending |
 | [#1415](https://github.com/doublemover/PairOfCleats/issues/1415) | P2 | [P2] Populate literal phrase evidence in records index chunks | pending |
@@ -1237,7 +1237,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1448](https://github.com/doublemover/PairOfCleats/issues/1448) | P2 | [P2] Keep unavailable risk-explain evidence distinct from a successful zero-flow report | source repair and regression authored; unvalidated |
 | [#1449](https://github.com/doublemover/PairOfCleats/issues/1449) | P2 | [P2] Include canonical JSON sidecars in records incremental SQLite identity | pending |
 | [#1450](https://github.com/doublemover/PairOfCleats/issues/1450) | P2 | [P2] Give inference-history hybrid search its own valid continuation contract | source repair and regression authored; unvalidated |
-| [#1451](https://github.com/doublemover/PairOfCleats/issues/1451) | perf | [Perf] Reuse unchanged record bundles before tokenization and inline embedding | pending |
+| [#1451](https://github.com/doublemover/PairOfCleats/issues/1451) | perf | [Perf] Reuse unchanged record bundles before tokenization and inline embedding | source repair and regression authored; unvalidated |
 | [#1452](https://github.com/doublemover/PairOfCleats/issues/1452) | P2 | [P2] Preserve omitted-flow counts when risk explain applies its result caps | source repair and regression authored; unvalidated |
 | [#1453](https://github.com/doublemover/PairOfCleats/issues/1453) | perf | [Perf] Reuse the task-turn lookup when reading history context and timelines | pending |
 | [#1454](https://github.com/doublemover/PairOfCleats/issues/1454) | P3 | [P3] Avoid building unused risk-report formats and duplicate SARIF projections | source repair and regression authored; unvalidated |
@@ -1478,3 +1478,28 @@ Root work now addresses #1348 and the still-open #1484 persistence obligation.
 Supported syntax occurrence preservation, resumable bounded production and durable
 coverage across inference/publication/readers are separate from the completed
 attribution source repair. No arbitrary cap increase substitutes for that work.
+
+### Shared producer and occurrence handoff continuation
+
+Source 249ab9700 (#1365, cumulative #1369 hooks) shares lazy build-scoped codec
+CPU and byte admission across artifact families. Ordered outputs retain their
+reservations through consumption; oversized lines use bounded frames, borrowed
+writers leave pool teardown to the build owner, and failed retirement quarantines
+new workers. Source f662a4ee4 also integrates #1412 coordinate lookup and #1451
+qualified records reuse. These bounds are not total-process RSS or speed results.
+
+Source 54a822d5d (#1230/#1231/#1247/#1248/#1249) reuses immutable provider/LSP
+joins, bounds CFG construction, shares exact pending finalizer contexts and indexes
+dispatch/worker peers. CFG, call-flow and worker identities advance to 16/16/7;
+replay identity includes the same derived CFG byte bound used by construction.
+Finalizer completion-route, dense-peer, actual LSP and allocation/timing parity
+remain unexecuted proof obligations.
+
+Sources 336bd5dc5/a2fd66232 repair the #1484 handoff: immutable syntax occurrences
+carry canonical one-based UTF-16 coordinates, inference receives mutable derivative
+details, and resolution reasons follow actual target status. Canonical call-site
+rows retain typed syntax provenance; raw collection stays immutable. Shared
+sourceChunking/callFlow and Tree-sitter versions were advanced with that change.
+Spill/resume, durable completeness and full supported-language qualification are
+still open. No tests, syntax checks, formatting or performance runs were performed
+for these source checkpoints. The last qualified source remains d4dcba413.
