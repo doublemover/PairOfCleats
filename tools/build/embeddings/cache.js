@@ -26,6 +26,7 @@ import {
 import { resolveEmbeddingCacheProfile } from '../../../src/shared/embeddings-cache/layout.js';
 import { createReferenceCacheWriter, collectReferenceProtection } from './cache/file-references.js';
 import { readCacheEntries as readReferenceEntries } from './cache/batch-reader.js';
+import { buildCachePhysicalSummary, compareCachePhysicalAge } from './cache/physical-summary.js';
 
 const CACHE_KEY_SCHEMA_VERSION = 'embeddings-cache-v1';
 const GLOBAL_CHUNK_CACHE_KEY_SCHEMA_VERSION = 'embeddings-global-chunk-cache-v2';
@@ -875,15 +876,14 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
       if (removeSet.has(key)) delete cacheIndex.files[file];
     }
   }
-  const shardUsage = {};
-  for (const entry of Object.values(cacheIndex.entries || {})) {
-    if (entry?.shard) {
-      shardUsage[entry.shard] = (shardUsage[entry.shard] || 0) + 1;
-    }
-  }
+  const work = { summaryEntryVisits: 0 };
+  const summarize = () => buildCachePhysicalSummary(cacheDir, cacheIndex, {
+    resolveShardPath: resolveCacheShardPath, resolveEntryPath: resolveCacheEntryPath, counters: work
+  });
+  const beforeCompaction = summarize();
   const removedShards = [];
   for (const shardName of Object.keys(cacheIndex.shards || {})) {
-    if (shardUsage[shardName]) continue;
+    if (beforeCompaction.shards.has(shardName)) continue;
     const shardPath = resolveCacheShardPath(cacheDir, shardName);
     if (deleteShards && shardPath) {
       try {
@@ -896,17 +896,15 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
       cacheIndex.currentShard = null;
     }
   }
-  const compaction = deleteShards ? await compactCacheShards(cacheDir,cacheIndex,options.maxCompactionBytes) : {copiedBytes:0,reclaimedBytes:0};
-  let physical = await inspectCachePhysicalStorage(cacheDir,cacheIndex);
+  const compaction = deleteShards ? await compactCacheShards(cacheDir,cacheIndex,options.maxCompactionBytes,beforeCompaction) : {copiedBytes:0,reclaimedBytes:0};
+  // Compaction changes pointers. Rebuild once at the physical-inventory phase
+  // boundary, rather than scanning the corpus per shard/comparison/removal.
+  const physicalSummary = compaction.copiedBytes > 0 ? summarize() : beforeCompaction;
+  let physical = await inspectCachePhysicalStorage(cacheDir,cacheIndex,physicalSummary);
   let physicalBytes=physical.reduce((sum,file)=>sum+file.sizeBytes,0);
   const physicalRemoved=[];
   if(deleteShards && maxBytes>0 && physicalBytes>maxBytes){
-    const lru=file=>{
-      const entries=Object.values(cacheIndex.entries||{}).filter(entry=>
-        (entry.shard?resolveCacheShardPath(cacheDir,entry.shard):(entry.path||resolveCacheEntryPath(cacheDir,entry.key)))===file.path);
-      return entries.length?Math.max(...entries.map(entry=>Date.parse(entry.lastAccessAt||entry.createdAt)||0)):file.mtimeMs;
-    };
-    physical.sort((a,b)=>lru(a)-lru(b)||a.path.localeCompare(b.path));
+    physical.sort((a,b)=>compareCachePhysicalAge(a,b,physicalSummary));
     const protectedPaths = new Set([...protectedKeys].map(key => {
       const entry = cacheIndex.entries[key];
       return entry?.shard ? resolveCacheShardPath(cacheDir, entry.shard) : entry?.path || resolveCacheEntryPath(cacheDir, key);
@@ -918,9 +916,8 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
       try{await fs.rm(file.path);}catch{continue;}
       physicalBytes-=file.sizeBytes;physicalRemoved.push(file.path);
       cacheIndex.storageEpoch=(cacheIndex.storageEpoch||0)+1;
-      for(const [key,entry]of Object.entries(cacheIndex.entries||{})){
-        const entryPath=entry.shard?resolveCacheShardPath(cacheDir,entry.shard):(entry.path||resolveCacheEntryPath(cacheDir,key));
-        if(entryPath===file.path){delete cacheIndex.entries[key];plan.removeKeys.push(key);}
+      for(const key of physicalSummary.paths.get(file.path)?.keys || []) {
+        delete cacheIndex.entries[key];plan.removeKeys.push(key);
       }
       const name=path.basename(file.path);
       if(cacheIndex.shards[name]){delete cacheIndex.shards[name];removedShards.push(name);}
@@ -932,7 +929,7 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
   for (const [input, target] of Object.entries(cacheIndex.chunkInputs || {})) if (!cacheIndex.entries[target]) delete cacheIndex.chunkInputs[input];
   const changed=reachability.changed||plan.removeKeys.length>0||removedShards.length>0||compaction.copiedBytes>0||physicalRemoved.length>0;
   return {removedKeys:[...new Set(plan.removeKeys)],removedShards,changed,physicalBytesBefore:beforePhysical.reduce((sum,file)=>sum+file.sizeBytes,0),
-    physicalBytes, budgetExceeded:maxBytes>0&&physicalBytes>maxBytes, compaction, physicalRemoved};
+    physicalBytes, budgetExceeded:maxBytes>0&&physicalBytes>maxBytes, compaction, physicalRemoved, work};
 };
 
 /**
@@ -1165,16 +1162,16 @@ export const writeCacheEntries = async (cacheDir, cacheIndex, writes, options = 
 };
 
 /** Compact only registered cache shards, streaming at most the selected I/O budget. */
-const compactCacheShards = async (cacheDir, cacheIndex, maxIoBytes = 128 * 1024 * 1024) => {
+const compactCacheShards = async (cacheDir, cacheIndex, maxIoBytes = 128 * 1024 * 1024, summary) => {
   let copiedBytes=0, reclaimedBytes=0;
   for(const oldName of Object.keys(cacheIndex.shards || {}).sort()){
     const oldPath=resolveCacheShardPath(cacheDir,oldName);
     if(!oldPath)continue;
     let stat;try{stat=await fs.lstat(oldPath);}catch{continue;}
     if(!stat.isFile()||stat.isSymbolicLink()||await fs.realpath(oldPath)!==oldPath)continue;
-    const live=Object.values(cacheIndex.entries || {}).filter(entry=>entry.shard===oldName)
-      .sort((a,b)=>a.offset-b.offset);
-    const liveBytes=live.reduce((sum,entry)=>sum+Number(entry.length||0)+CACHE_ENTRY_PREFIX_BYTES,0);
+    const shardSummary = summary.shards.get(oldName);
+    const live=(shardSummary?.entries || []).slice().sort((a,b)=>a.offset-b.offset);
+    const liveBytes=shardSummary?.liveBytes || 0;
     if(!live.length||liveBytes>stat.size*0.75||copiedBytes+liveBytes>maxIoBytes
       ||live.some(entry=>!Number.isSafeInteger(entry.length)||entry.length<=0||entry.length>16*1024*1024
         ||!Number.isSafeInteger(entry.offset)||entry.offset<4||entry.offset+entry.length>stat.size))continue;
@@ -1209,16 +1206,19 @@ const compactCacheShards = async (cacheDir, cacheIndex, maxIoBytes = 128 * 1024 
   return {copiedBytes,reclaimedBytes};
 };
 
-const inspectCachePhysicalStorage = async (cacheDir,cacheIndex) => {
-  const files=new Map();
+const inspectCachePhysicalStorage = async (cacheDir,cacheIndex,summary = null) => {
+  const files=new Map(), visited = new Set();
   const add=async (file, protectedFile=false)=>{
     if(!file)return;
     const resolved=path.resolve(file),root=path.resolve(cacheDir)+path.sep;
     if(!resolved.startsWith(root))return;
+    if(visited.has(resolved))return;
+    visited.add(resolved);
     try{const stat=await fs.lstat(resolved);if(stat.isFile()&&!stat.isSymbolicLink() && await fs.realpath(resolved)===resolved)files.set(resolved,{path:resolved,sizeBytes:stat.size,mtimeMs:stat.mtimeMs,protected:protectedFile});}catch{}
   };
   for(const shard of Object.keys(cacheIndex.shards||{}))await add(resolveCacheShardPath(cacheDir,shard));
-  for(const entry of Object.values(cacheIndex.entries||{}))if(!entry.shard)await add(entry.path||resolveCacheEntryPath(cacheDir,entry.key));
+  if (summary) for (const filename of summary.paths.keys()) await add(filename);
+  else for(const entry of Object.values(cacheIndex.entries||{}))if(!entry.shard)await add(entry.path||resolveCacheEntryPath(cacheDir,entry.key));
   for(const file of [resolveCacheIndexPath(cacheDir),resolveCacheIndexBinaryPath(cacheDir),path.join(cacheDir,'cache.meta.json')])await add(file,true);
   // Orphan shard/encoded-key files are owned by this cache; other selected files are untouched.
   for(const [dir,pattern] of [[cacheDir,/^[a-f0-9]{40,64}\.(?:embcache\.zst|json)$/i],

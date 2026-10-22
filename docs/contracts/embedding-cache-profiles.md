@@ -38,3 +38,14 @@ materialized vector data, with bounded transient hydration admission. Required
 published vector artifacts keep their separate owners. No native speedup, corpus
 compression ratio, cross-process crash qualification or whole-app quota acceptance
 is claimed by these source changes.
+
+Prune/compaction builds a generation-local physical-path summary after logical
+retention. Each shard carries its live entries/bytes and newest access timestamp;
+physical eviction compares these scalars and removes the recorded keys only after
+successful file deletion. An orphan uses its file modification time. A compaction
+that moves pointers triggers one explicit summary rebuild before physical eviction.
+Inventory visits each resolved path once per phase, retaining regular-file,
+symlink, realpath and root-containment checks. Protected metadata and shared-file
+reference pins remain independent eviction barriers. `work.summaryEntryVisits`
+reports summary construction visits; it is operation accounting, not elapsed-time
+or lock-duration qualification.
