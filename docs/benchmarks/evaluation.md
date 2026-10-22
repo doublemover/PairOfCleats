@@ -171,3 +171,14 @@ metrics do not enter live search aggregates. No production default, public confi
 knob, result store or automatic live capture is added. Golden/sweep regressions
 are authored but unrun. Representative held-out, per-class, matched-work quality
 and platform/resource qualification remain open.
+
+## Saved query-routing shadows
+
+Cases may carry an explicit `shadowRouting` saved-input object. The evaluator adds
+a separate feature-only class proposal and optional generation-qualified saved
+repository-pool allocation report. The [shadow contract](../contracts/shadow-query-routing.md)
+defines syntax precedence, abstention, fixed versus weighted quotas, exploration
+floors, missing judgments and bounds. Labels do not select production providers,
+and saved graded gain/coverage does not enter live quality aggregates or certify
+recall/cost. Malformed shadow inputs report incomplete evidence without discarding
+the primary evaluation. All new source/assertions remain unvalidated.

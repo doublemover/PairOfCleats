@@ -11,6 +11,7 @@ import { matchExpected, resolveMatchMode } from './match.js';
 import { collectExpectedJudgments, computeMRR, computeNDCG, computeRecallAtK } from './metrics.js';
 import { evaluateDatasetVectorReplay } from './vector-oracle.js';
 import { evaluateDatasetFusionReplay } from './fusion-replay.js';
+import { evaluateDatasetShadowRouting } from './shadow-routing.js';
 
 const argv = createCli({
   scriptName: 'eval-run',
@@ -170,6 +171,8 @@ const output = {
 };
 const fusionReplay = await evaluateDatasetFusionReplay({ cases });
 if (fusionReplay) output.fusionReplay = fusionReplay;
+const shadowRouting = evaluateDatasetShadowRouting({ cases });
+if (shadowRouting) output.shadowRouting = shadowRouting;
 
 if (argv.out) {
   fs.writeFileSync(path.resolve(argv.out), JSON.stringify(output, null, 2));
