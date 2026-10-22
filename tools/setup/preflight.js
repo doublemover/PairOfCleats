@@ -33,23 +33,26 @@ export const runSetupPreflight = ({ nodeVersion = process.versions.node, platfor
   };
   const git = probe('git', ['--version']);
   if (!git || !/^git version\s/.test(git)) fail('Git is missing or cannot run. Install Git and make it available on PATH.');
-  const forcedPython = env.NODE_GYP_FORCE_PYTHON;
-  const pythonCandidates = forcedPython ? [[forcedPython, [], 'NODE_GYP_FORCE_PYTHON']] : [
-    ...(env.npm_config_python ? [[env.npm_config_python, [], 'npm_config_python']] : []),
-    ...(env.PYTHON ? [[env.PYTHON, [], 'PYTHON']] : []),
+  const selectedPython = ['NODE_GYP_FORCE_PYTHON', 'npm_config_python', 'PYTHON'].find(key => String(env[key] || '').trim());
+  const pythonCandidates = selectedPython ? [[env[selectedPython], [], selectedPython]] : [
     ...(platform === 'win32' ? [['py', ['-3'], 'py-launcher']] : []), ['python3', [], 'PATH'], ['python', [], 'PATH']
   ];
   let python = null;
+  const rejectedPython = [];
   for (const [command, prefix, source] of pythonCandidates) {
-    const output = probe(command, [...prefix, '-c', 'import json,sys; print(json.dumps({"version": list(sys.version_info[:3]), "executable": sys.executable}))']);
+    const output = probe(command, [...prefix, '-c', 'import json,sys; print(json.dumps({"version": list(sys.version_info[:3]), "executable": sys.executable, "releaselevel": sys.version_info.releaselevel, "serial": sys.version_info.serial}))']);
     try {
       const value = JSON.parse(output);
-      if (value?.version?.[0] === 3 && value.version[1] >= 6 && typeof value.executable === 'string' && value.executable) {
-        python = { ...value, command, args: prefix, source }; break;
+      if (Array.isArray(value?.version) && value.version.length === 3 && value.version.every(Number.isSafeInteger)
+        && value.version[0] === 3 && value.version[1] >= 6 && typeof value.executable === 'string' && value.executable
+        && ['final', 'alpha', 'beta', 'candidate'].includes(value.releaselevel) && (value.releaselevel === 'final' || selectedPython)) {
+        python = { ...value, command, args: prefix, source, prerelease: value.releaselevel !== 'final' }; break;
       }
-    } catch { /* Try the next node-gyp Python discovery candidate. */ }
+      rejectedPython.push({ command, source, reason: value?.releaselevel && value.releaselevel !== 'final' ? 'prerelease-needs-explicit-selection' : 'incompatible-or-unrecognized-python' });
+    } catch { rejectedPython.push({ command, source, reason: 'unavailable-or-invalid-python-probe' }); }
+    if (selectedPython) fail(`Explicit ${selectedPython}=${command} is unavailable or incompatible with Python 3.6+. Repair this selection; no launcher/PATH fallback was used.`);
   }
-  if (!python) fail(`Python 3.6+ is required for mandatory native source builds.${forcedPython ? ' NODE_GYP_FORCE_PYTHON must name a working Python 3 executable.' : ' Install Python 3 and make it discoverable by node-gyp.'}`);
+  if (!python) fail('Python 3.6+ is required for mandatory native source builds. Install a maintained stable Python 3, or explicitly select a compatible interpreter; prerelease PATH candidates are not selected by default.');
   let toolchain;
   if (platform === 'win32') {
     if (!['x64', 'arm64'].includes(arch)) fail(`Windows ${arch} is unsupported; Node 26 requires a supported 64-bit target.`);
@@ -110,7 +113,13 @@ export const runSetupPreflight = ({ nodeVersion = process.versions.node, platfor
       if (command === env.CXX) fail('The explicitly selected CXX compiler cannot run; repair the override before bootstrap.');
     }
     if (!compiler) fail('A supported C/C++ compiler is required for mandatory native source builds. Install the platform build tools.');
-    toolchain = { make: make.split(/\r?\n/)[0], compiler };
+    let cCompiler = null;
+    if (env.CC) {
+      const version = probe(env.CC, ['--version']);
+      if (!version) fail('The explicitly selected CC compiler cannot run; repair the override before bootstrap.');
+      cCompiler = { command: env.CC, source: 'CC', version: version.split(/\r?\n/)[0] };
+    }
+    toolchain = { make: make.split(/\r?\n/)[0], compiler, cCompiler };
   }
   const childEnv = { NODE_GYP_FORCE_PYTHON: python.executable, npm_config_python: python.executable };
   if (platform === 'win32') {
@@ -118,14 +127,21 @@ export const runSetupPreflight = ({ nodeVersion = process.versions.node, platfor
     childEnv.npm_config_msvs_version = toolchain.compiler.installationPath;
     childEnv.WindowsSdkDir = toolchain.sdk.root;
     childEnv.WindowsSDKVersion = toolchain.sdk.version + '\\';
-  } else if (env.CXX) childEnv.CXX = toolchain.compiler.command;
-  return { nodeVersion, nodeExecutable: process.execPath, platform, arch, git, python, toolchain,
-    childEnv, verificationLevel: 'prerequisite-discovery-only' };
+  } else {
+    if (env.CXX) childEnv.CXX = toolchain.compiler.command;
+    if (env.CC) childEnv.CC = toolchain.cCompiler.command;
+  }
+  const npm = { executable: env.npm_execpath || null, nodeExecutable: env.npm_node_execpath || process.execPath,
+    version: /(?:^|\s)npm\/([0-9]+\.[0-9]+\.[0-9]+)(?:\s|$)/.exec(env.npm_config_user_agent || '')?.[1] || null,
+    source: env.npm_execpath ? 'npm-launch-environment' : 'not-selected-by-launch', verificationLevel: 'launch-context-not-probed' };
+  return { nodeVersion, nodeExecutable: process.execPath, platform, arch, npm, git, python, toolchain,
+    rejectedPython, childEnv, verificationLevel: 'prerequisite-discovery-only' };
 };
 
 export const formatSetupPreflight = report => [
   `[bootstrap preflight] Node ${report.nodeVersion} (${report.nodeExecutable}); target ${report.platform}/${report.arch}`,
-  `[bootstrap preflight] Python ${report.python.version.join('.')} (${report.python.executable}; selected by ${report.python.source})`,
+  `[bootstrap preflight] npm ${report.npm.version || 'version not probed'} (${report.npm.executable || 'entry not selected by launch'}; ${report.npm.source})`,
+  `[bootstrap preflight] Python ${report.python.version.join('.')}${report.python.prerelease ? ` ${report.python.releaselevel} (explicit opt-in)` : ''} (${report.python.executable}; selected by ${report.python.source})`,
   ...(report.platform === 'win32' ? [
     `[bootstrap preflight] Visual Studio ${report.toolchain.compiler.installationVersion}; MSVC ${report.toolchain.compiler.version} (${report.toolchain.compiler.source})`,
     `[bootstrap preflight] C++: ${report.toolchain.compiler.executable}`,

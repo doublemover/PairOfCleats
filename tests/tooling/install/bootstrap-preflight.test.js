@@ -7,7 +7,7 @@ import { spawnResolvedSubprocessSync } from '../../../src/shared/subprocess/comm
 import { runNode } from '../../helpers/run-node.js';
 
 const calls = [];
-const python = JSON.stringify({ version: [3, 13, 3], executable: '/fixture/python3' });
+const python = JSON.stringify({ version: [3, 13, 3], executable: '/fixture/python3', releaselevel: 'final', serial: 0 });
 const run = (command, args, options) => {
   calls.push({ command, args });
   assert.equal(options.timeout, 3000);
@@ -35,6 +35,18 @@ calls.length = 0;
 assert.throws(() => runSetupPreflight({ ...options, env: { NODE_GYP_FORCE_PYTHON: '/missing/python' } }), /NODE_GYP_FORCE_PYTHON/);
 assert.ok(!calls.some(call => ['python3', 'python'].includes(call.command)), 'forced Python is never silently replaced');
 assert.equal(runSetupPreflight({ ...options, env: { PYTHON: '/explicit/python' } }).python.executable, '/fixture/python3');
+for (const key of ['npm_config_python', 'PYTHON']) {
+  calls.length = 0;
+  assert.throws(() => runSetupPreflight({ ...options, env: { [key]: '/missing/python' } }), new RegExp(`Explicit ${key}`));
+  assert.ok(!calls.some(call => ['python3', 'python', 'py'].includes(call.command)), 'invalid explicit Python never falls through to a different install');
+}
+const prerelease = JSON.stringify({ version: [3, 16, 0], executable: '/fixture/python-alpha', releaselevel: 'alpha', serial: 1 });
+const prereleaseRunner = (command, args, input) => ['python3', 'python', 'py', '/explicit/python'].includes(command)
+  ? { status: 0, stdout: prerelease } : run(command, args, input);
+assert.throws(() => runSetupPreflight({ ...options, run: prereleaseRunner }), /prerelease PATH candidates/);
+assert.equal(runSetupPreflight({ ...options, env: { PYTHON: '/explicit/python' }, run: prereleaseRunner }).python.prerelease, true);
+assert.throws(() => runSetupPreflight({ ...options, env: { CC: '/missing/cc' } }), /explicitly selected CC/);
+assert.throws(() => runSetupPreflight({ ...options, env: { CXX: '/missing/cxx' } }), /explicitly selected CXX/);
 
 const join = path.win32.join, vs = 'C:\\fixture\\VS2022', sdk = 'C:\\fixture\\Windows Kits\\10';
 const sdkVersion = '10.0.26100.0', compilerVersion = '14.44.35207';
@@ -103,7 +115,7 @@ try {
   const cli = runNode([preflight, '--unexpected'], 'dependency-free preflight CLI argument rejection', root, env,
     { stdio: 'pipe', allowFailure: true, timeoutMs: 5000 });
   assert.equal(cli.status, 1);
-  assert.match(cli.stderr, /accepts no arguments/);
+  assert.match(cli.stderr, /Usage: node tools\/setup\/preflight.js/);
   assert.doesNotMatch(cli.stderr, /ERR_MODULE_NOT_FOUND/);
   // macOS /var -> /private/var and checkout directory links must execute the
   // same prerequisite checks. This alias contains only this disposable copy.
@@ -113,7 +125,7 @@ try {
     'dependency-free preflight through directory alias', root, env,
     { stdio: 'pipe', allowFailure: true, timeoutMs: 5000 });
   assert.equal(aliased.status, 1, 'directory alias must not bypass the actual CLI');
-  assert.match(aliased.stderr, /accepts no arguments/);
+  assert.match(aliased.stderr, /Usage: node tools\/setup\/preflight.js/);
   assert.doesNotMatch(aliased.stderr, /ERR_MODULE_NOT_FOUND/);
 } finally { fs.rmSync(root, { recursive: true, force: true }); }
 console.log('Bootstrap preflight rejects unsupported Node/missing tools before installation, discovers supported platform prerequisites and runs without dependencies.');

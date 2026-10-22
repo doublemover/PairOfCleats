@@ -53,13 +53,19 @@ existing node-gyp Python selection.
 ## Check, install, verify
 
 Python selection follows `NODE_GYP_FORCE_PYTHON`, `npm_config_python`, `PYTHON`,
-then the Windows `py -3` launcher and PATH candidates. VS selection respects
+then the Windows `py -3` launcher and PATH candidates. An invalid highest-priority
+explicit Python selection fails with its source; it never falls through to a
+different installation. Launcher/PATH discovery accepts stable Python releases.
+Using an alpha/beta/release candidate requires an explicit interpreter override
+and is reported as an opt-in, with qualification still required. VS selection respects
 `VCINSTALLDIR`, `npm_config_msvs_version` and `GYP_MSVS_VERSION`; POSIX respects
-explicit `CXX`. Preflight reports the selected executable/version/source, MSVC,
+explicit `CC` and `CXX`. Preflight reports the selected executable/version/source, MSVC,
 MSBuild, target architecture and Windows SDK. Its qualified child-local selection
 is rediscovered and carried by the native rebuild owner; it does not modify
 global PATH, Python associations or machine defaults. Discovery alone does not
 prove which nested package compiler ran or qualify every modern stable toolchain.
+The npm version/path fields describe npm's launch environment when supplied;
+they do not claim an npm executable was activated by diagnosis.
 
 From the checkout root, `node tools/setup/preflight.js` performs a bounded,
 dependency-free prerequisite check. Both `npm run bootstrap:ci` (locked install)
