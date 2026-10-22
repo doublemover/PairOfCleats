@@ -349,7 +349,11 @@ export function createSqliteHelpers(options) {
       denseVec,
       minhash,
       filterIndex: includeFilterIndex ? buildFilterIndex(chunkMeta, { fileChargramN }) : null,
-      loadChunkMetaByIds
+      loadChunkMetaByIds,
+      loadFilterFactPage: async options => {
+        const { readSqliteFilterFactPage } = await import('./sqlite-filter-page.js');
+        return readSqliteFilterFactPage({ ...options, db, mode, rowCount: chunkMeta.length });
+      }
     };
   }
 

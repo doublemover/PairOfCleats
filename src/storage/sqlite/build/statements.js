@@ -1,4 +1,5 @@
 import { createFtsInserter } from '../fts-variants.js';
+import { createSqliteFilterFactWriter } from '../filter-facts.js';
 /**
  * Create and return the sqlite insert statement set for one build pass.
  * @param {any} db
@@ -18,7 +19,8 @@ export const createInsertStatements = (db, options = {}) => {
     stats.insertStatements.insertClause = insertClause;
   }
 
-  const insertChunk = db.prepare(`
+  const putFilterFacts = createSqliteFilterFactWriter(db);
+  const chunkStatement = db.prepare(`
     ${insertClause} INTO chunks (
       id, chunk_id, mode, file, start, end, startLine, endLine, ext, kind, name,
       metaV2_json, headline, preContext, postContext, weight, tokens, phrase_tokens, ngrams, codeRelations,
@@ -32,6 +34,11 @@ export const createInsertStatements = (db, options = {}) => {
       @chunk_authors
     );
   `);
+  const insertChunk = updateMode === 'full' ? chunkStatement : { run(row) {
+    const result = chunkStatement.run(row);
+    putFilterFacts(row);
+    return result;
+  } };
 
   const insertFts = createFtsInserter(db, insertClause);
 

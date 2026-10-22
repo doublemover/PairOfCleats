@@ -226,18 +226,20 @@ export function createIndexBackendLoader({
         if (filterEnumeration && Number.isSafeInteger(filterTopN) && filterTopN > 0) {
           try {
             const lazy = loadIndexFromSqlite(mode, { ...sqliteBackendLoadOptions, includeChunks: false });
-            const page = await readFilterMatchPage({ cacheDir: filterEnumeration.cacheDir,
+            const persisted = await readFilterMatchPage({ cacheDir: filterEnumeration.cacheDir,
               identity: filterRepresentationIdentity(filterEnumeration, mode), rowCount: lazy.chunkMeta.length,
               offset: filterEnumeration.offsets[mode] || 0, limit: filterTopN, throwIfAborted: () => signal?.throwIfAborted() });
+            const page = persisted || await lazy.loadFilterFactPage?.({ filters: filterEnumeration.filters,
+              offset: filterEnumeration.offsets[mode] || 0, limit: filterTopN, signal });
             if (page) {
               lazy.loadChunkMetaByIds(mode, Array.from(page.ids), lazy.chunkMeta);
               if (page.ids.every(id => lazy.chunkMeta[id])) {
-                const cost = { kind: 'sqlite-seek-page',
+                const cost = { kind: page.representation === 'sqlite-indexed-facts' ? 'sqlite-indexed-filter-page' : 'sqlite-seek-page',
                   metadataLoadedRows: page.ids.length, elapsedMs: performance.now() - started,
                   tokenIndexLoaded: false, filterIndexBuilt: false };
                 return { ...lazy, preparedFilterPage: page, filterLoadCost: cost,
                   loadFilterMetadata: async () => {
-                    const full = loadIndexFromSqlite(mode, sqliteBackendLoadOptions), all = full.chunkMeta;
+                    const full = loadIndexFromSqlite(mode, { ...sqliteBackendLoadOptions, includeChunks: true }), all = full.chunkMeta;
                     for (let id = 0; id < all.length; id += 1) {
                       if (id % 256 === 0) { await new Promise(resolve => setImmediate(resolve)); signal?.throwIfAborted(); }
                       lazy.chunkMeta[id] = all[id];

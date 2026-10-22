@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { runNativeDatabaseCommand } from '../shared/native-database-lifetime.js';
+import { rebuildSqliteFilterFacts } from '../../src/storage/sqlite/filter-facts.js';
 import { SQLITE_COMPACT_OPTIONS } from '../shared/operator-cli-options.js';
 import { assertSqliteIndexFormat } from '../../src/storage/sqlite/index-format.js';
 import { createOptionalFtsTables, listOptionalFtsTables, createFtsInserter } from '../../src/storage/sqlite/fts-variants.js';
@@ -525,6 +526,7 @@ export async function compactDatabase(input, resources = null) {
 
     copySemanticTables(sourceDb, outDb);
     assertSqliteIndexFormat({ db: outDb, repoRoot: input.repoRoot || process.cwd(), indexPath: tempPath, operation: 'compact-output' });
+    await rebuildSqliteFilterFacts(outDb, mode);
     outDb.exec('VACUUM');
     afterStats = {
       bytes: Number(fs.statSync(tempPath).size) || 0,

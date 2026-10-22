@@ -16,6 +16,7 @@ import { deleteDocIds, updateTokenStats } from '../delete.js';
 import { validateSqliteDatabase } from '../validate.js';
 import { applyCachedSemanticPlan } from '../../semantic/from-cache.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
+import { sealSqliteFilterFacts } from '../../filter-facts.js';
 import { setImmediate } from 'node:timers/promises';
 
 /**
@@ -458,6 +459,7 @@ export const runIncrementalUpdatePhase = async ({
     await applyCachedSemanticPlan({ db, plan: semanticPlan, signal });
     if (signal) await setImmediate(undefined, { signal });
     throwIfAborted(signal);
+    sealSqliteFilterFacts(db, mode);
     db.exec('COMMIT');
     ownsTransaction = false;
     transactionApplied = true;

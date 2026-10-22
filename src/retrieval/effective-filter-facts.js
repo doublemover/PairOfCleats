@@ -1,14 +1,7 @@
-import path from 'node:path';
 import { resolveChunkDocmeta } from './output/filters/meta.js';
+export { resolveFilterExtension, resolveFilterLanguage } from '../shared/filter/chunk-file-facts.js';
 
 export const FILTER_FACTS_VERSION = 2;
-export const resolveFilterExtension = chunk => chunk?.ext || path.extname(chunk?.file || '');
-export const resolveFilterLanguage = chunk => {
-  for (const value of [chunk?.metaV2?.lang, chunk?.metaV2?.effective?.languageId, chunk?.lang]) {
-    if (typeof value === 'string' && value.trim()) return value.trim().toLowerCase();
-  }
-  return 'unknown';
-};
 
 /** Non-null docmeta fields override metaV2; explicit merged visibility wins
  * over merged modifiers, matching the metadata fallback contract. */

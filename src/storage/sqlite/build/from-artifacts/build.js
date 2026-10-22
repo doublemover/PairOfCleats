@@ -1,5 +1,6 @@
 import { loadPiecesManifest } from '../../../../shared/artifact-io/manifest-read.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
+import { rebuildSqliteFilterFacts } from '../../filter-facts.js';
 import { setImmediate } from 'node:timers/promises';
 import { openPublishedSemanticStore } from '../../../../semantic/published-store.js';
 import { ingestPublishedSemanticFamily } from '../../semantic/published.js';
@@ -528,6 +529,7 @@ export async function buildDatabaseFromArtifacts({
       await checkpoint();
       validationStats.chunks = count;
       db.exec(CREATE_INDEXES_SQL);
+      await rebuildSqliteFilterFacts(db, mode, { signal });
       throwIfAborted(signal);
       commitSqliteBuildTransaction(db, batchStats, {
         dbPath,

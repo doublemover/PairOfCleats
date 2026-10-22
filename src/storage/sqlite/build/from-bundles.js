@@ -3,6 +3,7 @@ import { performance } from 'node:perf_hooks';
 import { assertMinhashHashIdentity } from '../../../index/minhash.js';
 import { writeSqliteMinhashHeader } from '../minhash.js';
 import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
+import { rebuildSqliteFilterFacts } from '../filter-facts.js';
 import {
   buildChunkRow,
   buildFileManifestRows,
@@ -895,6 +896,7 @@ export async function buildDatabaseFromBundles({
     recordTable('dense_meta', denseMetaRows, 0);
 
     db.exec(CREATE_INDEXES_SQL);
+    await rebuildSqliteFilterFacts(db, mode, { signal });
     throwIfAborted(signal);
     commitSqliteBuildTransaction(db, batchStats, {
       dbPath,

@@ -139,7 +139,7 @@ export async function enumerateFilterMatches({ meta, allowed, match = null, mode
   throwIfAborted?.();
   enumeration.byMode[mode] = { offset, total, matched: hits.length, cost: {
     scannedMetadata: scanned, hydratedHits: hits.length, yieldedCheckpoints: yielded, metadataRetainedRows: meta.length,
-    matchingRepresentation: cached ? 'warm' : diskPage ? 'persisted-seek' : matchesCache.has(key) ? 'admitted' : 'entry-byte-limit',
+    matchingRepresentation: cached ? 'warm' : diskPage ? diskPage.representation || 'persisted-seek' : matchesCache.has(key) ? 'admitted' : 'entry-byte-limit',
     cacheBytes: cachedBytes, persisted: saved, continuationReadBytes: diskPage?.readBytes || 0,
     startupWork: loadCost || { kind: 'caller-supplied-metadata', metadataLoadedRows: null }
   } };

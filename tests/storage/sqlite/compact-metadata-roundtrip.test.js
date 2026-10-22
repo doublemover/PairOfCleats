@@ -11,6 +11,7 @@ import { createSqliteSemanticStore } from '../../../src/semantic/sqlite-store.js
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { compactDatabase } from '../../../tools/build/compact-sqlite-index.js';
 import { createSqliteHelpers } from '../../../src/retrieval/sqlite-helpers.js';
+import { readSqliteFilterFactPage } from '../../../src/retrieval/sqlite-filter-page.js';
 import { setupSqliteBuildFixture } from './helpers/build-fixture.js';
 
 const fixture = await setupSqliteBuildFixture({
@@ -93,6 +94,9 @@ try {
         includeFilterIndex: false });
       assert.deepEqual(loaded.chunkMeta.map(chunk => chunk.metaV2.chunkId),
         ['chunk:0', 'chunk:2', 'chunk:1']);
+      assert.deepEqual((await readSqliteFilterFactPage({ db, mode: 'code', filters: { lang: 'javascript' },
+        rowCount: loaded.chunkMeta.length, limit: 10 })).ids, [0, 1, 2],
+      'compaction rebuilds exact filter facts for reassigned local IDs');
     } finally { db.close(); }
   }
   assert.deepEqual(readRows(`${fixture.outPath}.bak`), before, 'original backup remains recoverable');

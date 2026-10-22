@@ -27,6 +27,8 @@ export const REQUIRED_TABLES = [
 ];
 
 export const CREATE_TABLES_BASE_SQL = `
+  DROP TABLE IF EXISTS chunk_filter_facts_meta;
+  DROP TABLE IF EXISTS chunk_filter_facts;
   DROP TABLE IF EXISTS chunks_fts_trigram;
   DROP TABLE IF EXISTS chunks_fts_porter;
   DROP TABLE IF EXISTS chunks_fts;
