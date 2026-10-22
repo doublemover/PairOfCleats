@@ -97,6 +97,7 @@ import {
 import { resolveRuntimeDictionaries } from './dictionaries.js';
 import { preloadTreeSitterWithDaemonCache } from './tree-sitter-preload.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
+import { acquireBuildRuntimeStorage, closeBuildRuntimeInitialization, finalizeBuildRuntimeInitializationFailure } from './storage.js';
 
 export {
   applyLearnedAutoProfileSelection,
@@ -118,9 +119,13 @@ const isObject = (value) => Boolean(value) && typeof value === 'object' && !Arra
  * @param {{root:string,argv:object,rawArgv:string[]}} input
  * @returns {Promise<object>}
  */
-export const createBuildRuntime = (input = {}) => withRuntimeReceiptInitialization((onRuntimeAttempt) => (
-  createBuildRuntimeImpl({ ...input, onRuntimeAttempt })
-));
+export const createBuildRuntime = (input = {}) => {
+  let owner = null;
+  return withRuntimeReceiptInitialization(onRuntimeAttempt => createBuildRuntimeImpl({ ...input, onRuntimeAttempt,
+    onStorageAdmission: admitted => { owner = admitted; } }), {
+    finalizeFailure: ({ error, recordingError }) => finalizeBuildRuntimeInitializationFailure({ error, recordingError, owner })
+  });
+};
 
 async function createBuildRuntimeImpl({
   root,
@@ -129,9 +134,11 @@ async function createBuildRuntimeImpl({
   policy,
   indexRoot: indexRootOverride = null,
   observability = null,
-  onRuntimeAttempt
+  onRuntimeAttempt,
+  onStorageAdmission
 } = {}) {
   const initialization = createLifecycleRegistry({ name: 'build-runtime-initialization' });
+  let indexRuntimeStorage = null;
   try {
   const pendingLogs = [];
   let log = (...args) => pendingLogs.push(args);
@@ -164,6 +171,9 @@ async function createBuildRuntimeImpl({
 
   let configSources = null;
   const userConfig = await timeInit('load config', () => loadUserConfig(root, { onSources: (sources) => { configSources = sources; } }));
+  indexRuntimeStorage = acquireBuildRuntimeStorage(root, userConfig);
+  onStorageAdmission(indexRuntimeStorage);
+  indexRuntimeStorage.revalidate();
   const envConfig = getEnvConfig();
   const stage = normalizeStage(argv.stage || envConfig.stage);
   const logFileRaw = typeof argv['log-file'] === 'string' ? argv['log-file'].trim() : '';
@@ -265,6 +275,7 @@ async function createBuildRuntimeImpl({
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  indexRuntimeStorage.revalidate();
   const cacheRootCandidate = (userConfig.cache && userConfig.cache.root) || getCacheRoot();
   const filesystemProfile = resolveCacheFilesystemProfile(cacheRootCandidate, process.platform);
   const platformRuntimePreset = resolvePlatformRuntimePreset({
@@ -1146,6 +1157,7 @@ async function createBuildRuntimeImpl({
     rawArgv,
     userConfig,
     repoCacheRoot,
+    indexRuntimeStorage,
     platformRuntimePreset,
     startupCalibration,
     learnedAutoProfile,
@@ -1297,13 +1309,10 @@ async function createBuildRuntimeImpl({
     importGraphEnabled
   };
   await refreshRuntimeReceipt(runtime);
+  indexRuntimeStorage.revalidate();
   return runtime;
   });
   } catch (error) {
-    try { await initialization.close(); }
-    catch (cleanupError) {
-      error.cleanupErrors = [...(error.cleanupErrors || []), cleanupError];
-    }
-    throw error;
+    throw await closeBuildRuntimeInitialization({ initialization, error, owner: indexRuntimeStorage });
   }
 }

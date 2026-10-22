@@ -7,10 +7,11 @@ import { createRuntimeAttempt, observeRuntimePath, projectRuntimeScheduler } fro
 import { redactDiagnosticText } from '../../../shared/diagnostic-text.js';
 import { logLine } from '../../../shared/progress-runtime.js';
 
-export const withRuntimeReceiptInitialization = async (create) => {
+export const withRuntimeReceiptInitialization = async (create, { finalizeFailure = null } = {}) => {
   let active = null;
   try { return await create((attempt, buildRoot) => { active = { attempt, buildRoot }; }); }
   catch (error) {
+    let recordingError = null;
     if (active) {
       try {
         await persistRuntimeAttempt(active.buildRoot, active.attempt, {
@@ -18,9 +19,16 @@ export const withRuntimeReceiptInitialization = async (create) => {
           error: { code: String(error?.code || 'UNKNOWN'), message: redactDiagnosticText(error?.message || error) }
         });
       } catch (cleanupError) {
-        error.cleanupErrors = [...(error.cleanupErrors || []), cleanupError];
+        recordingError = cleanupError;
       }
-    } else logLine(`[runtime] initialization failed before a durable receipt root: ${redactDiagnosticText(error?.message || error)}`, { kind: 'warning' });
+    } else {
+      try { logLine(`[runtime] initialization failed before a durable receipt root: ${redactDiagnosticText(error?.message || error)}`, { kind: 'warning' }); }
+      catch (cleanupError) { recordingError = cleanupError; }
+    }
+    if (typeof finalizeFailure === 'function') throw await finalizeFailure({ error, recordingError });
+    if (recordingError) throw Object.assign(new AggregateError([error, recordingError], error.message, { cause: error }), {
+      code: error.code, name: error.name, cleanupErrors: [...(Array.isArray(error.cleanupErrors) ? error.cleanupErrors : []), recordingError]
+    });
     throw error;
   }
 };

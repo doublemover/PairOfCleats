@@ -294,9 +294,29 @@ starting writer work.
 
 This adoption does not enable generic cache/repos migration: their generation,
 registry/reference and permission owner is still required, and the existing
-generic prohibition remains. Runtime initialization before index writer
-admission, ordinary process-lifetime readers and other category consumers are
-separate adoption boundaries. A rejected file-lock acquisition that provides no
+generic prohibition remains. Ordinary process-lifetime readers and other
+category consumers are separate adoption boundaries. A rejected file-lock acquisition that provides no
 returned owner cannot prove its internal write/close settled; the admitted
 category session is retained with the error. These source changes and actual
 file/lease conflict, release-order and locator-change fixtures are UNVALIDATED.
+
+Build runtime initialization independently admits the same canonical category
+session immediately after effective configuration loads, before logger, cache,
+scheduler, embedding or worker initialization. This session covers runtime work
+before writer admission and watch idle periods. It rechecks the locator before
+canonical cache use and after initialization. The actual core runtime teardown
+releases it only after every teardown step succeeds. Native/child pending
+observers captured by earlier failures remain required on subsequent teardown;
+an absent or throwing observer cannot become confirmation because a later
+cleanup promise fulfilled. The retained observation set is bounded and overflow
+stays unconfirmed.
+
+Initialization failure first unwinds the existing initialization registry, then
+records the failed durable runtime attempt while category admission is still
+held. Only successful unwind and failure recording permit session release.
+Unconfirmed teardown or failed failure-recording retains the exact session and
+original error, including frozen errors and secondary cleanup diagnostics.
+The source and authored real runtime initialization/teardown fixtures remain
+UNVALIDATED. These sessions cover canonical cache work; explicit build roots
+outside that namespace, ordinary reader adoption, category-specific reference
+portability and cross-platform filesystem qualification remain separate scope.

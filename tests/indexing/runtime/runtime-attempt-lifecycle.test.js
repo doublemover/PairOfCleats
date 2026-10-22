@@ -10,6 +10,7 @@ import { initializeRuntimeReceipt, refreshRuntimeReceipt } from '../../../src/in
 import { __setAdapterFactoryForTests } from '../../../src/shared/embedding-adapter.js';
 import { resolveEmbeddingRuntime } from '../../../src/index/build/runtime/embeddings.js';
 import { withTemporaryEnv, applyTestEnv } from '../../helpers/test-env.js';
+import { inspectStorageAccess } from '../../../src/shared/storage/access.js';
 const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-lifecycle-'));
 try {
   const repo = path.join(dir, 'repo');
@@ -19,9 +20,13 @@ try {
     indexing: { scm: { provider: 'none' }, workerPool: { enabled: false }, embeddings: { enabled: false, mode: 'off' }, platformPresets: { startupCalibration: false } },
     tooling: { autoEnableOnDetect: false, lsp: { enabled: false } }
   }));
-  const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(dir, 'cache'), embeddings: 'off' });
+  const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(dir, 'cache'), embeddings: 'off',
+    extraEnv: { PAIROFCLEATS_HOME: path.join(dir, 'home') } });
   await withTemporaryEnv(env, async () => {
     const runtime = await createBuildRuntime({ root: repo, argv: { stage: 'stage1', threads: 1 }, rawArgv: [] });
+    const coordinationRoot = path.join(dir, 'home', 'state', 'storage-access');
+    assert.equal((await inspectStorageAccess(path.join(dir, 'cache'), { coordinationRoot })).protected, true,
+      'runtime initialization retains category ownership before any indexing lock exists');
     try {
       const statePath = path.join(runtime.buildRoot, 'build_state.json');
       const state = JSON.parse(await fs.readFile(statePath));
@@ -33,6 +38,7 @@ try {
       await refreshRuntimeReceipt(runtime, { lifecycle: 'succeeded' });
       assert.equal(JSON.parse(await fs.readFile(statePath)).runtime.attempts[0].lifecycle, 'succeeded');
     } finally { await teardownRuntime(runtime); }
+    assert.equal((await inspectStorageAccess(path.join(dir, 'cache'), { coordinationRoot })).protected, false);
   });
   const pinnedRoot = path.join(dir, 'pinned');
   await initBuildState({ buildRoot: pinnedRoot, buildId: 'persisted-generation', repoRoot: repo, modes: ['code'], stage: 'stage2' });
