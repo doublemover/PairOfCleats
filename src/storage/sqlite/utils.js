@@ -962,14 +962,16 @@ const SQLITE_SIDECARS = ['-wal', '-shm'];
 
 // A committed WAL belongs to its main database. Fold it through SQLite before
 // any rename so rollback and retained backups are independently queryable.
-const settleSqliteForPublication = async (dbPath) => {
+const settleSqliteForPublication = async (dbPath, nativeResources = null) => {
   if (!SQLITE_SIDECARS.some(suffix => fs.existsSync(`${dbPath}${suffix}`))) return;
   if (!fs.existsSync(dbPath)) {
     throw Object.assign(new Error(`[sqlite] Orphaned WAL recovery requires its original database: ${dbPath}`),
       { code: 'ERR_SQLITE_RECOVERY_REQUIRED' });
   }
   const { default: Database } = await import('better-sqlite3');
-  const db = new Database(dbPath, { fileMustExist: true, timeout: 0 });
+  const opened = new Database(dbPath, { fileMustExist: true, timeout: 0 });
+  const db = nativeResources ? nativeResources.own(opened) : opened;
+  let primary = null;
   try {
     checkpointSqliteWithTelemetry(db, { dbPath, mode: 'TRUNCATE' });
     const mode = db.pragma('journal_mode = DELETE', { simple: true });
@@ -977,8 +979,15 @@ const settleSqliteForPublication = async (dbPath) => {
       throw Object.assign(new Error(`[sqlite] Could not coordinate WAL publication: ${dbPath}`),
         { code: 'ERR_SQLITE_PUBLICATION_BUSY' });
     }
-  } finally {
-    db.close();
+  } catch (error) { primary = error; throw error; }
+  finally {
+    try {
+      if (nativeResources) await nativeResources.close(db);
+      else db.close();
+    } catch (error) {
+      if (primary) { primary.nativeCleanupError = error; throw primary; }
+      throw error;
+    }
   }
 };
 
@@ -1078,14 +1087,14 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     }
   };
 
-  await settleSqliteForPublication(tempDbPath);
-  await settleSqliteForPublication(finalDbPath);
+  await settleSqliteForPublication(tempDbPath, options.nativeResources);
+  await settleSqliteForPublication(finalDbPath, options.nativeResources);
   throwIfAborted(options.signal);
 
   let backupAvailable = fs.existsSync(backupPath);
   let backupFromCurrentFinal = false;
   if (finalExists) {
-    await settleSqliteForPublication(backupPath);
+    await settleSqliteForPublication(backupPath, options.nativeResources);
     if (backupAvailable) {
       await removeFileWithDiagnostics(backupPath, {
         context: 'existing backup',

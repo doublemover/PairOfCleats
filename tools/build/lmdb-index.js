@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { runNativeDatabaseCommand } from '../shared/native-database-lifetime.js';
 import { LMDB_BUILD_OPTIONS } from '../shared/operator-cli-options.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
@@ -36,10 +37,16 @@ try {
   ({ open } = require('lmdb'));
 } catch {}
 
-const { argv, display, log, warn, fail } = createIndexBuildToolCli({
+await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true }, async resources => {
+const { argv, display, log, warn } = createIndexBuildToolCli({
   scriptName: 'build-lmdb-index',
   options: LMDB_BUILD_OPTIONS
 });
+const fail = (message, exitCode = 1) => {
+  display.error(message);
+  throw Object.assign(new Error(message), { exitCode });
+};
+try {
 
 if (!open) {
   fail('lmdb is required. Run npm install first.');
@@ -400,9 +407,8 @@ for (const mode of modes) {
   meta.pageSize = LMDB_PAGE_SIZE;
   const readMs = Date.now() - readStart;
   const writeStart = Date.now();
-  const db = open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes });
-  try { storeArtifacts(db, meta, artifacts); }
-  finally { await db.close(); }
+  const db = resources.own(open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes }));
+  await resources.use(db, () => storeArtifacts(db, meta, artifacts));
   const writeMs = Date.now() - writeStart;
 
   const finalState = await updateLmdbState(indexDir, {
@@ -415,9 +421,8 @@ for (const mode of modes) {
     mapSizeBytes,
     mapSizeEstimatedBytes: estimatedBytes
   });
-  const finalDb = open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes });
-  try { storeValue(finalDb, LMDB_ARTIFACT_KEYS.indexState, finalState); }
-  finally { await finalDb.close(); }
+  const finalDb = resources.own(open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes }));
+  await resources.use(finalDb, () => storeValue(finalDb, LMDB_ARTIFACT_KEYS.indexState, finalState));
 
   const totalMs = Date.now() - buildStart;
   const metrics = {
@@ -453,4 +458,8 @@ for (const mode of modes) {
   log(`[lmdb] ${mode} index built at ${targetPath}.`);
 }
 
-display.close();
+ } finally { display.close(); }
+}).catch(error => {
+  process.exitCode = Number.isInteger(error.exitCode) ? error.exitCode : 1;
+  console.error(error);
+});
