@@ -94,6 +94,13 @@ capability receipt. Missing discovery fields or an unqualified capability
 result cannot become verified prerequisites. This path still honors declared
 allocation blockers and never records application bootstrap readiness.
 
+Compiler capability evidence uses one bounded contained file read at a time for
+the compiler, linker, headers and libraries in both identity passes. Receipts
+retain file hashes and metadata; they do not hold complete native inputs while
+reading every later input. Output bytes are used for their COFF/PE target check
+and then released from retained results. This is an authored ownership bound,
+not a measured memory or bootstrap speed claim, and remains **UNVALIDATED**.
+
 After discovery, locked bootstrap installs development dependencies, applies
 patches, builds required native sources and verifies packages/language routes
 before recording readiness. A preflight pass alone never records readiness.

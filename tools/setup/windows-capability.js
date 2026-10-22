@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
-import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
+import { assertNoSymlinkPath, readVerifiedContainedFile } from '../../src/shared/contained-file.js';
 import { runWithStorageSession } from '../../src/shared/storage/session.js';
 import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 
@@ -26,19 +26,33 @@ export const inspectWindowsTargetBytes = (bytes, arch, { executable = false } = 
   return { format: executable ? 'PE' : 'COFF', arch, machine: actual };
 };
 
-const readEvidence = async file => {
-  const before = await fs.lstat(file);
-  if (!before.isFile() || before.isSymbolicLink() || before.size > 128 * 1024 * 1024) throw new Error('Capability evidence must be a bounded regular file.');
-  const contents = await fs.readFile(file);
-  const after = await fs.stat(file);
-  if (contents.length !== before.size || after.size !== before.size || after.mtimeMs !== before.mtimeMs) throw new Error('Capability evidence changed while reading.');
-  return { path: file, bytes: before.size, sha256: hash(contents), contents };
+const readEvidence = async (file, { signal = null, includeContents = false } = {}) => {
+  const read = await readVerifiedContainedFile(path.parse(file).root, file, { maxBytes: 128 * 1024 * 1024, signal });
+  return { path: file, bytes: read.buffer.length, sha256: read.hash, ...(includeContents ? { contents: read.buffer } : {}) };
+};
+
+const readInputEvidence = async (files, signal) => {
+  const rows = [];
+  // Each native input can be large. Retain only its hash/metadata and admit
+  // one bounded contained read at a time, across both before/after passes.
+  for (const file of files) rows.push(await readEvidence(file, { signal }));
+  return rows;
+};
+
+const readTargetEvidence = async (file, arch, { signal, executable = false }) => {
+  const { contents, ...evidence } = await readEvidence(file, { signal, includeContents: true });
+  return { evidence, target: inspectWindowsTargetBytes(contents, arch, { executable }) };
 };
 
 /** Discovery is required first; no fallback compiler, headers, SDK or target. */
 const verifyWindowsCompilerCapabilityOwned = async (report, { scratchRoot, signal = null,
   env = process.env, spawn = spawnResolvedSubprocess } = {}) => {
   if (report?.platform !== 'win32' || !machine[report.arch] || !path.isAbsolute(scratchRoot || '')) throw new Error('Windows capability needs exact discovery and an absolute run-owned scratch parent.');
+  if (!path.isAbsolute(report.toolchain?.compiler?.executable || '') || !path.isAbsolute(report.toolchain?.sdk?.root || '')
+    || !/^10\.0\.\d+\.\d+$/u.test(report.toolchain?.sdk?.version || '')
+    || !report.childEnv || typeof report.childEnv !== 'object' || Array.isArray(report.childEnv)) {
+    throw new Error('Windows capability requires the canonical discovered compiler, SDK and child selection.');
+  }
   signal?.throwIfAborted();
   assertNoSymlinkPath(path.parse(scratchRoot).root, scratchRoot, { allowMissing: true });
   await fs.mkdir(scratchRoot, { recursive: true });
@@ -60,9 +74,9 @@ const verifyWindowsCompilerCapabilityOwned = async (report, { scratchRoot, signa
   const evidenceFiles = [compiler, linker, path.join(toolset, 'include', 'vector'),
     path.join(sdk.root, 'Include', sdk.version, 'um', 'Windows.h'), path.join(sdk.root, 'Include', sdk.version, 'ucrt', 'stdio.h'),
     path.join(sdk.root, 'Lib', sdk.version, 'um', report.arch, 'kernel32.lib'), path.join(sdk.root, 'Lib', sdk.version, 'ucrt', report.arch, 'ucrt.lib')];
-  const before = await Promise.all(evidenceFiles.map(readEvidence));
   const stages = [];
   try {
+    const before = await readInputEvidence(evidenceFiles, signal);
     await fs.writeFile(input, sourceBytes, { flag: 'wx' });
     for (const [name, command, args] of [
       ['compile', compiler, ['/nologo', '/Bv', '/c', '/EHsc', '/std:c++20', '/MD', '/Fo' + object, input]],
@@ -71,18 +85,19 @@ const verifyWindowsCompilerCapabilityOwned = async (report, { scratchRoot, signa
       signal?.throwIfAborted();
       const result = await spawn(command, args, { cwd: directory, env: childEnv, signal, timeoutMs: 30000,
         outputEncoding: 'utf8', maxOutputBytes: 65536, rejectOnNonZeroExit: false });
+      signal?.throwIfAborted();
       stages.push({ stage: name, command, args, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr });
       if (result.exitCode !== 0 || result.outputCapture?.stdout?.truncated || result.outputCapture?.stderr?.truncated) throw new Error(`Selected Windows ${name} capability failed; see stage evidence.`);
     }
-    const objectEvidence = await readEvidence(object), imageEvidence = await readEvidence(image);
-    const targets = [inspectWindowsTargetBytes(objectEvidence.contents, report.arch), inspectWindowsTargetBytes(imageEvidence.contents, report.arch, { executable: true })];
-    const after = await Promise.all(evidenceFiles.map(readEvidence));
+    const objectResult = await readTargetEvidence(object, report.arch, { signal });
+    const imageResult = await readTargetEvidence(image, report.arch, { signal, executable: true });
+    const targets = [objectResult.target, imageResult.target];
+    const after = await readInputEvidence(evidenceFiles, signal);
     if (before.some((file, index) => file.sha256 !== after[index].sha256)) throw new Error('Selected compiler/header/library bytes changed during capability verification.');
-    const strip = ({ contents, ...file }) => file;
     const receipt = { schemaVersion: 1, kind: 'windows-compiler-capability', state: 'compile-link-target-verified',
       platform: report.platform, arch: report.arch, directory, source: { bytes: sourceBytes.length, sha256: hash(sourceBytes) },
-      selected: { compiler, linker, toolset, sdk, include, libraries }, files: before.map(strip),
-      outputs: [strip(objectEvidence), strip(imageEvidence)], targets, stages,
+      selected: { compiler, linker, toolset, sdk, include, libraries }, files: before,
+      outputs: [objectResult.evidence, imageResult.evidence], targets, stages,
       qualification: 'Selected compiler, C++/Windows/UCRT headers, link libraries and output target only; executable not run; native package activation still required.' };
     await fs.writeFile(path.join(directory, 'receipt.json'), JSON.stringify(receipt, null, 2), { flag: 'wx' });
     return receipt;
