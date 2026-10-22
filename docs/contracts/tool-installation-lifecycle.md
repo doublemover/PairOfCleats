@@ -398,3 +398,29 @@ outer retry path. Authored actual tiny archive/package/file/directory/category
 controls include dual frozen close failures, staging retention, exact retry,
 injected metadata unlink failure and later normal publication. They are
 UNVALIDATED and run no real installer or consumer binary.
+
+The standalone official GitHub release downloader now uses the existing bounded
+install response-body owner for each manually validated redirect hop. It retains
+the approved origin set, redirect ceiling, root source identity, public-only
+headers and one overall cancellation/deadline. A failed cancellation or native
+body close cannot admit a redirected request. Reconciliation only settles the
+original response; it does not replay or continue a failed download.
+
+The shared response owner captures original pending observations even when its
+own body cleanup succeeds, including an absent/false separate marker. Exact
+original function/receiver observations and classification-getter failures stay
+independent of transport disposal. Frozen or nested failures preserve causes
+and the same genuine response capability. `settleInstallDownload()` requires
+that producer's private process-local identity and a matching exact resource
+receipt; copied method/property data is insufficient. Missing/throwing original
+observations remain unknown. Falsey fetch/cancellation causes remain exact and
+cannot be mistaken for an unobserved native-close failure.
+
+Authored controls cover a real Node Readable with delayed close at a redirect,
+ordinary approved/rejected redirect behavior, known/unknown original observers,
+falsey causes, frozen inspection failures and forged capability rejection. The
+existing clangd recipe keeps its source/digest/target/version/reuse assertions;
+its response injections now use asynchronous byte iterators matching the shared
+bounded transport contract. Existing actual download body/reader/native-close
+fixtures retain their original assertions. All remain UNVALIDATED; no network,
+installer, compiler or user-cache operation was run.

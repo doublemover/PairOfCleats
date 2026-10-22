@@ -1,6 +1,11 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+
+const downloadSessions = new WeakSet();
+export const isInstallDownloadSession = session => Boolean(session) && downloadSessions.has(session);
+const asDownloadError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
 
 export const toInt = (value, fallback, min = 0) => {
   const parsed = Number(value);
@@ -37,7 +42,7 @@ export const createInstallError = (reason, message, options = {}) => {
   if (Number.isInteger(options.statusCode)) {
     error.statusCode = options.statusCode;
   }
-  if (options.cause) error.cause = options.cause;
+  if (Object.hasOwn(options, 'cause')) error.cause = options.cause;
   return error;
 };
 
@@ -65,10 +70,11 @@ const buildDownloadMessage = (createErrorMessage, reason, details) => {
 };
 
 const captureDownloadClosure = error => {
-  let observer;
-  try { observer = error.cacheOwnershipReleased; } catch { return { required: true, observe: () => false }; }
-  return { required: error.cacheOwnershipPending === true || typeof observer === 'function',
-    observe: () => { try { return typeof observer === 'function' && observer.call(error) === true; } catch { return false; } } };
+  try {
+    const observer = error.cacheOwnershipReleased;
+    return { required: error.cacheOwnershipPending === true || typeof observer === 'function',
+      observe: () => { try { return typeof observer === 'function' && observer.call(error) === true; } catch { return false; } } };
+  } catch { return { required: true, observe: () => false }; }
 };
 
 /** Actual transport reconciliation, used by the existing install resource
@@ -76,7 +82,7 @@ const captureDownloadClosure = error => {
  */
 export const settleInstallDownload = async error => {
   const session = error?.downloadSession;
-  if (!session || typeof session.releaseAfterClosure !== 'function' || typeof session.isSettled !== 'function') {
+  if (!isInstallDownloadSession(session)) {
     throw new Error('Download reconciliation requires its actual response resource owner.');
   }
   const receipt = await session.releaseAfterClosure();
@@ -125,6 +131,7 @@ export const downloadToBuffer = async ({
   let nodeReturn = null;
   let nodeReaderClose = null;
   let operationCloseFailure = null;
+  let operationCloseFailed = false;
   const resourceId = crypto.randomUUID();
   const releaseReader = () => {
     const owned = reader;
@@ -264,7 +271,7 @@ export const downloadToBuffer = async ({
     const body = await consume();
     if (nodeBody) {
       try { await observeClose(); }
-      catch (error) { operationCloseFailure = error; throw error; }
+      catch (error) { operationCloseFailed = true; operationCloseFailure = error; throw error; }
     }
     if (!body.length) {
       throw createInstallError(
@@ -279,42 +286,64 @@ export const downloadToBuffer = async ({
       sourceUrl: response.url || url
     };
   } catch (error) {
-    let primaryError = signal?.aborted ? signal.reason || error : error;
-    if (!primaryError || typeof primaryError !== 'object') primaryError = new Error(String(primaryError), { cause: primaryError });
+    const primaryError = asDownloadError(signal?.aborted ? signal.reason : error);
+    const observations = [], observed = new WeakSet();
+    let overflow = false, closeFailure = null;
+    const remember = value => {
+      const failure = asDownloadError(value);
+      if (observed.has(failure)) return failure;
+      observed.add(failure);
+      const closure = captureDownloadClosure(failure);
+      if (closure.required) { if (observations.length < 128) observations.push(closure.observe); else overflow = true; }
+      return failure;
+    };
+    remember(primaryError);
+    const classification = {}, inspectionFailures = [];
+    for (const field of ['reason', 'name', 'message']) {
+      try { classification[field] = primaryError[field]; }
+      catch (value) { inspectionFailures.push(remember(value)); }
+    }
     try {
-      if (error === operationCloseFailure) throw error;
+      if (operationCloseFailed && error === operationCloseFailure) throw error;
       await observeClose();
-    }
-    catch (cleanupError) {
-      const previous = captureDownloadClosure(primaryError);
-      const additional = captureDownloadClosure(cleanupError);
-      const allReleased = () => cleanupSettled && (!previous.required || previous.observe())
-        && (!additional.required || additional.observe());
-      const session = Object.freeze({ resourceId,
-        isSettled: () => cleanupSettled,
-        releaseAfterClosure: async () => {
+    } catch (cleanupError) { closeFailure = remember(cleanupError); }
+    const allReleased = () => cleanupSettled && !overflow && observations.every(observe => observe());
+    if (closeFailure || !allReleased()) {
+      const retainFailure = secondary => {
+        const fields = { retryable: false, downloadSession: session,
+          ...(inspectionFailures.length ? { downloadInspectionErrors: inspectionFailures } : {}),
+          ...(secondary ? { downloadCleanupError: secondary } : {}) };
+        try {
+          if (Object.hasOwn(primaryError, 'downloadSession') && primaryError.downloadSession !== session) {
+            throw new Error('An earlier response owner must remain on its original cause.');
+          }
+          Object.defineProperties(primaryError, Object.fromEntries(Object.entries({ ...fields,
+            cacheOwnershipPending: true, cacheOwnershipReleased: allReleased }).map(([key, value]) => [key,
+            { value, configurable: true, writable: true, enumerable: !['downloadSession', 'downloadCleanupError'].includes(key) }])));
+          return primaryError;
+        } catch { /* Preserve immutable or already nested context below. */ }
+        const pending = Object.assign(new Error('Download response/resource settlement remains unconfirmed.', { cause: secondary || primaryError }), {
+          cacheOwnershipPending: true, cacheOwnershipReleased: allReleased
+        });
+        return addStorageFailureContext(primaryError, fields, pending, { nonEnumerable: ['downloadSession', 'downloadCleanupError'] });
+      };
+      const session = Object.freeze({ resourceId, isSettled: allReleased, releaseAfterClosure: async () => {
+        try {
           await observeClose();
+          if (!allReleased()) throw new Error('Original download resource observation remains pending.');
           return { resourceId, settled: true, pending: false };
-        } });
-      const descriptors = { cacheOwnershipPending: { value: true, configurable: true, writable: true },
-        retryable: { value: false, configurable: true, writable: true },
-        cacheOwnershipReleased: { value: allReleased, configurable: true, writable: true },
-        downloadCleanupError: { value: cleanupError, configurable: true },
-        downloadSession: { value: session, configurable: true } };
-      try { Object.defineProperties(primaryError, descriptors); }
-      catch {
-        const aggregate = new AggregateError([primaryError, cleanupError], primaryError.message || 'Download and response cleanup failed.', { cause: primaryError });
-        for (const key of ['code', 'reason', 'statusCode']) if (primaryError[key] !== undefined) aggregate[key] = primaryError[key];
-        Object.defineProperties(aggregate, descriptors);
-        primaryError = aggregate;
-      }
+        } catch (value) { const failure = remember(value); throw retainFailure(failure); }
+      } });
+      downloadSessions.add(session);
+      throw retainFailure(closeFailure);
     }
+    if (inspectionFailures.length) throw addStorageFailureContext(primaryError, { downloadInspectionErrors: inspectionFailures },
+      new AggregateError(inspectionFailures, 'Download failure classification could not be inspected.', { cause: inspectionFailures[0] }));
     if (signal?.aborted) throw primaryError;
-    if (primaryError.cacheOwnershipPending) throw primaryError;
-    if (error?.reason) throw error;
+    if (classification.reason) throw primaryError;
     const timeoutTriggered = timeout.signal?.aborted === true;
-    const message = String(error?.message || '');
-    if (timeoutTriggered || error?.name === 'AbortError' || /timeout/i.test(message)) {
+    const message = typeof classification.message === 'string' ? classification.message : '';
+    if (timeoutTriggered || classification.name === 'AbortError' || /timeout/i.test(message)) {
       throw createInstallError(
         'download_timeout',
         buildDownloadMessage(createErrorMessage, 'download_timeout', {
@@ -322,7 +351,7 @@ export const downloadToBuffer = async ({
           url,
           timeoutMs,
           message,
-          errorText: message || String(error)
+          errorText: message || 'Download transport failed.'
         }),
         { retryable: true, cause: error }
       );
@@ -333,7 +362,7 @@ export const downloadToBuffer = async ({
         label,
         url,
         message,
-        errorText: message || String(error)
+        errorText: message || 'Download transport failed.'
       }),
       { retryable: true, cause: error }
     );
