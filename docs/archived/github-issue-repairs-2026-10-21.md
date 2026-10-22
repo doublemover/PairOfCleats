@@ -523,7 +523,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#735](https://github.com/doublemover/PairOfCleats/issues/735) | other | [Enhancement] Find and navigate entities across the loaded workspace response | pending |
 | [#736](https://github.com/doublemover/PairOfCleats/issues/736) | other | [Enhancement] Format only visible TUI job and task rows and reuse filtered identities | source repair and regression authored; unvalidated |
 | [#737](https://github.com/doublemover/PairOfCleats/issues/737) | other | [Enhancement] Cache immutable TUI preview text and materialize only visible detail lines | source repair and regression authored; unvalidated |
-| [#738](https://github.com/doublemover/PairOfCleats/issues/738) | other | [Enhancement] Preserve structured search diagnostics in editor and TUI results | pending |
+| [#738](https://github.com/doublemover/PairOfCleats/issues/738) | other | [Enhancement] Preserve structured search diagnostics in editor and TUI results | source authored; unvalidated |
 | [#739](https://github.com/doublemover/PairOfCleats/issues/739) | other | [Enhancement] Bound TUI log-wrap materialization and reuse width-keyed layouts | source repair and regression authored; unvalidated |
 | [#740](https://github.com/doublemover/PairOfCleats/issues/740) | P2 | [P2] Derive native Tree-sitter signature previews past nested parameter punctuation | development implemented; integration/validation deferred |
 | [#741](https://github.com/doublemover/PairOfCleats/issues/741) | P3 | [P3] Build AST token membership sets lazily instead of allocating them for phrase-only eligibility | development implemented; integration/validation deferred |
@@ -560,7 +560,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#772](https://github.com/doublemover/PairOfCleats/issues/772) | P3 | [P3] Map normalized search tokens back to original excerpt text for highlighting | development implemented; integration/validation deferred |
 | [#773](https://github.com/doublemover/PairOfCleats/issues/773) | P3 | [P3] Honor VS Code provider cancellation before spawning and while navigation runs | development implemented; integration/validation deferred |
 | [#774](https://github.com/doublemover/PairOfCleats/issues/774) | other | [Enhancement] Reuse per-leaf tokenization when building a cold query plan | pending |
-| [#775](https://github.com/doublemover/PairOfCleats/issues/775) | other | [Enhancement] Reopen cached VS Code history results without rerunning search | pending |
+| [#775](https://github.com/doublemover/PairOfCleats/issues/775) | other | [Enhancement] Reopen cached VS Code history results without rerunning search | source authored; unvalidated |
 | [#776](https://github.com/doublemover/PairOfCleats/issues/776) | P2 | [P2] Rank throughput regressions with one format-independent total ordering | development implemented; integration/validation deferred |
 | [#777](https://github.com/doublemover/PairOfCleats/issues/777) | P2 | [P2] Do not silently truncate deep graph witness paths at the internal 5,000-node guard | development implemented; integration/validation deferred |
 | [#778](https://github.com/doublemover/PairOfCleats/issues/778) | P2 | [P2] Reject nested directory links that escape snapshot freeze sources | fixed; ordinary filesystem and injected metadata controls pass |
@@ -575,7 +575,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#787](https://github.com/doublemover/PairOfCleats/issues/787) | P2 | [P2] Include the full taint set in risk propagation state identity | development implemented; validation deferred |
 | [#788](https://github.com/doublemover/PairOfCleats/issues/788) | P3 | [P3] Reuse the shipped config schema across loads so validator caching can work | development implemented; integration/validation deferred |
 | [#789](https://github.com/doublemover/PairOfCleats/issues/789) | P2 | [P2] Preserve named core search options when callers add extra CLI arguments | development implemented; integration/validation deferred |
-| [#790](https://github.com/doublemover/PairOfCleats/issues/790) | other | [Enhancement] Bound editor HTTP response bodies before decoding and retaining diagnostics | pending |
+| [#790](https://github.com/doublemover/PairOfCleats/issues/790) | other | [Enhancement] Bound editor HTTP response bodies before decoding and retaining diagnostics | source authored; unvalidated |
 | [#791](https://github.com/doublemover/PairOfCleats/issues/791) | P2 | [P2] Retry valid short reads in random-access JSONL offset and row readers | development implemented; validation deferred |
 | [#792](https://github.com/doublemover/PairOfCleats/issues/792) | P2 | [P2] Report context-expansion omissions when per-hit and total limits stop candidate loops | development implemented; integration/validation deferred |
 | [#793](https://github.com/doublemover/PairOfCleats/issues/793) | P2 | [P2] Apply zero context-expansion candidate and reason caps before initial admission | development implemented; integration/validation deferred |
@@ -985,10 +985,10 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1197](https://github.com/doublemover/PairOfCleats/issues/1197) | other | Acquire and project structured LSP observations through shared semantic consumers | pending |
 | [#1198](https://github.com/doublemover/PairOfCleats/issues/1198) | perf | [Perf] Batch persistent embedding-cache writes and coalesce hit touches | development implemented; integration/validation deferred |
 | [#1199](https://github.com/doublemover/PairOfCleats/issues/1199) | perf | [Perf] Replace per-file full embedding-cache index snapshots with bounded delta checkpoints | pending |
-| [#1200](https://github.com/doublemover/PairOfCleats/issues/1200) | perf | [Perf] Build embedding-cache shard summaries once for pruning and compaction | pending |
+| [#1200](https://github.com/doublemover/PairOfCleats/issues/1200) | perf | [Perf] Build embedding-cache shard summaries once for pruning and compaction | source authored; unvalidated |
 | [#1201](https://github.com/doublemover/PairOfCleats/issues/1201) | perf | [Perf] Qualify fused ONNX pooling and selective output fetches | pending |
 | [#1202](https://github.com/doublemover/PairOfCleats/issues/1202) | perf | [Perf] Qualify model-specific ONNX execution profiles under a shared CPU budget | pending |
-| [#1203](https://github.com/doublemover/PairOfCleats/issues/1203) | perf | [Perf] Read parse checkpoints without decoding full incremental bundles twice | pending |
+| [#1203](https://github.com/doublemover/PairOfCleats/issues/1203) | perf | [Perf] Read parse checkpoints without decoding full incremental bundles twice | source authored; unvalidated |
 | [#1204](https://github.com/doublemover/PairOfCleats/issues/1204) | perf | [Perf] Avoid redundant synchronous full-model hashing through verified artifact leases | pending |
 | [#1205](https://github.com/doublemover/PairOfCleats/issues/1205) | perf | [Perf] Build semantic compiler-session identity indexes instead of repeated inventory scans | development implemented; integration/validation deferred |
 | [#1206](https://github.com/doublemover/PairOfCleats/issues/1206) | perf | [Perf] Remove full-clear vocabulary-cache cliffs in SQLite bundle ingestion | development implemented; integration/validation deferred |
@@ -1003,8 +1003,8 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1215](https://github.com/doublemover/PairOfCleats/issues/1215) | perf | [Perf] Add generation-safe LanceDB delta writes and bounded maintenance | pending |
 | [#1216](https://github.com/doublemover/PairOfCleats/issues/1216) | perf | [Perf] Ingest LanceDB vectors through bounded typed columnar batches | pending |
 | [#1217](https://github.com/doublemover/PairOfCleats/issues/1217) | perf | [Perf] Amortize isolated ANN startup and overlap bounded backend stages | pending |
-| [#1218](https://github.com/doublemover/PairOfCleats/issues/1218) | perf | [Perf] Share token-aware deduplicated batching with inline embedding attachment | pending |
-| [#1219](https://github.com/doublemover/PairOfCleats/issues/1219) | perf | [Perf] Fuse vector postprocessing without repeated normalized-channel copies | pending |
+| [#1218](https://github.com/doublemover/PairOfCleats/issues/1218) | perf | [Perf] Share token-aware deduplicated batching with inline embedding attachment | source authored; unvalidated |
+| [#1219](https://github.com/doublemover/PairOfCleats/issues/1219) | perf | [Perf] Fuse vector postprocessing without repeated normalized-channel copies | source authored; unvalidated |
 | [#1220](https://github.com/doublemover/PairOfCleats/issues/1220) | perf | [Perf] Preserve partial embedding reuse when one chunk changes the file fingerprint | development implemented; integration/validation deferred |
 | [#1221](https://github.com/doublemover/PairOfCleats/issues/1221) | perf | [Perf] Add a validated cache-only Stage-3 path that avoids loading ONNX | pending |
 | [#1222](https://github.com/doublemover/PairOfCleats/issues/1222) | perf | [Perf] Skip unchanged embedding bundle hydration using verified coverage digests | pending |
@@ -1035,12 +1035,12 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1247](https://github.com/doublemover/PairOfCleats/issues/1247) | perf | [Perf] Reuse immutable dispatch member and accessor summaries across call sites | source repair and regression authored; unvalidated |
 | [#1248](https://github.com/doublemover/PairOfCleats/issues/1248) | perf | [Perf] Index worker message peers and propagate changed port facts only | source repair and regression authored; unvalidated |
 | [#1249](https://github.com/doublemover/PairOfCleats/issues/1249) | perf | [Perf] Reuse bounded declaration-alias closures across provider call-target joins | source repair and regression authored; unvalidated |
-| [#1250](https://github.com/doublemover/PairOfCleats/issues/1250) | perf | [Perf] Amortize bundle-transform workers and return only requested results | partial source integration; shared lifecycle/qualification still open |
+| [#1250](https://github.com/doublemover/PairOfCleats/issues/1250) | perf | [Perf] Amortize bundle-transform workers and return only requested results | source authored; unvalidated |
 | [#1251](https://github.com/doublemover/PairOfCleats/issues/1251) | perf | [Perf] Prewarm query hot caches once per disk generation instead of rebuilding on misses | source repair and regression authored; unvalidated |
 | [#1252](https://github.com/doublemover/PairOfCleats/issues/1252) | perf | [Perf] Fuse manifest integrity reads with artifact decoding during validation | pending |
 | [#1253](https://github.com/doublemover/PairOfCleats/issues/1253) | perf | [Perf] Project cold chunk identity fields without retaining full cold rows | development implemented; integration/validation deferred |
 | [#1254](https://github.com/doublemover/PairOfCleats/issues/1254) | perf | [Perf] Stream benchmark logs once into independent report reducers | pending |
-| [#1255](https://github.com/doublemover/PairOfCleats/issues/1255) | perf | [Perf] Share risk witness prefixes and release consumed traversal states | pending |
+| [#1255](https://github.com/doublemover/PairOfCleats/issues/1255) | perf | [Perf] Share risk witness prefixes and release consumed traversal states | source authored; unvalidated |
 | [#1256](https://github.com/doublemover/PairOfCleats/issues/1256) | perf | [Perf] Prepare immutable risk edge metadata once rather than per traversal state | development implemented; integration/validation deferred |
 | [#1257](https://github.com/doublemover/PairOfCleats/issues/1257) | other | Unify configuration guidance and retire the obsolete two-key hard-cut prescription | pending |
 | [#1258](https://github.com/doublemover/PairOfCleats/issues/1258) | other | Rewrite language onboarding and capability guidance against native-only and current inference owners | pending |
@@ -1115,13 +1115,13 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1327](https://github.com/doublemover/PairOfCleats/issues/1327) | other | [Diagnostics] Compare durable build execution plans and actual work across attempts | pending |
 | [#1328](https://github.com/doublemover/PairOfCleats/issues/1328) | P2 | [P2] Derive build completion summaries from the selected run result, not stale preprocess stats | development implemented; integration/validation deferred |
 | [#1329](https://github.com/doublemover/PairOfCleats/issues/1329) | perf | [Perf] Move file-local JS/TS analysis off the coordinator through a bounded coarse worker contract | pending |
-| [#1330](https://github.com/doublemover/PairOfCleats/issues/1330) | perf | [Perf] Release CPU admission while file tasks await nested I/O and reacquire only for compute | pending |
+| [#1330](https://github.com/doublemover/PairOfCleats/issues/1330) | perf | [Perf] Release CPU admission while file tasks await nested I/O and reacquire only for compute | partial source integration; mixed wait boundaries and qualification open |
 | [#1331](https://github.com/doublemover/PairOfCleats/issues/1331) | P2 | [P2] Enforce scheduler-adapter concurrency instead of exposing it as a nonbinding label | development implemented; integration/validation deferred |
 | [#1332](https://github.com/doublemover/PairOfCleats/issues/1332) | P2 | [P2] Report observed token execution routes and separate waiting requests from busy workers | development implemented; integration/validation deferred |
 | [#1333](https://github.com/doublemover/PairOfCleats/issues/1333) | P2 | [P2] Cancel preprocessing line reads and preserve unknown counts on IO failure | development implemented; validation deferred |
 | [#1334](https://github.com/doublemover/PairOfCleats/issues/1334) | other | [CLI] Make the existing progress bars responsive to terminal width and useful measured detail | pending |
 | [#1335](https://github.com/doublemover/PairOfCleats/issues/1335) | P2 | [P2] Bind Tree-sitter subprocess fanout to the effective build resource envelope | development implemented; validation deferred |
-| [#1336](https://github.com/doublemover/PairOfCleats/issues/1336) | perf | [Perf] Choose Tree-sitter warm-parser lanes from admitted parse cost rather than wave count alone | pending |
+| [#1336](https://github.com/doublemover/PairOfCleats/issues/1336) | perf | [Perf] Choose Tree-sitter warm-parser lanes from admitted parse cost rather than wave count alone | source authored; unvalidated |
 | [#1337](https://github.com/doublemover/PairOfCleats/issues/1337) | P2 | [P2] Serialize Tree-sitter worker initialization and fence late pools after shutdown | development implemented; validation deferred |
 | [#1338](https://github.com/doublemover/PairOfCleats/issues/1338) | P2 | [P2] Fail API-contract reports when declared call-site evidence cannot load | development implemented; integration/validation deferred |
 | [#1339](https://github.com/doublemover/PairOfCleats/issues/1339) | P2 | [P2] Fail closed when an explicitly configured ONNX model path is missing | development implemented; integration/validation deferred |
@@ -1577,3 +1577,60 @@ foundation: production-wide borrowing remains open pending #1330 CPU suspension/
 reacquisition to avoid nested permit deadlocks. No measurements, source qualification
 or full issue closure is implied by these source checkpoints. No tests, syntax
 checks, formatter, bootstrap or gates ran during this continuation.
+
+
+### HTTP, search evidence and shared compute continuation
+
+Sources 0644d551a/d36875573 (#1200/#1255) reuse phase-local physical cache
+summaries and immutable risk-witness prefixes. New source controls preserve
+failed-deletion/orphan ordering, prior JSON lexical queue tie order, independent
+emitted arrays and the existing admission bounds. They are authored, unexecuted;
+physical I/O, full risk differential and CPU/heap measurements remain open.
+
+Sources 0b5159ec8/0c9aafb01/68333c4c1 install the #1250 Stage1 transform session
+and #1330 explicit compute suspension. Suspended tasks retain original byte,
+memory and file reservations. Optional nested work reserves immediately or uses
+its existing inline path; it cannot queue behind its own parent reservations.
+Current-file cancellation, heap acknowledgement and real worker retirement remain
+owned. #1330 is partial: mixed provider/subprocess and semantic callbacks retain
+CPU conservatively until exact wait boundaries are qualified. Retained bytes are
+estimates, not measured heap/RSS. The previous #1250 foundation-only note remains
+historical; production borrowing now has source integration, not acceptance.
+
+Source 5bda28673 (#1203) preloads durable, manifest-bound parse descriptors and
+streams source identity checks with bounded readers instead of decoding whole
+lexical bundles. Existing retention/GC owns descriptor lifetime. Lexical/semantic
+reuse still requires its full authority; independently verified geometry may
+survive a nonsemantic lexical miss. Source ed4488991 (#1218/#1219) shares token
+planning and cancellable inline batches and fuses read-only vector channel
+postprocessing. Native work and token leases retire before provider disposal;
+outputs retain independent ownership and Float32 rounding. Actual provider batch
+numerics, cancellation/resource lifetimes and allocation/latency remain unrun.
+
+Source fae409849 (#790/#775) bounds both editor HTTP success/error streams at
+20 MiB, owns cancellation/closure, distinguishes overflow and limits error text.
+Credible headers are only early admission; actual bytes govern stream acceptance.
+Search History selects stored evidence without CLI/API dispatch; explicit rerun
+remains separate and appends new evidence. JS/Python boundary, cancellation,
+authentication/error and offline-history controls are authored, unexecuted.
+
+Source 7e0130a2e (#738) projects existing core backend/fidelity, empty-result
+reasons and generation facts through a strict bounded diagnostic schema. CLI/API
+editor results and saved history retain this projection, fallback is visible,
+and old missing metadata is unknown. Native `d` opens read-only scroll/pan details;
+empty results show the producer reason. Known diagnostic actions resolve only to
+registered read-only commands after deliberate user selection. Receiving metadata
+never runs a command. Generation identity is not worktree freshness. New and
+affected editor, core, supervisor, Rust and ConPTY controls remain unexecuted.
+
+Source b2f0ec178 (#1336) selects warm lanes only from matching, current measured
+history of startup, child RSS and parse cost; bootstrap receipt bytes, parser,
+runtime/CPU and policy qualify that history. Missing/mixed history preserves the
+previous fallback and execution envelope. The authored policy/preparation control
+has not run; no native observation or predicted gain is acceptance evidence.
+
+All source checkpoints above are unvalidated. No test, syntax check, formatter,
+bootstrap, gate or benchmark ran in this continuation. Required dependency setup,
+generated refresh (including diagnostic/config/schema inventories), relevant
+fail-before/after controls and the complete Windows qualification remain deferred.
+The last qualified production/test source remains d4dcba413.
