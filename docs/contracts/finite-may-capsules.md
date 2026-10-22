@@ -17,6 +17,27 @@ soundness are not implied.
 `src/semantic/checked-may-summary.js` is the read-only consumer seam. It exposes
 accepted states only after this checker succeeds; partial/stale/rejected states
 remain unavailable as checked evidence. No provider runs and no facts publish.
+The first independently failed obligation is a definitive rejection, with one
+bounded missing-fact counterexample. Acceptance still checks every obligation;
+checker budget exhaustion cannot erase an already established rejection.
+
+`src/semantic/retained-may-summary.js` now projects an owned finite relation from
+selected canonical records and their actual indexed outgoing flow edges in one
+pinned artifact store. It verifies retained source identity and UTF-16 coordinates,
+keeps context/condition/certainty evidence, and uses exact selected seeds as entry
+facts. Call transitions and arbitrary transfers are outside this relation adapter.
+Source captures, incident rows and retained metadata have separate bounds. An
+unscanned row prefix or an outgoing selected-kind edge leaving the node selection
+keeps the authoritative system open, so no capsule supplies accepted facts.
+
+The read-only retained consumer supplies that owned system to the existing
+independent checker; a cloned or caller-forged projection is not admitted. Checked
+states refer to entry seeds in this declared canonical relation only. Producer
+certainty, source-language transfer correctness, extraction coverage and path
+feasibility are not upgraded. Conditions are retained but not discharged, and a
+post-fixpoint may remain strictly larger than least reachability. There is no
+negative whole-source claim, edit authority or durable proof store. The actual
+writer/index/store/checker fixture is authored and unexecuted.
 
 Canonical public schema/report ingestion, real frontend transfer admission,
 atomic sink integration, compact cutpoint reconstruction, dependent capsules,

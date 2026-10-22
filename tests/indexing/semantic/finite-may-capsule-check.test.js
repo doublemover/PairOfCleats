@@ -28,6 +28,10 @@ assert.equal(checkFiniteMayCapsule({ system, capsule: absentBackedgeFact }).stat
 assert.ok(checkFiniteMayCapsule({ system, capsule: absentBackedgeFact }).failures.some(row => row.edgeId === 'backedge'));
 const empty = capsuleFor(system, system.nodes.map(node => ({ node, facts: [] })));
 assert.ok(checkFiniteMayCapsule({ system, capsule: empty }).failures.some(row => row.reason === 'entry-not-covered'));
+assert.equal(checkFiniteMayCapsule({ system, capsule: empty, maxObligations: 1 }).status, 'rejected',
+  'one independently refuted entry is definitive even when no budget remains for other obligations');
+assert.equal(checkFiniteMayCapsule({ system, capsule: empty }).failures.length, 1,
+  'rejection retains its first checked counterexample instead of expanding every missing fact on every edge');
 assert.equal(checkFiniteMayCapsule({ system, capsule: { ...capsule, payloadId: 'forged' } }).structuralIntegrity, 'failed');
 assert.equal(checkFiniteMayCapsule({ system: { ...system, world: { ...system.world, contextKey: 'changed' } }, capsule }).status, 'stale-identity');
 const external = structuredClone(system); external.edges[2].operation = 'unknown-effect';

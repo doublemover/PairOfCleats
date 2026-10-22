@@ -73,7 +73,8 @@ export const checkFiniteMayCapsule = ({ system, capsule, maxObligations = 100000
   for (const entry of system.entries) {
     if (!budget()) return result;
     const missing = entry.facts.filter(value => !states.get(entry.node).has(value));
-    if (missing.length) result.failures.push({ reason: 'entry-not-covered', node: entry.node, missing });
+    if (missing.length) return { ...result, status: 'rejected', semanticObligations: 'failed',
+      failures: [{ reason: 'entry-not-covered', node: entry.node, missing }] };
   }
   // Check every edge, including backedges/recursion, against the simultaneous invariant.
   for (const edge of system.edges) {
@@ -84,9 +85,9 @@ export const checkFiniteMayCapsule = ({ system, capsule, maxObligations = 100000
     else if (edge.operation === 'identity') required = from;
     else required = new Set([...from].filter(value => !edge.kill.includes(value)).concat(edge.gen));
     const missing = [...required].filter(value => !to.has(value));
-    if (missing.length) result.failures.push({ reason: 'transfer-not-covered', edgeId: edge.id, missing });
+    if (missing.length) return { ...result, status: 'rejected', semanticObligations: 'failed',
+      failures: [{ reason: 'transfer-not-covered', edgeId: edge.id, missing }] };
   }
-  if (result.failures.length) return { ...result, status: 'rejected', semanticObligations: 'failed' };
   return { ...result, status: 'checked-in-model', semanticObligations: 'checked',
     solverClosure: 'post-fixpoint', precision: 'sound-overapproximation-not-least',
     systemId: capsule.systemId, payloadId: capsule.payloadId,
