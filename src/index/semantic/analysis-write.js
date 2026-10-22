@@ -1,5 +1,5 @@
 import { semanticByteAdmissionFor } from './planning.js';
-import { createSemanticPartitionSink } from '../build/artifacts/writers/semantic/partition.js';
+import { createSemanticPartitionSink, abortSemanticPartitionOnFailure } from '../build/artifacts/writers/semantic/partition.js';
 import { prepareSemanticBatchEntry, semanticBatchEntryBytes } from './prepared-batch.js';
 /** Shared bounded sink for derived rows; analysis never edits syntax partitions. */
 export const writeSemanticAnalysis = async ({ rows, policy, ...options }) => {
@@ -20,5 +20,5 @@ export const writeSemanticAnalysis = async ({ rows, policy, ...options }) => {
     }
     await flush();
     return await sink.finalizeSource();
-  } catch (error) { await sink.abort(); throw error; }
+  } catch (error) { await abortSemanticPartitionOnFailure(sink, error); }
 };

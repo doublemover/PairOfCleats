@@ -1,0 +1,60 @@
+import { createHash } from 'node:crypto';
+import { openContainedFile, verifyContainedFileHandle } from '../../../shared/contained-file.js';
+import { readExactAt } from '../../../shared/io/read-exact.js';
+import { throwIfAborted } from '../../../shared/abort.js';
+
+const PREFIX = Buffer.from('{"fields":{');
+const SUFFIX = Buffer.from('}}\n');
+const fail = message => Object.assign(new Error('[field-postings] ' + message), { code: 'ERR_FIELD_POSTINGS_SHARD_INTEGRITY' });
+const same = (left, right) => ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].every(key => left[key] === right[key]);
+/** Copy only body bytes from a freshly matched, completed shard; no whole-shard UTF-8 string exists. */
+export const streamFieldPostingsShardBody = async ({ root, filename, expected, onStart = null, onChunk,
+  signal = null, metrics = {} }) => {
+  if (!Number.isSafeInteger(expected?.bytes) || expected.bytes < PREFIX.length + SUFFIX.length
+    || expected.checksumAlgo !== 'sha1' || typeof expected.checksum !== 'string' || !/^[0-9a-f]{40}$/.test(expected.checksum)) {
+    throw fail('Completed shard integrity receipt is required.');
+  }
+  throwIfAborted(signal);
+  const handle = await openContainedFile(root, filename);
+  let primary = null;
+  try {
+    const before = await handle.stat();
+    if (before.size !== expected.bytes) throw fail('Completed shard length changed.');
+    const prefix = Buffer.alloc(PREFIX.length), suffix = Buffer.alloc(SUFFIX.length);
+    const first = await readExactAt(handle, prefix, 0, prefix.length, 0, { signal });
+    const last = await readExactAt(handle, suffix, 0, suffix.length, before.size - suffix.length, { signal });
+    if (first.bytesRead !== prefix.length || last.bytesRead !== suffix.length || !prefix.equals(PREFIX) || !suffix.equals(SUFFIX)) throw fail('Completed shard framing changed.');
+    const hash = createHash('sha1').update(prefix);
+    const end = before.size - suffix.length;
+    let position = prefix.length;
+    const buffer = Buffer.alloc(Math.min(65536, Math.max(1, end - position)));
+    if (position < end) await onStart?.();
+    while (position < end) {
+      throwIfAborted(signal);
+      const length = Math.min(buffer.length, end - position);
+      const { bytesRead } = await readExactAt(handle, buffer, 0, length, position, { signal });
+      if (bytesRead !== length) throw fail('Completed shard was truncated.');
+      const chunk = buffer.subarray(0, bytesRead);
+      hash.update(chunk);
+      // Writable acceptance may precede actual consumption; transfer a private bounded copy.
+      await onChunk(Buffer.from(chunk));
+      position += bytesRead;
+      metrics.readBytes = (metrics.readBytes || 0) + bytesRead;
+      metrics.readChunkBytesHighWater = Math.max(metrics.readChunkBytesHighWater || 0, bytesRead);
+    }
+    hash.update(suffix);
+    if (hash.digest('hex') !== expected.checksum) throw fail('Completed shard checksum changed.');
+    const after = await handle.stat(); verifyContainedFileHandle(handle, root, filename);
+    if (!same(before, after)) throw fail('Completed shard changed during merge.');
+    throwIfAborted(signal);
+    metrics.shardsRead = (metrics.shardsRead || 0) + 1;
+    metrics.readBytes = (metrics.readBytes || 0) + prefix.length + suffix.length;
+    return end > prefix.length;
+  } catch (error) { primary = error; throw error; }
+  finally {
+    try { await handle.close(); } catch (error) {
+      if (!primary) throw error;
+      try { primary.closeError = error; } catch {}
+    }
+  }
+};

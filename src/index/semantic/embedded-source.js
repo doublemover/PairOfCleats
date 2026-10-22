@@ -7,7 +7,7 @@ import { createSemanticCollector, JAVASCRIPT_ADAPTER_VERSION } from './javascrip
 import { createTypeScriptSemanticCollector, TYPESCRIPT_ADAPTER_VERSION } from './typescript-collector.js';
 import { parseJavaScriptAst, getJavaScriptSyntaxIdentity } from '../../lang/javascript/parse.js';
 import { createTypeScriptSyntaxContext, prepareTypeScriptSyntax } from '../../lang/typescript/syntax-context.js';
-import { createSemanticPartitionSink } from '../build/artifacts/writers/semantic/partition.js';
+import { createSemanticPartitionSink, abortSemanticPartitionOnFailure } from '../build/artifacts/writers/semantic/partition.js';
 import { createSemanticFactsRef } from './file-ref.js';
 import { persistSemanticEvidence } from './lsp-evidence.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -60,7 +60,7 @@ export const collectEmbeddedSemanticSources = async ({ parentFacts, segments, te
       const partition = await sink.finalizeSource();
       sourceFacts.push({ segment, bytes, facts: { source: snapshot.manifest, sourceCapability: snapshot.sourceCapability, partition, coverage } });
       segmentFactsRefs.push({ segmentUid: segment.segmentUid, factsRef: createSemanticFactsRef({ source: snapshot.manifest, syntaxPartitionId: partitionId, storage, partitions: [partition], coverage }) });
-    } catch (error) { await sink.abort(); throw error; }
+    } catch (error) { await abortSemanticPartitionOnFailure(sink, error); }
   }
   return { segmentFactsRefs, sourceFacts, syntaxContexts, evidenceArtifacts };
 };

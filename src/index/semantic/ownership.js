@@ -2,7 +2,7 @@ import { prepareSemanticBatchEntry, semanticBatchEntryBytes } from './prepared-b
 import { createSemanticFactsRef } from './file-ref.js';
 import { SEMANTIC_OWNERSHIP_VERSION, SEMANTIC_OWNERSHIP_PRODUCER_HASH } from './analysis-versions.js';
 import { createArtifactSemanticStore } from '../../semantic/artifact-store.js';
-import { createSemanticPartitionSink } from '../build/artifacts/writers/semantic/partition.js';
+import { createSemanticPartitionSink, abortSemanticPartitionOnFailure } from '../build/artifacts/writers/semantic/partition.js';
 import { createAnalysisPartitionId, semanticHash } from './identity.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 
@@ -66,5 +66,5 @@ export const collectSemanticOwnership = async ({ facts, chunks, bytes,
     await flush();
     return createSemanticFactsRef({ source, syntaxPartitionId: facts.partition.partitionId, storage,
       coverage: facts.coverage, partitions: [facts.partition, ...(facts.analysisPartitions || []), await sink.finalizeSource()] });
-  } catch (error) { await sink.abort(); throw error; }
+  } catch (error) { await abortSemanticPartitionOnFailure(sink, error); }
 };
