@@ -9,6 +9,14 @@ const invalid = message => { throw Object.assign(new TypeError(message), { code:
 /** Authoritative finite transfer system is supplied separately from untrusted states. */
 export const finiteMaySystemIdentity = system => semanticHash('pairofcleats.finite-may-system.v1', system);
 export const finiteMayPayloadIdentity = states => semanticHash('pairofcleats.finite-may-states.v1', states);
+export const createFiniteMayCheckState = () => ({ checker: 'finite-may-postfixpoint-v1', status: 'unknown',
+  structuralIntegrity: 'unchecked', identityCompatibility: 'unchecked',
+  semanticObligations: 'unchecked', solverClosure: 'not-established',
+  precision: 'not-established', checkedObligations: 0, failures: [], frontier: [] });
+export const assertFiniteMayCheckLimits = (maxObligations, maxBytes) => {
+  if (!Number.isSafeInteger(maxObligations) || maxObligations < 0
+    || !Number.isSafeInteger(maxBytes) || maxBytes < 1) invalid('Invalid checker allowance.');
+};
 
 /**
  * Independent full-certificate post-fixpoint checker. It never runs a producer's
@@ -17,12 +25,8 @@ export const finiteMayPayloadIdentity = states => semanticHash('pairofcleats.fin
  */
 export const checkFiniteMayCapsule = ({ system, capsule, maxObligations = 100000,
   maxBytes = 8 * 1024 * 1024, signal }) => {
-  if (!Number.isSafeInteger(maxObligations) || maxObligations < 0
-    || !Number.isSafeInteger(maxBytes) || maxBytes < 1) invalid('Invalid checker allowance.');
-  const result = { checker: 'finite-may-postfixpoint-v1', status: 'unknown',
-    structuralIntegrity: 'unchecked', identityCompatibility: 'unchecked',
-    semanticObligations: 'unchecked', solverClosure: 'not-established',
-    precision: 'not-established', checkedObligations: 0, failures: [], frontier: [] };
+  assertFiniteMayCheckLimits(maxObligations, maxBytes);
+  const result = createFiniteMayCheckState();
   const unknown = reason => ({ ...result, frontier: [{ reason }] });
   if (system?.profile !== 'finite-may-set-v1' || system.transferVersion !== 1) return unknown('unsupported-domain-or-transfer');
   if (!system.world || !validateSemanticEnvelope('generation', system.world.generation).ok

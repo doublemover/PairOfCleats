@@ -39,6 +39,35 @@ post-fixpoint may remain strictly larger than least reachability. There is no
 negative whole-source claim, edit authority or durable proof store. The actual
 writer/index/store/checker fixture is authored and unexecuted.
 
+The read-only summary consumer copies the admitted system and untrusted capsule
+before checking and reads accepted facts from that exact copy. A caller-owned
+signal object cannot mutate the original certificate between checking its states
+and reading them back. Oversized encoded input returns the existing unknown-byte
+frontier before allocating a copied state inventory; invalid checker allowances
+still use the checker's shared contract. This is request ownership, not a new
+certificate or transfer rule.
+
+`materializeCheckedRetainedMaySummaryLens` now consumes an owned projection and
+the independent check through the existing exact-source task lens. A query node
+and every accepted entry-seed candidate are mandatory facets, sharing one facet
+when one source record has both roles. Candidate membership is explicitly
+`in-checked-upper-model-not-proven-reachable`: even a checked top invariant does
+not witness a path or establish feasibility. Rejected/stale/unknown summaries
+expose no abstract candidates; their source query may still be inspected with
+the unaccepted checker status. Missing source spans return `sourceUnavailable`
+and no lens rather than an invented whole-file location. Mandatory/response
+overflow remains explicit under the existing lens owner.
+
+The projection retains its bounded original source snapshots under its owned
+handle, so lens expansion reuses the same verified bytes and does not reopen a
+worktree or a different generation. Retained source bytes remain at most the
+existing source-read allowance; record/source-manifest metadata now shares the
+existing encoded metadata allowance. This request-local ownership is not a
+durable proof/cache store, an expiry protocol or a process-memory guarantee.
+The actual writer/index/store/checker/lens regressions, including source gaps,
+imprecise upper members and certificate mutation during checking, are authored
+and unrun. Public rollout and native/source-language qualification remain open.
+
 Canonical public schema/report ingestion, real frontend transfer admission,
 atomic sink integration, compact cutpoint reconstruction, dependent capsules,
 cross-revision reuse, constructor projection, benchmarks and qualification remain

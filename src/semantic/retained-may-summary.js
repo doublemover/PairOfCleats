@@ -4,6 +4,7 @@ import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelop
 import { validateSemanticRecord } from '../contracts/validators/semantic.js';
 import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.js';
 import { throwIfAborted } from '../shared/abort.js';
+import { materializeTaskLens } from '../context-pack/task-evidence/lens.js';
 
 const key = canonicalSemanticJson;
 const owners = new WeakMap();
@@ -45,14 +46,17 @@ export const projectRetainedMaySummarySystem = async ({ store, world, nodes, see
   }
   if (seeds.some(ref => !validateSemanticRecord('recordRef', ref).ok || !selected.has(key(ref)))
     || new Set(seeds.map(key)).size !== seeds.length) fail('unique selected entry seeds required');
-  const records = await store.getRecords(nodes, ['span'], { signal });
-  if (!Array.isArray(records) || records.length !== nodes.length) fail('selected record inventory is incomplete');
-  const partitions = new Map(), sources = new Map(), sourceWitnesses = [];
   let sourceReadBytes = 0, retainedMetadataBytes = 0;
   const charge = value => {
     retainedMetadataBytes += Buffer.byteLength(key(value));
     if (retainedMetadataBytes > maxMetadataBytes) fail('retained metadata allowance exhausted');
   };
+  const rows = await store.getRecords(nodes, ['span'], { signal });
+  throwIfAborted(signal);
+  if (!Array.isArray(rows) || rows.length !== nodes.length) fail('selected record inventory is incomplete');
+  charge(rows);
+  const records = JSON.parse(key(rows));
+  const partitions = new Map(), sources = new Map(), sourceWitnesses = [], snapshots = new Map();
   for (let index = 0; index < records.length; index++) {
     throwIfAborted(signal);
     const record = records[index], ref = nodes[index];
@@ -65,9 +69,10 @@ export const projectRetainedMaySummarySystem = async ({ store, world, nodes, see
         repositoryNamespace: world.repositoryNamespace, maxBytes: remaining, signal });
       sourceReadBytes += snapshot.bytes.length; captured = { source: snapshot.source, text: snapshot.text };
       const source = captured.source;
+      charge(source);
       if (source.mapping !== null) fail('an independently qualified original-source mapping is required');
       if (sources.has(source.sourceUnitId) && key(sources.get(source.sourceUnitId)) !== key(source)) fail('conflicting retained source identity');
-      sources.set(source.sourceUnitId, source); partitions.set(ref.partitionId, captured);
+      sources.set(source.sourceUnitId, source); snapshots.set(source.sourceUnitId, snapshot.snapshot); partitions.set(ref.partitionId, captured);
     }
     const source = captured.source;
     if (record.span && (!Array.isArray(record.span) || record.span.length !== 2
@@ -127,7 +132,7 @@ export const projectRetainedMaySummarySystem = async ({ store, world, nodes, see
     boundaryEdges, otherContextEdges, inputCertainties: certainties, truncated,
     conditions: 'retained-but-not-discharged', sourceLanguageClosure: 'not-implied', pathFeasibility: 'not-implied',
     producerSemantics: 'retained-claims-not-independently-rechecked' });
-  owners.set(projection, { selected });
+  owners.set(projection, { selected, snapshots, witnesses: new Map(sourceWitnesses.map(witness => [key(witness.ref), witness])) });
   return projection;
 };
 
@@ -135,6 +140,7 @@ export const projectRetainedMaySummarySystem = async ({ store, world, nodes, see
  * system. The untrusted capsule remains a full simultaneous invariant. */
 export const readCheckedRetainedMaySummary = ({ projection, capsule, node,
   maxObligations = 100000, maxBytes = 8 * 1024 * 1024, signal = null }) => {
+  node = JSON.parse(key(node));
   const owned = owners.get(projection);
   if (!owned || !validateSemanticRecord('recordRef', node).ok || !owned.selected.has(key(node))
     || !Number.isSafeInteger(maxObligations) || maxObligations < 0 || maxObligations > 100000
@@ -144,4 +150,48 @@ export const readCheckedRetainedMaySummary = ({ projection, capsule, node,
     seedRefs: answer.facts === null ? null : answer.facts.map(fact => structuredClone(owned.selected.get(fact))),
     negativeMeaning: answer.facts === null ? 'unknown' : 'absent-only-from-checked-retained-relation-model',
     producerCertainty: 'not-upgraded', sourceLanguageCompleteness: 'not-implied', pathFeasibility: 'not-implied', editAuthority: 'none' };
+};
+
+/** A checked upper-model member is an abstract candidate, not a feasible path.
+ * The query and every admitted seed source are mandatory inspection facets. */
+export const materializeCheckedRetainedMaySummaryLens = ({ projection, capsule, node, taskId,
+  maxFacets = 12, maxObligations = 100000, maxBytes = 8 * 1024 * 1024, signal = null }) => {
+  throwIfAborted(signal);
+  if (typeof taskId !== 'string' || !taskId || !Number.isSafeInteger(maxFacets) || maxFacets < 1 || maxFacets > 64) {
+    fail('bounded task lens required');
+  }
+  node = JSON.parse(key(node));
+  const answer = readCheckedRetainedMaySummary({ projection, capsule, node, maxObligations, maxBytes, signal });
+  throwIfAborted(signal);
+  const owned = owners.get(projection), selected = new Map([[key(node), { ref: node, roles: ['summaryQuery'] }]]);
+  for (const ref of answer.seedRefs || []) {
+    const id = key(ref);
+    if (!selected.has(id)) selected.set(id, { ref, roles: [] });
+    selected.get(id).roles.push('abstractCandidate');
+  }
+  const candidates = [], sourceIds = new Set(), sourceFrontier = [];
+  for (const [id, selection] of selected) {
+    const witness = owned.witnesses.get(id);
+    if (!witness?.span) { sourceFrontier.push({ ref: structuredClone(selection.ref), reason: 'retained-source-span-unavailable' }); continue; }
+    sourceIds.add(witness.sourceUnitId);
+    candidates.push({ id, worldRef: projection.system.world, kind: 'checked-summary', roles: selection.roles, mandatory: true, score: 1,
+      sourceRef: { sourceUnitId: witness.sourceUnitId, span: witness.span, coordinateUnit: witness.coordinateUnit },
+      qualification: { certainty: 'exact-retained-source', checkerStatus: answer.check.status,
+        closure: answer.check.status === 'checked-in-model' ? 'checked-upper-retained-relation-model' : 'unaccepted-summary',
+        candidateMembership: selection.roles.includes('abstractCandidate') ? 'in-checked-upper-model-not-proven-reachable' : 'query-only',
+        precision: answer.check.precision, producerCertainty: 'not-upgraded', sourceLanguageClosure: 'not-implied', pathFeasibility: 'not-implied' },
+      reason: selection.roles.includes('abstractCandidate')
+        ? 'Entry seed retained by the checked upper invariant; membership does not establish a feasible path.'
+        : 'Exact retained source selected for this finite relation query.' });
+  }
+  if (sourceFrontier.length) return { answer, lens: null, status: 'sourceUnavailable', sourceFrontier,
+    completeness: 'not-implied', actionAuthority: 'none' };
+  const lens = materializeTaskLens({ taskId, worldRef: projection.system.world, maxFacets,
+    requiredRoles: ['summaryQuery', ...(answer.seedRefs?.length ? ['abstractCandidate'] : [])], candidates,
+    sources: [...sourceIds].map(id => owned.snapshots.get(id)),
+    retainedResult: { ownerHandle: projection.projectionId, enumeration: 'explicit-selected-relation-model', checkId: answer.check.checkId || null } });
+  throwIfAborted(signal);
+  return { answer, lens, sourceFrontier, status: lens.status === 'mandatoryOverflow' ? 'mandatoryOverflow'
+    : answer.check.status === 'checked-in-model' ? 'projected' : 'checkerUnaccepted',
+  completeness: 'not-implied', actionAuthority: 'none' };
 };
