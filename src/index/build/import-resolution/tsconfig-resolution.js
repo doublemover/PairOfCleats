@@ -7,11 +7,12 @@ import { escapeRegex } from '../../../shared/text/escape-regex.js';
 import { createFsMemo } from './fs-meta.js';
 import { resolveCandidate, resolveWithinRoot } from './lookup.js';
 
-
-
+// This identity participates in each importer's existing tsconfig fingerprint.
+export const TS_PATH_MAPPING_VERSION = 'typescript-paths-prefix-order-v2';
 const compileTsPattern = (pattern) => {
   if (!pattern) return null;
   const starCount = (pattern.match(/\*/g) || []).length;
+  if (starCount > 1) return null;
   const parts = pattern.split('*').map(escapeRegex);
   const regex = new RegExp(`^${parts.join('(.*?)')}$`);
   return { pattern, regex, starCount };
@@ -19,12 +20,9 @@ const compileTsPattern = (pattern) => {
 
 const applyTsTemplate = (template, captures) => {
   if (!template) return '';
-  let index = 0;
-  return template.replace(/\*/g, () => {
-    const value = captures[index] ?? '';
-    index += 1;
-    return value;
-  });
+  // TypeScript substitutes only a nonempty matched star. An exact or empty
+  // match leaves a replacement star literal; it cannot invent a directory hit.
+  return captures[0] ? template.replace('*', captures[0]) : template;
 };
 
 // Reuse TypeScript's config parser for ordered extends, declaration-relative
@@ -96,8 +94,9 @@ export const createTsConfigLoader = ({ rootAbs, fileSet, fsMemo = null }) => {
       const filtered = (Array.isArray(replacements) ? replacements : [replacements]).filter(value => typeof value === 'string');
       return filtered.length ? [{ ...compiled,replacements:filtered }] : [];
     });
-    const fingerprint = sha1(JSON.stringify({ baseUrlAbs, paths, dependencies:loaded.dependencies }));
-    const value = { tsconfigPath,compilerOptions,baseUrlAbs,paths,compiledPaths,fingerprint };
+    const fingerprint = sha1(JSON.stringify({ pathMappingVersion: TS_PATH_MAPPING_VERSION,
+      baseUrlAbs, paths, dependencies:loaded.dependencies }));
+    const value = { tsconfigPath,compilerOptions,baseUrlAbs,paths,compiledPaths,fingerprint,pathMappingVersion:TS_PATH_MAPPING_VERSION };
     tsconfigCache.set(tsconfigPath,value);
     return value;
   };
@@ -160,11 +159,13 @@ export const resolveTsPaths = ({ spec,tsconfig,lookup }) => {
     if (!match) continue;
     const star=entry.pattern.indexOf('*');
     const prefix=star<0?entry.pattern.length:star;
-    const suffix=star<0?0:entry.pattern.length-star-1;
     const exact=star<0;
+    // matchPatternOrExact/findBestPatternMatch in the installed compiler choose
+    // exact keys first, then the longest prefix. Equal prefixes keep key order;
+    // suffix matching is eligibility, not another specificity tie-breaker.
     if (!best || (exact && !best.exact) || (exact===best.exact
-      && (prefix>best.prefix || (prefix===best.prefix && suffix>best.suffix)))) {
-      best={entry,captures:match.slice(1),prefix,suffix,exact};
+      && prefix>best.prefix)) {
+      best={entry,captures:match.slice(1),prefix,exact};
     }
   }
   if (!best) return null;
