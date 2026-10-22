@@ -22,6 +22,18 @@ fence does not promote spelling candidates or document-symbol rows to uniquely
 bound semantic evidence. Existing cancellation and child ownership remain with
 the extension operation owner.
 
+The explicit VS Code indexed-definition/reference picker also retains that exact
+provider request with every native location. Its choices must be original items
+from that picker and keep the original active source/cursor through selection
+admission. Later target opening and display continue to check the original
+source version/URI/bytes. A new explicit indexed picker revokes the previous
+picker through the existing operation owner. An empty/failed new request cannot
+borrow candidates from another request's latest global evidence. Ambiguous
+choices retain their original candidate spans and remain explicitly ambiguous.
+Before applying exact ranges, displayed editors must identify the same qualified
+opened document and version; a matching source witness cannot authorize a
+different editor's selection.
+
 Sublime indexed navigation also records the original source view and buffer IDs,
 window, filename, change count and cursor. An equal-text/equal-version sibling
 view cannot replace that source when the response arrives or when cursor binding

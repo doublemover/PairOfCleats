@@ -54,6 +54,15 @@ function assertSourceUri(source, uri) {
   }
 }
 
+/** Display must return the editor for the exact admitted opened document. */
+function assertQualifiedEditor(editor, qualified) {
+  if (!editor || editor.document !== qualified?.document) throw new Error('Displayed editor does not identify the qualified source document.');
+  const document = qualified.document;
+  if (document.isClosed === true || document.isDirty || document.version !== qualified.version) {
+    throw new Error('Qualified source document changed before editor selection.');
+  }
+}
+
 function sourceRangeOffsets(sourceText, range) {
   const starts = [0], ends = [];
   for (let offset = 0; offset < sourceText.length; offset++) {
@@ -162,5 +171,5 @@ function createDocumentAuthority({ workspace, isCurrent = () => true, maxDocumen
   return { qualify, assertCurrent };
 }
 
-module.exports = { MAX_SOURCE_BYTES, decodeSource, readCurrentSource, readVerifiedSource, assertSourceUri, sourceRangeOffsets,
+module.exports = { MAX_SOURCE_BYTES, decodeSource, readCurrentSource, readVerifiedSource, assertSourceUri, assertQualifiedEditor, sourceRangeOffsets,
   sourceDocumentForm, documentOffsets, createDocumentAuthority };

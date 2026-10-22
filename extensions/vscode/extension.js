@@ -9,7 +9,7 @@ const { EventEmitter: NodeEventEmitter } = require('node:events');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
 const { snapshotConfiguration, renderEffectiveSettings } = require('./effective-settings.js');
 const { inspectCliVersion } = require('./installation-evidence.js');
-const { createDocumentAuthority, readVerifiedSource } = require('./document-authority.js');
+const { createDocumentAuthority, readVerifiedSource, assertQualifiedEditor } = require('./document-authority.js');
 const { createTaskObservations, taskRecoveryActions } = require('./task-observations.js');
 const taskObservations = createTaskObservations();
 const { generationFromContextPack, contextDiscoveryRequest, contextDiscoveryCliArgs } = require('./semantic-discovery.js');
@@ -2124,7 +2124,7 @@ function createRangeFromNavigationEntry(entry) {
   );
 }
 
-async function createNavigationLocation(repoContext, entry, authority) {
+async function createNavigationLocation(repoContext, entry, authority, sourceRequest) {
   const target = resolveValidatedHitTarget(vscode, repoContext, {
     file: entry?.file || entry?.virtualPath || ''
   });
@@ -2135,17 +2135,17 @@ async function createNavigationLocation(repoContext, entry, authority) {
   if (!qualified) return null;
   const range = new vscode.Range(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
   const location = new vscode.Location(qualified.document.uri || target.targetUri, range);
-  navigationLocationSources.set(location, { repoContext, entry: Object.freeze({ ...entry }) });
+  navigationLocationSources.set(location, { repoContext, entry: Object.freeze({ ...entry }), sourceRequest });
   return location;
 }
 
-async function createNavigationLocations(repoContext, rows) {
+async function createNavigationLocations(repoContext, rows, sourceRequest) {
   const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: () => operations.isCurrent(),
     maxDocuments: NAVIGATION_RESULT_LIMIT });
   const locations = [];
   try {
     for (const row of rows) {
-      const location = await createNavigationLocation(repoContext, row, authority);
+      const location = await createNavigationLocation(repoContext, row, authority, sourceRequest);
       if (!location) return [];
       locations.push(location);
     }
@@ -2160,7 +2160,7 @@ async function createNavigationLocations(repoContext, rows) {
 
 async function publishNavigationLocations(repoContext, rows, sourceRequest) {
   if (!rows.length || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
-  const locations = await createNavigationLocations(repoContext, rows);
+  const locations = await createNavigationLocations(repoContext, rows, sourceRequest);
   if (!locations.length || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
   try {
     // Opening each target document introduces another await after CLI source
@@ -2372,7 +2372,7 @@ async function runNavigationCommand({
       return [];
     }
     latestNavigationEvidence = { payload: result.payload, repoContext, sourceFile: request.file,
-      position: request.position };
+      position: request.position, sourceRequest: request };
     const rows = qualifiedNavigationRows(result.payload);
     if (!rows.length) noteNavigationDegraded(`binding-${result.payload?.status || 'unknown'}`,
       `Indexed navigation: ${result.payload?.status || 'unqualified'}. Use PairOfCleats Related Search for approximate matches.`,
@@ -2498,8 +2498,7 @@ function provideDefinitionsAtPosition(document, position, token) {
   return operations.run('definitions', () => provideOwnedDefinitions(document, position), { token });
 }
 
-async function provideOwnedDefinitions(document, position) {
-  const sourceRequest = captureNavigationRequest(document, position);
+async function provideOwnedDefinitions(document, position, sourceRequest = captureNavigationRequest(document, position)) {
   if (!sourceRequest) return [];
   const query = getWordQueryAtPosition(document, sourceRequest.position);
   if (!query) return [];
@@ -2520,8 +2519,7 @@ function provideReferencesAtPosition(document, position, context, token) {
   return operations.run('references', () => provideOwnedReferences(document, position, context), { token });
 }
 
-async function provideOwnedReferences(document, position, context = {}) {
-  const sourceRequest = captureNavigationRequest(document, position, context.includeDeclaration);
+async function provideOwnedReferences(document, position, context = {}, sourceRequest = captureNavigationRequest(document, position, context.includeDeclaration)) {
   if (!sourceRequest) return [];
   const query = getWordQueryAtPosition(document, sourceRequest.position);
   if (!query) return [];
@@ -5074,6 +5072,7 @@ async function openCapturedEvidence() {
           const editor = await vscode.window.showTextDocument(qualified.document);
           await authority.assertCurrent();
           if (!operations.isCurrent() || qualified.document.version !== qualified.version || qualified.document.isDirty) return;
+          assertQualifiedEditor(editor, qualified);
           editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
           editor.revealRange(editor.selection);
         } else {
@@ -5082,8 +5081,10 @@ async function openCapturedEvidence() {
           const qualified = await authority.qualify({ repoRoot: captured.repoContext.repoRoot, file: target.filePath,
             uri: target.targetUri, sourceHash: hit.sourceHash, span: { start: offset, end: offset } });
           if (!qualified) return;
-          await vscode.window.showTextDocument(qualified.document);
+          const editor = await vscode.window.showTextDocument(qualified.document);
           await authority.assertCurrent();
+          if (!operations.isCurrent()) return;
+          assertQualifiedEditor(editor, qualified);
           vscode.window.showInformationMessage('Evidence source bytes were verified. Its producer supplied no exact UTF-16 range, so only the source file was opened.');
         }
       } catch (error) {
@@ -5093,22 +5094,38 @@ async function openCapturedEvidence() {
   }
 }
 
-async function inspectIndexedNavigation(kind) {
+function inspectIndexedNavigation(kind) {
+  return operations.run('indexed-navigation-picker', () => inspectOwnedIndexedNavigation(kind), { key: 'indexed-navigation-picker' });
+}
+
+function currentNavigationCursor(request) {
+  const editor = vscode.window.activeTextEditor, position = editor?.selection?.active;
+  return operations.isCurrent() && request.isCurrent() && editor?.document === request.document
+    && position?.line === request.position?.line && position?.character === request.position?.character;
+}
+
+async function inspectOwnedIndexedNavigation(kind) {
   const editor = vscode.window.activeTextEditor;
   const document = editor?.document;
   const position = editor?.selection?.active;
   if (!document || !position) return;
+  const sourceRequest = captureNavigationRequest(document, position);
+  if (!sourceRequest) return;
   const locations = kind === 'references'
-    ? await provideReferencesAtPosition(document, position, { includeDeclaration: true })
-    : await provideDefinitionsAtPosition(document, position);
-  if (!locations?.length && latestNavigationEvidence?.payload?.binding?.candidates?.length) {
+    ? await provideOwnedReferences(document, sourceRequest.position, { includeDeclaration: true }, sourceRequest)
+    : await provideOwnedDefinitions(document, sourceRequest.position, sourceRequest);
+  if (!currentNavigationCursor(sourceRequest)) return;
+  if (!locations?.length && latestNavigationEvidence?.sourceRequest === sourceRequest && latestNavigationEvidence.payload?.binding?.candidates?.length) {
     const evidence = latestNavigationEvidence;
-    const candidate = await vscode.window.showQuickPick(evidence.payload.binding.candidates.map(value => ({
-      label: `${value.status || 'candidate'} • ${value.targetId}`, description: value.file || 'external source',
-      detail: `Binding remains ${evidence.payload.status}; inspect one candidate without pooling references`, candidate: value
-    })), { title: 'Inspect ambiguous indexed binding candidates' });
-    if (!candidate) return;
+    const candidates = evidence.payload.binding.candidates.map(original => {
+      const value = Object.freeze({ ...original, span: Array.isArray(original.span) ? Object.freeze([...original.span]) : original.span });
+      return { label: `${value.status || 'candidate'} • ${value.targetId}`, description: value.file || 'external source',
+        detail: `Binding remains ${evidence.payload.status}; inspect one candidate without pooling references`, candidate: value };
+    });
+    const candidate = await vscode.window.showQuickPick(candidates, { title: 'Inspect ambiguous indexed binding candidates' });
+    if (!candidates.includes(candidate) || !currentNavigationCursor(sourceRequest)) return;
     try {
+      sourceRequest.args(evidence.repoContext.repoRoot);
       const value = candidate.candidate;
       const target = sourceQualifiedSelection(evidence.repoContext, { path: value.file, sourceHash: value.sourceHash,
         coordinateUnit: value.coordinateUnit }, { span: value.span });
@@ -5116,32 +5133,43 @@ async function inspectIndexedNavigation(kind) {
       const qualified = await authority.qualify({ repoRoot: evidence.repoContext.repoRoot, file: target.file,
         uri: vscode.Uri.file(target.file), sourceHash: target.sourceHash, span: { start: target.start, end: target.end } });
       if (!qualified) return;
+      if (!operations.isCurrent()) return;
+      sourceRequest.args(evidence.repoContext.repoRoot);
       const editor = await vscode.window.showTextDocument(qualified.document);
       await authority.assertCurrent();
       if (!operations.isCurrent()) return;
+      sourceRequest.args(evidence.repoContext.repoRoot);
+      assertQualifiedEditor(editor, qualified);
       editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
       editor.revealRange(editor.selection);
       vscode.window.showInformationMessage('Opened candidate evidence. The indexed binding remains ambiguous; references were not pooled.');
-    } catch (error) { vscode.window.showErrorMessage(error.message); }
+    } catch (error) { if (operations.isCurrent()) vscode.window.showErrorMessage(error.message); }
     return;
   }
-  const selected = await vscode.window.showQuickPick((locations || []).map(location => ({
+  if (!locations?.length) return;
+  const items = locations.map(location => ({
     label: location.uri?.path || location.uri?.fsPath || 'source',
     description: `${location.range?.start.line + 1}:${location.range?.start.character + 1}`, location
-  })), { title: `Indexed ${kind}: source-qualified candidates` });
-  if (!selected) return;
+  }));
+  const selected = await vscode.window.showQuickPick(items, { title: `Indexed ${kind}: source-qualified candidates` });
+  if (!items.includes(selected) || !currentNavigationCursor(sourceRequest)) return;
   const source = navigationLocationSources.get(selected.location);
-  if (!source) { vscode.window.showErrorMessage('The selected native location has no retained source witness. Inspect indexed navigation again.'); return; }
+  if (!source || source.sourceRequest !== sourceRequest) { vscode.window.showErrorMessage('The selected native location has no original request/source witness. Inspect indexed navigation again.'); return; }
   try {
+    sourceRequest.args(source.repoContext.repoRoot);
     const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: () => operations.isCurrent(), maxDocuments: 1 });
     const target = resolveValidatedHitTarget(vscode, source.repoContext, source.entry);
     if (!target.ok) throw new Error(target.message);
     const qualified = await authority.qualify({ repoRoot: source.repoContext.repoRoot, file: target.filePath,
       uri: target.targetUri, sourceHash: source.entry.sourceHash, range: source.entry });
     if (!qualified) return;
+    if (!operations.isCurrent()) return;
+    sourceRequest.args(source.repoContext.repoRoot);
     const editor = await vscode.window.showTextDocument(qualified.document);
     await authority.assertCurrent();
     if (!operations.isCurrent()) return;
+    sourceRequest.args(source.repoContext.repoRoot);
+    assertQualifiedEditor(editor, qualified);
     editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
     editor.revealRange(editor.selection);
   } catch (error) { if (operations.isCurrent()) vscode.window.showErrorMessage(`Indexed selection unavailable: ${error.message}`); }
