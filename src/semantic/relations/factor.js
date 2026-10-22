@@ -13,6 +13,14 @@ const make = node => {
   return handle;
 };
 const get = handle => { const node = owned.get(handle); if (!node) throw new TypeError('Owned factor relation required.'); return node; };
+
+/** Read-only identity projection for consumers checking a relation's observation contract. */
+export const describeOccurrenceRelation = handle => {
+  const node = get(handle);
+  return Object.freeze({ rootId: node.rootId, world: Object.freeze(JSON.parse(key(node.world))),
+    schema: handle.schema, atomRoles: Object.freeze([...node.roles]), capturedDomainComplete: node.complete,
+    semantics: 'occurrence-bag', annotation: 'positive-natural-v1', physicalChoicePaths: 'derived-not-source-occurrences' });
+};
 const tupleValue = (value, attribute) => value === null ? attribute.nullable === true
   : attribute.type === 'string' ? typeof value === 'string' && value.length <= 4096
     : attribute.type === 'integer' ? Number.isSafeInteger(value) : false;

@@ -5,7 +5,7 @@ import { openOccurrenceCursor } from '../../../src/semantic/relations/factor.js'
 
 const definition = { viewId: 'dependency-edge', producerId: 'extractor', producerEpoch: 'epoch-1', ruleVersion: '1',
   configHash: 'a'.repeat(64), domainId: 'module-domain', algebra: 'signed-occurrence-bag-v1' };
-const world = revision => ({ generation: { baseBuildId: 'build', semanticRevision: revision },
+const world = revision => ({ generation: { baseBuildId: 'build-' + revision, semanticRevision: 0 },
   repositoryNamespace: 'repo', contextKey: 'config' });
 const row = (supportId, multiplicity = '1', from = 'a', to = 'b') => ({
   occurrenceId: 'occurrence:' + supportId, supportId, from, to, multiplicity, sourceRef: 'source:' + supportId });
