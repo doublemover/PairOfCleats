@@ -41,6 +41,45 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
   assert.deepEqual(exits, [130]);
 }
 {
+  const jobDone = deferred(), calls = [], exits = [];
+  const shutdown = createSupervisorShutdown({ state: { jobs: new Map([
+    ['first', { id: 'first', settlement: jobDone.promise }],
+    ['second', { id: 'second', settlement: Promise.resolve() }]
+  ]) },
+  stopMetrics: () => { throw Object.assign(new Error('metrics failed'), { code: 'ERR_METRICS' }); },
+  cancelJob: async id => { calls.push(['cancel', id]); if (id === 'first') await jobDone.promise; },
+  closeOwners: () => { calls.push('owners'); throw Object.assign(new Error('registry failed'), { code: 'ERR_REGISTRY' }); },
+  output: { drain: async () => { calls.push('drain'); throw Object.assign(new Error('pipe failed'), { code: 'EPIPE' }); } },
+  recorder: { finalize: () => calls.push('recording') }, exit: code => exits.push(code) });
+  const pending = shutdown('stdin_closed', 0);
+  await turn();
+  assert.deepEqual(calls.slice(0, 2), [['cancel', 'first'], ['cancel', 'second']],
+    'an unfinished cancellation does not prevent the next admitted job from receiving cancellation');
+  assert.equal(calls.includes('owners'), true);
+  assert.equal(calls.includes('drain'), false, 'registry failure cannot bypass actual admitted job settlement');
+  assert.deepEqual(exits, []);
+  jobDone.resolve();
+  const result = await pending;
+  assert.deepEqual(result.failures, [
+    { owner: 'metrics', code: 'ERR_METRICS' },
+    { owner: 'owner-registry', code: 'ERR_REGISTRY' },
+    { owner: 'event-transport', code: 'EPIPE' }
+  ]);
+  assert.deepEqual(calls.slice(-2), ['drain', 'recording'], 'failed transport still permits final recording');
+  assert.equal(result.transport.complete, false);
+  assert.equal(result.settled, false);
+  assert.deepEqual(exits, [1]);
+}
+{
+  const finalized = [];
+  const shutdown = createSupervisorShutdown({ state: { jobs: new Map() }, cancelJob: () => {}, closeOwners: () => ({}),
+    output: { drain: async () => null }, recorder: { finalize: reason => finalized.push(reason) }, exit: () => {} });
+  const result = await shutdown('shutdown', 0);
+  assert.deepEqual(result.failures, [{ owner: 'event-transport', code: 'ERR_TUI_OUTPUT_DRAIN' }]);
+  assert.deepEqual(finalized, ['shutdown']);
+  assert.equal(result.exitCode, 1, 'a missing drain receipt cannot become a successful flush');
+}
+{
   const shutdown = createSupervisorShutdown({ state: { jobs: new Map() }, cancelJob: () => {}, closeOwners: () => ({}),
     output: { drain: async () => ({ complete: true }) }, exit: () => {} });
   assert.throws(() => shutdown({ reason: 'invalid' }), { code: 'ERR_TUI_CANCEL_REASON' });

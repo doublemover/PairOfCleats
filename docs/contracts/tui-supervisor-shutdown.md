@@ -18,6 +18,10 @@ EOF, signals, native shutdown and stdout failure share one shutdown promise.
 Admission closes synchronously, only registered jobs are cancelled, and every
 session closer is attempted even when another fails. Shutdown awaits actual job
 and session owner promises before final event-log metadata and process exit.
+Metrics, owner-registry and transport failures use the same error aggregation;
+none skips the remaining known jobs or final recording. Every cancellation is
+issued before waiting for any one cancellation to finish. A failed registry
+cannot identify unknown session owners and is reported as incomplete settlement.
 An unfinished promise remains unfinished; an elapsed timeout cannot manufacture a
 closure receipt. The native lifetime owner retains its existing bounded platform
 containment fallback. Unknown database settlement retains canonical exclusion.
