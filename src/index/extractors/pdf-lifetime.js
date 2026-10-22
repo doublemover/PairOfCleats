@@ -73,11 +73,12 @@ export const createPdfExtractionLifetime = () => {
     let message = 'PDF extraction or disposal failed.';
     try { if (typeof first.message === 'string') message = first.message; } catch {}
     const failure = new AggregateError(errors.length ? errors : [first], message, { cause: first });
-    const reserved = new Set(['cause', 'errors', 'message', 'stack', 'cleanupErrors',
+    const reserved = new Set(['cause', 'errors', 'message', 'stack', 'cleanupErrors', 'retryable',
       'cacheOwnershipPending', 'cacheOwnershipReleased', 'pdfExtractionSession']);
     const descriptors = Object.getOwnPropertyDescriptors(first);
     for (const key of Reflect.ownKeys(descriptors)) if (!reserved.has(key)) Object.defineProperty(failure, key, descriptors[key]);
     Object.defineProperties(failure, { cleanupErrors: { value: Object.freeze([...cleanupErrors]) },
+      retryable: { value: false },
       cacheOwnershipPending: { get: () => !isSettled() }, cacheOwnershipReleased: { value: isSettled },
       pdfExtractionSession: { value: session } });
     failures.set(failure, session);

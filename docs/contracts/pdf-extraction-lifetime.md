@@ -24,6 +24,11 @@ Frozen extraction failures retain every independently attempted disposal failure
 Page work and page cleanup failures remain separate exact causes; cleanup cannot
 replace the original exception. The top-level PDF consumer propagates an owned
 pending lifetime instead of converting it into an ordinary skipped extraction.
+The retained failure explicitly forbids automatic operation retries, including
+the existing Stage1 queue and shard retry owners. A retryable primary cannot
+override this retirement policy or start a replacement extraction while original
+work remains pending. Recovery uses only that exact owner's disposal capability;
+ordinary independently retryable queue work retains its existing behavior.
 Settled unsupported/failed documents retain the existing permissive policy and
 failure-reason contracts. No successful text meaning or producer version changes.
 

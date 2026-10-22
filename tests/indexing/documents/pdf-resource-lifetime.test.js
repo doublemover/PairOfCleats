@@ -1,12 +1,15 @@
 // Actual PDF extraction/cleanup boundaries with inert resources; UNVALIDATED.
 import assert from 'node:assert/strict';
+import PQueue from 'p-queue';
+import { runWithQueue } from '../../../src/shared/concurrency/run-with-queue.js';
+import { runShardSubsetsWithRetry } from '../../../src/index/build/indexer/steps/process-files/ordering.js';
 import { readPdfPages } from '../../../src/index/extractors/pdf.js';
 import { createPdfExtractionLifetime, getPendingPdfExtractionOwners,
   isPendingPdfExtractionFailure } from '../../../src/index/extractors/pdf-lifetime.js';
 
 const policy = { maxPages: 2, extractTimeoutMs: 5000 }, source = Buffer.from('inert PDF bytes');
 const rejected = work => work.then(() => assert.fail('expected exact pending extraction error'), error => error);
-const original = Object.freeze(Object.assign(new Error('frozen original page failure'), { code: 'EIO' }));
+const original = Object.freeze(Object.assign(new Error('frozen original page failure'), { code: 'EIO', retryable: true }));
 const documentClose = Object.freeze(new Error('frozen document close failure'));
 const loadingClose = Object.freeze(new Error('frozen loading close failure'));
 const baseline = new Set(getPendingPdfExtractionOwners());
@@ -25,6 +28,32 @@ try {
   assert.equal(original.cleanupErrors, undefined, 'cleanup cannot mutate or mask a frozen primary');
   assert.equal(isPendingPdfExtractionFailure(failure), true);
   assert.equal(documentCloses, 1); assert.equal(loadingCloses, 1);
+  // Actual Stage1 queue retry semantics must not start another extraction while
+  // this exact resource owner is retained, even if the original page error
+  // advertised retryability. Only the explicit disposal capability may recover.
+  let extractionAttempts = 0, shardAttempts = 0;
+  const queuedFailure = await rejected(runShardSubsetsWithRetry({
+    workItems: [{ subsetId: 'retained-pdf' }], maxSubsetRetries: 2, retryDelayMs: 0,
+    executeWorkItem: async () => {
+      shardAttempts++;
+      await runWithQueue(new PQueue({ concurrency: 1 }), [source], async () => {
+        extractionAttempts++;
+        throw failure;
+      }, { retries: 2, retryDelayMs: 0 });
+    }
+  }));
+  assert.equal(queuedFailure, failure);
+  assert.equal(extractionAttempts, 1);
+  assert.equal(shardAttempts, 1);
+  assert.equal(failure.retryable, false);
+  assert.equal(original.retryable, true, 'retirement policy cannot mutate the original failure');
+  assert.equal(documentCloses, 1); assert.equal(loadingCloses, 1);
+  let ordinaryAttempts = 0;
+  assert.deepEqual(await runWithQueue(new PQueue({ concurrency: 1 }), [source], async () => {
+    if (++ordinaryAttempts === 1) throw new Error('ordinary independently retryable operation');
+    return 'recovered';
+  }, { retries: 2, retryDelayMs: 0 }), ['recovered']);
+  assert.equal(ordinaryAttempts, 2, 'ordinary queue retry behavior remains covered');
   doc.destroy = () => assert.fail('document retry keeps original method');
   loading.destroy = () => assert.fail('loading retry keeps original method');
   allowClose = true;
