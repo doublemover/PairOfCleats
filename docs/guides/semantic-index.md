@@ -712,3 +712,14 @@ surface says `parse=disabled`. Settings are resolved at startup; there is no
 supported live config reload. Changing this admission policy requires a new run,
 with `--incremental` and the same source/cache/content inputs to reuse durable
 completions. See the [eight-slot receipt](../archived/stage1-concurrency-2026-10-11.md).
+
+Semantic-find pages reuse verified operation/node/query-index readers within one
+logical request. Admission retains at most four piece-reader pairs and 1 MiB of
+snapshot/block-digest storage (including reserved large-reader scratch), plus at
+most sixteen bounded selector-range metadata entries. Candidate refs are fetched
+in batches of at most 32 and records remain incrementally hydrated under the
+existing response/work limits. Rejected candidates advance only their processed
+offsets. A continuation stores generation/scope/offset facts, never file handles
+or verification certificates. Every new page/request rehashes current content;
+all admitted readers settle before the request returns or throws. This source
+change has no new production timing or memory measurement qualification.

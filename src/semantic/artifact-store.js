@@ -23,6 +23,17 @@ const error = (message) => Object.assign(new Error(message), { code: 'ERR_SEMANT
 const CONTENT_BOUNDARY_VALIDATIONS = new Map();
 const MAX_CONTENT_BOUNDARY_VALIDATIONS = 256;
 const READ_SCOPES = new AsyncLocalStorage();
+const MAX_SCOPED_READERS = 4;
+const MAX_SCOPED_READER_BYTES = 1024 * 1024;
+const READER_BLOCK_BYTES = 64 * 1024;
+const retainedReaderBytes = piece => {
+  const offsetsBytes = piece.count * 8;
+  if (piece.bytes <= READER_BLOCK_BYTES && offsetsBytes <= READER_BLOCK_BYTES) return piece.bytes + offsetsBytes;
+  // Large readers retain block digests, not their full payload. Reserve scratch
+  // as well, independently of positioned read/response allocation bounds.
+  return 2 * READER_BLOCK_BYTES
+    + (Math.ceil(piece.bytes / READER_BLOCK_BYTES) + Math.ceil(offsetsBytes / READER_BLOCK_BYTES)) * 32;
+};
 
 const assertSemanticPartPath = (relativePath) => {
   if (typeof relativePath !== 'string' || relativePath.includes('\\') || relativePath.includes(':')
@@ -47,8 +58,8 @@ export const resolveSemanticPartPath = async (root, relativePath) => {
 /**
  * Artifact backend for completed staging/published descriptors. Publication must
  * validate all parts first. Persistent caches contain validation metadata only.
- * A logical read scope retains the common query-index probe; related-page reads
- * retain three additional owners within the existing four-pair bound.
+ * A logical read scope shares up to four verified piece pairs across operation,
+ * node and query-index reads, with a separate 1-MiB retention admission budget.
  */
 export const createArtifactSemanticStore = ({
   root, repoRoot, artifactSurfaceVersion, generation, partitions, completedTasks = [],
@@ -127,12 +138,26 @@ export const createArtifactSemanticStore = ({
     }
   };
   const readPieceRows = async (piece, indexes, { signal = null, ...options } = {}) => {
+    const scope = currentReadScope();
+    const charge = retainedReaderBytes(piece);
+    if (scope && !scope.readers.has(piece) && scope.readers.size < MAX_SCOPED_READERS
+      && scope.readerBytes + charge <= MAX_SCOPED_READER_BYTES) {
+      scope.readerBytes += charge;
+      // Admission precedes async open so concurrent probes share this exact
+      // verified owner and cannot exceed the reader or retention budgets.
+      scope.readers.set(piece, openVerifiedPieceReader(piece, signal));
+    }
+    if (scope?.readers.has(piece)) {
+      return (await scope.readers.get(piece)).readRows(indexes, { ...options, signal });
+    }
     const reader = await openVerifiedPieceReader(piece, signal);
     try { return await reader.readRows(indexes, { ...options, signal }); }
     finally { await reader.close(); }
   };
   const withReadScope = async run => {
-    const scope = { owner: scopeOwner, readers: new Map(), closed: false };
+    if (currentReadScope()) return run();
+    const scope = { owner: scopeOwner, readers: new Map(), readerBytes: 0,
+      operationRanges: new Map(), closed: false };
     try { return await READ_SCOPES.run(scope, run); }
     finally {
       scope.closed = true;
@@ -331,18 +356,19 @@ export const createArtifactSemanticStore = ({
       else { piece = candidate; break; }
     }
     if (!piece) throw error('Query index row out of range.');
-    // The first midpoint is shared by every binary search on this page. Keep
-    // that one owner for the logical query; other probes remain local so an
-    // earlier owner's range does not displace a later owner's useful probes.
-    if (scope && !scope.readers.size) scope.readers.set(piece, openVerifiedPieceReader(piece, signal));
-    const owners = scope?.readers.has(piece) ? scope.readers : readers;
-    if (!owners.has(piece) && owners.size < (scope ? 3 : 4)) {
-      owners.set(piece, openVerifiedPieceReader(piece, signal));
-    }
     const indexes = [ordinal - piece.firstRow], options = { maxBytes: maxRecordBytes, metrics, signal };
-    const [row] = owners.has(piece)
-      ? await (await owners.get(piece)).readRows(indexes, options)
-      : await readPieceRows(piece, indexes, { ...options, signal });
+    let values;
+    if (scope) {
+      values = await readPieceRows(piece, indexes, options);
+    } else {
+      if (!readers.has(piece) && readers.size < MAX_SCOPED_READERS) {
+        readers.set(piece, openVerifiedPieceReader(piece, signal));
+      }
+      values = readers.has(piece)
+        ? await (await readers.get(piece)).readRows(indexes, options)
+        : await readPieceRows(piece, indexes, options);
+    }
+    const [row] = values;
     assertQueryIndexRow(row);
     if (compareQueryIndexRows(row, piece.firstKey) < 0 || compareQueryIndexRows(row, piece.lastKey) > 0) throw error('Query index key range mismatch.');
     return row;
@@ -431,6 +457,6 @@ export const createArtifactSemanticStore = ({
       throw error('Retained semantic source hash or length mismatch.');
     }
   };
-  return { withReadScope, findOperations: createArtifactOperationReader({ index: operationIndex, inventory, generation, readPieceRows }), backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
+  return { withReadScope, findOperations: createArtifactOperationReader({ index: operationIndex, inventory, generation, readPieceRows, getReadScope: currentReadScope }), backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
 
 };

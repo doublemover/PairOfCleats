@@ -7,7 +7,7 @@ export const validateOperationSelector = (selector, offset, limit) => {
     || typeof selector.value !== 'string' || !selector.value.length || selector.value.length > 4096
     || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 128) throw new TypeError('Invalid operation selector or page allowance.');
 };
-export const createArtifactOperationReader = ({ index, inventory, generation, readPieceRows }) => {
+export const createArtifactOperationReader = ({ index, inventory, generation, readPieceRows, getReadScope = () => null }) => {
   let checked = false;
   return async (selector, { offset = 0, limit = 128, signal = null } = {}) => {
     validateOperationSelector(selector, offset, limit); throwIfAborted(signal);
@@ -41,7 +41,16 @@ export const createArtifactOperationReader = ({ index, inventory, generation, re
         if(comparison<0 || upper && comparison===0) low=mid+1; else high=mid; }
       return low;
     };
-    const start=await bound(false),end=await bound(true),refs=[];
+    const ranges = getReadScope()?.operationRanges;
+    const rangeKey = canonicalSemanticJson(selector);
+    let range = ranges?.get(rangeKey);
+    if (!range) {
+      range = (async () => ({ start: await bound(false), end: await bound(true) }))();
+      // At most sixteen 4-KiB selector identities per logical scope; this is
+      // request-local metadata, never a persisted verification certificate.
+      if (ranges && ranges.size < 16) ranges.set(rangeKey, range);
+    }
+    const { start, end } = await range, refs = [];
     if(offset>end-start) throw new Error('Operation cursor exceeds selected inventory.');
     for(let ordinal=start+offset;ordinal<Math.min(end,start+offset+limit);ordinal++) {
       const row=await read(ordinal); if(row.field!==selector.field || row.value!==selector.value) throw new Error('Operation selector mismatch.'); refs.push(row.ref);
