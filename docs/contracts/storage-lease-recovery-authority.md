@@ -45,3 +45,11 @@ Unsealed records that never yielded a known handle remain protected evidence.
 The authored partial-admission fixture denies a later root, injects an actual
 earlier metadata unlink failure, checks later cleanup and exact retry, and retains
 the normal subsequent-admission positive. It is unexecuted.
+
+If the new lease itself cannot be removed after observing cleanup/delegation
+exclusion, its actual admitting owner retains a process-local failed-admission
+capability. Serialized or copied properties cannot recreate that capability.
+The outer storage session adopts this exact last lease even though acquisition
+threw before returning normally. Its rollback attempts all earlier admissions;
+unknown metadata never becomes an inferred owner. Authored direct/outer refusal,
+unlink failure, exact retry and forged/copy refusal controls remain unexecuted.

@@ -13,6 +13,7 @@ const held = new Map();
 const scoped = new Map();
 const handoffs = new WeakMap();
 const delegated = new Map();
+const failedAdmissions = new WeakMap();
 let exitHookInstalled = false;
 
 const installExitHook = () => {
@@ -27,6 +28,25 @@ const installExitHook = () => {
     }
   });
 };
+
+const scopedLeaseHandle = lease => {
+  scoped.set(lease.file, lease);
+  installExitHook();
+  let released = false;
+  const handle = { root: lease.paths.root, leaseId: lease.payload.lockId,
+    release: () => {
+      if (released) return true;
+      if (!removeLockFileSyncIfOwned(lease.file, lease.payload)) return false;
+      released = true;
+      scoped.delete(lease.file);
+      return true;
+    } };
+  Object.defineProperty(handle, 'released', { get: () => released });
+  return Object.freeze(handle);
+};
+
+/** Only the actual failed admission can yield this process-local capability. */
+export const getFailedRepoCacheAccessLease = error => failedAdmissions.get(error) || null;
 
 export const repoAccessPaths = (repoCacheRoot, { coordinationRoot = null } = {}) => {
   const root = toRealPathSync(repoCacheRoot);
@@ -68,6 +88,27 @@ const createAccessLease = (paths, options = {}) => {
       catch (error) { if (primary) primary.cleanupError = error; else throw error; }
     }
   } else fs.writeFileSync(file, JSON.stringify(payload), { flag: 'wx' });
+  const lease = { file, payload, paths, suspended: false };
+  const refuse = primary => {
+    if (removeLockFileSyncIfOwned(file, payload)) throw primary;
+    const handle = scopedLeaseHandle(lease);
+    const cleanupError = Object.assign(new Error('The newly admitted cache lease could not be removed after refusal.'), {
+      code: 'ERR_REPO_CACHE_ADMISSION_RELEASE_PENDING', leaseId: payload.lockId
+    });
+    const failure = new AggregateError([primary, cleanupError], 'Cache admission and exact lease rollback failed.', { cause: primary });
+    if (typeof primary?.code === 'string') failure.code = primary.code;
+    let observe = null, originalPending = false;
+    try { observe = primary?.cacheOwnershipReleased; originalPending = primary?.cacheOwnershipPending === true || typeof observe === 'function'; }
+    catch { originalPending = true; }
+    failure.cacheOwnershipPending = true;
+    failure.cacheOwnershipReleased = () => {
+      if (!handle.released) return false;
+      try { return !originalPending || typeof observe === 'function' && observe.call(primary) === true; } catch { return false; }
+    };
+    Object.defineProperty(failure, 'repoCacheAccessLease', { value: handle });
+    failedAdmissions.set(failure, handle);
+    throw failure;
+  };
   // A collector creates its exclusion lock BEFORE inspecting leases. Therefore
   // either it observes our lease, or we observe its lock before touching data.
   if (fs.existsSync(paths.lockPath)) {
@@ -75,21 +116,20 @@ const createAccessLease = (paths, options = {}) => {
     // Recheck before stale-parent recovery, not only before collection. A
     // delegated child outlives the parent's PID and must keep readers fenced.
     try { assertNoRepoCacheDelegation(paths); }
-    catch (error) { removeLockFileSyncIfOwned(file, payload); throw error; }
+    catch (error) { refuse(error); }
     if (isKnownRepoAccessOwner(owner) && isLocalProcessDefinitelyDead(owner.pid)) {
       removeLockFileSyncIfOwned(paths.lockPath, owner);
     }
   }
   if (fs.existsSync(paths.lockPath)) {
-    removeLockFileSyncIfOwned(file, payload);
-    throw Object.assign(new Error('Repository cache cleanup is in progress; retry after cleanup completes.'), {
+    refuse(Object.assign(new Error('Repository cache cleanup is in progress; retry after cleanup completes.'), {
       code: 'ERR_REPO_CACHE_CLEANUP_BUSY'
-    });
+    }));
   }
   try { assertNoRepoCacheDelegation(paths); }
-  catch (error) { removeLockFileSyncIfOwned(file, payload); throw error; }
+  catch (error) { refuse(error); }
   installExitHook();
-  return { file, payload, paths, suspended: false };
+  return lease;
 };
 
 export const retainRepoCacheAccess = (repoCacheRoot, options = {}) => {
@@ -113,16 +153,7 @@ export const acquireRepoCacheAccessLease = (repoCacheRoot, options = {}) => {
     code: 'ERR_REPO_CACHE_ACCESS_SUSPENDED'
   });
   const lease = createAccessLease(paths, options);
-  scoped.set(lease.file, lease);
-  let released = false;
-  return Object.freeze({ root: paths.root, leaseId: lease.payload.lockId,
-    release: () => {
-      if (released) return true;
-      if (!removeLockFileSyncIfOwned(lease.file, lease.payload)) return false;
-      released = true;
-      scoped.delete(lease.file);
-      return true;
-    } });
+  return scopedLeaseHandle(lease);
 };
 
 /** Suspend new local admissions before draining handles; the exact lease stays

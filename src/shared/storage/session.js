@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { acquireRepoCacheAccessLease } from '../cache/repo-access.js';
+import { getFailedRepoCacheAccessLease } from '../cache/repo-access-reader.js';
 import { assertNoSymlinkPath } from '../contained-file.js';
 import { isPathWithinRoot } from '../file-paths.js';
 
@@ -104,6 +105,8 @@ export const acquireStorageSession = ({ roots, coordinationRoot, authorizedRoots
   } catch (error) {
     // No asset work has started, but each admitted metadata lease still needs
     // exact removal. Attempt all and retain the partial owner if any fail.
+    const refusedLease = getFailedRepoCacheAccessLease(error);
+    if (refusedLease) leases.push(refusedLease);
     try { session.releaseAfterSettlement({ resourceId, settled: true, pending: false }); }
     catch (cleanupError) { throw retainSessionFailure(asError(error), cleanupError, session); }
     throw error;
