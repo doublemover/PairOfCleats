@@ -3,6 +3,7 @@ import { clamp } from './utils.js';
 import { toArray } from '../../../shared/iterables.js';
 import { configureWireMaterial } from './materials.js';
 import { parseEndpointKey, selectionEndpointMatcher } from './selection-endpoints.js';
+import { markInstanceRange } from './rendering/attribute-ranges.js';
 
 const formatPrimitive = (value) => {
   if (value === null || value === undefined || value === '') return 'None';
@@ -312,7 +313,7 @@ const setMemberInstanceTint = (memberId, color) => {
   if (!ref || !ref.mesh || ref.instanceId == null) return;
 
   ref.mesh.setColorAt(ref.instanceId, color);
-  if (ref.mesh.instanceColor) ref.mesh.instanceColor.needsUpdate = true;
+  markInstanceRange(ref.mesh.instanceColor,ref.instanceId,3,state.renderUpdateMetrics||(state.renderUpdateMetrics={}));
 };
 
 const setFileInstanceTint = (fileKey, color) => {
@@ -320,7 +321,7 @@ const setFileInstanceTint = (fileKey, color) => {
   const ref = state.fileInstanceByKey?.get(fileKey) || null;
   if (!ref || !ref.mesh || ref.instanceId == null) return;
   ref.mesh.setColorAt(ref.instanceId, color);
-  if (ref.mesh.instanceColor) ref.mesh.instanceColor.needsUpdate = true;
+  markInstanceRange(ref.mesh.instanceColor,ref.instanceId,3,state.renderUpdateMetrics||(state.renderUpdateMetrics={}));
 };
 
 const resetMemberInstanceHighlights = () => {
@@ -448,7 +449,7 @@ const highlightEdgeInstance = (mesh, index, color) => {
   if (!mesh || !mesh.isInstancedMesh) return;
   if (typeof mesh.setColorAt === 'function') {
     mesh.setColorAt(index, color);
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    markInstanceRange(mesh.instanceColor,index,3,state.renderUpdateMetrics||(state.renderUpdateMetrics={}));
   }
 };
 
@@ -633,6 +634,7 @@ export const applyHighlights = () => {
 };
 
 export const setSemanticSelection = (candidate, hit = null) => {
+  state.viewRevisions?.bump('selection');
   const info = candidate && state.sourceIndex ? state.sourceIndex.resolve(candidate) : candidate;
   state.selected = info ? hit : null;
   state.selectedInfo = info || null;

@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import { createSourceIndex } from '../../src/map/isometric/client/source-index.js';
+import { planSourceResidency } from '../../src/map/isometric/client/data/residency.js';
+import { buildStackModel } from '../../src/map/isometric/client/stack-model.js';
+import { createViewRevisions } from '../../src/map/isometric/client/data/revisions.js';
+import { createRendererBoundary } from '../../src/map/isometric/client/rendering/boundary.js';
+
+const source={nodes:Array.from({length:2000},(_,i)=>({path:`g/${i}.ts`,members:Array.from({length:i===1999?10001:2},(_,j)=>({id:`opaque:${i}:😀:${j}`,name:`m${j}`}))})),edges:[]};
+const edge={from:{member:'opaque:1999:😀:10000'},to:{member:'opaque:0:😀:1'},type:'call'};source.edges.push(edge);
+const index=createSourceIndex(source);
+const plan=planSourceResidency(index,{type:'member',id:'opaque:1999:😀:10000'},{files:2,membersPerFile:20,members:40,edges:10});
+assert.equal(plan.nodes[0].path,'g/1999.ts');assert.ok(plan.nodes[0].members.some(member=>member.id==='opaque:1999:😀:10000'));
+assert.ok(plan.nodes.length<=2);assert.ok(plan.coverage.resident.members<=40);
+assert.equal(index.files.size,2000);assert.equal(index.members.size,13999);assert.strictEqual(plan.edges[0],edge);
+assert.equal(plan.coverage.queryExpanded,false);assert.equal(plan.coverage.available.files,2000);
+assert.throws(()=>planSourceResidency(index,{type:'member',id:'opaque:1999:😀:10000'},{files:0}),/cannot admit/);
+assert.throws(()=>planSourceResidency(index,{type:'member',id:'opaque:1999:😀:10000'},{membersPerFile:0}),/cannot admit/);
+const memberAbsent={from:{member:'opaque:1999:😀:9999'},to:{member:'opaque:0:😀:1'},type:'usage'};
+const model=buildStackModel(plan.nodes,[edge,memberAbsent],{maxFiles:2,maxMembers:40,maxEdges:10,fileByMember:index.fileByMember});
+assert.equal(model.levels.stacks.length,2,'file-level aggregation retains exact relations to nonresident member detail');
+assert.equal(model.levels.segments.length,1,'nonresident members do not receive fabricated fine-detail anchors');
+assert.equal(model.coverage.nonresidentMemberEdges,1);assert.strictEqual(model.levels.stacks[1].evidence[0],memberAbsent);
+const revisions=createViewRevisions(source);let release,commits=0,retired=0;
+const boundary=createRendererBoundary({capabilities:{},prepare:()=>new Promise(resolve=>{release=()=>resolve({});}),commit:()=>commits++,retire:()=>retired++});
+const operation=revisions.begin('reveal',['source','selection']);const pending=boundary.transact(operation,{});
+revisions.bump('selection');release();assert.equal((await pending).committed,false);assert.equal(commits,0);assert.equal(retired,1);
+boundary.dispose();revisions.dispose();
+console.log('Source identities beyond old prefixes reveal through bounded windows; stale scene candidates never publish.');

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { MAP_MODEL_VERSION } from '../../src/map/constants.js';
 import { runMapPreview } from '../../tools/analysis/map-iso-preview.js';
+import { MAP_DATA_PROTOCOL } from '../../src/map/isometric/client/data/protocol.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-preview-snapshot-'));
 const inputPath = path.join(root, 'saved 日本語.json');
@@ -19,6 +20,12 @@ try {
   assert.equal(first.ready.identity.kind, 'saved-snapshot');
   assert.equal(first.ready.sourceNavigation.available, false);
   assert.match(before, /first.ts/);
+  const snapshotConfig=JSON.parse(before.match(/<script type="application\/json" id="viewer-config">([\s\S]*?)<\/script>/)[1]).snapshotData;
+  const snapshotRequest={protocol:MAP_DATA_PROTOCOL,snapshot:snapshotConfig.snapshot,request:1,revision:0,kind:'files',cursor:0,limit:80};
+  const snapshotUrl=new URL(snapshotConfig.endpoint,first.ready.url);
+  assert.equal((await fetch(snapshotUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshotRequest)})).status,403);
+  const firstPage=await fetch(snapshotUrl,{method:'POST',headers:{'Content-Type':'application/json','X-Map-Session':snapshotConfig.token},body:JSON.stringify(snapshotRequest)}).then(response=>response.json());
+  assert.equal(firstPage.snapshot,first.ready.snapshotSha256);assert.equal(firstPage.rows[0].path,'first.ts');assert.equal(firstPage.total,1);
   await fs.writeFile(inputPath, JSON.stringify(model('second.ts')));
   second = await runMapPreview({ input: inputPath, 'no-open': true }, { stdout: sink, stderr: sink });
   assert.equal(await fetch(first.ready.url).then(response => response.text()), before, 'earlier listener retains its committed document');

@@ -9,6 +9,7 @@ import { updatePerfStats } from './telemetry.js';
 import { createHoverFrame } from './hover-frame.js';
 import { createRenderLoop } from './render-loop.js';
 import { createViewportInputOwner } from './input-ownership.js';
+import { pickResidentScene, retirePicking } from './rendering/picking-owner.js';
 
 export const initControls = () => {
   state.disposeControls?.();
@@ -25,6 +26,7 @@ export const initControls = () => {
     inputOwner?.dispose();
     for (const remove of listeners.splice(0)) remove();
     hover?.dispose();
+    retirePicking();
     if (state.disposeControls === dispose) state.disposeControls = null;
     if (state.invalidateHover === invalidateHover) state.invalidateHover = null;
     if (state.invalidateRender === invalidateRender) state.invalidateRender = null;
@@ -59,8 +61,10 @@ export const initControls = () => {
     const targets = state.pickTargets || (state.pickTargets = []);
     targets.length = 0;
 
-    const fileVisible = state.fileGroup?.visible !== false;
-    const memberVisible = state.memberGroup?.visible !== false;
+    // Stack index keeps every resident object. Visibility is evaluated at query
+    // time so hiding a group never removes its geometry from the next query.
+    const fileVisible = state.layoutStyle === 'stacks' || state.fileGroup?.visible !== false;
+    const memberVisible = state.layoutStyle === 'stacks' || state.memberGroup?.visible !== false;
 
     if (fileVisible) {
       targets.push(...toArray(state.fileInstancedMeshes));
@@ -70,7 +74,7 @@ export const initControls = () => {
     if (memberVisible) {
       for (const mesh of toArray(state.memberInstancedMeshes)) {
         // Cluster culling toggles parent visibility.
-        if (mesh?.parent?.visible !== false) targets.push(mesh);
+        if (state.layoutStyle === 'stacks' || mesh?.parent?.visible !== false) targets.push(mesh);
       }
       // Legacy (non-instanced) members.
       targets.push(...toArray(state.memberMeshes));
@@ -78,6 +82,9 @@ export const initControls = () => {
 
     return targets;
   };
+  const pick = () => state.layoutStyle === 'stacks'
+    ? pickResidentScene(raycaster, pointer, fillPickTargets)
+    : raycaster.intersectObjects(fillPickTargets(), false);
 
   // Cluster / frustum culling for member instances (updates group.visible in batches).
   const cullFrustum = new THREE.Frustum();
@@ -157,7 +164,7 @@ export const initControls = () => {
     pointer.y = ndc.y;
     raycaster.setFromCamera(pointer, camera);
 
-    const hits = raycaster.intersectObjects(fillPickTargets(), false);
+    const hits = pick();
     setSelection(hits.length ? hits[0] : null);
   };
 
@@ -166,6 +173,7 @@ export const initControls = () => {
   let lastPointer = { x: 0, y: 0 };
 
   const startDrag = (event) => {
+    state.pickFence?.cancel();
     cancelMotion();
     dragging = true;
     hover.move(event);
@@ -210,7 +218,7 @@ export const initControls = () => {
     pointer.x = ndc.x;
     pointer.y = ndc.y;
     raycaster.setFromCamera(pointer, camera);
-    const hits = raycaster.intersectObjects(fillPickTargets(), false);
+    const hits = pick();
     const nextHover = hits.length ? hits[0] : null;
     const prev = state.hovered;
     const same =
@@ -237,8 +245,9 @@ export const initControls = () => {
   listen(window, 'pointermove', moveDrag);
   listen(window, 'pointerup', endDrag);
   listen(renderer.domElement, 'pointerleave', endDrag);
-  listen(renderer.domElement, 'pointermove', (event) => { hover.move(event); invalidateRender(); });
+  listen(renderer.domElement, 'pointermove', (event) => { state.pickFence?.cancel(); hover.move(event); invalidateRender(); });
   listen(renderer.domElement, 'pointerleave', () => {
+    state.pickFence?.cancel();
     hover.leave();
     invalidateRender();
   });
@@ -261,7 +270,7 @@ export const initControls = () => {
 
   const velocity = new THREE.Vector2(0, 0);
   let zoomVelocity = 0;
-  const cancelMotion = () => { velocity.set(0,0); zoomVelocity=0; endDrag(); };
+  const cancelMotion = () => { state.pickFence?.cancel(); velocity.set(0,0); zoomVelocity=0; endDrag(); };
   inputOwner=createViewportInputOwner({ viewport:dom.app, canvas:renderer.domElement, window, document,
     cancelMotion, invalidate:invalidateRender, shortcut:event=>{
       if(state.layoutStyle!=='stacks'||!['KeyF','Home','Escape','Enter'].includes(event.code))return false;
@@ -338,6 +347,7 @@ export const initControls = () => {
     ||(state.gridLines?.visible!==false&&state.gridLineMaterials.length>0&&visuals.gridPulseSpeed>0));
   let fpsState = { start: lastTime, frames: 0 };
   const cameraSnapshot = new Float64Array(32).fill(NaN);
+  let cameraSeen=false;
   let fileVisibleSnapshot, memberVisibleSnapshot;
   const refreshHoverCamera = () => {
     camera.updateMatrixWorld();
@@ -349,7 +359,13 @@ export const initControls = () => {
     }
     if (fileVisibleSnapshot !== state.fileGroup?.visible || memberVisibleSnapshot !== state.memberGroup?.visible) changed = true;
     fileVisibleSnapshot = state.fileGroup?.visible; memberVisibleSnapshot = state.memberGroup?.visible;
-    if (changed) invalidateHover();
+    if (changed) {
+      invalidateHover();
+      state.cameraRevision=(state.cameraRevision||0)+1;
+      state.pickFence?.cancel();
+      if(cameraSeen)state.viewRevisions?.bump('camera');
+    }
+    cameraSeen=true;
   };
   const animate = (now, {continuous}) => {
     if (disposed) return;

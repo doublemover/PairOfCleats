@@ -75,7 +75,7 @@ function setPipeRows(layer,rows){
 }
 export function buildStackPipes(){
   const {THREE,stackModel:model}=state;state.stackPipeLayers=[];state.stackVisibilityKey=null;
-  const types=[...new Set(state.edges.map(row=>row.type||'unknown'))].sort();state.edgeTypes=types;
+  const types=[...new Set((state.residentEdges||state.edges).map(row=>row.type||'unknown'))].sort();state.edgeTypes=types;
   for(const type of types){
     const group=new THREE.Group();group.visible=state.edgeVisibility.get(type)!==false;state.edgeGroup.add(group);state.edgeTypeGroups.set(type,group);
     for(const level of ['pipeline','stacks','segments']){
@@ -116,7 +116,10 @@ export function updateStackVisibility(force=false){
       layer.mesh.geometry=layer.fullGeometry;layer.mesh.userData.ownedGeometries.add(layer.fullGeometry);
       layer.geometryRows=layer.rows;layer.model=state.stackModel;layer.scale=state.scaleFactor||1;
     }
-    const topologyRows=projectPipeRows(layer.rows,{level:layer.level,tier,selected,allConnections:state.stackAllConnections===true});
+    const adjacent=tier==='segments'&&selected&&state.stackAllConnections!==true
+      ? state.stackModel.adjacency?.[tier]?.get(JSON.stringify([selected.type==='member'?'member':'file',selected.type==='member'?String(selected.id):selected.file])) : null;
+    const sourceRows=adjacent?adjacent.filter(row=>row.type===layer.type):layer.rows;
+    const topologyRows=projectPipeRows(sourceRows,{level:layer.level,tier,selected,allConnections:state.stackAllConnections===true});
     setPipeRows(layer,topologyRows);
     const rows=state.edgeGroup.visible&&layer.mesh.parent?.visible!==false&&state.edgeVisibility.get(layer.type)!==false?topologyRows:[];
     admitted+=rows.length;represented+=rows.reduce((sum,row)=>sum+row.count,0);
@@ -126,5 +129,5 @@ export function updateStackVisibility(force=false){
   state.stackVisibleRows=visibleRows;
   state.viewerCoverage=projectViewerCoverage(state,{pipes:admitted,relations:represented});
   const omitted=state.stackModel.coverage;
-  const status=document.getElementById('stack-status');if(status){status.textContent=`${tier} · ${admitted} visible pipes / ${represented} source relations · drawn ${state.drawCounts.files} files / ${state.drawCounts.members} members · draw omitted ${omitted.omittedFiles} files / ${omitted.omittedMembers} members / ${omitted.omittedEdges} edges · ${omitted.unresolvedEdges} unresolved · available snapshot only`;status.title=JSON.stringify(state.viewerCoverage);}
+  const status=document.getElementById('stack-status');if(status&&!state.preparingScene){status.textContent=`${tier} · ${admitted} visible pipes / ${represented} source relations · drawn ${state.drawCounts.files} files / ${state.drawCounts.members} members · draw omitted ${omitted.omittedFiles} files / ${omitted.omittedMembers} members / ${omitted.omittedEdges} edges · ${omitted.unresolvedEdges} unresolved · ${omitted.nonresidentMemberEdges||0} relations await resident member detail · available snapshot only`;status.title=JSON.stringify(state.viewerCoverage);}
 }

@@ -12,7 +12,7 @@ export const pinMapViewerAssets = async (toolRoot, threeUrl = '/three/three.modu
   const origin = 'http://127.0.0.1';
   const three = new URL(threeUrl, origin);
   if (three.origin !== origin || !resolveMapViewerAsset(toolRoot, three.pathname)) throw new Error('Preview --three-url must resolve to a supported local asset route.');
-  const queue = [{ route: '/isomap/viewer.js', required: true },
+  const queue = [{ route: '/isomap/viewer.js', required: true },{ route:'/isomap/data/graph-worker.js',required:true },
     ...[three.pathname, '/three/examples/jsm/lines/LineSegments2.js', '/three/examples/jsm/lines/LineSegmentsGeometry.js',
       '/three/examples/jsm/lines/LineMaterial.js', '/three/examples/jsm/loaders/RGBELoader.js',
       '/assets/isomap/normal.jpg', '/assets/isomap/moonless_golf_2k.hdr'].map(route => ({ route, required: false }))];

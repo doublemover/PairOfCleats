@@ -12,6 +12,8 @@ import { readSavedMap } from './map-saved-input.js';
 import { pinMapViewerAssets } from './map-viewer-session-assets.js';
 import { createMapPreferenceStore } from './map-viewer-preferences.js';
 import { VIEWER_SETTINGS_MAX_BYTES } from '../../src/map/isometric/client/effective-settings.js';
+import { createMapSnapshotTransport } from './map-snapshot-transport.js';
+import { SNAPSHOT_PAGE_LIMITS } from '../../src/map/isometric/client/data/protocol.js';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 export const openMapPreviewBrowser = (url, { platform = process.platform, spawnImpl = spawn, warn = console.error } = {}) => {
@@ -33,7 +35,7 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
   const onAbort = () => controller.abort(signal?.reason);
   signal?.addEventListener('abort', onAbort, { once: true });
   if (signal?.aborted) onAbort();
-  let server, session, temporaryOutput = null, closed = false;
+  let server, session, temporaryOutput = null, closed = false, snapshotTransport=null,activeSnapshotRequests=0;
   const onSignal = () => { controller.abort(); close().catch(error => stderr.write(`${error.message}\n`)); };
   const close = async () => {
     if (closed) return;
@@ -43,6 +45,7 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
     signal?.removeEventListener('abort', onAbort);
     if (server?.listening) await new Promise((resolve, reject) => { server.close(error => error ? reject(error) : resolve()); server.closeAllConnections(); });
     session?.assets.clear();
+    snapshotTransport?.dispose();
   };
   controller.signal.addEventListener('abort', () => { if (server?.listening) close().catch(error => stderr.write(`${error.message}\n`)); }, { once: true });
   process.once('SIGINT', onSignal); process.once('SIGTERM', onSignal);
@@ -88,9 +91,11 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
     const sourceNavigation = { available: sourceAvailable, reason: sourceAvailable ? null : 'Original source checkout unavailable; recorded evidence remains inspectable.' };
     const viewerConfig = argv.input ? {} : input.model.viewer || {};
     const preferences=preferenceStore?{endpoint:'/map-preferences',repoId:preferenceStore.repoId,token:sessionToken}:null;
+    snapshotTransport=createMapSnapshotTransport({model:input.model,snapshotId:input.sha256,identity});
+    const snapshotData={endpoint:'/map-snapshot',snapshot:input.sha256,token:sessionToken};
     const html = Buffer.from(renderIsometricHtml({ mapModel: input.model, threeUrl,
       openUriTemplate: sourceAvailable ? argv['open-uri-template'] || '' : '', viewerConfig: { ...viewerConfig, threeUrl,
-        sourceNavigation,preferences,openUriTemplate: sourceAvailable ? argv['open-uri-template'] || '' : '' } }));
+        sourceNavigation,preferences,snapshotData,openUriTemplate: sourceAvailable ? argv['open-uri-template'] || '' : '' } }));
     if (html.length > 40 * 1024 * 1024) throw new Error('Rendered saved map exceeds the preview document budget.');
     session = { ...pinned, html, documentSha256: digest(html), snapshotSha256: input.sha256, identity };
     controller.signal.throwIfAborted();
@@ -99,6 +104,22 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
     const handleRequest = async(request, response) => {
       const pathname = decodePathnameSafe(new URL(request.url || '/', 'http://127.0.0.1').pathname);
       if (pathname == null) { response.writeHead(400); response.end('Malformed request path.'); return; }
+      if(pathname==='/map-snapshot'){
+        const reply=(status,bytes)=>{response.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Map-Snapshot':session.snapshotSha256});response.end(bytes);};
+        if(request.headers['x-map-session']!==sessionToken){reply(403,JSON.stringify({error:'Pinned viewer session token required.'}));return;}
+        if(request.method!=='POST'){reply(405,JSON.stringify({error:'POST required.'}));return;}
+        if(!/^application\/json(?:;|$)/i.test(request.headers['content-type']||'')){reply(415,JSON.stringify({error:'JSON request required.'}));return;}
+        if(activeSnapshotRequests>=SNAPSHOT_PAGE_LIMITS.inFlight){reply(429,JSON.stringify({error:'Snapshot response queue is full.'}));return;}
+        activeSnapshotRequests++;
+        try{
+          const chunks=[];let length=0;
+          for await(const chunk of request){length+=chunk.length;if(length>SNAPSHOT_PAGE_LIMITS.requestBytes){reply(413,JSON.stringify({error:'Snapshot request exceeds its byte budget.'}));return;}chunks.push(chunk);}
+          controller.signal.throwIfAborted();
+          reply(200,snapshotTransport.respond(JSON.parse(Buffer.concat(chunks,length).toString('utf8'))));
+        }catch(error){if(!response.writableEnded)reply(400,JSON.stringify({error:error.message}));}
+        finally{activeSnapshotRequests--;}
+        return;
+      }
       if(pathname==='/map-preferences'){
         if(!preferenceStore||request.headers['x-map-session']!==sessionToken){response.writeHead(403);response.end('No selected-repository preference authority for this request.');return;}
         const reply=(status,body)=>{response.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});response.end(JSON.stringify(body));};

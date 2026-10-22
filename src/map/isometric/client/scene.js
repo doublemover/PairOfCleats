@@ -3,6 +3,7 @@ import { numberValue } from './utils.js';
 import { toArray } from '../../../shared/iterables.js';
 import { createEnvironmentOwner } from './environment-owner.js';
 import { clearGroup } from './scene-utils.js';
+import { retirePicking } from './rendering/picking-owner.js';
 
 export const initScene = async () => {
   state.disposeScene?.();
@@ -109,6 +110,8 @@ export const initScene = async () => {
   const lost = event => {
     event.preventDefault();
     state.contextLost=true;
+    state.cancelResidentPreparation?.();
+    retirePicking();
     state.cancelCameraMotion?.();
     state.onRendererStatus?.('3D context lost. Source evidence remains available; waiting for restoration.');
   };
@@ -126,6 +129,7 @@ export const initScene = async () => {
     renderer.domElement.removeEventListener('webglcontextlost',lost);
     renderer.domElement.removeEventListener('webglcontextrestored',restored);
     state.disposeControls?.();
+    state.disposeResidency?.();
     if (state.rebuildTimer) clearTimeout(state.rebuildTimer);
     state.rebuildTimer = null;
     environment.dispose();

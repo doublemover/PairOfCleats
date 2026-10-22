@@ -7,8 +7,11 @@ import { buildMeshes } from './meshes.js';
 import { buildEdges } from './edges.js';
 import { applyHighlights, renderSelectionDetails, setSelection, setSemanticSelection } from './selection.js';
 import { applyViewerAppearance } from './appearance.js';
+import { retirePicking } from './rendering/picking-owner.js';
 
 const resetScene = () => {
+  retirePicking();
+  state.geometryRevision=(state.geometryRevision||0)+1;
   state.invalidateHover?.();
   clearGroup(state.fileGroup);
   clearGroup(state.memberGroup);
@@ -87,6 +90,7 @@ export const scheduleRebuild = (delay = 180) => {
 };
 
 export const rebuildScene = () => {
+  state.cancelResidentPreparation?.();
   if (typeof state.syncStateFromPanel === 'function') {
     state.syncStateFromPanel();
   }

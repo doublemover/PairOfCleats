@@ -38,12 +38,38 @@ export function initStackNavigation(){
   const tree=document.getElementById('stack-tree'),filter=document.getElementById('stack-search'),back=document.getElementById('stack-back'),forward=document.getElementById('stack-forward');
   if(!tree)return;
   state.sourceNavigationInitialized=true;
-  let history=[],at=-1,replaying=false,treeOffset=0;
+  let history=[],at=-1,replaying=false,treeOffset=0,queryEpoch=0,searchController=null;
+  const renderWorkerTree=async query=>{
+    const epoch=++queryEpoch;searchController?.abort();searchController=new AbortController();
+    try{
+      const result=await state.graphWorkerClient.request('search',{query,cursor:treeOffset,limit:80,entityType:query?null:'file'},
+        {revision:epoch,signal:searchController.signal});
+      if(epoch!==queryEpoch||!state.graphWorkerReady)return;
+      tree.replaceChildren();
+      for(const info of result.rows){
+        if(info.type==='member'){tree.append(makeButton(`${info.file} / ${info.name||info.id}`,()=>navigateStack(info)));continue;}
+        const group=document.createElement('details'),summary=document.createElement('summary');summary.textContent=`${info.file} · ${info.memberCount} available segments`;group.append(summary);
+        group.append(makeButton('Inspect / focus stack',()=>navigateStack(info)));
+        let loaded=false;
+        group.addEventListener('toggle',()=>{if(!group.open||loaded)return;loaded=true;const members=state.sourceIndex.files.get(info.file)?.members||[];let offset=0;
+          const more=makeButton('More segments',append);
+          function append(){more.remove();for(const member of members.slice(offset,offset+40))group.append(makeButton(`${member.name||member.id} · ${member.kind||member.type||'unknown'}`,()=>navigateStack({type:'member',file:info.file,id:member.id,name:member.name,range:member.range})));offset+=40;if(offset<members.length)group.append(more);}
+          append();});
+        tree.append(group);
+      }
+      const pager=document.createElement('nav');pager.setAttribute('aria-label','Pinned worker query results');
+      pager.append(document.createTextNode(`${result.total?treeOffset+1:0}–${treeOffset+result.rows.length} of ${result.total??'unknown'} matching available ${query?'entities':'files'}. `));
+      if(treeOffset>0)pager.append(makeButton('Previous results',()=>{treeOffset=Math.max(0,treeOffset-80);renderTree();}));
+      if(result.next!==null)pager.append(makeButton('Next results',()=>{treeOffset=result.next;renderTree();}));
+      tree.append(pager);
+    }catch(error){if(error.name!=='AbortError'&&epoch===queryEpoch){state.graphWorkerError=error.message;state.graphWorkerReady=false;renderTree();}}
+  };
   const renderTree=()=>{
-    tree.replaceChildren();const query=filter.value.trim().toLowerCase();let admitted=0;
+    const query=filter.value.trim().toLowerCase();if(state.graphWorkerReady){renderWorkerTree(query);return;}
+    queryEpoch++;searchController?.abort();tree.replaceChildren();let admitted=0;
     for(const file of state.sourceIndex?.files.values()||state.files||[]){
       const members=file.members||[],match=(file.path||file.name||'').toLowerCase().includes(query);
-      const hits=members.filter(member=>`${member.name} ${member.kind||member.type} ${member.id}`.toLowerCase().includes(query));
+      const hits=query&&!match?members.filter(member=>`${member.name} ${member.kind||member.type} ${member.id}`.toLowerCase().includes(query)):[];
       if(query&&!match&&!hits.length)continue;const ordinal=admitted++;if(ordinal<treeOffset||ordinal>=treeOffset+80)continue;
       const group=document.createElement('details'),summary=document.createElement('summary');summary.textContent=`${file.path||file.name} · ${members.length} segments`;group.append(summary);
       group.append(makeButton('Focus stack',()=>navigateStack({type:'file',file:file.path||file.name,name:file.name})));
@@ -64,6 +90,7 @@ export function initStackNavigation(){
     const file=state.sourceIndex?.files.get(info.file)||state.nodeByPath?.get(info.file),source=info.type==='member'?state.sourceIndex?.members.get(String(info.id))?.member||(file?.members||[]).find(row=>String(row.id)===String(info.id)):file;
     if(state.config.openUriTemplate)state.dom.selectionBody.append(makeButton('Open inspected source',openSelection));
     else if(state.config.sourceNavigation?.available===false)state.dom.selectionBody.append(document.createTextNode(state.config.sourceNavigation.reason));
+    if(!state.selectionFocusAvailable&&state.revealSourceSelection)state.dom.selectionBody.append(makeButton('Reveal in bounded render working set',()=>state.revealSourceSelection(info)));
     if(source){const all=document.createElement('details'),title=document.createElement('summary');title.textContent='All source fields · lazy inspector';all.append(title);let loaded=false;all.addEventListener('toggle',()=>{if(all.open&&!loaded){loaded=true;all.append(inspectValue(source));}});state.dom.selectionBody.append(all);}
     const heading=document.createElement('h3');heading.textContent='Directed relationships · admitted scope';state.dom.selectionBody.append(heading);
     const touches=selectionEndpointMatcher(info,{fileByMember:state.sourceIndex?.fileByMember||state.fileByMember});
@@ -108,4 +135,6 @@ export function initStackNavigation(){
   };
   const legend=document.getElementById('stack-legend');for(const [kind,value] of Object.entries(STACK_KINDS)){const item=document.createElement('span');item.dataset.stackKind=kind;item.textContent=`${value.shape==='circle'?'●':value.shape==='pyramid'?'▲':'■'} ${value.label}`;item.style.color=value.color;legend.append(item);}
   state.refreshStackNavigation=renderTree;renderTree();
+  state.onSourceQueryReady=()=>{treeOffset=0;renderTree();};
+  state.onSourceQueryFailure=()=>{treeOffset=0;renderTree();};
 }

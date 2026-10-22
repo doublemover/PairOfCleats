@@ -23,6 +23,9 @@ import { applyDisplayLimits } from './display-limits.js';
 import { initViewerShell } from './workspace-shell.js';
 import { loadViewerSettingsSession } from './settings-client.js';
 import { applyViewerAppearance, initAppearanceEditor } from './appearance.js';
+import { initResidencyOwner } from './data/residency-owner.js';
+import { rendererCapabilities } from './rendering/boundary.js';
+import { initSnapshotData } from './data/session-owner.js';
 
 const initViewer = async () => {
   const loaded=loadDomConfig();
@@ -30,6 +33,7 @@ const initViewer = async () => {
   const shell=initViewerShell(state,document);
   Object.assign(state,{rawMap,map:rawMap,dom,config:loaded.config,THREE:null});
   initMapData();initStackNavigation();
+  initSnapshotData(loaded.config.snapshotData);
   dom.summary.textContent=`Available snapshot: ${state.sourceIndex.counts.files} files / ${state.sourceIndex.counts.members} members / ${state.sourceIndex.counts.edges} edges. Source browser ready.`;
   const settingsSession=await loadViewerSettingsSession(loaded.config,{onStatus:value=>shell.setSaveStatus(value)});
   const config=settingsSession.effective(loaded.config.layout?.style||'stacks');
@@ -156,6 +160,7 @@ const initViewer = async () => {
   renderSummary();
 
   state.applyDisplayLimitsFromPanel = (options = {}) => {
+    state.resetResidency?.();
     const overrides = state.panelState?.performance?.displayLimits || state.displayLimits || {};
     const next = applyDisplayLimits(state.rawMap, overrides);
     state.map = next.map;
@@ -175,6 +180,7 @@ const initViewer = async () => {
   state.onRendererStatus=message=>{dom.summary.textContent=message;dom.summary.append(retry);};
   state.rebuildAfterContextRestore=()=>{rebuildScene();initControls();renderSummary();};
   state.applyViewerSettings=fresh=>{
+    state.resetResidency?.();
     Object.assign(state.layout,{...layoutDefaults,...fresh.layout});
     Object.assign(state.scoring,{...scoringDefaults,...fresh.scoring});
     Object.assign(state.colors,{...colorDefaults,...fresh.colors});
@@ -202,10 +208,12 @@ const initViewer = async () => {
       applyViewerAppearance(state,state.appearance||config.appearance);
       initAppearanceEditor(state,document,dom.menuVisuals);
       initControls();
+      initResidencyOwner();
       state.scheduleRebuild=scheduleRebuild;
       renderSummary();
     } catch(error) {
       state.disposeScene?.();
+      state.rendererCapabilities=rendererCapabilities({sourceOnly:true});
       dom.summary.textContent=`3D unavailable: ${error.message}. Source hierarchy and inspection remain usable.`;
       dom.summary.append(retry);
     }

@@ -75,3 +75,55 @@ intended source admission architecture. Modern spatial draw packets, scalable
 picking, width-capable physical paths, capture/refraction, incremental buffers and
 worker-owned progressive source data remain separate uncompleted obligations in
 the updated #729/#734/#742/#1302/#1367/#1296/#1297/#1381 contracts.
+
+The source-only progressive slice now gives an explicitly selected identity
+priority in a bounded render working set. Member pages can reach beyond initial
+display prefixes; the canonical saved-payload inventory and adjacency remain
+unchanged. Detached preparation preserves the prior scene until a source/layout/
+residency/selection/camera-qualified transaction commits. A failed or superseded
+candidate retires only its own allocations. File-level pipes can retain exact
+relations whose member detail is nonresident; fine-detail anchors are never
+invented. A zero effective budget fails with an actionable explanation.
+
+Stack picking uses a resident-object spatial broad phase followed by exact Three
+geometry/instance testing. The index belongs to the source and geometry revision;
+visibility is checked on each query, and a bounded traversal overflow falls back
+to exact resident testing. Result fences include source, slot/geometry revision,
+camera, viewport/DPR and latest pointer request. Legacy layouts keep their prior
+exact target path. Candidate upper bounds are separate from unavailable exact
+instance-test counts. Selected instance colors request changed attribute ranges;
+the counters describe requested bytes, not observed driver uploads.
+
+The renderer boundary exposes capabilities independently of measured acceptance.
+No new backend or spatial batch size is selected by this slice. Worker transport,
+whole-snapshot overview/proxy loading, spatial packet adoption and browser latency,
+GPU resources and culling/overlap qualification remain partial or deferred.
+
+Local preview sessions now offer a token-qualified `/map-snapshot` endpoint over
+the same immutable admitted map. It preserves the selected manifest/producer when
+known, source revision as unknown when unavailable, upstream drops and export-only
+coverage. It is a consumption view, not another index service or a way around
+artifact admission. Responses are at most 256 KiB, requests 16 KiB, two in flight,
+and rows at most 256 per page. A row too large for a page fails explicitly; it is
+not truncated. Cursors continue exact source order, and every result carries
+protocol, snapshot, request and revision. Session retirement releases its indexes.
+
+A module worker builds compact file/member/directed-adjacency/search rows from
+these pages, keeping rich fields in the session's lazy detail operation. It reports
+a manifest overview before row loading and publishes a new accepted store only
+after exact continuation succeeds. Failed replacement retains the prior store;
+teardown aborts fetches, messages, queries and owned maps. The current retention
+budget counts compact wire bytes (32 MiB), not measured heap. Source IDs retain
+their types and punctuation; row indices and render slots are local addresses.
+Search computes bounded pages cooperatively in the worker, and source navigation
+uses it once ready. It falls back to the retained compatibility source after a
+worker failure. Progressive layout also runs in that worker and reconnects exact
+original evidence objects before committing its bounded scene transaction.
+
+The preview still parses and retains the admitted compatibility artifact on the
+server and embeds it for the eager client fallback. The new worker store therefore
+adds a retained representation in this migration stage. Manifest-first rendered
+overview, demand-driven compact-page eviction, indexed substring acceleration,
+streaming canonical artifact ingestion and retirement of eager paths are open;
+this slice does not establish bounded total heap or complete-index consumption.
+No browser/worker-host or latency/resource acceptance has been run.
