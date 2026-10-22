@@ -165,6 +165,8 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
           payload.workflow = { observed: false, errorCode: String(error.code || 'ERR_TUI_WORKFLOW_OBSERVATION') };
         }
       }
+      if (job.nativeTaskStarted) emit('task:end', { taskId: 'native-owner', status: payload.status,
+        message: 'Owned workflow execution settled.' }, { jobId });
       finalizeJob(job, payload);
     };
 
@@ -276,7 +278,11 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
           ? await execute({ signal: job.abortController.signal, env, cwd,
             onSpawn: spawnOptions.onSpawn, onActivity: payload => {
               job.status = 'running';
-              markActivity(); emit('job:progress', payload, { jobId });
+              markActivity();
+              if (!job.nativeTaskStarted) {
+                job.nativeTaskStarted = true;
+                emit('task:start', { taskId: 'native-owner', status: 'running', ...payload }, { jobId });
+              } else emit('task:progress', { taskId: 'native-owner', status: 'running', ...payload }, { jobId });
             } })
           : await spawnSubprocess(command, args, spawnOptions);
 

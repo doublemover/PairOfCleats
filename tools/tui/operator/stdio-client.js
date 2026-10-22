@@ -14,7 +14,7 @@ export const createOwnedStdioClient = ({ command, args, cwd, env, signal, onSpaw
     || !Number.isSafeInteger(maxBytes) || maxBytes < 1024 || maxBytes > MAX_BYTES) throw new TypeError('Invalid client bounds.');
   const controller = new AbortController();
   const pending = new Map();
-  let writer = null, nextId = 1, closed = false, failure = null, writes = 0;
+  let writer = null, nextId = 1, closed = false, failure = null, writes = 0, opening = 0;
   let resolveReady, rejectReady;
   const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
   // A caller can close before awaiting readiness; still observe the rejection.
@@ -92,7 +92,16 @@ export const createOwnedStdioClient = ({ command, args, cwd, env, signal, onSpaw
   const request = async (method, params = {}, { signal: requestSignal, timeoutMs = 10000 } = {}) => {
     if (typeof method !== 'string' || !/^[a-zA-Z0-9_/$.-]{1,80}$/.test(method)
       || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) throw new TypeError('Invalid protocol request.');
-    await ready;
+    if (Buffer.byteLength(JSON.stringify({ jsonrpc: '2.0', id: nextId, method, params })) > maxBytes) {
+      throw fault('ERR_TUI_STDIO_ADMISSION', 'The protocol request exceeds its byte bound.');
+    }
+    if (pending.size + opening >= maxPending) throw fault('ERR_TUI_STDIO_ADMISSION', 'The protocol request bound was reached.');
+    if (requestSignal?.aborted) throw fault('ABORT_ERR', 'Request cancelled.');
+    opening += 1;
+    const beforeReadyAbort = () => stop(fault('ABORT_ERR', 'Request cancelled before child startup settled.'));
+    requestSignal?.addEventListener('abort', beforeReadyAbort, { once: true });
+    try { await ready; }
+    finally { opening -= 1; requestSignal?.removeEventListener('abort', beforeReadyAbort); }
     if (requestSignal?.aborted) throw fault('ABORT_ERR', 'Request cancelled.');
     if (closed || controller.signal.aborted) throw failure || fault('ERR_TUI_STDIO_CLOSED', 'The protocol is closed.');
     if (pending.size >= maxPending) throw fault('ERR_TUI_STDIO_ADMISSION', 'The protocol request bound was reached.');
@@ -118,5 +127,5 @@ export const createOwnedStdioClient = ({ command, args, cwd, env, signal, onSpaw
   const dispose = async () => { stop(fault('ERR_TUI_STDIO_DISPOSED', 'The session closed.')); return completion; };
   return { ready, request, completion, dispose,
     status: () => ({ connected: !closed && Boolean(writer) && !controller.signal.aborted,
-      pending: pending.size, maxPending, failureCode: failure?.code || null }) };
+      pending: pending.size, opening, maxPending, failureCode: failure?.code || null }) };
 };

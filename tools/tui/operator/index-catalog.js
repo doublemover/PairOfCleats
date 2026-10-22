@@ -18,7 +18,7 @@ const OWNED_FIELDS = new Set(['repo', 'workspace', 'root', 'json', 'progress', '
   'auth-token', 'allow-unauthenticated', 'cors-allow-any', 'allowed-repo-roots', 'cache-root', 'allow-unmarked-cache', 'non-interactive']);
 const REQUEST_COMMANDS = new Set(['semantic.detail', 'semantic.trace', 'semantic.find', 'semantic.explain',
   'runtime.lookup', 'runtime.families', 'runtime.compare', 'runtime.claims']);
-const TEXT_COMMANDS = new Set(['service.api', 'sqlite.compact', 'lmdb.build']);
+const TEXT_COMMANDS = new Set(['sqlite.compact', 'lmdb.build']);
 // These CLI owners validate presence after parsing rather than demandOption.
 // Native forms require the same inputs before offering a launch token.
 const REQUIRED_INPUTS = {
@@ -195,6 +195,6 @@ export const buildIndexWorkflowArgv = (command, values, scope, { env = process.e
   if (command.registryId === 'service.mcp') argv.push('--mcp-mode=legacy');
   if (['index.build', 'index.watch', 'workspace.build'].includes(command.registryId)) {
     argv.push('--progress=jsonl');
-  } else if (command.capture !== 'text' && !command.requestFile && !['report.eval', 'service.mcp'].includes(command.registryId)) argv.push('--json');
+  } else if (command.capture !== 'text' && !command.requestFile && !['report.eval', 'service.mcp', 'service.api'].includes(command.registryId)) argv.push('--json');
   return argv;
 };

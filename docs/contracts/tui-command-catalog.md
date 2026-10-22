@@ -49,9 +49,14 @@ environment or configuration handoff. Setup completion separately observes the
 actual bootstrap verifier and runs canonical tooling doctor; failed, missing or
 incomplete verification cannot become ready merely because installation exited.
 
-API launch is fixed to `127.0.0.1`, reports the canonical startup output, and uses
+API launch is fixed to `127.0.0.1`, verifies the canonical startup identity, and uses
 the supervisor's exact job/process identity and existing cancellation/shutdown
-owner. A running PID does not establish endpoint health. MCP uses a session-owned
+owner. After this exact child reports its listen event, a bounded two-second,
+8 KiB request to its fixed loopback `/health` path records endpoint health. It
+admits no redirects or producer-supplied URL. An occupied-port startup cannot
+probe an unrelated listener as if owned; startup failures stay failures. Private
+API token environment handoff is reused without putting credentials in records.
+A running PID does not establish endpoint health. MCP uses a session-owned
 client attached to the canonical legacy framed server; initialize and bounded
 tools/list responses establish protocol health only. It admits no arbitrary tool
 calls or external server attachments. The bounded transport retains cancellation
@@ -64,7 +69,8 @@ configuration with 1–32 inline, existing registered repositories, all enabled
 members of that workspace. Its exact config, queue directory and membership
 identities are reviewed and rechecked. A trusted predicate under the claim lock
 selects only ordinary index jobs for those repositories, leaving foreign and
-custom-argv jobs unchanged. Native cancellation stops only this worker's claims
+custom-argv jobs unchanged even during claim-side duplicate suppression. Admission
+must synchronously return a boolean before any queued-job mutation. Native cancellation stops only this worker's claims
 and executions and awaits canonical settlement; it never writes global service
 shutdown/resume state. Embedding queues, sync/clone, enqueue and recovery of
 unrelated abandoned claims remain outside this adapter.
@@ -92,7 +98,9 @@ backend qualification continues to require its separate explicit CLI plan.
 
 Native fields use the supplied schema for literal strings, numeric JSON, enum
 cycling, boolean toggles and bounded string-array item addition; `e` retains an
-advanced JSON editor. `false`, `0`, `null` and unset are distinct values. Settings
+advanced JSON editor. Supplied numeric/string/array bounds and a bounded list of
+enum choices appear beside the selected field and editor. These hints do not
+coerce drafts or replace canonical validation. `false`, `0`, `null` and unset are distinct values. Settings
 Delete is an explicit remove operation through the existing schema/revision/
 scope-bound preview and atomic commit; it is not a JSON null sentinel.
 
@@ -101,3 +109,6 @@ visibility, failed ownership admission, typed values, inert paste and source
 identity. None have been executed in this development span. Actual native
 keyboard/request/supervisor/result, frame, ConPTY, cancellation and platform
 acceptance remain deferred; this document is not a qualification receipt.
+Source-only fixtures also cover pre-startup protocol admission, canonical task
+activity events, API startup/occupied-port isolation, private semantic
+continuations, exact storage plans and scoped queue cancellation/suppression.

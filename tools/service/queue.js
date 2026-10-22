@@ -539,12 +539,13 @@ const suppressQueuedDuplicateJob = (job, { at, duplicateOfJob, reason }) => {
   return job;
 };
 
-const suppressClaimSideDuplicates = (queue, claimedJob, nowIso) => {
+const suppressClaimSideDuplicates = (queue, claimedJob, nowIso, admittedJobs = null) => {
   if (!claimedJob?.idempotencyKey) return 0;
   const suppressed = [];
   for (const entry of queue.jobs) {
     if (entry.id === claimedJob.id) continue;
     if (entry.status !== 'queued') continue;
+    if (admittedJobs && !admittedJobs.has(entry)) continue;
     if (!queueJobsShareIdempotency(entry, claimedJob)) continue;
     const updated = suppressQueuedDuplicateJob(entry, {
       at: nowIso,
@@ -1155,6 +1156,14 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
       && queue.jobs.filter(entry => entry.status === 'running').length >= Math.max(0, runningLimit)) {
       return null;
     }
+    // Evaluate every trusted scope predicate before modifying any queued job.
+    // Claim-side duplicate suppression must obey the same ownership boundary.
+    const admittedJobs = options.admitJob ? new Set(queue.jobs.filter(entry => {
+      if (entry.status !== 'queued') return false;
+      const admitted = options.admitJob(entry);
+      if (typeof admitted !== 'boolean') throw new TypeError('Queue claim admission must return a boolean.');
+      return admitted;
+    })) : null;
     const now = Date.now();
     const nowIso = new Date(now).toISOString();
     const journalEntries = [];
@@ -1165,7 +1174,7 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
       // Trusted embedded workers can restrict their ownership while this claim
       // lock is held. Rejected jobs retain their state and duplicate metadata.
       // The predicate is a source callback, never a serialized queue option.
-      if (options.admitJob && !options.admitJob(entry)) continue;
+      if (admittedJobs && !admittedJobs.has(entry)) continue;
       if (entry.idempotencyKey) {
         const runningDuplicate = runningDuplicateFor(entry);
         if (runningDuplicate?.status === 'running') {
@@ -1228,7 +1237,7 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
     });
     recordProgress(job, { at: nowIso, kind: 'claim', note: 'lease-acquired' });
     recordTransition(job, previousStatus, 'running', 'claim', nowIso);
-    const suppressedDuplicates = suppressClaimSideDuplicates(queue, job, nowIso);
+    const suppressedDuplicates = suppressClaimSideDuplicates(queue, job, nowIso, admittedJobs);
     for (const suppressed of suppressedDuplicates) {
       journalEntries.push(buildJournalEntry({
         eventType: 'duplicate-suppressed',

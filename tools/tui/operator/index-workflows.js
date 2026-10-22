@@ -32,6 +32,7 @@ import { createTuiMcpClients } from './mcp-client.js';
 import { createTuiSemanticPages, SEMANTIC_PAGED_COMMANDS } from './semantic-pages.js';
 import { prepareTuiStorage, NATIVE_STORAGE_COMMANDS } from './storage.js';
 import { createTuiIndexer } from './indexer.js';
+import { createTuiApiServices } from './api-service.js';
 
 const MAX_REPOS = 32;
 const MAX_PLANS = 16;
@@ -105,6 +106,7 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
   const mcp = createTuiMcpClients({ toolRoot, requireScope });
   const semantic = createTuiSemanticPages({ toolRoot, requireScope, now });
   const indexer = createTuiIndexer({ toolRoot, requireScope, env });
+  const api = createTuiApiServices({ toolRoot, requireScope });
   const targets = (scope, values = {}) => {
     if (scope.kind === 'repo') return [scope.configRoot];
     const repos = loadWorkspaceConfig(scope.target).repos.filter(repo => values['include-disabled'] || repo.enabled);
@@ -292,7 +294,10 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
         operation: plan.command.id, correlation: { correlationId: jobId } })),
       resultPolicy: { captureStdout: BUILDERS.has(plan.command.registryId) ? 'text' : plan.command.capture || 'json', maxBytes: 768 * 1024 } }, {
       beforeRun: check,
-      ...(plan.storage ? { execute: plan.storage.execute } : plan.service ? { execute: plan.service.execute } : plan.command.registryId === 'service.mcp' ? {
+      ...(plan.storage ? { execute: plan.storage.execute } : plan.service ? { execute: plan.service.execute }
+        : plan.command.registryId === 'service.api' ? {
+          execute: context => api.run({ scope: plan.scope, jobId, argv: plan.argv }, context)
+        } : plan.command.registryId === 'service.mcp' ? {
         execute: context => mcp.run({ scope: plan.scope, jobId }, context)
       } : SEMANTIC_PAGED_COMMANDS.has(plan.command.registryId) ? {
         execute: async context => {
@@ -350,14 +355,14 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
     const scope = requireScope(request.scopeId);
     const publications = [];
     for (const repo of targets(scope)) publications.push(await observeIndexPublication(repo, loadUserConfig(repo, { env }), { signal }));
-    return { scope, publications, services: mcp.status(scope.id), indexers: indexer.status(scope.id),
+    return { scope, publications, services: [...mcp.status(scope.id), ...api.status(scope.id)], indexers: indexer.status(scope.id),
       continuations: semantic.status(scope.id) };
   };
   const next = async (request, context) => { assertTuiWorkflowRequest('next', request); return semantic.next(request, context); };
   const closeContinuation = async request => {
     assertTuiWorkflowRequest('close-continuation', request); return semantic.discard(request);
   };
-  const reset = async () => { plans.clear(); await Promise.all([mcp.dispose(), semantic.dispose(), indexer.dispose()]); };
+  const reset = async () => { plans.clear(); await Promise.all([mcp.dispose(), api.dispose(), semantic.dispose(), indexer.dispose()]); };
   return { describe, preview, launch, discard, status, next, 'close-continuation': closeContinuation, reset,
     dispose: async () => { disposed = true; await reset(); } };
 };

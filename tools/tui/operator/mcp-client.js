@@ -18,7 +18,9 @@ export const createTuiMcpClients = ({ toolRoot, requireScope, createClient = cre
     const client = createClient({ command: process.execPath,
       args: [path.join(toolRoot, 'tools/mcp/cli-entry.js'), '--mcp-mode=legacy', `--repo=${scope.configRoot}`],
       cwd: scope.configRoot, env, signal, onSpawn });
-    const entry = { client, scopeId: scope.id, jobId, phase: 'initializing', initialized: false,
+    let settle;
+    const settlement = new Promise(resolve => { settle = resolve; });
+    const entry = { client, settlement, scopeId: scope.id, jobId, phase: 'initializing', initialized: false,
       lastHealthAt: null, healthChecks: 0, toolCount: null };
     clients.set(jobId, entry);
     try {
@@ -53,12 +55,16 @@ export const createTuiMcpClients = ({ toolRoot, requireScope, createClient = cre
           healthChecks: entry.healthChecks, lastHealthAt: entry.lastHealthAt, stopped: true }), signal: result.signal };
     } finally {
       await client.dispose();
-      clients.delete(jobId);
+      clients.delete(jobId); settle();
     }
   };
   const status = scopeId => [...clients.values()].filter(entry => entry.scopeId === scopeId)
-    .map(({ client, scopeId: _scope, ...entry }) => ({ ...entry, ...client.status(),
+    .map(({ client, settlement: _settlement, scopeId: _scope, ...entry }) => ({ service: 'mcp', ...entry, ...client.status(),
       healthMeaning: 'Last initialize/tools-list response; no search, index or tool-execution readiness claim.' }));
-  const dispose = async () => { await Promise.all([...clients.values()].map(entry => entry.client.dispose())); };
+  const dispose = async () => {
+    const owned = [...clients.values()];
+    await Promise.all(owned.map(entry => entry.client.dispose()));
+    await Promise.all(owned.map(entry => entry.settlement));
+  };
   return { run, status, dispose };
 };

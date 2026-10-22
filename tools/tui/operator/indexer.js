@@ -78,6 +78,7 @@ export const createTuiIndexer = ({ toolRoot, requireScope, env = process.env,
     const prepared = capture();
     const command = values.command || 'status';
     const review = { command, queue: prepared.authority.queue.path, queueName: 'index',
+      executionMode: 'subprocess', daemonAttachment: false,
       configPath, configSha256: prepared.authority.configSha256, authorityIdentity: prepared.identity,
       repositories: prepared.authority.repos.map(repo => repo.path),
       concurrency: values.concurrency ?? 1, watch: command === 'work' && values.watch === true,

@@ -278,6 +278,9 @@ Indexer work requires a workspace and a contained service config whose inline
 registered repositories are all enabled members. Cancellation affects only its
 claimed executions. Storage cleanup apply reviews and retains the canonical
 exact plan; protected/incomplete plans stay blocked and existing leases apply.
+API status records a bounded loopback health response only after the owned
+child's verified listen event. MCP status verifies protocol initialize and tool
+inventory responses. Neither observation claims that a repository index is ready.
 Asset presence is distinct from provider initialization and inference qualification.
 Previews expire after five minutes, are usable once, and are rechecked before a
 child starts. Scope replacement, workspace membership changes, configuration

@@ -459,16 +459,18 @@ impl WorkflowUi {
             }
             Page::Fields => {
                 lines.push(format!("Typed form: {} | Enter literal | Space choice | e JSON | a item | Delete unset | p preview | Esc catalog", self.command.as_ref().and_then(|command| command["id"].as_str()).unwrap_or_default()));
-                let count = height.saturating_sub(lines.len() + 2).max(1); let start = self.selected.saturating_sub(count / 2).min(self.fields().len().saturating_sub(count));
+                let count = height.saturating_sub(lines.len() + 3).max(1); let start = self.selected.saturating_sub(count / 2).min(self.fields().len().saturating_sub(count));
                 lines.extend(self.fields().iter().enumerate().skip(start).take(count).map(|(i, field)| {
                     let name = field["name"].as_str().unwrap_or_default();
                     format!("{} {} ({}) = {}", if i == self.selected {">"} else {" "}, name, field["schema"]["type"].as_str().unwrap_or_default(), self.values.get(name).map(Value::to_string).unwrap_or_else(|| format!("unset; default {}", field["default"])))
                 }));
                 if let Some(field) = self.fields().get(self.selected) { lines.push(format!("{} | required: {}", field["description"].as_str().unwrap_or_default(), field["required"])); }
+                if let Some(field) = self.fields().get(self.selected) { lines.push(crate::text_editor::schema_hint(&field["schema"])); }
                 lines.push("Provider/mode and model assets use Settings and canonical build contracts; no separate embeddings command.".into());
             }
             Page::Edit => {
                 lines.push(format!("Edit {} | Ctrl+U clear | Enter applies | Esc discards | cursor/Home/End", if self.array_item { "array item" } else if self.advanced { "advanced JSON" } else { "schema literal" }));
+                if let Some(field) = self.fields().get(self.selected) { lines.push(crate::text_editor::schema_hint(&field["schema"])); }
                 let name = self.fields().get(self.selected).and_then(|field| field["name"].as_str()).unwrap_or_default();
                 return self.scroll.lines(lines, &format!("Field: {name}\n{}", self.cursor.visible(&self.draft, width)), height, width);
             }

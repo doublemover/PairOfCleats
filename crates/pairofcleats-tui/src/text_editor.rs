@@ -13,6 +13,22 @@ pub(crate) fn input_value(text: &str, schema: &Value, advanced: bool) -> Result<
     else { serde_json::from_str(text) }
 }
 
+/// Presentation only; canonical validation still decides what values are valid.
+pub(crate) fn schema_hint(schema: &Value) -> String {
+    let mut hints = Vec::new();
+    for (key, label) in [("minimum", ">="), ("maximum", "<="), ("exclusiveMinimum", ">"), ("exclusiveMaximum", "<")] {
+        if let Some(value) = schema.get(key).filter(|value| value.is_number()) { hints.push(format!("{label} {value}")); }
+    }
+    for (key, label) in [("minLength", "min chars"), ("maxLength", "max chars"), ("minItems", "min items"), ("maxItems", "max items")] {
+        if let Some(value) = schema.get(key).filter(|value| value.is_number()) { hints.push(format!("{label} {value}")); }
+    }
+    if let Some(choices) = schema["enum"].as_array() {
+        let visible = choices.iter().take(8).map(|value| value.to_string().chars().take(40).collect::<String>()).collect::<Vec<_>>().join(", ");
+        hints.push(format!("choices: {visible}{}", if choices.len() > 8 { " ..." } else { "" }));
+    }
+    if hints.is_empty() { "Canonical schema validates this value".into() } else { hints.join(" | ") }
+}
+
 pub(crate) fn next_choice(schema: &Value, current: Option<&Value>) -> Option<Value> {
     if let Some(choices) = schema["enum"].as_array().filter(|choices| !choices.is_empty()) {
         let index = current.and_then(|current| choices.iter().position(|value| value == current))
@@ -94,6 +110,17 @@ impl TextCursor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn schema_hints_show_supplied_ranges_and_bounded_choices_without_coercion() {
+        let range = schema_hint(&json!({"type":"integer","minimum":1,"maximum":5000}));
+        assert!(range.contains(">= 1")); assert!(range.contains("<= 5000"));
+        let choices: Vec<_> = (0..100).map(|value| json!(format!("choice-{value}"))).collect();
+        let hint = schema_hint(&json!({"enum":choices}));
+        assert!(hint.contains("choice-0")); assert!(hint.contains("choice-7"));
+        assert!(!hint.contains("choice-8")); assert!(hint.len() < 512);
+        assert_eq!(input_value("0", &json!({"type":"integer","minimum":1}), false).unwrap(), json!(0),
+            "the editor preserves the draft; canonical schema validation rejects its range later");
+    }
     #[test]
     fn schema_controls_preserve_literal_false_zero_null_and_unset_identity() {
         assert_eq!(input_value("false", &json!({"type":"string"}), false).unwrap(), json!("false"));

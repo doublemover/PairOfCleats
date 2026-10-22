@@ -200,7 +200,7 @@ pub(super) fn actions(model: &AppModel) -> Vec<PaletteAction> {
 pub(super) fn help_text(model: &AppModel) -> String {
     let context = match model.help_origin.unwrap_or(OverlayMode::None) {
         OverlayMode::Settings => "Settings: Enter literal; Space choice; e advanced JSON; a string-array item; Delete unset; Esc cancel/back.",
-        OverlayMode::IndexWorkflows => "Command workflows: arrows select; Enter form; p preview; Enter confirm; X experimental; Esc back.",
+        OverlayMode::IndexWorkflows => "Command workflows: arrows select; Enter form; p preview; Enter confirm; X experimental; t owned health/publication status; c owned job cancel; n semantic next; Esc disposes continuation/back.",
         OverlayMode::RepositorySearch => "Repository search: Tab fields; mode/backend arrows; Enter search/source; d diagnostics; o open preview; Esc back.",
         OverlayMode::JobInspection => "Inspection: 1/2/3 pages; arrows/page keys scroll; o open; y copy; e export; Esc back.",
         OverlayMode::Recordings => "Saved sessions: select directory/log; Enter load; Space replay; arrows step; Home/End seek; Esc detach.",

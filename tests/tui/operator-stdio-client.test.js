@@ -68,3 +68,22 @@ const fixture = () => {
   assert.equal(f.client.status().pending, 0);
 }
 console.log('Owned framed client bounds, cancellation capacity, protocol failure and disposal');
+
+{
+  let spawnInput;
+  const spawn = async (_command, _args, options) => {
+    spawnInput = options;
+    return new Promise(resolve => options.signal.addEventListener('abort', () => resolve({ exitCode: 130 }), { once: true }));
+  };
+  const client = createOwnedStdioClient({ command: 'fixture-pending-startup', args: [], spawn, maxPending: 1 });
+  const abort = new AbortController();
+  const request = client.request('page.open', {}, { signal: abort.signal });
+  const rejected = assert.rejects(request, { code: 'ABORT_ERR' });
+  await assert.rejects(client.request('page.open'), { code: 'ERR_TUI_STDIO_ADMISSION' });
+  await turn();
+  assert.equal(client.status().opening, 1, 'startup wait reserves admission before readiness');
+  abort.abort();
+  assert.equal(spawnInput.signal.aborted, true, 'pre-ready cancellation reaches the owned spawn admission');
+  await rejected; await client.completion;
+  assert.equal(client.status().opening, 0);
+}
