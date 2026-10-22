@@ -105,8 +105,8 @@ without implying those new requirements are satisfied. Storage/category, native,
 editor, provisioning, bounded discovery and durable viewer preference releases
 now have durable partial mappings. Shared sourceChunking6/compilerBindings18/lspBindings22, callFlow20, graphRelations1
 and discoverySelection2/signature14 identify that producer meaning. The later
-current source uses sourceChunking10/importResolution6/typeNormalization3,
-compilerBindings19/lspBindings30/cfgFlow19/callFlow22.
+current source uses sourceChunking10/importResolution6/typeNormalization4,
+compilerBindings19/lspBindings33/cfgFlow19/callFlow22.
 
 Earlier source checkpoints through 0500f370a cover bounded SQLite/LMDB and vector
 ingestion/finalizers, complete lexical reuse, selective BM25 hydration, immutable
@@ -123,7 +123,7 @@ unvalidated; public research integration, full provider onboarding, fine-grained
 resume, generic migration, native service/editor/model hosts, generated freshness,
 locked setup and representative resource/performance qualification remain open.
 
-Source continuations through e0c4ff524 retain actual native/model, PDF, map,
+Source continuations through ac9091018 retain actual native/model, PDF, map,
 FileHandle and directory owners through original cleanup and independent closure
 observations. Pending work cannot be erased by advisory flags, changed callbacks,
 recipe receipts or a completed bounded wait. Latest errors preserve exact recovery
@@ -141,13 +141,26 @@ unqualified. Earlier detailed source history is retained in the durable receipt.
 Actual JS/TS consumers share ECMAScript comment terminators; quoted type values
 survive parser, cache and source-preview normalization. Dynamic parameter names
 use own-data records through enrichment/public metadata, with inherited evidence
-rejected. Current sourceChunking10/importResolution6/typeNormalization3,
-compilerBindings19/lspBindings30/rq6/cfgFlow19/callFlow22 retire changed meaning.
+rejected. Current sourceChunking10/importResolution6/typeNormalization4,
+compilerBindings19/lspBindings33/rq8/cfgFlow19/callFlow22 retire changed meaning.
 Authored actual parser/cache/consumer and nested storage/queue regressions remain
 unrun. Full language/provider completeness, native/editor/browser/model hosts,
 generic migration, fine-grained resume, generated freshness, locked setup and
 representative resource/performance qualification remain open. All new source is
 unvalidated; no issue closure, current suite pass or measured speedup is claimed.
+
+The latest source adds generic output-tensor/pipeline ownership with private
+producer evidence, independent unknown-child blockers and original observer
+capture. Lifecycle close callers join one original flight and retain rejected
+outcomes. Falsey worker/release values keep exact lock causes. Scheduler evidence
+is admitted before fallible presentation. Windows prerequisite/capability owners
+reconcile original category metadata before apply locks; standalone official
+release redirects share the existing response owner. Quoted parameter/generic
+boundaries, Go struct tags, qualified type roots and iterative symbol projection
+reach actual provider consumers. Renderer transactions retain committed truth,
+independent cleanup failures and exact fallback/source publication fences.
+These authored contracts remain unvalidated;
+archive parser/writer lifecycle and full generic lock publication are still open.
 
 ## Environment and qualification boundaries
 
