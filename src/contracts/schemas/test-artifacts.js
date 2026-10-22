@@ -1,3 +1,22 @@
+const coverageChangedInventory = { type: 'array', items: {
+  type: 'object', additionalProperties: false,
+  required: ['path', 'status', 'reason', 'coveredRanges', 'totalRanges', 'coverageFraction'],
+  properties: { path: { type: 'string' }, status: { enum: ['observed', 'unobserved', 'deleted', 'absent', 'unsupported', 'excluded', 'unavailable'] },
+    reason: { type: ['string', 'null'] }, coveredRanges: { type: ['number', 'null'] },
+    totalRanges: { type: ['number', 'null'] }, coverageFraction: { type: ['number', 'null'] } }
+  , allOf: [{ if: { properties: { status: { const: 'observed' } } },
+    then: { properties: { coveredRanges: { type: 'number', minimum: 0 }, totalRanges: { type: 'number', exclusiveMinimum: 0 }, coverageFraction: { type: 'number', minimum: 0, maximum: 1 } } },
+    else: { properties: { coveredRanges: { const: null }, totalRanges: { const: null }, coverageFraction: { const: null } } } }]
+} };
+const coverageMeasurement = { type: 'object', additionalProperties: false,
+  required: ['changedFiles', 'eligibleFiles', 'measuredFiles', 'counts', 'status', 'denominator'],
+  properties: { changedFiles: { type: 'integer', minimum: 0 }, eligibleFiles: { type: 'integer', minimum: 0 },
+    measuredFiles: { type: 'integer', minimum: 0 }, denominator: { const: 'observed-ranges-only' },
+    status: { enum: ['complete', 'partial', 'unavailable', 'not-applicable'] },
+    counts: { type: 'object', required: ['observed', 'unobserved', 'deleted', 'absent', 'unsupported', 'excluded', 'unavailable'],
+      additionalProperties: { type: 'integer', minimum: 0 } } }
+};
+
 export const TEST_COVERAGE_ARTIFACT_SCHEMA = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   title: 'test-coverage-artifact',
@@ -28,6 +47,8 @@ export const TEST_COVERAGE_ARTIFACT_SCHEMA = {
         totalRanges: { type: 'number' }
       }
     },
+    exclusions: { type: 'array', items: { type: 'object', additionalProperties: false,
+      required: ['path', 'reason'], properties: { path: { type: 'string' }, reason: { type: 'string' } } } },
     entries: {
       type: 'array',
       items: {
@@ -63,7 +84,7 @@ export const TEST_COVERAGE_POLICY_REPORT_SCHEMA = {
     'policy'
   ],
   properties: {
-    schemaVersion: { type: 'number', const: 1 },
+    schemaVersion: { type: 'number', const: 2 },
     generatedAt: { type: 'string' },
     kind: { type: 'string', const: 'test-coverage-policy-report' },
     policyVersion: { type: 'string' },
@@ -84,8 +105,10 @@ export const TEST_COVERAGE_POLICY_REPORT_SCHEMA = {
     changedFiles: {
       type: 'object',
       additionalProperties: false,
-      required: ['available', 'strategy', 'baseRef', 'headRef', 'reason', 'summary', 'files'],
+      required: ['available', 'strategy', 'baseRef', 'headRef', 'reason', 'summary', 'files', 'inventory', 'measurement'],
       properties: {
+        inventory: coverageChangedInventory,
+        measurement: coverageMeasurement,
         available: { type: 'boolean' },
         strategy: { type: 'string' },
         baseRef: { type: ['string', 'null'] },
@@ -123,8 +146,10 @@ export const TEST_COVERAGE_POLICY_REPORT_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['id', 'label', 'patterns', 'summary', 'topUncoveredFiles'],
+        required: ['id', 'label', 'patterns', 'summary', 'topUncoveredFiles', 'changedInventory', 'measurement'],
         properties: {
+          changedInventory: coverageChangedInventory,
+          measurement: coverageMeasurement,
           id: { type: 'string' },
           label: { type: 'string' },
           patterns: {
