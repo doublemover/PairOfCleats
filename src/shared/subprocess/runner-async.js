@@ -117,6 +117,18 @@ const terminateAndRejectFactory = ({
   reject(error);
 };
 
+/**
+ * Spawn one owned executable with bounded capture and exact child-close evidence.
+ * Cancellation rejection can retain cleanup ownership: callers must preserve
+ * their leases while cacheOwnershipPending is true. Direct-child close never
+ * establishes arbitrary descendant quiescence. Callback hooks are synchronous.
+ *
+ * @param {string} command Executable, not shell text.
+ * @param {string[]} args
+ * @param {import('./types.js').SpawnSubprocessOptions} [options]
+ * @returns {Promise<import('./types.js').SubprocessResult>}
+ * @see docs/contracts/subprocess.md
+ */
 export function spawnSubprocess(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
