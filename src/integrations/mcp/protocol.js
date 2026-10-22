@@ -1,6 +1,7 @@
 import { projectIndexFormatError } from '../../shared/index-format-error.js';
 import { buildErrorPayload, ERROR_CODES, isErrorCode, resolveErrorHint } from '../../shared/error-codes.js';
 import { closeJsonRpcWriter, writeFramedJsonRpc } from '../../shared/jsonrpc.js';
+import { projectMcpDomainError } from './domain-error.js';
 
 export const MCP_PROTOCOL_VERSION = '2024-11-05';
 
@@ -67,10 +68,12 @@ const resolveToolErrorCode = (error) => {
 };
 
 export function formatToolError(error) {
-  const code = resolveToolErrorCode(error);
+  const domain = projectMcpDomainError(error);
+  const code = isErrorCode(error?.code) ? error.code : domain.code || resolveToolErrorCode(error);
   const payload = buildErrorPayload({
     code,
-    message: error?.message || String(error)
+    message: error?.message || String(error),
+    details: domain
   });
   if (!isErrorCode(error?.code) && error?.code != null) {
     const numericCode = Number(error.code);

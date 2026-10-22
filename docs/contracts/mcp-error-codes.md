@@ -11,7 +11,22 @@ with these keys:
 - `code` (string): one of the codes below.
 - `namespaceCode` (string): normalized namespaced value (`poc.<lowercase_code>`).
 - `message` (string): human-readable summary.
-- Optional fields: `stderr`, `stdout`, `timeoutMs`, `exitCode`, `hint`.
+- Optional fields: `stderr`, `stdout`, `timeoutMs`, `exitCode`, `hint`, `nativeCode`,
+  `reason`, `evidence`, `details`.
+
+Semantic detail/find/trace use the same domain classifier as HTTP. Invalid limits,
+stale generations and expired cursors are `INVALID_REQUEST`; scope mismatch is
+`FORBIDDEN`; unavailable semantic index evidence is `NO_INDEX`. The original
+domain code remains `nativeCode`. Expired cursors require fresh discovery rather
+than replaying that cursor. Unknown failures retain `INTERNAL`.
+
+Context-pack strict-evidence failures retain their reason and evidence summary.
+Domain evidence/details use an explicit status/count/limit/generation allowlist,
+at most eight nested levels, 128 visited values, sixteen entries per array and
+512 characters per string, with a 16 KiB final field ceiling. Bounded output is
+marked truncated; arbitrary Error properties, causes, credentials and filesystem
+paths are not copied. Existing index-format diagnostics and their exact rebuild
+command remain under their separate canonical projection.
 
 ## Canonical codes
 
