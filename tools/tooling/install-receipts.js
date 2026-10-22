@@ -9,6 +9,7 @@ import { MANAGED_CHILD_STORAGE_RETENTION_TIERS } from '../../src/shared/storage/
 import { assertNoSymlinkPath, readVerifiedContainedFileSync } from '../../src/shared/contained-file.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { createReceiptResourceOwner, withToolReceiptDirectory } from './receipt-resource-owner.js';
+import { describeProvisioningFailure } from './provisioning-failure.js';
 
 export const TOOL_INSTALL_RECEIPT_VERSION = 1;
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -252,17 +253,22 @@ export const readToolInstallReceipts = (toolingRoot, id) => {
 
 export const verifyToolInstallReceipt = receipt => {
   const problems = [];
-  let registered = null;
+  let registeredToolId = null, registeredReceiptId = null, registeredVerification = null;
   try {
     const { receiptPath, ...persisted } = receipt;
     if (receiptPath !== undefined && !absolute(receiptPath)) throw invalidReceipt();
-    registered = validateToolInstallReceipt(persisted);
-    if (receipt.platform !== process.platform || receipt.arch !== process.arch) problems.push({ code: 'platform-mismatch' });
-    const actual = identifyProvisioningExecutable(receipt.consumer.command);
-    if (actual.path !== receipt.consumer.executable.path || actual.sha256 !== receipt.consumer.executable.sha256) problems.push({ code: 'consumer-bytes-changed' });
-  } catch (error) { problems.push({ code: error.code || 'consumer-unreadable' }); }
-  return { ok: problems.length === 0, toolId: receipt?.toolId || null, receiptId: receipt?.receiptId || null,
+    const registered = validateToolInstallReceipt(persisted);
+    registeredToolId = registered.toolId; registeredReceiptId = registered.receiptId;
+    registeredVerification = { ...registered.verification };
+    if (registered.platform !== process.platform || registered.arch !== process.arch) problems.push({ code: 'platform-mismatch' });
+    const actual = identifyProvisioningExecutable(registered.consumer.command);
+    if (actual.path !== registered.consumer.executable.path || actual.sha256 !== registered.consumer.executable.sha256) problems.push({ code: 'consumer-bytes-changed' });
+  } catch (error) {
+    const diagnostic = describeProvisioningFailure(error);
+    problems.push({ code: diagnostic.code || 'consumer-unreadable' });
+  }
+  return { ok: problems.length === 0, toolId: registeredToolId, receiptId: registeredReceiptId,
     state: problems.length ? 'repair-required' : 'bytes-intact', problems,
-    verification: { ...(registered?.verification || { bytes: 'unverified', executable: 'not-probed', runtime: 'not-probed' }),
+    verification: { ...(registeredVerification || { bytes: 'unverified', executable: 'not-probed', runtime: 'not-probed' }),
       protocol: 'not-probed', consumer: 'not-qualified' } };
 };
