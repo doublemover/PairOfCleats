@@ -48,9 +48,17 @@ export const readSourceLinkedEvidenceDetail = async ({ store, ref, evidenceRoot 
     || report.method !== record.data.method || report.evidenceKind !== record.data.evidenceKind
     || report.producerId !== record.data.producerId || report.adapterVersion !== record.data.producerVersion
     || canonicalSemanticJson(report.generation) !== canonicalSemanticJson(store.generation)) throw fail('Evidence source/generation identity differs from its canonical record.');
-  await store.verifySource(source, { signal });
-  const navigationCandidates = [], unresolvedTargets = [], verified = new Set();
-  for (const reference of result.references.slice(referenceOffset, referenceOffset + maxReferences)) {
+  const sourceSpans = [...result.references.map(reference => reference?.span),
+    ...result.diagnostics.filter(diagnostic => diagnostic?.span != null).map(diagnostic => diagnostic.span),
+    ...result.references.filter(reference => reference?.target?.sourceUnitId === source.sourceUnitId).map(reference => reference.target.span)];
+  await store.verifySource(source, { signal, spans: sourceSpans });
+  const navigationCandidates = [], unresolvedTargets = [], verified = new Set([source.sourceUnitId + ':' + source.byteHash]);
+  const selectedReferences = result.references.slice(referenceOffset, referenceOffset + maxReferences), targetSpans = new Map();
+  for (const reference of selectedReferences) if (reference.state === 'resolved' && reference.target) {
+    if (!targetSpans.has(reference.target.sourceUnitId)) targetSpans.set(reference.target.sourceUnitId, []);
+    targetSpans.get(reference.target.sourceUnitId).push(reference.target.span);
+  }
+  for (const reference of selectedReferences) {
     throwIfAborted(signal);
     if (reference.state !== 'resolved' || !reference.target) continue;
     const target = reference.target, targetStore = targetStoreForSource ? await targetStoreForSource(target.sourceUnitId)
@@ -65,12 +73,12 @@ export const readSourceLinkedEvidenceDetail = async ({ store, ref, evidenceRoot 
       if (targetSource) throw fail('Conflicting target manifests.');
       targetSource = candidate;
     }
-    if (!targetSource || targetSource.byteHash !== target.sourceHash || targetSource.path !== target.path
+    if (!targetSource || targetSource.sourceUnitId !== target.sourceUnitId || targetSource.byteHash !== target.sourceHash || targetSource.path !== target.path
       || targetSource.repositoryNamespace !== source.repositoryNamespace || !Array.isArray(target.span) || target.span.length !== 2
       || !target.span.every(value => Number.isSafeInteger(value) && value >= 0 && value <= targetSource.textLength)
       || target.span[0] > target.span[1]) { unresolvedTargets.push({ target, reason: 'target_source_unavailable' }); continue; }
     const key = targetSource.sourceUnitId + ':' + targetSource.byteHash;
-    if (!verified.has(key)) { await targetStore.verifySource(targetSource, { signal }); verified.add(key); }
+    if (!verified.has(key)) { await targetStore.verifySource(targetSource, { signal, spans: targetSpans.get(target.sourceUnitId) }); verified.add(key); }
     navigationCandidates.push({ ...target, evidenceRef: ref, family: reference.family, fromSpan: reference.span,
       coverage: 'source_qualified_observation' });
   }

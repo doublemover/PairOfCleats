@@ -442,24 +442,42 @@ export const createArtifactSemanticStore = ({
       await closeReaders(readers);
     }
   };
-  const verifySource = async (source, { signal = null } = {}) => {
+  const verifySource = async (source, { signal = null, spans = [] } = {}) => {
+    throwIfAborted(signal);
+    const length = source.coordinateUnit === 'byte' ? source.byteLength : source.textLength;
+    if (!Array.isArray(spans) || spans.length > 16384 || spans.some(span => !Array.isArray(span) || span.length !== 2
+      || span.some(offset => !Number.isSafeInteger(offset) || offset < 0 || offset > length) || span[1] < span[0])) {
+      throw error('Retained semantic source span is outside its coordinate allowance.');
+    }
+    const boundaries = source.encoding === 'binary' ? [] : [...new Set(spans.flat())].sort((a, b) => a - b);
+    let nextBoundary = 0;
     const file = await resolveSemanticPartPath(root, 'semantic-sources/' + source.byteHash + '.utf8');
     const byteHash = createHash('sha256'), textHash = createHash('sha256');
     const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
     let byteLength = 0, textLength = 0;
+    const consumeText = text => {
+      while (nextBoundary < boundaries.length && boundaries[nextBoundary] <= textLength + text.length) {
+        const relative = boundaries[nextBoundary++] - textLength;
+        if (relative > 0 && relative < text.length && text.charCodeAt(relative - 1) >= 0xd800
+          && text.charCodeAt(relative - 1) <= 0xdbff && text.charCodeAt(relative) >= 0xdc00
+          && text.charCodeAt(relative) <= 0xdfff) throw error('Retained semantic source span splits a Unicode scalar.');
+      }
+      textLength += text.length; textHash.update(text, 'utf8');
+    };
     for await (const bytes of createReadStream(file, { highWaterMark: 65536, signal: signal || undefined })) {
       throwIfAborted(signal);
       byteLength += bytes.length;
       if (byteLength > source.byteLength) throw error('Retained semantic source size mismatch.');
       byteHash.update(bytes);
       const text = source.encoding === 'binary' ? '' : decoder.decode(bytes, { stream: true });
-      textLength += text.length; textHash.update(text, 'utf8');
+      consumeText(text);
     }
-    const tail = source.encoding === 'binary' ? '' : decoder.decode(); textLength += tail.length; textHash.update(tail, 'utf8');
+    const tail = source.encoding === 'binary' ? '' : decoder.decode(); consumeText(tail);
     if (byteLength !== source.byteLength || textLength !== source.textLength
       || byteHash.digest('hex') !== source.byteHash || textHash.digest('hex') !== source.textHash) {
       throw error('Retained semantic source hash or length mismatch.');
     }
+    throwIfAborted(signal);
   };
   return { withReadScope, findOperations: createArtifactOperationReader({ index: operationIndex, inventory, generation, readPieceRows, getReadScope: currentReadScope }), backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceReference, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
 

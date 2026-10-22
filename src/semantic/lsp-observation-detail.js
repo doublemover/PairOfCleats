@@ -47,7 +47,8 @@ export const readLspObservationDetail = async ({ store, ref, evidenceRoot = stor
         || target.sourceUnitId === source.sourceUnitId && (target.sourceHash !== source.byteHash
           || target.span !== null && target.span[1] > source.textLength))) throw fail('Malformed captured LSP observation coordinates.');
   }
-  await store.verifySource(source, { signal });
+  await store.verifySource(source, { signal, spans: observation.facts
+    .filter(fact => fact.target?.sourceUnitId === source.sourceUnitId && fact.target.span !== null).map(fact => fact.target.span) });
   return { recordRef: ref, generation: store.generation, source, sourceUnitId: source.sourceUnitId,
     sourceHash: source.byteHash, observation,
     navigationCandidates: observation.facts.filter(fact => fact.target?.state === 'exact').map(fact => ({

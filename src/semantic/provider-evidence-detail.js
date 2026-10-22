@@ -22,7 +22,7 @@ export const readProviderEvidenceEntry = async ({ store, ref, record, offset, bu
   if (store.backend !== 'artifact' || (!sourceLinkedKinds.has(kind) && kind !== 'lsp-structured-observation')) return {
     entry: providerEvidenceState(ref, record, store.backend !== 'artifact' ? 'retained_artifact_backend_unavailable' : 'unsupported_provider_evidence_kind'), done: true
   };
-  const verified = new Set();
+  const verified = new Map();
   const scopedStore = { ...store,
     async getRecords(...args) {
       budget.consumeRows(args[0].length);
@@ -32,10 +32,11 @@ export const readProviderEvidenceEntry = async ({ store, ref, record, offset, bu
       for await (const row of store.iterateRows(...args)) { budget.consumeRows(1); yield row; }
     },
     async verifySource(source, options) {
-      if (!verified.has(source.sourceUnitId)) {
+      const boundaries = (options?.spans || []).flat(), previous = verified.get(source.sourceUnitId);
+      if (!previous || boundaries.some(offset => !previous.has(offset))) {
         budget.consumeBytes(source.byteLength);
         await store.verifySource(source, options);
-        verified.add(source.sourceUnitId);
+        verified.set(source.sourceUnitId, new Set([...(previous || []), ...boundaries]));
       }
     }
   };
