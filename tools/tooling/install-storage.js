@@ -3,6 +3,7 @@ import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 import { runWithStorageSession } from '../../src/shared/storage/session.js';
 import { acquireStorageWriteReservation } from '../../src/shared/storage/admission.js';
 import { bindDeclaredInstallAdmission, resolveDeclaredInstallAdmission } from './install-execution.js';
+import { settleInstallDownload } from './install-shared.js';
 
 /** Actual archive/SDK writer boundary. Canonical recipes provide inclusive
  * estimates for each actual destination; unknown capacity never triggers GC.
@@ -36,7 +37,9 @@ export const runInstallWithStorageAdmission = async ({ toolingRoot, storageEstim
       return receipt;
     } });
   } catch (error) {
-    Object.defineProperty(error, 'storageWriteReservations', { value: reservations, configurable: true });
+    const outstanding = [...new Set([...reservations,
+      ...(Array.isArray(error.storageWriteReservations) ? error.storageWriteReservations : [])])];
+    Object.defineProperty(error, 'storageWriteReservations', { value: outstanding, configurable: true });
     const owned = error.managedInstallSession;
     if (owned && error.storageSession) {
       const storage = error.storageSession;
@@ -58,6 +61,31 @@ export const runInstallWithStorageAdmission = async ({ toolingRoot, storageEstim
           for (const reservation of reservations) await reservation.releaseAfterSettlement(receipt);
           return storage.releaseAfterSettlement(receipt);
         } } });
+    }
+    // The Go release-index request can fail before an inner transaction exists.
+    // Its outer storage reservations still belong to this actual response.
+    if (!owned && !goOwned && error.downloadSession && error.storageSession) {
+      const storage = error.storageSession;
+      Object.defineProperty(error, 'installDownloadSession', { configurable: true, value: {
+        resourceId: storage.resourceId, releaseAfterClosure: async () => {
+          await settleInstallDownload(error);
+          const receipt = { resourceId: storage.resourceId, settled: true, pending: false };
+          for (const reservation of reservations) await reservation.releaseAfterSettlement(receipt);
+          return storage.releaseAfterSettlement(receipt);
+        }
+      } });
+    }
+    if (!owned && !goOwned && error.storageAdmissionSession && error.storageSession) {
+      const storage = error.storageSession;
+      const admission = error.storageAdmissionSession;
+      Object.defineProperty(error, 'installAdmissionSession', { configurable: true, value: {
+        resourceId: storage.resourceId, releaseAfterClosure: async () => {
+          await admission.releaseAfterSettlement({ resourceId: admission.resourceId, settled: true, pending: false });
+          const receipt = { resourceId: storage.resourceId, settled: true, pending: false };
+          for (const reservation of outstanding) await reservation.releaseAfterSettlement(receipt);
+          return storage.releaseAfterSettlement(receipt);
+        }
+      } });
     }
     throw error;
   }

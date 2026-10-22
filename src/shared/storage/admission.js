@@ -77,6 +77,10 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
   const lock = await acquireFileLock({ lockPath, waitMs: 0, staleMs: Number.MAX_SAFE_INTEGER,
     metadata: { scope: 'storage-write-admission', hostname: os.hostname(), resourceId } });
   if (!lock) throw fail('admission-owner-busy');
+  let admissionLock = lock;
+  let admittedReservation = null;
+  let reservationSettled = false;
+  let admissionError = null;
   try {
     assertNoSymlinkPath(path.parse(directory).root, directory, { allowMissing: true });
     const pending = await reservations(directory);
@@ -124,6 +128,7 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
       let operationError = null;
       try {
         if (!removed) {
+          settlementLock ||= admissionLock;
           settlementLock ||= await acquireFileLock({ lockPath, waitMs: 0, staleMs: Number.MAX_SAFE_INTEGER,
             metadata: { scope: 'storage-write-settlement', hostname: os.hostname(), resourceId } });
           if (!settlementLock) throw fail('admission-owner-busy-during-settlement');
@@ -139,7 +144,11 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
       } catch (error) { operationError = error; throw error; }
       finally {
         if (settlementLock) {
-          try { await releaseFileLockOrThrow(settlementLock); settlementLock = null; }
+          try {
+            await releaseFileLockOrThrow(settlementLock);
+            if (settlementLock === admissionLock) admissionLock = null;
+            settlementLock = null;
+          }
           catch (cleanupError) {
             const error = operationError ? new AggregateError([operationError, cleanupError], operationError.message,
               { cause: operationError }) : cleanupError;
@@ -153,9 +162,10 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
       // Removing the record alone is not the complete owner release. A failed
       // lock release keeps its exact handle for retry, without unlinking again.
       released = true;
+      reservationSettled = true;
       return true;
     };
-    return Object.freeze({ schemaVersion: 1, resourceId, root, requiredBytes, reservationId: id,
+    admittedReservation = Object.freeze({ schemaVersion: 1, resourceId, root, requiredBytes, reservationId: id,
       admission: 'admitted-declared-write-estimate', metric: value.metric,
       releaseAfterSettlement: async receipt => {
         if (receipt?.resourceId !== resourceId || receipt.settled !== true || receipt.pending !== false) throw fail('resource-settlement-unconfirmed');
@@ -163,5 +173,40 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
         if (!releasing) releasing = settle().finally(() => { releasing = null; });
         return releasing;
       } });
-  } finally { await releaseFileLockOrThrow(lock); }
+    return admittedReservation;
+  } catch (error) { admissionError = error; throw error; }
+  finally {
+    try { await releaseFileLockOrThrow(lock); admissionLock = null; }
+    catch (cleanupError) {
+      // Publication may already have sealed a reservation even though its
+      // acquisition promise cannot return it. Preserve that exact owner and
+      // the original coordinator handle for actual caller reconciliation.
+      const error = fail('admission-lock-release-unconfirmed', { cacheOwnershipPending: true,
+        cause: admissionError || cleanupError, storageAdmissionCleanupError: cleanupError });
+      const originalObserver = (() => {
+        if (admissionError?.cacheOwnershipPending !== true) return () => true;
+        let observer;
+        try { observer = admissionError.cacheOwnershipReleased; } catch { return () => false; }
+        return () => { try { return typeof observer === 'function' && observer.call(admissionError) === true; } catch { return false; } };
+      })();
+      error.cacheOwnershipReleased = () => originalObserver() && admissionLock === null
+        && (!admittedReservation || reservationSettled);
+      Object.defineProperty(error, 'storageWriteReservations', { configurable: true,
+        value: admittedReservation ? [admittedReservation] : [] });
+      let reconciling = null;
+      const session = Object.freeze({ resourceId, releaseAfterSettlement: async receipt => {
+        if (receipt?.resourceId !== resourceId || receipt.settled !== true || receipt.pending !== false || !originalObserver()) {
+          throw fail('resource-settlement-unconfirmed');
+        }
+        if (!reconciling) reconciling = (async () => {
+          if (admittedReservation) await admittedReservation.releaseAfterSettlement(receipt);
+          else if (admissionLock) { await releaseFileLockOrThrow(admissionLock); admissionLock = null; }
+          return true;
+        })().finally(() => { reconciling = null; });
+        return reconciling;
+      } });
+      Object.defineProperty(error, 'storageAdmissionSession', { value: session, configurable: true });
+      throw error;
+    }
+  }
 };

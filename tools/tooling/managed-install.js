@@ -10,7 +10,7 @@ import { acquireRepoCacheAccessLease } from '../../src/shared/cache/repo-access.
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 import { extractArchive } from '../shared/archive-extraction.js';
-import { computeSha256, downloadToBuffer } from './install-shared.js';
+import { computeSha256, downloadToBuffer, settleInstallDownload } from './install-shared.js';
 import { runInstallWithStorageAdmission } from './install-storage.js';
 import { retainManagedToolInstallation } from '../../src/shared/managed-installation.js';
 import { isKnownManagedInstallationDescriptor, isKnownManagedInstallationReceipt } from '../../src/shared/managed-installation-contract.js';
@@ -344,8 +344,9 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     state = signal?.aborted ? 'cancelled' : 'failed';
     await checkpoint({ code: error.code || null, message: error.message, promotedRoot: promoted }).catch(() => {});
     if (pending) Object.defineProperty(error, 'managedInstallSession', { value: { resourceId: transactionId, stage, journal,
-      releaseAfterSettlement: receipt => {
+      releaseAfterSettlement: async receipt => {
         if (receipt?.resourceId !== transactionId || receipt.settled !== true || receipt.pending !== false) throw new Error('Managed install child settlement is still pending.');
+        if (error.downloadSession) await settleInstallDownload(error);
         return releaseResources();
       } }, configurable: true });
     throw error;

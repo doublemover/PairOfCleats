@@ -7,7 +7,7 @@ import {
   hashManagedGoFile, readManagedGoText, resolveGoSdkTarget, resolveManagedGoSdk
 } from '../../src/shared/managed-go.js';
 import { extractArchive } from '../shared/archive-extraction.js';
-import { computeSha256, createInstallError, downloadToBuffer } from './install-shared.js';
+import { computeSha256, createInstallError, downloadToBuffer, settleInstallDownload } from './install-shared.js';
 import { verifyInstallerRequirementProbe } from './install-requirements.js';
 import { runInstallWithStorageAdmission } from './install-storage.js';
 
@@ -210,7 +210,8 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
       pendingError = error;
       Object.defineProperty(error, 'goSdkInstallSession', { configurable: true, value: { resourceId, transaction,
         releaseAfterClosure: async () => {
-          if (error.cacheOwnershipReleased?.() !== true) throw new Error('Actual Go SDK verifier child/tree closure remains pending.');
+          if (error.downloadSession) await settleInstallDownload(error);
+          else if (error.cacheOwnershipReleased?.() !== true) throw new Error('Actual Go SDK verifier child/tree closure remains pending.');
           await cleanupTransaction(); return true;
         } } });
     }

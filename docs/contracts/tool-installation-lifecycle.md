@@ -202,3 +202,30 @@ retains only that marker suffix. The obsolete fake npm-in-target invocation is
 replaced by explicit assertions that target dependency installation is omitted.
 Inert owner tests separately cover pending teardown, cancellation and target
 argument propagation. All these authored fixtures remain UNVALIDATED.
+
+Installer HTTP downloads retain their actual response owner when cancellation
+or reader-lock release fails, or a bounded teardown observation expires. Failed
+cancellation keeps its locked reader for retry; Node response destruction waits
+for actual stream `close`, and observed native close failure stays unknown.
+The original failure and cleanup evidence are preserved, using an exact-cause
+aggregate for frozen errors. Pending teardown disables automatic retry and
+exposes `downloadSession`; its reconciliation returns an exact resource ID with
+explicit `settled:true,pending:false` only after response ownership settles.
+
+Managed archive transactions and portable Go SDK transactions require that
+actual transport reconciliation before releasing staging, leases or allocation
+reservations. A Go release-index failure before an inner transaction exists
+retains the outer admission owner through `installDownloadSession`. Existing
+primary pending-owner observers are composed with transport settlement, so an
+earlier confirmation cannot release a different unknown owner. These source
+changes and authored transport/native-stream/storage-owner fixtures remain
+UNVALIDATED; no download or toolchain execution occurred during authoring.
+
+Node response ownership observes native `close` immediately after acquisition,
+independently of async-iterator EOF or `return().done`. Normal successful byte
+consumption still waits for that actual close; an observed native close error
+cannot become a successful download. On cancellation, the original iterator
+teardown and native close are both retained through timeout reconciliation.
+Neither one alone proves the other complete. Authored disposable-file controls
+exercise delayed close, delayed iterator return and EOF followed by close error;
+they remain UNVALIDATED.

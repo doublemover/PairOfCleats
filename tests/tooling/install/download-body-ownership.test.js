@@ -1,11 +1,27 @@
 #!/usr/bin/env node
 // Source regression authored for the development batch; UNVALIDATED.
 import assert from 'node:assert/strict';
-import { downloadToBuffer } from '../../../tools/tooling/install-shared.js';
+import fsSync from 'node:fs';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { once } from 'node:events';
+import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
+import { downloadToBuffer, settleInstallDownload } from '../../../tools/tooling/install-shared.js';
 
 const url = 'https://official.example.test/inert.zip';
 const request = { url, label: 'inert fixture', timeoutMs: 1000, maxBytes: 4 };
 const response = body => ({ ok: true, url, status: 200, headers: { get: () => null }, body });
+
+{
+  const controller = new AbortController();
+  const reason = new Error('inert pre-cancelled download');
+  controller.abort(reason);
+  let requests = 0;
+  await assert.rejects(downloadToBuffer({ ...request, signal: controller.signal,
+    fetchImpl: async () => { requests++; }
+  }), error => error === reason);
+  assert.equal(requests, 0);
+}
 
 {
   let cancelled = 0;
@@ -45,29 +61,97 @@ const response = body => ({ ok: true, url, status: 200, headers: { get: () => nu
   const cleanup = new Error('fixture cancellation cleanup failure');
   let cancelled = 0;
   let released = 0;
+  let allowClose = false;
+  let finishRead;
+  let pending;
   const source = response({ getReader: () => ({
-    read: () => { controller.abort(primary); return new Promise(() => {}); },
-    cancel: async () => { cancelled++; throw cleanup; },
+    read: () => { controller.abort(primary); return new Promise(resolve => { finishRead = resolve; }); },
+    cancel: async () => { cancelled++; if (!allowClose) throw cleanup; finishRead({ done: true }); },
     releaseLock: () => { released++; }
   }) });
   await assert.rejects(downloadToBuffer({ ...request, signal: controller.signal, fetchImpl: async () => source }), error => {
     assert.equal(error, primary, 'caller cancellation remains the primary failure');
     assert.equal(error.downloadCleanupError, cleanup);
+    assert.equal(error.cacheOwnershipPending, true);
+    assert.equal(error.retryable, false);
+    pending = error;
     return true;
   });
   assert.equal(cancelled, 1);
-  assert.equal(released, 1, 'failed cancellation still releases the reader lock');
+  assert.equal(released, 0, 'failed cancellation retains the actual locked reader for reconciliation');
+  assert.equal(pending.cacheOwnershipReleased(), false);
+  allowClose = true;
+  const settled = await settleInstallDownload(pending);
+  assert.equal(settled.resourceId, pending.downloadSession.resourceId);
+  assert.equal(settled.pending, false);
+  assert.equal(released, 1);
+  assert.equal(pending.cacheOwnershipReleased(), true);
 }
 
 {
   const cleanup = new Error('fixture body cancellation failed');
-  const source = response({ cancel: async () => { throw cleanup; } });
+  let allowClose = false;
+  let pending;
+  const source = response({ cancel: async () => { if (!allowClose) throw cleanup; } });
   source.headers.get = () => '5';
   await assert.rejects(downloadToBuffer({ ...request, fetchImpl: async () => source }), error => {
     assert.equal(error.reason, 'download_too_large');
     assert.equal(error.downloadCleanupError, cleanup);
+    assert.equal(error.cacheOwnershipPending, true);
+    pending = error;
     return true;
   });
+  allowClose = true;
+  await settleInstallDownload(pending);
+}
+
+{
+  let finishClose;
+  let pending;
+  const source = response({ cancel: () => new Promise(resolve => { finishClose = resolve; }) });
+  source.headers.get = () => '5';
+  await assert.rejects(downloadToBuffer({ ...request, settlementTimeoutMs: 5, fetchImpl: async () => source }), error => {
+    pending = error;
+    return error.reason === 'download_too_large' && error.cacheOwnershipPending === true;
+  });
+  assert.equal(pending.downloadSession.isSettled(), false);
+  finishClose();
+  await settleInstallDownload(pending);
+  assert.equal(pending.downloadSession.isSettled(), true);
+}
+
+{
+  let allowRelease = false, reads = 0, cancellations = 0, pending;
+  const locked = new Error('inert reader lock release is blocked');
+  const source = response({ getReader: () => ({
+    read: async () => ++reads === 1 ? { done: false, value: new Uint8Array([1]) } : { done: true },
+    cancel: async () => { cancellations++; },
+    releaseLock: () => { if (!allowRelease) throw locked; }
+  }) });
+  await assert.rejects(downloadToBuffer({ ...request, fetchImpl: async () => source }), error => {
+    pending = error;
+    return error === locked && error.cacheOwnershipPending === true;
+  });
+  assert.equal(cancellations, 0, 'EOF ownership needs reader-lock settlement, not a second transport cancellation');
+  allowRelease = true;
+  await settleInstallDownload(pending);
+}
+
+{
+  const controller = new AbortController();
+  const primary = Object.freeze(new Error('fixture frozen cancellation'));
+  let allowClose = false, finishRead, pending;
+  const source = response({ getReader: () => ({
+    read: () => { controller.abort(primary); return new Promise(resolve => { finishRead = resolve; }); },
+    cancel: async () => { if (!allowClose) throw new Error('inert blocked teardown'); finishRead({ done: true }); },
+    releaseLock: () => {}
+  }) });
+  await assert.rejects(downloadToBuffer({ ...request, signal: controller.signal, fetchImpl: async () => source }), error => {
+    pending = error;
+    return error instanceof AggregateError && error.cause === primary && error.errors[0] === primary && error.cacheOwnershipPending === true;
+  });
+  allowClose = true;
+  await settleInstallDownload(pending);
 }
 
 {
@@ -92,6 +176,32 @@ const response = body => ({ ok: true, url, status: 200, headers: { get: () => nu
   assert.deepEqual(downloaded.body, Buffer.from([1, 2, 3, 4]));
   assert.equal(released, 1);
   assert.equal(cancelled, 0, 'complete bounded response releases its lock without cancelling consumed data');
+}
+
+{
+  const root = await makeTempDir('download-native-body-');
+  let allowClose;
+  let downloading;
+  try {
+    const file = path.join(root, 'body.bin');
+    await fs.writeFile(file, 'inert response bytes');
+    const body = fsSync.createReadStream(file);
+    await once(body, 'open');
+    const closeGate = new Promise(resolve => { allowClose = resolve; });
+    const destroy = body.destroy.bind(body);
+    body.destroy = error => { closeGate.then(() => destroy(error)); return body; };
+    const source = response(body);
+    source.headers.get = () => '5';
+    let terminal = false;
+    downloading = downloadToBuffer({ ...request, fetchImpl: async () => source });
+    downloading.catch(() => { terminal = true; });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(terminal, false, 'a Node destroy request is not actual response/native stream closure');
+    assert.equal(body.closed, false);
+    allowClose();
+    await assert.rejects(downloading, { reason: 'download_too_large' });
+    assert.equal(body.closed, true);
+  } finally { allowClose?.(); if (downloading) await downloading.catch(() => {}); await rmDirRecursive(root); }
 }
 
 console.log('Download byte admission, body ownership and cancellation regressions complete.');

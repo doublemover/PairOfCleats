@@ -32,14 +32,57 @@ export const runManagedChildWithStorage = async ({ plan, authorizedRoots, coordi
       started = true;
       return execute({ env: plan.env, storage, session });
     }, { settlement: async input => {
-      const receipt = started ? await settlement(input) : { resourceId: input.resourceId, settled: true, pending: false };
+      // No child start proves only that execute did not begin. Admission may
+      // already own a sealed reservation and an unreleased coordinator lock.
+      const pendingAdmission = Boolean(input.error?.storageAdmissionSession) || input.error?.cacheOwnershipPending === true;
+      const receipt = started ? await settlement(input) : { resourceId: input.resourceId,
+        settled: !pendingAdmission, pending: pendingAdmission };
       if (receipt?.resourceId === input.resourceId && receipt.settled === true && receipt.pending === false) {
         for (const reservation of reservations) await reservation.releaseAfterSettlement(receipt);
       }
       return receipt;
     } });
-  } catch (error) {
-    Object.defineProperty(error, 'storageWriteReservations', { value: reservations, configurable: true });
+  } catch (cause) {
+    let error = cause && typeof cause === 'object' ? cause : new Error(String(cause), { cause });
+    const outstanding = [...new Set([...reservations,
+      ...(Array.isArray(error.storageWriteReservations) ? error.storageWriteReservations : [])])];
+    const admissionSession = error.storageAdmissionSession;
+    const storageSession = error.storageSession;
+    const descriptors = { storageWriteReservations: { value: outstanding, configurable: true } };
+    if (admissionSession && storageSession) {
+      let released = false, reconciling = null;
+      descriptors.managedChildAdmissionSession = { configurable: true, value: Object.freeze({ resourceId: storageSession.resourceId,
+        releaseAfterSettlement: async receipt => {
+          if (receipt?.resourceId !== storageSession.resourceId || receipt.settled !== true || receipt.pending !== false
+            || admissionSession.resourceId !== storageSession.resourceId || typeof admissionSession.releaseAfterSettlement !== 'function') {
+            throw new Error('Managed child admission requires its exact resource settlement owner and explicit pending:false.');
+          }
+          if (released) return true;
+          if (!reconciling) reconciling = (async () => {
+            await admissionSession.releaseAfterSettlement(receipt);
+            for (const reservation of outstanding) await reservation.releaseAfterSettlement(receipt);
+            const result = await storageSession.releaseAfterSettlement(receipt);
+            released = true;
+            return result;
+          })().finally(() => { reconciling = null; });
+          return reconciling;
+        }
+      }) };
+    }
+    try { Object.defineProperties(error, descriptors); }
+    catch {
+      const primary = error;
+      error = new AggregateError([primary], primary.message || 'Managed child storage failed.', { cause: primary });
+      for (const key of ['code', 'reason', 'cacheOwnershipPending', 'storageAdmissionSession', 'storageSession']) {
+        if (primary[key] !== undefined) Object.defineProperty(error, key, { value: primary[key], configurable: true });
+      }
+      let observer;
+      try { observer = primary.cacheOwnershipReleased; } catch { /* Unknown stays false. */ }
+      if (primary.cacheOwnershipPending === true || typeof observer === 'function') error.cacheOwnershipReleased = () => {
+        try { return typeof observer === 'function' && observer.call(primary) === true; } catch { return false; }
+      };
+      Object.defineProperties(error, descriptors);
+    }
     throw error;
   }
   return { ...result, storage };

@@ -52,3 +52,24 @@ that exact lock handle and retries its release without requiring a now-absent
 reservation file or removing another owner's lock. Primary operation failures
 remain the cause if lock cleanup also fails. These source changes and authored
 filesystem-race regressions remain **UNVALIDATED**.
+
+If admission sealed a reservation but fails to release its original coordinator
+lock, acquisition reports pending ownership and retains both the exact
+reservation and original lock through `storageAdmissionSession`. The failed
+acquisition cannot silently lose its sealed owner. Reconciliation requires the
+exact resource with explicit `pending:false`; independently pending producer
+work must also confirm closure. Installer admission preserves those handles
+before its acquisition promise returns and exposes `installAdmissionSession`
+to settle them before releasing its outer leases. Unsealed or unknown records
+remain protected evidence, outside this sealed-record recovery. Source and
+authored creation-failure/outer-owner regressions remain **UNVALIDATED**.
+
+The actual managed-child owner also preserves acquisition-time reservation
+handles alongside earlier successful reservations. Child no-start does not
+settle an admission session or another explicitly pending resource. Its
+`managedChildAdmissionSession` requires the exact resource and explicit
+`pending:false`, settles the original admission owner first, then reservations
+and the child storage session. Concurrent retries coalesce; failed coordinator
+release retains every outer lease. External-only routing and real child
+settlement remain with their existing owners. These adopted source boundaries
+and authored actual-owner regressions remain **UNVALIDATED**.
