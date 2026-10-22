@@ -11,7 +11,7 @@ physical identities through the existing workspace validator and detects duplica
 roots/aliases. It does not scan neighboring directories, build indexes, provision
 tools or grant trust.
 
-<!-- poc:recipe workspace-preview shell=portable effects=read-only -->
+<!-- poc:recipe workspace-preview shell=portable effects=read-only targets=multiple -->
 ```sh
 node tools/workspace/author.js --operation init --workspace "path/to/workspace.jsonc" --repo "path/to/project-one" --repo "path/to/project-two" --alias one --alias two --json
 ```

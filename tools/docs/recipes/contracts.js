@@ -40,5 +40,5 @@ export const validateRecipeCommand = tokens => {
     .fail((message, error) => { throw error || new Error(message); }).parse(args);
   if (entry.script === 'tools/service/indexer-service.js') assertServiceIndexerSelection({ ...argv, command: argv._[0] || argv.command });
   return { commandId: entry.id, script: entry.script, options: 'evaluated', args,
-    selection: { repo: argv.repo || null, config: argv.config || null, workspace: argv.workspace || null }, argv };
+    selection: { repo: argv.repo || null, config: argv.config || null, workspace: argv.workspace || null, queue: argv.queue || null }, argv };
 };
