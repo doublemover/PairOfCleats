@@ -29,11 +29,21 @@ const prototypeOwner = node => {
   }
   return null;
 };
+const prototypeNameNodes = new Set(['identifier', 'field_identifier', 'qualified_identifier', 'operator_name', 'destructor_name']);
+const prototypeNameWrappers = new Set(['parenthesized_declarator', 'parenthesized_field_declarator',
+  'attributed_declarator', 'attributed_field_declarator']);
 export const isCPrototype = node => {
   if (!prototypeOwner(node)) return false;
   if (node.type === 'operator_cast') return true;
-  const name = field(node, 'declarator');
-  return ['identifier', 'field_identifier', 'qualified_identifier', 'operator_name', 'destructor_name'].includes(name?.type);
+  let name = field(node, 'declarator');
+  for (let depth = 0; name && depth < 32; depth += 1) {
+    if (prototypeNameNodes.has(name.type)) return true;
+    if (!prototypeNameWrappers.has(name.type)) return false;
+    const candidates = named(name).filter(child => prototypeNameNodes.has(child.type) || /declarator$/u.test(child.type));
+    if (candidates.length !== 1) return false;
+    name = candidates[0];
+  }
+  return false;
 };
 export const includeCDeclaration = node => ['function_declarator', 'operator_cast'].includes(node.type)
   ? isCPrototype(node) : includeCTagDeclaration(node);
