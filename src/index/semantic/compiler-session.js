@@ -426,6 +426,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         emitted.push(flow.partition);
         group.flowDocuments.push({ item, bytes, policy, bindingPartition:partition, flowEdges: flow.edges, partition: flow.partition,
           orderedAccesses: flow.orderedAccesses, orderedOperations: flow.orderedOperations,
+          callExecutionOwnership: flow.callExecutionOwnership,
           fieldAccesses: flow.fieldAccesses || [], aliases: flow.aliases || [], callEffects: flow.callEffects || [],
           summaries: flow.summaries.map(summary => ({ ...summary, owner: undefined,
             async: Boolean(summary.owner.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword)), generator: Boolean(summary.owner.asteriskToken) })),

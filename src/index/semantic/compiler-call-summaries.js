@@ -35,7 +35,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     if (!canonicalKeys.has(value)) canonicalKeys.set(value, canonicalSemanticJson(value));
     return canonicalKeys.get(value);
   };
-  const functions=new Map(),reverse=new Map(),calls=[],graph=new Map();
+  const functions=new Map(),reverse=new Map(),calls=[],graph=new Map(),ownershipReasons=new Set();
   const summaryIndexes = new WeakMap(), summaryIds = new WeakMap(), nodeDependents = new Map();
   const nodeCalls = new Map(), cacheWatchers = new Map(), dirty = new Set(), dirtyCalls = new Set(), callRevisions = new WeakMap(), revisions = new Map();
   const callers = new Map(); let cacheMemberships = 0, cacheEntries = 0, activeCall = null;
@@ -56,6 +56,8 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
   for(const document of documents){
     for(const edge of document.flowEdges||[])if(channelKinds.has(edge.kind))add(edge.from,edge.to);
     const owners=document.summaries.filter(summary=>summary.declaration).sort((a,b)=>(a.span?.[0]||0)-(b.span?.[0]||0)||(b.span?.[1]||0)-(a.span?.[1]||0));
+    const executionOwners=new Map(document.summaries.filter(summary=>summary.ownerRef)
+      .map(summary=>[key(summary.ownerRef),summary.declaration ? key(summary.declaration) : null]));
     const aliasesByRef = new Map();
     for (const alias of document.aliases || []) {
       const id = key(alias.ref); if (!aliasesByRef.has(id)) aliasesByRef.set(id, []); aliasesByRef.get(id).push(alias);
@@ -69,18 +71,32 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
       const rootOrdinals = new Map(); current.parameters.forEach((ref, ordinal) => { if (ref && !rootOrdinals.has(key(ref))) rootOrdinals.set(key(ref), ordinal); });
       summaryIndexes.set(current, { ordinals, rootOrdinals, aliasesByRef, queries: new Map() });
     }
-    // Source-ordered interval sweep assigns nested invocations without scanning all declarations.
-    const scopeStack=[],routes=new Map();let nextOwner=0;
-    for(const route of document.callEffects||[]){const id=key(route.result);if(!routes.has(id))routes.set(id,{reads:[],exceptionTargets:[],exceptionEscapes:false});const entry=routes.get(id);entry.reads.push(...route.reads);entry.exceptionTargets.push(...route.exceptionTargets);entry.exceptionEscapes ||= route.exceptionEscapes;}
+    // CFG execution owns computed-name calls, which can lie inside a method's
+    // source span while being evaluated by its enclosing function. The interval
+    // sweep remains only for legacy supplied summaries without CFG ownership.
+    const scopeStack=[],routes=new Map();let nextOwner=0,ownershipUncertain=false;
+    for(const route of document.callEffects||[]){
+      const id=key(route.result);
+      if(!routes.has(id))routes.set(id,{reads:[],exceptionTargets:[],exceptionEscapes:false,owners:new Set()});
+      const entry=routes.get(id);entry.reads.push(...route.reads);entry.exceptionTargets.push(...route.exceptionTargets);entry.exceptionEscapes ||= route.exceptionEscapes;
+      if(Object.hasOwn(route,'ownerRef'))entry.owners.add(key(route.ownerRef));
+    }
     for(const call of [...document.calls].sort((a,b)=>(a.span?.[0]||0)-(b.span?.[0]||0))){
       if(document.orderedOperations?.has(key(call.result || call.occurrence)))continue;
       const start=call.span?.[0],end=call.span?.[1];
       while(nextOwner<owners.length&&owners[nextOwner].span?.[0]<=start){const owner=owners[nextOwner++];while(scopeStack.length&&scopeStack.at(-1).span[1]<=owner.span[0])scopeStack.pop();scopeStack.push(owner);}
       while(scopeStack.length&&scopeStack.at(-1).span[1]<end)scopeStack.pop();
-      const owner=scopeStack.at(-1),ownerId=owner?key(owner.declaration):null;
       const effectRoutes=routes.get(key(call.result));
+      const owner=scopeStack.at(-1);
+      let ownerId=owner?key(owner.declaration):null;
+      if(document.callExecutionOwnership==='cfg' || effectRoutes?.owners.size) {
+        const qualified=effectRoutes?.owners.size===1 && executionOwners.has([...effectRoutes.owners][0]);
+        ownerId=qualified ? executionOwners.get([...effectRoutes.owners][0]) : null;
+        if(!qualified) {ownershipUncertain=true;ownershipReasons.add('call_execution_owner_unavailable_or_ambiguous');}
+      }
       const entry={...call,ownerId,effectRoutes};calls.push(entry);if(ownerId)functions.get(ownerId).calls.push(entry);
     }
+    if(ownershipUncertain)for(const owner of owners)functions.get(key(owner.declaration)).complete=false;
   }
   for(const call of calls)if(call.ownerId)for(const target of call.targets.slice(0,32))if(functions.has(key(target))){
     const targetId = key(target); graph.get(call.ownerId).add(targetId);
@@ -216,7 +232,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     for(const id of component)functions.get(id).converged=complete;
     if(exhausted)break;
   }
-  return {functions,converged:converged&&!exhausted,iterations,stats};
+  return {functions,converged:converged&&!exhausted,iterations,stats,ownershipReasons:[...ownershipReasons].sort()};
 };
 
 /** Join known alternatives at the call site without promoting the remainder to exactness. */

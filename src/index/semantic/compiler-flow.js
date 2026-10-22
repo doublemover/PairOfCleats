@@ -299,7 +299,7 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
             reads.push({ root: location.root, path: location.path, ref: current.site }); }
         }
         const targets = [...exceptionTargets(block)];
-        callEffects.push({ result: block.site, reads, exceptionTargets: targets.map(target => catches.get(target) || blockRefs.get(target)), exceptionEscapes: targets.includes(graph.exception) });
+        callEffects.push({ result: block.site, ownerRef, reads, exceptionTargets: targets.map(target => catches.get(target) || blockRefs.get(target)), exceptionEscapes: targets.includes(graph.exception) });
         if (reads.length) reasons.add('call_heap_effects_require_summary_or_unknown');
       }
     }
@@ -383,5 +383,5 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
     producerHash: semanticHash('semantic.cfg-producer.v1', { version: Number(SEMANTIC_ANALYSIS_VERSIONS.cfgFlow) }), contextHash: context.contextKey,
     policyHash: semanticHash('semantic.cfg-policy.v1', { maxSccIterations: policy.enrichment.maxSccIterations, fieldPathDepth: policy.enrichment.fieldPathDepth, constructionMaxBytes }), diskAccount, signal });
   return { partition, coverage: [coverage], edges: unique.map(([, row]) => row), fieldAccesses, aliases, orderedAccesses, orderedOperations,
-    callEffects: expand(callEffects), summaries: summaries.map(summary => ({ ...summary, returns: expand(summary.returns), exceptions: expand(summary.exceptions), effects: expand(summary.effects), parameterFields: expand(summary.parameterFields) })) };
+    callExecutionOwnership: 'cfg', callEffects: expand(callEffects), summaries: summaries.map(summary => ({ ...summary, returns: expand(summary.returns), exceptions: expand(summary.exceptions), effects: expand(summary.effects), parameterFields: expand(summary.parameterFields) })) };
 };

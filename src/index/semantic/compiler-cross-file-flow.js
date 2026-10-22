@@ -20,7 +20,7 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
       analysisPolicy: documents.map(value => ({ source: value.item.source.sourceUnitId, enrichment: (value.policy || policy).enrichment })).sort((a,b) => a.source.localeCompare(b.source)) });
     const evidence = { partitionId, localId: 0 }, rows = [{ family: 'node', row: { id: 0, kind: 'evidence', span: null, scope: null,
       data: { method: 'monotone-call-site-may-depend-summary', producerId: 'semantic-flow', producerVersion: SEMANTIC_ANALYSIS_VERSIONS.callFlow, evidenceKind: 'static-analysis', sourceRef: item.source.sourceUnitId, artifactRef: null } } }];
-    const edges = [], reasons = new Set(); let completed = 0, nextId = 1;
+    const edges = [], reasons = new Set(summaries.ownershipReasons); let completed = 0, nextId = 1;
     const mode = effective.enrichment.crossFileFlow;
     const emit = (kind, from, to, call, ordinal = null) => from && to && edges.push({ kind, from, to, callSite: call.occurrence,
       operandOrdinal: ordinal, contextKey: group.context.contextKey, condition: null, evidence, certainty: 'modeled' });
