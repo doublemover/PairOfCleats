@@ -198,8 +198,8 @@ export const buildArchitectureReport = ({
   const truncation = createTruncationRecorder({ scope: 'architecture' });
   const recordTruncation = (cap, detail) => truncation.record(cap, detail);
 
-  const maxViolations = normalizeCap(caps.maxViolations);
-  const maxEdgesExamined = normalizeCap(caps.maxEdgesExamined);
+  const maxViolations = caps.maxViolations == null ? null : normalizeCap(caps.maxViolations);
+  const maxEdgesExamined = caps.maxEdgesExamined == null ? null : normalizeCap(caps.maxEdgesExamined);
   const capsUsed = {
     architecture: {
       maxViolations,
@@ -243,6 +243,8 @@ export const buildArchitectureReport = ({
       provenance: resolvedProvenance,
       rules: summaries,
       violations,
+      summary: { detectedViolations: 0, retainedViolations: 0, omittedViolations: 0,
+        edgesExamined: 0, complete: compiledRules.length === 0 },
       truncation: truncation.list.length ? truncation.list : null,
       warnings: warnings.length ? warnings : null
     };
@@ -262,17 +264,10 @@ export const buildArchitectureReport = ({
   const forbiddenImportRules = importRules.filter((rule) => rule.type === 'forbiddenImport');
 
   let edgesExamined = 0;
+  let detectedViolations = 0;
   let stop = false;
 
   const shouldStop = () => {
-    if (maxViolations != null && violations.length >= maxViolations) {
-      recordTruncation('maxViolations', {
-        limit: maxViolations,
-        observed: violations.length,
-        omitted: null
-      });
-      return true;
-    }
     if (maxEdgesExamined != null && edgesExamined >= maxEdgesExamined) {
       recordTruncation('maxEdgesExamined', {
         limit: maxEdgesExamined,
@@ -286,13 +281,10 @@ export const buildArchitectureReport = ({
 
   const recordViolation = (rule, edgeType, fromRef, toRef, note = null) => {
     if (!fromRef || !toRef) return;
+    detectedViolations += 1;
+    const summary = summaryById.get(rule.id);
+    if (summary) summary.summary.violations += 1;
     if (maxViolations != null && violations.length >= maxViolations) {
-      stop = true;
-      recordTruncation('maxViolations', {
-        limit: maxViolations,
-        observed: violations.length,
-        omitted: null
-      });
       return;
     }
     violations.push({
@@ -304,8 +296,6 @@ export const buildArchitectureReport = ({
       },
       evidence: note ? { note } : null
     });
-    const summary = summaryById.get(rule.id);
-    if (summary) summary.summary.violations += 1;
   };
 
   const layerResolvers = layeringRules.map((rule) => {
@@ -393,11 +383,17 @@ export const buildArchitectureReport = ({
     });
   }
 
+  if (detectedViolations > violations.length) recordTruncation('maxViolations', {
+    limit: maxViolations, observed: detectedViolations, omitted: detectedViolations - violations.length
+  });
   return {
     version: '1.0.0',
     provenance: resolvedProvenance,
     rules: summaries,
     violations,
+    summary: { detectedViolations, retainedViolations: violations.length,
+      omittedViolations: detectedViolations - violations.length, edgesExamined,
+      complete: !truncation.list.some(entry => entry.cap === 'maxEdgesExamined') },
     truncation: truncation.list.length ? truncation.list : null,
     warnings: warnings.length ? warnings : null
   };

@@ -36,9 +36,6 @@ export const createProtocolQueue = ({ flow, write, onLifecycleLoss }) => {
     while (frames + entries.length > flow.queueMax) {
       let victim = units.findIndex(value => value.index === 0 && value.event === 'log');
       if (victim < 0 && unit.event !== 'log') victim = units.findIndex(value => value.index === 0 && value.event === 'task:progress');
-      if (victim < 0 && unit.event === 'task:end') {
-        victim = units.findLastIndex(value => value.index === 0 && value.event === 'task:start' && value.key === unit.key);
-      }
       if (victim < 0) return discard(unit);
       remove(victim);
     }

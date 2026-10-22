@@ -109,11 +109,15 @@ export async function runArchitectureCheckCli(rawArgs = process.argv.slice(2)) {
   }
 
   const failOnViolation = argv.failOnViolation === true || argv['fail-on-violation'] === true;
-  if (failOnViolation && report.violations.length) {
+  if (failOnViolation && (report.summary?.detectedViolations || report.violations.length)) {
     const error = new Error('Architecture violations detected.');
     error.code = 'ERR_ARCHITECTURE_VIOLATION';
     error.report = report;
     throw error;
+  }
+  if (failOnViolation && report.summary?.complete === false) {
+    throw Object.assign(new Error('Architecture evaluation is incomplete; a clean verdict is unavailable.'),
+      { code: 'ERR_ARCHITECTURE_INCOMPLETE', report });
   }
 
   return emitCliOutput({
