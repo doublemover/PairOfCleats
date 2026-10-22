@@ -7,10 +7,10 @@ import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
 ensureTestingEnv(process.env);
+for (const count of [80, 160, 320]) {
 const dir = await fs.realpath(await makeTempDir('poc-history-linear-turn-'));
 const vaultRoot = path.join(dir, 'vault'), input = path.join(dir, 'task.zip');
 await fs.mkdir(vaultRoot, { mode: 0o700 });
-const count = 160;
 const task = { id: 'linear-task', title: 'Bounded task lookup', archived: false, turns: Array.from({ length: count }, (_, index) => ({
   id: `linear-turn-${index}`, role: 'user', input_items: [{ type: 'message',
     content: [{ type: 'input_text', text: `visible-turn-${index}` }] }]
@@ -32,13 +32,22 @@ try {
   assert.equal(imported.newUnits, count);
   assert.equal(imported.tasks, 1);
   assert.ok(comparisons <= count * 2, `per-record turn selection must be linear, observed ${comparisons} comparisons for ${count} turns`);
-  Array.prototype.find = originalFind;
   for (const ordinal of [0, count - 1]) {
     const hits = await service.search({ ...request, query: `visible-turn-${ordinal}` });
-    assert.ok(hits.hits.some(hit => hit.text === `visible-turn-${ordinal}`));
+    const hit = hits.hits.find(hit => hit.text === `visible-turn-${ordinal}`);
+    assert.ok(hit);
+    const beforeRead = comparisons;
+    const context = await service.readContext({ ...request, sourceRef: hit.sourceRef, snapshotRef: hit.snapshotRef, top: 1, before: 0, after: 0 });
+    assert.equal(context.messages.length, 1);
+    assert.equal(context.messages[0].text, `visible-turn-${ordinal}`);
+    const timeline = await service.readTimeline({ ...request, sourceRef: hit.sourceRef, snapshotRef: hit.snapshotRef, top: 1, order: 'newest' });
+    assert.equal(timeline.messages.length, 1);
+    assert.equal(timeline.messages[0].text, `visible-turn-${count - 1}`);
+    assert.ok(comparisons - beforeRead <= count * 2, `context/timeline task selection must stay linear at ${count} turns`);
   }
 } finally {
   Array.prototype.find = originalFind;
   await rmDirRecursive(dir);
 }
-console.log('Task import preserves visible units with linear turn selection work');
+}
+console.log('Task import, context and timeline preserve visible units with linear turn selection work');

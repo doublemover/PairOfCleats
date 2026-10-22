@@ -87,3 +87,8 @@ unchanged. Once the pool is exhausted, `page.next` is null; `page.contract` stat
 whether enumeration is complete or further continuation is unavailable. An
 incomplete pool never establishes absence from the full archive. Refine the
 query or choose lexical search for its independently signed continuation stream.
+
+Context and timeline reads build one operation-local first-match task-turn map
+for the loaded snapshot before projecting visible/privacy-filtered messages.
+Pagination keeps the existing ordering and anchor rules. The map is released
+with the read; raw retained sources are not cached across requests.

@@ -351,7 +351,8 @@ export function readVisibleContext(db, request) {
     }
   } else if (snapshot.source_kind==='recovered_artifact') ids=[snapshot.raw.id];
   else ids = snapshot.raw.turns.map(turn => turn.id);
-  let timeline = ids.map((nodeId, ordinal) => ({ node: privacyNode(visibleNode(snapshot.raw, snapshot.source_kind, nodeId),snapshot.policy), ordinal }))
+  const readNode = createVisibleNodeReader(snapshot.raw, snapshot.source_kind);
+  let timeline = ids.map((nodeId, ordinal) => ({ node: privacyNode(readNode(nodeId),snapshot.policy), ordinal }))
     .filter(({ node }) => node !== null).sort((left, right) =>
       (left.node.createdAt.utc ?? '\uffff').localeCompare(right.node.createdAt.utc ?? '\uffff') || left.ordinal - right.ordinal);
   const originalAnchorOrdinal = timeline.find(({node})=>node.nodeId===anchor.nodeId)?.ordinal;
