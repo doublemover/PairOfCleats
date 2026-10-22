@@ -1,3 +1,4 @@
+import { runOnnxEmbeddingSession, decodeOnnxEmbeddingOutput } from './onnx-embeddings/output.js';
 import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from './embedding-artifact-identity.js';
 import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-lease.js';
 import { createDeferredEmbeddingAdapter } from './embedding-deferred-adapter.js';
@@ -187,75 +188,6 @@ const buildFeeds = (session, encoded, TensorCtor, scratch) => {
   return feeds;
 };
 
-const findOutput = (outputs) => {
-  if (!outputs) return null;
-  const preferred = [
-    'sentence_embedding',
-    'embeddings',
-    'pooler_output',
-    'last_hidden_state',
-    'output_0'
-  ];
-  for (const key of preferred) {
-    if (outputs[key]) return outputs[key];
-  }
-  const fallbackKey = Object.keys(outputs)[0];
-  return fallbackKey ? outputs[fallbackKey] : null;
-};
-
-const meanPool = (tensor, attentionMask, normalizeVec) => {
-  const dims = tensor?.dims || [];
-  if (dims.length !== 3) return [];
-  const [batch, seq, hidden] = dims;
-  const data = tensor.data || [];
-  const flatMask = attentionMask
-    ? attentionMask
-    : Array.from({ length: batch }, () => new Array(seq).fill(1));
-  const output = new Array(batch).fill(null);
-  for (let b = 0; b < batch; b += 1) {
-    const vec = new Float32Array(hidden);
-    let count = 0;
-    for (let t = 0; t < seq; t += 1) {
-      const maskVal = Number(flatMask[b]?.[t] ?? 0);
-      if (!maskVal) continue;
-      count += 1;
-      const offset = (b * seq + t) * hidden;
-      for (let h = 0; h < hidden; h += 1) {
-        vec[h] += data[offset + h];
-      }
-    }
-    if (count > 0) {
-      for (let h = 0; h < hidden; h += 1) {
-        vec[h] = vec[h] / count;
-      }
-    }
-    output[b] = normalizeVec(vec);
-  }
-  return output;
-};
-
-const rowsFromTensor = (tensor, normalizeVec) => {
-  const dims = tensor?.dims || [];
-  if (dims.length !== 2) return [];
-  const [rows, cols] = dims;
-  const data = tensor.data || [];
-  const hasSubarray = data && typeof data.subarray === 'function';
-  const out = new Array(rows);
-  for (let r = 0; r < rows; r += 1) {
-    const start = r * cols;
-    const vec = new Float32Array(cols);
-    if (hasSubarray) {
-      vec.set(data.subarray(start, start + cols));
-    } else {
-      for (let c = 0; c < cols; c += 1) {
-        vec[c] = data[start + c] ?? 0;
-      }
-    }
-    out[r] = normalizeVec(vec);
-  }
-  return out;
-};
-
 export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, normalize, modelArtifact = null }) {
   const normalizeVec = normalize === false ? (vec) => vec : normalizeEmbeddingVectorInPlace;
   const normalized = normalizeOnnxConfig(onnxConfig);
@@ -371,7 +303,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
     const stats = sessionEntry.measurements;
     stats.runs++; stats.active++; stats.peakActive = Math.max(stats.peakActive, stats.active);
     const started = performance.now();
-    try { return await session.run(feeds); }
+    try { return await runOnnxEmbeddingSession({ session, feeds, measurements: stats }); }
     catch (error) { stats.failures++; throw error; }
     finally { stats.active--; stats.providerBusyMs += performance.now() - started; }
   };
@@ -401,13 +333,8 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
       return runSession(session, feeds);
     });
     if (!outputs) return Array.from({ length: list.length }, () => []);
-    const mainOutput = findOutput(outputs);
-    if (!mainOutput) return Array.from({ length: list.length }, () => []);
-    if (Array.isArray(mainOutput?.dims) && mainOutput.dims.length === 2) {
-      return rowsFromTensor(mainOutput, normalizeVec);
-    }
-    const mask = encoded.attention_mask;
-    return meanPool(mainOutput, mask, normalizeVec);
+    return decodeOnnxEmbeddingOutput({ outputs, attentionMask: encoded.attention_mask,
+      normalizeVector: normalizeVec, count: list.length, measurements: sessionEntry.measurements });
   };
   const estimateTokens = async (texts) => {
     const list = Array.isArray(texts) ? texts : [];
