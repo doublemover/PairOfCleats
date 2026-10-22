@@ -9,7 +9,7 @@ import { assertSemanticEnvelope } from '../../contracts/validators/semantic-enve
 import { validateSemanticRecord } from '../../contracts/validators/semantic.js';
 import { createAnalysisPartitionId, createSymbolGroupId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
-import { persistSemanticEvidence } from './lsp-evidence.js';
+import { persistSemanticEvidence, encodeSemanticEvidence } from './lsp-evidence.js';
 import { exactLspRange, exactLspLocationRange, normalizeLspLocations, offsetToLspPosition } from './lsp-locations.js';
 import { getLspLineIndex } from '../../integrations/tooling/lsp/positions.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -243,19 +243,25 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
       if (completed.has(completionKey)) return;
       const selectedTargets = await captureTargets(item, targets === null ? await api.targetsForDocument(doc) : targets);
       const observations = [];
+      const evidenceFor = (position, response) => ({ schemaVersion: 1, method: 'textDocument/definition', providerId, providerVersion, contextKey: context.contextKey,
+        sourceUnitId: item.source.sourceUnitId, sourceHash: item.source.byteHash, positionEncoding, uri, position, payload: response.payload ?? null,
+        attempted: response.attempted === true, error: response.error || null, skipReason: response.skipReason || null });
       for (const target of selectedTargets) {
         throwIfAborted(signal);
         const position = offsetToLspPosition(item.source, item.text, target.span[0], positionEncoding);
         const response = definitionEnabled ? await requestDefinition({ name: target.name }, { ...position }) : { attempted: false, skipReason: 'definition_unsupported' };
-        observations.push({ target, position, response: JSON.parse(canonicalSemanticJson(response || { attempted: true, payload: null })) });
+        const owned = JSON.parse(encodeSemanticEvidence(response || { attempted: true, payload: null }, { signal }));
+        // Charge the complete eventual sidecar before retaining the response or
+        // requesting another target. Metadata consumes the same byte allowance.
+        encodeSemanticEvidence(evidenceFor(position, owned), { signal });
+        observations.push({ target, position, response: owned });
       }
       const partitionId = createAnalysisPartitionId({ pass: { name: 'lsp-bindings', version: SEMANTIC_ANALYSIS_VERSIONS.lspBindings }, inputPartitionHashes: [item.syntax.canonicalHash], compilerContext: context.contextKey, dependencySummaryHashes: [context.moduleResolutionHash], analysisPolicy: { policy: item.policy.identity.analysis, evidence: semanticHash('semantic.lsp-responses.v1', observations) } });
       const ref = localId => ({ partitionId, localId }), rows = [], names = new Map(); let nextId = 0, edgeId = 0, completedCount = 0, failed = false, deferred = false;
       const intern = value => { if (!names.has(value)) names.set(value, names.size); return names.get(value); };
       for (const { target, position, response } of observations) {
-        const artifactRef = await persistSemanticEvidence({ value: { schemaVersion: 1, method: 'textDocument/definition', providerId, providerVersion, contextKey: context.contextKey,
-          sourceUnitId: item.source.sourceUnitId, sourceHash: item.source.byteHash, positionEncoding, uri, position, payload: response.payload ?? null,
-          attempted: response.attempted === true, error: response.error || null, skipReason: response.skipReason || null }, stagingRoot: item.root, diskAccount: state.semanticDiskAccount, inventory: state.semanticEvidenceArtifacts, signal });
+        const artifactRef = await persistSemanticEvidence({ value: evidenceFor(position, response), stagingRoot: item.root,
+          diskAccount: state.semanticDiskAccount, inventory: state.semanticEvidenceArtifacts, signal });
         const evidence = ref(nextId++); rows.push({ family: 'node', row: { id: evidence.localId, kind: 'evidence', span: target.span, scope: target.scope,
           data: { method: 'textDocument/definition', producerId: providerId, producerVersion: providerVersion, evidenceKind: 'lsp-location', sourceRef: item.source.sourceUnitId, artifactRef } } });
         const candidates = [], exact = [];

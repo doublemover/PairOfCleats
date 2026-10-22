@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
+import { encodeBoundedSemanticJson } from './canonical-json-bounds.js';
 
 /** Canonical JSON for semantic identities; never silently drops unsupported values. */
-export const canonicalSemanticJson = (value, { onObjectEncoded = null } = {}) => {
+export const canonicalSemanticJson = (value, { onObjectEncoded = null, maxBytes = null, check = null } = {}) => {
+  if (maxBytes !== null) return encodeBoundedSemanticJson(value, { maxBytes, onObjectEncoded, check });
   const active = new Set();
   const encode = (item) => {
     if (item === null) return 'null';

@@ -3,11 +3,20 @@ import { createHash } from 'node:crypto';
 import { canonicalSemanticJson } from './identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { retainSemanticBytes } from './disk-writes.js';
-/** Immutable registered sidecar. No URI/path in server data is used as a write path. */
-export const persistSemanticEvidence = async ({ value, stagingRoot, relativeRoot, diskAccount, inventory, signal = null, maxBytes = 1048576 }) => {
+export const SEMANTIC_EVIDENCE_MAX_BYTES = 1048576;
+/** Own protocol data under the same allowance used by the durable sidecar. */
+export const encodeSemanticEvidence = (value, { signal = null, maxBytes = SEMANTIC_EVIDENCE_MAX_BYTES } = {}) => {
   throwIfAborted(signal);
-  const bytes = Buffer.from(canonicalSemanticJson(value));
-  if (bytes.length > maxBytes) throw Object.assign(new Error('Semantic evidence exceeds immutable sidecar budget.'), { code: 'ERR_SEMANTIC_EVIDENCE_BUDGET' });
+  try { return canonicalSemanticJson(value, { maxBytes, check: () => throwIfAborted(signal) }); }
+  catch (error) {
+    if (error?.code !== 'ERR_SEMANTIC_JSON_BUDGET') throw error;
+    throw Object.assign(new Error('Semantic evidence exceeds immutable sidecar budget.', { cause: error }), { code: 'ERR_SEMANTIC_EVIDENCE_BUDGET' });
+  }
+};
+/** Immutable registered sidecar. No URI/path in server data is used as a write path. */
+export const persistSemanticEvidence = async ({ value, stagingRoot, relativeRoot, diskAccount, inventory, signal = null, maxBytes = SEMANTIC_EVIDENCE_MAX_BYTES }) => {
+  const encoded = encodeSemanticEvidence(value, { maxBytes, signal });
+  const bytes = Buffer.from(encoded);
   const hash = createHash('sha256').update(bytes).digest('hex');
   const relative = 'semantic-evidence/' + hash + '.json';
   const record = { path: (relativeRoot ? relativeRoot.replaceAll('\\', '/') + '/' : '') + relative, hash, bytes: bytes.length };

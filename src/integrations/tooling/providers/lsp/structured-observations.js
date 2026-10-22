@@ -6,7 +6,14 @@ import { LSP_STRUCTURED_METHODS, LSP_OBSERVATION_CONSUMERS } from './observation
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
 const fail = message => Object.assign(new Error(message), { code: 'ERR_LSP_OBSERVATION_IDENTITY' });
 const freeze = value => {
-  if (value && typeof value === 'object') { for (const item of Object.values(value)) freeze(item); Object.freeze(value); }
+  const pending = [value], seen = new Set();
+  while (pending.length) {
+    const item = pending.pop();
+    if (!item || typeof item !== 'object' || seen.has(item)) continue;
+    seen.add(item);
+    for (const child of Object.values(item)) if (child && typeof child === 'object') pending.push(child);
+    Object.freeze(item);
+  }
   return value;
 };
 
@@ -24,7 +31,7 @@ export const createLspObservationCollector = ({ identity, consumers, capabilitie
     if (!Number.isSafeInteger(value) || value < 1 || value > maximum) throw fail(`Invalid structured LSP ${name} budget.`);
   }
   if (!Array.isArray(consumers) || !consumers.length || consumers.some(value => !Object.hasOwn(LSP_OBSERVATION_CONSUMERS, value))) throw fail('Declare supported observation consumers before acquisition.');
-  const pinned = freeze(JSON.parse(canonicalSemanticJson(identity)));
+  const pinned = freeze(JSON.parse(canonicalSemanticJson(identity, { maxBytes, check: () => throwIfAborted(signal) })));
   const requested = new Set(consumers.flatMap(value => LSP_OBSERVATION_CONSUMERS[value]));
   const cache = new Map(), pending = new Map(), items = new Map(), disabled = new Set(), observations = [];
   const startedAt = performance.now();
@@ -38,9 +45,16 @@ export const createLspObservationCollector = ({ identity, consumers, capabilitie
   const empty = (requestClass, params, reason, state = 'unsupported') => ({ schemaVersion: 1, identity: pinned,
     requestClass, method: LSP_STRUCTURED_METHODS[requestClass] || null, params, raw: null,
     state, reason, facts: [], factUnits: 0, omissions: [], exactCount: 0, coverage: 'unknown', projectReady });
+  const encodeWithinOutput = (value, allowance = maxBytes - bytes) => {
+    if (allowance < 1) return null;
+    try { return canonicalSemanticJson(value, { maxBytes: allowance, check: assertCurrent }); }
+    catch (error) { if (error?.code === 'ERR_SEMANTIC_JSON_BUDGET') return null; throw error; }
+  };
   const record = ({ requestClass, params, response, positionEncoding = 'utf-16' }) => {
     assertCurrent();
-    const normalizedParams = freeze(JSON.parse(canonicalSemanticJson(params)));
+    const paramsText = encodeWithinOutput(params, maxBytes);
+    if (paramsText === null) return empty(requestClass, {}, 'output_budget', 'partial');
+    const normalizedParams = freeze(JSON.parse(paramsText));
     if (!requested.has(requestClass)) return empty(requestClass, normalizedParams, 'consumer_not_declared');
     const key = semanticHash('lsp.structured-request.v1', { identity: pinned, requestClass, params: normalizedParams, positionEncoding });
     if (cache.has(key)) return cache.get(key);
@@ -54,15 +68,15 @@ export const createLspObservationCollector = ({ identity, consumers, capabilitie
           : String(response.error.code || 'ERR_LSP_REQUEST').slice(0, 128),
         message: String(response.error.message || 'LSP request failed').slice(0, 1024)
       } };
-      const retainedBytes = Buffer.byteLength(canonicalSemanticJson(value));
-      if (retainedBytes > maxBytes - bytes) return empty(requestClass, normalizedParams, 'output_budget', 'partial');
+      const encoded = encodeWithinOutput(value);
+      if (encoded === null) return empty(requestClass, normalizedParams, 'output_budget', 'partial');
+      const retainedBytes = Buffer.byteLength(encoded);
       bytes += retainedBytes;
       freeze(value); observations.push(value); cache.set(key, value); return value;
     }
     if (!Object.hasOwn(response, 'payload') || response.payload === undefined) return empty(requestClass, normalizedParams, 'raw_payload_unavailable', 'partial');
-    const rawText = canonicalSemanticJson(response.payload);
-    const rawBytes = Buffer.byteLength(rawText);
-    if (rawBytes > maxBytes - bytes || facts >= maxFacts || observations.length >= maxRequests) {
+    const rawText = encodeWithinOutput(response.payload);
+    if (rawText === null || facts >= maxFacts || observations.length >= maxRequests) {
       return empty(requestClass, normalizedParams, 'output_budget', 'partial');
     }
     const raw = JSON.parse(rawText);
@@ -87,8 +101,9 @@ export const createLspObservationCollector = ({ identity, consumers, capabilitie
       state: projected.omissions.length || projected.exactCount !== projected.facts.length || projectReady !== 'ready' ? 'partial' : 'complete',
       reason: projected.omissions.length ? 'projection_partial' : projectReady !== 'ready' ? 'project_readiness_unknown' : null,
       coverage: 'requested_scope' };
-    const projectedBytes = Buffer.byteLength(canonicalSemanticJson(value));
-    if (projectedBytes > maxBytes - bytes) return empty(requestClass, normalizedParams, 'output_budget', 'partial');
+    const encoded = encodeWithinOutput(value);
+    if (encoded === null) return empty(requestClass, normalizedParams, 'output_budget', 'partial');
+    const projectedBytes = Buffer.byteLength(encoded);
     freeze(value);
     for (const [token, retained] of pendingItems) items.set(token, retained);
     bytes += projectedBytes; facts += projected.factUnits;
@@ -120,7 +135,9 @@ export const createLspObservationCollector = ({ identity, consumers, capabilitie
   };
   const acquire = (options) => {
     assertCurrent();
-    const supplied = JSON.parse(canonicalSemanticJson(options));
+    const optionsText = encodeWithinOutput(options, maxBytes);
+    if (optionsText === null) return Promise.resolve(empty(null, {}, 'output_budget', 'partial'));
+    const supplied = JSON.parse(optionsText);
     const normalized = freeze({ requestClass: supplied.requestClass, params: supplied.params,
       positionEncoding: supplied.positionEncoding || 'utf-16' });
     const key = semanticHash('lsp.structured-request.v1', { identity: pinned, ...normalized });
