@@ -1,6 +1,8 @@
 import { analyzeLiteralText } from '../../../../shared/text-analyzer.js';
 import { MINHASH_HASH_IDENTITY } from '../../../minhash.js';
 import util from 'node:util';
+import { isAbortError, throwIfAborted } from '../../../../shared/abort.js';
+import { recordTokenizationRoute } from '../tokenization-evidence.js';
 import { analyzeComplexity, lintChunk } from '../../../analysis.js';
 import { getLanguageForFile } from '../../../language-registry.js';
 import { getChunkAuthorsFromLines } from '../../../scm/annotate.js';
@@ -241,6 +243,7 @@ export const processChunks = async (context) => {
     buildStage,
     fileIndex = null
   } = context;
+  throwIfAborted(signal);
 
   const containerExt = ext;
   const containerLanguageId = fileLanguageId || lang?.id || null;
@@ -410,8 +413,13 @@ export const processChunks = async (context) => {
     ? workerPool.shouldUseForFile(fileBytes)
     : false;
   const runTokenize = useWorkerForTokens && typeof workerPool?.tokenizeChunk === 'function'
-    ? (payload) => (runProc ? runProc(() => workerPool.tokenizeChunk(payload)) : workerPool.tokenizeChunk(payload))
+    ? (payload) => (runProc ? runProc(() => workerPool.tokenizeChunk(payload, { signal })) : workerPool.tokenizeChunk(payload, { signal }))
     : null;
+  const workerBackend = workerPool?.getExecutionBackend?.() === 'process' ? 'process-pool' : 'worker-pool';
+  const initialInlineReason = workerState.tokenWorkerDisabled ? 'caller-error'
+    : tokenMode === 'prose' && !shouldUseProseWorker ? 'size'
+      : tokenMode !== 'code' && !shouldUseProseWorker ? 'mode'
+        : workerPool?.getRoutingReason?.(fileBytes) || tokenizationStats?.routeObservations?.defaultInlineReason || 'pool-unavailable';
   let fileComplexity = {};
   let fileLint = [];
   if (isJsLike(ext) && mode === 'code') {
@@ -779,6 +787,7 @@ export const processChunks = async (context) => {
       });
     }
     let usedWorkerTokenize = false;
+    let inlineReason = initialInlineReason;
     if (effectiveTokenizeEnabled && runTokenize && !pretokenized) {
       try {
         const tokenStart = Date.now();
@@ -815,6 +824,9 @@ export const processChunks = async (context) => {
           addSettingMetric('tokenize', chunkLanguageId, chunkLineCount, tokenDurationMs);
         }
       } catch (err) {
+        throwIfAborted(signal);
+        if (isAbortError(err)) throw err;
+        inlineReason = 'caller-error';
         if (!workerState.workerTokenizeFailed) {
           const message = formatError(err);
           const detail = err?.stack || err?.cause || null;
@@ -848,6 +860,7 @@ export const processChunks = async (context) => {
       }
     }
     if (effectiveTokenizeEnabled && !tokenPayload) {
+      throwIfAborted(signal);
       const tokenStart = Date.now();
       updateCrashStage('tokenize', {
         chunkIndex: ci,
@@ -972,6 +985,11 @@ export const processChunks = async (context) => {
       literalTokens
     } = tokenPayload;
 
+    recordTokenizationRoute(tokenizationStats?.routeObservations,
+      !effectiveTokenizeEnabled ? 'disabled' : usedWorkerTokenize ? workerBackend
+        : pretokenized ? 'pretokenized' : 'inline',
+      !effectiveTokenizeEnabled ? 'disabled-config' : usedWorkerTokenize ? 'eligible'
+        : pretokenized ? 'cached' : inlineReason);
     if (tokenizationStats && effectiveTokenizeEnabled) {
       tokenizationStats.chunks += 1;
       tokenizationStats.tokens += tokens.length;
@@ -1078,7 +1096,8 @@ export const processChunks = async (context) => {
       analysisPolicy,
       weightMultiplier: boilerplateWeightMultiplier
     });
-    chunkPayload.phraseTokens = analyzeLiteralText(tokenText);
+    chunkPayload.phraseTokens = analyzeLiteralText(tokenText, { caseSensitive: true });
+    chunkPayload.phraseTokensCasePreserved = true;
     chunkPayload.skipPhrasePostings = shouldSkipPhrasePostingsForChunk(
       chunkPayload,
       typeof relKey === 'string' ? relKey.toLowerCase() : null
@@ -1169,5 +1188,6 @@ export const processChunks = async (context) => {
     });
   }
 
+  throwIfAborted(signal);
   return { chunks, vfsManifestRows };
 };

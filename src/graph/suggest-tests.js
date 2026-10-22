@@ -138,7 +138,7 @@ const discoverCandidateTests = ({ repoRoot, testMatchers, maxCandidates }) => {
         }
         continue;
       }
-      if (!dirent.isFile() || !TEST_EXTENSIONS.has(path.extname(relPath).toLowerCase())) continue;
+      if (!dirent.isFile()) continue;
       const normalized = toPosix(relPath);
       if (testMatchers?.length ? !matchesTestPatterns(normalized, testMatchers) : !isTestFileName(normalized)) continue;
       observed += 1;

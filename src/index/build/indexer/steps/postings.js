@@ -44,6 +44,9 @@ export const createTokenRetentionState = ({
   log = sharedLog
 }) => {
   const tokenizationStats = {
+    routeObservations: runtime.tokenizationObservations ||= { processedChunks: 0,
+      routes: {}, reasons: {}, firstInlineReason: null,
+      defaultInlineReason: runtime.workerPoolConfig?.enabled === false ? 'disabled-config' : 'pool-unavailable' },
     chunks: 0,
     tokens: 0,
     seq: 0,

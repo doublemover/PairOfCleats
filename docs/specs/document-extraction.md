@@ -1,6 +1,19 @@
 # Document Extraction and Chunking Specification
 
 ## Scope
+
+The DOCX ZIP fallback applies `maxBytesPerFile` independently to compressed input
+and expanded `word/document.xml` bytes. Declared sizes cannot bypass zlib's actual
+output bound; XML parsing only receives bounded output. Expansion overflow is an
+`oversize` extraction failure.
+
+PDF extraction owns both the loading task and loaded document. Success, page
+failure and timeout dispose them through bounded cleanup. The timeout signal
+initiates cancellation immediately, each awaited page boundary checks it, and a
+document arriving after timeout is disposed before use. Cleanup failures retain
+the primary extraction error and attach cleanup evidence. This lifecycle
+contract requires pdf.js cleanup to actually settle; a timeout race alone is not
+proof that a worker terminated.
 - Applies to `indexing.mode = extracted-prose`.
 - Supported source types: `pdf`, `docx`.
 

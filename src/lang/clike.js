@@ -65,8 +65,8 @@ function normalizeCLikeFuncName(raw) {
  * @param {number} start
  * @returns {{bodyStart:number,bodyEnd:number}}
  */
-export function findCLikeBodyBounds(text, start) {
-  return findBraceDelimitedBodyBounds(text, start, { charLiterals: true });
+export function findCLikeBodyBounds(text, start, options = {}) {
+  return findBraceDelimitedBodyBounds(text, start, { charLiterals: true, ...options });
 }
 
 function findObjcEnd(text, start) {

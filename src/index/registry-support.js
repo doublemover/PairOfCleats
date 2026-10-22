@@ -9,6 +9,7 @@ import { stableStringify } from '../shared/stable-json.js';
 import { isManifestPathSafe } from './validate/paths.js';
 import {
   acquireRegistryLock,
+  assertBorrowedRegistryLock,
   attachRegistryLockSignalCleanup
 } from './registry-lock.js';
 
@@ -118,7 +119,8 @@ export const withRegistryLock = async ({
   worker
 }) => {
   const lockInput = isRegistryObject(options?.lock) ? options.lock : null;
-  if (lockInput && typeof lockInput.release === 'function') {
+  if (lockInput) {
+    await assertBorrowedRegistryLock(lockInput, repoCacheRoot, domain);
     return worker(lockInput);
   }
   const lock = await acquireRegistryLock({

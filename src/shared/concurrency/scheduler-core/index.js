@@ -135,7 +135,11 @@ export function createBuildScheduler(input = {}) {
     stats,
     shutdown: shutdownController.shutdown,
     setLimits: shutdownController.setLimits,
-    registerQueue: queueLifecycle.registerQueue,
+    registerQueue: (name, queueConfig) => {
+      const queue = queueLifecycle.registerQueue(name, queueConfig);
+      dispatch.pump();
+      return queue;
+    },
     registerQueues: queueLifecycle.registerQueues,
     clearQueue: queueLifecycle.clearQueue,
     setTelemetryOptions: shutdownController.setTelemetryOptions,

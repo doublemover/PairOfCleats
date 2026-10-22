@@ -5,6 +5,23 @@ It is the canonical contract for Git/JJ/none providers.
 
 ## 1) Provider interface
 
+SCM freshness uses immutable commit identities. JJ change IDs describe lineage,
+and must never replace the full commit ID in metadata cache guards or snapshots.
+Providers may expose optional `getHistoryAffectedFiles({repoRoot,fromRef,toRef})`
+for history-derived metadata reuse. Success requires `{complete:true,filesPosix}`
+and means every path whose history changed was enumerated, including paths edited
+then reverted to identical endpoint bytes. Git requires an ancestry move and
+enumerates touched paths with NUL-safe output; rewritten/missing histories or
+truncated output force refresh. `getChangedFiles` retains its content-diff meaning.
+
+An unavailable change-history proof or dirty/unknown working copy cannot carry
+old metadata into a new-head snapshot. Only proven reusable or freshly acquired
+entries are certified under the current generation. A failed refresh remains
+unresolved and retries on the next request. Prefetch joiners recheck and hydrate
+their own missing paths after any earlier flight; one caller's success is not
+proof of another caller's coverage. A successful empty tracked-file array remains
+authoritative and never triggers filesystem fallback.
+
 Each provider must implement these functions with the listed shapes.
 All paths must be repo-relative and POSIX normalized.
 Filename whitespace and case remain significant according to the repository's

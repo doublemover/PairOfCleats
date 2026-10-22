@@ -1,5 +1,6 @@
 import { buildLineIndex, countLines, createLineAccessor, offsetToLine } from '../../shared/lines.js';
 import { extractDocComment, sliceSignature } from '../shared.js';
+import { findDeclarationBoundary } from '../shared/declaration-boundary.js';
 import {
   COMMON_NAME_NODE_TYPES,
   findDescendantByType,
@@ -218,17 +219,24 @@ const shouldGuardNativeParser = (resolvedId, options = {}) => {
  * @param {number} end
  * @returns {string}
  */
-function extractSignature(text, start, end) {
+export function extractSignature(text, start, end, node = null) {
   const limit = Math.min(end, start + 2000);
-  const slice = text.slice(start, limit);
-  const newline = slice.indexOf('\n');
-  const brace = slice.indexOf('{');
-  const semi = slice.indexOf(';');
-  const arrow = slice.indexOf('=>');
-  const candidates = [newline, brace, semi].filter((idx) => idx >= 0);
-  if (arrow >= 0) candidates.push(arrow + 2);
-  const cutoff = candidates.length ? Math.min(...candidates) : slice.length;
-  const endIdx = start + cutoff;
+  let body = null;
+  try { body = node?.childForFieldName?.('body'); } catch {}
+  if (!body) {
+    for (let index = 0; index < getNamedChildCount(node); index += 1) {
+      const child = getNamedChild(node, index);
+      if (['statement_block', 'class_body', 'declaration_list', 'function_body', 'block'].includes(child?.type)) {
+        body = child; break;
+      }
+    }
+  }
+  const boundary = findDeclarationBoundary(text.slice(start, limit), 0, {
+    maxChars: 2000, rustLifetimes: /\bfn\b/.test(text.slice(start, start + 80)),
+    tripleDoubleStrings: true
+  });
+  const endIdx = Number.isInteger(body?.startIndex) && body.startIndex >= start && body.startIndex <= end
+    ? Math.min(limit, body.startIndex) : start + boundary.signatureEnd;
   return sliceSignature(text, start, endIdx).replace(/\s+/g, ' ').trim();
 }
 
@@ -518,7 +526,7 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
   const startLine = offsetToLine(lineIndex, start);
   const endOffset = end > start ? end - 1 : start;
   const endLine = offsetToLine(lineIndex, endOffset);
-  const signature = extractSignature(text, start, end);
+  const signature = extractSignature(text, start, end, node);
   const docstring = extractDocComment(
     lineAccessor,
     startLine - 1,

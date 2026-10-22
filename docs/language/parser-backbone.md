@@ -9,6 +9,15 @@ This document describes the unified parsing backbone, native parser usage, and t
 
 ## Parser strategy
 
+Signature previews prefer native AST body fields/direct body children. The
+bounded lexical fallback shares declaration-body discovery with heuristic
+chunkers, tracking comments, strings and nested parameter/type delimiters.
+Offsets are UTF-16, body ranges are half-open, and signature line indexes are
+zero-based. Bodyless or capped declarations report no proven body. Rust lifetime
+and Kotlin triple-string handling remain explicit dialect options; Go/shell keep
+their existing semicolon policy. Previews keep the existing length bound while
+retaining multiline parameter lists and quoted punctuation.
+
 ### Native parsers (preferred when stable)
 - JavaScript/Flow: Babel parser by default, with Acorn/Esprima fallbacks for comparison.
 - TypeScript: TypeScript compiler API when available (prefers the target repo `node_modules`), with Babel parser fallback when not.

@@ -37,6 +37,7 @@ export function createSchedulerQueueLifecycle({ config }) {
       floorIo: Number.isFinite(Number(cfg.floorIo)) ? Math.max(0, Math.floor(Number(cfg.floorIo))) : 0,
       floorMem: Number.isFinite(Number(cfg.floorMem)) ? Math.max(0, Math.floor(Number(cfg.floorMem))) : 0,
       maxPending: config.normalizeMaxPending(cfg.maxPending),
+      concurrency: config.normalizeMaxPending(cfg.concurrency),
       maxPendingBytes: config.normalizeByteLimit(cfg.maxPendingBytes),
       maxInFlightBytes: config.normalizeByteLimit(cfg.maxInFlightBytes),
       pending: [],
@@ -77,6 +78,9 @@ export function createSchedulerQueueLifecycle({ config }) {
     }
     if (Object.prototype.hasOwnProperty.call(newConfig, 'maxPending')) {
       queue.maxPending = config.normalizeMaxPending(newConfig.maxPending);
+    }
+    if (Object.prototype.hasOwnProperty.call(newConfig, 'concurrency')) {
+      queue.concurrency = config.normalizeMaxPending(newConfig.concurrency);
     }
     if (newConfig.maxPendingBytes != null) {
       queue.maxPendingBytes = config.normalizeByteLimit(newConfig.maxPendingBytes);

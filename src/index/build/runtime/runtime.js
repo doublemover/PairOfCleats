@@ -23,7 +23,6 @@ import {
 import { normalizeBundleFormat } from '../../../shared/bundle-io-paths.js';
 import { normalizeCommentConfig } from '../../comments.js';
 import { normalizeSegmentsConfig } from '../../segments.js';
-import { log, logLine, updateLogContext } from '../../../shared/progress-runtime.js';
 import { getEnvConfig } from '../../../shared/env/runtime.js';
 import { isTestingEnv } from '../../../shared/env/testing.js';
 import { isAbsolutePathNative } from '../../../shared/file-paths.js';
@@ -36,7 +35,7 @@ import { normalizeEmbeddingBatchMultipliers } from '../embedding-batch.js';
 import { mergeConfig } from '../../../shared/config.js';
 import { setXxhashBackend } from '../../../shared/hash.js';
 import { getScmProvider, getScmProviderAndRoot, resolveScmConfig } from '../../scm/registry.js';
-import { setScmRuntimeConfig } from '../../scm/runtime.js';
+import { setScmRuntimeConfig, resolveScmRevisionIdentity } from '../../scm/runtime.js';
 import { normalizeRiskConfig } from '../../risk.js';
 import { normalizeRiskInterproceduralConfig } from '../../risk-interprocedural/config.js';
 import { normalizeRecordsConfig } from '../records.js';
@@ -69,7 +68,9 @@ import {
   acquireRuntimeDaemonSession,
   createRuntimeDaemonJobContext,
   hasDaemonEmbeddingWarmKey,
-  addDaemonEmbeddingWarmKey
+  addDaemonEmbeddingWarmKey,
+  drainDaemonEmbeddingLeases,
+  removeDaemonEmbeddingWarmKey
 } from './daemon-session.js';
 import { resolveLearnedAutoProfileSelection } from './learned-auto-profile.js';
 import {
@@ -95,6 +96,7 @@ import {
 } from '../../../contracts/index-profile.js';
 import { resolveRuntimeDictionaries } from './dictionaries.js';
 import { preloadTreeSitterWithDaemonCache } from './tree-sitter-preload.js';
+import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
 
 export {
   applyLearnedAutoProfileSelection,
@@ -129,6 +131,10 @@ async function createBuildRuntimeImpl({
   observability = null,
   onRuntimeAttempt
 } = {}) {
+  const initialization = createLifecycleRegistry({ name: 'build-runtime-initialization' });
+  try {
+  const pendingLogs = [];
+  let log = (...args) => pendingLogs.push(args);
   const initStartedAt = Date.now();
   /**
    * Emit a timed initialization step log entry.
@@ -172,7 +178,7 @@ async function createBuildRuntimeImpl({
     } catch {}
   }
   const loggingConfig = userConfig.logging || {};
-  configureRuntimeLogger({
+  const loggerScope = configureRuntimeLogger({
     envConfig,
     loggingConfig,
     buildId: null,
@@ -183,6 +189,12 @@ async function createBuildRuntimeImpl({
     logFormatOverride,
     observability
   });
+  log = loggerScope.log;
+  const { logLine, updateLogContext } = loggerScope;
+  initialization.registerCleanup(() => loggerScope.close(), { label: 'runtime.logger.close' });
+  for (const args of pendingLogs) log(...args);
+  pendingLogs.length = 0;
+  return await loggerScope.run(async () => {
   const importGraphEnabled = envConfig.importGraph == null ? true : envConfig.importGraph;
   const rawIndexingConfig = userConfig.indexing || {};
   let indexingConfig = rawIndexingConfig;
@@ -455,6 +467,10 @@ async function createBuildRuntimeImpl({
     writeBackpressure: schedulerConfig.writeBackpressure,
     adaptiveSurfaces: schedulerConfig.adaptiveSurfaces
   });
+  initialization.registerCleanup(async () => {
+    const result = await scheduler.shutdown?.({ awaitRunning: true });
+    if (result?.timedOut) throw new Error('Build initialization scheduler did not drain.');
+  }, { label: 'scheduler' });
   const stage1Queues = resolveStage1Queues(indexingConfig);
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsConfig = normalizeRecordsConfig(userConfig.records || {});
@@ -514,10 +530,7 @@ async function createBuildRuntimeImpl({
     };
   }
   const toolVersion = getToolVersion();
-  const scmHeadId = repoProvenance?.head?.changeId
-    || repoProvenance?.head?.commitId
-    || repoProvenance?.commit
-    || null;
+  const scmHeadId = resolveScmRevisionIdentity(repoProvenance);
   const resolvedIndexRoot = indexRootOverride ? path.resolve(indexRootOverride) : null;
   const buildsRoot = getBuildsRoot(root, userConfig);
   let { buildId, buildRoot } = resolveRuntimeBuildRoot({
@@ -771,6 +784,7 @@ async function createBuildRuntimeImpl({
     cpuConcurrency,
     onEmbeddingObservation: (embeddings) => persistRuntimeAttempt(buildRoot, runtimeAttempt, { embeddings })
   }));
+  initialization.registerCleanup(() => embeddingRuntime.closeEmbeddingRuntime(), { label: 'embeddings' });
   const {
     embeddingBatchSize,
     embeddingConcurrency,
@@ -789,7 +803,8 @@ async function createBuildRuntimeImpl({
     modelsDir,
     getChunkEmbedding,
     getChunkEmbeddings,
-    getEmbeddingObservation
+    getEmbeddingObservation,
+    closeEmbeddingRuntime
   } = embeddingRuntime;
   const daemonPrewarmEmbeddings = daemonConfig.prewarmEmbeddings !== false;
   const embeddingPrewarmTokenizer = embeddingProvider === 'onnx' && embeddingOnnx?.prewarmTokenizer === true;
@@ -829,7 +844,8 @@ async function createBuildRuntimeImpl({
     && useStubEmbeddings !== true
     && !daemonEmbeddingWarmHit
   ) {
-    await timeInit('embedding prewarm', () => warmEmbeddingAdapter({
+    await timeInit('embedding prewarm', async () => {
+    const warmLease = await warmEmbeddingAdapter({
       rootDir: root,
       provider: embeddingProvider,
       onnxConfig: embeddingOnnx,
@@ -838,11 +854,16 @@ async function createBuildRuntimeImpl({
       useStub: false,
       modelId,
       modelsDir,
+      modelArtifact: embeddingIdentity?.modelArtifact,
+      throwOnError: true,
       prewarmTokenizer: embeddingPrewarmTokenizer,
       prewarmModel: embeddingPrewarmModel,
       prewarmTexts: embeddingPrewarmTexts
-    }));
-    addDaemonEmbeddingWarmKey(daemonSession, embeddingWarmKey);
+    });
+    addDaemonEmbeddingWarmKey(daemonSession, embeddingWarmKey, warmLease);
+    initialization.registerCleanup(() => removeDaemonEmbeddingWarmKey(daemonSession, embeddingWarmKey, warmLease), { label: 'daemon-embedding-prewarm' });
+    await drainDaemonEmbeddingLeases(daemonSession);
+    });
   }
   const pythonAstRuntimeConfig = {
     ...pythonAstConfig,
@@ -877,6 +898,13 @@ async function createBuildRuntimeImpl({
     memoryPolicy: runtimeMemoryPolicy
   });
   const { queues } = queueConfig;
+  for (const [label, queue] of Object.entries(queues)) {
+    if (!queue) continue;
+    initialization.registerCleanup(async () => {
+      queue.clear?.();
+      await queue.onIdle?.();
+    }, { label: `queue:${label}` });
+  }
 
   const incrementalEnabled = argv.incremental === true;
   const incrementalBundlesConfig = indexingConfig.incrementalBundles || {};
@@ -998,7 +1026,8 @@ async function createBuildRuntimeImpl({
     lexiconConfig
   });
 
-  const workerPoolsResult = await timeInit('worker pools', () => createRuntimeWorkerPools({
+  const workerPoolsResult = await timeInit('worker pools', async () => {
+  const acquired = await createRuntimeWorkerPools({
     workerPoolConfig,
     runtimeAttemptId: runtimeAttempt.attemptId,
     buildId,
@@ -1021,7 +1050,10 @@ async function createBuildRuntimeImpl({
     },
     debugCrash,
     log
-  }));
+  });
+  initialization.registerCleanup(() => acquired.workerPools?.destroy?.(), { label: 'worker-pools' });
+  return acquired;
+  });
   const { workerPools, workerPool, quantizePool } = workerPoolsResult;
 
   log('Build environment snapshot.', {
@@ -1111,6 +1143,8 @@ async function createBuildRuntimeImpl({
     envelope,
     root,
     log,
+    loggerScope,
+    closeLogger: () => loggerScope.close(),
     argv,
     rawArgv,
     userConfig,
@@ -1253,6 +1287,7 @@ async function createBuildRuntimeImpl({
     getChunkEmbedding,
     getChunkEmbeddings,
     getEmbeddingObservation,
+    closeEmbeddingRuntime,
     languageOptions,
     generatedPolicy,
     ignoreMatcher,
@@ -1266,4 +1301,12 @@ async function createBuildRuntimeImpl({
   };
   await refreshRuntimeReceipt(runtime);
   return runtime;
+  });
+  } catch (error) {
+    try { await initialization.close(); }
+    catch (cleanupError) {
+      error.cleanupErrors = [...(error.cleanupErrors || []), cleanupError];
+    }
+    throw error;
+  }
 }

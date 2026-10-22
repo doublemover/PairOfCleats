@@ -141,6 +141,7 @@ export async function attachEmbeddings({
   fileLanguageId,
   languageOptions
 }) {
+  throwIfAborted(abortSignal);
   if (!embeddingEnabled) {
     for (const chunk of chunks) {
       chunk.embed_code = [];

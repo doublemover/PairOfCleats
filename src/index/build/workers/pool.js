@@ -203,6 +203,8 @@ export async function createIndexerWorkerPool(input = {}) {
     };
 
     let activeTasks = 0;
+    let waitingForThrottle = 0;
+    let completedRequests = 0;
     let quantizeTypedTempBuffers = 0;
 
     const workerExecArgv = buildWorkerExecArgv();
@@ -528,8 +530,9 @@ export async function createIndexerWorkerPool(input = {}) {
         const pool = lifecycle.getPool();
         const queued = Number.isFinite(pool?.queueSize) ? pool.queueSize : 0;
         const maxWorkers = lifecycle.getEffectiveMaxWorkers();
+        const busy = workerCoordinator.busyStats(pool);
         const queueUtilization = maxWorkers > 0
-          ? Math.max(0, Math.min(1, (activeTasks + queued) / maxWorkers))
+          ? Math.max(0, Math.min(1, busy.actuallyRunning / maxWorkers))
           : null;
         const pressureSnapshot = queueController.snapshot();
         const numaPinningPlan = workerCoordinator.getNumaPlan();
@@ -539,6 +542,14 @@ export async function createIndexerWorkerPool(input = {}) {
           backend: processBackend ? 'process' : 'worker',
           process: pool?.stats?.() || null,
           activeTasks,
+          outstandingRequests: activeTasks,
+          waitingForThrottle,
+          actuallyRunning: busy.actuallyRunning,
+          awaitingBackendObservation: Math.max(0, activeTasks - waitingForThrottle - queued - busy.actuallyRunning),
+          completedRequests,
+          busy,
+          requestPressure: maxWorkers > 0 ? activeTasks / maxWorkers : null,
+          utilizationScope: 'observed-busy-worker-wall-occupancy; not CPU-time',
           queuedTasks: queued,
           maxWorkers,
           configuredMaxWorkers: lifecycle.getConfiguredMaxWorkers(),
@@ -581,6 +592,15 @@ export async function createIndexerWorkerPool(input = {}) {
         };
       },
       dictConfig: sanitizeDictConfig(dictConfig),
+      getExecutionBackend: () => processBackend ? 'process' : 'worker',
+      getRoutingReason(sizeBytes) {
+        if (heapLaunchContract?.supported === false && !processBackend) return 'heap-contract';
+        if (config.enabled === false) return 'disabled-config';
+        if (lifecycle.isDisabled() || lifecycle.isPermanentlyDisabled()) return 'pool-unavailable';
+        if (config.enabled === 'auto' && ((config.minFileBytes > 0 && sizeBytes < config.minFileBytes)
+          || (config.maxFileBytes != null && sizeBytes > config.maxFileBytes))) return 'size';
+        return 'eligible';
+      },
       shouldUseForFile(sizeBytes) {
         if (lifecycle.isDisabled() || lifecycle.isPermanentlyDisabled()) return false;
         if (config.enabled === true) return true;
@@ -614,7 +634,9 @@ export async function createIndexerWorkerPool(input = {}) {
             return null;
           }
           queueController.recordPressureCacheEntry(payload);
-          throttleSlot = await queueController.acquireLanguageThrottleSlot(payload, { signal });
+          waitingForThrottle += 1;
+          try { throttleSlot = await queueController.acquireLanguageThrottleSlot(payload, { signal }); }
+          finally { waitingForThrottle -= 1; }
           if (queueController.isClosed()) return null;
           const result = await lifecycle.getPool().run(
             sanitizePoolPayload(payload, sanitizeDictConfig(payload?.dictConfig)),
@@ -623,9 +645,9 @@ export async function createIndexerWorkerPool(input = {}) {
           updatePoolMetrics();
           return result;
         } catch (err) {
-          if (isAbortError(err) && signal?.aborted) throw err;
+          throwIfAborted(signal);
+          if (isAbortError(err)) throw err;
           if (err?.code === 'ERR_PROCESS_TASK_BUDGET') throw err;
-          if (queueController.isClosed() && isAbortError(err)) return null;
           return handleWorkerTaskError({
             err,
             payload,
@@ -638,6 +660,7 @@ export async function createIndexerWorkerPool(input = {}) {
         } finally {
           queueController.releaseLanguageThrottleSlot(throttleSlot);
           activeTasks = Math.max(0, activeTasks - 1);
+          completedRequests += 1;
           updatePoolMetrics();
           await lifecycle.handleTaskDrained();
         }
@@ -671,7 +694,8 @@ export async function createIndexerWorkerPool(input = {}) {
           updatePoolMetrics();
           return result;
         } catch (err) {
-          if (isAbortError(err) && signal?.aborted) throw err;
+          throwIfAborted(signal);
+          if (isAbortError(err)) throw err;
           if (err?.code === 'ERR_PROCESS_TASK_BUDGET') throw err;
           return handleWorkerTaskError({
             err,
@@ -683,6 +707,7 @@ export async function createIndexerWorkerPool(input = {}) {
           });
         } finally {
           activeTasks = Math.max(0, activeTasks - 1);
+          completedRequests += 1;
           updatePoolMetrics();
           await lifecycle.handleTaskDrained();
         }

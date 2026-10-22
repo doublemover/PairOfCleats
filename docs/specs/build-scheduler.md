@@ -22,6 +22,18 @@ Scheduler owns admission control, concurrency caps, fairness, and backpressure b
 
 ## Work model
 
+Queue `concurrency` is a hard running-task admission cap, independent of producer
+pending/byte windows, resource tokens and adaptive surface ceilings. Adapters
+register the minimum of their effective capacity and any explicit queue cap.
+Raising a runtime adapter cap triggers admission again; lowering it lets running
+work finish while blocking further starts. Nested non-CPU tasks retain their
+existing resource requests and do not hold global tokens waiting for a second
+adapter queue. Reservation release and cancellation settle exactly once.
+
+Worker teardown retains its pool handle on failed destruction; process pools
+retain aggregate memory reservations while children remain unconfirmed. Failed
+cleanup is retryable, and cannot admit a replacement over a still-owned pool.
+
 Resource discovery uses process-available parallelism and the shared minimum
 host/container/configured memory envelope. Host CPU count is diagnostic.
 Tree-sitter subprocess fanout is the minimum of the explicit fanout, effective

@@ -1,5 +1,12 @@
 # Public Artifact Surface (0.1.0)
 
+Publication readiness binds the record's mode, build root, mode index directory,
+generation identity and artifact surface version to the requested authority.
+Its ordinary, contained manifest must carry the same mode/build identity. A
+record copied from another root cannot authorize promotion while the old root's
+manifest happens to exist. Mixed-mode pointers validate each selected published
+root independently; cleanup and reader retention continue to own old generations.
+
 This document is the **canonical** contract for PairOfCleats public artifacts. It supersedes `docs/contracts/artifact-contract.md` for all contract decisions.
 
 ## Contract version

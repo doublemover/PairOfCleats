@@ -263,6 +263,12 @@ pairofcleats architecture-check --repo . --rules ./architecture.rules.json --for
 ### Purpose
 Suggest impacted tests based on a changed file list and graph traversal.
 
+Explicit `--test-pattern` globs can select ordinary test candidates of any
+extension, including Python and Go. The existing JS/TS naming policy applies
+when no explicit pattern is supplied. Selection does not prove a file is runnable,
+compatible with a particular framework, or covered by the graph; discovered
+files are never executed automatically.
+
 ### Command
 ```bash
 pairofcleats suggest-tests --repo . --changed src/a.ts --changed src/b.ts --max 50 --format json

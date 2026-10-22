@@ -312,6 +312,20 @@ export const gitProvider = {
       })
     };
   },
+  async getHistoryAffectedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null }) {
+    // Endpoint tree equality cannot certify last-author/commit/churn equality.
+    // Require an ancestry move and enumerate every path touched along it. A
+    // rewritten history deliberately invalidates the whole metadata snapshot.
+    if (!fromRef || !toRef || String(fromRef).startsWith('-') || String(toRef).startsWith('-')) return toUnavailableResult();
+    const ancestry = await runGitProviderCommand(['-C', repoRoot, 'merge-base', '--is-ancestor', fromRef, toRef]);
+    if (ancestry.exitCode !== 0) return toUnavailableResult();
+    const args = appendScopedSubdirArg(['-C', repoRoot, 'log', '--format=', '--name-only', '-z',
+      '--no-renames', '-m', `${fromRef}..${toRef}`], { repoRoot, subdir });
+    const result = await runGitProviderCommand(args);
+    if (result.exitCode !== 0 || result.truncated || result.outputCapture?.stdout?.truncated) return toUnavailableResult();
+    return { complete: true, filesPosix: parseProviderFileList({ stdout: result.stdout,
+      repoRoot, parser: parseNullSeparated }) };
+  },
   async getFileMeta({ repoRoot, filePosix, timeoutMs, includeChurn = true, headId = null }) {
     const config = resolveGitConfig({ timeoutState: getGitMetaTimeoutState() });
     const normalizedFilePosix = toRepoPosixPath(filePosix, repoRoot);

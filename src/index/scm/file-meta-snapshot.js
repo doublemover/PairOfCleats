@@ -12,11 +12,11 @@ import {
   isIncompleteFileMeta,
   normalizeFileMeta
 } from './file-meta.js';
-import { buildScmFreshnessGuard, getScmRuntimeConfigEpoch } from './runtime.js';
+import { buildScmFreshnessGuard, getScmRuntimeConfigEpoch, resolveScmRevisionIdentity } from './runtime.js';
 import { buildScmMetadataFailure, normalizeScmMetadataDiagnostics, preserveScmMetadataFailure } from './metadata-diagnostics.js';
 import { normalizeScmFileKey } from './paths.js';
 
-const SCM_FILE_META_SNAPSHOT_SCHEMA_VERSION = 1;
+const SCM_FILE_META_SNAPSHOT_SCHEMA_VERSION = 2;
 const SCM_FILE_META_SNAPSHOT_NAME = 'file-meta-v1.json';
 
 const normalizeRepoRoot = (value) => {
@@ -38,12 +38,7 @@ const normalizeFileMetaMap = (input) => {
   return fileMetaByPath;
 };
 
-const resolveHeadId = (repoProvenance) => (
-  repoProvenance?.head?.changeId
-  || repoProvenance?.head?.commitId
-  || repoProvenance?.commit
-  || null
-);
+const resolveHeadId = resolveScmRevisionIdentity;
 
 const resolveDirty = (repoProvenance) => (
   typeof repoProvenance?.dirty === 'boolean' ? repoProvenance.dirty : null
@@ -137,13 +132,13 @@ const resolveChangedFileSet = async ({
 }) => {
   if (!cachedHeadId || !headId) return null;
   if (cachedHeadId === headId) return new Set();
-  if (!providerImpl || typeof providerImpl.getChangedFiles !== 'function') return null;
-  const changed = await providerImpl.getChangedFiles({
+  if (!providerImpl || typeof providerImpl.getHistoryAffectedFiles !== 'function') return null;
+  const changed = await providerImpl.getHistoryAffectedFiles({
     repoRoot,
     fromRef: cachedHeadId,
     toRef: headId
   });
-  if (!changed || changed.ok === false || !Array.isArray(changed.filesPosix)) return null;
+  if (!changed || changed.ok === false || changed.complete !== true || !Array.isArray(changed.filesPosix)) return null;
   const fileSet = new Set();
   for (const value of changed.filesPosix) {
     const key = normalizeFileKey(value);
@@ -308,7 +303,7 @@ export const prepareScmFileMetaSnapshot = async ({
   const canReuseByHead = configCompatible
     && Boolean(headId && cachedHeadId && headId === cachedHeadId && dirty === false);
   let changedFileSet = null;
-  if (!canReuseByHead && compatibleCached && configCompatible && !dirty && cachedIncludeChurn === includeChurn) {
+  if (!canReuseByHead && compatibleCached && configCompatible && dirty === false && cachedIncludeChurn === includeChurn) {
     changedFileSet = await resolveChangedFileSet({
       providerImpl,
       repoRoot,
@@ -409,7 +404,8 @@ export const prepareScmFileMetaSnapshot = async ({
   const persisted = Object.create(null);
   if (configCompatible && compatibleCached && cachedIncludeChurn === includeChurn) {
     for (const [filePosix, meta] of Object.entries(cachedFiles)) {
-      if (changedFileSet && changedFileSet.has(filePosix)) continue;
+      if (!canReuseByHead && (!changedFileSet || changedFileSet.has(filePosix))) continue;
+      if (isIncompleteFileMeta(meta, { includeChurn })) continue;
       persisted[filePosix] = meta;
     }
   }

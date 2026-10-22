@@ -58,6 +58,7 @@ const resolveDocxFailureReason = (err) => {
   const code = String(err?.code || '');
   const message = String(err?.message || '').toLowerCase();
   if (code === 'EXTRACT_TIMEOUT') return 'extract_timeout';
+  if (code === 'ERR_BUFFER_TOO_LARGE' || code === 'ERR_DOCX_EXPANDED_LIMIT') return 'oversize';
   if (message.includes('encrypted')) return 'unsupported_encrypted';
   return 'extract_failed';
 };
@@ -96,6 +97,7 @@ const parseCentralDirectory = (buffer) => {
     if (buffer.readUInt32LE(cursor) !== CENTRAL_SIGNATURE) break;
     const compressionMethod = buffer.readUInt16LE(cursor + 10);
     const compressedSize = buffer.readUInt32LE(cursor + 20);
+    const uncompressedSize = buffer.readUInt32LE(cursor + 24);
     const fileNameLength = buffer.readUInt16LE(cursor + 28);
     const extraLength = buffer.readUInt16LE(cursor + 30);
     const commentLength = buffer.readUInt16LE(cursor + 32);
@@ -107,6 +109,7 @@ const parseCentralDirectory = (buffer) => {
       name,
       compressionMethod,
       compressedSize,
+      uncompressedSize,
       localHeaderOffset
     });
     cursor = nameEnd + extraLength + commentLength;
@@ -114,7 +117,10 @@ const parseCentralDirectory = (buffer) => {
   return entries;
 };
 
-const extractZipEntry = (buffer, entry) => {
+export const extractZipEntry = (buffer, entry, maxOutputBytes) => {
+  if (!Number.isSafeInteger(maxOutputBytes) || maxOutputBytes <= 0) throw new TypeError('DOCX expanded XML requires a positive byte bound.');
+  const oversize = () => Object.assign(new Error('DOCX expanded XML exceeds the extraction byte policy.'), { code: 'ERR_DOCX_EXPANDED_LIMIT' });
+  if (entry.uncompressedSize > maxOutputBytes) throw oversize();
   const localOffset = entry.localHeaderOffset;
   if (localOffset + 30 > buffer.length) return null;
   if (buffer.readUInt32LE(localOffset) !== LOCAL_SIGNATURE) return null;
@@ -124,8 +130,11 @@ const extractZipEntry = (buffer, entry) => {
   const dataEnd = dataStart + entry.compressedSize;
   if (dataStart < 0 || dataEnd > buffer.length || dataEnd <= dataStart) return null;
   const payload = buffer.slice(dataStart, dataEnd);
-  if (entry.compressionMethod === 0) return payload;
-  if (entry.compressionMethod === 8) return zlib.inflateRawSync(payload);
+  if (entry.compressionMethod === 0) {
+    if (payload.length > maxOutputBytes) throw oversize();
+    return payload;
+  }
+  if (entry.compressionMethod === 8) return zlib.inflateRawSync(payload, { maxOutputLength: maxOutputBytes });
   return null;
 };
 
@@ -166,7 +175,7 @@ const parseDocxParagraphsFromBuffer = (buffer, policy = null) => {
   if (!documentEntry) {
     return buildFailedResult('extract_failed', ['word/document.xml missing'], { sourceType: 'docx', policy });
   }
-  const xmlBuffer = extractZipEntry(buffer, documentEntry);
+  const xmlBuffer = extractZipEntry(buffer, documentEntry, normalizeDocumentExtractionPolicy(policy).maxBytesPerFile);
   if (!xmlBuffer) {
     return buildFailedResult('extract_failed', ['word/document.xml unreadable'], { sourceType: 'docx', policy });
   }

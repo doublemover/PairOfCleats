@@ -255,6 +255,12 @@ export const writeArtifactPublicationRecord = async ({
   if (normalizedStatus === ARTIFACT_PUBLICATION_STATUSES.PUBLISHED && validationPayload?.ok !== true) {
     throw new Error('[artifact-publication] publishing requires successful generation validation.');
   }
+  if (normalizedStatus === ARTIFACT_PUBLICATION_STATUSES.PUBLISHED && (
+    validationPayload.mode !== mode || path.resolve(validationPayload.buildRoot || '.') !== path.resolve(buildRoot)
+    || path.resolve(validationPayload.indexDir || '.') !== path.resolve(outDir)
+    || path.resolve(validationPayload.manifestPath || '.') !== resolvedManifestPath
+    || validationPayload.generationId !== resolveGenerationId({ buildId, buildRoot, mode })
+  )) throw new Error('[artifact-publication] generation validation belongs to another publication authority.');
   const requiredPaths = resolveCommittedArtifactPaths({
     buildRoot,
     outDir,
@@ -347,7 +353,7 @@ export const assertArtifactPublicationReady = async ({
     const publicationPath = resolveArtifactPublicationPath(buildRoot, mode);
     let payload = null;
     try {
-      payload = JSON.parse(await fs.readFile(publicationPath, 'utf8'));
+      payload = JSON.parse(await fs.readFile(assertArtifactFilePath(buildRoot, publicationPath), 'utf8'));
     } catch (error) {
       throw new Error(
         `[artifact-publication] missing publication record for ${mode}: ${publicationPath} `
@@ -363,6 +369,20 @@ export const assertArtifactPublicationReady = async ({
       throw new Error(
         `[artifact-publication] ${mode} publication is missing manifestPath in ${publicationPath}.`
       );
+    }
+    const expectedIndexDir = path.resolve(buildRoot, `index-${mode}`);
+    if (payload.schemaVersion !== ARTIFACT_PUBLICATION_SCHEMA_VERSION || payload.mode !== mode
+      || path.resolve(payload.buildRoot || '.') !== path.resolve(buildRoot)
+      || path.resolve(payload.indexDir || '.') !== expectedIndexDir
+      || payload.generationId !== resolveGenerationId({ buildId: payload.buildId, buildRoot, mode })
+      || payload.artifactSurfaceVersion !== ARTIFACT_SURFACE_VERSION) {
+      throw new Error(`[artifact-publication] ${mode} record does not belong to the requested generation.`);
+    }
+    const containedManifest = assertArtifactFilePath(expectedIndexDir, payload.manifestPath);
+    const manifest = JSON.parse(await fs.readFile(containedManifest, 'utf8'));
+    if (manifest.mode !== mode || (payload.buildId != null && manifest.buildId !== payload.buildId)
+      || manifest.artifactSurfaceVersion !== payload.artifactSurfaceVersion) {
+      throw new Error(`[artifact-publication] ${mode} manifest identity differs from publication authority.`);
     }
     if (payload?.publicationValidation?.ok !== true) {
       throw new Error(

@@ -1,4 +1,6 @@
 import fs from 'node:fs/promises';
+import { throwIfAborted } from '../../shared/abort.js';
+import { runWithTimeout } from '../../shared/promise-timeout.js';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { tryImport } from '../../shared/optional-deps.js';
@@ -50,6 +52,7 @@ const resolvePdfFailureReason = (err) => {
   const name = String(err?.name || '');
   const message = String(err?.message || '');
   if (code === 'EXTRACT_TIMEOUT') return 'extract_timeout';
+  if (code === 'ERR_PDF_PAGE_LIMIT') return 'oversize';
   if (name === 'PasswordException' || PASSWORD_HINT.test(message)) return 'unsupported_encrypted';
   return 'extract_failed';
 };
@@ -108,6 +111,60 @@ export async function loadPdfExtractorRuntime({ refresh = false } = {}) {
   };
   return cachedRuntime;
 }
+
+
+/** Own pdf.js loading, page work and disposal across every extraction outcome. */
+export const readPdfPages = async ({ pdfjs, source, policy, standardFontDataUrl = null }) => {
+  let loadingTask = null, doc = null, primaryError = null;
+  const destroyed = new Set();
+  const cleanupTasks = new Map();
+  const dispose = async () => {
+    const jobs = [doc, loadingTask].filter(owner => owner && typeof owner.destroy === 'function').map(owner => {
+      if (cleanupTasks.has(owner)) return cleanupTasks.get(owner);
+      if (destroyed.has(owner)) return Promise.resolve();
+      const task = runWithTimeout(() => owner.destroy(), { timeoutMs: 2000 }).then(() => {
+        destroyed.add(owner);
+      }).finally(() => cleanupTasks.delete(owner));
+      cleanupTasks.set(owner, task);
+      return task;
+    });
+    const failures = (await Promise.allSettled(jobs)).filter(result => result.status === 'rejected').map(result => result.reason);
+    if (failures.length) throw new AggregateError(failures, 'PDF disposal was not confirmed.');
+  };
+  try {
+    return await withTimeout(async signal => {
+      loadingTask = pdfjs.getDocument({ data: new Uint8Array(source), isEvalSupported: false,
+        useSystemFonts: false, ...(standardFontDataUrl ? { standardFontDataUrl } : {}) });
+      const cancel = () => { void dispose().catch(() => {}); };
+      signal?.addEventListener('abort', cancel, { once: true });
+      try {
+        doc = await loadingTask.promise;
+        if (signal?.aborted) { await dispose(); throwIfAborted(signal); }
+        const numPages = Number(doc?.numPages) || 0;
+        if (numPages > policy.maxPages) throw Object.assign(new Error('PDF page count exceeds extraction policy.'), { code: 'ERR_PDF_PAGE_LIMIT' });
+        const pages = [];
+        for (let pageNumber = 1; pageNumber <= numPages; pageNumber += 1) {
+          throwIfAborted(signal);
+          const page = await doc.getPage(pageNumber);
+          try {
+            throwIfAborted(signal);
+            const content = await page.getTextContent();
+            throwIfAborted(signal);
+            pages.push({ pageNumber, text: normalizePageText(content?.items || []) });
+          } finally { page.cleanup?.(); }
+        }
+        return pages;
+      } finally { signal?.removeEventListener('abort', cancel); }
+    }, policy.extractTimeoutMs);
+  } catch (error) { primaryError = error; throw error; }
+  finally {
+    try { await dispose(); }
+    catch (error) {
+      if (primaryError) primaryError.cleanupErrors = [...(primaryError.cleanupErrors || []), error];
+      else throw error;
+    }
+  }
+};
 
 export async function extractPdf({
   filePath = null,
@@ -179,34 +236,9 @@ export async function extractPdf({
     });
   }
   try {
-    const result = await withTimeout(async () => {
-      const pdfjs = runtime.mod;
-      const standardFontDataUrl = resolveStandardFontDataUrl();
-      const loadingTask = pdfjs.getDocument({
-        data: new Uint8Array(source),
-        isEvalSupported: false,
-        useSystemFonts: false,
-        ...(standardFontDataUrl ? { standardFontDataUrl } : {})
-      });
-      const doc = await loadingTask.promise;
-      const numPages = Number(doc?.numPages) || 0;
-      if (numPages > resolvedPolicy.maxPages) {
-        if (typeof doc?.destroy === 'function') await doc.destroy();
-        if (typeof loadingTask?.destroy === 'function') await loadingTask.destroy();
-        return buildFailedResult('oversize', [], {
-          sourceType: 'pdf',
-          policy: resolvedPolicy
-        });
-      }
-      const pages = [];
-      for (let pageNumber = 1; pageNumber <= numPages; pageNumber += 1) {
-        const page = await doc.getPage(pageNumber);
-        const content = await page.getTextContent();
-        const text = normalizePageText(content?.items || []);
-        pages.push({ pageNumber, text });
-      }
-      if (typeof doc?.destroy === 'function') await doc.destroy();
-      if (typeof loadingTask?.destroy === 'function') await loadingTask.destroy();
+    const result = await readPdfPages({ pdfjs: runtime.mod, source, policy: resolvedPolicy,
+      standardFontDataUrl: resolveStandardFontDataUrl() });
+    const pages = result;
       const nonEmptyPageCount = pages.reduce((count, page) => count + (page.text ? 1 : 0), 0);
       if (!pages.length || nonEmptyPageCount === 0) {
         return buildFailedResult('unsupported_scanned', [], {
@@ -230,8 +262,6 @@ export async function extractPdf({
           target: runtime.target
         }
       };
-    }, resolvedPolicy.extractTimeoutMs);
-    return result;
   } catch (err) {
     return buildFailedResult(resolvePdfFailureReason(err), [err?.message], {
       sourceType: 'pdf',

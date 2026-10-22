@@ -106,7 +106,10 @@ const formatWorkerError = (err, label) => {
     stack ? `Stack: ${stack}` : '',
     detail ? `Cause: ${detail}` : ''
   ].filter(Boolean);
-  return new Error(lines.join('\n'));
+  const wrapped = new Error(lines.join('\n'), { cause: err });
+  wrapped.name = name;
+  if (typeof err?.code === 'string') wrapped.code = err.code;
+  return wrapped;
 };
 
 const cloneScanDefaults = { maxDepth: 4, maxItems: 40, tailItems: 3 };
@@ -343,6 +346,8 @@ let lastResult = null;
 
 const withWorkerError = (fn, label) => async (input) => {
   const startedAt = process.hrtime.bigint();
+  parentPort?.postMessage({ type: 'worker-task-start', threadId,
+    task: label === 'tokenizeChunk' ? 'tokenize' : 'quantize' });
   lastTask = label;
   lastStage = 'payload';
   lastPayload = input;

@@ -97,11 +97,10 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     }
     if (!pool) return;
     const currentPool = pool;
-    pool = null;
     shutdownPromise = (async () => {
       let shutdownError = null;
       try {
-        await runBuildCleanupWithTimeout({
+        const cleanupResult = await runBuildCleanupWithTimeout({
           label: `worker-pool.${poolLabel}.destroy`,
           cleanup: () => destroyPiscinaPool(currentPool, {
             label: `worker-pool.${poolLabel}`,
@@ -112,6 +111,12 @@ export const createWorkerPoolLifecycle = (input = {}) => {
           log,
           swallowTimeout: false
         });
+        if (cleanupResult?.skipped || cleanupResult?.timedOut) {
+          throw Object.assign(new Error('Worker pool teardown was not confirmed.'), {
+            code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED'
+          });
+        }
+        if (pool === currentPool) pool = null;
       } catch (err) {
         const detail = summarizeError(err);
         log(`Worker pool shutdown failed: ${detail || 'unknown error'}`);
@@ -317,6 +322,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   };
 
   const initialize = () => {
+    if (pool || shutdownPromise || destroying) throw new Error('Worker pool ownership has not been relinquished.');
     pool = createPool(effectiveMaxWorkers);
     attachPoolListeners(pool);
     return pool;
@@ -348,7 +354,8 @@ export const createWorkerPoolLifecycle = (input = {}) => {
         }
       })();
     }
-    await destroyPromise;
+    try { await destroyPromise; }
+    catch (error) { destroyPromise = null; throw error; }
   };
 
   /**
@@ -375,10 +382,12 @@ export const createWorkerPoolLifecycle = (input = {}) => {
         } catch (error) {
           settleIdleShutdownWaiters(error);
           throw error;
+        } finally {
+          destroying = false;
         }
       })();
     }
-    return forceDestroyPromise;
+    return forceDestroyPromise.catch(error => { forceDestroyPromise = null; throw error; });
   };
 
   const pressureDownscaleStats = () => ({

@@ -206,7 +206,7 @@ export class IndexerProcessPool extends EventEmitter {
       this.emit('message', { type: 'worker-runtime', threadId: slot.child.pid, observation });
       this.pump(); return;
     }
-    if (message.type === 'worker-task' || message.type === 'worker-crash') {
+    if (message.type === 'worker-task' || message.type === 'worker-task-start' || message.type === 'worker-crash') {
       this.emit('message', { ...message, threadId: slot.child.pid }); return;
     }
     if (message.type !== 'result' || !slot.task || message.taskId !== slot.task.id) {
@@ -258,7 +258,8 @@ export class IndexerProcessPool extends EventEmitter {
         })]);
       } finally { clearTimeout(timer); }
     })();
-    return slot.stoppingPromise;
+    try { return await slot.stoppingPromise; }
+    catch (error) { slot.stoppingPromise = null; throw error; }
   }
 
   destroy() {
@@ -269,10 +270,15 @@ export class IndexerProcessPool extends EventEmitter {
         slot.stopping = true; slot.ready = false;
         if (slot.task) this.settle(slot.task, createAbortError('Process pool destroyed.'));
       }
-      this.destroying = Promise.all([...this.children].map(slot => this.stop(slot))).then(() => {
+      this.destroying = Promise.allSettled([...this.children].map(slot => this.stop(slot))).then(results => {
+        const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);
+        if (failures.length) throw new AggregateError(failures, 'Process pool termination remains unconfirmed; cleanup can be retried.');
         this.initialization = null; this.workerData = null;
         this.metrics.sampledChildRssBytes = 0;
-        this.releaseCapacity();
+        if (!this.capacityReleased) { this.capacityReleased = true; this.releaseCapacity(); }
+      }).catch(error => {
+        this.destroying = null;
+        throw error;
       });
     }
     return this.destroying;

@@ -349,7 +349,7 @@ export function buildRustChunks(text, options = {}) {
     const match = trimmed.match(macroRulesRe) || trimmed.match(macroRe);
     if (!match) return;
     const start = lineIndex[lineNumber] + line.indexOf(match[0]);
-    const bounds = findCLikeBodyBounds(text, start);
+    const bounds = findCLikeBodyBounds(text, start, { rustLifetimes: true });
     const entry = buildRustDeclarationEntry({
       text,
       line,
@@ -370,7 +370,7 @@ export function buildRustChunks(text, options = {}) {
     if (!match) return;
     const start = lineIndex[lineNumber] + line.indexOf(match[0]);
     if (isInsideBlock(start, macroBlocks)) return;
-    const bounds = findCLikeBodyBounds(text, start);
+    const bounds = findCLikeBodyBounds(text, start, { rustLifetimes: true });
     const kindMap = {
       struct: 'StructDeclaration',
       enum: 'EnumDeclaration',
@@ -397,7 +397,7 @@ export function buildRustChunks(text, options = {}) {
     if (!implRe.test(trimmed)) return;
     const start = lineIndex[lineNumber] + line.indexOf(trimmed);
     if (isInsideBlock(start, macroBlocks)) return;
-    const bounds = findCLikeBodyBounds(text, start);
+    const bounds = findCLikeBodyBounds(text, start, { rustLifetimes: true });
     if (bounds.bodyStart === -1) return;
     const { end, meta } = buildRustDeclarationMeta({
       text,
@@ -429,12 +429,12 @@ export function buildRustChunks(text, options = {}) {
   forEachRustCandidateLine(lines, ({ line, trimmed, lineNumber }) => {
     const fnMatch = trimmed.match(fnRe);
     if (!fnMatch) return;
-    const { signature, endLine, hasBody } = readSignatureLines(lines, lineNumber);
+    const { signature, endLine, hasBody } = readSignatureLines(lines, lineNumber, { rustLifetimes: true });
     const start = lineIndex[lineNumber] + line.indexOf(trimmed);
     if (isInsideBlock(start, macroBlocks)) {
       return endLine;
     }
-    const bounds = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
+    const bounds = hasBody ? findCLikeBodyBounds(text, start, { rustLifetimes: true }) : { bodyStart: -1, bodyEnd: -1 };
     const end = bounds.bodyEnd > start ? bounds.bodyEnd : lineIndex[endLine] + lines[endLine].length;
     const parent = findParent(start);
     let name = fnMatch[1];

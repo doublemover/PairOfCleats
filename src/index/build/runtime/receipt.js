@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { observedTokenizationExecution } from '../file-processor/tokenization-evidence.js';
 import { readRuntimeReceipt } from '../../../shared/runtime-envelope/read-receipt.js';
 import { initBuildState } from '../build-state.js';
 import { persistRuntimeAttempt } from '../build-state/runtime.js';
@@ -11,10 +12,14 @@ export const withRuntimeReceiptInitialization = async (create) => {
   try { return await create((attempt, buildRoot) => { active = { attempt, buildRoot }; }); }
   catch (error) {
     if (active) {
-      await persistRuntimeAttempt(active.buildRoot, active.attempt, {
-        lifecycle: error?.name === 'AbortError' ? 'aborted' : 'failed',
-        error: { code: String(error?.code || 'UNKNOWN'), message: redactDiagnosticText(error?.message || error) }
-      });
+      try {
+        await persistRuntimeAttempt(active.buildRoot, active.attempt, {
+          lifecycle: error?.name === 'AbortError' ? 'aborted' : 'failed',
+          error: { code: String(error?.code || 'UNKNOWN'), message: redactDiagnosticText(error?.message || error) }
+        });
+      } catch (cleanupError) {
+        error.cleanupErrors = [...(error.cleanupErrors || []), cleanupError];
+      }
     } else logLine(`[runtime] initialization failed before a durable receipt root: ${redactDiagnosticText(error?.message || error)}`, { kind: 'warning' });
     throw error;
   }
@@ -38,6 +43,9 @@ const poolEvidence = (pool) => {
     backend: stats.backend || 'worker', process: stats.process || null,
     configuredMaxWorkers: stats.configuredMaxWorkers, effectiveMaxWorkers: stats.maxWorkers,
     activeTasks: stats.activeTasks, queuedTasks: stats.queuedTasks, disabled: stats.disabled,
+    outstandingRequests: stats.outstandingRequests, waitingForThrottle: stats.waitingForThrottle,
+    actuallyRunning: stats.actuallyRunning, completedRequests: stats.completedRequests,
+    busy: stats.busy || null, requestPressure: stats.requestPressure,
     heapLaunchContract: stats.heapLaunchContract, pressureDownscale: stats.pressureDownscale,
     observedWorkerCount: observations.length, runtimeObservations: observations.slice(0, 8),
     observationsTruncated: observations.length > 8
@@ -47,8 +55,10 @@ const poolEvidence = (pool) => {
 export const collectRuntimeResourceEvidence = (runtime) => ({
   workers: {
     observedAt: new Date().toISOString(),
-    tokenizationExecution: runtime.workerPool?.stats?.().disabled === false ? (runtime.workerPool.stats().backend === 'process' ? 'process-pool' : 'worker-pool') : 'inline',
-    quantizationExecution: runtime.quantizePool?.stats?.().disabled === false ? (runtime.quantizePool.stats().backend === 'process' ? 'process-pool' : 'worker-pool') : 'inline',
+    tokenizationExecution: observedTokenizationExecution(runtime.tokenizationObservations),
+    tokenizationObservations: runtime.tokenizationObservations || null,
+    quantizationExecution: (runtime.quantizePool?.stats?.().busy?.completedTasks || 0) > 0
+      ? (runtime.quantizePool.getExecutionBackend?.() === 'process' ? 'process-pool' : 'worker-pool') : 'not-yet-observed',
     embeddingInferenceExecution: 'separate-provider-owner',
     launchDecisions: runtime.workerPools?.runtimeEvidence || {},
     tokenize: poolEvidence(runtime.workerPool), quantize: poolEvidence(runtime.quantizePool)
