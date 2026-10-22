@@ -32,6 +32,9 @@ imported; the model is rendered with the installed local viewer. Report summary
 JSON, node lists and raw `repo_map` index artifacts are rejected with conversion
 guidance. Admission limits include 32 MiB input, 64 JSON nesting levels and
 explicit entity bounds. Opening does not overwrite the selected input.
+The [saved-byte admission contract](../contracts/map-saved-byte-admission.md)
+requires stable original file bytes and valid UTF-8 before session publication;
+replacement during reading asks for a retry and malformed UTF-8 is refused.
 
 Saved evidence is labeled a saved snapshot. Its recorded generation provenance
 is retained; it is not revalidated as the current healthy index. Unknown legacy

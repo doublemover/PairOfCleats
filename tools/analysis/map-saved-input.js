@@ -1,7 +1,9 @@
 import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { TextDecoder } from 'node:util';
 import { MAP_MODEL_VERSION } from '../../src/map/constants.js';
 import { readMapCacheEnvelope } from '../../src/shared/generated-artifact.js';
+import { sourceEntityKey } from '../../src/map/isometric/client/data/protocol.js';
 
 export const MAP_SAVED_INPUT_BYTES = 32 * 1024 * 1024;
 const assertJsonDepth = (text) => {
@@ -19,6 +21,7 @@ const assertJsonDepth = (text) => {
 };
 
 export const parseSavedMap = (text) => {
+  if (typeof text !== 'string') throw new Error('Saved map input must be UTF-8 text.');
   if (Buffer.byteLength(text, 'utf8') > MAP_SAVED_INPUT_BYTES) throw new Error('Saved map exceeds the 32 MiB admission budget. Export a smaller explicit scope.');
   let json = text;
   let inputType = 'map-model';
@@ -53,8 +56,9 @@ export const parseSavedMap = (text) => {
       if (!member || typeof member !== 'object') throw new Error(`Invalid member in ${filePath}.`);
       if (member.id != null) {
         if (!['string','number'].includes(typeof member.id) || (typeof member.id === 'number' && !Number.isFinite(member.id))) throw new Error('Map member IDs must be opaque strings or finite numbers.');
-        if (memberIds.has(String(member.id))) throw new Error('Duplicate map member identity.');
-        memberIds.add(String(member.id));
+        const key = sourceEntityKey('member', member.id);
+        if (memberIds.has(key)) throw new Error('Duplicate map member identity.');
+        memberIds.add(key);
       }
       if (++members > 1000000) throw new Error('Saved map exceeds the member admission budget.');
     }
@@ -68,18 +72,32 @@ export const parseSavedMap = (text) => {
       generationHealth: 'not-revalidated', legacy: model.version !== MAP_MODEL_VERSION } };
 };
 
-export const readSavedMap = async (inputPath, { signal = null } = {}) => {
+const sameSourceSnapshot = (left, right) => ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs'].every(key => left[key] === right[key]);
+
+export const readSavedMap = async (inputPath, { signal = null, fsImpl = fs } = {}) => {
   signal?.throwIfAborted();
-  const handle = await fs.open(inputPath, 'r');
+  const handle = await fsImpl.open(inputPath, 'r');
   try {
-    const stat = await handle.stat();
-    if (!stat.isFile() || stat.size > MAP_SAVED_INPUT_BYTES) throw new Error('Saved map must be a regular file no larger than 32 MiB.');
-    const chunks = []; let bytes = 0;
+    const before = await handle.stat({ bigint: true });
+    if (!before.isFile() || before.size > BigInt(MAP_SAVED_INPUT_BYTES)) throw new Error('Saved map must be a regular file no larger than 32 MiB.');
+    signal?.throwIfAborted();
+    const chunks = [], rawHash = createHash('sha256'); let bytes = 0;
     for await (const chunk of handle.createReadStream({ autoClose: false, signal })) {
+      signal?.throwIfAborted();
       bytes += chunk.length;
       if (bytes > MAP_SAVED_INPUT_BYTES) throw new Error('Saved map grew beyond its 32 MiB admission budget.');
-      chunks.push(chunk);
+      chunks.push(chunk); rawHash.update(chunk);
     }
-    return parseSavedMap(Buffer.concat(chunks, bytes).toString('utf8'));
+    const after = await handle.stat({ bigint: true }), current = await fsImpl.stat(inputPath, { bigint: true });
+    signal?.throwIfAborted();
+    if (BigInt(bytes) !== before.size || !sameSourceSnapshot(before, after) || !sameSourceSnapshot(after, current)) {
+      throw new Error('Saved map changed or was replaced during admission. Retry from a stable published snapshot.');
+    }
+    let text;
+    try { text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(Buffer.concat(chunks, bytes)); }
+    catch { throw new Error('Saved map is not valid UTF-8; byte identity cannot be reconstructed through replacement characters.'); }
+    const parsed = parseSavedMap(text);
+    if (parsed.sha256 !== rawHash.digest('hex') || parsed.bytes !== bytes) throw new Error('Saved map decoding changed its original byte identity.');
+    signal?.throwIfAborted();return parsed;
   } finally { await handle.close(); }
 };
