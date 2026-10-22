@@ -31,8 +31,9 @@ checks the actual public row loader emits no rows or second data open after
 checksum-close failure, then retains a normal positive row control. No
 executable checks have run for this batch.
 
-This adoption does not repair the subsequent frame generator's raw descriptor
-finally or retain index/category coordination on behalf of the caller. Validator
-hooks remain the existing synchronous protocol. Native/platform/performance,
+The subsequent frame generator now has a separate
+[descriptor-owner adoption](binary-frame-resource-lifetime.md); the checksum
+pass still does not retain index/category coordination on behalf of the caller.
+Validator hooks remain the existing synchronous protocol. Native/platform/performance,
 full-index and cross-process qualification remain deferred; no stronger numeric
 generation proof or completed issue claim is made.

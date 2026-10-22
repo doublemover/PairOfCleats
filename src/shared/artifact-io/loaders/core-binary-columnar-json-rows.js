@@ -1,14 +1,16 @@
 import { createLoaderError } from './shared.js';
+import { addStorageFailureContext } from '../../storage/operation-error.js';
 
 export const parseBinaryColumnarJsonRow = (payload, baseName) => {
   try {
     return JSON.parse(payload.toString('utf8'));
   } catch (err) {
-    throw createLoaderError(
+    const original = err !== null && ['object', 'function'].includes(typeof err) ? err : new Error(String(err), { cause: err });
+    throw addStorageFailureContext(createLoaderError(
       'ERR_ARTIFACT_CORRUPT',
       `Invalid binary-columnar row payload for ${baseName}`,
-      err instanceof Error ? err : null
-    );
+      original
+    ), {}, original, { secondaryPresent: true });
   }
 };
 

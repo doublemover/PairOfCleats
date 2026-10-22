@@ -16,6 +16,27 @@ export const getContainedFileSession = error => {
   } catch { return null; }
 };
 
+/** Acquire lazily on first next(), and retain the exact session on this actual
+ * iterator as well as its failures. A return/throw before first next opens nothing.
+ */
+export const iterateContainedFileResourceSync = acquire => {
+  const iterator = (function* () {
+    const { owner, action, onComplete } = acquire();
+    const borrowed = owner.iterateSync(action);
+    let result;
+    try { result = yield* borrowed; }
+    finally {
+      const session = getContainedFileSession(borrowed);
+      if (session) failures.set(iterator, session);
+    }
+    // Only normal exhaustion after confirmed close can publish a consumer witness.
+    // Close-only recovery never invokes this callback or resumes the generator.
+    onComplete?.();
+    return result;
+  })();
+  return iterator;
+};
+
 /** Own only one actual opened descriptor. This grants no path mutation or
  * lease authority. Failed synchronous close cannot safely be retried by fd
  * number: even a matching stat does not establish its descriptor generation.
@@ -169,12 +190,32 @@ export const createContainedFileResource = ({ handle = null, fd, sync, methods }
     if (errors.length === 1) return primary;
     return addStorageFailureContext(primary, {}, new AggregateError(errors.slice(1), 'Contained read has independent failures.'));
   };
+  const finishSync = () => {
+    accepting = false;
+    try { closeSync(); } catch (value) { remember(value); }
+    if (!isSettled()) throw pendingFailure();
+    if (hasPrimary) throw completedFailure();
+  };
   return Object.freeze({ operations, hasFailure: () => hasPrimary, remember,
     inspect: action => {
       if (!accepting) throw new Error('Contained descriptor no longer admits verification.');
       try { return action(fd); } catch (value) { remember(value); throw value; }
     },
     detach: () => { accepting = false; return sync ? fd : handle; },
+    iterateSync: action => {
+      if (!sync) throw new TypeError('A synchronous iterator requires its synchronous descriptor owner.');
+      const iterator = (function* () {
+        try {
+          if (hasPrimary) throw primary;
+          return yield* action(operations);
+        } catch (value) { remember(value); }
+        finally {
+          try { finishSync(); }
+          finally { failures.set(iterator, session); }
+        }
+      })();
+      return iterator;
+    },
     runSync: action => {
       let result;
       try {
@@ -184,10 +225,7 @@ export const createContainedFileResource = ({ handle = null, fd, sync, methods }
           new Error('A synchronous contained callback returned asynchronous work with unknown descriptor ownership.'),
           { cacheOwnershipPending: true });
       } catch (value) { remember(value); }
-      accepting = false;
-      try { closeSync(); } catch (value) { remember(value); }
-      if (!isSettled()) throw pendingFailure();
-      if (hasPrimary) throw completedFailure();
+      finishSync();
       return result;
     },
     run: async action => {

@@ -32,6 +32,13 @@ consumer. Concurrent recovery shares the same close attempt. The producer emits
 fulfills and all original independent observations confirm settlement. A known
 close failure is never retried automatically.
 
+The synchronous iterator adapter now keeps this same owner active across yields,
+return and throw. Its actual borrowed iterator is recognized by the existing
+private capability map; a yielded generator is not treated as a completed
+`runSync` callback. Normal exhaustion alone may run a post-close publication
+callback. See [binary frame iterator resource lifetime](binary-frame-resource-lifetime.md)
+for the actual decoder adoption and JavaScript external body-throw limits.
+
 Synchronous fd numbers have a stricter limit. If original work blocked the first
 close, `releaseAfterCloseSync()` can attempt that first captured close after
 settlement. Once `closeSync` throws or returns an unexpected nonvoid value, this

@@ -94,9 +94,7 @@ const iterateBinaryColumnarRows = function* ({
       strict,
       enforceDataBudget: enforceBinaryDataBudget
     });
-    for (const row of rows) {
-      yield row;
-    }
+    yield* rows;
   }
 };
 

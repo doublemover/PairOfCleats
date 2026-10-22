@@ -42,7 +42,7 @@ export const streamArrayArtifactRowsFromSources = async function* (
     return;
   }
   if (sources.format === 'binary-columnar') {
-    for (const row of iterateBinaryColumnarRows({
+    yield* iterateBinaryColumnarRows({
       dir,
       baseName,
       sources,
@@ -50,9 +50,7 @@ export const streamArrayArtifactRowsFromSources = async function* (
       maxBytes,
       strict,
       enforceBinaryDataBudget
-    })) {
-      yield row;
-    }
+    });
     return;
   }
   for await (const row of streamJsonlRowsFromSources(sources.paths, sources.offsets, {

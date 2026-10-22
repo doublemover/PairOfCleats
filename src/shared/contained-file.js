@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { constants as bufferConstants } from 'node:buffer';
 import { isPathWithinRoot } from './file-paths.js';
 import { throwIfAborted } from './abort.js';
-import { createContainedFileResource } from './contained-file-resource.js';
+import { createContainedFileResource, iterateContainedFileResourceSync } from './contained-file-resource.js';
 import { addStorageFailureContext } from './storage/operation-error.js';
 export { isContainedFileSession, getContainedFileSession } from './contained-file-resource.js';
 
@@ -136,6 +136,20 @@ export const withContainedFileSync = (root, target, action, options = {}) => {
   const descriptor = Object.freeze({ ...owner.operations,
     verify: () => owner.inspect(fd => verifyHandle(fd, root, target, identity, verification)) });
   return owner.runSync(() => action(descriptor));
+};
+
+/** Borrow lazily across synchronous generator yields. Normal exhaustion invokes
+ * onComplete only after confirmed close; return/throw and recovery do not.
+ */
+export const iterateContainedFileSync = (root, target, action, { onComplete = null, ...options } = {}) => {
+  if (typeof action !== 'function') throw new TypeError('Contained file requires its synchronous generator callback.');
+  if (onComplete !== null && typeof onComplete !== 'function') throw new TypeError('Invalid contained iterator completion callback.');
+  return iterateContainedFileResourceSync(() => {
+    const { owner, verification, identity } = acquireContainedFileSync(root, target, options);
+    const descriptor = Object.freeze({ ...owner.operations,
+      verify: () => owner.inspect(fd => verifyHandle(fd, root, target, identity, verification)) });
+    return { owner, action: () => action(descriptor), onComplete };
+  });
 };
 
 const changedFile = () => Object.assign(new Error('Repository file changed during its verified read.'), { code: 'ERR_FILE_CHANGED' });

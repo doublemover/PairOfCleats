@@ -24,10 +24,12 @@ export const recordVerifiedArtifactRead = (root, target, result, algorithm = 'sh
 };
 
 /** Sequential physical-byte witness; no raw bytes survive update(). */
-export const beginVerifiedArtifactRead = (root, target, fd) => {
+export const beginVerifiedArtifactRead = (root, target, fd, { stat = null } = {}) => {
   const active = scope.getStore();
   if (!active || !root || active.root !== path.resolve(root) || active.enabled === false) return null;
-  const before = fs.fstatSync(fd);
+  const originalStat = fs.fstatSync;
+  const readStat = stat || (() => originalStat.call(fs, fd));
+  const before = readStat();
   throwIfAborted(active.signal);
   const hash = crypto.createHash('sha256');
   const additional = active.hashersFor?.(path.resolve(target)) || {};
@@ -35,6 +37,29 @@ export const beginVerifiedArtifactRead = (root, target, fd) => {
   let position = 0;
   let valid = true;
   let finished = false;
+  const prepare = verify => {
+    if (finished) return;
+    finished = true;
+    throwIfAborted(active.signal);
+    verify();
+    const after = readStat();
+    if (!sameArtifactReadStamp(artifactReadStamp(before), artifactReadStamp(after))) {
+      throw Object.assign(new Error('Artifact changed during verification.'), { code: 'ERR_FILE_CHANGED' });
+    }
+    if (!valid || position !== before.size) return;
+    const digest = hash.digest('hex');
+    const digests = { sha256: digest };
+    for (const [algorithm, hasher] of Object.entries(additional)) digests[algorithm] = hasher.digest('hex');
+    const certificate = { hash: digest, digests, bytes: before.size, stamp: artifactReadStamp(after) };
+    let published = false;
+    return () => {
+      if (published) return certificate;
+      throwIfAborted(active.signal);
+      active.record(path.resolve(target), certificate);
+      published = true;
+      return certificate;
+    };
+  };
   return {
     signal: active.signal || null,
     update(bytes, offset = position) {
@@ -44,23 +69,10 @@ export const beginVerifiedArtifactRead = (root, target, fd) => {
       for (const hasher of additionalHashers) hasher.update(bytes);
       position += bytes.length;
     },
-    finish(verify) {
-      if (finished) return;
-      finished = true;
-      throwIfAborted(active.signal);
-      verify();
-      const after = fs.fstatSync(fd);
-      if (!sameArtifactReadStamp(artifactReadStamp(before), artifactReadStamp(after))) {
-        throw Object.assign(new Error('Artifact changed during verification.'), { code: 'ERR_FILE_CHANGED' });
-      }
-      if (!valid || position !== before.size) return;
-      const digest = hash.digest('hex');
-      const digests = { sha256: digest };
-      for (const [algorithm, hasher] of Object.entries(additional)) digests[algorithm] = hasher.digest('hex');
-      const certificate = { hash: digest, digests, bytes: before.size, stamp: artifactReadStamp(after) };
-      active.record(path.resolve(target), certificate);
-      return certificate;
-    }
+    // Verification uses the live descriptor; publication may wait for its owner
+    // to confirm close. Existing finish callers retain their immediate behavior.
+    prepare,
+    finish: verify => prepare(verify)?.()
   };
 };
 

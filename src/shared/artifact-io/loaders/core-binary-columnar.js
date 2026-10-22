@@ -158,10 +158,28 @@ const iterateBinaryColumnarJsonRows = function* ({
     );
   }
   let decodedCount = 0;
-  for (const payload of payloads) {
-    const parsed = parseBinaryColumnarJsonRow(payload, baseName);
-    decodedCount += 1;
-    yield parsed;
+  let payloadsFinished = false;
+  try {
+    // Explicit forwarding puts parse errors and throw() at a suspended yield
+    // into the descriptor owner before it decides whether native close is safe.
+    // for-of IteratorClose would call return() before the owner sees that error.
+    while (true) {
+      const step = payloads.next();
+      if (step.done) { payloadsFinished = true; break; }
+      const parsed = parseBinaryColumnarJsonRow(step.value, baseName);
+      decodedCount += 1;
+      yield parsed;
+    }
+  } catch (error) {
+    if (payloadsFinished) throw error;
+    payloadsFinished = true;
+    payloads.throw(error);
+    throw error;
+  } finally {
+    if (!payloadsFinished) {
+      payloadsFinished = true;
+      payloads.return();
+    }
   }
   assertBinaryColumnarJsonRowCount({
     actualCount: decodedCount,
