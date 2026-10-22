@@ -21,10 +21,17 @@ export const initResidencyOwner = () => {
     const ownsStatus=()=>statusOwner===status;
     state.dom.summary.textContent='Preparing selected source evidence in the bounded render working set…';
     try{
-      const plan=planSourceResidency(source,selection,{current:state.stackModel?.files.map(file=>file.key)||[],
+      const budgets={current:state.stackModel?.files.map(file=>file.key)||[],
         files:Math.min(state.performance.drawCaps.files,state.displayLimits.maxFiles),members:state.performance.drawCaps.members,
-        membersPerFile:state.displayLimits.maxMembersPerFile,edges:state.performance.drawCaps.edges});
-      if(state.graphWorkerReady){
+        membersPerFile:state.displayLimits.maxMembersPerFile,edges:state.performance.drawCaps.edges};
+      let plan;
+      if(state.remoteSource){
+        const result=await state.remoteSource.request('layout',{selection,budgets,layout:{scale:state.scaleFactor||1,groupDepth:state.layout.groupDepth||1}},
+          {revision:operation.stamp.request,signal:operation.signal});
+        operation.signal.throwIfAborted();if(!operation.current())return {committed:false,reason:'superseded'};
+        plan={...result.plan,model:result.model};
+      }else plan=planSourceResidency(source,selection,budgets);
+      if(!state.remoteSource&&state.graphWorkerReady){
         const result=await state.graphWorkerClient.request('layout',{selection,budgets:{...plan.limits,current:state.stackModel?.files.map(file=>file.key)||[]},
           layout:{scale:state.scaleFactor||1,groupDepth:state.layout.groupDepth||1}},{revision:operation.stamp.request,signal:operation.signal});
         operation.signal.throwIfAborted();
@@ -46,7 +53,7 @@ export const initResidencyOwner = () => {
   };
   state.revealSourceSelection=reveal;
   state.cancelResidentPreparation=()=>{revisions.bump('layout');};
-  state.resetResidency=()=>{revisions.bump('residency');state.residentFiles=null;state.residentEdges=null;state.residencyCoverage=null;};
+  state.resetResidency=()=>{revisions.bump('residency');state.residentFiles=null;state.residentEdges=null;state.residencyCoverage=null;state.remoteSource?.registerPlan({nodes:[]});};
   state.disposeResidency=()=>{statusOwner=null;boundary.dispose();revisions.dispose();if(state.viewRevisions===revisions){state.viewRevisions=null;state.revealSourceSelection=null;state.cancelResidentPreparation=null;state.resetResidency=null;}};
   state.rendererCapabilities=boundary.capabilities;
   if(state.selectedInfo){const info=state.selectedInfo;state.onSelectionChanged?.(info);}

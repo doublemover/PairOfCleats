@@ -31,6 +31,7 @@ export const parseSavedMap = (text) => {
   }
   assertJsonDepth(json);
   let model = JSON.parse(json);
+  if(model?.__poc_session_manifest?.version===1)throw new Error('This is a session manifest, not an offline map snapshot. Export report map --format json or save the pinned compatibility viewer payload.');
   if (model?.__poc_generated) {
     const cacheKey = model.__poc_generated.key;
     model = /^[a-f0-9]{64}$/.test(cacheKey || '') ? readMapCacheEnvelope(model, cacheKey) : null;

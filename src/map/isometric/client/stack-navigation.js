@@ -5,6 +5,7 @@ import { STACK_KINDS } from './stack-model.js';
 import { updateStackVisibility } from './stack-scene.js';
 import { selectionEndpointMatcher, endpointFile } from './selection-endpoints.js';
 import { fitOrthographicBounds, usableViewport, visibleWorldBounds } from './camera-fit.js';
+import { renderRemoteMembers, renderRemoteSourceDetails } from './remote-navigation.js';
 const makeButton=(label,callback)=>{const button=document.createElement('button');button.textContent=label;button.type='button';button.onclick=callback;return button;};
 const entityKey=info=>info?.type==='member'?`member:${info.id}`:info?.file?`file:${info.file}`:null;
 export function focusStack(info=null){
@@ -26,7 +27,8 @@ export function focusStack(info=null){
   state.cameraZoomRange=fitOrthographicBounds({THREE,camera:state.camera,bounds,viewport,usable:usableViewport({...viewport,obstacles}),requestedMin:state.controls?.zoomMin,requestedMax:state.controls?.zoomMax});
   state.nearPlane=state.camera.near;state.farPlane=state.camera.far;state.lockIsometric?.();updateStackVisibility(true);state.invalidateRender?.();
 }
-export function navigateStack(info){
+export function navigateStack(info,prepared=false){
+  if(state.remoteSource&&!prepared)return state.remoteSource.navigate(info,resolved=>navigateStack(resolved,true));
   const ref=info.type==='member'?state.memberInstanceById?.get(String(info.id)):state.fileInstanceByKey?.get(info.file);
   if(ref)setSelection({object:ref.mesh,instanceId:ref.instanceId});
   else setSemanticSelection(info);
@@ -42,16 +44,19 @@ export function initStackNavigation(){
   const renderWorkerTree=async query=>{
     const epoch=++queryEpoch;searchController?.abort();searchController=new AbortController();
     try{
-      const result=await state.graphWorkerClient.request('search',{query,cursor:treeOffset,limit:80,entityType:query?null:'file'},
+      const queryOwner=state.remoteSource||state.graphWorkerClient;
+      const result=await queryOwner.request('search',{query,cursor:treeOffset,limit:80,entityType:query?null:'file',directory:state.remoteDirectory??null},
         {revision:epoch,signal:searchController.signal});
-      if(epoch!==queryEpoch||!state.graphWorkerReady)return;
+      if(epoch!==queryEpoch||(!state.remoteSource&&!state.graphWorkerReady))return;
       tree.replaceChildren();
       for(const info of result.rows){
         if(info.type==='member'){tree.append(makeButton(`${info.file} / ${info.name||info.id}`,()=>navigateStack(info)));continue;}
         const group=document.createElement('details'),summary=document.createElement('summary');summary.textContent=`${info.file} · ${info.memberCount} available segments`;group.append(summary);
         group.append(makeButton('Inspect / focus stack',()=>navigateStack(info)));
         let loaded=false;
-        group.addEventListener('toggle',()=>{if(!group.open||loaded)return;loaded=true;const members=state.sourceIndex.files.get(info.file)?.members||[];let offset=0;
+        group.addEventListener('toggle',()=>{if(!group.open||loaded)return;loaded=true;
+          if(state.remoteSource){renderRemoteMembers(group,info,navigateStack);return;}
+          const members=state.sourceIndex.files.get(info.file)?.members||[];let offset=0;
           const more=makeButton('More segments',append);
           function append(){more.remove();for(const member of members.slice(offset,offset+40))group.append(makeButton(`${member.name||member.id} · ${member.kind||member.type||'unknown'}`,()=>navigateStack({type:'member',file:info.file,id:member.id,name:member.name,range:member.range})));offset+=40;if(offset<members.length)group.append(more);}
           append();});
@@ -62,10 +67,12 @@ export function initStackNavigation(){
       if(treeOffset>0)pager.append(makeButton('Previous results',()=>{treeOffset=Math.max(0,treeOffset-80);renderTree();}));
       if(result.next!==null)pager.append(makeButton('Next results',()=>{treeOffset=result.next;renderTree();}));
       tree.append(pager);
-    }catch(error){if(error.name!=='AbortError'&&epoch===queryEpoch){state.graphWorkerError=error.message;state.graphWorkerReady=false;renderTree();}}
+    }catch(error){if(error.name!=='AbortError'&&epoch===queryEpoch){state.graphWorkerError=error.message;state.graphWorkerReady=false;
+      if(state.remoteSource){tree.replaceChildren(document.createTextNode(error.message),makeButton('Retry source page',()=>renderTree()));const fallback=document.createElement('a');fallback.href='/map.compat.html';fallback.textContent='Open pinned compatibility viewer';tree.append(fallback);}
+      else renderTree();}}
   };
   const renderTree=()=>{
-    const query=filter.value.trim().toLowerCase();if(state.graphWorkerReady){renderWorkerTree(query);return;}
+    const query=filter.value.trim().toLowerCase();if(state.remoteSource||state.graphWorkerReady){renderWorkerTree(query);return;}
     queryEpoch++;searchController?.abort();tree.replaceChildren();let admitted=0;
     for(const file of state.sourceIndex?.files.values()||state.files||[]){
       const members=file.members||[],match=(file.path||file.name||'').toLowerCase().includes(query);
@@ -85,8 +92,9 @@ export function initStackNavigation(){
     if(treeOffset+80<admitted)pager.append(makeButton('Next files',()=>{treeOffset+=80;renderTree();}));
     tree.append(pager);
   };
-  filter.oninput=()=>{treeOffset=0;renderTree();};
+  filter.oninput=()=>{treeOffset=0;state.remoteDirectory=null;renderTree();};
   const sourceDetails=info=>{
+    if(state.remoteSource){renderRemoteSourceDetails(state.dom.selectionBody,info,{navigate:navigateStack,openSource:openSelection});return;}
     const file=state.sourceIndex?.files.get(info.file)||state.nodeByPath?.get(info.file),source=info.type==='member'?state.sourceIndex?.members.get(String(info.id))?.member||(file?.members||[]).find(row=>String(row.id)===String(info.id)):file;
     if(state.config.openUriTemplate)state.dom.selectionBody.append(makeButton('Open inspected source',openSelection));
     else if(state.config.sourceNavigation?.available===false)state.dom.selectionBody.append(document.createTextNode(state.config.sourceNavigation.reason));
@@ -115,8 +123,13 @@ export function initStackNavigation(){
     sourceDetails(info);const breadcrumb=document.getElementById('stack-breadcrumb');breadcrumb.textContent=`${info.file||'Unknown file'}${info.type==='member'?' / '+(info.name||info.id):''}${state.selectionFocusAvailable?'':' · outside drawn scope; source inspection available'}`;
     state.revealInspector?.();
   };
-  const replay=step=>{const next=at+step;if(next<0||next>=history.length)return;at=next;replaying=true;try{const entry=history[at];if(entry.snapshot!==state.sourceIndex?.snapshot){setSemanticSelection(null);document.getElementById('stack-breadcrumb').textContent='Historical selection belongs to another saved snapshot.';}else navigateStack(entry.info);}finally{replaying=false;}};back.onclick=()=>replay(-1);forward.onclick=()=>replay(1);
-  document.getElementById('stack-home').onclick=()=>focusStack();
+  const replay=step=>{
+    const next=at+step;if(next<0||next>=history.length)return;const entry=history[next];
+    const accept=info=>{at=next;replaying=true;try{navigateStack(info,true);}finally{replaying=false;}};
+    if(entry.snapshot!==state.sourceIndex?.snapshot){setSemanticSelection(null);document.getElementById('stack-breadcrumb').textContent='Historical selection belongs to another saved snapshot.';return;}
+    if(state.remoteSource)state.remoteSource.navigate(entry.info,accept);else accept(entry.info);
+  };back.onclick=()=>replay(-1);forward.onclick=()=>replay(1);
+  document.getElementById('stack-home').onclick=()=>{if(state.remoteSource){state.showSnapshotOverview?.();focusStack();}else focusStack();};
   document.getElementById('stack-focus').onclick=()=>focusStack(state.selectedInfo);
   document.getElementById('stack-mode').onchange=event=>{state.stackMode=event.target.value;updateStackVisibility(true);};
   document.getElementById('stack-all-edges').onchange=event=>{state.stackAllConnections=event.target.checked;updateStackVisibility(true);};
@@ -135,6 +148,7 @@ export function initStackNavigation(){
   };
   const legend=document.getElementById('stack-legend');for(const [kind,value] of Object.entries(STACK_KINDS)){const item=document.createElement('span');item.dataset.stackKind=kind;item.textContent=`${value.shape==='circle'?'●':value.shape==='pyramid'?'▲':'■'} ${value.label}`;item.style.color=value.color;legend.append(item);}
   state.refreshStackNavigation=renderTree;renderTree();
+  state.openSnapshotAggregate=aggregate=>{state.remoteDirectory=aggregate.all?null:aggregate.directory;filter.value='';treeOffset=0;state.viewerShell?.choose('Explore');renderTree();};
   state.onSourceQueryReady=()=>{treeOffset=0;renderTree();};
   state.onSourceQueryFailure=()=>{treeOffset=0;renderTree();};
 }

@@ -165,6 +165,7 @@ export const initControls = () => {
     raycaster.setFromCamera(pointer, camera);
 
     const hits = pick();
+    if(hits[0]?.object?.userData?.type==='snapshotAggregate'){state.openSnapshotAggregate?.(hits[0].object.userData);return false;}
     setSelection(hits.length ? hits[0] : null);
   };
 
@@ -264,8 +265,7 @@ export const initControls = () => {
       dragMoved = false;
       return;
     }
-    onPointer(event);
-    openSelection();
+    if(onPointer(event)!==false)openSelection();
   });
 
   const velocity = new THREE.Vector2(0, 0);

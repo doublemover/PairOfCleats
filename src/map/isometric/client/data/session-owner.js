@@ -15,7 +15,7 @@ export const initSnapshotData = config => {
     client=createGraphWorkerClient({...config,onProgress:message=>{
       if(disposed)return;state.graphWorkerProgress=message;
       if(message.event==='overview')state.snapshotManifest=message.manifest;
-      if(message.event==='ready'){state.graphWorkerReady=true;state.onSourceQueryReady?.();}
+      if(message.event==='ready'){state.graphWorkerReady=true;state.remoteSource?.releaseFallbackPages();state.onSourceQueryReady?.();}
     },onFailure:error=>{if(!disposed){state.graphWorkerReady=false;state.graphWorkerError=error.message;state.onSourceQueryFailure?.(error);}}});
     state.graphWorkerClient=client;state.graphWorkerReady=false;state.disposeSnapshotData=dispose;
     window.addEventListener('pagehide',pagehide,{once:true});return client;

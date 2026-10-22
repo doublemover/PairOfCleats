@@ -5,6 +5,7 @@ import path from 'node:path';
 import { MAP_MODEL_VERSION } from '../../src/map/constants.js';
 import { runMapPreview } from '../../tools/analysis/map-iso-preview.js';
 import { MAP_DATA_PROTOCOL } from '../../src/map/isometric/client/data/protocol.js';
+import { parseSavedMap } from '../../tools/analysis/map-saved-input.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-preview-snapshot-'));
 const inputPath = path.join(root, 'saved 日本語.json');
@@ -19,8 +20,12 @@ try {
   assert.match(first.ready.url, /^http:\/\/127\.0\.0\.1:/);
   assert.equal(first.ready.identity.kind, 'saved-snapshot');
   assert.equal(first.ready.sourceNavigation.available, false);
-  assert.match(before, /first.ts/);
+  const bootstrap=JSON.parse(before.match(/<script type="application\/json" id="map-data">([\s\S]*?)<\/script>/)[1]);
+  assert.equal(bootstrap.nodes.length,0,'default document contains no eager compatibility graph');
+  assert.throws(()=>parseSavedMap(before),/session manifest/,'session bootstrap cannot be admitted as an empty offline graph');
   const snapshotConfig=JSON.parse(before.match(/<script type="application\/json" id="viewer-config">([\s\S]*?)<\/script>/)[1]).snapshotData;
+  assert.equal(snapshotConfig.demand,true);assert.equal(snapshotConfig.manifest.counts.files,1);
+  assert.match(await fetch(new URL('/map.compat.html',first.ready.url)).then(response=>response.text()),/first.ts/);
   const snapshotRequest={protocol:MAP_DATA_PROTOCOL,snapshot:snapshotConfig.snapshot,request:1,revision:0,kind:'files',cursor:0,limit:80};
   const snapshotUrl=new URL(snapshotConfig.endpoint,first.ready.url);
   assert.equal((await fetch(snapshotUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshotRequest)})).status,403);
@@ -29,7 +34,7 @@ try {
   await fs.writeFile(inputPath, JSON.stringify(model('second.ts')));
   second = await runMapPreview({ input: inputPath, 'no-open': true }, { stdout: sink, stderr: sink });
   assert.equal(await fetch(first.ready.url).then(response => response.text()), before, 'earlier listener retains its committed document');
-  assert.match(await fetch(second.ready.url).then(response => response.text()), /second.ts/);
+  assert.match(await fetch(new URL('/map.compat.html',second.ready.url)).then(response => response.text()), /second.ts/);
   assert.notEqual(first.ready.snapshotSha256, second.ready.snapshotSha256);
   const moduleUrl = new URL('/isomap/source-index.js', first.ready.url);
   const asset = first.session.assets.get(moduleUrl.pathname);

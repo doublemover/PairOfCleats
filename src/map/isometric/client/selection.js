@@ -234,10 +234,10 @@ export const renderSelectionDetails = (info) => {
     addSelectionRow(section, 'Ext', node?.ext || 'None');
     addSelectionRow(section, 'Id', node?.id || 'None');
     const members = Array.isArray(node?.members) ? node.members : [];
-    addSelectionRow(section, 'Members', members.length);
+    addSelectionRow(section, 'Members', state.remoteSource?(node?.memberCount??members.length):members.length);
     if (members.length) {
       const memberNames = members.map((entry) => entry.name).filter(Boolean);
-      addSelectionRow(section, 'Member names', formatListWithLimit(memberNames, 10));
+      addSelectionRow(section, state.remoteSource?'Resident member names':'Member names', formatListWithLimit(memberNames, 10));
     }
   }
 
@@ -276,6 +276,7 @@ export const renderSelectionDetails = (info) => {
   }
 
   const edgeSection = createSelectionSection('Edges');
+  if(state.remoteSource){addSelectionRow(edgeSection,'Directed evidence','Paged from pinned source; exact totals and continuation below.');return;}
   const edgeData = collectEdgesForSelection(info, member, node);
   addSelectionRow(edgeSection, 'Incoming', formatEdgeCounts(edgeData.incoming));
   addSelectionRow(edgeSection, 'Outgoing', formatEdgeCounts(edgeData.outgoing));

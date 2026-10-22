@@ -11,7 +11,8 @@ const buildMemberNameKey = (filePath, name) => `${filePath}::${name || ''}`;
 
 export const initMapData = () => {
   const source = state.rawMap || state.map;
-  if (state.sourceIndex?.snapshot !== source) state.sourceIndex = createSourceIndex(source);
+  if(state.remoteSource)state.sourceIndex=state.remoteSource.index;
+  else if (state.sourceIndex?.snapshot !== source) state.sourceIndex = createSourceIndex(source);
   const files = Array.isArray(state.map?.nodes) ? state.map.nodes : [];
   const edges = Array.isArray(state.map?.edges) ? state.map.edges : [];
   const edgeAggregates = Array.isArray(state.map?.edgeAggregates) ? state.map.edgeAggregates : [];

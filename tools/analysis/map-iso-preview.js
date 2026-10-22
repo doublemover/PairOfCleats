@@ -93,8 +93,10 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
     const viewerConfig = argv.input ? {} : input.model.viewer || {};
     const preferences=preferenceStore?{endpoint:'/map-preferences',repoId:preferenceStore.repoId,token:sessionToken}:null;
     snapshotTransport=createMapSnapshotTransport({model:input.model,snapshotId:input.sha256,identity});
-    const snapshotData={endpoint:'/map-snapshot',snapshot:input.sha256,token:sessionToken};
-    const html = Buffer.from(renderIsometricHtml({ mapModel: input.model, threeUrl,
+    const snapshotData={endpoint:'/map-snapshot',snapshot:input.sha256,token:sessionToken,demand:true,manifest:snapshotTransport.manifest};
+    const bootstrapModel={version:input.model.version,root:input.model.root,nodes:[],edges:[],legend:input.model.legend,__poc_session_manifest:{version:1,snapshot:input.sha256},
+      summary:{counts:{files:0,members:0,edges:0},scope:'manifest bootstrap; source detail is demand paged'},coverage:{source:snapshotTransport.manifest.coverage}};
+    const html = Buffer.from(renderIsometricHtml({ mapModel: bootstrapModel, threeUrl,
       openUriTemplate: sourceAvailable ? argv['open-uri-template'] || '' : '', viewerConfig: { ...viewerConfig, threeUrl,
         sourceNavigation,preferences,snapshotData,openUriTemplate: sourceAvailable ? argv['open-uri-template'] || '' : '' } }));
     if (html.length > 40 * 1024 * 1024) throw new Error('Rendered saved map exceeds the preview document budget.');
@@ -134,6 +136,12 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
         return;
       }
       if (!['GET','HEAD'].includes(request.method)) { response.writeHead(405); response.end('GET and HEAD only.'); return; }
+      if(pathname==='/map.compat.html'){
+        const bytes=Buffer.from(renderIsometricHtml({mapModel:snapshotTransport.getCompatibilityModel(),threeUrl,openUriTemplate:sourceAvailable?argv['open-uri-template']||'':'',
+          viewerConfig:{...viewerConfig,threeUrl,sourceNavigation,preferences}}));
+        if(bytes.length>40*1024*1024)throw new Error('Compatibility document exceeds its admitted document budget.');
+        response.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Content-Length':bytes.length,'Cache-Control':'no-store','X-Map-Snapshot':session.snapshotSha256});response.end(request.method==='HEAD'?undefined:bytes);return;
+      }
       const document = pathname === '/' || pathname === '/map.iso.html';
       const asset = document ? { bytes: session.html, sha256: session.documentSha256, contentType: 'text/html; charset=utf-8' } : session.assets.get(pathname);
       if (!asset) { response.writeHead(404); response.end('Asset unavailable in this pinned viewer session. Restart explicitly after repairing local assets.'); return; }
@@ -157,6 +165,7 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
     const ready = { type: 'map-preview-ready', version: 1, url, lifecycle: 'listener-ready', pid: process.pid,
       identity, snapshotSha256: session.snapshotSha256, documentSha256: session.documentSha256,
       clientAssetIdentity: pinned.identity, missingOptionalAssets: pinned.unavailable,
+      consumption:'manifest-demand',compatibilityUrl:new URL('/map.compat.html',url).href,
       sourceNavigation,
       refresh: 'explicit-restart', renderedViewer: 'not-qualified' };
     stdout.write(`${JSON.stringify(ready)}\n`);

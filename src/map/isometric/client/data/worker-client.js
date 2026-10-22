@@ -1,7 +1,7 @@
 import { MAP_DATA_PROTOCOL, SNAPSHOT_PAGE_LIMITS } from './protocol.js';
 
 /** One generation, bounded in-flight queries, one cancellable request per lane. */
-export const createGraphWorkerClient = ({snapshot,endpoint,token,onProgress=()=>{},onFailure=()=>{},WorkerImpl=globalThis.Worker}) => {
+export const createGraphWorkerClient = ({snapshot,endpoint,token,demand=false,onProgress=()=>{},onFailure=()=>{},WorkerImpl=globalThis.Worker}) => {
   if(typeof WorkerImpl!=='function')throw new Error('Module workers are unavailable; using retained source navigation.');
   const worker=new WorkerImpl(new URL('./graph-worker.js',import.meta.url),{type:'module'}),pending=new Map(),lanes=new Map();
   let serial=0,retired=false,ready=false;
@@ -18,7 +18,7 @@ export const createGraphWorkerClient = ({snapshot,endpoint,token,onProgress=()=>
   };
   worker.onerror=event=>{event.preventDefault?.();failure(new Error(event.message||'Snapshot worker failed; retained source navigation remains available.'));};
   worker.onmessageerror=()=>failure(new Error('Snapshot worker message could not be decoded.'));
-  worker.postMessage({protocol:MAP_DATA_PROTOCOL,snapshot,request:++serial,revision:0,kind:'init',endpoint,token});
+  worker.postMessage({protocol:MAP_DATA_PROTOCOL,snapshot,request:++serial,revision:0,kind:'init',endpoint,token,demand});
   const request=(kind,payload,{revision=0,signal}={})=>{
     if(retired||!ready)return Promise.reject(new Error('Snapshot query worker is not ready.'));
     const previous=lanes.get(kind);if(previous){worker.postMessage({protocol:MAP_DATA_PROTOCOL,kind:'cancel',lane:kind});retireRequest(previous,new DOMException('Superseded map query.','AbortError'));}

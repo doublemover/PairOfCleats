@@ -120,13 +120,28 @@ uses it once ready. It falls back to the retained compatibility source after a
 worker failure. Progressive layout also runs in that worker and reconnects exact
 original evidence objects before committing its bounded scene transaction.
 
-The preview still parses and retains the admitted compatibility artifact on the
-server and embeds it for the eager client fallback. The new worker store therefore
-adds a retained representation in this migration stage. Manifest-first rendered
-overview, demand-driven compact-page eviction, indexed substring acceleration,
-streaming canonical artifact ingestion and retirement of eager paths are open;
-this slice does not establish bounded total heap or complete-index consumption.
-No browser/worker-host or latency/resource acceptance has been run.
+The earlier worker migration embedded the full compatibility model and added a
+compact worker representation. The current local preview uses a manifest-only
+document, a rendered whole-available directory aggregate overview, and demand
+file/member/relationship/detail pages. No full source graph is embedded or eagerly
+normalized in that client/worker path. Directory proxies are distinct aggregate
+identities with exact counts; they never count as instantiated files or members.
+File/member/search/relationship DOM replaces bounded pages with exact continuation.
+Selected rich fields load separately. Main-thread source metadata retains current
+resident detail plus one selected record; history keeps canonical references.
+
+Demand worker pages use a reversible 4 MiB/64-page LRU and source-wide search stays
+with the same immutable authoritative transport. Cache eviction never changes
+available counts or queryability. Resident layout limits apply to detail only;
+discovery records pending adjacency/byte limits separately from upstream omissions.
+The server still parses/retains the admitted compatibility map because the current
+saved JSON/HTML and live map producer materialize it. Canonical artifact streaming
+has not been substituted or bypassed. `/map.compat.html` explicitly serves the
+same pinned full model with the compatibility client, and absence of module workers
+uses demand pages on the main thread. Session-only HTML is marked and rejected by
+saved-input admission so it cannot masquerade as an empty offline graph. Standalone
+report exports retain their full admitted payload. No measured heap, browser,
+worker-host, GPU or latency/resource acceptance has been run.
 
 An optional spatial draw-packet candidate is now implemented behind the renderer
 boundary. It requires an explicit finite cell/instance/packet/attribute-byte policy;

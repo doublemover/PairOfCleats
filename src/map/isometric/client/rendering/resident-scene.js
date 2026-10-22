@@ -55,6 +55,7 @@ export const commitResidentScene = (candidate,request) => {
     Object.assign(state,candidate.values);
   }catch(error){for(const group of added)state.scene.remove(group);Object.assign(state,previous);throw error;}
   candidate.published=true;
+  state.remoteSource?.registerPlan(request);
   retirePicking();
   state.geometryRevision=(state.geometryRevision||0)+1;
   for(const key of groups){state.scene.remove(previous[key]);try{clearGroup(previous[key]);}catch(error){state.sceneRetirementError=error.message;}}

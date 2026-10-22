@@ -260,4 +260,5 @@ export const rebuildScene = () => {
     else if(firstLayout) focusStack();
   } else if(previousSelection) setSemanticSelection(previousSelection);
   state.invalidateRender?.();
+  state.afterSceneRebuild?.();
 };

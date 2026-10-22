@@ -15,6 +15,7 @@ export const projectViewerCoverage = (state, { pipes = 0, relations = 0 } = {}) 
   display: state.map?.coverage?.display || { counts: state.map?.summary?.counts || null },
   draw: { counts: state.drawCounts || null, omissions: state.stackModel?.coverage || null },
   workingSet:state.residencyCoverage||null,
+  overview:state.remoteSource?{scope:'whole available snapshot',proxies:state.drawCounts?.aggregateProxies||0,groups:state.remoteSource.manifest.overview}:null,
   visible: { pipes, sourceRelations: relations, filesHidden: state.fileGroup?.visible === false,
     membersHidden: state.memberGroup?.visible === false, edgesHidden: state.edgeGroup?.visible === false },
   completeness: 'A saved export is not proof of complete repository coverage.'

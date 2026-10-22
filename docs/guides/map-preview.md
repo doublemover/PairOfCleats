@@ -68,11 +68,15 @@ The [viewer workflow guide](viewer-workflows.md) connects preview/export with th
 API evidence workspace and explains their distinct source and qualification
 boundaries. It is self-contained and requires no private planning Page.
 
-Search in a local preview moves to a generation-scoped module worker once its
-bounded compact pages are ready. The source browser remains usable through the
-compatibility snapshot if that worker is unavailable. An inspected entity outside
+Local preview starts from a whole-available directory overview and pages source
+detail on demand. Search uses the pinned source service through a generation-scoped
+worker; if that worker is unavailable, the same bounded pages remain usable on the
+main thread. An inspected entity outside
 the current scene offers an explicit bounded reveal action; failed or superseded
 preparation keeps the prior scene. This does not recover evidence omitted from
 the original export. Paged transport and worker layout are source implementations
-awaiting browser qualification, and the eager compatibility payload is still
-retained during this migration.
+awaiting browser qualification. The server retains the admitted compatibility
+model, but the default preview document and worker do not duplicate the whole graph.
+The ready receipt links `/map.compat.html` for the explicit full-model viewer.
+Use a normal JSON/HTML report export for offline evidence: the default session HTML
+contains a manifest, and cannot be reopened as an offline map snapshot.

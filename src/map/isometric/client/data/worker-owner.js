@@ -2,10 +2,11 @@ import { MAP_DATA_PROTOCOL, SNAPSHOT_PAGE_LIMITS, snapshotRequest, acceptSnapsho
 import { createGraphStore } from './graph-store.js';
 import { planSourceResidency } from './residency.js';
 import { buildStackModel } from '../stack-model.js';
+import { createDemandSnapshotSource } from './demand-source.js';
 
 /** The owner is testable without a worker host. Only bounded envelopes cross it. */
 export const createSnapshotWorkerOwner = ({fetchPage,post}) => {
-  let epoch=0,serial=0,accepted=null,loading=null,retired=false;
+  let epoch=0,serial=0,accepted=null,acceptedDemand=null,loading=null,retired=false;
   const lanes=new Map();
   const reply=(request,value)=>post({protocol:MAP_DATA_PROTOCOL,snapshot:request.snapshot,request:request.request,revision:request.revision,kind:request.kind,...value});
   const stopLane=lane=>{lanes.get(lane)?.abort();lanes.delete(lane);};
@@ -30,6 +31,13 @@ export const createSnapshotWorkerOwner = ({fetchPage,post}) => {
       }
     };
     try{
+      if(request.demand){
+        const demand=createDemandSnapshotSource({snapshot:request.snapshot,fetchPage});candidate=demand;
+        const manifest=await demand.init(controller.signal,request.revision);controller.signal.throwIfAborted();
+        if(retired||ownEpoch!==epoch)return;
+        reply(request,{event:'overview',manifest});accepted?.dispose();accepted=null;acceptedDemand?.dispose();acceptedDemand=demand;candidate=null;
+        reply(request,{event:'ready',manifest,stats:demand.stats()});return;
+      }
       const result=await fetch('manifest'),manifest=result.manifest;
       if(manifest?.protocol!==MAP_DATA_PROTOCOL||manifest.snapshot!==request.snapshot||['files','members','edges'].some(key=>!Number.isSafeInteger(manifest.counts?.[key])||manifest.counts[key]<0))throw new Error('Pinned map manifest identity/counts are invalid.');
       candidate=createGraphStore(manifest);
@@ -38,9 +46,9 @@ export const createSnapshotWorkerOwner = ({fetchPage,post}) => {
       for(const file of candidate.files.values())if(file.memberCount)await pages('members',{file:file.path});
       await pages('edges');controller.signal.throwIfAborted();
       if(retired||ownEpoch!==epoch)return;
-      candidate.finish();const previous=accepted;accepted=candidate;candidate=null;previous?.dispose();
+      candidate.finish();const previous=accepted;accepted=candidate;candidate=null;previous?.dispose();acceptedDemand?.dispose();acceptedDemand=null;
       reply(request,{event:'ready',stats:accepted.stats(),manifest:result.manifest});
-    }catch(error){if(!controller.signal.aborted&&!retired)reply(request,{event:'error',error:error.message,retainedSnapshot:accepted?.snapshot||null});}
+    }catch(error){if(!controller.signal.aborted&&!retired)reply(request,{event:'error',error:error.message,retainedSnapshot:accepted?.snapshot||acceptedDemand?.snapshot||null});}
     finally{candidate?.dispose();if(loading===controller)loading=null;}
   };
   return {
@@ -52,6 +60,10 @@ export const createSnapshotWorkerOwner = ({fetchPage,post}) => {
       if(request.kind==='dispose'){this.dispose();return;}
       const lane=request.kind;stopLane(lane);const controller=new AbortController();lanes.set(lane,controller);
       try{
+        if(acceptedDemand?.snapshot===request.snapshot){
+          const own=acceptedDemand,value=await own.query(lane,request.payload,controller.signal,request.revision);
+          controller.signal.throwIfAborted();if(own===acceptedDemand&&lanes.get(lane)===controller)reply(request,{event:'result',value});return;
+        }
         if(!accepted||accepted.snapshot!==request.snapshot)throw new Error('Requested graph generation is not ready; retained source navigation remains available.');
         const store=accepted;let value;
         if(lane==='search')value=await store.search({...request.payload,signal:controller.signal});
@@ -70,6 +82,6 @@ export const createSnapshotWorkerOwner = ({fetchPage,post}) => {
       }catch(error){if(!controller.signal.aborted&&!retired)reply(request,{event:'error',error:error.message});}
       finally{if(lanes.get(lane)===controller)lanes.delete(lane);}
     },
-    dispose(){if(retired)return;retired=true;epoch++;loading?.abort();for(const controller of lanes.values())controller.abort();lanes.clear();accepted?.dispose();accepted=null;}
+    dispose(){if(retired)return;retired=true;epoch++;loading?.abort();for(const controller of lanes.values())controller.abort();lanes.clear();accepted?.dispose();accepted=null;acceptedDemand?.dispose();acceptedDemand=null;}
   };
 };

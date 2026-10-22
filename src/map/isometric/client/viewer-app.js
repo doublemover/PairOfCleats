@@ -1,4 +1,4 @@
-import { initStackNavigation } from './stack-navigation.js';
+import { initStackNavigation, focusStack } from './stack-navigation.js';
 import { state } from './state.js';
 import { loadDomConfig } from './dom.js';
 import { loadThreeModules, loadRgbeLoader } from './three-loader.js';
@@ -26,14 +26,22 @@ import { applyViewerAppearance, initAppearanceEditor } from './appearance.js';
 import { initResidencyOwner } from './data/residency-owner.js';
 import { rendererCapabilities } from './rendering/boundary.js';
 import { initSnapshotData } from './data/session-owner.js';
+import { createRemoteSource } from './data/remote-source.js';
+import { buildSnapshotOverview } from './rendering/snapshot-overview.js';
 
 const initViewer = async () => {
   const loaded=loadDomConfig();
   const {map:rawMap,dom}=loaded;
   const shell=initViewerShell(state,document);
   Object.assign(state,{rawMap,map:rawMap,dom,config:loaded.config,THREE:null});
+  if(loaded.config.snapshotData?.demand)state.remoteSource=createRemoteSource(loaded.config.snapshotData);
   initMapData();initStackNavigation();
   initSnapshotData(loaded.config.snapshotData);
+  if(state.remoteSource){
+    state.afterSceneRebuild=()=>{if(!state.residentFiles){buildSnapshotOverview(state.remoteSource.manifest);focusStack();}};
+    state.showSnapshotOverview=()=>{state.resetResidency?.();rebuildScene();};
+    window.addEventListener('pagehide',()=>state.remoteSource?.dispose(),{once:true});
+  }
   dom.summary.textContent=`Available snapshot: ${state.sourceIndex.counts.files} files / ${state.sourceIndex.counts.members} members / ${state.sourceIndex.counts.edges} edges. Source browser ready.`;
   const settingsSession=await loadViewerSettingsSession(loaded.config,{onStatus:value=>shell.setSaveStatus(value)});
   const config=settingsSession.effective(loaded.config.layout?.style||'stacks');
@@ -153,6 +161,7 @@ const initViewer = async () => {
 
   const renderSummary = () => {
     const counts = state.sourceIndex?.counts || { files: 0, members: 0, edges: 0 };
+    if(state.remoteSource){dom.summary.textContent=`Available snapshot: ${counts.files} files / ${counts.members} members / ${counts.edges} relationships. ${state.residentFiles?'Bounded resident detail; all available identities remain pageable.':`Whole-available directory overview · ${state.remoteSource.manifest.overview.length} aggregate proxies; select a group to browse.`}`;return;}
     const displayed=state.map?.summary?.counts||{};
     const truncated = state.map?.summary?.truncated ? ' | truncated' : '';
     dom.summary.textContent = `Available snapshot: ${counts.files} files / ${counts.members} members / ${counts.edges} edges. Display: ${displayed.files||0} / ${displayed.members||0} / ${displayed.edges||0}${truncated}`;
