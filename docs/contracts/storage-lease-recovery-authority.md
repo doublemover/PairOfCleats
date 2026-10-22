@@ -121,3 +121,12 @@ capability is not emitted for an unconfirmed resource or refused settlement.
 Authored actual admission/reservation/category fixture controls cover frozen and
 nested errors, strict inner release evidence and injected outer unlink failure.
 They remain UNVALIDATED.
+
+The shared session boundary captures an operation's original closure observer
+and receiver before invoking settlement. An observer is authoritative even when
+the separate pending marker is absent or false. Replacing either field during
+settlement cannot erase that original owner, and an unreadable marker or observer
+remains unknown without replacing the operation's primary failure. New pending
+evidence introduced during settlement is also retained. Authored actual category
+controls include contradictory receipts, callback replacement, frozen errors,
+throwing marker getters and ordinary success/failure release; they are unrun.

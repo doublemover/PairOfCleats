@@ -14,15 +14,16 @@ export const isStorageSessionReleaseFailure = (error, session) => Boolean(sessio
 const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
 const capturePendingClosure = error => {
   if (!error) return null;
-  let observer;
-  try { observer = error.cacheOwnershipReleased; } catch { return () => false; }
-  if (error.cacheOwnershipPending !== true && typeof observer !== 'function') return null;
-  return () => { try { return typeof observer === 'function' && observer.call(error) === true; } catch { return false; } };
+  try {
+    const observer = error.cacheOwnershipReleased;
+    if (error.cacheOwnershipPending !== true && typeof observer !== 'function') return null;
+    return () => { try { return typeof observer === 'function' && observer.call(error) === true; } catch { return false; } };
+  } catch { return () => false; }
 };
-export const retainSessionFailure = (primary, settlementError, session) => {
+export const retainSessionFailure = (primary, settlementError, session, { originalClosure = null } = {}) => {
   const failure = asError(primary || settlementError);
   const additional = primary && settlementError !== failure ? asError(settlementError) : null;
-  const observers = [failure, additional].filter(Boolean).map(capturePendingClosure).filter(Boolean);
+  const observers = [originalClosure, ...[failure, additional].filter(Boolean).map(capturePendingClosure)].filter(Boolean);
   // Capture original function identities before attaching the aggregate observer.
   // The retained session itself still requires its exact explicit settlement.
   const descriptors = {
@@ -132,15 +133,18 @@ export const runWithStorageSession = async (input, action, { settlement } = {}) 
   let operationError = null;
   try { value = await action(session); }
   catch (error) { operationError = error && typeof error === 'object' ? error : new Error(String(error), { cause: error }); }
+  // Capture before calling the settlement owner: a callback cannot replace an
+  // existing resource observer or erase it by changing the separate marker.
+  const originalClosure = capturePendingClosure(operationError);
   try {
     const receipt = await settlement({ value, error: operationError, resourceId: session.resourceId });
-    if (operationError?.cacheOwnershipPending === true) {
-      const observe = capturePendingClosure(operationError);
-      if (receipt?.pending !== false || !observe || !observe()) throw operationError;
+    const observers = [originalClosure, capturePendingClosure(operationError)].filter(Boolean);
+    if (observers.length) {
+      if (receipt?.pending !== false || !observers.every(observe => observe())) throw operationError;
     }
     session.releaseAfterSettlement(receipt);
   } catch (settlementError) {
-    throw retainSessionFailure(operationError, settlementError, session);
+    throw retainSessionFailure(operationError, settlementError, session, { originalClosure });
   }
   if (operationError) throw operationError;
   return { value, resourceId: session.resourceId, settled: true };
