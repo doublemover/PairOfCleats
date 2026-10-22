@@ -7,7 +7,9 @@ or turn a failed task into successful queue completion.
 
 Before invoking an error handler, the queue captures any original resource
 settlement observer with its original receiver. A replacement observer or changed
-pending flag cannot erase that evidence. Independent handler ownership must also
+pending flag cannot erase that evidence. Original operational fields and
+nonenumerable capabilities retain their captured descriptors on the wrapper;
+callback mutation cannot replace them. Independent handler ownership must also
 confirm settlement. Missing or throwing observers remain unknown. The queue
 neither disposes those resources nor grants any release or deletion authority;
 the exact original capabilities remain reachable through the recorded causes.

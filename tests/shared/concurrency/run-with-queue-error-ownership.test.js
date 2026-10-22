@@ -25,7 +25,9 @@ for (const value of [undefined, null, false, 0, '']) {
 
 let originalClosed = false, secondaryClosed = false, originalReads = 0, secondaryReads = 0;
 const original = new Error('original native ownership');
-Object.assign(original, { cacheOwnershipPending: false, cacheOwnershipReleased() {
+const exactCapability = Object.freeze({ identity: 'original inert owner' });
+Object.defineProperty(original, 'nativeResourceOwner', { value: exactCapability });
+Object.assign(original, { code: 'ERR_ORIGINAL_NATIVE_READ', cacheOwnershipPending: false, cacheOwnershipReleased() {
   assert.equal(this, original); originalReads++; return originalClosed;
 } });
 const secondary = Object.freeze(Object.assign(new Error('callback native ownership'), {
@@ -37,11 +39,15 @@ const both = await rejected(run(async () => { throw original; }, {
   onError(error) {
     error.cacheOwnershipPending = false;
     error.cacheOwnershipReleased = () => true;
+    error.code = 'ERR_REPLACED_DIAGNOSTIC';
     throw secondary;
   }
 }));
 assert.deepEqual(both.errors, [original, secondary]);
 assert.equal(both.cause, original);
+assert.equal(both.code, 'ERR_ORIGINAL_NATIVE_READ', 'capture operational metadata before callback mutation');
+assert.equal(both.nativeResourceOwner, exactCapability);
+assert.equal(Object.keys(both).includes('nativeResourceOwner'), false);
 assert.equal(both.cacheOwnershipReleased(), false, 'callback replacement cannot erase the original observer');
 assert.equal(both.cacheOwnershipPending, true);
 assert.equal(both.retryable, false);

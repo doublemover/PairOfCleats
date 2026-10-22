@@ -11,14 +11,25 @@ const captureQueueOwnership = error => {
     return () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } };
   } catch { return () => false; }
 };
-const aggregateQueueFailures = (errors, message, originalObservers = []) => {
+const captureFailureDescriptors = error => {
+  try { return Object.getOwnPropertyDescriptors(error); } catch { return null; }
+};
+const aggregateQueueFailures = (errors, message, originalObservers = [], primaryDescriptors = null) => {
   const failure = new AggregateError(errors, message, { cause: errors[0] });
   const observers = [...originalObservers, ...errors.map(captureQueueOwnership)].filter(Boolean);
+  if (primaryDescriptors) {
+    const reserved = new Set(['cause', 'errors', 'message', 'stack', 'retryable',
+      'cacheOwnershipPending', 'cacheOwnershipReleased']);
+    for (const key of Reflect.ownKeys(primaryDescriptors)) {
+      if (!reserved.has(key)) Object.defineProperty(failure, key, primaryDescriptors[key]);
+    }
+  }
   if (observers.length) Object.defineProperties(failure, {
     cacheOwnershipPending: { get: () => !observers.every(observe => observe()) },
     cacheOwnershipReleased: { value: () => observers.every(observe => observe()) },
     retryable: { value: false }
   });
+  else if (primaryDescriptors?.retryable) Object.defineProperty(failure, 'retryable', primaryDescriptors.retryable);
   else if (errors[0]?.retryable === false) failure.retryable = false;
   return failure;
 };
@@ -122,6 +133,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     let error = primary;
     if (onError) {
       const originalObserver = captureQueueOwnership(primary);
+      const originalDescriptors = captureFailureDescriptors(primary);
       let callbackError, callbackFailed = false;
       try {
         await onError(primary, ctx);
@@ -131,7 +143,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
       if (callbackFailed || originalObserver) error = aggregateQueueFailures(
         callbackFailed ? [primary, callbackError] : [primary],
         callbackFailed ? 'Queue task and error handler failed' : 'Queue task retained resource ownership',
-        [originalObserver]
+        [originalObserver], originalDescriptors
       );
     }
     if (bestEffort) {
