@@ -148,19 +148,32 @@ export const formatSetupPreflight = report => [
     `[bootstrap preflight] MSBuild: ${report.toolchain.compiler.msbuild}`,
     `[bootstrap preflight] Windows SDK ${report.toolchain.sdk.version}: ${report.toolchain.sdk.root}`
   ] : [`[bootstrap preflight] C++: ${report.toolchain.compiler.command} (${report.toolchain.compiler.source}); ${report.toolchain.compiler.version}`]),
-  '[bootstrap preflight] Discovery only. Native build, actual child selection and activation verification remain required.'
+  report.capability ? '[bootstrap preflight] Selected Windows compiler/header/link/target capability verified; native package build and activation remain required.'
+    : '[bootstrap preflight] Discovery only. Native build, actual child selection and activation verification remain required.'
 ].join('\n');
 
 if (isDirectExecution(import.meta.url)) {
+  const cancellation = new AbortController();
+  const onInterrupt = () => cancellation.abort(new Error('Prerequisite check interrupted.'));
+  process.once('SIGINT', onInterrupt);
+  process.once('SIGTERM', onInterrupt);
   try {
     const args = process.argv.slice(2);
     if (args.some(arg => arg !== '--json')) fail('Usage: node tools/setup/preflight.js [--json]');
     const report = runSetupPreflight();
+    if (report.platform === 'win32') {
+      const { verifyWindowsCompilerCapability } = await import('./windows-capability.js');
+      report.capability = await verifyWindowsCompilerCapability(report, { scratchRoot: path.resolve('.tmp', 'bootstrap-prerequisites'), signal: cancellation.signal });
+      report.verificationLevel = 'selected-windows-compiler-header-link-target-capability';
+    }
     if (args.includes('--json')) console.log(JSON.stringify({ ok: true, ...report }));
     else console.error(formatSetupPreflight(report));
   } catch (error) {
     if (process.argv.includes('--json')) console.log(JSON.stringify({ ok: false, verificationLevel: 'prerequisite-discovery-only', message: error.message }));
     else console.error(error.message);
     process.exitCode = 1;
+  } finally {
+    process.removeListener('SIGINT', onInterrupt);
+    process.removeListener('SIGTERM', onInterrupt);
   }
 }

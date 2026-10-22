@@ -15,7 +15,9 @@ Install [Python 3](https://www.python.org/downloads/windows/),
 or its [Build Tools](https://visualstudio.microsoft.com/downloads/).
 In Visual Studio Installer select **Desktop development with C++**, MSVC tools
 for your target (x64 or ARM64), MSBuild and a **Windows 11 SDK**. This is a user
-setup step; bootstrap does not alter security settings or install machine tools.
+setup step. The reviewed [Windows prerequisite repair](windows-prerequisite-repair.md)
+source path plans an exact Build Tools install/modify separately; ordinary
+bootstrap does not install machine tools or alter security settings.
 Keep any explicitly selected Visual Studio/Python environment consistent with
 the installed tools. A normal terminal need not already have `cl` on PATH:
 discovery uses registered Visual Studio installations and installed SDK files.
@@ -71,9 +73,16 @@ From the checkout root, `node tools/setup/preflight.js` performs a bounded,
 dependency-free prerequisite check. Both `npm run bootstrap:ci` (locked install)
 and `npm run bootstrap` (intentional dependency resolution) run it before npm
 downloads/replaces dependencies. Unsupported Node or missing Git/Python/build
-tools stop immediately with a prerequisite error. Windows checks target compiler,
-MSBuild and SDK files; POSIX checks Make and a C++ command. These discovery probes
-do not compile all native modules or qualify every custom compiler configuration.
+tools stop immediately with a prerequisite error. Windows discovers the target
+compiler, MSBuild and SDK, then the direct preflight entry compiles and links a
+tiny C++20 program using those selected C++/Windows/UCRT headers and target
+libraries. It checks the resulting COFF and PE machine target and records actual
+file hashes in run-owned `.tmp/bootstrap-prerequisites/` evidence. Unconfirmed
+child teardown retains scratch ownership. It does not run the resulting
+executable. POSIX checks Make and a C++ command. These checks do not compile all
+native modules or qualify every custom compiler configuration. The new Windows
+capability/repair source is **UNVALIDATED** in this development batch; authored
+fake-child regressions have not been executed.
 
 After discovery, locked bootstrap installs development dependencies, applies
 patches, builds required native sources and verifies packages/language routes
