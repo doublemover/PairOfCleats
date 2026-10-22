@@ -5,7 +5,7 @@ Last audited: 2026-10-21
 Last reconciled: 2026-10-22
 Canonical for: initiative status, execution order, and remaining work
 
-Current reconciliation, 2026-10-22: 947 open issues are being reconciled by
+Current reconciliation, 2026-10-22: 957 open issues are being reconciled by
 priority and shared owner; historical implementation and acceptance remain distinct.
 
 ## Current GitHub repair program
@@ -16,8 +16,8 @@ existing `main` base. The latest qualified production/test source checkpoint is
 `d4dcba4134f6103e3a59703d90fdbde5ca54d09e`; publication is authorized and working.
 No merge is authorized. Preserve granular commits and verify remote/PR identities.
 
-The live inventory now contains **947 open issues (#584–#1530)**: P0 0, P1 52,
-P2 448, P3 102, P4 0, Perf 102, and unprioritized 243. This includes 863 new
+The live inventory now contains **957 open issues (#584–#1540)**: P0 0, P1 52,
+P2 448, P3 102, P4 0, Perf 102, and unprioritized 253. This includes 873 new
 reports. The [current repair receipt](archived/github-issue-repairs-2026-10-21.md)
 contains every issue and its disposition. The
 [previous receipt](archived/github-issue-repairs-2026-10-20.md) records 77 earlier
@@ -99,6 +99,12 @@ cache-lock ownership, plus 110 new P2 defects, precede remaining Perf work.
 Language declaration/source spans, retrieval contracts, extraction and evaluation
 are assigned across the eight implementation owners; the lead integrates shared contracts.
 There is no current-source deep-suite, native-host or performance claim.
+The refreshed inventory adds ten Other research/features (#1531–#1540) and
+expands modern viewer/semantic acceptance; prior source repairs retain credit
+without implying those new requirements are satisfied. Storage/category, native,
+editor, provisioning, bounded discovery and durable viewer preference releases
+now have durable partial mappings. Shared compilerBindings12/lspBindings16 and
+discoverySelection2/signature14 identify the new acquisition/selection meaning.
 
 Source checkpoints through 101f3641f add local loaded-response find, source-qualified
 semantic navigation, bounded SQLite bundle ingestion, incremental embedding cache
