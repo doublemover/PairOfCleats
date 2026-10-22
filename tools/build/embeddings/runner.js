@@ -1,6 +1,8 @@
 import { resolveEmbeddingsBatchTokenBudget } from '../../../src/shared/embedding-batch.js';
 import { digestBundleMappingInventory, observeBundleCoverageFiles, checkBundleCoverageReceipt,
   createBundleCoverageReceipt } from './runner/bundle-coverage-receipt.js';
+import { planStage3CacheOnly, createCacheOnlyEmbedder, hasCompleteCachedFileVectors } from './runner/cache-only.js';
+import { createEmbeddingVectorSpool } from './vector-spool.js';
 import { encodeIncrementalManifest, INCREMENTAL_MANIFEST_MAX_BYTES } from '../../../src/index/build/incremental/manifest-codec.js';
 import { readEffectiveMemory, estimateRetainedBytes } from '../../../src/shared/effective-memory.js';
 import { throwIfAborted, isAbortError } from '../../../src/shared/abort.js';
@@ -38,8 +40,6 @@ import { normalizeLanceDbConfig, resolveLanceDbTarget } from '../../../src/share
 import { DEFAULT_STUB_DIMS, resolveStubDims } from '../../../src/shared/embedding.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import {
-  countNonEmptyVectors,
-  clampQuantizedVectorsInPlace,
   isNonEmptyVector,
   isVectorLike
 } from '../../../src/shared/embedding-utils.js';
@@ -104,7 +104,6 @@ import {
   buildQuantizedVectors,
   createDimsValidator,
   ensureVectorArrays,
-  fillMissingVectors,
   isDimsMismatch,
   runBatched,
   validateCachedDims
@@ -113,7 +112,7 @@ import { writeHnswBackends, writeLanceDbBackends } from './backends.js';
 import { updatePieceManifest } from './manifest.js';
 import { publishEmbeddingGeneration } from './publication.js';
 import { publishBackendGeneration } from './backend-publication.js';
-import { buildEmbeddingGeneration } from '../../../src/shared/embedding-generation.js';
+import { buildEmbeddingGenerationAsync } from '../../../src/shared/embedding-generation.js';
 import { createFileEmbeddingsProcessor } from './pipeline.js';
 import { createEmbeddingsScheduler } from './scheduler.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
@@ -1547,6 +1546,10 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
 
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const repoCacheRootResolved = path.resolve(repoCacheRoot);
+  const cacheScopeRaw = embeddingsConfig.cache?.scope;
+  const cacheScope = typeof cacheScopeRaw === 'string' ? cacheScopeRaw.trim().toLowerCase() : '';
+  const resolvedCacheScope = cacheScope === 'global' ? 'global' : 'repo';
+  const cacheRoot = resolveCacheRoot({ repoCacheRoot, cacheDirConfig: embeddingsConfig.cache?.dir, scope: resolvedCacheScope });
   /**
    * Detect whether the caller explicitly supplied an index root, which means
    * we must fail fast on missing artifacts instead of auto-falling back.
@@ -1738,8 +1741,15 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
       }
     }
   });
+  const cacheOnlyPlan = useStubEmbeddings ? { eligible: false, reason: 'stub-fast-path', work: null }
+    : await planStage3CacheOnly({ roots: receiptRoots, identity: cacheIdentity, identityKey: cacheIdentityKey,
+      cacheRoot, keyFlags: cacheKeyFlags, compactChunk: compactChunkForEmbeddings,
+      readManifest: mode => loadIncrementalManifest(repoCacheRoot, mode, { repoRoot: root }),
+      readState: loadIndexState, maxMetaBytes: resolveEmbeddingsChunkMetaMaxBytes(indexingConfig),
+      sampling: embeddingSampling, signal: config.signal });
+  if (cacheOnlyPlan.eligible) log(`[embeddings] validated cache-only coverage (${cacheOnlyPlan.work.filesChecked} files); provider execution not started.`);
   try {
-    embedder = createEmbedder({
+    embedder = cacheOnlyPlan.eligible ? createCacheOnlyEmbedder({ identity: cacheIdentity, signal: config.signal }) : createEmbedder({
       rootDir: root,
       useStubEmbeddings,
       modelId,
@@ -1776,7 +1786,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
   };
   getChunkEmbeddings.supportsParallelDispatch = embedder.getChunkEmbeddings.supportsParallelDispatch;
   getChunkEmbeddings.estimateTokensBatch = embedder.getChunkEmbeddings.estimateTokensBatch;
-  if (!useStubEmbeddings && (embeddingProvider === 'onnx' || !cacheDims || !embeddingArtifactReusable(modelArtifact))) {
+  if (!useStubEmbeddings && !cacheOnlyPlan.eligible) {
     try {
       const probeVectors = await getChunkEmbeddings(['pairofcleats-provider-probe']);
       assertVectorArrays(probeVectors, 1, 'provider-probe');
@@ -1871,14 +1881,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
     }
   });
 
-  const cacheScopeRaw = embeddingsConfig.cache?.scope;
-  const cacheScope = typeof cacheScopeRaw === 'string' ? cacheScopeRaw.trim().toLowerCase() : '';
-  const resolvedCacheScope = cacheScope === 'global' ? 'global' : 'repo';
-  const cacheRoot = resolveCacheRoot({
-    repoCacheRoot,
-    cacheDirConfig: embeddingsConfig.cache?.dir,
-    scope: resolvedCacheScope
-  });
   const cacheMaxGb = Number(embeddingsConfig.cache?.maxGb);
   const cacheMaxAgeDays = Number(embeddingsConfig.cache?.maxAgeDays);
   const cacheMaxBytes = Number.isFinite(cacheMaxGb) ? Math.max(0, cacheMaxGb) * 1024 * 1024 * 1024 : 0;
@@ -1967,7 +1969,10 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
   const crossFileChunkDedupeEnabled = !stubFastPathEnabled
     && embeddingsConfig?.crossFileChunkDedupe !== false;
   const crossFileChunkDedupeMaxEntries = resolveCrossFileChunkDedupeMaxEntries(indexingConfig);
-  const crossFileChunkDedupe = crossFileChunkDedupeEnabled ? new Map() : null;
+  const crossFileChunkDedupe = crossFileChunkDedupeEnabled ? createLruCache({
+    name: 'stage3-cross-file-vector-reuse', maxEntries: crossFileChunkDedupeMaxEntries, maxMb: 16,
+    sizeCalculation: value => Math.max(1, estimateRetainedBytes(value))
+  }).cache : null;
   const sourceFileHashCacheMaxEntries = resolveEmbeddingsSourceHashCacheMaxEntries(indexingConfig);
   const sourceFileHashes = new Map();
   const hnswIsolateState = {
@@ -1983,6 +1988,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
       }
       let stageCheckpoints = null;
       let modeWriterQueue = null;
+      let modeVectorSpool = null, modePrimaryFailure = null;
       modeTask.set(completedModes, modes.length, { message: `building ${mode}` });
       /**
        * Mark one mode complete in top-level progress task.
@@ -2253,9 +2259,9 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           }
         });
 
-        const codeVectors = new Array(totalChunks).fill(null);
-        const docVectors = new Array(totalChunks).fill(null);
-        const mergedVectors = new Array(totalChunks).fill(null);
+        modeVectorSpool = await createEmbeddingVectorSpool({ parentDir: indexDir, count: totalChunks,
+          dims: cacheDims, signal: config.signal });
+        const { code: codeVectors, doc: docVectors, merged: mergedVectors } = modeVectorSpool.vectors;
         stageCheckpoints.record({
           stage: 'stage3',
           step: 'vectors-allocated',
@@ -2327,7 +2333,10 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                 readChunks: keys => readCacheEntries(globalChunkCacheDir, keys, globalChunkCacheIndex) }))); }
             catch (error) { if (isAbortError(error)) throw error; return null; }
           } });
-        const globalChunkCacheMemo = new Map();
+        const globalChunkCacheMemo = createLruCache({ name: 'stage3-global-vector-reuse',
+          maxEntries: 2048, maxMb: 8, sizeCalculation: entry => entry.bytes });
+        const memoizeGlobalChunk = (key, promise) => globalChunkCacheMemo.set(key,
+          { promise, bytes: 512 + 3 * cacheDims * 8 });
         let crossFileChunkDedupeHits = 0;
         let crossFileChunkDedupeStores = 0;
         let globalChunkCacheAttempts = 0;
@@ -2345,7 +2354,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             pathPolicy: 'posix'
           });
           if (!cacheKey) return null;
-          let pending = globalChunkCacheMemo.get(cacheKey);
+          let pending = globalChunkCacheMemo.get(cacheKey)?.promise;
           if (!pending) {
             pending = (async () => {
               try {
@@ -2364,7 +2373,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                   globalChunkCacheRejected += 1;
                   return { cacheKey, vectors: null, rejected: true };
                 }
-                const expectedDims = configuredDims || cached.cacheMeta?.identity?.dims || null;
+                const expectedDims = cacheDims;
                 validateCachedDims({ vectors: cached.codeVectors, expectedDims, mode });
                 validateCachedDims({ vectors: cached.docVectors, expectedDims, mode });
                 validateCachedDims({ vectors: cached.mergedVectors, expectedDims, mode });
@@ -2387,7 +2396,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                 return { cacheKey, vectors: null, rejected: true };
               }
             })();
-            globalChunkCacheMemo.set(cacheKey, pending);
+            memoizeGlobalChunk(cacheKey, pending);
           }
           return pending;
         };
@@ -2980,7 +2989,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           const cachedDocVectors = [];
           const cachedMergedVectors = [];
           for (let i = 0; i < entry.items.length; i += 1) {
-            const chunkIndex = entry.items[i].index;
             const reusedCode = reuse?.code?.[i];
             const reusedDoc = reuse?.doc?.[i];
             const reusedMerged = reuse?.merged?.[i];
@@ -2988,9 +2996,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
               assertDims(reusedCode.length);
               assertDims(reusedDoc.length);
               assertDims(reusedMerged.length);
-              codeVectors[chunkIndex] = reusedCode;
-              docVectors[chunkIndex] = reusedDoc;
-              mergedVectors[chunkIndex] = reusedMerged;
               cachedCodeVectors.push(reusedCode);
               cachedDocVectors.push(reusedDoc);
               cachedMergedVectors.push(reusedMerged);
@@ -3005,13 +3010,11 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
               quantization,
               normalize: embeddingNormalize
             });
-            codeVectors[chunkIndex] = quantized.quantizedCode;
-            docVectors[chunkIndex] = quantized.quantizedDoc;
-            mergedVectors[chunkIndex] = quantized.quantizedMerged;
             cachedCodeVectors.push(quantized.quantizedCode);
             cachedDocVectors.push(quantized.quantizedDoc);
             cachedMergedVectors.push(quantized.quantizedMerged);
           }
+          await modeVectorSpool.writeFile(entry.items, { code: cachedCodeVectors, doc: cachedDocVectors, merged: cachedMergedVectors });
 
           if (crossFileChunkDedupeEnabled && crossFileChunkDedupe && Array.isArray(entry.chunkHashes)) {
             for (let i = 0; i < entry.chunkHashes.length; i += 1) {
@@ -3026,12 +3029,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
               if (!crossFileChunkDedupe.has(chunkHash)) {
                 crossFileChunkDedupeStores += 1;
               }
-              boundedMapSet(
-                crossFileChunkDedupe,
-                chunkHash,
-                { code: codeVec, doc: docVec, merged: mergedVec },
-                crossFileChunkDedupeMaxEntries
-              );
+              crossFileChunkDedupe.set(chunkHash, { code: codeVec, doc: docVec, merged: mergedVec });
             }
           }
 
@@ -3064,7 +3062,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                   if (!persisted) return;
                   if (referenced.filePayload) markCacheIndexDirty();
                   for (const chunk of chunks) {
-                    globalChunkCacheMemo.set(chunk.inputKey, Promise.resolve({ cacheKey: chunk.inputKey, vectors: chunk.vectors, rejected: false }));
+                    memoizeGlobalChunk(chunk.inputKey, Promise.resolve({ cacheKey: chunk.inputKey, vectors: chunk.vectors, rejected: false }));
                   }
                   globalChunkCacheStores += persisted.storedChunks;
                 }
@@ -3211,29 +3209,24 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                   identityKey: cacheIdentityKey,
                   hash: fileHash
                 })) {
+                  if (cacheOnlyPlan.eligible && cached.hash !== fileHash) {
+                    throw new Error(`[embeddings] ${mode} cache-only source proof changed.`);
+                  }
+                  if (!hasCompleteCachedFileVectors({ cached, items, dims: cacheDims })) {
+                    throw new Error(`[embeddings] ${mode} cached vectors incomplete; recomputing ${normalizedRel}.`);
+                  }
                   const cachedCode = ensureVectorArrays(cached.codeVectors, items.length);
                   const cachedDoc = ensureVectorArrays(cached.docVectors, items.length);
                   const cachedMerged = ensureVectorArrays(cached.mergedVectors, items.length);
-                  let hasEmptyCached = false;
                   for (let i = 0; i < items.length; i += 1) {
-                    const chunkIndex = items[i].index;
                     const codeVec = cachedCode[i] || [];
                     const docVec = cachedDoc[i] || [];
                     const mergedVec = cachedMerged[i] || [];
-                    if (!isNonEmptyVector(codeVec) || !isNonEmptyVector(docVec) || !isNonEmptyVector(mergedVec)) {
-                      hasEmptyCached = true;
-                      break;
-                    }
                     assertDims(codeVec.length);
                     assertDims(docVec.length);
                     assertDims(mergedVec.length);
-                    codeVectors[chunkIndex] = codeVec;
-                    docVectors[chunkIndex] = docVec;
-                    mergedVectors[chunkIndex] = mergedVec;
                   }
-                  if (hasEmptyCached) {
-                    throw new Error(`[embeddings] ${mode} cached vectors incomplete; recomputing ${normalizedRel}.`);
-                  }
+                  await modeVectorSpool.writeFile(items, { code: cachedCode, doc: cachedDoc, merged: cachedMerged });
                   if (cacheIndex && cacheKey) {
                     updateCacheIndexAccess(cacheIndex, cacheKey);
                     if (!cacheIndex.files || typeof cacheIndex.files !== 'object') {
@@ -3250,12 +3243,15 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                   return;
                 }
               } catch (err) {
-                if (isDimsMismatch(err)) throw err;
+                if (isDimsMismatch(err) || err.vectorSpoolFailure) throw err;
                 // Ignore cache parse errors.
                 cacheRejected += 1;
               }
             }
 
+            // Never load a provider after rows have been accepted under a
+            // cache-only identity: fallback would require re-planning every mode.
+            if (cacheOnlyPlan.eligible) await embedder.getChunkEmbeddings(['cache-coverage-invalidated']);
             /**
              * Resolve candidate absolute paths for a logical relative file.
              *
@@ -3367,29 +3363,21 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                     identityKey: cacheIdentityKey,
                     hash: fileHash
                   })) {
+                    if (!hasCompleteCachedFileVectors({ cached, items, dims: cacheDims })) {
+                      throw new Error(`[embeddings] ${mode} cached vectors incomplete; recomputing ${normalizedRel}.`);
+                    }
                     const cachedCode = ensureVectorArrays(cached.codeVectors, items.length);
                     const cachedDoc = ensureVectorArrays(cached.docVectors, items.length);
                     const cachedMerged = ensureVectorArrays(cached.mergedVectors, items.length);
-                    let hasEmptyCached = false;
                     for (let i = 0; i < items.length; i += 1) {
-                      const chunkIndex = items[i].index;
                       const codeVec = cachedCode[i] || [];
                       const docVec = cachedDoc[i] || [];
                       const mergedVec = cachedMerged[i] || [];
-                      if (!isNonEmptyVector(codeVec) || !isNonEmptyVector(docVec) || !isNonEmptyVector(mergedVec)) {
-                        hasEmptyCached = true;
-                        break;
-                      }
                       assertDims(codeVec.length);
                       assertDims(docVec.length);
                       assertDims(mergedVec.length);
-                      codeVectors[chunkIndex] = codeVec;
-                      docVectors[chunkIndex] = docVec;
-                      mergedVectors[chunkIndex] = mergedVec;
                     }
-                    if (hasEmptyCached) {
-                      throw new Error(`[embeddings] ${mode} cached vectors incomplete; recomputing ${normalizedRel}.`);
-                    }
+                    await modeVectorSpool.writeFile(items, { code: cachedCode, doc: cachedDoc, merged: cachedMerged });
                     if (cacheIndex && cacheKey) {
                       updateCacheIndexAccess(cacheIndex, cacheKey);
                       if (!cacheIndex.files || typeof cacheIndex.files !== 'object') {
@@ -3406,7 +3394,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                     return;
                   }
                 } catch (err) {
-                  if (isDimsMismatch(err)) throw err;
+                  if (isDimsMismatch(err) || err.vectorSpoolFailure) throw err;
                   // Ignore cache parse errors.
                   cacheRejected += 1;
                 }
@@ -3606,14 +3594,13 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           if (globalFlush.budgetExceeded) warn(`[embeddings-cache] Global physical storage remains above ${cacheMaxBytes} bytes; protected metadata or open cache files remain.`);
         }
 
+        await modeVectorSpool.seal();
         stageCheckpoints.record({
           stage: 'stage3',
           step: 'vectors-filled',
           extra: {
             vectors: {
-              merged: countNonEmptyVectors(mergedVectors),
-              doc: countNonEmptyVectors(docVectors),
-              code: countNonEmptyVectors(codeVectors)
+              ...modeVectorSpool.stats().presentRows
             }
           }
         });
@@ -3627,12 +3614,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         const finalDims = observedDims
         || cacheDims
         || (useStubEmbeddings ? resolveStubDims(configuredDims) : DEFAULT_STUB_DIMS);
-        fillMissingVectors(codeVectors, finalDims);
-        fillMissingVectors(docVectors, finalDims);
-        fillMissingVectors(mergedVectors, finalDims);
-        clampQuantizedVectorsInPlace(codeVectors);
-        clampQuantizedVectorsInPlace(docVectors);
-        clampQuantizedVectorsInPlace(mergedVectors);
+        if (finalDims !== cacheDims) throw new Error(`[embeddings] ${mode} spool dimensions changed after provider/cache identity selection.`);
 
         const bundleRefreshStartedAtMs = Date.now();
         bundleTask.set(0, 1, { message: 'refreshing incremental bundles' });
@@ -3670,8 +3652,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           log(`[embeddings] ${mode}: writing vectors to ${docVectorsBasePath}.meta.json + parts`);
           log(`[embeddings] ${mode}: writing vectors to ${codeVectorsBasePath}.meta.json + parts`);
         }
-        const embeddingGeneration = buildEmbeddingGeneration({ embeddingIdentity: cacheIdentity,
-          chunksByFile, vectors: { merged: mergedVectors, doc: docVectors, code: codeVectors } });
+        const embeddingGeneration = await buildEmbeddingGenerationAsync({ embeddingIdentity: cacheIdentity,
+          chunksByFile, vectors: { merged: mergedVectors, doc: docVectors, code: codeVectors }, signal: config.signal });
         const vectorFields = {
           embeddingIdentity: cacheIdentity,
           embeddingGeneration,
@@ -3923,9 +3905,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           step: 'write',
           extra: {
             vectors: {
-              merged: countNonEmptyVectors(mergedVectors),
-              doc: countNonEmptyVectors(docVectors),
-              code: countNonEmptyVectors(codeVectors)
+              ...modeVectorSpool.stats().presentRows
             },
             hnsw: hnswState.available ? (hnswState.count || 0) : 0,
             lancedb: lancedbState.available ? (lancedbState.count || 0) : 0,
@@ -3983,6 +3963,9 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             stage: indexState.enrichment.stage || indexState.stage || 'stage2'
           };
         }
+        // All vector consumers have settled. Close/remove the private spool
+        // before admitting the manifest/ready state; cleanup failure stays failed.
+        await modeVectorSpool.close();
         const validation = await publishEmbeddingGeneration({
           statePath, indexState,
           publishManifest: async () => {
@@ -4003,6 +3986,10 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           commitReceipt: async () => {
             await runtimeReceipts.ready(mode, { cacheHits, totalChunks, scheduler, writer: writerStatsByMode[mode], cacheRoot,
               providerMeasurement: { execution: embedder.executionInfo(), stage3: {
+                cachePreflight: cacheOnlyPlan,
+                vectorSpool: modeVectorSpool.stats(),
+                vectorReuseBytes: { crossFile: crossFileChunkDedupe?.calculatedSize || 0,
+                  global: globalChunkCacheMemo.cache?.calculatedSize || 0 },
                 batches: embeddingBatchesCompleted, paddedTokens: embeddingBatchPaddedTokens,
                 sourceTokens: embeddingBatchTokensProcessed, computeMs: embeddingBatchComputeMs,
                 textCache: embeddingTextCache.stats(), memory: effectiveMemory
@@ -4163,6 +4150,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         backendTask.done({ message: 'backend outputs ready' });
         await finishMode(`built ${mode}`);
       } catch (err) {
+        modePrimaryFailure = err;
         cacheTask?.fail?.(err);
         embedTask?.fail?.(err);
         writerTask?.fail?.(err);
@@ -4207,8 +4195,19 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         try { await writeIndexState(statePath, failureState); } catch { /* Preserve the original failure. */ }
         throw err;
       } finally {
-        if (stageCheckpoints) {
-          await stageCheckpoints.flush();
+        const cleanupFailures = [];
+        try { await stageCheckpoints?.flush(); } catch (error) { cleanupFailures.push(error); }
+        if (modeVectorSpool) {
+          if (modePrimaryFailure?.cacheOwnershipPending) {
+            modePrimaryFailure.vectorSpoolPath = modeVectorSpool.directory;
+            modePrimaryFailure.vectorSpool = modeVectorSpool;
+          } else try { await modeVectorSpool.close(); } catch (error) { cleanupFailures.push(error); }
+        }
+        if (cleanupFailures.length) {
+          if (modePrimaryFailure) {
+            modePrimaryFailure.spoolCleanupErrors = cleanupFailures;
+            if (cleanupFailures.some(error => error.cacheOwnershipPending)) modePrimaryFailure.cacheOwnershipPending = true;
+          } else throw new AggregateError(cleanupFailures, 'Stage3 mode cleanup failed.');
         }
       }
     }
