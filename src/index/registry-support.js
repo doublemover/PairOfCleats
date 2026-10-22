@@ -141,10 +141,14 @@ export const withRegistryLock = async ({
     throw registryQueueError(lockHeldMessage);
   }
   const detachSignalCleanup = attachRegistryLockSignalCleanup(lock);
+  let workerError = null;
   try {
     return await worker(lock);
+  } catch (error) {
+    workerError = error && typeof error === 'object' ? error : new Error(String(error), { cause: error });
+    throw error;
   } finally {
     detachSignalCleanup();
-    await releaseFileLockOrThrow(lock);
+    await releaseFileLockOrThrow(lock, { workerError });
   }
 };
