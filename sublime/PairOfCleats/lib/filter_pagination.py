@@ -1,7 +1,31 @@
 """Canonical indexed-metadata page admission; ranked text remains top-k."""
 import re
+import hashlib
 
 MAX_HITS = 2000
+
+
+class _FilterPageHits(list):
+    """Private progress receipt, deliberately absent from project JSON."""
+
+    def __init__(self, values, generation, cursors):
+        super().__init__(values)
+        self.generation = generation
+        self.cursor_digests = frozenset(cursors)
+
+
+def carry_filter_page_history(original, normalized):
+    if type(original) is _FilterPageHits and isinstance(normalized, list):
+        return _FilterPageHits(normalized, original.generation, original.cursor_digests)
+    return normalized
+
+
+def has_filter_page_history(hits):
+    return type(hits) is _FilterPageHits
+
+
+def _cursor_digest(cursor):
+    return hashlib.sha256(cursor.encode('utf-8')).hexdigest()
 
 
 def _count(value):
@@ -59,7 +83,13 @@ def merge_filter_page(previous_session, next_pagination, hits):
         raise ValueError('Indexed matching total changed within one generation. Restart browsing; the previous result set is retained.')
     if current['hasMore'] and current['nextCursor'] == previous['nextCursor']:
         raise ValueError('Indexed continuation did not advance. Restart browsing; the previous result set is retained.')
-    merged = list(previous_session.get('hits') or [])
+    original = previous_session.get('hits') or []
+    cursors = set(original.cursor_digests) if type(original) is _FilterPageHits and original.generation == current['generation'] else set()
+    if isinstance(previous['nextCursor'], str):
+        cursors.add(_cursor_digest(previous['nextCursor']))
+    if current['hasMore'] and _cursor_digest(current['nextCursor']) in cursors:
+        raise ValueError('Indexed continuation repeated an earlier cursor. Restart browsing; the previous result set is retained.')
+    merged = list(original)
     seen = set(hit_identity(hit) for hit in merged if hit_identity(hit) is not None)
     for hit in hits:
         identity = hit_identity(hit)
@@ -67,9 +97,16 @@ def merge_filter_page(previous_session, next_pagination, hits):
             merged.append(hit)
             if identity is not None:
                 seen.add(identity)
+    if current['hasMore'] and len(merged) == len(original):
+        raise ValueError('Indexed continuation returned no new source identities. Restart browsing; the previous result set is retained.')
     if len(merged) > MAX_HITS:
         raise ValueError('View reached its 2,000 hit bound. Narrow filters and restart.')
-    return merged
+    total = current['total'] if current['total'] is not None else previous['total']
+    if total is not None and len(merged) > total:
+        raise ValueError('Indexed loaded membership exceeds its captured matching total. Restart browsing; the previous result set is retained.')
+    if current['hasMore']:
+        cursors.add(_cursor_digest(current['nextCursor']))
+    return _FilterPageHits(merged, current['generation'], cursors)
 
 
 def selected_index(session, hits):

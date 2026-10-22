@@ -5,7 +5,7 @@ import sublime
 from .saved_search import normalize_saved_options
 from . import operations
 from . import results_state
-from .filter_pagination import selected_index, capture_selection
+from .filter_pagination import selected_index, capture_selection, carry_filter_page_history
 from .source_authority import assert_source_filename, read_verified_source, source_buffer_form, source_range_in_buffer
 
 HIGHLIGHT_KEY = 'pairofcleats.search.highlight'
@@ -59,7 +59,7 @@ def build_session(query, options, repo_root, hits, target, explain=False):
         'repoRoot': repo_root,
         'target': target,
         'explain': bool(explain),
-        'hits': [normalize_hit(hit) for hit in hits],
+        'hits': carry_filter_page_history(hits, [normalize_hit(hit) for hit in hits]),
     }
     if isinstance(options, dict):
         session['options'] = normalize_saved_options(options, repo_root)
