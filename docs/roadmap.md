@@ -30,8 +30,9 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `6cb8cf1b7` adds renderer enhancement-generation
-ownership and original worker callbacks; authored checks remain unvalidated.
+Latest source continuation: `c804b6d04` includes lock/renderer ownership, exact
+runtime failures, editor binding, semantic captures and benchmark evidence admission.
+All authored checks remain unvalidated.
 
 ### Execution order
 
@@ -80,98 +81,59 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Unvalidated development now includes watch/pointer and queue authority, complete
-piece assembly, bounded artifact reads, chunk/source/SCM identities, import and
-resource policy repairs, verified model installation/leases, request-pinned
-retrieval/API lifetimes, canonical editor packages and semantic workflow replay.
-TUI task state, Unicode framing, selection identity and width-aware review panes
-also have source repairs and authored regressions. Scheduler hard admission,
-observed tokenization evidence, bounded extraction, SCM/metadata authority, CLI
-terminal outcomes, setup selection and generated USR contracts have development
-checkpoints. A further 47 storage/index P3 reports have implementation mappings.
-Editor request ownership, source/policy freshness, latest-search publication,
-provider cancellation and TUI rejected-draft recovery now have source checkpoints.
-Map paging/selection, relationship vocabularies, lazy detail admission, shared
-endpoint matching, retained pipe geometry and frame-owned hover are implemented.
-The final missed P2 service-progress owner now binds one claimed execution to its
-persisted runtime evidence. Retrieval P3 handoffs add 36 mappings. Performance
-implementation is active across serialization, workers, semantic row preparation,
-inventories, retrieval, embeddings and dependency-safe bootstrap; measurements remain deferred.
-A fresh inventory adds 163 reports. New P1 CI restore publication and pending-child
-cache-lock ownership, plus 110 new P2 defects, precede remaining Perf work.
-Language declaration/source spans, retrieval contracts, extraction and evaluation
-continue across the three implementation owners; the lead integrates shared contracts.
-There is no current-source deep-suite, native-host or performance claim.
-The refreshed inventory adds ten Other research/features (#1531–#1540) and
-expands modern viewer/semantic acceptance; prior source repairs retain credit
-without implying those new requirements are satisfied. Storage/category, native,
-editor, provisioning, bounded discovery and durable viewer preference releases
-now have durable partial mappings. Shared sourceChunking6/compilerBindings18/lspBindings22, callFlow20, graphRelations1
-and discoverySelection2/signature14 identify that producer meaning. The later
-current source uses sourceChunking10/importResolution6/typeNormalization4,
-compilerBindings19/lspBindings34/cfgFlow20/callFlow22/valueSlice6.
+Current source through c804b6d04 repairs watch/pointer and queue authority,
+immutable publication and piece assembly, bounded artifact/SCM/source identities,
+verified model installation/leases, request-pinned retrieval and canonical editor
+workflows. Native TUI state, Unicode framing, selection/review, setup/service and
+replay/catalog slices retain explicit operational gaps. The durable issue receipt
+owns detailed source chronology and per-report mappings, including the 47 storage/
+index P3 and 36 retrieval P3 groups; these are implementation, not acceptance counts.
 
-Earlier source checkpoints through 0500f370a cover bounded SQLite/LMDB and vector
-ingestion/finalizers, complete lexical reuse, selective BM25 hydration, immutable
-coverage/artifact receipts, delegated opens and build-owned filter pages. Exact
-retained graph pages reach CLI/API/MCP, provider evidence and source lenses;
-graph spill/merge accounting and ordinal vector spooling have source owners.
-Reviewed category/first-search plans, strict managed metadata and setup/download
-lifetimes share explicit authority. Native jobs, subprocess input/error paths,
-watch evidence, editor opens and map snapshot workers retain their actual owners.
-Map exports/previews, cooperative search, terminal widths and reproducible fusion/
-rerankers have authored controls. Research #1504–#1520 has internal slices.
-The durable receipt preserves exact commits, mappings and limitations. All remain
-unvalidated; public research integration, full provider onboarding, fine-grained
-resume, generic migration, native service/editor/model hosts, generated freshness,
-locked setup and representative resource/performance qualification remain open.
+Shared scheduler/transform sessions, ordinal vector spools, bounded codec/token/
+semantic row preparation, sealed filter/graph pages and conservative source/replay
+contracts retain content and quota authority. Research #1504-#1523 has internal
+partial slices; later research remains dependency-ordered. Source operation
+reductions are separate from measured latency, memory and quality improvements.
 
-Source continuations through a168da42a retain actual native/model, PDF, map,
-FileHandle and directory owners through original cleanup and independent closure
-observations. Pending work cannot be erased by advisory flags, changed callbacks,
-recipe receipts or a completed bounded wait. Latest errors preserve exact recovery
-capabilities and frozen/falsey causes. Managed cleanup settles file then directory
-owners before staging/category release; migration retains existing exclusions.
-Destination round-trip failure cannot become writable through cleanup retry.
+Original native/model, PDF, FileHandle/Dir, response and managed owners retain
+methods, receivers and independent observations through cleanup and recovery.
+Pending work survives false advisory flags, replaced callbacks and completed
+bounded waits. Queue/shard retries cannot start around retained PDF/native work.
+Canonical database commands drain admitted use before original closes; unknown
+handles remain retained. Registry closes share one flight. Scheduler evidence is
+admitted before presentation. Runtime unwind and receipt persistence preserve
+falsey failure presence, frozen causes and exact category ownership.
 
-PDF retained failures now prohibit automatic queue/shard re-extraction, even when
-the original page error is retryable. Queue error handlers preserve both original
-and callback failures; best-effort aggregates retain original resource observers.
-Independent diagnostic sinks and registry release errors preserve failure evidence.
-Map resources remain owned after detachment. Real native/GPU retry safety remains
-unqualified. Earlier detailed source history is retained in the durable receipt.
+Generic lock publication now retains its original descriptor through explicit
+sealed rollback. Post-open failure cannot restart acquisition. The guard is
+process-local and lexical; durable cross-process/physical-alias and atomic unlink
+qualification remain open. Archive parser/writer lifetime is active source work.
+Actual renderer generations fence module/environment/scene awaits; captured
+returned resources survive partial construction, shadow detachment and listener
+registration failure. Source fallback cannot adopt a newer scene. Inaccessible
+constructor allocations, post-install work and native/GPU retry safety remain open.
 
-Actual JS/TS consumers share ECMAScript comment terminators; quoted type values
-survive parser, cache and source-preview normalization. Dynamic parameter names
-use own-data records through enrichment/public metadata, with inherited evidence
-rejected. Current sourceChunking10/importResolution6/typeNormalization4,
-compilerBindings19/lspBindings34/rq8/cfgFlow20/callFlow22/valueSlice6 retire changed meaning.
-Authored actual parser/cache/consumer and nested storage/queue regressions remain
-unrun. Full language/provider completeness, native/editor/browser/model hosts,
-generic migration, fine-grained resume, generated freshness, locked setup and
-representative resource/performance qualification remain open. All new source is
-unvalidated; no issue closure, current suite pass or measured speedup is claimed.
+Actual JS/TS comment boundaries, quoted parameter/generic values, Go tags,
+Unicode type roots and own parameter/argument names reach parser/cache/public
+consumers. Complete source-checked semantic tokens and iterative symbols preserve
+source authority. Accessor calls distinguish reads/writes/deletion; computed keys
+retain evaluation/conversion order and creation-context captures. Current versions:
+sourceChunking10/importResolution6/typeNormalization4/compilerBindings19/
+lspBindings34/rq8/cfgFlow20/callFlow23/valueSlice7. VSCode and Sublime retain
+original opened-file/URI/request identity through deferred native selection.
 
-The latest source adds generic output-tensor/pipeline ownership with private
-producer evidence, independent unknown-child blockers and original observer
-capture. Lifecycle close callers join one original flight and retain rejected
-outcomes. Falsey worker/release values keep exact lock causes. Scheduler evidence
-is admitted before fallible presentation. Windows prerequisite/capability owners
-reconcile original category metadata before apply locks; standalone official
-release redirects share the existing response owner. Quoted parameter/generic
-boundaries, Go struct tags, qualified type roots and iterative symbol projection
-reach actual provider consumers. Renderer transactions retain committed truth,
-independent cleanup failures and exact fallback/source publication fences.
-These authored contracts remain unvalidated;
-archive parser/writer lifecycle and full generic lock publication are still open.
+The rollout gate now requires explicit coherent benchmark counts and diagnostic
+parity, rejects empty/unsupported evidence and keeps unknown timing deltas null
+(#683). Original delta/parity assertions remain; impossible smoke counts were
+corrected with new authored negative/roundtrip controls, all unrun.
 
-Further source binds VSCode opened URIs to exact files and selected roots,
-admits complete source-checked semantic-token chains, and models computed-key
-conversion in CFG/value slices. Original queue resource observations fence retries.
-Canonical database commands retain original close methods, accepted use through
-closure, unknown handles and frozen/falsey causes. Existing SQLite assertions
-remain, with an immutable primary/cleanup control. Real native/IPC/editor/server
-and whole-source acceptance remain deferred.
+Remaining qualification includes full language/provider/research integration,
+generic migration/fine-grained resume, actual native/editor/browser/model/IPC
+hosts, source-specific fail-before/after controls, locked setup, generated
+inventory/freshness, format/front gate and final Windows cohorts. Three Sol6.1/
+xhigh agents continue independent real-file spans while the lead owns Git and
+publication. Unreleased edits are excluded; no new issue closure, deep pass or
+measured speedup is claimed.
 
 ## Environment and qualification boundaries
 
