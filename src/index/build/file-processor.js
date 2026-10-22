@@ -751,7 +751,10 @@ export function createFileProcessor(options) {
       rel,
       relKey,
       text: artifacts.text,
-      cachedStageBundle: semantic ? null : artifacts.cachedBundle,
+      cachedStageBundle: semantic ? null : artifacts.cachedBundle || (
+        cachedResult.parseCheckpointFallback?.sourceHash === artifacts.fileHash
+          ? { parseCheckpoint: cachedResult.parseCheckpointFallback.checkpoint,
+            stageRefresh: { parse: false, lexical: true } } : null),
       documentExtraction: artifacts.documentExtraction,
       fileStat,
       fileHash: artifacts.fileHash,

@@ -5,6 +5,7 @@ import { atomicWriteText } from '../io/atomic-write.js';
 import { removePathWithRetry } from '../io/remove-path-with-retry.js';
 import {
   BUNDLE_CHECKSUM_SCHEMA_VERSION,
+  BUNDLE_PARSE_CHECKPOINT_SUFFIX,
   BUNDLE_FORMAT_TAG,
   BUNDLE_VERSION
 } from '../bundle-io-constants.js';
@@ -31,6 +32,7 @@ const packr = new Packr({ useRecords: false, structuredClone: true });
 export async function removeBundleWriteArtifacts(bundlePath) {
   await removeFileOrThrow(bundlePath);
   await removeFileOrThrow(resolveBundleJsonChecksumPath(bundlePath));
+  await removeFileOrThrow(bundlePath + BUNDLE_PARSE_CHECKPOINT_SUFFIX);
   await clearBundlePatchFile(bundlePath);
 }
 

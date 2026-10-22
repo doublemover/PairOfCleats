@@ -1,3 +1,4 @@
+import { BUNDLE_PARSE_CHECKPOINT_SUFFIX } from '../../../shared/bundle-io-constants.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -7,7 +8,6 @@ import { resolveManifestBundleNamesResult } from '../../../shared/bundle-io-path
 import { syncParentDirectory } from '../../../shared/io/persistence-helpers.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 import { throwIfAborted } from '../../../shared/abort.js';
-import { isCompletionBundle } from './file-completion.js';
 
 const HASH = /^[a-f0-9]{64}$/;
 const invalid = () => Object.assign(new Error('Incomplete semantic cache cleanup inventory.'), { code: 'ERR_SEMANTIC_CACHE_INTEGRITY' });
@@ -30,7 +30,7 @@ export const pruneSemanticCache = async ({ bundleDir, manifest, diskAccount = nu
     if (!result.ok) throw invalid();
     for (const name of result.names) {
       if (path.basename(name) !== name) throw invalid();
-      bundles.add(name); bundles.add(name + '.checksum.json');
+      bundles.add(name); bundles.add(name + '.checksum.json'); bundles.add(name + BUNDLE_PARSE_CHECKPOINT_SUFFIX);
     }
   };
   const mark = entry => {
@@ -71,7 +71,7 @@ export const pruneSemanticCache = async ({ bundleDir, manifest, diskAccount = nu
     if (/^[a-f0-9]{64}\.json$/.test(entry.name) && !completions.has(entry.name)) candidates.push('completions/' + entry.name);
   }
   for (const entry of await list(bundleDir)) {
-    if (((semanticEnabled && isCompletionBundle(entry.name)) || /^snapshot-[a-f0-9]{64}\.(json|mpk)(\.checksum\.json)?$/.test(entry.name))
+    if (((semanticEnabled && /^(resume)-[a-f0-9]{64}\.(json|mpk)(\.checksum\.json|\.parse-checkpoint\.json)?$/.test(entry.name)) || /^snapshot-[a-f0-9]{64}\.(json|mpk)(\.checksum\.json|\.parse-checkpoint\.json)?$/.test(entry.name))
       && !bundles.has(entry.name)) candidates.push(entry.name);
   }
   if (semanticEnabled) for (const entry of await list(path.join(bundleDir, 'semantic'))) {

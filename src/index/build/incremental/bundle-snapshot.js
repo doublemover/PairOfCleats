@@ -1,3 +1,4 @@
+import { writeParseCheckpointDescriptor } from './parse-checkpoint-descriptor.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -88,6 +89,10 @@ export const writeIncrementalBundleSnapshot = async ({ repoRoot = process.cwd(),
     }
     names.push(name); inventory.push({ name, hash, index, count: bundles.length });
   }
-  return { bundles: names, bundleInventory: inventory, bundleFormat: resolvedFormat,
+  const snapshot = { bundles: names, bundleInventory: inventory, bundleFormat: resolvedFormat,
     bundleChecksum: checksum || 'sha256:' + inventory[0].hash };
+  const parseCheckpointDescriptor = await writeParseCheckpointDescriptor({ bundleDir, relKey,
+    entry: { ...snapshot, hash: bundles[0].hash, dependencySignatures: bundles[0].dependencySignatures },
+    checkpoint: bundles[0].parseCheckpoint, diskAccount, signal });
+  return { ...snapshot, ...(parseCheckpointDescriptor ? { parseCheckpointDescriptor } : {}) };
 };

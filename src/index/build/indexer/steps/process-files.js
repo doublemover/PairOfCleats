@@ -720,7 +720,11 @@ const processFilesInTransformScope = async ({
   }
   const treeSitterEnabled = mode === 'code' && runtime?.languageOptions?.treeSitter?.enabled !== false;
   if (treeSitterEnabled) {
-    const cachedParseFiles = await preloadParseCheckpoints({entries,incrementalState});
+    // Semantic sources require their full native/fact owner unless the durable
+    // completion verifier already admitted them. A geometry descriptor alone
+    // cannot certify complete semantic lanes.
+    const cachedParseFiles = runtime.semanticPolicy?.enabled ? new Set()
+      : await preloadParseCheckpoints({ entries, incrementalState, repoRoot: runtime.root, signal: effectiveAbortSignal });
     const plannerInput = resolveTreeSitterPlannerEntries({
       entries: entries.filter(entry => !cachedParseFiles.has(entry.abs) && !completedSemanticFiles.has(entry.abs)),
       root: runtime.root

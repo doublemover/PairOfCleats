@@ -1,3 +1,4 @@
+import { BUNDLE_PARSE_CHECKPOINT_SUFFIX } from '../../../shared/bundle-io-constants.js';
 import { persistEmbeddedSemanticCacheEntries } from '../../semantic/embedded-cache.js';
 import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import path from 'node:path';
@@ -175,7 +176,7 @@ const drainManifestBundleGc = async ({ manifest, bundleDir, diskAccount = null }
     try {
       const filename = path.join(bundleDir, name);
       const physical = [];
-      for (const member of [filename, filename + '.checksum.json']) {
+      for (const member of [filename, filename + '.checksum.json', filename + BUNDLE_PARSE_CHECKPOINT_SUFFIX]) {
         try { physical.push({ filename: member, stat: await fs.lstat(member) }); }
         catch (error) { if (error.code !== 'ENOENT') throw error; }
       }
