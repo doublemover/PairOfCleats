@@ -4,6 +4,7 @@ import { VECTOR_EVALUATION_VERSION } from '../../../src/contracts/schemas/vector
 import { evaluateVectorOracles, admitVectorEvaluationRecord, vectorEvaluationSourceKey, vectorEvaluationCorpusDigest,
   vectorEvaluationEmbeddingKey, vectorEvaluationQueryKey, vectorEvaluationOriginalDigest } from '../../../src/retrieval/evaluation/vector-oracle.js';
 import { evaluateDatasetVectorReplay } from '../../../tools/eval/vector-oracle.js';
+import { compareVectorOracleQuality } from '../../../src/retrieval/evaluation/vector-quality.js';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
 const queryText = 'fixture query';
@@ -139,5 +140,16 @@ await assert.rejects(evaluateVectorOracles(otherModel, { resumeKey: baseline.rec
 const replay = await evaluateDatasetVectorReplay({ entry: { vectorEvaluation: stable }, query: queryText, topN: 2 });
 assert.equal(replay.kind, 'saved-stage-replay'); assert.equal(replay.currentSearchEvidence, false);
 assert.equal(replay.receipts[0].recordKey, baseline.recordKey);
+assert.equal(Object.hasOwn(replay, 'pairedQuality'), false, 'default replay output keeps the existing shape');
+const compared = await evaluateDatasetVectorReplay({ entry: { vectorEvaluation: [stable, otherModel],
+  vectorQualityComparison: { baseline: 0, candidate: 1, metric: 'annCandidateRecall' } }, query: queryText, topN: 2 });
+assert.equal(compared.pairedQuality.complete, true); assert.equal(compared.pairedQuality.estimates.completePairs, 1);
+assert.equal(compared.pairedQuality.estimates.repositoryMacro.meanDifference, 0);
+assert.equal(compared.pairedQuality.estimates.repositoryMacro.interval95, null);
+assert.notEqual(compared.pairedQuality.baselineKey, compared.pairedQuality.candidateKey, 'model/generation identity remains part of each comparison side');
+await assert.rejects(compareVectorOracleQuality({ baseline: [baseline], candidate: [await evaluateVectorOracles(stable, { k: 1 })] }), /policies differ/);
+await assert.rejects(compareVectorOracleQuality({ baseline: [baseline], candidate: [baseline], metric: 'humanRecall' }), /supported metric/);
+await assert.rejects(compareVectorOracleQuality({ baseline: [baseline], candidate: [{ ...baseline, provenance: null }] }), /identity/);
+await assert.rejects(compareVectorOracleQuality({ baseline: [baseline], candidate: [baseline], cluster: 'family' }), /family assignment/);
 await assert.rejects(evaluateDatasetVectorReplay({ entry: { vectorEvaluation: stable }, query: 'different text', topN: 2 }));
 console.log('independent original/stored vector geometry, provenance, eligibility and incomplete replay assertions complete');

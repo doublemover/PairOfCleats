@@ -3,8 +3,10 @@ import { performance } from 'node:perf_hooks';
 import { setImmediate as yieldImmediate } from 'node:timers/promises';
 import { stableStringify } from '../../shared/stable-json.js';
 import { FUSION_REPLAY_VERSION, admitFusionReplayRecord, replayFusionRecord } from './fusion-replay.js';
+import { comparePairedQuality, PAIRED_QUALITY_POLICY } from './paired-quality.js';
+import { QUALITY_COMPARISON_VERSION } from '../../contracts/schemas/quality-comparison.js';
 
-export const FUSION_SWEEP_METRIC_POLICY = 'graded-ndcg.recall-positive.mrr.v1;paired-query-normal-95.v1';
+export const FUSION_SWEEP_METRIC_POLICY = `graded-ndcg.recall-positive.mrr.v1;paired-query-normal-95.v1;${PAIRED_QUALITY_POLICY}`;
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const fail = message => Object.assign(new Error(message), { code: 'ERR_FUSION_SWEEP' });
 const caps = { records: 256, configurations: 64, inputBytes: 16 * 1024 * 1024,
@@ -143,12 +145,32 @@ export const sweepFusionReplays = async ({ records, grid, seed = 'fusion-sweep-v
   const testBaseline = await evaluate(splits.test, null);
   const testSelected = testBaseline.reason ? null : await evaluate(splits.test, winner.candidate);
   if (testBaseline.reason || testSelected.reason || stop()) return emit(partial(testBaseline.reason || testSelected.reason || stop()));
+  const clusteredPairedTest = {};
+  for (const name of metricNames) {
+    if (stop() || work >= budget.work) return emit(partial(stop() || 'work'));
+    const observationsFor = rows => rows.map((row, index) => {
+      const record = splits.test[index].record, value = row.metrics[name];
+      return { taskKey: row.queryKey, inputKey: digest([record.provenance.corpus.sourceDigest, row.queryKey, name, record.rankOptions.searchTopN]),
+        repoId: record.provenance.corpus.id, familyId: record.provenance.corpus.id, slice: 'held-out',
+        status: Number.isFinite(value) ? 'complete' : 'missing', value: Number.isFinite(value) ? value : null };
+    });
+    const comparison = await comparePairedQuality({ schemaVersion: QUALITY_COMPARISON_VERSION, kind: 'paired-quality-comparison',
+      metric: { name, definitionKey: digest([FUSION_SWEEP_METRIC_POLICY, name]), unit: 'quality-unit-interval' },
+      baselineKey: digest(['current-fusion', sorted[0].record.policy]), candidateKey: winner.key,
+      cluster: 'repository', seed, resamples: 256, slices: [],
+      baseline: observationsFor(testBaseline.rows), candidate: observationsFor(testSelected.rows) },
+    { signal, limits: { work: Math.min(2 * 1024 * 1024, budget.work - work),
+      maxMs: Math.max(1, Math.min(1000, Math.floor(budget.maxMs - (performance.now() - started)))) } });
+    if (!comparison.complete) return emit(partial(`paired-quality-${comparison.reason}`));
+    work += comparison.work.units; clusteredPairedTest[name] = comparison;
+  }
+  if (stop()) return emit(partial(stop()));
   return emit({ schemaVersion: FUSION_REPLAY_VERSION, kind: 'fusion-sweep', complete: true,
     checkpoint: { key: checkpointKey, resume: 'restart-from-zero', cacheableComplete: true },
     metricPolicy: FUSION_SWEEP_METRIC_POLICY, selected: frozen,
     splits: splitIds, configurations: observations.map(({ trainRows, devRows, ...row }) => row),
     metrics: { baseline: { train: summarize(baselines.train), dev: summarize(baselines.dev), test: summarize(testBaseline.rows) },
-      selectedTest: summarize(testSelected.rows), pairedTest: paired(testBaseline.rows, testSelected.rows) },
+      selectedTest: summarize(testSelected.rows), pairedTest: paired(testBaseline.rows, testSelected.rows), clusteredPairedTest },
     queries: { train: winner.trainRows, dev: winner.devRows, test: testSelected.rows },
     work: { candidateUnits: work, completedQueries, inputBytes, replayMs: performance.now() - started },
     costScope: 'saved-score-replay; retrieval/model/index-IO-not-measured', promotion: 'none; held-out campaign qualification required' });

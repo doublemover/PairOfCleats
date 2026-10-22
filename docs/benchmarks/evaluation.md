@@ -68,6 +68,17 @@ raw-stage replay, explicitly `currentSearchEvidence:false`; replayed ANN lists d
 not qualify a newly issued live search. It uses the existing report output and
 does not create another result store or change production ranking.
 
+An optional `vectorQualityComparison` selects explicit `baseline` and `candidate`
+indexes into those admitted records and adds a separate `pairedQuality` report.
+Its optional metric is `annCandidateRecall` (default), `annTopKRecall` or
+`quantizationAgreement`; seed, resamples, repository/family cluster assignments
+and tighter limits follow the [paired-quality contract](../contracts/paired-quality-comparison.md).
+Cross-model task pairing requires equal source/query/filter identities and
+cutoff/work policies while keeping each side's exact model/generation identity.
+A single repository has no cluster confidence interval. The default replay
+shape is preserved when the comparison is absent. Human relevance is not paired
+without an independently bound judgment identity.
+
 Each input binds an immutable source-corpus digest and generation SHA256,
 repository/mode/file/span/offset-unit/content identity, exact model revision or
 digest, graph/tokenizer digests, dimensions, metric, normalization and quantizer.
@@ -153,6 +164,15 @@ Reports retain candidate recall and its declared original/stored reference,
 missing-channel counts, graded nDCG, positive-label recall, MRR and paired query
 deltas. The95% interval is a descriptive normal approximation; single-query
 samples have no interval, and no statistical promotion is implied.
+
+`metrics.clusteredPairedTest` additionally uses the shared versioned
+[repository/family quality owner](../contracts/paired-quality-comparison.md),
+after the winner is frozen. It retains missing outcomes and completion rates,
+reports repository-macro and task-micro effects separately, and exposes no
+decision. A sweep's single corpus supplies one repository cluster; its shared
+cluster interval is null regardless of the number of saved queries. Legacy
+descriptive query fields remain available. Cluster reports, regression sources
+and both consumer integrations remain unvalidated.
 
 Admission is bounded to8MiB per record and16MiB per sweep,4,096 union members,
 1,000,000 candidate work units and a cooperative2s sweep deadline. Tighter-only

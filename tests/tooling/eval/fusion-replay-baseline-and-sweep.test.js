@@ -79,6 +79,13 @@ assert.equal(receipt.metrics.selectedTest.ndcg, 1);
 assert.equal(receipt.metrics.baseline.dev.ndcg, 0);
 assert.equal(receipt.metrics.pairedTest.ndcg.queries, 2);
 assert.equal(receipt.metrics.pairedTest.ndcg.meanDifference, 1);
+const clusterQuality = receipt.metrics.clusteredPairedTest.ndcg;
+assert.equal(clusterQuality.complete, true); assert.equal(clusterQuality.estimates.completePairs, 2);
+assert.equal(clusterQuality.estimates.repositoryMacro.meanDifference, 1);
+assert.equal(clusterQuality.estimates.clusters, 1);
+assert.equal(clusterQuality.estimates.repositoryMacro.interval95, null, 'one saved corpus cannot claim repository-level uncertainty from its query count');
+assert.equal(clusterQuality.estimates.inference, 'insufficient-independent-clusters');
+assert.equal(clusterQuality.decision, null);
 const corruptBaseline = structuredClone(records); corruptBaseline[0].baseline[0].score += 1; corruptBaseline[0] = seal(corruptBaseline[0]);
 await assert.rejects(sweepFusionReplays({ records: corruptBaseline, grid, seed }), /baseline parity/);
 const heldOutChanged = records.map(value => {
