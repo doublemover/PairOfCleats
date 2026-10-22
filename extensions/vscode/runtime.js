@@ -498,8 +498,8 @@ function buildHitRange(vscodeApi, hit) {
     ? Math.max(startLine, Number(hit.endLine) - 1)
     : startLine;
   const endCol = Number.isFinite(hit?.endCol) && hit.endCol > 0
-    ? Math.max(startCol, Number(hit.endCol) - 1)
-    : startCol;
+    ? Math.max(endLine === startLine ? startCol : 0, Number(hit.endCol) - 1)
+    : (endLine === startLine ? startCol : 0);
   const start = new vscodeApi.Position(startLine, startCol);
   const end = new vscodeApi.Position(endLine, endCol);
   return new vscodeApi.Range(start, end);

@@ -58,7 +58,10 @@ assert.equal(harness.infoMessages.pop(), 'PairOfCleats: Config Dump completed.')
 assert.deepEqual(
   harness.spawnCalls[0].args,
   [
-    path.join(repoRoot, 'tools', 'config', 'dump.js'),
+    path.join(repoRoot, 'bin', 'pairofcleats.js'),
+    '--trace',
+    'config',
+    'dump',
     '--json',
     '--repo',
     repoRoot

@@ -484,7 +484,7 @@
             "prefer",
             "require"
           ],
-          "description": "Execution mode for workflows that support the PairOfCleats API."
+          "description": "Workflow transport: cli uses the configured local CLI, prefer uses supported API routes with CLI fallback, and require rejects every CLI-only workflow before execution."
         },
         "pairofcleats.searchMode": {
           "type": "string",

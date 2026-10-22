@@ -6,6 +6,17 @@ function normalizeStringSetting(value) {
   return value == null ? '' : String(value).trim();
 }
 
+function normalizeNonnegativeIntegerSetting(value, label) {
+  if (value == null || value === '') return null;
+  const text = typeof value === 'string' ? value.trim() : value;
+  if (text === '') return null;
+  if ((typeof text !== 'number' && (typeof text !== 'string' || !/^\d+$/.test(text)))
+    || !Number.isSafeInteger(Number(text)) || Number(text) < 0) {
+    throw new Error(`PairOfCleats ${label} must be a nonnegative safe integer or empty.`);
+  }
+  return Number(text);
+}
+
 function normalizeLegacyContext(value) {
   if (value === undefined || value === 0) return 0;
   throw new Error('PairOfCleats searchContextLines is removed. Set it to 0 or use source excerpts/context packs.');
@@ -30,7 +41,7 @@ function readSearchOptions(config, settings) {
     filter: normalizeStringSetting(config.get(settings.filterKey)),
     author: normalizeStringSetting(config.get(settings.authorKey)),
     modifiedAfter: normalizeStringSetting(config.get(settings.modifiedAfterKey)),
-    modifiedSince: normalizeStringSetting(config.get(settings.modifiedSinceKey)),
+    modifiedSince: normalizeNonnegativeIntegerSetting(config.get(settings.modifiedSinceKey), 'searchModifiedSince'),
     churn: normalizeStringSetting(config.get(settings.churnKey)),
     caseSensitive: config.get(settings.caseSensitiveKey) === true,
     extraArgs: normalizeStringArray(config.get(settings.extraSearchArgsKey))
@@ -51,7 +62,7 @@ function normalizeSearchContractOptions(options = {}) {
     filter: normalizeStringSetting(options.filter),
     author: normalizeStringSetting(options.author),
     modifiedAfter: normalizeStringSetting(options.modifiedAfter),
-    modifiedSince: normalizeStringSetting(options.modifiedSince),
+    modifiedSince: normalizeNonnegativeIntegerSetting(options.modifiedSince, 'searchModifiedSince'),
     churn: normalizeStringSetting(options.churn),
     contextLines: normalizeLegacyContext(options.contextLines)
   };
@@ -101,7 +112,7 @@ function buildSearchArgs(query, repoRoot, options = {}) {
   if (filter) args.push('--filter', filter);
   if (author) args.push('--author', author);
   if (modifiedAfter) args.push('--modified-after', modifiedAfter);
-  if (modifiedSince) args.push('--modified-since', modifiedSince);
+  if (modifiedSince !== null) args.push('--modified-since', String(modifiedSince));
   if (churn) args.push('--churn', churn);
   if (options.caseSensitive) args.push('--case');
   if (options.explain) args.push('--explain');
@@ -155,7 +166,7 @@ function buildSearchPayload(query, repoRoot, options = {}) {
   if (filter) payload.filter = filter;
   if (author) payload.author = author;
   if (modifiedAfter) payload.modifiedAfter = modifiedAfter;
-  if (modifiedSince) payload.modifiedSince = modifiedSince;
+  if (modifiedSince !== null) payload.modifiedSince = modifiedSince;
   if (churn) payload.churnMin = Number.isFinite(Number(churn)) ? Math.max(0, Number(churn)) : churn;
   if (options.caseSensitive) payload.case = true;
   return payload;

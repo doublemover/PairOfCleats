@@ -79,7 +79,7 @@ try {
   assert.equal(storedSessions[0].commandId, 'pairofcleats.configDump');
   assert.deepEqual(
     storedSessions[0].invocation.args,
-    [path.join(repoA, 'tools', 'config', 'dump.js'), '--json', '--repo', repoA]
+    [path.join(repoA, 'bin', 'pairofcleats.js'), 'config', 'dump', '--json', '--repo', repoA]
   );
   assert.match(statusBar.text, /PairOfCleats: .*succeeded/i);
 

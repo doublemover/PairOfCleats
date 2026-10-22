@@ -34,6 +34,8 @@ const {
   openSearchHit
 } = require('./runtime.js');
 const { buildDestinationBoundApiHeaders, workspaceTrustError } = require('./security.js');
+const { normalizeWorkflowRequest, hasRequiredWorkflowInput } = require('./workflow-replay.js');
+const { boundedFacts, captureSearchExplanation, renderSearchExplanation, normalizeCapturedExplanation } = require('./search-explanation.js');
 
 // Check immediately at each sink, including after async prompts/probes and
 // saved/background workflows. Trust may change while a command is pending.
@@ -808,6 +810,9 @@ function normalizeWorkflowInvocation(rawInvocation, fallbackTimeoutMs = 60000) {
     args: Array.isArray(rawInvocation.args) ? rawInvocation.args.map((value) => String(value)) : [],
     timeoutMs: Number.isFinite(rawInvocation.timeoutMs) ? rawInvocation.timeoutMs : fallbackTimeoutMs,
     persistent: rawInvocation.persistent === true,
+    request: normalizeWorkflowRequest(rawInvocation.request),
+    requestInvalid: rawInvocation.requestInvalid === true
+      || (rawInvocation.request != null && !normalizeWorkflowRequest(rawInvocation.request)),
     baseUrl: rawInvocation.baseUrl ? normalizeApiBaseUrl(rawInvocation.baseUrl) : '',
     path: rawInvocation.path ? String(rawInvocation.path) : '',
     method: rawInvocation.method ? String(rawInvocation.method).toUpperCase() : '',
@@ -1006,6 +1011,7 @@ async function beginWorkflowSession(spec, repoContext, invocation) {
         args: Array.isArray(invocation.args) ? invocation.args.map((value) => String(value)) : [],
         timeoutMs: Number.isFinite(invocation.timeoutMs) ? invocation.timeoutMs : spec.timeoutMs,
         persistent: invocation.persistent === true,
+        request: normalizeWorkflowRequest({ version: 1, inputContext: invocation.inputContext || null }),
         baseUrl: invocation.baseUrl ? normalizeApiBaseUrl(invocation.baseUrl) : '',
         path: invocation.path ? String(invocation.path) : '',
         method: invocation.method ? String(invocation.method).toUpperCase() : '',
@@ -1067,13 +1073,27 @@ async function finishWorkflowSession(sessionId, patch) {
   updateWorkflowStatusBar();
 }
 
+function validateReplayRepoContext(repoContext, mode) {
+  if (mode === 'api') return true;
+  try {
+    if (repoContext.repoUri?.scheme && repoContext.repoUri.scheme !== 'file') throw new Error('local CLI requires a local repository');
+    if (!fs.statSync(repoContext.repoRoot).isDirectory()) throw new Error('repository is not a directory');
+    return true;
+  } catch (error) {
+    vscode.window.showErrorMessage(`PairOfCleats cannot rerun this workflow: ${repoContext.repoRoot} is unavailable (${error.message}). Select an available repository and run the command again.`);
+    return false;
+  }
+}
+
 async function rerunWorkflowSession(session) {
-  const spec = OPERATOR_COMMANDS_BY_ID.get(session.commandId) || {
-    id: session.commandId,
-    title: session.title,
-    progressTitle: session.title,
-    timeoutMs: session.invocation.timeoutMs || 60000
-  };
+  const spec = OPERATOR_COMMANDS_BY_ID.get(session?.commandId);
+  const managedSpec = MANAGED_COMMANDS_BY_ID.get(session?.commandId);
+  if ((!spec && !managedSpec) || !session?.repoRoot || session.invocation?.requestInvalid
+    || (session.invocation?.request != null && !normalizeWorkflowRequest(session.invocation.request))
+    || !['operator', 'managed-process', 'api-request'].includes(session.invocation?.kind)) {
+    vscode.window.showErrorMessage('PairOfCleats cannot rerun this historical workflow: its registered command or saved request is unavailable. Run the current command again.');
+    return;
+  }
   const repoContext = {
     ok: true,
     repoRoot: session.repoRoot,
@@ -1082,47 +1102,13 @@ async function rerunWorkflowSession(session) {
     workspaceUriString: session.workspaceUri || '',
     workspaceFolder: { uri: parsePersistedUri(session.workspaceUri, vscode.Uri.file(session.repoRoot)) }
   };
-  if (session.invocation?.kind === 'api-request') {
-    if (!session.invocation.baseUrl || !session.invocation.path || !session.invocation.method) {
-      vscode.window.showErrorMessage('PairOfCleats cannot rerun that workflow because its API invocation was not preserved.');
-      return;
-    }
-    return executeApiOperatorWorkflow(spec, repoContext, {
-      baseUrl: session.invocation.baseUrl,
-      timeoutMs: session.invocation.timeoutMs || spec.timeoutMs,
-      path: session.invocation.path,
-      method: session.invocation.method,
-      payload: session.invocation.payload || null,
-      transport: session.invocation.transport || 'api',
-      normalizePayload: spec.id === 'pairofcleats.indexHealth'
-        ? (payload) => payload?.status || payload
-        : null
-    });
-  }
-  if (!session?.invocation?.command || !Array.isArray(session?.invocation?.args)) {
-    vscode.window.showErrorMessage('PairOfCleats cannot rerun that workflow because its invocation was not preserved.');
+  if (managedSpec) return startManagedCommand(managedSpec, { repoContext });
+  const request = normalizeWorkflowRequest(session.invocation.request);
+  if (typeof spec.resolveInput === 'function' && !hasRequiredWorkflowInput(spec.id, request?.inputContext)) {
+    vscode.window.showErrorMessage('PairOfCleats cannot exactly rerun this legacy workflow because its semantic inputs were not saved. Run the current command to choose them again.');
     return;
   }
-  if (session.invocation.kind === 'managed-process') {
-    const managedSpec = MANAGED_COMMANDS_BY_ID.get(session.commandId);
-    if (!managedSpec) {
-      vscode.window.showErrorMessage('PairOfCleats cannot rerun that workflow because its managed command is no longer registered.');
-      return;
-    }
-    return startManagedCommand(managedSpec, {
-      repoContext,
-      invocation: {
-        command: session.invocation.command,
-        args: session.invocation.args.slice(),
-        timeoutMs: session.invocation.timeoutMs,
-        persistent: session.invocation.persistent === true
-      }
-    });
-  }
-  return executeOperatorWorkflow(spec, repoContext, {
-    command: session.invocation.command,
-    args: session.invocation.args.slice()
-  });
+  return runOperatorCommand(spec, { repoContext, inputContext: request?.inputContext || undefined });
 }
 
 async function showRecentWorkflows() {
@@ -1222,7 +1208,7 @@ async function showWorkflowStatus() {
     if (!runningSession) return;
     const stopSpec = Array.from(MANAGED_STOP_COMMANDS_BY_ID.values()).find((entry) => entry.targetId === runningSession.commandId);
     if (stopSpec) {
-      await stopManagedCommand(stopSpec);
+      await stopManagedCommand(stopSpec, { sessionId: runningSession.sessionId, repoRoot: runningSession.repoRoot });
     }
     return;
   }
@@ -1256,6 +1242,7 @@ function createTreeChangeEmitter() {
 
 function normalizeSearchHit(hit) {
   if (!hit || typeof hit !== 'object' || !hit.file) return null;
+  const breakdown = hit.scoreBreakdown ? boundedFacts(hit.scoreBreakdown) : null;
   return {
     file: String(hit.file),
     section: String(hit.section || 'code'),
@@ -1263,6 +1250,9 @@ function normalizeSearchHit(hit) {
     name: hit.name ? String(hit.name) : '',
     score: Number.isFinite(hit.score) ? Number(hit.score) : null,
     scoreType: hit.scoreType ? String(hit.scoreType) : '',
+    chunkUid: typeof hit.chunkUid === 'string' ? hit.chunkUid : '',
+    ...(breakdown ? { scoreBreakdown: breakdown.facts } : {}),
+    explanationTruncated: hit.explanationTruncated === true || breakdown?.truncated === true,
     startLine: Number.isFinite(hit.startLine) ? Number(hit.startLine) : null,
     startCol: Number.isFinite(hit.startCol) ? Number(hit.startCol) : null,
     endLine: Number.isFinite(hit.endLine) ? Number(hit.endLine) : null,
@@ -1279,6 +1269,15 @@ function normalizeSearchResultSet(rawResultSet) {
   const hits = Array.isArray(rawResultSet.hits)
     ? rawResultSet.hits.map((hit) => normalizeSearchHit(hit)).filter(Boolean)
     : [];
+  let explanationBytes = 64 * 1024;
+  for (const hit of hits) {
+    if (!hit.scoreBreakdown) continue;
+    const bytes = Buffer.byteLength(JSON.stringify(hit.scoreBreakdown));
+    if (bytes > explanationBytes) {
+      delete hit.scoreBreakdown;
+      hit.explanationTruncated = true;
+    } else explanationBytes -= bytes;
+  }
   return {
     resultSetId,
     query,
@@ -1290,6 +1289,7 @@ function normalizeSearchResultSet(rawResultSet) {
     backend: rawResultSet.backend ? String(rawResultSet.backend) : '',
     totalHits: Number.isFinite(rawResultSet.totalHits) ? Number(rawResultSet.totalHits) : hits.length,
     invocation: normalizeSearchInvocation(rawResultSet.invocation),
+    explanation: normalizeCapturedExplanation(rawResultSet.explanation),
     hits
   };
 }
@@ -1460,7 +1460,9 @@ async function recordSearchResultSet({
   query,
   searchOptions,
   invocation,
-  hits
+  hits,
+  payload = null,
+  explain = false
 }) {
   const resultSet = normalizeSearchResultSet({
     resultSetId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
@@ -1472,6 +1474,7 @@ async function recordSearchResultSet({
     backend: searchOptions.backend,
     totalHits: hits.length,
     invocation,
+    explanation: explain ? captureSearchExplanation(payload) : null,
     hits
   });
   if (!resultSet) return null;
@@ -1485,6 +1488,10 @@ async function recordSearchResultSet({
 async function openResultHitNode(node) {
   if (!node?.hit || !node?.resultSet) return;
   const repoContext = createStoredRepoContext(node.resultSet);
+  if (node.resultSet.explanation) {
+    appendOutputLines(getOutputChannel(), renderSearchExplanation(node.resultSet, node.hit));
+    getOutputChannel().show?.(true);
+  }
   const result = await openSearchHit(vscode, repoContext, node.hit);
   if (!result.ok) {
     getOutputChannel().appendLine(result.detail || result.message);
@@ -1927,7 +1934,9 @@ function createRangeFromNavigationEntry(entry) {
     ? Math.max(startLine, Number(entry.endLine) - 1)
     : startLine;
   const startCol = Number.isFinite(entry?.startCol) && entry.startCol > 0 ? Number(entry.startCol) - 1 : 0;
-  const endCol = Number.isFinite(entry?.endCol) && entry.endCol > 0 ? Math.max(startCol, Number(entry.endCol) - 1) : startCol;
+  const endCol = Number.isFinite(entry?.endCol) && entry.endCol > 0
+    ? Math.max(endLine === startLine ? startCol : 0, Number(entry.endCol) - 1)
+    : (endLine === startLine ? startCol : 0);
   return new vscode.Range(
     new vscode.Position(startLine, startCol),
     new vscode.Position(endLine, endCol)
@@ -2863,8 +2872,8 @@ const OPERATOR_COMMAND_SPECS = Object.freeze([
     title: 'PairOfCleats: Config Dump',
     progressTitle: 'PairOfCleats config dump',
     timeoutMs: 2 * 60 * 1000,
-    invocation: 'script',
-    scriptParts: ['tools', 'config', 'dump.js'],
+    invocation: 'cli',
+    cliArgs: ['config', 'dump'],
     buildArgs(repoRoot) {
       return ['--json', '--repo', repoRoot];
     }
@@ -2874,8 +2883,8 @@ const OPERATOR_COMMAND_SPECS = Object.freeze([
     title: 'PairOfCleats: Index Health',
     progressTitle: 'PairOfCleats index health',
     timeoutMs: 2 * 60 * 1000,
-    invocation: 'script',
-    scriptParts: ['tools', 'index', 'report-artifacts.js'],
+    invocation: 'cli',
+    cliArgs: ['index', 'report'],
     buildArgs(repoRoot) {
       return ['--json', '--repo', repoRoot];
     }
@@ -2885,8 +2894,8 @@ const OPERATOR_COMMAND_SPECS = Object.freeze([
     title: 'PairOfCleats: Index Validate',
     progressTitle: 'PairOfCleats index validate',
     timeoutMs: 2 * 60 * 1000,
-    invocation: 'script',
-    scriptParts: ['tools', 'index', 'validate.js'],
+    invocation: 'cli',
+    cliArgs: ['index', 'validate'],
     buildArgs(repoRoot) {
       return ['--json', '--repo', repoRoot];
     }
@@ -3843,10 +3852,10 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
   vscode.window.showErrorMessage(`${spec.title} reported issues. See PairOfCleats output for details.`);
 }
 
-async function runOperatorCommand(spec) {
+async function runOperatorCommand(spec, { repoContext: seededRepoContext = null, inputContext: seededInputContext = undefined } = {}) {
   const config = getExtensionConfiguration();
-  const workflow = spec.id === 'pairofcleats.indexHealth' ? 'index-health' : null;
-  const execution = workflow ? await resolveExecutionMode(config, workflow) : { ok: true, mode: 'cli', headers: buildApiHeaders(config) };
+  const workflow = spec.id === 'pairofcleats.indexHealth' ? 'index-health' : spec.id;
+  const execution = await resolveExecutionMode(config, workflow);
   if (!execution.ok) {
     const output = getOutputChannel();
     output.appendLine(execution.detail || execution.message);
@@ -3855,7 +3864,7 @@ async function runOperatorCommand(spec) {
     return;
   }
   appendExecutionFallbackNote(getOutputChannel(), execution);
-  const repoContext = await resolveRepoContext({ allowRemote: execution.mode === 'api' });
+  const repoContext = seededRepoContext || await resolveRepoContext({ allowRemote: execution.mode === 'api' });
   if (!repoContext.ok) {
     if (repoContext.message) {
       if (repoContext.detail) {
@@ -3868,8 +3877,9 @@ async function runOperatorCommand(spec) {
     return;
   }
   const { repoRoot } = repoContext;
-  const cliResolution = resolveCli(repoRoot, config);
-  if (spec.invocation !== 'script' && !cliResolution.ok) {
+  if (seededRepoContext && !validateReplayRepoContext(repoContext, execution.mode)) return;
+  const cliResolution = execution.mode === 'cli' ? resolveCli(repoRoot, config) : { ok: true };
+  if (execution.mode === 'cli' && !cliResolution.ok) {
     const output = getOutputChannel();
     output.appendLine(cliResolution.detail || cliResolution.message);
     output.show?.(true);
@@ -3877,7 +3887,7 @@ async function runOperatorCommand(spec) {
     return;
   }
   const output = getOutputChannel();
-  const inputContext = typeof spec.resolveInput === 'function'
+  const inputContext = seededInputContext !== undefined ? seededInputContext : typeof spec.resolveInput === 'function'
     ? await spec.resolveInput(repoContext, { cliResolution, config, output, execution })
     : undefined;
   if (inputContext === null) {
@@ -3973,8 +3983,18 @@ async function stopManagedProcessEntry(entry, { reason = 'cancelled', summaryLin
   return entry.completion;
 }
 
-async function stopManagedCommand(stopSpec) {
-  const repoContext = await resolveRepoContext();
+async function stopManagedCommand(stopSpec, { sessionId = null, repoRoot = null } = {}) {
+  if (sessionId) {
+    const active = Array.from(managedProcesses.values()).find((entry) => entry.sessionId === sessionId
+      && entry.spec.id === stopSpec.targetId);
+    if (!active) {
+      vscode.window.showInformationMessage('PairOfCleats: that workflow has already stopped; refresh workflow status.');
+      return;
+    }
+    await stopManagedProcessEntry(active, { reason: 'cancelled', summaryLine: `${active.spec.title} stopped.` });
+    return;
+  }
+  const repoContext = repoRoot ? { ok: true, repoRoot } : await resolveRepoContext();
   if (!repoContext.ok) {
     if (repoContext.message) {
       vscode.window.showErrorMessage(repoContext.message);
@@ -4002,7 +4022,13 @@ async function stopManagedCommand(stopSpec) {
   vscode.window.showInformationMessage(`${managedSpec.title} stopped.`);
 }
 
-async function startManagedCommand(spec, { repoContext: seededRepoContext = null, invocation: seededInvocation = null } = {}) {
+async function startManagedCommand(spec, { repoContext: seededRepoContext = null } = {}) {
+  const config = getExtensionConfiguration();
+  const execution = await resolveExecutionMode(config, spec.id);
+  if (!execution.ok) {
+    vscode.window.showErrorMessage(execution.message);
+    return;
+  }
   const repoContext = seededRepoContext || await resolveRepoContext();
   if (!repoContext.ok) {
     if (repoContext.message) {
@@ -4011,9 +4037,9 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     return;
   }
   const { repoRoot } = repoContext;
-  const config = getExtensionConfiguration();
+  if (seededRepoContext && !validateReplayRepoContext(repoContext, 'cli')) return;
   const cliResolution = resolveCli(repoRoot, config);
-  const invocation = seededInvocation || resolveManagedInvocation(spec, repoContext, cliResolution);
+  const invocation = resolveManagedInvocation(spec, repoContext, cliResolution);
   if (!invocation.ok) {
     const output = getOutputChannel();
     output.appendLine(invocation.detail || invocation.message);
@@ -4028,7 +4054,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     output.appendLine(`[managed] ${spec.title} already running for ${repoRoot}`);
     output.show?.(true);
     vscode.window.showInformationMessage(`${spec.title} is already running for ${formatRepoLabel(repoRoot)}.`);
-    return existing.completion;
+    return spec.persistent ? { ok: true, status: 'already-running', sessionId: existing.sessionId } : existing.completion;
   }
   const output = getOutputChannel();
   const env = buildSpawnEnv(config);
@@ -4412,7 +4438,7 @@ async function executeSearchCommand({
           const payload = parsed.payload;
 
           const hits = collectSearchHits(payload);
-          await recordSearchResultSet({
+          const resultSet = await recordSearchResultSet({
             repoContext,
             query: resolvedQuery,
             searchOptions,
@@ -4422,7 +4448,9 @@ async function executeSearchCommand({
               args,
               transport: 'cli'
             },
-            hits
+            hits,
+            payload,
+            explain
           });
 
           if (!hits.length) {
@@ -4457,6 +4485,10 @@ async function executeSearchCommand({
           }
 
           const selected = selection.hit;
+          if (explain && resultSet) {
+            appendOutputLines(output, renderSearchExplanation(resultSet, normalizeSearchHit(selected)));
+            output.show?.(true);
+          }
           const openResult = await openSearchHit(vscode, repoContext, selected);
           if (!openResult.ok) {
             output.appendLine(`[search] open failure path=${openResult.filePath}`);
@@ -4779,6 +4811,7 @@ module.exports = {
     setSearchGroupingMode,
     buildResultsTree,
     OPERATOR_COMMAND_SPECS,
+    createRangeFromNavigationEntry,
     MANAGED_COMMAND_SPECS
   }
 };
