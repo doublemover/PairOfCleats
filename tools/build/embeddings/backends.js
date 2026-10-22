@@ -21,7 +21,8 @@ export const writeHnswBackends = async ({
   log,
   warn,
   signal = null,
-  recordFailure = null
+  recordFailure = null,
+  reuse = null
 } = {}) => {
   const results = {
     merged: null,
@@ -61,15 +62,22 @@ export const writeHnswBackends = async ({
       vectorsPath: vectorsPaths?.code
     }
   ];
+  const reuseWork = { reusedVariants: 0, copiedBytes: 0, reuseInvalidations: Object.create(null) };
+  if (reuse) for (const entry of entries) {
+    throwIfAborted(signal);
+    const proof = await reuse({ backend: 'hnsw', variant: entry.target, config: hnswConfig });
+    if (proof.reused) { results[entry.target] = proof.result; reuseWork.reusedVariants++; reuseWork.copiedBytes += proof.work?.copiedBytes || 0; }
+    else reuseWork.reuseInvalidations[proof.reason] = (reuseWork.reuseInvalidations[proof.reason] || 0) + 1;
+  }
 
   if (isolateEnabled) {
-    const jobs = entries.filter(entry => entry.paths && entry.vectorsPath).map(entry => ({ target: entry.target,
+    const jobs = entries.filter(entry => !results[entry.target] && entry.paths && entry.vectorsPath).map(entry => ({ target: entry.target,
       payload: { indexPath: entry.paths.indexPath, metaPath: entry.paths.metaPath, modelId, dims, quantization,
         scale, vectorsPath: entry.vectorsPath, normalize, config: hnswConfig } }));
     const batch = await runIsolatedBackendJobs({ backend: 'hnsw', jobs, signal,
       ownershipId: `stage3-ann:hnsw:${mode}`, recordFailure });
     Object.assign(results, batch.results);
-    Object.defineProperty(results, 'work', { value: batch.work });
+    Object.defineProperty(results, 'work', { value: { ...batch.work, ...reuseWork } });
     for (const entry of entries) {
       const result = results[entry.target];
       if (!result) results[entry.target] = { skipped: true, reason: 'missing vectors path for isolate' };
@@ -81,6 +89,7 @@ export const writeHnswBackends = async ({
 
   for (const entry of entries) {
     throwIfAborted(signal);
+    if (results[entry.target]) continue;
     if (!entry.paths) continue;
     try {
       results[entry.target] = await writeHnswIndex({ indexPath: entry.paths.indexPath,
@@ -99,6 +108,7 @@ export const writeHnswBackends = async ({
     }
   }
 
+  Object.defineProperty(results, 'work', { value: { childStarts: 0, ...reuseWork } });
   return results;
 };
 
@@ -116,7 +126,8 @@ export const writeLanceDbBackends = async ({
   logger,
   warn,
   signal = null,
-  recordFailure = null
+  recordFailure = null,
+  reuse = null
 } = {}) => {
   const results = { merged: null, doc: null, code: null };
   if (!lanceConfig?.enabled) return results;
@@ -140,15 +151,22 @@ export const writeLanceDbBackends = async ({
       vectorsPath: vectorsPaths?.code
     }
   ];
+  const reuseWork = { reusedVariants: 0, copiedBytes: 0, reuseInvalidations: Object.create(null) };
+  if (reuse) for (const entry of entries) {
+    throwIfAborted(signal);
+    const proof = await reuse({ backend: 'lancedb', variant: entry.variant, config: lanceConfig });
+    if (proof.reused) { results[entry.variant] = proof.result; reuseWork.reusedVariants++; reuseWork.copiedBytes += proof.work?.copiedBytes || 0; }
+    else reuseWork.reuseInvalidations[proof.reason] = (reuseWork.reuseInvalidations[proof.reason] || 0) + 1;
+  }
 
   if (shouldIsolateLanceDb(lanceConfig, getLanceDbEnv())) {
-    const jobs = entries.filter(entry => entry.vectorsPath).map(entry => ({ target: entry.variant,
+    const jobs = entries.filter(entry => !results[entry.variant] && entry.vectorsPath).map(entry => ({ target: entry.variant,
       payload: { indexDir, variant: entry.variant, vectorsPath: entry.vectorsPath, dims, modelId,
         quantization, scale, normalize, config: lanceConfig, label: entry.label } }));
     const batch = await runIsolatedBackendJobs({ backend: 'lancedb', jobs, signal,
       ownershipId: `stage3-ann:lancedb:${mode}`, recordFailure });
     Object.assign(results, batch.results);
-    Object.defineProperty(results, 'work', { value: batch.work });
+    Object.defineProperty(results, 'work', { value: { ...batch.work, ...reuseWork } });
     for (const entry of entries) {
       const result = results[entry.variant];
       if (!result) results[entry.variant] = { skipped: true, reason: 'missing vectors path for isolate' };
@@ -159,6 +177,7 @@ export const writeLanceDbBackends = async ({
 
   for (const entry of entries) {
     throwIfAborted(signal);
+    if (results[entry.variant]) continue;
     try {
       const result = await writeLanceDbIndex({
         indexDir,
@@ -182,5 +201,6 @@ export const writeLanceDbBackends = async ({
       warn(`[embeddings] ${entry.label}: failed to write LanceDB index: ${err?.message || err}`);
     }
   }
+  Object.defineProperty(results, 'work', { value: { childStarts: 0, ...reuseWork } });
   return results;
 };

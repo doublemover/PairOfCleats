@@ -12,6 +12,7 @@ import { createTempPath, replaceFile } from './atomic.js';
 import { copyFileWithDurability } from '../../../src/shared/io/persistence-helpers.js';
 import { resolveVectorsSource } from './vector-source.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
+import { buildNativeBackendReuseKey } from './backend-reuse-key.js';
 
 const TRACE_ARTIFACT_IO = getEnvConfig().traceArtifactIo === true;
 
@@ -91,7 +92,7 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
     }
   };
 
-  const writeIndex = async ({ indexPath, metaPath, modelId, dims, quantization, scale }) => {
+  const writeIndex = async ({ indexPath, metaPath, modelId, dims, quantization, scale, normalize = true }) => {
     if (!enabled || !index || !expected) return { skipped: true };
     if (expected !== added) {
       const reportPath = metaPath
@@ -172,7 +173,8 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
       scale: Number.isFinite(Number(scale)) ? Number(scale) : undefined,
       minVal: Number.isFinite(Number(quantization?.minVal)) ? Number(quantization.minVal) : undefined,
       maxVal: Number.isFinite(Number(quantization?.maxVal)) ? Number(quantization.maxVal) : undefined,
-      levels: Number.isFinite(Number(quantization?.levels)) ? Number(quantization.levels) : undefined
+      levels: Number.isFinite(Number(quantization?.levels)) ? Number(quantization.levels) : undefined,
+      extensions: { nativeBuildKey: buildNativeBackendReuseKey({ backend: 'hnsw', config, normalize, dims, modelId, quantization, scale }) }
     };
     await writeJsonObjectFile(metaPath, { fields: hnswMeta, atomic: true });
     return { skipped: false, count: added };
@@ -271,7 +273,8 @@ const writeHnswIndexInProcess = async ({
     modelId,
     dims,
     quantization,
-    scale
+    scale,
+    normalize
   });
 };
 

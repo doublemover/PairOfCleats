@@ -6,6 +6,8 @@ import { readEffectiveMemory, estimateRetainedBytes } from '../../../src/shared/
 import { throwIfAborted, isAbortError } from '../../../src/shared/abort.js';
 import { canonicalBundleSourceKey } from '../../../src/shared/bundle-source-key.js';
 import { reusePriorChunkVectors } from './prior-chunk-reuse.js';
+import { reuseNativeBackend } from './backend-reuse.js';
+import { loadPiecesManifest } from '../../../src/shared/artifact-io/manifest.js';
 import { readIncrementalBundleSnapshot, writeIncrementalBundleSnapshot } from '../../../src/index/build/incremental/bundle-snapshot.js';
 import { embeddingArtifactReusable } from '../../../src/shared/embedding-artifact-identity.js';
 import { resolveEmbeddingArtifactIdentityAsync } from '../../../src/shared/embedding-artifact-lease.js';
@@ -2024,6 +2026,12 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
       logExpectedArtifacts(mode, indexDir, 'pre-stage3');
       const stateNow = new Date().toISOString();
       let indexState = loadIndexState(statePath);
+      const priorBackendState = structuredClone(indexState.embeddings || {});
+      let priorBackendManifest = null;
+      if (priorBackendState.ready && !priorBackendState.pending) {
+        try { priorBackendManifest = loadPiecesManifest(indexDir, { strict: true, repoRoot: root }); }
+        catch (error) { warn(`[embeddings] ${mode}: prior backend reuse unavailable: ${error.message}`); }
+      }
       indexState.extensions = { ...indexState.extensions, runtimeAttemptId: runtimeReceipts.reference(mode) };
       indexState.generatedAt = indexState.generatedAt || stateNow;
       indexState.updatedAt = stateNow;
@@ -3721,6 +3729,10 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           const nativeAdmissionBytes = totalChunks * (finalDims * 4 + Math.max(1, Number(hnswConfig.m) || 16) * 16 + 64);
           const recordBackendFailure = failure => crashLogger.logError({ phase: `embeddings:${mode}`,
             stage: 'ann-child', mode, ...failure });
+          const reuseBackend = ({ backend, variant, config: nativeConfig }) => reuseNativeBackend({ backend, variant,
+            indexDir, stageDir: backendStageDir, priorManifest: priorBackendManifest, priorState: priorBackendState,
+            embeddingIdentity: cacheIdentity, embeddingGeneration, config: nativeConfig, normalize: embeddingNormalize,
+            dims: finalDims, modelId, quantization, scale: denseScale, signal: config.signal || null });
           const hnswBackendResults = await scheduleNative(() => writeHnswBackends({
             mode,
             hnswConfig,
@@ -3742,7 +3754,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             log,
             warn,
             signal: config.signal || null,
-            recordFailure: recordBackendFailure
+            recordFailure: recordBackendFailure,
+            reuse: reuseBackend
           }), { estimatedBytes: nativeAdmissionBytes });
           Object.assign(hnswResults, hnswBackendResults);
           nativeBackendWork.hnsw = hnswBackendResults.work || { childStarts: 0 };
@@ -3765,7 +3778,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             logger,
             warn,
             signal: config.signal || null,
-            recordFailure: recordBackendFailure
+            recordFailure: recordBackendFailure,
+            reuse: reuseBackend
           }), { estimatedBytes: totalChunks * (finalDims * 4 + 64) });
           nativeBackendWork.lancedb = lanceResults.work || { childStarts: 0 };
           backendPublication = await scheduleIo(() => publishBackendGeneration({

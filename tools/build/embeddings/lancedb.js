@@ -12,6 +12,8 @@ import { getLanceDbEnv } from '../../../src/shared/env/runtime.js';
 import { runIsolatedBackendJobs } from './backend-isolate.js';
 import { resolveVectorsSource } from './vector-source.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
+import { buildNativeBackendReuseKey } from './backend-reuse-key.js';
+import { inventoryBackendPayload } from './backend-payload-copy.js';
 
 let warnedMissing = false;
 const TRACE_ARTIFACT_IO = getEnvConfig().traceArtifactIo === true;
@@ -180,6 +182,7 @@ export async function writeLanceDbIndex({
         'LanceDB writer failed to close native resources.', { cause: buildError || closeErrors[0] });
     }
 
+    const nativePayloadInventory = await inventoryBackendPayload({ dir: stagedDir, signal });
     const meta = {
       version: 1,
       generatedAt: new Date().toISOString(),
@@ -196,7 +199,9 @@ export async function writeLanceDbIndex({
       minVal: Number.isFinite(Number(quantization?.minVal)) ? Number(quantization.minVal) : undefined,
       maxVal: Number.isFinite(Number(quantization?.maxVal)) ? Number(quantization.maxVal) : undefined,
       levels: Number.isFinite(Number(quantization?.levels)) ? Number(quantization.levels) : undefined
-      , extensions: { lancePublicationId: publicationId }
+      , extensions: { lancePublicationId: publicationId,
+        nativeBuildKey: buildNativeBackendReuseKey({ backend: 'lancedb', config: resolvedConfig, normalize, dims, modelId, quantization, scale }),
+        ...(nativePayloadInventory ? { nativePayloadInventory } : {}) }
     };
     assertLanceDbPayload(stagedDir, { table: tableName, count: writtenCount });
     throwIfAborted(signal);
