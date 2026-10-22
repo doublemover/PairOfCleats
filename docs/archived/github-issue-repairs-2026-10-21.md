@@ -1052,8 +1052,8 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1264](https://github.com/doublemover/PairOfCleats/issues/1264) | other | [Storage] Unify app-owned paths behind one explainable storage layout and ownership resolver | partial source foundation; runtime adoption/qualification open |
 | [#1265](https://github.com/doublemover/PairOfCleats/issues/1265) | other | [Storage] Migrate legacy owned data with resumable verified cutover and rollback | partial source foundation; qualified category adapters open |
 | [#1266](https://github.com/doublemover/PairOfCleats/issues/1266) | other | [Storage] Add unified CLI inventory, diagnosis, configuration and safe cleanup planning | partial reviewed routing/category/probe policy ed1124024/f1fe47023/c2ac1af83; execution open |
-| [#1267](https://github.com/doublemover/PairOfCleats/issues/1267) | other | [Storage] Coordinate lifecycle quotas and leases without deleting saved evidence or active assets | source 38258e900/ed620fcc5 coordinates actual canonical index writer/runtime category lifetimes; generic migration/ordinary readers and runtime/Windows proof open |
-| [#1268](https://github.com/doublemover/PairOfCleats/issues/1268) | other | [Storage] Route managed child-tool caches and scratch data into owned storage with explicit exceptions | partial managed child routing source; runtime qualification open |
+| [#1267](https://github.com/doublemover/PairOfCleats/issues/1267) | other | [Storage] Coordinate lifecycle quotas and leases without deleting saved evidence or active assets | source through 77507752b retains original session observers, exact lease publication/retirement and managed outer reconciliation owners; generic migration/runtime qualification open |
+| [#1268](https://github.com/doublemover/PairOfCleats/issues/1268) | other | [Storage] Route managed child-tool caches and scratch data into owned storage with explicit exceptions | partial managed child routing and actual archive/verifier/removal lifetime owners through 8cadfed8c; source controls unvalidated; runtime qualification open |
 | [#1269](https://github.com/doublemover/PairOfCleats/issues/1269) | other | Refresh contributor test and benchmark recipes after source-owner moves and runner consolidation | source backend recipes authored; runtime qualification open |
 | [#1270](https://github.com/doublemover/PairOfCleats/issues/1270) | other | Separate shipped backend recipes from evaluation-only recommendations and dependency labels | source workspace/service journeys authored; behavior qualification open |
 | [#1271](https://github.com/doublemover/PairOfCleats/issues/1271) | other | Rewrite viewer documentation as two current workflows with scoped evidence instead of campaign handoffs | source self-contained viewer journey authored; modern renderer/host proof open |
@@ -1096,8 +1096,8 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1308](https://github.com/doublemover/PairOfCleats/issues/1308) | other | [Enhancement] Show actionable editor workflow progress and recoverable service readiness | partial structured progress/task source; producer/host qualification open |
 | [#1309](https://github.com/doublemover/PairOfCleats/issues/1309) | other | [Viewer] Own and retire environment render targets when replacing fallback lighting | source authored; unvalidated |
 | [#1310](https://github.com/doublemover/PairOfCleats/issues/1310) | other | Keep CLI log/status lines compact without changing the progress-bar look | progress source a3eeb9c32; terminal regressions unrun |
-| [#1311](https://github.com/doublemover/PairOfCleats/issues/1311) | other | [Tooling] Execute dependency-aware managed provisioning instead of stopping at missing runtimes | physical identity/detector and managed command/structural exact recovery 56befaf68/83eb530c8/faf9c9f0b; source controls unvalidated; full qualification open |
-| [#1312](https://github.com/doublemover/PairOfCleats/issues/1312) | other | [Tooling] Add durable per-tool install receipts and verified update, repair and removal | strict receipts and actual admission/download/command/native cleanup owners through faf9c9f0b; all new controls unvalidated; recipes/runtime acceptance open |
+| [#1311](https://github.com/doublemover/PairOfCleats/issues/1311) | other | [Tooling] Execute dependency-aware managed provisioning instead of stopping at missing runtimes | physical detector/command/structural recovery plus managed reuse/publication owners through 8cadfed8c; unvalidated; full provisioning qualification open |
+| [#1312](https://github.com/doublemover/PairOfCleats/issues/1312) | other | [Tooling] Add durable per-tool install receipts and verified update, repair and removal | strict receipts and actual managed reuse/new/removal/outer metadata reconciliation through 77507752b; authored controls unvalidated; recipes/runtime acceptance open |
 | [#1313](https://github.com/doublemover/PairOfCleats/issues/1313) | other | [Tooling] Provision structural engines and operational CLI prerequisites by selected feature | partial ownership source e835f6699; concrete recipes/runtime lifetime proof open |
 | [#1314](https://github.com/doublemover/PairOfCleats/issues/1314) | other | [Diagnostics] Persist embedding child failures in run-scoped logs and advertise the actual evidence | development implemented; integration/validation deferred |
 | [#1315](https://github.com/doublemover/PairOfCleats/issues/1315) | P1 | [P1] Serialize crash-log error writes with live appenders and preserve terminal error state | development implemented; integration/validation deferred |
@@ -1134,7 +1134,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1346](https://github.com/doublemover/PairOfCleats/issues/1346) | P2 | [P2] Preserve explicit validation and embedding flags across background Stage2 handoff | development implemented; integration/validation deferred |
 | [#1347](https://github.com/doublemover/PairOfCleats/issues/1347) | P2 | [P2] Do not forward the globally accepted -v version flag into mutating leaf commands | development implemented; integration/validation deferred |
 | [#1348](https://github.com/doublemover/PairOfCleats/issues/1348) | other | [Indexing] Make cross-file fidelity budgets explicit and preserve durable omission coverage | partial public/retained evidence and actual supplied-graph/shard disk accounting5a05e0436; fine-grained resume, generic copy headroom and runtime qualification open |
-| [#1349](https://github.com/doublemover/PairOfCleats/issues/1349) | P2 | [P2] Give inline and daemon-prewarm embedding leases an explicit runtime teardown owner | development implemented; integration/validation deferred |
+| [#1349](https://github.com/doublemover/PairOfCleats/issues/1349) | P2 | [P2] Give inline and daemon-prewarm embedding leases an explicit runtime teardown owner | inline/daemon source mappings plus exact ONNX/outer adapter/pipeline retirement 12ccb3e73/7b23ccf42; native/GC retry safety and integration qualification deferred |
 | [#1350](https://github.com/doublemover/PairOfCleats/issues/1350) | P2 | [P2] Report unconfirmed LSP disposal instead of returning a successful pool drain | development implemented; integration/validation deferred |
 | [#1351](https://github.com/doublemover/PairOfCleats/issues/1351) | P2 | [P2] Preserve manifest integrity errors during graph artifact admission | development implemented; integration/validation deferred |
 | [#1352](https://github.com/doublemover/PairOfCleats/issues/1352) | P2 | [P2] Pin every search read to the request's selected per-mode generation | development implemented; integration/validation deferred |
@@ -1183,7 +1183,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1394](https://github.com/doublemover/PairOfCleats/issues/1394) | perf | [Performance] Bound recorded-session seeks instead of replaying the entire prefix on the UI thread | source repair and regression authored; unvalidated |
 | [#1395](https://github.com/doublemover/PairOfCleats/issues/1395) | other | [Docs] Document state-preserving source upgrades and required artifact rebuilds | source state-preserving upgrade journey authored; operational proof open |
 | [#1396](https://github.com/doublemover/PairOfCleats/issues/1396) | perf | [Perf] Shard persistent tree-sitter chunks by digest instead of constant namespace prefix | source repair and regression authored; unvalidated |
-| [#1397](https://github.com/doublemover/PairOfCleats/issues/1397) | P1 | [P1] Preserve pending subprocess cleanup before releasing the build cache-writer lock | exact tracked close, durable writer fence and category/runtime admission through 38258e900/ed620fcc5; owned late metadata observer cannot qualify child closure; authored controls unvalidated |
+| [#1397](https://github.com/doublemover/PairOfCleats/issues/1397) | P1 | [P1] Preserve pending subprocess cleanup before releasing the build cache-writer lock | exact tracked close, writer/category fences and original storage observer enforcement 4e6d6caad; actual native/Windows proof remains open; unvalidated |
 | [#1398](https://github.com/doublemover/PairOfCleats/issues/1398) | P2 | [P2] Preserve exclusion and quoted-phrase gates under --match any | source repair and regression authored; unvalidated |
 | [#1399](https://github.com/doublemover/PairOfCleats/issues/1399) | P2 | [P2] Bind inlay type hints to their declaration role before assigning function returns | source repair and regression authored; unvalidated |
 | [#1400](https://github.com/doublemover/PairOfCleats/issues/1400) | P2 | [P2] Resolve CI export sources after child builds publish their generations | source repair and regression authored; unvalidated |
@@ -1195,7 +1195,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1406](https://github.com/doublemover/PairOfCleats/issues/1406) | P2 | [P2] Preserve repeated ignore rules instead of changing last-match-wins order | source repair and regression authored; unvalidated |
 | [#1407](https://github.com/doublemover/PairOfCleats/issues/1407) | P2 | [P2] Keep ignored siblings excluded when expanding a nested include | source repair and regression authored; unvalidated |
 | [#1408](https://github.com/doublemover/PairOfCleats/issues/1408) | P2 | [P2] Parse Git changed-file output with NUL framing before metadata invalidation | source repair and regression authored; unvalidated |
-| [#1409](https://github.com/doublemover/PairOfCleats/issues/1409) | P2 | [P2] Respect exclusive source ends when assigning LSP symbols and diagnostics to chunks | exact protocol selection/container ownership c1e9ae3fb, lspBindings24; authored collector/canonical join controls; no live provider qualification |
+| [#1409](https://github.com/doublemover/PairOfCleats/issues/1409) | P2 | [P2] Respect exclusive source ends when assigning LSP symbols and diagnostics to chunks | source/container joins c1e9ae3fb plus immutable request and atomic hierarchy token admission dd52e08b6, lspBindings25; unvalidated; no live provider qualification |
 | [#1410](https://github.com/doublemover/PairOfCleats/issues/1410) | P2 | [P2] Preserve PDF.js end-of-line markers after their text items | source repair and regression authored; unvalidated |
 | [#1411](https://github.com/doublemover/PairOfCleats/issues/1411) | P2 | [P2] Retain tabs and breaks between DOCX fallback text runs | source repair and regression authored; unvalidated |
 | [#1412](https://github.com/doublemover/PairOfCleats/issues/1412) | perf | [Perf] Map document chunks to units without rescanning every page or paragraph | source repair and regression authored; unvalidated |
@@ -1245,7 +1245,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1456](https://github.com/doublemover/PairOfCleats/issues/1456) | P2 | [P2] Resolve Swift declaration kinds from grammar tokens rather than an unmodified text prefix | source repair and regression authored; unvalidated |
 | [#1457](https://github.com/doublemover/PairOfCleats/issues/1457) | P2 | [P2] Emit Kotlin enums and interfaces from their declaration nodes, not enum bodies | source repair and regression authored; unvalidated |
 | [#1458](https://github.com/doublemover/PairOfCleats/issues/1458) | P2 | [P2] Preserve Kotlin secondary constructors without borrowing parameter names | source repair and regression authored; unvalidated |
-| [#1459](https://github.com/doublemover/PairOfCleats/issues/1459) | P2 | [P2] Name native C functions from their declarators instead of typedef return types | source repair and regression authored; unvalidated |
+| [#1459](https://github.com/doublemover/PairOfCleats/issues/1459) | P2 | [P2] Name native C functions from their declarators instead of typedef return types | native declarator naming plus bounded parenthesized prototype admission 59f20ecbd, sourceChunking9; authored registered controls unvalidated |
 | [#1460](https://github.com/doublemover/PairOfCleats/issues/1460) | P2 | [P2] Do not emit C tagged-type uses as fresh structure declarations | source repair and regression authored; unvalidated |
 | [#1461](https://github.com/doublemover/PairOfCleats/issues/1461) | P2 | [P2] Preserve Objective-C selectors and implementation owners in native chunks | source repair and regression authored; unvalidated |
 | [#1462](https://github.com/doublemover/PairOfCleats/issues/1462) | P2 | [P2] Traverse parse5 template content instead of stopping at an empty childNodes array | source repair and regression authored; unvalidated |
@@ -1255,12 +1255,12 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1466](https://github.com/doublemover/PairOfCleats/issues/1466) | P2 | [P2] Include finalized risk metadata in incremental bundle reuse decisions | source repair and regression authored; unvalidated |
 | [#1467](https://github.com/doublemover/PairOfCleats/issues/1467) | P2 | [P2] Emit Rust required-trait and foreign function declarations from function_signature_item | source repair and regression authored; unvalidated |
 | [#1468](https://github.com/doublemover/PairOfCleats/issues/1468) | P2 | [P2] Distinguish native lexical scopes from type ownership before classifying functions as methods | source repair and regression authored; unvalidated |
-| [#1469](https://github.com/doublemover/PairOfCleats/issues/1469) | P2 | [P2] Preserve Python local-class scopes instead of merging distinct methods and their flow facts | source repair and regression authored; unvalidated |
-| [#1470](https://github.com/doublemover/PairOfCleats/issues/1470) | P2 | [P2] Preserve declaration prefixes and wrappers in Python, Rust and C++ source coverage | source repair and regression authored; unvalidated |
+| [#1469](https://github.com/doublemover/PairOfCleats/issues/1469) | P2 | [P2] Preserve Python local-class scopes instead of merging distinct methods and their flow facts | interleaved Python lexical scopes and header ownership 6a54a2de0, sourceChunking9 current; authored real transport/projection controls unvalidated |
+| [#1470](https://github.com/doublemover/PairOfCleats/issues/1470) | P2 | [P2] Preserve declaration prefixes and wrappers in Python, Rust and C++ source coverage | declaration prefix/wrapper source mappings plus Python header ownership 6a54a2de0; authored controls unvalidated; remaining runtime/grammar acceptance open |
 | [#1471](https://github.com/doublemover/PairOfCleats/issues/1471) | perf | [Perf] Reuse prepared Python chunks instead of rebuilding AST and heuristic conversions in dispatch | pending |
 | [#1472](https://github.com/doublemover/PairOfCleats/issues/1472) | P2 | [P2] Admit Java annotation declarations and compact record constructors in native chunks | source repair and regression authored; unvalidated |
 | [#1473](https://github.com/doublemover/PairOfCleats/issues/1473) | P2 | [P2] Preserve C++ qualified and operator names instead of regex-truncating declarators | source repair and regression authored; unvalidated |
-| [#1474](https://github.com/doublemover/PairOfCleats/issues/1474) | P2 | [P2] Capture C and C++ function prototypes from the grammar's declaration nodes | source repair and regression authored; unvalidated |
+| [#1474](https://github.com/doublemover/PairOfCleats/issues/1474) | P2 | [P2] Capture C and C++ function prototypes from the grammar's declaration nodes | bounded parenthesized prototype and pointer-binding roles 59f20ecbd, sourceChunking9; authored registered controls unvalidated |
 | [#1475](https://github.com/doublemover/PairOfCleats/issues/1475) | P2 | [P2] Pass C-family chunks through registry relations and doc-metadata adapters | source repair and regression authored; unvalidated |
 | [#1476](https://github.com/doublemover/PairOfCleats/issues/1476) | P2 | [P2] Preserve assignment-style Lua functions beside native declarations | source repair and regression authored; unvalidated |
 | [#1477](https://github.com/doublemover/PairOfCleats/issues/1477) | P2 | [P2] Exclude Lua declaration headers from call relations without removing real recursion | source repair and regression authored; unvalidated |
@@ -1274,7 +1274,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1485](https://github.com/doublemover/PairOfCleats/issues/1485) | P2 | [P2] Preserve Jinja capture-set blocks when filters contain equals signs | source repair and regression authored; unvalidated |
 | [#1486](https://github.com/doublemover/PairOfCleats/issues/1486) | P2 | [P2] Do not name Scala extension groups after type parameters or their first methods | source repair and regression authored; unvalidated |
 | [#1487](https://github.com/doublemover/PairOfCleats/issues/1487) | P2 | [P2] Admit Scala package objects and givens without losing source or member ownership | source repair and regression authored; unvalidated |
-| [#1488](https://github.com/doublemover/PairOfCleats/issues/1488) | P2 | [P2] Preserve literal template dependency identities through import normalization | source repair and regression authored; unvalidated |
+| [#1488](https://github.com/doublemover/PairOfCleats/issues/1488) | P2 | [P2] Preserve literal template dependency identities through import normalization | literal template mappings plus registered R literal preservation c1b162f8c, importResolution6; authored controls unvalidated |
 | [#1489](https://github.com/doublemover/PairOfCleats/issues/1489) | P2 | [P2] Retain CSS @scope containers when native parsing finds nested rules | source repair and regression authored; unvalidated |
 | [#1490](https://github.com/doublemover/PairOfCleats/issues/1490) | P2 | [P2] Derive CSS selector names from syntax instead of quoted punctuation | source repair and regression authored; unvalidated |
 | [#1491](https://github.com/doublemover/PairOfCleats/issues/1491) | P2 | [P2] Parse logical CMake commands before collecting literal imports | source repair and regression authored; unvalidated |
@@ -1283,7 +1283,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1494](https://github.com/doublemover/PairOfCleats/issues/1494) | P2 | [P2] Preserve Unicode Jinja and Django identifiers instead of publishing ASCII fragments | source repair and regression authored; unvalidated |
 | [#1495](https://github.com/doublemover/PairOfCleats/issues/1495) | P2 | [P2] Resolve R function identities from assignment ASTs instead of keyword name fields | source repair and regression authored; unvalidated |
 | [#1496](https://github.com/doublemover/PairOfCleats/issues/1496) | P2 | [P2] Retain native signatures and docs in shared heuristic adapter projections | source repair and regression authored; unvalidated |
-| [#1497](https://github.com/doublemover/PairOfCleats/issues/1497) | P2 | [P2] Parse R library and require arguments without corrupting dependency specifiers | source repair and regression authored; unvalidated |
+| [#1497](https://github.com/doublemover/PairOfCleats/issues/1497) | P2 | [P2] Parse R library and require arguments without corrupting dependency specifiers | static R argument/literal identity and nested call extraction c1b162f8c, importResolution6; authored registered controls unvalidated |
 | [#1498](https://github.com/doublemover/PairOfCleats/issues/1498) | P2 | [P2] Preserve SQL declaration identities when mixed statements select the fallback chunker | source repair and regression authored; unvalidated |
 | [#1499](https://github.com/doublemover/PairOfCleats/issues/1499) | P2 | [P2] Make SQL statement splitting honor dialect-specific quoting and nested comments | source repair and regression authored; unvalidated |
 | [#1500](https://github.com/doublemover/PairOfCleats/issues/1500) | P2 | [P2] Ignore SQL include directives inside literals and decode quoted include paths | source repair and regression authored; unvalidated |
@@ -2520,3 +2520,80 @@ and further provider consumers remain ongoing; unreleased edits are not included
 in this checkpoint. Generated surfaces, locked setup, affected checks, front gate
 and Windows/native/model/resource qualification remain deferred. Earlier green
 results retain their exact source and do not qualify this tree.
+
+### Native cache and managed reconciliation continuation
+
+Source interval: after 44e3921c5 through 77507752b, thirteen implementation
+commits. All source and authored regressions remain **UNVALIDATED**. No test,
+syntax/lint/format, bootstrap, native/child operation, installation, migration,
+physical link, model, GC, browser/GPU or benchmark execution ran. The last
+qualified production/test source remains d4dcba4134f6103e3a59703d90fdbde5ca54d09e;
+none of these commits closes an issue or supplies current-tree acceptance.
+
+- 12ccb3e73 retains exact retired ONNX cache entries, startup/resource owners and
+  original failures through deliberate reconciliation. A resource capability can
+  acknowledge cache closure only after accepted work and its queue drain, startup
+  completion and zero live references. Background pruning/finalizer handling does
+  not retry recorded native cleanup failures. Successful child closes stay closed.
+  First references are pinned before pruning, including backwards-clock victims.
+  Authored actual-provider and controlled finalizer boundaries are inert; native
+  rejected-release retry safety and actual GC remain separate qualification.
+- 7b23ccf42 applies the same explicit original-owner lifetime to the existing outer
+  adapter and pipeline caches. Failed entries remain reachable through scoped
+  capabilities; accepted startup/operations drain before a reference decrements
+  once. Global shutdown joins independent outcomes without retrying a known failed
+  close. Xenova loaded-byte verification retains its exact acquired pipeline and
+  immutable primary/cleanup evidence. Actual warmup/query consumers propagate
+  unconfirmed ownership instead of reporting ordinary unavailability. The new
+  cache/provider/consumer controls are authored only. Prepared encoder/component
+  partial acquisition remains a separate owner, and real model/native retry
+  safety, descendant containment, memory and latency qualification remain open.
+- e0539000e retains the original reused-installation verifier and exact metadata
+  handle. da5a39605 requires explicit inner release confirmation before outer
+  reservation/category release, preserving frozen action errors and nonenumerable
+  child capabilities. 8cadfed8c extends actual session ownership to new archive
+  publication, staged verification and removal. Original native/response observers
+  independently govern resource settlement; own producer-branded metadata failure
+  may retry. Changed or unreadable staging identity stays preserved. Frozen
+  journal, cleanup, generation-retirement and selector-rollback failures retain
+  their exact causes and evidence. 77507752b keeps the complete outer wrapper on
+  every later failed reconciliation, so following only the latest error cannot
+  lose the original outer reservation/session owner. Tiny ordinary-file fixtures
+  and inert archive/verifier boundaries are authored, with strict normal and
+  negative receipts; no installer, executable or user cleanup ran.
+- c2547c7bc preserves failed lease-record write/fsync and descriptor-close evidence
+  together, including frozen and falsey original failures. Unsealed or ambiguous
+  publication grants neither a scoped lease nor metadata deletion/retry authority.
+  4e6d6caad captures original storage closure functions and receivers before
+  settlement callbacks, enforces observers with absent/false pending flags, and
+  refuses callback replacement or contradictory receipts. Unreadable evidence
+  remains unknown without masking the operation failure. Actual disposable lease
+  descriptor/category fixtures retain protected evidence and healthy positives;
+  they are unexecuted and do not qualify real native closure.
+- 140d794e7 shares effective SQL dialect/string options with statement splitting,
+  static include and flow consumers, preserving CR/LF/CRLF physical line ownership.
+  It advances sourceChunking7/importResolution5. 6a54a2de0 attributes Python
+  decorators/defaults/annotations/bases/metaclass observations to the surrounding
+  lexical owner before entering the new declaration body, advancing sourceChunking8.
+  59f20ecbd admits bounded parenthesized/attributed C/C++ prototype names while
+  preserving pointer/reference/array binding negatives and complete declaration
+  ranges, advancing sourceChunking9. c1b162f8c selects actual static R argument
+  roles, decodes supported literal spellings and keeps their exact bytes through
+  registered relations; nested call extraction retains existing budgets and
+  importResolution6 retires changed meaning. Actual registered/native/CPython
+  consumer regressions are authored only; grammar/interpreter/platform acceptance
+  and complete source-language semantics remain separate.
+- dd52e08b6 pins immutable structured LSP request parameters before transport awaits
+  and uses the captured identity for coalescing. Hierarchy tokens bind their method
+  family and publish atomically only after the complete raw/projection budget fits
+  and the current/cancellation check still holds. lspBindings25 retires changed
+  meaning; typeNormalization3/compilerBindings18/cfgFlow18/callFlow20 stay current.
+  Original invalid-source/container/cursor negatives remain. No live provider ran.
+
+The live census still contains 957 open reports. Three Sol 6.1/xhigh agents and the
+lead continue independent real-file spans; root owns Git and integration. Ongoing
+unreleased edits are excluded from this checkpoint. Source operation reductions
+are distinct from measured improvements. Locked setup, generated freshness,
+affected fail-before/after checks, format/front gate and final Windows cohorts
+remain deferred. Author-workspace release hashes under `.tmp/` are historical
+bookkeeping, not files promised in a clean checkout.

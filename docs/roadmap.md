@@ -105,7 +105,7 @@ without implying those new requirements are satisfied. Storage/category, native,
 editor, provisioning, bounded discovery and durable viewer preference releases
 now have durable partial mappings. Shared sourceChunking6/compilerBindings18/lspBindings22, callFlow20, graphRelations1
 and discoverySelection2/signature14 identify that producer meaning. The later
-checkpoint below uses importResolution4, typeNormalization3 and lspBindings24.
+checkpoint below uses sourceChunking9/importResolution6/typeNormalization3/lspBindings25.
 
 Earlier source checkpoints through 0500f370a cover bounded SQLite/LMDB and vector
 ingestion/finalizers, complete lexical reuse, selective BM25 hydration, immutable
@@ -122,36 +122,35 @@ unvalidated; public research integration, full provider onboarding, fine-grained
 resume, generic migration, native service/editor/model hosts, generated freshness,
 locked setup and representative resource/performance qualification remain open.
 
-Source continuation through c1e9ae3fb adds exact refused-admission rollback and
-canonical launch-selected category sessions for actual index writers/runtime.
-Category release follows exact writer removal, full teardown or initialization
-unwind plus failure recording. Only the owned metadata deadline observes its
-actual late unlink; generic timeouts cannot prove native/child closure. Frozen
-ONNX/LanceDB/reranker failures retain exact cleanup capabilities, independent
-pending observers and qualification/storage capacity. Successful child releases
-are not repeated. Real native rejected-release retry safety remains unqualified.
-Provisioning probes bind physical path/size/digest before and after execution;
-source checks do not provide OS-atomic launch of mutable external executables.
-TypeScript prefix ties now preserve declaration order; local cache fingerprints
-and shared importResolution4 retire old meaning. Balanced source-backed inlay
-roles and selection/container joins advance lspBindings24; typeNormalization3
-preserves qualified and Unicode aliases. compilerBindings18/cfgFlow18/callFlow20
-remain current. Managed installation, command/LSP, detector and structural owners
-retain exact rollback handles and frozen causes. Producer identity permits their
-own metadata retries without circularly blocking on those retries; independent
-native observers stay required. Configuration/migration observations drain before
-lock release and retain actual failed metadata locks. Map pages avoid repeated
-prefix serialization; Python AST columns use sparse scalar checkpoints; no
-measured speedup or host acceptance follows. Sublime cursors/ranges use original
-source geometry through observed buffer normalization.
-Retained lexical rename, paired motifs and exact-source lenses preserve owned
-worlds, source selection, uncertainty and response limits without edit authority.
-Supplied graph/shard accounting, source/newline mapping and saved-map exact close
-retain their prior source checkpoints. Generic cache/repos migration, fine-grained
-resume, independent source truth and actual native/editor/browser/model/resource
-qualification remain open. All new source/fixtures are unvalidated; no issue
-closure, current suite pass or speedup is claimed. See the durable receipt for
-exact commits, coverage mappings and remaining acceptance.
+Source continuation through 77507752b retains original ONNX and outer embedding
+cache entries after failed retirement. Explicit reconciliation targets the same
+objects and captured cleanup methods; accepted work/startup and every live
+reference drain first. Background pruning and finalizers do not retry recorded
+native failures. Query/warmup preserve frozen primary and cleanup evidence.
+Real rejected-native-release retry safety remains unqualified.
+
+Shared storage sessions now capture original closure observers before settlement,
+even without a true pending flag. Callback replacement and contradictory receipts
+cannot erase them; unreadable evidence stays pending. Failed lease-record sealing
+and descriptor close retain both exact causes without granting deletion authority.
+Managed reuse, new publication, removal and outer admission retain every actual
+metadata/reconciliation owner through later failures, preserving frozen causes and
+unknown staging identities. Own producer-branded metadata failures may retry;
+independent native observers stay required. No installation or user cleanup ran.
+
+SQL consumers share effective lexical options and physical line ownership; R
+argument extraction and registered relations preserve literal dependency bytes.
+Python headers/local classes and parenthesized C/C++ prototypes retain their
+actual lexical/declarator roles. sourceChunking9/importResolution6 retire changed
+meaning. Immutable LSP request capture and atomic hierarchy-token admission use
+lspBindings25; typeNormalization3/compilerBindings18/cfgFlow18/callFlow20 remain
+current. Prior map byte admission, sparse Python columns, Sublime source geometry
+and retained lens/motif evidence keep their durable mappings and limitations.
+
+Generic migration, fine-grained resume, independent source truth and actual
+native/editor/browser/model/resource qualification remain open. All new source
+and fixtures are unvalidated; no issue closure, current suite pass or measured
+speedup is claimed. The durable receipt preserves exact commits and acceptance.
 
 ## Environment and qualification boundaries
 
