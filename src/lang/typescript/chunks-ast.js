@@ -1,4 +1,4 @@
-import { findCLikeBodyBounds } from '../clike.js';
+import { findTypeScriptBodyBounds } from './brace-bounds.js';
 import {
   extractTypeScriptParamTypes,
   extractTypeScriptParams,
@@ -156,7 +156,7 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
         if (!name) continue;
         const start = stmt.getStart(sourceFile);
         const end = stmt.end;
-        const bounds = findCLikeBodyBounds(text, start);
+        const bounds = findTypeScriptBodyBounds(text, start);
         const signature = buildSignature(start, bounds.bodyStart);
         addChunk(start, end, qualifyTypeScriptChunkName(prefix, name), 'ClassDeclaration',
           buildTypeMeta(stmt, signature, start, end));
@@ -168,7 +168,7 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
         if (!name) continue;
         const start = stmt.getStart(sourceFile);
         const end = stmt.end;
-        const bounds = findCLikeBodyBounds(text, start);
+        const bounds = findTypeScriptBodyBounds(text, start);
         const signature = buildSignature(start, bounds.bodyStart);
         addChunk(start, end, qualifyTypeScriptChunkName(prefix, name), 'InterfaceDeclaration',
           buildTypeMeta(stmt, signature, start, end));
@@ -180,7 +180,7 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
         if (!name) continue;
         const start = stmt.getStart(sourceFile);
         const end = stmt.end;
-        const bounds = findCLikeBodyBounds(text, start);
+        const bounds = findTypeScriptBodyBounds(text, start);
         const signature = buildSignature(start, bounds.bodyStart);
         addChunk(start, end, qualifyTypeScriptChunkName(prefix, name), 'EnumDeclaration',
           buildMetaBase(start, end, signature));
@@ -236,7 +236,7 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
         if (!name) continue;
         const start = stmt.getStart(sourceFile);
         const end = stmt.end;
-        const bounds = findCLikeBodyBounds(text, start);
+        const bounds = findTypeScriptBodyBounds(text, start);
         const signature = buildSignature(start, bounds.bodyStart);
         addChunk(start, end, qualifyTypeScriptChunkName(prefix, name), 'NamespaceDeclaration',
           buildMetaBase(start, end, signature));

@@ -1,7 +1,7 @@
 import { collectConstantReferences } from '../js-ts/constant-references.js';
 import { prepareTypeScriptBabelSyntax } from './syntax-context.js';
 import { collectImportsFromAst } from '../javascript.js';
-import { findCLikeBodyBounds } from '../clike.js';
+import { findTypeScriptBodyBounds } from './brace-bounds.js';
 import {
   buildCallDetail,
   formatJsTsCallArg,
@@ -264,7 +264,7 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
     for (const chunk of tsChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
       if (!['MethodDeclaration', 'ConstructorDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
-      const bounds = findCLikeBodyBounds(text, chunk.start);
+      const bounds = findTypeScriptBodyBounds(text, chunk.start);
       const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end
         ? bounds.bodyStart + 1
         : chunk.start;

@@ -2,9 +2,10 @@ import { findDeclarationBoundary } from './shared/declaration-boundary.js';
 export function findBraceDelimitedBodyBounds(text, start, {
   charLiterals = false,
   tripleDoubleStrings = false,
-  rustLifetimes = false
+  rustLifetimes = false,
+  ecmaScriptLineTerminators = false
 } = {}) {
-  const boundary = findDeclarationBoundary(text, start, { charLiterals, tripleDoubleStrings, rustLifetimes });
+  const boundary = findDeclarationBoundary(text, start, { charLiterals, tripleDoubleStrings, rustLifetimes, ecmaScriptLineTerminators });
   if (boundary.bodyStart < 0) return { bodyStart: -1, bodyEnd: -1 };
   start = boundary.bodyStart;
   let inLineComment = false;
@@ -19,7 +20,7 @@ export function findBraceDelimitedBodyBounds(text, start, {
     const ch = text[i];
     const next = text[i + 1];
     if (inLineComment) {
-      if (ch === '\n') inLineComment = false;
+      if (ch === '\n' || ecmaScriptLineTerminators && (ch === '\r' || ch === '\u2028' || ch === '\u2029')) inLineComment = false;
       continue;
     }
     if (inBlockComment) {

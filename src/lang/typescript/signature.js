@@ -1,5 +1,8 @@
 import { TS_MODIFIERS } from './constants.js';
-export { readSignatureLines } from '../shared/signature-lines.js';
+import { readSignatureLines as readLexicalSignatureLines } from '../shared/signature-lines.js';
+export const readSignatureLines = (lines, startLine, options = {}) => readLexicalSignatureLines(lines, startLine, {
+  ...options, ecmaScriptLineTerminators: true
+});
 
 export function extractTypeScriptModifiers(signature) {
   const mods = [];

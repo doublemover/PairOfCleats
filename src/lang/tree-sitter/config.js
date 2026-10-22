@@ -3,7 +3,7 @@ import { includeCDeclaration, resolveCDeclarationRange, resolveCName, resolveCpp
   includeDartDeclaration, resolveDartName, resolveDartKind, resolveDartRange, resolveGoRange, resolveObjCName } from './declaration-roles.js';
 import { phpGrammarMetadata, rubyGrammarMetadata, resolveRubyQualifiedName, resolveScalaName, resolveRName, resolveRRange } from './declaration-metadata.js';
 // v4 binds declaration names, lexical scopes and attached source ranges to grammar roles.
-export const TREE_SITTER_CHUNK_VERSION = '6';
+export const TREE_SITTER_CHUNK_VERSION = '7';
 
 const LANGUAGE_GRAMMAR_KEYS = {
   javascript: 'native:javascript',
@@ -45,6 +45,7 @@ export const TREE_SITTER_LANGUAGE_IDS = Object.freeze(
 );
 
 const JS_TS_CONFIG = {
+  signatureBoundaryOptions: { ecmaScriptLineTerminators: true },
   typeNodes: new Set([
     'class',
     'class_declaration',

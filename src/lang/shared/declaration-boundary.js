@@ -4,7 +4,7 @@
  */
 export const findDeclarationBoundary = (text, start = 0, {
   stopOnSemicolon = true, charLiterals = true, tripleDoubleStrings = false,
-  rustLifetimes = false, maxChars = 65536, maxLines = 256
+  rustLifetimes = false, ecmaScriptLineTerminators = false, maxChars = 65536, maxLines = 256
 } = {}) => {
   const limit = Math.min(text.length, start + maxChars);
   let quote = null, triple = false, blockComment = false, lineComment = false;
@@ -12,8 +12,10 @@ export const findDeclarationBoundary = (text, start = 0, {
   let returnType = false, previous = '';
   for (let i = start; i < limit; i += 1) {
     const ch = text[i], next = text[i + 1];
-    if (ch === '\n' && ++lines >= maxLines) return { bodyStart: -1, signatureEnd: i, capped: true };
-    if (lineComment) { if (ch === '\n') lineComment = false; continue; }
+    const lineEnd = ch === '\n' || ecmaScriptLineTerminators && (ch === '\r' || ch === '\u2028' || ch === '\u2029');
+    if (lineEnd && !(ecmaScriptLineTerminators && ch === '\n' && text[i-1] === '\r')
+      && ++lines >= maxLines) return { bodyStart: -1, signatureEnd: i, capped: true };
+    if (lineComment) { if (lineEnd) lineComment = false; continue; }
     if (blockComment) { if (ch === '*' && next === '/') { blockComment = false; i += 1; } continue; }
     if (quote) {
       if (triple) { if (text.startsWith('"""', i)) { quote = null; triple = false; i += 2; } continue; }

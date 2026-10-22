@@ -222,7 +222,7 @@ const shouldGuardNativeParser = (resolvedId, options = {}) => {
  * @param {number} end
  * @returns {string}
  */
-export function extractSignature(text, start, end, node = null) {
+export function extractSignature(text, start, end, node = null, { ecmaScriptLineTerminators = false } = {}) {
   const limit = Math.min(end, start + 2000);
   let body = null;
   try { body = node?.childForFieldName?.('body'); } catch {}
@@ -236,7 +236,7 @@ export function extractSignature(text, start, end, node = null) {
   }
   const boundary = findDeclarationBoundary(text.slice(start, limit), 0, {
     maxChars: 2000, rustLifetimes: /\bfn\b/.test(text.slice(start, start + 80)),
-    tripleDoubleStrings: true
+    tripleDoubleStrings: true, ecmaScriptLineTerminators
   });
   const endIdx = Number.isInteger(body?.startIndex) && body.startIndex >= start && body.startIndex <= end
     ? Math.min(limit, body.startIndex) : start + boundary.signatureEnd;
@@ -542,7 +542,7 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
   const startLine = offsetToLine(lineIndex, start);
   const endOffset = end > start ? end - 1 : start;
   const endLine = offsetToLine(lineIndex, endOffset);
-  const signature = extractSignature(text, start, end, node);
+  const signature = extractSignature(text, start, end, node, config.signatureBoundaryOptions);
   const docstring = extractDocComment(
     lineAccessor,
     startLine - 1,
