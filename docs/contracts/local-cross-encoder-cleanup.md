@@ -87,3 +87,29 @@ Projected core fields contain captured values rather than the original getters.
 The new actual-adapter and direct lazy-stack/proxy/late-work controls are authored
 and **UNVALIDATED**; native retry safety, host behavior and resource qualification
 remain unmeasured.
+
+Output admission now visits each original own tensor data property independently
+before decoding. Nonenumerable and symbol-named returned tensors are retained
+alongside aliases; a failing sibling inspection cannot skip accessible outputs
+already returned by inference. The captured original `logits` value supplies the
+score, and its type/dimensions/data are read once. Missing or inherited dimension
+slots do not supply an exact one-logit shape. Input tensor disposal-method capture
+failures are reported only after storing the original object/capability, and
+prevent inference from starting.
+Artifact, tokenizer and session acquisition also store each exact returned
+capability before reporting a disposal-method capture failure. An unqualified
+tokenizer capture stops subsequent native session creation; a failed session
+capture keeps its original owner while independently captured tokenizer cleanup
+is attempted. Missing optional tokenizer disposal remains supported.
+
+An accessor, uninspectable key/descriptor or inspection beyond64 output names
+cannot prove complete returned-child acquisition. The exact original output
+container stays owned as opaque pending evidence. No getter is automatically
+invoked/retried, and later property replacement cannot turn that unknown original
+acquisition into a settled claim. Accessible tensors remain in the existing
+pending tensor/session ownership chain; session/tokenizer/artifact/storage
+closure cannot bypass that blocker. This narrow path intentionally provides no
+automatic recovery from opaque native result acquisition. Inspectable malformed
+rows still fail output admission while their captured tensor children receive
+normal cleanup. Actual runtime/output-layout and native recovery qualification
+remain separate; the new direct scorer and adapter controls are **UNVALIDATED**.

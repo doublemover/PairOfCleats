@@ -32,7 +32,8 @@ export const captureCrossEncoderResource = (resource, methodName, { optional = f
       .finally(() => { flight = null; });
     return flight;
   };
-  return Object.freeze({ get pending() { return !closed; }, retainFailure, close });
+  return Object.freeze({ get pending() { return !closed; }, retainFailure,
+    assertCaptured: () => { if (captureFailed) throw captureError; }, close });
 };
 
 export const crossEncoderCleanupFailure = ({ owner, cleanupErrors = [], hasPrimary = false, primaryError, properties = {} }) => {
@@ -77,6 +78,9 @@ export const createCrossEncoderTensorScope = ({ pendingTensors, pendingTensorOwn
         resources.set(tensor, resource); pendingTensorOwners.set(tensor, resource);
         for(const error of blockers.keys())resource.retainFailure(error);
       }
+      // Publish exact ownership before reporting a captured method failure.
+      // The scorer can retain its original work before native inference/close.
+      resources.get(tensor).assertCaptured();
       return tensor;
     },
     close: async () => {
@@ -117,16 +121,19 @@ export const createCrossEncoderSessionOwner = ({ queue, sessionLease }) => {
     adoptArtifact: value => {
       if (stopped || artifact) throw new Error('Local cross-encoder artifact owner is already selected or closed.');
       artifact = captureCrossEncoderResource(value, 'release');
+      artifact.assertCaptured();
     },
     adoptSession: value => {
       if (stopped || session) throw new Error('Local cross-encoder session owner is already selected or closed.');
       nativeSession = value; session = captureCrossEncoderResource(value, 'release');
+      session.assertCaptured();
     },
     // The pinned Transformers JS tokenizer does not require dispose when absent;
     // an observed method/getter is captured, awaited and retained on failure.
     adoptTokenizer: value => {
       if (stopped || tokenizer) throw new Error('Local cross-encoder tokenizer owner is already selected or closed.');
       nativeTokenizer = value; tokenizer = captureCrossEncoderResource(value, 'dispose', { optional: true });
+      tokenizer.assertCaptured();
     },
     close: () => {
       stopped = true;

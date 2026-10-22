@@ -2,14 +2,17 @@ import { createHash } from 'node:crypto';
 import { throwIfAborted } from '../../shared/abort.js';
 import { buildRetrievalHitKey } from '../hit-comparison.js';
 import { createCrossEncoderTensorScope, crossEncoderCleanupFailure } from './local-resource-owner.js';
+import { captureCrossEncoderOutputs } from './cross-encoder-outputs.js';
 
 const invalid = message => Object.assign(new Error(message), { code: 'ERR_LOCAL_RERANKER_PROFILE' });
 
 export const decodeCrossEncoderLogit = tensor => {
-  if (tensor?.type !== 'float32' || !Array.isArray(tensor.dims) || tensor.dims.length !== 2
-    || tensor.dims[0] !== 1 || tensor.dims[1] !== 1 || !(tensor.data instanceof Float32Array)
-    || tensor.data.length !== 1 || !Number.isFinite(tensor.data[0])) throw invalid('Cross-encoder must return exactly one finite FP32 logit.');
-  const logit = tensor.data[0];
+  const type = tensor?.type, dims = tensor?.dims, data = tensor?.data;
+  if (type !== 'float32' || !Array.isArray(dims) || dims.length !== 2
+    || !Object.hasOwn(dims, 0) || !Object.hasOwn(dims, 1) || dims[0] !== 1 || dims[1] !== 1
+    || !(data instanceof Float32Array) || data.length !== 1) throw invalid('Cross-encoder must return exactly one finite FP32 logit.');
+  const logit = data[0];
+  if (!Number.isFinite(logit)) throw invalid('Cross-encoder must return exactly one finite FP32 logit.');
   return logit >= 0 ? 1 / (1 + Math.exp(-logit)) : Math.exp(logit) / (1 + Math.exp(logit));
 };
 
@@ -57,9 +60,9 @@ export const scoreLocalCrossEncoderPairs = async ({ profile, query, members, sou
         feeds[name] = tensors.add(new Tensor('int64', BigInt64Array.from(row, BigInt), [1, width]));
       }
       outputs = await session.run(feeds, ['logits']);
-      for (const tensor of Object.values(outputs || {})) tensors.add(tensor);
+      const logits = captureCrossEncoderOutputs(outputs, tensors);
       throwIfAborted(signal);
-      scores.push({ index, score: decodeCrossEncoderLogit(outputs.logits) });
+      scores.push({ index, score: decodeCrossEncoderLogit(logits) });
     } catch (error) { primaryError = error; hasPrimary = true; tensors.retainFailure(error); throw error;
     } finally {
       try { await tensors.close(); }

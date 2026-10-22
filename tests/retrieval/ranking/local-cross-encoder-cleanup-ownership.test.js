@@ -21,7 +21,7 @@ const sources = new Map([
   ['poc:reranker-storage', `export const acquireStorageSession = options => { ${symbolExpression}.storageOptions = options; return ${symbolExpression}.storage; };`],
   ['poc:reranker-qualification', `export const currentOnnxQualificationRuntime = () => ({ runtime: 'onnxruntime-node@1.30.0' });`],
   ['poc:reranker-tokenizer', `export const AutoTokenizer = { from_pretrained: async () => ${symbolExpression}.tokenizer };`],
-  ['poc:reranker-native', `export class Tensor { constructor(...args) { return new (${symbolExpression}.Tensor)(...args); } } export const InferenceSession = { create: async () => { const value = ${symbolExpression}; if(value.createFailurePresent||value.createError)throw value.createError;return value.session; } };`]
+  ['poc:reranker-native', `export class Tensor { constructor(...args) { return new (${symbolExpression}.Tensor)(...args); } } export const InferenceSession = { create: async () => { const value = ${symbolExpression}; value.sessionCreates=(value.sessionCreates||0)+1;if(value.createFailurePresent||value.createError)throw value.createError;return value.session; } };`]
 ]);
 const scopedImports = new Map([
   ['node:module', 'poc:reranker-module'],
@@ -125,6 +125,63 @@ try {
   assert.deepEqual(await normalAdapter.dispose(), { resourceId: normal.storage.resourceId, settled: true, pending: false });
   assert.equal(normal.sessionCloses, 1); assert.equal(normal.tokenizerCloses, 1);
   assert.equal(normal.artifactCloses, 1); assert.equal(normal.storageCloses, 1);
+
+  const outputNormal = fixture();
+  outputNormal.session.run = async feeds => {
+    outputNormal.runs++;
+    const logits = new outputNormal.Tensor('float32', new Float32Array([0]), [1, 1]);
+    const bag = { logits, alias: feeds.input_ids };
+    Object.defineProperty(bag, 'nonenumerable', { value: new outputNormal.Tensor('float32', new Float32Array([1]), [1, 1]) });
+    bag[Symbol('returned alias')] = logits; return bag;
+  };
+  const outputNormalAdapter = await create(); assert.deepEqual(await rank(outputNormalAdapter), [{ index: 0, score: 0.5 }]);
+  assert.deepEqual(outputNormal.tensors.map(tensor => tensor.closes), [1, 1, 1, 1, 1]);
+  await outputNormalAdapter.dispose(); assert.equal(outputNormal.storageCloses, 1);
+
+  const opaqueOutput = fixture(); let opaqueReads = 0, originalOutput;
+  opaqueOutput.session.run = async () => {
+    opaqueOutput.runs++; originalOutput = { logits: new opaqueOutput.Tensor('float32', new Float32Array([0]), [1, 1]) };
+    Object.defineProperty(originalOutput, 'opaque', { configurable: true, enumerable: true, get() { opaqueReads++; throw false; } });
+    Object.defineProperty(originalOutput, 'later', { value: new opaqueOutput.Tensor('float32', new Float32Array([0]), [1, 1]) });
+    return originalOutput;
+  };
+  const opaqueAdapter = await create(), opaqueFailure = await pendingFailure(rank(opaqueAdapter));
+  const opaqueProjection = opaqueFailure.primaryError.primaryError;
+  assert.equal(opaqueProjection.code, 'ERR_LOCAL_RERANKER_OUTPUT'); assert.equal(opaqueProjection.rerankerOwner.outputs, originalOutput);
+  assert.equal(opaqueReads, 0); assert.equal(opaqueFailure.rerankerOwner.pendingTensors.size, 5);
+  Object.defineProperty(originalOutput, 'opaque', { value: null }); await pendingFailure(opaqueAdapter.dispose());
+  assert.deepEqual(opaqueOutput.tensors.map(tensor => tensor.closes), [0, 0, 0, 0, 0]);
+  assert.equal(opaqueOutput.sessionCloses, 0); assert.equal(opaqueOutput.tokenizerCloses, 0);
+  assert.equal(opaqueOutput.artifactCloses, 0); assert.equal(opaqueOutput.storageCloses, 0);
+  assert.equal(opaqueProjection.cacheOwnershipReleased(), false, 'mutated output fields cannot qualify an unknown original child');
+
+  const inputCapture = fixture(); let inputCaptureReads = 0;
+  inputCapture.Tensor = class {
+    constructor(type, data, dims) {
+      Object.assign(this, { type, data, dims, closes: 0 }); inputCapture.tensors.push(this);
+      Object.defineProperty(this, 'dispose', { get() { inputCaptureReads++; throw undefined; } });
+    }
+  };
+  const inputCaptureAdapter = await create(), inputCaptureFailure = await pendingFailure(rank(inputCaptureAdapter));
+  assert.equal(inputCaptureFailure.primaryError.primaryError, undefined); assert.equal(inputCapture.runs, 0);
+  await pendingFailure(inputCaptureAdapter.dispose()); assert.equal(inputCaptureReads, 1);
+  assert.equal(inputCapture.sessionCloses, 0); assert.equal(inputCapture.artifactCloses, 0); assert.equal(inputCapture.storageCloses, 0);
+
+  const tokenizerCapture = fixture(); let tokenizerCaptureReads = 0;
+  Object.defineProperty(tokenizerCapture.tokenizer, 'dispose', { get() { tokenizerCaptureReads++; throw undefined; } });
+  const tokenizerCaptureFailure = await pendingFailure(create());
+  assert.equal(tokenizerCaptureFailure.primaryError.cause, undefined); assert.equal(tokenizerCapture.sessionCreates || 0, 0,
+    'failed original tokenizer disposal capture stops native session acquisition');
+  await pendingFailure(tokenizerCaptureFailure.rerankerOwner.close()); assert.equal(tokenizerCaptureReads, 1);
+  assert.equal(tokenizerCapture.artifactCloses, 0); assert.equal(tokenizerCapture.storageCloses, 0);
+
+  const sessionCapture = fixture(); let sessionCaptureReads = 0;
+  Object.defineProperty(sessionCapture.session, 'release', { get() { sessionCaptureReads++; throw false; } });
+  const sessionCaptureFailure = await pendingFailure(create());
+  assert.equal(sessionCaptureFailure.primaryError.cause, false); assert.equal(sessionCapture.sessionCreates, 1);
+  assert.equal(sessionCapture.tokenizerCloses, 1, 'an unobservable session close cannot skip independently captured tokenizer cleanup');
+  await pendingFailure(sessionCaptureFailure.rerankerOwner.close()); assert.equal(sessionCaptureReads, 1);
+  assert.equal(sessionCapture.artifactCloses, 0); assert.equal(sessionCapture.storageCloses, 0);
 
   const broken = fixture(), brokenAdapter = await create();
   const primary = Object.freeze(Object.defineProperty(new Error('frozen inference failure'), 'code', { value: 'CONTROLLED_INFERENCE' }));
