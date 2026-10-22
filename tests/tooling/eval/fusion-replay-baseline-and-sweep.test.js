@@ -5,6 +5,7 @@ import { captureFusionReplay, replayFusionRecord } from '../../../src/retrieval/
 import { sweepFusionReplays, fusionReplaySplit } from '../../../src/retrieval/evaluation/fusion-sweep.js';
 import { evaluateDatasetFusionReplay } from '../../../tools/eval/fusion-replay.js';
 import { captureFusionFixture, fusionFixtureInput } from '../../helpers/fusion-replay-fixture.js';
+import { rankDenseVectors } from '../../../src/retrieval/rankers.js';
 
 const seal = record => {
   const { recordKey, ...body } = record;
@@ -30,6 +31,14 @@ overlap.fusionInput.bmHits[1].score = 9.5;
 const overlapRecord = await captureFusionReplay(overlap);
 assert.deepEqual(replayFusionRecord(overlapRecord).results, overlapRecord.baseline);
 const { input, record } = await captureFusionFixture();
+const denseInput = fusionFixtureInput('actual-dense-score-space');
+denseInput.rankInput.idx.denseVec = { vectors: denseInput.evaluationRecord.rows.map(row => row.stored),
+  dims: 2, minVal: -1, maxVal: 1, levels: 3, scale: 1 };
+denseInput.fusionInput.annHits = rankDenseVectors(denseInput.rankInput.idx, [1, 0], 3, null);
+assert.equal(denseInput.fusionInput.annHits[0].scoreSpace.kind, 'dot-product');
+const denseRecord = await captureFusionReplay(denseInput);
+assert.deepEqual(replayFusionRecord(denseRecord).results, denseRecord.baseline,
+  'the real stored-dense ranker score-space contract is admitted without relabeling its metric');
 const mutable = fusionFixtureInput('capture-borrowed-inputs');
 const capturePending = captureFusionReplay(mutable);
 mutable.rankInput.meta[0].name = 'changed after capture started';

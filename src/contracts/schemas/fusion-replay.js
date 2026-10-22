@@ -5,8 +5,8 @@ const text = maxLength => ({ type: 'string', maxLength });
 const record = properties => ({ type: 'object', additionalProperties: false, properties, required: Object.keys(properties) });
 const idx = { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER };
 const data = { type: 'object', maxProperties: 512 };
-const scoreSpace = record({ kind: { enum: ['cosine', 'jaccard', 'negative-distance', 'dot'] },
-  metric: { enum: ['cosine', 'jaccard', 'l2', 'ip'] }, backend: nullable(text(128)) });
+const scoreSpace = record({ kind: { enum: ['cosine', 'jaccard', 'negative-distance', 'dot', 'dot-product'] },
+  metric: { enum: ['cosine', 'jaccard', 'l2', 'ip', 'dot'] }, backend: nullable(text(128)) });
 const result = record({ key: hash, score: { type: 'number' }, scoreType: text(128),
   sparseScore: nullable({ type: 'number' }), annScore: nullable({ type: 'number' }) });
 export const FUSION_REPLAY_RECORD_SCHEMA = record({ schemaVersion: { const: FUSION_REPLAY_VERSION },

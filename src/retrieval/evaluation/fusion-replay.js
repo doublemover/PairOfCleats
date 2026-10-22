@@ -67,13 +67,14 @@ const loadedPolicy = digest({ version: FUSION_REPLAY_VERSION, node: process.vers
 const currentPolicy = () => loadedPolicy;
 const checkSpace = hit => {
   const space = hit.scoreSpace;
-  if (!Number.isFinite(hit.sim) || !space || !['cosine', 'jaccard', 'negative-distance', 'dot'].includes(space.kind)
+  if (!Number.isFinite(hit.sim) || !space || !['cosine', 'jaccard', 'negative-distance', 'dot', 'dot-product'].includes(space.kind)
     || space.kind === 'cosine' && space.metric !== 'cosine'
     || space.kind === 'jaccard' && space.metric !== 'jaccard'
     || space.kind === 'negative-distance' && !['l2', 'ip'].includes(space.metric)
-    || space.kind === 'dot' && space.metric !== 'ip') throw fail('Dense replay requires an admitted higher-is-better score space.');
+    || space.kind === 'dot' && space.metric !== 'ip'
+    || space.kind === 'dot-product' && space.metric !== 'dot') throw fail('Dense replay requires an admitted higher-is-better score space.');
   if (hit.rawDistance != null && (!Number.isFinite(hit.rawDistance)
-    || ['dot', 'jaccard'].includes(space.kind)
+    || ['dot', 'dot-product', 'jaccard'].includes(space.kind)
     || Math.abs(hit.sim - (space.kind === 'cosine' ? 1 - hit.rawDistance : -hit.rawDistance)) > 1e-12 * Math.max(1, Math.abs(hit.sim)))) throw fail('Dense score/distance conversion disagrees with its declared space.');
 };
 const validateChannels = record => {
