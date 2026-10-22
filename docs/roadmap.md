@@ -65,6 +65,15 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
+Unvalidated development now includes watch/pointer and queue authority, complete
+piece assembly, bounded artifact reads, chunk/source/SCM identities, import and
+resource policy repairs, verified model installation/leases, request-pinned
+retrieval/API lifetimes, canonical editor packages and semantic workflow replay.
+TUI task state, Unicode framing, selection identity and width-aware review panes
+also have source repairs and authored regressions. Remaining editor-wide request
+ownership and inline freshness continue alongside the agents' remaining P2 spans.
+There is no current-source deep-suite, native-host or performance claim.
+
 ## Environment and qualification boundaries
 
 Work is **Windows-only**; Linux/macOS execution is deferred. Do not launch WSL,
