@@ -40,7 +40,7 @@ const canceled = createOrderedTokenizeBatchWindow({ count: 3, signal: abort.sign
   runSingle: async () => assert.fail('aborted batch cannot retry inline'), runBatch: async rows => {
     abort.abort(new Error('stop batch')); return executeTokenizeBatch(rows, tokenize);
   } });
-await assert.rejects(canceled.take(0, payload.items[0]), /stop batch/);
+await assert.rejects(canceled.take(0, payload.items[0]), { name: 'AbortError' });
 const mismatch = createOrderedTokenizeBatchWindow({ count: 3, getInput: index => payload.items[index],
   runSingle: async row => tokenize(row), runBatch: async rows => executeTokenizeBatch(rows, tokenize) });
 await mismatch.take(0, payload.items[0]);

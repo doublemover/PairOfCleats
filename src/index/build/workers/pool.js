@@ -264,6 +264,8 @@ export async function createIndexerWorkerPool(input = {}) {
       pressureCacheMaxEntries,
       languageThrottleConfig,
       maxGlobalRssBytes,
+      readDrainState: () => ({ draining: Math.max(0, activeTasks - waitingForThrottle) }),
+      requestPressureRelief: sample => lifecycle?.maybeReduceWorkersOnPressure({ rssPressure: sample.rssPressure, gcPressure: sample.heapUtilization }),
       readOwnedRssBytes: parentRss => Number(parentRss || 0) + (lifecycle?.getPool()?.stats?.().sampledChildRssBytes || 0)
     });
 
@@ -631,6 +633,7 @@ export async function createIndexerWorkerPool(input = {}) {
         activeTasks += 1;
         updatePoolMetrics();
         let throttleSlot = null;
+        let admissionFailure = null;
         try {
           if (lifecycle.isDisabled() && !(await lifecycle.ensurePool())) {
             logWorkerPoolUnavailable({
@@ -657,7 +660,7 @@ export async function createIndexerWorkerPool(input = {}) {
         } catch (err) {
           throwIfAborted(signal);
           if (isAbortError(err)) throw err;
-          if (err?.code === 'ERR_PROCESS_TASK_BUDGET') throw err;
+          if (err?.code === 'ERR_PROCESS_TASK_BUDGET' || err?.code === 'ERR_TOKENIZER_RESOURCE_PRESSURE') { admissionFailure = err; throw err; }
           return handleWorkerTaskError({
             err,
             payload,
@@ -672,7 +675,10 @@ export async function createIndexerWorkerPool(input = {}) {
           activeTasks = Math.max(0, activeTasks - 1);
           completedRequests += 1;
           updatePoolMetrics();
-          await lifecycle.handleTaskDrained();
+          try { await lifecycle.handleTaskDrained(); } catch (cleanupError) {
+            if (!admissionFailure) throw cleanupError;
+            try { admissionFailure.cleanupError = cleanupError; } catch {}
+          }
         }
       },
       async runQuantize(payload, { signal = null } = {}) {
@@ -706,7 +712,7 @@ export async function createIndexerWorkerPool(input = {}) {
         } catch (err) {
           throwIfAborted(signal);
           if (isAbortError(err)) throw err;
-          if (err?.code === 'ERR_PROCESS_TASK_BUDGET') throw err;
+          if (err?.code === 'ERR_PROCESS_TASK_BUDGET' || err?.code === 'ERR_TOKENIZER_RESOURCE_PRESSURE') throw err;
           return handleWorkerTaskError({
             err,
             payload,
@@ -723,13 +729,13 @@ export async function createIndexerWorkerPool(input = {}) {
         }
       },
       async destroy() {
-        queueController.close();
-        await destroyWorkerPoolLifecycleWithTimeout({
+        const reliefDrain = queueController.close();
+        await Promise.all([reliefDrain, destroyWorkerPoolLifecycleWithTimeout({
           lifecycle,
           poolLabel,
           timeoutMs: resolvedCleanupTimeoutMs,
           log
-        });
+        })]);
       }
     };
   } catch (err) {

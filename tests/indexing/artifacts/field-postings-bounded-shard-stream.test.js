@@ -37,7 +37,7 @@ try {
   await fs.writeFile(filename, encoded);
   const controller = new AbortController();
   await assert.rejects(streamFieldPostingsShardBody({ root, filename, expected, signal: controller.signal,
-    onChunk: () => controller.abort(new Error('cancel merge')) }), /cancel merge/);
+    onChunk: () => controller.abort(new Error('cancel merge')) }), { name: 'AbortError' });
   await assert.rejects(streamFieldPostingsShardBody({ root, filename, expected, onChunk: () => { throw new Error('output refused'); } }), /output refused/);
   const originalLstat = fsSync.lstatSync;
   fsSync.lstatSync = function (name, ...args) {

@@ -1703,10 +1703,11 @@ async function writeIndexArtifactsInCodecScope(input) {
           for (let index = part.start; index < part.end; index += 1) {
             const field = fieldNames[index];
             const value = fieldPostingsObject[field];
-            const serializeStart = Date.now();
             chunkTiming = await writeChunkWithTiming(stream, `${first ? '' : ','}${JSON.stringify(field)}:`);
-            await writeJsonValue(stream, value, { signal: effectiveAbortSignal });
-            serializationMs += Math.max(0, Date.now() - serializeStart);
+            const encodingTiming = {};
+            await writeJsonValue(stream, value, { signal: effectiveAbortSignal, timing: encodingTiming });
+            serializationMs += encodingTiming.computeMs || 0;
+            backpressureWaitMs += encodingTiming.writeWaitMs || 0;
             flushMs += chunkTiming.flushMs;
             backpressureWaitMs += chunkTiming.backpressureWaitMs;
             first = false;

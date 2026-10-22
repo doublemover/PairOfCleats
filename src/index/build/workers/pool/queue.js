@@ -1,3 +1,4 @@
+import { evaluateTokenizerPressureWait, createTokenizerPressureError, TOKENIZER_PRESSURE_NO_PROGRESS_MS, TOKENIZER_PRESSURE_MAX_WAIT_MS } from './pressure-admission.js';
 import { createAbortError, throwIfAborted } from '../../../../shared/abort.js';
 import {
   PRESSURE_STATE_NORMAL,
@@ -37,7 +38,32 @@ export const createWorkerPoolQueue = (input = {}) => {
     maxGlobalRssBytes = 0
   } = input;
 
+  const now = typeof input.now === 'function' ? input.now : () => performance.now();
   let closed = false;
+  let pressureFailure = null;
+  let pressureDeadline = Infinity;
+  let lastProgressAt = now();
+  let progressEpoch = 0;
+  let reliefStatus = 'not-requested';
+  let reliefError = null;
+  let reliefPromise = null;
+  const readDraining = () => {
+    if (typeof input.readDrainState === 'function') {
+      const state = input.readDrainState();
+      return Number.isSafeInteger(state?.draining) && state.draining >= 0 ? state.draining : null;
+    }
+    return [...tokenizeInFlightByLanguage.values()].reduce((sum, count) => sum + count, 0);
+  };
+  const requestRelief = sample => {
+    if (reliefStatus !== 'not-requested') return;
+    if (typeof input.requestPressureRelief !== 'function') { reliefStatus = 'no-safe-relief-owner'; return; }
+    reliefStatus = 'requested';
+    try {
+      reliefPromise = Promise.resolve(input.requestPressureRelief(sample)).then(() => { reliefStatus = 'settled'; }, error => {
+        reliefStatus = 'failed'; reliefError = String(error?.message || error).slice(0, 512);
+      });
+    } catch (error) { reliefStatus = 'failed'; reliefError = String(error?.message || error).slice(0, 512); }
+  };
   let pressureState = PRESSURE_STATE_NORMAL;
   let pressureTransitions = 0;
   let lastPressureTransitionAtMs = 0;
@@ -88,13 +114,11 @@ export const createWorkerPoolQueue = (input = {}) => {
       pressureRefreshTimer = null;
       if (closed || !pressureThrottleWaitersByLanguage.size) return;
       admissionSample = null;
-      const sample = readAdmissionPressureSample();
-      updatePressureState({ pressureRatio: sample.pressureRatio, rssPressure: sample.rssPressure,
-        gcPressure: sample.heapUtilization, reason: 'throttle-refresh' });
+      refreshPressureAdmission();
       schedulePressureRefresh();
     }, THROTTLE_SIGNAL_TIMEOUT_MS);
   };
-  const waitForThrottleSignal = (languageId, signal) => new Promise((resolve, reject) => {
+  const waitForThrottleSignal = (languageId, signal, deadline = Infinity) => new Promise((resolve, reject) => {
     let settled = false;
     const waiters = pressureThrottleWaitersByLanguage.get(languageId) || new Set();
     const cleanup = () => {
@@ -105,10 +129,27 @@ export const createWorkerPoolQueue = (input = {}) => {
     };
     const resume = capacity => { if (settled) return; settled = true; cleanup(); resolve(capacity === true); };
     const onAbort = () => { if (settled) return; settled = true; cleanup(); reject(createAbortError()); };
+    resume.deadline = deadline; pressureDeadline = Math.min(pressureDeadline, deadline);
     waiters.add(resume); pressureThrottleWaitersByLanguage.set(languageId, waiters);
     signal?.addEventListener('abort', onAbort, { once: true });
     if (signal?.aborted) onAbort(); else schedulePressureRefresh();
   });
+  const refreshPressureAdmission = () => {
+    admissionSample = null;
+    const sample = readAdmissionPressureSample();
+    updatePressureState({ pressureRatio: sample.pressureRatio, rssPressure: sample.rssPressure,
+      gcPressure: sample.heapUtilization, reason: 'throttle-refresh' });
+    if (now() >= pressureDeadline) {
+      pressureDeadline = Infinity;
+      // Deadline scans happen only at a due deadline, not on every 50ms sample.
+      for (const waiters of [...pressureThrottleWaitersByLanguage.values()]) {
+        for (const resume of [...waiters]) {
+          if (now() >= resume.deadline) resume(false);
+          else pressureDeadline = Math.min(pressureDeadline, resume.deadline);
+        }
+      }
+    }
+  };
   const readAdmissionPressureSample = () => {
     if (!admissionSample) admissionSample = readProcessPressureSample();
     if (!sampleEpochReset) {
@@ -210,13 +251,16 @@ export const createWorkerPoolQueue = (input = {}) => {
   const acquireLanguageThrottleSlot = async (payload, { signal = null } = {}) => {
     throwIfAborted(signal);
     if (closed) throw createAbortError('Worker admission is closed');
+    if (pressureFailure) throw pressureFailure;
     const languageId = normalizeLanguageId(payload?.languageId);
     const mode = typeof payload?.mode === 'string' ? payload.mode.toLowerCase() : '';
     if (!languageId || mode !== 'code') return null;
     let capacityAdmission = false;
+    let pressureWaitStartedAt = null;
     while (true) {
       throwIfAborted(signal);
       if (closed) throw createAbortError('Worker admission is closed');
+      if (pressureFailure) throw pressureFailure;
       const sample = readAdmissionPressureSample();
       updatePressureState({
         pressureRatio: sample.pressureRatio,
@@ -234,18 +278,35 @@ export const createWorkerPoolQueue = (input = {}) => {
         tokenizeInFlightByLanguage.set(languageId, active + 1);
         return { languageId, limit };
       }
+      let deadline = Infinity;
       if (limit === 0) {
         pressureHardBlockCount += 1;
-      }
-      const waitStart = Date.now();
-      const capacityWake = await waitForThrottleSignal(languageId, signal);
+        pressureWaitStartedAt ??= now();
+        requestRelief(sample);
+        const draining = readDraining();
+        const decision = evaluateTokenizerPressureWait({ startedAt: pressureWaitStartedAt, now: now(), lastProgressAt, draining });
+        deadline = decision.deadline;
+        if (decision.reason) {
+          pressureFailure = createTokenizerPressureError({ reason: decision.reason, languageId,
+            waitMs: decision.elapsed, noProgressMs: decision.noProgressMs, draining, progressEpoch,
+            retainedAdmissionWaiters: [...pressureThrottleWaitersByLanguage.values()].reduce((sum, rows) => sum + rows.size, 0) + 1,
+            heapUtilization: sample.heapUtilization, rssPressure: sample.rssPressure,
+            evidenceScope: 'committed-heap-occupancy-and-owned-RSS; not proof of V8 hard-heap exhaustion',
+            reliefStatus, reliefError, noProgressLimitMs: TOKENIZER_PRESSURE_NO_PROGRESS_MS,
+            maxWaitMs: TOKENIZER_PRESSURE_MAX_WAIT_MS });
+          notifyThrottleWaiters();
+          throw pressureFailure;
+        }
+      } else pressureWaitStartedAt = null;
+      const waitStart = now();
+      const capacityWake = await waitForThrottleSignal(languageId, signal, deadline);
       if (capacityWake) {
         const pending = pendingCapacityWakes.get(languageId) || 0;
         if (pending <= 1) pendingCapacityWakes.delete(languageId); else pendingCapacityWakes.set(languageId, pending - 1);
       }
       capacityAdmission = capacityWake;
       pressureThrottleWaitCount += 1;
-      pressureThrottleWaitMs += Math.max(0, Date.now() - waitStart);
+      pressureThrottleWaitMs += Math.max(0, now() - waitStart);
     }
   };
 
@@ -253,6 +314,7 @@ export const createWorkerPoolQueue = (input = {}) => {
     const languageId = normalizeLanguageId(slot?.languageId);
     if (!languageId) return;
     const current = Number(tokenizeInFlightByLanguage.get(languageId) || 0);
+    if (current > 0) { lastProgressAt = now(); progressEpoch += 1; }
     if (current <= 1) {
       tokenizeInFlightByLanguage.delete(languageId);
     } else {
@@ -280,6 +342,8 @@ export const createWorkerPoolQueue = (input = {}) => {
       refreshTimerCount: pressureRefreshTimer ? 1 : 0,
       waitMs: pressureThrottleWaitMs,
       hardBlockCount: pressureHardBlockCount,
+      noProgressLimitMs: TOKENIZER_PRESSURE_NO_PROGRESS_MS, maxWaitMs: TOKENIZER_PRESSURE_MAX_WAIT_MS,
+      progressEpoch, reliefStatus, terminalPressureReason: pressureFailure?.resourcePressure?.reason || null,
       activeByLanguage: Object.fromEntries(tokenizeInFlightByLanguage.entries())
     },
     cacheEviction: {
@@ -291,19 +355,21 @@ export const createWorkerPoolQueue = (input = {}) => {
   });
 
   const close = () => {
-    if (closed) return;
+    if (closed) return reliefPromise;
     closed = true;
     if (pressureRefreshTimer) clearTimeout(pressureRefreshTimer); pressureRefreshTimer = null;
     if (sampleEpochReset) clearImmediate(sampleEpochReset); sampleEpochReset = null; admissionSample = null;
     for (const key of [...pressureThrottleWaitersByLanguage.keys()]) notifyWaitersForKey(key);
     pendingCapacityWakes.clear();
     pressureCache.clear();
+    return reliefPromise;
   };
 
   return {
     close,
     isClosed: () => closed,
     notifyThrottleWaiters,
+    refreshPressureAdmission,
     readProcessPressureSample,
     updatePressureState,
     recordPressureCacheEntry,

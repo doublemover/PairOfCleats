@@ -72,8 +72,8 @@ const warm = await processFixtureChunks(warmContext);
 assert.deepEqual(warm.chunks, cold.chunks);
 assert.equal(warmContext.tokenizationStats.lexicalCheckpoint.productHits, 2);
 const freshEnrichment = fixture({ cachedLexicalCheckpoint: cold.lexicalCheckpoint,
-  lang: { id: 'javascript', extractDocMeta: () => ({ doc: 'new enrichment only' }) } });
+  fileGitMeta: { last_author: 'new enrichment only' } });
 const enriched = await processFixtureChunks(freshEnrichment);
 assert.equal(freshEnrichment.tokenizationStats.lexicalCheckpoint.productHits, 2);
-assert.equal(enriched.chunks[0].docmeta.doc, 'new enrichment only');
+assert.equal(enriched.chunks[0].last_author, 'new enrichment only');
 console.log('complete lexical checkpoints bind transformed content and policy without stale enrichment');

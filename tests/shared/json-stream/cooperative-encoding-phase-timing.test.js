@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import { Writable } from 'node:stream';
+import { finished } from 'node:stream/promises';
+import { setImmediate as immediate } from 'node:timers/promises';
+import { writeJsonValue } from '../../../src/shared/json-stream/encode.js';
+import { ensureTestingEnv } from '../../helpers/test-env.js';
+ensureTestingEnv(process.env);
+const chunks = [];
+const stream = new Writable({ write(bytes, encoding, callback) { chunks.push(Buffer.from(bytes)); callback(); } });
+let resume; let pauseOnce = true;
+const barrier = new Promise(resolve => { resume = resolve; });
+const timing = {};
+const value = { body: ['Unicode λ', 1, true], empty: [] };
+const writing = writeJsonValue(stream, value, { timing, cooperate: () => {
+  if (!pauseOnce) return null; pauseOnce = false; return barrier;
+} });
+await immediate();
+assert.equal(Object.hasOwn(timing, 'cooperativeWaitMs'), false, 'pending cooperation has not been counted as finished CPU work');
+resume(); await writing; stream.end(); await finished(stream);
+assert.equal(Buffer.concat(chunks).toString('utf8'), JSON.stringify(value));
+assert.ok(Number.isFinite(timing.computeMs) && timing.computeMs >= 0);
+assert.ok(Number.isFinite(timing.cooperativeWaitMs) && timing.cooperativeWaitMs >= 0);
+assert.equal(timing.writeWaitMs || 0, 0, 'a cooperative wait is not transport backpressure');
+console.log('cooperative encoding timing separates active work from awaited phase boundaries');

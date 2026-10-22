@@ -112,6 +112,16 @@ function* iterateJsonFragments(value, seen) {
 }
 
 export const writeJsonValue = async (stream, value, options = {}) => {
+  const timing = options.timing || null;
+  let activeAt = timing ? performance.now() : 0;
+  const pause = async (pending, kind) => {
+    if (!timing) { await pending; return; }
+    const startedAt = performance.now();
+    timing.computeMs = (timing.computeMs || 0) + Math.max(0, startedAt - activeAt);
+    try { await pending; } finally {
+      activeAt = performance.now(); timing[kind] = (timing[kind] || 0) + Math.max(0, activeAt - startedAt);
+    }
+  };
   const cooperate = typeof options?.cooperate === 'function' ? options.cooperate : createCooperativeYielder();
   const maxChunkChars = 64 * 1024;
   let parts = [], chars = 0;
@@ -129,20 +139,21 @@ export const writeJsonValue = async (stream, value, options = {}) => {
       if (last >= 0xd800 && last <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) length -= 1;
       if (!length) {
         const pending = flush();
-        if (pending) await pending;
+        if (pending) await pause(pending, 'writeWaitMs');
         continue;
       }
       parts.push(fragment.slice(offset, offset + length));
       chars += length; offset += length;
       if (chars === maxChunkChars) {
         const pending = flush();
-        if (pending) await pending;
+        if (pending) await pause(pending, 'writeWaitMs');
       }
     }
     const pending = cooperate();
-    if (pending) await pending;
+    if (pending) await pause(pending, 'cooperativeWaitMs');
   }
-  if (chars) { const pending = flush(); if (pending) await pending; }
+  if (chars) { const pending = flush(); if (pending) await pause(pending, 'writeWaitMs'); }
+  if (timing) timing.computeMs = (timing.computeMs || 0) + Math.max(0, performance.now() - activeAt);
 };
 
 const stringifyJsonValueInternal = (value, seen) => {

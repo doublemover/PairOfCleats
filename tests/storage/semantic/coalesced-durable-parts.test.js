@@ -44,6 +44,10 @@ try {
   assert.equal(rollingDescriptor.canonicalHash, descriptor.canonicalHash);
   assert.equal(rollingDescriptor.members.semantic_coverage.length, 8);
 
+  const tight = await createSemanticPartitionSink({ ...options, batchBytes: batch(0).byteCount, diskAccount: account() });
+  await tight.appendBatch(batch(0));
+  assert.equal((await tight.finalizeSource()).members.semantic_sources[0].count, 1, 'indivisible source metadata retains its existing independent admission contract');
+
   const originalOpen = fs.open; const originalRm = fs.rm;
   let writeFault = false, removeFault = false, shortWrites = false;
   const injected = new Error('primary durable sync failure');
@@ -76,7 +80,7 @@ try {
   const canceled = await createSemanticPartitionSink({ ...options, diskAccount: canceledDisk, signal: stop.signal,
     scheduleIo: fn => { if (stop.signal.aborted) throw stop.signal.reason; return fn(); } });
   await canceled.appendBatch(batch(0)); stop.abort(new Error('stop staging'));
-  await assert.rejects(canceled.finalizeSource(), /stop staging/);
+  await assert.rejects(canceled.finalizeSource(), { name: 'AbortError' });
   await canceled.abort(); assert.equal(canceledDisk.used, 0, 'abort handle close does not borrow a canceled scheduler admission');
 } finally { await fs.rm(temporary, { recursive: true, force: true }); }
 console.log('coalesced semantic parts retain per-batch durability and completed-descriptor/accounting boundaries');

@@ -73,12 +73,14 @@ export const createSemanticPartBuilders = ({ directory, prefix, members, counts,
         while (index < buffers.length) {
           throwIfAborted(signal);
           let part = active.get(member) || await open(member);
-          if (part.rows && (part.rows >= batchRows || part.bytes + buffers[index].length + 1 > batchBytes)) {
+          // Source manifests were already indivisible outside producer-batch limits. Keep that contract.
+          const byteLimit = member === 'semantic_sources' ? Math.max(batchBytes, buffers[index].length + 1) : batchBytes;
+          if (part.rows && (part.rows >= batchRows || part.bytes + buffers[index].length + 1 > byteLimit)) {
             await roll(part); part = await open(member);
           }
           const start = index; let dataBytes = 0;
           while (index < buffers.length && part.rows + index - start < batchRows
-            && part.bytes + dataBytes + buffers[index].length + 1 <= batchBytes) {
+            && part.bytes + dataBytes + buffers[index].length + 1 <= byteLimit) {
             dataBytes += buffers[index].length + 1; index += 1;
           }
           if (index === start) throw Object.assign(new Error('Semantic row exceeds the existing part byte bound.'), { code: 'ERR_SEMANTIC_CONTRACT' });
@@ -98,7 +100,7 @@ export const createSemanticPartBuilders = ({ directory, prefix, members, counts,
           bump('partDataBytesWritten', data.length); bump('partOffsetBytesWritten', offsets.length); bump('rowsWritten', rowCount);
           // Existing per-producer-batch durability remains mandatory, even for a partly filled builder.
           await sync(part.dataHandle); await sync(part.offsetsHandle);
-          if (part.rows >= batchRows || part.bytes >= batchBytes) await roll(part);
+          if (part.rows >= batchRows || part.bytes >= byteLimit) await roll(part);
         }
       });
     },

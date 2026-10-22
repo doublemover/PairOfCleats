@@ -86,7 +86,7 @@ try {
   }
   const sealed = await fs.readFile(snapshotPath);
   const aborted = new AbortController(); aborted.abort(new Error('stop preprocessing'));
-  await assert.rejects(run({ abortSignal: aborted.signal }), /stop preprocessing/);
+  await assert.rejects(run({ abortSignal: aborted.signal }), { name: 'AbortError' });
   assert.deepEqual(await fs.readFile(snapshotPath), sealed);
   const originalOpen = fs.open;
   fs.open = async function (filename, ...args) {
