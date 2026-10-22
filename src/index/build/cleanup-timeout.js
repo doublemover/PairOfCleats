@@ -111,6 +111,12 @@ export const runBuildCleanupWithTimeout = async ({
     if (error?.code !== 'BUILD_CLEANUP_TIMEOUT') throw error;
     const elapsedMs = Math.max(0, Date.now() - startedAtMs);
     const pending = Boolean(cleanupOperation) && pendingCleanupOperations.has(cleanupOperation);
+    if (pending) {
+      // The generic timeout owner cannot prove what a later cleanup return
+      // value means for native resources. Preserve unknown ownership; only the
+      // resource owner may later produce its own settlement receipt.
+      error.cacheOwnershipPending = true;
+    }
     if (typeof log === 'function') {
       try {
         log(

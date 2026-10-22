@@ -11,7 +11,7 @@ const toMessage = (error) => (
  *   warn?:(line:string)=>void
  * }} [input]
  * @returns {{
- *   addStep:(input:{label:string,run:()=>Promise<unknown>|unknown,required?:boolean})=>void,
+ *   addStep:(input:{label:string,run:()=>Promise<unknown>|unknown,required?:boolean,requiresPriorSuccess?:boolean})=>void,
  *   run:()=>Promise<{steps:Array<object>,error:Error|null}>
  * }}
  */
@@ -39,7 +39,8 @@ export const createCloseoutRegistry = ({
   const addStep = ({
     label,
     run,
-    required = true
+    required = true,
+    requiresPriorSuccess = false
   } = {}) => {
     const stepLabel = String(label || '').trim();
     if (!stepLabel) throw new Error('closeout step label is required');
@@ -47,7 +48,8 @@ export const createCloseoutRegistry = ({
     steps.push({
       label: stepLabel,
       run,
-      required: required !== false
+      required: required !== false,
+      requiresPriorSuccess: requiresPriorSuccess === true
     });
   };
   const run = async () => {
@@ -57,6 +59,12 @@ export const createCloseoutRegistry = ({
       const startedAtMs = Date.now();
       emitLog(`[closeout] ${stage}.${step.label} start`);
       try {
+        if (step.requiresPriorSuccess && errors.length) {
+          throw Object.assign(new Error(`Required closeout steps did not complete before ${step.label}.`), {
+            code: 'ERR_INDEX_CACHE_DRAIN_INCOMPLETE', cacheOwnershipPending: true,
+            cause: new AggregateError([...errors], 'Prior required closeout failures.')
+          });
+        }
         const value = await step.run();
         const elapsedMs = Math.max(0, Date.now() - startedAtMs);
         emitLog(`[closeout] ${stage}.${step.label} done (${elapsedMs}ms)`);
@@ -88,9 +96,15 @@ export const createCloseoutRegistry = ({
     if (errors.length === 1) {
       return { steps: outcomes, error: errors[0] };
     }
+    const pending = errors.filter(error => error?.cacheOwnershipPending === true);
     return {
       steps: outcomes,
-      error: new AggregateError(errors, `[closeout] ${stage} closeout failed (${errors.length} step(s)).`)
+      error: Object.assign(new AggregateError(errors, `[closeout] ${stage} closeout failed (${errors.length} step(s)).`), {
+        cacheOwnershipPending: pending.length > 0,
+        ...(pending.length ? { cacheOwnershipReleased: () => pending.every(error => {
+          try { return error.cacheOwnershipReleased?.() === true; } catch { return false; }
+        }) } : {})
+      })
     };
   };
   return {

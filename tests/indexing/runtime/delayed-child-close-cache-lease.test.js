@@ -7,7 +7,7 @@ import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { once } from 'node:events';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
-import { releaseCacheWriterOwnership } from '../../../src/index/build/cache-writer-drain.js';
+import { releaseCacheWriterOwnership, combineCacheWriterErrors } from '../../../src/index/build/cache-writer-drain.js';
 import { acquireIndexLock } from '../../../src/index/build/lock.js';
 import { createIndexCacheLease } from '../../../src/index/build/cache-lease.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -34,8 +34,13 @@ try {
     ownershipId: 'stage1:delayed-fixture:child', onSpawn: () => controller.abort()
   }).then(() => assert.fail('cancellation must reject'), value => value);
   assert.equal(error.cacheOwnershipPending, true);
-  const release = () => releaseCacheWriterOwnership({ lease, release: () => lock.release(), operationError: error });
-  await assert.rejects(release(), value => value === error);
+  const diagnostic = new Error('secondary completed diagnostic failure');
+  const combined = combineCacheWriterErrors(error, diagnostic);
+  assert.equal(combined.cause, error);
+  assert.equal(combined.cleanupError, diagnostic);
+  assert.equal(combined.cacheOwnershipReleased(), false);
+  const release = () => releaseCacheWriterOwnership({ lease, release: () => lock.release(), operationError: combined });
+  await assert.rejects(release(), value => value === combined);
   lease.assertOwned(root);
   assert.equal(await acquireIndexLock({ repoCacheRoot: root }), null, 'another writer cannot enter while close is unobserved');
   if (child.exitCode == null && child.signalCode == null) await once(child, 'exit');
@@ -43,6 +48,7 @@ try {
   if (delayedClose) emit.call(child, 'close', ...delayedClose);
   else await once(child, 'close');
   assert.equal(error.cacheOwnershipReleased(), true);
+  assert.equal(combined.cacheOwnershipReleased(), true, 'aggregation retains the original exact-handle observer');
   await release();
   const successor = await acquireIndexLock({ repoCacheRoot: root });
   const nextLease = createIndexCacheLease(successor, root);

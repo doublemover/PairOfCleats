@@ -4,10 +4,14 @@ import { runBuildCleanupWithTimeout, resolveBuildCleanupTimeoutMs } from './clea
 export const combineCacheWriterErrors = (operationError, cleanupError) => {
   if (!operationError) return cleanupError;
   if (operationError === cleanupError) return operationError;
+  const pending = [operationError, cleanupError].filter(error => error?.cacheOwnershipPending);
   return Object.assign(new AggregateError([operationError, cleanupError],
     `${operationError.message}; cache writer cleanup also failed: ${cleanupError.message}`, { cause: operationError }),
   { code: operationError.code || cleanupError.code, name: operationError.name,
-    cacheOwnershipPending: Boolean(operationError.cacheOwnershipPending || cleanupError.cacheOwnershipPending), operationError, cleanupError });
+    cacheOwnershipPending: pending.length > 0,
+    ...(pending.length ? { cacheOwnershipReleased: () => pending.every(error => {
+      try { return error.cacheOwnershipReleased?.() === true; } catch { return false; }
+    }) } : {}), operationError, cleanupError });
 };
 
 /** Other idle controls cannot prove that an explicitly pending child has closed. */

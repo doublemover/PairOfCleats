@@ -1079,6 +1079,7 @@ export const runStage = async (
       });
       closeout.addStep({
         label: 'lock.release',
+        requiresPriorSuccess: true,
         run: async () => {
           if (!lock?.release) return null;
           const releaseResult = await runBuildCleanupWithTimeout({

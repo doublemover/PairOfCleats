@@ -139,8 +139,12 @@ export const teardownRuntime = async (runtime) => {
     throw teardownErrors[0];
   }
   if (teardownErrors.length > 1) {
+    const pending = teardownErrors.filter(error => error?.cacheOwnershipPending === true);
     throw Object.assign(new AggregateError(teardownErrors, '[cleanup] runtime teardown failed.'), {
-      cacheOwnershipPending: teardownErrors.some(error => error?.cacheOwnershipPending === true)
+      cacheOwnershipPending: pending.length > 0,
+      ...(pending.length ? { cacheOwnershipReleased: () => pending.every(error => {
+        try { return error.cacheOwnershipReleased?.() === true; } catch { return false; }
+      }) } : {})
     });
   }
 };
