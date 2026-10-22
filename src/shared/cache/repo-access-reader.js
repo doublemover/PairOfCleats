@@ -16,6 +16,30 @@ const delegated = new Map();
 const failedAdmissions = new WeakMap();
 let exitHookInstalled = false;
 
+const unconfirmedResourcePublication = ({ file, payload, primary, closeError, hasPrimary, closeFailed, sealed }) => {
+  const first = hasPrimary ? primary : closeError;
+  const errors = [...(hasPrimary ? [primary] : []), ...(closeFailed ? [closeError] : [])];
+  let message = 'Cache resource lease publication remains unconfirmed.';
+  try { if (typeof first?.message === 'string') message = first.message; } catch {}
+  const failure = new AggregateError(errors, message, { cause: first });
+  if (first && (typeof first === 'object' || typeof first === 'function')) {
+    const reserved = new Set(['cause', 'errors', 'message', 'stack', 'cleanupError',
+      'cacheOwnershipPending', 'cacheOwnershipReleased', 'repoCacheAccessPublication']);
+    const descriptors = Object.getOwnPropertyDescriptors(first);
+    for (const key of Reflect.ownKeys(descriptors)) if (!reserved.has(key)) Object.defineProperty(failure, key, descriptors[key]);
+    if (!Object.hasOwn(failure, 'name')) { try { if (typeof first.name === 'string') failure.name = first.name; } catch {} }
+  }
+  if (!Object.hasOwn(failure, 'code')) failure.code = 'ERR_REPO_CACHE_LEASE_PUBLICATION_PENDING';
+  Object.defineProperties(failure, {
+    cacheOwnershipPending: { value: true },
+    cacheOwnershipReleased: { value: () => false },
+    ...(hasPrimary && closeFailed ? { cleanupError: { value: closeError } } : {}),
+    repoCacheAccessPublication: { value: Object.freeze({ file, leaseId: payload.lockId,
+      resourceId: payload.resourceId, sealed, descriptorCloseObserved: !closeFailed, admission: 'unconfirmed' }) }
+  });
+  return failure;
+};
+
 const installExitHook = () => {
   if (exitHookInstalled) return;
   exitHookInstalled = true;
@@ -80,13 +104,14 @@ const createAccessLease = (paths, options = {}) => {
     // Publish the fence before any resource starts. A partial/failed write is
     // unknown protected evidence; do not remove it by PID-based recovery.
     const descriptor = fs.openSync(file, 'wx');
-    let primary = null;
-    try { fs.writeFileSync(descriptor, JSON.stringify(payload)); fs.fsyncSync(descriptor); }
-    catch (error) { primary = error; throw error; }
+    let primary = null, closeError = null, hasPrimary = false, closeFailed = false, sealed = false;
+    try { fs.writeFileSync(descriptor, JSON.stringify(payload)); fs.fsyncSync(descriptor); sealed = true; }
+    catch (error) { primary = error; hasPrimary = true; }
     finally {
       try { fs.closeSync(descriptor); }
-      catch (error) { if (primary) primary.cleanupError = error; else throw error; }
+      catch (error) { closeError = error; closeFailed = true; }
     }
+    if (hasPrimary || closeFailed) throw unconfirmedResourcePublication({ file, payload, primary, closeError, hasPrimary, closeFailed, sealed });
   } else fs.writeFileSync(file, JSON.stringify(payload), { flag: 'wx' });
   const lease = { file, payload, paths, suspended: false };
   const refuse = primary => {

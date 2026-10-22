@@ -83,6 +83,16 @@ Actual disposable receipt/inspection/exclusion controls with injected unlink and
 post-admission read failures are authored only, including successful re-admission.
 No installation, native probe, physical link or user-cache operation was run.
 
+Resource lease-record publication now preserves write/fsync and descriptor-close
+failures together without modifying a frozen original cause. Any failed seal or
+unconfirmed descriptor close remains pending publication evidence, with the exact
+failures and nonenumerable publication diagnostic. It grants no scoped lease,
+failed-admission brand, raw descriptor retry or deletion capability. Incomplete
+records retain the existing protected-evidence behavior; this does not infer
+native closure from a last log line, a close attempt or valid-looking file bytes.
+Authored real disposable descriptor controls inject frozen write/fsync/close
+failures and preserve the healthy publication/release positive. They are unrun.
+
 An actual storage session now identifies its own attempted metadata-release
 failures with a process-local producer capability. Managed detection and build
 runtime teardown use that exact identity to keep an owned unlink failure out of
@@ -93,3 +103,21 @@ does not supply the capability; missing independent observers remain unconfirmed
 Authored controls use actual category sessions, injected exact lease unlink
 failures and the actual detector/runtime retry paths, including forged-marker
 negatives and frozen native failures. They remain UNVALIDATED.
+
+Outer archive/SDK write admission preserves frozen action errors and earlier
+child storage capabilities while attaching its own exact reservation handles.
+Invalid non-array diagnostic fields stay on their original cause and are not
+spread into capability inventories. These process-local owner handles remain
+nonenumerable. The existing inner managed/Go/admission owner must explicitly
+return true before outer reservations and storage admission can release.
+
+An actual attempted outer session metadata-release failure also exposes
+`installStorageMetadataSession`, bound to that exact session producer. This
+method requires the exact registered resource receipt on every call, coalesces
+concurrent retries, and retries only original allocation/session handles. A
+code or copied property cannot create that recovery capability. Original pending
+resource observers still govern the underlying resource owner; this metadata
+capability is not emitted for an unconfirmed resource or refused settlement.
+Authored actual admission/reservation/category fixture controls cover frozen and
+nested errors, strict inner release evidence and injected outer unlink failure.
+They remain UNVALIDATED.
