@@ -12,6 +12,8 @@ import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 import { extractArchive } from '../shared/archive-extraction.js';
 import { computeSha256, downloadToBuffer } from './install-shared.js';
 import { runInstallWithStorageAdmission } from './install-storage.js';
+import { retainManagedToolInstallation } from '../../src/shared/managed-installation.js';
+export { retainManagedToolInstallation, retainManagedToolInstallationSync } from '../../src/shared/managed-installation.js';
 
 export const MANAGED_INSTALL_VERSION = 1;
 const MAX_MANIFEST_BYTES = 8 * 1024 * 1024;
@@ -353,21 +355,6 @@ export const installPinnedManagedTool = async options => {
   const publication = await runInstallWithStorageAdmission({ toolingRoot: options.toolingRoot,
     storageEstimate: options.descriptor.storageEstimate, scope: 'managed-tool-archive-publication' }, () => installPinnedManagedToolOwned(options));
   return publication.value;
-};
-
-/** Consumers pin the exact selected generation until all owned children settle. */
-export const retainManagedToolInstallation = async options => {
-  const selected = await inspectManagedInstallation(options);
-  if (!selected.ok) throw new Error('Managed tool selection is unavailable: ' + selected.state);
-  const leases = [acquireRepoCacheAccessLease(options.toolingRoot, accessOptions(options.toolingRoot))];
-  try { leases.push(acquireRepoCacheAccessLease(selected.owner, accessOptions(options.toolingRoot))); }
-  catch (error) { leases[0].release(); throw error; }
-  const release = () => leases.map(lease => lease.release()).every(Boolean);
-  try {
-    const after = await inspectManagedInstallation(options);
-    if (!after.ok || after.receipt.installId !== selected.receipt.installId) throw new Error('Managed tool selection changed before consumer lease admission; retry.');
-    return { ...after, release };
-  } catch (error) { release(); throw error; }
 };
 
 export const inspectManagedToolRemoval = async options => {

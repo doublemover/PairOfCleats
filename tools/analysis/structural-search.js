@@ -84,7 +84,16 @@ if (engineOverride || rulePaths.length) {
   });
 }
 
-const results = runStructuralSearch({ repoRoot, packsToRun });
+const cancellation = new AbortController();
+const onInterrupt = () => cancellation.abort(new Error('Structural search interrupted.'));
+process.once('SIGINT', onInterrupt);
+process.once('SIGTERM', onInterrupt);
+let results;
+try { results = await runStructuralSearch({ repoRoot, packsToRun, signal: cancellation.signal }); }
+finally {
+  process.removeListener('SIGINT', onInterrupt);
+  process.removeListener('SIGTERM', onInterrupt);
+}
 
 if (format === 'json') {
   await writeJson(results, outputPath);

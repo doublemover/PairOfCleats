@@ -124,6 +124,9 @@ export const resolveBinary = (engine, { repoRoot = null } = {}) => {
   if (repoRoot) {
     const config = getToolingConfig(repoRoot);
     const tool = resolveToolsById([engine], config.dir, repoRoot, config)[0];
+    if (tool?.managedInstallation) return { command: tool.managedInstallation.command,
+      argsPrefix: tool.managedInstallation.args || [], checkedPaths: [tool.managedInstallation.command],
+      requiresOwnedExecution: true, toolingRoot: config.dir, managedInstallation: tool.managedInstallation };
     const status = tool ? detectTool(tool) : null;
     if (!status?.found || !status.path) return { command: engine, argsPrefix: [], checkedPaths: [], unavailable: true };
     const command = path.isAbsolute(status.path) ? status.path : findOnPath(status.path).path;
@@ -188,6 +191,7 @@ export const resolveBinary = (engine, { repoRoot = null } = {}) => {
 };
 
 export const runBinary = (resolved, args, options = {}) => {
+  if (resolved?.requiresOwnedExecution) throw Object.assign(new Error('Managed structural execution requires its retained async runtime scope.'), { code: 'ERR_STRUCTURAL_OWNER_REQUIRED' });
   if (resolved?.unavailable) return { status: null, signal: null, stdout: '', stderr: '', error: Object.assign(new Error('No identified structural engine executable is available.'), { code: 'ENOENT' }) };
   if (resolved.executableIdentity && identifyProvisioningExecutable(resolved.command).sha256 !== resolved.executableIdentity.sha256) throw new Error('Structural engine bytes changed after selection; resolve again.');
   return runCommand(resolved, args, options);

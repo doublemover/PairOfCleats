@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { assertNoSymlinkPath } from './contained-file.js';
 import { hashManagedToolFile, readManagedToolText } from './managed-tool-file.js';
 import { stableStringify } from './stable-json.js';
+export { retainManagedToolInstallation, retainManagedToolInstallationSync, inspectManagedInstallationSync } from './managed-installation-retain.js';
 
 const identity = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 /** Read-only selected consumer locator; protocol/project readiness remains separate. */

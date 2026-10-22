@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { installPinnedManagedTool, inspectManagedInstallation, retainManagedToolInstallation, inspectManagedToolRemoval, removePinnedManagedTool } from '../../../tools/tooling/managed-install.js';
-import { resolveManagedToolInstallation } from '../../../src/shared/managed-installation.js';
+import { resolveManagedToolInstallation, retainManagedToolInstallationSync } from '../../../src/shared/managed-installation.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const suite = path.join(process.cwd(), '.tmp', 'tasks', 'managed-install-publication-lifetime');
@@ -52,6 +52,11 @@ try {
     assert.equal(blocked.state, 'verified-awaiting-owner-release');
     assert.equal((await inspectManagedInstallation({ toolingRoot, toolId: 'fixture-tool' })).command, first.command);
     assert.equal(held.release(), true);
+    const heldSync = retainManagedToolInstallationSync({ toolingRoot, toolId: 'fixture-tool', installId: first.receipt.installId });
+    assert.equal(heldSync.receipt.installId, first.receipt.installId, 'shared synchronous consumers pin exact physical bytes without probing');
+    assert.equal((await inspectManagedToolRemoval({ toolingRoot, toolId: 'fixture-tool' })).state, 'blocked');
+    assert.throws(() => retainManagedToolInstallationSync({ toolingRoot, toolId: 'fixture-tool', installId: '0'.repeat(64) }), /unavailable/);
+    assert.equal(heldSync.release(), true);
     const resumed = await installPinnedManagedTool({ toolingRoot, descriptor: descriptor('2.0.0'), ...dependencies });
     assert.equal(resumed.ok, true);
     assert.equal(downloads, 2, 'resuming verified sibling does not reacquire archive');
@@ -72,6 +77,11 @@ try {
       verify: async ({ resourceId }) => ({ ok: false, settlement: { resourceId, settled: true, pending: false } }) }), /verification failed/);
     assert.equal((await inspectManagedInstallation({ toolingRoot, toolId: 'fixture-tool' })).command, repaired.command);
     const removal = await inspectManagedToolRemoval({ toolingRoot, toolId: 'fixture-tool' });
+    const library = path.join(repaired.root, 'lib', 'data');
+    const libraryBytes = await fs.readFile(library);
+    await fs.writeFile(library, 'library-only drift');
+    assert.throws(() => retainManagedToolInstallationSync({ toolingRoot, toolId: 'fixture-tool' }), /unavailable/, 'full shared retain rejects drift outside the launcher');
+    await fs.writeFile(library, libraryBytes);
     assert.equal(removal.state, 'owned-and-idle');
     assert.equal((await removePinnedManagedTool(removal)).ok, true);
     await assert.rejects(fs.stat(repaired.root), { code: 'ENOENT' });

@@ -752,7 +752,8 @@ export function resolveToolsById(ids, toolingRoot, repoRoot, toolingConfig = nul
   return filterToolsByConfig(matched, toolingConfig);
 }
 
-export function detectTool(tool) {
+/** Location/trust selection only; runtime owners acquire installation leases before probes. */
+export function locateToolExecutable(tool) {
   if (!tool?.detect?.cmd) return { found: false, path: null, source: null, probe: null };
   const candidate = (path.isAbsolute(tool.detect.cmd) && fs.existsSync(tool.detect.cmd) ? tool.detect.cmd : null)
     || findBinaryInDirs(tool.detect.cmd, tool.detect.binDirs || [])
@@ -767,6 +768,12 @@ export function detectTool(tool) {
       return { found: false, path: null, source: 'blocked', probe: { ok: false, attempted: [] } };
     }
   }
+  return { found: Boolean(candidate), path: candidate || null, source: candidate ? 'located-without-probe' : null, probe: null };
+}
+
+export function detectTool(tool) {
+  const located = locateToolExecutable(tool);
+  if (located.source === 'blocked' || !tool?.detect?.cmd) return located;
   const detectCmd = String(tool?.detect?.cmd || '');
   const detectArgCandidates = resolveDetectArgCandidates(tool);
   const binDirs = tool.detect?.binDirs || [];
