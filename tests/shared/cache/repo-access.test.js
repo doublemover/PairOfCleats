@@ -9,6 +9,7 @@ import { CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
 import { once } from 'node:events';
 import { inspectRepoCacheAccess, repoAccessPaths, withExclusiveRepoCacheCleanup } from '../../../src/shared/cache/repo-access.js';
 import { resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
+import { withGeneratedCacheMetadata } from '../../../src/shared/generated-artifact-cache.js';
 
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-repo-access-'));
 const children = new Set();
@@ -43,8 +44,8 @@ try {
   await fs.writeFile(path.join(temporary, 'cache', CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));
   const online = runGc();
   assert.equal(online.protectedRepos.length, 1);
-  assert.equal(online.totals.protectedBytes, 8);
-  assert.equal(online.quotaSatisfied, false);
+  assert.equal(online.totals.protectedBytes, null, 'active-owner byte accounting remains unknown without scanning its changing tree');
+  assert.equal(online.quotaSatisfied, null, 'incomplete accounting cannot claim quota satisfaction or zero protected bytes');
   assert.equal(online.freedBytes, 0);
   const busy = await withExclusiveRepoCacheCleanup(root, () => assert.fail('active reader must exclude cleanup'));
   assert.equal(busy.protected, true);
@@ -72,8 +73,18 @@ try {
   await stop(resumed.child);
   await fs.mkdir(root, { recursive: true });
   await fs.writeFile(path.join(root, 'data'), 'retained');
+  const unknown = runGc();
+  assert.equal(unknown.freedBytes, 0, 'lease release does not turn unmarked arbitrary bytes into disposable generated cache');
+  assert.equal(await fs.readFile(path.join(root, 'data'), 'utf8'), 'retained');
+  // Positive deletion now needs the real producer header/path contract. The
+  // original arbitrary file remains an explicit protected negative above.
+  await fs.unlink(path.join(root, 'data'));
+  const derived = path.join(root, 'tree-sitter-chunk-cache', `tree-sitter-chunk_lk1_${'a'.repeat(40)}.json`);
+  await fs.mkdir(path.dirname(derived), { recursive: true });
+  const derivedPayload = JSON.stringify(withGeneratedCacheMetadata({ chunks: [] }, 'tree-sitter-chunks'));
+  await fs.writeFile(derived, derivedPayload);
   const applied = runGc();
-  assert.equal(applied.freedBytes, 8);
+  assert.equal(applied.freedBytes, Buffer.byteLength(derivedPayload));
   assert.equal(applied.quotaSatisfied, true);
   await assert.rejects(fs.stat(root), { code: 'ENOENT' });
   const { leases, lockPath } = repoAccessPaths(root);
