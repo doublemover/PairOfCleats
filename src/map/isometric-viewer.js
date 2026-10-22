@@ -80,6 +80,26 @@ export function renderIsometricHtml({
   .stack-help { font-size:11px; line-height:1.55; color:#a9bfd4; }
   @media(max-width:850px) { #stack-bar strong { font-size:12px; } #stack-bar { gap:5px; padding:0 8px; } #stack-bar button { padding:6px; } #hud { width:205px; right:8px; } #menu { width:176px; left:8px; } }
   @media(max-width:600px) { #stack-bar { height:auto; min-height:54px; flex-wrap:wrap; padding:8px; } #stack-bar strong { width:100%; } #menu { top:100px; max-height:24vh; width:40%; } #hud { top:auto; bottom:35px; right:8px; left:8px; width:auto; max-width:none; max-height:27vh; } #stack-tree { max-height:16vh; } #stack-status { font-size:10px; } }
+  [hidden] { display:none!important; }
+  .scene-first-workspace #stack-bar { height:auto; min-height:56px; box-sizing:border-box; flex-wrap:wrap; padding:10px 14px; gap:8px; background:#071423f5; }
+  .scene-first-workspace #stack-bar strong { color:#84e9ff; }
+  .viewer-scope-chip { font-size:11px; color:#b0c8dd; max-width:360px; line-height:1.4; }
+  .scene-first-workspace #menu,.scene-first-workspace #hud { box-sizing:border-box; top:calc(var(--viewer-header-height,56px) + 12px); bottom:auto; width:min(380px,calc(100% - 28px)); max-width:380px; max-height:calc(100% - var(--viewer-header-height,56px) - 90px); background:#09192bf5; border-color:#294e72; }
+  .scene-first-workspace #menu { left:14px; }
+  .scene-first-workspace #hud { right:14px; left:auto; }
+  .viewer-task-heading { display:flex; align-items:center; gap:8px; position:sticky; top:0; z-index:1; background:#09192b; padding:5px 0 10px; }
+  #menu .viewer-task-heading button { width:auto; margin:0; }
+  .viewer-task-heading strong { margin-right:auto; font-size:15px; }
+  .scene-first-workspace #stack-tree { max-height:none; overflow:visible; }
+  .scene-first-workspace #selection-body { font-size:12px; line-height:1.5; }
+  .scene-first-workspace .slider-row { min-height:28px; }
+  #viewer-save-status { border-top:1px solid #294e72; padding-top:8px; color:#a9bfd4; }
+  .appearance-composition { padding:4px 0 14px; }
+  .appearance-composition p { color:#b0c8dd; line-height:1.5; }
+  #viewer-help { max-width:620px; max-height:75vh; overflow:auto; background:#09192b; color:#e4effa; border:1px solid #3f87b2; border-radius:12px; padding:24px; }
+  #viewer-help::backdrop { background:#020810b3; }
+  #viewer-help p { line-height:1.7; }
+  @media(max-width:600px) { .scene-first-workspace #menu,.scene-first-workspace #hud { left:8px; right:8px; width:calc(100% - 16px); max-width:none; max-height:calc(100% - var(--viewer-header-height,56px) - 70px); }.viewer-scope-chip { max-width:100%; } }
 </style>
 </head>
 <body>

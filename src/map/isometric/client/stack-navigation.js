@@ -4,6 +4,7 @@ import { inspectValue } from '../../workspace/inspect.js';
 import { STACK_KINDS } from './stack-model.js';
 import { updateStackVisibility } from './stack-scene.js';
 import { selectionEndpointMatcher, endpointFile } from './selection-endpoints.js';
+import { fitOrthographicBounds, usableViewport, visibleWorldBounds } from './camera-fit.js';
 const makeButton=(label,callback)=>{const button=document.createElement('button');button.textContent=label;button.type='button';button.onclick=callback;return button;};
 const entityKey=info=>info?.type==='member'?`member:${info.id}`:info?.file?`file:${info.file}`:null;
 export function focusStack(info=null){
@@ -14,14 +15,16 @@ export function focusStack(info=null){
     state.selectionFocusAvailable=false;
     return;
   }
-  const target=member?{x:member.file.x+member.segment.x,y:member.segment.y,z:member.file.z}:file?{x:file.x,y:file.stackHeight/2,z:file.z}:{x:0,y:(model?.bounds.maxHeight||0)/2,z:0};
-  const span=member?Math.max(12*(state.scaleFactor||1),member.file.stackHeight):file?Math.max(file.width*2,file.stackHeight*1.6):state.bounds?.maxSpan||80;
-  const distance=Math.max(60,state.bounds?.maxSpan*2||60),offset=new state.THREE.Vector3(0,0,distance).applyQuaternion(state.camera.quaternion);
-  state.camera.position.set(target.x,target.y,target.z).add(offset);
   const viewport=state.getViewport?.()||{width:1200,height:800};
-  const availableWidth=Math.max(0.35,(viewport.width-560)/viewport.width);
-  const zoom=Math.min((state.camera.right-state.camera.left)*availableWidth/span,(state.camera.top-state.camera.bottom)/span);
-  state.camera.zoom=Math.max(state.controls?.zoomMin||0.05,Math.min(state.controls?.zoomMax||80,zoom));state.camera.updateProjectionMatrix();state.lockIsometric?.();updateStackVisibility(true);
+  const app=state.dom.app.getBoundingClientRect(),obstacles=[];
+  for(const id of ['stack-bar','stack-status','menu','hud']){const node=document.getElementById(id);if(!node||node.hidden)continue;const rect=node.getBoundingClientRect();if(rect.width&&rect.height)obstacles.push({left:rect.left-app.left,right:rect.right-app.left,top:rect.top-app.top,bottom:rect.bottom-app.top});}
+  const {THREE}=state;
+  let bounds;
+  if(member){const row=member.segment,center=new THREE.Vector3(member.file.x+row.x,row.y,member.file.z+row.z),half=new THREE.Vector3(Math.max(row.width*1.5,2),Math.max(row.height*2,2),Math.max(row.depth*1.5,2));bounds=new THREE.Box3(center.clone().sub(half),center.clone().add(half));}
+  else if(file)bounds=new THREE.Box3(new THREE.Vector3(file.x-file.width/2,0,file.z-file.depth/2),new THREE.Vector3(file.x+file.width/2,file.stackHeight+1.2*(state.scaleFactor||1),file.z+file.depth/2));
+  else bounds=visibleWorldBounds({THREE,roots:[state.fileGroup,state.memberGroup,state.edgeGroup,state.labelGroup]});
+  state.cameraZoomRange=fitOrthographicBounds({THREE,camera:state.camera,bounds,viewport,usable:usableViewport({...viewport,obstacles}),requestedMin:state.controls?.zoomMin,requestedMax:state.controls?.zoomMax});
+  state.nearPlane=state.camera.near;state.farPlane=state.camera.far;state.lockIsometric?.();updateStackVisibility(true);state.invalidateRender?.();
 }
 export function navigateStack(info){
   const ref=info.type==='member'?state.memberInstanceById?.get(String(info.id)):state.fileInstanceByKey?.get(info.file);
@@ -30,9 +33,11 @@ export function navigateStack(info){
   focusStack(info);
 }
 export function initStackNavigation(){
+  if(state.sourceNavigationInitialized){state.refreshStackNavigation?.();return;}
   state.inspectSourceReference=navigateStack;
   const tree=document.getElementById('stack-tree'),filter=document.getElementById('stack-search'),back=document.getElementById('stack-back'),forward=document.getElementById('stack-forward');
   if(!tree)return;
+  state.sourceNavigationInitialized=true;
   let history=[],at=-1,replaying=false,treeOffset=0;
   const renderTree=()=>{
     tree.replaceChildren();const query=filter.value.trim().toLowerCase();let admitted=0;
@@ -81,6 +86,7 @@ export function initStackNavigation(){
     if(!info){document.getElementById('stack-breadcrumb').textContent='Select a stack or segment';back.disabled=at<1;forward.disabled=at>=history.length-1;updateStackVisibility(true);return;}const key=entityKey(info);if(!replaying&&key!==entityKey(history[at]?.info)){history=history.slice(0,at+1);history.push({info:{...info},snapshot:state.sourceIndex?.snapshot});if(history.length>50)history.shift();at=history.length-1;}
     back.disabled=at<1;forward.disabled=at>=history.length-1;
     sourceDetails(info);const breadcrumb=document.getElementById('stack-breadcrumb');breadcrumb.textContent=`${info.file||'Unknown file'}${info.type==='member'?' / '+(info.name||info.id):''}${state.selectionFocusAvailable?'':' · outside drawn scope; source inspection available'}`;
+    state.revealInspector?.();
   };
   const replay=step=>{const next=at+step;if(next<0||next>=history.length)return;at=next;replaying=true;try{const entry=history[at];if(entry.snapshot!==state.sourceIndex?.snapshot){setSemanticSelection(null);document.getElementById('stack-breadcrumb').textContent='Historical selection belongs to another saved snapshot.';}else navigateStack(entry.info);}finally{replaying=false;}};back.onclick=()=>replay(-1);forward.onclick=()=>replay(1);
   document.getElementById('stack-home').onclick=()=>focusStack();
@@ -100,6 +106,6 @@ export function initStackNavigation(){
     }offset+=40;if(offset<rows.length)host.append(more);}
     append();if(!rows.length)host.append(document.createTextNode('No resolved pipes at this scale within the admitted data.'));
   };
-  const legend=document.getElementById('stack-legend');for(const value of Object.values(STACK_KINDS)){const item=document.createElement('span');item.textContent=`${value.shape==='circle'?'●':value.shape==='pyramid'?'▲':'■'} ${value.label}`;item.style.color=value.color;legend.append(item);}
+  const legend=document.getElementById('stack-legend');for(const [kind,value] of Object.entries(STACK_KINDS)){const item=document.createElement('span');item.dataset.stackKind=kind;item.textContent=`${value.shape==='circle'?'●':value.shape==='pyramid'?'▲':'■'} ${value.label}`;item.style.color=value.color;legend.append(item);}
   state.refreshStackNavigation=renderTree;renderTree();
 }

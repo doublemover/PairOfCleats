@@ -12,6 +12,6 @@ export const publishMapOutput = async ({ kind, target, content, write = atomicWr
       sha256: createHash('sha256').update(bytes).digest('hex') };
   } catch (error) {
     return { kind, path: outPath, ok: false,
-      error: { code: error?.code || 'ERR_MAP_OUTPUT_WRITE', message: error?.message || String(error) } };
+      error: { code: error?.code || 'ERR_MAP_OUTPUT_WRITE', causeCode:error?.causeCode||null,message: error?.message || String(error) } };
   }
 };

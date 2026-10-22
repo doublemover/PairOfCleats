@@ -113,10 +113,16 @@ const addSelectionRow = (section, label, value) => {
   labelNode.textContent = label;
   const valueNode = document.createElement('div');
   valueNode.className = 'sel-value';
-  valueNode.appendChild(renderValueNode(value));
+  const missing=value===null||value===undefined;
+  valueNode.appendChild(renderValueNode(missing?'Unavailable / not captured':value));
   row.appendChild(labelNode);
   row.appendChild(valueNode);
-  section.appendChild(row);
+  const secondary=missing||value===false||value===0||value==='None'||(Array.isArray(value)&&value.length===0);
+  if(secondary){
+    let optional=section.querySelector('details.sel-optional');
+    if(!optional){optional=document.createElement('details');optional.className='sel-optional';const summary=document.createElement('summary');summary.textContent='Additional fields · none, zero or unavailable';optional.append(summary);section.append(optional);}
+    optional.append(row);
+  }else section.appendChild(row);
 };
 
 const formatRange = (range) => {
@@ -243,7 +249,7 @@ export const renderSelectionDetails = (info) => {
     addSelectionRow(section, 'Params', member?.params || null);
     addSelectionRow(section, 'Returns', member?.returns || 'None');
     addSelectionRow(section, 'Modifiers', member?.modifiers || 'None');
-    addSelectionRow(section, 'Exported', member?.exported ?? false);
+    addSelectionRow(section, 'Exported', member?.exported ?? null);
     addSelectionRow(section, 'Range', formatRange(member?.range || info.range));
     addSelectionRow(section, 'Id', member?.id ?? info.id ?? 'None');
     addSelectionRow(section, 'Port', member?.port || 'None');
@@ -257,14 +263,14 @@ export const renderSelectionDetails = (info) => {
 
     const controlFlow = member?.controlFlow || {};
     const controlSection = createSelectionSection('Control flow');
-    addSelectionRow(controlSection, 'Branches', controlFlow.branches ?? 0);
-    addSelectionRow(controlSection, 'Loops', controlFlow.loops ?? 0);
-    addSelectionRow(controlSection, 'Returns', controlFlow.returns ?? 0);
-    addSelectionRow(controlSection, 'Breaks', controlFlow.breaks ?? 0);
-    addSelectionRow(controlSection, 'Continues', controlFlow.continues ?? 0);
-    addSelectionRow(controlSection, 'Throws', controlFlow.throws ?? 0);
-    addSelectionRow(controlSection, 'Awaits', controlFlow.awaits ?? 0);
-    addSelectionRow(controlSection, 'Yields', controlFlow.yields ?? 0);
+    addSelectionRow(controlSection, 'Branches', controlFlow.branches ?? null);
+    addSelectionRow(controlSection, 'Loops', controlFlow.loops ?? null);
+    addSelectionRow(controlSection, 'Returns', controlFlow.returns ?? null);
+    addSelectionRow(controlSection, 'Breaks', controlFlow.breaks ?? null);
+    addSelectionRow(controlSection, 'Continues', controlFlow.continues ?? null);
+    addSelectionRow(controlSection, 'Throws', controlFlow.throws ?? null);
+    addSelectionRow(controlSection, 'Awaits', controlFlow.awaits ?? null);
+    addSelectionRow(controlSection, 'Yields', controlFlow.yields ?? null);
   }
 
   const edgeSection = createSelectionSection('Edges');

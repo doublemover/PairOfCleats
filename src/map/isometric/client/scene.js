@@ -129,6 +129,7 @@ export const initScene = async () => {
     if (state.rebuildTimer) clearTimeout(state.rebuildTimer);
     state.rebuildTimer = null;
     environment.dispose();
+    scene.traverse(object=>object.shadow?.dispose?.());
     clearGroup(scene);
     for (const geometry of state.shapeGeometryCache?.values?.() || []) geometry.dispose?.();
     state.shapeGeometryCache?.clear?.();
@@ -177,6 +178,7 @@ export const initScene = async () => {
     farPlane,
     cameraInitialized: false,
     extraLights,
+    ambientLight:ambient,
     mainLight: dirLight,
     sunLight: purpleSun,
     fileGroup,

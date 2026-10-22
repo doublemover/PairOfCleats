@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { emptyViewerPreferences, resolveEffectiveViewerSettings, createViewerSettingsSession, sanitizeViewerSettings } from '../../src/map/isometric/client/effective-settings.js';
+import { resolveAppearance } from '../../src/map/isometric/client/appearance-presets.js';
+
+const document=emptyViewerPreferences('repo-a');document.preferences.base={visuals:{memberOpacity:0.7},appearance:{palette:'crisp'}};
+document.preferences.layouts.stacks={visuals:{memberOpacity:0.9}};
+assert.equal(resolveEffectiveViewerSettings({defaults:{visuals:{memberOpacity:1}},report:{visuals:{memberOpacity:0.5}},document}).visuals.memberOpacity,0.9);
+assert.throws(()=>sanitizeViewerSettings(JSON.parse('{"visuals":{"__proto__":{}}}')),/Unsupported/);
+let release;const writes=[];
+const session=createViewerSettingsSession({repoId:'repo-a',document,persist:async value=>{writes.push(value);if(writes.length===1)await new Promise(resolve=>{release=resolve;});return {...value,revision:value.revision+1};}});
+session.update({visuals:{memberOpacity:0.2}});const saving=session.save();
+await Promise.resolve();await Promise.resolve();
+session.reset();const resetting=session.save();release();await saving;await resetting;
+assert.deepEqual(writes[1].preferences,{base:{},layouts:{}});
+assert.equal(writes[1].revision,1,'reset waits for the actual accepted prior-save revision');
+assert.equal(session.status,'saved');
+const base=resolveAppearance({palette:'crisp',lighting:'night',motion:'off'}),light=resolveAppearance({...base.choice,lighting:'studio'});
+assert.equal(light.choice.palette,'crisp');assert.equal(light.choice.motion,'off');assert.equal(light.motion,false);
+assert.equal(resolveAppearance({quality:'high'}).capabilities.selectiveBloom,false);
+assert.ok(resolveAppearance({quality:'high'}).unavailable.length);
+session.dispose();
+console.log('Versioned repository/layout preferences preserve precedence, pending-save reset order and composable appearance.');

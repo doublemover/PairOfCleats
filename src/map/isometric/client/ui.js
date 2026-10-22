@@ -127,24 +127,18 @@ const createButton = (container, label, onClick) => {
 };
 
 const persistPanelState = (() => {
-  let timer = null;
   return () => {
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
       const payload = {
         layout: state.panelState.layout,
         scoring: state.panelState.scoring,
         colors: state.panelState.colors,
         controls: state.panelState.controls,
         visuals: state.panelState.visuals,
-        performance: state.panelState.performance
+        performance: state.panelState.performance,
+        appearance: state.appearance || {}
       };
-      try {
-        window.localStorage.setItem(storageKey, JSON.stringify(payload));
-      } catch (err) {
-        // ignore storage failures
-      }
-    }, 200);
+      state.settingsSession?.update(payload);
+      state.settingsSession?.scheduleSave();
   };
 })();
 
@@ -211,6 +205,7 @@ export const renderEdgeMenu = () => {
 };
 
 export const initUi = () => {
+  for(const key of ['menuView','menuEdges','menuControls','menuLayout','menuScore','menuColors','menuColorMode','menuVisuals','menuEffects','menuPerformance','menuActions'])state.dom[key]?.replaceChildren();
   const {
     dom,
     layout,
@@ -258,7 +253,7 @@ export const initUi = () => {
   state.edgeVisibility = state.edgeVisibility || new Map();
   state.gridVisible = state.gridVisible ?? true;
   createSelect(dom.menuView,{label:'Motion',value:state.motionOverride||'system',options:[{label:'Follow system',value:'system'},{label:'Off · static effects',value:'off'},{label:'On',value:'on'}],
-    onChange:value=>{state.motionOverride=value;state.cancelCameraMotion?.();state.invalidateRender?.();}});
+    onChange:value=>{state.setAppearance?.({...state.appearance,motion:value});state.cancelCameraMotion?.();state.invalidateRender?.();}});
 
   createToggle(dom.menuView, {
     label: 'Grid',
@@ -415,8 +410,9 @@ export const initUi = () => {
     onChange: (value) => {
       setNested(state.panelState, 'layout.style', value);
       syncStateFromPanel();
-      scheduleRebuild();
       persistPanelState();
+      const effective=state.settingsSession?.effective(value);
+      if(effective)state.applyViewerSettings?.({...effective,layout:{...effective.layout,style:value}});else scheduleRebuild();
     }
   });
 
@@ -599,15 +595,21 @@ export const initUi = () => {
 
   createButton(dom.menuActions, 'Save settings', () => {
     persistPanelState();
+    state.settingsSession?.save().catch(()=>{});
   });
-  createButton(dom.menuActions, 'Reset to defaults', () => {
-    try {
-      window.localStorage.removeItem(storageKey);
-    } catch (err) {
-      // ignore storage failures
-    }
-    window.location.reload();
+  createButton(dom.menuActions, 'Reset viewer preferences for this repository', () => {
+    if(!state.settingsSession)return;
+    state.settingsSession?.reset();
+    state.applyViewerSettings?.(state.settingsSession.effective(state.layout.style));
+    state.settingsSession?.save().catch(()=>{});
   });
+  try{
+    const legacy=window.localStorage.getItem(storageKey);
+    if(legacy)createButton(dom.menuActions,'Import legacy settings from this browser port',()=>{
+      try{state.settingsSession.update(JSON.parse(legacy));state.applyViewerSettings?.(state.settingsSession.effective(state.layout.style));state.settingsSession.save().catch(()=>{});}
+      catch(error){state.viewerShell?.setSaveStatus(`Legacy settings not imported: ${error.message}`);}
+    });
+  }catch{}
 
   state.syncStateFromPanel = syncStateFromPanel;
   state.renderEdgeMenu = renderEdgeMenu;

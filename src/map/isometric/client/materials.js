@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { clamp, numberValue } from './utils.js';
 import { toArray } from '../../../shared/iterables.js';
 import { injectWorldFogPosition } from './world-fog.js';
+const heightFogMaterials = new WeakSet();
 
 export const initMaterials = () => {
   const { THREE, assets, visuals } = state;
@@ -36,7 +37,8 @@ export const initMaterials = () => {
 
 export const applyHeightFog = (material) => {
   const { visuals } = state;
-  if (!material || material.userData?.heightFogApplied) return;
+  if (!material || heightFogMaterials.has(material)) return;
+  heightFogMaterials.add(material);
   material.userData.heightFogApplied = true;
   const fogVarying = 'vIsoWorldPosition';
   const previousCompile = material.onBeforeCompile;

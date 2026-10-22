@@ -55,3 +55,15 @@ All changes in this repair slice are source-only. Prepared-index CLI failures,
 atomic rename/disk failures, concurrent sessions, native Windows/macOS/Linux
 opening and shutdown, browser/module loading and rendered acceptance still need
 the deferred qualification runs.
+
+Live previews save bounded viewer preferences in durable application state for
+the explicitly selected repository, independently of random listener port. The
+local endpoint requires this session's token and repository ID. A saved model's
+root never grants write authority. A saved input without --repo uses session-only
+preferences; pass an explicitly selected --repo to associate preferences with that
+repository. Revision conflicts and save failures are visible. Saving appearance
+never rewrites repository configuration or source files.
+
+The [viewer workflow guide](viewer-workflows.md) connects preview/export with the
+API evidence workspace and explains their distinct source and qualification
+boundaries. It is self-contained and requires no private planning Page.

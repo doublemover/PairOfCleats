@@ -1,11 +1,12 @@
 import { focusStack } from './stack-navigation.js';
 import { state } from './state.js';
 import { clearGroup, disposeObject } from './scene-utils.js';
-import { applyHeightFog, updateFog, updateGridGlow, updateFlowLights } from './materials.js';
+import { applyHeightFog, updateFog, updateGridGlow, updateFlowLights, updateFileOpacity, updateMemberOpacity } from './materials.js';
 import { computeLayout } from './layout.js';
 import { buildMeshes } from './meshes.js';
 import { buildEdges } from './edges.js';
 import { applyHighlights, renderSelectionDetails, setSelection, setSemanticSelection } from './selection.js';
+import { applyViewerAppearance } from './appearance.js';
 
 const resetScene = () => {
   state.invalidateHover?.();
@@ -237,7 +238,9 @@ export const rebuildScene = () => {
   lockIsometric();
 
   buildMeshes();
+  updateFileOpacity();updateMemberOpacity();
   buildEdges();
+  if(state.appearance)applyViewerAppearance(state,state.appearance);
   updateFlowLights();
   if (typeof state.renderEdgeMenu === 'function') {
     if (state.perfStats?.overBudget) {

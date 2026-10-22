@@ -3,13 +3,15 @@ import path from 'node:path';
 import http from 'node:http';
 import https from 'node:https';
 import { spawn } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomUUID, randomBytes } from 'node:crypto';
 import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
-import { bootstrapRuntime, getRepoCacheRoot, resolveToolRoot } from '../shared/dict-utils.js';
+import { bootstrapRuntime, getRepoCacheRoot, getRepoId, resolveToolRoot } from '../shared/dict-utils.js';
 import { renderIsometricHtml } from '../../src/map/isometric-viewer.js';
 import { decodePathnameSafe } from './map-iso-safe-join.js';
 import { readSavedMap } from './map-saved-input.js';
 import { pinMapViewerAssets } from './map-viewer-session-assets.js';
+import { createMapPreferenceStore } from './map-viewer-preferences.js';
+import { VIEWER_SETTINGS_MAX_BYTES } from '../../src/map/isometric/client/effective-settings.js';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 export const openMapPreviewBrowser = (url, { platform = process.platform, spawnImpl = spawn, warn = console.error } = {}) => {
@@ -45,14 +47,17 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
   controller.signal.addEventListener('abort', () => { if (server?.listening) close().catch(error => stderr.write(`${error.message}\n`)); }, { once: true });
   process.once('SIGINT', onSignal); process.once('SIGTERM', onSignal);
   try {
-    let input, identity;
+    let input, identity,preferenceStore=null;
+    const sessionToken=randomBytes(32).toString('hex');
     if (argv.input) {
       const inputPath = path.resolve(argv.input);
       stderr.write(`Opening saved map: ${inputPath}. No live-index validation or build is requested.\n`);
       input = await readSavedMap(inputPath, { signal: controller.signal });
       identity = { ...input.provenance, inputPath, repo: input.model.root, producer: input.model.version, options: input.model.options || null };
+      if(argv.repo){const selected=bootstrapRuntime(argv.repo);preferenceStore=createMapPreferenceStore(getRepoId(selected.repoRoot));}
     } else {
       const { repoRoot, userConfig, runtimeEnv } = bootstrapRuntime(argv.repo || argv.dir || null);
+      preferenceStore=createMapPreferenceStore(getRepoId(repoRoot));
       const outPath = argv.out ? path.resolve(argv.out) : path.join(getRepoCacheRoot(repoRoot, userConfig), 'maps', `preview-${randomUUID()}.html`);
       if (!argv.out) temporaryOutput = outPath;
       stderr.write(`Preparing map for ${repoRoot}. Only the selected existing index is read; no index build is performed.\n`);
@@ -82,18 +87,31 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
       && await fs.stat(input.model.root.path).then(stat => stat.isDirectory(), () => false);
     const sourceNavigation = { available: sourceAvailable, reason: sourceAvailable ? null : 'Original source checkout unavailable; recorded evidence remains inspectable.' };
     const viewerConfig = argv.input ? {} : input.model.viewer || {};
+    const preferences=preferenceStore?{endpoint:'/map-preferences',repoId:preferenceStore.repoId,token:sessionToken}:null;
     const html = Buffer.from(renderIsometricHtml({ mapModel: input.model, threeUrl,
       openUriTemplate: sourceAvailable ? argv['open-uri-template'] || '' : '', viewerConfig: { ...viewerConfig, threeUrl,
-        sourceNavigation, openUriTemplate: sourceAvailable ? argv['open-uri-template'] || '' : '' } }));
+        sourceNavigation,preferences,openUriTemplate: sourceAvailable ? argv['open-uri-template'] || '' : '' } }));
     if (html.length > 40 * 1024 * 1024) throw new Error('Rendered saved map exceeds the preview document budget.');
     session = { ...pinned, html, documentSha256: digest(html), snapshotSha256: input.sha256, identity };
     controller.signal.throwIfAborted();
     const tls = argv['tls-key'] ? { key: await fs.readFile(path.resolve(argv['tls-key'])), cert: await fs.readFile(path.resolve(argv['tls-cert'])) } : null;
     controller.signal.throwIfAborted();
-    const handle = (request, response) => {
-      if (!['GET','HEAD'].includes(request.method)) { response.writeHead(405); response.end('GET and HEAD only.'); return; }
+    const handleRequest = async(request, response) => {
       const pathname = decodePathnameSafe(new URL(request.url || '/', 'http://127.0.0.1').pathname);
       if (pathname == null) { response.writeHead(400); response.end('Malformed request path.'); return; }
+      if(pathname==='/map-preferences'){
+        if(!preferenceStore||request.headers['x-map-session']!==sessionToken){response.writeHead(403);response.end('No selected-repository preference authority for this request.');return;}
+        const reply=(status,body)=>{response.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});response.end(JSON.stringify(body));};
+        if(request.method==='GET'){reply(200,await preferenceStore.load());return;}
+        if(request.method!=='PUT'){reply(405,{error:'GET or PUT required.'});return;}
+        if(!/^application\/json(?:;|$)/i.test(request.headers['content-type']||'')){reply(415,{error:'JSON preferences required.'});return;}
+        const chunks=[];let length=0;
+        for await(const chunk of request){length+=chunk.length;if(length>VIEWER_SETTINGS_MAX_BYTES){reply(413,{error:'Preferences exceed 64 KiB.'});return;}chunks.push(chunk);}
+        try{reply(200,await preferenceStore.save(JSON.parse(Buffer.concat(chunks,length).toString('utf8')),{signal:controller.signal}));}
+        catch(error){reply(error.code==='ERR_VIEWER_PREFERENCE_CONFLICT'?409:400,{error:error.message});}
+        return;
+      }
+      if (!['GET','HEAD'].includes(request.method)) { response.writeHead(405); response.end('GET and HEAD only.'); return; }
       const document = pathname === '/' || pathname === '/map.iso.html';
       const asset = document ? { bytes: session.html, sha256: session.documentSha256, contentType: 'text/html; charset=utf-8' } : session.assets.get(pathname);
       if (!asset) { response.writeHead(404); response.end('Asset unavailable in this pinned viewer session. Restart explicitly after repairing local assets.'); return; }
@@ -101,6 +119,7 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
         'Cache-Control': 'no-store', ETag: `"${asset.sha256}"`, 'X-Map-Snapshot': session.snapshotSha256 });
       response.end(request.method === 'HEAD' ? undefined : asset.bytes);
     };
+    const handle=(request,response)=>{handleRequest(request,response).catch(error=>{if(!response.headersSent)response.writeHead(500,{'Content-Type':'application/json'});if(!response.writableEnded)response.end(JSON.stringify({error:error.message}));});};
     server = tls ? https.createServer(tls, handle) : http.createServer(handle);
     await new Promise((resolve, reject) => {
       const aborted = () => failed(controller.signal.reason || new Error('Preview startup cancelled.'));

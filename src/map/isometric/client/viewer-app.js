@@ -20,9 +20,21 @@ import { initUi } from './ui.js';
 import { rebuildScene, scheduleRebuild } from './rebuild.js';
 import { initControls } from './controls.js';
 import { applyDisplayLimits } from './display-limits.js';
+import { initViewerShell } from './workspace-shell.js';
+import { loadViewerSettingsSession } from './settings-client.js';
+import { applyViewerAppearance, initAppearanceEditor } from './appearance.js';
 
 const initViewer = async () => {
-  const { map: rawMap, config, dom } = loadDomConfig();
+  const loaded=loadDomConfig();
+  const {map:rawMap,dom}=loaded;
+  const shell=initViewerShell(state,document);
+  Object.assign(state,{rawMap,map:rawMap,dom,config:loaded.config,THREE:null});
+  initMapData();initStackNavigation();
+  dom.summary.textContent=`Available snapshot: ${state.sourceIndex.counts.files} files / ${state.sourceIndex.counts.members} members / ${state.sourceIndex.counts.edges} edges. Source browser ready.`;
+  const settingsSession=await loadViewerSettingsSession(loaded.config,{onStatus:value=>shell.setSaveStatus(value)});
+  const config=settingsSession.effective(loaded.config.layout?.style||'stacks');
+  state.settingsSession=settingsSession;
+  shell.setSaveStatus(settingsSession.availabilityError?`save-unavailable: ${settingsSession.availabilityError}`:settingsSession.status);
   const { map, limits } = applyDisplayLimits(rawMap, config?.performance?.displayLimits);
 
   dom.summary.textContent = 'Preparing bounded source model…';
@@ -131,7 +143,8 @@ const initViewer = async () => {
     normalMapState: { texture: null },
     drawCounts: { files: 0, members: 0, edges: 0, labels: 0 },
     perfStats: { fps: null, slowCallbacks: 0, callbackIntervalMs: null, heapUsed: null },
-    displayLimits: limits
+    displayLimits: limits,
+    appearance:config.appearance
   });
 
   const renderSummary = () => {
@@ -161,6 +174,18 @@ const initViewer = async () => {
   retry.onclick=()=>enhance();
   state.onRendererStatus=message=>{dom.summary.textContent=message;dom.summary.append(retry);};
   state.rebuildAfterContextRestore=()=>{rebuildScene();initControls();renderSummary();};
+  state.applyViewerSettings=fresh=>{
+    Object.assign(state.layout,{...layoutDefaults,...fresh.layout});
+    Object.assign(state.scoring,{...scoringDefaults,...fresh.scoring});
+    Object.assign(state.colors,{...colorDefaults,...fresh.colors});
+    Object.assign(state.visuals,{...visualDefaults,...fresh.visuals,glass:{...visualDefaults.glass,...fresh.visuals?.glass}});
+    Object.assign(state.controls,{...controlDefaults,...fresh.controls,wasd:{...controlDefaults.wasd,...fresh.controls?.wasd}});
+    Object.assign(state.performance,{...performanceDefaults,...fresh.performance,drawCaps:{...performanceDefaults.drawCaps,...fresh.performance?.drawCaps},lod:{...performanceDefaults.lod,...fresh.performance?.lod},hud:{...performanceDefaults.hud,...fresh.performance?.hud}});
+    state.appearance=fresh.appearance;
+    const next=applyDisplayLimits(state.rawMap,fresh.performance?.displayLimits);
+    state.map=next.map;state.displayLimits=next.limits;initMapData();state.refreshStackNavigation?.();
+    initUi();rebuildScene();applyViewerAppearance(state,fresh.appearance);initAppearanceEditor(state,document,dom.menuVisuals);renderSummary();
+  };
   const enhance=async()=>{
     retry.remove();
     dom.summary.textContent='Source browser ready · loading local 3D assets…';
@@ -173,6 +198,9 @@ const initViewer = async () => {
       initMaterials();
       initUi();
       rebuildScene();
+      state.setAppearance=appearance=>{applyViewerAppearance(state,appearance);state.settingsSession.update({...state.panelState,appearance:state.appearance});state.settingsSession.scheduleSave();};
+      applyViewerAppearance(state,state.appearance||config.appearance);
+      initAppearanceEditor(state,document,dom.menuVisuals);
       initControls();
       state.scheduleRebuild=scheduleRebuild;
       renderSummary();

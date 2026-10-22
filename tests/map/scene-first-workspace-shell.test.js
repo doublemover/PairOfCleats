@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import { Window } from 'happy-dom';
+import { renderIsometricHtml } from '../../src/map/isometric-viewer.js';
+import { initViewerShell } from '../../src/map/isometric/client/workspace-shell.js';
+
+const window=new Window({url:'http://127.0.0.1:12345',settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}});
+const {document}=window;
+document.write(renderIsometricHtml({mapModel:{nodes:[],edges:[]},threeUrl:'/three/three.module.js'}).replace(/<script[\s\S]*?<\/script>/g,''));
+const state={},shell=initViewerShell(state,document),menu=document.getElementById('menu'),inspector=document.getElementById('hud'),tree=document.getElementById('stack-tree');
+assert.equal(menu.hidden,true);assert.equal(inspector.hidden,true);
+assert.equal(document.getElementById('menu-visuals').closest('section').hidden,true,'raw appearance controls are absent from first workspace');
+assert.equal(document.getElementById('summary').parentElement.id,'stack-bar');
+const entry=document.createElement('span');entry.textContent='retained tree entry';tree.append(entry);
+const explore=[...document.querySelectorAll('#stack-bar button')].find(node=>node.textContent==='Explore');
+explore.click();assert.equal(shell.active,'Explore');assert.equal(document.activeElement.id,'stack-search');
+shell.close();assert.equal(tree.firstChild,entry,'dismissal preserves tree identity/position');assert.equal(document.activeElement,explore);
+state.revealInspector();assert.equal(shell.active,'Inspect');assert.equal(document.activeElement,explore,'selection reveal never steals keyboard focus');
+shell.close();state.revealInspector();assert.equal(shell.active,null,'dismissed inspector is not reopened by later selection notification');
+const appearance=[...document.querySelectorAll('#stack-bar button')].find(node=>node.textContent==='Appearance');
+appearance.click();assert.equal(shell.active,'Appearance');assert.equal(inspector.hidden,true);
+assert.equal(document.getElementById('menu-visuals').closest('section').hidden,false);
+assert.match(document.getElementById('stack-mode').parentElement.textContent,/Detail/);
+window.happyDOM.abort();
+console.log('Scene-first task surfaces preserve source navigation, dismissal and keyboard focus.');

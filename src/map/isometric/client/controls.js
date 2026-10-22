@@ -360,10 +360,10 @@ export const initControls = () => {
     if(motionAllowed())effectTime+=dt*1000;
     updateCamera(dt);
     if (Math.abs(zoomVelocity) > 0.0001) {
-      const zoomMin = Number.isFinite(controls.zoomMin)
+      const zoomMin = state.cameraZoomRange?.min??(Number.isFinite(controls.zoomMin)
         ? controls.zoomMin
-        : controlDefaults.zoomMin;
-      const zoomMax = Number.isFinite(controls.zoomMax) ? controls.zoomMax : controlDefaults.zoomMax;
+        : controlDefaults.zoomMin);
+      const zoomMax = state.cameraZoomRange?.max??(Number.isFinite(controls.zoomMax) ? controls.zoomMax : controlDefaults.zoomMax);
       const before = getPlanePointFromNdc(zoomPointer);
       camera.zoom = Math.max(zoomMin, Math.min(zoomMax, camera.zoom * Math.exp(zoomVelocity * dt)));
       camera.updateProjectionMatrix();

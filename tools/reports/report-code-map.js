@@ -188,6 +188,7 @@ const renderSvg = (dot) => {
 let output = null;
 let outputPath = argv.out ? path.resolve(argv.out) : null;
 let resolvedFormat = format;
+let formatUnavailable = false;
 
 if (format === 'json') {
   output = JSON.stringify(mapModel, null, argv.pretty ? 2 : 0);
@@ -197,6 +198,7 @@ if (format === 'json') {
   const dot = renderDot(mapModel);
   const svg = renderSvg(dot);
   if (!svg) {
+    formatUnavailable = true;
     resolvedFormat = 'dot';
     output = dot;
     outputPath = formatOutputPath(outputPath, '.dot');
@@ -224,8 +226,10 @@ if (outputPath) {
 }
 
 const report = {
-  ok: outputs.every(entry => entry.ok),
-  partial: outputs.some(entry => entry.ok) && outputs.some(entry => !entry.ok),
+  ok: !formatUnavailable && outputs.every(entry => entry.ok),
+  partial: outputs.some(entry => entry.ok) && (formatUnavailable || outputs.some(entry => !entry.ok)),
+  requestedFormat:format,
+  ...(formatUnavailable?{error:{code:'ERR_MAP_RENDER_FORMAT_UNAVAILABLE',message:`Requested ${format} rendering failed. Any emitted DOT is recovery input; request --format dot explicitly to export DOT successfully.`}}:{}),
   format: resolvedFormat,
   outPath: outputPath,
   modelPath: modelOut || null,
@@ -250,6 +254,7 @@ if (argv.json) {
   console.error(`Wrote ${resolvedFormat} map to ${outputPath}`);
 }
 if (!report.ok && !argv.json) {
+  if(report.error)console.error(report.error.message);
   for (const entry of outputs.filter(item => !item.ok)) console.error(`Failed ${entry.kind} output ${entry.path}: ${entry.error.code}: ${entry.error.message}`);
   process.exitCode = 1;
 }
