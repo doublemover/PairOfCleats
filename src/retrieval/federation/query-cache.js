@@ -165,8 +165,8 @@ export const buildFederatedQueryCacheKeyPayload = ({
   limits = {},
   runtime = {}
 } = {}) => ({
-  // Child mode signatures now prove generation admission before result caching.
-  v: 5,
+  // Selected scope and fulfilled mode payloads now govern strict completeness.
+  v: 6,
   repoSetId: repoSetId || null,
   manifestHash: manifestHash || null,
   workspace: normalizeWorkspace(workspace),

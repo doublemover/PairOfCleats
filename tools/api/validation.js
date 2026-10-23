@@ -1,4 +1,5 @@
 import { buildSearchRequestProperties, createSearchStringListSchema } from '../../src/shared/search-request-schema.js';
+import { validateFederatedSearchAdmission } from '../../src/retrieval/federation/request.js';
 import { cloneJsonSchema, compileSchema, createAjv } from '../../src/shared/validation/ajv-factory.js';
 import {
   SEARCH_REQUEST_REQUIREMENT,
@@ -72,8 +73,14 @@ const federatedSearchSchema = {
     workspacePath: { type: 'string', minLength: 1 },
     workspaceId: { type: 'string', minLength: 1 },
     query: { type: 'string' },
-    cursor: { type: 'string', minLength: 1 },
-    search: { type: 'object' },
+    cursor: { type: 'string', minLength: 1, maxLength: 16384 },
+    search: { type: 'object', additionalProperties: false, properties: (() => {
+      const properties = buildSearchRequestProperties();
+      delete properties.repoPath;
+      delete properties.query;
+      properties.cursor = { type: 'string', minLength: 1, maxLength: 16384 };
+      return properties;
+    })() },
     select: federatedSelectionSchema,
     merge: federatedMergeSchema,
     limits: federatedLimitsSchema,
@@ -220,7 +227,7 @@ export const createFederatedSearchValidator = () => {
   const validateFederatedSearch = compileSchema(ajv, federatedSearchSchema);
   return (payload) => {
     const valid = validateFederatedSearch(payload);
-    if (valid) return { ok: true };
+    if (valid) return validateFederatedSearchAdmission(payload);
     return { ok: false, errors: formatValidationErrors(validateFederatedSearch.errors || []) };
   };
 };

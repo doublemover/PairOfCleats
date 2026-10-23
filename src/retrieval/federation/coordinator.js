@@ -31,9 +31,13 @@ import { bindRelativeModificationArgs } from './time-filter.js';
 import { captureFederatedShadow, publishFederatedShadow } from './shadow-routing.js';
 import { createFederatedAdmission } from './admission.js';
 import { verifyFederatedModeGeneration } from './generation.js';
+import { applyModeOverride, buildRepoModePlans } from './modes.js';
+import { resolveFederatedCursor } from './request.js';
+import { INTERNAL_EXACT_SEARCH_MODE } from '../cli.js';
+import { validateFederatedModeResult } from './results.js';
 
 export const resolveFederatedUnavailableModes = ({repos,requestedModes,eligibleModesByRepo,cohortExcluded={}}) =>
-  (repos || []).filter(repo=>repo.enabled !== false).flatMap(repo=>(requestedModes || [])
+  (repos || []).flatMap(repo=>(requestedModes || [])
     .filter(mode=>!eligibleModesByRepo.get(repo.repoId)?.has(mode)
       && !toArray(cohortExcluded[mode]).some(excluded=>excluded.repoId === repo.repoId && excluded.reason === 'cohort-excluded'))
     .map(mode=>({repoId:repo.repoId,mode,reason:'not-eligible-for-request'})));
@@ -43,14 +47,6 @@ const MODE_PAYLOAD_KEYS = Object.freeze({
   prose: 'prose',
   'extracted-prose': 'extractedProse',
   records: 'records'
-});
-const MODE_FLAG_COVERAGE = Object.freeze({
-  code: ['code'],
-  prose: ['prose', 'extracted-prose'],
-  'extracted-prose': ['extracted-prose'],
-  records: ['records'],
-  both: ['code', 'prose', 'extracted-prose'],
-  all: ['code', 'prose', 'extracted-prose', 'records']
 });
 const MAX_FEDERATED_TOP = 500;
 const MAX_FEDERATED_PER_REPO_TOP = 1000;
@@ -119,88 +115,6 @@ const resolveRequestedModes = (modeValue) => {
   if (mode === 'extracted-prose') return ['extracted-prose'];
   if (mode === 'records') return ['records'];
   return ['code', 'prose', 'extracted-prose'];
-};
-
-const splitAtEndOfOptions = (args) => {
-  const markerIndex = args.findIndex((token) => String(token || '') === '--');
-  if (markerIndex < 0) {
-    return {
-      options: args.slice(),
-      positional: []
-    };
-  }
-  return {
-    options: args.slice(0, markerIndex),
-    positional: args.slice(markerIndex)
-  };
-};
-
-const removeModeFlag = (args) => {
-  const { options, positional } = splitAtEndOfOptions(args);
-  const output = [];
-  for (let i = 0; i < options.length; i += 1) {
-    const token = String(options[i] || '');
-    if (token === '--mode') {
-      if (i + 1 < options.length) i += 1;
-      continue;
-    }
-    if (token.startsWith('--mode=')) continue;
-    output.push(token);
-  }
-  return [...output, ...positional];
-};
-
-/**
- * Apply a per-repo mode override to prebuilt federated per-repo args.
- *
- * @param {string[]} args
- * @param {string|null} modeFlag
- * @returns {string[]}
- */
-const applyModeOverride = (args, modeFlag) => {
-  const withoutMode = removeModeFlag(args);
-  if (!modeFlag) return withoutMode;
-  const { options, positional } = splitAtEndOfOptions(withoutMode);
-  return [...options, '--mode', modeFlag, ...positional];
-};
-
-/**
- * Build one or more per-repo mode calls needed to satisfy a repo's eligible
- * mode set while avoiding known-unavailable modes.
- *
- * @param {string[]} eligibleModes
- * @returns {Array<{modeFlag:string,modesCovered:Set<string>}>}
- */
-const buildRepoModePlans = (eligibleModes = []) => {
-  const eligible = new Set(eligibleModes);
-  if (!eligible.size) return [];
-  const has = (mode) => eligible.has(mode);
-  if (has('code') && has('prose') && has('extracted-prose') && has('records')) {
-    return [{ modeFlag: 'all', modesCovered: new Set(MODE_FLAG_COVERAGE.all) }];
-  }
-  if (has('code') && has('prose') && has('extracted-prose') && !has('records')) {
-    return [{ modeFlag: 'both', modesCovered: new Set(MODE_FLAG_COVERAGE.both) }];
-  }
-  if (!has('code') && has('prose') && has('extracted-prose') && !has('records')) {
-    return [{ modeFlag: 'prose', modesCovered: new Set(MODE_FLAG_COVERAGE.prose) }];
-  }
-  const plans = [];
-  if (has('code')) {
-    plans.push({ modeFlag: 'code', modesCovered: new Set(MODE_FLAG_COVERAGE.code) });
-  }
-  if (has('prose') || has('extracted-prose')) {
-    if (has('prose') && has('extracted-prose')) {
-      plans.push({ modeFlag: 'prose', modesCovered: new Set(MODE_FLAG_COVERAGE.prose) });
-    } else if (has('extracted-prose')) {
-      plans.push({ modeFlag: 'extracted-prose', modesCovered: new Set(MODE_FLAG_COVERAGE['extracted-prose']) });
-    } else {
-      plans.push({ modeFlag: 'prose', modesCovered: new Set(['prose']) });
-    }
-  }
-  if (has('records')) {
-    plans.push({ modeFlag: 'records', modesCovered: new Set(MODE_FLAG_COVERAGE.records) });
-  }
-  return plans;
 };
 
 /**
@@ -586,9 +500,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   checkAbort();
   const timeAnchor = Date.now();
   const query = String(request.query || '').trim();
-  if (query && (request.cursor || request.search?.cursor)) {
-    throw createError(ERROR_CODES.INVALID_REQUEST, 'Workspace cursors require filter-only enumeration.');
-  }
+  const requestCursor = resolveFederatedCursor(request);
 
   const workspaceConfig = resolveWorkspaceConfig(request, context);
   if (request.workspaceId && request.workspaceId !== workspaceConfig.repoSetId) {
@@ -686,7 +598,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       return Array.from(repoEligibleModesById.get(repoId) || []).sort().map((mode) => ({ repo, mode }));
     });
     const result = await enumerateWorkspace({
-      tasks, args: enumerationArgs, cursor: request.cursor || request.search?.cursor,
+      tasks, args: enumerationArgs, cursor: requestCursor,
       manifestHash: manifest.manifestHash, search: context.searchFn || coreSearch, signal: context.signal,
       verifyResult: (task, result) => verifyFederatedModeGeneration({ repoId: task.repo.repoId,
         modes: [task.mode], result, manifestRepo: manifest.repos.find(repo => repo.repoId === task.repo.repoId) }),
@@ -855,8 +767,8 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     const outcome = repoOutcomes.get(repo.repoId) || null;
     const eligibleModes = sortModes(repoEligibleModesById.get(repo.repoId) || []);
     const fulfilledModes = sortModes(outcome?.fulfilledModes || []);
-    const unavailableModes = requestedModes
-      .filter((mode) => !eligibleModes.includes(mode))
+    const unavailableModes = unavailableRequestedModes.filter(entry => entry.repoId === repo.repoId)
+      .map(entry => entry.mode)
       .map((mode) => ({
         mode,
         availabilityReason: manifestRepo?.indexes?.[mode]?.availabilityReason || 'not-eligible-for-request'
@@ -1011,8 +923,10 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
                 buildRoot: admittedBuild.buildRoot || null,
                 activeBuildRoot: admittedBuild.activeRoot || null,
                 buildGenerationKey: admittedBuild.generationKey || null
-              } : resolvedGeneration
+              } : resolvedGeneration,
+              ...(plan.modesCovered.size === 1 ? { [INTERNAL_EXACT_SEARCH_MODE]: [...plan.modesCovered][0] } : {})
             });
+            validateFederatedModeResult(result, plan.modesCovered);
             verifyFederatedModeGeneration({ repoId: repo.repoId, modes: plan.modesCovered, result,
               manifestRepo: manifestRepoMap.get(repo.repoId) });
             if (result?.backend) combined.backend = result.backend;

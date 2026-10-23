@@ -37,6 +37,11 @@ try {
   assert.deepEqual(last.prose.map(hit => hit.name), ['prose-1']);
   assert.equal(last.pagination.hasMore, false);
   await assert.rejects(runFederatedSearch({ ...request, strict: true }), { code: 'NO_INDEX' });
+  const ranked = await runFederatedSearch({ workspacePath: missing.workspacePath, query: 'alpha',
+    search: { mode: 'prose', backend: 'memory' } });
+  assert.equal(ranked.prose.length, 1, 'ranked prose-only plans also avoid unadmitted extracted-prose reads');
+  assert.equal(ranked.extractedProse.length, 0);
+  assert.equal(ranked.partialSuccess, true);
 
   const complete = await makeRepo('complete', ['prose', 'extracted-prose']);
   let cursor = null, pages = 0;

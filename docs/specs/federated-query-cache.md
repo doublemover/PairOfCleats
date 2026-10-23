@@ -141,8 +141,16 @@ Fields that must not influence key:
 Static requests retain cache hits while fresh. Relative-filter requests at a
 different effective cutoff cannot reuse the earlier result, even if the manifest
 is unchanged. Enumeration cursors retain their first-page time anchor instead
-of moving their cutoff between pages. Internal key payload version 3 retires
-older results from before time binding and pre-limit FTS eligibility.
+of moving their cutoff between pages. Internal key payload version 6 retires
+results from before child-signature and selected-scope completeness admission,
+in addition to earlier time binding and pre-limit FTS eligibility changes.
+
+Loaded cache snapshots share only frozen result payloads; entry metadata belongs
+to each request. Full publication merges explicitly changed payloads under the
+canonical cache lock. A recency-only update applies only to the exact payload id
+it observed, so a stale request cannot replace a newer result or resurrect an
+evicted entry. Edits made after a flush is submitted remain pending for the next
+deliberate flush. Touch publication remains awaited by one-shot callers.
 
 ### 6.3 Invalid build pointer handling
 

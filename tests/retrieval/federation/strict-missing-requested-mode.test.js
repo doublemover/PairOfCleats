@@ -25,9 +25,13 @@ for (let attempt = 0; attempt < 2; attempt++) {
 }
 await fs.writeFile(workspacePath, JSON.stringify({ schemaVersion: 1, cacheRoot: './cache', repos: [{ root: './unavailable' }] }));
 await assert.rejects(runFederatedSearch({ ...request, strict: true }, context), { code: 'NO_INDEX' });
-assert.deepEqual(resolveFederatedUnavailableModes({ repos: [{ repoId: 'healthy' }, { repoId: 'excluded' }, { repoId: 'disabled', enabled: false }],
+assert.deepEqual(resolveFederatedUnavailableModes({ repos: [{ repoId: 'healthy' }, { repoId: 'excluded' }],
   requestedModes: ['code'], eligibleModesByRepo: new Map([['healthy', new Set(['code'])]]),
   cohortExcluded: { code: [{ repoId: 'excluded', reason: 'cohort-excluded' }] } }), []);
+assert.deepEqual(resolveFederatedUnavailableModes({ repos: [{ repoId: 'explicit-disabled', enabled: false }],
+  requestedModes: ['code'], eligibleModesByRepo: new Map() }),
+[{ repoId: 'explicit-disabled', mode: 'code', reason: 'not-eligible-for-request' }],
+'a disabled member that was explicitly selected belongs to the requested scope');
 await fs.writeFile(workspacePath, JSON.stringify({ schemaVersion: 1, cacheRoot: './cache', repos: [{ root: './healthy' }] }));
 const empty = await runFederatedSearch({ ...request, strict: true }, context);
 assert.equal(empty.ok, true); assert.equal(empty.partialSuccess, false, 'healthy zero hits are complete success');

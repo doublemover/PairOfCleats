@@ -51,7 +51,7 @@ This spec defines the orchestration layer (selection → fanout → merge → re
 Federated search MUST be exposed consistently through:
 
 1. **CLI**: `pairofcleats search --workspace <path> "<query>" ...`
-2. **API server**: a dedicated endpoint (recommended) returning JSON payload.
+2. **API server**: `POST /search/federated`, returning a JSON payload.
 3. **MCP**: a dedicated tool (`search_workspace`) returning JSON payload.
 
 All three MUST use the same coordinator implementation.
@@ -114,8 +114,6 @@ comment expansion and index-compatibility requirements.
 
 ### 5.1 Endpoint
 
-Recommended: add a dedicated endpoint to avoid breaking single-repo search contract.
-
 - `POST /search/federated`
 
 ### 5.2 Request body (v1)
@@ -129,9 +127,7 @@ Recommended: add a dedicated endpoint to avoid breaking single-repo search contr
     "mode": "all",
     "top": 10,
     "backend": "auto",
-    "filter": null,
-    "compact": true,
-    "stats": false
+    "output": "compact"
   },
   "select": {
     "repos": ["poc", "svc-a"],
@@ -153,6 +149,14 @@ Rules:
   - `select.tags` or `select.tag`
   - `select.repoFilter` or `select["repo-filter"]`
 - The response is always JSON.
+- Omit `query`, or pass an empty string, with at least one effective search
+  filter to enumerate indexed matches. A mode, backend or page size alone is not
+  a filter. Nested search fields use the ordinary structured search contract;
+  unknown fields and invalid value types reject before workspace access.
+- Supply the returned workspace cursor as `cursor` or `search.cursor`, with the
+  same filters and selection. If both are supplied they must match. Workspace
+  cursors accept at most 16,384 base64url characters; they wrap a bounded local
+  cursor and are never forwarded as a repository cursor.
 
 ---
 
@@ -283,6 +287,29 @@ Coordinator returns a single federated payload:
    - Include `repos[]` diagnostics.
    - Include meta fields required for debugging/caching.
 9. Return.
+
+Strict execution (`strict:true` or `--federated-strict`) requires every selected,
+requested mode that belongs to the chosen cohort. Missing requested indexes
+reject before cache reuse or child execution. Disabled members omitted by
+selection and intentionally excluded cohorts are outside that admitted scope;
+explicitly selecting a disabled member brings it into scope. Cohort policy
+`strict` separately rejects incompatible cohort choices. Successful empty results
+from a present index are complete work, while an absent mode payload or failed
+child envelope is an execution failure.
+
+The first terminal child failure stops new repository and mode admissions.
+The caller rejects promptly, while already started work drains with its original
+signal. Request-owned caches retire after that drain; host caches remain owned
+by the host. Non-strict repository failures remain partial diagnostics and are
+not persisted as successful outer cache entries. External cancellation is
+terminal in either mode, including for warm cache requests.
+
+Each core child mode's actual index signature must match the manifest used for
+cohort admission before its hits enter the merge. The final manifest fence also
+rejects live generation changes. Historical selectors are not a separate
+workspace snapshot: selected historical mode signatures must match the admitted
+workspace manifest or the request rejects. Custom programmatic search producers
+that omit retrieval metadata remain trusted and rely on the final manifest fence.
 
 ### 7.4 Per-repo forwarded args and coordinator overrides (critical)
 
