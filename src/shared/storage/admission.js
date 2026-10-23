@@ -2,13 +2,16 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
-import { assertNoSymlinkPath, readVerifiedContainedFile } from '../contained-file.js';
+import { assertNoSymlinkPath, readVerifiedContainedFile, getContainedFileSession } from '../contained-file.js';
 import { isPathWithinRoot } from '../file-paths.js';
 import { acquireFileLock, releaseFileLockOrThrow } from '../locks/file-lock.js';
 import { createLockPayload } from '../locks/file-lock-info.js';
 import { atomicWriteJson } from '../io/atomic-write.js';
 import { inspectStorageFreeSpace } from './destination.js';
 import { inspectStorageInventory } from './inventory.js';
+import { withStorageDirectory, getStorageDirectorySession } from './directory.js';
+import { observeStorageResource } from './failure-observation.js';
+import { addStorageFailureContext } from './operation-error.js';
 
 const exact = (value, field) => {
   if (!Number.isSafeInteger(value) || value < 0) throw new TypeError(`Storage admission requires exact nonnegative ${field}.`);
@@ -27,33 +30,44 @@ const readReservation = async file => {
 };
 const reservations = async directory => {
   const entries = [];
-  let iterator;
-  try { iterator = await fs.opendir(directory); }
-  catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+  let opened = false;
   try {
-    for (;;) {
-      const entry = await iterator.read();
-      if (!entry) break;
-      if (entries.length >= 10000 || !entry.isFile() || !/^[a-f0-9-]{36}\.json$/u.test(entry.name)) throw fail('unknown-or-incomplete-reservation-inventory');
-      const file = path.join(directory, entry.name);
-      const current = await readReservation(file);
-      const value = current.value;
-      if (value?.schemaVersion !== 1 || value.kind !== 'pairofcleats-storage-write-reservation'
-        || Object.keys(value).sort().join(',') !== reservationKeys || value.id !== entry.name.slice(0, -5)
-        || value.hostname !== os.hostname() || !Number.isSafeInteger(value.pid) || value.pid <= 0
-        || typeof value.resourceId !== 'string' || !value.resourceId || typeof value.lockId !== 'string' || !value.lockId
-        || value.scope !== 'storage-write-reservation' || value.metric !== 'unique-logical-file-bytes'
-        || typeof value.startedAt !== 'string' || !Number.isFinite(Date.parse(value.startedAt))
-        || typeof value.root !== 'string' || !path.isAbsolute(value.root) || !/^\d+$/u.test(value.device)
-        || !Number.isSafeInteger(value.requiredBytes) || value.requiredBytes < 0
-        || !Number.isSafeInteger(value.minimumFreeBytes) || value.minimumFreeBytes < 0
-        || (value.hardBytes !== null && (!Number.isSafeInteger(value.hardBytes) || value.hardBytes < 0))
-        || (value.measuredBytes !== null && (!Number.isSafeInteger(value.measuredBytes) || value.measuredBytes < 0))) throw fail('unreadable-or-foreign-write-reservation');
-      // Dead parent PID does not settle a possibly surviving managed child.
-      entries.push({ file, ...current });
-    }
-  } finally { await iterator.close(); }
-  return entries;
+    return await withStorageDirectory(directory, async iterator => {
+      opened = true;
+      for (;;) {
+        const entry = await iterator.read();
+        if (!entry) break;
+        if (entries.length >= 10000 || !entry.isFile() || !/^[a-f0-9-]{36}\.json$/u.test(entry.name)) throw fail('unknown-or-incomplete-reservation-inventory');
+        const file = path.join(directory, entry.name);
+        const current = await readReservation(file);
+        const value = current.value;
+        if (value?.schemaVersion !== 1 || value.kind !== 'pairofcleats-storage-write-reservation'
+          || Object.keys(value).sort().join(',') !== reservationKeys || value.id !== entry.name.slice(0, -5)
+          || value.hostname !== os.hostname() || !Number.isSafeInteger(value.pid) || value.pid <= 0
+          || typeof value.resourceId !== 'string' || !value.resourceId || typeof value.lockId !== 'string' || !value.lockId
+          || value.scope !== 'storage-write-reservation' || value.metric !== 'unique-logical-file-bytes'
+          || typeof value.startedAt !== 'string' || !Number.isFinite(Date.parse(value.startedAt))
+          || typeof value.root !== 'string' || !path.isAbsolute(value.root) || !/^\d+$/u.test(value.device)
+          || !Number.isSafeInteger(value.requiredBytes) || value.requiredBytes < 0
+          || !Number.isSafeInteger(value.minimumFreeBytes) || value.minimumFreeBytes < 0
+          || (value.hardBytes !== null && (!Number.isSafeInteger(value.hardBytes) || value.hardBytes < 0))
+          || (value.measuredBytes !== null && (!Number.isSafeInteger(value.measuredBytes) || value.measuredBytes < 0))) throw fail('unreadable-or-foreign-write-reservation');
+        // Dead parent PID does not settle a possibly surviving managed child.
+        entries.push({ file, ...current });
+      }
+      return entries;
+    });
+  } catch (error) {
+    const observation = observeStorageResource(error, { phase: 'storage-reservation-inventory' });
+    observation.requireSettled();
+    if (opened) throw observation.primary;
+    let code;
+    try { code = observation.primary.code; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    if (code === 'ENOENT') return [];
+    throw observation.primary;
+  }
 };
 
 /** Cooperative admission before writes. This reserves declared estimates among
@@ -81,6 +95,7 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
   let admittedReservation = null;
   let reservationSettled = false;
   let admissionError = null;
+  let originalObserver = () => true;
   try {
     assertNoSymlinkPath(path.parse(directory).root, directory, { allowMissing: true });
     const pending = await reservations(directory);
@@ -174,25 +189,22 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
         return releasing;
       } });
     return admittedReservation;
-  } catch (error) { admissionError = error; throw error; }
+  } catch (error) {
+    const observation = observeStorageResource(error, { phase: 'storage-write-admission' });
+    admissionError = observation.retain();
+    const observe = Object.getOwnPropertyDescriptor(admissionError, 'cacheOwnershipReleased').value;
+    originalObserver = () => observe.call(admissionError) === true;
+    throw originalObserver() ? observation.primary : admissionError;
+  }
   finally {
-    try { await releaseFileLockOrThrow(lock); admissionLock = null; }
+    try {
+      if (!originalObserver()) throw fail('original-admission-resources-unconfirmed');
+      await releaseFileLockOrThrow(lock); admissionLock = null;
+    }
     catch (cleanupError) {
       // Publication may already have sealed a reservation even though its
       // acquisition promise cannot return it. Preserve that exact owner and
       // the original coordinator handle for actual caller reconciliation.
-      const error = fail('admission-lock-release-unconfirmed', { cacheOwnershipPending: true,
-        cause: admissionError || cleanupError, storageAdmissionCleanupError: cleanupError });
-      const originalObserver = (() => {
-        if (admissionError?.cacheOwnershipPending !== true) return () => true;
-        let observer;
-        try { observer = admissionError.cacheOwnershipReleased; } catch { return () => false; }
-        return () => { try { return typeof observer === 'function' && observer.call(admissionError) === true; } catch { return false; } };
-      })();
-      error.cacheOwnershipReleased = () => originalObserver() && admissionLock === null
-        && (!admittedReservation || reservationSettled);
-      Object.defineProperty(error, 'storageWriteReservations', { configurable: true,
-        value: admittedReservation ? [admittedReservation] : [] });
       let reconciling = null;
       const session = Object.freeze({ resourceId, releaseAfterSettlement: async receipt => {
         if (receipt?.resourceId !== resourceId || receipt.settled !== true || receipt.pending !== false || !originalObserver()) {
@@ -205,7 +217,26 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
         })().finally(() => { reconciling = null; });
         return reconciling;
       } });
-      Object.defineProperty(error, 'storageAdmissionSession', { value: session, configurable: true });
+      const primary = fail('admission-lock-release-unconfirmed', {
+        cause: admissionError === null ? cleanupError : admissionError,
+        storageAdmissionCleanupError: cleanupError });
+      // Preserve only capabilities validated by the actual existing producers.
+      // An arbitrary field, cause chain or resourceId supplies no authority.
+      const fileSession = getContainedFileSession(admissionError);
+      const directorySession = getStorageDirectorySession(admissionError);
+      let error = addStorageFailureContext(primary, {
+        cacheOwnershipPending: true,
+        cacheOwnershipReleased: () => originalObserver() && admissionLock === null && (!admittedReservation || reservationSettled),
+        storageWriteReservations: Object.freeze(admittedReservation ? [admittedReservation] : []), storageAdmissionSession: session,
+        ...(fileSession ? { containedFileSession: fileSession } : {}),
+        ...(directorySession ? { storageDirectorySession: directorySession } : {})
+      }, admissionError === null ? cleanupError : admissionError,
+      { secondaryPresent: true, nonEnumerable: ['storageWriteReservations', 'storageAdmissionSession',
+        'containedFileSession', 'storageDirectorySession'] });
+      if (admissionError !== null) error = addStorageFailureContext(error, {}, cleanupError, { secondaryPresent: true });
+      const observe = Object.getOwnPropertyDescriptor(error, 'cacheOwnershipReleased').value;
+      Object.defineProperties(error, { cacheOwnershipPending: { value: true, writable: false, configurable: false },
+        cacheOwnershipReleased: { value: observe, writable: false, configurable: false } });
       throw error;
     }
   }
