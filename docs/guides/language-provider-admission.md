@@ -67,6 +67,21 @@ health, not project dependency closure or durable semantic freshness.
 Doctor uses the same repository execution gate and reports denied or pending
 commands separately, without attempting an LSP handshake for them.
 
+Provider-result cache v5 binds actual selected text, language and container/
+segment coordinates in addition to the caller's document hash. Missing selected
+bytes require a live run. Cache publication observes cancellation and rechecks
+any admitted tool/project profile immediately before committing the cache file;
+profile drift and pending cache-resource ownership remain terminal for that batch.
+
+Pyright health/quarantine now binds observed source bytes, selected command
+metadata, effective request policy/environment and bounded known project-config
+inputs. Editing a file at the same path or repairing configuration can re-enter
+warming rather than inherit the previous request's quarantine. Unknown/unreadable
+identity disables persisted health suppression. Planner health v2 and runtime
+health v2 remain operational observations, with cancellation-aware I/O. They do
+not establish interpreter, import/stub or complete dependency freshness, and they
+do not add Pyright TSP/computed/declared/expected type facts from #1151.
+
 Phpactor's dedicated profile and generic PHP LSP route now parse PHP function
 and completion-label presentation, including `$` parameter names, nullable and
 union/intersection types, PHPDoc shapes/generics, by-reference and variadic

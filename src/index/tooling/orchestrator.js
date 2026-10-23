@@ -2,6 +2,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import { assertSemanticEnvelope } from '../../contracts/validators/semantic-envelopes.js';
 import fs from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import {
@@ -39,10 +40,10 @@ import {
   toTypeEntryCollection
 } from './provider-output-contract.js';
 
-const TOOLING_PROVIDER_CACHE_KEY_VERSION = 'lk4';
+const TOOLING_PROVIDER_CACHE_KEY_VERSION = 'lk5';
 const TOOLING_PROVIDER_CACHE_KEY_PATTERN = new RegExp(`^tooling-provider:${TOOLING_PROVIDER_CACHE_KEY_VERSION}:[a-f0-9]{40}$`);
 const TOOLING_PROVIDER_CACHE_FILE_PATTERN = new RegExp(`-tooling-provider_${TOOLING_PROVIDER_CACHE_KEY_VERSION}_[a-f0-9]{40}[.]json$`);
-const TOOLING_PROVIDER_CACHE_SCHEMA_VERSION = 4;
+const TOOLING_PROVIDER_CACHE_SCHEMA_VERSION = 5;
 const TOOLING_PROVIDER_CACHE_READ_MAX_BYTES = 8 * 1024 * 1024;
 const TOOLING_PROVIDER_PROGRESS_HEARTBEAT_MS = 10_000;
 const TOOLING_PROVIDER_PROGRESS_SLOW_WARN_MS = 45_000;
@@ -72,9 +73,14 @@ const mapFromRecord = (record) => {
 };
 
 const computeDocumentsKey = (documents) => {
-  const parts = documents.map((doc) => `${doc.virtualPath}:${doc.docHash}`);
+  const parts = documents.map(doc => canonicalSemanticJson({ virtualPath: doc.virtualPath || null,
+    docHash: doc.docHash || null, sourceHash: typeof doc.text === 'string' ? createHash('sha256').update(doc.text).digest('hex') : null,
+    languageId: doc.languageId || null, effectiveExt: doc.effectiveExt || null, containerPath: doc.containerPath || null,
+    segmentUid: doc.segmentUid || null, segmentId: doc.segmentId || null,
+    segmentStart: doc.segmentStart ?? null, segmentEnd: doc.segmentEnd ?? null,
+    lineStart: doc.lineStart ?? null, lineEnd: doc.lineEnd ?? null }));
   parts.sort();
-  return parts.join(',');
+  return canonicalSemanticJson(parts);
 };
 
 const toCacheInt = (value) => {
@@ -121,11 +127,12 @@ const computeTargetsKey = (targets) => {
       const virtualPath = String(target?.virtualPath || chunkRef?.file || '');
       const rangeIdentity = resolveTargetRangeIdentity(target, chunkRef);
       const symbolIdentity = resolveTargetSymbolIdentity(target);
-      return `${chunkUid}:${chunkId}:${virtualPath}:${rangeIdentity}:${symbolIdentity}`;
+      return canonicalSemanticJson({ chunkUid, chunkId, virtualPath, rangeIdentity, symbolIdentity,
+        containerPath: chunkRef?.file || null, segmentUid: chunkRef?.segmentUid || null, segmentId: chunkRef?.segmentId || null });
     })
     .filter(Boolean);
   parts.sort();
-  return parts.join(',');
+  return canonicalSemanticJson(parts);
 };
 
 const normalizeIdentityString = (value) => {
@@ -214,10 +221,13 @@ const resolveProviderCachedExecution = async ({
   const symbolicContextRequiresLiveRun = providerId === 'typescript'
     && ctx?.toolingConfig?.typescript?.typeRepresentation === 'symbolic';
   const profileRequiresLiveRun = provider.profileContractVersion === 1 && !profileHash;
+  const sourceIdentityRequiresLiveRun = planDocuments.some(doc => typeof doc.text !== 'string');
   if (profileRequiresLiveRun) observations.push({ level: 'info', code: 'tooling_profile_not_durable',
     message: `[tooling] ${providerId} profile has no complete observed dependency identity; using a live run.`,
     context: { providerId, reasons: profile?.reasons || ['profile_unavailable'] } });
-  let cachePath = cacheDir && !symbolicContextRequiresLiveRun && !profileRequiresLiveRun
+  if (sourceIdentityRequiresLiveRun) observations.push({ level: 'info', code: 'tooling_source_identity_unavailable',
+    message: `[tooling] ${providerId} selected source bytes are unavailable; using a live run.`, context: { providerId } });
+  let cachePath = cacheDir && !symbolicContextRequiresLiveRun && !profileRequiresLiveRun && !sourceIdentityRequiresLiveRun
     ? path.join(cacheDir, buildCacheFileName({ providerId, cacheKey }))
     : null;
   let output = null;
@@ -1262,9 +1272,34 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
                   } catch (error) {
                     if (error?.code !== 'ENOENT') throw error;
                   }
-                  await writeToolingCacheJson(cachePath, deterministicPayload, { spaces: 2 });
+                  await writeToolingCacheJson(cachePath, deterministicPayload, { spaces: 2, signal: abortSignal,
+                    beforeCommit: async () => {
+                      throwIfAborted(abortSignal);
+                      if (execution.profileHash) {
+                        try { await verifyProviderProfileReceipt(execution.profile, { signal: abortSignal }); }
+                        catch (cause) {
+                          if (isAbortError(cause)) throw cause;
+                          throw new ToolingRequiredComputationError(`Observed ${providerId} profile changed before cache publication.`, {
+                            operation: 'provider-profile-freshness', reason: 'profile_changed', cause
+                          });
+                        }
+                      }
+                    } });
+                  throwIfAborted(abortSignal);
                 }
               } catch (error) {
+                if (isAbortError(error) || isRequiredToolingComputationError(error)) throw error;
+                if (error?.cacheOwnershipPending === true) {
+                  const incomplete = new ToolingRequiredComputationError(`Provider cache resources remain unsettled for ${providerId}.`, {
+                    operation: 'provider-cache-publication', reason: 'cache_ownership_pending', cause: error
+                  });
+                  Object.defineProperties(incomplete, {
+                    cacheOwnershipPending: { get: () => error.cacheOwnershipPending === true },
+                    cacheOwnershipReleased: { value: () => typeof error.cacheOwnershipReleased === 'function'
+                      ? error.cacheOwnershipReleased() === true : error.cacheOwnershipPending === false }
+                  });
+                  throw incomplete;
+                }
                 observations.push({
                   level: 'warn',
                   code: 'tooling_cache_write_failed',

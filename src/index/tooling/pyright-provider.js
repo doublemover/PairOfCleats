@@ -2,6 +2,7 @@ import path from 'node:path';
 import fsSync from 'node:fs';
 import { throwIfAborted } from '../../shared/abort.js';
 import { resolveRequestedAbortSignal } from './preflight/manager-state.js';
+import { resolvePyrightHealthIdentity } from './pyright-health-identity.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { resolvePyrightWorkspaceConfigPreflight } from './preflight/pyright-workspace-config.js';
 import {
@@ -35,6 +36,7 @@ import {
 } from './preflight/command-profile-preflight.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
+const PYRIGHT_ADAPTER_VERSION = '2.1.0';
 const PYRIGHT_WORKSPACE_SCAN_OUTLIER_ENTRY_THRESHOLD = 3000;
 const PYRIGHT_WORKSPACE_SCAN_OUTLIER_DURATION_MS = 250;
 const PYRIGHT_WORKSPACE_MARKERS = new Set([
@@ -45,7 +47,7 @@ const PYRIGHT_WORKSPACE_MARKERS = new Set([
 ]);
 
 const buildPyrightProviderEnvelope = ({ configHash, diagnostics }) => ({
-  provider: { id: 'pyright', version: '2.0.1', configHash },
+  provider: { id: 'pyright', version: PYRIGHT_ADAPTER_VERSION, configHash },
   byChunkUid: {},
   diagnostics
 });
@@ -212,7 +214,7 @@ export const createPyrightProvider = () => ({
   id: 'pyright',
   preflightId: 'pyright.command-profile',
   preflightClass: 'probe',
-  version: '2.0.1',
+  version: PYRIGHT_ADAPTER_VERSION,
   profileContractVersion: 1,
   label: 'pyright',
   priority: 30,
@@ -238,7 +240,9 @@ export const createPyrightProvider = () => ({
       }
     });
   },
-  async preflight(ctx) {
+  async preflight(ctx, inputs = {}) {
+    const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
+    throwIfAborted(abortSignal);
     const requestedCommand = resolveProviderRequestedCommand({
       providerId: 'pyright',
       toolingConfig: ctx?.toolingConfig || {},
@@ -258,7 +262,8 @@ export const createPyrightProvider = () => ({
     if (commandPreflight.state !== 'ready') {
       return commandPreflight;
     }
-    const workspaceConfigPreflight = await resolvePyrightWorkspaceConfigPreflight({ ctx });
+    const workspaceConfigPreflight = await resolvePyrightWorkspaceConfigPreflight({ ctx, abortSignal });
+    throwIfAborted(abortSignal);
     const workspaceRootPreflight = resolvePyrightWorkspaceRootPreflight({ ctx });
     const checks = mergePreflightChecks(
       commandPreflight?.check,
@@ -302,7 +307,7 @@ export const createPyrightProvider = () => ({
     if (!docs.length || (!targets.length && !ctx.semanticLspSession?.hasTargetedWork)) {
       return {
         ...(ctx.semanticLspSession ? { semanticFacts: ctx.semanticLspSession.output() } : {}),
-        provider: { id: 'pyright', version: '2.0.1', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'pyright', version: this.version, configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
@@ -354,7 +359,7 @@ export const createPyrightProvider = () => ({
     if (!resolvedCmd) {
       checks.push(...runtimeCommand.checks);
       return {
-        provider: { id: 'pyright', version: '2.0.1', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'pyright', version: this.version, configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
@@ -378,20 +383,29 @@ export const createPyrightProvider = () => ({
         breakerThreshold: 5
       }
     });
+    const requestIdentity = await resolvePyrightHealthIdentity({ repoRoot: ctx.repoRoot, documents: docs,
+      command: resolvedCmd, args: resolvedArgs, configHash: this.getConfigHash(ctx), runtimeConfig,
+      observedVersion: runtimeCommand.commandProfile?.probe?.versionText || null, signal: abortSignal });
     const requestPlan = await resolvePyrightRequestPlan({
       repoRoot: ctx.repoRoot,
       cacheRoot: ctx?.cache?.dir || null,
       documents: docs,
       targets,
-      allDocuments: Array.isArray(inputs?.documents) ? inputs.documents : docs
+      allDocuments: Array.isArray(inputs?.documents) ? inputs.documents : docs,
+      requestIdentity,
+      signal: abortSignal
     });
     checks.push(...requestPlan.checks);
     const runtimeHealth = await resolvePyrightRuntimeHealth({
       repoRoot: ctx.repoRoot,
       cacheRoot: ctx?.cache?.dir || null,
       workspaceRootRel: requestPlan.workspaceRootRel,
-      selectedDocumentSummaries: requestPlan.selectedDocumentSummaries
+      selectedDocumentSummaries: requestPlan.selectedDocumentSummaries,
+      requestIdentity,
+      requireRequestIdentity: true,
+      signal: abortSignal
     });
+    throwIfAborted(abortSignal);
     if (!requestPlan.selectedDocuments.length || !requestPlan.selectedTargets.length) {
       return buildPyrightFallbackProviderResult({
         configHash: this.getConfigHash(ctx),
@@ -457,7 +471,9 @@ export const createPyrightProvider = () => ({
       repoRoot: ctx.repoRoot,
       cacheRoot: ctx?.cache?.dir || null,
       workspaceRootRel: requestPlan.workspaceRootRel,
-      runtime: result.runtime
+      runtime: result.runtime,
+      requestIdentity,
+      signal: abortSignal
     });
     const runtimeOutcome = derivePyrightRuntimeOutcome({
       healthContext: runtimeHealth,
@@ -469,8 +485,10 @@ export const createPyrightProvider = () => ({
       repoRoot: ctx.repoRoot,
       cacheRoot: ctx?.cache?.dir || null,
       workspaceRootRel: requestPlan.workspaceRootRel,
-      record: runtimeOutcome.record
+      record: runtimeOutcome.record,
+      signal: abortSignal
     });
+    throwIfAborted(abortSignal);
     if (runtimeOutcome.state === 'degraded_soft' && runtimeOutcome.nextState === 'degraded_hard') {
       checks.push({
         name: 'pyright_timeout_storm_truncated',
@@ -513,7 +531,7 @@ export const createPyrightProvider = () => ({
       cwd: ctx?.repoRoot || process.cwd()
     });
     return {
-      provider: { id: 'pyright', version: '2.0.1', configHash: this.getConfigHash(ctx) },
+      provider: { id: 'pyright', version: this.version, configHash: this.getConfigHash(ctx) },
       byChunkUid: result.byChunkUid,
       diagnostics: result.runtime
         ? { ...(diagnostics || {}), runtime: result.runtime }
