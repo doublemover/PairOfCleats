@@ -1,10 +1,16 @@
 import { serialize } from 'node:v8';
+import { createHash } from 'node:crypto';
 import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
+import { sanitizeDictConfig } from './pool/payload.js';
 
+export const TOKENIZE_BATCH_RESULT_VERSION = 1;
 export const TOKENIZE_BATCH_MAX_CHUNKS = 8;
 export const TOKENIZE_BATCH_MAX_TEXT_BYTES = 128 * 1024;
 export const TOKENIZE_BATCH_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 const budgetError = () => Object.assign(new Error('Token batch exceeds its bounded protocol allowance.'), { code: 'ERR_TOKENIZE_BATCH_BUDGET' });
+const protocolError = reason => Object.assign(new Error(`Token batch result violates its ${reason} contract.`), {
+  code: 'ERR_TOKENIZE_BATCH_PROTOCOL', reason
+});
 const samePolicy = (left, right) => ['mode', 'ext', 'languageId'].every(key => left?.[key] === right?.[key])
   && (left?.dictConfig?.segmentation ?? null) === (right?.dictConfig?.segmentation ?? null)
   && (left?.dictConfig?.dpMaxTokenLength ?? null) === (right?.dictConfig?.dpMaxTokenLength ?? null);
@@ -24,9 +30,40 @@ export const validateTokenizeBatch = payload => {
   return { items, bytes };
 };
 
+const inputIdentity = items => {
+  const hash = createHash('sha256');
+  for (const item of items) {
+    const dictionary = sanitizeDictConfig(item.dictConfig);
+    hash.update(JSON.stringify([item.mode ?? 'code', item.ext ?? '', item.languageId ?? '',
+      dictionary.segmentation, dictionary.dpMaxTokenLength, Buffer.byteLength(item.text)]));
+    hash.update(item.text);
+  }
+  return hash.digest('hex');
+};
+
+const snapshotInput = item => Object.freeze({ text: item.text, mode: item.mode, ext: item.ext, languageId: item.languageId,
+  file: item.file, size: item.size,
+  ...(item.dictConfig ? { dictConfig: Object.freeze({ segmentation: item.dictConfig.segmentation,
+    dpMaxTokenLength: item.dictConfig.dpMaxTokenLength }) } : {}) });
+
+const validateResult = (batch, { items, bytes, identity }) => {
+  if (batch?.version !== TOKENIZE_BATCH_RESULT_VERSION) throw protocolError('version');
+  if (batch.inputIdentity !== identity || batch.inputBytes !== bytes) throw protocolError('source-policy');
+  if (!Array.isArray(batch.results) || batch.results.length !== items.length) throw protocolError('membership');
+  if (!Number.isSafeInteger(batch.outputBytes) || batch.outputBytes < 0
+    || batch.outputBytes > TOKENIZE_BATCH_MAX_OUTPUT_BYTES) throw budgetError();
+  let observedBytes = 0;
+  for (const result of batch.results) {
+    try { observedBytes += serialize(result).length; } catch { throw protocolError('cloneable-output'); }
+    if (observedBytes > TOKENIZE_BATCH_MAX_OUTPUT_BYTES) throw budgetError();
+  }
+  if (observedBytes !== batch.outputBytes) throw protocolError('output-bytes');
+};
+
 /** Scratch belongs to the existing single-task worker; each result owns its output arrays. */
 export const executeTokenizeBatch = (payload, tokenize) => {
   const { items, bytes } = validateTokenizeBatch(payload);
+  const identity = inputIdentity(items);
   const results = [];
   let outputBytes = 0;
   for (const item of items) {
@@ -41,7 +78,7 @@ export const executeTokenizeBatch = (payload, tokenize) => {
     if (outputBytes > TOKENIZE_BATCH_MAX_OUTPUT_BYTES) throw budgetError();
     results.push(result);
   }
-  return { results, inputBytes: bytes, outputBytes };
+  return { version: TOKENIZE_BATCH_RESULT_VERSION, inputIdentity: identity, results, inputBytes: bytes, outputBytes };
 };
 const unwrap = result => {
   if (result === null) return null;
@@ -57,46 +94,57 @@ const unwrap = result => {
 export const createOrderedTokenizeBatchWindow = ({ runBatch, runSingle, getInput, count, signal = null,
   canDispatch = () => true, metrics = {} }) => {
   const ready = new Map();
+  let inFlight = false;
   return {
     async take(index, input) {
-      throwIfAborted(signal);
-      const prior = ready.get(index);
-      if (prior) {
-        ready.delete(index);
-        metrics.retainedChunks = ready.size;
-        if (sameInput(prior.input, input)) return unwrap(prior.result);
-        ready.clear(); metrics.retainedChunks = 0; // A changed transform cannot borrow earlier text.
-      }
-      if (!canDispatch()) return null;
-      const items = [input];
-      let bytes = Buffer.byteLength(input.text);
-      if (input.text.length > TOKENIZE_BATCH_MAX_TEXT_BYTES || bytes > TOKENIZE_BATCH_MAX_TEXT_BYTES) {
-        metrics.singleTasks = (metrics.singleTasks || 0) + 1; return runSingle(input);
-      }
-      for (let next = index + 1; next < count && items.length < TOKENIZE_BATCH_MAX_CHUNKS; next += 1) {
+      if (inFlight) throw protocolError('single-outstanding-window');
+      inFlight = true;
+      try {
+        if (signal?.aborted) { ready.clear(); metrics.retainedChunks = 0; }
         throwIfAborted(signal);
-        const item = getInput(next);
-        if (!item || !samePolicy(input, item) || typeof item.text !== 'string' || item.text.length > TOKENIZE_BATCH_MAX_TEXT_BYTES) break;
-        const itemBytes = Buffer.byteLength(item.text);
-        if (bytes + itemBytes > TOKENIZE_BATCH_MAX_TEXT_BYTES) break;
-        bytes += itemBytes; items.push(item);
-      }
-      if (items.length < 2) { metrics.singleTasks = (metrics.singleTasks || 0) + 1; return runSingle(input); }
-      metrics.batchTasks = (metrics.batchTasks || 0) + 1;
-      metrics.serializedTextBytes = (metrics.serializedTextBytes || 0) + bytes;
-      metrics.chunksSubmitted = (metrics.chunksSubmitted || 0) + items.length;
-      metrics.batchChunksHighWater = Math.max(metrics.batchChunksHighWater || 0, items.length);
-      metrics.batchTextBytesHighWater = Math.max(metrics.batchTextBytesHighWater || 0, bytes);
-      const batch = await runBatch({ items });
-      throwIfAborted(signal);
-      if (batch !== null && (!Array.isArray(batch?.results) || batch.results.length !== items.length
-        || !Number.isSafeInteger(batch.outputBytes) || batch.outputBytes < 0 || batch.outputBytes > TOKENIZE_BATCH_MAX_OUTPUT_BYTES)) throw budgetError();
-      const results = batch?.results || items.map(() => null);
-      for (let offset = 1; offset < items.length; offset += 1) ready.set(index + offset, { input: items[offset], result: results[offset] });
-      metrics.retainedChunks = ready.size;
-      metrics.retainedChunksHighWater = Math.max(metrics.retainedChunksHighWater || 0, ready.size);
-      metrics.outputBytes = (metrics.outputBytes || 0) + (batch?.outputBytes || 0);
-      return unwrap(results[0]);
+        if (!Number.isSafeInteger(index) || index < 0 || index >= count) throw protocolError('chunk-index');
+        // Skipped/pretokenized chunks must not accumulate stale lookahead rows.
+        for (const priorIndex of ready.keys()) if (priorIndex < index) ready.delete(priorIndex);
+        metrics.retainedChunks = ready.size;
+        const prior = ready.get(index);
+        if (prior) {
+          ready.delete(index);
+          metrics.retainedChunks = ready.size;
+          if (sameInput(prior.input, input)) return unwrap(prior.result);
+          ready.clear(); metrics.retainedChunks = 0; // A changed transform cannot borrow earlier text.
+        }
+        ready.clear(); metrics.retainedChunks = 0;
+        if (!canDispatch()) return null;
+        const items = [snapshotInput(input)];
+        let bytes = Buffer.byteLength(input.text);
+        if (input.text.length > TOKENIZE_BATCH_MAX_TEXT_BYTES || bytes > TOKENIZE_BATCH_MAX_TEXT_BYTES) {
+          metrics.singleTasks = (metrics.singleTasks || 0) + 1; return await runSingle(input);
+        }
+        for (let next = index + 1; next < count && items.length < TOKENIZE_BATCH_MAX_CHUNKS; next += 1) {
+          throwIfAborted(signal);
+          const item = getInput(next);
+          if (!item || !samePolicy(input, item) || typeof item.text !== 'string' || item.text.length > TOKENIZE_BATCH_MAX_TEXT_BYTES) break;
+          const itemBytes = Buffer.byteLength(item.text);
+          if (bytes + itemBytes > TOKENIZE_BATCH_MAX_TEXT_BYTES) break;
+          bytes += itemBytes; items.push(snapshotInput(item));
+        }
+        if (items.length < 2) { metrics.singleTasks = (metrics.singleTasks || 0) + 1; return await runSingle(input); }
+        metrics.batchTasks = (metrics.batchTasks || 0) + 1;
+        metrics.serializedTextBytes = (metrics.serializedTextBytes || 0) + bytes;
+        metrics.chunksSubmitted = (metrics.chunksSubmitted || 0) + items.length;
+        metrics.batchChunksHighWater = Math.max(metrics.batchChunksHighWater || 0, items.length);
+        metrics.batchTextBytesHighWater = Math.max(metrics.batchTextBytesHighWater || 0, bytes);
+        const identity = inputIdentity(items);
+        const batch = await runBatch({ items });
+        throwIfAborted(signal);
+        if (batch !== null) validateResult(batch, { items, bytes, identity });
+        const results = batch?.results || items.map(() => null);
+        for (let offset = 1; offset < items.length; offset += 1) ready.set(index + offset, { input: items[offset], result: results[offset] });
+        metrics.retainedChunks = ready.size;
+        metrics.retainedChunksHighWater = Math.max(metrics.retainedChunksHighWater || 0, ready.size);
+        metrics.outputBytes = (metrics.outputBytes || 0) + (batch?.outputBytes || 0);
+        return unwrap(results[0]);
+      } finally { inFlight = false; }
     }
   };
 };
