@@ -79,6 +79,17 @@ $('forward').click();await settle();assert.equal($('page').textContent,'4');asse
 assert.equal($('diagram').querySelectorAll('.evidence-card').length,1,'navigation keeps the admitted local page bound');
 await load({code:[{name:'new generation',file:'new.js'}]});
 assert.equal($('filter').value,'');assert.equal($('find-matches').children.length,0);assert.equal($('find-next').disabled,true);
+await load({options:{},summary:{},nodes:Array.from({length:200},(_,index)=>({path:`lookup-${index}.js`,name:`Lookup ${index}`,members:[]})),
+  edges:Array.from({length:400},()=>({type:'call',from:{file:'lookup-0.js'},to:{file:'lookup-199.js'}}))});
+[...$('tree').querySelectorAll('button')].find(button=>button.textContent==='Lookup 0file').click();
+assert.equal($('detail').querySelectorAll('button').length,400);
+assert([...$('detail').querySelectorAll('button')].every(button=>button.textContent==='→ call · Lookup 199'));
+[...$('detail').querySelectorAll('button')][0].click();
+[...$('detail').querySelectorAll('button')].find(button=>button.textContent==='Go to target').click();
+assert.equal($('selection').textContent,'Lookup 199');$('back').click();assert.equal($('selection').textContent,'Lookup 0');
+await load({options:{},summary:{},nodes:[{path:'lookup-0.js',name:'Replacement lookup identity',members:[]}],edges:[]});
+[...$('tree').querySelectorAll('button')].find(button=>button.textContent.startsWith('Replacement lookup identity')).click();
+assert.equal($('selection').textContent,'Replacement lookup identity');assert.doesNotMatch($('detail').textContent,/→ call/);
 const {safeSvg}=await import('../../../src/map/workspace/svg.js');
 const inert=safeSvg('<svg xmlns="http://www.w3.org/2000/svg"><script>bad()</script><a href="https://example.com"><rect onload="bad()" fill="url(https://example.com/x)" width="4"/></a></svg>');
 assert.equal(inert.querySelectorAll('script,a').length,0);assert.equal(inert.querySelector('rect').hasAttribute('onload'),false);assert.equal(inert.querySelector('rect').hasAttribute('fill'),false);

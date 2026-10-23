@@ -1,6 +1,16 @@
 /** Bounded, renderer-independent projections. Original envelopes remain the evidence owner. */
 export const PROJECTION_VERSION = 1;
 export const VIEW_LIMITS = Object.freeze({ nodes: 200, edges: 400, bytes: 2 * 1024 * 1024, sourceBytes: 262144 });
+/** One replaceable admitted page; preserve Array.find's first strict match. */
+export function createPageIdentityLookup(projection) {
+  if (!Array.isArray(projection?.nodes) || projection.nodes.length > VIEW_LIMITS.nodes) throw new TypeError('Expected one bounded admitted projection page.');
+  const byId = new Map();
+  for (const node of projection.nodes) {
+    const id = node.id;
+    if (id === id && !byId.has(id)) byId.set(id, node);
+  }
+  return Object.freeze({ get: id => byId.get(id), has: id => byId.has(id), size: byId.size });
+}
 export const array = value => Array.isArray(value) ? value : [];
 export const refKey = ref => {
   if (!ref || typeof ref !== 'object') return null;

@@ -1,4 +1,4 @@
-import { projectOutput, VIEW_LIMITS } from './projection.js';
+import { projectOutput, createPageIdentityLookup, VIEW_LIMITS } from './projection.js';
 import { authorProjection, createCompileController } from './reladraw.js';
 import { createRequestController, semanticDetailInput, OPERATIONS } from './request.js';
 import { mountDiagram } from './svg.js';
@@ -7,14 +7,14 @@ import { createResponseFindController, entityFindText, FIND_PREVIEW_LIMIT } from
 const $ = id => document.getElementById(id);
 const compiler = createCompileController(), requests = createRequestController();
 const finder = createResponseFindController();
-let output = null, projection = null, story = null, compiled = null, diagram = null;
+let output = null, projection = null, pageLookup = null, story = null, compiled = null, diagram = null;
 let diagramMode = true, validSource = '', zoom = 1;
 const expanded = new Set();
 let selected = null, page = 0, loadId = 0, compileEpoch = 0, history = [], historyAt = -1, activeRequest = null;
 let responseIdentity = 0, found = null, findAt = -1;
 const notice = (text, error = false) => { $('notice').textContent = text; $('notice').classList.toggle('error', error); };
 function selection(id, remember = true) {
-  const node = projection?.nodes.find(item => item.id === id);
+  const node = pageLookup?.get(id);
   if (!node) { notice('Selected identity is unavailable in this admitted page.'); return; }
   selected = id;
   if (remember && (history[historyAt]?.id !== id || history[historyAt]?.page !== page)) { history = history.slice(0, historyAt + 1); history.push({ id, page }); if (history.length > 100) history.shift(); historyAt = history.length - 1; }
@@ -32,7 +32,7 @@ function selection(id, remember = true) {
     }));
   }
   for (const edge of related) {
-    const other = projection.nodes.find(item => item.id === (edge.from === id ? edge.to : edge.from));
+    const other = pageLookup.get(edge.from === id ? edge.to : edge.from);
     $('detail').append(button(`${edge.from === id ? '→' : '←'} ${edge.kind} · ${other?.label ?? 'unloaded'}`, () => {
       $('selection').textContent = `${edge.kind} · source evidence`;
       $('detail').replaceChildren(inspectValue(edge.detail), button('Go to source', () => selection(edge.from)), button('Go to target', () => selection(edge.to)));
@@ -71,12 +71,12 @@ function entityOverview(node) {
 }
 function renderTree() {
   const filter = $('filter').value.toLocaleLowerCase(); $('tree').replaceChildren();
-  const nodes = projection?.nodes ?? [], byId = new Map(nodes.map(node => [node.id, node])), children = new Map();
+  const nodes = projection?.nodes ?? [], byId = pageLookup, children = new Map();
   for (const node of nodes) {
     const parent = byId.has(node.parentId) && node.parentId !== node.id ? node.parentId : null;
     if (!children.has(parent)) children.set(parent, []); children.get(parent).push(node);
   }
-  let ancestor = byId.get(selected)?.parentId; const ancestors = new Set();
+  let ancestor = byId?.get(selected)?.parentId; const ancestors = new Set();
   while (ancestor && !ancestors.has(ancestor)) { ancestors.add(ancestor); ancestor = byId.get(ancestor)?.parentId; }
   const visited = new Set();
   const add = (node, host) => {
@@ -159,10 +159,11 @@ async function compileSource() {
 function rebuild(initialProjection = null) {
   loadId++; compiler.cancel(); compiled = null; diagram = null; $('export-svg').disabled = true; $('export-story').disabled = true;
   projection = initialProjection || projectOutput(output, { page, relation: $('relation').value });
+  pageLookup = createPageIdentityLookup(projection);
   const relation = $('relation').value;
   $('relation').replaceChildren(new Option('All types', ''), ...projection.relationKinds.map(kind => new Option(kind, kind)));
   $('relation').value = projection.relationKinds.includes(relation) ? relation : '';
-  for (const id of expanded) if (!projection.nodes.some(node => node.id === id)) expanded.delete(id);
+  for (const id of expanded) if (!pageLookup.has(id)) expanded.delete(id);
   story = authorProjection(projection); $('source').value = story.source;
   $('family').textContent = projection.family;
   $('generation').textContent = projection.generation ? `Pinned generation · ${typeof projection.generation === 'string' ? projection.generation : JSON.stringify(projection.generation)}` : 'Generation not supplied · identity cannot be verified';
@@ -175,7 +176,7 @@ function rebuild(initialProjection = null) {
   })));
   renderTree(); if (diagramMode) { $('diagram').replaceChildren(document.createTextNode('Compiling this admitted page…')); compileSource(); } else renderEvidenceList();
   if (selected) {
-    if (projection.nodes.some(node => node.id === selected)) selection(selected, false);
+    if (pageLookup.has(selected)) selection(selected, false);
     else { $('selection').textContent = 'Selected identity is outside this page'; $('detail').replaceChildren(document.createTextNode(selected)); }
   }
   if ($('filter').value && $('find-scope').value === 'page') updateFind();
@@ -246,7 +247,7 @@ $('forward').onclick = () => { if (historyAt < history.length - 1) followHistory
 $('export-svg').onclick = () => { if (diagram) download('pairofcleats-story.svg', new XMLSerializer().serializeToString(diagram.svg), 'image/svg+xml'); };
 $('export-story').onclick = () => download('pairofcleats-story.json', JSON.stringify({ ...story, source: validSource, coverage: projection.coverage }, null, 2));
 $('export-evidence').onclick = () => download('pairofcleats-output.json', JSON.stringify(output, null, 2));
-window.addEventListener('pagehide', () => { compiler.cancel(); requests.cancel(); finder.dispose(); });
+window.addEventListener('pagehide', () => { compiler.cancel(); requests.cancel(); finder.dispose(); pageLookup = null; });
 // Served reports can hand in one bounded initial model; API workspace starts empty.
 const initial = document.getElementById('map-data');
 if (initial) { try { accept(JSON.parse(initial.textContent), 'Code map report'); } catch (error) { notice(error.message, true); } }
