@@ -84,3 +84,26 @@ The current working tree contains these intentional uncommitted repairs; preserv
 them. The previous focused rerun has 11 passes and 3 wrapper timeouts; it is not a
 clean-suite claim. Four new JSONL/federation/semantic/quantization reports were
 inventoried during dispatch and remain unqualified until their owners finish.
+
+
+## Current handoff and owner extensions
+
+Fresh GitHub inventory on 2026-10-23 contains 970 open reports through #1553.
+The user now directs all sixteen workers to finish their current coherent source
+spans, commit, report and park. The lead continues solo afterward; no new spans
+or workers are assigned. Runtime/feature/native/model/benchmark execution remains
+deferred until the shared source settles. Capacity interruptions preserved real
+files and were resumed on the same requested Sol 6.1 model.
+
+Narrow owner extensions made during implementation: federation owns SQLite build
+correctness, excluding the dense binary iterator held by embedding quantization
+and retrieval/filter facts held by lead; JSONL owns LMDB artifact admission;
+tooling owns strict managed archive digest/prerequisite authority; language owns
+retained SDK/LSP client generations; workspace owns storage CLI workflows, while
+shared storage primitives remain with storage_setup. Scheduler finishes #1552
+default phrase spill; semantic serving finishes #1553 API target joins. Lead
+repairs #1551 micro-batch conservation and central CLI/version/publication wiring.
+
+Every source handoff lists exact commits, outstanding edits, authored UNRUN
+fixtures, producer/schema needs and remaining source/qualification limits. Earlier
+parked or active-worker observations elsewhere describe their recorded phase.

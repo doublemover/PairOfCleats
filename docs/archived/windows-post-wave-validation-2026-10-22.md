@@ -253,3 +253,20 @@ New authored fixture membership, generated command/contract surfaces, MCP 1.10.0
 schema/server snapshots and the complete front gate must be reconciled before the
 next frozen Windows campaign. The earlier 70-case and focused receipts above
 retain their original outcomes. No new execution acceptance is claimed here.
+
+
+## Solo handoff after the extended source wave
+
+The latest user direction is to finish current worker batches, commit and park
+all sixteen, then continue solo. No new runtime campaign has run in this wave.
+Fresh issue inventory is 970 through #1553. The lead's source integrations include
+artifact micro-batch conservation, exact child-close dispatch/throttle retirement,
+ordered-commit replay evidence with unknown hard-window exclusions, output-only
+producer invalidation and canonical context-policy/recovery CLI admission.
+
+Before any frozen acceptance, reconcile newly authored fixtures/sidecars and
+ordered membership, generated schemas/server snapshots and source inventories;
+run setup/native verification and the complete front gate against the resulting
+candidate. Keep the 245be5fc2 outcomes and all earlier receipts revision-specific.
+Physical-link qualification remains optional at user direction; the runtime path
+projection unit now uses its existing injected IO boundary instead of a junction.

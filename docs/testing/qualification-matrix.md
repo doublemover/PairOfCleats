@@ -15,9 +15,10 @@ Activation and selected controls remain separate from full runtime qualification
 The latest previously fully qualified production/test source remains
 `d4dcba4134f6103e3a59703d90fdbde5ca54d09e`. The broad development wave is not yet
 fully qualified. At the user's later direction, sixteen Sol 6.1/xhigh workers
-resume implementation under the [exclusive owner plan](../archived/parallel-implementation-wave-2026-10-23.md);
-broad final-tree cohort execution waits for the resulting frozen candidate. The [current issue receipt](../archived/github-issue-repairs-2026-10-21.md)
-records 967 reports and their source/acceptance limits, including ten newly assigned
+finish source implementation under the [exclusive owner plan](../archived/parallel-implementation-wave-2026-10-23.md);
+workers then park and the lead continues solo. Broad final-tree cohort execution
+waits for the resulting frozen candidate. The [current issue receipt](../archived/github-issue-repairs-2026-10-21.md)
+records 970 reports and their source/acceptance limits, including ten newly assigned
 P2 reports. Initial 70 broad cases have 60 passes, 9 failures and 1 timeout; the
 subsequent affected selection passes 11 and times out 3. All latest source requires
 its own deferred acceptance; no mixed-tree clean result is claimed. Historical 8685a0dec setup evidence remains revision-specific below.
@@ -311,3 +312,13 @@ before collecting 20 chronological warm samples. p95 is 170.7213 ms against the
 unchanged 7500 ms Windows threshold. Raw samples and complete source identity
 remain in the Windows receipt; the former empty-hit timing is diagnostic history.
 All 101 serial performance fixtures and the 16-case serial supplement pass.
+
+
+The current source-only handoff additionally includes V3 embedding profile
+retention, exact process-settlement ownership, production scheduler shadow
+exclusions, output-only artifact identity retirement, explicit recovery/SourceKit
+frontdoors and new #1551 micro-batch conservation. Source16/import11/piece3/CFG28/
+call44 coordinate the latest producer migrations. All new consumer controls are
+UNRUN. Full activation/runtime, editor host, Windows .NET/tool prerequisites,
+LMDB/SQLite, final generated MCP contracts and real-model/performance acceptance
+remain separately required; no prior green receipt qualifies these changes.

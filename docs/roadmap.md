@@ -5,7 +5,7 @@ Last audited: 2026-10-23
 Last reconciled: 2026-10-23
 Canonical for: initiative status, execution order, and remaining work
 
-Current reconciliation, 2026-10-23: 967 open issues are being reconciled by
+Current reconciliation, 2026-10-23: 970 open issues are being reconciled by
 priority and shared owner; historical implementation and acceptance remain distinct.
 
 ## Current GitHub repair program
@@ -16,8 +16,8 @@ existing `main` base. The latest qualified production/test source checkpoint is
 `d4dcba4134f6103e3a59703d90fdbde5ca54d09e`; publication is authorized and working.
 No merge is authorized. Preserve granular commits and verify remote/PR identities.
 
-The live inventory now contains **967 open issues (#584–#1550)**: P0 0, P1 52,
-P2 458, P3 102, P4 0, Perf 102, and unprioritized 253. This includes 883 new
+The live inventory now contains **970 open issues (#584–#1553)**: P0 0, P1 53,
+P2 460, P3 102, P4 0, Perf 102, and unprioritized 253. This includes 886 new
 reports. The [current repair receipt](archived/github-issue-repairs-2026-10-21.md)
 contains every issue and its disposition. The
 [previous receipt](archived/github-issue-repairs-2026-10-20.md) records 77 earlier
@@ -30,10 +30,10 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-The user resumed development with sixteen Sol 6.1/xhigh workers under an
+Sixteen Sol 6.1/xhigh workers are finishing their current batches under an
 [exclusive owner plan](archived/parallel-implementation-wave-2026-10-23.md).
-They implement and commit real files independently; the lead owns publication,
-central versions/docs and deferred integration validation. P0–P4 remain first.
+The user now directs them to finish, commit and park; the lead continues solo
+with integration, publication and deferred validation. P0–P4 remain first.
 Fresh locked setup/native verification previously passed 37 packages/33 routes
 without warnings/errors; 26 focused cases, repaired 40-case gate and the complete
 front gate passed at their recorded source. At 245be5fc2 the first 70 broad cases
@@ -45,7 +45,9 @@ New P2 reports #1541–#1550 have source repairs and authored regressions. Exten
 spans add immutable graph capability consumption, bounded opt-in JS/TS coarse
 worker analysis, distinct backend/waiter shutdown accounting and pending-provider
 fallback protection. MCP 1.10.0 and generated surfaces await final-tree refresh
-and qualification; no complete deep-suite pass is claimed.
+and qualification. New #1551 has a source repair preserving deferred artifact
+writes; #1552 phrase spill and #1553 exact API target joins are assigned in-flight.
+No complete deep-suite pass is claimed.
 
 ### Execution order
 
@@ -59,10 +61,9 @@ and qualification; no complete deep-suite pass is claimed.
    front gate passes at f05fb0d4e. A further 33 storage/publication/cache/contract
    repairs have focused proof and the complete front gate passes at d4dcba413. Remaining
    watch/pointer/queue authority and editor-package owners continue next. Three
-   Sol 6.1/xhigh agents completed their storage/setup, semantic/indexing and
-   retrieval/editor/map spans in real files and are parked for validation. The lead owns shared integration,
-   native/core work, validation, Git and publication. Research #1504 and above
-   remains with the semantic owner. No worktree or elevation is required.
+   original workers completed earlier source spans; the subsequent sixteen-worker
+   wave is finishing and parking. The lead resumes solo integration, validation,
+   Git and publication. No worktree or elevation is required.
 3. Remaining P2 correctness/contract issues, then P3, grouped by owner.
 4. Perf reports: retain correctness parity and measure the changed operation;
    distinguish operation-count reductions from real latency/heap measurements.
@@ -134,8 +135,8 @@ Unicode type roots and own parameter/argument names reach parser/cache/public
 consumers. Complete source-checked semantic tokens and iterative symbols preserve
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
-moduleExports3/recordsProducer3/sourceChunking13/importResolution9/typeNormalization8/compilerBindings23/
-lspBindings43/rq10/cfgFlow27/callFlow41/valueSlice10/boundaryFlow10/workerFlow9. VSCode and Sublime retain
+moduleExports3/recordsProducer3/sourceChunking16/importResolution11/pieceAssembly3/typeNormalization8/compilerBindings23/
+lspBindings43/rq10/cfgFlow28/callFlow44/valueSlice10/boundaryFlow10/workerFlow9. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 Proto/SemanticDB/ShellCheck report adapters are3 and SCIP importer is5; the other
 five report adapters remain2.

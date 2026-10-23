@@ -5,8 +5,8 @@ Starting source: `8685a0decb70fde42f32896f52825009c5970dda`. Branch:
 
 ## Inventory and acceptance
 
-The live open-issue inventory contains 967 issues, #584–#1550, including 883
-new reports after #667. Title/body priority census: P0 0, P1 52, P2 458, P3 102,
+The live open-issue inventory contains 970 issues, #584–#1553, including 886
+new reports after #667. Title/body priority census: P0 0, P1 53, P2 460, P3 102,
 P4 0, Perf 102, and unprioritized 253. There are no labels in this inventory.
 Priority-marked performance reports remain in their priority cohort. Unprioritized
 feature work is not silently elevated above reported correctness defects.
@@ -4693,3 +4693,48 @@ acceptance follows from the extended source work.
 `2fa86ec91` subsequently advances fresh-solve dirty propagation and explicitly
 marks invalidated processed summary components unconverged. Call flow 41 retires
 older meaning; authored differential/reference controls remain unrun.
+
+
+## Finishing the sixteen-worker source wave, 2026-10-23
+
+A fresh GitHub read contains 970 open reports through #1553. The user now asks
+workers to finish and commit their current spans, then park while the lead
+continues solo. No new spans or runtime checks are assigned during that handoff.
+Earlier tables/disposition counts retain their historical inventory scope.
+
+- Recovery `be069ab6b`/`3157c34f4` supports explicit reviewed inspect, execute,
+  candidates, graph, resume, refresh and clean workflows. Actual CLI `c04d485a3`
+  admits a bounded contained plan; graph consumption holds immutable authority.
+  Import-bearing whole-stage reuse remains blocked without canonical dependency
+  closure proof; unsupported loaded-module identity remains explicit.
+- Output identity `b6cac03a0` binds pieceAssembly3 to ordinary artifact reuse
+  while retaining file/parse/lexical bundles. Source16/import11/compiler23/LSP43/
+  CFG28/call44 retire the latest Python scope/range, R/Handlebars, compiler,
+  information-scheduling and reference-consumption meaning changes.
+- Scheduler `da2f86c69`/`a32174911` retains original process CPU/IPC/dispatch/
+  throttle ownership through actual child close after request cancellation.
+  `a2f103e7b` connects exact-attempt ordered commits and compact opted-in replay
+  evidence; unknown hard maxAhead stays unevaluable, with no selection change.
+- Embedding V3 `57d14d314` bounds coordinated profile history, ordinary-file-length
+  reservations, decoded data and original handles. V2/tuple identities remain
+  checked read-only fallbacks. Real allocation/crash/latency acceptance is open.
+- Provider, workspace, editor, native, storage, JSONL and semantic spans retain
+  original cancellation, generation, descriptor and independent cleanup failures
+  through actual consumers. Managed archive authority now admits exactly one
+  strict SHA256/SHA512 digest; real Windows prerequisite integration is in-flight.
+- `13e72a2e6` replaces the runtime-receipt unit's link creation with its controlled
+  filesystem boundary. This tests projection and grants no physical-link claim.
+
+| New report | Source disposition | Required acceptance |
+| --- | --- | --- |
+| #1551 P1 deferred micro-coalesced artifact writes disappear | `5b415c69f`: admission before destructive dequeue, soft avoided-family fallback, retained rejected work, transactional batch inspection | Authored actual planner/dispatcher/telemetry/prefetch/boundary/conservation controls UNRUN; execute with existing dispatcher matrix |
+| #1552 P2 default hashed phrases bypass spill thresholds | Scheduler worker finishes the actual default producer and existing spill cleanup owner | Exact collision/output parity, thresholds, cleanup and separate measured resource/performance qualification |
+| #1553 P2 resolved API calls reattach to unrelated names | Semantic serving worker finishes qualified target joins across actual ingestion routes | Canonical schema/CLI and exact/unresolved/capped-warning consumer controls |
+
+Scoped real npm formatting and exact owned diff checks precede source commits.
+All new runtime regressions remain unrun; generated inventories, new case and
+ordered-lane membership, MCP schemas/server snapshots and the complete front gate
+need final-tree reconciliation. Then freeze a candidate and execute explicit
+Windows correctness cohorts, serial native lifecycle and measured performance
+checks at unchanged deadlines/retries. No issue closure or final acceptance is
+claimed by this implementation checkpoint.
