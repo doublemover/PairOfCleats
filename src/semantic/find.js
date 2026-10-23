@@ -5,6 +5,8 @@ import { assertSemanticFind } from '../contracts/validators/semantic-find.js';
 import { fingerprintSemanticOperation } from './operation-fingerprint.js';
 import { throwIfAborted } from '../shared/abort.js';
 import { discoverySelector, inspectDiscoveryFact } from './discovery-facts.js';
+import { captureSemanticRequest } from './request-snapshot.js';
+import { SEMANTIC_FIND_REQUEST_SCHEMA } from '../contracts/schemas/semantic-find.js';
 const fail=(code,message)=>Object.assign(new Error(message),{code});
 export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWorkMs=250,maxContinuations=64,ttlMs=300000}={}) => {
   const maxima={records:maxRecords,bytes:maxBytes,workMs:maxWorkMs},continuations=new Map();
@@ -81,6 +83,9 @@ export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWork
   };
   // A page owns a bounded set of verified readers; cursors retain only facts.
   // A fresh page/request must verify the current source content again.
-  return args => typeof args.store?.withReadScope === 'function'
-    ? args.store.withReadScope(() => find(args)) : find(args);
+  return async args => {
+    const captured = { ...args, request: captureSemanticRequest(args.request, SEMANTIC_FIND_REQUEST_SCHEMA) };
+    return typeof captured.store?.withReadScope === 'function'
+      ? captured.store.withReadScope(() => find(captured)) : find(captured);
+  };
 };

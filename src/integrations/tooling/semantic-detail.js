@@ -10,6 +10,8 @@ import { canonicalSemanticJson } from '../../index/semantic/identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { openPublishedSymbolicTypeStore } from '../../semantic/symbolic-type-store.js';
 import { measureSymbolicResponseBytes } from '../../semantic/symbolic-type-response.js';
+import { captureSemanticRequest } from '../../semantic/request-snapshot.js';
+import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-query.js';
 
 /** One cursor service per repository/query policy; stores reopen the exact requested generation. */
 export const createSemanticDetailRunner = ({ openStore = openPublishedSemanticStore,
@@ -17,9 +19,11 @@ export const createSemanticDetailRunner = ({ openStore = openPublishedSemanticSt
   if (!Number.isSafeInteger(maxServices) || maxServices < 1 || maxServices > 64) throw new TypeError('Invalid semantic service cache bound.');
   const services = new Map();
   return async (request, { signal = null, userConfig = null } = {}) => {
+    request = captureSemanticRequest(request, SEMANTIC_DETAIL_REQUEST_SCHEMA);
     assertSemanticQuery('detailRequest', request);
     throwIfAborted(signal);
-    request = { ...request, repoRoot: getRepoRoot(request.repoRoot) };
+    const repoRoot = getRepoRoot(request.repoRoot);
+    if (repoRoot !== request.repoRoot) request = captureSemanticRequest({ ...request, repoRoot }, SEMANTIC_DETAIL_REQUEST_SCHEMA);
     const config = userConfig || loadUserConfig(request.repoRoot);
     const query = normalizeSemanticConfig(config.indexing?.semantic).query;
     const options = { maxRecords: query.maxRecords, maxRows: query.maxRows, maxBytes: query.maxBytes,

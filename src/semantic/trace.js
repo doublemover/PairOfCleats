@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.js';
 import { assertSemanticTrace } from '../contracts/validators/semantic-trace.js';
 import { throwIfAborted } from '../shared/abort.js';
+import { captureSemanticRequest } from './request-snapshot.js';
+import { SEMANTIC_TRACE_REQUEST_SCHEMA } from '../contracts/schemas/semantic-trace.js';
 const fail = (code, message) => Object.assign(new Error(message), { code });
 export const DEFAULT_TRACE_KINDS = Object.freeze('defines reads writes mutates returns captures flowsTo argumentToParameter returnToResult sharesStorage copies packs transfers dispatches consumes'.split(' '));
 const refKey = ref => canonicalSemanticJson(ref);
@@ -138,6 +140,9 @@ export const createSemanticTraceService = ({ maxRecords = 128, maxEdges = 512, m
   };
   // A continuation owns only refs/offsets; each page opens a fresh bounded read
   // scope and disposes its verified owners before returning or throwing.
-  return args => typeof args.store?.withReadScope === 'function'
-    ? args.store.withReadScope(() => trace(args)) : trace(args);
+  return async args => {
+    const captured = { ...args, request: captureSemanticRequest(args.request, SEMANTIC_TRACE_REQUEST_SCHEMA) };
+    return typeof captured.store?.withReadScope === 'function'
+      ? captured.store.withReadScope(() => trace(captured)) : trace(captured);
+  };
 };

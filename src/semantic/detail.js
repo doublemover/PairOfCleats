@@ -6,6 +6,8 @@ import { assertSemanticQuery } from '../contracts/validators/semantic-query.js';
 import { throwIfAborted } from '../shared/abort.js';
 import { observeStorageResource } from '../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../shared/storage/operation-error.js';
+import { captureSemanticRequest } from './request-snapshot.js';
+import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../contracts/schemas/semantic-query.js';
 import { readProviderEvidenceEntry, providerEvidenceState, createProviderEvidenceBudget } from './provider-evidence-detail.js';
 
 const fail = (code, message) => Object.assign(new Error(message), { code });
@@ -25,6 +27,7 @@ export const createSemanticDetailService = ({ maxContinuations = 64, ttlMs = 300
   if (!Number.isSafeInteger(maxContinuations) || maxContinuations < 1 || maxContinuations > 4096 || !Number.isSafeInteger(ttlMs) || ttlMs < 1 || ttlMs > 86400000) throw new TypeError('Invalid semantic continuation bounds.');
   const continuations = new Map();
   return async ({ store, request, signal = null }) => {
+    request = captureSemanticRequest(request, SEMANTIC_DETAIL_REQUEST_SCHEMA);
     assertSemanticQuery('detailRequest', request);
     assertSemanticEnvelope('generation', request.generation);
     if (canonicalSemanticJson(request.generation) !== canonicalSemanticJson(store.generation)) throw fail('ERR_SEMANTIC_GENERATION_MISMATCH', 'Requested semantic generation differs from the pinned store.');
