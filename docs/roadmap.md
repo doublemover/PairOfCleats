@@ -5,7 +5,7 @@ Last audited: 2026-10-23
 Last reconciled: 2026-10-23
 Canonical for: initiative status, execution order, and remaining work
 
-Current reconciliation, 2026-10-23: 963 open issues are being reconciled by
+Current reconciliation, 2026-10-23: 967 open issues are being reconciled by
 priority and shared owner; historical implementation and acceptance remain distinct.
 
 ## Current GitHub repair program
@@ -16,8 +16,8 @@ existing `main` base. The latest qualified production/test source checkpoint is
 `d4dcba4134f6103e3a59703d90fdbde5ca54d09e`; publication is authorized and working.
 No merge is authorized. Preserve granular commits and verify remote/PR identities.
 
-The live inventory now contains **963 open issues (#584–#1546)**: P0 0, P1 52,
-P2 454, P3 102, P4 0, Perf 102, and unprioritized 253. This includes 879 new
+The live inventory now contains **967 open issues (#584–#1550)**: P0 0, P1 52,
+P2 458, P3 102, P4 0, Perf 102, and unprioritized 253. This includes 883 new
 reports. The [current repair receipt](archived/github-issue-repairs-2026-10-21.md)
 contains every issue and its disposition. The
 [previous receipt](archived/github-issue-repairs-2026-10-20.md) records 77 earlier
@@ -30,18 +30,18 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest implementation wave is frozen at `c849bf600`: cold query leaf reuse, compiler pattern
-reference roles, original semantic/configuration/JSONC/artifact read lifetimes,
-and snapshot worker/request/session publication. Dispositions:141 historical,
-565 source,167 partial,90 pending. All three agents are parked. The lead is now
-performing the requested thorough Windows validation pass. Fresh locked setup and
-native/patch verification pass (37 packages/33 routes; no warnings/errors), as do
-26 focused cases, repaired 40-case gate and the complete front-gate checks.
-Broader Windows cohort acceptance remains pending. The
-[active Windows validation receipt](archived/windows-post-wave-validation-2026-10-22.md)
-records failures, repairs and limits. New P2 reports #1541–#1546 are inventoried
-pending; embedding processing/shape/codec owners batch after validation, with
-Outline and viewer consumers separate. No complete deep-suite pass is claimed.
+The user resumed development with sixteen Sol 6.1/xhigh workers under an
+[exclusive owner plan](archived/parallel-implementation-wave-2026-10-23.md).
+They implement and commit real files independently; the lead owns publication,
+central versions/docs and deferred integration validation. P0–P4 remain first.
+Fresh locked setup/native verification previously passed 37 packages/33 routes
+without warnings/errors; 26 focused cases, repaired 40-case gate and the complete
+front gate passed at their recorded source. At 245be5fc2 the first 70 broad cases
+have 60 passes, 9 ordinary failures and 1 timeout. Actual repairs and a focused rerun
+then yield 11 passes / 3 timeouts; records MetaV2 and three wrapper partitions have
+additional source repairs awaiting execution. The [Windows receipt](archived/windows-post-wave-validation-2026-10-22.md)
+retains exact provenance. Broad acceptance waits for a frozen resulting tree.
+New P2 reports #1541–#1550 have explicit owners; no complete deep-suite pass is claimed.
 
 ### Execution order
 
@@ -144,7 +144,7 @@ corrected with new authored negative/roundtrip controls, all unrun.
 Remaining qualification includes full language/provider/research integration,
 generic migration/fine-grained resume, actual native/editor/browser/model/IPC
 hosts, source-specific fail-before/after controls, locked setup, generated
-inventory/freshness, format/front gate and final Windows cohorts. Three Sol6.1/
+inventory/freshness, format/front gate and final Windows cohorts. Three Sol 6.1/
 xhigh agents continue independent real-file spans while the lead owns Git and
 publication. Unreleased edits are excluded; no new issue closure, deep pass or
 measured speedup is claimed.

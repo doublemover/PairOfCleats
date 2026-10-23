@@ -28,11 +28,11 @@ This project has two layers of benchmarking:
 
 Use the [qualification matrix](../testing/qualification-matrix.md) to distinguish
 portable contracts, measured regressions and representative workload acceptance.
-The [Node 24/26 comparison](node-runtime-comparison.md) is a deprecated historical
+The [Node 24/26 comparison](../benchmarks/node-runtime-comparison.md) is a deprecated historical
 proposal, not a current runtime qualification or recorded performance result.
 
 For bounded CPU sampling, timeline traces and CPU/I/O diagnosis, see the
-[performance profiling guide](profiling.md).
+[performance profiling guide](../benchmarks/profiling.md).
 
 Language reports distinguish observed extraction quality from missing evidence.
 Stage 1's quality record is retained in `index_state.json` even when PDF/DOCX

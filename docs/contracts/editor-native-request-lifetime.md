@@ -17,9 +17,14 @@ those locations even when all target documents remain unchanged.
 
 Completion and document-symbol providers also retain their original requesting
 document version/URI/state across repository lookup and CLI execution. Their
-existing approximate/indexed result semantics remain unchanged; this lifetime
-fence does not promote spelling candidates or document-symbol rows to uniquely
-bound semantic evidence. Existing cancellation and child ownership remain with
+indexed definition/reference candidates retain their existing evidence semantics;
+this lifetime fence alone does not promote spelling candidates to unique bindings.
+The later #1543 producer/consumer repair qualifies native document symbols with
+canonical source/declaration/range witnesses, generation and source hash before
+publishing Outline ranges. Dirty, changed, missing or unlocated witnesses remain
+outside native Outline; Inspect Indexed Document Symbols retains approximate
+indexed evidence explicitly. No synthetic origin range stands in for missing
+source coordinates. Existing cancellation and child ownership remain with
 the extension operation owner.
 
 The explicit VS Code indexed-definition/reference picker also retains that exact
@@ -48,9 +53,11 @@ require the old cursor after selection admission. Ambiguous candidate inspection
 retains its separate evidence semantics and checks source admission before the
 candidate choice.
 
-The additional registered-provider and pure request controls are authored and
-**UNVALIDATED**. No test, syntax/lint/format, bootstrap, native/child execution or
-VS Code or Sublime host qualification was run. File reads provide observed
+The original additional request-fence controls were authored without execution.
+The later #1543 actual collector/query/provider fixture passes on Windows Node26
+with an inert registered editor host; scoped formatting also passes. These narrow
+observations do not qualify a real VS Code or Sublime host. The rest of this
+implementation wave retains deferred runtime and integration acceptance. File reads provide observed
 consistency, not an atomic filesystem snapshot. This source work does not establish generated
 source mapping, complete semantic producer coverage, host cancellation behavior,
 native teardown, resource bounds or performance acceptance.

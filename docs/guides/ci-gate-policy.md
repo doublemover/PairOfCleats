@@ -1,7 +1,7 @@
 # CI Gate Policy
 
-Status: Active guide v1.2
-Last audited: 2026-10-20 (workflow contracts and read-only repository rules inspection)
+Status: Active guide v1.3
+Last audited: 2026-10-23 (checked-in workflow inventory; repository protection observation remains dated October 20)
 
 ## Purpose
 
@@ -15,8 +15,8 @@ it is not a required PR check and has no ordinary PR/branch-push trigger.
 
 ## Required merge evidence
 
-The required CI job names are `gate`, `ubuntu`, `windows`, `macos`, `rust-tui`
-and `windows-authority`. The adaptive workflow's `policy` job must also pass when
+The required CI job names are `gate`, `ubuntu`, `windows`, `macos`, `rust-tui`,
+`native-inspection` and `windows-authority`. The adaptive workflow's `policy` job must also pass when
 its workflow/path filters apply. Targeted suites for touched areas remain required
 local evidence; they are not invented hosted check names. An absent, cancelled,
 skipped or failed required result does not establish merge readiness.
@@ -25,7 +25,7 @@ The machine-readable inventory below is checked against actual workflow jobs:
 
 <!-- required-check-inventory -->
 ```json
-{"mergeWorkflow":"ci.yml","mergeJobs":["gate","ubuntu","windows","macos","rust-tui","windows-authority"],"conditionalMergeWorkflow":"adaptive-policy-checks.yml","conditionalMergeJobs":["policy"],"releaseWorkflows":["CI","CI Long"]}
+{"mergeWorkflow":"ci.yml","mergeJobs":["gate","ubuntu","windows","macos","rust-tui","native-inspection","windows-authority"],"conditionalMergeWorkflow":"adaptive-policy-checks.yml","conditionalMergeJobs":["policy"],"releaseWorkflows":["CI","CI Long"]}
 ```
 
 Read-only GitHub inspection on October 20 returned `Branch not protected` for
@@ -43,9 +43,12 @@ The merge checks establish:
    broad lane membership.
 2. CI platform jobs: `ubuntu`, `windows`, and `macos`, each running `node tools/ci/run-suite.js --mode ci --skip-prechecks` under Node 26.12.1.
 3. CI TUI job: Rust formatting, check, test, and clippy for the Rust TUI package.
-4. Windows authority job: real symlink-capable authority cohort at the candidate SHA.
-5. Targeted suites for touched areas, using `node tests/run.js --match '<selector>' --lane all --timeout-ms 30000 --retries 0`.
-6. Contract/docs drift and generated-surface freshness within their owning gates.
+4. Native inspection matrix: serial real-terminal TUI workflows, PTY disposal,
+   parser patch/lifecycle checks and produced index contracts on each supported
+   workflow platform. A configured job is not a passing result.
+5. Windows authority job: real symlink-capable authority cohort at the candidate SHA.
+6. Targeted suites for touched areas, using `node tests/run.js --match '<selector>' --lane all --timeout-ms 30000 --retries 0`.
+7. Contract/docs drift and generated-surface freshness within their owning gates.
 
 ## Required release evidence
 

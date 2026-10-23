@@ -56,7 +56,11 @@ command invocations. Argument-free wrappers and redundant tokenization selectors
 use their canonical discovered fixtures. The [retirement ledger](../archived/script-coverage-retirement-2026-10-20.json)
 records each replacement and input/assertion proof. Nightly validates disjoint
 selections and retains explicit owners outside its main lanes; platform, optional
-and destructive exclusions remain separate from successful execution.
+and destructive exclusions remain separate from successful execution. Nested
+coverage defaults to zero retries; group entry points also pass `--retries 0`
+explicitly. The tools/shell-scripts case qualifies POSIX shell merge wrappers
+separately from Windows. Windows returns its explicit platform exclusion before
+probing any Bash/WSL application alias; this is not passing shell execution.
 
 The internal `tools/ci/run-windows-authority.js` owner runs the explicit
 `tests/ci/windows-authority-fixtures.json` cohort on a capable Windows launch.

@@ -5,8 +5,8 @@ Starting source: `8685a0decb70fde42f32896f52825009c5970dda`. Branch:
 
 ## Inventory and acceptance
 
-The live open-issue inventory contains 963 issues, #584–#1546, including 879
-new reports after #667. Title/body priority census: P0 0, P1 52, P2 454, P3 102,
+The live open-issue inventory contains 967 issues, #584–#1550, including 883
+new reports after #667. Title/body priority census: P0 0, P1 52, P2 458, P3 102,
 P4 0, Perf 102, and unprioritized 253. There are no labels in this inventory.
 Priority-marked performance reports remain in their priority cohort. Unprioritized
 feature work is not silently elevated above reported correctness defects.
@@ -1327,12 +1327,16 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1538](https://github.com/doublemover/PairOfCleats/issues/1538) | other | Acquire retrieval judgments actively with bias-corrected fixed-pool evaluation | pending; new dependency-ordered research/feature scope |
 | [#1539](https://github.com/doublemover/PairOfCleats/issues/1539) | other | Share selected build-world families without mixing truth, closure or ranked completion | pending; new dependency-ordered research/feature scope |
 | [#1540](https://github.com/doublemover/PairOfCleats/issues/1540) | other | Intern occurrence-preserving syntax DAGs for pure summaries and lazy structural queries | pending; new dependency-ordered research/feature scope |
-| [#1541](https://github.com/doublemover/PairOfCleats/issues/1541) | P2 | [P2] Qualify BGE-M3 dense encoding instead of applying generic mean pooling and BGE query instructions | pending; newly filed during the parked-worker Windows validation wave; source report reviewed, implementation and runtime qualification remain open |
-| [#1542](https://github.com/doublemover/PairOfCleats/issues/1542) | P2 | [P2] Separate instruction-tuned E5 input templates from legacy query and passage prefixes | pending; newly filed during the parked-worker Windows validation wave; source report reviewed, implementation and runtime qualification remain open |
-| [#1543](https://github.com/doublemover/PairOfCleats/issues/1543) | P2 | [P2] Qualify indexed document-symbol ranges before publishing native VS Code Outline entries | pending; newly filed during the parked-worker Windows validation wave; source report reviewed, implementation and runtime qualification remain open |
-| [#1544](https://github.com/doublemover/PairOfCleats/issues/1544) | P2 | [P2] Validate provider embedding cardinality and tensor shape before normalizing away mismatches | pending; newly filed during the parked-worker Windows validation wave; source report reviewed, implementation and runtime qualification remain open |
-| [#1545](https://github.com/doublemover/PairOfCleats/issues/1545) | P2 | [P2] Preserve artifact-read failures alongside terminal viewer reader cleanup failures | pending; newly filed during the parked-worker Windows validation wave; source report reviewed, implementation and runtime qualification remain open |
-| [#1546](https://github.com/doublemover/PairOfCleats/issues/1546) | P2 | [P2] Carry the effective quantization contract through inline encoding and artifact identity | pending; newly filed during the parked-worker Windows validation wave; source report reviewed, implementation and runtime qualification remain open |
+| [#1541](https://github.com/doublemover/PairOfCleats/issues/1541) | P2 | [P2] Qualify BGE-M3 dense encoding instead of applying generic mean pooling and BGE query instructions | source implementation `a744acec9`: qualified BGE-M3 CLS/raw-input encoding; embedding identity 6; authored regression, final-tree runtime qualification deferred |
+| [#1542](https://github.com/doublemover/PairOfCleats/issues/1542) | P2 | [P2] Separate instruction-tuned E5 input templates from legacy query and passage prefixes | source implementation `a744acec9`: official instruction-tuned E5 task template and raw document encoding; identity 6; authored regression, final-tree runtime qualification deferred |
+| [#1543](https://github.com/doublemover/PairOfCleats/issues/1543) | P2 | [P2] Qualify indexed document-symbol ranges before publishing native VS Code Outline entries | source implementation `ae65262e5`: canonical indexed document symbols with original UTF-16 document qualification; authored regression, final-tree runtime qualification deferred |
+| [#1544](https://github.com/doublemover/PairOfCleats/issues/1544) | P2 | [P2] Validate provider embedding cardinality and tensor shape before normalizing away mismatches | source implementation `cc290c869`: exact provider row cardinality, tensor dimensions, dtype and numeric admission; authored regression, final-tree runtime qualification deferred |
+| [#1545](https://github.com/doublemover/PairOfCleats/issues/1545) | P2 | [P2] Preserve artifact-read failures alongside terminal viewer reader cleanup failures | source implementation `4d692dd76`: original viewer read failure and terminal cleanup failure composition; authored regression, final-tree runtime qualification deferred |
+| [#1546](https://github.com/doublemover/PairOfCleats/issues/1546) | P2 | [P2] Carry the effective quantization contract through inline encoding and artifact identity | source implementation `cbeaa42a7`: effective scalar codec 2 through inline, worker, cache and artifact identity; authored regression, final-tree runtime qualification deferred |
+| [#1547](https://github.com/doublemover/PairOfCleats/issues/1547) | P2 | [P2] Bind served semantic manifests to the same bounded bytes that are checksum-verified | source implementation `5f3194f19`: bounded exact semantic manifest bytes shared by checksum and parse; authored regression, final-tree runtime qualification deferred |
+| [#1548](https://github.com/doublemover/PairOfCleats/issues/1548) | P2 | [P2] Serialize each yielded JSONL row before advancing a reusable synchronous iterator | source implementation `6d1716a59`: serialize each synchronous yielded row before advancing its iterator; authored regression, final-tree runtime qualification deferred |
+| [#1549](https://github.com/doublemover/PairOfCleats/issues/1549) | P2 | [P2] Stop admitting federated ranked searches after a strict sibling failure | source implementation `d8e322dfb`: stop new ranked federation admission after strict sibling failure and drain active owners; authored regression, final-tree runtime qualification deferred |
+| [#1550](https://github.com/doublemover/PairOfCleats/issues/1550) | P2 | [P2] Discard rejected quantization-worker results before inline fallback | source implementation `cbeaa42a7`: all-or-none quantization result validation before publication/fallback; authored regression, final-tree runtime qualification deferred |
 
 User steering after batch 3: discontinue ignored development drafts, apply completed
 changes to real files, and frontload remaining implementation before further test
@@ -4615,3 +4619,45 @@ and viewer ownership as separate consumers. These six reports remain pending,
 not silently folded into prior source claims. Dispositions now141 historical,
 565 source,167 partial,90 pending (963 total); historical closing references
 remain unchanged. No issue was closed and no merge is authorized.
+
+### Sixteen-worker resumption, 2026-10-23
+
+At explicit user direction, resume frontloaded implementation with sixteen
+Sol6.1/xhigh workers and exact real-file ownership. The [wave plan](parallel-implementation-wave-2026-10-23.md)
+records current assignments, scoped formatting and serialized granular commits;
+source-only commits are not final-head acceptance. The [Windows receipt](windows-post-wave-validation-2026-10-22.md)
+retains all original cohort failures and partial focused results. The lead also
+repairs genuine SQLite records metadata and CLI/source-plan boundaries without
+weakening their authority/schema contracts. New reports#1547–#1550 are enumerated
+above; all live967 issue numbers have rows. No issue closes on authored source.
+
+## Sixteen-worker implementation checkpoint, 2026-10-23
+
+The [exclusive owner plan](parallel-implementation-wave-2026-10-23.md) keeps all
+sixteen Sol 6.1/xhigh workers on real product/test files in the same checkout.
+Completed spans receive further owner-specific work; Git transactions alone use
+a brief named mutex. No worktrees, ignored implementation drafts, WSL, physical
+links, elevated permissions or machine security changes are involved.
+
+Source implementations for #1541–#1550 are now recorded above. The extended wave
+also tightens original file/worker/installer cleanup, complete quantization codec
+admission, cache/artifact identity, bounded JSONL fragments and representation
+selection, retained federation mode roots, real editor request lifetimes,
+workspace first-search/build authority, operational tool recipes, provider
+cancellation and sealed build recovery. Compiler shadow summaries remain explicitly
+unqualified for cross-generation reuse; missing dependencies and unsupported
+provider/runtime capabilities retain explicit incomplete or blocked outcomes.
+
+Root integration commits `541f56284`, `6ea348339`, `6708a3e3b`, `32a6f71ef` and
+`ef8f2c8b4` retain falsey task failures through cleanup, declare canonical dense
+codec fields, preserve records metadata/source authority, coordinate semantic
+versions, avoid unrelated workspace startup configuration, carry exact postings
+plans and prevent Windows coverage from launching Bash/WSL. Source producer
+versions are records 3, source chunking 13, LSP bindings 42 and call flow 39.
+
+Required scoped formatting and owned diff checks precede each commit. Earlier
+small checks remain tied to their sources; all runtime/feature/native/performance
+execution is now deferred during shared edits. The complete front gate, generated
+surfaces, explicit case membership and Windows cohorts must be reconciled and run
+against a stable resulting candidate. No issue closure, current deep-suite pass,
+real-model qualification or measured speedup is claimed by this checkpoint.

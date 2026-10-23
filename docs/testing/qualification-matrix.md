@@ -6,18 +6,21 @@ Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
 
-The repair program targets Windows with Node26.12.1. The post-wave source
-checkpoint85be53744 has fresh locked bootstrap and separate native/patch
-verification:37 required packages,33 language routes,8 patches/25 targets/60
-hunks, exit0 and no warning/error lines in complete final logs. Its26 focused
-cases and repaired40-case gate pass; all remaining front-gate checks pass.
+The repair program targets Windows with Node 26.12.1. The post-wave source
+checkpoint 85be53744 has fresh locked bootstrap and separate native/patch
+verification: 37 required packages, 33 language routes, 8 patches/25 targets/60
+hunks, exit 0 and no warning/error lines in complete final logs. Its 26 focused
+cases and repaired 40-case gate pass; all remaining front-gate checks pass.
 Activation and selected controls remain separate from full runtime qualification.
 The latest previously fully qualified production/test source remains
 `d4dcba4134f6103e3a59703d90fdbde5ca54d09e`. The broad development wave is not yet
-fully qualified. All three agents are parked while the lead executes explicit
-Windows cohorts. The [current issue receipt](../archived/github-issue-repairs-2026-10-21.md)
-records963 reports and their source/acceptance limits, including six new pending
-P2 reports. Historical8685a0dec setup evidence remains revision-specific below.
+fully qualified. At the user's later direction, sixteen Sol 6.1/xhigh workers
+resume implementation under the [exclusive owner plan](../archived/parallel-implementation-wave-2026-10-23.md);
+broad final-tree cohort execution waits for the resulting frozen candidate. The [current issue receipt](../archived/github-issue-repairs-2026-10-21.md)
+records 967 reports and their source/acceptance limits, including ten newly assigned
+P2 reports. Initial 70 broad cases have 60 passes, 9 failures and 1 timeout; the
+subsequent affected selection passes 11 and times out 3. All latest source requires
+its own deferred acceptance; no mixed-tree clean result is claimed. Historical 8685a0dec setup evidence remains revision-specific below.
 The last qualified batch added real native HNSW backup recovery and LanceDB payload
 admission, controlled writer/rollback/cleanup faults, and UTF-8 stream boundaries.
 The actual release contracts phase passes separately from full release acceptance.
@@ -60,7 +63,7 @@ records current setup, failed controls, repairs and cohort reconciliation.
 | Request and retained source ownership | Detail/find/trace/explain schema-bounded immutable request capture before callbacks, optional undefined compatibility and canonical invalid-request400. Retained excerpts/stream verification use original contained descriptors and pinned identity; published-lock release retains original retry/phase/session work; editor/map stale-work fences | Authored actual writer/store/source/type/deadline, exact FD/session and inert editor/map controls only. Opaque lock metadata borrower/first worker release, arbitrary callback/transport/generation leases, real host/native/model/performance and final-source acceptance remain open |
 | Effective settings and original evidence | #838 shares search defaults/ANN/RRF checks with canonical effective settings preview/save; original task-span receipt/run hashes and passive AST capture; safe JSON/range/lock metadata descriptor settlement and awaited editor notifications | Authored actual preview/save/trusted-layer/search parity, paired trace/classifier, descriptor/recovery and editor controls, all unrun. External trusted-file atomicity, producer/model/labels, generic readers/first worker release, real editor/native and final Windows acceptance remain separate |
 | Original direct selections and first cleanup | Shared callFlow36 fixes destructuring setter candidate channels; direct artifact/SQLite refs/selectors and neighbor page values captured before callbacks; original source-qualified editor opening/file-only read reuse; first lock-worker prerequisites/full-state fence refresh and strict post-close JSON; effective config guardrail admission | Authored actual compiler/retained-index/SQLite, editor, FD/worker/recovery, descriptor counts and canonical config controls, all unrun. Full source/dispatch/iterator semantics, external snapshots, generic loader/transport/native lifetimes and final Windows acceptance remain open |
-| Frozen wave awaiting Windows validation | Cold-plan pure leaf reuse; compiler pattern reference roles; original semantic/configuration/JSONC/chunk-presence reads; original snapshot request, worker and session publication | Actual owner regressions authored. Fresh setup, MCP1.9.0 snapshots,26 focused cases and40-case repaired gate pass. Explicit Windows correctness/native/performance cohorts remain pending; no full acceptance claim |
+| Frozen wave awaiting Windows validation | Cold-plan pure leaf reuse; compiler pattern reference roles; original semantic/configuration/JSONC/chunk-presence reads; original snapshot request, worker and session publication | Actual owner regressions authored. Fresh setup, MCP1.9.0 snapshots,26 focused cases and 40-case repaired gate pass. Explicit Windows correctness/native/performance cohorts remain pending; no full acceptance claim |
 | Service result admission | Actual completion counts only fulfilled queue transitions and refuses coerced, fractional and unavailable successful exits; existing retry/quarantine, lease identities and Windows crash integers retained | Run authored actual policy controls; durable failed lifecycle cleanup/recovery, stale/manual retry exclusion and worker stop evidence remain open |
 | Prepared artifact rows (#1363) | Shared private immutable final JSONL product; actual symbol fitting/statistics/measurement/raw-gzip-shard output reuse, original trim/order/offsets; bounded encoded payload allowance with ordinary fallback | Run authored exact-byte/deferred-output/allowance/trim controls; chunk hot-cold-binary packing and repo-map/graph bounded spool/order migration plus fault/cancellation and memory/GC/CPU/I/O qualification remain open |
 | Typed vector ingestion (#1216) | Owned Float32 destination fill preserves exact original rounding/normalization; numeric backing-allocation and delayed actual writer controls plus exact native roundtrip assertions authored; installed Arrow/LanceDB copy path documented | Run independent float/schema/nearest parity, actual native rejection/cancellation/close and phase/peak RSS/latency cases serially; 16MiB producer backing is not whole-process/IPC/native memory and this is not zero-copy |

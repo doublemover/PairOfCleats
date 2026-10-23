@@ -10,10 +10,10 @@ The final map session batch is 93f25e53c; f14d7526b contains the required ESLint
 whitespace-only repairs in 86 files. 50d4ebb45 fixes the GraphQL chunker's missing
 brace and invalid editor-fixture setter syntax. c849bf600 fixes downloaded-header
 layout selection, node-gyp's literal Python invocation, supported npm child config
-and SQLite's redundant legacy source-build environment key. All three Sol6.1/xhigh
+and SQLite's redundant legacy source-build environment key. All three Sol 6.1/xhigh
 agents completed their spans and are parked. The lead owns validation and fixes.
 
-Windows11 build26300, x64, AMD Ryzen7 5800X3D,16 logical processors, Node26.12.1,
+Windows11 build26300, x64, AMD Ryzen7 5800X3D,16 logical processors, Node 26.12.1,
 ABI147. No Linux/WSL, elevation, machine security changes or physical links are
 part of this campaign. Native source builds use the discovered VS2022/MSVC14.44
 and Windows SDK10.0.28000.0. No active index was restarted.
@@ -106,8 +106,8 @@ from authored controls or earlier source counts.
 
 ## Front-gate repair batch, 2026-10-23
 
-Fresh complete bootstrap and a separate final native/patch verifier now exit0:
-37 required packages,33 language routes,8 patches/25 target files/60 hunks and
+Fresh complete bootstrap and a separate final native/patch verifier now exit 0:
+37 required packages, 33 language routes, 8 patches/25 target files/60 hunks and
 zero warning/error lines in their complete transcripts. The native Swift C case
 passes after the original exit11 failure. The real grammar probe also parses
 force-try and ordinary bang expressions across resets. Activation remains a
@@ -171,7 +171,69 @@ passes. No real model or latency benchmark was executed. Subsequent cohorts rema
 pending, and source changes require their resulting-candidate checks.
 
 First-cohort source checkpoint: `fdcfc0dcad41bdc70946a856dceb117f2b98bd77`. The source repairs and permanent
-identifier guard pass required formatting, the complete front gate and40 gate
+identifier guard pass required formatting, the complete front gate and 40 gate
 cases again. The analysis, publication/LSP and serial bakeoff controls pass;
 full cohort acceptance is still pending. Freeze and rerun the original failed
 analysis cohort against the next published checkpoint before proceeding.
+
+## CI/CLI cohort and resumed implementation, 2026-10-23
+
+At frozen 245be5fc2, analysis 2/2 and backcompat 1/1 pass. CI passes 28/30;
+failures are the missing native-inspection job in the policy inventory and four
+archive-relative links. CLI passes 29/37 with 7 ordinary failures and 1 timeout.
+No skips, retries or native crashes occur. Original per-case receipts remain
+under the author-workspace task's correctness-ci-01 and correctness-cli-01 logs.
+
+Repairs bind help metadata to its existing --repo option without treating the
+path as a topic; preserve unknown-option rejection; emit the actual redacted
+setup failure reason in terminal output; project only settled optional ENOENT
+source diagnostics out of the unchanged strict embedding-plan shape. Pending,
+failed, inconsistent and arbitrary source fields still fail admission. Actual
+missing/present loader controls retain the origin facts. A local static export
+audit examines 2726 executable src/tools/bin modules and finds zero broken local
+named/default imports or reexports. This does not validate dynamic loader stubs;
+the display cleanup fixture's incomplete terminal stub gains its real width seam.
+
+The canonical install preview test follows its actual read-only planned/blocked
+contract: no executed results or writes, no claimed readiness, exact selected
+clangd entry and blocker-driven exit. The removed --human flag test follows the
+current parser's explicit default-readable remedy; invalid-request and legacy
+rejection assertions remain. Both stale expectations are supported by their
+existing producer contracts, not relaxed to suppress an unknown failure.
+
+The focused rerun has 11 passes and 3 timeouts. Passing source includes setup's
+closed-input diagnostic, embedding source/plan admission, determinism, non-result
+search, all four split search matrix cases, display cleanup and CI/link repairs.
+Search cases retain all 17 source files, real index/SQLite preparation, positive
+filter counts, finite tied scores and repeated exact ordering for each original
+backend. The new cases take 11.3–16.2 seconds each. Ordered ci-long membership is
+expanded from the original wrapper; no query/assertion is retired.
+
+The three remaining wrappers are split into explicit independent cases with the
+same version/config sentinels, help permutations, invalid requests and tooling
+routes. The all-mode artifact case retains default full orchestration; its
+separate default-mode stage4 case seeds through the actual all-mode stage1 owner.
+Its source-positive checks exposed records missing canonical MetaV2, rejected by
+both strict SQLite filter facts and hydration. The records producer now invokes
+the shared MetaV2 owner after UID assignment and persists exact raw source hashes;
+recordsProducer3 retires old replay. Reuse requires canonical matching metadata,
+source identity and producer/tooling identity. SQLite checks remain strict. These
+latest records/partition changes are authored and await deferred execution.
+
+The user then explicitly requested sixteen Sol 6.1/xhigh implementation workers.
+All 16 are active under the [new owner plan](parallel-implementation-wave-2026-10-23.md).
+Broad frozen-candidate acceptance is suspended while source changes. The live
+inventory reaches 967 issues through #1550, including new exact-byte semantic,
+reused-row JSONL, terminal federation admission and quantization-result reports.
+No current complete-suite claim follows from the earlier cohorts or focused runs.
+
+
+Latest authored source also keeps records size/mtime from the same verified FD
+snapshot as its source hash instead of a subsequent path stat. Native call-scope
+repairs advance sourceChunking 13/callFlow 39; model encoding and codec migration
+advance embedding identity 6. The Windows shell wrapper now refuses any Bash/WSL
+probe before launch and declares separate POSIX qualification. Its explicit
+platform exclusion and scripted no-probe control must be included in the next
+cohort reconciliation. Nested coverage defaults to zero retries and still honors
+explicit zero through group entry points. No new broad test campaign is run while
+sixteen workers continue source changes.
