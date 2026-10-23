@@ -3,6 +3,7 @@ import { throwIfAborted } from '../../shared/abort.js';
 import { buildRetrievalHitKey } from '../hit-comparison.js';
 import { createCrossEncoderTensorScope, crossEncoderCleanupFailure } from './local-resource-owner.js';
 import { captureCrossEncoderOutputs } from './cross-encoder-outputs.js';
+import { captureCrossEncoderRuntime, assertCapturedCrossEncoderRuntime, captureCrossEncoderTokens, captureCrossEncoderPair, captureCrossEncoderSource } from './cross-encoder-inputs.js';
 
 const invalid = message => Object.assign(new Error(message), { code: 'ERR_LOCAL_RERANKER_PROFILE' });
 
@@ -21,45 +22,47 @@ export const decodeCrossEncoderLogit = tensor => {
  * failed disposal. No runtime/model/source acquisition happens in this owner.
  */
 export const scoreLocalCrossEncoderPairs = async ({ profile, query, members, sourceContext,
-  loadSource, tokenizer, session, Tensor, pendingTensors, pendingTensorOwners, signal }) => {
+  loadSource, tokenizer, session, capturedRuntime = null, Tensor, pendingTensors, pendingTensorOwners, signal }) => {
   throwIfAborted(signal);
-  const queryTokens = tokenizer.encode(query, { add_special_tokens: false });
-  if (!Array.isArray(queryTokens) || queryTokens.length > profile.maxQueryTokens) throw invalid('Cross-encoder query token allowance exceeded; truncation is disabled.');
+  const runtime = capturedRuntime === null ? captureCrossEncoderRuntime(tokenizer, session)
+    : assertCapturedCrossEncoderRuntime(capturedRuntime, tokenizer, session);
+  const context = Object.freeze({ generation: sourceContext.generation, mode: sourceContext.mode, repoScope: sourceContext.repoScope });
+  captureCrossEncoderTokens(runtime.encode(query, { add_special_tokens: false }), profile.maxQueryTokens);
   const scores = [], seen = new Set();
   let characters = 0, tokens = 0;
   for (const [index, hit] of members.entries()) {
     throwIfAborted(signal);
-    const key = buildRetrievalHitKey(hit, null, sourceContext), start = hit.start, end = hit.end;
+    const key = buildRetrievalHitKey(hit, null, context), start = hit.start, end = hit.end;
     if (!key || seen.has(key)) throw invalid('Cross-encoder source members require unique stable identities.');
     seen.add(key);
-    const source = await loadSource({ hit, key, generation: sourceContext.generation, mode: sourceContext.mode,
+    const originalSource = await loadSource({ hit, key, generation: context.generation, mode: context.mode,
       maxChars: profile.maxPassageChars, signal });
     throwIfAborted(signal);
-    if (source?.key !== key || source.generation !== sourceContext.generation || source.complete !== true
+    const source = captureCrossEncoderSource(originalSource);
+    if (source.key !== key || source.generation !== context.generation || source.complete !== true
       || source.offsetUnit !== 'utf16-code-unit' || source.start !== start || source.end !== end
       || !Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start
       || typeof source.text !== 'string' || source.text.length !== end - start
       || !source.text || source.text.length > profile.maxPassageChars
-      || !/^[a-f0-9]{64}$/u.test(source.contentDigest || '')
+      || typeof source.contentDigest !== 'string' || !/^[a-f0-9]{64}$/u.test(source.contentDigest)
       || createHash('sha256').update(source.text).digest('hex') !== source.contentDigest) throw invalid('Rerank source loader returned stale, partial or unqualified source text.');
     characters += query.length + source.text.length;
     if (characters > profile.maxTotalChars) throw invalid('Cross-encoder total character allowance exceeded.');
-    const encoded = tokenizer(query, { text_pair: source.text, padding: false,
+    const encoded = runtime.tokenize(query, { text_pair: source.text, padding: false,
       truncation: false, return_tensor: false, return_token_type_ids: true });
-    const width = encoded.input_ids?.length;
-    tokens += width || 0;
-    if (!Number.isSafeInteger(width) || width < 1 || width > profile.maxPairTokens || tokens > profile.maxTotalTokens) throw invalid('Cross-encoder pair/total token allowance exceeded; truncation is disabled.');
+    const rows = captureCrossEncoderPair(encoded, runtime.inputNames, profile.maxPairTokens), width = rows.get('input_ids').length;
+    tokens += width;
+    if (tokens > profile.maxTotalTokens) throw invalid('Cross-encoder pair/total token allowance exceeded; truncation is disabled.');
     const feeds = {};
     const tensors = createCrossEncoderTensorScope({ pendingTensors, pendingTensorOwners });
     let outputs, primaryError, hasPrimary = false;
     try {
-      for (const name of session.inputNames) {
-        const row = encoded[name];
-        if (!Array.isArray(row) || row.length !== width || row.some(value => !Number.isSafeInteger(value) || value < 0
-          || name !== 'input_ids' && value > 1)) throw invalid('Cross-encoder input tensor is malformed.');
-        feeds[name] = tensors.add(new Tensor('int64', BigInt64Array.from(row, BigInt), [1, width]));
+      for (const name of runtime.inputNames) {
+        const row = rows.get(name), data = new BigInt64Array(width);
+        for (let offset = 0; offset < width; offset++) data[offset] = BigInt(row[offset]);
+        feeds[name] = tensors.add(new Tensor('int64', data, [1, width]));
       }
-      outputs = await session.run(feeds, ['logits']);
+      outputs = await runtime.run(feeds, ['logits']);
       const logits = captureCrossEncoderOutputs(outputs, tensors);
       throwIfAborted(signal);
       scores.push({ index, score: decodeCrossEncoderLogit(logits) });

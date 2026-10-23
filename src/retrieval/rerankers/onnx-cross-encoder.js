@@ -18,6 +18,7 @@ import { scoreLocalCrossEncoderPairs } from './cross-encoder-scoring.js';
 import { createCrossEncoderSessionOwner, crossEncoderCleanupFailure } from './local-resource-owner.js';
 import { preserveRerankerFailure } from './failure-ownership.js';
 import { captureRerankerFailure } from './failure-inspection.js';
+import { captureCrossEncoderRuntime } from './cross-encoder-inputs.js';
 
 export { decodeCrossEncoderLogit } from './cross-encoder-scoring.js';
 
@@ -67,7 +68,7 @@ export const createLocalOnnxCrossEncoder = async ({ profile: input, modelRoot, s
   throwIfAborted(signal);
   const sessionLease = acquireStorageSession({ ...storage, roots: [root], scope: 'local-cross-encoder-session' });
   const queue = createRunQueue({ maxQueued: 0 });
-  let artifactLease = null, tokenizer = null, session = null, Tensor = null, observedRuntime = null;
+  let artifactLease = null, tokenizer = null, session = null, capturedRuntime = null, Tensor = null, observedRuntime = null;
   const owner = createCrossEncoderSessionOwner({ queue, sessionLease });
   const close = owner.close;
   try {
@@ -100,9 +101,9 @@ export const createLocalOnnxCrossEncoder = async ({ profile: input, modelRoot, s
       executionMode: 'sequential', intraOpNumThreads: 1, interOpNumThreads: 1,
       graphOptimizationLevel: 'basic', enableCpuMemArena: false, enableMemPattern: false });
     owner.adoptSession(session);
-    if (!Array.isArray(session.inputNames) || !session.inputNames.includes('input_ids')
-      || !session.inputNames.includes('attention_mask') || session.inputNames.some(name => !['input_ids', 'attention_mask', 'token_type_ids'].includes(name))
-      || !session.outputNames?.includes('logits')) throw invalid('Cross-encoder graph input/output capability is incompatible.');
+    capturedRuntime = captureCrossEncoderRuntime(tokenizer, session);
+    const outputNames = session.outputNames;
+    if (!Array.isArray(outputNames) || !Array.prototype.includes.call(outputNames, 'logits')) throw invalid('Cross-encoder graph output capability is incompatible.');
     await artifactLease.verifyLoaded();
     throwIfAborted(signal);
   } catch (cause) {
@@ -141,7 +142,7 @@ export const createLocalOnnxCrossEncoder = async ({ profile: input, modelRoot, s
       return queue(async () => {
         try {
           return await scoreLocalCrossEncoderPairs({ profile, query, members, sourceContext: selectedSourceContext,
-            loadSource, tokenizer, session, Tensor, pendingTensors: owner.pendingTensors,
+            loadSource, tokenizer, session, capturedRuntime, Tensor, pendingTensors: owner.pendingTensors,
             pendingTensorOwners: owner.pendingTensorOwners, signal: operationSignal });
         } catch (error) {
           const captured = captureRerankerFailure(error);

@@ -126,6 +126,34 @@ try {
   assert.equal(normal.sessionCloses, 1); assert.equal(normal.tokenizerCloses, 1);
   assert.equal(normal.artifactCloses, 1); assert.equal(normal.storageCloses, 1);
 
+  const originalRuntime = fixture(); let encodeReads = 0, runReads = 0, namesReads = 0;
+  const originalEncode = originalRuntime.tokenizer.encode, originalRun = originalRuntime.session.run, originalNames = originalRuntime.session.inputNames;
+  Object.defineProperty(originalRuntime.tokenizer, 'encode', { configurable: true, get() { encodeReads++; return originalEncode; } });
+  Object.defineProperties(originalRuntime.session, { run: { configurable: true, get() { runReads++; return originalRun; } },
+    inputNames: { configurable: true, get() { namesReads++; return originalNames; } } });
+  const originalRuntimeAdapter = await create();
+  Object.defineProperty(originalRuntime.tokenizer, 'encode', { value: () => assert.fail('published adapter cannot adopt replacement original encode') });
+  Object.defineProperty(originalRuntime.session, 'run', { value: () => assert.fail('published adapter cannot adopt replacement native run') });
+  Object.defineProperty(originalRuntime.session, 'inputNames', { value: ['foreign'] }); originalNames[0] = 'foreign';
+  assert.deepEqual(await rank(originalRuntimeAdapter), [{ index: 0, score: .5 }]);
+  assert.deepEqual(await rank(originalRuntimeAdapter), [{ index: 0, score: .5 }]);
+  assert.deepEqual([encodeReads, runReads, namesReads], [1, 1, 1]); assert.equal(originalRuntime.runs, 2);
+  await originalRuntimeAdapter.dispose(); assert.equal(originalRuntime.sessionCloses, 1); assert.equal(originalRuntime.storageCloses, 1);
+
+  const inputInspection = fixture(); let inputReady = false, inspections = 0;
+  const nativeInput = Object.freeze(Object.defineProperty(new Error('original tokenizer descriptor work'), 'cacheOwnershipReleased', { value: () => inputReady }));
+  const originalTokenizerDispose = inputInspection.tokenizer.dispose;
+  inputInspection.tokenizer = () => new Proxy({ input_ids: [1], attention_mask: [1], token_type_ids: [0] }, {
+    getOwnPropertyDescriptor() { inspections++; throw nativeInput; }
+  });
+  inputInspection.tokenizer.encode = () => [1]; inputInspection.tokenizer.dispose = originalTokenizerDispose;
+  const inputInspectionAdapter = await create(), inputInspectionFailure = await pendingFailure(rank(inputInspectionAdapter));
+  assert.equal(inputInspectionFailure.primaryError, nativeInput); assert.equal(inspections, 1);
+  assert.equal(inputInspection.runs, 0); assert.equal(inputInspection.tensors.length, 0);
+  await pendingFailure(inputInspectionAdapter.dispose()); assert.equal(inputInspection.sessionCloses, 0); assert.equal(inputInspection.storageCloses, 0);
+  inputReady = true; await inputInspectionFailure.rerankerOwner.close(); assert.equal(inputInspectionFailure.cacheOwnershipReleased(), true);
+  assert.equal(inspections, 1); assert.equal(inputInspection.sessionCloses, 1); assert.equal(inputInspection.tokenizerCloses, 1); assert.equal(inputInspection.storageCloses, 1);
+
   const outputNormal = fixture();
   outputNormal.session.run = async feeds => {
     outputNormal.runs++;
