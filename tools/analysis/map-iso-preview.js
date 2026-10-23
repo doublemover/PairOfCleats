@@ -16,6 +16,7 @@ import { createMapSnapshotTransportAsync } from './map-snapshot-transport.js';
 import { SNAPSHOT_PAGE_LIMITS } from '../../src/map/isometric/client/data/protocol.js';
 import { createMapPreviewLifetime } from './map-preview-lifetime.js';
 import { combineMapReadCleanupFailure, projectMapReadFailure } from '../../src/map/shared/read-outcome.js';
+import { createMapPreviewSessionView, freezeMapPreviewMetadata } from './map-preview-session-view.js';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 export const openMapPreviewBrowser = (url, { platform = process.platform, spawnImpl = spawn, warn = console.error } = {}) => {
@@ -180,12 +181,12 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
     controller.signal.throwIfAborted();
     server.on('error', error => { stderr.write(`Preview listener failed: ${projectMapReadFailure(error).message}\n`); close().catch(reportClose); });
     const address = server.address(), url = `${tls ? 'https' : 'http'}://127.0.0.1:${address.port}/map.iso.html`;
-    const ready = { type: 'map-preview-ready', version: 1, url, lifecycle: 'listener-ready', pid: process.pid,
+    const ready = freezeMapPreviewMetadata({ type: 'map-preview-ready', version: 1, url, lifecycle: 'listener-ready', pid: process.pid,
       identity, snapshotSha256: session.snapshotSha256, documentSha256: session.documentSha256,
       clientAssetIdentity: pinned.identity, missingOptionalAssets: pinned.unavailable,
       consumption:'manifest-demand',compatibilityUrl:new URL('/map.compat.html',url).href,
       sourceNavigation,
-      refresh: 'explicit-restart', renderedViewer: 'not-qualified' };
+      refresh: 'explicit-restart', renderedViewer: 'not-qualified' });
     stdout.write(`${JSON.stringify(ready)}\n`);
     stderr.write(`Serving pinned map: ${url}\nReadiness is listener-only; renderer/browser qualification is separate.\n`);
     if (argv['no-open'] !== true && argv.open !== false) {
@@ -193,7 +194,7 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
       catch (error) { stderr.write(`Browser did not open: ${error.message}. Use ${url}\n`); }
     }
     lifetime.finishStartup();
-    return { server, close, ready, session, resourceOwner: lifetime.resourceOwner };
+    return { server, close, ready, session: createMapPreviewSessionView(session), resourceOwner: lifetime.resourceOwner };
   } catch (error) {
     lifetime.finishStartup();
     try { await close(); } catch (cleanup) { throw combineMapReadCleanupFailure(error, [cleanup], { hasPrimary: true, terminal: true }); }

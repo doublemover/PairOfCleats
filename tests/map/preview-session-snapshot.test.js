@@ -44,12 +44,18 @@ try {
   const moduleUrl = new URL('/isomap/source-index.js', first.ready.url);
   const asset = first.session.assets.get(moduleUrl.pathname);
   assert.equal(await fetch(moduleUrl).then(response => response.text()), asset.bytes.toString('utf8'));
+  asset.bytes.fill(0); first.session.html.fill(0);
+  assert.equal(first.session.assets.clear, undefined); assert.equal(first.session.assets.set, undefined);
+  assert.equal(await fetch(first.ready.url).then(response => response.text()), before, 'ordinary returned inspection bytes cannot mutate the actual served document');
+  assert.equal(await fetch(moduleUrl).then(response => response.text()), first.session.assets.get(moduleUrl.pathname).bytes.toString('utf8'), 'module inspection returns a copy of the original pinned bytes');
+  assert.throws(() => { first.ready.identity.kind = 'sibling-identity'; }, TypeError);
   await assert.rejects(runMapPreview({ input: inputPath, out: path.join(root, 'x') }, { stdout: sink, stderr: sink }), /separate commands/);
   await assert.rejects(runMapPreview({ input: inputPath, port: new URL(first.ready.url).port * 1, 'no-open': true }, { stdout: sink, stderr: sink }), /EADDRINUSE/);
   const originalClose = first.close();
   assert.equal(first.close(), originalClose, 'actual preview callers share the original shutdown flight');
   await originalClose;
   assert.equal(first.resourceOwner.pending, false, 'actual listener and accepted handlers have returned before pins retire');
+  assert.equal(first.session.assets.size, 0); assert.equal(first.session.html.length, 0, 'inspection reflects original session retirement');
 } finally {
   await first?.close(); await second?.close();
   await fs.rm(root, { recursive: true, force: true });
