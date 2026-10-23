@@ -7,6 +7,7 @@ import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { validateWorkspaceConfigResolved } from '../contracts/validators/workspace.js';
 import { getRepoId, resolveRepoRoot } from '../shared/repo-paths.js';
 import { normalizeIdentityPath, toRealPathSync } from './identity.js';
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
 
 export const WORKSPACE_CONFIG_DEFAULT_FILENAME = '.pairofcleats-workspace.jsonc';
 
@@ -48,7 +49,7 @@ const createWorkspaceIssue = (code, message, {
   hint
 });
 
-const throwWorkspaceIssues = (issues) => {
+const throwWorkspaceIssues = (issues, { cause, causePresent = false } = {}) => {
   const list = Array.isArray(issues) ? issues.filter(Boolean) : [];
   const first = list[0] || createWorkspaceIssue(
     WORKSPACE_ERROR_CODES.INVALID_SHAPE,
@@ -64,6 +65,7 @@ const throwWorkspaceIssues = (issues) => {
   });
   err.code = first.code;
   err.errorCode = ERROR_CODES.INVALID_REQUEST;
+  if (causePresent) Object.defineProperty(err, 'cause', { value: cause, configurable: true });
   throw err;
 };
 
@@ -469,6 +471,12 @@ export const loadWorkspaceConfig = (workspacePath, {
   try {
     parsed = readJsoncFile(targetPath);
   } catch (err) {
+    const observation = observeStorageResource(err, { phase: 'workspace-config-read' });
+    observation.requireSettled();
+    let message;
+    try { message = observation.primary.message; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
     throwWorkspaceIssues([
       createWorkspaceIssue(
         WORKSPACE_ERROR_CODES.PARSE_FAILED,
@@ -476,11 +484,11 @@ export const loadWorkspaceConfig = (workspacePath, {
         {
           path: targetPath,
           field: 'workspaceFile',
-          reason: err?.message || 'parse-error',
+          reason: typeof message === 'string' && message ? message : 'parse-error',
           hint: 'Fix JSONC syntax errors and retry.'
         }
       )
-    ]);
+    ], { cause: err, causePresent: true });
   }
 
   return resolveWorkspaceConfig(parsed, { workspacePath: targetPath, platform });
