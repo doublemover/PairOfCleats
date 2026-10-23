@@ -30,7 +30,7 @@ const captureResource = (resource, name, required = false) => {
 /** Own exact cleanup methods. A retry never repeats a successful child release
  * or obtains a replacement method from a mutated native object. */
 export const createOnnxResourceOwner = ({ session, tokenizer, qualificationSlot = null,
-  qualificationLease = null, primaryError = null, owner = null }) => {
+  qualificationLease = null, primaryError = null, owner = null, tensorScopes = new Set() }) => {
   const native = captureResource(session, 'release', true);
   // Some supported tokenizers contain only JS state and expose no dispose.
   const tokens = captureResource(tokenizer, 'dispose');
@@ -42,7 +42,7 @@ export const createOnnxResourceOwner = ({ session, tokenizer, qualificationSlot 
     if (observe) observers.set(error, observe);
   };
   retain(primaryError);
-  let flight = null, settled = false;
+  let flight = null, settled = false, tensorReleaseStarted = false;
   const settlementObservers = new Set();
   const sessionOwner = owner || Object.freeze({ session, tokenizer, qualificationSlot });
   const failure = failures => {
@@ -79,6 +79,15 @@ export const createOnnxResourceOwner = ({ session, tokenizer, qualificationSlot 
     if (flight) return flight;
     flight = Promise.resolve().then(async () => {
       const failures = [];
+      const retryTensors = tensorReleaseStarted; tensorReleaseStarted = true;
+      for (const scope of tensorScopes) {
+        try { await scope.close({ retry: retryTensors }); }
+        catch (error) { failures.push(error); }
+        if (!scope.pending) tensorScopes.delete(scope);
+      }
+      // A pending native run or output disposal keeps its session/tokenizer and
+      // qualification capacity alive. Preserve the original scope for retry.
+      if (tensorScopes.size) throw failure(failures);
       // Attempt every independent native resource in reverse acquisition order.
       for (const resource of [native, tokens]) {
         try { await resource.release(); }

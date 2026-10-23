@@ -289,6 +289,7 @@ export const createEmbeddingProviderAdapter = ({
     const onnxEmbedder = createOnnxEmbedder({
       rootDir,
       modelId,
+      dims,
       modelsDir,
       onnxConfig,
       modelArtifact,

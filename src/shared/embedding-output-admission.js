@@ -70,7 +70,10 @@ export const admitEmbeddingBatchOutput = (output, count, options = {}) => {
     return output.map((entry, row) => {
       const data = entry?.data ?? entry;
       const rowDetails = { ...details, row };
-      if (entry?.dims) admitEmbeddingTensor(entry, 1, { ...options, dimensions: width });
+      if (entry && typeof entry === 'object' && 'data' in entry) {
+        admitEmbeddingTensor({ dims: entry.dims ?? [data?.length], data, type: entry.type }, 1,
+          { ...options, dimensions: width });
+      }
       if (!numericStorage(data) || !data.length) throw invalidEmbeddingOutput('empty or nonnumeric vector storage.', rowDetails);
       if (width === null) width = data.length;
       if (data.length !== width) throw invalidEmbeddingOutput('array embedding dimensions disagree.', { ...rowDetails,

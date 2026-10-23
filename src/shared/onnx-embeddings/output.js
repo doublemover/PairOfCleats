@@ -58,10 +58,11 @@ const logicalBytes = tensor => {
 /** No retry on a selected-fetch failure: native errors retain their identity.
  * Logical tensor bytes are work counts, not measured PCIe/device transfer bytes.
  */
-export const runOnnxEmbeddingSession = async ({ session, feeds, measurements, denseContract = null }) => {
+export const runOnnxEmbeddingSession = async ({ session, feeds, measurements, denseContract = null, onOutputs = null }) => {
   const plan = selectOnnxEmbeddingOutput(session, denseContract);
   if (denseContract && !plan) throw invalid(`ONNX export does not expose the qualified ${denseContract.id} token output.`);
   const outputs = plan ? await session.run(feeds, [plan.name]) : await session.run(feeds);
+  onOutputs?.(outputs);
   if (plan && (!outputs || !Object.hasOwn(outputs, plan.name))) throw invalid('ONNX selected output was not returned.');
   if (measurements) {
     const count = Object.keys(outputs || {}).length;
@@ -77,13 +78,14 @@ export const runOnnxEmbeddingSession = async ({ session, feeds, measurements, de
 
 /** Preserve the established Float32 assignment after every rank-3 addition and
  * division, including nonzero-mask rather than mask-weighted averaging. */
-export const decodeOnnxEmbeddingOutput = ({ outputs, attentionMask, normalizeVector, count, measurements, denseContract = null }) => {
+export const decodeOnnxEmbeddingOutput = ({ outputs, attentionMask, normalizeVector, count, measurements, denseContract = null, expectedDimensions = null }) => {
   const tensor = denseContract ? outputs?.[denseContract.output] : findOnnxEmbeddingOutput(outputs);
   if (!tensor && count === 0) return [];
   let admitted;
   try {
     admitted = admitEmbeddingTensor(tensor, count, { provider: 'onnx',
-      ranks: denseContract ? [denseContract.rank] : [2, 3], dimensions: denseContract?.dimensions ?? null });
+      batchId: measurements?.runs ?? null, ranks: denseContract ? [denseContract.rank] : [2, 3],
+      dimensions: denseContract?.dimensions ?? expectedDimensions });
   } catch (error) { error.code = 'ERR_ONNX_EMBEDDING_OUTPUT'; throw error; }
   const { shape, data } = admitted;
   const started = performance.now(), cpuStarted = process.cpuUsage();

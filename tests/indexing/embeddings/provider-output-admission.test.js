@@ -16,6 +16,7 @@ const invalid = [
   { dims: [1, 1, 2], data: Float32Array.of(1, 2) },
   { dims: [1, 2], type: 'int32', data: Int32Array.of(1, 2) },
   { dims: [1, 2], type: 'float32', data: Float64Array.of(1, 2) },
+  [{ type: 'int32', data: Float32Array.of(1, 2) }],
   { dims: [1, 2], data: ['1', '2'] },
   { dims: [1, 2], data: Float64Array.of(1e100, 2) }, null
 ];
