@@ -146,6 +146,21 @@ try {
       assert.equal(state.closes, 0); settled = true; await session.releaseAfterClose();
       assert.equal(state.closes, 1); assert.equal(state.reads, 1); assert.equal(fullReads, 0); fsp.open = originalOpen;
     }
+    {
+      let failClose = true;
+      const secondary = Object.freeze(new Error('by-file offsets reader close failed before varint admission'));
+      const state = install(path.join(dir, 'symbol_occurrences.by-file.offsets.bin'), {
+        close: (held, native) => { void held; if (failClose) throw secondary; return native(); }
+      });
+      const installedOpen = fsp.open; let varintOpens = 0;
+      fsp.open = (...args) => { if (args[0] === data) varintOpens += 1; return installedOpen(...args); };
+      const failure = await rejected(load), session = getContainedFileSession(failure);
+      assert.equal(contains(failure, secondary), true); assert.equal(fullReads, 0);
+      assert.equal(state.opens, 1); assert.equal(state.closes, 1); assert.equal(state.reads, 1); assert.equal(varintOpens, 0);
+      failClose = false; await session.releaseAfterClose(); assert.equal(state.closes, 2); assert.equal(state.reads, 1);
+      assert.equal(varintOpens, 0);
+      fsp.open = originalOpen;
+    }
     await fsp.writeFile(data, Buffer.from([0x80]));
     assert.deepEqual(await load(), [rows[0]]); assert.equal(fullReads, 1, 'ordinary malformed varint retains the documented scan fallback');
     fs.readFileSync = originalReadFile;

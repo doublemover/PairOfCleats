@@ -1,6 +1,7 @@
 import { readExactAt } from '../io/read-exact.js';
 import fs from 'node:fs/promises';
 import { openContainedFile } from '../contained-file.js';
+import { createContainedFileResource } from '../contained-file-resource.js';
 import { createHash } from 'node:crypto';
 import { throwIfAborted } from '../abort.js';
 import { parseJsonlLine } from './jsonl.js';
@@ -205,11 +206,8 @@ export const readOffsetsAt = async (
     return readOffsetsAtWithHandle(handle, indexes);
   }
   const ownedHandle = await fs.open(offsetsPath, 'r');
-  try {
-    return await readOffsetsAtWithHandle(ownedHandle, indexes);
-  } finally {
-    await ownedHandle.close();
-  }
+  return createContainedFileResource({ handle: ownedHandle, sync: false })
+    .run(descriptor => readOffsetsAtWithHandle(descriptor, indexes));
 };
 
 /**
