@@ -15,7 +15,8 @@ import {
 import { validateWorkspaceManifest } from '../contracts/validators/workspace.js';
 import { getRepoCacheRoot } from '../shared/repo-paths.js';
 import { assertCurrentIndexFormat } from '../contracts/index-format.js';
-import { describeStorageFailure } from '../shared/storage/failure-observation.js';
+import { describeStorageFailure, observeStorageResource } from '../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../shared/storage/operation-error.js';
 import {
   getCacheRoot,
   loadUserConfig,
@@ -55,9 +56,12 @@ const TOKEN_POSTINGS_MARKERS = [
 
 const fileExists = (value) => {
   try {
-    return fs.existsSync(value);
-  } catch {
-    return false;
+    fs.statSync(value);
+    return true;
+  } catch (error) {
+    const failure = describeStorageFailure(error, { phase: 'workspace-artifact-stat' });
+    if (['ENOENT', 'ENOTDIR'].includes(failure.code)) return false;
+    throw error;
   }
 };
 
@@ -65,7 +69,8 @@ const statIfExists = async (value) => {
   try {
     return await fsPromises.stat(value);
   } catch (error) {
-    if (!['ENOENT', 'ENOTDIR'].includes(error?.code)) throw error;
+    const failure = describeStorageFailure(error, { phase: 'workspace-path-stat' });
+    if (!['ENOENT', 'ENOTDIR'].includes(failure.code)) throw error;
     return null;
   }
 };
@@ -109,18 +114,22 @@ const hasRequiredArtifacts = (indexDir) => (
 );
 
 const readJsonFile = async (filePath) => {
-  let readError = null;
+  let failed = false, readError;
   try {
     const value = await readJsonFileSafe(filePath, {
       fallback: null,
       maxBytes: WORKSPACE_JSON_MAX_BYTES,
       onError: ({ error }) => {
-        if (!readError) readError = error || new Error('workspace_manifest_json_read_failed');
+        if (!failed) { failed = true; readError = error; }
       }
     });
-    if (readError) return { ok: false, error: readError };
+    if (failed) {
+      observeStorageResource(readError, { phase: 'workspace-json-read' }).requireSettled();
+      return { ok: false, error: readError };
+    }
     return { ok: true, value };
   } catch (error) {
+    observeStorageResource(error, { phase: 'workspace-json-read' }).requireSettled();
     return { ok: false, error };
   }
 };
@@ -184,12 +193,13 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
   pointer.currentJsonMtimeMs = currentStat.mtimeMs;
   const parsed = await readJsonFile(currentJsonPath);
   if (!parsed.ok) {
+    const failure = describeStorageFailure(parsed.error, { phase: 'workspace-pointer-diagnostic' });
     pointer.invalidPointer = true;
     diagnostics.warnings.push({
       code: 'WARN_WORKSPACE_INVALID_BUILD_POINTER',
       repoId,
       mode: null,
-      message: `Invalid build pointer at ${currentJsonPath}: ${parsed.error?.message || parsed.error}`
+      message: `Invalid build pointer at ${currentJsonPath}: ${failure.message}`
     });
     return pointer;
   }
@@ -278,11 +288,12 @@ const readIndexState = async (indexDir, diagnostics, repoId, mode, repoRootCanon
   if (!fileExists(statePath)) return { cohortKey: null, compatibilityKey: null };
   const parsed = await readJsonFile(statePath);
   if (!parsed.ok) {
+    const failure = describeStorageFailure(parsed.error, { phase: 'workspace-index-state-diagnostic' });
     diagnostics.warnings.push({
       code: 'WARN_WORKSPACE_INDEX_STATE_PARSE_FAILED',
       repoId,
       mode,
-      message: `Failed to parse ${statePath}: ${parsed.error?.message || parsed.error}`
+      message: `Failed to parse ${statePath}: ${failure.message}`
     });
     return { cohortKey: null, compatibilityKey: null };
   }
@@ -501,7 +512,9 @@ export const computeManifestHash = (manifestLike) => {
 export const readWorkspaceManifest = async (manifestPath) => {
   const parsed = await readJsonFile(manifestPath);
   if (!parsed.ok) {
-    throw new Error(`Failed to read workspace manifest ${manifestPath}: ${parsed.error?.message || parsed.error}`);
+    const failure = describeStorageFailure(parsed.error, { phase: 'workspace-manifest-diagnostic' });
+    throw addStorageFailureContext(parsed.error, { workspaceManifestPath: manifestPath,
+      workspaceManifestDiagnostic: `Failed to read workspace manifest ${manifestPath}: ${failure.message}` });
   }
   return parsed.value;
 };

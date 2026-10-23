@@ -179,13 +179,15 @@ export const runRepoBuild = async ({ repo, buildArgs, signal: abortSignal = null
     );
     const observation = observeStorageResource(result, { phase: 'workspace-child-build-result' });
     observation.requireSettled();
+    let entry;
     try {
-      const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
-      const exitCode = Number.isInteger(result.exitCode) ? result.exitCode : null;
-      const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
-        ? result.signal.trim()
+      const rawStderr = result.stderr, rawExitCode = result.exitCode, rawSignal = result.signal;
+      const stderr = typeof rawStderr === 'string' ? rawStderr.trim() : '';
+      const exitCode = Number.isInteger(rawExitCode) ? rawExitCode : null;
+      const signal = typeof rawSignal === 'string' && rawSignal.trim().length > 0
+        ? rawSignal.trim()
         : null;
-      return {
+      entry = {
         repoId: repo.repoId,
         repoRootCanonical: repo.repoRootCanonical,
         exitCode,
@@ -195,25 +197,33 @@ export const runRepoBuild = async ({ repo, buildArgs, signal: abortSignal = null
         status: exitCode === 0 && !signal ? 'passed' : 'failed',
         error: (exitCode === 0 && !signal)
           ? null
-          : (stderr || (signal ? `build_index exited via signal ${signal}` : `build_index exited with code ${result.exitCode}`))
+          : (stderr || (signal ? `build_index exited via signal ${signal}` : `build_index exited with code ${exitCode}`))
       };
     } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    return entry;
   } catch (err) {
     // Unknown child teardown still belongs to the actual subprocess owner.
     // Do not turn it into a settled failure that permits another acquisition.
     const observation = observeStorageResource(err, { phase: 'workspace-child-build-error' });
     observation.requireSettled();
+    let entry, resultObservation;
     try {
-      const result = err?.result && typeof err.result === 'object' ? err.result : {};
-      const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
-      const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
-        ? result.signal.trim()
+      const candidate = observation.primary.result;
+      const result = candidate && typeof candidate === 'object' ? candidate : {};
+      resultObservation = observeStorageResource(result, { phase: 'workspace-child-build-error-result' });
+      resultObservation.requireSettled();
+      const rawStderr = result.stderr, rawSignal = result.signal, rawExitCode = result.exitCode;
+      const rawMessage = observation.primary.message;
+      const stderr = typeof rawStderr === 'string' ? rawStderr.trim() : '';
+      const signal = typeof rawSignal === 'string' && rawSignal.trim().length > 0
+        ? rawSignal.trim()
         : null;
-      const exitCode = Number.isInteger(result.exitCode) ? result.exitCode : null;
+      const exitCode = Number.isInteger(rawExitCode) ? rawExitCode : null;
       const errorMessage = stderr
-      || (typeof err?.message === 'string' && err.message.trim().length > 0 ? err.message.trim() : '')
+      || (typeof rawMessage === 'string' ? rawMessage.trim() : '')
       || (signal ? `build_index exited via signal ${signal}` : `build_index exited with code ${exitCode}`);
-      return {
+      entry = {
         repoId: repo.repoId,
         repoRootCanonical: repo.repoRootCanonical,
         exitCode,
@@ -223,7 +233,16 @@ export const runRepoBuild = async ({ repo, buildArgs, signal: abortSignal = null
         status: 'failed',
         error: errorMessage
       };
-    } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    } catch (inspection) {
+      const retained = resultObservation ? resultObservation.retain(inspection, { inspectionPresent: true }) : inspection;
+      throw observation.retain(retained, { inspectionPresent: true });
+    }
+    // Diagnostic getters can reveal new native work. Recheck both the actual
+    // thrown owner and its original child result before publishing a projection.
+    try { resultObservation.requireSettled(); }
+    catch (pending) { throw observation.retain(pending, { inspectionPresent: true }); }
+    observation.requireSettled();
+    return entry;
   }
 };
 
