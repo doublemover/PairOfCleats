@@ -7,8 +7,9 @@ import { getPendingSceneResourceOwners } from '../../src/map/isometric/client/sc
 // renderer boundary is an inert original object; no browser or GPU is created.
 class Surface {
   events = new Map();
-  addEventListener(name, callback) { if (!this.events.has(name)) this.events.set(name, new Set()); this.events.get(name).add(callback); }
-  removeEventListener(name, callback) { this.events.get(name)?.delete(callback); }
+  added = 0; removed = 0;
+  addEventListener(name, callback) { this.added++; if (!this.events.has(name)) this.events.set(name, new Set()); this.events.get(name).add(callback); this.onAdd?.(name, callback); }
+  removeEventListener(name, callback) { this.removed++; this.events.get(name)?.delete(callback); this.onRemove?.(name, callback); }
   fire(name, event = {}) { event.target ??= this; for (const callback of [...this.events.get(name) || []]) callback(event); }
   focus() {}
   getBoundingClientRect() { return { left: 0, top: 0, width: 640, height: 480 }; }
@@ -27,12 +28,14 @@ class Frustum { setFromProjectionMatrix() {} intersectsSphere() { return true; }
 const globalNames = ['window', 'document', 'requestAnimationFrame', 'cancelAnimationFrame'];
 const globals = new Map(globalNames.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
 const originalState = Object.getOwnPropertyDescriptors(state), baseline = new Set(getPendingSceneResourceOwners());
-const disposers = [];
-const create = () => {
+const disposers = [], finishes = [];
+const caught = invoke => { try { invoke(); } catch (error) { return error; } assert.fail('expected retained actual controls failure'); };
+const create = (configure = () => {}) => {
   for (const key of Reflect.ownKeys(state)) delete state[key];
-  const value = { renders: [], callbacks: new Map(), next: 1 }, canvas = new Surface(), app = new Surface();
+  const value = { renders: [], callbacks: new Map(), cancellations: [], next: 1 }, canvas = new Surface(), app = new Surface();
   const window = new Surface(), document = new Surface(); document.activeElement = app; document.hidden = false;
-  window.matchMedia = () => Object.assign(new Surface(), { matches: false }); window.devicePixelRatio = 1;
+  const media = Object.assign(new Surface(), { matches: false });
+  window.matchMedia = () => media; window.devicePixelRatio = 1;
   class Raycaster {
     ray = { intersectPlane: () => false };
     setFromCamera() {}
@@ -54,7 +57,8 @@ const create = () => {
     gridLines: { visible: false }, performance: {}, hovered: null });
   globalThis.window = window; globalThis.document = document;
   globalThis.requestAnimationFrame = callback => { const id = value.next++; value.callbacks.set(id, callback); return id; };
-  globalThis.cancelAnimationFrame = id => { value.callbacks.delete(id); };
+  globalThis.cancelAnimationFrame = id => { value.cancellations.push(id); value.onCancel?.(id); value.callbacks.delete(id); };
+  Object.assign(value, { state, renderer, canvas, app, window, document, media }); configure(value);
   initControls(); const dispose = state.disposeControls; disposers.push(dispose);
   value.frame = () => { const [id, callback] = value.callbacks.entries().next().value; value.callbacks.delete(id); callback(100); };
   value.pointer = () => canvas.fire('pointermove', { clientX: 20, clientY: 30 });
@@ -75,7 +79,79 @@ try {
   const duringRender = create(); duringRender.onRender = duringRender.replace; duringRender.frame();
   assert.equal(duringRender.renders.length, 1, 'already accepted native render remains an original submission');
   assert.equal(state.perfStats, duringRender.sibling.perfStats); assert.equal(state.perfStats.renderer, 'sibling metrics'); duringRender.dispose();
+
+  let accepting = false; finishes.push(() => { accepting = true; });
+  const cancelFailure = Object.freeze(new Error('actual original RAF cancel failed'));
+  const failedCleanup = create(value => { value.onCancel = () => { if (!accepting) throw cancelFailure; }; });
+  const cleanupFailure = caught(failedCleanup.dispose); assert.equal(failedCleanup.cancellations.length, 1);
+  const surfaces = [failedCleanup.canvas, failedCleanup.app, failedCleanup.window, failedCleanup.document, failedCleanup.media];
+  assert(surfaces.every(surface => [...surface.events.values()].every(callbacks => callbacks.size === 0)),
+    'failed native RAF cancellation cannot skip any independent input or outer listener removal');
+  assert(surfaces.every(surface => surface.added === surface.removed)); assert.equal(state.disposeControls, null);
+  assert.equal(state.invalidateRender, null); assert.equal(state.invalidateHover, null); assert.equal(state.cancelCameraMotion, null);
+  caught(failedCleanup.dispose); assert.equal(failedCleanup.cancellations.length, 1, 'ordinary disposal does not repeat a failed native cancel');
+  accepting = true;
+  for (const label of ['original RAF request', 'original render loop', 'original controls frame loop', 'original controls lifetime']) {
+    getPendingSceneResourceOwners().find(owner => !baseline.has(owner) && owner.label === label).release();
+  }
+  assert.equal(failedCleanup.cancellations.length, 2); assert.equal(cleanupFailure.sceneOwnershipReleased(), true);
+  assert(surfaces.every(surface => surface.added === surface.removed), 'fulfilled listener removals are not repeated during exact reconciliation');
+
+  for (const primary of [undefined, false, 0]) {
+    let partial;
+    const failure = caught(() => create(value => { partial = value; value.renderer.setSize = () => { throw primary; }; }));
+    assert.equal(failure.cause, primary); assert.equal(state.disposeControls, null);
+    assert([partial.canvas, partial.app, partial.window, partial.document, partial.media]
+      .every(surface => surface.added === surface.removed && [...surface.events.values()].every(callbacks => callbacks.size === 0)),
+    'actual late construction failure retires every acquired original input/listener');
+    assert.equal(partial.callbacks.size, 0);
+  }
+  let installed;
+  const registrationFailure = caught(() => create(value => { installed = value; value.window.onAdd = name => { if (name === 'resize') throw null; }; }));
+  assert.equal(registrationFailure.cause, null); assert.equal(state.disposeControls, null);
+  assert([installed.canvas, installed.app, installed.window, installed.document, installed.media].every(surface => surface.added === surface.removed));
+
+  for (const field of ['invalidateHover', 'invalidateRender']) {
+    let installedValue, issued;
+    const original = Object.freeze(new Error(`original initial ${field} publication`));
+    const publicationFailure = caught(() => create(value => {
+      Object.defineProperty(value.state, field, { configurable: true, get() { return installedValue; }, set(next) {
+        installedValue = next; if (typeof next === 'function') { issued = next; throw original; }
+      } });
+    }));
+    assert.equal(publicationFailure.cause, original); assert.equal(installedValue, null); assert.equal(state.disposeControls, null);
+    assert.equal(typeof issued, 'function'); assert.equal(issued(), undefined, 'installed-then-thrown original publication remains revoked');
+    if (field === 'invalidateRender') assert.equal(state.invalidateHover, null, 'earlier initial publication is independently detached');
+  }
+  for (const primary of [undefined, null, false, 0, '', Object.freeze(new Error('original initial disposer publication'))]) {
+    let installedValue, issued;
+    const publicationFailure = caught(() => create(value => {
+      Object.defineProperty(value.state, 'disposeControls', { configurable: true, get() { return installedValue; }, set(next) {
+        installedValue = next; if (typeof next === 'function') { issued = next; throw primary; }
+      } });
+    }));
+    assert.equal(publicationFailure.cause, primary); assert.equal(installedValue, null); assert.equal(typeof issued, 'function');
+    assert.equal(issued().pending, false, 'failed initial disposer publication preserves its exact revoked closed capability');
+  }
+  for (const throwsAfterRetirement of [false, true]) {
+    let installedValue, reentrant, issued, during;
+    const original = Object.freeze(new Error('original post-retirement publication failure'));
+    const publicationFailure = caught(() => create(value => {
+      Object.defineProperty(value.state, 'disposeControls', { configurable: true, get() { return installedValue; }, set(next) {
+        installedValue = next;
+        if (typeof next === 'function') {
+          issued = next; reentrant = caught(next); during = reentrant.sceneOwnershipReleased();
+          if (throwsAfterRetirement) throw original;
+        }
+      } });
+    }));
+    assert.equal(during, false); assert.equal(reentrant.sceneOwnershipReleased(), true); assert.equal(installedValue, null);
+    if (throwsAfterRetirement) assert.equal(publicationFailure.cause, original);
+    else assert.match(publicationFailure.cause.message, /initial disposer publication/);
+    assert.equal(issued().pending, false, 'reentrant original disposal cannot close while its publication stack is accepted');
+  }
 } finally {
+  for (const finish of finishes) finish();
   for (const dispose of disposers) { try { dispose(); } catch {} }
   for (const owner of getPendingSceneResourceOwners()) if (!baseline.has(owner)) { try { await owner.releaseAsync(); } catch {} }
   for (const key of Reflect.ownKeys(state)) delete state[key]; Object.defineProperties(state, originalState);

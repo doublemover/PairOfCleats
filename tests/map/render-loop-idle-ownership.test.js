@@ -3,7 +3,7 @@ import { createRenderLoop } from '../../src/map/isometric/client/render-loop.js'
 import { updatePerfStats } from '../../src/map/isometric/client/telemetry.js';
 
 const pending=new Map();let id=0,visible=true,active=false;const frames=[];
-const loop=createRenderLoop({visible:()=>visible,request:callback=>{pending.set(++id,callback);return id;},cancel:key=>pending.delete(key),
+const loop=createRenderLoop({visible:()=>visible,request:callback=>{pending.set(++id,callback);return id;},cancel:key=>{pending.delete(key);},
   render:(time,context)=>{frames.push({time,...context});return active;}});
 const tick=time=>{const [key,callback]=pending.entries().next().value;pending.delete(key);callback(time);};
 loop.invalidate();loop.invalidate();assert.equal(pending.size,1);

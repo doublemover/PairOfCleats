@@ -135,7 +135,8 @@ export const captureSceneResource = (resource, label = 'scene resource', methodN
     }
   };
   const owner = Object.freeze({ label, resource, get pending() { return !closed; }, get lastError() { return lastError; },
-    retainFailure, assertReady, retireAsync: () => settleAsync(false), releaseAsync: () => settleAsync(true),
+    retainFailure, assertReady, assertCaptured: () => { if (captureFailed) throw retain(captureError); },
+    retireAsync: () => settleAsync(false), releaseAsync: () => settleAsync(true),
     retire: () => release(), release: () => release({ retry: true }) });
   return owner;
 };

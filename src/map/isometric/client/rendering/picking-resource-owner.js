@@ -1,24 +1,31 @@
 import { captureSceneResource, preserveSceneCleanupFailures } from '../scene-retirement.js';
 
 const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
+const originalResources = new WeakMap();
 
 /** One resident picker retains exact returned resources and original methods.
  * Retirement revokes publication before invoking either independent disposer. */
-export const createPickingResourceOwner = ({ state, createIndex, createFence, readDevicePixelRatio }) => {
-  const records = new WeakMap(), retired = new Set();
+export const createPickingResourceOwner = ({ state, createIndex, createFence, readDevicePixelRatio, isCurrent = () => true }) => {
+  const records = new WeakMap(), retired = new Set(), captured = new Set();
+  const identity = Object.freeze({});
   let request = 0;
   const capture = (resource, kind) => {
     if (!objectLike(resource)) throw new TypeError(`Resident pick ${kind} acquisition returned no resource.`);
     let record = records.get(resource);
     if (!record) {
-      const owner = captureSceneResource(resource, `resident pick ${kind}`, 'dispose', [], { required: true });
-      let active = 0;
-      const work = Object.freeze(Object.defineProperty(new Error('Original resident picking work has not returned.'),
-        'sceneOwnershipReleased', { value: () => active === 0 }));
-      record = { resource, owner, generation: 0, methods: new Map(),
-        enter() { active++; owner.retainFailure(work); }, leave() { active--; } };
+      let original = originalResources.get(resource);
+      if (!original) {
+        original = { owner: captureSceneResource(resource, `resident pick ${kind}`, 'dispose', [], { required: true }), active: 0, methods: new Map(), claim: null };
+        original.work = Object.freeze(Object.defineProperty(new Error('Original resident picking work has not returned.'),
+          'sceneOwnershipReleased', { value: () => original.active === 0 }));
+        originalResources.set(resource, original);
+      }
+      record = { resource, original, owner: original.owner, generation: 0, methods: original.methods,
+        enter() { original.active++; original.owner.retainFailure(original.work); }, leave() { original.active--; } };
       records.set(resource, record);
     }
+    captured.add(record);
+    record.owner.assertCaptured();
     return record;
   };
   const method = (record, name) => {
@@ -33,12 +40,11 @@ export const createPickingResourceOwner = ({ state, createIndex, createFence, re
     if (Object.hasOwn(original, 'error')) throw original.error;
     return original.callable;
   };
-  const invoke = (record, name, ...args) => method(record, name).apply(record.resource, args);
   const detach = (index, fence) => {
-    if (state.pickIndex === index) {
+    if (index !== undefined && state.pickIndex === index) {
       state.pickIndex = null; state.pickIndexSource = null; state.pickIndexRevision = null;
     }
-    if (state.pickFence === fence) state.pickFence = null;
+    if (fence !== undefined && state.pickFence === fence) state.pickFence = null;
   };
   const close = (resources, primary, hasPrimary = false) => {
     const errors = [];
@@ -46,7 +52,7 @@ export const createPickingResourceOwner = ({ state, createIndex, createFence, re
     // A prior failed owner reports its original retained failure. This is not
     // an implicit native retry; explicit reconciliation uses its existing cap.
     for (const record of [...retired]) {
-      try { record.owner.retire(); if (!record.owner.pending) retired.delete(record); }
+      try { record.owner.retire(); if (!record.owner.pending) { retired.delete(record); captured.delete(record); } }
       catch (error) { errors.push(error); }
     }
     const failure = preserveSceneCleanupFailures(primary, errors, { hasPrimary });
@@ -68,23 +74,58 @@ export const createPickingResourceOwner = ({ state, createIndex, createFence, re
     const primary = preserveSceneCleanupFailures(null, original.errors);
     return close(original.resources, primary, original.errors.length > 0);
   };
+  const detachCaptured = () => {
+    request++;
+    for (const record of captured) {
+      if (record.original.claim !== null && record.original.claim !== identity) continue;
+      if (state.pickIndex === record.resource) detach(record.resource, undefined);
+      if (state.pickFence === record.resource) detach(undefined, record.resource);
+    }
+  };
+  const retireCaptured = () => {
+    detachCaptured();
+    return close([...captured].filter(record => record.original.claim === null || record.original.claim === identity));
+  };
+  const cancelCaptured = () => {
+    if (isCurrent() !== true) return;
+    for (const record of captured) {
+      if (record.original.claim !== identity || state.pickFence !== record.resource || !record.owner.pending || record.owner.lastError) continue;
+      record.enter();
+      try {
+        const callable = method(record, 'cancel');
+        if (isCurrent() !== true || record.original.claim !== identity || state.pickFence !== record.resource) return;
+        if (!record.owner.pending || record.owner.lastError) throw record.owner.lastError || new Error('Original pick cancellation lost its resource lifetime.');
+        return Reflect.apply(callable, record.resource, []);
+      } catch (error) { record.owner.retainFailure(error); throw error; }
+      finally { record.leave(); }
+    }
+  };
   const pick = (raycaster, pointer, fallbackTargets) => {
     const token = ++request, source = state.sourceIndex?.snapshot, revision = state.geometryRevision || 0;
     const scene = state.scene, renderer = state.renderer, resources = [], acquired = [], entered = [];
     const current = () => token === request && state.sourceIndex?.snapshot === source
-      && (state.geometryRevision || 0) === revision && state.scene === scene && state.renderer === renderer;
+      && (state.geometryRevision || 0) === revision && state.scene === scene && state.renderer === renderer && isCurrent() === true;
     let index = null, fence = null, originalSlots = null, hasOriginalWork = true;
     const originalCurrent = () => current() && state.pickIndex === index?.resource && state.pickFence === fence?.resource;
-    const owned = record => record && record.generation <= token;
+    const invoke = (record, name, ...args) => {
+      const callable = method(record, name);
+      if (!originalCurrent()) return undefined;
+      if (!record.owner.pending || record.owner.lastError) throw record.owner.lastError || new Error('Original picking operation lost its resource lifetime.');
+      return Reflect.apply(callable, record.resource, args);
+    };
+    const owned = record => record && record.generation <= token && (record.original.claim === null || record.original.claim === identity);
     const detachOriginal = () => detach(owned(index) ? index.resource : undefined, owned(fence) ? fence.resource : undefined);
     const detachAcquired = () => detach(acquired.includes(index) && owned(index) ? index.resource : undefined,
       acquired.includes(fence) && owned(fence) ? fence.resource : undefined);
     const claim = record => {
-      if (retired.has(record) || !record.owner.pending) throw record.owner.lastError || new Error('A retired picking resource cannot be acquired again.');
+      if (retired.has(record) || !record.owner.pending || record.owner.lastError) throw record.owner.lastError || new Error('A retired picking resource cannot be acquired again.');
       record.generation = Math.max(token, record.generation);
+      record.original.claim = identity;
       return record;
     };
     try {
+      if (!current()) return [];
+      for (const record of captured) if (!record.owner.pending) { captured.delete(record); retired.delete(record); }
       const original = snapshot(); originalSlots = original; resources.push(...original.resources);
       index = resources.find(record => record.resource === original.index) || null;
       fence = resources.find(record => record.resource === original.fence) || null;
@@ -107,6 +148,7 @@ export const createPickingResourceOwner = ({ state, createIndex, createFence, re
         index = claim(capture(createIndex({ THREE: state.THREE, meshes }), 'index')); resources.push(index); acquired.push(index);
         // Capture operation callbacks at acquisition, before later mutations.
         method(index, 'query'); method(index, 'intersect');
+        if (!index.owner.pending || index.owner.lastError) throw index.owner.lastError || new Error('Returned picking index closed during original callback capture.');
         if (!current()) { hasOriginalWork = false; close(acquired.filter(owned)); return []; }
         state.pickIndex = index.resource; state.pickIndexSource = source; state.pickIndexRevision = revision;
       }
@@ -118,10 +160,12 @@ export const createPickingResourceOwner = ({ state, createIndex, createFence, re
           return { source: state.sourceIndex?.snapshot, geometry: state.geometryRevision || 0,
             camera: state.cameraRevision || 0, width: viewport.width, height: viewport.height, dpr: readDevicePixelRatio() };
         }), 'fence')); resources.push(fence); acquired.push(fence);
-        method(fence, 'capture'); method(fence, 'accept');
+        method(fence, 'capture'); method(fence, 'accept'); method(fence, 'cancel');
+        if (!fence.owner.pending || fence.owner.lastError) throw fence.owner.lastError || new Error('Returned picking fence closed during original callback capture.');
         if (!current()) { detachAcquired(); hasOriginalWork = false; close(acquired.filter(owned)); return []; }
         state.pickFence = fence.resource;
       }
+      method(fence, 'cancel');
       if (!originalCurrent()) return [];
       for (const record of new Set([index, fence])) { record.enter(); entered.push(record); }
       const stamp = invoke(fence, 'capture', pointer);
@@ -154,5 +198,5 @@ export const createPickingResourceOwner = ({ state, createIndex, createFence, re
       return close(resources.filter(owned), primary, true);
     } finally { for (const record of entered) record.leave(); }
   };
-  return Object.freeze({ pick, retire });
+  return Object.freeze({ pick, retire, cancelCaptured, detachCaptured, retireCaptured });
 };

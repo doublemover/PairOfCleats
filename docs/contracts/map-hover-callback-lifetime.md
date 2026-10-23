@@ -10,8 +10,9 @@ The actual controls consumer supplies its exact published controls callback and
 renderer identity. The first false prerequisite observation is latched. Source
 membership is checked around pointer/raycast/picking returns before selection or
 hover writes; an old double-click cannot open a replacement scene's selection
-after its original pointer operation lost authority. This is partial controls
-publication protection, not a complete controls construction/teardown claim.
+after its original pointer operation lost authority. The surrounding original
+construction and teardown source contract is described in
+[original map controls retirement](map-controls-original-retirement.md).
 The actual frame checks its owner on entry and after camera/hover callbacks,
 before renderer submission and after its return before publishing telemetry.
 An already accepted native renderer submission is not rolled back or proven
@@ -35,6 +36,6 @@ callback returns, even after logical retirement clears the owner's local slot.
 
 Actual hover/resource-owner controls are authored but **UNVALIDATED**. No tests,
 syntax/lint/format, bootstrap, Three/browser/renderer/native/GPU, build or
-benchmark execution was performed. Complete outer controls teardown and frame
-loop cancellation, real event-host behavior, asynchronous callback support and
+benchmark execution was performed. The surrounding controls/RAF ownership has
+authored source controls; real event-host behavior, asynchronous callback support and
 latency/performance acceptance remain separate.
