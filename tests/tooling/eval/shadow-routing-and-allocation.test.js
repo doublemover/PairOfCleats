@@ -99,6 +99,26 @@ const unknownReport = simulateShadowAllocation({ ...input, snapshot: unknown });
 assert.equal(unknownReport.metrics.proposed.gradedGain, null); assert.equal(unknownReport.metrics.proposed.relevantRepositoryCoverage, null);
 const empty = simulateShadowAllocation({ ...input, snapshot: { ...snapshot, cohorts: [] } });
 assert.equal(empty.complete, true); assert.equal(empty.target, 0); assert.equal(empty.metrics.proposed.relevantRepositoryCoverage, null);
+const machineIds = ['ä', 'a', 'Z', 'Å', '\ue000', '𐀀'];
+const machineSnapshot = { ...snapshot, cohorts: machineIds.map(id => ({ id, signature: hash(`cohort:${id}`),
+  repos: [{ repoId: id, generation: generationA, candidates: candidates(id, 2, false) }] })) };
+const machineInput = { ...input, snapshot: machineSnapshot,
+  expectedGenerations: Object.fromEntries(machineIds.map(id => [id, generationA])), budget: 7 };
+const originalCollation = Object.getOwnPropertyDescriptor(String.prototype, 'localeCompare');
+let machineReport;
+try {
+  Object.defineProperty(String.prototype, 'localeCompare', { configurable: true, value() { assert.fail('host collation cannot select shadow allocation ties'); } });
+  machineReport = simulateShadowAllocation(machineInput);
+} finally { Object.defineProperty(String.prototype, 'localeCompare', originalCollation); }
+assert.equal(machineReport.complete, true); assert.deepEqual(machineReport.cohorts.map(row => row.id), [...machineIds].sort());
+assert.equal(machineReport.cohorts[0].repos[0].proposedQuota, 2, 'equal effort ties use original code-unit cohort/repository order');
+const reorderedMachine = structuredClone(machineSnapshot); reorderedMachine.cohorts.reverse();
+assert.deepEqual(simulateShadowAllocation({ ...machineInput, snapshot: reorderedMachine }), machineReport);
+const oneCohort = { ...snapshot, cohorts: [{ id: 'same-cohort', signature: hash('same-cohort'),
+  repos: machineSnapshot.cohorts.flatMap(row => row.repos).reverse() }] };
+const oneCohortReport = simulateShadowAllocation({ ...machineInput, snapshot: oneCohort });
+assert.deepEqual(oneCohortReport.cohorts[0].repos.map(row => row.repoId), [...machineIds].sort());
+assert.equal(oneCohortReport.cohorts[0].repos[0].proposedQuota, 2);
 const datasetCase = { query, shadowRouting: input };
 const dataset = evaluateDatasetShadowRouting({ cases: [datasetCase] });
 assert.equal(dataset.currentSearchEvidence, false); assert.equal(dataset.reports[0].allocation.complete, true);

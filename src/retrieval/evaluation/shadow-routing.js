@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { stableStringify } from '../../shared/stable-json.js';
+import { compareEvaluationKeys } from './plain-data.js';
 
 export const SHADOW_ROUTING_VERSION = 1;
 const hash = /^[a-f0-9]{64}$/u;
 const classes = new Set(['symbol-or-path', 'explicit-boolean-or-phrase', 'natural-language', 'semantic-fact', 'unknown']);
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const policy = Object.freeze({ version: SHADOW_ROUTING_VERSION, queryPolicy: 'explicit-own-ast-abstain.v3',
-  allocationPolicy: 'judgment-independent-prefix-floor-abstention-fixed.v2', astNodes: 256, queryChars: 4096,
+  allocationPolicy: 'judgment-independent-prefix-floor-abstention-fixed.code-unit.v3', astNodes: 256, queryChars: 4096,
   repos: 32, candidates: 2048, outputBytes: 65536, work: 200000, maxMs: 100 });
 export const SHADOW_ROUTING_POLICY_KEY = digest(policy);
 const incomplete = reason => ({ schemaVersion: SHADOW_ROUTING_VERSION, policyKey: SHADOW_ROUTING_POLICY_KEY,
@@ -109,10 +110,10 @@ export const simulateShadowAllocation = ({ snapshot, expectedWorkspaceKey, expec
       repos.push({ repoId: row.repoId, generation: row.generation, candidates,
         weight: queryClass === 'unknown' || queryClass === 'semantic-fact' ? 1 : 1 + Math.log2(1 + evidence) });
     }
-    repos.sort((a, b) => a.repoId.localeCompare(b.repoId));
+    repos.sort((a, b) => compareEvaluationKeys(a.repoId, b.repoId));
     cohorts.push({ id: cohort.id, signature: cohort.signature, repos });
   }
-  cohorts.sort((a, b) => a.id.localeCompare(b.id));
+  cohorts.sort((a, b) => compareEvaluationKeys(a.id, b.id));
   const repos = cohorts.flatMap(cohort => cohort.repos), available = repos.reduce((sum, repo) => sum + repo.candidates.length, 0);
   const target = Math.min(budget, available), minimum = repos.reduce((sum, repo) => sum + Math.min(floor, repo.candidates.length), 0);
   if (minimum > target) return incomplete('exploration-floor-exceeds-budget');

@@ -41,6 +41,13 @@ The declared total budget and minimum exploration floor select prefixes from the
 same saved pools. Fixed equal-effort allocation is the control. A deterministic
 weighted proposal uses only saved sparse/dense membership counts and the shadow
 class, with stable repository-ID ties. It never uses judgments to choose quotas.
+The allocation policy `judgment-independent-prefix-floor-abstention-fixed.code-unit.v3`
+orders original cohort and repository identities with the shared UTF-16 code-unit
+comparator, including quota tie-breaking. Host locale cannot choose a different
+saved prefix. That ordering participates in the policy digest; mixed old/new
+policy identities cannot be interpreted as the same allocation rule. The
+non-ASCII, reordered-input and no-host-collation controls are authored and
+**UNVALIDATED**.
 If the budget cannot cover the floor for every nonempty pool, the simulation
 returns incomplete instead of silently excluding a repository. Unknown judgments
 keep graded gain and relevant-repository coverage null. Fully labeled pools can
