@@ -73,11 +73,17 @@ try {
   assert.equal(blocked.state, 'inaccessible');
   const notDirectory = await observeRuntimePath(dir, { io: { stat: async () => { throw Object.assign(new Error('bad path'), { code: 'ENOTDIR' }); } } });
   assert.equal(notDirectory.state, 'unknown');
-  await fs.symlink(dir, path.join(dir, 'redirect'), process.platform === 'win32' ? 'junction' : 'dir');
-  const redirected = await observeRuntimePath(path.join(dir, 'redirect', 'missing'));
+  // Exercise the path observer's existing-ancestor projection with a controlled
+  // filesystem boundary. This unit case creates no privileged links and makes
+  // no claim about physical OS redirection support.
+  const redirect = path.join(dir, 'redirect');
+  const missing = () => Object.assign(new Error('missing fixture path'), { code: 'ENOENT' });
+  const redirected = await observeRuntimePath(path.join(redirect, 'missing'), { io: {
+    stat: async () => { throw missing(); },
+    realpath: async selected => { if (selected === redirect) return fs.realpath(dir); throw missing(); }
+  } });
   assert.equal(redirected.state, 'missing');
-  // Windows temp roots can use a DOS short-name alias; canonical observations
-  // resolve that ancestor as well as the explicit redirect created above.
+  // Resolve the real temp ancestor too, since Windows can use a short-name alias.
   assert.equal(redirected.canonical, path.join(await fs.realpath(dir), 'missing'));
   assert.equal(redirected.selected, path.join(dir, 'redirect', 'missing'));
   assert.equal(redirected.absolute, path.resolve(dir, 'redirect', 'missing'));
