@@ -281,6 +281,10 @@ export const buildCrossFileFingerprint = ({
       fileHashAlgo: chunk.fileHashAlgo ?? chunk.metaV2?.fileHashAlgo ?? null,
       name: chunk.name || null,
       kind: chunk.kind || null,
+      // Resolution consumes the canonical symbol, including its qualified name
+      // and candidate identity. Source bytes and a stable chunkUid cannot stand
+      // in for that producer handoff when replay restores derived links.
+      symbolHash: sha1(stableStringify(chunk.metaV2?.symbol || null)),
       start: Number.isFinite(chunk.start) ? chunk.start : 0,
       end: Number.isFinite(chunk.end) ? chunk.end : 0,
       relationHash: sha1(stableStringify(relationPayload)),
