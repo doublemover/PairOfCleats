@@ -21,6 +21,7 @@ import { writeIndexArtifacts } from '../../index/build/artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { buildIndexProfileState, INDEX_PROFILE_VECTOR_ONLY } from '../../contracts/index-profile.js';
 import { buildChunkId } from '../../index/chunk-id.js';
+import { buildMetaV2 } from '../../index/metadata-v2.js';
 import { assignChunkUids } from '../../index/identity/chunk-uid.js';
 import { getLanguageForFile } from '../../index/language-registry.js';
 import { buildIndexStateArtifactsBlock } from '../../index/build/index-state-profile.js';
@@ -34,8 +35,8 @@ import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { setRecordsIncrementalCapability } from '../../storage/sqlite/build/index.js';
 import { promoteRecordFields } from './record-utils.js';
 
-export const recordsLogicalContentHash = ({ text, record, recordMeta, policy }) => sha1(stableStringify({
-  schema: 'records.logical-content.v2', text,
+export const recordsLogicalContentHash = ({ text, record, recordMeta, policy, sourceHash = null }) => sha1(stableStringify({
+  schema: 'records.logical-content.v3', text, sourceHash,
   sidecar: record === null ? { status: 'absent' } : { status: 'present', value: record }, recordMeta, policy
 }));
 
@@ -148,8 +149,10 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     const absPath = recordEntry.absPath;
     const relPath = recordEntry.relPath;
     let text;
+    let sourceHash;
     try {
       const source = await readVerifiedContainedFile(path.dirname(absPath), absPath, { maxBytes: 32 * 1024 * 1024, signal: abortSignal });
+      sourceHash = sha1(source.buffer);
       text = source.buffer.toString('utf8');
     } catch (error) {
       if (error.code === 'ENOENT') continue;
@@ -173,15 +176,15 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       || path.basename(relPath, path.extname(relPath));
 
     const recordFile = isTriage ? `triage/records/${relPath}` : relPath;
-    const logicalHash = recordsLogicalContentHash({ text, record, recordMeta: recordEntry.recordMeta, policy: reusePolicy.snapshot });
+    const logicalHash = recordsLogicalContentHash({ text, record, recordMeta: recordEntry.recordMeta, policy: reusePolicy.snapshot, sourceHash });
     const reused = await readReusableRecordChunk({ incrementalState, repoRoot: runtime.root, file: recordFile,
-      logicalHash, policy: reusePolicy, textLength: text.length, signal: abortSignal });
+      logicalHash, policy: reusePolicy, textLength: text.length, sourceHash, signal: abortSignal });
     if (reused.chunk) {
       // Admission reads exact current inputs; recheck after asynchronous bundle I/O.
       const again = await readVerifiedContainedFile(path.dirname(absPath), absPath, { maxBytes: 32 * 1024 * 1024, signal: abortSignal });
       const currentRecord = isTriage ? await loadRecordJson(recordsDir, absPath) : null;
       if (recordsLogicalContentHash({ text: again.buffer.toString('utf8').normalize('NFKD'), record: currentRecord,
-        recordMeta: recordEntry.recordMeta, policy: reusePolicy.snapshot }) !== logicalHash) throw new Error(`Record changed during replay admission: ${recordFile}`);
+        recordMeta: recordEntry.recordMeta, policy: reusePolicy.snapshot, sourceHash: sha1(again.buffer) }) !== logicalHash) throw new Error(`Record changed during replay admission: ${recordFile}`);
       const chunk = reused.chunk;
       chunk.id = state.chunks.length; // IDs belong to this build's global ordering.
       appendChunk(state, chunk, postingsConfig, null, { sparsePostingsEnabled });
@@ -236,6 +239,9 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       ext: recordExt,
       lang: effectiveLanguageId,
       containerLanguageId: recordLang?.id || null,
+      fileHash: sourceHash,
+      fileHashAlgo: 'sha1',
+      fileSize: fileStat.size,
       start: 0,
       end: text.length,
       startLine,
@@ -274,6 +280,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       strict: true,
       log
     });
+    chunkPayload.metaV2 = buildMetaV2({ chunk: chunkPayload, docmeta, toolInfo: runtime.toolInfo });
     const manifestEntry = await writeIncrementalBundle({
       enabled: incrementalState.enabled,
       bundleDir: incrementalState.bundleDir,

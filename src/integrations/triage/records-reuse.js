@@ -4,6 +4,7 @@ import { embeddingArtifactReusable } from '../../shared/embedding-artifact-ident
 import { MINHASH_HASH_IDENTITY } from '../../index/minhash.js';
 import { TEXT_ANALYZER_VERSION } from '../../shared/text-analyzer.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
+import { META_V2_SCHEMA_VERSION } from '../../index/metadata/meta-v2.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from '../../index/semantic/analysis-versions.js';
 import { readIncrementalBundleSnapshot } from '../../index/build/incremental/bundle-snapshot.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -15,7 +16,8 @@ export const recordsReusePolicy = ({ runtime, policy, stop, synonyms }) => {
     && typeof runtime.embeddingIdentityKey === 'string' && runtime.embeddingIdentityKey
     && Number.isSafeInteger(identity?.dims) && identity.dims > 0);
   const complete = { schema: 'records-producer-reuse.v1', artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
-    producer: '2', lexical: SEMANTIC_ANALYSIS_VERSIONS.lexicalAnalyzer, literal: TEXT_ANALYZER_VERSION,
+    producer: SEMANTIC_ANALYSIS_VERSIONS.recordsProducer, metadata: META_V2_SCHEMA_VERSION,
+    toolInfo: runtime.toolInfo || null, lexical: SEMANTIC_ANALYSIS_VERSIONS.lexicalAnalyzer, literal: TEXT_ANALYZER_VERSION,
     minhash: MINHASH_HASH_IDENTITY, policy, stop: [...stop].sort(),
     synonyms: [...synonyms].sort(([left], [right]) => String(left).localeCompare(String(right))),
     embedding: { enabled: runtime.embeddingEnabled === true, service: runtime.embeddingService === true,
@@ -24,7 +26,7 @@ export const recordsReusePolicy = ({ runtime, policy, stop, synonyms }) => {
   return { key: hash(complete), allowed: Boolean(inlineKnown), reason: inlineKnown ? 'complete-policy' : 'unknown-inline-embedding-identity', snapshot: JSON.parse(stableStringify(complete)) };
 };
 
-export const readReusableRecordChunk = async ({ incrementalState, repoRoot, file, logicalHash, policy, textLength, signal }) => {
+export const readReusableRecordChunk = async ({ incrementalState, repoRoot, file, logicalHash, policy, textLength, sourceHash = null, signal }) => {
   throwIfAborted(signal);
   const entry = incrementalState?.manifest?.files?.[file];
   if (!incrementalState?.enabled || !policy.allowed || !entry || entry.hash !== logicalHash
@@ -36,7 +38,10 @@ export const readReusableRecordChunk = async ({ incrementalState, repoRoot, file
   const chunk = chunks[0];
   if (chunk.file !== file || chunk.start !== 0 || chunk.end !== textLength || chunk.kind !== 'Record'
     || !chunk.chunkUid || !Array.isArray(chunk.tokens) || !chunk.tokens.length
-    || !Array.isArray(chunk.phraseTokens) || chunk.phraseTokensCasePreserved !== true) return { chunk: null, reason: 'incompatible-record-products' };
+    || !Array.isArray(chunk.phraseTokens) || chunk.phraseTokensCasePreserved !== true
+    || chunk.metaV2?.schemaVersion !== META_V2_SCHEMA_VERSION
+    || chunk.metaV2.chunkId !== chunk.chunkId || chunk.metaV2.chunkUid !== chunk.chunkUid
+    || chunk.metaV2.file !== file || (sourceHash !== null && chunk.metaV2.fileHash !== sourceHash)) return { chunk: null, reason: 'incompatible-record-products' };
   if (policy.snapshot.embedding.enabled) {
     const vector = chunk.embedding;
     if ((!Array.isArray(vector) && !ArrayBuffer.isView(vector))
