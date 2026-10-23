@@ -12,6 +12,53 @@ import {
 import { sha1 } from '../../../shared/hash.js';
 import { stableStringify } from '../../../shared/stable-json.js';
 
+const compareText = (left, right) => left < right ? -1 : left > right ? 1 : 0;
+const cvssVersion = value => {
+  const match = typeof value === 'string' && /^(\d+)(?:\.(\d+))?$/.exec(value);
+  const parts = match ? [Number(match[1]), Number(match[2] || 0)] : [-1, -1];
+  return parts.every(Number.isSafeInteger) ? parts : [-1, -1];
+};
+const compareCvss = (left, right) => {
+  const l = cvssVersion(left.version), r = cvssVersion(right.version);
+  return (right.score ?? -1) - (left.score ?? -1) || r[0] - l[0] || r[1] - l[1]
+    || compareText(left.source || '', right.source || '') || compareText(left.vector || '', right.vector || '')
+    || compareText(left.version || '', right.version || '');
+};
+
+/** Inspector v2 supplies native score entries. Keep the canonical single-score
+ * projection deterministic without array-order authority or a new record shape.
+ * Original alternatives remain available under existing raw-payload retention.
+ */
+const normalizeCvss = (input, warnings) => {
+  if (input == null) return null;
+  const native = Array.isArray(input), entries = native ? input : [input];
+  let selected = null, valid = 0;
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index];
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      warnings.push(`malformed AWS CVSS entry at ${index}`); continue;
+    }
+    const rawScore = native ? entry.baseScore : entry.score ?? entry.baseScore;
+    const candidate = typeof rawScore === 'number' ? rawScore
+      : !native && typeof rawScore === 'string' && rawScore.trim() ? Number(rawScore) : NaN;
+    const score = Number.isFinite(candidate) && candidate >= 0 && candidate <= 10 ? candidate : null;
+    const vector = pickFirst(entry.scoringVector, entry.vector, entry.vectorString, entry.vector_string);
+    const version = pickFirst(entry.version, entry.cvss_version, entry.cvssVersion);
+    const source = pickFirst(entry.source);
+    if (native && (score === null || typeof entry.scoringVector !== 'string' || !entry.scoringVector.trim()
+      || typeof entry.version !== 'string' || !entry.version.trim() || typeof entry.source !== 'string' || !entry.source.trim())) {
+      warnings.push(`malformed AWS CVSS entry at ${index}`); continue;
+    }
+    if (!native && rawScore != null && score === null) warnings.push('invalid legacy AWS CVSS score');
+    if (score === null && !vector && !version) continue;
+    const current = { score, vector, version, source }; valid++;
+    if (!selected || compareCvss(current, selected) < 0) selected = current;
+  }
+  if (!selected) return null;
+  if (native && valid > 1) warnings.push(`AWS CVSS max-base-score.v1 selected ${selected.source} version ${selected.version} from ${valid} valid entries; canonical cvss projects one score`);
+  return { score: selected.score, vector: selected.vector, version: selected.version };
+};
+
 /**
  * Normalize an AWS Inspector finding into the triage record schema.
  * @param {object} raw
@@ -57,16 +104,7 @@ export function normalizeAwsInspector(raw, meta = {}, options = {}) {
   const description = pickFirst(raw?.description, details.description) || '';
   const severity = normalizeSeverity(pickFirst(raw?.severity, details.severity));
 
-  const cvssRaw = details.cvss || raw?.cvss || {};
-  const cvssScore = Number(cvssRaw.score ?? cvssRaw.baseScore);
-  const hasScore = Number.isFinite(cvssScore);
-  const cvss = (hasScore || cvssRaw.vector || cvssRaw.vectorString || cvssRaw.vector_string || cvssRaw.version)
-    ? {
-      score: hasScore ? cvssScore : null,
-      vector: pickFirst(cvssRaw.vector, cvssRaw.vectorString, cvssRaw.vector_string),
-      version: pickFirst(cvssRaw.version, cvssRaw.cvss_version, cvssRaw.cvssVersion)
-    }
-    : null;
+  const cvss = normalizeCvss(details.cvss ?? raw?.cvss, warnings);
 
   const cwe = normalizeStringArray(details.cwe || details.cwes || raw?.cwe || raw?.cwes);
   const references = normalizeReferences(details.referenceUrls || details.references || raw?.references);

@@ -123,4 +123,19 @@ AWS numeric observation timestamps are Unix seconds; fractional seconds and epoc
 
 Inspector `packages` retains every valid affected occurrence, sorted by canonical package evidence, with deterministic occurrence IDs. Duplicate names at different file paths/layers remain associated with their own versions and fixes. `package` is a compatibility representative; it does not indicate collection completeness. Native `fixedInVersion` wins over a conflicting legacy `fixedVersion` and produces a diagnostic. Missing remediation remains unknown. Markdown, promoted package-name/ecosystem arrays and context-pack queries retain all packages; legacy singleton records remain readable. Reimport and rebuild old lossy records.
 
+Inspector CVSS follows the official [score-array](https://docs.aws.amazon.com/inspector/v2/APIReference/API_PackageVulnerabilityDetails.html)
+and [entry](https://docs.aws.amazon.com/inspector/v2/APIReference/API_CvssScore.html)
+schemas: numeric `baseScore`, `scoringVector`, `source` and `version`. Valid zero
+scores are retained. Malformed native entries are reported instead of coercing
+null/boolean/string scores into numbers. The existing canonical `vuln.cvss`
+remains one `{score, vector, version}` object. Its `max-base-score.v1` projection
+selects greatest score, then greatest numeric major/minor version, then ascending
+source/vector/version text. Array order never decides between different values.
+Multiple valid native entries produce an explicit selection/source diagnostic;
+original alternatives are retained only when existing raw-payload retention is
+enabled. The canonical projection is not an exhaustive score collection. Legacy
+object aliases remain supported, including finite numeric score strings and
+partial vector/version data; invalid or missing scores are not invented zeroes.
+Reimport affected Inspector findings to restore their previously missing CVSS.
+
 Records incremental identity version 2 covers normalized source text, canonical JSON sidecar contents or explicit absence, discovery metadata and producer/promotion policies. JSON key reordering is a no-op; metadata-only reimports invalidate SQLite input identity. Malformed or unreadable sidecars fail before replacement rather than being treated as absence. Literal phrase evidence is produced from the ordered source with preserved case, independently of scoring tokenization.
