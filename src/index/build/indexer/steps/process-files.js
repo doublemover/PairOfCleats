@@ -1,3 +1,4 @@
+import { isFileAnalysisCandidate, fileAnalysisAdmissionBytes, FILE_ANALYSIS_MAX_SOURCE_BYTES } from '../../workers/file-analysis-contract.js';
 import { withBundleTransformScope } from '../../../../shared/bundle-io/transform-owner.js';
 import { assertSemanticEnvelope } from '../../../../contracts/validators/semantic-envelopes.js';
 import path from 'node:path';
@@ -2711,6 +2712,12 @@ const processFilesInTransformScope = async ({
               } finally {
                 clearInFlightFile(orderIndex);
               }
+            },
+            estimateBytes: entry => {
+              const bytes = Math.max(0, Number(entry.stat?.size ?? entry.bytes) || 0);
+              return bytes <= FILE_ANALYSIS_MAX_SOURCE_BYTES && isFileAnalysisCandidate({ mode,
+                ext: path.extname(entry.abs).toLowerCase(), workerPool: runtimeRef.workerPool })
+                ? fileAnalysisAdmissionBytes(bytes) : bytes;
             },
             retries: 2,
             retryDelayMs: 200,
