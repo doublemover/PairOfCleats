@@ -202,6 +202,7 @@ const loadTokenPostingsRaw = (
     fallback: preferBinaryColumnar
   });
   let sources = null;
+  let admittedRepresentationPlan = null;
   const primaryPieces = resolvedManifest?.pieces?.filter(piece => piece?.name === 'token_postings') || [];
   const representationPlans = primaryPieces.map(piece => piece.extensions?.representationPlan).filter(plan => plan != null);
   if (representationPlans.length) {
@@ -218,6 +219,7 @@ const loadTokenPostingsRaw = (
     }
     sources = resolveManifestArtifactSources({ dir, manifest: resolvedManifest, name: 'token_postings', strict, maxBytes });
     if (sources?.format !== plan.primary) throw failPlan('Token-postings recorded primary layout differs from the selected source.');
+    admittedRepresentationPlan = plan;
     useBinaryColumnar &&= plan.emitBinaryColumnar;
     if (plan.emitBinaryColumnar) {
       const required = [
@@ -247,15 +249,21 @@ const loadTokenPostingsRaw = (
       return true;
     }) || null;
   };
+  const requirePlannedPiece = (targetPath, name) => {
+    const pieces = resolvedManifest.pieces.filter(piece => piece.name === name);
+    if (pieces.length !== 1 || resolveManifestPiece(targetPath, name) !== pieces[0]) {
+      throw Object.assign(new Error(`Planned packed token_postings ${name} is not uniquely authorized by the selected manifest.`),
+        { code: 'ERR_MANIFEST_INCOMPLETE' });
+    }
+  };
 
   const createManifestChecksumValidator = (targetPath, expectedName, label) => {
     const piece = resolveManifestPiece(targetPath, expectedName);
-    if (!piece || typeof piece.checksum !== 'string' || !piece.checksum.includes(':')) return null;
-    try {
-      return createPackedChecksumValidator({ checksum: piece.checksum }, { label });
-    } catch {
-      return null;
+    if (!piece || piece.checksum == null) return null;
+    if (typeof piece.checksum !== 'string' || !/^(?:sha1:[a-f0-9]{40}|sha256:[a-f0-9]{64})$/i.test(piece.checksum)) {
+      throw Object.assign(new Error(`Invalid declared checksum for ${label}.`), { code: 'ERR_MANIFEST_INVALID' });
     }
+    return createPackedChecksumValidator({ checksum: piece.checksum }, { label });
   };
 
   /**
@@ -274,12 +282,26 @@ const loadTokenPostingsRaw = (
     }
     const resolvedPackedPath = resolvePathOrBak(packedPath);
     const resolvedMetaPath = resolvePathOrBak(metaPath);
-    const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes, containedRoot: strict ? dir : null });
+    if (admittedRepresentationPlan) requirePlannedPiece(metaPath, 'token_postings_meta');
+    const metaChecksum = createManifestChecksumValidator(metaPath, 'token_postings_meta', 'token_postings packed metadata');
+    let metaRaw;
+    if (metaChecksum || admittedRepresentationPlan) {
+      const bytes = readBuffer(resolvedMetaPath, maxBytes, { containedRoot: strict ? dir : null });
+      metaChecksum?.update(bytes); metaChecksum?.verify();
+      metaRaw = JSON.parse(bytes.toString('utf8'));
+    } else metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes, containedRoot: strict ? dir : null });
     const fields = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const arrays = metaRaw?.arrays && typeof metaRaw.arrays === 'object' ? metaRaw.arrays : metaRaw;
     const vocab = Array.isArray(arrays?.vocab) ? arrays.vocab : [];
     const vocabIds = Array.isArray(arrays?.vocabIds) ? arrays.vocabIds : [];
     const docLengths = Array.isArray(arrays?.docLengths) ? arrays.docLengths : [];
+    if (admittedRepresentationPlan && (fields?.format !== 'packed' || fields?.encoding !== 'delta-varint'
+      || JSON.stringify(fields.extensions?.representationPlan) !== JSON.stringify(admittedRepresentationPlan))) {
+      throw Object.assign(new Error('Packed token_postings metadata differs from its selected representation plan.'), { code: 'ERR_MANIFEST_INVALID' });
+    }
+    if (fields?.vocabCount != null && (!Number.isSafeInteger(fields.vocabCount) || fields.vocabCount !== vocab.length)) {
+      throw Object.assign(new Error('Packed token_postings metadata vocabulary count differs from its payload.'), { code: 'ERR_ARTIFACT_INVALID' });
+    }
     const offsetsName = typeof fields?.offsets === 'string'
       ? fields.offsets
       : 'token_postings.packed.offsets.bin';
@@ -287,6 +309,7 @@ const loadTokenPostingsRaw = (
     if (!offsetsPath) {
       throw new Error('Invalid token_postings packed offsets path');
     }
+    if (admittedRepresentationPlan) requirePlannedPiece(offsetsPath, 'token_postings_offsets');
     if (!existsOrBak(offsetsPath)) {
       throw new Error('Missing token_postings packed offsets');
     }
@@ -302,9 +325,10 @@ const loadTokenPostingsRaw = (
       offsetsChecksum.verify();
     }
     const offsets = decodePackedOffsets(offsetsBuffer);
-    const blockSize = Number.isFinite(Number(fields?.blockSize))
-      ? Math.max(1, Math.floor(Number(fields.blockSize)))
-      : DEFAULT_PACKED_BLOCK_SIZE;
+    const blockSize = fields?.blockSize ?? DEFAULT_PACKED_BLOCK_SIZE;
+    if (!Number.isSafeInteger(blockSize) || blockSize < 1) {
+      throw Object.assign(new Error('Packed token_postings block size must be a positive safe integer.'), { code: 'ERR_ARTIFACT_INVALID' });
+    }
     const totalTokens = Math.max(0, offsets.length - 1);
     if (offsets.length !== vocab.length + 1 || (vocabIds.length > 0 && vocabIds.length !== vocab.length)) {
       throw Object.assign(new Error('Packed token_postings vocabulary/offset cardinality does not match.'), { code: 'ERR_ARTIFACT_INVALID' });

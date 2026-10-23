@@ -68,6 +68,40 @@ try {
       filename.endsWith('meta.json') ? /Missing JSON artifact:.*token_postings\.packed\.meta\.json/ : /Missing token_postings packed offsets/);
     await fs.writeFile(path.join(minimal.outDir, filename), bytes);
   }
+  for (const name of ['token_postings_meta', 'token_postings_offsets']) {
+    const missing = structuredClone(minimal.manifest);
+    missing.pieces = missing.pieces.filter(piece => piece.name !== name);
+    assert.throws(() => loadTokenPostings(minimal.outDir, { manifest: missing }), { code: 'ERR_MANIFEST_INCOMPLETE' },
+      'a physical stale sidecar cannot satisfy planned manifest membership');
+  }
+  for (const name of ['token_postings', 'token_postings_meta', 'token_postings_offsets']) {
+    for (const checksum of ['sha512:abc', 'sha1:bad', 'unchecked', 17]) {
+      const invalid = structuredClone(minimal.manifest);
+      invalid.pieces.find(piece => piece.name === name).checksum = checksum;
+      assert.throws(() => loadTokenPostings(minimal.outDir, { manifest: invalid }), { code: 'ERR_MANIFEST_INVALID' });
+    }
+  }
+  const metaPath = path.join(minimal.outDir, 'token_postings.packed.meta.json');
+  const metaBytes = await fs.readFile(metaPath);
+  await fs.writeFile(metaPath, Buffer.concat([metaBytes, Buffer.from(' ')]));
+  assert.throws(() => loadTokenPostings(minimal.outDir, { manifest: minimal.manifest }), /checksum mismatch/,
+    'planned metadata checksums are verified against freshly opened bytes');
+  await fs.writeFile(metaPath, metaBytes);
+  const noMetaChecksum = structuredClone(minimal.manifest);
+  delete noMetaChecksum.pieces.find(piece => piece.name === 'token_postings_meta').checksum;
+  for (const [key, value, code] of [
+    ['blockSize', 1.5, 'ERR_ARTIFACT_INVALID'], ['vocabCount', 4, 'ERR_ARTIFACT_INVALID'],
+    ['offsets', 'foreign.offsets.bin', 'ERR_MANIFEST_INCOMPLETE']
+  ]) {
+    const meta = JSON.parse(metaBytes); (meta.fields || meta)[key] = value;
+    await fs.writeFile(metaPath, JSON.stringify(meta));
+    assert.throws(() => loadTokenPostings(minimal.outDir, { manifest: noMetaChecksum }), { code });
+  }
+  await fs.writeFile(metaPath, metaBytes);
+  const legacyNoInventory = structuredClone(legacy.manifest);
+  legacyNoInventory.pieces = legacyNoInventory.pieces.filter(piece => !['token_postings_meta', 'token_postings_offsets'].includes(piece.name));
+  assert.deepEqual(loadTokenPostings(legacy.outDir, { manifest: legacyNoInventory, preferBinaryColumnar: false }).postings,
+    postings.tokenPostingsList, 'unplanned legacy sidecar discovery retains its compatibility contract');
   const missingCompatibility = structuredClone(compatibility.manifest);
   missingCompatibility.pieces = missingCompatibility.pieces.filter(piece => piece.name !== 'token_postings_binary_columnar_lengths');
   assert.throws(() => loadTokenPostings(compatibility.outDir, { manifest: missingCompatibility }), { code: 'ERR_MANIFEST_INCOMPLETE' });
