@@ -29,6 +29,13 @@ display must contain that exact qualified document before selection/reveal;
 equal text in another editor cannot adopt its witness. New workflows revoke
 late original display/consumer publication through the existing operation owner.
 
+Discovery, action recovery and outer command failures also retain their original
+falsey values and independent diagnostic/notification failures. Immutable
+returned diagnostic evidence coexists with later deliberate successful actions;
+it does not reclassify the whole workflow. See
+[original editor failure evidence](editor-failure-evidence.md) for the message
+inspection, notification and recovery limits.
+
 The additional registered-command and direct adapter/operation controls are
 **UNVALIDATED**. No tests, syntax/lint/format, bootstrap, editor/browser/native/
 child execution or quality/resource/performance qualification was run. Typed

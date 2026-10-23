@@ -1,5 +1,6 @@
 const path = require('node:path');
 const { readVerifiedSource, documentOffsets, createDocumentAuthority, assertQualifiedEditor } = require('./document-authority.js');
+const { captureEditorFailure, reportEditorFailure, editorFailureEvidence } = require('./editor-failure-evidence.js');
 
 const LIMITS = Object.freeze({ records: 128, bytes: 65536, workMs: 250 });
 const sameGeneration = (left, right) => left?.baseBuildId === right?.baseBuildId
@@ -16,6 +17,13 @@ function captureSemanticData(value) {
     return Object.freeze(value);
   };
   return freeze(captured);
+}
+
+function captureSemanticResponse(original) {
+  if (!original || typeof original !== 'object' || Array.isArray(original)) {
+    throw new Error('Semantic operation returned no object evidence.', { cause: original });
+  }
+  return captureSemanticData(original);
 }
 
 function qualifiedBindingSeed(payload) {
@@ -137,13 +145,13 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
     const selectedState = Object.freeze({ ...state, generation });
     const request = captureSemanticData(buildSemanticRequest(operation, state.repoContext.repoRoot, generation, value, extra));
     const original = await execute(operation, request, selectedState);
-    if (!original || !operations.isCurrent()) return null;
-    const payload = captureSemanticData(original);
+    if (!operations.isCurrent()) return null;
+    const payload = captureSemanticResponse(original);
     if (!sameGeneration(generation, payload.generation)) throw new Error('Semantic generation changed; restart from the seed.');
     return show(payload, { ...selectedState, operation, request, value: operation === 'find' ? request.selector : value });
   }
 
-  async function inspect(state) {
+  async function inspect(state, failures) {
     while (operations.isCurrent()) {
       const payload = state.payload;
       const candidates = (payload.records || []).map(record => ({
@@ -168,17 +176,17 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
       }
       if (choice.action === 'plan') {
         const proposed = await runOperation('enrichment', payload.enrichment.suggestions.slice(0, 8).map(item => item.taskId), state);
-        if (proposed) await inspect(proposed);
+        if (proposed) await inspect(proposed, failures);
         await show(payload, state);
         continue;
       }
       if (choice.action === 'more') {
         const original = await execute(state.operation, captureSemanticData({ ...state.request, cursor: payload.cursor }), state);
         if (!operations.isCurrent()) return;
-        const next = captureSemanticData(original);
+        const next = captureSemanticResponse(original);
         if (!sameGeneration(next?.generation, state.generation)) throw new Error('Continuation generation changed. Restart from seed.');
         const page = await show(next, state);
-        if (page) await inspect(page);
+        if (page) await inspect(page, failures);
         await show(payload, state);
         continue;
       }
@@ -227,12 +235,13 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
           }
         }
         const detail = await runOperation(action.value, choice.record.ref, state, extra);
-        if (detail) await inspect(detail);
+        if (detail) await inspect(detail, failures);
         await show(payload, state);
       }
       } catch (error) {
-        if (!operations.isCurrent()) return;
-        await vscode.window.showErrorMessage(`PairOfCleats semantic evidence: ${error.message}. Previous evidence is retained; choose another action or return.`);
+        failures.push(await reportEditorFailure(error, { isCurrent: () => operations.isCurrent(),
+          notify: message => vscode.window.showErrorMessage(message), prefix: 'PairOfCleats semantic evidence: ',
+          suffix: '. Previous evidence is retained; choose another action or return.' }));
         if (operations.isCurrent()) await show(payload, state);
       }
     }
@@ -240,110 +249,118 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
 
   return async function semanticEvidence(seedNode = null) {
     return operations.run('semantic-evidence', async () => {
-      try {
-        const selectedChunkUid = seedNode?.hit?.chunkUid;
-        const resolved = await resolveRepo(seedNode);
-        if (!resolved || !operations.isCurrent()) return;
-        const repoContext = Object.freeze({ ...resolved });
-        const chosenTransport = await chooseTransport(repoContext);
-        if (!chosenTransport || !operations.isCurrent()) return;
-        const transport = Object.freeze({ ...chosenTransport,
-          ...(chosenTransport.execution ? { execution: Object.freeze({ ...chosenTransport.execution,
-            capabilities: Object.freeze({ ...chosenTransport.execution.capabilities }) }) } : {}),
-          ...(chosenTransport.serviceMapping ? { serviceMapping: Object.freeze({ ...chosenTransport.serviceMapping }) } : {}) });
-        let cursorSeed = !seedNode && transport.transport === 'cli' ? getCursorSeed?.(repoContext) : null;
-        if (!cursorSeed && !seedNode && transport.transport === 'cli' && resolveCursorSeed) {
-          cursorSeed = await resolveCursorSeed(repoContext, transport);
-          if (!operations.isCurrent()) return;
-        }
-        if (cursorSeed) {
-          cursorSeed = captureSemanticData(cursorSeed);
-          const route = await pick([
-            { label: 'Use current source-qualified cursor binding', value: 'cursor' },
-            { label: 'Choose selector / immutable generation', value: 'manual' }
-          ], { title: 'Semantic seed: canonical binding identity or explicit selector' });
-          if (!route) return;
-          if (route.value === 'cursor') {
-            const fresh = getCursorSeed?.(repoContext);
-            if (!fresh || JSON.stringify(fresh) !== JSON.stringify(cursorSeed)) throw new Error('Qualified cursor identity changed. Navigate again or choose an explicit selector.');
-            const found = await runOperation('find', fresh.selector, { repoContext, generation: fresh.generation,
-              generationSource: 'canonical current cursor navigation', ...transport });
-            if (found) await inspect(found);
-            return;
+      const failures = [];
+      await (async () => {
+        try {
+          const selectedChunkUid = seedNode?.hit?.chunkUid;
+          const resolved = await resolveRepo(seedNode);
+          if (!resolved || !operations.isCurrent()) return;
+          const repoContext = Object.freeze({ ...resolved });
+          const chosenTransport = await chooseTransport(repoContext);
+          if (!chosenTransport || !operations.isCurrent()) return;
+          const transport = Object.freeze({ ...chosenTransport,
+            ...(chosenTransport.execution ? { execution: Object.freeze({ ...chosenTransport.execution,
+              capabilities: Object.freeze({ ...chosenTransport.execution.capabilities }) }) } : {}),
+            ...(chosenTransport.serviceMapping ? { serviceMapping: Object.freeze({ ...chosenTransport.serviceMapping }) } : {}) });
+          let cursorSeed = !seedNode && transport.transport === 'cli' ? getCursorSeed?.(repoContext) : null;
+          if (!cursorSeed && !seedNode && transport.transport === 'cli' && resolveCursorSeed) {
+            cursorSeed = await resolveCursorSeed(repoContext, transport);
+            if (!operations.isCurrent()) return;
           }
-        }
-        let generation = null, generationSource = 'explicit immutable generation';
-        if (discoverGeneration) {
-          const route = await pick([
-            { label: 'Discover published semantic generation for selected source / hit', value: 'discover' },
-            { label: 'Enter immutable semantic generation', value: 'manual' }
-          ], { title: 'Semantic generation (authoritative discovery or explicit selection)' });
-          if (!route) return;
-          if (route.value === 'discover') {
-            try {
-              const witness = await discoverGeneration(repoContext, transport, seedNode);
-              if (!operations.isCurrent()) return;
-              if (witness) { generation = witness.generation; generationSource = witness.source; }
-            } catch (error) {
-              const correction = await pick([
-                { label: 'Enter immutable generation explicitly', value: 'manual' }, { label: 'Return to previous evidence', value: 'back' }
-              ], { title: 'Semantic generation discovery unavailable', placeHolder: error.message.slice(0, 512) });
-              if (correction?.value !== 'manual') return;
+          if (cursorSeed) {
+            cursorSeed = captureSemanticData(cursorSeed);
+            const route = await pick([
+              { label: 'Use current source-qualified cursor binding', value: 'cursor' },
+              { label: 'Choose selector / immutable generation', value: 'manual' }
+            ], { title: 'Semantic seed: canonical binding identity or explicit selector' });
+            if (!route) return;
+            if (route.value === 'cursor') {
+              const fresh = getCursorSeed?.(repoContext);
+              if (!fresh || JSON.stringify(fresh) !== JSON.stringify(cursorSeed)) throw new Error('Qualified cursor identity changed. Navigate again or choose an explicit selector.');
+              const found = await runOperation('find', fresh.selector, { repoContext, generation: fresh.generation,
+                generationSource: 'canonical current cursor navigation', ...transport });
+              if (found) await inspect(found, failures);
+              return;
             }
           }
-        }
-        if (!generation) {
-          const buildId = await vscode.window.showInputBox({ prompt: 'Exact semantic baseBuildId (from indexed evidence/manifest)',
-            value: last?.repoContext.repoRoot === repoContext.repoRoot ? last.generation.baseBuildId : '' });
-          if (!buildId?.trim()) return;
-          if (/[\\/:\0]/.test(buildId) || ['.', '..'].includes(buildId)) throw new Error('Use a single immutable build identifier.');
-          generation = { baseBuildId: buildId.trim(), semanticRevision: 0 };
-        }
-        const selectorKind = await pick([
-          ...(typeof selectedChunkUid === 'string' && selectedChunkUid ? ['Selected chunk ownership'] : []),
-          'Current source file', 'Structural operation', 'Exact type expression', 'Scalar literal'], {
-          title: 'Semantic find selector (experimental)' });
-        if (!selectorKind) return;
-        let selector;
-        if (selectorKind === 'Selected chunk ownership') {
-          selector = { field: 'chunkUid', value: selectedChunkUid };
-        } else if (selectorKind === 'Current source file') {
-          const file = vscode.window.activeTextEditor?.document?.uri?.fsPath;
-          const relative = file ? path.relative(repoContext.repoRoot, file).replace(/\\/g, '/') : '';
-          if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Focus a saved file in the selected repository.');
-          selector = { field: 'sourcePath', value: relative };
-        } else if (selectorKind === 'Scalar literal') {
-          const type = await pick(['string', 'boolean', 'null', 'number', 'bigint'],
-            { title: 'Exact parser-established scalar type (no runtime value inference)' });
-          if (!type) return;
-          const value = type === 'null' ? '' : type === 'boolean'
-            ? await pick(['true', 'false'], { title: 'Boolean representation' })
-            : await vscode.window.showInputBox({ prompt: type === 'string' ? 'String value (empty is valid)'
-              : `Exact recorded ${type} representation (decimal; bigint has no n suffix)` });
-          if (value === undefined) return;
-          selector = scalarLiteralSelector(type, value);
-        } else {
-          const value = await vscode.window.showInputBox({ prompt: `${selectorKind}: exact value` });
-          if (!value) return;
-          selector = selectorKind === 'Exact type expression'
-            ? { typeExpression: { expression: value, match: 'exact-expression', sources: ['declared'], roles: ['local', 'parameter', 'field', 'return'] } }
-            : { field: 'operation', value };
-          if (selector.typeExpression) {
-            const sources = await pick(['declared', 'compiler'], { canPickMany: true,
-              title: 'Exact recorded type sources (availability is producer-specific)' });
-            if (!sources?.length) return;
-            const roles = await pick(['local', 'parameter', 'field', 'return'], {
-              canPickMany: true, title: 'Exact recorded type roles' });
-            if (!roles?.length) return;
-            selector.typeExpression.sources = sources;
-            selector.typeExpression.roles = roles;
+          let generation = null, generationSource = 'explicit immutable generation';
+          if (discoverGeneration) {
+            const route = await pick([
+              { label: 'Discover published semantic generation for selected source / hit', value: 'discover' },
+              { label: 'Enter immutable semantic generation', value: 'manual' }
+            ], { title: 'Semantic generation (authoritative discovery or explicit selection)' });
+            if (!route) return;
+            if (route.value === 'discover') {
+              try {
+                const witness = await discoverGeneration(repoContext, transport, seedNode);
+                if (!operations.isCurrent()) return;
+                if (witness) { generation = witness.generation; generationSource = witness.source; }
+              } catch (error) {
+                const failure = captureEditorFailure(error); failures.push(failure);
+                if (!operations.isCurrent()) return;
+                const correction = await pick([
+                  { label: 'Enter immutable generation explicitly', value: 'manual' }, { label: 'Return to previous evidence', value: 'back' }
+                ], { title: 'Semantic generation discovery unavailable', placeHolder: failure.message.slice(0, 512) });
+                if (correction?.value !== 'manual') return;
+              }
+            }
           }
+          if (!generation) {
+            const buildId = await vscode.window.showInputBox({ prompt: 'Exact semantic baseBuildId (from indexed evidence/manifest)',
+              value: last?.repoContext.repoRoot === repoContext.repoRoot ? last.generation.baseBuildId : '' });
+            if (!buildId?.trim()) return;
+            if (/[\\/:\0]/.test(buildId) || ['.', '..'].includes(buildId)) throw new Error('Use a single immutable build identifier.');
+            generation = { baseBuildId: buildId.trim(), semanticRevision: 0 };
+          }
+          const selectorKind = await pick([
+            ...(typeof selectedChunkUid === 'string' && selectedChunkUid ? ['Selected chunk ownership'] : []),
+            'Current source file', 'Structural operation', 'Exact type expression', 'Scalar literal'], {
+            title: 'Semantic find selector (experimental)' });
+          if (!selectorKind) return;
+          let selector;
+          if (selectorKind === 'Selected chunk ownership') {
+            selector = { field: 'chunkUid', value: selectedChunkUid };
+          } else if (selectorKind === 'Current source file') {
+            const file = vscode.window.activeTextEditor?.document?.uri?.fsPath;
+            const relative = file ? path.relative(repoContext.repoRoot, file).replace(/\\/g, '/') : '';
+            if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Focus a saved file in the selected repository.');
+            selector = { field: 'sourcePath', value: relative };
+          } else if (selectorKind === 'Scalar literal') {
+            const type = await pick(['string', 'boolean', 'null', 'number', 'bigint'],
+              { title: 'Exact parser-established scalar type (no runtime value inference)' });
+            if (!type) return;
+            const value = type === 'null' ? '' : type === 'boolean'
+              ? await pick(['true', 'false'], { title: 'Boolean representation' })
+              : await vscode.window.showInputBox({ prompt: type === 'string' ? 'String value (empty is valid)'
+                : `Exact recorded ${type} representation (decimal; bigint has no n suffix)` });
+            if (value === undefined) return;
+            selector = scalarLiteralSelector(type, value);
+          } else {
+            const value = await vscode.window.showInputBox({ prompt: `${selectorKind}: exact value` });
+            if (!value) return;
+            selector = selectorKind === 'Exact type expression'
+              ? { typeExpression: { expression: value, match: 'exact-expression', sources: ['declared'], roles: ['local', 'parameter', 'field', 'return'] } }
+              : { field: 'operation', value };
+            if (selector.typeExpression) {
+              const sources = await pick(['declared', 'compiler'], { canPickMany: true,
+                title: 'Exact recorded type sources (availability is producer-specific)' });
+              if (!sources?.length) return;
+              const roles = await pick(['local', 'parameter', 'field', 'return'], {
+                canPickMany: true, title: 'Exact recorded type roles' });
+              if (!roles?.length) return;
+              selector.typeExpression.sources = sources;
+              selector.typeExpression.roles = roles;
+            }
+          }
+          const found = await runOperation('find', selector, { repoContext, generation, generationSource, ...transport });
+          if (found) await inspect(found, failures);
+        } catch (error) {
+          failures.push(await reportEditorFailure(error, { isCurrent: () => operations.isCurrent(),
+            notify: message => vscode.window.showErrorMessage(message), prefix: 'PairOfCleats semantic evidence: ',
+            suffix: '. Previous evidence remains available.' }));
         }
-        const found = await runOperation('find', selector, { repoContext, generation, generationSource, ...transport });
-        if (found) await inspect(found);
-      } catch (error) {
-        if (operations.isCurrent()) await vscode.window.showErrorMessage(`PairOfCleats semantic evidence: ${error.message}. Previous evidence remains available.`);
-      }
+      })();
+      return editorFailureEvidence(failures);
     }, { key: 'semantic-evidence' });
   };
 }
