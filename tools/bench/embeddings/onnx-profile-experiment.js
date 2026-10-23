@@ -1,20 +1,40 @@
 import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { throwIfAborted } from '../../../src/shared/abort.js';
 import { createOnnxEmbedder } from '../../../src/shared/onnx-embeddings.js';
 import { createOnnxQualificationBinding, createOnnxQualificationLease, closeOnnxQualificationLease,
   sealOnnxMemoryEvidence } from '../../../src/shared/onnx-embeddings/qualification.js';
-import { resolveEmbeddingArtifactIdentityAsync } from '../../../src/shared/embedding-artifact-lease.js';
+import { acquireEmbeddingArtifactLease } from '../../../src/shared/embedding-artifact-lease.js';
 import { embeddingArtifactReusable } from '../../../src/shared/embedding-artifact-identity.js';
 import { observeProcessThreads } from '../../../src/shared/provider-thread-observation.js';
-import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings/config.js';
+import { normalizeOnnxConfig } from '../../../src/shared/onnx-embeddings/config.js';
 import { resolveOnnxEmbeddingProcessing } from '../../../src/shared/embedding-dense-contract.js';
 import { preserveEmbeddingCleanupFailure } from '../../../src/shared/embedding-cache-lifetime.js';
+import { withContainedFile } from '../../../src/shared/contained-file.js';
+import { readExactAt } from '../../../src/shared/io/read-exact.js';
+import { snapshotEmbeddingMetadata } from '../../../src/shared/embedding-selection-snapshot.js';
+import { stableStringify } from '../../../src/shared/stable-json.js';
 
 const safeBaseline = Object.freeze({ sessions: 1, intraOpNumThreads: 1, interOpNumThreads: 1,
   graphOptimizationLevel: 'basic', enableCpuMemArena: false, enableMemPattern: false });
 const invalid = message => Object.assign(new Error(message), { code: 'ERR_ONNX_PROFILE_EXPERIMENT' });
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+const readSourceIdentity = async url => {
+  const file = fileURLToPath(new URL(url));
+  return withContainedFile(path.dirname(file), file, async handle => {
+    const before = await handle.stat({ bigint: true });
+    if (before.size <= 0n || before.size > 1024n * 1024n) throw invalid('Profile source identity exceeded its bounded input.');
+    const bytes = Buffer.alloc(Number(before.size));
+    const read = await readExactAt(handle, bytes, 0, bytes.length, 0);
+    const after = await handle.stat({ bigint: true }), current = await fs.stat(file, { bigint: true });
+    handle.verify();
+    if (read.bytesRead !== bytes.length || ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs'].some(field => before[field] !== after[field]
+      || after[field] !== current[field])) throw invalid('Profile source changed while its opened bytes were captured.');
+    return hash(bytes);
+  });
+};
 
 export const defaultOnnxProfileTexts = () => Array.from({ length: 16 }, (_, index) => index === 0 ? ''
   : `case ${index}: function value_${index}(input) { return input; }\n` + 'mixed length documentation λ '.repeat(1 + index * 5));
@@ -44,35 +64,39 @@ const compareVectors = (reference, actual) => {
     topKQueries: 3, k: 5, maxScoreDrift, accepted: false };
 };
 
-const sourceIdentity = async () => Object.fromEntries(await Promise.all([
-  ['experiment', import.meta.url], ['runtime', new URL('../../../src/shared/onnx-embeddings.js', import.meta.url)],
-  ['output', new URL('../../../src/shared/onnx-embeddings/output.js', import.meta.url)],
-  ['denseContract', new URL('../../../src/shared/embedding-dense-contract.js', import.meta.url)],
-  ['outputAdmission', new URL('../../../src/shared/embedding-output-admission.js', import.meta.url)],
-  ['vectorNormalization', new URL('../../../src/shared/embedding-vector-utils.js', import.meta.url)],
-  ['tokenization', new URL('../../../src/shared/onnx-embeddings/tokenization.js', import.meta.url)],
-  ['configuration', new URL('../../../src/shared/onnx-embeddings/config.js', import.meta.url)],
-  ['selectionSnapshot', new URL('../../../src/shared/embedding-selection-snapshot.js', import.meta.url)],
-  ['runQueue', new URL('../../../src/shared/onnx-embeddings/run-queue.js', import.meta.url)],
-  ['tensorLifetime', new URL('../../../src/shared/onnx-embeddings/tensor-lifetime.js', import.meta.url)],
-  ['tensorResources', new URL('../../../src/shared/embedding-transformers-resources.js', import.meta.url)],
-  ['sessionCacheLifetime', new URL('../../../src/shared/onnx-embeddings/cache-lifetime.js', import.meta.url)],
-  ['failureComposition', new URL('../../../src/shared/embedding-cache-lifetime.js', import.meta.url)],
-  ['failureInspection', new URL('../../../src/shared/embedding-cache-failure-inspection.js', import.meta.url)],
-  ['artifactLease', new URL('../../../src/shared/embedding-artifact-lease.js', import.meta.url)],
-  ['artifactIdentity', new URL('../../../src/shared/embedding-artifact-identity.js', import.meta.url)],
-  ['acquisitionPlan', new URL('../../../src/shared/embedding-acquisition-plan.js', import.meta.url)],
-  ['acquisitionReceipt', new URL('../../../src/shared/embedding-acquisition-receipt.js', import.meta.url)],
-  ['onnxClosure', new URL('../../../src/shared/onnx-artifact-closure.js', import.meta.url)],
-  ['onnxInstallation', new URL('../../../src/shared/onnx-installation.js', import.meta.url)],
-  ['deferredAdapter', new URL('../../../src/shared/embedding-deferred-adapter.js', import.meta.url)],
-  ['qualification', new URL('../../../src/shared/onnx-embeddings/qualification.js', import.meta.url)],
-  ['resourceLifetime', new URL('../../../src/shared/onnx-embeddings/resource-lifetime.js', import.meta.url)]
-].map(async ([name, url]) => {
-  const bytes = await fs.readFile(new URL(url));
-  if (bytes.length > 1024 * 1024) throw invalid('Profile source identity exceeded its bounded input.');
-  return [name, hash(bytes)];
-})));
+const sourceIdentity = async () => {
+  const captured = await Promise.allSettled([
+    ['experiment', import.meta.url], ['runtime', new URL('../../../src/shared/onnx-embeddings.js', import.meta.url)],
+    ['output', new URL('../../../src/shared/onnx-embeddings/output.js', import.meta.url)],
+    ['denseContract', new URL('../../../src/shared/embedding-dense-contract.js', import.meta.url)],
+    ['outputAdmission', new URL('../../../src/shared/embedding-output-admission.js', import.meta.url)],
+    ['vectorNormalization', new URL('../../../src/shared/embedding-vector-utils.js', import.meta.url)],
+    ['tokenization', new URL('../../../src/shared/onnx-embeddings/tokenization.js', import.meta.url)],
+    ['configuration', new URL('../../../src/shared/onnx-embeddings/config.js', import.meta.url)],
+    ['selectionSnapshot', new URL('../../../src/shared/embedding-selection-snapshot.js', import.meta.url)],
+    ['runQueue', new URL('../../../src/shared/onnx-embeddings/run-queue.js', import.meta.url)],
+    ['containedFile', new URL('../../../src/shared/contained-file.js', import.meta.url)],
+    ['containedResource', new URL('../../../src/shared/contained-file-resource.js', import.meta.url)],
+    ['readExact', new URL('../../../src/shared/io/read-exact.js', import.meta.url)],
+    ['tensorLifetime', new URL('../../../src/shared/onnx-embeddings/tensor-lifetime.js', import.meta.url)],
+    ['tensorResources', new URL('../../../src/shared/embedding-transformers-resources.js', import.meta.url)],
+    ['sessionCacheLifetime', new URL('../../../src/shared/onnx-embeddings/cache-lifetime.js', import.meta.url)],
+    ['failureComposition', new URL('../../../src/shared/embedding-cache-lifetime.js', import.meta.url)],
+    ['failureInspection', new URL('../../../src/shared/embedding-cache-failure-inspection.js', import.meta.url)],
+    ['artifactLease', new URL('../../../src/shared/embedding-artifact-lease.js', import.meta.url)],
+    ['artifactIdentity', new URL('../../../src/shared/embedding-artifact-identity.js', import.meta.url)],
+    ['acquisitionPlan', new URL('../../../src/shared/embedding-acquisition-plan.js', import.meta.url)],
+    ['acquisitionReceipt', new URL('../../../src/shared/embedding-acquisition-receipt.js', import.meta.url)],
+    ['onnxClosure', new URL('../../../src/shared/onnx-artifact-closure.js', import.meta.url)],
+    ['onnxInstallation', new URL('../../../src/shared/onnx-installation.js', import.meta.url)],
+    ['deferredAdapter', new URL('../../../src/shared/embedding-deferred-adapter.js', import.meta.url)],
+    ['qualification', new URL('../../../src/shared/onnx-embeddings/qualification.js', import.meta.url)],
+    ['resourceLifetime', new URL('../../../src/shared/onnx-embeddings/resource-lifetime.js', import.meta.url)]
+  ].map(async ([name, url]) => [name, await readSourceIdentity(url)]));
+  const failures = captured.filter(value => value.status === 'rejected').map(value => value.reason);
+  if (failures.length) throw failures.slice(1).reduce(preserveEmbeddingCleanupFailure, failures[0]);
+  return Object.fromEntries(captured.map(value => value.value));
+};
 
 /** One case only; its executable owner supervises the entire child at28s.
  * Injected sessions author control-flow fixtures, never native memory evidence.
@@ -80,6 +104,10 @@ const sourceIdentity = async () => Object.fromEntries(await Promise.all([
 export const runOnnxProfileExperiment = async ({ rootDir, modelId, modelsDir, onnxConfig, envelope, memory,
   candidate, memoryEvidence = null, texts = defaultOnnxProfileTexts(), batchSize = 4, rounds = 2,
   signal = null, createSession = createOnnxEmbedder }) => {
+  texts = Array.isArray(texts) ? texts.slice() : texts;
+  onnxConfig = normalizeOnnxConfig(onnxConfig);
+  envelope = snapshotEmbeddingMetadata(envelope);
+  memory = snapshotEmbeddingMetadata(memory);
   if (candidate && Object.keys(candidate).some(key => !Object.hasOwn(safeBaseline, key))) throw invalid('Unknown experiment session setting.');
   candidate = { ...safeBaseline, ...(candidate || {}) };
   if (!Array.isArray(texts) || !texts.length || texts.length > 64 || texts.some(text => typeof text !== 'string')
@@ -90,11 +118,14 @@ export const runOnnxProfileExperiment = async ({ rootDir, modelId, modelsDir, on
     || !Number.isSafeInteger(memory?.freeBytes) || memory.freeBytes <= 0) throw invalid('Profile requires current effective memory headroom.');
   throwIfAborted(signal);
   const started = performance.now(), verificationStarted = performance.now();
-  const modelArtifact = await resolveEmbeddingArtifactIdentityAsync({ provider: 'onnx', modelId, modelsDir,
-    rootDir, onnx: onnxConfig });
+  const artifactLease = await acquireEmbeddingArtifactLease({ provider: 'onnx', modelId, modelsDir,
+    rootDir, onnx: onnxConfig }, { signal });
+  const modelArtifact = artifactLease.artifact, modelPath = artifactLease.selectedModelPath;
+  artifactLease.release();
   if (!embeddingArtifactReusable(modelArtifact) || modelArtifact.status !== 'verified') throw invalid('Real profile experiments require verified model/tokenizer bytes.');
+  if (!modelPath) throw invalid('Profile artifact acquisition omitted its selected physical graph path.');
+  onnxConfig = { ...onnxConfig, modelPath };
   const verificationMs = performance.now() - verificationStarted;
-  const modelPath = resolveOnnxModelPath({ rootDir, modelPath: onnxConfig?.modelPath, modelsDir, modelId });
   const source = await sourceIdentity(), cpuBudget = envelope?.concurrency?.cpuConcurrency?.value;
   const workload = { digest: hash(JSON.stringify(texts)), texts: texts.length, batchSize, rounds,
     utf8Bytes: texts.reduce((bytes, text) => bytes + Buffer.byteLength(text), 0) };
@@ -184,11 +215,13 @@ export const runOnnxProfileExperiment = async ({ rootDir, modelId, modelsDir, on
     reference = first.vectors; baseline = { stages: first.stages, sessions: first.sessions };
     measured = await execute(candidate, candidateLease);
     const parity = compareVectors(reference, measured.vectors);
+    if (stableStringify(await sourceIdentity()) !== stableStringify(source)) throw invalid('Profile source changed during the experiment case.');
     const observedSessionBytes = Math.ceil(measured.stages.peakRssBytes - measured.stages.rssBefore);
     const qualifiedMemory = native && candidate.sessions === 1 && parity.numericalPass && !parity.topKChanged
       ? sealOnnxMemoryEvidence({ binding: candidateBinding, measuredSessionBytes: observedSessionBytes }) : null;
     return { schemaVersion: 1, kind: 'onnx-profile-experiment', status: 'observed-unaccepted',
       evidenceScope: native ? 'native-onnx-child-case' : 'inert-session-fixture', source, binding: candidateBinding,
+      sourceEvidence: 'opened-source-byte-digests-stable-across-case; loaded-module-byte-attribution-unobserved',
       candidate, workload, envelope, memory, verificationMs, elapsedMs: performance.now() - started,
       nativeThreadAttribution: 'unknown-unless-runtime-observed; process-thread-inventory-is-not-provider-attribution',
       cacheState: { process: 'isolated-child-required-by-cli', modelSessions: 'fresh-capability-per-session',

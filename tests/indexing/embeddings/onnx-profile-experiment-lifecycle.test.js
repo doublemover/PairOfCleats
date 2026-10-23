@@ -48,13 +48,51 @@ assert.equal(report.parity.maxAbsoluteError, 0); assert.equal(report.parity.topK
 assert.equal(report.measured.stages.disposalConfirmed, true); assert.equal(loaded, 2); assert.equal(disposed, 2);
 assert.equal(peakActive, 1, 'one session preserves serialized inference scratch ownership');
 assert.equal(report.binding.workload.batchSize, 2);
+assert.equal(report.sourceEvidence, 'opened-source-byte-digests-stable-across-case; loaded-module-byte-attribution-unobserved');
 assert.deepEqual(report.binding.processing, resolveOnnxEmbeddingProcessing(modelId));
 for (const key of ['denseContract', 'outputAdmission', 'tokenization', 'tensorLifetime', 'tensorResources', 'sessionCacheLifetime',
-  'artifactLease', 'artifactIdentity', 'acquisitionPlan', 'acquisitionReceipt', 'onnxClosure', 'onnxInstallation', 'deferredAdapter']) {
+  'artifactLease', 'artifactIdentity', 'acquisitionPlan', 'acquisitionReceipt', 'onnxClosure', 'onnxInstallation', 'deferredAdapter',
+  'configuration', 'selectionSnapshot', 'runQueue', 'containedFile', 'containedResource', 'readExact']) {
   assert.match(report.source[key], /^[a-f0-9]{64}$/);
 }
 assert.equal(report.measured.sessions[0].requestedSessionOptions.graphOptimizationLevel, 'extended');
 assert.equal(report.measured.sessions[0].effectiveNativeThreads, null);
+
+const observedInputs = [], selectedInputs = options.texts.slice(), selectedConfig = { ...options.onnxConfig }, selectedEnvelope = structuredClone(options.envelope);
+const capturedWork = runOnnxProfileExperiment({ ...options, texts: selectedInputs, onnxConfig: selectedConfig, envelope: selectedEnvelope,
+  createSession: input => {
+    assert.equal(input.onnxConfig.modelPath, modelPath);
+    const session = createSession(input), run = session.getEmbeddings;
+    session.getEmbeddings = texts => { observedInputs.push(...texts); return run(texts); }; return session;
+  } });
+selectedInputs[0] = 'caller mutation after experiment admission'; selectedConfig.modelPath = path.join(dir, 'missing.onnx');
+selectedEnvelope.concurrency.cpuConcurrency.value = 0;
+await capturedWork;
+assert(observedInputs.includes('alpha')); assert(!observedInputs.includes('caller mutation after experiment admission'));
+
+// Corrupt only the second observed source read, without touching shared source
+// files. The actual experiment must reject rather than bind mixed byte captures.
+const originalOpen = fs.open, sourceFile = path.resolve('src/shared/embedding-selection-snapshot.js');
+let corruptSource = false, sourceCloses = 0;
+try {
+  fs.open = async (file, ...args) => {
+    const handle = await originalOpen(file, ...args);
+    if (String(file) === sourceFile && corruptSource) {
+      const read = handle.read.bind(handle), close = handle.close.bind(handle);
+      handle.read = async (buffer, offset, ...readArgs) => {
+        const result = await read(buffer, offset, ...readArgs);
+        if (result.bytesRead) buffer[offset] ^= 1;
+        return result;
+      };
+      handle.close = async () => { sourceCloses++; return close(); };
+    }
+    return handle;
+  };
+  await assert.rejects(runOnnxProfileExperiment({ ...options, createSession: input => {
+    corruptSource = true; return createSession(input);
+  } }), error => error.code === 'ERR_ONNX_PROFILE_EXPERIMENT' && /source changed during/u.test(error.message));
+  assert.equal(sourceCloses, 1); assert.equal(disposed, loaded, 'source evidence failure still closes both native-inert session leases');
+} finally { fs.open = originalOpen; }
 
 failAt = calls + 2;
 await assert.rejects(runOnnxProfileExperiment({ ...options, createSession }), error => error === failure);

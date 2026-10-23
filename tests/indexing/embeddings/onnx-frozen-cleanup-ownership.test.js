@@ -91,6 +91,12 @@ const nativeOwner = createOnnxResourceOwner({ session: { release() { if (++nativ
 await assert.rejects(nativeOwner.release()); substitute = true;
 await assert.rejects(nativeOwner.release()); assert.equal(nativeAttempts, 1); assert.equal(nativeCapacity, 0);
 nativeSettled = true; await nativeOwner.release(); assert.equal(nativeAttempts, 2); assert.equal(nativeCapacity, 1);
+let confirmNative = false, falseCapacity = 0;
+const falseNative = createOnnxResourceOwner({ session: { release: () => confirmNative },
+  qualificationSlot: { release() { falseCapacity++; } } });
+await assert.rejects(falseNative.release(), { code: 'ERR_ONNX_RESOURCE_UNCONFIRMED' });
+assert.equal(falseNative.pending, true); assert.equal(falseCapacity, 0);
+confirmNative = true; await falseNative.release(); assert.equal(falseNative.pending, false); assert.equal(falseCapacity, 1);
 
 // Deferred disposal may ignore an ordinary failed acquisition, never a pending owner.
 const deferred = createDeferredEmbeddingAdapter({ provider: 'controlled', methods: ['getEmbedding'], acquire: async () => { throw nested; } });

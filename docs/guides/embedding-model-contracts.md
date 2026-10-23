@@ -64,6 +64,11 @@ ONNX execution telemetry separates output conversion and captured tensor cleanup
 time. Tensor disposal settlement is not evidence of measured native memory
 release. Profile experiment source bindings include artifact/closure/lifetime
 helpers, and corrected processing identities do not enable a faster default.
+Experiment source reads use bounded original descriptors and must agree before
+and after the case. The report distinguishes these source-byte observations
+from loaded-module byte attribution, which remains unobserved. Workload,
+configuration and resource-envelope inputs are captured before acquisition;
+qualification keeps the selected physical ONNX installation.
 
 Unpadded ONNX token rows are reused only with the same tokenizer object,
 truncation setting, token limit and token-type policy. Estimation retains rows

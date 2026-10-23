@@ -16,7 +16,10 @@ const captureResource = (resource, name, required = false) => {
       if (released) return;
       if (captureFailed) throw captureError;
       for (const [error, observe] of blockers) if (!observe()) throw error;
-      try { await Reflect.apply(method, resource, []); }
+      try {
+        const confirmed = await Reflect.apply(method, resource, []);
+        if (confirmed === false) throw Object.assign(new Error(`ONNX ${name} was explicitly unconfirmed.`), { code: 'ERR_ONNX_RESOURCE_UNCONFIRMED' });
+      }
       catch (error) {
         const observe = observePending(error);
         if (observe && !blockers.has(error)) blockers.set(error, observe);
