@@ -44,13 +44,8 @@ const hashReadSource = async (source, expectedBytes, signal, snapshot, algorithm
   while (bytes < expectedBytes) {
     throwIfAborted(signal);
     const length = Math.min(scratch.length, expectedBytes - bytes);
-    let filled = 0;
-    while (filled < length) {
-      throwIfAborted(signal);
-      const { bytesRead } = await source.read(scratch, filled, length - filled, bytes + filled);
-      if (!bytesRead) throw contentChanged();
-      filled += bytesRead;
-    }
+    const { bytesRead } = await readExactAt(source, scratch, 0, length, bytes, { signal });
+    if (bytesRead !== length) throw contentChanged();
     const block = scratch.subarray(0, length);
     hash.update(block);
     if (captured) scratch.copy(captured, bytes, 0, length);
@@ -76,13 +71,8 @@ const verifiedBlockReadSource = (source, { stat, blocks }, signal) => ({
       const blockIndex = Math.floor((position + copied) / VERIFIED_SNAPSHOT_BYTES);
       const blockStart = blockIndex * VERIFIED_SNAPSHOT_BYTES;
       const block = Buffer.allocUnsafe(Math.min(VERIFIED_SNAPSHOT_BYTES, stat.size - blockStart));
-      let filled = 0;
-      while (filled < block.length) {
-        throwIfAborted(signal);
-        const read = await source.read(block, filled, block.length - filled, blockStart + filled);
-        if (!read.bytesRead) throw contentChanged();
-        filled += read.bytesRead;
-      }
+      const read = await readExactAt(source, block, 0, block.length, blockStart, { signal });
+      if (read.bytesRead !== block.length) throw contentChanged();
       if (!createHash('sha256').update(block).digest().equals(blocks[blockIndex])) throw contentChanged();
       const start = position + copied - blockStart;
       const count = Math.min(bytesRead - copied, block.length - start);
@@ -107,7 +97,7 @@ const createOffsetsInvalidError = (message) => {
 };
 
 const assertOffsetsAligned = (size, offsetsPath) => {
-  if (size % OFFSET_BYTES !== 0) {
+  if (!Number.isSafeInteger(size) || size < 0 || size % OFFSET_BYTES !== 0) {
     throw createOffsetsInvalidError(`Offsets sidecar misaligned: ${offsetsPath}`);
   }
 };
@@ -151,9 +141,9 @@ export const readOffsetsFile = async (offsetsPath) => {
   return offsets;
 };
 
-const readSingleOffsetAtWithHandle = async (handle, index) => {
+const readSingleOffsetAtWithHandle = async (handle, index, signal = null) => {
   const buffer = Buffer.allocUnsafe(OFFSET_BYTES);
-  const { bytesRead } = await readExactAt(handle, buffer, 0, OFFSET_BYTES, index * OFFSET_BYTES);
+  const { bytesRead } = await readExactAt(handle, buffer, 0, OFFSET_BYTES, index * OFFSET_BYTES, { signal });
   if (bytesRead === 0) return null;
   if (bytesRead !== OFFSET_BYTES) {
     throw createOffsetsInvalidError(`Offsets sidecar truncated at index ${index}`);
@@ -161,7 +151,8 @@ const readSingleOffsetAtWithHandle = async (handle, index) => {
   return readOffsetValue(buffer, 0);
 };
 
-const readOffsetsAtWithHandle = async (handle, indexes) => {
+const readOffsetsAtWithHandle = async (handle, indexes, signal = null) => {
+  throwIfAborted(signal);
   const sorted = Array.from(new Set(indexes.filter((index) => Number.isInteger(index) && index >= 0)))
     .sort((a, b) => a - b);
   if (!sorted.length) return new Map();
@@ -172,12 +163,12 @@ const readOffsetsAtWithHandle = async (handle, indexes) => {
   const spanBytes = spanCount * OFFSET_BYTES;
   if (spanBytes > MAX_OFFSETS_SPAN_BYTES) {
     for (const index of sorted) {
-      out.set(index, await readSingleOffsetAtWithHandle(handle, index));
+      out.set(index, await readSingleOffsetAtWithHandle(handle, index, signal));
     }
     return out;
   }
   const spanBuffer = Buffer.allocUnsafe(spanBytes);
-  const { bytesRead } = await readExactAt(handle, spanBuffer, 0, spanBytes, minIndex * OFFSET_BYTES);
+  const { bytesRead } = await readExactAt(handle, spanBuffer, 0, spanBytes, minIndex * OFFSET_BYTES, { signal });
   if (bytesRead % OFFSET_BYTES !== 0) throw createOffsetsInvalidError('Offsets sidecar has a partial trailing offset.');
   for (const index of sorted) {
     const relative = index - minIndex;
@@ -201,14 +192,15 @@ const readOffsetsAtWithHandle = async (handle, indexes) => {
 export const readOffsetsAt = async (
   offsetsPath,
   indexes,
-  { handle = null } = {}
+  { handle = null, signal = null } = {}
 ) => {
+  throwIfAborted(signal);
   if (handle) {
-    return readOffsetsAtWithHandle(handle, indexes);
+    return readOffsetsAtWithHandle(handle, indexes, signal);
   }
   const ownedHandle = await fs.open(offsetsPath, 'r');
   return createContainedFileResource({ handle: ownedHandle, sync: false })
-    .run(descriptor => readOffsetsAtWithHandle(descriptor, indexes));
+    .run(descriptor => readOffsetsAtWithHandle(descriptor, indexes, signal));
 };
 
 /**
@@ -221,10 +213,10 @@ export const readOffsetsAt = async (
 export const readOffsetAt = async (
   offsetsPath,
   index,
-  { handle = null } = {}
+  { handle = null, signal = null } = {}
 ) => {
   if (!Number.isInteger(index) || index < 0) return null;
-  const offsets = await readOffsetsAt(offsetsPath, [index], { handle });
+  const offsets = await readOffsetsAt(offsetsPath, [index], { handle, signal });
   return offsets.get(index) ?? null;
 };
 
@@ -261,21 +253,26 @@ export const readJsonlRowAt = async (
   {
     maxBytes = MAX_JSON_BYTES,
     requiredKeys = null,
-    metrics = null
+    metrics = null,
+    signal = null,
+    containedRoot = null
   } = {}
 ) => {
   const resolvedMaxBytes = resolveValidatedMaxBytes(maxBytes, 'readJsonlRowAt');
-  if (!Number.isFinite(index) || index < 0) return null;
+  throwIfAborted(signal);
+  if (!Number.isSafeInteger(index) || index < 0) return null;
   return withOpenedFileReaders([jsonlPath, offsetsPath], async ([jsonlHandle, offsetsHandle]) => {
     const [offsetCount, jsonlStat, offsets] = await Promise.all([
       resolveOffsetsCount(offsetsPath, { handle: offsetsHandle }),
       jsonlHandle.stat(),
-      readOffsetsAt(offsetsPath, [index, index + 1], { handle: offsetsHandle })
+      readOffsetsAt(offsetsPath, [index, index + 1], { handle: offsetsHandle, signal })
     ]);
     if (index >= offsetCount) return null;
     const start = offsets.get(index);
     const next = index + 1 < offsetCount ? offsets.get(index + 1) : null;
-    if (!Number.isFinite(start)) return null;
+    if (!Number.isFinite(start) || (index + 1 < offsetCount && !Number.isFinite(next))) {
+      throw createOffsetsInvalidError(`Offsets sidecar changed while reading row ${index} for ${jsonlPath}`);
+    }
     const end = Number.isFinite(next) ? next : jsonlStat.size;
     if (end < start) {
       throw new Error(`Invalid offsets: end (${end}) < start (${start}) for ${jsonlPath}`);
@@ -290,7 +287,7 @@ export const readJsonlRowAt = async (
       throw toJsonTooLargeError(jsonlPath, length);
     }
     const buffer = Buffer.allocUnsafe(length);
-    const { bytesRead } = await readExactAt(jsonlHandle, buffer, 0, length, start);
+    const { bytesRead } = await readExactAt(jsonlHandle, buffer, 0, length, start, { signal });
     assertExactRead(bytesRead, length, `JSONL row short read at index ${index} for ${jsonlPath}`);
     const line = buffer.slice(0, bytesRead).toString('utf8');
     if (metrics && typeof metrics === 'object') {
@@ -300,7 +297,7 @@ export const readJsonlRowAt = async (
       metrics.rowsRead = currentRows + 1;
     }
     return parseJsonlLine(line, jsonlPath, index + 1, resolvedMaxBytes, requiredKeys);
-  });
+  }, { containedRoot });
 };
 
 /**
@@ -318,11 +315,13 @@ const readJsonlRowsAtWithHandles = async (
   {
     maxBytes = MAX_JSON_BYTES,
     requiredKeys = null,
-    metrics = null
+    metrics = null,
+    signal = null
   },
   [jsonlHandle, offsetsHandle]
 ) => {
   const resolvedMaxBytes = resolveValidatedMaxBytes(maxBytes, 'readJsonlRowsAt');
+  throwIfAborted(signal);
   if (!Array.isArray(indexes) || indexes.length === 0) return [];
   const normalized = indexes.map((value) => (
     Number.isFinite(value) && value >= 0 ? Math.floor(value) : -1
@@ -340,7 +339,7 @@ const readJsonlRowsAtWithHandles = async (
     jsonlHandle.stat()
   ]);
   const offsetCount = resolveOffsetCountFromSize(offsetsStat.size, offsetsPath);
-  const offsetValues = await readOffsetsAtWithHandle(offsetsHandle, [...uniqueNeeded]);
+  const offsetValues = await readOffsetsAtWithHandle(offsetsHandle, [...uniqueNeeded], signal);
   const rowByIndex = new Map();
   const rowSpecs = [];
   for (const index of uniqueIndexes) {
@@ -350,9 +349,8 @@ const readJsonlRowsAtWithHandles = async (
     }
     const start = offsetValues.get(index);
     const next = index + 1 < offsetCount ? offsetValues.get(index + 1) : null;
-    if (!Number.isFinite(start)) {
-      rowByIndex.set(index, null);
-      continue;
+    if (!Number.isFinite(start) || (index + 1 < offsetCount && !Number.isFinite(next))) {
+      throw createOffsetsInvalidError(`Offsets sidecar changed while reading row ${index} for ${jsonlPath}`);
     }
     const end = Number.isFinite(next) ? next : jsonlStat.size;
     if (end < start) {
@@ -402,7 +400,7 @@ const readJsonlRowsAtWithHandles = async (
     const length = range.end - range.start;
     if (length <= 0) continue;
     const buffer = Buffer.allocUnsafe(length);
-    const { bytesRead } = await readExactAt(jsonlHandle, buffer, 0, length, range.start);
+    const { bytesRead } = await readExactAt(jsonlHandle, buffer, 0, length, range.start, { signal });
     assertExactRead(bytesRead, length, `JSONL row short read for ${jsonlPath}`);
     if (metrics && typeof metrics === 'object') {
       const currentRead = Number.isFinite(metrics.bytesRead) ? metrics.bytesRead : 0;
@@ -563,7 +561,7 @@ const validateOffsetsAgainstSources = async (jsonlPath, offsetsPath, { signal = 
     throwIfAborted(signal);
     const batchCount = Math.min(offsetBuffer.length / OFFSET_BYTES, count - first);
     const length = batchCount * OFFSET_BYTES;
-    const { bytesRead } = await offsetsHandle.read(offsetBuffer, 0, length, first * OFFSET_BYTES);
+    const { bytesRead } = await readExactAt(offsetsHandle, offsetBuffer, 0, length, first * OFFSET_BYTES, { signal });
     assertExactRead(bytesRead, length, 'Offsets sidecar short read for ' + offsetsPath);
     for (let i = 0; i < batchCount; i += 1) {
       const offset = readOffsetValue(offsetBuffer, i);
@@ -585,7 +583,7 @@ const validateOffsetsAgainstSources = async (jsonlPath, offsetsPath, { signal = 
       let end = i + 1;
       while (end < boundaryCount && positionAt(end) - start < dataBuffer.length) end += 1;
       const readLength = positionAt(end - 1) - start + 1;
-      const { bytesRead: dataBytes } = await jsonlHandle.read(dataBuffer, 0, readLength, start);
+      const { bytesRead: dataBytes } = await readExactAt(jsonlHandle, dataBuffer, 0, readLength, start, { signal });
       assertExactRead(dataBytes, readLength, 'JSONL boundary read failed for ' + jsonlPath);
       for (; i < end; i += 1) {
         const position = positionAt(i);
