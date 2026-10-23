@@ -81,7 +81,19 @@ export const refreshRuntimeReceipt = async (runtime, { lifecycle = 'running', ..
   if (runtime.embeddingCache?.dir) paths.embeddingCache = await observeRuntimePath(runtime.embeddingCache.dir);
   const record = await persistRuntimeAttempt(runtime.buildRoot, runtime.runtimeAttempt, {
     lifecycle, ...patch, paths: { ...paths, ...patch.paths },
-    runtime: { ...collectRuntimeResourceEvidence(runtime), ...patch.runtime },
+    inputs: { executionPlan: {
+      stage: runtime.stage || null, configHash: runtime.configHash || null,
+      sourceSnapshot: runtime.buildSourceSnapshot || null,
+      profile: runtime.profile || null,
+      features: { lint: runtime.lintEnabled ?? null, complexity: runtime.complexityEnabled ?? null,
+        astDataflow: runtime.astDataflowEnabled ?? null, controlFlow: runtime.controlFlowEnabled ?? null,
+        types: runtime.typeInferenceEnabled ?? null, crossFileTypes: runtime.typeInferenceCrossFileEnabled ?? null,
+        risk: runtime.riskAnalysisEnabled ?? null, tooling: runtime.toolingEnabled ?? null,
+        semantic: runtime.semanticPolicy?.enabled ?? null,
+        embeddings: runtime.embeddingEnabled ?? null, embeddingService: runtime.embeddingService ?? null },
+      producerIdentity: 'implementation-working-tree-unknown'
+    }, ...patch.inputs },
+    runtime: { ...collectRuntimeResourceEvidence(runtime), completedStageWork: runtime.completedStageWork || null, ...patch.runtime },
     embeddings: {
       requested: { modelId: runtime.modelId, provider: runtime.embeddingProvider, mode: runtime.embeddingMode, stub: runtime.useStubEmbeddings },
       resolvedIdentity: runtime.embeddingIdentity || null, identityKey: runtime.embeddingIdentityKey || null,

@@ -33,6 +33,8 @@ import { buildSqliteIndex } from './sqlite.js';
 import { runEmbeddingsStage, runSqliteStage, runStage } from './stages.js';
 import { validateBuildIntent } from '../../../shared/cli-option-validators.js';
 import { createBuildIndexOutcome } from './outcome.js';
+import { planBuildRecovery, executeBuildRecovery } from './recovery.js';
+import { readBuildAttemptComparison, formatBuildAttemptComparison } from '../../../index/build/runtime/compare.js';
 
 const toolRoot = resolveToolRoot();
 const buildEmbeddingsPath = path.join(toolRoot, 'tools', 'build/embeddings.js');
@@ -84,6 +86,20 @@ export const buildStreamedStage3Result = ({
  */
 async function buildIndexRun(repoRoot, options = {}) {
   const root = getRepoRoot(repoRoot);
+  if (options.compareAttempts) {
+    const comparison = await readBuildAttemptComparison(options.compareAttempts);
+    return { repo: root, comparison, lines: formatBuildAttemptComparison(comparison) };
+  }
+  if (options.recovery) {
+    const userConfig = loadUserConfig(root);
+    const signal = coerceAbortSignal(options.abortSignal || null);
+    const recovery = options.recovery;
+    if (recovery.action === 'inspect') return planBuildRecovery({ root, userConfig,
+      indexRoot: recovery.indexRoot, operation: recovery.operation, modes: recovery.modes, signal });
+    if (recovery.action === 'execute') return executeBuildRecovery({ root, userConfig,
+      plan: recovery.plan, signal, log: options.log });
+    throw Object.assign(new Error('Recovery action must be inspect or execute.'), { code: 'ERR_RECOVERY_OPERATION' });
+  }
   const invocation = resolveBuildInvocationArgs(options);
   const baseArgv = { ...invocation.argv, repo: root };
   validateBuildIntent(baseArgv);
@@ -422,6 +438,7 @@ export async function buildIndex(repoRoot, options = {}) {
   const requestedStage = normalizeStage(options.stage);
   try {
     const result = await buildIndexRun(repoRoot, options);
+    if (options.compareAttempts || options.recovery?.action === 'inspect') return result;
     return { ...result, outcome: createBuildIndexOutcome({ result, repo: repoRoot,
       requestedStage, modes: result?.modes || options.modes || [] }) };
   } catch (error) {

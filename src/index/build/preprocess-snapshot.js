@@ -271,6 +271,15 @@ export const createPreprocessSnapshotSession = async ({ root, snapshotCache, pol
         assertNoSymlinkPath(cacheRoot, snapshotPath, { allowMissing: true });
       } });
       metrics.snapshotState = 'sealed'; metrics.snapshotWriteBytes = encodedBytes; metrics.productsSealed = products.size;
+      // Reuse the source hashes already observed above; diagnostics must not add
+      // another source-tree hash pass. Exclude the allocating attempt/build id.
+      const byPath = (a, b) => a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0;
+      metrics.sourceSnapshot = { schemaVersion: PREPROCESS_SNAPSHOT_VERSION,
+        rootKey, policyKey, coverage: COVERAGE,
+        identity: sha256(stableStringifyForSignature({ membership: [...membership].sort(byPath),
+          products: [...products.values()].sort(byPath), skipped })),
+        candidateCount: membership.length, capturedSourceCount: products.size,
+        capturedSourceBytes: [...products.values()].reduce((sum, row) => sum + row.bytes, 0) };
     }
   };
 };

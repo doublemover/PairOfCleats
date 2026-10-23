@@ -41,6 +41,7 @@ export const createBuildIndexOutcome = ({ result = {}, repo = null, requestedSta
   return { schemaVersion: 1, repo: result.repo || repo, status, capabilities,
     requestedStages: requestedStage ? [requestedStage] : ['stage2', 'stage3', 'stage4'],
     stages, generations, counts: null,
+    ...(error?.publication ? { publication: error.publication } : {}),
     error: error ? { code: error.code || null, message: String(error.message || error) } : null };
 };
 

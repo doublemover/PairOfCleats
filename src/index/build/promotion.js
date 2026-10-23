@@ -16,6 +16,7 @@ import { assertArtifactPublicationReady } from './artifact-publication.js';
 import { withGeneratedArtifactMetadata } from '../../shared/generated-artifact-core.js';
 import { reconcilePublishedSemanticBindingWork } from '../semantic/build-frontier.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { readVerifiedContainedFile } from '../../shared/contained-file.js';
 
 const CURRENT_POINTER_MAX_BYTES = 512 * 1024;
 
@@ -31,7 +32,8 @@ export async function promoteBuild({
   repoProvenance,
   artifactSurfaceVersion = ARTIFACT_SURFACE_VERSION,
   compatibilityKey = null,
-  abortSignal = null
+  abortSignal = null,
+  expectedCurrentPointerHash = undefined
 }) {
   throwIfAborted(abortSignal);
   if (!repoRoot || !buildId || !buildRoot) return null;
@@ -158,15 +160,30 @@ export async function promoteBuild({
     repo: repoProvenance || null
   }, 'builds-current');
   await fs.mkdir(buildsRoot, { recursive: true });
+  if (expectedCurrentPointerHash !== undefined) {
+    let currentHash = null;
+    try {
+      currentHash = (await readVerifiedContainedFile(buildsRoot, currentPath, {
+        maxBytes: CURRENT_POINTER_MAX_BYTES, signal: abortSignal
+      })).hash;
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (currentHash !== expectedCurrentPointerHash) throw Object.assign(new Error('Current pointer changed after recovery planning.'),
+      { code: 'ERR_RECOVERY_PUBLICATION_CONFLICT' });
+  }
   await atomicWriteJson(currentPath, payload, { spaces: 0, signal: abortSignal });
   try {
-    await reconcilePublishedSemanticBindingWork({ repoRoot, userConfig, buildId, buildRoot: resolvedBuildRoot,
-      modes: modesByRoot.get(resolvedBuildRoot) || [] });
+    try {
+      await reconcilePublishedSemanticBindingWork({ repoRoot, userConfig, buildId, buildRoot: resolvedBuildRoot,
+        modes: modesByRoot.get(resolvedBuildRoot) || [] });
+    } catch (error) {
+      log('[build] warning: semantic task acknowledgement remains pending after publication: ' + (error.code || error.message));
+    }
+    log('[build] updated current.json', {
+      fileOnlyLine: `[build] updated current.json -> ${currentPath}`
+    });
   } catch (error) {
-    log('[build] warning: semantic task acknowledgement remains pending after publication: ' + (error.code || error.message));
+    throw Object.assign(new Error('Current pointer committed; publication bookkeeping failed.', { cause: error }),
+      { code: 'ERR_BUILD_POST_COMMIT', publication: { status: 'published', buildId } });
   }
-  log('[build] updated current.json', {
-    fileOnlyLine: `[build] updated current.json -> ${currentPath}`
-  });
   return payload;
 }
