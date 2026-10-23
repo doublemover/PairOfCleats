@@ -114,3 +114,13 @@ The production repair batch also passes scoped formatting, config budget,
 environment usage, generated-surface freshness, command-surface and workflow
 contracts, the full 40-case gate, and whitespace checks. Broad acceptance remains
 invalidated until the repaired source is frozen and its cohorts execute.
+
+The TUI CLI fixture now passes (2.68 seconds) after replacing its invalid short
+`MZFAKE` bytes with the existing target-qualified synthetic header helper. It
+checks the selected immutable generation through the strict install owner and
+compares installed bytes and CLI destination, preserving auto-build, staging and
+explicit build-smoke assertions. Its disposable files now use the managed test
+root and are removed in `finally`. This is installer/header admission, not native
+execution proof. New discovery totals 4350; 4288 cases remain required after the
+same 62 documented exclusions. The next candidate must rerun the CLI cohort and
+continue the remaining cohorts without borrowing earlier green observations.

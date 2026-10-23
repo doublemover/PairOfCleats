@@ -10,8 +10,9 @@ The repair program targets Windows with Node 26.12.1. All workers are parked.
 After `d256540ac`, the user requested a full solo Windows validation pass and
 failure repair; [the current receipt](../archived/windows-solo-validation-2026-10-23.md)
 records fresh setup, focused failures/repairs and pending full-tree acceptance.
-The current discovery contains 4348 default-all cases; older inventory totals
-below are historical. Current source is not fully qualified.
+Initial discovery contained 4348 default-all cases. Two ownership regressions
+expand it to 4350, with 4288 selected cases and 62 documented exclusions. Older
+inventory totals below are historical. Current source is not fully qualified.
 
 The following earlier post-wave checkpoint remains revision-specific. The post-wave source
 checkpoint 85be53744 has fresh locked bootstrap and separate native/patch
