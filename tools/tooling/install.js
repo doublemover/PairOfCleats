@@ -123,7 +123,7 @@ try {
           error: blockedPrerequisites.map(step => `${step.id}: ${step.reason || 'not ready'}`).join('; ') });
         continue;
       }
-      if (verifiedPath && !selection.plan) {
+      if (verifiedPath) {
         results.push({ id: tool.id, status: 'already-installed', path: verifiedPath, probe: status.probe || null, provisioning });
         continue;
       }
@@ -148,6 +148,7 @@ try {
         try {
           const installed = await installPinnedManagedTool({ toolingRoot: path.resolve(toolingConfig.dir),
             descriptor: selection.plan.managedDescriptor, approvedOrigins: selection.plan.approvedOrigins,
+            download: selection.plan.download,
             verify: tool.verifyManagedInstall, signal: cancellation.signal, onProgress: event => console.error(`[tooling-install] ${tool.id}: ${event.state}`) });
           results.push({ id: tool.id, status: installed.ok ? installed.reused ? 'already-installed' : 'installed' : 'verification-failed',
             path: installed.command || null, provisioning, managedInstallation: installed,
@@ -173,13 +174,19 @@ try {
       let goPrerequisite = null;
       if (requires) {
         const requirementArgCandidates = resolveInstallerRequirementProbeArgs(requires);
-        let requirementSatisfied = false;
+        // Non-Go managers already have an identified physical executable and
+        // typed verification in this invocation's canonical plan. Resolving
+        // their bare name again can select a different manager and wastes a
+        // child probe. Go retains its explicit pin/portable-SDK acquisition.
+        const selectedRequirement = requires !== 'go' ? provisioning.steps.find(step => step.id === requires && step.state === 'verified') : null;
+        let requirementSatisfied = Boolean(selectedRequirement);
+        if (selectedRequirement) requirementCommand = selectedRequirement.executable.path;
         const requirementChecks = [];
         const requirementCommands = requires === 'go'
           ? goRootPin ? [pinnedGoCommand].filter(Boolean)
             : goVersionPin ? [findBinaryOnPath('go')].filter(Boolean)
               : [...new Set([managedGoSdk?.command, findBinaryOnPath('go')].filter(Boolean))]
-          : [findBinaryOnPath(requires)].filter(Boolean);
+          : [];
         for (const candidate of requirementCommands) {
           if (!isAllowedRequirementCommand(candidate)) {
             requirementChecks.push({ command: candidate, outcome: 'blocked', reason: 'installer_requirement_unavailable_or_repo_untrusted' });
@@ -271,12 +278,6 @@ try {
           });
           continue;
         }
-      }
-      if (verifiedPath) {
-        results.push({ id: tool.id, status: 'already-installed', path: verifiedPath, probe: status.probe || null,
-          provisioning,
-          ...(goPrerequisite ? { prerequisite: goPrerequisite } : {}) });
-        continue;
       }
       const bound = bindProvisioningCommand({ ...selection.plan, cmd: requires && cmd === requires ? requirementCommand : cmd }, provisioning);
       actions.push({ id: tool.id, cmd: bound.command,

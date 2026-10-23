@@ -91,6 +91,7 @@ export const applyToolLifecyclePlan = async (approved, { tool = null, signal = n
     const selection = selectInstallPlan(tool, 'cache', false);
     return { ...await installPinnedManagedTool({ toolingRoot: approved.toolingRoot,
       descriptor: selection.plan.managedDescriptor, approvedOrigins: selection.plan.approvedOrigins,
+      download: selection.plan.download,
       verify: tool.verifyManagedInstall, repair: current.operation === 'repair', signal }), applied: true };
   }
   // Verification does not execute or adopt the tool. Mutating operations fail

@@ -26,6 +26,7 @@ import { PHPACTOR_APPROVED_RELEASE } from './approved-artifacts.js';
 import { resolveManagedLuaLanguageServer } from '../../src/shared/managed-lua.js';
 import { normalizeToolProvisioningDeclaration } from './provisioning-plan.js';
 import { resolveManagedToolInstallation } from '../../src/shared/managed-installation.js';
+import { AST_GREP_VERSION, identifyAstGrepVersion, resolveAstGrepManagedRecipe, verifyManagedAstGrep } from './managed-ast-grep.js';
 
 const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
@@ -208,11 +209,13 @@ function probeWithArgCandidates(cmd, argCandidates, providerId, toolingRoot = nu
     const recognizedUsage = probe.outcome === 'nonzero' && isNonZeroToolingProbeSuccess({
       providerId, command: cmd, stderr: probe.stderr, stdout: probe.stdout
     });
-    if (probe.ok || recognizedUsage) {
+    const identified = providerId !== 'ast-grep' || identifyAstGrepVersion(probe.stdout) === AST_GREP_VERSION;
+    if (identified && (probe.ok || recognizedUsage)) {
       return {
         ok: true,
         outcome: 'ok',
         ...(recognizedUsage ? { acceptance: 'recognized-transport-usage' } : {}),
+        ...(providerId === 'ast-grep' ? { identity: { family: 'ast-grep', version: AST_GREP_VERSION } } : {}),
         attempts
       };
     }
@@ -378,12 +381,15 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
   const globalGemBins = resolveGlobalGemBinDirs();
   const globalComposerBins = resolveGlobalComposerBinDirs();
   const globalPhpactorBins = resolveGlobalPhpactorBinDirs();
+  const astGrepRecipe = resolveAstGrepManagedRecipe();
 
   return [
     {
-      id: 'ast-grep', label: 'ast-grep CLI', languages: [], capabilities: ['structural.ast-grep'],
+      id: 'ast-grep', version: AST_GREP_VERSION, label: 'ast-grep CLI', languages: [], capabilities: ['structural.ast-grep'],
       detect: { cmd: 'ast-grep', args: ['--version'], binDirs: [nodeBin] },
-      install: { cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, '@ast-grep/cli@0.40.4'] } },
+      install: astGrepRecipe ? { cache: astGrepRecipe } : {},
+      verifyManagedInstall: verifyManagedAstGrep,
+      provisioningBlocker: 'No approved official native ast-grep archive for this platform/architecture/libc; no WSL, container or package-manager changes were attempted.',
       docs: 'https://ast-grep.github.io/guide/quick-start'
     },
     {
@@ -493,8 +499,9 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
     {
       id: 'jdtls',
       prerequisites: [
-        { id: 'java', command: 'java', family: 'java', kind: 'runtime', phase: 'launch', dependsOn: [] },
-        { id: 'javac', command: 'javac', family: 'javac', kind: 'sdk-component', phase: 'launch', dependsOn: ['java'] }
+        // Current JDT LS requires Java 21: https://github.com/eclipse-jdtls/eclipse.jdt.ls
+        { id: 'java', command: 'java', family: 'java', versionRange: '>=21.0.0', kind: 'runtime', phase: 'launch', dependsOn: [] },
+        { id: 'javac', command: 'javac', family: 'javac', versionRange: '>=21.0.0', kind: 'sdk-component', phase: 'launch', dependsOn: ['java'] }
       ],
       label: 'jdtls',
       languages: ['java'],
@@ -572,12 +579,18 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
     },
     {
       id: 'csharp-ls',
+      // The pinned 0.28.0 fsproj targets net10.0. Launch needs the runtime;
+      // installation additionally needs the SDK, including on existing hosts.
+      prerequisites: [{ id: 'dotnet-runtime', command: 'dotnet', family: 'dotnet-runtime', versionRange: '>=10.0.0 <11.0.0',
+        requiredComponents: ['Microsoft.NETCore.App'], kind: 'runtime', phase: 'launch', dependsOn: [] }],
       label: 'C# LSP (Roslyn)',
       languages: ['csharp'],
       detect: { cmd: 'csharp-ls', args: ['--version'], binDirs: [dotnetDir, ...globalDotnetBins] },
       install: {
-        cache: { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'csharp-ls', '--version', '0.28.0'], requires: 'dotnet' },
-        user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'csharp-ls', '--version', '0.28.0'], requires: 'dotnet' }
+        cache: { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'csharp-ls', '--version', '0.28.0'], requires: 'dotnet',
+          prerequisites: [{ id: 'dotnet', command: 'dotnet', family: 'dotnet', versionRange: '>=10.0.0', kind: 'sdk', phase: 'install', dependsOn: [] }] },
+        user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'csharp-ls', '--version', '0.28.0'], requires: 'dotnet',
+          prerequisites: [{ id: 'dotnet', command: 'dotnet', family: 'dotnet', versionRange: '>=10.0.0', kind: 'sdk', phase: 'install', dependsOn: [] }] }
       },
       docs: TOOL_DOCS['csharp-ls']
     },
@@ -607,7 +620,8 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
     },
     {
       id: 'phpactor',
-      prerequisites: [{ id: 'php', command: 'php', family: 'php', kind: 'runtime', phase: 'launch', dependsOn: [],
+      // https://phpactor.readthedocs.io/en/master/usage/standalone.html#requirements
+      prerequisites: [{ id: 'php', command: 'php', family: 'php', versionRange: '>=8.2.0', kind: 'runtime', phase: 'launch', dependsOn: [],
         requiredComponents: ['json', 'mbstring', 'tokenizer', 'phar'] }],
       label: 'phpactor',
       languages: ['php'],

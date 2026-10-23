@@ -1,3 +1,5 @@
+import semver from 'semver';
+
 const requirementName = (name) => String(name || '').trim().toLowerCase();
 const GO_MINIMUM = /^go(\d+)\.(\d+)\.(\d+)$/;
 
@@ -18,6 +20,7 @@ export const resolveInstallerRequirementProbeArgs = (commandName) => {
   const name = requirementName(commandName);
   if (name === 'go') return [['version']];
   if (name === 'dotnet') return [['--list-sdks']];
+  if (name === 'dotnet-runtime') return [['--list-runtimes']];
   if (name === 'php') return [['-r', 'echo json_encode(["family"=>"php","version"=>PHP_VERSION,"binary"=>PHP_BINARY,"extensions"=>get_loaded_extensions()]);']];
   if (name === 'ruby') return [['-rjson', '-e', 'puts JSON.generate({family: "ruby", version: RUBY_VERSION, executable: RbConfig.ruby})']];
   if (name === 'python' || name === 'python3') return [['-c', 'import json,sys; print(json.dumps({"family":"python","version":sys.version.split()[0],"executable":sys.executable}))']];
@@ -28,7 +31,7 @@ export const resolveInstallerRequirementProbeArgs = (commandName) => {
 };
 
 /** Recognize the SDK protocol, rather than another exit-zero executable named go. */
-export const verifyInstallerRequirementProbe = (commandName, probe, { minimumGoVersion = null, requiredComponents = [] } = {}) => {
+export const verifyInstallerRequirementProbe = (commandName, probe, { minimumGoVersion = null, requiredComponents = [], versionRange = null } = {}) => {
   if (probe?.ok !== true) return { ok: false, reason: probe?.outcome || 'probe_failed' };
   const name = requirementName(commandName);
   if (name !== 'go') {
@@ -42,7 +45,18 @@ export const verifyInstallerRequirementProbe = (commandName, probe, { minimumGoV
       } catch { /* A name and successful exit alone are not runtime identity. */ }
     } else if (name === 'dotnet') {
       const sdks = output.split(/\r?\n/).map(line => /^(\d+\.\d+\.\d+(?:-[\w.-]+)?) \[([^\]]+)\]$/.exec(line)).filter(Boolean);
-      if (sdks.length) identity = { family: 'dotnet-sdk', version: sdks.at(-1)[1], sdks: sdks.map(match => ({ version: match[1], path: match[2] })) };
+      if (sdks.length) {
+        const versions = sdks.map(match => match[1]).filter(version => semver.valid(version));
+        const selected = versionRange && semver.validRange(versionRange) ? semver.maxSatisfying(versions, versionRange) : null;
+        identity = { family: 'dotnet-sdk', version: selected || semver.rsort(versions)[0], sdks: sdks.map(match => ({ version: match[1], path: match[2] })) };
+      }
+    } else if (name === 'dotnet-runtime') {
+      const runtimes = output.split(/\r?\n/).map(line => /^(Microsoft\.[A-Za-z.]+) (\d+\.\d+\.\d+(?:-[\w.-]+)?) \[([^\]]+)\]$/.exec(line)).filter(Boolean)
+        .map(match => ({ component: match[1], version: match[2], path: match[3] })).filter(runtime => semver.valid(runtime.version));
+      const component = requiredComponents[0] || 'Microsoft.NETCore.App';
+      const versions = runtimes.filter(runtime => runtime.component === component).map(runtime => runtime.version);
+      if (versions.length) identity = { family: 'dotnet-runtime', version: versionRange && semver.validRange(versionRange)
+        ? semver.maxSatisfying(versions, versionRange) || semver.rsort(versions)[0] : semver.rsort(versions)[0], runtimes };
     } else {
       const patterns = {
         npm: /^(\d+\.\d+\.\d+)$/,
@@ -66,8 +80,18 @@ export const verifyInstallerRequirementProbe = (commandName, probe, { minimumGoV
       if (match) identity = { family: name, version: match[1] };
     }
     if (!identity) return { ok: false, reason: `unrecognized_${name || 'runtime'}_identity` };
-    const missing = requiredComponents.filter(component => !Array.isArray(identity.extensions)
-      || !identity.extensions.map(value => value.toLowerCase()).includes(component.toLowerCase()));
+    if (name === 'rustup' && !versionRange && !requiredComponents.length) return { ok: true, identity, verificationLevel: 'recognized-runtime-identity' };
+    // Java 8 spells its major as 1.8, while modern Java versions may omit
+    // minor/patch. Other runtime protocols above report complete versions.
+    const normalizedVersion = ['java', 'javac', 'cabal'].includes(name) ? semver.coerce(identity.version)?.version : identity.version;
+    const version = ['java', 'javac'].includes(name) && normalizedVersion?.startsWith('1.')
+      ? `${semver.minor(normalizedVersion)}.0.0` : normalizedVersion;
+    if (!semver.valid(version)) return { ok: false, identity, reason: 'invalid_runtime_version' };
+    if (versionRange && !semver.validRange(versionRange)) return { ok: false, identity, reason: 'invalid_runtime_version_constraint' };
+    if (versionRange && !semver.satisfies(version, versionRange)) return { ok: false, identity, versionRange, reason: 'unsupported_runtime_version' };
+    const missing = requiredComponents.filter(component => name === 'dotnet-runtime'
+      ? !identity.runtimes.some(runtime => runtime.component === component && (!versionRange || semver.satisfies(runtime.version, versionRange)))
+      : !Array.isArray(identity.extensions) || !identity.extensions.map(value => value.toLowerCase()).includes(component.toLowerCase()));
     if (missing.length) return { ok: false, identity, reason: 'missing_runtime_components', missingComponents: missing };
     return { ok: true, identity, verificationLevel: 'recognized-runtime-identity' };
   }

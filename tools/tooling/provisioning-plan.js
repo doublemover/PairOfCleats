@@ -8,6 +8,7 @@ import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { readVerifiedContainedFileSync } from '../../src/shared/contained-file.js';
 import { describeProvisioningFailure, isProvisioningObservationFailure, observeProvisioningResource } from './provisioning-failure.js';
+import { resolveEnvPath } from '../../src/shared/env-path.js';
 
 const digest = value => createHash('sha256').update(value).digest('hex');
 export const identifyProvisioningExecutable = (command, { signal = null } = {}) => {
@@ -45,6 +46,9 @@ export const orderProvisioningRequirements = requirements => {
     if (!input?.id || !/^[a-z0-9][a-z0-9.-]*$/.test(input.id)) throw new Error('Invalid provisioning requirement id.');
     const prior = nodes.get(input.id);
     if (prior && (prior.command !== input.command || prior.family !== input.family)) throw new Error(`Conflicting prerequisite declarations: ${input.id}`);
+    if (prior && ['versionRange', 'minimumGoVersion'].some(key => prior[key] && input[key] && prior[key] !== input[key])) {
+      throw new Error(`Conflicting prerequisite version constraints: ${input.id}`);
+    }
     nodes.set(input.id, prior ? { ...input, ...prior,
       dependsOn: [...new Set([...(prior.dependsOn || []), ...(input.dependsOn || [])])],
       requiredComponents: [...new Set([...(prior.requiredComponents || []), ...(input.requiredComponents || [])])] } : input);
@@ -74,7 +78,14 @@ export const createToolProvisioningPlan = ({ tool, selection, probe = null, reso
   const requirements = orderProvisioningRequirements(declared);
   const steps = requirements.map(requirement => {
     signal?.throwIfAborted();
-    const command = path.isAbsolute(requirement.command) ? requirement.command : resolve(requirement.command);
+    const pinKey = path.isAbsolute(requirement.command) ? null : ['dotnet', 'dotnet-runtime'].includes(requirement.family) ? 'DOTNET_ROOT'
+      : ['java', 'javac'].includes(requirement.family) ? 'JAVA_HOME' : null;
+    const pinnedRoot = pinKey ? String(env[pinKey] || '').trim() : '';
+    if (pinnedRoot && !path.isAbsolute(pinnedRoot)) return { ...requirement, state: 'missing', reason: 'invalid-explicit-runtime-root',
+      selectedEnvironmentKey: pinKey, nextAction: `${pinKey} must select an absolute runtime root; no PATH fallback was executed.` };
+    const pinnedCommand = pinnedRoot ? path.join(pinnedRoot, ...(pinKey === 'JAVA_HOME' ? ['bin'] : []),
+      requirement.command + (process.platform === 'win32' ? '.exe' : '')) : null;
+    const command = path.isAbsolute(requirement.command) ? requirement.command : pinnedCommand || resolve(requirement.command, resolveEnvPath(env));
     if (!command || !isAllowed(command)) return { ...requirement, state: 'missing', reason: 'command-missing-or-untrusted',
       nextAction: requirement.systemAction || requirement.recipe || 'No qualified managed recipe is declared for this requirement/platform.' };
     let executable;
@@ -129,6 +140,12 @@ export const bindProvisioningCommand = (action, plan, baseEnv = process.env) => 
   for (const step of plan.steps.filter(entry => entry.state === 'verified')) {
     const current = identifyProvisioningExecutable(step.executable.path);
     if (!sameExecutable(current, step.executable)) throw new Error(`Prerequisite bytes changed after verification: ${step.id}`);
+  }
+  const dotnet = plan.steps.find(step => ['dotnet', 'dotnet-runtime'].includes(step.family) && step.state === 'verified');
+  if (dotnet) {
+    const root = path.dirname(dotnet.executable.path);
+    if (childEnv.DOTNET_ROOT && fs.realpathSync(childEnv.DOTNET_ROOT) !== root) throw new Error('Explicit .NET runtime selection changed after verification.');
+    childEnv.DOTNET_ROOT = root;
   }
   return { command: manager && action.cmd === action.requires ? manager.executable.path : action.cmd,
     args: action.args, env: childEnv, prerequisites: plan.steps };
