@@ -14,13 +14,14 @@ import {
   recordSqlitePlanTelemetry,
   recordSqliteWalSnapshot,
   removeSqliteSidecars,
+  replaceSqliteDatabase,
   resolveSqliteIngestPlan
 } from '../utils.js';
 import { applyBuildPragmas, optimizeBuildDatabase, optimizeFtsTable, restoreBuildPragmas } from './pragmas.js';
 import { validateSqliteDatabase } from './validate.js';
 import { createInsertStatements } from './statements.js';
 import { createMultiRowInserter } from './multi-row.js';
-import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
+import { createTempPath } from '../../../shared/json-stream/atomic.js';
 import { getCacheTempRoot } from '../../../shared/cache-roots.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 
@@ -451,16 +452,19 @@ export const closeSqliteBuildDatabase = async ({
   }
   if (needsPromote) {
     try {
-      await removeSqliteSidecars(outPath);
-      await replaceFile(dbPath, outPath, { signal });
+      if (!fsSync.existsSync(dbPath)) {
+        throw Object.assign(new Error(`Temp sqlite build database missing before promotion: ${dbPath}`), { code: 'ERR_TEMP_MISSING' });
+      }
+      // Short-path fallback publication has the same WAL/rollback contract as
+      // the ordinary runner. Generic replacement cannot preserve SQLite state.
+      await replaceSqliteDatabase(dbPath, outPath, { signal });
     } catch (err) {
       if (typeof warn === 'function') {
         try { warn(err); } catch {}
       }
+      // Retain the staged main/WAL together on a failed checkpoint or promotion;
+      // the caller still owns that recoverable database, never just its bytes.
       throw err;
-    } finally {
-      await removeSqliteSidecars(dbPath);
-      if (fsSync.existsSync(dbPath)) fsSync.rmSync(dbPath, { force: true });
     }
   }
   if (!succeeded) {
