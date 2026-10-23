@@ -24,7 +24,7 @@ export const captureOperationSelector = (input, offset, limit) => {
 };
 export const createArtifactOperationReader = ({ index, inventory, generation, readPieceRows, getReadScope = () => null }) => {
   let checked = false;
-  return async (selector, { offset = 0, limit = 128, signal = null } = {}) => {
+  return async (selector, { offset = 0, limit = 128, signal = null, metrics = null } = {}) => {
     selector = captureOperationSelector(selector, offset, limit); throwIfAborted(signal);
     if (!index) throw Object.assign(new Error('Operation index unavailable; rebuild the current generation.'), { code: 'ERR_SEMANTIC_UNAVAILABLE' });
     if (!checked) {
@@ -40,14 +40,28 @@ export const createArtifactOperationReader = ({ index, inventory, generation, re
     }
     const read = async ordinal => {
       throwIfAborted(signal);
+      if(metrics)metrics.operationIndexProbes=(metrics.operationIndexProbes||0)+1;
+      const scope=getReadScope(),memo=scope?.operationRows;
+      if(memo?.has(ordinal)){
+        if(metrics)metrics.operationIndexMemoHits=(metrics.operationIndexMemoHits||0)+1;
+        return memo.get(ordinal);
+      }
       let low = 0, high = index.pieces.length - 1, piece;
       while (low <= high) { const mid = (low+high) >>> 1, candidate=index.pieces[mid];
         if (ordinal < candidate.firstRow) high=mid-1; else if (ordinal >= candidate.firstRow+candidate.count) low=mid+1; else { piece=candidate; break; } }
       if (!piece) throw new Error('Operation index row out of range.');
-      const [row]=await readPieceRows(piece,[ordinal-piece.firstRow],{maxBytes:1048576,signal});
+      if(metrics)metrics.operationIndexRowReads=(metrics.operationIndexRowReads||0)+1;
+      const [row]=await readPieceRows(piece,[ordinal-piece.firstRow],{maxBytes:1048576,signal,metrics});
       assertSemanticOperationIndex(row,{rowOnly:true});
       if (compareOperationIndexRows(row,piece.firstKey)<0 || compareOperationIndexRows(row,piece.lastKey)>0) throw new Error('Operation index key mismatch.');
-      return row;
+      const owned=Object.freeze({...row,ref:Object.freeze({...row.ref})});
+      const charge=512+2*(row.field.length+row.value.length+row.ref.partitionId.length);
+      if(memo&&!memo.has(ordinal)&&scope.readers.has(piece)&&memo.size<128
+        &&scope.readerBytes+scope.operationRowBytes+charge<=scope.operationMemoMaxBytes){
+        memo.set(ordinal,owned);scope.operationRowBytes+=charge;
+        if(metrics)metrics.operationIndexMemoBytes=Math.max(metrics.operationIndexMemoBytes||0,scope.operationRowBytes);
+      }
+      return owned;
     };
     const bound = async upper => {
       let low=0,high=index.rowCount;
@@ -68,7 +82,7 @@ export const createArtifactOperationReader = ({ index, inventory, generation, re
     const { start, end } = await range, refs = [];
     if(offset>end-start) throw new Error('Operation cursor exceeds selected inventory.');
     for(let ordinal=start+offset;ordinal<Math.min(end,start+offset+limit);ordinal++) {
-      const row=await read(ordinal); if(row.field!==selector.field || row.value!==selector.value) throw new Error('Operation selector mismatch.'); refs.push(row.ref);
+      const row=await read(ordinal); if(row.field!==selector.field || row.value!==selector.value) throw new Error('Operation selector mismatch.'); refs.push({...row.ref});
     }
     return {refs,offset:offset+refs.length,done:start+offset+refs.length===end};
   };

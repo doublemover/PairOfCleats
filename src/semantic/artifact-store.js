@@ -164,7 +164,7 @@ export const createArtifactSemanticStore = ({
     const scope = currentReadScope();
     const charge = retainedReaderBytes(piece);
     if (scope && !scope.readers.has(piece) && scope.readers.size < MAX_SCOPED_READERS
-      && scope.readerBytes + charge <= MAX_SCOPED_READER_BYTES) {
+      && scope.readerBytes + scope.operationRowBytes + charge <= MAX_SCOPED_READER_BYTES) {
       scope.readerBytes += charge;
       // Admission precedes async open so concurrent probes share this exact
       // verified owner and cannot exceed the reader or retention budgets.
@@ -179,9 +179,11 @@ export const createArtifactSemanticStore = ({
   const withReadScope = async run => {
     if (currentReadScope()) return run();
     const scope = { owner: scopeOwner, readers: new Map(), readerBytes: 0,
-      operationRanges: new Map(), closed: false };
+      operationRanges: new Map(), operationRows: new Map(), operationRowBytes: 0,
+      operationMemoMaxBytes: MAX_SCOPED_READER_BYTES, closed: false };
     return withSemanticReaderCleanup(() => READ_SCOPES.run(scope, run), async () => {
       scope.closed = true;
+      scope.operationRanges.clear(); scope.operationRows.clear(); scope.operationRowBytes = 0;
       await closeSemanticReaders(scope.readers);
     });
   };

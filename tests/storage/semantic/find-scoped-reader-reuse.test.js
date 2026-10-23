@@ -18,7 +18,8 @@ try {
     keyForRow: row => row, validateIndex: assertSemanticOperationIndex,
     schemaVersion: 2, directoryPrefix: 'semantic-operation-index-', batchRows: 128, batchBytes: 262144 });
   assert.equal(index.pieces.length, 1);
-  const store = fixture.store([partition], { operationIndex: index });
+  const underlying = fixture.store([partition], { operationIndex: index }), metrics={};
+  const store={...underlying,findOperations:(selector,options)=>underlying.findOperations(selector,{...options,metrics})};
   const active = new Set(), opens = new Map(), bytes = new Map();
   fs.open = async (...args) => {
     const handle = await originalOpen(...args), name = path.resolve(String(args[0]));
@@ -40,12 +41,16 @@ try {
     const ids = []; let cursor = null;
     do {
       opens.clear(); bytes.clear();
+      for(const key of Object.keys(metrics))delete metrics[key];
       const page = await find({ store, request: { ...input, cursor } });
       assert.equal(active.size, 0, 'all actual file handles settle before returning a page');
       assert.equal(opens.get(operationFile), 1, 'one verified operation piece owner per page');
       assert.ok(bytes.get(operationFile) <= index.pieces[0].bytes,
         'binary-search and candidate probes consume the verified snapshot');
       assert.ok(Buffer.byteLength(JSON.stringify(page)) <= (input.limits?.bytes || 65536));
+      assert.ok(metrics.operationIndexMemoHits>0,'repeated verified ordinal probes reuse their private decoded row');
+      assert.ok(metrics.operationIndexRowReads<metrics.operationIndexProbes);
+      assert.ok(metrics.operationIndexMemoBytes<=1024*1024,'decoded operation rows share the reader retention allowance');
       ids.push(...page.records.map(record => record.id)); cursor = page.cursor;
     } while (cursor);
     return ids;
@@ -73,6 +78,11 @@ try {
   const controller = new AbortController(); controller.abort();
   await assert.rejects(find({ store, request, signal: controller.signal }), { name: 'AbortError' });
   assert.equal(active.size, 0);
+  await underlying.withReadScope(async()=>{
+    const selector={field:'astKind',value:'Identifier'};
+    const first=await underlying.findOperations(selector,{limit:1});first.refs[0].localId=999;
+    assert.equal((await underlying.findOperations(selector,{limit:1})).refs[0].localId,0,'public refs cannot mutate private memo rows');
+  });
 } finally {
   fs.open = originalOpen;
   await fixture.cleanup();
