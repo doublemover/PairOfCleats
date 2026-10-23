@@ -7,10 +7,25 @@ export const validateOperationSelector = (selector, offset, limit) => {
     || typeof selector.value !== 'string' || !selector.value.length || selector.value.length > 4096
     || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 128) throw new TypeError('Invalid operation selector or page allowance.');
 };
+export const captureOperationSelector = (input, offset, limit) => {
+  const fail = () => new TypeError('Invalid operation selector or page allowance.');
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw fail();
+  for (const key in input) {
+    if (Object.hasOwn(input, key) && key !== 'field' && key !== 'value') throw fail();
+  }
+  const selector = {};
+  for (const key of ['field', 'value']) {
+    const descriptor = Object.getOwnPropertyDescriptor(input, key);
+    if (!descriptor || !Object.hasOwn(descriptor, 'value')) throw fail();
+    selector[key] = descriptor.value;
+  }
+  validateOperationSelector(selector, offset, limit);
+  return Object.freeze(selector);
+};
 export const createArtifactOperationReader = ({ index, inventory, generation, readPieceRows, getReadScope = () => null }) => {
   let checked = false;
   return async (selector, { offset = 0, limit = 128, signal = null } = {}) => {
-    validateOperationSelector(selector, offset, limit); throwIfAborted(signal);
+    selector = captureOperationSelector(selector, offset, limit); throwIfAborted(signal);
     if (!index) throw Object.assign(new Error('Operation index unavailable; rebuild the current generation.'), { code: 'ERR_SEMANTIC_UNAVAILABLE' });
     if (!checked) {
       assertSemanticOperationIndex(index);

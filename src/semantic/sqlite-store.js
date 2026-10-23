@@ -1,6 +1,7 @@
-import { validateOperationSelector } from './operation-reader.js';
+import { captureOperationSelector } from './operation-reader.js';
 import { createSourceReferenceReader } from './source-references.js';
 import { createNeighborReader } from './neighbors.js';
+import { captureSemanticDetailFields, captureSemanticRecordRef, captureSemanticRecordRefs } from './reader-input.js';
 import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.js';
 import { assertCurrentIndexFormat } from '../contracts/index-format.js';
 import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelopes.js';
@@ -9,6 +10,7 @@ import { assertSqliteIndexFormat } from '../storage/sqlite/index-format.js';
 import { throwIfAborted } from '../shared/abort.js';
 import { assertSemanticTask } from '../contracts/validators/semantic-task.js';
 import { resolvePublishedSemanticCoverage } from './coverage-resolution.js';
+const requestError = message => new Error(message);
 
 /** The database handle belongs to a pinned immutable generation. */
 export const createSqliteSemanticStore = ({
@@ -28,14 +30,11 @@ export const createSqliteSemanticStore = ({
   const statement = db.prepare('SELECT CASE WHEN length(CAST(payload AS BLOB))<=? THEN payload ELSE NULL END AS payload FROM semantic_records WHERE partition_id = ? AND local_id = ?');
   const partition = db.prepare('SELECT descriptor FROM semantic_analysis WHERE partition_id = ?');
   const getRecords = async (refs, fields = ['span', 'scope', 'data'], { signal = null } = {}) => {
-    if (!Array.isArray(refs) || refs.length > maxRecords) throw new Error('Semantic record request exceeds its limit.');
-    if (!Array.isArray(fields) || fields.some((field) => !['span', 'scope', 'data'].includes(field))) {
-      throw new Error('Unknown semantic detail field group.');
-    }
+    refs = captureSemanticRecordRefs(refs, maxRecords, requestError);
+    fields = captureSemanticDetailFields(fields, requestError);
     const result = [];
     for (const ref of refs) {
       throwIfAborted(signal);
-      if (!validateSemanticRecord('recordRef', ref).ok) throw new Error('Invalid semantic RecordRef.');
       if (!partition.get(ref.partitionId)) throw new Error('Record partition is not in the pinned generation.');
       const stored = statement.get(maxRowBytes,ref.partitionId, ref.localId);
       if (!stored) { result.push(null); continue; }
@@ -128,7 +127,8 @@ export const createSqliteSemanticStore = ({
     semantic_lookup: db.prepare('SELECT COUNT(*) AS n FROM semantic_lookup WHERE partition_id = ? AND partition_id = ? AND local_id = ?')
   };
   const getRelatedPage = async (ref, member, { offset = 0, limit = 128, signal = null } = {}) => {
-    if (!validateSemanticRecord('recordRef', ref).ok || !partition.get(ref.partitionId)
+    ref = captureSemanticRecordRef(ref, requestError);
+    if (!partition.get(ref.partitionId)
       || !Object.hasOwn(relatedQueries, member) || !Number.isSafeInteger(offset) || offset < 0
       || !Number.isSafeInteger(limit) || limit < 1 || limit > 512) throw new Error('Invalid related semantic request.');
     const rows = [];
@@ -158,7 +158,7 @@ export const createSqliteSemanticStore = ({
     return { rows, offset: offset + rows.length, done: offset + rows.length === total };
   };
   const findOperations = async (selector, { offset = 0, limit = 128, signal = null } = {}) => {
-    validateOperationSelector(selector,offset,limit); throwIfAborted(signal);
+    selector = captureOperationSelector(selector,offset,limit); throwIfAborted(signal);
     if (['typeExpression', 'literalValue'].includes(selector.field)) {
       if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='semantic_discovery'").get()) {
         throw Object.assign(new Error('Typed/value discovery index unavailable; rebuild the pinned generation.'), { code: 'ERR_SEMANTIC_UNAVAILABLE' });
