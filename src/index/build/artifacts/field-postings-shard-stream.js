@@ -9,8 +9,9 @@ const fail = message => Object.assign(new Error('[field-postings] ' + message), 
 const same = (left, right) => ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].every(key => left[key] === right[key]);
 /** Copy only body bytes from a freshly matched, completed shard; no whole-shard UTF-8 string exists. */
 export const streamFieldPostingsShardBody = async ({ root, filename, expected, onStart = null, onChunk,
-  signal = null, metrics = {} }) => {
-  if (!Number.isSafeInteger(expected?.bytes) || expected.bytes < PREFIX.length + SUFFIX.length
+  signal = null, metrics = {}, fragment = false }) => {
+  const prefixBytes = fragment ? 0 : PREFIX.length, suffixBytes = fragment ? 0 : SUFFIX.length;
+  if (!Number.isSafeInteger(expected?.bytes) || expected.bytes < prefixBytes + suffixBytes
     || expected.checksumAlgo !== 'sha1' || typeof expected.checksum !== 'string' || !/^[0-9a-f]{40}$/.test(expected.checksum)) {
     throw fail('Completed shard integrity receipt is required.');
   }
@@ -20,10 +21,11 @@ export const streamFieldPostingsShardBody = async ({ root, filename, expected, o
   try {
     const before = await handle.stat();
     if (before.size !== expected.bytes) throw fail('Completed shard length changed.');
-    const prefix = Buffer.alloc(PREFIX.length), suffix = Buffer.alloc(SUFFIX.length);
+    const prefix = Buffer.alloc(prefixBytes), suffix = Buffer.alloc(suffixBytes);
     const first = await readExactAt(handle, prefix, 0, prefix.length, 0, { signal });
     const last = await readExactAt(handle, suffix, 0, suffix.length, before.size - suffix.length, { signal });
-    if (first.bytesRead !== prefix.length || last.bytesRead !== suffix.length || !prefix.equals(PREFIX) || !suffix.equals(SUFFIX)) throw fail('Completed shard framing changed.');
+    if (first.bytesRead !== prefix.length || last.bytesRead !== suffix.length
+      || (!fragment && (!prefix.equals(PREFIX) || !suffix.equals(SUFFIX)))) throw fail('Completed shard framing changed.');
     const hash = createHash('sha1').update(prefix);
     const end = before.size - suffix.length;
     let position = prefix.length;
