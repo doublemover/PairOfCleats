@@ -10,15 +10,15 @@ import { readCompletedStage } from '../../../index/build/completed-stage.js';
 import { updateBuildState } from '../../../index/build/build-state.js';
 import { sealRetainedGraph, withRetainedGraph } from './recovery-graph.js';
 import { createBuildRecoveryGrant, settleBuildRecoveryWriter } from './recovery-context.js';
+import { durableRecoveryResult, summarizeRecoveryBackend, summarizeRecoveryModeWork } from './recovery-result.js';
 import { resolveArtifactPublicationPath } from '../../../index/build/artifact-publication.js';
 import { acquireIndexLock, readIndexLockInfo } from '../../../index/build/lock.js';
 import { createIndexCacheLease, assertIndexCacheLease } from '../../../index/build/cache-lease.js';
-import { combineCacheWriterErrors } from '../../../index/build/cache-writer-drain.js';
 import { validateIndexArtifacts } from '../../../index/validate.js';
 import { promoteBuild } from '../../../index/build/promotion.js';
 import { createRuntimeAttempt } from '../../../shared/runtime-envelope/receipt.js';
 import { persistRuntimeAttempt } from '../../../index/build/build-state/runtime.js';
-import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 
 const MODES = new Set(['code', 'prose', 'extracted-prose', 'records']);
@@ -180,6 +180,10 @@ export const executeBuildRecovery = async ({ root, userConfig, plan, signal = nu
     storageContext: { repoRoot: root, userConfig }, metadata: { owner: 'build-recovery', operation: plan.operation }, log });
   if (!lock) throw fail('ERR_RECOVERY_BUSY', 'Repository writer lease is unavailable.');
   let lease = null, operationError = null, attempt = null, published = false, publicationBuildId = plan.buildId;
+  let publicationBuildRoot = plan.buildRoot, publicationAttemptId = null;
+  const publicationFacts = () => ({ status: 'published', buildId: publicationBuildId, buildRoot: publicationBuildRoot,
+    runtimeAttemptId: publicationAttemptId, recoveryPlanId: plan.planId,
+    sourceBuildId: plan.buildId, sourceBuildRoot: plan.buildRoot });
   try {
     lease = createIndexCacheLease(lock, repoCacheRoot);
     // Recheck after admission, without treating our own newly acquired lock as a stale plan.
@@ -224,6 +228,8 @@ export const executeBuildRecovery = async ({ root, userConfig, plan, signal = nu
     assertIndexCacheLease(lease, repoCacheRoot);
     if (plan.operation === 'publish' || executeBuild) {
       publicationBuildId = executionId;
+      publicationBuildRoot = executionRoot;
+      publicationAttemptId = execution?.runtimeAttemptId || attempt.attemptId;
       await promoteBuild({ repoRoot: root, userConfig, buildRoot: executionRoot, buildId: executionId,
         stage: executeBuild ? plan.resumeTarget === 'stage2' ? 'stage2' : 'stage4' : plan.originalStage,
         modes: plan.modes, configHash: (resumed?.stage2 || resumed)?.configHash || plan.sourceConfigHash,
@@ -235,38 +241,51 @@ export const executeBuildRecovery = async ({ root, userConfig, plan, signal = nu
       recoveryAttemptId: attempt.attemptId, recoveryPlanId: plan.planId,
       sourceBuildRoot: plan.buildRoot, sourceBuildId: plan.buildId,
       sourceScope: plan.sourceScope, work: resumed ? {
-        modes: (resumed.stage2 || resumed).completedStageWork || null,
+        modes: summarizeRecoveryModeWork((resumed.stage2 || resumed).completedStageWork),
         reusedModes: plan.reusedModes, rebuiltModes: plan.rebuiltModes,
         parsedFiles: plan.rebuiltModes.length ? null : 0,
-        embeddings: resumed.stage3?.embeddings || { skipped: true }, sqlite: resumed.stage4?.sqlite || { skipped: true }
+        embeddings: summarizeRecoveryBackend(resumed.stage3?.embeddings || { skipped: true }, 'embeddings'),
+        sqlite: summarizeRecoveryBackend(resumed.stage4?.sqlite || { skipped: true }, 'sqlite')
       } : { parsedFiles: 0, embeddedFiles: 0, rebuiltArtifacts: 0 },
-      validation: { status: 'passed' }, publication: { status: published ? 'published' : 'retained' },
+      validation: { status: 'passed' }, publication: published ? publicationFacts() : { status: 'retained' },
       ...(graph ? { graph } : {}),
-      ...(resumed ? { execution: resumed } : {}),
+      ...(resumed ? { execution: resumed, executionEvidence: { kind: 'runtime-attempt', buildRoot: executionRoot,
+        buildId: executionId, attemptId: execution?.runtimeAttemptId || attempt.attemptId } } : {}),
       originalFailurePreserved: true };
     await persistRuntimeAttempt(plan.buildRoot, attempt, { lifecycle: 'succeeded', runtime: { recovery: result.work } });
     await updateBuildState(plan.buildRoot, { recoveryTransactions: { [plan.planId]: { status: 'completed', operation: plan.operation,
       buildId: plan.buildId, completedAt: new Date().toISOString(), currentPointerIdentity: await pointerIdentity(root, userConfig),
-      outputIdentities: graph ? null : await outputIdentities({ ...plan, buildRoot: executionRoot, buildId: executionId }, signal), result } } });
+      outputIdentities: graph ? null : await outputIdentities({ ...plan, buildRoot: executionRoot, buildId: executionId }, signal),
+      result: durableRecoveryResult(result) } } });
     return result;
   } catch (error) {
-    operationError = error;
-    if (published || error?.publication?.status === 'published') {
-      operationError = combineCacheWriterErrors(Object.assign(new Error('Generation published; recovery bookkeeping failed.', { cause: error }),
-        { code: 'ERR_RECOVERY_POST_COMMIT', publication: { status: 'published', buildId: error?.publication?.buildId || publicationBuildId } }), error);
-      operationError.publication = { status: 'published', buildId: error?.publication?.buildId || publicationBuildId };
+    // Capture original resource observations before inspecting diagnostics or
+    // persisting another receipt. Inspection itself can own independent work.
+    operationError = addStorageFailureContext(error, { recoveryPhase: 'execution' }, null, { forceAggregate: true });
+    try { if (!published && operationError.publication?.status === 'published') published = true; }
+    catch (inspectionError) { operationError = addStorageFailureContext(operationError, {}, inspectionError, { secondaryPresent: true, forceAggregate: true }); }
+    if (published) {
+      operationError = addStorageFailureContext(operationError, { code: 'ERR_RECOVERY_POST_COMMIT',
+        publication: publicationFacts() }, null, { forceAggregate: true });
     } else if (attempt) {
-      try { await persistRuntimeAttempt(plan.buildRoot, attempt, { lifecycle: isAbortError(error) ? 'aborted' : 'failed',
-        error: { code: String(error?.code || 'UNKNOWN'), message: 'Retained recovery did not publish.' } }); }
-      catch (recordingError) { operationError = combineCacheWriterErrors(error, recordingError); }
+      let code = 'UNKNOWN', aborted = signal?.aborted === true;
+      try {
+        const actualCode = operationError.code;
+        if (typeof actualCode === 'string') code = actualCode;
+        const actualName = operationError.name;
+        aborted ||= actualName === 'AbortError' || actualCode === 'ABORT_ERR';
+      } catch (inspectionError) { operationError = addStorageFailureContext(operationError, {}, inspectionError, { secondaryPresent: true, forceAggregate: true }); }
+      try { await persistRuntimeAttempt(plan.buildRoot, attempt, { lifecycle: aborted ? 'aborted' : 'failed',
+        error: { code, message: 'Retained recovery did not publish.' } }); }
+      catch (recordingError) { operationError = addStorageFailureContext(operationError, {}, recordingError, { secondaryPresent: true, forceAggregate: true }); }
     }
     throw operationError;
   } finally {
     try { await settleBuildRecoveryWriter({ lease, lock, operationError }); }
     catch (error) {
-      if (!published && operationError?.publication?.status !== 'published') throw error;
+      if (!published) throw error;
       throw addStorageFailureContext(error, { code: 'ERR_RECOVERY_POST_COMMIT',
-        publication: { status: 'published', buildId: publicationBuildId } }, null, { forceAggregate: true });
+        publication: publicationFacts() }, null, { forceAggregate: true });
     }
   }
 };

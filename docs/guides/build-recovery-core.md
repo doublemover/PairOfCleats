@@ -27,6 +27,13 @@ A completed plan has a durable result in existing build state. Repeating it
 revalidates the retained authority and reports `alreadyComplete`, preserving the
 original recovery attempt id and avoiding another pointer write. A later pointer
 change is reported separately from the historical publication result.
+Each durable completion result is limited to 128 KiB and stores bounded mode and
+backend facts. Full nested execution output is returned to the immediate caller;
+`executionEvidence` links its existing runtime attempt instead of copying backend
+diagnostics into every transaction. Repeated completion returns the same bounded
+work facts and evidence locator. A metadata allowance failure remains a typed
+error. Post-publication errors preserve the actual destination root, build and
+attempt alongside the selected historical source and recovery plan identities.
 
 Stage2 drains writers and seals its mode before optional embedding callbacks.
 The completion in build state and the publication extension bind source/discovery,

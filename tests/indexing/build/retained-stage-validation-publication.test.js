@@ -66,6 +66,11 @@ try {
     await assert.rejects(buildIndex(root, { recovery: { action: 'execute', plan: republish } }), error => {
       assert.equal(error.code, 'ERR_RECOVERY_POST_COMMIT');
       assert.equal(error.publication.status, 'published');
+      assert.equal(error.publication.buildRoot, retainedRoot);
+      assert.equal(error.publication.buildId, retainedId);
+      assert.equal(error.publication.sourceBuildRoot, retainedRoot);
+      assert.equal(error.publication.recoveryPlanId, republish.planId);
+      assert.equal(typeof error.publication.runtimeAttemptId, 'string');
       assert.equal(error.outcome.publication.status, 'published');
       return true;
     });
