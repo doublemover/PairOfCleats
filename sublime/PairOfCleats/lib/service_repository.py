@@ -7,6 +7,7 @@ import copy
 from urllib.parse import urlsplit, urlunsplit
 
 from . import api_client, operations, ui
+from .prompts import NativePrompt
 
 KEY = 'pairofcleats_service_repositories'
 _MAPPINGS = {}
@@ -109,8 +110,9 @@ def map_payload(payload, root):
     return result
 
 
-def resolve(window, settings, local_root, on_done, force=False):
-    scope = operations.capture(window)
+def resolve(window, settings, local_root, on_done, force=False, operation_scope=None, request_current=None):
+    scope = operation_scope or operations.capture(window, key='service-repository')
+    prompt = NativePrompt(window, scope)
     settings = copy.deepcopy(settings)
     local_root = os.path.abspath(local_root)
     base = api_client.normalize_base_url(settings.get('api_server_url'))
@@ -135,7 +137,7 @@ def resolve(window, settings, local_root, on_done, force=False):
         existing = None
 
     def current():
-        if not operations.is_current(scope):
+        if not prompt.current() or callable(request_current) and request_current() is not True:
             return False
         if git_head(local_root) != commit:
             ui.show_error('PairOfCleats: local Git revision changed during service mapping. Select the repository again.')
@@ -150,13 +152,24 @@ def resolve(window, settings, local_root, on_done, force=False):
         except ValueError as error:
             ui.show_error(str(error))
             return
+        received = [False]
         def ready(response):
-            if not current():
+            if received[0] or not current():
                 return
+            received[0] = True
             if response.error:
                 ui.show_error(response.error)
                 return
             payload = response.payload if isinstance(response.payload, dict) else {}
+            repo = payload.get('repo')
+            try:
+                returned_root = validate_root(repo.get('root') if isinstance(repo, dict) else None)
+                flavor = ntpath if ntpath.splitdrive(root)[0] else posixpath
+                if flavor.normcase(flavor.normpath(returned_root)) != flavor.normcase(flavor.normpath(root)):
+                    raise ValueError('Service status returned a different repository root.')
+            except ValueError:
+                ui.show_error('PairOfCleats: service status does not retain the selected repository root. Previous mapping is retained.')
+                return
             coverage = payload.get('coverage')
             provenance = coverage.get('currentProvenance') if isinstance(coverage, dict) else None
             provenance = provenance if isinstance(provenance, dict) else {}
@@ -165,25 +178,35 @@ def resolve(window, settings, local_root, on_done, force=False):
             if not isinstance(observed, str) or observed.lower() != commit or provenance.get('dirty') is not False:
                 ui.show_error('PairOfCleats: service source revision does not match this checkout, or its source is dirty.')
                 return
+            used = [False]
             def use(index):
-                if index != 0 or not current():
+                if used[0] or index != 0 or not current():
                     return
+                used[0] = True
                 # Preserve mappings admitted by other requests during this wait.
                 latest = window.settings().get(KEY) if hasattr(window, 'settings') else _MAPPINGS.get(window.id())
                 updated = copy.deepcopy(latest) if isinstance(latest, dict) else {}
                 updated[key] = {'serviceRoot': root, 'commit': commit}
+                try:
+                    if hasattr(window, 'settings'):
+                        window.settings().set(KEY, updated)
+                except Exception as error:
+                    ui.show_error('PairOfCleats: service mapping save failed: ' + str(error))
+                    return
                 _MAPPINGS[window.id()] = updated
-                if hasattr(window, 'settings'):
-                    window.settings().set(KEY, updated)
                 on_done(root)
             if existing:
                 use(0)
             else:
-                window.show_quick_panel([['Use repository mapping', endpoint + ' ' + root,
+                prompt.choose([['Use repository mapping', endpoint + ' ' + root,
                     'Revision ' + commit[:12] + '; editor working-tree freshness remains unverified.']], use)
-        api_client.run_async(lambda: api_client.status_json(base, root, settings), ready,
+        def request_status():
+            if not current():
+                raise RuntimeError('The original service mapping request is no longer current.')
+            return api_client.status_json(base, root, settings)
+        api_client.run_async(request_status, ready,
                              window=window, scope=scope)
     if existing:
         check(existing['serviceRoot'])
     else:
-        window.show_input_panel('Repository path on service host ' + endpoint, local_root, check, None, None)
+        prompt.input('Repository path on service host ' + endpoint, local_root, check)

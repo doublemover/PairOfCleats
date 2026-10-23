@@ -71,7 +71,7 @@ class OperatorBehaviorTests(unittest.TestCase):
         self.operator.api_client.run_async = self._run_async
         self.operator.api_client.health_json = self._health_json
         self.operator.api_client.status_json = self._status_json
-        self.operator.service_repository.resolve = lambda _window, _settings, root, on_done: on_done(root)
+        self.operator.service_repository.resolve = lambda _window, _settings, root, on_done, **options: on_done(root)
 
     def tearDown(self):
         for key, value in self._originals.items():

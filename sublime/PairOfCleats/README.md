@@ -315,6 +315,15 @@ Settings during a prompt does not substitute a different execution profile.
 Credentials are still read only through the destination-bound grant at request
 time. The additional actual-command regressions remain unrun.
 
+Service repository admission now remains a child of the original search,
+semantic, collection or diagnostics request, so superseding that request also
+revokes its status work and prompts. Status must name the selected service root
+as well as the matching clean revision. Input/confirmation/HTTP callbacks are
+consumed once; cancelled or duplicate steps cannot replace a mapping. Failed
+mapping persistence retains the previous cache and never acknowledges a new
+selection. Deferred regressions also cover replacing the credential endpoint
+while an original request is pending: it cannot borrow the replacement token.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only

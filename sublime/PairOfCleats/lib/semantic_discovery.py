@@ -80,7 +80,7 @@ def discover_generation(window, context, seed, on_done, on_error):
                 if operations.is_current(scope):
                     context['serviceRoot'] = service_root
                     discover_generation(window, context, seed, on_done, on_error)
-            service_repository.resolve(window, settings, root, selected)
+            service_repository.resolve(window, settings, root, selected, operation_scope=scope)
             return
         service_root, base = context['serviceRoot'], execution['base_url']
         def request():

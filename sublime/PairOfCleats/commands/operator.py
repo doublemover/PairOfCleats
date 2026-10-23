@@ -162,7 +162,7 @@ def _run_repo_status(window, workflow, title, panel_name, render_fn, success_mes
                 lambda payload: 'Editor repository: {0}\nService repository: {1}\n\n{2}'.format(
                     root, service_root, render_fn(payload)), success_message,
                 repo_root=root, operation_scope=scope)
-        service_repository.resolve(window, settings, root, mapped)
+        service_repository.resolve(window, settings, root, mapped, operation_scope=scope)
     _with_repo_context(window, workflow, on_context, validate_repo_settings=False)
 
 

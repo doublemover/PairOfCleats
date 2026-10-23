@@ -127,6 +127,19 @@ class ApiAuthenticationTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             config.build_destination_bound_api_headers('https://example.com/health')
 
+    def test_delayed_original_destination_cannot_borrow_replacement_endpoint_credentials(self):
+        with server() as (original_endpoint, original):
+            with server(expected='replacement-user-token') as (replacement_endpoint, replacement):
+                captured = user_settings(original_endpoint, 'original-user-token')
+                user_settings(replacement_endpoint, 'replacement-user-token')
+                self.assertTrue(api.health_json(original_endpoint, captured)[0]['ok'])
+                self.assertEqual(original.received, [('/health', None)])
+                self.assertTrue(api.health_json(replacement_endpoint, captured)[0]['ok'])
+                self.assertEqual(replacement.received, [('/health', 'Bearer replacement-user-token')])
+                user_settings('')
+                self.assertTrue(api.health_json(original_endpoint, captured)[0]['ok'])
+                self.assertEqual(original.received[-1], ('/health', None))
+
     def test_credential_redirects_never_reach_same_or_other_origin(self):
         with server() as (destination, sink):
             with server(redirect=destination + '/stolen') as (endpoint, redirector):

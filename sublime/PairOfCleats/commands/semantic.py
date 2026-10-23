@@ -261,7 +261,8 @@ def execute(window, operation, request, context, on_done, on_error=None):
                     return
                 context['serviceRoot'] = root
                 execute(window, operation, request, context, on_done, on_error)
-            service_repository.resolve(window, settings, context['root'], selected)
+            service_repository.resolve(window, settings, context['root'], selected,
+                                       operation_scope=call_scope, request_current=current)
             return
         wire_request = copy.deepcopy(dict(request, repoRoot=context['serviceRoot']))
         base = execution['base_url']

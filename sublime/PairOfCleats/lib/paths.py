@@ -98,8 +98,12 @@ def resolve_repo_root_interactive(window, on_done, path_hint=None, allow_fallbac
             hint = 'active file'
         items.append([label, hint])
 
+    pending = [True]
     def on_select(index):
-        if not operations.is_current(scope):
+        if not pending[0] or not operations.is_current(scope):
+            return
+        pending[0] = False
+        if type(index) is not int:
             return
         if index < 0:
             on_done(None, 'Repo selection cancelled.')

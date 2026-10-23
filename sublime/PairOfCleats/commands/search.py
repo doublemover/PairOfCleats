@@ -392,7 +392,8 @@ def _execute_search(window, query, overrides=None, explain=False, enumeration=Fa
         # Mapping may involve HTTP and native input. Resume the admitted request,
         # never resolve a different repository or today's settings afterward.
         service_repository.resolve(window, settings, repo_root, lambda selected: _dispatch_search(
-            window, query, repo_root, settings, resolved, execution, scope, explain, enumeration, append_session, selected))
+            window, query, repo_root, settings, resolved, execution, scope, explain, enumeration, append_session, selected),
+            operation_scope=scope)
         return
     _dispatch_search(window, query, repo_root, settings, resolved, execution, scope, explain, enumeration,
                      append_session, service_root)
@@ -635,7 +636,7 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
 
     if execution.get('mode') == 'api' and not service_root:
         service_repository.resolve(window, settings, repo_root, lambda selected: _dispatch_symbol_lookup(
-            window, query, on_hits, repo_root, settings, resolved, execution, scope, title, selected))
+            window, query, on_hits, repo_root, settings, resolved, execution, scope, title, selected), operation_scope=scope)
         return
     _dispatch_symbol_lookup(window, query, on_hits, repo_root, settings, resolved, execution, scope, title, service_root)
 

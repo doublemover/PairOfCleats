@@ -55,6 +55,7 @@ with isolated_temp_directory() as temporary:
     settings_commands.PairOfCleatsSelectRepoCommand(window).run()
     assert len(window.quick_panel_items) == 2
     window.quick_panel_callback(-1)
+    window.quick_panel_callback(1)
     assert paths.resolve_repo_root(window) == first
     settings_commands.PairOfCleatsSelectRepoCommand(window).run()
     window.quick_panel_callback(1)
@@ -77,7 +78,8 @@ with isolated_temp_directory() as temporary:
     mappings, requests = [], []
     user.set('search_advanced_defaults', {'path': ['src/**']})
 
-    def mapping(target_window, settings, root, on_done):
+    def mapping(target_window, settings, root, on_done, **options):
+        assert options.get('operation_scope') is not None
         mappings.append((target_window, settings, root, on_done))
 
     def asynchronous(request, done, **options):
@@ -143,7 +145,7 @@ with isolated_temp_directory() as temporary:
         window.input['done']('/srv/雪 repo')
         pending[-1][0]()
         assert status_json.call_args.args[1] == '/srv/雪 repo'
-        response = api.ApiResult(payload={'coverage': {'currentProvenance': {
+        response = api.ApiResult(payload={'repo': {'root': '/srv/雪 repo'}, 'coverage': {'currentProvenance': {
             'head': {'commitId': 'a' * 40}, 'dirty': False}}})
         pending[-1][1](response)
         assert 'secret' not in json.dumps(window.quick_panel_items)
@@ -153,8 +155,97 @@ with isolated_temp_directory() as temporary:
         assert selected == [] and 'revision changed' in sublime.last_error
         service.resolve(window, config.get_settings(window), first, selected.append, force=True)
         window.input['done']('/srv/雪 repo')
-        pending[-1][1](api.ApiResult(payload={'coverage': ['malformed']}))
+        pending[-1][1](api.ApiResult(payload={'repo': {'root': '/srv/雪 repo'}, 'coverage': ['malformed']}))
         assert selected == [] and 'does not match' in sublime.last_error
+
+    # A mapping is a child of its requesting operation, including its HTTP
+    # status request. Cancellation and duplicate native/HTTP callbacks cannot
+    # revive it or silently select a different repository with the same commit.
+    user.set('api_server_url', 'http://localhost:7345')
+    with open(os.path.join(first, '.git', 'HEAD'), 'w') as handle:
+        handle.write('a' * 40)
+    mapping_requests = []
+    def pending_mapping(request, done, **options):
+        mapping_requests.append((request, done, options))
+    valid_payload = {'repo': {'root': '/srv/original'}, 'coverage': {'currentProvenance': {
+        'head': {'commitId': 'a' * 40}, 'dirty': False}}}
+    with patch.object(api, 'run_async', side_effect=pending_mapping):
+        original_scope = operations.capture(window, key='foreground-search')
+        service.resolve(window, config.get_settings(window), first, selected.append, force=True,
+                        operation_scope=original_scope)
+        cancelled = dict(window.input)
+        cancelled['cancel']()
+        cancelled['done']('/srv/original')
+        assert mapping_requests == []
+
+        service.resolve(window, config.get_settings(window), first, selected.append, force=True,
+                        operation_scope=original_scope)
+        request_input = dict(window.input)
+        request_input['done']('/srv/original')
+        request_input['done']('/srv/replacement')
+        assert len(mapping_requests) == 1
+        assert mapping_requests[-1][2]['scope'] is original_scope
+        mapping_requests[-1][1](api.ApiResult(payload=valid_payload))
+        rejected_confirmation = window.quick_panel_callback
+        rejected_confirmation(-1)
+        rejected_confirmation(0)
+        assert selected == []
+
+        service.resolve(window, config.get_settings(window), first, selected.append, force=True,
+                        operation_scope=original_scope)
+        window.input['done']('/srv/original')
+        before = window.quick_panel_callback
+        mapping_requests[-1][1](api.ApiResult(payload=dict(valid_payload, repo={'root': '/srv/sibling'})))
+        assert selected == [] and 'selected repository root' in sublime.last_error
+        mapping_requests[-1][1](api.ApiResult(payload=valid_payload))
+        assert window.quick_panel_callback is before, 'duplicate HTTP success cannot replace an admitted failure'
+
+        service.resolve(window, config.get_settings(window), first, selected.append, force=True,
+                        operation_scope=original_scope)
+        window.input['done']('/srv/original')
+        obsolete_response = mapping_requests[-1][1]
+        operations.capture(window, key='foreground-search')
+        before = window.quick_panel_callback
+        obsolete_response(api.ApiResult(payload=valid_payload))
+        assert selected == [] and window.quick_panel_callback is before
+
+        original_scope = operations.capture(window, key='foreground-search')
+        service.resolve(window, config.get_settings(window), first, selected.append, force=True,
+                        operation_scope=original_scope)
+        window.input['done']('/srv/original')
+        mapping_requests[-1][1](api.ApiResult(payload=valid_payload))
+        previous_mappings = window.settings().get(service.KEY)
+        previous_cache = service._MAPPINGS.get(window.id())
+        with patch.object(window.settings(), 'set', side_effect=OSError('original mapping persistence failure')):
+            window.quick_panel_callback(0)
+        assert selected == [] and 'original mapping persistence failure' in sublime.last_error
+        assert window.settings().get(service.KEY) == previous_mappings
+        assert service._MAPPINGS.get(window.id()) == previous_cache
+
+        service.resolve(window, config.get_settings(window), first, selected.append, force=True,
+                        operation_scope=original_scope)
+        window.input['done']('/srv/original')
+        mapping_requests[-1][1](api.ApiResult(payload=valid_payload))
+        confirmation = window.quick_panel_callback
+        confirmation(0)
+        confirmation(0)
+        assert selected == ['/srv/original']
+
+        # A semantic child request also owns a parent evidence predicate.
+        # Losing either scope refuses the actual queued transport invocation.
+        parent_current = [True]
+        service.resolve(window, config.get_settings(window), first, selected.append, force=True,
+                        operation_scope=original_scope, request_current=lambda: parent_current[0])
+        window.input['done']('/srv/original')
+        parent_current[0] = False
+        with patch.object(api, 'status_json') as status_json:
+            try:
+                mapping_requests[-1][0]()
+            except RuntimeError as error:
+                assert 'no longer current' in str(error)
+            else:
+                raise AssertionError('a revoked parent request reached the transport')
+            assert not status_json.called
 
     # Server Status and Index Health map their local target just like search.
     operator_pending, status_calls = [], []

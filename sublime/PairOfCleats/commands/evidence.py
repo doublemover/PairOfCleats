@@ -179,7 +179,7 @@ class PairOfCleatsCopyContextCommand(sublime_plugin.WindowCommand):
                             return
                         context['serviceRoot'] = value
                         collect(index)
-                    service_repository.resolve(self.window, settings, root, mapped)
+                    service_repository.resolve(self.window, settings, root, mapped, operation_scope=scope)
                     return
                 base = execution['base_url']
                 def request():
