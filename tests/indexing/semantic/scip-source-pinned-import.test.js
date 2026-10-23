@@ -42,13 +42,36 @@ try {
     const variant = structuredClone(index); variant.documents[0].positionEncoding = positionEncoding;
     variant.documents[0].occurrences[0].range = definition; variant.documents[0].occurrences[1].range = reference;
     assert.deepEqual(prepare(variant).documents[0].occurrences[0].span, [3, 8]);
+    for (const spelling of ['camel', 'snake']) for (const multiline of [false, true]) {
+      const typed = structuredClone(variant);
+      for (const occurrence of typed.documents[0].occurrences) {
+        const [line, start, end] = occurrence.range; delete occurrence.range;
+        if (spelling === 'camel') occurrence[multiline ? 'multiLineRange' : 'singleLineRange'] = multiline
+          ? { startLine: line, startCharacter: start, endLine: line, endCharacter: end }
+          : { startCharacter: start, endCharacter: end }; // omitted proto3 line defaults to zero
+        else occurrence[multiline ? 'multi_line_range' : 'single_line_range'] = multiline
+          ? { start_line: line, start_character: start, end_line: line, end_character: end }
+          : { start_character: start, end_character: end };
+      }
+      assert.deepEqual(prepare(typed).documents[0].occurrences.map(value => value.span), [[3, 8], [9, 14]],
+        'typed ' + spelling + '/' + (multiline ? 'multi-line' : 'single-line') + ' respects document position units');
+      for (let index = 0; index < typed.documents[0].occurrences.length; index++) {
+        typed.documents[0].occurrences[index].range = variant.documents[0].occurrences[index].range;
+      }
+      assert.equal(prepare(typed).status, 'admitted', 'equivalent typed/deprecated coordinates agree');
+    }
   }
   const prepared = prepare(index);
   assert.deepEqual(prepared.adapterIdentity, { version: SCIP_SEMANTIC_IMPORT_VERSION, sourceCoordinates: SEMANTIC_ANALYSIS_VERSIONS.lspBindings });
   const mutableVariant = { name: 'debug', settings: { target: 'fixture' } }, mutableGeneration = { ...f.generation };
-  const mutableReceipt = receiptFor(index); mutableReceipt.projectVariant = mutableVariant;
+  const mutableIndex = structuredClone(index);
+  for (const occurrence of mutableIndex.documents[0].occurrences) {
+    occurrence.singleLineRange = { line: 0, startCharacter: occurrence.range[1], endCharacter: occurrence.range[2] };
+    delete occurrence.range;
+  }
+  const mutableReceipt = receiptFor(mutableIndex); mutableReceipt.projectVariant = mutableVariant;
   mutableReceipt.generation = { ...mutableGeneration };
-  const mutableBytes = Buffer.from(JSON.stringify(index));
+  const mutableBytes = Buffer.from(JSON.stringify(mutableIndex));
   const expectedReceiptHash = semanticHash('tooling.scip-producing-receipt.v1', mutableReceipt);
   let inspected = false;
   const pinned = prepareScipSemanticImport({ bytes: mutableBytes, producingReceipt: mutableReceipt, expectedReceiptHash,
@@ -66,7 +89,7 @@ try {
   mutableGeneration.baseBuildId = 'changed-after-return'; mutableVariant.name = 'changed-after-return';
   assert.deepEqual(pinned.generation, f.generation);
   assert.equal(pinned.projectVariant.name, 'debug');
-  assert.equal(pinned.artifactHash, createHash('sha256').update(Buffer.from(JSON.stringify(index))).digest('hex'));
+  assert.equal(pinned.artifactHash, createHash('sha256').update(Buffer.from(JSON.stringify(mutableIndex))).digest('hex'));
   assert.equal(pinned.documents[0].original.relativePath, 'original.js');
   const splitScalar = structuredClone(index);
   splitScalar.documents[0].occurrences.push({ symbol: 'scip npm fixture 1 value().', symbolRoles: 0, range: [0, 0, 1] });
@@ -77,6 +100,8 @@ try {
   await assert.rejects(writeScipSemanticImport({ prepared: legacyMeaning }), { code: 'ERR_SCIP_IMPORT_IDENTITY' });
   await assert.rejects(writeScipSemanticImport({ prepared: { ...prepared, adapterIdentity: { ...prepared.adapterIdentity, version: '2' } } }),
     { code: 'ERR_SCIP_IMPORT_IDENTITY' }, 'old receipt ownership meaning cannot be published');
+  await assert.rejects(writeScipSemanticImport({ prepared: { ...prepared, adapterIdentity: { ...prepared.adapterIdentity, version: '3' } } }),
+    { code: 'ERR_SCIP_IMPORT_IDENTITY' }, 'old role/range admission meaning cannot be published');
   const result = await writeScipSemanticImport({ prepared: pinned, state, policy: normalizeSemanticConfig({ enabled: true }),
     semanticSink: createSemanticProviderResultSink({ state, runtime }) });
   assert.equal(result.persisted, 1);
@@ -89,6 +114,41 @@ try {
   const detail = await createSemanticDetailService()({ store, request: { repoRoot: f.root, generation: f.generation,
     refs: [{ partitionId: result.output.partitions[0].partitionId, localId: binding.id }] } });
   assert.equal(detail.records[0].data.candidateCount, 1);
+  for (const invalidRole of [2 ** 31, 2 ** 32, 2 ** 32 + 1, Number.MAX_SAFE_INTEGER, -1, 1.5]) {
+    const invalid = structuredClone(index); invalid.documents[0].occurrences[0].symbolRoles = invalidRole;
+    const rejected = prepare(invalid);
+    assert.equal(rejected.status, 'partial'); assert.equal(rejected.rejected, 1);
+    assert.equal(rejected.definitions.size, 0, 'out-of-int32 role cannot truncate into a definition bit');
+  }
+  const wrappedDefinition = structuredClone(index); wrappedDefinition.documents[0].occurrences[0].symbolRoles = 2 ** 32 + 1;
+  const rejectedPrepared = prepare(wrappedDefinition);
+  const rejectedWritten = await writeScipSemanticImport({ prepared: rejectedPrepared, state,
+    policy: normalizeSemanticConfig({ enabled: true }) });
+  const rejectedStore = f.store([syntax, ...rejectedWritten.output.partitions]), rejectedRecords = [];
+  for await (const row of rejectedStore.iterateRows(rejectedWritten.output.partitions[0].partitionId, 'semantic_records')) rejectedRecords.push(row);
+  const unresolved = rejectedRecords.find(row => row.kind === 'binding');
+  assert.equal(unresolved.data.status, 'heuristic', 'a rejected wrapped definition cannot become an exact persisted target');
+  const unresolvedDetail = await createSemanticDetailService()({ store: rejectedStore, request: { repoRoot: f.root,
+    generation: f.generation, refs: [{ partitionId: rejectedWritten.output.partitions[0].partitionId, localId: unresolved.id }] } });
+  assert.equal(unresolvedDetail.records[0].data.status, 'heuristic');
+  assert.equal(rejectedPrepared.documents[0].original.occurrences[0].symbolRoles, 2 ** 32 + 1,
+    'original invalid role metadata stays in retained document evidence');
+  const unsupportedRole = structuredClone(index); unsupportedRole.documents[0].occurrences[0].symbolRoles = 129;
+  assert.equal(prepare(unsupportedRole).omitted, 1, 'unknown in-range role bits remain counted and original metadata is retained');
+  const conflict = structuredClone(index);
+  conflict.documents[0].occurrences[0].singleLineRange = { line: 0, startCharacter: 4, endCharacter: 8 };
+  assert.throws(() => prepare(conflict), /typed\/deprecated occurrence range/);
+  const oneof = structuredClone(mutableIndex);
+  oneof.documents[0].occurrences[0].multi_line_range = { start_line: 0, start_character: 3, end_line: 0, end_character: 8 };
+  assert.throws(() => prepare(oneof), /typed occurrence range alternatives/);
+  const malformedTyped = structuredClone(index);
+  malformedTyped.documents[0].occurrences[0].singleLineRange = { endCharacter: 'not-an-int32' };
+  assert.equal(prepare(malformedTyped).rejected, 1, 'malformed typed presence never falls back to valid legacy coordinates');
+  const typedSplit = structuredClone(mutableIndex);
+  typedSplit.documents[0].occurrences[0].singleLineRange = { startCharacter: 0, endCharacter: 1 };
+  assert.equal(prepare(typedSplit).rejected, 1, 'typed UTF16 range cannot split a source scalar');
+  const defaultLegacy = structuredClone(mutableIndex); defaultLegacy.documents[0].occurrences[0].range = [];
+  assert.equal(prepare(defaultLegacy).status, 'admitted', 'empty deprecated repeated field does not override a valid typed range');
   const stale = receiptFor(index); stale.sources[0].byteHash = '0'.repeat(64);
   assert.throws(() => prepare(index, stale), { code: 'ERR_SCIP_IMPORT_IDENTITY' });
   const escape = structuredClone(index); escape.documents[0].relativePath = '../escape.js';

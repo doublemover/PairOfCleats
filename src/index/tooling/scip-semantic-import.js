@@ -12,7 +12,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { readRetainedSemanticSourceSnapshot } from '../../semantic/retained-source-snapshot.js';
 import { captureSourceLinkedInput } from './source-linked-input.js';
 
-export const SCIP_SEMANTIC_IMPORT_VERSION = '3';
+export const SCIP_SEMANTIC_IMPORT_VERSION = '4';
 const adapterIdentity = () => ({ version: SCIP_SEMANTIC_IMPORT_VERSION, sourceCoordinates: SEMANTIC_ANALYSIS_VERSIONS.lspBindings });
 const fail = message => Object.assign(new Error(message), { code: 'ERR_SCIP_IMPORT_IDENTITY' });
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
@@ -26,11 +26,37 @@ const encoding = value => ({ 1: 'utf-8', 2: 'utf-16', 3: 'utf-32',
   UTF32CodeUnitOffsetFromLineStart: 'utf-32' })[value] || null;
 const strictPath = value => typeof value === 'string' && value && !value.includes('\\') && !value.includes(':')
   && !value.startsWith('/') && !value.includes('\0') && value.split('/').every(part => part && part !== '.' && part !== '..');
-const protocolRange = value => {
-  if (!Array.isArray(value) || ![3, 4].includes(value.length) || value.some(part => !Number.isSafeInteger(part) || part < 0)) return null;
+const nonnegativeInt32 = value => Number.isInteger(value) && value >= 0 && value <= 0x7fffffff;
+const legacyProtocolRange = value => {
+  if (!Array.isArray(value) || ![3, 4].includes(value.length) || value.some(part => !nonnegativeInt32(part))) return null;
   return { start: { line: value[0], character: value[1] }, end: {
     line: value.length === 3 ? value[0] : value[2], character: value.at(-1)
   } };
+};
+// Official flattened ProtoJSON oneof alternatives, with the same camel/snake
+// spelling contract as the existing importer. Typed presence never falls back
+// to a deprecated range when malformed, and conflicting encodings fail closed.
+const protocolRange = occurrence => {
+  const hasSingle = Object.hasOwn(occurrence, 'singleLineRange') || Object.hasOwn(occurrence, 'single_line_range');
+  const hasMulti = Object.hasOwn(occurrence, 'multiLineRange') || Object.hasOwn(occurrence, 'multi_line_range');
+  if (hasSingle && hasMulti) throw fail('Conflicting SCIP typed occurrence range alternatives.');
+  if (!hasSingle && !hasMulti) return legacyProtocolRange(occurrence.range);
+  const typed = hasSingle ? field(occurrence, 'singleLineRange', 'single_line_range')
+    : field(occurrence, 'multiLineRange', 'multi_line_range');
+  if (!typed || typeof typed !== 'object' || Array.isArray(typed)) return null;
+  const startLine = hasSingle ? typed.line ?? 0 : field(typed, 'startLine', 'start_line') ?? 0;
+  const endLine = hasSingle ? startLine : field(typed, 'endLine', 'end_line') ?? 0;
+  const start = field(typed, 'startCharacter', 'start_character') ?? 0;
+  const end = field(typed, 'endCharacter', 'end_character') ?? 0;
+  if (![startLine, endLine, start, end].every(nonnegativeInt32)) return null;
+  const range = { start: { line: startLine, character: start }, end: { line: endLine, character: end } };
+  // Omitted/empty repeated range is the protobuf default, not another source
+  // location. When supplied, both encodings must describe one exact interval.
+  if (occurrence.range != null && (!Array.isArray(occurrence.range) || occurrence.range.length)) {
+    const legacy = legacyProtocolRange(occurrence.range);
+    if (!legacy || canonicalSemanticJson(legacy) !== canonicalSemanticJson(range)) throw fail('Conflicting SCIP typed/deprecated occurrence range.');
+  }
+  return range;
 };
 
 /** Build adapter inputs from the immutable parser handoff, never from a
@@ -144,9 +170,10 @@ export const prepareScipSemanticImport = ({ bytes, producingReceipt, expectedRec
     const occurrences = [];
     for (const occurrence of doc.occurrences) {
       if (++occurrenceCount > maxOccurrences) throw fail('SCIP occurrence budget exhausted.');
-      const range = protocolRange(occurrence.range), symbol = occurrence.symbol;
+      if (!occurrence || typeof occurrence !== 'object' || Array.isArray(occurrence)) throw fail('Malformed SCIP occurrence framing.');
+      const range = protocolRange(occurrence), symbol = occurrence.symbol;
       const roles = field(occurrence, 'symbolRoles', 'symbol_roles') ?? 0;
-      if (!range || typeof symbol !== 'string' || !symbol || symbol.length > 16384 || !Number.isSafeInteger(roles) || roles < 0) { rejected++; continue; }
+      if (!range || typeof symbol !== 'string' || !symbol || symbol.length > 16384 || !nonnegativeInt32(roles)) { rejected++; continue; }
       const span = exactLspRange(item.source, item.text, range, positionEncoding);
       if (!span || span[0] === span[1] || item.source.mapping && item.source.mapping.quality !== 'exact') { rejected++; continue; }
       const symbolKey = semanticHash('tooling.scip-symbol.v1', { artifactHash, generation, projectVariant,
