@@ -50,10 +50,14 @@ export const planToolLifecycle = async ({ toolingRoot, id, operation = 'verify',
   const managed = await inspectManagedInstallation({ toolingRoot, toolId: id, signal });
   const selection = tool ? selectInstallPlan(tool, 'cache', false) : null;
   const descriptor = selection?.plan?.managedDescriptor;
-  if (managed.ok || descriptor) {
+  if (managed.state !== 'missing' || descriptor) {
     let pinned = null;
     if (descriptor) pinned = validatePinnedInstallDescriptor(descriptor, { approvedOrigins: selection.plan.approvedOrigins });
     if (pinned && pinned.toolId !== id) throw new Error('Canonical tool and managed recipe identity disagree.');
+    if (managed.state === 'repair-required' && !managed.receipt) blockers.push({ code: 'managed-ownership-evidence-unavailable',
+      nextAction: 'Preserve the unknown selector/receipt and recover its ownership metadata before publication, replacement or removal.' });
+    if (managed.state === 'repair-required' && managed.receipt && ['install', 'update'].includes(operation)) blockers.push({ code: 'explicit-owned-repair-required',
+      nextAction: 'Use the explicit repair operation to publish a sibling while retaining the selected drifted generation as evidence.' });
     if (['install', 'update', 'repair'].includes(operation) && (!pinned || typeof tool.verifyManagedInstall !== 'function')) blockers.push({ code: 'canonical-pinned-recipe-verifier-required', nextAction: 'Select a canonical approved profile with a pinned source and exact resource-settlement verifier.' });
     const removal = operation === 'remove' ? await inspectManagedToolRemoval({ toolingRoot, toolId: id, signal }) : null;
     if (removal && removal.state !== 'owned-and-idle') blockers.push({ code: 'active-or-unknown-managed-owner', nextAction: 'Wait for exact consumers to settle, then re-plan removal.' });

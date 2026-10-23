@@ -130,6 +130,7 @@ const inspectGeneration = async (owner, toolId, installId, { signal = null } = {
     || receipt.installId !== installId || identity(receipt.descriptor) !== receipt.descriptorId
     || receipt.root !== root || receipt.selectorIdentity !== identity(expectedSelector)
     || receipt.descriptor?.schemaVersion !== MANAGED_INSTALL_VERSION || receipt.descriptor.toolId !== toolId
+    || receipt.descriptor.platform !== process.platform || receipt.descriptor.arch !== process.arch
     || !relativePath(receipt.descriptor.command) || !Array.isArray(receipt.descriptor.args || [])
     || (receipt.descriptor.args || []).some(argument => typeof argument !== 'string')) throw new Error('Managed generation/receipt ownership disagrees.');
   let files;
@@ -143,18 +144,25 @@ const inspectGeneration = async (owner, toolId, installId, { signal = null } = {
     args: receipt.descriptor.args || [], receipt, protocol: 'not-reprobed' };
 };
 
-const findRetainedGeneration = async (owner, toolId, descriptorId, { signal = null } = {}) => {
+const findRetainedGeneration = async (owner, toolId, descriptorId, { signal = null, excludeInstallId = null } = {}) => {
   signal?.throwIfAborted();
   const directory = path.join(owner, 'receipts');
-  let names;
-  try { names = await fs.readdir(directory); }
+  const names = [];
+  try {
+    await withStorageDirectory(directory, async handle => {
+      for (let entry = await handle.read(); entry; entry = await handle.read()) {
+        signal?.throwIfAborted();
+        if (names.length === 1024) throw new Error('Managed receipt inventory exceeds its bound.');
+        names.push(entry.name);
+      }
+    });
+  }
   catch (error) { if (error.code === 'ENOENT') return null; throw error; }
-  if (names.length > 1024) throw new Error('Managed receipt inventory exceeds its bound.');
   const candidates = [];
   for (const name of names.filter(name => /^[a-f0-9]{64}\.json$/.test(name))) {
     signal?.throwIfAborted();
     const receipt = await boundedJson(path.join(directory, name));
-    if (receipt.descriptorId === descriptorId && receipt.toolId === toolId) candidates.push(receipt);
+    if (receipt.descriptorId === descriptorId && receipt.toolId === toolId && receipt.installId !== excludeInstallId) candidates.push(receipt);
   }
   candidates.sort((left, right) => String(right.installedAt).localeCompare(String(left.installedAt)));
   for (const candidate of candidates) {
@@ -165,18 +173,25 @@ const findRetainedGeneration = async (owner, toolId, descriptorId, { signal = nu
 };
 
 export const inspectManagedInstallation = async ({ toolingRoot, toolId, descriptorId = null, signal = null } = {}) => {
+  let selectorObserved = false;
   try {
     signal?.throwIfAborted();
     const owner = await resolveOwner(toolingRoot, toolId);
     const selector = await boundedJson(path.join(owner, 'current.json'));
+    selectorObserved = true;
     if (selector.schemaVersion !== MANAGED_INSTALL_VERSION || !/^[a-f0-9]{64}$/.test(selector.descriptorId || '')
-      || !/^[a-f0-9]{64}$/.test(selector.installId || '')
-      || (descriptorId && descriptorId !== selector.descriptorId)) return { ok: false, state: 'different-selected-version', selector };
+      || !/^[a-f0-9]{64}$/.test(selector.installId || '')) throw new Error('Managed selector ownership schema or identity is unsupported.');
     if (identity(selector) !== identity({ schemaVersion: MANAGED_INSTALL_VERSION, toolId, descriptorId: selector.descriptorId, installId: selector.installId })) throw new Error('Managed selector has unknown ownership fields.');
-    return await inspectGeneration(owner, toolId, selector.installId, { signal });
+    // Inspect the current generation even when the requested version differs.
+    // An unrelated requested digest cannot bypass unknown/drifted ownership.
+    const selected = await inspectGeneration(owner, toolId, selector.installId, { signal });
+    if (selected.receipt?.descriptorId !== selector.descriptorId) throw new Error('Managed selector and retained generation recipe identity disagree.');
+    if (!selected.ok) return selected;
+    if (descriptorId && descriptorId !== selector.descriptorId) return { ...selected, ok: false, state: 'different-selected-version', selector };
+    return selected;
   } catch (error) {
     if (signal?.aborted || isStorageTransferSession(error.storageTransferSession) || getStorageDirectorySession(error)) throw error;
-    return { ok: false, state: error.code === 'ENOENT' ? 'missing' : 'repair-required', reason: error.code || error.message };
+    return { ok: false, state: error.code === 'ENOENT' && !selectorObserved ? 'missing' : 'repair-required', reason: error.code || error.message };
   }
 };
 
@@ -187,8 +202,9 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
   if (typeof verify !== 'function') throw new Error('The canonical recipe must provide executable/runtime/capability verification.');
   signal?.throwIfAborted();
   const reused = await inspectManagedInstallation({ toolingRoot, toolId: pinned.toolId, descriptorId: pinned.descriptorId, signal });
-  if (!repair && !reused.ok && reused.receipt?.descriptorId === pinned.descriptorId) throw new Error('Selected immutable installation drifted; use explicit owned repair to publish a sibling while preserving its evidence.');
-  if (reused.ok) {
+  if (reused.state === 'repair-required' && !reused.receipt) throw new Error('Managed ownership evidence is unsupported or unreadable; preserve it for explicit metadata recovery instead of overwriting the selector.');
+  if (!repair && reused.state === 'repair-required') throw new Error('Selected immutable installation drifted; use explicit owned repair to preserve its evidence.');
+  if (reused.ok && !repair) {
     const held = await retainManagedToolInstallation({ toolingRoot, toolId: pinned.toolId, descriptorId: pinned.descriptorId });
     const resourceId = randomUUID();
     const verification = await verifyRetainedManagedInstallation(held, verify,
@@ -297,7 +313,8 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     lock = await acquireFileLock({ lockPath: path.join(owner, 'install.lock'), waitMs: 0, signal,
       metadata: { scope: 'managed-tool-install', toolId: pinned.toolId, descriptorId: pinned.descriptorId } });
     if (!lock) throw new Error('Another managed installer owns this tool; retry after it settles.');
-    const resumable = await findRetainedGeneration(owner, pinned.toolId, pinned.descriptorId, { signal });
+    const resumable = await findRetainedGeneration(owner, pinned.toolId, pinned.descriptorId, { signal,
+      excludeInstallId: repair ? reused.receipt?.installId || null : null });
     if (resumable?.ok) {
       admitVerification();
       const retained = await inspectGeneration(owner, pinned.toolId, resumable.receipt.installId, { signal });
@@ -422,7 +439,7 @@ export const installPinnedManagedTool = async options => {
   options.signal?.throwIfAborted();
   const pinned = validatePinnedInstallDescriptor(options.descriptor, { approvedOrigins: options.approvedOrigins });
   const selected = await inspectManagedInstallation({ toolingRoot: options.toolingRoot, toolId: pinned.toolId, descriptorId: pinned.descriptorId, signal: options.signal });
-  if (selected.ok) return installPinnedManagedToolOwned(options);
+  if (selected.ok && !options.repair) return installPinnedManagedToolOwned(options);
   const publication = await runInstallWithStorageAdmission({ toolingRoot: options.toolingRoot,
     storageEstimate: options.descriptor.storageEstimate, scope: 'managed-tool-archive-publication' }, () => installPinnedManagedToolOwned(options));
   return publication.value;
