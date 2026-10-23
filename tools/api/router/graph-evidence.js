@@ -7,11 +7,11 @@ import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 
 export const handleGraphEvidenceRoute = async ({ req, res, corsHeaders, parseJsonBody, resolveRepo }) =>
   withHttpRequestLifetime(req, res, async lifetime => {
-    const parsed = await lifetime.prepare(parseJsonBodyOrSendError(req, res, parseJsonBody, corsHeaders));
+    const parsed = await lifetime.prepare(() => parseJsonBodyOrSendError(req, res, parseJsonBody, corsHeaders));
     if (!parsed.ok) return true;
     try { assertGraphEvidence('request', parsed.payload); }
     catch (error) { sendError(res, 400, ERROR_CODES.INVALID_REQUEST, error.message, { graphCode: error.code }, corsHeaders || {}); return true; }
-    const resolved = await lifetime.prepare(resolveRepoOrSendError(res, resolveRepo, parsed.payload.repoRoot, corsHeaders));
+    const resolved = await lifetime.prepare(() => resolveRepoOrSendError(res, resolveRepo, parsed.payload.repoRoot, corsHeaders));
     if (!resolved.ok) return true;
     try {
       const result = await runGraphEvidence({ ...parsed.payload, repoRoot: resolved.repoPath }, { signal: lifetime.signal });
@@ -20,7 +20,7 @@ export const handleGraphEvidenceRoute = async ({ req, res, corsHeaders, parseJso
       }
       if (!lifetime.closed()) sendJson(res, 200, { ok: true, result }, corsHeaders || {});
     } catch (error) {
-      if (lifetime.closed()) return true;
+      if (lifetime.closedAfterFailure(error)) return true;
       const failure = classifyGraphEvidenceError(error);
       sendError(res, failure.status, failure.status === 403 ? ERROR_CODES.FORBIDDEN : failure.status === 404
         ? ERROR_CODES.NO_INDEX : failure.status < 500 ? ERROR_CODES.INVALID_REQUEST : ERROR_CODES.INTERNAL,

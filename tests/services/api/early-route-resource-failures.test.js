@@ -7,12 +7,13 @@ import { registerHooks } from 'node:module';
 import { withContainedFile, getContainedFileSession } from '../../../src/shared/contained-file.js';
 import { withHttpRequestLifetime } from '../../../tools/api/router/request-lifetime.js';
 
-// Six real adapters and their real request validators. Only the operation entry
+// Semantic/runtime and graph real adapters and their real request validators. Only the operation entry
 // points are directed to a real held descriptor with an original close failure.
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-route-owned-failure-'));
 const file = path.join(root, 'retained.txt'); await fs.writeFile(file, 'retained');
 const key = Symbol.for('poc.test.early-route-owned-failure'), originalOpen = fs.open, disposal = new Map();
 const runners = {
+  'graph-evidence.js': ['runGraphEvidence', 'classifyGraphEvidenceError'],
   'semantic-detail.js': ['runSemanticDetail', 'classifySemanticDetailError'],
   'semantic-find.js': ['runSemanticFind'], 'semantic-trace.js': ['runSemanticTrace'],
   'semantic-explain.js': ['runSemanticExplain'],
@@ -31,6 +32,8 @@ const hooks = registerHooks({ load(url, context, next) {
 const generation = { baseBuildId: 'retained-route-build', semanticRevision: 0 };
 const ref = { partitionId: 'sy1:' + 'a'.repeat(64), localId: 0 }, scope = { repoRoot: root, generation };
 const cases = [
+  ['graph-evidence', 'handleGraphEvidenceRoute', { schemaVersion: 1, repoRoot: root,
+    buildId: 'retained-route-build', family: 'call_sites' }],
   ['semantic', 'handleSemanticDetailRoute', { ...scope, refs: [ref] }],
   ['semantic-find', 'handleSemanticFindRoute', { ...scope, selector: { field: 'astKind', value: 'Identifier' } }],
   ['semantic-trace', 'handleSemanticTraceRoute', { ...scope, seed: ref, direction: 'downstream' }],
