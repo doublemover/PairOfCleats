@@ -4,7 +4,6 @@ import { isResolvedCommandTrusted, isRepoTrusted } from '../../shared/config-aut
 import { isSourcekitProvider, resolveProviderWorkspaceExecutionAuthority as resolveWorkspaceExecutionAuthority } from './workspace-execution.js';
 import { composeAbortSignals, isAbortError, raceAbort, throwIfAborted } from '../../shared/abort.js';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
-import { resolveEnvPath } from '../../shared/env-path.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { spawnResolvedSubprocessSync } from '../../shared/subprocess/command-invocation.js';
 import { resolveNoProvisionToolingEnvironment } from '../../shared/toolchain-env.js';
@@ -16,7 +15,7 @@ import { pathToFileUri } from '../../integrations/tooling/lsp/client.js';
 import { createRetainedLspClient } from '../../integrations/tooling/lsp/managed-client.js';
 import { runWithManagedCommandInstallationSync } from './managed-command-lifetime.js';
 import { resolveDotnetRuntimeLaunch } from './dotnet-runtime.js';
-import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from './binary-utils.js';
+import { createBinaryDiscovery, classifyBinaryDiscoverySelection } from './binary-utils.js';
 import {
   __getPersistentCommandProbeCacheRuntimeStatsForTests,
   __resetPersistentCommandProbeCacheRuntimeStatsForTests,
@@ -29,7 +28,6 @@ import { normalizeProviderId } from './provider-contract.js';
 import { probeLspCapabilities } from '../../integrations/tooling/providers/lsp/capabilities.js';
 import { redactDiagnosticText } from '../../shared/diagnostic-text.js';
 
-const WINDOWS_EXEC_EXTS = ['.exe', '.cmd', '.bat'];
 const DEFAULT_PROBE_ARGS = [['--version'], ['--help']];
 const DEFAULT_PROBE_TIMEOUT_MS = 4_000;
 const PROBE_TIMEOUT_TIER_MS = Object.freeze({
@@ -243,20 +241,6 @@ export const invalidateProbeCacheOnInitializeFailure = ({
   return true;
 };
 
-const resolveWindowsCommand = (cmd) => {
-  if (process.platform !== 'win32') return cmd;
-  const lowered = String(cmd || '').toLowerCase();
-  if (WINDOWS_EXEC_EXTS.some((ext) => lowered.endsWith(ext))) return cmd;
-  const pathEntries = splitPathEntries(resolveEnvPath(process.env));
-  for (const ext of WINDOWS_EXEC_EXTS) {
-    for (const dir of pathEntries) {
-      const candidate = path.join(dir, `${cmd}${ext}`);
-      if (fsSync.existsSync(candidate)) return candidate;
-    }
-  }
-  return cmd;
-};
-
 const hasPathSeparator = (value) => /[\\/]/u.test(String(value || ''));
 const isExplicitCommandPath = (value) => {
   const raw = String(value || '').trim();
@@ -397,7 +381,7 @@ const resolveProbeTimeoutMs = ({
   return PROBE_TIMEOUT_TIER_MS[tier] || DEFAULT_PROBE_TIMEOUT_MS;
 };
 
-const resolvePyrightCommand = (repoRoot, toolingConfig) => {
+const resolvePyrightCommand = (repoRoot, toolingConfig, discovery) => {
   const cmd = 'pyright-langserver';
   const toolRoot = resolveToolRoot();
   const repoBin = path.join(repoRoot, 'node_modules', '.bin');
@@ -405,9 +389,9 @@ const resolvePyrightCommand = (repoRoot, toolingConfig) => {
   const toolingBin = toolingConfig?.dir
     ? path.join(toolingConfig.dir, 'node', 'node_modules', '.bin')
     : null;
-  const found = findBinaryInDirs(cmd, [isRepoTrusted(repoRoot) ? repoBin : null, toolBin, toolingBin].filter(Boolean));
+  const found = discovery.findInDirs(cmd, [isRepoTrusted(repoRoot) ? repoBin : null, toolBin, toolingBin].filter(Boolean));
   if (found) return found;
-  return findBinaryOnPath(cmd) || cmd;
+  return discovery.findOnPath(cmd) || cmd;
 };
 
 const resolveRuntimeToolDirs = ({ repoRoot, toolingConfig, includeGlobal = true }) => {
@@ -470,13 +454,13 @@ export const validateResolvedToolingCommandLayout = ({
   };
 };
 
-const resolveScopedCommand = ({ cmd, repoRoot, toolingConfig }) => {
+const resolveScopedCommand = ({ cmd, repoRoot, toolingConfig, discovery }) => {
   const requested = String(cmd || '').trim();
   if (!requested) return '';
   if (isExplicitCommandPath(requested)) return requested;
-  const scopedMatch = findBinaryInDirs(requested, resolveRuntimeToolDirs({ repoRoot, toolingConfig }));
+  const scopedMatch = discovery.findInDirs(requested, resolveRuntimeToolDirs({ repoRoot, toolingConfig }));
   if (scopedMatch) return scopedMatch;
-  return resolveWindowsCommand(findBinaryOnPath(requested) || requested);
+  return discovery.findOnPath(requested) || requested;
 };
 
 const getProbeArgCandidates = (providerId, requestedCmd, requestedArgs = []) => {
@@ -506,7 +490,7 @@ const getProbeArgCandidates = (providerId, requestedCmd, requestedArgs = []) => 
   return dedupeProbeArgCandidates(candidates);
 };
 
-const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig }) => {
+const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig, discovery }) => {
   const normalizedProviderId = normalizeProviderId(providerId);
   const normalizedRequested = String(requestedCmd || '').trim();
   const requestedToken = normalizeCommandToken(normalizedRequested);
@@ -515,12 +499,13 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
       return normalizedRequested;
     }
     if (!normalizedRequested || requestedToken === 'pyright-langserver') {
-      return resolvePyrightCommand(repoRoot, toolingConfig);
+      return resolvePyrightCommand(repoRoot, toolingConfig, discovery);
     }
     return resolveScopedCommand({
       cmd: normalizedRequested,
       repoRoot,
-      toolingConfig
+      toolingConfig,
+      discovery
     });
   }
   if (normalizedProviderId === 'gopls') {
@@ -531,34 +516,39 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
       return resolveScopedCommand({
         cmd: 'gopls',
         repoRoot,
-        toolingConfig
+        toolingConfig,
+        discovery
       });
     }
     return resolveScopedCommand({
       cmd: normalizedRequested,
       repoRoot,
-      toolingConfig
+      toolingConfig,
+      discovery
     });
   }
   if (normalizedProviderId === 'clangd') {
     return resolveScopedCommand({
       cmd: requestedCmd || 'clangd',
       repoRoot,
-      toolingConfig
+      toolingConfig,
+      discovery
     });
   }
   if (normalizedProviderId === 'sourcekit' || requestedCmd === 'sourcekit-lsp') {
     return resolveScopedCommand({
       cmd: requestedCmd || 'sourcekit-lsp',
       repoRoot,
-      toolingConfig
+      toolingConfig,
+      discovery
     });
   }
   if (requestedCmd) {
     return resolveScopedCommand({
       cmd: requestedCmd,
       repoRoot,
-      toolingConfig
+      toolingConfig,
+      discovery
     });
   }
   return '';
@@ -734,6 +724,7 @@ export const __resolveToolingProbeTimeoutMsForTests = (input = {}) => resolvePro
  * @returns {boolean}
  */
 export const isProbeCommandDefinitelyMissing = (probe) => {
+  if (probe?.validationFailure?.reasonCode === 'command-discovery-not-found' && probe?.cacheOwnershipPending !== true) return true;
   // An admission denial or unsettled owned process is not evidence that a
   // command is absent, even when probing intentionally leaves resolvedPath null.
   if (probe?.validationFailure || probe?.cacheOwnershipPending === true) return false;
@@ -805,11 +796,13 @@ export const resolveToolingCommandProfile = (input) => {
         validationFailure: { reasonCode: executionAuthority.reasonCode } }
     };
   }
+  const discovery = createBinaryDiscovery({ cwd: repoRoot });
   let resolvedCmd = resolveBaseCommand({
     providerId,
     requestedCmd,
     repoRoot,
-    toolingConfig
+    toolingConfig,
+    discovery
   });
   try {
     // Bind a bare dotnet selection to the canonical SDK host before any PATH
@@ -826,14 +819,25 @@ export const resolveToolingCommandProfile = (input) => {
   }
   // Also reject PATH symlinks and explicit commands that resolve into an
   // untrusted repo before even a --version probe can execute them.
-  const candidate = findBinaryOnPath(resolvedCmd) || resolvedCmd;
+  const candidate = discovery.findOnPath(resolvedCmd) || resolvedCmd;
   if (!isResolvedCommandTrusted({ commandPath: candidate, repoRoot, toolRoot: resolveToolRoot() })) {
+    discovery.denySelected(candidate);
     return {
       providerId, requested: { cmd: requestedCmd, args: requestedArgs },
       resolved: { cmd: '', args: [], mode: 'blocked', reason: 'untrusted-repository-command' },
-      probe: { ok: false, resolvedPath: null, attempted: [],
+      probe: { ok: false, resolvedPath: null, attempted: [], discovery: discovery.getReceipt(),
         validationFailure: { reasonCode: 'untrusted-repository-command' } }
     };
+  }
+  const eligibility = isExplicitCommandPath(candidate) ? discovery.select(candidate) : null;
+  const discoveryReceipt = discovery.getReceipt();
+  if (!eligibility?.eligible) {
+    const reasonCode = 'command-discovery-' + classifyBinaryDiscoverySelection(eligibility, discoveryReceipt);
+    return { providerId, requested: { cmd: requestedCmd, args: requestedArgs },
+      resolved: { cmd: resolvedCmd || requestedCmd, args: requestedArgs, mode: 'blocked', reason: reasonCode },
+      probe: { ok: false, attempted: [], discovery: discoveryReceipt, validationFailure: { reasonCode,
+        candidateReason: eligibility?.reason || discoveryReceipt.status },
+      failureReasons: [...(reasonCode === 'command-discovery-not-found' ? ['missing-command'] : []), reasonCode] } };
   }
   const probeTimeoutMs = resolveProbeTimeoutMs({
     providerId,
@@ -891,6 +895,7 @@ export const resolveToolingCommandProfile = (input) => {
     resolved,
     probe: {
       ...probe,
+      discovery: discovery.getReceipt(),
       versionText: extractProbeVersionText(probe?.attempted),
       failureReasons: summarizeProbeFailureReasons(probe)
     }
@@ -914,8 +919,8 @@ export const probeLspInitializeHandshake = async (input) => {
   const signal = composeAbortSignals(input?.signal, input?.abortSignal);
   throwIfAborted(signal);
   const requestedCmd = String(input?.cmd || '').trim();
-  let cmd = requestedCmd && !isAbsolutePathNative(requestedCmd)
-    ? findBinaryOnPath(requestedCmd) || requestedCmd : requestedCmd;
+  const discovery = createBinaryDiscovery({ cwd: input?.cwd || process.cwd() });
+  let cmd = requestedCmd ? discovery.findOnPath(requestedCmd) || requestedCmd : requestedCmd;
   const executionAuthority = resolveWorkspaceExecutionAuthority({
     repoRoot: input?.cwd || process.cwd(), providerId: input?.providerId, server: { cmd }
   });
@@ -944,7 +949,15 @@ export const probeLspInitializeHandshake = async (input) => {
     return { ok: false, latencyMs: 0, errorCode: error.code, errorMessage: error.message };
   }
   if (!isResolvedCommandTrusted({ commandPath: cmd, repoRoot: input?.cwd || process.cwd(), toolRoot: resolveToolRoot() })) {
-    return { ok: false, latencyMs: 0, errorCode: 'untrusted-repository-command', errorMessage: 'Repository command requires an exact launch-owned trust grant.' };
+    discovery.denySelected(cmd);
+    return { ok: false, latencyMs: 0, errorCode: 'untrusted-repository-command', errorMessage: 'Repository command requires an exact launch-owned trust grant.',
+      discovery: discovery.getReceipt() };
+  }
+  const eligibility = isExplicitCommandPath(cmd) ? discovery.select(cmd) : null;
+  if (!eligibility?.eligible) {
+    const receipt = discovery.getReceipt(), reason = classifyBinaryDiscoverySelection(eligibility, receipt);
+    return { ok: false, latencyMs: 0, errorCode: 'COMMAND_DISCOVERY_' + reason.replace('-', '_').toUpperCase(),
+      errorMessage: 'No eligible command candidate was admitted.', discovery: receipt };
   }
   const args = Array.isArray(input?.args) ? input.args.map((entry) => String(entry)) : [];
   const timeoutMs = Number.isFinite(Number(input?.timeoutMs))
@@ -1079,5 +1092,5 @@ export const probeLspInitializeHandshake = async (input) => {
   }
   if (isAbortError(primaryError) || primaryError?.cacheOwnershipPending === true) throw primaryError;
   throwIfAborted(signal);
-  return result;
+  return { ...result, discovery: discovery.getReceipt() };
 };

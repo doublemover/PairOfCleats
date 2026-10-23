@@ -219,6 +219,18 @@ full cleanup-category capability or deep-suite green is claimed.
   controls are authored, unrun. Existing broad diagnostic categories are retained
   alongside precise reasons. Worker producer identity advances 10→11.
 
+- #1705: shared command discovery now observes regular-file/target identity and
+  platform launch eligibility before selecting a searched candidate. Scoped,
+  PATH and handshake selection share one bounded attempt cache; directories and
+  known non-executables cannot shadow later candidates. Empty/inaccessible/budget
+  outcomes stay unknown, and explicit paths/policy denials cannot substitute an
+  ambient tool. Complete counters classify outcomes independently of truncated
+  diagnostics. Windows CMD/BAT/native and POSIX execute routes stay distinct;
+  launch/lease/trust owners retain actual authority. File/metadata and actual
+  profile/handshake inert-boundary controls are authored, unrun, with no physical
+  symlinks or real tool execution. Existing parity gives its POSIX positive
+  fixture execute permission instead of proving mere existence.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -408,7 +420,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1702](https://github.com/doublemover/PairOfCleats/issues/1702) | [P2] Align change-impact direction with caller and importer dependency semantics | Pending full-scope review |
 | [#1703](https://github.com/doublemover/PairOfCleats/issues/1703) | [P2] Preserve actionable API-contract diagnostics in policy failures and human reports | Pending full-scope review |
 | [#1704](https://github.com/doublemover/PairOfCleats/issues/1704) | [P2] Preserve exact Bazel label identity instead of resolving unrelated package fallback files | Pending full-scope review |
-| [#1705](https://github.com/doublemover/PairOfCleats/issues/1705) | [P2] Reject non-launchable command candidates without shadowing later valid PATH entries | Pending full-scope review |
+| [#1705](https://github.com/doublemover/PairOfCleats/issues/1705) | [P2] Reject non-launchable command candidates without shadowing later valid PATH entries | Source repair committed; runtime proof pending |
 | [#1706](https://github.com/doublemover/PairOfCleats/issues/1706) | [P2] Reject skipped architecture rules before reporting a complete clean evaluation | Pending full-scope review |
 | [#1707](https://github.com/doublemover/PairOfCleats/issues/1707) | [Enhancement] Preserve source and policy witnesses in actionable architecture reports | Pending full-scope review |
 | [#1708](https://github.com/doublemover/PairOfCleats/issues/1708) | [Perf] Reuse architecture policy matches and avoid preparing capped adjacency tails | Pending full-scope review |
