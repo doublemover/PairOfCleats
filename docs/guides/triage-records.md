@@ -110,6 +110,23 @@ The context pack includes:
 
 Context packs assume code/prose indexes exist (`pairofcleats index build`) and the records index is built (`pairofcleats index build --mode records`).
 
+History scanning uses four concurrent verified JSON reads and retains at most
+`maxHistory` full candidates per route class. The previous route-first, score,
+newest-timestamp and record-ID ordering remains; exact ties preserve directory
+order even if reads finish out of order. A zero effective history budget avoids
+directory scanning. Individual canonical JSON reads keep the existing 16 MiB
+sidecar allowance. Names/queue bookkeeping and total scanned I/O remain O(N);
+retained full candidate payloads are O(K), plus admitted reads and one transient
+heap insertion. This is a source work bound, not measured RSS/latency evidence.
+
+Read/parse failures produce an explicit incomplete-history warning, total failure
+count and up to eight bounded diagnostic samples. They do not become evidence
+that the history was exhaustively empty. Pending native ownership propagates
+instead of becoming a warning. Missing selected findings remain distinct from
+malformed/unreadable findings. These source changes and authored queue/heap/
+default-reader controls are unvalidated; broader resource/quality and end-to-end
+context-pack acceptance remain outstanding.
+
 ## MCP tools
 - `triage_ingest` (wraps ingest)
 - `triage_decision` (writes decisions)

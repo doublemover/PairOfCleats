@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { getRecordPackages } from '../../src/integrations/triage/record-utils.js';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { search } from '../../src/integrations/core/search.js';
@@ -8,6 +7,8 @@ import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, resolveRepoConfig,
 import { setEmbeddingsEnv } from '../../src/shared/env/runtime.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { resolveRecordPathSafe } from './context-pack-paths.js';
+import { buildTriageHistory, readTriageHistoryRecord } from './history.js';
+import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 
 const argv = createCli({
   scriptName: 'triage-context-pack',
@@ -54,7 +55,7 @@ const maxEvidencePerQuery = Number.isFinite(Number(contextPackConfig.maxEvidence
 const warnings = [];
 const indexCache = new Map();
 const sqliteCache = new Map();
-const history = await buildHistory({
+const history = await buildTriageHistory({
   recordsDir,
   recordId,
   finding,
@@ -86,49 +87,6 @@ console.log(JSON.stringify({
   evidenceQueries: repoEvidence.queries.length,
   warnings: warnings.length ? warnings : undefined
 }, null, 2));
-
-/**
- * Build related historical triage records using deterministic query passes.
- *
- * First pass includes service/env route filters, then a relaxed decision-only
- * pass fills remaining slots up to `maxHistory`.
- *
- * @param {object} input
- * @returns {Promise<object[]>}
- */
-async function buildHistory({ recordsDir, recordId, finding, maxHistory, warnings }) {
-  const vulnId = finding?.vuln?.cve || finding?.vuln?.vulnId || null;
-  const packageName = finding?.package?.name || null;
-  const manifestName = finding?.package?.manifestPath
-    ? path.basename(finding.package.manifestPath)
-    : null;
-  const candidates = await loadHistoryCandidates({
-    recordsDir,
-    recordId,
-    finding,
-    vulnId,
-    packageName,
-    manifestName,
-    warnings
-  });
-  if (!candidates.length) return [];
-
-  const routeScoped = [];
-  const relaxed = [];
-  for (const candidate of candidates) {
-    if (candidate.routeMatch) {
-      routeScoped.push(candidate);
-    } else {
-      relaxed.push(candidate);
-    }
-  }
-
-  routeScoped.sort(compareHistoryCandidate);
-  relaxed.sort(compareHistoryCandidate);
-  return [...routeScoped, ...relaxed]
-    .slice(0, maxHistory)
-    .map((candidate) => candidate.record);
-}
 
 /**
  * Build per-query repository evidence hits across supported retrieval modes.
@@ -220,108 +178,15 @@ function extractRecordId(hit) {
   return null;
 }
 
-async function loadHistoryCandidates({ recordsDir, recordId, finding, vulnId, packageName, manifestName, warnings }) {
-  let entries;
-  try {
-    entries = await fsPromises.readdir(recordsDir, { withFileTypes: true });
-  } catch (err) {
-    warnings.push({ step: 'history-scan', error: err?.message || 'failed to read records directory' });
-    return [];
-  }
-
-  const candidates = await Promise.all(entries
-    .filter((entry) => entry.isFile() && path.extname(entry.name) === '.json')
-    .map(async (entry) => {
-      const filePath = path.join(recordsDir, entry.name);
-      const record = await loadJsonFile(filePath);
-      if (!record || record.recordType !== 'decision' || record.recordId === recordId) return null;
-      const candidate = scoreHistoryCandidate({
-        record,
-        recordId,
-        finding,
-        vulnId,
-        packageName,
-        manifestName
-      });
-      return candidate?.score > 0 ? candidate : null;
-    }));
-
-  return candidates.filter(Boolean);
-}
-
-function scoreHistoryCandidate({ record, recordId, finding, vulnId, packageName, manifestName }) {
-  let score = 0;
-  const decisionFindingId = record?.decision?.findingRecordId || null;
-  const recordVulnId = record?.vuln?.cve || record?.vuln?.vulnId || null;
-  const recordPackageName = record?.package?.name || null;
-  const recordManifestName = record?.package?.manifestPath
-    ? path.basename(record.package.manifestPath)
-    : null;
-  const serviceMatch = valuesEqual(record?.service, finding?.service);
-  const envMatch = valuesEqual(record?.env, finding?.env);
-
-  if (decisionFindingId && decisionFindingId === recordId) score += 8;
-  if (vulnId && valuesEqual(recordVulnId, vulnId)) score += 4;
-  if (getRecordPackages(finding).some(left => getRecordPackages(record).some(right => valuesEqual(left.name, right.name)))) score += 3;
-  if (getRecordPackages(finding).some(left => left.manifestPath && getRecordPackages(record).some(right => right.manifestPath
-    && valuesEqual(path.basename(left.manifestPath), path.basename(right.manifestPath))))) score += 2;
-  if (serviceMatch) score += 1;
-  if (envMatch) score += 1;
-
-  if (score <= 0) return null;
-
-  return {
-    record,
-    score,
-    routeMatch: matchesRoute(record, finding),
-    timestamp: parseHistoryTimestamp(record)
-  };
-}
-
-function matchesRoute(record, finding) {
-  let constrained = false;
-  if (finding?.service) {
-    constrained = true;
-    if (!valuesEqual(record?.service, finding.service)) return false;
-  }
-  if (finding?.env) {
-    constrained = true;
-    if (!valuesEqual(record?.env, finding.env)) return false;
-  }
-  return constrained;
-}
-
-function compareHistoryCandidate(left, right) {
-  return (
-    (right.score - left.score)
-    || (right.timestamp - left.timestamp)
-    || String(left.record?.recordId || '').localeCompare(String(right.record?.recordId || ''))
-  );
-}
-
-function parseHistoryTimestamp(record) {
-  const value = record?.updatedAt || record?.createdAt || null;
-  const timestamp = Date.parse(value || '');
-  return Number.isFinite(timestamp) ? timestamp : 0;
-}
-
-function valuesEqual(left, right) {
-  if (!left || !right) return false;
-  return String(left).trim() === String(right).trim();
-}
-
 async function loadRecord(recordsDir, recordId) {
   const filePath = resolveRecordPathSafe(recordsDir, recordId);
   if (!filePath) return null;
-  return loadJsonFile(filePath);
-}
-
-async function loadJsonFile(filePath) {
   try {
-    const raw = await fsPromises.readFile(filePath, 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return null;
+    return await readTriageHistoryRecord(filePath);
+  } catch (error) {
+    const diagnostic = describeStorageFailure(error, { phase: 'triage-finding-read', defaultCode: 'ERR_TRIAGE_FINDING_READ' });
+    if (diagnostic.code === 'ENOENT') return null;
+    throw error;
   }
 }
 
