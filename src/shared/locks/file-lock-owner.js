@@ -3,6 +3,7 @@ import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../subprocess/
 import { DEFAULT_WINDOWS_TASKLIST_TIMEOUT_MS } from './file-lock-constants.js';
 import { readLockInfo, resolveLockPid, isOwnedBy, requiresLockResourceSettlement } from './file-lock-info.js';
 import { isFileLockPublicationPending } from './file-lock-publication.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
 export { isOwnedBy, removeLockFileSyncIfOwned } from './file-lock-info.js';
 
 export const isProcessAlive = (pid) => {
@@ -46,6 +47,7 @@ export const removeLockFileIfOwned = async (lockPath, owner, { force = false, sw
     await fs.rm(lockPath, { force: true });
     return true;
   } catch (err) {
+    observeStorageResource(err, { phase: 'file-lock-remove' }).requireSettled();
     if (!swallowErrors) throw err;
     return false;
   }

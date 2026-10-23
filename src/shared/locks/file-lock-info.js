@@ -1,7 +1,8 @@
-import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { isFileLockPublicationPending } from './file-lock-publication.js';
+import { readJsonResourceText, readJsonResourceTextSync } from '../file-read-resource.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
 import {
   DISALLOWED_LOCK_METADATA_KEYS,
   RESERVED_LOCK_METADATA_KEYS
@@ -47,7 +48,10 @@ export const removeLockFileSyncIfOwned = (lockPath, owner, { force = false } = {
     if ((!force || requiresLockResourceSettlement(info)) && !isOwnedBy(info, owner)) return false;
     fsSync.rmSync(lockPath, { force: true });
     return true;
-  } catch { return false; }
+  } catch (error) {
+    observeStorageResource(error, { phase: 'file-lock-remove-sync' }).requireSettled();
+    return false;
+  }
 };
 
 export const createLockId = () => {
@@ -83,15 +87,15 @@ export const isInvalidLockInfo = (info) => {
 
 export const createLockSnapshotFingerprint = (raw, stat) => {
   const hash = createHash('sha1').update(raw).digest('hex');
-  return `${Number(stat?.mtimeMs) || 0}:${Number(stat?.size) || 0}:${hash}`;
+  return `${stat?.dev ?? ''}:${stat?.ino ?? ''}:${Number(stat?.ctimeMs) || 0}:${Number(stat?.mtimeMs) || 0}:${Number(stat?.size) || 0}:${hash}`;
 };
 
 export const readLockSnapshot = async (lockPath, staleMs) => {
   try {
-    const [stat, raw] = await Promise.all([
-      fs.stat(lockPath),
-      fs.readFile(lockPath, 'utf8')
-    ]);
+    let stat;
+    const raw = await readJsonResourceText(lockPath, opened => {
+      stat = { dev: opened.dev, ino: opened.ino, ctimeMs: opened.ctimeMs, mtimeMs: opened.mtimeMs, size: opened.size };
+    });
     const ageMs = Date.now() - Number(stat?.mtimeMs || 0);
     return {
       exists: true,
@@ -99,7 +103,8 @@ export const readLockSnapshot = async (lockPath, staleMs) => {
       ageMs,
       fingerprint: createLockSnapshotFingerprint(raw, stat)
     };
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'file-lock-snapshot' }).requireSettled();
     return {
       exists: false,
       staleByMtime: false,
@@ -131,20 +136,22 @@ export const buildOwnerFromLockInfo = (info) => {
 
 export const readLockInfoSync = (lockPath) => {
   try {
-    const raw = fsSync.readFileSync(lockPath, 'utf8');
+    const raw = readJsonResourceTextSync(lockPath);
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'file-lock-info-sync' }).requireSettled();
     return null;
   }
 };
 
 export const readLockInfo = async (lockPath) => {
   try {
-    const raw = await fs.readFile(lockPath, 'utf8');
+    const raw = await readJsonResourceText(lockPath);
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'file-lock-info' }).requireSettled();
     return null;
   }
 };

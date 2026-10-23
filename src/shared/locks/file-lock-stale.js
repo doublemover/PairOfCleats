@@ -19,9 +19,21 @@ import {
 import { incrementStaleRemoveOwnerFailedForceSucceededMetric } from './file-lock-metrics.js';
 import { resolvePositiveStaleMs } from './file-lock-timing.js';
 import { isFileLockPublicationPending } from './file-lock-publication.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
+import { addStorageFailureContext } from '../storage/operation-error.js';
+
+const readFailureCode = error => {
+  const observation = observeStorageResource(error, { phase: 'file-lock-stale-classification' });
+  observation.requireSettled();
+  let code;
+  try { code = observation.primary.code; }
+  catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+  observation.requireSettled();
+  return typeof code === 'string' ? code : '';
+};
 
 export const isBenignStaleRemovalRace = (error) => {
-  const code = String(error?.code || '').toUpperCase();
+  const code = readFailureCode(error).toUpperCase();
   return BENIGN_STALE_REMOVAL_RACE_CODES.has(code);
 };
 
@@ -33,10 +45,17 @@ export const createStaleRemovalFailureError = ({
   cause,
   phase = 'stale_remove'
 }) => {
+  const observation = observeStorageResource(cause, { phase: 'file-lock-stale-removal' });
+  let code = '', name = '', inspection, inspectionPresent = false;
+  try {
+    const originalCode = observation.primary.code;
+    if (typeof originalCode === 'string') code = originalCode;
+    if (!code) { const originalName = observation.primary.name; if (typeof originalName === 'string') name = originalName; }
+  } catch (value) { inspection = value; inspectionPresent = true; }
   const message = [
     `[file-lock] stale lock cleanup failed for "${lockPath}"`,
     `phase=${phase}`,
-    `cause=${String(cause?.code || cause?.name || 'UNKNOWN')}`
+    `cause=${code || name || 'UNKNOWN'}`
   ].join(' ');
   const error = new Error(message, { cause });
   error.code = 'ERR_FILE_LOCK_STALE_REMOVE_FAILED';
@@ -44,13 +63,16 @@ export const createStaleRemovalFailureError = ({
   error.phase = phase;
   error.pid = Number.isFinite(pid) ? pid : null;
   error.stale = Boolean(stale);
-  error.causeCode = String(cause?.code || '');
+  error.causeCode = code;
   error.lockInfo = info && typeof info === 'object' ? info : null;
-  return error;
+  const original = inspectionPresent ? observation.retain(inspection, { inspectionPresent: true }) : observation.retain();
+  const failure = addStorageFailureContext(error, {}, original, { secondaryPresent: true });
+  Object.defineProperty(failure, 'cause', { value: cause, writable: true, configurable: true });
+  return failure;
 };
 
 export const isStructuredStaleRemovalFailureError = (error) => (
-  error?.code === 'ERR_FILE_LOCK_STALE_REMOVE_FAILED'
+  readFailureCode(error) === 'ERR_FILE_LOCK_STALE_REMOVE_FAILED'
 );
 
 export const isLockStale = async (lockPath, staleMs = DEFAULT_FILE_LOCK_STALE_MS) => {
@@ -63,7 +85,8 @@ export const isLockStale = async (lockPath, staleMs = DEFAULT_FILE_LOCK_STALE_MS
     }
     const stat = await fs.stat(lockPath);
     return Date.now() - stat.mtimeMs > maxAge;
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'file-lock-stale' }).requireSettled();
     return false;
   }
 };

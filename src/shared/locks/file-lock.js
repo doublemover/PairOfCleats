@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createAbortError } from '../abort.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
 import { isFileLockPublicationPending, publishFileLock } from './file-lock-publication.js';
 export { isFileLockPublicationSession, isFileLockPublicationPending } from './file-lock-publication.js';
 import {
@@ -112,16 +113,22 @@ export const acquireFileLock = async ({
       return await publishFileLock({ handle, lockPath, payload: persisted, contents, diagnostics: { parentMissingRetries } });
     } catch (err) {
       if (opened) throw err;
+      const observation = observeStorageResource(err, { phase: 'file-lock-open' });
+      observation.requireSettled();
+      let code, syscall;
+      try { code = observation.primary.code; syscall = observation.primary.syscall; }
+      catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+      observation.requireSettled();
       // Windows can retain a delete-pending file object until another native
       // handle closes. CREATE_NEW reports EPERM (not EEXIST) during that gap.
       // Keep the existing acquisition bound; persistent denial still throws
       // the original filesystem error and never enters stale-owner cleanup.
-      if (process.platform === 'win32' && err?.code === 'EPERM' && err?.syscall === 'open'
+      if (process.platform === 'win32' && code === 'EPERM' && syscall === 'open'
         && deadline != null && Date.now() < deadline) {
         await sleepWithAbort(resolvedPollMs, lockSignal);
         continue;
       }
-      if (err?.code === 'ENOENT') {
+      if (code === 'ENOENT') {
         parentMissingRetries += 1;
         incrementParentMissingRetriesMetric();
         let parentReady = false;
@@ -129,7 +136,15 @@ export const acquireFileLock = async ({
           await fs.mkdir(path.dirname(lockPath), { recursive: true });
           parentReady = true;
         } catch (mkdirErr) {
-          if (mkdirErr?.code !== 'ENOENT' && mkdirErr?.code !== 'ENOTDIR') {
+          const mkdirObservation = observeStorageResource(mkdirErr, { phase: 'file-lock-parent-create' });
+          let mkdirCode;
+          try {
+            mkdirObservation.requireSettled();
+            try { mkdirCode = mkdirObservation.primary.code; }
+            catch (inspection) { throw mkdirObservation.retain(inspection, { inspectionPresent: true }); }
+            mkdirObservation.requireSettled();
+          } catch (pending) { throw observation.retain(pending, { inspectionPresent: true }); }
+          if (mkdirCode !== 'ENOENT' && mkdirCode !== 'ENOTDIR') {
             throw err;
           }
         }
@@ -155,7 +170,7 @@ export const acquireFileLock = async ({
         }
         return null;
       }
-      if (err?.code !== 'EEXIST') throw err;
+      if (code !== 'EEXIST') throw err;
       const info = await readLockInfo(lockPath);
       const cleanupState = await shouldCleanupStaleLock({
         lockPath,
