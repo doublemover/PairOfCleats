@@ -247,6 +247,12 @@ UI authority while settling. Read, close, wait and settlement-callback failures
 remain failures even after a zero exit, with the initiating diagnostic preserved
 beside cleanup uncertainty. Unconfirmed cleanup stays registered for inspection.
 
+Indexed browsing retains an observed matching total through later pages that
+omit it. A page cannot claim exhaustion while known matches remain, or advertise
+More after all known identities are loaded. Such contradictions retain the
+previous result set and selection. A genuinely unknown producer total is shown
+as unknown; it is never rendered as a complete count.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only

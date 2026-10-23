@@ -42,7 +42,20 @@ normalized = pagination.carry_filter_page_history(merged, [dict(value) for value
 retained = {'pagination': page('cursor-b'), 'hits': normalized}
 refused(lambda: pagination.merge_filter_page(retained, page('cursor-a'), [hit('three')]), 'earlier cursor')
 refused(lambda: pagination.merge_filter_page(retained, page('cursor-c'), [hit('one')]), 'no new source identities')
-assert pagination.merge_filter_page(retained, page(None, hasMore=False, returned=0), []) == retained['hits']
+unknown_total = {'pagination': page('cursor-b', total=None), 'hits': list(normalized)}
+assert pagination.merge_filter_page(unknown_total, page(None, hasMore=False, returned=0, total=None), []) == retained['hits']
+refused(lambda: pagination.merge_filter_page(retained, page(None, hasMore=False, returned=0), []), 'exhaustion contradicts')
+refused(lambda: pagination.merge_filter_page({'pagination': page('cursor-a', total=2), 'hits': [hit('one')]},
+    page('cursor-b', total=2), [hit('two')]), 'exhaustion contradicts')
+unknown_page = pagination.merge_filter_page(retained, page('cursor-c', total=None), [hit('three')])
+assert unknown_page.matching_total == 10
+unknown_normalized = pagination.carry_filter_page_history(unknown_page, list(unknown_page))
+assert unknown_normalized.matching_total == 10
+refused(lambda: pagination.merge_filter_page({'pagination': page('cursor-c', total=None), 'hits': unknown_normalized},
+    page(None, hasMore=False, returned=0, total=None), []), 'exhaustion contradicts')
+refused(lambda: pagination.admit_filter_page(page(None, hasMore=False, total=10), [hit('one')], first_page=True),
+    'invalid generation/page membership')
+assert pagination.admit_filter_page(page(None, hasMore=False, total=1), [hit('one')], first_page=True)['total'] == 1
 unknown = pagination.merge_filter_page(previous, page('cursor-b'), [{'file': 'unknown.py'}])
 refused(lambda: pagination.merge_filter_page({'pagination': page('cursor-b'), 'hits': unknown},
     page('cursor-a'), [{'file': 'another-unknown.py'}]), 'earlier cursor')
@@ -84,7 +97,7 @@ with isolated_temp_directory() as root:
     def asynchronous(request, done, **kwargs):
         captured.append((request, done, kwargs))
 
-    def dispatch(identity, cursor):
+    def dispatch(identity, cursor, total=10):
         prior = state.get_last_results(window)
         selected = dict(prior['options'], cursor=prior['pagination']['nextCursor'])
         with patch.object(commands.config, 'get_settings', return_value={}), \
@@ -92,7 +105,7 @@ with isolated_temp_directory() as root:
                 patch.object(commands.config, 'resolve_execution_mode', return_value=execution), \
                 patch.object(commands.api_client, 'run_async', side_effect=asynchronous):
             commands._execute_search(window, '', selected, enumeration=True, append_session=prior, service_root='/service/repo')
-            captured[-1][1](runner.ProcessResult(0, '', payload={'code': [hit(identity)], 'pagination': page(cursor)}))
+            captured[-1][1](runner.ProcessResult(0, '', payload={'code': [hit(identity)], 'pagination': page(cursor, total=total)}))
 
     dispatch('two', 'cursor-b')
     saved = state.get_last_results(window)
@@ -123,7 +136,8 @@ with isolated_temp_directory() as root:
         assert current['pagination']['nextCursor'] == 'cursor-b'
         assert [value['chunkUid'] for value in current['hits']] == ['one', 'two']
         assert window.selected_index == 0
-    dispatch('three', 'cursor-c')
+    dispatch('three', 'cursor-c', total=None)
+    assert state.get_last_results(window)['pagination']['total'] == 10, 'unknown later totals cannot erase original matching authority'
     dispatch('four', 'cursor-a')
     assert 'earlier cursor' in sublime.last_error
     assert [value['chunkUid'] for value in state.get_last_results(window)['hits']] == ['one', 'two', 'three']

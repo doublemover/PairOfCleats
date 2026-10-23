@@ -12,7 +12,7 @@ state = importlib.import_module('PairOfCleats.lib.results_state')
 runner = importlib.import_module('PairOfCleats.lib.runner')
 operations.activate()
 generation = 'a' * 64
-page = {'kind': 'filter', 'generation': generation, 'returned': 1, 'total': 5,
+page = {'kind': 'filter', 'generation': generation, 'returned': 1, 'total': 4,
     'hasMore': True, 'nextCursor': 'page-two'}
 assert pagination.normalize_filter_pagination(page)['generation'] == generation
 assert pagination.normalize_filter_pagination(dict(page, generation=generation + '\n')) is None
@@ -57,7 +57,9 @@ with isolated_temp_directory() as root:
         'allow_sparse_fallback': False, 'as_of': '', 'snapshot': '', 'advanced': {'type': 'function'},
         'scopeComplete': True, 'schemaVersion': 1, 'cursor': 'page-two'}
     session = results.build_session('', options, root, previous['hits'], 'quick_panel')
-    session.update({'sessionId': 'captured-enumeration', 'pagination': page,
+    actual_page = dict(page, total=2)
+    actual_next_page = dict(next_page, total=2)
+    session.update({'sessionId': 'captured-enumeration', 'pagination': actual_page,
         'transport': 'api', 'endpoint': 'http://127.0.0.1:7345', 'serviceRoot': '/service/repo'})
     state.record_last_results(window, session)
     execution = {'mode': 'api', 'base_url': 'http://127.0.0.1:7345', 'allow_fallback': True}
@@ -82,7 +84,7 @@ with isolated_temp_directory() as root:
         captured[-1][1](runner.ProcessResult(1, '', error='controlled API cursor expiry'))
         assert not cli.called, 'prefer policy cannot send an API continuation cursor to CLI after failure'
     assert state.get_last_results(window)['hits'] == session['hits'], 'failed continuation retains the previous selection/evidence'
-    assert state.get_last_results(window)['pagination'] == page
+    assert state.get_last_results(window)['pagination'] == actual_page
     pagination.capture_selection(session, session['hits'], 0)
     state.record_last_results(window, session)
     with patch.object(commands.config, 'get_settings', return_value={}), \
@@ -91,7 +93,7 @@ with isolated_temp_directory() as root:
             patch.object(commands.api_client, 'run_async', side_effect=asynchronous):
         commands._execute_search(window, '', options, enumeration=True, append_session=session, service_root='/service/repo')
         captured[-1][1](runner.ProcessResult(0, '', payload={'records': [
-            {'file': 'new.py', 'id': '0', 'name': 'same'}], 'pagination': next_page}))
+            {'file': 'new.py', 'id': '0', 'name': 'same'}], 'pagination': actual_next_page}))
     assert window.selected_index == 0, 'native quick panel retains selected identity when a page appends'
     assert state.get_last_results(window)['sessionId'] == session['sessionId']
     reopened = state.get_last_results(window)

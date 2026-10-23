@@ -8,15 +8,16 @@ MAX_HITS = 2000
 class _FilterPageHits(list):
     """Private progress receipt, deliberately absent from project JSON."""
 
-    def __init__(self, values, generation, cursors):
+    def __init__(self, values, generation, cursors, matching_total=None):
         super().__init__(values)
         self.generation = generation
         self.cursor_digests = frozenset(cursors)
+        self.matching_total = matching_total
 
 
 def carry_filter_page_history(original, normalized):
     if type(original) is _FilterPageHits and isinstance(normalized, list):
-        return _FilterPageHits(normalized, original.generation, original.cursor_digests)
+        return _FilterPageHits(normalized, original.generation, original.cursor_digests, original.matching_total)
     return normalized
 
 
@@ -51,12 +52,14 @@ def normalize_filter_pagination(value):
         'coverageNote': str(value.get('coverageNote') or '')[:4096]}
 
 
-def admit_filter_page(value, hits):
+def admit_filter_page(value, hits, first_page=False):
     page = normalize_filter_pagination(value)
     if (not page or not isinstance(hits, list) or len(hits) > MAX_HITS
             or _count(value.get('returned')) != len(hits)
             or page['total'] is not None and page['total'] < page['returned']
-            or page['hasMore'] and page['returned'] == 0):
+            or page['hasMore'] and page['returned'] == 0
+            or page['hasMore'] and page['total'] is not None and page['returned'] >= page['total']
+            or first_page and not page['hasMore'] and page['total'] is not None and page['returned'] != page['total']):
         raise ValueError('Indexed browsing returned invalid generation/page membership. Restart with supported indexed metadata filters.')
     return page
 
@@ -84,6 +87,10 @@ def merge_filter_page(previous_session, next_pagination, hits):
     if current['hasMore'] and current['nextCursor'] == previous['nextCursor']:
         raise ValueError('Indexed continuation did not advance. Restart browsing; the previous result set is retained.')
     original = previous_session.get('hits') or []
+    retained_total = original.matching_total if type(original) is _FilterPageHits else None
+    if retained_total is not None and (previous['total'] is not None and previous['total'] != retained_total
+            or current['total'] is not None and current['total'] != retained_total):
+        raise ValueError('Indexed matching total differs from its original page receipt. Restart browsing; previous evidence is retained.')
     cursors = set(original.cursor_digests) if type(original) is _FilterPageHits and original.generation == current['generation'] else set()
     if isinstance(previous['nextCursor'], str):
         cursors.add(_cursor_digest(previous['nextCursor']))
@@ -102,11 +109,16 @@ def merge_filter_page(previous_session, next_pagination, hits):
     if len(merged) > MAX_HITS:
         raise ValueError('View reached its 2,000 hit bound. Narrow filters and restart.')
     total = current['total'] if current['total'] is not None else previous['total']
+    if total is None:
+        total = retained_total
     if total is not None and len(merged) > total:
         raise ValueError('Indexed loaded membership exceeds its captured matching total. Restart browsing; the previous result set is retained.')
+    if total is not None and (current['hasMore'] and len(merged) == total
+            or not current['hasMore'] and len(merged) != total):
+        raise ValueError('Indexed continuation exhaustion contradicts its captured matching total. Restart browsing; previous evidence is retained.')
     if current['hasMore']:
         cursors.add(_cursor_digest(current['nextCursor']))
-    return _FilterPageHits(merged, current['generation'], cursors)
+    return _FilterPageHits(merged, current['generation'], cursors, total)
 
 
 def selected_index(session, hits):

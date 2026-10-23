@@ -434,7 +434,7 @@ def _dispatch_search(window, query, repo_root, settings, resolved, execution, sc
         pagination = normalize_filter_pagination(payload.get('pagination'))
         if enumeration:
             try:
-                pagination = admit_filter_page(payload.get('pagination'), hits)
+                pagination = admit_filter_page(payload.get('pagination'), hits, first_page=not append_session)
             except ValueError as error:
                 ui.show_error('PairOfCleats: ' + str(error))
                 return
@@ -444,6 +444,8 @@ def _dispatch_search(window, query, repo_root, settings, resolved, execution, sc
                 return
             try:
                 hits = merge_filter_page(append_session, pagination, hits)
+                if pagination['total'] is None:
+                    pagination['total'] = hits.matching_total
             except ValueError as error:
                 ui.show_error('PairOfCleats: ' + str(error))
                 return
@@ -484,7 +486,8 @@ def _dispatch_search(window, query, repo_root, settings, resolved, execution, sc
             capture_selection(session, hits, selected_index(append_session, hits))
         if isinstance(pagination, dict):
             ui.show_status('PairOfCleats: {0} loaded / {1} indexed matches; more={2}.'.format(
-                len(hits), pagination.get('total', 'unknown'), pagination.get('hasMore', False)))
+                len(hits), pagination['total'] if pagination.get('total') is not None else 'unknown',
+                pagination.get('hasMore', False)))
         results_state.record_last_results(window, session)
         if target == 'output_panel':
             results.open_output_panel(
