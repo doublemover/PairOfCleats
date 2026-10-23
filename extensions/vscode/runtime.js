@@ -1,5 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { readVerifiedSource, createDocumentAuthority, assertQualifiedEditor } = require('./document-authority.js');
+const { captureEditorFailure } = require('./editor-failure-evidence.js');
 
 const DEFAULT_MAX_BUFFER_BYTES = 20 * 1024 * 1024;
 const DEFAULT_API_TIMEOUT_MS = 5000;
@@ -469,36 +471,168 @@ function spawnBufferedProcess(childProcessModule, command, args, options) {
   }
 }
 
-async function openSearchHit(vscodeApi, repoRoot, hit) {
-  const target = resolveValidatedHitTarget(vscodeApi, repoRoot, hit);
-  if (!target.ok) {
-    return target;
-  }
-  try {
-    const document = await vscodeApi.workspace.openTextDocument(target.targetUri);
-    try {
-      const editor = await vscodeApi.window.showTextDocument(document, { preview: true });
-      const range = buildHitRange(vscodeApi, hit);
-      if (range) {
-        editor.selection = new vscodeApi.Selection(range.start, range.end);
-        editor.revealRange(range, vscodeApi.TextEditorRevealType.InCenter);
-      }
-      return { ok: true, filePath: target.filePath };
-    } catch (error) {
-      return {
-        ok: false,
-        filePath: target.filePath,
-        message: `PairOfCleats could not navigate to ${target.filePath}: ${error?.message || error}`,
-        detail: String(error?.stack || error?.message || error)
-      };
+function captureOpeningHit(original, isCurrent) {
+  if (!original || typeof original !== 'object' || Array.isArray(original)) throw new Error('Search opening requires an original hit object.');
+  const hit = {};
+  for (const name of ['file', 'sourceHash', 'coordinateUnit', 'startLine', 'startCol', 'endLine', 'endCol']) {
+    if (!isCurrent()) return null;
+    const descriptor = Object.getOwnPropertyDescriptor(original, name);
+    if (!isCurrent()) return null;
+    if (!descriptor) {
+      if (name in original) throw new Error('Search opening cannot use inherited navigation fields.');
+      continue;
     }
+    if (!Object.hasOwn(descriptor, 'value')) throw new Error('Search opening requires passive navigation fields.');
+    hit[name] = descriptor.value;
+  }
+  if (typeof hit.file !== 'string' || !hit.file) throw new Error('Search opening requires an original file path.');
+  if (hit.sourceHash != null && (typeof hit.sourceHash !== 'string' || !/^[a-f0-9]{64}$/.test(hit.sourceHash))) throw new Error('Search source hash is invalid.');
+  for (const name of ['startLine', 'startCol', 'endLine', 'endCol']) {
+    if (hit[name] != null && !Number.isSafeInteger(hit[name])) throw new Error('Search opening requires integer navigation coordinates.');
+  }
+  return Object.freeze(hit);
+}
+
+function captureOpeningRepo(original, isCurrent) {
+  if (original == null || typeof original === 'string') return Object.freeze({ repoRoot: original || null, repoUri: null });
+  if (typeof original !== 'object' || Array.isArray(original)) throw new Error('Search opening requires its original repository context.');
+  const captured = {};
+  for (const name of ['repoRoot', 'repoUri']) {
+    if (!isCurrent()) return null;
+    const descriptor = Object.getOwnPropertyDescriptor(original, name);
+    if (!isCurrent()) return null;
+    if (!descriptor) {
+      if (name in original) throw new Error('Search opening cannot use inherited repository context.');
+      captured[name] = null;
+    } else {
+      if (!Object.hasOwn(descriptor, 'value')) throw new Error('Search opening requires passive repository context.');
+      captured[name] = descriptor.value ?? null;
+    }
+  }
+  if (captured.repoRoot !== null && typeof captured.repoRoot !== 'string'
+    || captured.repoUri !== null && typeof captured.repoUri !== 'object') throw new Error('Search opening repository identity is invalid.');
+  return Object.freeze(captured);
+}
+
+function openingUriIdentity(uri, isCurrent) {
+  if (!uri || typeof uri !== 'object') throw new Error('Opened search document has no original URI.');
+  const parts = [];
+  for (const name of ['scheme', 'authority', 'path', 'fsPath']) {
+    if (!isCurrent()) return null;
+    const value = uri[name];
+    if (!isCurrent()) return null;
+    parts.push(value ?? null);
+  }
+  if (typeof parts[0] !== 'string' || !parts[0] || !parts.slice(1).every(value => value === null || typeof value === 'string')
+    || !parts[2] && !parts[3]) throw new Error('Opened search document has no original URI identity.');
+  return Object.freeze({ key: JSON.stringify(parts), scheme: parts[0] });
+}
+
+async function openSearchHit(vscodeApi, repoRoot, originalHit, { isCurrent = () => true } = {}) {
+  let revoked = false, filePath = '', phase = 'open';
+  const current = () => {
+    if (revoked) return false;
+    try { if (typeof isCurrent !== 'function' || isCurrent() !== true) revoked = true; }
+    catch (error) { revoked = true; throw error; }
+    return !revoked;
+  };
+  const cancelled = () => Object.freeze({ ok: false, kind: 'cancelled', filePath, message: 'PairOfCleats opening was superseded.' });
+  try {
+    if (!current()) return cancelled();
+    const hit = captureOpeningHit(originalHit, current);
+    if (!hit || !current()) return cancelled();
+    const repoContext = captureOpeningRepo(repoRoot, current);
+    if (!repoContext || !current()) return cancelled();
+    if (!current()) return cancelled();
+    const target = resolveValidatedHitTarget(vscodeApi, repoContext, hit);
+    if (!target.ok) return target;
+    filePath = target.filePath;
+    const root = repoContext.repoRoot, targetIdentity = openingUriIdentity(target.targetUri, current);
+    if (!current()) return cancelled();
+    const workspace = vscodeApi.workspace;
+    if (!current()) return cancelled();
+    const window = vscodeApi.window;
+    if (!current()) return cancelled();
+    const open = workspace.openTextDocument;
+    if (!current()) return cancelled();
+    const show = window.showTextDocument;
+    if (!current()) return cancelled();
+    if (typeof open !== 'function' || typeof show !== 'function') throw new Error('Search opening requires original document/display callbacks.');
+    const precise = hit.sourceHash && hit.coordinateUnit === 'utf16'
+      && [hit.startLine, hit.startCol, hit.endLine, hit.endCol].every(value => Number.isSafeInteger(value) && value > 0);
+    let document, qualified = null, authority = null, range = null;
+    if (hit.sourceHash) {
+      if (targetIdentity.scheme !== 'file') throw new Error('Hash-qualified source opening requires a contained local file.');
+      authority = createDocumentAuthority({ workspace: { openTextDocument: uri => Reflect.apply(open, workspace, [uri]) }, isCurrent: current, maxDocuments: 1 });
+      let span = null;
+      if (!precise) {
+        const source = readVerifiedSource({ repoRoot: root, file: filePath, sourceHash: hit.sourceHash });
+        const offset = source.sourceText.startsWith('\ufeff') ? 1 : 0; span = { start: offset, end: offset };
+      }
+      qualified = await authority.qualify({ repoRoot: root, file: filePath, uri: target.targetUri, sourceHash: hit.sourceHash,
+        ...(precise ? { range: hit } : { span }) });
+      if (!qualified || !current()) return cancelled();
+      document = qualified.document;
+      await authority.assertCurrent();
+    } else {
+      // Legacy unqualified positions are display hints. Capture them before the
+      // first await; they never acquire an original-source or exact-range claim.
+      range = buildHitRange(vscodeApi, hit, current);
+      if (!current()) return cancelled();
+      document = await Reflect.apply(open, workspace, [target.targetUri]);
+    }
+    if (!current()) return cancelled();
+    if (!document || document.isClosed === true) throw new Error('Opened search document is unavailable.');
+    const openedIdentity = openingUriIdentity(document.uri, current);
+    if (!current()) return cancelled();
+    if (openedIdentity.key !== targetIdentity.key) throw new Error('Opened search document URI differs from its original target.');
+    const version = document.version;
+    if (!current()) return cancelled();
+    phase = 'navigate';
+    const editor = await Reflect.apply(show, window, [document, { preview: true }]);
+    if (!current()) return cancelled();
+    if (authority) await authority.assertCurrent();
+    if (!current()) return cancelled();
+    if (!editor || editor.document !== document || document.isClosed === true || document.version !== version) throw new Error('Displayed search editor does not identify the original opened document/version.');
+    const displayedIdentity = openingUriIdentity(document.uri, current);
+    if (!current()) return cancelled();
+    if (displayedIdentity.key !== targetIdentity.key) throw new Error('Displayed search document URI differs from its original target.');
+    if (qualified) {
+      assertQualifiedEditor(editor, qualified);
+      if (precise) {
+        const positionAt = document.positionAt;
+        if (!current()) return cancelled();
+        if (typeof positionAt !== 'function') throw new Error('Qualified document has no original position callback.');
+        const start = Reflect.apply(positionAt, document, [qualified.offsets.start]);
+        if (!current()) return cancelled();
+        const end = Reflect.apply(positionAt, document, [qualified.offsets.end]);
+        if (!current()) return cancelled();
+        assertQualifiedEditor(editor, qualified);
+        const Range = vscodeApi.Range;
+        if (!current()) return cancelled();
+        range = new Range(start, end);
+      }
+    }
+    if (!current()) return cancelled();
+    if (range) {
+      const Selection = vscodeApi.Selection;
+      if (!current()) return cancelled();
+      const selection = new Selection(range.start, range.end);
+      if (!current()) return cancelled();
+      editor.selection = selection;
+      if (!current()) return cancelled();
+      if (editor.document !== document || document.isClosed === true || document.version !== version) throw new Error('Selected search editor no longer identifies the original opened document/version.');
+      if (qualified) assertQualifiedEditor(editor, qualified);
+      if (!current()) return cancelled();
+      editor.revealRange(range, vscodeApi.TextEditorRevealType.InCenter);
+    }
+    return { ok: true, filePath, sourceVerified: qualified !== null, rangeApplied: range !== null,
+      rangeEvidence: qualified ? precise ? 'qualified-original-utf16' : 'file-only-no-qualified-range' : 'unqualified-display-hint' };
   } catch (error) {
-    return {
-      ok: false,
-      filePath: target.filePath,
-      message: `PairOfCleats could not open ${target.filePath}: ${error?.message || error}`,
-      detail: String(error?.stack || error?.message || error)
-    };
+    const captured = captureEditorFailure(error);
+    return Object.freeze({ ok: false, filePath,
+      message: `PairOfCleats could not ${phase === 'open' ? 'open' : 'navigate to'} ${filePath || 'the selected source'}: ${captured.message}`,
+      detail: captured.message, primaryError: error, inspectionErrors: captured.inspectionErrors });
   }
 }
 
@@ -560,7 +694,7 @@ function resolveHitUri(vscodeApi, repoContext, hitFile) {
   return vscodeApi.Uri.file(path.join(repoContext.repoRoot || '', String(hitFile || '')));
 }
 
-function buildHitRange(vscodeApi, hit) {
+function buildHitRange(vscodeApi, hit, isCurrent = () => true) {
   if (!Number.isFinite(hit?.startLine) || hit.startLine <= 0) return null;
   const startLine = Math.max(0, Number(hit.startLine) - 1);
   const startCol = Number.isFinite(hit?.startCol) && hit.startCol > 0 ? Number(hit.startCol) - 1 : 0;
@@ -570,9 +704,15 @@ function buildHitRange(vscodeApi, hit) {
   const endCol = Number.isFinite(hit?.endCol) && hit.endCol > 0
     ? Math.max(endLine === startLine ? startCol : 0, Number(hit.endCol) - 1)
     : (endLine === startLine ? startCol : 0);
-  const start = new vscodeApi.Position(startLine, startCol);
-  const end = new vscodeApi.Position(endLine, endCol);
-  return new vscodeApi.Range(start, end);
+  const Position = vscodeApi.Position;
+  if (!isCurrent()) return null;
+  const Range = vscodeApi.Range;
+  if (!isCurrent()) return null;
+  const start = new Position(startLine, startCol);
+  if (!isCurrent()) return null;
+  const end = new Position(endLine, endCol);
+  if (!isCurrent()) return null;
+  return new Range(start, end);
 }
 
 function validateHitPath(repoContext, hitFile) {

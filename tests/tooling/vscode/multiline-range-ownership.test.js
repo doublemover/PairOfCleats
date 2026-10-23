@@ -5,7 +5,8 @@ const root = createVsCodeRuntimeTempRepo({ prefix: 'editor-range-ownership-' });
 const harness = createVsCodeRuntimeHarness({ repoRoot: root });
 try {
   let selection, revealed;
-  harness.fakeVscode.window.showTextDocument = async () => ({
+  harness.fakeVscode.window.showTextDocument = async document => ({
+    document,
     set selection(value) { selection = value; }, revealRange(range) { revealed = range; }
   });
   const repo = { repoRoot: root, repoUri: harness.fakeVscode.Uri.file(root) };

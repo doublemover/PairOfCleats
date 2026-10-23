@@ -54,7 +54,7 @@ const {
   summarizeSpawnFailure,
   spawnBufferedProcess: spawnBufferedProcessUnchecked,
   resolveValidatedHitTarget,
-  openSearchHit
+  openSearchHit: openSearchHitUnchecked
 } = require('./runtime.js');
 const { buildDestinationBoundApiHeaders, workspaceTrustError } = require('./security.js');
 const { normalizeWorkflowRequest, hasRequiredWorkflowInput } = require('./workflow-replay.js');
@@ -62,6 +62,11 @@ const { boundedFacts, captureSearchExplanation, renderSearchExplanation, normali
 
 // Check immediately at each sink, including after async prompts/probes and
 // saved/background workflows. Trust may change while a command is pending.
+function openSearchHit(vscodeApi, repoContext, hit) {
+  const scope = operations.current();
+  return openSearchHitUnchecked(vscodeApi, repoContext, hit, { isCurrent: () => operations.isCurrent(scope) });
+}
+
 function spawnBufferedProcess(...args) {
   if (!operations.isCurrent()) return { ok: false, error: new Error('PairOfCleats operation was cancelled.') };
   if (vscode.workspace.isTrusted !== true) return { ok: false, error: workspaceTrustError() };
@@ -1354,6 +1359,7 @@ function normalizeSearchHit(hit) {
     chunkUid: typeof hit.chunkUid === 'string' ? hit.chunkUid : '',
     id: typeof hit.id === 'string' || Number.isSafeInteger(hit.id) ? hit.id : null,
     sourceHash: /^[a-f0-9]{64}$/.test(hit.sourceHash || '') ? hit.sourceHash : null,
+    coordinateUnit: hit.coordinateUnit === 'utf16' ? 'utf16' : null,
     generation: hit.generation && typeof hit.generation === 'object' ? hit.generation : null,
     ...(breakdown ? { scoreBreakdown: breakdown.facts } : {}),
     explanationTruncated: hit.explanationTruncated === true || breakdown?.truncated === true,
@@ -1630,18 +1636,20 @@ function presentSearchDiagnostics(resultSet, historical = false) {
 }
 
 async function openResultHitNode(node) {
-  if (!node?.hit || !node?.resultSet) return;
-  const repoContext = createStoredRepoContext(node.resultSet);
-  if (node.resultSet.explanation) {
-    appendOutputLines(getOutputChannel(), renderSearchExplanation(node.resultSet, node.hit));
-    getOutputChannel().show?.(true);
-  }
-  const result = await openSearchHit(vscode, repoContext, node.hit);
-  if (!result.ok) {
-    getOutputChannel().appendLine(result.detail || result.message);
-    getOutputChannel().show?.(true);
-    vscode.window.showErrorMessage(result.message);
-  }
+  return operations.run('result-hit-open', async () => {
+    if (!node?.hit || !node?.resultSet) return;
+    const repoContext = createStoredRepoContext(node.resultSet);
+    if (node.resultSet.explanation) {
+      appendOutputLines(getOutputChannel(), renderSearchExplanation(node.resultSet, node.hit));
+      getOutputChannel().show?.(true);
+    }
+    const result = await openSearchHit(vscode, repoContext, node.hit);
+    if (!result.ok && result.kind !== 'cancelled') {
+      getOutputChannel().appendLine(result.detail || result.message);
+      getOutputChannel().show?.(true);
+      vscode.window.showErrorMessage(result.message);
+    }
+  }, { key: 'result-hit-open' });
 }
 
 async function revealResultHitNode(node) {
