@@ -48,7 +48,18 @@ actual lock and reservation controls for observer capture before diagnostics,
 replacement resistance, independently pending diagnostic/observer failures,
 single original method/receiver capture, falsey causes, and metadata-only
 coordinator recovery without free-space or reservation operation replay.
-The successful lock owner's direct release retry state, `withFileLock` worker
-settlement before its first release, raw descriptor/atomic publication owners,
-and cross-process/native filesystem qualification remain separate open work.
-This reporting repair adds no registry, filesystem namespace or metadata proof.
+The successful lock owner now bridges its privately retained original release
+observations to the wrapper, before diagnostics. The wrapper privately captures
+its independent cause/worker/inspection observation separately from the owner
+predicate. Only an actual wrapper for that exact handle is recognized if thrown
+back into the owner; copied fields or an actual session on another error do not
+receive that treatment. This prevents a same-owner predicate cycle while
+preserving independent prerequisites. The handle's actual session remains a
+separate metadata settlement capability, described in
+[the publication lifetime contract](file-lock-publication-lifetime.md).
+
+`withFileLock` worker settlement before its first release, the legacy lock-info
+borrower's swallowed read/descriptor failures, raw descriptor/atomic publication
+owners, and cross-process/native qualification remain separate open work.
+The bridge reuses the existing publication/failure owner associations and fence;
+it adds no filesystem namespace or metadata proof to arbitrary wrapper errors.

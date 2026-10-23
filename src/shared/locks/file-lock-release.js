@@ -1,4 +1,6 @@
 import { addStorageFailureContext } from '../storage/operation-error.js';
+import { getPublishedFileLockReleaseObservation, isFileLockPublicationFailureFor,
+  getFileLockReleaseFailureObservation, recordFileLockReleaseWrapperFailure } from './file-lock-producer-observations.js';
 
 const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
 const createLockReleaseFailureError = ({
@@ -14,7 +16,14 @@ const createLockReleaseFailureError = ({
   // This pure context owner captures independent original observations before
   // code/name/path diagnostics can replace them. It does not witness metadata
   // removal or authorize another release call on an arbitrary lock.
-  let failure = releaseFailed
+  const published = getPublishedFileLockReleaseObservation(lock);
+  // An exact same-owner publication failure already represents this owner's
+  // observations. Capture additional worker/inspection errors separately from
+  // the owner's private predicate so it cannot feed back into itself later.
+  const previous = getFileLockReleaseFailureObservation(cause, lock);
+  let failure = previous ? addStorageFailureContext(error, {
+    cacheOwnershipPending: true, cacheOwnershipReleased: previous
+  }) : releaseFailed && !isFileLockPublicationFailureFor(cause, lock)
     ? addStorageFailureContext(error, {}, cause, { secondaryPresent: true }) : error;
   const restoreCause = () => {
     if (releaseFailed) Object.defineProperty(failure, 'cause', { value: cause, writable: true, configurable: true });
@@ -46,6 +55,14 @@ const createLockReleaseFailureError = ({
     `cause=${detailCode}`
   ].join(' ');
   Object.assign(failure, { message, lockPath, causeCode });
+  const independent = Object.getOwnPropertyDescriptor(failure, 'cacheOwnershipReleased')?.value;
+  if (published) {
+    failure = addStorageFailureContext(failure, published, null, { nonEnumerable: ['fileLockPublicationSession'] });
+    restoreCause();
+    // Return newly observed worker/inspection prerequisites to the same owner
+    // before another explicit metadata retry. Both identities are private.
+    recordFileLockReleaseWrapperFailure(failure, lock, typeof independent === 'function' ? independent : () => true);
+  }
   // Original native observers stay captured even if a report consumer replaces
   // public diagnostics. Inspection history remains in the existing composer.
   for (const field of ['cacheOwnershipPending', 'cacheOwnershipReleased']) {

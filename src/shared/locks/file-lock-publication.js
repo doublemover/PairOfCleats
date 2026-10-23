@@ -1,11 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { getFileLockReleaseFailureObservation, isFileLockPublicationFailureForSession,
+  recordFileLockPublicationFailure, recordPublishedFileLockHandle } from './file-lock-producer-observations.js';
 
 // Process-local ownership of actual open publication descriptors. This is not
 // another filesystem lock/lease namespace and cannot identify another process.
 const publications = new Map();
 const sessions = new WeakSet();
-const failureOwners = new WeakMap();
 const keyFor = file => process.platform === 'win32' ? path.resolve(file).toLowerCase() : path.resolve(file);
 export const isFileLockPublicationPending = file => Boolean(file) && Boolean(publications.get(keyFor(file))?.size);
 export const isFileLockPublicationSession = session => Boolean(session) && sessions.has(session);
@@ -35,9 +36,14 @@ const sameIdentity = (left, right) => sameObject(left, right)
  */
 export const publishFileLock = async ({ handle, lockPath, payload, contents, diagnostics, readInfo }) => {
   const key = keyFor(lockPath), token = {};
-  const active = publications.get(key) || new Set();
-  active.add(token); publications.set(key, active);
-  const forget = () => { active.delete(token); if (!active.size && publications.get(key) === active) publications.delete(key); };
+  const hold = () => {
+    const active = publications.get(key) || new Set(); active.add(token); publications.set(key, active);
+  };
+  hold();
+  const forget = () => {
+    const active = publications.get(key); if (!active) return;
+    active.delete(token); if (!active.size) publications.delete(key);
+  };
   const lockId = payload.lockId, resourceId = `file-lock-publication:${lockId}`;
   const initialFailures = [], retryFailures = [], inspectionFailures = [], observers = [], observed = new WeakSet();
   let primary, hasPrimary = false, closeMethod = null, statMethod = null, writeMethod = null;
@@ -46,6 +52,8 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
     'cacheOwnershipPending', 'cacheOwnershipReleased', 'fileLockPublicationSession', 'fileLockPublication', 'fileLockPublicationErrors']);
   let closeCaptureFailure, closeCaptureFailed = false;
   let original = null, snapshot = null, closed = false, removed = false, closing = null, reconciling = null, overflow = false;
+  let admitted = false, released = false, releasing = null, releasePublished = null;
+  let publishedLock = null, checkingResources = false;
   const remember = value => {
     const pending = [value];
     while (pending.length) {
@@ -53,9 +61,17 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
       // Only this exact privately produced outward error is already represented
       // by the original independent observations. Its own settlement predicate
       // depends on close/removal and cannot gate that same close.
-      if (objectLike(error) && failureOwners.get(error) === session) continue;
+      if (isFileLockPublicationFailureForSession(error, session)) continue;
       if (!objectLike(error) || observed.has(error)) continue;
       observed.add(error);
+      // The actual release wrapper can be thrown back by this exact owner's
+      // operation. Its original independent observations remain prerequisites;
+      // its composed reference to this owner cannot become a self-cycle.
+      const wrapped = getFileLockReleaseFailureObservation(error, publishedLock);
+      if (wrapped) {
+        if (observers.length < 128) observers.push(wrapped); else overflow = true;
+        continue;
+      }
       const captured = captureObservation(error, retainInspection);
       if (captured.observe) { if (observers.length < 128) observers.push(captured.observe); else overflow = true; }
       if (captured.inspectionFailed) {
@@ -97,9 +113,12 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
     }
   };
   const originalResourcesSettled = () => {
-    if (overflow) return false;
-    for (let index = 0; index < observers.length; index += 1) if (!observers[index]()) return false;
-    return !overflow;
+    if (overflow || checkingResources) return false;
+    checkingResources = true;
+    try {
+      for (let index = 0; index < observers.length; index += 1) if (!observers[index]()) return false;
+      return !overflow;
+    } finally { checkingResources = false; }
   };
   const resourcesSettled = () => closed && originalResourcesSettled();
   const isSettled = () => removed && resourcesSettled();
@@ -139,12 +158,17 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
     }
     if (!Object.hasOwn(failure, 'code')) failure.code = 'ERR_FILE_LOCK_PUBLICATION_PENDING';
     Object.defineProperties(failure, {
-      cacheOwnershipPending: { value: true }, cacheOwnershipReleased: { value: isSettled },
+      // A failed published release exposes independent native prerequisites to
+      // its caller, which must still retry this actual metadata owner. Feeding
+      // our own removal predicate back into that retry would deadlock it.
+      cacheOwnershipPending: { value: true },
+      cacheOwnershipReleased: { value: admitted ? originalResourcesSettled : isSettled },
       fileLockPublicationSession: { value: session }, fileLockPublicationErrors: { value: Object.freeze([...failure.errors]) },
       fileLockPublication: { value: Object.freeze({ lockPath, lockId,
-        descriptorCloseObserved: closed, identitySealed: Boolean(snapshot), metadataRemoved: removed, state: 'publication-failed' }) }
+        descriptorCloseObserved: closed, identitySealed: Boolean(snapshot), metadataRemoved: removed,
+        state: admitted ? 'release-failed' : 'publication-failed' }) }
     });
-    failureOwners.set(failure, session);
+    recordFileLockPublicationFailure(failure, session);
     return failure;
   };
   const currentOwned = async (expected, retainOriginalFailure = false) => {
@@ -169,6 +193,11 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
   const session = Object.freeze({ resourceId, lockPath, isSettled, releaseAfterClose: async () => {
     if (!reconciling) reconciling = (async () => {
       if (isSettled()) { forget(); return { resourceId, settled: true, pending: false }; }
+      if (admitted) {
+        await releasePublished({ allowAbsent: true, acknowledge: false });
+        if (!isSettled()) throw new Error('Published file lock metadata release remains unconfirmed.');
+        return { resourceId, settled: true, pending: false };
+      }
       await closeOriginal();
       if (!resourcesSettled()) throw new Error('Original file lock publication resource observation remains pending.');
       const current = removed ? null : await currentOwned(snapshot, true);
@@ -231,20 +260,60 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
     } catch (value) { fail(value); }
   }
   if (hasPrimary) throw retainFailure(primary);
+  admitted = true;
   forget();
-  let released = false, releasing = null;
-  return { lockPath, payload, diagnostics, release: async (_options = {}) => {
+  const retainReleaseFailure = value => {
+    hold();
+    if (!hasPrimary) fail(value);
+    else {
+      remember(value);
+      if (retryFailures.length === 64) retryFailures.shift();
+      retryFailures.push(value);
+    }
+    return value;
+  };
+  releasePublished = async ({ allowAbsent = false, acknowledge = true } = {}) => {
     if (released) return false;
     if (!releasing) releasing = (async () => {
-      if (!await currentOwned(snapshot)) return false;
+      if (!resourcesSettled()) throw new Error('Original published lock work prohibits metadata release.');
+      if (removed) { forget(); return true; }
+      const current = await currentOwned(snapshot, true);
+      if (!resourcesSettled()) throw new Error('Original published lock work changed during release identity inspection.');
+      if (!current) {
+        if (!allowAbsent) return false;
+        removed = true; forget(); return true;
+      }
       const info = await readInfo(lockPath);
+      if (!resourcesSettled()) throw new Error('Original published lock work changed during release owner inspection.');
       if (!info || info.lockId !== lockId) return false;
-      if (!await currentOwned(snapshot)) return false;
+      const rechecked = await currentOwned(snapshot, true);
+      if (!resourcesSettled()) throw new Error('Original published lock work changed before metadata removal.');
+      if (!rechecked) {
+        if (!allowAbsent) return false;
+        removed = true; forget(); return true;
+      }
       const removal = await fs.rm(lockPath, { force: false });
       if (removal !== undefined) throw new Error('Original file lock release did not confirm its standard void result.');
-      released = true;
+      removed = true;
+      if (!resourcesSettled()) throw new Error('Original published lock work remains unconfirmed after metadata removal.');
+      forget();
       return true;
-    })().finally(() => { releasing = null; });
-    return releasing;
-  } };
+    })().catch(value => {
+      // Preserve the public direct-release rejection identity. The actual
+      // published handle and release wrapper retain our private observation.
+      throw retainReleaseFailure(value);
+    }).finally(() => { releasing = null; });
+    const result = await releasing;
+    if (result === true && !resourcesSettled()) throw retainReleaseFailure(
+      new Error('Original published lock work remains unconfirmed before release acknowledgement.'));
+    if (result === true && acknowledge) released = true;
+    return result;
+  };
+  const lock = { lockPath, payload, diagnostics, release: async (_options = {}) => releasePublished() };
+  publishedLock = lock;
+  Object.defineProperty(lock, 'fileLockPublicationSession', { value: session });
+  recordPublishedFileLockHandle(lock, { session, remember, releaseObservation: Object.freeze({
+    cacheOwnershipPending: true, cacheOwnershipReleased: originalResourcesSettled, fileLockPublicationSession: session
+  }) });
+  return lock;
 };
