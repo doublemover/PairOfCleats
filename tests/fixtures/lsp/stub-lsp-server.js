@@ -26,6 +26,9 @@ const fragmentSize = fragmentSizeIdx !== -1 && Number.isFinite(Number(args[fragm
   : 8;
 
 const symbolsByMode = {
+  'kotlin-function': {
+    name: 'greet', detail: 'suspend fun greet(name: String, transform: (String) -> String?): Map<String, String?>', kind: 12
+  },
   'python-comparison-default': {
     name: 'greet', detail: 'def greet(ok: bool = 1 < 2, mask: int = 1 << 2) -> bool', kind: 12
   },

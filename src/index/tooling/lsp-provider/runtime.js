@@ -14,6 +14,7 @@ import {
 import { mergeLspWorkspacePartitionResults } from '../lsp-workspace-routing.js';
 import { parseClikeSignature } from '../signature-parse/clike.js';
 import { parseJavaSignature } from '../signature-parse/java.js';
+import { parseKotlinSignature } from '../signature-parse/kotlin.js';
 import { parseElixirSignature } from '../signature-parse/elixir.js';
 import { parseGoSignature } from '../signature-parse/go.js';
 import { parseHaskellSignature } from '../signature-parse/haskell.js';
@@ -38,9 +39,10 @@ export const parseGenericSignature = (detail, languageId, symbolName) => {
   if (lang === 'ruby' || lang === 'rb') return parseRubySignature(detail);
   if (lang === 'zig') return parseZigSignature(detail);
   if (lang === 'java') return parseJavaSignature(detail, symbolName);
+  if (lang === 'kotlin') return parseKotlinSignature(detail);
   if ([
     'c', 'cpp', 'objective-c', 'objective-cpp',
-    'kotlin', 'csharp',
+    'csharp',
     'javascript', 'jsx', 'typescript', 'tsx',
     'php'
   ].includes(lang)) {
