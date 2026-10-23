@@ -168,7 +168,7 @@ export const runScheduledTask = ({ state, ctx, task, fromQueue = false }) => {
     .finally(async () => {
       // runWithTimeout rejects promptly; the owned operation can still be
       // settling its subprocesses. Admission capacity follows that lifetime.
-      if (task.executionSettlement) await task.executionSettlement;
+      if (task.executionSettlement && !task.executionSettled) await task.executionSettlement;
       scheduler.running = Math.max(0, scheduler.running - 1);
       scheduler.metrics.completed += 1;
       incrementClassMetric(scheduler.metrics, task.preflightClass, 'completed');

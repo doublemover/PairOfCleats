@@ -175,7 +175,7 @@ const startProviderPreflight = ({
   // The public deadline can settle before provider teardown. Keep its ownership
   // and single-flight entry until the original operation has actually settled.
   promise.finally(() => {
-    if (task.executionSettlement) task.executionSettlement.then(releaseOwnership);
+    if (task.executionSettlement && !task.executionSettled) task.executionSettlement.then(releaseOwnership);
     else releaseOwnership();
   }).catch(() => {});
 
@@ -194,6 +194,7 @@ const startProviderPreflight = ({
     settled: false,
     cancelled: false,
     executionSettlement: null,
+    executionSettled: false,
     execute: async () => {
       const startedAtMs = Date.now();
       const inFlightEntry = state.inFlight.get(key);
@@ -238,7 +239,10 @@ const startProviderPreflight = ({
                 );
               }
             );
-            task.executionSettlement = operation.then(() => {}, () => {});
+            task.executionSettlement = operation.then(
+              () => { task.executionSettled = true; },
+              () => { task.executionSettled = true; }
+            );
             if (inFlightEntry) inFlightEntry.settlement = operation;
             return operation;
           },
