@@ -296,6 +296,16 @@ publish twice. Missing primary source identity remains visibly unresolved;
 partial-frontier warnings and generation provenance remain in copied packets.
 Clipboard/save actions continue to require a deliberate native selection.
 
+Reviewed evidence and analysis JSON exports share one direct file-save owner.
+It stages the exact UTF-8 bytes beside the destination, checks write/flush/fsync/
+close and the original request before replacement, and never truncates the prior
+destination. Original save errors retain independent close/removal failures and
+the path of any staging file whose cleanup failed. Opening a successfully saved
+file is a separate host notification; its failure cannot turn the save into a
+failed publication or replay the write. This uses Python 3.3-era file APIs and
+does not certify crash durability or native host/filesystem behavior. Fault and
+actual-consumer regressions are authored; execution remains deferred.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only

@@ -1,5 +1,4 @@
 import json
-import os
 import threading
 import time
 import sys
@@ -274,35 +273,6 @@ def request_text(url, timeout_ms=5000, method='GET', payload=None, headers=None)
     if status < 200 or status >= 300:
         raise RuntimeError('API request failed ({0}): {1}'.format(status, text.strip()[:4096] or 'No response detail.'))
     return text, headers
-
-
-def _ensure_parent_dir(path_value):
-    handle = getattr(_REQUEST_CONTEXT, 'handle', None)
-    if handle is not None and handle.is_cancelled():
-        raise RuntimeError('API export cancelled.')
-    if not path_value:
-        return
-    parent = os.path.dirname(path_value)
-    if not parent:
-        return
-    if os.path.isdir(parent):
-        return
-    try:
-        os.makedirs(parent)
-    except Exception:
-        pass
-
-
-def _write_text(path_value, text):
-    _ensure_parent_dir(path_value)
-    with open(path_value, 'w') as handle:
-        handle.write(text or '')
-
-
-def _write_json(path_value, payload):
-    _ensure_parent_dir(path_value)
-    with open(path_value, 'w') as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
 
 
 def run_async(request_fn, on_done, on_progress=None, window=None, scope=None, task=None):

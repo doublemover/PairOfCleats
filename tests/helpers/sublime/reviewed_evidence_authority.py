@@ -128,7 +128,7 @@ with isolated_temp_directory() as root:
 
     command._publish('["original"]', '# Original', scope)
     window.quick_panel_callback(2)
-    with patch('builtins.open', side_effect=OSError('original reviewed save failure')):
+    with patch.object(commands.publication.tempfile, 'mkstemp', side_effect=OSError('original reviewed save failure')):
         window.input['done'](os.path.join(root, 'failed.json'))
     assert 'original reviewed save failure' in sublime.last_error
 

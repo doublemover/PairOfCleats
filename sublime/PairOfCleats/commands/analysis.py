@@ -14,6 +14,7 @@ from ..lib import runner
 from ..lib import ui
 from ..lib import views
 from ..lib import operations
+from ..lib import publication
 
 DEFAULT_CONTEXT_PACK_HOPS = 2
 DEFAULT_RISK_EXPLAIN_MAX = 5
@@ -160,13 +161,48 @@ def _default_export_path(repo_root, kind, identity):
     return os.path.join(export_root, '{0}-{1}.json'.format(kind, safe))
 
 
-def _write_json(path_value, payload):
-    parent = os.path.dirname(path_value)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    with open(path_value, 'w', encoding='utf-8') as handle:
-        json.dump(payload, handle, indent=2, sort_keys=False)
-        handle.write('\n')
+def _write_json(path_value, payload, scope=None):
+    text = json.dumps(payload, indent=2, sort_keys=False) + '\n'
+    return publication.write_text(path_value, text, create_parents=True,
+        is_current=(lambda: operations.is_current(scope)) if scope is not None else None)
+
+
+def _export_json(path_value, payload, scope, operation_error=None):
+    try:
+        _write_json(path_value, payload, scope)
+    except publication.PublicationCancelled as error:
+        if getattr(error, 'pairofcleats_cleanup_errors', None):
+            print(publication.describe_failure('Cancelled analysis export cleanup failed: ', error))
+        return False
+    except Exception as error:
+        message = publication.describe_failure('Analysis JSON save failed: ', error)
+        if operation_error:
+            message = operation_error + '\n' + message
+        ui.show_error(message)
+        return False
+    return True
+
+
+def _present_analysis(window, kind, session, text, scope, json_path=None, operation_error=None):
+    failures = [operation_error] if operation_error else []
+    if not operations.is_current(scope):
+        return
+    try:
+        _record_analysis_session(window, kind, session)
+    except Exception as error:
+        failures.append('Analysis history save failed: ' + str(error))
+    if not operations.is_current(scope):
+        return
+    try:
+        results.open_output_panel(window, text, session=session)
+    except Exception as error:
+        failures.append('Analysis panel display failed: ' + str(error))
+    if not operations.is_current(scope):
+        return
+    if json_path:
+        publication.notify_saved(window, json_path, kind.replace('-', ' ') + ' JSON')
+    if failures:
+        ui.show_error('\n'.join(failures))
 
 
 def _append_unique_hit(hits, hit):
@@ -730,21 +766,18 @@ def _execute_analysis_command(window, title, kind, repo_root, args, collect_hits
             ui.show_error(result.output.strip() or '{0} returned invalid JSON.'.format(title))
             return
         failed = result.returncode != 0 or payload.get('ok') is False
+        operation_error = ((payload or {}).get('message') or result.output.strip() or '{0} failed.'.format(title)) \
+            if failed else None
         hits = collect_hits(payload)
         text = render_text(payload, hits)
         json_path = None
         if export_json:
             export_name = export_identity or kind
             json_path = out_path or _default_export_path(repo_root, kind, export_name)
-            _write_json(json_path, payload)
+            if not _export_json(json_path, payload, context['scope'], operation_error):
+                return
         session = _build_analysis_session(kind, repo_root, hits, text, payload, json_path=json_path)
-        _record_analysis_session(window, kind, session)
-        results.open_output_panel(window, text, session=session)
-        if json_path:
-            window.open_file(json_path)
-            ui.show_status('PairOfCleats: exported {0} JSON.'.format(kind.replace('-', ' ')))
-        if failed:
-            ui.show_error((payload or {}).get('message') or result.output.strip() or '{0} failed.'.format(title))
+        _present_analysis(window, kind, session, text, context['scope'], json_path, operation_error)
 
     _run_cli_json(window, title, repo_root, args, on_done, context=context)
 
@@ -907,13 +940,10 @@ class PairOfCleatsContextPackCommand(sublime_plugin.WindowCommand):
             json_path = None
             if export_json:
                 json_path = out_path or _default_export_path(repo_root, 'context-pack', seed)
-                _write_json(json_path, payload)
+                if not _export_json(json_path, payload, context['scope']):
+                    return
             session = _build_analysis_session('context-pack', repo_root, hits, text, payload, json_path=json_path)
-            _record_analysis_session(self.window, 'context-pack', session)
-            results.open_output_panel(self.window, text, session=session)
-            if json_path:
-                self.window.open_file(json_path)
-                ui.show_status('PairOfCleats: exported context pack JSON.')
+            _present_analysis(self.window, 'context-pack', session, text, context['scope'], json_path)
 
         _run_cli_json(self.window, 'PairOfCleats context pack', repo_root, args, on_done, context=context, workflow='context-pack')
 
@@ -993,13 +1023,10 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
             json_path = None
             if export_json:
                 json_path = out_path or _default_export_path(repo_root, 'risk-explain', chunk_uid)
-                _write_json(json_path, payload)
+                if not _export_json(json_path, payload, context['scope']):
+                    return
             session = _build_analysis_session('risk-explain', repo_root, hits, text, payload, json_path=json_path)
-            _record_analysis_session(self.window, 'risk-explain', session)
-            results.open_output_panel(self.window, text, session=session)
-            if json_path:
-                self.window.open_file(json_path)
-                ui.show_status('PairOfCleats: exported risk explain JSON.')
+            _present_analysis(self.window, 'risk-explain', session, text, context['scope'], json_path)
 
         seed = chunk_uid if chunk_uid.startswith(('chunk:', 'file:', 'symbol:')) else 'chunk:' + chunk_uid
         source_qualification = None

@@ -6,7 +6,7 @@ import copy
 import sublime
 import sublime_plugin
 
-from ..lib import api_client, config, operations, paths, results, results_state, runner, service_repository, ui
+from ..lib import api_client, config, operations, paths, publication, results, results_state, runner, service_repository, ui
 from .analysis import _render_context_pack_text, _collect_context_pack_hits
 
 MAX_SELECTED = 8
@@ -280,7 +280,10 @@ class PairOfCleatsCopyContextCommand(sublime_plugin.WindowCommand):
                 return
             text = encoded if index in (0, 2) else markdown
             if index < 2:
-                sublime.set_clipboard(text)
+                try:
+                    sublime.set_clipboard(text)
+                except Exception as error:
+                    ui.show_error('Evidence copy failed: ' + str(error))
                 return
             pending = [True]
             def save(destination):
@@ -291,11 +294,16 @@ class PairOfCleatsCopyContextCommand(sublime_plugin.WindowCommand):
                     ui.show_error('Choose an absolute export destination.')
                     return
                 try:
-                    with open(destination, 'w', encoding='utf-8') as handle:
-                        handle.write(text)
-                    self.window.open_file(destination)
-                except OSError as error:
-                    ui.show_error('Evidence save failed: ' + str(error))
+                    publication.write_text(destination, text, is_current=lambda: operations.is_current(scope))
+                except publication.PublicationCancelled as error:
+                    if getattr(error, 'pairofcleats_cleanup_errors', None):
+                        print(publication.describe_failure('Cancelled evidence export cleanup failed: ', error))
+                    return
+                except Exception as error:
+                    ui.show_error(publication.describe_failure('Evidence save failed: ', error))
+                    return
+                if operations.is_current(scope):
+                    publication.notify_saved(self.window, destination, 'reviewed evidence')
             self.window.show_input_panel('Absolute evidence export destination (.json or .md)', '', save, None,
                 lambda: pending.__setitem__(0, False))
         self.window.show_quick_panel(['Copy JSON', 'Copy Markdown', 'Export JSON', 'Export Markdown'], selected)

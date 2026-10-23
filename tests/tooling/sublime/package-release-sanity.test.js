@@ -51,6 +51,7 @@ const requiredShippedPaths = [
   'commands/evidence.py',
   'lib/operations.py',
   'lib/api_client.py',
+  'lib/publication.py',
 ];
 for (const entry of requiredShippedPaths) {
   if (!shippedPaths.has(entry)) {
