@@ -49,6 +49,8 @@ try {
     'malformed resident timestamps cannot become immortal sliding hits');
   assert.equal(await fs.readFile(`${miss.queryCachePath}.touches.json`, 'utf8'), beforeExpired);
 
+  // The real lock owner uses a wall-clock deadline when the parent is blocked.
+  Date.now = originalNow;
   const blocked = path.join(root, 'blocked');
   await fs.writeFile(blocked, 'ordinary file');
   const failed = await persistSearchSession(createQueryCachePersistInput(miss, { queryCachePath: path.join(blocked, 'cache.json'),

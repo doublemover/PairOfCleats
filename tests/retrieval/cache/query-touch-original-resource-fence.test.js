@@ -18,6 +18,7 @@ export const atomicWriteJson = (...args) => globalThis[Symbol.for(${JSON.stringi
 } });
 let released = false;
 let publications = 0;
+let originalSession;
 const original = Object.assign(new Error('original unsettled publication'), {
   cacheOwnershipPending: true,
   cacheOwnershipReleased() { assert.equal(this, original); return released; }
@@ -34,7 +35,11 @@ try {
   const { persistSearchSession } = await import('../../../src/retrieval/cli/run-search-session/persist.js');
   const touch = () => persistQueryCacheTouch({ cachePath, key: 'key', signature: 'generation', payloadId: 'payload', ts: 1 });
   const pendingFailure = error => { assert.equal(error.cacheOwnershipPending, true); return true; };
-  await assert.rejects(touch(), pendingFailure);
+  await assert.rejects(touch(), error => {
+    originalSession = error.fileLockPublicationSession;
+    assert.ok(originalSession, 'the canonical lock owner retains its exact metadata publication session');
+    return pendingFailure(error);
+  });
   original.cacheOwnershipReleased = () => true;
   await assert.rejects(touch(), pendingFailure);
   await assert.rejects(awaitQueryCacheTouchPublication(cachePath), pendingFailure);
@@ -43,9 +48,13 @@ try {
     codeHits: [], proseHits: [], extractedProseHits: [], recordHits: [], queryCacheMaxEntries: 8 }), pendingFailure);
   assert.equal(publications, 1, 'neither a later touch nor a canonical miss checkpoint can bypass the original unresolved resource');
   released = true;
+  const receipt = await originalSession.releaseAfterClose();
+  assert.equal(receipt.settled, true, 'the exact original lock owner explicitly retires its retained metadata');
   assert.equal(await touch(), true);
   assert.equal(publications, 2, 'deliberate retry is admitted after the original prerequisite confirms settlement');
 } finally {
+  released = true;
+  await originalSession?.releaseAfterClose();
   hook.deregister(); delete globalThis[key];
   await fs.rm(root, { recursive: true, force: true });
 }

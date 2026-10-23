@@ -52,6 +52,27 @@ try {
   fs.rename = originalRename;
   assert.equal(await persistQueryCacheTouch({ cachePath: failedPath, key: 'retry', signature: 'g', payloadId: 'p', ts: 2 }), true,
     'a failed finite flight releases its admission state for a deliberate later flush');
+
+  const busyPath = path.join(root, 'busy.json');
+  const arriving = [];
+  let busyPublications = 0;
+  fs.rename = async function (source, destination) {
+    const result = await originalRename.call(this, source, destination);
+    if (path.resolve(String(destination)) === `${busyPath}.touches.json`) {
+      busyPublications++;
+      if (busyPublications <= 2) arriving.push(persistQueryCacheTouch({ cachePath: busyPath,
+        key: `arrival-${busyPublications}`, signature: 'g', payloadId: `p-${busyPublications}`, ts: busyPublications }));
+    }
+    return result;
+  };
+  const firstBusy = await persistQueryCacheTouch({ cachePath: busyPath, key: 'initial', signature: 'g', payloadId: 'initial', ts: 1 });
+  assert.equal(firstBusy, false);
+  assert.deepEqual(await Promise.all(arriving), [false, false], 'a continuously changing flight yields fallback after its finite batch budget');
+  assert.equal(busyPublications, 2);
+  fs.rename = originalRename;
+  assert.equal(await persistQueryCacheTouch({ cachePath: busyPath, key: 'arrival-2', signature: 'g', payloadId: 'p-2', ts: 2 }), true,
+    'bounded-flight overflow leaves no detached writer or permanently occupied path');
+  assert.equal(JSON.parse(await fs.readFile(`${busyPath}.touches.json`, 'utf8')).entries.length, 3);
 } finally {
   fs.rename = originalRename;
   await fs.rm(root, { recursive: true, force: true });

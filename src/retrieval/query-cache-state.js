@@ -33,9 +33,12 @@ export const recordQueryCacheSnapshot = cache => {
   return cache;
 };
 
+const copyEntryMetadata = entry => ({ ...entry,
+  ...(entry.meta && typeof entry.meta === 'object' ? { meta: structuredClone(entry.meta) } : {}) });
+
 export const forkQueryCacheSnapshot = cache => recordQueryCacheSnapshot({ version: 1,
   entries: (cache.entries || []).filter(entry => entry && typeof entry === 'object')
-    .map(entry => ({ ...entry, payload: freezeQueryCachePayload(entry.payload) })) });
+    .map(entry => ({ ...copyEntryMetadata(entry), payload: freezeQueryCachePayload(entry.payload) })) });
 
 export const upsertQueryCacheEntry = (cache, entry, { replacement = true } = {}) => {
   if (!cache || !Array.isArray(cache.entries)) return;
@@ -48,7 +51,7 @@ export const upsertQueryCacheEntry = (cache, entry, { replacement = true } = {})
 
 /** Capture before the first lock await; another edit is a later submission. */
 export const captureQueryCacheSubmission = cache => ({
-  entries: (cache?.entries || []).map(entry => ({ ...entry })),
+  entries: (cache?.entries || []).map(copyEntryMetadata),
   replacements: new Set(snapshots.get(cache)?.replacements || [])
 });
 

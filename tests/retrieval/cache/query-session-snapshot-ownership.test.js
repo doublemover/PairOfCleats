@@ -26,6 +26,8 @@ try {
   assert.throws(() => { first.entries[0].payload.code[0].docmeta.comment = 'not owned'; }, TypeError);
   first.entries[0].ts += 100000;
   assert.notEqual(first.entries[0].ts, second.entries[0].ts, 'mutable recency belongs to one session');
+  first.entries[0].meta.query = 'another-session-query';
+  assert.equal(second.entries[0].meta.query, 'alpha', 'nested diagnostic metadata also belongs to its session');
 
   const hit = await resolveQueryCacheLookup(input);
   assert.equal(hit.cacheHit, true);
