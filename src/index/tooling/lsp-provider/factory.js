@@ -1,4 +1,6 @@
 import { awaitToolingProviderPreflight } from '../preflight-manager.js';
+import { resolveRequestedAbortSignal } from '../preflight/manager-state.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
 import { admitScriptLspInputs } from '../script-lsp-profiles.js';
 import { admitKotlinLspInputs, kotlinLspMigrationDiagnostic } from '../kotlin-lsp-profile.js';
@@ -100,6 +102,8 @@ export const createConfiguredLspProvider = (server) => {
       return buildConfiguredProviderConfigHash({ server, ctx });
     },
     async run(ctx, inputs) {
+      const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
+      throwIfAborted(abortSignal);
       const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
       const preChecks = [];
       let requestedCommand = {
@@ -254,6 +258,7 @@ export const createConfiguredLspProvider = (server) => {
         server,
         providerId,
         ctx,
+        abortSignal,
         provider: this,
         docs: preparedInputs.documents,
         targets: preparedInputs.targets,

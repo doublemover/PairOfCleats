@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { throwIfAborted } from '../../shared/abort.js';
 import { isWorkspaceBuildExecution, resolveWorkspaceExecutionAuthority } from '../../shared/workspace-execution-authority.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import {
@@ -16,6 +17,7 @@ import { resolveProviderRequestedCommand } from './provider-command-override.js'
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { isPlainObject, normalizeCommandArgs, filterTargetsForDocuments } from './provider-utils.js';
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
+import { resolveRequestedAbortSignal } from './preflight/manager-state.js';
 import {
   resolveCommandProfilePreflightResult,
   mergePreflightChecks,
@@ -250,6 +252,8 @@ export const createDedicatedLspProvider = (descriptor) => {
       return resolveProviderConfigHash(ctx, descriptor);
     },
     async run(ctx, inputs) {
+      const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
+      throwIfAborted(abortSignal);
       const configHash = resolveProviderConfigHash(ctx, descriptor);
       const providerRef = buildProviderRef(this, configHash);
       const config = resolveProviderConfig(ctx, descriptor.configKey);
@@ -366,10 +370,12 @@ export const createDedicatedLspProvider = (descriptor) => {
 
       let result;
       try {
+        throwIfAborted(abortSignal);
         const currentAuthority = executionAuthorityFor(ctx);
         if (currentAuthority) return buildBaseResult(providerRef, [...checks, currentAuthority.check]);
         const partitionResults = [];
         for (const partition of workspaceRouting.partitions) {
+          throwIfAborted(abortSignal);
           const partitionAuthority = executionAuthorityFor(ctx, partition.rootDir);
           if (partitionAuthority) return buildBaseResult(providerRef, [...checks, partitionAuthority.check]);
           partitionResults.push(await collectLspTypes({
@@ -382,7 +388,7 @@ export const createDedicatedLspProvider = (descriptor) => {
             workspaceKey: partition.workspaceKey,
             documents: partition.documents,
             targets: partition.targets,
-            abortSignal: ctx?.abortSignal || null,
+            abortSignal,
             log: getLogger(ctx),
             providerId: descriptor.id,
             cmd: resolvedCmd,
@@ -401,6 +407,7 @@ export const createDedicatedLspProvider = (descriptor) => {
           }));
         }
         result = mergeLspWorkspacePartitionResults(partitionResults, workspaceRouting.workspaceModel);
+        throwIfAborted(abortSignal);
         invalidateProbeCacheOnInitializeFailure({
           checks: [
             ...workspaceRouting.checks,
@@ -493,6 +500,7 @@ export const createDedicatedLspProvider = (descriptor) => {
         ctx,
         config
       });
+      if (shouldBlockProviderFromPreflight(commandPreflight)) return commandPreflight;
       const customPreflight = hasCustomPreflight
         ? await descriptor.preflight({
           ctx,
@@ -517,7 +525,6 @@ export const createDedicatedLspProvider = (descriptor) => {
       if (commandPreflight.state !== 'ready') {
         return {
           ...commandPreflight,
-          blockProvider: false,
           checks: mergePreflightChecks(commandPreflight.checks, customPreflight.check, customPreflight.checks)
         };
       }

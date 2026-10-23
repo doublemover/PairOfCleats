@@ -1,4 +1,5 @@
 import { collectLspTypes } from '../../../integrations/tooling/providers/lsp.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
 import { invalidateProbeCacheOnInitializeFailure } from '../command-resolver.js';
 import { resolveLspRuntimeConfig } from '../lsp-runtime-config.js';
@@ -382,11 +383,13 @@ export const collectConfiguredOutput = async ({
   preChecks,
   commandProfile,
   requestedCommand,
+  abortSignal = ctx?.abortSignal || null,
   preflightState = 'ready',
   preflightReasonCode = null,
   blockedWorkspaceKeys = [],
   blockedWorkspaceRoots = []
 }) => {
+  throwIfAborted(abortSignal);
   const executionAuthority = resolveWorkspaceExecutionAuthority({ repoRoot: ctx?.repoRoot || process.cwd(), providerId, server });
   if (executionAuthority) {
     return { byChunkUid: {}, checks: [executionAuthority.check] };
@@ -447,6 +450,7 @@ export const collectConfiguredOutput = async ({
       : (workspaceRouting.reasonCode || preflightReasonCode || null)
   );
   for (const partition of workspaceRouting.partitions) {
+    throwIfAborted(abortSignal);
     const currentAuthority = resolveWorkspaceExecutionAuthority({ repoRoot: ctx.repoRoot, workspaceRoot: partition.rootDir, providerId, server });
     if (currentAuthority) {
       skippedBlockedPartitions.push(partition);
@@ -472,7 +476,7 @@ export const collectConfiguredOutput = async ({
         workspaceKey: partition.workspaceKey,
         documents: partition.documents,
         targets: partition.targets,
-        abortSignal: ctx?.abortSignal || null,
+        abortSignal,
         log,
         providerId,
         cmd: resolvedCmd,
@@ -509,6 +513,7 @@ export const collectConfiguredOutput = async ({
     }
     partitionResults.push(partitionResult);
   }
+  throwIfAborted(abortSignal);
   const result = mergeLspWorkspacePartitionResults(partitionResults, workspaceRouting.workspaceModel);
   let diagnosticsByChunkUid = result.diagnosticsByChunkUid;
   let diagnosticsCount = result.diagnosticsCount;
