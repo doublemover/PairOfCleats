@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveStorageLayout } from '../../../src/shared/storage/layout.js';
-import { planManagedChildStorage, prepareManagedChildStorage, resolveManagedChildCacheFamily } from '../../../src/shared/storage/child-environment.js';
+import { MANAGED_CHILD_CACHE_FAMILIES, planManagedChildStorage, prepareManagedChildStorage, resolveManagedChildCacheFamily } from '../../../src/shared/storage/child-environment.js';
 import { applyToolchainDaemonPolicyEnv, resolveNoProvisionToolingEnvironment } from '../../../src/shared/toolchain-env.js';
 import { isPathWithinRoot } from '../../../src/shared/file-paths.js';
 import { buildToolInstallReceipt, writeToolInstallReceipt } from '../../../tools/tooling/install-receipts.js';
@@ -31,6 +31,9 @@ try {
   }
   assert.equal(resolveManagedChildCacheFamily({ command: 'not-python-helper' }), null);
   assert.equal(resolveManagedChildCacheFamily({ command: 'toString' }), null);
+  assert.throws(() => resolveManagedChildCacheFamily({ family: {} }), /must be a string/);
+  assert.throws(() => { MANAGED_CHILD_CACHE_FAMILIES.python[0][0] = 'HOME'; }, TypeError,
+    'the shared family registry cannot be rewritten after an approval is planned');
   assert.equal(resolveManagedChildCacheFamily({ command: 'npm', family: 'pip' }), 'python', 'selected recipe family outranks launcher basename');
   assert.equal(await fs.stat(home).catch(error => error.code), 'ENOENT', 'planning does not create an application home');
 
@@ -89,6 +92,9 @@ try {
   assert.equal(external.PIP_CACHE_DIR, undefined);
   const unsupported = planManagedChildStorage({ ...input, command: 'unknown-vendor-tool', toolId: 'unknown', runId: 'unknown' });
   assert.equal(unsupported.exceptions.some(exception => exception.status === 'unsupported-owner-adapter-required'), true);
+  const unregisteredFamily = planManagedChildStorage({ ...input, family: 'toString', command: 'dot', toolId: 'unregistered-family', runId: 'unregistered' });
+  assert.equal(unregisteredFamily.exceptions.some(exception => exception.status === 'unsupported-owner-adapter-required'), true,
+    'unknown explicit families keep their unsupported exception instead of inheriting Object.prototype routes');
 
   if (process.platform === 'win32') {
     assert.throws(() => planManagedChildStorage({ ...input, command: 'pip', toolId: 'case-conflict', runId: 'conflict',

@@ -15,7 +15,7 @@ export const MANAGED_CHILD_STORAGE_RETENTION_TIERS = Object.freeze([
   'downloadable', 'derived', 'durable', 'temporary', 'evidence'
 ]);
 
-export const MANAGED_CHILD_CACHE_FAMILIES = Object.freeze({
+export const MANAGED_CHILD_CACHE_FAMILIES = Object.freeze(Object.fromEntries(Object.entries({
   npm: [['npm_config_cache', 'npm-downloads', 'downloadable']],
   python: [['PIP_CACHE_DIR', 'pip-downloads', 'downloadable'], ['PYTHONPYCACHEPREFIX', 'python-bytecode', 'derived']],
   graphviz: [['XDG_CACHE_HOME', 'xdg-cache', 'derived']],
@@ -29,7 +29,7 @@ export const MANAGED_CHILD_CACHE_FAMILIES = Object.freeze({
   rustup: [['RUSTUP_HOME', 'rustup', 'downloadable']],
   beam: [],
   native: []
-});
+}).map(([family, routes]) => [family, Object.freeze(routes.map(route => Object.freeze(route)))])));
 
 const COMMAND_FAMILIES = Object.freeze({ npm: 'npm', npx: 'npm', go: 'go', dotnet: 'dotnet', gem: 'ruby',
   ruby: 'ruby', composer: 'composer', gradle: 'gradle', gradlew: 'gradle', cargo: 'cargo', rustup: 'rustup',
@@ -43,6 +43,7 @@ const COMMAND_FAMILIES = Object.freeze({ npm: 'npm', npx: 'npm', go: 'go', dotne
  * supported tool's name. Explicit recipe families remain authoritative.
  */
 export const resolveManagedChildCacheFamily = ({ command = '', family = null } = {}) => {
+  if (family !== null && typeof family !== 'string') throw new TypeError('A selected managed child cache family must be a string.');
   if (family) return ['pip', 'python3'].includes(family) ? 'python' : family === 'gem' ? 'ruby' : family;
   const name = path.basename(String(command || '')).toLowerCase().replace(/\.(exe|cmd|bat)$/u, '');
   if (/^(?:pythonw?|pip)(?:[23](?:\.[0-9]+)*)?$/u.test(name)) return 'python';
@@ -106,13 +107,14 @@ export const planManagedChildStorage = ({ baseEnv = process.env, layout, command
       purpose: temp ? 'run-owned-scratch' : selectedFamily, file, cleanupAuthority: false });
     if (external) exceptions.push({ environmentKey: actualKey, path: selected, kind: 'deliberate-environment-override', status: 'external-shared-read-only-inventory' });
   };
-  for (const [key, child, retention] of MANAGED_CHILD_CACHE_FAMILIES[selectedFamily] || []) {
+  const registered = Object.hasOwn(MANAGED_CHILD_CACHE_FAMILIES, selectedFamily);
+  for (const [key, child, retention] of registered ? MANAGED_CHILD_CACHE_FAMILIES[selectedFamily] : []) {
     const base = retention === 'durable' ? state : retention === 'downloadable' ? assets : cache;
     setLocation(key, path.join(base, child), retention);
   }
   for (const key of ['TMPDIR', 'TMP', 'TEMP']) setLocation(key, scratch, 'temporary', { temp: true });
   if (selectedFamily === 'beam') setLocation('ERL_CRASH_DUMP', path.join(scratch, 'erl_crash.dump'), 'evidence', { file: true });
-  if (!selectedFamily || !Object.hasOwn(MANAGED_CHILD_CACHE_FAMILIES, selectedFamily)) {
+  if (!registered) {
     exceptions.push({ kind: 'unregistered-tool-specific-secondary-writes', status: 'unsupported-owner-adapter-required' });
   }
   return { schemaVersion: 1, managed: true, toolId, toolIdentity, profileIdentity: identity,
