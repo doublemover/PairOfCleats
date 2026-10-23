@@ -7,6 +7,7 @@ import { isPathWithinRoot } from '../file-paths.js';
 import { atomicWriteJson } from '../io/atomic-write.js';
 import { readStorageLocator } from './locator-read.js';
 import { applyStorageLocatorSelections } from './selected-layout.js';
+import { addStorageFailureContext } from './operation-error.js';
 
 // The producer and persisted receipt readers share this vocabulary. Evidence
 // remains protected even when its path happens to be run-owned scratch.
@@ -16,6 +17,9 @@ export const MANAGED_CHILD_STORAGE_RETENTION_TIERS = Object.freeze([
 
 export const MANAGED_CHILD_CACHE_FAMILIES = Object.freeze({
   npm: [['npm_config_cache', 'npm-downloads', 'downloadable']],
+  python: [['PIP_CACHE_DIR', 'pip-downloads', 'downloadable'], ['PYTHONPYCACHEPREFIX', 'python-bytecode', 'derived']],
+  graphviz: [['XDG_CACHE_HOME', 'xdg-cache', 'derived']],
+  fontconfig: [['XDG_CACHE_HOME', 'xdg-cache', 'derived']],
   go: [['GOPATH', 'go-path', 'downloadable'], ['GOMODCACHE', 'go-modules', 'downloadable'], ['GOCACHE', 'go-build', 'derived']],
   dotnet: [['DOTNET_CLI_HOME', 'dotnet-state', 'durable'], ['NUGET_PACKAGES', 'nuget-packages', 'downloadable'], ['NUGET_HTTP_CACHE_PATH', 'nuget-http', 'derived']],
   ruby: [['GEM_SPEC_CACHE', 'gem-specs', 'derived'], ['BUNDLE_USER_CACHE', 'bundle-user', 'downloadable']],
@@ -27,11 +31,35 @@ export const MANAGED_CHILD_CACHE_FAMILIES = Object.freeze({
   native: []
 });
 
-const familyForCommand = command => ({ npm: 'npm', npx: 'npm', go: 'go', dotnet: 'dotnet', gem: 'ruby',
+const COMMAND_FAMILIES = Object.freeze({ npm: 'npm', npx: 'npm', go: 'go', dotnet: 'dotnet', gem: 'ruby',
   ruby: 'ruby', composer: 'composer', gradle: 'gradle', gradlew: 'gradle', cargo: 'cargo', rustup: 'rustup',
-  elixir: 'beam', erl: 'beam', mix: 'beam' }[path.basename(String(command || '')).toLowerCase().replace(/\.(exe|cmd|bat)$/u, '')] || null);
-const environmentKey = (env, key, platform) => platform === 'win32' || key.startsWith('npm_config_')
-  ? Object.keys(env).find(candidate => candidate.toLowerCase() === key.toLowerCase()) || key : key;
+  elixir: 'beam', erl: 'beam', mix: 'beam', py: 'python', dot: 'graphviz', neato: 'graphviz', fdp: 'graphviz',
+  sfdp: 'graphviz', circo: 'graphviz', twopi: 'graphviz', osage: 'graphviz', patchwork: 'graphviz',
+  'fc-cache': 'fontconfig', 'fc-list': 'fontconfig', 'fc-match': 'fontconfig', 'fc-scan': 'fontconfig',
+  'fc-query': 'fontconfig', 'fc-pattern': 'fontconfig', 'fc-validate': 'fontconfig' });
+
+/** One registry for installers and operational children. Unknown launchers do
+ * not acquire a guessed write contract just because their basename contains a
+ * supported tool's name. Explicit recipe families remain authoritative.
+ */
+export const resolveManagedChildCacheFamily = ({ command = '', family = null } = {}) => {
+  if (family) return ['pip', 'python3'].includes(family) ? 'python' : family === 'gem' ? 'ruby' : family;
+  const name = path.basename(String(command || '')).toLowerCase().replace(/\.(exe|cmd|bat)$/u, '');
+  if (/^(?:pythonw?|pip)(?:[23](?:\.[0-9]+)*)?$/u.test(name)) return 'python';
+  return Object.hasOwn(COMMAND_FAMILIES, name) ? COMMAND_FAMILIES[name] : null;
+};
+
+const environmentKey = (env, key, platform) => {
+  if (platform !== 'win32' && !key.startsWith('npm_config_')) return key;
+  const aliases = Object.keys(env).filter(candidate => candidate.toLowerCase() === key.toLowerCase()).sort();
+  const values = new Set(aliases.map(candidate => String(env[candidate] ?? '')));
+  if (values.size > 1) throw new Error(`Managed child storage has conflicting environment aliases for ${key}; select one explicit value.`);
+  const selected = aliases.includes(key) ? key : aliases[0] || key;
+  // Node's Windows spawn environment admits only one case alias. Remove equal
+  // duplicates in this child clone so the receipt names the value actually used.
+  for (const alias of aliases) if (alias !== selected) delete env[alias];
+  return selected;
+};
 
 /** Child-local environment only. Never changes HOME, global settings, model
  * cacheDir, project lockfiles, GEM_HOME/GEM_PATH, Go SDK selection or outputs.
@@ -41,7 +69,7 @@ export const planManagedChildStorage = ({ baseEnv = process.env, layout, command
   preserveEnvironmentKeys = [], platformTemp = os.tmpdir(), cwd = process.cwd() } = {}) => {
   if (!layout?.descriptors || layout.platform !== process.platform) throw new TypeError('Managed child routing requires a native-platform storage layout.');
   const env = { ...baseEnv };
-  const selectedFamily = family || familyForCommand(command);
+  const selectedFamily = resolveManagedChildCacheFamily({ command, family });
   if (!managed) return { schemaVersion: 1, managed: false, env, locations: [], ownedRoots: [],
     exceptions: [{ kind: 'global-or-user-executable', status: 'external-shared-read-only-inventory' }] };
   if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) throw new TypeError('Managed child routing requires its absolute launch working directory.');
@@ -61,7 +89,7 @@ export const planManagedChildStorage = ({ baseEnv = process.env, layout, command
   const preserve = new Set(preserveEnvironmentKeys.map(key => key.toLowerCase()));
   const setLocation = (key, defaultPath, retention, { temp = false, file = false } = {}) => {
     const actualKey = environmentKey(env, key, layout.platform);
-    const inherited = String(env[actualKey] || '').trim();
+    const inherited = String(env[actualKey] ?? '');
     // Relative environment locations are interpreted by the launched child.
     // Planning them against the parent cwd would record and reserve other bytes.
     if (layout.platform === 'win32' && /^[a-zA-Z]:[^\\/]/u.test(inherited)) {
@@ -111,22 +139,21 @@ export const prepareManagedChildStorage = async (plan, { authorizedRoots = [] } 
     if (!approved) throw new Error('Managed child write location is outside launch-authorized storage.');
     assertNoSymlinkPath(path.parse(approved).root, target, { allowMissing: true });
   }
-  for (const location of owned) {
-    const target = location.file ? path.dirname(location.path) : location.path;
-    await fs.mkdir(target, { recursive: true });
-    assertNoSymlinkPath(path.parse(target).root, target);
-  }
-  if (owned.some(location => isPathWithinRoot(location.path, plan.scratch))) {
-    const receipt = path.join(plan.scratch, '.pairofcleats-child-owner.json');
-    try {
+  try {
+    for (const location of owned) {
+      const target = location.file ? path.dirname(location.path) : location.path;
+      await fs.mkdir(target, { recursive: true });
+      assertNoSymlinkPath(path.parse(target).root, target);
+    }
+    if (owned.some(location => isPathWithinRoot(location.path, plan.scratch))) {
+      const receipt = path.join(plan.scratch, '.pairofcleats-child-owner.json');
       await atomicWriteJson(receipt, { schemaVersion: 1, application: 'pairofcleats', toolId: plan.toolId,
         profileIdentity: plan.profileIdentity, runId: plan.runId, pid: process.pid,
         startedAt: new Date().toISOString(), retention: 'temporary-and-crash-evidence', cleanupAuthority: false },
       { mkdir: false, createOnly: true });
-    } catch (error) {
-      error.recovery = { scratch: plan.scratch, preserved: true };
-      throw error;
     }
+  } catch (error) {
+    throw addStorageFailureContext(error, { recovery: { scratch: plan.scratch, preserved: true } });
   }
   return { prepared: true, profileIdentity: plan.profileIdentity, runId: plan.runId,
     locations: plan.locations, exceptions: plan.exceptions, source: 'declared-not-observed-writes' };

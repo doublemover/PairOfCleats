@@ -37,18 +37,22 @@ const appendGradleDaemonFlag = (value) => {
  * @returns {NodeJS.ProcessEnv}
  */
 export const applyToolchainDaemonPolicyEnv = (baseEnv = null, options = {}) => {
-  const routed = options.managedStorage
-    ? planManagedChildStorage({ ...options.managedStorage, baseEnv: normalizeEnv(baseEnv), command: options.command,
-      cwd: options.cwd || options.managedStorage.cwd || process.cwd() }).env
-    : normalizeEnv(baseEnv);
-  const next = applyManagedRubyEnvironment(routed, options);
+  const effectiveOptions = { ...options, command: options.command ?? options.managedStorage?.command };
+  const storagePlan = options.managedStorage
+    ? planManagedChildStorage({ ...options.managedStorage, baseEnv: normalizeEnv(baseEnv), command: effectiveOptions.command,
+      cwd: options.cwd || options.managedStorage.cwd || process.cwd() })
+    : null;
+  const next = applyManagedRubyEnvironment(storagePlan?.env || normalizeEnv(baseEnv), effectiveOptions);
   next.ORG_GRADLE_DAEMON = 'false';
   next.GRADLE_OPTS = appendGradleDaemonFlag(next.GRADLE_OPTS);
-  const beamCrashDumpPath = resolveBeamCrashDumpPath(next);
-  if (beamCrashDumpPath) {
-    next.ERL_CRASH_DUMP = beamCrashDumpPath;
+  // A selected storage profile already declares its exact BEAM dump, if any.
+  // Do not invent a second, unreserved dump route for another child family or
+  // for a deliberately external/global executable.
+  if (!storagePlan) {
+    const beamCrashDumpPath = resolveBeamCrashDumpPath(next);
+    if (beamCrashDumpPath) next.ERL_CRASH_DUMP = beamCrashDumpPath;
   }
-  return isGoToolchainServer(options)
+  return isGoToolchainServer(effectiveOptions)
     ? applyManagedGoEnvironment(next, { toolingRoot: options?.toolingRoot || next.PAIROFCLEATS_TOOLING_DIR })
     : next;
 };
