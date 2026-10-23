@@ -3,6 +3,7 @@
 // deliberately not used to manufacture a concrete path or package identity.
 export const decodeRArgumentToken = (token, source) => {
   if (!token || !Number.isSafeInteger(token.start) || !Number.isSafeInteger(token.end)) return null;
+  if (token.kind === 'raw-string') return { kind: 'string', value: token.value };
   const raw = source.slice(token.start, token.end), quote = raw[0];
   if (!['"', "'", '`'].includes(quote)) return token.kind === 'identifier'
     ? { kind: 'identifier', value: token.value } : null;
