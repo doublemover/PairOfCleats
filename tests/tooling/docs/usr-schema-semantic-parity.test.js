@@ -42,6 +42,10 @@ for (const [id, schema] of Object.entries(USR_REPORT_SCHEMA_DEFS)) {
   assert.equal(published({ ...base, unexpected: true }), false);
   assert.equal(runtime({ ...base, unexpected: true }), false);
   assert.equal(published(base), true, `${id}: positive report witness`);
+  for (const generatedAt of ['not-a-time', '2026-02-30T12:00:00Z', '2026-10-21T12:00:00']) {
+    assert.equal(runtime({ ...base, generatedAt }), false, `${id}: malformed date-time is rejected by the runtime`);
+    assert.equal(published({ ...base, generatedAt }), false, `${id}: published date-time remains equally strict`);
+  }
   if (schema.properties.summary.required) {
     assert.equal(runtime({ ...base, summary: {} }), false, `${id}: specialized required summary is retained`);
     assert.equal(published({ ...base, summary: {} }), false);
