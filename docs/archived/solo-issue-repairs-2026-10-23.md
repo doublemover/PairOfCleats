@@ -60,6 +60,14 @@ full cleanup-category capability or deep-suite green is claimed.
   changed containment, cancellation, paired-empty cases and descriptor closure.
   Authored fixtures are unrun; only scoped format/whitespace checks passed.
 
+- #1567: mixed bitmap/Set unions now force admission of small Set buckets once
+  a bitmap owns part of the union; conversion refusal uses the complete Set
+  fallback. Representation preferences cannot discard matching IDs. Independent
+  injected-operation controls plus threshold 255/256/257 real-roaring filter and
+  context-caller controls are authored, unrun. Native availability is an explicit
+  prerequisite, never a silent successful return. Source inputs and null/empty
+  meanings are retained. Scoped format and whitespace checks passed.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -111,7 +119,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1564](https://github.com/doublemover/PairOfCleats/issues/1564) | [P2] Retain document extraction provenance through incremental bundle replay | Pending full-scope review |
 | [#1565](https://github.com/doublemover/PairOfCleats/issues/1565) | [P2] Admit indexing source bytes through contained descriptor-bound snapshots | Pending full-scope review |
 | [#1566](https://github.com/doublemover/PairOfCleats/issues/1566) | [P3] Preserve strict artifact failures in streaming context-pack seed resolution | Pending full-scope review |
-| [#1567](https://github.com/doublemover/PairOfCleats/issues/1567) | [P2] Preserve small Set buckets when unioning bitmap filter candidates | Pending full-scope review |
+| [#1567](https://github.com/doublemover/PairOfCleats/issues/1567) | [P2] Preserve small Set buckets when unioning bitmap filter candidates | Source repair authored; native/runtime proof pending |
 | [#1568](https://github.com/doublemover/PairOfCleats/issues/1568) | [P2] Require coverage for every returned source before marking semantic queries complete | Pending full-scope review |
 | [#1569](https://github.com/doublemover/PairOfCleats/issues/1569) | [P2] Scope parser degradation by canonical VFS identity, not path substrings | Pending full-scope review |
 | [#1570](https://github.com/doublemover/PairOfCleats/issues/1570) | [P2] Prevent metadata and phrase boosts from penalizing negative ANN scores | Pending full-scope review |

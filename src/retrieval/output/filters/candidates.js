@@ -57,11 +57,16 @@ export const createCandidateHelpers = (deps) => {
           for (const id of set) ids.push(id);
         }
         const extraBitmap = createBitmapFromIds(ids, {
-          force: preferBitmap === true,
+          // Once a bitmap owns part of the union, a representation threshold
+          // must not discard the remaining small Set buckets.
+          force: Boolean(bitmap) || preferBitmap === true,
           minSize: resolvedBitmapMinSize ?? undefined
         });
         if (extraBitmap) {
           bitmap = bitmap ? unionBitmaps([bitmap, extraBitmap]) : extraBitmap;
+        } else if (ids.length) {
+          // A declined/unavailable conversion falls back to the complete union.
+          bitmap = null;
         }
       }
       if (bitmap) return { bitmap };
