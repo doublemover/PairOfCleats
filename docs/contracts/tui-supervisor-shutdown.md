@@ -34,6 +34,16 @@ observer can permit removal and same-ID reuse; old cleanup cannot remove a newer
 job. Shutdown reports such an owner as failed/unconfirmed even after its execution
 promise completes. No timer manufactures a release or changes the public CLI.
 
+The generic admission error is `ERR_TUI_RESOURCE_PENDING`, with the original
+resource failure retained as its cause. Backend-specific execution diagnostics
+remain on that original failure. The generic task message describes unconfirmed
+resource cleanup. The supervisor captures each original observer and receiver
+before later callbacks can replace advisory flags or methods. An observer is
+retained even when its pending flag is false/absent. Sibling settlement captures
+rejections immediately and preserves falsey causes and independent ownership
+reported by inspection failures. A native indexer's queue recovery capability
+remains private to its retained worker/session, including after job termination.
+
 Final output drains use write callbacks and a bounded flush wait. A failed pipe or
 expired flush wait reports incomplete output and makes an otherwise successful
 exit nonzero. Existing nonzero signal status is preserved. The supervisor borrows

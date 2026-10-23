@@ -59,12 +59,15 @@ assert.equal(state.jobs.has('owned-operation'), false);
   const result = await terminal;
   assert.equal(result.status, 'cancelled');
   assert.equal(result.error.code, 'ERR_TUI_BACKEND_OWNERSHIP_PENDING', 'late cancellation preserves the unresolved ownership diagnosis');
-  assert.match(pendingFrames.find(frame => frame.name === 'task:end').payload.message, /unresolved backend ownership/);
+  assert.match(pendingFrames.find(frame => frame.name === 'task:end').payload.message, /unconfirmed resource cleanup; admission remains fenced/);
   await turn();
   assert.equal(pendingFrames.find(frame => frame.name === 'job:artifacts').payload.artifactsIndexed, false,
     'artifact collection is fenced before it can probe cache paths');
   await assert.rejects(actor.startOperation({ jobId: 'foreign-work', method: 'query' }, () => {}),
-    { code: 'ERR_TUI_BACKEND_OWNERSHIP_PENDING' });
+    error => error.code === 'ERR_TUI_RESOURCE_PENDING'
+      && error.cause === pendingState.jobs.get('pending-backend').resourceError
+      && error.cause.code === 'ERR_TUI_BACKEND_OWNERSHIP_PENDING'
+      && error.cacheOwnershipPending === true && error.cacheOwnershipReleased() === false);
   assert.equal(pendingState.jobs.has('foreign-work'), false);
 }
 console.log('Trusted owned operations use canonical task progress and retain cancellation until actual settlement');

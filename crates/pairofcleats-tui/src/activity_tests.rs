@@ -139,3 +139,18 @@ fn live_clock_invalidates_once_per_visible_second_without_reformatting_retained_
         interaction::activity_tick_at(&mut paused, 9000); assert!(!paused.dirty, "{condition} must not animate");
     }
 }
+
+#[test]
+fn retained_cleanup_failure_never_becomes_published_success_or_resurrected_progress() {
+    let mut model = measured_replay();
+    saved(&mut model, "task:end", 6, json!({"status":"failed","message":"unconfirmed resource cleanup; admission remains fenced"}));
+    saved(&mut model, "job:end", 7, json!({"status":"failed","exitCode":null,
+        "error":{"code":"QUEUE_CLEANUP_PENDING"}}));
+    let frozen = interaction::activity_text(&model);
+    assert!(frozen.contains("failed")); assert!(frozen.contains("4/10 files"));
+    saved(&mut model, "task:progress", 8, json!({"status":"running","current":10,"total":10}));
+    assert_eq!(interaction::activity_text(&model), frozen);
+    assert_eq!(model.job_status["owner"], "failed");
+    assert!(screen(&model,220,40).contains("unconfirmed resource cleanup"));
+    assert!(!interaction::activity_text(&model).contains("10/10"));
+}

@@ -14,7 +14,7 @@ import {
   resolveRunRequest
 } from './request-utils.js';
 import { createJobWatchdogController, resolveWatchdogPolicy } from './watchdog.js';
-import { ownedCleanupIsPending, combineOwnedErrors } from '../operator/settle-owned.js';
+import { captureOwnedCleanup, ownedCleanupIsPending, combineOwnedErrors } from '../operator/settle-owned.js';
 
 /**
  * Build and expose job lifecycle operations for the supervisor runtime.
@@ -42,16 +42,17 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
       { code: 'ERR_TUI_SHUTTING_DOWN' });
     for (const job of state.jobs.values()) {
       if (!allowPending && ownedCleanupIsPending(job.resourceError)) {
-        throw Object.assign(new Error('An owned job still has unconfirmed resource cleanup.'), {
+        const original = job.resourceError;
+        throw Object.assign(new Error('An owned job still has unconfirmed resource cleanup.', { cause: original }), {
           code: 'ERR_TUI_RESOURCE_PENDING', cacheOwnershipPending: true,
-          cacheOwnershipReleased: () => !ownedCleanupIsPending(job.resourceError)
+          cacheOwnershipReleased: () => !ownedCleanupIsPending(original)
         });
       }
       cleanupFinalizedJob(job.id, job);
     }
   };
   const retainPendingResource = (job, error) => {
-    if (error?.cacheOwnershipPending !== true) return;
+    if (!captureOwnedCleanup(error).present) return;
     job.resourceError = job.resourceError && job.resourceError !== error
       ? combineOwnedErrors(job.resourceError, [error]) : error;
     job.cleanupPending = () => ownedCleanupIsPending(job.resourceError);
@@ -396,12 +397,12 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
           resultCapture: error?.result?.outputCapture?.stdout || null,
           error: {
             message: error?.message || String(error),
-            code: error?.cacheOwnershipPending === true || error?.code === 'ERR_TUI_BACKEND_OWNERSHIP_PENDING'
-              ? 'ERR_TUI_BACKEND_OWNERSHIP_PENDING'
+            code: ownedCleanupIsPending(job.resourceError)
+              ? error?.code === 'ERR_TUI_BACKEND_OWNERSHIP_PENDING' ? 'ERR_TUI_BACKEND_OWNERSHIP_PENDING' : 'ERR_TUI_RESOURCE_PENDING'
               : cancelled ? (cancelReason || 'CANCELLED') : beforeRun ? (error.code || 'SPAWN_FAILED') : 'SPAWN_FAILED'
           }
         };
-        if (!cancelled && error?.cacheOwnershipPending !== true && attempt < retryPolicy.maxAttempts) {
+        if (!cancelled && !ownedCleanupIsPending(job.resourceError) && attempt < retryPolicy.maxAttempts) {
           watchdog.stop();
           emitLog(jobId, 'warn', `attempt ${attempt} failed; retrying (${attempt + 1}/${retryPolicy.maxAttempts})`, {
             attempt,
