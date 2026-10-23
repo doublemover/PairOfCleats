@@ -5,6 +5,10 @@ import { validateCompositeContextPack } from '../../src/contracts/validators/ana
 import { attachSemanticContextSection } from '../../src/context-pack/assemble/finalize.js';
 import { renderCompositeContextPackJson } from '../../src/retrieval/output/composite-context-pack.js';
 import { emitCliOutput } from '../../src/integrations/tooling/cli-helpers.js';
+import { COMPOSITE_CONTEXT_PACK_SCHEMA } from '../../src/contracts/schemas/analysis.js';
+import { compileSchema, createAjv } from '../../src/shared/validation/ajv-factory.js';
+
+const directSchema = compileSchema(createAjv({ allErrors: true, strict: true, allowUnionTypes: true }), COMPOSITE_CONTEXT_PACK_SCHEMA);
 
 const payload = { primary: { excerpt: 'export function sum(a, b) { return a + b; }' },
   graph: { nodes: [{ id: 'sum' }] }, risk: { detail: 'x'.repeat(CONTEXT_PACK_RESPONSE_MAX_BYTES) } };
@@ -48,6 +52,7 @@ const base = assembleCompositeContextPack({ seed: { type: 'file', path: 'tests/f
 for (const status of ['partial', 'unavailable']) {
   const retained = attachSemanticContextSection(structuredClone(base), semantic(status));
   assert.equal(validateCompositeContextPack(retained).ok, true);
+  assert.equal(directSchema(retained), true, 'standalone schema accepts normally attached semantic evidence');
   const withinBudget = enforceContextPackResponseBudget(retained);
   assert.equal(withinBudget.semantic.status, status);
   assert.deepEqual(withinBudget.evidence.semantic, { included: true, state: status });
@@ -67,6 +72,7 @@ for (const status of ['partial', 'unavailable']) {
   assert.deepEqual(omitted.primary, originalPrimary);
   assert.ok(omitted.warnings.some(warning => warning.code === 'CONTEXT_PACK_RESPONSE_BUDGET' && warning.omitted.includes('semantic')));
   assert.equal(validateCompositeContextPack(omitted).ok, true);
+  assert.equal(directSchema(omitted), true, 'standalone schema accepts the actual omitted response');
   assert.ok(Buffer.byteLength(JSON.stringify(omitted, null, 2)) <= CONTEXT_PACK_RESPONSE_MAX_BYTES);
   const once = structuredClone(omitted);
   assert.deepEqual(enforceContextPackResponseBudget(omitted), once, 'rebudgeting cannot duplicate omission warnings');
@@ -74,17 +80,22 @@ for (const status of ['partial', 'unavailable']) {
   const staleInclusion = structuredClone(withinBudget);
   delete staleInclusion.semantic;
   assert.equal(validateCompositeContextPack(staleInclusion).ok, false, 'absent semantic cannot retain included=true');
+  assert.equal(directSchema(staleInclusion), false, 'standalone schemas reject absent included evidence');
   const contradictory = structuredClone(withinBudget);
   contradictory.evidence.semantic = { included: false, state: 'omitted' };
   assert.equal(validateCompositeContextPack(contradictory).ok, false, 'present semantic must have matching included metadata');
+  assert.equal(directSchema(contradictory), false);
   const wrongState = structuredClone(withinBudget);
   wrongState.evidence.semantic.state = status === 'partial' ? 'unavailable' : 'partial';
   assert.equal(validateCompositeContextPack(wrongState).ok, false, 'semantic state must describe the attached section');
+  assert.equal(directSchema(wrongState), false);
   const missingMetadata = structuredClone(withinBudget);
   delete missingMetadata.evidence.semantic;
   assert.equal(validateCompositeContextPack(missingMetadata).ok, false, 'present semantic requires its evidence metadata');
+  assert.equal(directSchema(missingMetadata), false);
   const falseComplete = structuredClone(withinBudget);
   falseComplete.evidence.complete = true;
   assert.equal(validateCompositeContextPack(falseComplete).ok, false, 'partial semantic evidence cannot claim complete context');
+  assert.equal(directSchema(falseComplete), false);
 }
 console.log('Whole context response budget preserves primary and graph evidence, with explicit omissions.');

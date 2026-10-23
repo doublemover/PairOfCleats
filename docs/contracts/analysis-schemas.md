@@ -137,11 +137,18 @@ Minimum fields:
 - `seed`
 - `provenance`
 - `primary` (excerpt + provenance)
+- `evidence`
 - optional `graph`
 - optional `types`
 - optional `risk`
+- optional `semantic`
 - optional `truncation[]`
 - optional `warnings[]`
+
+Semantic evidence notes:
+- A present `semantic` section requires `evidence.semantic.included=true`, a matching `partial` or `unavailable` state, and `evidence.complete=false`.
+- After response-budget omission, an absent section cannot retain `included=true`; retained semantic metadata must say `included=false`, `state=omitted`, and `evidence.complete=false`.
+- These invariants are part of the standalone JSON schema and the runtime validator. Semantic follow-up requests preserve the section's repository and generation.
 
 Risk slice notes:
 - `risk.partialFlows[]` is optional and carries bounded frontier-flow summaries for incomplete or capped interprocedural analysis.

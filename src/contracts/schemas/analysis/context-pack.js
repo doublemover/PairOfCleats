@@ -28,6 +28,18 @@ import {
   typeFactSchema
 } from './risk.js';
 
+const includedSemanticEvidence = state => ({
+  if: { type: 'object', required: ['semantic'], properties: {
+    semantic: { type: 'object', required: ['status'], properties: { status: { const: state } } }
+  } },
+  then: { type: 'object', properties: { evidence: {
+    type: 'object', required: ['semantic', 'complete'], properties: {
+      semantic: { type: 'object', properties: { included: { const: true }, state: { const: state } } },
+      complete: { const: false }
+    }
+  } } }
+});
+
 export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
   type: 'object',
   required: ['version', 'seed', 'primary', 'provenance', 'evidence'],
@@ -176,5 +188,20 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
     warnings: { type: ['array', 'null'], items: warningRecordSchema },
     stats: { type: ['object', 'null'], additionalProperties: true }
   },
-  additionalProperties: true
+  additionalProperties: true,
+  // Keep direct schema consumers and the runtime validator on the same
+  // inclusion contract after optional response-budget omission.
+  allOf: [
+    ...['partial', 'unavailable'].map(includedSemanticEvidence),
+    {
+      if: { type: 'object', not: { required: ['semantic'], properties: { semantic: {} } } },
+      then: { type: 'object', properties: { evidence: { type: 'object', properties: {
+        semantic: { type: 'object', properties: { included: { const: false }, state: { const: 'omitted' } } }
+      } } } }
+    },
+    {
+      if: { type: 'object', properties: { evidence: { type: 'object', required: ['semantic'], properties: { semantic: {} } } } },
+      then: { type: 'object', properties: { evidence: { type: 'object', required: ['complete'], properties: { complete: { const: false } } } } }
+    }
+  ]
 };
