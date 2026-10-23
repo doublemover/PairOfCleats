@@ -159,6 +159,19 @@ full cleanup-category capability or deep-suite green is claimed.
   prior-disposal controls use the production pool with an intercepted client
   factory and are authored, unrun. Existing active-client cleanup is retained.
 
+- #1631: the shared method limiter withdraws cancelled queued closures while
+  preserving running slots and neighbor order. Every interactive producer uses
+  one admission owner that rechecks signal/deadline/budget at the acquired slot;
+  skips cannot enter guard/client work, timeout/success metrics or negative cache.
+  Method requested counters now follow actual guard admission; bounded queue
+  counters distinguish enqueued/started/cancelled work, and cache hits spend no
+  request budget. Production document hover/signature consumers use deferred
+  slots, controlled time, cancellation, exact budget and positive warm-cache
+  controls; generic neighbor/listener/concurrency controls remain independent.
+  All controls are authored, unrun. LSP meaning advances to lspBindings45/rq11
+  for this protocol/admission batch, with current contract references updated;
+  previous caches remain untouched. See the [request admission contract](../contracts/lsp-request-admission.md).
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -274,7 +287,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1628](https://github.com/doublemover/PairOfCleats/issues/1628) | [P3] Settle LSP requests when their outbound write rejects before a response is possible | Source repair committed; runtime proof pending |
 | [#1629](https://github.com/doublemover/PairOfCleats/issues/1629) | [P2] Preserve LSP document failures and join sibling work before releasing the session | Source repair committed; runtime proof pending |
 | [#1630](https://github.com/doublemover/PairOfCleats/issues/1630) | [P2] Cancel queued LSP lease waiters without acquiring or killing the pooled session | Source repair committed; runtime proof pending |
-| [#1631](https://github.com/doublemover/PairOfCleats/issues/1631) | [P2] Recheck LSP request eligibility when queued method work acquires a slot | Pending full-scope review |
+| [#1631](https://github.com/doublemover/PairOfCleats/issues/1631) | [P2] Recheck LSP request eligibility when queued method work acquires a slot | Source repair committed; runtime proof pending |
 | [#1632](https://github.com/doublemover/PairOfCleats/issues/1632) | [P2] Derive per-mode validation verdicts from all owned semantic failures | Pending full-scope review |
 | [#1633](https://github.com/doublemover/PairOfCleats/issues/1633) | [P2] Admit directory-backed artifact families before recovery publication and completion | Pending full-scope review |
 | [#1634](https://github.com/doublemover/PairOfCleats/issues/1634) | [Perf] Reuse verified runtime families before allocating duplicate publication staging | Pending full-scope review |

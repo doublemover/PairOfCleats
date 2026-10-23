@@ -1,5 +1,8 @@
 export const createHoverStageCounters = () => ({
   requested: 0,
+  queueEnqueued: 0,
+  queueStarted: 0,
+  queueCancelled: 0,
   succeeded: 0,
   sourceBootstrapUsed: 0,
   hoverTimedOut: 0,

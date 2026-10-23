@@ -8,7 +8,7 @@ close the generic header; token whitespace before the list is accepted.
 
 This extends the current provider signature approximation. It does not add
 complete Go constraint/type checking or automatic source resolution.
-Request cache policy `rq10` and shared LSP producer identity retire the changed
+Request cache policy `rq11` and shared LSP producer identity retire the changed
 tag and generic-header metadata. Authored
 actual parser, cache-identity and controlled document enrichment regressions
 remain unrun; native, real-server and full indexing qualification are pending.

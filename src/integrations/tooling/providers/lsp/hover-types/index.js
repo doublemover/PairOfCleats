@@ -1,3 +1,4 @@
+import { createInteractiveRequestAdmission, REQUEST_NOT_ADMITTED } from './request-admission.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import { openOwnedLspDocument, closeOwnedLspDocument } from '../document-lifecycle.js';
 import { exactRangeToOffsets, offsetToLspPosition, buildLspLineIndex } from '../../../lsp/positions.js';
@@ -369,6 +370,9 @@ export const processDocumentTypes = async ({
       hoverMetrics.skippedByBudget += 1;
       return false;
     };
+    const admitRequest = createInteractiveRequestAdmission({ signal: abortSignal, fileStats: fileHoverStats,
+      metrics: hoverMetrics, isDeadlineExpired: isSoftDeadlineExpired, markDeadlineReached: markSoftDeadlineReached,
+      recordDeadlineSkip: recordSoftDeadlineSkip, reserveBudget: reserveRequestBudget });
     const buildRequestCacheKeyForStage = (requestKind, position) => buildLspRequestCacheKey({
       providerId: requestCacheProviderId,
       providerVersion: requestCacheProviderVersion,
@@ -431,7 +435,6 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget(hoverBudget)) return Promise.resolve({ attempted: false, info: null });
       const cachedHoverInfo = tryReadRequestCache('hover', position);
       const promise = (async () => {
         if (cachedHoverInfo?.negative === true) {
@@ -444,19 +447,19 @@ export const processDocumentTypes = async ({
         const hoverTimeoutOverride = Number.isFinite(resolvedHoverTimeout)
           ? resolvedHoverTimeout
           : null;
-        fileHoverStats.requested += 1;
-        hoverMetrics.requested += 1;
         const hoverStartMs = Date.now();
 
         try {
           throwIfAborted(abortSignal);
-          const hover = await hoverLimiter(() => runGuarded(
-            ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
-              textDocument: { uri },
-              position
-            }, { timeoutMs: guardTimeout }),
-            { label: 'hover', ...(hoverTimeoutOverride ? { timeoutOverride: hoverTimeoutOverride } : {}) }
-          ));
+          const hover = await admitRequest({ limiter: hoverLimiter, budget: hoverBudget, requestedMetric: 'requested',
+            run: () => runGuarded(
+              ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
+                textDocument: { uri },
+                position
+              }, { timeoutMs: guardTimeout }),
+              { label: 'hover', ...(hoverTimeoutOverride ? { timeoutOverride: hoverTimeoutOverride } : {}) }
+            ) });
+          if (hover === REQUEST_NOT_ADMITTED) return { attempted: false, info: null };
           const hoverDurationMs = Date.now() - hoverStartMs;
           hoverLatencyMs.push(hoverDurationMs);
           fileHoverStats.latencyMs.push(hoverDurationMs);
@@ -499,18 +502,17 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve(null);
       }
-      if (!reserveRequestBudget(semanticTokensBudget)) return Promise.resolve(null);
-      fileHoverStats.semanticTokensRequested += 1;
-      hoverMetrics.semanticTokensRequested += 1;
       semanticTokensRequest = (async () => {
         try {
           throwIfAborted(abortSignal);
-          const payload = await hoverLimiter(() => runGuarded(
-            ({ timeoutMs: guardTimeout }) => client.request('textDocument/semanticTokens/full', {
-              textDocument: { uri }
-            }, { timeoutMs: guardTimeout }),
-            { label: 'semanticTokens', ...(resolvedHoverTimeout ? { timeoutOverride: resolvedHoverTimeout } : {}) }
-          ));
+          const payload = await admitRequest({ limiter: hoverLimiter, budget: semanticTokensBudget, requestedMetric: 'semanticTokensRequested',
+            run: () => runGuarded(
+              ({ timeoutMs: guardTimeout }) => client.request('textDocument/semanticTokens/full', {
+                textDocument: { uri }
+              }, { timeoutMs: guardTimeout }),
+              { label: 'semanticTokens', ...(resolvedHoverTimeout ? { timeoutOverride: resolvedHoverTimeout } : {}) }
+            ) });
+          if (payload === REQUEST_NOT_ADMITTED) return null;
           const decoded = payload === null ? [] : decodeSemanticTokens({
             data: payload?.data,
             legend: semanticTokensLegend,
@@ -556,7 +558,6 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget(signatureHelpBudget)) return Promise.resolve({ attempted: false, info: null });
       const cachedSignatureHelpInfo = tryReadRequestCache('signature_help', position);
       const runSignatureHelp = typeof signatureHelpLimiter === 'function'
         ? signatureHelpLimiter
@@ -571,22 +572,22 @@ export const processDocumentTypes = async ({
         const timeoutOverride = Number.isFinite(resolvedSignatureHelpTimeout)
           ? resolvedSignatureHelpTimeout
           : null;
-        fileHoverStats.signatureHelpRequested += 1;
-        hoverMetrics.signatureHelpRequested += 1;
         try {
           throwIfAborted(abortSignal);
-          const signatureHelp = await runSignatureHelp(() => runGuarded(
-            ({ timeoutMs: guardTimeout }) => client.request('textDocument/signatureHelp', {
-              textDocument: { uri },
-              position,
-              context: {
-                triggerKind: 1,
-                isRetrigger: false,
-                activeSignatureHelp: null
-              }
-            }, { timeoutMs: guardTimeout }),
-            { label: 'signatureHelp', ...(timeoutOverride ? { timeoutOverride } : {}) }
-          ));
+          const signatureHelp = await admitRequest({ limiter: runSignatureHelp, budget: signatureHelpBudget, requestedMetric: 'signatureHelpRequested',
+            run: () => runGuarded(
+              ({ timeoutMs: guardTimeout }) => client.request('textDocument/signatureHelp', {
+                textDocument: { uri },
+                position,
+                context: {
+                  triggerKind: 1,
+                  isRetrigger: false,
+                  activeSignatureHelp: null
+                }
+              }, { timeoutMs: guardTimeout }),
+              { label: 'signatureHelp', ...(timeoutOverride ? { timeoutOverride } : {}) }
+            ) });
+          if (signatureHelp === REQUEST_NOT_ADMITTED) return { attempted: false, info: null };
           fileHoverStats.signatureHelpSucceeded += 1;
           hoverMetrics.signatureHelpSucceeded += 1;
           const signatureText = extractSignatureHelpText(signatureHelp);
@@ -626,22 +627,21 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve(null);
       }
-      if (!reserveRequestBudget(inlayHintsBudget)) return Promise.resolve(null);
-      fileHoverStats.inlayHintsRequested += 1;
-      hoverMetrics.inlayHintsRequested += 1;
       inlayHintsRequest = (async () => {
         try {
           throwIfAborted(abortSignal);
-          const payload = await hoverLimiter(() => runGuarded(
-            ({ timeoutMs: guardTimeout }) => client.request('textDocument/inlayHint', {
-              textDocument: { uri },
-              range: {
-                start: { line: 0, character: 0 },
-                end: resolveDocumentEndPosition()
-              }
-            }, { timeoutMs: guardTimeout }),
-            { label: 'inlayHints', ...(resolvedHoverTimeout ? { timeoutOverride: resolvedHoverTimeout } : {}) }
-          ));
+          const payload = await admitRequest({ limiter: hoverLimiter, budget: inlayHintsBudget, requestedMetric: 'inlayHintsRequested',
+            run: () => runGuarded(
+              ({ timeoutMs: guardTimeout }) => client.request('textDocument/inlayHint', {
+                textDocument: { uri },
+                range: {
+                  start: { line: 0, character: 0 },
+                  end: resolveDocumentEndPosition()
+                }
+              }, { timeoutMs: guardTimeout }),
+              { label: 'inlayHints', ...(resolvedHoverTimeout ? { timeoutOverride: resolvedHoverTimeout } : {}) }
+            ) });
+          if (payload === REQUEST_NOT_ADMITTED) return null;
           const hints = Array.isArray(payload) ? payload : [];
           fileHoverStats.inlayHintsSucceeded += 1;
           hoverMetrics.inlayHintsSucceeded += 1;
@@ -711,7 +711,6 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget(requestBudget)) return Promise.resolve({ attempted: false, info: null });
       const cachedInfo = semanticSession ? null : tryReadRequestCache(cacheKey, position);
       const runRequest = typeof limiter === 'function'
         ? limiter
@@ -726,16 +725,16 @@ export const processDocumentTypes = async ({
         const timeoutOverride = Number.isFinite(timeoutMs)
           ? timeoutMs
           : null;
-        fileHoverStats[requestedMetric] += 1;
-        hoverMetrics[requestedMetric] += 1;
         try {
           throwIfAborted(abortSignal);
-          const payload = await runRequest(() => runGuarded(
-            ({ timeoutMs: guardTimeout }) => client.request(method, buildParams({ position }), {
-              timeoutMs: guardTimeout
-            }),
-            { label, ...(timeoutOverride ? { timeoutOverride } : {}) }
-          ));
+          const payload = await admitRequest({ limiter: runRequest, budget: requestBudget, requestedMetric: requestedMetric,
+            run: () => runGuarded(
+              ({ timeoutMs: guardTimeout }) => client.request(method, buildParams({ position }), {
+                timeoutMs: guardTimeout
+              }),
+              { label, ...(timeoutOverride ? { timeoutOverride } : {}) }
+            ) });
+          if (payload === REQUEST_NOT_ADMITTED) return { attempted: false, info: null };
           structuredCollector?.record({ requestClass: label, params: buildParams({ position }),
             response: { attempted: true, payload }, positionEncoding });
           const locations = extractDefinitionLocations(payload);
