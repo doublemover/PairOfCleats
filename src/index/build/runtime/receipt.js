@@ -53,12 +53,33 @@ const poolEvidence = (pool) => {
     configuredMaxWorkers: stats.configuredMaxWorkers, effectiveMaxWorkers: stats.maxWorkers,
     activeTasks: stats.activeTasks, queuedTasks: stats.queuedTasks, disabled: stats.disabled,
     outstandingRequests: stats.outstandingRequests, waitingForThrottle: stats.waitingForThrottle,
+    dispatchedTasks: stats.dispatchedTasks,
     actuallyRunning: stats.actuallyRunning, completedRequests: stats.completedRequests,
     busy: stats.busy || null, requestPressure: stats.requestPressure,
     heapLaunchContract: stats.heapLaunchContract, pressureDownscale: stats.pressureDownscale,
     observedWorkerCount: observations.length, runtimeObservations: observations.slice(0, 8),
     observationsTruncated: observations.length > 8
   };
+};
+
+const projectDispatchComparison = runtime => {
+  if (runtime.learnedAutoProfile?.enabled !== true) return null;
+  const replay = runtime.scheduler?.getDispatchReplay?.();
+  if (!replay) return null;
+  // Full bounded task/decision traces remain with the scheduler owner. The
+  // durable attempt records compact exclusions without crowding out other work.
+  const summary = replay.comparison?.summary;
+  return { version: replay.version, mode: replay.comparison?.mode,
+    taskCount: replay.tasks?.length || 0, decisionCount: replay.decisions?.length || 0,
+    droppedTasks: replay.droppedTasks, droppedDecisions: replay.droppedDecisions,
+    summary: summary ? Object.fromEntries(Object.entries(summary)
+      .filter(([key]) => key !== 'queueWaitMs' && key !== 'commitDelayMs')) : null,
+    commitExclusions: replay.commitExclusions || null, fullTraceIncluded: false };
+};
+const projectSchedulerEvidence = runtime => {
+  const scheduler = projectRuntimeScheduler(runtime.scheduler?.stats?.() || null);
+  return runtime.learnedAutoProfile?.enabled === true
+    ? { ...scheduler, dispatchReplay: projectDispatchComparison(runtime) } : scheduler;
 };
 
 export const collectRuntimeResourceEvidence = (runtime) => ({
@@ -72,7 +93,7 @@ export const collectRuntimeResourceEvidence = (runtime) => ({
     launchDecisions: runtime.workerPools?.runtimeEvidence || {},
     tokenize: poolEvidence(runtime.workerPool), quantize: poolEvidence(runtime.quantizePool)
   },
-  scheduler: projectRuntimeScheduler(runtime.scheduler?.stats?.() || null)
+  scheduler: projectSchedulerEvidence(runtime)
 });
 
 const projectFeaturePlan = runtime => {

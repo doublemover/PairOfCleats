@@ -10,6 +10,7 @@ import { createSemanticCacheDependencySignatures } from '../../incremental/seman
 import { getRepoId } from '../../../../shared/repo-paths.js';
 import { preloadParseCheckpoints } from '../../incremental/stage-reuse.js';
 import { runWithQueue } from '../../../../shared/concurrency/run-with-queue.js';
+import { attachStage1SchedulerShadow } from '../../runtime/scheduler-shadow-adapter.js';
 import {
   createOrderedCompletionTracker as createSharedOrderedCompletionTracker
 } from '../../../../shared/concurrency/ordered-completion.js';
@@ -1138,6 +1139,8 @@ const processFilesInTransformScope = async ({
         debugOrdered
       }
     );
+    const schedulerShadow = attachStage1SchedulerShadow({ runtime, mode, perfProfile,
+      previousProfile: shardPerfProfile, orderedAppender, resolveOrderIndex: resolveStableEntryOrderIndex });
     const inFlightFiles = new Map();
     /**
      * Clear one tracked in-flight file lifecycle entry once result handling
@@ -2505,6 +2508,7 @@ const processFilesInTransformScope = async ({
           },
           {
             collectResults: false,
+            schedulerMetadata: schedulerShadow.metadata,
             signal: effectiveAbortSignal,
             onBeforeDispatch: async (ctx) => {
               if (typeof orderedAppender.waitForCapacity === 'function') {
@@ -2566,6 +2570,7 @@ const processFilesInTransformScope = async ({
               const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
               const entry = orderedBatchEntries[entryIndex];
               const orderIndex = resolveStableEntryOrderIndex(entry, entryIndex);
+              const schedulerAttempt = schedulerShadow.captureCommitIdentity(orderIndex);
               if (result?.stage1Lease && !orderedAppender.isCurrentLease(result.stage1Lease)) return;
               try {
                 const bypassedForLowYield = Number.isFinite(orderIndex)
@@ -2608,6 +2613,8 @@ const processFilesInTransformScope = async ({
                     { status: 'skipped', inputBytes: entry?.stat?.size || entry?.bytes || 0 }
                   );
                   orderedCompletionTracker.track(completion, () => {
+                    schedulerShadow.noteCommitted(runtimeRef.scheduler, orderIndex,
+                      { identity: schedulerAttempt, status: 'skipped' });
                     lastOrderedCompletionAt = Date.now();
                     refreshStage1ActiveWindows();
                   });
@@ -2661,6 +2668,8 @@ const processFilesInTransformScope = async ({
                     chunks: result.chunks?.length || 0, cached: fileMetrics?.cached === true }
                 );
                 orderedCompletionTracker.track(completion, () => {
+                  schedulerShadow.noteCommitted(runtimeRef.scheduler, orderIndex,
+                    { identity: schedulerAttempt, status: result.skip ? 'skipped' : 'completed' });
                   lastOrderedCompletionAt = Date.now();
                   refreshStage1ActiveWindows();
                 });
