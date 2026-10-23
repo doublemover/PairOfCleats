@@ -1,26 +1,34 @@
-import { createViewerSettingsSession, emptyViewerPreferences, validateViewerPreferences } from './effective-settings.js';
+import { createViewerSettingsSession, emptyViewerPreferences, validateViewerPreferences, VIEWER_SETTINGS_MAX_BYTES } from './effective-settings.js';
+import { readBoundedJsonResponse } from './data/protocol.js';
+import { captureSceneFailure } from './scene-failure-inspection.js';
+import { preserveSceneCleanupFailures } from './scene-retirement.js';
 
 export const loadViewerSettingsSession = async (config, { fetchImpl = fetch, onStatus = () => {} } = {}) => {
-  const authority=config.preferences;
-  let document=emptyViewerPreferences(authority?.repoId||'session-only'),persist=null,failure=null;
+  const originalAuthority=config.preferences;
+  const authority=originalAuthority?{repoId:originalAuthority.repoId,endpoint:originalAuthority.endpoint,token:originalAuthority.token}:null;
+  let document=emptyViewerPreferences(authority?.repoId||'session-only'),persist=null,failure,hasFailure=false;
   if(authority?.repoId&&authority.endpoint&&authority.token){
     const headers={'X-Map-Session':authority.token};
     try{
-      const response=await fetchImpl(authority.endpoint,{headers,signal:AbortSignal.timeout(5000)});
-      if(!response.ok)throw new Error(`Preferences HTTP ${response.status}`);
-      const text=await response.text();if(text.length>65536)throw new Error('Preferences response is too large.');
-      document=validateViewerPreferences(JSON.parse(text),authority.repoId);
+      const signal=AbortSignal.timeout(5000);
+      const response=await fetchImpl(authority.endpoint,{headers,signal});
+      document=validateViewerPreferences(await readBoundedJsonResponse(response,{signal,maxBytes:VIEWER_SETTINGS_MAX_BYTES}),authority.repoId);
       persist=async value=>{
-        const result=await fetchImpl(authority.endpoint,{method:'PUT',headers:{...headers,'Content-Type':'application/json'},
-          body:JSON.stringify(value),signal:AbortSignal.timeout(5000)});
-        const body=await result.json();
-        if(!result.ok)throw new Error(body.error||`Preferences HTTP ${result.status}`);
-        return body;
+        const signal=AbortSignal.timeout(5000);
+        const result=await fetchImpl(authority.endpoint,{method:'PUT',headers:{'X-Map-Session':authority.token,'Content-Type':'application/json'},
+          body:JSON.stringify(value),signal});
+        return readBoundedJsonResponse(result,{signal,maxBytes:VIEWER_SETTINGS_MAX_BYTES});
       };
-    }catch(error){failure=error.message;}
+    }catch(error){failure=error;hasFailure=true;}
   }
   const session=createViewerSettingsSession({repoId:authority?.repoId||'session-only',report:config,document,persist,onStatus});
-  session.availabilityError=failure;
-  if(failure)onStatus(`save-unavailable: ${failure}`);
+  session.availabilityFailed=hasFailure;
+  session.availabilityError=hasFailure?captureSceneFailure(failure).message:null;
+  session.availabilityFailure=hasFailure?failure:null;
+  if(hasFailure){
+    session.resourceOwner.retainFailure(failure);
+    try{onStatus(`save-unavailable: ${session.availabilityError}`);}
+    catch(diagnostic){throw preserveSceneCleanupFailures(failure,[diagnostic],{hasPrimary:true,forceAggregate:true});}
+  }
   return session;
 };

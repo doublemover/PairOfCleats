@@ -1,10 +1,16 @@
 import { mergeConfig } from '../../../shared/config.js';
+import { captureSceneResource, preserveSceneCleanupFailures } from './scene-retirement.js';
+import { captureSceneFailure } from './scene-failure-inspection.js';
 
 export const VIEWER_SETTINGS_VERSION = 1;
 export const VIEWER_SETTINGS_MAX_BYTES = 64 * 1024;
 const roots = new Set(['layout','scoring','colors','controls','visuals','performance','appearance']);
 const forbidden = new Set(['__proto__','prototype','constructor']);
 const clone = value => JSON.parse(JSON.stringify(value));
+const assertLayout = layout => {
+  if (typeof layout !== 'string' || !/^[a-z][a-z-]{0,30}$/.test(layout) || forbidden.has(layout)) throw new Error('Unsupported viewer layout preference key.');
+  return layout;
+};
 
 export const sanitizeViewerSettings = (input) => {
   let count=0;
@@ -44,7 +50,7 @@ export const validateViewerPreferences = (input, repoId) => {
   if(input?.schemaVersion!==VIEWER_SETTINGS_VERSION||input.repoId!==repoId||!Number.isSafeInteger(input.revision)||input.revision<0)throw new Error('Viewer preferences have an unsupported version, repository or revision.');
   const base=sanitizeViewerSettings(input.preferences?.base||{}),layouts={};
   for(const [layout,settings]of Object.entries(input.preferences?.layouts||{})){
-    if(!/^[a-z][a-z-]{0,30}$/.test(layout))throw new Error('Unsupported viewer layout preference key.');
+    assertLayout(layout);
     layouts[layout]=sanitizeViewerSettings(settings);
   }
   const document={schemaVersion:VIEWER_SETTINGS_VERSION,repoId,revision:input.revision,preferences:{base,layouts}};
@@ -54,44 +60,78 @@ export const validateViewerPreferences = (input, repoId) => {
 
 /** Defaults < report < durable repository base < selected-layout override. */
 export const resolveEffectiveViewerSettings = ({defaults={},report={},document=null,layout='stacks'}) =>
-  mergeViewerSettings(defaults,report,document?.preferences.base,document?.preferences.layouts?.[layout]);
+  mergeViewerSettings(defaults,report,document?.preferences.base,document?.preferences.layouts?.[assertLayout(layout)]);
+
+const preferenceKey = value => JSON.stringify((function stable(entry) {
+  return entry && typeof entry === 'object' ? Object.keys(entry).sort().map(key => [key, stable(entry[key])]) : entry;
+})(value));
+const retiredSettings = () => new DOMException('Viewer settings session retired.', 'AbortError');
 
 export const createViewerSettingsSession = ({repoId,report={},document=emptyViewerPreferences(repoId),persist=null,onStatus=()=>{}}) => {
   let accepted=validateViewerPreferences(document,repoId),preferences=clone(accepted.preferences),epoch=0,timer=null,queue=Promise.resolve();
-  let status=persist?'saved':'session-only';
-  const setStatus=next=>{status=next;onStatus(next);};
+  let status=persist?'saved':'session-only',retired=false,retirement=null,lastFailure=null;
+  const setStatus=next=>{if(!retired){status=next;try{onStatus(next);}catch(error){retain(error);throw error;}}};
+  const assertCurrent=()=>{if(retired||resourceOwner.lastError!==null)throw retiredSettings();};
+  const clearSaveTimer=()=>{if(timer!==null){clearTimeout(timer);timer=null;}};
+  const retireIntent=()=>{if(!retired){retired=true;epoch++;status='retired';}clearSaveTimer();};
+  const resourceOwner=captureSceneResource({async dispose(){retireIntent();await queue.catch(()=>{});}},'original viewer preference operations');
+  const retain=error=>{lastFailure=error;resourceOwner.retainFailure(error);};
   const save=()=>{
-    if(timer!==null){clearTimeout(timer);timer=null;}
-    if(!persist){setStatus('session-only');return Promise.resolve(null);}
-    const requested=clone(preferences),version=epoch;
+    if(retired)return Promise.reject(retiredSettings());
+    clearSaveTimer();
+    if(!persist){try{setStatus('session-only');return Promise.resolve(null);}catch(error){return Promise.reject(error);}}
+    const requested=clone(preferences),requestedKey=preferenceKey(requested),version=epoch;
     queue=queue.catch(()=>{}).then(async()=>{
-      setStatus('saving');
+      assertCurrent();let committed=false,revision=null;
       try{
-        const next=validateViewerPreferences(await persist({schemaVersion:VIEWER_SETTINGS_VERSION,repoId,revision:accepted.revision,preferences:requested}),repoId);
+        setStatus('saving');assertCurrent();
+        const before=accepted.revision;
+        if(before===Number.MAX_SAFE_INTEGER)throw new Error('Viewer preference revision is exhausted.');
+        const next=validateViewerPreferences(await persist({schemaVersion:VIEWER_SETTINGS_VERSION,repoId,revision:before,preferences:requested}),repoId);
+        if(next.revision!==before+1||preferenceKey(next.preferences)!==requestedKey)throw new Error('Viewer preference response does not confirm the original requested update.');
+        committed=true;revision=next.revision;
+        if(retired)return next;
         accepted=next;
         if(version===epoch)setStatus('saved');else setStatus('modified');
         return next;
-      }catch(error){setStatus(`save-failed: ${error.message}`);throw error;}
+      }catch(error){
+        retain(error);const captured=captureSceneFailure(error),errors=[];
+        if(!retired){
+          status=`save-failed: ${captured.message}`;
+          try{onStatus(status);}catch(diagnostic){errors.push(diagnostic);retain(diagnostic);}
+        }
+        const failure=preserveSceneCleanupFailures(error,errors,{hasPrimary:true,forceAggregate:true});
+        if(committed)Object.defineProperties(failure,{viewerPreferencesCommitted:{value:true},viewerPreferencesRevision:{value:revision}});
+        retain(failure);throw failure;
+      }
     });
     return queue;
   };
   return {
     get status(){return status;},
+    get retired(){return retired;},
+    get lastFailure(){return lastFailure;},
+    resourceOwner,
     get document(){return {...accepted,preferences:clone(preferences)};},
     effective(layout){return resolveEffectiveViewerSettings({report,document:{preferences},layout});},
     update(settings,{layout=null}={}){
+      assertCurrent();if(layout!==null)assertLayout(layout);
       const next=sanitizeViewerSettings(settings);
-      if(layout)preferences.layouts[layout]=next;else preferences.base=next;
+      if(layout!==null)preferences.layouts[layout]=next;else preferences.base=next;
       epoch++;setStatus(persist?'modified':'session-only');
     },
     reset({layout=null}={}){
-      if(timer!==null){clearTimeout(timer);timer=null;}
-      if(layout)delete preferences.layouts[layout];else preferences={base:{},layouts:{}};
+      assertCurrent();if(layout!==null)assertLayout(layout);clearSaveTimer();
+      if(layout!==null)delete preferences.layouts[layout];else preferences={base:{},layouts:{}};
       epoch++;setStatus(persist?'modified':'session-only');
     },
-    scheduleSave(delay=200){if(timer!==null)clearTimeout(timer);timer=setTimeout(()=>{timer=null;save().catch(()=>{});},delay);},
+    scheduleSave(delay=200){assertCurrent();clearSaveTimer();timer=setTimeout(()=>{timer=null;save().catch(()=>{});},delay);},
     save,
-    dispose(){if(timer!==null)clearTimeout(timer);timer=null;}
+    dispose(){
+      retireIntent();
+      if(!retirement)retirement=Promise.resolve().then(()=>resourceOwner.retireAsync());
+      return retirement;
+    }
   };
 };
 

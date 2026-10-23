@@ -44,6 +44,7 @@ const initViewer = async () => {
   }
   dom.summary.textContent=`Available snapshot: ${state.sourceIndex.counts.files} files / ${state.sourceIndex.counts.members} members / ${state.sourceIndex.counts.edges} edges. Source browser ready.`;
   const settingsSession=await loadViewerSettingsSession(loaded.config,{onStatus:value=>shell.setSaveStatus(value)});
+  if(!shell.adoptSettings(settingsSession))return;
   const config=settingsSession.effective(loaded.config.layout?.style||'stacks');
   state.settingsSession=settingsSession;
   shell.setSaveStatus(settingsSession.availabilityError?`save-unavailable: ${settingsSession.availabilityError}`:settingsSession.status);
