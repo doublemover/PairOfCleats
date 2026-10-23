@@ -13,6 +13,7 @@ import { assertSemanticTaskAuthority } from '../semantic/task-authority.js';
 import { semanticHash } from '../semantic/identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { loadJsonArrayArtifact } from '../../shared/artifact-io/loaders.js';
 
 export const stageReuseMismatch = reason => Object.assign(new Error(`Retained Stage2 reuse refused: ${reason}.`),
   { code: 'ERR_RECOVERY_INPUT_CHANGED', reuseReason: reason });
@@ -29,11 +30,18 @@ const admissionInvalidation = error => error instanceof SyntaxError || ['ENOENT'
  * authority owners. Source equality alone cannot certify external dependencies.
  */
 const verifyExternalDependencies = async ({ runtime, verified, signal }) => {
+  const indexDir = path.join(verified.snapshotRoot, 'index-code');
+  // The compiler inventory grants compiler authority, not the separate import
+  // resolver's package/config/directory/negative-probe closure. Until that owner
+  // exposes whole-stage verification, these modes take normal recomputation.
+  const relations = await loadJsonArrayArtifact(indexDir, 'file_relations', { manifest: verified.manifest, strict: true });
+  if (relations.some(row => ['imports', 'importLinks'].some(key => row.relations?.[key] != null
+    && (!Array.isArray(row.relations[key]) || row.relations[key].length > 0))
+    || Object.keys(row.relations?.importBindings || {}).length > 0)) throw stageReuseMismatch('import-resolution-dependency-inventory-unavailable');
   if (!verified.manifest.pieces.some(piece => piece.name === 'semantic_manifest')) {
     if (runtime.toolingEnabled && runtime.typeInferenceCrossFileEnabled) throw stageReuseMismatch('external-analysis-authority-unavailable');
     return { tasks: 0, inventories: 0 };
   }
-  const indexDir = path.join(verified.snapshotRoot, 'index-code');
   const { store, manifest } = await openPublishedSemanticStore({ indexDir, repoRoot: runtime.root, signal });
   return store.withReadScope(async () => {
     const sources = new Map(), tasks = new Map();

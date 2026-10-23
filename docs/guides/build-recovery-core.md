@@ -106,6 +106,13 @@ the semantic base/revision; missing modes run the existing indexer. Backend work
 uses the existing Stage3/Stage4 owners under a borrowed in-process writer grant.
 A serialized plan/options object cannot fabricate that grant.
 
+Import resolution has a separate dependency closure from compiler inventories.
+Until its existing owner exposes whole-stage verification, code with import
+relations cannot reuse a completed stage. Ordinary builds recompute and record
+`import-resolution-dependency-inventory-unavailable`; explicit historical resume
+fails closed. Compiler inventory or source equality does not grant that missing
+authority.
+
 Resume defers all pointer publication until the reviewed transaction completes
 normal validation. Cancellation, queued/unadmitted backend work and any failure
 leave the generation retained. Repeated successful resume validates exact output
