@@ -7,6 +7,14 @@ import { loadUserConfig, getAutoPolicy } from '../tools/dict-utils/config.js';
 import { getRuntimeConfig, resolveRuntimeEnv } from '../tools/dict-utils/paths/runtime.js';
 import { getToolVersion } from '../tools/dict-utils/tool.js';
 
+const workspaceScripts = new Set(['author', 'build', 'manifest', 'status', 'catalog']
+  .map(name => `tools/workspace/${name}.js`));
+
+/** Workspace commands select their own member/config authority inside the child. */
+export const isWorkspaceDispatchScript = scriptPath => workspaceScripts.has(
+  String(scriptPath || '').trim().replace(/\\/g, '/')
+);
+
 export const resolveDispatchRuntimeEnv = async ({
   root,
   scriptPath,
@@ -16,7 +24,7 @@ export const resolveDispatchRuntimeEnv = async ({
 } = {}) => {
   // Workspace coordinators have no single repository startup authority. Their
   // children resolve target configuration against this original caller env.
-  if (scriptPath === 'tools/workspace/build.js') return { ...baseEnv };
+  if (isWorkspaceDispatchScript(scriptPath)) return { ...baseEnv };
   const userConfig = loadUserConfig(root);
   if (scriptPath === 'build_index.js' || scriptPath === 'tools/index/cli-entry.js') {
     const rawArgs = [...extraArgs, ...restArgs];

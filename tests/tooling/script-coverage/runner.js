@@ -9,7 +9,7 @@ import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { extractSkipReason } from '../../runner/run-logging.js';
 
-export const resolveRetries = ({ argvRetries, envRetries, defaultRetries = 2 }) => {
+export const resolveRetries = ({ argvRetries, envRetries, defaultRetries = 0 }) => {
   if (Number.isFinite(argvRetries)) return Math.max(0, argvRetries);
   if (Number.isFinite(envRetries)) return Math.max(0, envRetries);
   return defaultRetries;
@@ -103,7 +103,12 @@ export const createCommandRunner = ({ retries, failureLogRoot }) => {
   return { run, runNode };
 };
 
-export const runShellScripts = async ({ root, baseCacheRoot, run }) => {
+export const runShellScripts = async ({ root, baseCacheRoot, run },
+  { platform = process.platform, spawnSyncImpl = spawnSync } = {}) => {
+  // A Windows bash/WSL application alias must never start a different platform
+  // qualification implicitly. POSIX merge wrappers have their own owner.
+  if (platform === 'win32') return { status: 'skipped',
+    reason: 'POSIX shell merge wrappers require separate non-Windows qualification; Windows does not launch Bash or WSL.' };
   const shellScripts = [
     path.join(root, 'merge-history.sh'),
     path.join(root, 'merge-no-results.sh'),
@@ -115,13 +120,13 @@ export const runShellScripts = async ({ root, baseCacheRoot, run }) => {
     path.join(root, 'tools', 'merge-agentinfo-index.sh')
   ];
 
-  const bashCheck = spawnSync('bash', ['-c', 'echo ok'], { encoding: 'utf8' });
+  const bashCheck = spawnSyncImpl('bash', ['-c', 'echo ok'], { encoding: 'utf8', timeout: 5000 });
   const bashAvailable = bashCheck.status === 0;
-  const jqCheck = bashAvailable ? spawnSync('bash', ['-c', 'command -v jq'], { encoding: 'utf8' }) : null;
+  const jqCheck = bashAvailable ? spawnSyncImpl('bash', ['-c', 'command -v jq'], { encoding: 'utf8', timeout: 5000 }) : null;
   const jqAvailable = jqCheck && jqCheck.status === 0;
   const toPosixPath = (value) => toPosix(value);
   const bashPathCheck = bashAvailable
-    ? spawnSync('bash', ['-c', `cd "${toPosixPath(root)}"`], { encoding: 'utf8' })
+    ? spawnSyncImpl('bash', ['-c', `cd "${toPosixPath(root)}"`], { encoding: 'utf8', timeout: 5000 })
     : null;
   const bashAccessible = bashPathCheck && bashPathCheck.status === 0;
 

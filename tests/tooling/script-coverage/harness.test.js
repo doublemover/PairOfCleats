@@ -8,7 +8,7 @@ import { applyActionCoverage, createCoverageState, finalizeCoverage, reportCover
 import { repoRoot } from '../../helpers/root.js';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
-import { createCommandRunner, resolveRetries } from './runner.js';
+import { createCommandRunner, resolveRetries, runShellScripts } from './runner.js';
 import { createInvocationRecorder, validateInvocationTargets } from './invocation-inventory.js';
 import {
   collectUnknownActionCovers,
@@ -44,6 +44,14 @@ assert.equal(rejectedList.stderr.trim(),
 assert.doesNotMatch(rejectedList.stdout, /Fixture parity: sample/);
 assert.equal(resolveRetries({ argvRetries: 0, defaultRetries: 2 }), 0,
   'an explicit audit retry count must reach the nested runner unchanged');
+assert.equal(resolveRetries({}), 0, 'standalone nested coverage does not retry by default');
+assert.equal(resolveRetries({ envRetries: 0 }), 0);
+const shellBoundary = await runShellScripts({ root, baseCacheRoot: root,
+  run: () => assert.fail('Windows cannot launch a POSIX coverage child') }, {
+  platform: 'win32', spawnSyncImpl: () => assert.fail('Windows cannot probe a Bash/WSL launcher')
+});
+assert.equal(shellBoundary.status, 'skipped');
+assert.match(shellBoundary.reason, /separate non-Windows qualification/);
 const boundedRunner = createCommandRunner({ retries: 0, failureLogRoot: root });
 assert.equal((await boundedRunner.run('positive-control', process.execPath, ['-e', 'process.exit(0)'])).status, 'passed');
 const optional = await boundedRunner.run('optional-control', process.execPath,

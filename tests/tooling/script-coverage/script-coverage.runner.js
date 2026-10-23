@@ -37,7 +37,7 @@ const root = repoRoot();
 const argv = createCli({
   scriptName: 'script-coverage',
   options: {
-    retries: { type: 'number', default: 2 },
+    retries: { type: 'number' },
     'log-dir': { type: 'string', default: '' },
     groups: { type: 'string', default: '' },
     action: { type: 'string', default: '' },
@@ -51,7 +51,7 @@ const envRetries = Number.parseInt(
   process.env.PAIROFCLEATS_TEST_RETRIES ?? process.env.npm_config_test_retries ?? '',
   10
 );
-const retries = resolveRetries({ argvRetries: argv.retries, envRetries, defaultRetries: 2 });
+const retries = resolveRetries({ argvRetries: argv.retries, envRetries, defaultRetries: 0 });
 const logDirOverride = argv['log-dir']
   || process.env.PAIROFCLEATS_TEST_LOG_DIR
   || process.env.npm_config_test_log_dir

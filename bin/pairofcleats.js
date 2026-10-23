@@ -37,7 +37,7 @@ const {
   SEARCH_SHORT_VALUE_FLAG_NAMES,
   SEARCH_VALUE_FLAG_NAMES
 } = await loadRuntimeModule('../src/retrieval/cli-args.js');
-const { resolveDispatchRuntimeEnv } = await loadRuntimeModule('./dispatch-runtime-env.js');
+const { resolveDispatchRuntimeEnv, isWorkspaceDispatchScript } = await loadRuntimeModule('./dispatch-runtime-env.js');
 const { readFlagValue } = await loadRuntimeModule('../src/shared/cli/argv.js');
 const { STORAGE_ACTIONS, STORAGE_OPTIONS } = await loadRuntimeModule('../tools/storage/options.js');
 const { isStrictDispatchEnvEnabled } = await loadRuntimeModule('../src/shared/env/runtime.js');
@@ -1201,7 +1201,7 @@ function shouldSkipDispatchRuntimeEnvResolution(scriptPath, restArgs = []) {
   const normalized = String(scriptPath || '').trim().replace(/\\/g, '/');
   return normalized.startsWith('tools/config/')
     || normalized.startsWith('tools/cli/')
-    || normalized === 'tools/workspace/author.js'
+    || isWorkspaceDispatchScript(normalized)
     || normalized === 'tools/setup/checkout-diagnose.js'
     || normalized === 'tools/storage/cli.js'
     || normalized === 'tools/cache/clear-cache.js'
