@@ -1,5 +1,7 @@
 import path from 'node:path';
 import fsSync from 'node:fs';
+import { throwIfAborted } from '../../shared/abort.js';
+import { resolveRequestedAbortSignal } from './preflight/manager-state.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { resolvePyrightWorkspaceConfigPreflight } from './preflight/pyright-workspace-config.js';
 import {
@@ -211,6 +213,7 @@ export const createPyrightProvider = () => ({
   preflightId: 'pyright.command-profile',
   preflightClass: 'probe',
   version: '2.0.1',
+  profileContractVersion: 1,
   label: 'pyright',
   priority: 30,
   languages: ['python'],
@@ -287,6 +290,8 @@ export const createPyrightProvider = () => ({
     };
   },
   async run(ctx, inputs) {
+    const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
+    throwIfAborted(abortSignal);
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
     const docs = Array.isArray(inputs?.documents)
       ? inputs.documents.filter((doc) => PYTHON_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
@@ -321,6 +326,10 @@ export const createPyrightProvider = () => ({
         if (check && typeof check === 'object') checks.push(check);
       }
     }
+    throwIfAborted(abortSignal);
+    if (preflight?.blockProvider === true || preflight?.state === 'blocked') return buildPyrightProviderEnvelope({
+      configHash: this.getConfigHash(ctx), diagnostics: appendDiagnosticChecks(null, checks)
+    });
     const requestedCommand = resolveProviderRequestedCommand({
       providerId: 'pyright',
       toolingConfig: ctx?.toolingConfig || {},
@@ -426,7 +435,7 @@ export const createPyrightProvider = () => ({
       workspaceKey: `pyright:${requestPlan.workspaceRootRel}:${runtimeHealth.fingerprint}`,
       documents: requestPlan.selectedDocuments,
       targets: requestPlan.selectedTargets,
-      abortSignal: ctx?.abortSignal || null,
+      abortSignal,
       log,
       providerId: 'pyright',
       adaptiveDegradedHint: preflight?.state === 'degraded',
@@ -443,6 +452,7 @@ export const createPyrightProvider = () => ({
       indexDir: ctx?.buildRoot || null,
       captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
     });
+    throwIfAborted(abortSignal);
     await persistPyrightPlannerHealth({
       repoRoot: ctx.repoRoot,
       cacheRoot: ctx?.cache?.dir || null,

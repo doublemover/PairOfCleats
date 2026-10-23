@@ -30,6 +30,7 @@ export const observeProviderProfile = async ({ providerId, adapterVersion, contr
   selection = 'explicit', expectedToolHash = null, toolFiles = [], repoRoot,
   sourceInputs = [], project = {}, dependencyClosure = 'unknown',
   maxFiles = 1024, maxBytes = 64 * 1024 * 1024, signal = null }) => {
+  throwIfAborted(signal);
   if (!Number.isSafeInteger(maxFiles) || maxFiles < 1 || maxFiles > 16384
     || !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 256 * 1024 * 1024) throw fail('Invalid profile observation bounds.');
   if (contractVersion !== 1 || !['complete', 'unknown'].includes(dependencyClosure)) throw fail('Unsupported profile contract or dependency closure.');
@@ -125,6 +126,7 @@ export const providerProfileCacheIdentity = (receipt, { providerId, adapterVersi
  * reuse/invocation and after a process result. A saved receipt alone is not a
  * freshness proof; no command/version probe or dependency discovery occurs. */
 export const verifyProviderProfileReceipt = async (receipt, { signal = null } = {}) => {
+  throwIfAborted(signal);
   // Capture caller-owned JSON once before asynchronous reads. A caller cannot
   // replace an expected hash or negative dependency while verification awaits.
   receipt = JSON.parse(canonicalSemanticJson(receipt));

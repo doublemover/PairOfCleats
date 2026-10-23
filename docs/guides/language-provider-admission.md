@@ -35,7 +35,10 @@ External local package roots are recorded as unobserved without reading them.
 The observed package-config digest is a model observation, not proof that all
 dependencies or generated sources are fresh. Dart now requires a complete
 host-observed provider profile before durable provider-cache reuse; incomplete
-closure uses a live run. The analyzer sidecar, Flutter/workspace SDK pairing and
+closure uses a live run. The same observation requirement applies to configured
+LSP profiles, dedicated adapters, Pyright, clangd and SourceKit. Tool installation
+or unchanged source text alone cannot establish their dependency closure.
+The analyzer sidecar, Flutter/workspace SDK pairing and
 resolved compiler-fact consumers in #1174 remain separate unfinished scope.
 
 Shared provider preflight cancellation is terminal even for optional preflight.
@@ -44,6 +47,13 @@ single-flight entry and process ownership survive until settlement. An optional
 timeout blocks launch while teardown is unresolved. Dedicated-provider setup
 cleanup runs on skipped launch and cancellation, and JDT runtime-lock acquisition
 receives the same effective cancellation signal as the provider.
+
+Command denial and pending managed-command settlement block admission. They are
+distinct from a missing executable or an inconclusive version probe. A denied
+runtime prerequisite stops custom project preparation and server launch. Cached
+provider output and late live output observe the same composed request/context
+cancellation signal as preflight, including profile verification and result
+admission. These controls do not cancel or discard already owned child teardown.
 
 Primary references: [Kotlin function syntax](https://kotlinlang.org/spec/declarations.html#function-declaration),
 [official Kotlin LSP](https://github.com/Kotlin/kotlin-lsp),

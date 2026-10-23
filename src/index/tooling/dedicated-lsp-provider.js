@@ -237,7 +237,9 @@ export const createDedicatedLspProvider = (descriptor) => {
     version: descriptor.version || '1.0.0',
     label: descriptor.label,
     priority: descriptor.priority,
-    ...(descriptor.profileContractVersion ? { profileContractVersion: descriptor.profileContractVersion } : {}),
+    // LSP answers depend on tool/project reads beyond source text. An incomplete
+    // host observation requires a live execution rather than durable replay.
+    profileContractVersion: descriptor.profileContractVersion || 1,
     languages: descriptor.languages,
     kinds: Array.isArray(descriptor.kinds) && descriptor.kinds.length
       ? descriptor.kinds
@@ -504,6 +506,15 @@ export const createDedicatedLspProvider = (descriptor) => {
         config
       });
       if (shouldBlockProviderFromPreflight(commandPreflight)) return commandPreflight;
+      const runtimeRequirementPreflight = resolveRuntimeRequirementsPreflight({
+        ctx, providerId: descriptor.id, requirements: provider.preflightRuntimeRequirements
+      });
+      if (shouldBlockProviderFromPreflight(runtimeRequirementPreflight)) return {
+        ...runtimeRequirementPreflight,
+        requestedCommand: commandPreflight.requestedCommand,
+        commandProfile: commandPreflight.commandProfile,
+        checks: mergePreflightChecks(commandPreflight.checks, runtimeRequirementPreflight.check, runtimeRequirementPreflight.checks)
+      };
       const customPreflight = hasCustomPreflight
         ? await descriptor.preflight({
           ctx,
@@ -531,11 +542,6 @@ export const createDedicatedLspProvider = (descriptor) => {
           checks: mergePreflightChecks(commandPreflight.checks, customPreflight.check, customPreflight.checks)
         };
       }
-      const runtimeRequirementPreflight = resolveRuntimeRequirementsPreflight({
-        ctx,
-        providerId: descriptor.id,
-        requirements: provider.preflightRuntimeRequirements
-      });
       if (runtimeRequirementPreflight.state !== 'ready' && !hasCustomPreflight) {
         const checks = mergePreflightChecks(
           commandPreflight.checks,

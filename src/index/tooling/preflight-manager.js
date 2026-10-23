@@ -519,7 +519,8 @@ export const kickoffToolingProviderPreflights = (ctx, providerPlans) => {
       ctx,
       inputs: {
         documents,
-        targets
+        targets,
+        abortSignal: plan.abortSignal || null
       }
     });
     if (seen.has(key)) continue;
@@ -529,7 +530,8 @@ export const kickoffToolingProviderPreflights = (ctx, providerPlans) => {
       provider,
       inputs: {
         documents,
-        targets
+        targets,
+        abortSignal: plan.abortSignal || null
       },
       awaitResult: false,
       waveToken

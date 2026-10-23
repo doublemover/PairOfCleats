@@ -727,6 +727,9 @@ export const __resolveToolingProbeTimeoutMsForTests = (input = {}) => resolvePro
  * @returns {boolean}
  */
 export const isProbeCommandDefinitelyMissing = (probe) => {
+  // An admission denial or unsettled owned process is not evidence that a
+  // command is absent, even when probing intentionally leaves resolvedPath null.
+  if (probe?.validationFailure || probe?.cacheOwnershipPending === true) return false;
   if (
     probe
     && Object.prototype.hasOwnProperty.call(probe, 'resolvedPath')

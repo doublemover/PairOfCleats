@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { throwIfAborted } from '../../shared/abort.js';
+import { resolveRequestedAbortSignal } from './preflight/manager-state.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig, resolveRequestCacheGeneration } from './provider-contract.js';
 import { toPosix } from '../../shared/file-paths.js';
@@ -484,6 +486,7 @@ export const createClangdProvider = () => ({
   preflightId: 'clangd.workspace-model',
   preflightClass: 'workspace',
   version: '2.0.0',
+  profileContractVersion: 1,
   label: 'clangd',
   priority: 20,
   languages: ['clike', 'c', 'cpp', 'objective-c', 'objective-cpp'],
@@ -592,6 +595,8 @@ export const createClangdProvider = () => ({
     };
   },
   async run(ctx, inputs) {
+    const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
+    throwIfAborted(abortSignal);
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
     const { docs, targets: resolvedTargets } = resolveClangdDocumentsAndTargets(inputs);
     let targets = resolvedTargets;
@@ -781,7 +786,7 @@ export const createClangdProvider = () => ({
         rootDir: ctx.repoRoot,
         documents: selectedDocs,
         targets,
-        abortSignal: ctx?.abortSignal || null,
+        abortSignal,
         log,
         providerId: 'clangd',
         adaptiveDegradedHint: preflight?.state === 'degraded',
@@ -809,6 +814,7 @@ export const createClangdProvider = () => ({
     } finally {
       clangdStderr.flush(log);
     }
+    throwIfAborted(abortSignal);
     const diagnostics = appendDiagnosticChecks(
       result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
       [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]

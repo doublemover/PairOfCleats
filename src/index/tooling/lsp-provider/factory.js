@@ -81,7 +81,7 @@ export const createConfiguredLspProvider = (server) => {
     version: server.version || '1.0.0',
     priority: Number.isFinite(server.priority) ? server.priority : 80,
     languages: server.languages || [],
-    ...(server.profileContractVersion ? { profileContractVersion: server.profileContractVersion } : {}),
+    profileContractVersion: server.profileContractVersion || 1,
     exclusiveLanguageGroup: server.exclusiveLanguageGroup || null,
     replacesProviderIds: server.replacesProviderIds || [],
     kinds: Array.isArray(server.kinds) && server.kinds.length
@@ -311,6 +311,12 @@ export const createConfiguredLspProvider = (server) => {
       providerId,
       requirements: server.preflightRuntimeRequirements
     });
+    if (commandPreflight.state === 'ready' && runtimeRequirementPreflight.blockProvider === true) return {
+      ...runtimeRequirementPreflight,
+      requestedCommand: commandPreflight.requestedCommand,
+      commandProfile: commandPreflight.commandProfile,
+      checks: mergePreflightChecks(commandPreflight.checks, runtimeRequirementPreflight.check, runtimeRequirementPreflight.checks)
+    };
     const zlsRuntimeCompatibilityPreflight = resolveZlsRuntimeCompatibilityPreflight({
       server, commandProfile: commandPreflight?.commandProfile,
       runtimeProfiles: runtimeRequirementPreflight?.profiles || []

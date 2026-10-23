@@ -21,7 +21,8 @@ import { normalizeProviderId } from './provider-contract.js';
 import { providerProfileCacheIdentity, verifyProviderProfileReceipt } from './provider-profile.js';
 import { canonicalSemanticJson } from '../semantic/identity.js';
 import { ToolingRequiredComputationError, isRequiredToolingComputationError } from './required-computation.js';
-import { isAbortError } from '../../shared/abort.js';
+import { composeAbortSignals, isAbortError, throwIfAborted } from '../../shared/abort.js';
+import { resolveRequestedAbortSignal } from './preflight/manager-state.js';
 import { mergeSymbolicTypeGraphs, normalizeTypeExpressions, symbolicTypeError,
   validateTypeExpressionReferences } from '../../shared/symbolic-types.js';
 import {
@@ -183,8 +184,10 @@ const resolveProviderCachedExecution = async ({
   ctx,
   plan,
   cacheDir,
-  observations
+  observations,
+  abortSignal
 }) => {
+  throwIfAborted(abortSignal);
   const provider = plan?.provider;
   const providerId = normalizeProviderId(provider?.id);
   const planDocuments = Array.isArray(plan?.documents) ? plan.documents : [];
@@ -195,7 +198,7 @@ const resolveProviderCachedExecution = async ({
   const profile = suppliedProfile ? JSON.parse(canonicalSemanticJson(suppliedProfile)) : null;
   const profileHash = profile ? providerProfileCacheIdentity(profile, { providerId,
     adapterVersion: provider.version, repoRoot: ctx.repoRoot }) : null;
-  if (profileHash) await verifyProviderProfileReceipt(profile, { signal: ctx.signal });
+  if (profileHash) await verifyProviderProfileReceipt(profile, { signal: abortSignal });
   const cacheKey = computeCacheKey({
     providerId,
     providerVersion: provider.version,
@@ -240,6 +243,7 @@ const resolveProviderCachedExecution = async ({
         cachePath = null;
       } else {
         const { payload: cached } = readToolingCacheEntry(cachePath, TOOLING_PROVIDER_CACHE_READ_MAX_BYTES);
+        throwIfAborted(abortSignal);
         assertCurrentIndexFormat({ operation: 'resume', component: 'tooling provider cache',
           foundVersion: cached?.cache?.artifactSurfaceVersion, repoRoot: ctx.repoRoot || process.cwd(), indexPath: cachePath });
         if (!isOwnedProviderCache(cached, path.basename(cachePath))) {
@@ -253,6 +257,7 @@ const resolveProviderCachedExecution = async ({
         }
       }
     } catch (error) {
+      if (isAbortError(error)) throw error;
       if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
       if (error?.code !== 'ENOENT') {
         observations.push({
@@ -994,6 +999,8 @@ const summarizeToolingMetrics = ({
 };
 
 export async function runToolingProviders(ctx, inputs, providerIds = null) {
+  const abortSignal = composeAbortSignals(resolveRequestedAbortSignal(ctx, inputs), ctx?.signal);
+  throwIfAborted(abortSignal);
   const strict = ctx?.strict !== false;
   const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
   const targets = Array.isArray(inputs?.targets) ? inputs.targets : [];
@@ -1123,11 +1130,13 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
         ctx,
         plan,
         cacheDir,
-        observations
+        observations,
+        abortSignal
       }));
     }
     const preflightLivePlans = [];
     for (const entry of providerExecutions) {
+      throwIfAborted(abortSignal);
       if (entry.output || !entry.provider || !entry.providerId) continue;
       const preflightInputs = typeof entry.provider.preparePreflightInputs === 'function'
         ? await Promise.resolve(entry.provider.preparePreflightInputs(ctx, {
@@ -1145,13 +1154,16 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       preflightLivePlans.push({
         provider: entry.provider,
         documents: preflightDocuments,
-        targets: preflightTargets
+        targets: preflightTargets,
+        abortSignal
       });
     }
+    throwIfAborted(abortSignal);
     const providerPreflightWaveToken = kickoffToolingProviderPreflights(ctx, preflightLivePlans);
     let providerOrdinal = 0;
 
     for (const execution of providerExecutions) {
+      throwIfAborted(abortSignal);
       providerOrdinal += 1;
       const {
         provider,
@@ -1193,19 +1205,21 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       try {
         // Preflight/other providers may have awaited since cache admission.
         // Recheck saved provenance before consuming either cached or live work.
-        if (execution.profileHash) await verifyProviderProfileReceipt(execution.profile, { signal: ctx.signal });
+        if (execution.profileHash) await verifyProviderProfileReceipt(execution.profile, { signal: abortSignal });
         if (!output) {
           providerProgressPhase = 'live-run';
           const providerInputs = {
             ...inputs,
+            abortSignal,
             documents: planDocuments,
             targets: planTargets,
             toolingPreflightWaveToken: providerPreflightWaveToken
           };
           try {
             output = await provider.run(ctx, providerInputs);
+            throwIfAborted(abortSignal);
             if (execution.profileHash) {
-              try { await verifyProviderProfileReceipt(execution.profile, { signal: ctx.signal }); } catch (cause) {
+              try { await verifyProviderProfileReceipt(execution.profile, { signal: abortSignal }); } catch (cause) {
                 if (isAbortError(cause)) throw cause;
                 throw new ToolingRequiredComputationError(`Observed ${providerId} profile changed during provider execution.`, {
                   operation: 'provider-profile-freshness', reason: 'profile_changed', cause
@@ -1301,6 +1315,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
             continue;
           }
         }
+        throwIfAborted(abortSignal);
         if (!output) {
           providerOutcome = 'empty';
         } else {
@@ -1424,6 +1439,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       generation
     });
     await finalizePreflights();
+    throwIfAborted(abortSignal);
     mergeProviderPreflightDiagnostics(providerDiagnostics, preflights);
     metrics.preflights = summarizeToolingPreflights(preflights);
     metrics.preflights.scheduler = getToolingProviderPreflightSchedulerMetrics(ctx);

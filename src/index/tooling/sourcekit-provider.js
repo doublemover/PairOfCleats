@@ -4,6 +4,7 @@ import { SymbolKind } from 'vscode-languageserver-protocol';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { toPosix } from '../../shared/file-paths.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { resolveRequestedAbortSignal } from './preflight/manager-state.js';
 import {
   appendDiagnosticChecks,
   buildDuplicateChunkUidChecks,
@@ -540,6 +541,7 @@ export const createSourcekitProvider = () => ({
   preflightId: 'sourcekit.package-resolution',
   preflightClass: 'dependency',
   version: '2.1.1',
+  profileContractVersion: 1,
   label: 'sourcekit-lsp',
   priority: 40,
   languages: ['swift'],
@@ -569,9 +571,7 @@ export const createSourcekitProvider = () => ({
     const log = typeof inputs?.log === 'function'
       ? inputs.log
       : (typeof ctx?.logger === 'function' ? ctx.logger : (() => {}));
-    const abortSignal = inputs?.abortSignal && typeof inputs.abortSignal.aborted === 'boolean'
-      ? inputs.abortSignal
-      : (ctx?.abortSignal && typeof ctx.abortSignal.aborted === 'boolean' ? ctx.abortSignal : null);
+    const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
     throwIfAborted(abortSignal);
     const sourcekitConfig = inputs?.sourcekitConfig || ctx?.toolingConfig?.sourcekit || {};
     const docsAll = Array.isArray(inputs?.documents)
@@ -650,9 +650,7 @@ export const createSourcekitProvider = () => ({
   },
   async run(ctx, inputs) {
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
-    const abortSignal = ctx?.abortSignal && typeof ctx.abortSignal.aborted === 'boolean'
-      ? ctx.abortSignal
-      : null;
+    const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
     throwIfAborted(abortSignal);
     const sourcekitConfig = ctx?.toolingConfig?.sourcekit || {};
     const excludePathRegexes = resolveSourcekitExcludePathRegexes(sourcekitConfig);
@@ -957,6 +955,7 @@ export const createSourcekitProvider = () => ({
         sessionPoolingEnabled: !hostLockEnabled,
         indexDir: ctx?.buildRoot || null
       });
+      throwIfAborted(abortSignal);
       invalidateProbeCacheOnInitializeFailure({
         checks: result?.checks,
         providerId: 'sourcekit',

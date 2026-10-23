@@ -41,6 +41,14 @@ export const resolveRuntimeRequirementsPreflight = ({
       toolingConfig: ctx?.toolingConfig || {}
     });
     profiles.push({ id: requirementId, commandProfile });
+    const validationReason = commandProfile?.probe?.validationFailure?.reasonCode;
+    if (commandProfile?.resolved?.mode === 'blocked' || commandProfile?.probe?.cacheOwnershipPending === true) {
+      const reasonCode = commandProfile?.resolved?.mode === 'blocked'
+        ? 'preflight_runtime_requirement_denied' : 'preflight_runtime_requirement_settlement_pending';
+      const message = `${requirementLabel} cannot be admitted for ${providerId} (${validationReason || reasonCode}); provider launch is blocked.`;
+      return { state: 'blocked', blockProvider: true, reasonCode, message,
+        checks: [...checks, { name: `${providerId}_runtime_${requirementId}_blocked`, status: 'warn', message }], profiles };
+    }
     const probeOk = commandProfile?.probe?.ok === true;
     if (probeOk) continue;
     const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile?.probe);
