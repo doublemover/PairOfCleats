@@ -144,6 +144,11 @@ export function createBuildScheduler(input = {}) {
       return queue;
     },
     registerQueues: queueLifecycle.registerQueues,
+    registerQueueConcurrencyLimit: (name, initialLimit) => {
+      const limit = queueLifecycle.registerQueueConcurrencyLimit(name, initialLimit);
+      dispatch.pump();
+      return { get: limit.get, set: value => { limit.set(value); dispatch.pump(); } };
+    },
     clearQueue: queueLifecycle.clearQueue,
     setTelemetryOptions: shutdownController.setTelemetryOptions,
     enabled: config.enabled,

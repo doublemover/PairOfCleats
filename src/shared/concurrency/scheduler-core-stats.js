@@ -87,6 +87,8 @@ export const buildSchedulerStatsSnapshot = ({
       inFlightBytes: normalizeByteCount(q.inFlightBytes),
       maxPending: q.maxPending,
       concurrency: q.concurrency,
+      configuredConcurrency: q.configuredConcurrency,
+      adapterConcurrency: q.adapterConcurrency,
       maxPendingBytes: q.maxPendingBytes,
       maxInFlightBytes: q.maxInFlightBytes,
       floorCpu: q.floorCpu,

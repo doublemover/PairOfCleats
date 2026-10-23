@@ -36,13 +36,18 @@ export function createSchedulerQueueAdapter({
     ? Math.floor(Number(concurrency)) : null;
   const effectiveConcurrency = () => explicitQueueCap == null ? requestedConcurrency
     : requestedConcurrency == null ? explicitQueueCap : Math.min(explicitQueueCap, requestedConcurrency);
-  const registered = scheduler.registerQueue?.(queueName, {
+  const ownsConcurrencyLimit = typeof scheduler.registerQueueConcurrencyLimit === 'function';
+  const registration = {
     ...(maxPending != null ? { maxPending: producerMaxPending ?? 0 } : {}),
     ...(maxPendingBytes != null ? { maxPendingBytes: producerMaxPendingBytes ?? 0 } : {}),
     ...(maxInFlightBytes != null ? { maxInFlightBytes: producerMaxInFlightBytes ?? 0 } : {}),
     ...(queueConfig || {}),
-    ...(effectiveConcurrency() != null ? { concurrency: effectiveConcurrency() } : {})
-  });
+    ...(!ownsConcurrencyLimit && effectiveConcurrency() != null ? { concurrency: effectiveConcurrency() } : {})
+  };
+  if (ownsConcurrencyLimit) delete registration.concurrency;
+  const registered = scheduler.registerQueue?.(queueName, registration);
+  const concurrencyLimit = ownsConcurrencyLimit
+    ? scheduler.registerQueueConcurrencyLimit(queueName, effectiveConcurrency()) : null;
   const intersectLimit = (producerLimit, schedulerLimit) => (
     producerLimit == null ? schedulerLimit
       : schedulerLimit == null ? producerLimit : Math.min(producerLimit, schedulerLimit)
@@ -151,11 +156,12 @@ export function createSchedulerQueueAdapter({
     maxPending: resolvedMaxPending ?? (maxPending === 0 ? 0 : undefined),
     maxPendingBytes: resolvedMaxPendingBytes ?? (maxPendingBytes === 0 ? 0 : undefined),
     maxInFlightBytes: resolvedMaxInFlightBytes ?? (maxInFlightBytes === 0 ? 0 : undefined),
-    get concurrency() { return effectiveConcurrency() ?? undefined; },
+    get concurrency() { return (concurrencyLimit ? concurrencyLimit.get() : effectiveConcurrency()) ?? undefined; },
     set concurrency(value) {
       if (!Number.isSafeInteger(value) || value < 1) throw new TypeError('Queue concurrency must be a positive integer.');
       requestedConcurrency = value;
-      scheduler.registerQueue?.(queueName, { concurrency: effectiveConcurrency() });
+      if (concurrencyLimit) concurrencyLimit.set(effectiveConcurrency());
+      else scheduler.registerQueue?.(queueName, { concurrency: effectiveConcurrency() });
     }
   };
 }

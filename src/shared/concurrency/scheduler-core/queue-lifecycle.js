@@ -5,6 +5,15 @@ import {
 } from '../scheduler-core-queue-state.js';
 
 export function createSchedulerQueueLifecycle({ config }) {
+  const refreshConcurrency = queue => {
+    let adapterLimit = null;
+    for (const value of queue.adapterConcurrencyLimits.values()) {
+      adapterLimit = adapterLimit == null ? value : Math.min(adapterLimit, value);
+    }
+    queue.adapterConcurrency = adapterLimit;
+    queue.concurrency = queue.configuredConcurrency == null ? adapterLimit
+      : adapterLimit == null ? queue.configuredConcurrency : Math.min(queue.configuredConcurrency, adapterLimit);
+  };
   const resolveQueueSurface = (queueName, explicitSurface = null) => {
     const explicit = config.normalizeSurfaceName(explicitSurface);
     if (explicit && config.adaptiveSurfaceStates.has(explicit)) return explicit;
@@ -38,6 +47,9 @@ export function createSchedulerQueueLifecycle({ config }) {
       floorMem: Number.isFinite(Number(cfg.floorMem)) ? Math.max(0, Math.floor(Number(cfg.floorMem))) : 0,
       maxPending: config.normalizeMaxPending(cfg.maxPending),
       concurrency: config.normalizeMaxPending(cfg.concurrency),
+      configuredConcurrency: config.normalizeMaxPending(cfg.concurrency),
+      adapterConcurrencyLimits: new Map(),
+      adapterConcurrency: null,
       maxPendingBytes: config.normalizeByteLimit(cfg.maxPendingBytes),
       maxInFlightBytes: config.normalizeByteLimit(cfg.maxInFlightBytes),
       pending: [],
@@ -82,7 +94,8 @@ export function createSchedulerQueueLifecycle({ config }) {
       queue.maxPending = config.normalizeMaxPending(newConfig.maxPending);
     }
     if (Object.prototype.hasOwnProperty.call(newConfig, 'concurrency')) {
-      queue.concurrency = config.normalizeMaxPending(newConfig.concurrency);
+      queue.configuredConcurrency = config.normalizeMaxPending(newConfig.concurrency);
+      refreshConcurrency(queue);
     }
     if (newConfig.maxPendingBytes != null) {
       queue.maxPendingBytes = config.normalizeByteLimit(newConfig.maxPendingBytes);
@@ -160,6 +173,24 @@ export function createSchedulerQueueLifecycle({ config }) {
     }
   };
 
+  // Producer limits belong to the adapter that requested them. They intersect
+  // configured scheduler limits and other adapters; registering one producer
+  // must never replace another owner's hard admission ceiling.
+  const registerQueueConcurrencyLimit = (queueName, initialLimit = null) => {
+    const queue = ensureQueue(queueName);
+    const owner = {};
+    const set = value => {
+      if (value != null && (!Number.isSafeInteger(value) || value < 1)) {
+        throw new TypeError('Queue concurrency must be a positive integer.');
+      }
+      if (value == null) queue.adapterConcurrencyLimits.delete(owner);
+      else queue.adapterConcurrencyLimits.set(owner, value);
+      refreshConcurrency(queue);
+    };
+    set(initialLimit);
+    return { set, get: () => queue.concurrency };
+  };
+
   const countSurfaceRunning = (surfaceName) => (
     surfaceName
       ? Math.max(0, Number(config.runningBySurface.get(surfaceName)) || 0)
@@ -194,6 +225,7 @@ export function createSchedulerQueueLifecycle({ config }) {
     evaluateWriteBackpressure,
     registerQueue,
     registerQueues,
+    registerQueueConcurrencyLimit,
     countSurfaceRunning,
     recordQueueWaitTime,
     clearQueue,
