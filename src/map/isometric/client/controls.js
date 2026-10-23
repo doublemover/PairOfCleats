@@ -270,9 +270,10 @@ export const initControls = () => {
 
   const velocity = new THREE.Vector2(0, 0);
   let zoomVelocity = 0;
-  const cancelMotion = () => { state.pickFence?.cancel(); velocity.set(0,0); zoomVelocity=0; endDrag(); };
+  const inputCurrent = () => !disposed && state.disposeControls === dispose && state.renderer === renderer;
+  const cancelMotion = () => { if (!inputCurrent()) return; state.pickFence?.cancel(); velocity.set(0,0); zoomVelocity=0; endDrag(); };
   inputOwner=createViewportInputOwner({ viewport:dom.app, canvas:renderer.domElement, window, document,
-    cancelMotion, invalidate:invalidateRender, shortcut:event=>{
+    cancelMotion, invalidate:invalidateRender, isCurrent:inputCurrent, shortcut:event=>{
       if(state.layoutStyle!=='stacks'||!['KeyF','Home','Escape','Enter'].includes(event.code))return false;
       cancelMotion();
       if(event.code==='Escape')setSelection(null);
