@@ -34,7 +34,7 @@ const sameIdentity = (left, right) => sameObject(left, right)
  * failed write/close or removes its pathname automatically. The exact original
  * owner can explicitly close and roll back only its sealed original metadata.
  */
-export const publishFileLock = async ({ handle, lockPath, payload, contents, diagnostics, readInfo }) => {
+export const publishFileLock = async ({ handle, lockPath, payload, contents, diagnostics }) => {
   const key = keyFor(lockPath), token = {};
   const hold = () => {
     const active = publications.get(key) || new Set(); active.add(token); publications.set(key, active);
@@ -54,6 +54,8 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
   let original = null, snapshot = null, closed = false, removed = false, closing = null, reconciling = null, overflow = false;
   let admitted = false, released = false, releasing = null, releasePublished = null;
   let publishedLock = null, checkingResources = false;
+  let getReadSession = null;
+  const readSessions = new Set(), readSessionFields = new Set(['containedFileSession', 'containedFileSessions']);
   const remember = value => {
     const pending = [value];
     while (pending.length) {
@@ -74,6 +76,12 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
       }
       const captured = captureObservation(error, retainInspection);
       if (captured.observe) { if (observers.length < 128) observers.push(captured.observe); else overflow = true; }
+      if (getReadSession) {
+        const descriptor = getReadSession(error);
+        if (descriptor && !readSessions.has(descriptor)) {
+          if (readSessions.size < 128) readSessions.add(descriptor); else overflow = true;
+        }
+      }
       if (captured.inspectionFailed) {
         if (inspectionFailures.length < 64) {
           inspectionFailures.push(captured.inspectionError);
@@ -140,6 +148,7 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
     if (objectLike(primary)) {
       try {
         for (const [field, captured] of primaryDescriptors) {
+          if (readSessions.size && readSessionFields.has(field)) continue;
           const descriptor = { ...captured }, getter = descriptor.get, setter = descriptor.set;
           if (typeof getter === 'function') descriptor.get = () => {
             try { return getter.call(primary); }
@@ -166,7 +175,9 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
       fileLockPublicationSession: { value: session }, fileLockPublicationErrors: { value: Object.freeze([...failure.errors]) },
       fileLockPublication: { value: Object.freeze({ lockPath, lockId,
         descriptorCloseObserved: closed, identitySealed: Boolean(snapshot), metadataRemoved: removed,
-        state: admitted ? 'release-failed' : 'publication-failed' }) }
+        state: admitted ? 'release-failed' : 'publication-failed' }) },
+      ...(readSessions.size ? { containedFileSession: { value: [...readSessions][0] },
+        containedFileSessions: { value: Object.freeze([...readSessions]) } } : {})
     });
     recordFileLockPublicationFailure(failure, session);
     return failure;
@@ -283,7 +294,14 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
         if (!allowAbsent) return false;
         removed = true; forget(); return true;
       }
-      const info = await readInfo(lockPath);
+      const reader = await import('./file-lock-release-reader.js');
+      getReadSession = reader.getContainedFileSession;
+      if (!resourcesSettled()) throw new Error('Original published lock work prohibits metadata descriptor admission.');
+      const info = await reader.readFileLockReleaseInfo(lockPath, { expectedBytes: Buffer.byteLength(contents), verifyStat: stat => {
+        if (!regular(stat) || !sameIdentity(identityOf(stat), snapshot)) {
+          throw new Error('Opened lock release metadata differs from its sealed physical identity.');
+        }
+      } });
       if (!resourcesSettled()) throw new Error('Original published lock work changed during release owner inspection.');
       if (!info || info.lockId !== lockId) return false;
       const rechecked = await currentOwned(snapshot, true);
@@ -313,7 +331,9 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
   publishedLock = lock;
   Object.defineProperty(lock, 'fileLockPublicationSession', { value: session });
   recordPublishedFileLockHandle(lock, { session, remember, releaseObservation: Object.freeze({
-    cacheOwnershipPending: true, cacheOwnershipReleased: originalResourcesSettled, fileLockPublicationSession: session
+    cacheOwnershipPending: true, cacheOwnershipReleased: originalResourcesSettled, fileLockPublicationSession: session,
+    get containedFileSession() { return [...readSessions][0] || null; },
+    get containedFileSessions() { return Object.freeze([...readSessions]); }
   }) });
   return lock;
 };

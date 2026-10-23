@@ -109,7 +109,7 @@ export const acquireFileLock = async ({
     try {
       const handle = await fs.open(lockPath, 'wx');
       opened = true;
-      return await publishFileLock({ handle, lockPath, payload: persisted, contents, diagnostics: { parentMissingRetries }, readInfo: readLockInfo });
+      return await publishFileLock({ handle, lockPath, payload: persisted, contents, diagnostics: { parentMissingRetries } });
     } catch (err) {
       if (opened) throw err;
       // Windows can retain a delete-pending file object until another native

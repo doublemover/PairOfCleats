@@ -58,8 +58,11 @@ preserving independent prerequisites. The handle's actual session remains a
 separate metadata settlement capability, described in
 [the publication lifetime contract](file-lock-publication-lifetime.md).
 
-`withFileLock` worker settlement before its first release, the legacy lock-info
-borrower's swallowed read/descriptor failures, raw descriptor/atomic publication
-owners, and cross-process/native qualification remain separate open work.
+Published release now adopts its metadata descriptor through the existing owner,
+with actual failed-close capabilities projected non-enumerably through the
+authenticated handle context. `withFileLock` worker settlement before its first
+release, other diagnostic/stale lock-info callers' swallowed read/descriptor
+failures, raw descriptor/atomic publication owners, and cross-process/native
+qualification remain separate open work.
 The bridge reuses the existing publication/failure owner associations and fence;
 it adds no filesystem namespace or metadata proof to arbitrary wrapper errors.

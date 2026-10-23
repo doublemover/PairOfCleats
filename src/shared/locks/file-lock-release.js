@@ -57,7 +57,8 @@ const createLockReleaseFailureError = ({
   Object.assign(failure, { message, lockPath, causeCode });
   const independent = Object.getOwnPropertyDescriptor(failure, 'cacheOwnershipReleased')?.value;
   if (published) {
-    failure = addStorageFailureContext(failure, published, null, { nonEnumerable: ['fileLockPublicationSession'] });
+    failure = addStorageFailureContext(failure, published, null, {
+      nonEnumerable: ['fileLockPublicationSession', 'containedFileSession', 'containedFileSessions'] });
     restoreCause();
     // Return newly observed worker/inspection prerequisites to the same owner
     // before another explicit metadata retry. Both identities are private.
