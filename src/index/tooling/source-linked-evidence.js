@@ -4,6 +4,8 @@ import { writeSemanticAnalysis } from '../semantic/analysis-write.js';
 import { persistSemanticEvidence } from '../semantic/lsp-evidence.js';
 import { combineSemanticProviderOutputs } from './result-dispatch.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 
 const fail = message => Object.assign(new Error(message), { code: 'ERR_SOURCE_LINKED_EVIDENCE' });
 const same = (left, right) => canonicalSemanticJson(left) === canonicalSemanticJson(right);
@@ -24,7 +26,17 @@ export const writeSourceLinkedEvidence = async ({ report, sources, state, policy
     || !Number.isSafeInteger(maxReferences) || maxReferences < 1 || maxReferences > 4096) throw fail('Invalid source-linked writer bounds.');
   let encoded;
   try { encoded = canonicalSemanticJson(report, { maxBytes, check: () => throwIfAborted(signal) }); }
-  catch (error) { if (error?.code === 'ERR_SEMANTIC_JSON_BUDGET') throw fail('Source-linked report byte budget exhausted.'); throw error; }
+  catch (error) {
+    const observation = observeStorageResource(error, { phase: 'source-linked-writer-encoding' });
+    observation.requireSettled();
+    let code;
+    try { code = error?.code; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    if (code === 'ERR_SEMANTIC_JSON_BUDGET') throw addStorageFailureContext(
+      fail('Source-linked report byte budget exhausted.'), {}, observation.retain(), { secondaryPresent: true });
+    throw error;
+  }
   report = JSON.parse(encoded);
   const { identity, ...identityInput } = report;
   if (report.schemaVersion !== 1 || report.kind !== 'source-linked-evidence'

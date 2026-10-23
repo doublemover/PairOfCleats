@@ -1,5 +1,6 @@
 import { canonicalSemanticJson, semanticHash } from '../identity.js';
 import { validateSemanticEnvelope } from '../../../contracts/validators/semantic-envelopes.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 
 const text = value => typeof value === 'string' && value.length > 0 && value.length <= 4096;
 const uniqueTexts = value => Array.isArray(value) && value.every(text) && new Set(value).size === value.length;
@@ -104,7 +105,16 @@ const captureCheckInput = (system, capsule, maxObligations, maxBytes) => {
   // No caller callbacks run before the private copy exists. In particular,
   // cancellation/progress objects may be getters that mutate caller inputs.
   try { encoded = canonicalSemanticJson({ system, capsule }, { maxBytes }); }
-  catch (error) { if (error?.code === 'ERR_SEMANTIC_JSON_BUDGET') return null; throw error; }
+  catch (error) {
+    const observation = observeStorageResource(error, { phase: 'finite-may-check-encoding' });
+    observation.requireSettled();
+    let code;
+    try { code = error?.code; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    if (code === 'ERR_SEMANTIC_JSON_BUDGET') return null;
+    throw error;
+  }
   return JSON.parse(encoded);
 };
 

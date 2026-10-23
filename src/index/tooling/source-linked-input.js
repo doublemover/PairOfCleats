@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import { canonicalSemanticJson } from '../semantic/identity.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 
 /** Own one supplied JSON input under the producer's existing byte allowance.
  * Hash the admitted encoding directly, avoiding a second recursive traversal.
@@ -12,7 +14,20 @@ export const captureSourceLinkedInput = (input, { maxBytes, fail, message, domai
     || check !== null && typeof check !== 'function') throw new TypeError('Explicit source-linked input bounds and identity contract are required.');
   let encoded;
   try { encoded = canonicalSemanticJson(input, { maxBytes, check }); }
-  catch (error) { if (error?.code === 'ERR_SEMANTIC_JSON_BUDGET') throw fail(message); throw error; }
+  catch (error) {
+    const observation = observeStorageResource(error, { phase: 'source-linked-input-encoding' });
+    observation.requireSettled();
+    let code;
+    try { code = error?.code; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    if (code !== 'ERR_SEMANTIC_JSON_BUDGET') throw error;
+    let mapped;
+    try { mapped = fail(message); }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    throw addStorageFailureContext(mapped, {}, observation.retain(), { secondaryPresent: true });
+  }
   const value = JSON.parse(encoded);
   const identity = domain === null ? null : createHash('sha256').update(domain + '\0', 'utf8').update(encoded, 'utf8').digest('hex');
   check?.();
