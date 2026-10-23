@@ -163,6 +163,8 @@ export const readBundleOrNull = async (input) => {
  * @returns {Array<object>|null}
  */
 export const resolveBundleImports = (bundle, { expectedImportScanFingerprint = null } = {}) => {
+  // A bounded CSS prefix is useful evidence, never a complete cached scan.
+  if (bundle?.fileRelations?.cssImportCoverage && bundle.fileRelations.cssImportCoverage.state !== 'complete') return null;
   if (expectedImportScanFingerprint != null) {
     const cachedFingerprint = typeof bundle?.fileRelations?.importScanFingerprint === 'string'
       ? bundle.fileRelations.importScanFingerprint

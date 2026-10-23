@@ -244,6 +244,19 @@ full cleanup-category capability or deep-suite green is claimed.
   unrun. Semantic importResolution 11 to 12; build context v6 / resolver v8.
   See [the contract](../contracts/bazel-label-source-resolution.md).
 
+- #1712: CSS imports now come from bounded lexical facts, with comment/string,
+  URL, escape, function and block context instead of raw substring matching.
+  Exact UTF-16 occurrence spans, decoded identities, duplicate witnesses and
+  qualifier ranges remain separate from deduplicated dependencies or browser
+  activation. Partial/cancelled/unsupported receipts retain diagnostics and
+  cannot qualify complete cached scans. Parsed-literal admission preserves
+  punctuation. Prepared relations/chunks share owned facts; null chunks and
+  unchanged source avoid repeat native parsing, with existing disposal intact.
+  Token/block fallback and graph/replay regressions, including native-enabled
+  and disabled registry paths, are authored, unrun. Import producer 12 to 13;
+  sourceChunking 17 to 18. No preprocessor, network or browser execution.
+  See [the CSS contract](../contracts/css-import-source-facts.md).
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -440,7 +453,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1709](https://github.com/doublemover/PairOfCleats/issues/1709) | [P2] Qualify API parameter requirements instead of interpreting TypeScript type syntax as runtime arity | Pending full-scope review |
 | [#1710](https://github.com/doublemover/PairOfCleats/issues/1710) | [Perf] Prepare embedded-cache parents once and reuse qualified child opens across relocation | Pending full-scope review |
 | [#1711](https://github.com/doublemover/PairOfCleats/issues/1711) | [P2] Reconcile chunk-seeded import projection with graph-witness endpoint domains | Pending full-scope review |
-| [#1712](https://github.com/doublemover/PairOfCleats/issues/1712) | [P2] Collect CSS imports from tokens instead of comment/string substrings and truncated URLs | Pending full-scope review |
+| [#1712](https://github.com/doublemover/PairOfCleats/issues/1712) | [P2] Collect CSS imports from tokens instead of comment/string substrings and truncated URLs | Source repair committed; runtime proof pending |
 | [#1713](https://github.com/doublemover/PairOfCleats/issues/1713) | [Perf] Share one prepared parse5 document between HTML chunking and metadata | Pending full-scope review |
 | [#1714](https://github.com/doublemover/PairOfCleats/issues/1714) | [Perf] Amortize retained graph evidence verification within owned page enumerations | Pending full-scope review |
 | [#1715](https://github.com/doublemover/PairOfCleats/issues/1715) | [P2] Separate XML schema namespace identifiers from schema-location dependencies | Pending full-scope review |

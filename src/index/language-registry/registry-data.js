@@ -28,7 +28,7 @@ import * as kotlinLang from '../../lang/kotlin.js';
 import { buildRubyChunks, buildRubyRelations, collectRubyImports, computeRubyFlow, extractRubyDocMeta } from '../../lang/ruby.js';
 import { buildPhpChunks, buildPhpRelations, collectPhpImports, computePhpFlow, extractPhpDocMeta } from '../../lang/php.js';
 import { buildHtmlChunks, buildHtmlRelations, collectHtmlImports, computeHtmlFlow, extractHtmlDocMeta, getHtmlMetadata } from '../../lang/html.js';
-import { buildCssChunks, buildCssRelations, collectCssImports, computeCssFlow, extractCssDocMeta } from '../../lang/css.js';
+import { prepareCssChunkContext, buildCssRelations, collectCssImports, collectCssImportEntries, computeCssFlow, extractCssDocMeta } from '../../lang/css.js';
 import { buildLuaChunks, buildLuaRelations, collectLuaImports, computeLuaFlow, extractLuaDocMeta } from '../../lang/lua.js';
 import { buildSqlChunks, buildSqlRelations, collectSqlImports, computeSqlFlow, extractSqlDocMeta } from '../../lang/sql.js';
 import { buildPerlChunks, buildPerlRelations, collectPerlImports, computePerlFlow, extractPerlDocMeta } from '../../lang/perl.js';
@@ -290,16 +290,17 @@ const PARSER_CHUNK_LANGUAGE_ADAPTERS = [
     flow: computePhpFlow
   }),
   createHtmlAdapter(),
-  createParserChunkAdapter({
-    id: 'css',
-    match: (ext) => isCss(ext),
-    collectImports: collectCssImports,
-    chunkKey: 'cssChunks',
-    buildChunks: buildCssChunks,
-    buildRelations: buildCssRelations,
-    parserScope: 'css',
+  createManagedAdapter({
+    id: 'css', match: ext => isCss(ext), collectImports: collectCssImports, collectImportEntries: collectCssImportEntries,
+    prepare: async ({ text, relPath, ext, options }) => {
+      const cssOptions = buildChunkPrepareOptions({ options, relPath, ext, parserScope: 'css' });
+      return prepareCssChunkContext(text, cssOptions);
+    },
+    buildRelations: ({ text, context, options }) => buildCssRelations(text, context.cssChunks,
+      { ...options, cssSourceFacts: context.cssSourceFacts }),
     extractDocMeta: ({ chunk }) => extractCssDocMeta(chunk),
-    flow: computeCssFlow
+    flow: ({ text, chunk, options }) => computeCssFlow(text, chunk, flowOptions(options)),
+    attachName: true
   }),
   createParserChunkAdapter({
     id: 'lua',

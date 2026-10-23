@@ -6,10 +6,10 @@ import { MODULE_EXPORTS_VERSION } from '../../lang/js-ts-exports.js';
  */
 export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   moduleExports: MODULE_EXPORTS_VERSION,
-  lexicalAnalyzer: '2', importResolution: '12', pieceAssembly: '3',
+  lexicalAnalyzer: '2', importResolution: '13', pieceAssembly: '3',
   recordsProducer: '3', ignoreRules: '2', documentExtraction: '2', discoverySelection: '2',
   repoMapProducer: '2', graphRelations: '1',
-  sourceChunking: '17', typeNormalization: '8', vfsRouting: '2', complexityAnalysis: '2',
+  sourceChunking: '18', typeNormalization: '8', vfsRouting: '2', complexityAnalysis: '2',
   riskPropagation: '4', callSiteIdentity: '3',
   compilerBindings: '23', lspBindings: '46', cfgFlow: '28', callFlow: '45',
   valueSlice: '10', storageFlow: '2', workerFlow: '11', boundaryFlow: '11', wasmFlow: '5', nativeFlow: '2'

@@ -35,7 +35,7 @@ import { buildKotlinChunks } from '../../lang/kotlin.js';
 import { buildRubyChunks } from '../../lang/ruby.js';
 import { buildPhpChunks } from '../../lang/php.js';
 import { buildHtmlChunks } from '../../lang/html.js';
-import { buildCssChunks } from '../../lang/css.js';
+import { resolveCssPreparedChunks } from '../../lang/css.js';
 import { buildLuaChunks } from '../../lang/lua.js';
 import { buildSqlChunks } from '../../lang/sql.js';
 import { buildCLikeChunks } from '../../lang/clike.js';
@@ -129,7 +129,7 @@ const CODE_CHUNKERS = [
   {
     id: 'css',
     match: (ext) => isCss(ext),
-    chunk: ({ text, context }) => context?.cssChunks || buildCssChunks(text, getTreeSitterOptions(context))
+    chunk: ({ text, context }) => resolveCssPreparedChunks(text, context, getTreeSitterOptions(context))
   },
   {
     id: 'python',

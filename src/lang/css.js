@@ -1,3 +1,5 @@
+import { collectCssImportEntries, prepareCssSource } from './css/source.js';
+export { collectCssImportEntries, prepareCssSource } from './css/source.js';
 import { buildLineIndex, countLines, createLineAccessor, offsetToLine } from '../shared/lines.js';
 import { extractDocComment, sliceSignature } from './shared.js';
 import { getNativeTreeSitterParser } from './tree-sitter/native-runtime.js';
@@ -85,13 +87,35 @@ const loggedParseTimeouts = new Set();
 const loggedSizeSkips = new Set();
 const loggedTraversalBudget = new Set();
 const loggedUnavailable = new Set();
-const CSS_IMPORT_HINT = /@import/i;
 
 // Guardrails: CSS can contain extremely large selector lists or nested at-rules.
 // Keep traversal and chunk extraction bounded to avoid pathological memory / CPU usage.
 const DEFAULT_MAX_AST_NODES = 250_000;
 const DEFAULT_MAX_AST_STACK = 250_000;
 const DEFAULT_MAX_CHUNK_NODES = 5_000;
+const chunkPreparations = new WeakMap();
+const chunkPolicy = options => {
+  const config = options?.treeSitter || {}, css = config.byLanguage?.css || {};
+  return JSON.stringify({ enabled: !options?.treeSitter || isTreeSitterEnabled(options, 'css'),
+    traversal: resolveTraversalBudget(options), timeout: resolveParseTimeoutMs(options),
+    maxBytes: css.maxBytes ?? config.maxBytes ?? null, maxLines: css.maxLines ?? config.maxLines ?? null });
+};
+
+export const prepareCssChunkContext = (text, options = {}) => {
+  const cssSourceFacts = prepareCssSource(text, options);
+  const cssChunks = ['cancelled', 'unsupported'].includes(cssSourceFacts.coverage.state)
+    ? null : buildCssChunks(text, { ...options, cssSourceFacts });
+  const cssChunkPreparation = Object.freeze({});
+  chunkPreparations.set(cssChunkPreparation, { text, cssChunks, cssSourceFacts, policy: chunkPolicy(options) });
+  return { cssSourceFacts, cssChunks, cssChunkPreparation };
+};
+
+export const resolveCssPreparedChunks = (text, context = {}, options = {}) => {
+  const prepared = chunkPreparations.get(context?.cssChunkPreparation);
+  if (prepared?.text === text && prepared.cssChunks === context.cssChunks && prepared.cssSourceFacts === context.cssSourceFacts
+    && prepared.policy === chunkPolicy(options)) return prepared.cssChunks;
+  return buildCssChunks(text, { ...options, cssSourceFacts: context?.cssSourceFacts });
+};
 
 function resolveTraversalBudget(options) {
   const config = options?.treeSitter || {};
@@ -196,18 +220,13 @@ function gatherRuleNodes(root, budget) {
   return { nodes, reason: null, visited, matched: nodes.length };
 }
 
-export function collectCssImports(text) {
-  if (!text || !CSS_IMPORT_HINT.test(text)) return [];
-  const imports = new Set();
-  const importRe = /@import\s+(?:url\()?['"]?([^'")\s;]+)['"]?\)?/gi;
-  let match;
-  while ((match = importRe.exec(text)) !== null) {
-    if (match[1]) imports.add(match[1]);
-  }
-  return Array.from(imports);
+export function collectCssImports(text, options = {}) {
+  const entries = collectCssImportEntries(text, options);
+  return Object.defineProperty(entries.map(entry => entry.specifier), 'coverage', { value: entries.coverage });
 }
 
 export function buildCssChunks(text, options = {}) {
+  if (options.abortSignal?.aborted || options.signal?.aborted) return null;
   // If the caller provides tree-sitter options, respect enable/disable toggles.
   if (options?.treeSitter && !isTreeSitterEnabled(options, 'css')) {
     return buildCssHeuristicChunks(text, options);
@@ -322,34 +341,11 @@ function buildCssHeuristicChunks(text, options = {}) {
   const lineIndex = buildLineIndex(text);
   const lineAccessor = createLineAccessor(text, lineIndex);
 
-  let idx = 0;
-  while (idx < text.length) {
-    const brace = text.indexOf('{', idx);
-    if (brace === -1) break;
-
-    const selectorStart = Math.max(text.lastIndexOf('\n', brace), text.lastIndexOf('\r', brace)) + 1;
-    const selector = text.slice(selectorStart, brace).trim();
-    if (!selector) {
-      idx = brace + 1;
-      continue;
-    }
-
-    let depth = 0;
-    let end = brace;
-    for (; end < text.length; end += 1) {
-      const ch = text[end];
-      if (ch === '{') depth += 1;
-      if (ch === '}') {
-        depth -= 1;
-        if (depth <= 0) {
-          end += 1;
-          break;
-        }
-      }
-    }
-
-    const start = selectorStart;
-    const endIdx = Math.min(text.length, end);
+  const facts = prepareCssSource(text, options);
+  for (const block of facts.blocks) {
+    const start = block.start, endIdx = block.end;
+    const selector = text.slice(start, block.brace).trim();
+    if (!selector) continue;
     const startLine = offsetToLine(lineIndex, start);
     const endLine = offsetToLine(lineIndex, Math.max(start, endIdx - 1));
     const signature = sliceSignature(text, start, Math.min(endIdx, start + 240));
@@ -372,15 +368,17 @@ function buildCssHeuristicChunks(text, options = {}) {
       }
     });
 
-    idx = endIdx;
   }
 
   return chunks.length ? chunks : null;
 }
 
-export function buildCssRelations(text) {
+export function buildCssRelations(text, chunks = null, options = {}) {
+  const facts = prepareCssSource(text, options);
   return {
-    imports: collectCssImports(text),
+    imports: [...new Set(facts.imports.map(occurrence => occurrence.specifier))],
+    cssImportOccurrences: facts.imports,
+    cssImportCoverage: facts.coverage,
     exports: [],
     calls: [],
     usages: [],

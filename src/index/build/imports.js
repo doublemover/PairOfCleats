@@ -16,6 +16,7 @@ import { sha1 } from '../../shared/hash.js';
 import { showProgress } from '../../shared/progress-runtime.js';
 import { canonicalizeForSignature, stableStringifyForSignature } from '../../shared/stable-json.js';
 import { readCachedImports } from './incremental.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../semantic/analysis-versions.js';
 import {
   IMPORT_REASON_CODES,
   IMPORT_RESOLUTION_STATES,
@@ -76,6 +77,7 @@ const sanitizeImportScanLanguageOptions = (value, pathSegments = []) => {
 };
 
 const buildImportScanFingerprint = ({ languageOptions, mode }) => sha1(stableStringifyForSignature({
+  producer: SEMANTIC_ANALYSIS_VERSIONS.importResolution,
   mode: typeof mode === 'string' ? mode : 'code',
   languageOptions: canonicalizeForSignature(sanitizeImportScanLanguageOptions(languageOptions || null))
 }));
@@ -503,6 +505,7 @@ export async function scanImports({
   throwIfAborted(effectiveAbortSignal);
   const importsByFile = new Map();
   const importHintsByFile = new Map();
+  const importCoverageByFile = Object.create(null);
   const importScanFingerprint = buildImportScanFingerprint({ languageOptions, mode });
   const moduleSet = new Set();
   const start = Date.now();
@@ -614,6 +617,7 @@ export async function scanImports({
       };
       const recordImportEntries = (entries) => {
         if (!Array.isArray(entries)) return false;
+        if (entries.coverage) importCoverageByFile[relKey] = entries.coverage;
         const normalized = normalizeImportEntriesWithHints(entries);
         recordImports(normalized.imports);
         recordImportHints(normalized.hints, normalized.imports);
@@ -782,6 +786,7 @@ export async function scanImports({
   }
   return {
     importsByFile: dedupedImportsByFile,
+    importCoverageByFile,
     importHintsByFile: dedupedImportHintsByFile,
     importScanFingerprint,
     durationMs: Date.now() - start,

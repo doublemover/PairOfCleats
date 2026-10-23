@@ -724,13 +724,17 @@ export const postScanImports = async ({
   if (importScanFingerprint) {
     for (const [file, imports] of Object.entries(importsByFile || {})) {
       const existing = state.fileRelations.get(file);
+      const coverage = importResult?.importCoverageByFile?.[file] || existing?.cssImportCoverage;
+      const complete = !coverage || coverage.state === 'complete';
       if (existing && typeof existing === 'object') {
-        existing.importScanFingerprint = importScanFingerprint;
+        if (coverage) existing.cssImportCoverage = coverage;
+        existing.importScanFingerprint = complete ? importScanFingerprint : null;
         continue;
       }
       state.fileRelations.set(file, {
         imports: Array.isArray(imports) ? imports.slice() : [],
-        importScanFingerprint
+        importScanFingerprint: complete ? importScanFingerprint : null,
+        ...(coverage ? { cssImportCoverage: coverage } : {})
       });
     }
   }

@@ -116,8 +116,10 @@ const normalizeImportEntries = (entries) => {
     );
     if (shouldReplaceHint) existing.collectorHint = normalized.collectorHint;
   }
-  return Array.from(deduped.values())
+  const result = Array.from(deduped.values())
     .sort((a, b) => (a.specifier < b.specifier ? -1 : (a.specifier > b.specifier ? 1 : 0)));
+  if (entries?.coverage) Object.defineProperty(result, 'coverage', { value: entries.coverage });
+  return result;
 };
 
 export function getLanguageForFile(ext, relPath) {
