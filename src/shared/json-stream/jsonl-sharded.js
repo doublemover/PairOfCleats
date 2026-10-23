@@ -266,6 +266,7 @@ const runShardedWrite = async (input, useAsyncIterable) => {
         if (resolvedMaxBytes && state.partLogicalBytes >= resolvedMaxBytes) {
           await state.closePart();
         }
+        throwIfAborted(signal);
       }
     } else {
       const iterator = items?.[Symbol.iterator] ? items[Symbol.iterator]() : null;
@@ -274,24 +275,25 @@ const runShardedWrite = async (input, useAsyncIterable) => {
       }
       let primary = null, completed = false;
       try {
+        throwIfAborted(signal);
         let next = iterator.next();
         while (!next.done) {
-          const item = next.value;
-          next = iterator.next();
-          const hasMore = !next.done;
+          // Consume this yield before advancing a producer that may reuse its
+          // outer row, nested values, or clear its storage when returning done.
           await writeItemToShard({
             state,
-            item,
+            item: next.value,
             signal,
             resolvedMaxItems,
             resolvedMaxBytes,
             partsDirName,
             diskAccount
           });
-          if (resolvedMaxBytes && state.partLogicalBytes >= resolvedMaxBytes && hasMore) {
+          if (resolvedMaxBytes && state.partLogicalBytes >= resolvedMaxBytes) {
             await state.closePart();
-            state.openPart();
           }
+          throwIfAborted(signal);
+          next = iterator.next();
         }
         completed = true;
       } catch (error) { primary = error; throw error; }
@@ -320,6 +322,10 @@ const runShardedWrite = async (input, useAsyncIterable) => {
   }
 };
 
+/** The current yield is encoded and admitted before requesting another row.
+ * Producers may reuse their row/storage when next() is called again; the writer
+ * retains only its owned encoded bytes in bounded output/codec buffers.
+ */
 export async function writeJsonLinesSharded(input) {
   return runShardedWrite(input, false);
 }
