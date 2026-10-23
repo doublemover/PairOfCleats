@@ -357,6 +357,10 @@ async function requestApiJson(baseUrl, requestPath, {
         ...summarizeApiHttpFailure(label, response.status, body, text.trim())
       };
     }
+    if (body?.ok === false) return { ok: false, kind: 'api-operation-failed',
+      message: `${label} failed: the service reported an unsuccessful operation.`,
+      detail: typeof body.message === 'string' ? body.message.slice(0, 4096)
+        : typeof body.code === 'string' ? body.code.slice(0, 4096) : null };
     return { ok: true, payload: body || {} };
   } catch (error) {
     if (error?.code === 'ERR_API_RESPONSE_TOO_LARGE') return {

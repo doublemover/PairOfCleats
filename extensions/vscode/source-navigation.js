@@ -8,12 +8,23 @@ const { readCurrentSource, assertSourceUri, sourceRangeOffsets, sourceDocumentFo
 function captureNavigationRequest(document, position = null, includeDeclaration = true, { allowDirty = false } = {}) {
   if (!document || document.isClosed === true || document.uri?.scheme !== 'file'
     || typeof document.uri.fsPath !== 'string' || (!allowDirty && document.isDirty)) return null;
+  const bufferHash = () => {
+    const text = document.getText();
+    if (typeof text !== 'string' || Buffer.byteLength(text) > 4 * 1024 * 1024) return null;
+    return createHash('sha256').update(Buffer.from(text, 'utf16le')).digest('hex');
+  };
+  let capturedHash;
+  try { capturedHash = bufferHash(); } catch { return null; }
+  if (!capturedHash) return null;
   const version = document.version, file = document.uri.fsPath, dirty = document.isDirty;
   const cursor = position && Object.freeze({ line: position.line, character: position.character });
   const declaration = includeDeclaration !== false;
   let qualified = null;
-  const isCurrent = () => document.isClosed !== true && document.version === version
-    && document.isDirty === dirty && document.uri?.scheme === 'file' && document.uri.fsPath === file;
+  const isCurrent = () => {
+    if (document.isClosed === true || document.version !== version || document.isDirty !== dirty
+      || document.uri?.scheme !== 'file' || document.uri.fsPath !== file) return false;
+    try { return bufferHash() === capturedHash; } catch { return false; }
+  };
   return Object.freeze({ document, version, file, position: cursor, isCurrent,
     args(repoRoot) {
       if (!isCurrent()) throw new Error('Original navigation document changed before publication.');

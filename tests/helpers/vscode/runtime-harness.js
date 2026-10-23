@@ -111,6 +111,7 @@ function createFakeSpawn(spawnCalls, queuedResults, killCalls, nodeProbeCalls, n
         if (result.stderr) child.stderr.emit('data', Buffer.from(result.stderr));
         if (result.error) {
           child.emit('error', result.error);
+          if (!result.retainAfterError) child.emit('close', result.code ?? null);
           return;
         }
         if (!result.persistent) {
@@ -698,7 +699,9 @@ export function createVsCodeRuntimeHarness({
     fakeChildProcess: createFakeSpawn(spawnCalls, queuedResults, killCalls, nodeProbeCalls, nodeProbeResult)
   });
 
+  const globalStorageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-vscode-owned-storage-'));
   const context = {
+    globalStorageUri: normalizeFileUri(globalStorageRoot),
     subscriptions: [],
     workspaceState: {
       get(key, fallback) {
@@ -745,6 +748,7 @@ export function createVsCodeRuntimeHarness({
     workspaceStateStore,
     restoreGlobals() {
       globalThis.fetch = originalFetch;
+      fs.rmSync(globalStorageRoot, { recursive: true, force: true });
     },
     activate() {
       extension.activate(context);

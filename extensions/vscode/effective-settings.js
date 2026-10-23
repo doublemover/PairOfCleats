@@ -56,7 +56,7 @@ function snapshotConfiguration(configuration, keys) {
 }
 
 function renderEffectiveSettings({ snapshot, repoContext, remoteName = '', cli = null, api = null,
-  installation = null, capability = null }) {
+  installation = null, capability = null, searchValidation = null }) {
   return ['PairOfCleats effective settings', '', `Repository: ${repoContext.repoRoot}`,
     `Editor URI: ${repoContext.repoUri?.toString?.() || ''}`,
     `Execution host: ${remoteName || 'local workspace host'}`,
@@ -66,6 +66,7 @@ function renderEffectiveSettings({ snapshot, repoContext, remoteName = '', cli =
     `External runtime: ${cli?.runtime?.command || 'unobserved for this CLI dispatch'}`,
     `External runtime version: ${cli?.runtime?.version || 'unobserved; editor-host version is separate'}`,
     `Transport policy: ${api?.mode || 'cli'}`,
+    `Search option validation: ${searchValidation?.state || 'unobserved'}${searchValidation?.message ? ` (${searchValidation.message})` : ''}`,
     `Service capabilities: ${capability?.state || 'unobserved'}${capability?.names?.length ? ` (${capability.names.join(', ')})` : ''}`,
     ...(capability?.reason ? [`Capability observation: ${capability.reason}`] : []),
     ...(cli?.ok === false ? [`CLI correction: ${cli.message}`] : []),

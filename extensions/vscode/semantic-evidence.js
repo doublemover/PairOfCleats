@@ -68,6 +68,19 @@ function scalarLiteralSelector(type, value = '') {
   return { literal: { type, representation } };
 }
 
+function integerInput(value, min, max, label) {
+  if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) < min || Number(value) > max) {
+    throw new Error(`${label} must be an integer from ${min} to ${max}.`);
+  }
+  return Number(value);
+}
+
+function inputValidation(parse) {
+  return value => {
+    try { parse(value); return null; } catch (error) { return captureEditorFailure(error).message; }
+  };
+}
+
 function buildSemanticRequest(operation, repoRoot, generation, value, extra = {}) {
   if (!generation?.baseBuildId || generation.semanticRevision !== 0) throw new Error('A pinned semantic generation is required.');
   const common = { repoRoot, generation };
@@ -236,9 +249,11 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
         } else {
           let extra = { direction: action.direction };
           if (action.value === 'trace' || action.value === 'explain') {
-            const depth = await vscode.window.showInputBox({ prompt: 'Trace depth (1–64; records 128 / edges 512 / 64 KiB / 250 ms)', value: '2' });
+            const parseDepth = value => integerInput(value, 1, 64, 'Trace depth');
+            const depth = await vscode.window.showInputBox({ prompt: 'Trace depth (1–64; records 128 / edges 512 / 64 KiB / 250 ms)',
+              value: '2', validateInput: inputValidation(parseDepth) });
             if (depth === undefined) continue;
-            if (!/^\d+$/.test(depth) || Number(depth) < 1 || Number(depth) > 64) throw new Error('Trace depth must be between 1 and 64.');
+            parseDepth(depth);
             const kinds = await pick(['flowsTo', 'defines', 'reads', 'writes', 'callTarget',
               'constructTarget', 'argumentToParameter', 'returnToResult'], { canPickMany: true,
               title: 'Trace edge kinds (empty selection uses canonical supported kinds)' });
@@ -248,10 +263,11 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
             if (!slot) continue;
             extra = { ...extra, depth: Number(depth), kinds };
             if (slot !== 'Any slot') {
-              const ordinal = await vscode.window.showInputBox({ prompt: `${slot} ordinal (zero based)`, value: '0' });
+              const parseOrdinal = value => integerInput(value, 0, Number.MAX_SAFE_INTEGER, 'Slot ordinal');
+              const ordinal = await vscode.window.showInputBox({ prompt: `${slot} ordinal (zero based)`, value: '0',
+                validateInput: inputValidation(parseOrdinal) });
               if (ordinal === undefined) continue;
-              if (!/^\d+$/.test(ordinal) || !Number.isSafeInteger(Number(ordinal))) throw new Error('Slot ordinal must be a nonnegative safe integer.');
-              extra.slot = { name: slot, ordinal: Number(ordinal) };
+              extra.slot = { name: slot, ordinal: parseOrdinal(ordinal) };
             }
           }
           const detail = await runOperation(action.value, choice.record.ref, state, extra);
@@ -359,7 +375,8 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
             const value = type === 'null' ? '' : type === 'boolean'
               ? await pick(['true', 'false'], { title: 'Boolean representation' })
               : await vscode.window.showInputBox({ prompt: type === 'string' ? 'String value (empty is valid)'
-                : `Exact recorded ${type} representation (decimal; bigint has no n suffix)` });
+                : `Exact recorded ${type} representation (decimal; bigint has no n suffix)`,
+              validateInput: inputValidation(value => scalarLiteralSelector(type, value)) });
             if (value === undefined) return;
             selector = scalarLiteralSelector(type, value);
           } else {

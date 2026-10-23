@@ -28,6 +28,7 @@ const { collectEvidenceSources, createEvidenceCollection } = require('./evidence
 const { createCapturedEvidenceOpener } = require('./captured-evidence-open.js');
 let latestAnalysisEvidence = null;
 const { resolveRiskSource, validateRiskSource } = require('./risk-source.js');
+const { summarizeIndexHealth } = require('./index-health.js');
 const {
   buildRiskExplanationModelFromStandalone,
   renderCompositeContextPack,
@@ -59,6 +60,7 @@ const {
 } = require('./runtime.js');
 const { buildDestinationBoundApiHeaders, workspaceTrustError } = require('./security.js');
 const { normalizeWorkflowRequest, hasRequiredWorkflowInput } = require('./workflow-replay.js');
+const { captureEditorFailure, editorFailureEvidence } = require('./editor-failure-evidence.js');
 const { normalizeSearchRequest, captureSearchRequest, admitSearchReplay } = require('./search-replay.js');
 const { boundedFacts, captureSearchExplanation, renderSearchExplanation, normalizeCapturedExplanation, normalizeSearchDiagnostics } = require('./search-explanation.js');
 
@@ -291,9 +293,16 @@ async function showEffectiveSettings(seededRepoContext = null) {
   const snapshot = getExtensionConfiguration(repoContext);
   const cli = resolveCli(repoContext.repoRoot, snapshot);
   const api = readApiSettings(snapshot);
+  let searchValidation;
+  try {
+    const options = readSearchOptions(snapshot, VSCODE_SETTINGS);
+    if (api.mode === 'require') buildSearchPayload('', repoContext.repoRoot, options);
+    else buildSearchArgs('', repoContext.repoRoot, options);
+    searchValidation = { state: 'valid for the selected transport option contract' };
+  } catch (error) { searchValidation = { state: 'invalid', message: captureEditorFailure(error).message }; }
   const present = async facts => {
     const text = renderEffectiveSettings({ snapshot, repoContext,
-      remoteName: vscode.env?.remoteName, cli, api, ...facts });
+      remoteName: vscode.env?.remoteName, cli, api, searchValidation, ...facts });
     const document = await vscode.workspace.openTextDocument({ content: text, language: 'plaintext' });
     await vscode.window.showTextDocument(document, { preview: true });
   };
@@ -1190,6 +1199,13 @@ async function finishWorkflowSession(sessionId, patch, { terminalOwner = false }
   updateWorkflowStatusBar();
 }
 
+async function finishRevokedWorkflowSession(session) {
+  if (operations.isCurrent()) return false;
+  await finishWorkflowSession(session.sessionId, { status: 'interrupted',
+    summaryLine: 'The editor request was revoked; retained results do not establish successful completion.' }, { terminalOwner: true });
+  return true;
+}
+
 function validateReplayRepoContext(repoContext, mode) {
   try {
     if (mode === 'cli' && repoContext.repoUri?.scheme && repoContext.repoUri.scheme !== 'file') throw new Error('local CLI requires a local repository');
@@ -1816,7 +1832,7 @@ async function openIndexDirectory() {
     env: buildSpawnEnv(config),
     output
   });
-  if (!result?.payload) {
+  if (!result?.ok || !result.payload) {
     if (result?.detail) output.appendLine(result.detail);
     output.show?.(true);
     const show = result?.kind === 'cancelled'
@@ -1933,7 +1949,7 @@ function getWordPrefixQueryAtPosition(document, position) {
   const startCharacter = Number.isFinite(range?.start?.character) ? Number(range.start.character) : 0;
   const endCharacter = Number.isFinite(position?.character) ? Number(position.character) : startCharacter;
   const prefixLength = Math.max(0, Math.min(fullText.length, endCharacter - startCharacter));
-  return fullText.slice(0, prefixLength || fullText.length).trim();
+  return fullText.slice(0, prefixLength).trim();
 }
 
 function noteNavigationDegraded(key, message, detail = null) {
@@ -2263,6 +2279,8 @@ function createCompletionItem(entry) {
   if (!label) return null;
   const item = new vscode.CompletionItem(label, mapNavigationCompletionKind(entry?.kind));
   item.detail = String(entry?.qualifiedName || entry?.kind || '').trim();
+  item.detail = `Indexed symbol suggestion${item.detail ? ` • ${item.detail}` : ''}`;
+  item.documentation = 'Approximate indexed symbol name. This suggestion does not establish a current source binding or type inference.';
   item.sortText = `${String(9999 - Math.max(0, Number(entry?.score) || 0)).padStart(4, '0')}:${label}`;
   item.filterText = String(entry?.qualifiedName || label).trim();
   return item;
@@ -2532,7 +2550,7 @@ async function runInlineContextCommand({
     });
   });
   if (!operations.isCurrent()) return null;
-  if (!result.ok || !result.payload || !hasInlineSignals(result.payload)) {
+  if (!result.ok || !result.payload || result.payload.ok === false || !hasInlineSignals(result.payload)) {
     if (!result.ok) {
       noteInlineSignalDegraded(`inline-${result.kind || 'failed'}`, result.message || 'PairOfCleats inline context failed.', result.detail || null);
     }
@@ -2919,7 +2937,9 @@ async function promptPositiveInteger({
   const raw = await promptTextInput({
     prompt,
     placeHolder,
-    value: String(value)
+    value: String(value),
+    validateInput: text => /^\d+$/.test(text.trim()) && Number.isSafeInteger(Number(text)) && Number(text) > 0
+      ? null : 'Enter a positive safe integer. Your unsaved input remains editable.'
   });
   if (!raw) return null;
   const parsed = Number(raw);
@@ -3070,14 +3090,16 @@ async function buildOperatorPresentation(spec, payload, inputContext) {
 
 async function openPresentationDocument(filePath, languageHint = null) {
   const fileUri = vscode.Uri.file(filePath);
+  const failures = [];
   if (languageHint === 'markdown' && typeof vscode.commands?.executeCommand === 'function') {
     try {
       await vscode.commands.executeCommand('markdown.showPreviewToSide', fileUri);
       return;
-    } catch {}
+    } catch (error) { failures.push(captureEditorFailure(error)); }
   }
   const document = await vscode.workspace.openTextDocument(fileUri);
   await vscode.window.showTextDocument(document);
+  return editorFailureEvidence(failures);
 }
 
 async function presentOperatorPayload(spec, payload, repoContext, inputContext, output) {
@@ -3099,17 +3121,20 @@ async function presentOperatorPayload(spec, payload, repoContext, inputContext, 
   const baseName = buildPresentationExportBase(spec, payload, inputContext);
   const jsonPath = path.join(exportDir, `${baseName}.json`);
   const markdownPath = path.join(exportDir, `${baseName}.md`);
+  const failures = [];
   fs.writeFileSync(jsonPath, rendered.json, 'utf8');
   fs.writeFileSync(markdownPath, rendered.markdown, 'utf8');
   output.appendLine(`- exported markdown: ${markdownPath}`);
   output.appendLine(`- exported json: ${jsonPath}`);
   if (presentationMode === 'markdown' || presentationMode === 'both') {
-    await openPresentationDocument(markdownPath, 'markdown');
+    const failure = await openPresentationDocument(markdownPath, 'markdown');
+    if (failure) failures.push(...failure.failures);
   }
   if (presentationMode === 'json' || presentationMode === 'both') {
-    await openPresentationDocument(jsonPath, 'json');
+    const failure = await openPresentationDocument(jsonPath, 'json');
+    if (failure) failures.push(...failure.failures);
   }
-  return { jsonPath, markdownPath };
+  return { jsonPath, markdownPath, failureEvidence: editorFailureEvidence(failures) };
 }
 
 async function resolveRiskExplainSeedContext({ repoContext, cliResolution, seed, output }) {
@@ -3193,7 +3218,7 @@ const OPERATOR_COMMAND_SPECS = Object.freeze([
     invocation: 'cli',
     cliArgs: ['setup'],
     buildArgs(repoRoot) {
-      return ['--json', '--non-interactive', '--repo', repoRoot];
+      return ['--json', '--non-interactive', '--skip-install', '--repo', repoRoot];
     }
   },
   {
@@ -3204,7 +3229,7 @@ const OPERATOR_COMMAND_SPECS = Object.freeze([
     invocation: 'cli',
     cliArgs: ['bootstrap'],
     buildArgs(repoRoot) {
-      return ['--json', '--repo', repoRoot];
+      return ['--json', '--skip-install', '--repo', repoRoot];
     }
   },
   {
@@ -3661,31 +3686,7 @@ function summarizeConfigDumpPayload(payload) {
 }
 
 function summarizeIndexHealthPayload(payload) {
-  const lines = [
-    `- status: ${(Array.isArray(payload?.health?.issues) && payload.health.issues.length) || payload?.corruption?.ok === false ? 'issues' : 'ok'}`,
-    `- repo: ${payload?.repo?.root || 'unknown'}`,
-    `- cache root: ${payload?.repo?.cacheRoot || 'unknown'}`,
-    `- total cache bytes: ${payload?.repo?.totalBytes ?? 'n/a'}`
-  ];
-  if (payload?.repo?.sqlite) {
-    lines.push(`- sqlite code: ${payload.repo.sqlite.code ? 'present' : 'missing'}`);
-    lines.push(`- sqlite prose: ${payload.repo.sqlite.prose ? 'present' : 'missing'}`);
-    lines.push(`- sqlite extracted-prose: ${payload.repo.sqlite.extractedProse ? 'present' : 'missing'}`);
-    lines.push(`- sqlite records: ${payload.repo.sqlite.records ? 'present' : 'missing'}`);
-  }
-  if (payload?.corruption) {
-    lines.push(`- integrity: ${payload.corruption.ok ? 'ok' : 'issues'}`);
-  }
-  if (Array.isArray(payload?.health?.issues) && payload.health.issues.length) {
-    lines.push(`- health issues: ${payload.health.issues.length}`);
-  }
-  if (Array.isArray(payload?.health?.hints) && payload.health.hints.length) {
-    for (const hint of payload.health.hints.slice(0, 3)) {
-      lines.push(`- hint: ${hint}`);
-    }
-  }
-  lines.push('- next: rerun PairOfCleats: Bootstrap or rebuild indexes if health is not ok');
-  return lines;
+  return summarizeIndexHealth(payload);
 }
 
 function summarizeCodeMapPayload(payload) {
@@ -4017,10 +4018,13 @@ async function runBufferedJsonCommand({
           label: spec.title
         });
         if (parsed.ok) {
+          const ok = code === 0 && parsed.payload?.ok !== false;
           resolve({
-            ok: code === 0,
+            ok,
             code,
             payload: parsed.payload,
+            ...(!ok ? { kind: 'command-result-failed', message: `${spec.title} reported issues. See PairOfCleats output for details.`,
+              detail: typeof parsed.payload?.message === 'string' ? parsed.payload.message.slice(0, 4096) : null } : {}),
             stdout,
             stderr,
             timedOut
@@ -4101,6 +4105,7 @@ async function executeApiOperatorWorkflow(spec, repoContext, request) {
     transport: 'api',
     payload: request.payload || null
   });
+  if (await finishRevokedWorkflowSession(session)) return;
   const result = await runApiJsonCommand({
     spec,
     label: spec.title,
@@ -4112,11 +4117,12 @@ async function executeApiOperatorWorkflow(spec, repoContext, request) {
     payload: request.payload,
     output
   });
+  if (await finishRevokedWorkflowSession(session)) return;
   if (!result.ok) {
     if (result.detail) output.appendLine(result.detail);
     output.show?.(true);
     await finishWorkflowSession(session.sessionId, {
-      status: 'failed',
+      status: result.kind === 'cancelled' ? 'cancelled' : 'failed',
       summaryLine: result.message
     });
     vscode.window.showErrorMessage(result.message);
@@ -4125,6 +4131,10 @@ async function executeApiOperatorWorkflow(spec, repoContext, request) {
   const payload = typeof request.normalizePayload === 'function'
     ? request.normalizePayload(result.payload)
     : result.payload;
+  if (payload?.ok === false) {
+    await finishWorkflowSession(session.sessionId, { status: 'failed', summaryLine: 'The service reported an unsuccessful operation.' });
+    vscode.window.showErrorMessage('The service reported an unsuccessful operation. Inspect its captured diagnostics.'); return;
+  }
   const summaryLines = summarizeOperatorPayload(spec, payload);
   for (const line of summaryLines) {
     output.appendLine(line);
@@ -4148,6 +4158,7 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
   output.appendLine(`[command] command=${invocation.command}`);
   output.appendLine(`[command] args=${JSON.stringify(invocation.args)}`);
   const session = await beginWorkflowSession(spec, repoContext, invocation);
+  if (await finishRevokedWorkflowSession(session)) return;
   const result = await runBufferedJsonCommand({
     spec,
     repoRoot,
@@ -4156,6 +4167,7 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
     env,
     output
   });
+  if (await finishRevokedWorkflowSession(session)) return;
   if (!result.payload) {
     if (result.detail) output.appendLine(result.detail);
     output.show?.(true);
@@ -4187,27 +4199,27 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
   appendOutputLines(output, summarizeOperatorPayload(spec, result.payload));
   output.appendLine('- raw-json:');
   appendJsonBlock(output, result.payload);
-  try {
-    await maybeOpenOperatorArtifacts(spec, result.payload, repoContext, output);
-  } catch (err) {
-    output.appendLine(`- warning: failed to open operator artifacts: ${err?.message || err}`);
-  }
-  try {
-    await presentOperatorPayload(spec, result.payload, repoContext, invocation.inputContext || null, output);
-  } catch (err) {
-    if (err?.code === 'ERR_EDITOR_RISK_SOURCE_CHANGED') {
-      await finishWorkflowSession(session.sessionId, { status: 'failed', summaryLine: err.message });
-      vscode.window.showErrorMessage(err.message); return;
+  const failures = [];
+  if (result.ok) {
+    try {
+      await maybeOpenOperatorArtifacts(spec, result.payload, repoContext, output);
+      if (await finishRevokedWorkflowSession(session)) return;
+      const presentation = await presentOperatorPayload(spec, result.payload, repoContext, invocation.inputContext || null, output);
+      if (presentation?.failureEvidence) failures.push(...presentation.failureEvidence.failures);
+    } catch (error) {
+      const original = captureEditorFailure(error); failures.push(original);
+      output.appendLine(`- presentation failed: ${original.message}`);
     }
-    output.appendLine(`- warning: failed to present operator payload: ${err?.message || err}`);
   }
+  if (await finishRevokedWorkflowSession(session)) return editorFailureEvidence(failures);
   output.show?.(true);
   const summaryLines = summarizeOperatorPayload(spec, result.payload);
   await finishWorkflowSession(session.sessionId, {
-    status: result.ok ? 'succeeded' : 'failed',
-    summaryLine: summaryLines[0] || `${spec.title} ${result.ok ? 'completed' : 'reported issues'}.`
+    status: result.ok && !failures.length ? 'succeeded' : 'failed',
+    summaryLine: failures.length ? `Presentation failed: ${failures[0].message}`
+      : summaryLines[0] || `${spec.title} ${result.ok ? 'completed' : 'reported issues'}.`
   });
-  if (result.ok) {
+  if (result.ok && !failures.length) {
     vscode.window.showInformationMessage(`${spec.title} completed.`);
     return;
   }
@@ -4215,6 +4227,7 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
     output.appendLine('The selected generation or chunk may no longer be available. Run Risk Explain again to deliberately select the current generation.');
   }
   vscode.window.showErrorMessage(`${spec.title} reported issues. See PairOfCleats output for details.`);
+  return editorFailureEvidence(failures);
 }
 
 async function runOperatorCommand(spec, { repoContext: seededRepoContext = null, inputContext: seededInputContext = undefined } = {}) {
@@ -4298,7 +4311,7 @@ async function runOperatorCommand(spec, { repoContext: seededRepoContext = null,
     vscode.window.showErrorMessage(invocation.message);
     return;
   }
-  await executeOperatorWorkflow(spec, repoContext, invocation);
+  return executeOperatorWorkflow(spec, repoContext, invocation);
 }
 
 function resolveManagedInvocation(spec, repoContext, cliResolution) {
@@ -4430,7 +4443,6 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     return spec.persistent ? { ok: true, status: 'already-running', sessionId: existing.sessionId } : existing.completion;
   }
   const output = getOutputChannel();
-  operations.preserveBackground();
   const env = buildSpawnEnv(config);
   output.appendLine('');
   output.appendLine(`=== ${spec.title} ===`);
@@ -4450,6 +4462,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     timeoutMs: Number.isFinite(spec.timeoutMs) ? spec.timeoutMs : 0,
     persistent: spec.persistent === true
   });
+  if (await finishRevokedWorkflowSession(session)) return;
   const spawned = spawnBufferedProcess(cp, resolved.command, resolved.args, {
     cwd: repoRoot,
     env: resolved.env ? { ...env, ...resolved.env } : env,
@@ -4466,6 +4479,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     return;
   }
   const child = spawned.child;
+  operations.preserveBackground();
   noteRepoContext(repoContext);
   let timedOut = false;
   let resolvedCompletion = false;
@@ -4474,10 +4488,16 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     resolveCompletion = resolve;
   });
   operations.trackPromise(completion);
-  const finalize = async ({ code = 0, error = null } = {}) => {
+  const finalize = async ({ code = 0, error = null, processError = false } = {}) => {
     if (resolvedCompletion) return;
     resolvedCompletion = true;
     entry.settling = true;
+    if (processError && !operations.isChildSettled(child)) {
+      entry.cleanupUnconfirmed = true;
+      entry.progress = { ...entry.progress, phase: 'settling', message: 'Process error observed; original child close remains pending.' };
+      if (Number.isInteger(child.pid) && child.pid > 0) entry.termination ||= operations.stopChild(child);
+      await operations.observeChildSettlement(child);
+    }
     entry.progress = { ...entry.progress, phase: entry.stopping ? 'stopping' : 'settling' };
     entry.stdoutDecoder?.flush();
     entry.stderrDecoder?.flush();
@@ -4489,7 +4509,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     entry.cleanupUnconfirmed = stopUnconfirmed || watchOwnershipPending;
     if (!entry.cleanupUnconfirmed && managedProcesses.get(key) === entry) managedProcesses.delete(key);
     const stoppedByUser = entry.stopReason === 'cancelled';
-    const failed = Boolean(error) || timedOut || entry.cleanupUnconfirmed || entry.watchFailure === true
+    const failed = processError || timedOut || entry.cleanupUnconfirmed || entry.watchFailure === true
       || (!stoppedByUser && !ownerCancelled && code !== 0);
     const status = failed ? 'failed' : stoppedByUser ? 'cancelled' : ownerCancelled ? 'interrupted' : 'succeeded';
     const summaryLine = watchOwnershipPending
@@ -4527,7 +4547,8 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
         vscode.window.showInformationMessage(`${spec.title} completed.`);
       }
     }
-    resolveCompletion({ ok: !failed, status, code });
+    resolveCompletion({ ok: !failed && status !== 'interrupted', status, code,
+      ...(processError ? { failureEvidence: editorFailureEvidence([captureEditorFailure(error)]) } : {}) });
   };
   const entry = {
     key,
@@ -4602,8 +4623,8 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
   }
   child.once('error', async (error) => {
     clearTimeout(entry.timeout);
-    output.appendLine(`[managed] spawn error=${error?.message || error}`);
-    await finalize({ code: 1, error });
+    output.appendLine(`[managed] process error=${captureEditorFailure(error).message}`);
+    await finalize({ code: 1, error, processError: true });
   });
   child.once('close', async (code) => {
     clearTimeout(entry.timeout);
@@ -5522,7 +5543,7 @@ async function runOwnedSavedSearch(resultSet, repoContext, appendTo = null) {
       env,
       output
     });
-    if (!result?.payload) {
+    if (!result?.ok || !result.payload) {
       if (result?.detail) output.appendLine(result.detail);
       output.show?.(true);
       const show = result?.kind === 'cancelled'
@@ -5697,6 +5718,7 @@ function activate(context) {
   if (typeof vscode.workspace.onDidChangeConfiguration === 'function') {
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
       if (!event?.affectsConfiguration || event.affectsConfiguration(VSCODE_SETTINGS.namespace)) {
+        operations.invalidate('configuration-changed', { preserveBackground: true });
         if (typeof apiCapabilityCache !== 'undefined') apiCapabilityCache.clear();
         invalidateInlineSignals();
         updateWorkflowStatusBar();
@@ -5757,7 +5779,10 @@ async function deactivate() {
     result.pendingOwners = pendingOwners.map(entry => ({ sessionId: entry.sessionId, repoRoot: entry.repoRoot }));
   }
   if (result.ok) managedProcesses.clear();
-  else console.error('[PairOfCleats] Owned editor work did not finish shutdown:', result);
+  else console.error('[PairOfCleats] Owned editor work did not finish shutdown:', {
+    ok: result.ok, pending: result.pending, children: result.children,
+    failures: result.failures, pendingOwners: result.pendingOwners
+  });
   taskObservations.clear();
   return result;
 }

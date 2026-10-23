@@ -1,6 +1,7 @@
 const { AsyncLocalStorage } = require('node:async_hooks');
 const cp = require('node:child_process');
 const path = require('node:path');
+const { captureEditorFailure, editorFailureEvidence } = require('./editor-failure-evidence.js');
 
 /** One instance belongs to one extension host. Cancellation invalidates UI
  * authority immediately; actual resource settlement is tracked independently. */
@@ -9,6 +10,7 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
   const scopes = new Set();
   const children = new Map();
   const childTerminations = new WeakMap();
+  const childSettlements = new WeakMap();
   const pending = new Set();
   const latest = new Map();
   const teardownFailures = [];
@@ -73,8 +75,8 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
           if (killed === false) throw new Error('Owned process rejected its termination signal.');
           resolve({ ok: true });
         } catch (error) {
-          teardownFailures.push(String(error));
-          resolve({ ok: false, message: String(error) });
+          const failure = captureEditorFailure(error); teardownFailures.push(failure);
+          resolve({ ok: false, message: failure.message, failureEvidence: editorFailureEvidence([failure]) });
         }
         return;
       }
@@ -85,12 +87,12 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
       let helper;
       let finished = false;
       let timer;
-      const finish = (failure) => {
+      const finish = (failure, primaryError, hasPrimary = false) => {
         if (finished) return;
         finished = true;
         clearTimeout(timer);
         if (failure) {
-          teardownFailures.push(failure);
+          teardownFailures.push(captureEditorFailure(hasPrimary ? primaryError : new Error(failure)));
           try { child.kill('SIGKILL'); } catch {}
         }
         resolve(failure ? { ok: false, message: failure } : { ok: true });
@@ -103,10 +105,10 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
           try { helper.kill('SIGKILL'); } catch {}
           finish(`Owned process-tree termination timed out for PID ${child.pid}.`);
         }, 2000);
-        helper.once('error', (error) => finish(`Owned process-tree helper failed: ${error.message}`));
+        helper.once('error', (error) => finish(`Owned process-tree helper failed: ${captureEditorFailure(error).message}`, error, true));
         helper.once('close', (code) => finish(code === 0 ? null : `Owned process-tree helper exited ${code}.`));
       } catch (error) {
-        finish(`Owned process-tree helper failed: ${error.message}`);
+        finish(`Owned process-tree helper failed: ${captureEditorFailure(error).message}`, error, true);
       }
     }));
     childTerminations.set(child, record.stopping);
@@ -148,7 +150,8 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
     children.set(child, record);
     scope.resources += 1;
     let release;
-    retain(new Promise((resolve) => { release = resolve; }));
+    const completion = retain(new Promise((resolve) => { release = resolve; }));
+    childSettlements.set(child, { record, completion });
     // Bind callbacks without dropping terminal callbacks: their promises and
     // listeners must settle even after publication authority is revoked.
     for (const emitter of [child, child.stdout, child.stderr]) {
@@ -203,7 +206,8 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
     clearTimeout(timer);
     return {
       ok: pending.size === 0 && children.size === 0 && teardownFailures.length === 0,
-      pending: pending.size, children: children.size, failures: [...teardownFailures]
+      pending: pending.size, children: children.size, failures: teardownFailures.map(failure => failure.message),
+      failureEvidence: editorFailureEvidence(teardownFailures)
     };
   }
 
@@ -308,6 +312,8 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
     run, current, isCurrent, cancelled, trackChild, stopChild, request, invalidate, dispose, wrapVscode,
     bindRepository, invalidateRepositories, cancelLabel,
     preserveBackground, observeTermination: child => childTerminations.get(child) || null,
+    observeChildSettlement: child => childSettlements.get(child)?.completion || Promise.resolve(),
+    isChildSettled: child => childSettlements.get(child)?.record.closed === true,
     terminalState: callback => context.run(undefined, () => alive ? callback() : undefined),
     cancelCurrent: () => cancel(current()), cancelScope: cancel,
     cancelKey: (key) => cancel(latest.get(key)), trackPromise: retain
