@@ -29,6 +29,7 @@ import { resolveManagedToolInstallation } from '../../src/shared/managed-install
 import { AST_GREP_VERSION, identifyAstGrepVersion, resolveAstGrepManagedRecipe, verifyManagedAstGrep } from './managed-ast-grep.js';
 import { resolveOperationalManagedRecipe } from './operational-recipes.js';
 import { identifyOperationalTool, OPERATIONAL_TOOL_IDS, verifyManagedOperationalTool } from './operational-probes.js';
+import { resolveManagedDotnetSdkRecipe, verifyManagedDotnetSdk } from './managed-dotnet-sdk.js';
 
 const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
@@ -402,6 +403,14 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       prerequisites: [{ id: 'python3', command: 'python3', family: 'python3', kind: 'runtime', phase: 'launch', dependsOn: [] }],
       install: {}, docs: 'https://semgrep.dev/docs/getting-started/quickstart',
       provisioningBlocker: 'A qualified pinned Semgrep/Python virtual-environment recipe is required; local rules only, no cloud/login side effect.'
+    },
+    {
+      id: 'dotnet-sdk', label: 'Owned portable Microsoft .NET SDK', languages: [], capabilities: ['toolchain.dotnet'],
+      detect: { cmd: 'dotnet', args: ['--version'], binDirs: [] },
+      install: resolveManagedDotnetSdkRecipe() ? { cache: resolveManagedDotnetSdkRecipe() } : {},
+      verifyManagedInstall: verifyManagedDotnetSdk,
+      provisioningBlocker: 'Pinned portable .NET SDK ZIPs support Windows x64/ia32/arm64. Other operating systems need separately qualified native prerequisites; no package manager or machine-wide install is substituted.',
+      docs: 'https://learn.microsoft.com/dotnet/core/install/windows'
     },
     {
       id: 'comby', label: 'Comby structural engine', languages: [], capabilities: ['structural.comby'],

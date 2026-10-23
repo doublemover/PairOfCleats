@@ -10,7 +10,7 @@ import { retainManagedResourceFailure, trackManagedVerificationStorageFailure } 
 import { identifyProvisioningExecutable } from './provisioning-plan.js';
 
 const FAMILIES = Object.freeze({ graphviz: 'graphviz', 'npm-sbom': 'npm', cargo: 'cargo', 'cargo-cyclonedx': 'cargo',
-  ripgrep: 'native', scip: 'native', 'universal-ctags': 'native', 'gnu-global': 'native', 'git-lfs': 'native', 'ast-grep': 'native' });
+  ripgrep: 'native', scip: 'native', 'universal-ctags': 'native', 'gnu-global': 'native', 'git-lfs': 'native', 'ast-grep': 'native', 'dotnet-sdk': 'dotnet' });
 const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
 
 /** A cache route is prepared only under the canonical storage session. Its

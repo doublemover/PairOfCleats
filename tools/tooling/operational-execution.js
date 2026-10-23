@@ -12,6 +12,7 @@ import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-inv
 import { observeProvisioningResource } from './provisioning-failure.js';
 import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
+import { withManagedProvisioningRequirements } from './provisioning-lifetime.js';
 
 const unavailable = (id, reason) => Object.assign(new Error(`Selected ${id} capability is unavailable: ${reason}. Run tooling install --tools ${id} --scope cache to inspect its supported setup.`),
   { code: 'ERR_OPERATIONAL_TOOL_UNAVAILABLE', toolId: id });
@@ -43,6 +44,7 @@ export const withOperationalTool = async (id, { repoRoot, commandOverride = null
     descriptorId: tool.managedInstallation.descriptorId, installId: tool.managedInstallation.installId }) : { release: () => true };
   const resourceId = randomUUID();
   const storageRecoveries = new Set();
+  const prerequisiteRecoveries = new Set();
   let verified;
   try { verified = await verifyRetainedManagedInstallation(held, async () => {
     const settlement = { resourceId, settled: true, pending: false };
@@ -64,91 +66,102 @@ export const withOperationalTool = async (id, { repoRoot, commandOverride = null
         const selected = identify(candidate, { signal }).path;
         return !isPathWithinRoot(selected, repoRoot) || isApplicationOwnedCommand({ commandPath: selected, repoRoot, toolRoot: resolveToolRoot() });
       };
-      const provisioning = await verifyToolProvisioningPlan(createToolProvisioningPlan({ tool, selection: { scope: 'cache', plan: null }, env, signal, isAllowed }),
-        { env, signal, cwd: resolveToolRoot(), probe: (selected, args, options) => runOperationalChildWithStorage({ id,
-          toolingRoot: config.dir, repoRoot, command: selected, identity: identify(selected, { signal }), env: options.env, cwd: options.cwd,
-          registerRecovery: recovery => storageRecoveries.add(recovery) }, ({ env: routed }) =>
-          (dependencies.probe || probeProvisioningCommand)(selected, args, { ...options, env: routed })) });
+      const prerequisitePlan = createToolProvisioningPlan({ tool, selection: { scope: 'cache', plan: null }, env, signal, isAllowed });
+      const provisioning = await verifyToolProvisioningPlan(prerequisitePlan,
+        { env, signal, cwd: resolveToolRoot(), registerRecovery: recovery => prerequisiteRecoveries.add(recovery), probe: (selected, args, options) => {
+          // Managed SDK probes already route their exact dotnet storage session
+          // in the prerequisite owner; nesting an unrelated tool cache here
+          // would split pending-child recovery across independent families.
+          if (prerequisitePlan.steps.some(step => step.managedInstallation?.toolId === 'dotnet-sdk' && step.executable?.path === selected)) {
+            return (dependencies.probe || probeProvisioningCommand)(selected, args, options);
+          }
+          return runOperationalChildWithStorage({ id,
+            toolingRoot: config.dir, repoRoot, command: selected, identity: identify(selected, { signal }), env: options.env, cwd: options.cwd,
+            registerRecovery: recovery => storageRecoveries.add(recovery) }, ({ env: routed }) =>
+            (dependencies.probe || probeProvisioningCommand)(selected, args, { ...options, env: routed }));
+        } });
       if (provisioning.state !== 'requirements-verified') throw unavailable(id, provisioning.steps.filter(step => step.state !== 'verified')
         .map(step => `${step.id}: ${step.reason || step.state}`).join('; '));
-      const selectedEnv = resolveNoProvisionToolingEnvironment(bindProvisioningCommand({ cmd: identity.path, args: [] }, provisioning, env).env,
-        { command: identity.path, providerId: id, toolingRoot: config.dir, cwd: repoRoot });
-      const check = () => {
-        signal?.throwIfAborted();
-        if (!open) throw new Error('Operational execution scope is closed.');
-        if (!same(identify(identity.path, { signal }), identity)) throw Object.assign(new Error('Selected operational executable bytes changed; resolve a new scope.'), { code: 'ERR_OPERATIONAL_TOOL_CHANGED' });
-      };
-      const track = operation => {
-        check();
-        const promise = Promise.resolve().then(operation);
-        operations.add(promise);
-        promise.then(() => operations.delete(promise), () => operations.delete(promise));
-        return promise;
-      };
-      const run = (args, options = {}) => track(async () => {
-        check();
-        try {
-          const launch = {
-            cwd: repoRoot, outputEncoding: 'utf8', maxOutputBytes: 16 * 1024 * 1024, timeoutMs: 30000,
-            rejectOnNonZeroExit: false, ...options, env: selectedEnv, signal
-          };
-          const result = remember(await runOperationalChildWithStorage({ id, toolingRoot: config.dir, repoRoot,
-            command: identity.path, identity, env: selectedEnv, cwd: launch.cwd,
-            registerRecovery: recovery => storageRecoveries.add(recovery) }, ({ env: routed }) => {
-            check();
-            return (dependencies.spawn || spawnResolvedSubprocess)(identity.path, [...prefix, ...args], { ...launch, env: routed });
-          }));
-          check();
-          if (result.outputCapture?.stdout?.truncated || result.outputCapture?.stderr?.truncated) throw Object.assign(new Error('Selected operational tool exceeded its output limit.'), { code: 'ERR_OPERATIONAL_OUTPUT_LIMIT' });
-          return result;
-        } catch (error) { remember(error); throw error; }
-      });
-      const stream = (runner, args, options = {}) => track(async () => {
-        check();
-        let closed = false, spawned = false, treeSettled = false;
-        let observeClosure = () => !spawned;
-        const retainStreamFailure = error => {
-          const observation = observeProvisioningResource(error, { phase: 'operational-streaming-child' });
-          return Object.assign(new Error('Operational streaming child closure remains pending.', { cause: error }), {
-            cacheOwnershipPending: true, cacheOwnershipReleased: () => {
-              try { observation.requireSettled(); return observeClosure() === true; } catch { return false; }
-            }
-          });
+      return await withManagedProvisioningRequirements(provisioning, async () => {
+        const selectedEnv = resolveNoProvisionToolingEnvironment(bindProvisioningCommand({ cmd: identity.path, args: [] }, provisioning, env).env,
+          { command: identity.path, providerId: id, toolingRoot: config.dir, cwd: repoRoot });
+        const check = () => {
+          signal?.throwIfAborted();
+          if (!open) throw new Error('Operational execution scope is closed.');
+          if (!same(identify(identity.path, { signal }), identity)) throw Object.assign(new Error('Selected operational executable bytes changed; resolve a new scope.'), { code: 'ERR_OPERATIONAL_TOOL_CHANGED' });
         };
-        try {
-          const launch = { ...options, command: identity.path, args: [...prefix, ...args], env: selectedEnv,
-            onSpawn: () => { spawned = true; }, onSettlement: outcome => {
-              closed = outcome.closeObserved; treeSettled = outcome.treeCleanupSettled && !outcome.treeCleanupFailed;
-              const original = outcome.isSettled;
-              observeClosure = typeof original === 'function' ? () => original.call(outcome) === true : () => closed && treeSettled;
-            } };
-          const result = await runOperationalChildWithStorage({ id, toolingRoot: config.dir, repoRoot,
-            command: identity.path, identity, env: selectedEnv, cwd: launch.cwd || repoRoot,
-            registerRecovery: recovery => storageRecoveries.add(recovery) }, async ({ env: routed }) => {
-            try {
+        const track = operation => {
+          check();
+          const promise = Promise.resolve().then(operation);
+          operations.add(promise);
+          promise.then(() => operations.delete(promise), () => operations.delete(promise));
+          return promise;
+        };
+        const run = (args, options = {}) => track(async () => {
+          check();
+          try {
+            const launch = {
+              cwd: repoRoot, outputEncoding: 'utf8', maxOutputBytes: 16 * 1024 * 1024, timeoutMs: 30000,
+              rejectOnNonZeroExit: false, ...options, env: selectedEnv, signal
+            };
+            const result = remember(await runOperationalChildWithStorage({ id, toolingRoot: config.dir, repoRoot,
+              command: identity.path, identity, env: selectedEnv, cwd: launch.cwd,
+              registerRecovery: recovery => storageRecoveries.add(recovery) }, ({ env: routed }) => {
               check();
-              const value = await runner({ ...launch, env: routed });
-              if (spawned && (!closed || !treeSettled)) throw retainStreamFailure(new Error('Streaming child returned before exact closure.'));
-              return value;
-            } catch (error) { throw spawned && !observeClosure() ? retainStreamFailure(error) : error; }
-          });
-          remember(result); check(); return result;
-        } catch (error) {
-          remember(error); throw error;
-        }
-      });
-      const capability = await verifyOperationalCapability({ id, command: identity.path, argsPrefix: prefix, cwd: resolveToolRoot(), env: selectedEnv, signal }, {
-        probe: async (_command, args, options) => {
-          const result = await run(args.slice(prefix.length), options);
-          return { ok: result.exitCode === 0, status: result.exitCode, stdout: result.stdout || '', stderr: result.stderr || '' };
-        }
-      });
-      if (!capability.ok) throw unavailable(id, capability.level);
-      const value = await execute({ command: identity.path, argsPrefix: prefix, env: selectedEnv, identity, capability,
-        installId: held.receipt?.installId || null, run, stream });
-      if (operations.size) throw Object.assign(new Error('Operational callback returned with unawaited children.'), { cacheOwnershipPending: true,
-        cacheOwnershipReleased: () => operations.size === 0 && observations.every(observation => { try { observation.requireSettled(); return true; } catch { return false; } }) });
-      return { ok: true, value, settlement };
+              return (dependencies.spawn || spawnResolvedSubprocess)(identity.path, [...prefix, ...args], { ...launch, env: routed });
+            }));
+            check();
+            if (result.outputCapture?.stdout?.truncated || result.outputCapture?.stderr?.truncated) throw Object.assign(new Error('Selected operational tool exceeded its output limit.'), { code: 'ERR_OPERATIONAL_OUTPUT_LIMIT' });
+            return result;
+          } catch (error) { remember(error); throw error; }
+        });
+        const stream = (runner, args, options = {}) => track(async () => {
+          check();
+          let closed = false, spawned = false, treeSettled = false;
+          let observeClosure = () => !spawned;
+          const retainStreamFailure = error => {
+            const observation = observeProvisioningResource(error, { phase: 'operational-streaming-child' });
+            return Object.assign(new Error('Operational streaming child closure remains pending.', { cause: error }), {
+              cacheOwnershipPending: true, cacheOwnershipReleased: () => {
+                try { observation.requireSettled(); return observeClosure() === true; } catch { return false; }
+              }
+            });
+          };
+          try {
+            const launch = { ...options, command: identity.path, args: [...prefix, ...args], env: selectedEnv,
+              onSpawn: () => { spawned = true; }, onSettlement: outcome => {
+                closed = outcome.closeObserved; treeSettled = outcome.treeCleanupSettled && !outcome.treeCleanupFailed;
+                const original = outcome.isSettled;
+                observeClosure = typeof original === 'function' ? () => original.call(outcome) === true : () => closed && treeSettled;
+              } };
+            const result = await runOperationalChildWithStorage({ id, toolingRoot: config.dir, repoRoot,
+              command: identity.path, identity, env: selectedEnv, cwd: launch.cwd || repoRoot,
+              registerRecovery: recovery => storageRecoveries.add(recovery) }, async ({ env: routed }) => {
+              try {
+                check();
+                const value = await runner({ ...launch, env: routed });
+                if (spawned && (!closed || !treeSettled)) throw retainStreamFailure(new Error('Streaming child returned before exact closure.'));
+                return value;
+              } catch (error) { throw spawned && !observeClosure() ? retainStreamFailure(error) : error; }
+            });
+            remember(result); check(); return result;
+          } catch (error) {
+            remember(error); throw error;
+          }
+        });
+        const capability = await verifyOperationalCapability({ id, command: identity.path, argsPrefix: prefix, cwd: resolveToolRoot(), env: selectedEnv, signal, toolingRoot: config.dir }, {
+          probe: async (_command, args, options) => {
+            const result = await run(args.slice(prefix.length), options);
+            return { ok: result.exitCode === 0, status: result.exitCode, stdout: result.stdout || '', stderr: result.stderr || '' };
+          }
+        });
+        if (!capability.ok) throw unavailable(id, capability.level);
+        const value = await execute({ command: identity.path, argsPrefix: prefix, env: selectedEnv, identity, capability,
+          installId: held.receipt?.installId || null, run, stream });
+        if (operations.size) throw Object.assign(new Error('Operational callback returned with unawaited children.'), { cacheOwnershipPending: true,
+          cacheOwnershipReleased: () => operations.size === 0 && observations.every(observation => { try { observation.requireSettled(); return true; } catch { return false; } }) });
+        return { ok: true, value, settlement };
+      }, { signal, registerRecovery: recovery => prerequisiteRecoveries.add(recovery) });
     } catch (error) {
       // A closed failed command remains a failure; only exact settlement is
       // attached. Pending native work keeps the retained verifier's recovery.
@@ -162,14 +175,21 @@ export const withOperationalTool = async (id, { repoRoot, commandOverride = null
     const original = primary.managedInstallSession;
     if (!original) throw primary;
     const originalObservation = observeProvisioningResource(primary, { phase: 'operational-installation-and-storage' });
-    const released = () => { try { originalObservation.requireSettled(); return [...storageRecoveries].every(recovery => recovery.isReleased()); } catch { return false; } };
+    const released = () => { try { originalObservation.requireSettled(); return [...storageRecoveries, ...prerequisiteRecoveries].every(recovery => recovery.isReleased()); } catch { return false; } };
     const retain = cleanupError => retainManagedResourceFailure(primary, { session: recovery, released, cleanupError });
     const recovery = Object.freeze({ resourceId: original.resourceId, releaseAfterSettlement: receipt => {
       try {
         if (!receipt || Object.keys(receipt).sort().join(',') !== 'pending,resourceId,settled'
           || receipt.resourceId !== original.resourceId || receipt.settled !== true || receipt.pending !== false) throw new Error('Operational installation requires its exact settlement receipt.');
+        const release = () => {
+          return original.releaseAfterSettlement(receipt);
+        };
         for (const storage of storageRecoveries) storage.releaseAfterClosure();
-        return original.releaseAfterSettlement(receipt);
+        if (!prerequisiteRecoveries.size) return release();
+        return (async () => {
+          for (const prerequisite of prerequisiteRecoveries) await prerequisite.releaseAfterClosure();
+          return release();
+        })().catch(cleanupError => { throw retain(cleanupError); });
       } catch (cleanupError) { throw retain(cleanupError); }
     } });
     throw retain();

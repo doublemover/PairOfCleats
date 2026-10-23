@@ -3,6 +3,7 @@ import path from 'node:path';
 import { identifyProvisioningExecutable, probeProvisioningCommand } from './provisioning-plan.js';
 import { runOperationalChildWithStorage } from './operational-storage.js';
 import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
+import { DOTNET_SDK_VERSION, resolveManagedDotnetSdkRecipe, verifyManagedDotnetSdk } from './managed-dotnet-sdk.js';
 
 export const identifyOperationalTool = (id, { stdout = '', stderr = '' } = {}) => {
   const output = `${stdout}\n${stderr}`.trim();
@@ -15,24 +16,32 @@ export const identifyOperationalTool = (id, { stdout = '', stderr = '' } = {}) =
     'git-lfs': /^git-lfs\/(\d+\.\d+\.\d+)(?:\s|$)/,
     'cargo-cyclonedx': /^cargo(?:-| )cyclonedx (\d+\.\d+\.\d+)(?:\s|$)/,
     cargo: /^cargo (\d+\.\d+\.\d+)(?:\s|$)/,
-    'npm-sbom': /^(\d+\.\d+\.\d+)\s*$/
+    'npm-sbom': /^(\d+\.\d+\.\d+)\s*$/,
+    'dotnet-sdk': /^(\d+\.\d+\.\d+)\s*$/
   };
   const match = expressions[id]?.exec(output);
+  if (id === 'dotnet-sdk' && match?.[1] !== DOTNET_SDK_VERSION) return null;
   return match && semver.coerce(match[1]) ? { family: id, version: match[1] } : null;
 };
 
-export const OPERATIONAL_TOOL_IDS = new Set(['graphviz', 'ripgrep', 'scip', 'universal-ctags', 'gnu-global', 'git-lfs', 'cargo-cyclonedx', 'cargo', 'npm-sbom']);
+export const OPERATIONAL_TOOL_IDS = new Set(['graphviz', 'ripgrep', 'scip', 'universal-ctags', 'gnu-global', 'git-lfs', 'cargo-cyclonedx', 'cargo', 'npm-sbom', 'dotnet-sdk']);
 
 /** No project scan, login, upload, package restoration or installation belongs
  * to these probes. JSON from a tiny stdin operation must contain its sentinel.
  */
-export const verifyOperationalCapability = async ({ id, command, argsPrefix = [], cwd, env, signal = null, expectedVersion = null },
+export const verifyOperationalCapability = async ({ id, command, argsPrefix = [], cwd, env, signal = null, expectedVersion = null, toolingRoot = null },
   { probe = probeProvisioningCommand } = {}) => {
   const run = (args, extra = {}) => probe(command, [...argsPrefix, ...args], { cwd, env, signal, timeoutMs: 4000, maxOutputBytes: 65536, ...extra });
   const initialArgs = id === 'graphviz' ? ['-V'] : id === 'git-lfs' ? ['version'] : ['--version'];
   const first = await run(initialArgs);
   const identity = first.ok ? identifyOperationalTool(id, first) : null;
   if (!identity || expectedVersion && identity.version !== expectedVersion) return { ok: false, identity, level: 'executable-identity-rejected' };
+  if (id === 'dotnet-sdk') {
+    const recipe = resolveManagedDotnetSdkRecipe();
+    if (!recipe || identity.version !== DOTNET_SDK_VERSION || !path.isAbsolute(toolingRoot || '')) return { ok: false, identity, level: 'pinned-dotnet-target-unavailable' };
+    return verifyManagedDotnetSdk({ root: path.dirname(command), command, toolingRoot, env, signal,
+      descriptor: recipe.managedDescriptor, resourceId: 'selected-dotnet-capability' }, { probe });
+  }
   if (id === 'graphviz') {
     const rendered = await run(['-Tsvg'], { input: 'digraph { probe [label="pairofcleats-render-probe"]; }' });
     const ok = rendered.ok && /<svg\b/.test(rendered.stdout) && rendered.stdout.includes('pairofcleats-render-probe') && /<text\b/.test(rendered.stdout);
@@ -92,7 +101,7 @@ export const verifyManagedOperationalTool = async (input, { probe = probeProvisi
   const env = resolveNoProvisionToolingEnvironment(input.env || process.env, { command: input.command, providerId: id,
     toolingRoot: input.toolingRoot, cwd: input.root });
   return { ...await verifyOperationalCapability({ id, command: input.command, argsPrefix: input.args || [],
-    cwd: input.root, env, signal: input.signal, expectedVersion: input.descriptor.version }, {
+    cwd: input.root, env, signal: input.signal, expectedVersion: input.descriptor.version, toolingRoot: input.toolingRoot }, {
     probe: (command, args, options) => runOperationalChildWithStorage({ id, toolingRoot: input.toolingRoot,
       repoRoot: input.toolingRoot, command, identity, env: options.env, cwd: options.cwd }, ({ env: routed }) =>
       probe(command, args, { ...options, env: routed }))

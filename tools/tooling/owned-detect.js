@@ -4,7 +4,7 @@ import { retainManagedToolInstallation } from '../../src/shared/managed-installa
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { resolveNoProvisionToolingEnvironment, isNonZeroToolingProbeSuccess } from '../../src/index/tooling/command-resolver.js';
-import { identifyProvisioningExecutable } from './provisioning-plan.js';
+import { createToolProvisioningPlan, identifyProvisioningExecutable } from './provisioning-plan.js';
 import { applyToolLayoutValidation, locateToolExecutable, resolveDetectArgCandidates } from './utils.js';
 import { resolveToolRoot } from '../shared/dict-utils.js';
 import path from 'node:path';
@@ -12,6 +12,10 @@ import { isStorageSessionReleaseFailure } from '../../src/shared/storage/session
 import { addStorageFailureContext, readStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { AST_GREP_VERSION, identifyAstGrepVersion } from './managed-ast-grep.js';
 import { identifyOperationalTool, OPERATIONAL_TOOL_IDS } from './operational-probes.js';
+import { withManagedProvisioningRequirements } from './provisioning-lifetime.js';
+import { bindManagedDotnetEnvironment } from './dotnet-environment.js';
+import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
+import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 
 const sameExecutable = (actual, expected) => actual.path === expected.path && actual.sha256 === expected.sha256
   && actual.size === expected.size;
@@ -21,6 +25,27 @@ const changedExecutable = phase => Object.assign(new Error(`Selected tool comman
 const asError = value => value !== null && ['object', 'function'].includes(typeof value) ? value : new Error(String(value), { cause: value });
 
 export const detectToolOwned = async (tool, { signal = null, env = process.env } = {}, dependencies = {}) => {
+  if (!(tool.prerequisites || []).some(step => ['dotnet', 'dotnet-runtime'].includes(step.family) && step.phase !== 'analysis')) {
+    return detectToolOwnedSelected(tool, { signal, env }, dependencies);
+  }
+  const isAllowed = command => {
+    const repoRoot = tool.authorityRepoRoot;
+    if (!path.isAbsolute(repoRoot || '')) return false;
+    if (isRepoTrusted(repoRoot)) return true;
+    try { const physical = identifyProvisioningExecutable(command, { signal }).path;
+      return !isPathWithinRoot(physical, repoRoot) || isApplicationOwnedCommand({ commandPath: physical, repoRoot, toolRoot: resolveToolRoot() }); }
+    catch { return false; }
+  };
+  const provisioning = createToolProvisioningPlan({ tool, selection: { scope: 'cache', plan: null }, env, signal, isAllowed });
+  const unavailable = provisioning.steps.filter(step => ['dotnet', 'dotnet-runtime'].includes(step.family) && step.state === 'missing');
+  if (unavailable.length) return { found: false, path: null, source: 'missing-requirement', provisioning,
+    probe: { ok: false, outcome: 'missing-requirement', verificationLevel: 'not-probed', requirements: unavailable.map(step => step.id) } };
+  const runtime = provisioning.steps.find(step => step.managedInstallation?.toolId === 'dotnet-sdk');
+  const selectedEnv = runtime ? bindManagedDotnetEnvironment(env, path.dirname(runtime.executable.path), runtime.executable.path) : env;
+  return withManagedProvisioningRequirements(provisioning, () => detectToolOwnedSelected(tool, { signal, env: selectedEnv }, dependencies), { signal });
+};
+
+const detectToolOwnedSelected = async (tool, { signal = null, env = process.env } = {}, dependencies = {}) => {
   signal?.throwIfAborted();
   const located = (dependencies.locate || locateToolExecutable)(tool);
   if (!located.found || !located.path) return located;

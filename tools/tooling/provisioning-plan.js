@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import semver from 'semver';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { findBinaryOnPath } from '../../src/index/tooling/binary-utils.js';
 import { resolveInstallerRequirementProbeArgs, verifyInstallerRequirementProbe } from './install-requirements.js';
@@ -9,6 +10,10 @@ import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-inv
 import { readVerifiedContainedFileSync } from '../../src/shared/contained-file.js';
 import { describeProvisioningFailure, isProvisioningObservationFailure, observeProvisioningResource } from './provisioning-failure.js';
 import { resolveEnvPath } from '../../src/shared/env-path.js';
+import { resolveManagedToolInstallation } from '../../src/shared/managed-installation.js';
+import { withManagedProvisioningRequirements } from './provisioning-lifetime.js';
+import { bindManagedDotnetEnvironment } from './dotnet-environment.js';
+import { runOperationalChildWithStorage } from './operational-storage.js';
 
 const digest = value => createHash('sha256').update(value).digest('hex');
 export const identifyProvisioningExecutable = (command, { signal = null } = {}) => {
@@ -104,8 +109,18 @@ export const createToolProvisioningPlan = ({ tool, selection, probe = null, reso
       selectedEnvironmentKey: pinKey, nextAction: `${pinKey} must select an absolute runtime root; no PATH fallback was executed.` };
     const pinnedCommand = pinnedRoot ? path.join(pinnedRoot, ...(pinKey === 'JAVA_HOME' ? ['bin'] : []),
       requirement.command + (process.platform === 'win32' ? '.exe' : '')) : null;
-    const command = path.isAbsolute(requirement.command) ? requirement.command : pinnedCommand || resolve(requirement.command, resolveEnvPath(env));
+    const managedDotnet = !pinnedRoot && !path.isAbsolute(requirement.command) && ['dotnet', 'dotnet-runtime'].includes(requirement.family) && tool.toolingRoot
+      ? resolveManagedToolInstallation(tool.toolingRoot, 'dotnet-sdk') : null;
+    if (!pinnedRoot && !path.isAbsolute(requirement.command) && !managedDotnet && ['dotnet', 'dotnet-runtime'].includes(requirement.family) && tool.toolingRoot) {
+      try {
+        fs.lstatSync(path.join(tool.toolingRoot, 'installs', 'dotnet-sdk', 'current.json'));
+        return { ...requirement, state: 'missing', reason: 'selected-managed-prerequisite-unavailable',
+          nextAction: 'Repair the exact selected managed SDK generation; no ambient host or replacement is selected implicitly.' };
+      } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
+    const command = path.isAbsolute(requirement.command) ? requirement.command : pinnedCommand || managedDotnet?.command || resolve(requirement.command, resolveEnvPath(env));
     if (!command || !isAllowed(command)) return { ...requirement, state: 'missing', reason: 'command-missing-or-untrusted',
+      ...(command ? { selectedCommandRejected: true } : {}), ...(path.isAbsolute(requirement.command) ? { explicitCommand: true } : {}),
       nextAction: requirement.systemAction || requirement.recipe || 'No qualified managed recipe is declared for this requirement/platform.' };
     let executable;
     try { executable = identifyProvisioningExecutable(command, { signal }); }
@@ -115,9 +130,13 @@ export const createToolProvisioningPlan = ({ tool, selection, probe = null, reso
         errorCode: diagnostic.code || 'ERR_PREREQUISITE_BYTES', nextAction: 'Repair the exact selected command path, then re-plan; no fallback was executed.' };
     }
     const selected = executable.path;
+    const managedInstallation = managedDotnet && command === managedDotnet.command ? { toolingRoot: tool.toolingRoot,
+      toolId: 'dotnet-sdk', descriptorId: managedDotnet.descriptorId, installId: managedDotnet.installId } : null;
     if (!isAllowed(selected)) return { ...requirement, command: selected, state: 'missing', reason: 'command-missing-or-untrusted',
+      selectedCommandRejected: true,
       nextAction: 'The resolved physical prerequisite is not trusted; select an approved runtime and re-plan.' };
-    if (!probe) return { ...requirement, command: selected, state: 'not-probed', verificationLevel: null, executable };
+    if (!probe || managedInstallation) return { ...requirement, command: selected, state: 'not-probed', verificationLevel: null, executable,
+      ...(managedInstallation ? { managedInstallation } : {}) };
     let verification = null;
     for (const args of resolveInstallerRequirementProbeArgs(requirement.family || requirement.id)) {
       signal?.throwIfAborted();
@@ -139,9 +158,11 @@ export const createToolProvisioningPlan = ({ tool, selection, probe = null, reso
       try { verification = verifyInstallerRequirementProbe(requirement.family || requirement.id, outcome, { ...requirement, selectedExecutable: executable }); }
       catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
       observation.requireSettled();
-      if (verification.ok) return { ...requirement, command: selected, args, state: 'verified', ...verification, executable };
+      if (verification.ok) return { ...requirement, command: selected, args, state: 'verified', ...verification, executable,
+        ...(managedInstallation ? { managedInstallation } : {}) };
     }
     return { ...requirement, command: selected, state: 'incompatible', ...verification,
+      ...(managedInstallation ? { managedInstallation } : {}),
       nextAction: 'Retain explicit selections; repair the reported runtime/components, then re-plan.' };
   };
   const steps = [];
@@ -166,7 +187,7 @@ export const bindProvisioningCommand = (action, plan, baseEnv = process.env) => 
   }
   const manager = plan.steps.find(step => step.id === action.requires && step.state === 'verified');
   if (action.requires && !manager && !separatelyBoundGo) throw new Error('Selected package manager has no verified physical executable; bare command fallback is forbidden.');
-  const childEnv = { ...baseEnv, ...(action.env || {}) };
+  let childEnv = { ...baseEnv, ...(action.env || {}) };
   const directories = [...new Set(plan.steps.filter(step => step.state === 'verified').map(step => path.dirname(step.executable.path)))];
   const pathKey = Object.keys(childEnv).find(key => key.toLowerCase() === 'path') || 'PATH';
   childEnv[pathKey] = [...directories, childEnv[pathKey] || ''].filter(Boolean).join(path.delimiter);
@@ -178,7 +199,8 @@ export const bindProvisioningCommand = (action, plan, baseEnv = process.env) => 
   if (dotnet) {
     const root = path.dirname(dotnet.executable.path);
     if (childEnv.DOTNET_ROOT && fs.realpathSync(childEnv.DOTNET_ROOT) !== root) throw new Error('Explicit .NET runtime selection changed after verification.');
-    childEnv.DOTNET_ROOT = root;
+    if (dotnet.managedInstallation) childEnv = bindManagedDotnetEnvironment(childEnv, root, dotnet.executable.path);
+    else childEnv.DOTNET_ROOT = root;
   }
   const java = plan.steps.find(step => step.family === 'java' && step.state === 'verified');
   if (java) {
@@ -222,7 +244,7 @@ export const probeProvisioningCommand = async (command, args, { spawn = spawnRes
   }
 };
 
-export const verifyToolProvisioningPlan = async (plan, { env = process.env, signal = null, cwd = process.cwd(), probe = probeProvisioningCommand } = {}) => {
+const verifyToolProvisioningPlanOwned = async (plan, { env = process.env, signal = null, cwd = process.cwd(), probe = probeProvisioningCommand } = {}) => {
   const steps = [];
   for (const step of plan.steps) {
     signal?.throwIfAborted();
@@ -243,8 +265,12 @@ export const verifyToolProvisioningPlan = async (plan, { env = process.env, sign
     for (const args of resolveInstallerRequirementProbeArgs(step.family || step.id)) {
       signal?.throwIfAborted();
       const command = step.executable.path;
-      const result = await probe(command, args, { cwd, signal, env: resolveNoProvisionToolingEnvironment(env, { command, providerId: step.id }),
-        timeoutMs: 4000, maxOutputBytes: 65536 });
+      const selectedEnv = step.managedInstallation?.toolId === 'dotnet-sdk' ? bindManagedDotnetEnvironment(env, path.dirname(command), command) : env;
+      const childEnv = resolveNoProvisionToolingEnvironment(selectedEnv, { command, providerId: step.id });
+      const run = routed => probe(command, args, { cwd, signal, env: routed, timeoutMs: 4000, maxOutputBytes: 65536 });
+      const result = step.managedInstallation?.toolId === 'dotnet-sdk' ? await runOperationalChildWithStorage({ id: 'dotnet-sdk',
+        toolingRoot: step.managedInstallation.toolingRoot, repoRoot: cwd, command, identity: step.executable, env: childEnv, cwd },
+      ({ env: routed }) => run(routed)) : await run(childEnv);
       const observation = observeProvisioningResource(result, { phase: 'asynchronous-prerequisite-probe' });
       observation.requireSettled();
       try {
@@ -254,6 +280,14 @@ export const verifyToolProvisioningPlan = async (plan, { env = process.env, sign
       try { verification = verifyInstallerRequirementProbe(step.family || step.id, result, { ...step, selectedExecutable: step.executable }); }
       catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
       observation.requireSettled();
+      if (verification.ok && step.managedInstallation?.toolId === 'dotnet-sdk') {
+        const root = path.dirname(command), normalize = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
+        const packs = step.family === 'dotnet' ? verification.identity.sdks : verification.identity.runtimes;
+        const owned = packs.filter(pack => !step.versionRange || semver.satisfies(pack.version, step.versionRange));
+        if (!owned.some(pack => normalize(pack.path) === normalize(step.family === 'dotnet' ? path.join(root, 'sdk') : path.join(root, 'shared', pack.component)))) {
+          verification = { ...verification, ok: false, reason: 'selected-runtime-root-mismatch' };
+        }
+      }
       if (verification.ok) { acceptedArgs = args; break; }
     }
     steps.push({ ...step, command: step.executable.path, ...verification, state: verification?.ok ? 'verified' : 'incompatible',
@@ -264,3 +298,6 @@ export const verifyToolProvisioningPlan = async (plan, { env = process.env, sign
   const updated = { ...body, steps: aligned, state: aligned.every(step => step.state === 'verified') ? 'requirements-verified' : 'blocked-or-unprobed' };
   return { ...updated, planId: digest(stableStringify(updated)) };
 };
+
+export const verifyToolProvisioningPlan = (plan, options = {}) => withManagedProvisioningRequirements(plan,
+  () => verifyToolProvisioningPlanOwned(plan, options), { signal: options.signal, registerRecovery: options.registerRecovery });

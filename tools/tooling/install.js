@@ -5,7 +5,7 @@ import path from 'node:path';
 import { TOOLING_INSTALL_OPTIONS } from '../../src/shared/cli-options.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
-import { buildToolingReport, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
+import { buildToolingReport, locateToolExecutable, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
 import { detectToolOwned } from './owned-detect.js';
 import { getToolingConfig, resolveRepoRootArg, resolveToolRoot } from '../shared/dict-utils.js';
 import { buildToolInstallReadiness } from '../setup/readiness.js';
@@ -28,6 +28,8 @@ import { createToolInstallPreview } from './install-preview.js';
 import { toolingFailureReport } from './cli-failure-report.js';
 import { withOperationalTool } from './operational-execution.js';
 import { OPERATIONAL_TOOL_IDS } from './operational-probes.js';
+import { planManagedPrerequisites, provisionManagedPrerequisites } from './provision-prerequisites.js';
+import { withManagedProvisioningRequirements } from './provisioning-lifetime.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats tooling install',
@@ -40,6 +42,7 @@ const onInterrupt = () => { cancellationExitCode = 130; cancellation.abort(new E
 const onTerminate = () => { cancellationExitCode = 143; cancellation.abort(new Error('Tool installation terminated.')); };
 const stdoutGuard = createStdoutGuard({ enabled: argv.json === true, stream: process.stdout, label: 'tooling-install stdout' });
 const actions = [], results = [];
+const prerequisiteSetups = new Map();
 let failureContext = { root: null, scope: argv.scope || null };
 process.once('SIGINT', onInterrupt);
 process.once('SIGTERM', onTerminate);
@@ -103,21 +106,35 @@ try {
   } else {
     for (const tool of tools) {
       cancellation.signal.throwIfAborted();
-      const status = await detectToolOwned(tool, { signal: cancellation.signal });
-      const verifiedPath = resolveVerifiedPath(status);
+      let status = await detectToolOwned(tool, { signal: cancellation.signal });
+      let verifiedPath = resolveVerifiedPath(status);
       const selection = selectInstallPlan(tool, scope, allowFallback);
       const storageAdmission = selection.plan ? resolveDeclaredInstallAdmission(selection.plan) : null;
       // Admission precedes prerequisite acquisition as well as the final package
       // child. An unknown package build cannot first download an unrelated SDK.
-      if (!verifiedPath && selection.plan && selection.scope === 'cache' && storageAdmission.state !== 'estimate-declared') {
+      const presentCandidate = locateToolExecutable(tool);
+      if (!verifiedPath && !presentCandidate.found && selection.plan && selection.scope === 'cache' && storageAdmission.state !== 'estimate-declared') {
         results.push({ id: tool.id, status: 'missing-requirement', reason: 'storage-estimate-unavailable', storageAdmission,
           error: 'Selected managed recipe has no complete artifact/build allocation estimate; writes are deferred without cleanup.' });
         continue;
       }
       // Launch requirements are checked even when server bytes already exist.
-      const provisioning = await verifyToolProvisioningPlan(createToolProvisioningPlan({ tool,
+      let provisioning = await verifyToolProvisioningPlan(createToolProvisioningPlan({ tool,
         selection: verifiedPath ? { ...selection, plan: null } : selection, isAllowed: isAllowedRequirementCommand, signal: cancellation.signal }),
       { signal: cancellation.signal, cwd: installationCwd });
+      const prerequisitePlan = planManagedPrerequisites({ provisioning, scope: selection.scope });
+      if (prerequisitePlan.actions.length && (presentCandidate.found || storageAdmission?.state === 'estimate-declared')) {
+        const prepared = await provisionManagedPrerequisites({ tool, selection, provisioning, toolingRoot: path.resolve(toolingConfig.dir),
+          isAllowed: isAllowedRequirementCommand, signal: cancellation.signal, cwd: installationCwd,
+          onProgress: event => console.error(`[tooling-install] ${event.toolId} for ${tool.id}: ${event.state}`) });
+        prerequisiteSetups.set(tool.id, { plan: prepared.plan, results: prepared.results });
+        provisioning = prepared.provisioning;
+        if (prepared.ok) {
+          status = await withManagedProvisioningRequirements(provisioning, () => detectToolOwned(tool, { signal: cancellation.signal,
+            env: bindProvisioningCommand({ cmd: process.execPath, args: [] }, provisioning).env }), { signal: cancellation.signal });
+          verifiedPath = resolveVerifiedPath(status);
+        }
+      } else if (prerequisitePlan.blockers.length) prerequisiteSetups.set(tool.id, { plan: prerequisitePlan, results: [] });
       const blockedPrerequisites = provisioning.steps.filter(step => ['missing', 'incompatible', 'blocked'].includes(step.state)
     && step.id !== 'go');
       if (blockedPrerequisites.length && !argv['dry-run']) {
@@ -149,6 +166,11 @@ try {
         results.push({ id: tool.id, status: 'already-installed', path: verifiedPath, probe, provisioning });
         continue;
       }
+      if (selection.plan && selection.scope === 'cache' && storageAdmission.state !== 'estimate-declared') {
+        results.push({ id: tool.id, status: 'missing-requirement', reason: 'storage-estimate-unavailable', storageAdmission, provisioning,
+          error: 'Selected package writes remain deferred because its recipe has no complete artifact/build allocation estimate.' });
+        continue;
+      }
       if (!selection.plan) {
         results.push({
           id: tool.id,
@@ -168,11 +190,11 @@ try {
           continue;
         }
         try {
-          const installed = await installPinnedManagedTool({ toolingRoot: path.resolve(toolingConfig.dir),
+          const installed = await withManagedProvisioningRequirements(provisioning, () => installPinnedManagedTool({ toolingRoot: path.resolve(toolingConfig.dir),
             descriptor: selection.plan.managedDescriptor, approvedOrigins: selection.plan.approvedOrigins,
             download: selection.plan.download,
             env: bindProvisioningCommand({ cmd: process.execPath, args: [] }, provisioning).env,
-            verify: tool.verifyManagedInstall, signal: cancellation.signal, onProgress: event => console.error(`[tooling-install] ${tool.id}: ${event.state}`) });
+            verify: tool.verifyManagedInstall, signal: cancellation.signal, onProgress: event => console.error(`[tooling-install] ${tool.id}: ${event.state}`) }), { signal: cancellation.signal });
           results.push({ id: tool.id, status: installed.ok ? installed.reused ? 'already-installed' : 'installed' : 'verification-failed',
             path: installed.command || null, provisioning, managedInstallation: installed,
             probe: { ok: installed.ok, verificationLevel: installed.verification?.level || 'canonical-recipe-verification' } });
@@ -346,8 +368,8 @@ try {
         // installer diagnostics through stderr only.
         stdio: argv.json ? ['inherit', 'ignore', 'inherit'] : 'inherit'
       };
-      const result = await runToolInstallChild({ command: action.cmd, args: action.args,
-        options: spawnOpts, storagePlan, layout, artifactRoot: path.resolve(toolingConfig.dir), admission });
+      const result = await withManagedProvisioningRequirements(action.provisioning, () => runToolInstallChild({ command: action.cmd, args: action.args,
+        options: spawnOpts, storagePlan, layout, artifactRoot: path.resolve(toolingConfig.dir), admission }), { signal: cancellation.signal });
       action.storage = result.storage;
       if (typeof result.signal === 'string' && result.signal.trim()) {
         exitLikeCommandResult({ status: null, signal: result.signal });
@@ -374,7 +396,8 @@ try {
       // broken package layout. Re-check from the future runtime environment.
       invalidateToolingCommandProbeCache({ providerId: action.id });
       const tool = tools.find((entry) => entry.id === action.id);
-      const verified = await detectToolOwned(tool, { signal: cancellation.signal });
+      const verified = await withManagedProvisioningRequirements(action.provisioning, () => detectToolOwned(tool, { signal: cancellation.signal,
+        env: bound.env }), { signal: cancellation.signal });
       const verifiedPath = resolveVerifiedPath(verified);
       results.push(verifiedPath
         ? { id: action.id, status: 'installed', path: verifiedPath, source: verified.source, probe: verified.probe,
@@ -385,6 +408,7 @@ try {
     }
 
     for (const result of results) {
+      if (prerequisiteSetups.has(result.id)) result.prerequisiteSetup = prerequisiteSetups.get(result.id);
       if (!['installed', 'already-installed'].includes(result.status) || !result.path) continue;
       const tool = tools.find(entry => entry.id === result.id);
       try {

@@ -14,6 +14,8 @@ import { toolingFailureReport } from './cli-failure-report.js';
 import { bindProvisioningCommand, createToolProvisioningPlan, verifyToolProvisioningPlan } from './provisioning-plan.js';
 import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
+import { planManagedPrerequisites, provisionManagedPrerequisites } from './provision-prerequisites.js';
+import { withManagedProvisioningRequirements } from './provisioning-lifetime.js';
 
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 export const TOOL_LIFECYCLE_PLAN_VERSION = 1;
@@ -69,7 +71,10 @@ export const planToolLifecycle = async ({ toolingRoot, id, operation = 'verify',
     };
     const provisioning = tool && ['install', 'update', 'repair'].includes(operation)
       ? createToolProvisioningPlan({ tool, selection, isAllowed, signal }) : null;
+    const prerequisiteSetup = provisioning ? planManagedPrerequisites({ provisioning, scope: selection.scope }) : null;
+    const supported = new Set(prerequisiteSetup?.actions.flatMap(action => action.requirements) || []);
     for (const step of provisioning?.steps || []) if (['missing', 'incompatible', 'blocked'].includes(step.state)) {
+      if (supported.has(step.id)) continue;
       blockers.push({ code: 'managed-prerequisite-unavailable', requirement: step.id, reason: step.reason,
         nextAction: step.nextAction || 'Repair the selected launch/install prerequisite and re-plan before managed publication.' });
     }
@@ -83,7 +88,7 @@ export const planToolLifecycle = async ({ toolingRoot, id, operation = 'verify',
     if (operation === 'verify' && !managed.ok) blockers.push({ code: 'managed-generation-not-ready', nextAction: 'Inspect the selected owned generation; no external bytes are adopted.' });
     const body = { schemaVersion: TOOL_LIFECYCLE_PLAN_VERSION, kind: 'tool-lifecycle-plan', toolId: id, operation, toolingRoot: path.resolve(toolingRoot),
       receiptId: managed.receipt?.installId || null, ownership: 'managed', desiredDescriptorId: pinned?.descriptorId || null,
-      verification: { state: managed.state, protocol: 'not-probed' }, provisioning, removal,
+      verification: { state: managed.state, protocol: 'not-probed' }, provisioning, prerequisiteSetup, removal,
       state: blockers.length ? 'blocked' : 'ready-for-explicit-apply', blockers,
       effects: operation === 'remove' ? ['remove only selected owned idle generation; retain receipts and other versions']
         : ['install', 'update', 'repair'].includes(operation) ? ['download exact approved archive if needed', 'verify immutable sibling', 'atomically select only after verification; preserve prior version and drift evidence']
@@ -113,16 +118,30 @@ export const applyToolLifecyclePlan = async (approved, { tool = null, signal = n
   if (current.removal) return { ...await removePinnedManagedTool(current.removal, { signal }), applied: true };
   if (['install', 'update', 'repair'].includes(current.operation) && current.desiredDescriptorId) {
     const selection = selectInstallPlan(tool, 'cache', false);
-    const provisioning = await verifyToolProvisioningPlan(current.provisioning, { signal, cwd: resolveToolRoot(),
+    let provisioning = await verifyToolProvisioningPlan(current.provisioning, { signal, cwd: resolveToolRoot(),
       ...(probePrerequisite ? { probe: probePrerequisite } : {}) });
+    let prerequisiteSetup = null;
+    if (planManagedPrerequisites({ provisioning, scope: selection.scope }).actions.length) {
+      const isAllowed = command => {
+        const repo = tool.authorityRepoRoot;
+        if (!path.isAbsolute(repo || '')) return false;
+        if (isRepoTrusted(repo)) return true;
+        try { return !isPathWithinRoot(fs.realpathSync(command), repo) || isApplicationOwnedCommand({ commandPath: command, repoRoot: repo, toolRoot: resolveToolRoot() }); }
+        catch { return false; }
+      };
+      prerequisiteSetup = await provisionManagedPrerequisites({ tool, selection, provisioning, toolingRoot: approved.toolingRoot,
+        signal, cwd: resolveToolRoot(), isAllowed }, probePrerequisite ? { probe: probePrerequisite } : {});
+      provisioning = prerequisiteSetup.provisioning;
+    }
     if (provisioning.state !== 'requirements-verified') return { ok: false, applied: false, state: 'blocked',
-      phase: 'prerequisite-verification', approvedPlanId: current.planId, provisioning,
+      phase: 'prerequisite-verification', approvedPlanId: current.planId, provisioning, prerequisiteSetup,
       blockers: provisioning.steps.filter(step => step.state !== 'verified').map(step => ({ code: 'managed-prerequisite-unavailable', requirement: step.id, reason: step.reason })) };
     const env = bindProvisioningCommand({ cmd: process.execPath, args: [] }, provisioning).env;
-    return { ...await installPinnedManagedTool({ toolingRoot: approved.toolingRoot,
+    return { ...await withManagedProvisioningRequirements(provisioning, () => installPinnedManagedTool({ toolingRoot: approved.toolingRoot,
       descriptor: selection.plan.managedDescriptor, approvedOrigins: selection.plan.approvedOrigins,
       download: selection.plan.download,
-      env, verify: tool.verifyManagedInstall, repair: current.operation === 'repair', signal }), applied: true };
+      env, verify: tool.verifyManagedInstall, repair: current.operation === 'repair', signal }), { signal }), applied: true,
+    ...(prerequisiteSetup ? { prerequisiteSetup: { plan: prerequisiteSetup.plan, results: prerequisiteSetup.results } } : {}) };
   }
   // Verification does not execute or adopt the tool. Mutating operations fail
   // closed until the owning versioned recipe exposes publication and leases.

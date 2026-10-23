@@ -5,6 +5,7 @@ import { sanitizeRuntimeReceipt } from '../../src/shared/runtime-envelope/receip
 import { locateToolExecutable, selectInstallPlan } from './utils.js';
 import { createToolProvisioningPlan } from './provisioning-plan.js';
 import { resolveDeclaredInstallAdmission } from './install-execution.js';
+import { planManagedPrerequisites } from './provision-prerequisites.js';
 
 export const createToolInstallPreview = ({ tools, scope = 'cache', allowFallback = false, env = process.env,
   isAllowed = () => true } = {}, dependencies = {}) => {
@@ -12,6 +13,7 @@ export const createToolInstallPreview = ({ tools, scope = 'cache', allowFallback
     const selection = (dependencies.select || selectInstallPlan)(tool, scope, allowFallback);
     const located = (dependencies.locate || locateToolExecutable)(tool);
     const provisioning = (dependencies.provisioning || createToolProvisioningPlan)({ tool, selection, env, isAllowed });
+    const prerequisiteSetup = planManagedPrerequisites({ provisioning, scope: selection.scope, env });
     const admission = selection.plan ? resolveDeclaredInstallAdmission(selection.plan) : null;
     const blockers = [];
     if (!selection.plan) blockers.push({ code: 'selected-recipe-unavailable', reason: tool.provisioningBlocker || selection.reason || null });
@@ -24,7 +26,7 @@ export const createToolInstallPreview = ({ tools, scope = 'cache', allowFallback
       action: selection.plan ? { kind: selection.plan.managedDescriptor ? 'immutable-managed-archive' : 'canonical-recipe-child',
         command: selection.plan.cmd || null, args: selection.plan.args || [],
         descriptor: selection.plan.managedDescriptor || null, environment: { keys: Object.keys(selection.plan.env || {}).sort(), values: 'not-exposed' } } : null,
-      provisioning, admission, blockers, state: blockers.length ? 'blocked-or-unqualified' : 'planned-not-probed' };
+      provisioning, prerequisiteSetup, admission, blockers, state: blockers.length ? 'blocked-or-unqualified' : 'planned-not-probed' };
   });
   const body = sanitizeRuntimeReceipt({ schemaVersion: 1, kind: 'tool-install-preview', scope, allowFallback, entries,
     execution: 'none', verification: 'location-and-declared-recipe-only', writes: 'none',
