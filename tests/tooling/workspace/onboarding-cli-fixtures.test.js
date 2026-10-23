@@ -16,8 +16,8 @@ const workspacePath = path.join(root, 'workspace with spaces.jsonc');
 const repos = ['alpha', 'beta'].map(alias => ({ alias, root: path.join(root, `${alias} project`) }));
 const cacheRoot = path.join(root, 'cache');
 const env = applyTestEnv({ cacheRoot, embeddings: 'off', syncProcess: false });
-const run = args => runNode([path.join(checkout, 'bin/pairofcleats.js'), ...args],
-  'workspace onboarding CLI fixtures', checkout, env, { stdio: 'pipe', timeoutMs: 5000 });
+const run = (args, allowFailure = false) => runNode([path.join(checkout, 'bin/pairofcleats.js'), ...args],
+  'workspace onboarding CLI fixtures', checkout, env, { stdio: 'pipe', timeoutMs: 5000, allowFailure });
 const json = args => JSON.parse(run([...args, '--json']).stdout);
 try {
   for (const repo of repos) await fs.mkdir(repo.root);
@@ -30,6 +30,10 @@ try {
   for (const repo of repos) assert.deepEqual(await fs.readdir(repo.root), []);
   assert.equal(json([...init, '--apply']).ok, true);
   const configBytes = await fs.readFile(workspacePath);
+  const overwrite = run([...init, '--apply', '--json'], true);
+  assert.equal(overwrite.status, 1);
+  assert.equal(JSON.parse(overwrite.stdout).state, 'blocked');
+  assert.deepEqual(await fs.readFile(workspacePath), configBytes);
   assert.equal(json(['workspace', 'validate', '--workspace', workspacePath]).ok, true);
   const missing = json(['workspace', 'status', '--workspace', workspacePath]);
   assert.equal(missing.modes.code.state, 'incomplete');

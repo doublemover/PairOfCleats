@@ -11,6 +11,7 @@ import { atomicWriteText } from '../../src/shared/io/atomic-write.js';
 import { acquireFileLock, releaseFileLockOrThrow } from '../../src/shared/locks/file-lock.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { createWorkspaceNextCommands } from './diagnostics.js';
+import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 
 const hash = text => createHash('sha256').update(text).digest('hex');
 const identifyMembers = workspace => workspace.repos.map(repo => {
@@ -97,15 +98,27 @@ export const applyWorkspaceAuthoring = async (plan, { signal = null } = {}) => {
 
 export const runWorkspaceAuthoringCli = async (rawArgs = process.argv.slice(2)) => {
   const argv = createCli({ argv: ['node', 'workspace-author', ...rawArgs], scriptName: 'workspace-author', options: WORKSPACE_AUTHOR_OPTIONS }).strictOptions().parse();
-  if (argv.operation === 'validate' && (argv.apply || argv.repo?.length || argv.alias?.length)) throw new Error('Workspace validate is read-only and does not accept membership/apply choices.');
-  const payload = argv.operation === 'validate' ? { ok: true, workspace: loadWorkspaceConfig(argv.workspace), indexReadiness: 'not-probed' }
-    : await (async () => {
+  let payload;
+  try {
+    if (argv.operation === 'validate' && (argv.apply || argv.repo?.length || argv.alias?.length)) throw new Error('Workspace validate is read-only and does not accept membership/apply choices.');
+    if (argv.operation === 'validate') {
+      const workspace = loadWorkspaceConfig(argv.workspace);
+      payload = { ok: true, workspace, indexReadiness: 'not-probed', commands: createWorkspaceNextCommands(workspace) };
+    } else {
       const plan = planWorkspaceAuthoring({ workspacePath: argv.workspace, operation: argv.operation,
         roots: (argv.repo || []).map(String), aliases: (argv.alias || []).map(String) });
-      return argv.apply ? await applyWorkspaceAuthoring(plan) : plan;
-    })();
+      payload = argv.apply ? await applyWorkspaceAuthoring(plan) : plan;
+    }
+  } catch (error) {
+    const failure = describeStorageFailure(error, { phase: 'workspace-authoring-cli', defaultCode: 'ERR_WORKSPACE_AUTHORING' });
+    payload = { ok: false, kind: 'workspace-authoring-result', state: 'blocked', operation: argv.operation,
+      workspacePath: path.resolve(argv.workspace), error: failure,
+      nextAction: 'Resolve the reported membership/configuration error, then review a new workspace plan.' };
+    process.exitCode = 1;
+  }
   if (argv.json) console.log(JSON.stringify(payload, null, 2));
   else console.error(JSON.stringify(payload, null, 2));
+  return payload;
 };
 
 if (isDirectExecution(import.meta.url)) runWorkspaceAuthoringCli().catch(error => { console.error(error.message); process.exitCode = 1; });
