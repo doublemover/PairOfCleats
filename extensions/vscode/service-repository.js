@@ -37,9 +37,12 @@ function readGitHead(root) {
   return null;
 }
 
+const servicePathApi = root => /^[a-z]:[\\/]|^(?:\\\|\/\/)[^\\/]+[\\/][^\\/]+/i.test(root) ? path.win32 : path.posix;
+
 function validateServiceRoot(value) {
   const raw = String(value || '').trim();
-  if (!raw || raw.includes('\0') || (!path.posix.isAbsolute(raw) && !path.win32.isAbsolute(raw))) {
+  if (!raw || raw.includes('\0') || raw.startsWith('\\') && !raw.startsWith('\\\\')
+    || (!path.posix.isAbsolute(raw) && !path.win32.isAbsolute(raw))) {
     throw new Error('Service repository must be an absolute path on the service host.');
   }
   if (raw.replace(/\\/g, '/').split('/').some(part => part === '..' || part === '.')) {
@@ -50,7 +53,7 @@ function validateServiceRoot(value) {
 
 function serviceRelativeFile(file, serviceRoot) {
   const raw = String(file || '');
-  const flavor = /^[a-z]:[\\/]|^\\\\/i.test(serviceRoot) ? path.win32 : path.posix;
+  const flavor = servicePathApi(serviceRoot);
   const absolute = flavor.isAbsolute(raw);
   const relative = absolute ? flavor.relative(serviceRoot, raw) : raw;
   const normalized = relative.replace(/\\/g, '/');
@@ -78,6 +81,15 @@ function verifyServiceRevision(status, expectedCommit) {
   return { commit: String(commit).toLowerCase(), workingTree: 'editor-worktree-unverified' };
 }
 
+function assertServiceStatus(status, mapping) {
+  const requested = validateServiceRoot(mapping.serviceRoot), actual = validateServiceRoot(status?.repo?.root);
+  const flavor = servicePathApi(requested);
+  if (flavor.relative(requested, actual) !== '') {
+    throw new Error('Service status identifies a different repository from the admitted mapping. Select the service repository again.');
+  }
+  return verifyServiceRevision(status, mapping.commit);
+}
+
 /** The same repository authority must survive each async status/consent wait.
  * A matching old service commit cannot qualify a newly checked-out editor root. */
 function assertServiceMappingCurrent(repoContext, mapping, workspaceFolders) {
@@ -96,4 +108,5 @@ function assertServiceMappingCurrent(repoContext, mapping, workspaceFolders) {
   return true;
 }
 
-module.exports = { readGitHead, validateServiceRoot, serviceRelativeFile, mapServicePayload, verifyServiceRevision, assertServiceMappingCurrent };
+module.exports = { readGitHead, validateServiceRoot, serviceRelativeFile, mapServicePayload, verifyServiceRevision,
+  assertServiceStatus, assertServiceMappingCurrent };

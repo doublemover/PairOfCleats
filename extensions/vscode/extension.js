@@ -20,7 +20,7 @@ const { createSemanticEvidenceWorkflow, sourceQualifiedSelection, qualifiedBindi
 let latestNavigationEvidence = null;
 const navigationLocationSources = new WeakMap();
 const { captureNavigationRequest, sourceNavigationArgs, qualifiedNavigationRows, qualifiedDocumentSymbolRows } = require('./source-navigation.js');
-const { readGitHead, validateServiceRoot, mapServicePayload, verifyServiceRevision, assertServiceMappingCurrent } = require('./service-repository.js');
+const { readGitHead, validateServiceRoot, mapServicePayload, assertServiceStatus, assertServiceMappingCurrent } = require('./service-repository.js');
 const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask,
   boundedLogLine, retainTaskLog } = require('./progress-view.js');
 const { readWatchProgress } = require('./watch-progress.js');
@@ -1210,7 +1210,8 @@ async function finishWorkflowSession(sessionId, patch, { terminalOwner = false }
 
 async function finishRevokedWorkflowSession(session) {
   if (operations.isCurrent()) return false;
-  await finishWorkflowSession(session.sessionId, { status: 'interrupted',
+  const userCancelled = operations.current()?.controller.signal.reason === 'cancelled';
+  await finishWorkflowSession(session.sessionId, { status: userCancelled ? 'cancelled' : 'interrupted',
     summaryLine: 'The editor request was revoked; retained results do not establish successful completion.' }, { terminalOwner: true });
   return true;
 }
@@ -4085,17 +4086,16 @@ async function runApiJsonCommand({
     {
       location: vscode.ProgressLocation.Notification,
       title: spec.progressTitle,
-      cancellable: false
+      cancellable: true
     },
-    async () => {
+    async (_, token) => {
+      const scope = operations.current();
+      const cancelSub = token?.onCancellationRequested?.(() => operations.cancelScope(scope));
+      if (token?.isCancellationRequested) operations.cancelScope(scope);
       output.appendLine(`[api] ${method} ${normalizeApiBaseUrl(baseUrl)}${requestPath}`);
-      return requestApiJson(baseUrl, requestPath, {
-        method,
-        payload,
-        headers,
-        timeoutMs,
-        label
-      });
+      try {
+        return await requestApiJson(baseUrl, requestPath, { method, payload, headers, timeoutMs, label });
+      } finally { cancelSub?.dispose?.(); }
     }
   );
 }
@@ -4137,9 +4137,14 @@ async function executeApiOperatorWorkflow(spec, repoContext, request) {
     vscode.window.showErrorMessage(result.message);
     return;
   }
-  const payload = typeof request.normalizePayload === 'function'
-    ? request.normalizePayload(result.payload)
-    : result.payload;
+  let payload;
+  try {
+    payload = typeof request.normalizePayload === 'function' ? request.normalizePayload(result.payload) : result.payload;
+  } catch (error) {
+    const failure = captureEditorFailure(error);
+    await finishWorkflowSession(session.sessionId, { status: 'failed', summaryLine: failure.message });
+    vscode.window.showErrorMessage(failure.message); return editorFailureEvidence([failure]);
+  }
   if (payload?.ok === false) {
     await finishWorkflowSession(session.sessionId, { status: 'failed', summaryLine: 'The service reported an unsuccessful operation.' });
     vscode.window.showErrorMessage('The service reported an unsuccessful operation. Inspect its captured diagnostics.'); return;
@@ -4300,7 +4305,7 @@ async function runOperatorCommand(spec, { repoContext: seededRepoContext = null,
     catch (error) { vscode.window.showErrorMessage(error.message); return; }
     if (!mapping) return;
     const requestPath = `/status?repo=${encodeURIComponent(mapping.serviceRoot)}`;
-    await executeApiOperatorWorkflow(spec, repoContext, {
+    return executeApiOperatorWorkflow(spec, repoContext, {
       baseUrl: execution.baseUrl,
       timeoutMs: execution.timeoutMs,
       headers: execution.headers || null,
@@ -4308,9 +4313,13 @@ async function runOperatorCommand(spec, { repoContext: seededRepoContext = null,
       method: 'GET',
       payload: null,
       transport: 'api',
-      normalizePayload: (payload) => payload?.status || payload
+      normalizePayload: payload => {
+        assertServiceMappingCurrent(repoContext, mapping, vscode.workspace.workspaceFolders);
+        const status = payload?.status || payload;
+        assertServiceStatus(status, mapping);
+        return status;
+      }
     });
-    return;
   }
   const invocation = resolveOperatorInvocation(spec, repoContext, cliResolution, inputContext, config);
   if (!invocation.ok) {
@@ -5336,7 +5345,7 @@ async function resolveServiceRepository(repoContext, execution, { force = false 
     timeoutMs: execution.timeoutMs, label: 'PairOfCleats service repository identity' });
   if (!response.ok) throw new Error(response.message);
   assertServiceMappingCurrent(repoContext, pending, vscode.workspace.workspaceFolders);
-  const identity = verifyServiceRevision(response.payload?.status, commit);
+  const identity = assertServiceStatus(response.payload?.status, pending);
   if (!mapping) {
     const action = await vscode.window.showInformationMessage(
       `Service ${execution.baseUrl} repository ${root} matches revision ${identity.commit.slice(0, 12)}. ` +
