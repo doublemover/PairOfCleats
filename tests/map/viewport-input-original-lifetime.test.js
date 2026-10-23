@@ -83,6 +83,56 @@ try {
   const duringDefault = create(); duringDefault.window.fire('keydown', { target: duringDefault.viewport, code: 'KeyD', preventDefault() { duringDefault.current = false; } });
   assert.equal(duringDefault.owner.keys.KeyD, undefined); duringDefault.owner.dispose();
 
+  // Every original getter capture is an authority boundary during construction.
+  // Cleanup uses captured removers without rereading later native getters.
+  for (let stop = 0; stop < 18; stop++) {
+    let partial; const reads = [];
+    const failure = caught(() => create(value => {
+      partial = value;
+      for (const surface of value.surfaces) for (const field of ['addEventListener', 'removeEventListener']) {
+        Object.defineProperty(surface, field, { get() {
+          reads.push(field); if (reads.length === stop + 1) value.current = false;
+          return Surface.prototype[field];
+        } });
+      }
+      Object.defineProperty(value.document, 'activeElement', { get() { assert.fail('revoked original listener capture cannot read later focus'); } });
+    }));
+    assert.match(failure.cause.message, /construction lost/); assert.equal(reads.length, stop + 1);
+    const added = partial.surfaces.flatMap(surface => surface.adds), removed = partial.surfaces.flatMap(surface => surface.removes);
+    assert.equal(added.length, Math.floor(stop / 2)); assert.equal(removed.length, added.length); assert.equal(listeners(partial), 0);
+    partial.current = true;
+    for (const { callback } of added) callback({ target: partial.viewport, code: 'KeyW', preventDefault() { assert.fail('failed original constructor cannot reactivate a retained listener'); } });
+    assert.equal(partial.shortcuts, 0);
+  }
+  for (const stop of ['pointerdown', 'focusin', 'focusout', 'blur', 'visibilitychange', 'pointercancel', 'lostpointercapture', 'keydown', 'keyup']) {
+    let partial;
+    const failure = caught(() => create(value => {
+      partial = value;
+      for (const surface of value.surfaces) surface.onAdd = name => { if (name === stop) value.current = false; };
+    }));
+    assert.match(failure.cause.message, /construction lost/); assert.equal(listeners(partial), 0);
+    assert.equal(partial.surfaces.flatMap(surface => surface.adds).length, partial.surfaces.flatMap(surface => surface.removes).length);
+  }
+  let focusPartial, focusReads = 0;
+  const focusFailure = caught(() => create(value => {
+    focusPartial = value; Object.defineProperty(value.document, 'activeElement', { get() { focusReads++; value.current = false; return value.viewport; } });
+  }));
+  assert.match(focusFailure.cause.message, /construction lost/); assert.equal(focusReads, 1); assert.equal(listeners(focusPartial), 0);
+
+  let nativeReady = false, captureReads = 0; finish.push(() => { nativeReady = true; });
+  const captureWork = Object.freeze(Object.defineProperty(new Error('independent original input getter work'), 'cacheOwnershipReleased', { value: () => nativeReady }));
+  let capturePartial;
+  const captureFailure = caught(() => create(value => {
+    capturePartial = value;
+    Object.defineProperty(value.document, 'addEventListener', { get() { captureReads++; throw captureWork; } });
+  }));
+  assert.equal(captureFailure.cause, captureWork); assert.equal(captureReads, 1); assert.equal(listeners(capturePartial), 1);
+  const captureOuter = pending().find(owner => owner.label === 'viewport input subscriptions');
+  const captureRemover = pending().find(owner => owner.label === 'viewport input pointerdown listener');
+  caught(captureRemover.release); assert.equal(capturePartial.surfaces.flatMap(surface => surface.removes).length, 0);
+  caught(captureOuter.release); assert.equal(capturePartial.surfaces.flatMap(surface => surface.removes).length, 0);
+  nativeReady = true; captureRemover.release(); captureOuter.release(); assert.equal(listeners(capturePartial), 0); assert.equal(captureReads, 1);
+
   // Partial registration is captured before add can throw. Independent listener
   // removals survive falsey primaries without needing a returned public owner.
   for (const primary of [undefined, null, false, 0, '']) {

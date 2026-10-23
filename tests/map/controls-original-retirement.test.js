@@ -26,6 +26,69 @@ try {
   let facade; normal.lifetime.construct(() => { facade = normal.lifetime.adopt(native, 'controls fixture native', ['ping']); });
   native.dispose = native.ping = () => assert.fail('original acquisition methods cannot be replaced'); facade.ping(); normal.lifetime.dispose(); normal.lifetime.dispose();
   assert.equal(native.calls, 1); assert.equal(native.pings, 1); assert.equal(normal.state.disposeControls, null); normal.originalScene(); assert.equal(normal.sceneCalls, 1);
+  facade.ping(); assert.equal(native.pings, 1, 'retained original child facade cannot invoke a disposed native resource');
+
+  const childNames = ['dispose', 'first', 'second', 'keys', 'meta'];
+  for (const [stop, name] of childNames.entries()) for (const mode of ['dispose', 'replace']) {
+    const originalOwner = make(), reads = []; let closes = 0, siblingDispose, workError;
+    const resource = {};
+    for (const field of childNames) Object.defineProperty(resource, field, { get() {
+      reads.push(field);
+      if (field === name) {
+        if (mode === 'dispose') workError = caught(originalOwner.lifetime.dispose);
+        else { siblingDispose = () => {}; originalOwner.state.disposeControls = siblingDispose; }
+      }
+      if (field === 'dispose') return () => { closes++; };
+      return field === 'keys' || field === 'meta' ? {} : () => assert.fail('revoked acquisition cannot invoke child methods');
+    } });
+    const failure = caught(() => originalOwner.lifetime.construct(() => {
+      originalOwner.lifetime.adopt(resource, 'controls fixture getter authority', ['first', 'second'], ['keys', 'meta']);
+      assert.fail('revoked acquisition cannot continue construction');
+    }));
+    assert.match(failure.cause.message, /acquisition lost/); assert.deepEqual(reads, childNames.slice(0, stop + 1));
+    assert.equal(closes, 1, 'original captured child is still retired after its getter revokes construction');
+    if (mode === 'replace') assert.equal(originalOwner.state.disposeControls, siblingDispose);
+    else assert.equal(workError.sceneOwnershipReleased(), true);
+  }
+
+  for (const stop of ['addEventListener', 'removeEventListener']) {
+    const originalOwner = make(), target = new Surface(), reads = []; let adds = 0;
+    for (const field of ['addEventListener', 'removeEventListener']) Object.defineProperty(target, field, { get() {
+      reads.push(field);
+      if (field === stop) originalOwner.lifetime.revoke();
+      return field === 'addEventListener' ? () => { adds++; } : Surface.prototype.removeEventListener;
+    } });
+    caught(() => originalOwner.lifetime.construct(() => originalOwner.lifetime.listen(target, 'getter', () => {})));
+    assert.deepEqual(reads, stop === 'addEventListener' ? ['addEventListener'] : ['addEventListener', 'removeEventListener']);
+    assert.equal(adds, 0); assert.equal(target.removed, 0);
+  }
+  const registrationOwner = make(), registered = new Surface(), neverRegistered = new Surface();
+  let siblingPublication = () => {};
+  registered.onAdd = () => { registrationOwner.state.disposeControls = siblingPublication; };
+  caught(() => registrationOwner.lifetime.construct(() => {
+    registrationOwner.lifetime.listen(registered, 'first', () => {});
+    registrationOwner.lifetime.listen(neverRegistered, 'second', () => {});
+  }));
+  assert.equal(registered.removed, 1); assert.equal(registered.events.size, 0); assert.equal(neverRegistered.removed, 0);
+  assert.equal(neverRegistered.events.size, 0); assert.equal(registrationOwner.state.disposeControls, siblingPublication);
+
+  const facadeOwner = make(); let nativeClosed = 0, facadeCalls = 0, duringFacade;
+  const guardedChild = { dispose() { nativeClosed++; }, operate() {
+    facadeCalls++; duringFacade = caught(facadeOwner.lifetime.dispose); assert.equal(nativeClosed, 0);
+  } };
+  let originalFacade; facadeOwner.lifetime.construct(() => { originalFacade = facadeOwner.lifetime.adopt(guardedChild, 'controls fixture active facade', ['operate']); });
+  originalFacade.operate(); assert.equal(duringFacade.sceneOwnershipReleased(), true); assert.equal(nativeClosed, 0);
+  originalFacade.operate(); assert.equal(facadeCalls, 1); facadeOwner.lifetime.dispose(); assert.equal(nativeClosed, 1);
+
+  const setterOwner = make(); let setterCloses = 0, setterValue, setterWork;
+  setterOwner.lifetime.construct(() => setterOwner.lifetime.adopt({ dispose() { setterCloses++; } }, 'controls fixture publication stack'));
+  Object.defineProperty(setterOwner.state, 'originalPublication', { get: () => setterValue, set(value) {
+    setterValue = value;
+    if (value) { setterWork = caught(setterOwner.lifetime.dispose); assert.equal(setterCloses, 0); }
+  } });
+  caught(() => setterOwner.lifetime.publish('originalPublication', () => {}));
+  assert.equal(setterValue, null); assert.equal(setterCloses, 0); assert.equal(setterWork.sceneOwnershipReleased(), true);
+  setterOwner.lifetime.dispose(); assert.equal(setterCloses, 1);
 
   let refuse = true; finish.push(() => { refuse = false; });
   const original = Object.freeze(new Error('first original controls child close'));

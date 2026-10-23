@@ -20,32 +20,39 @@ export const createViewportInputOwner = ({ viewport, canvas, window, document, c
     } finally { cleaning = false; }
   } };
   const owner = captureSceneResource(cleanup, 'viewport input subscriptions', 'dispose', [], { required: true });
+  const retainFailure = error => {
+    owner.retainFailure(error);
+    for (const remover of removers) remover.retainFailure(error);
+  };
   const current = () => {
     if (disposed || revoked) return false;
     try {
       const accepted = isCurrent() === true;
       if (disposed || revoked || !accepted) { revoked = true; clearKeys(); return false; }
       return true;
-    } catch (error) { revoked = true; owner.retainFailure(error); throw error; }
+    } catch (error) { revoked = true; retainFailure(error); throw error; }
   };
   const invoke = callback => {
     if (!current()) return;
     active++; owner.retainFailure(work);
     try { return callback(); }
-    catch (error) { owner.retainFailure(error); throw error; }
+    catch (error) { retainFailure(error); throw error; }
     finally { active--; }
   };
   const dispose = () => { disposed = true; if (cleaning) throw cleanupWork; return owner.retire(); };
   const owns = target => target === viewport || target === canvas;
+  const assertCurrent = () => { if (!current()) throw new Error('Viewport input construction lost its original authority.'); };
   const listen = (target, name, callback) => {
-    const add = target.addEventListener, remove = target.removeEventListener;
+    assertCurrent(); const add = target.addEventListener; assertCurrent();
+    const remove = target.removeEventListener; assertCurrent();
     if (typeof add !== 'function' || typeof remove !== 'function') throw new TypeError('Viewport input requires original listener registration and removal methods.');
     const listener = event => invoke(() => callback(event));
     const resource = { dispose: () => Reflect.apply(remove, target, [name, listener]) };
     // Retain the original remover before registration: an add callback can
     // install its listener and then throw or reenter logical retirement.
-    removers.push(captureSceneResource(resource, `viewport input ${name} listener`, 'dispose', [], { required: true }));
-    Reflect.apply(add, target, [name, listener]);
+    const remover = captureSceneResource(resource, `viewport input ${name} listener`, 'dispose', [], { required: true });
+    removers.push(remover); remover.retainFailure(work);
+    assertCurrent(); Reflect.apply(add, target, [name, listener]); assertCurrent();
   };
   const reset = () => {
     clearKeys();
@@ -53,7 +60,8 @@ export const createViewportInputOwner = ({ viewport, canvas, window, document, c
     cancelMotion();
     if (current()) invalidate();
   };
-  try {
+  const construct = () => {
+    assertCurrent();
     listen(viewport, 'pointerdown', event => {
       if (!owns(event.target)) return;
       viewport.focus({ preventScroll: true });
@@ -80,10 +88,15 @@ export const createViewportInputOwner = ({ viewport, canvas, window, document, c
     });
     // Key release always retires ownership, including after focus transfer/blur.
     listen(window, 'keyup', event => { const code = event.code; if (!current()) return; delete keys[code]; invalidate(); });
-    focused = owns(document.activeElement);
+    assertCurrent(); const activeElement = document.activeElement; assertCurrent(); focused = owns(activeElement);
     return Object.freeze({ keys, reset: () => invoke(reset), dispose });
+  };
+  try {
+    active++; owner.retainFailure(work);
+    try { return construct(); }
+    finally { active--; }
   } catch (primary) {
-    disposed = true; owner.retainFailure(primary);
+    disposed = true; retainFailure(primary);
     const errors = []; try { owner.retire(); } catch (error) { errors.push(error); }
     throw preserveSceneCleanupFailures(primary, errors, { hasPrimary: true, forceAggregate: true });
   }

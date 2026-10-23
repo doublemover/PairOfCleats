@@ -143,6 +143,31 @@ try {
     getPendingSceneResourceOwners().find(owner => !baseline.has(owner) && owner.label === label).release();
   }
   originalScene(); assert.equal(nativeClosed, 1); assert.equal(nativeReads, 1);
+  let partialInput, replacementInputDispose;
+  const inputConstructionFailure = caught(() => create(value => {
+    partialInput = value;
+    value.document.onAdd = name => {
+      if (name === 'focusin') { replacementInputDispose = () => {}; value.state.disposeControls = replacementInputDispose; }
+    };
+  }));
+  assert.match(inputConstructionFailure.cause.cause.message, /input construction lost/);
+  assert.equal(partialInput.document.added, 1); assert.equal(partialInput.app.added, 1);
+  assert.equal(partialInput.callbacks.size, 0); assert.equal(state.disposeControls, replacementInputDispose);
+  for (const surface of [partialInput.canvas, partialInput.app, partialInput.window, partialInput.document]) {
+    assert.equal(surface.added, surface.removed, 'actual initControls stops input construction and independently removes original partial subscriptions');
+  }
+  let partialListener, replacementListenerDispose; const listenerReads = [];
+  caught(() => create(value => {
+    partialListener = value;
+    Object.defineProperty(value.canvas, 'addEventListener', { get() {
+      listenerReads.push('add'); replacementListenerDispose = () => {}; value.state.disposeControls = replacementListenerDispose;
+      return Surface.prototype.addEventListener;
+    } });
+    Object.defineProperty(value.canvas, 'removeEventListener', { get() { listenerReads.push('remove'); return Surface.prototype.removeEventListener; } });
+  }));
+  assert.deepEqual(listenerReads, ['add']); assert.equal(partialListener.canvas.added, 0); assert.equal(partialListener.canvas.removed, 0);
+  assert.equal(state.disposeControls, replacementListenerDispose); assert.equal(partialListener.callbacks.size, 0);
+
   const duringPick = create(); duringPick.pointer(); duringPick.onPick = duringPick.replace; duringPick.frame();
   assert.equal(duringPick.renders.length, 0); assert.equal(state.hovered, 'sibling hover');
   assert.equal(state.perfStats, duringPick.sibling.perfStats, 'old hover return cannot overwrite sibling telemetry or submit sibling scene'); duringPick.dispose();

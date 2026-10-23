@@ -9,6 +9,17 @@ A listener remover is captured before registration because registration can
 install the callback and then throw. An inaccessible resource inside a throwing
 constructor remains outside this returned-resource contract.
 
+Returned-child acquisition retains its original disposer before reading any
+operation or value capability. Each original getter is followed immediately by
+an authority check, and revocation prevents every later getter. Listener setup
+checks between the original add/remove getters and after registration; a
+registration that installs then revokes construction still has its captured
+remover. Publication setters are also followed by an immediate authority check.
+Original child facades invoke only while their original controls remain current,
+and their accepted native callback stack prevents reentrant physical disposal.
+The helper's own acquisition, registration and publication stacks also count as original
+accepted work, including when called inside the broader construction span.
+
 Logical revocation expires original callbacks and detaches exact original
 publications before native cleanup. Every acquired child is attempted even when
 another fails. Fulfilled disposal and listener removal are not repeated. Ordinary

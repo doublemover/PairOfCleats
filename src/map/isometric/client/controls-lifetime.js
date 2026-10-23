@@ -59,6 +59,7 @@ export const createControlsLifetime = state => {
   const canClear = () => state.renderer === renderer && state.scene === scene
     && (state.disposeControls === dispose || (disposed && state.disposeControls == null));
   const current = () => !disposed && owns();
+  const assertCurrent = () => { if (!current()) throw new Error('Controls acquisition lost its original publication authority.'); };
   const retain = error => { prerequisites.retain(error); retainSceneDisposerFailure(originalSceneDispose, error); };
   const revoke = () => {
     if (disposed) return;
@@ -83,30 +84,44 @@ export const createControlsLifetime = state => {
   };
   const wrap = callback => function(...args) { return invoke(() => Reflect.apply(callback, this, args)); };
   const adopt = (resource, label, methods = [], values = []) => {
-    const cap = prerequisites.attach(captureSceneResource(resource, label, 'dispose', [], { required: true }));
-    resources.push(cap); cap.assertCaptured();
-    const facade = {};
+    active++;
     try {
+      const cap = prerequisites.attach(captureSceneResource(resource, label, 'dispose', [], { required: true }));
+      resources.push(cap); cap.assertCaptured(); assertCurrent();
+      const facade = {};
       for (const name of methods) {
+        assertCurrent();
         const original = resource[name];
+        assertCurrent();
         if (typeof original !== 'function') throw new TypeError(`${label} has no original ${name} method.`);
-        facade[name] = (...args) => Reflect.apply(original, resource, args);
+        facade[name] = wrap((...args) => Reflect.apply(original, resource, args));
       }
-      for (const name of values) facade[name] = resource[name];
-      if (!current()) throw new Error('Controls acquisition lost its original publication authority.');
+      for (const name of values) {
+        assertCurrent(); const value = resource[name]; assertCurrent(); facade[name] = value;
+      }
       return Object.freeze(facade);
     } catch (primary) { retain(primary); throw primary; }
+    finally { active--; }
   };
   const listen = (target, name, callback, options) => {
-    const add = target.addEventListener, remove = target.removeEventListener;
-    if (typeof add !== 'function' || typeof remove !== 'function') throw new TypeError('Controls require original listener registration/removal methods.');
-    const listener = wrap(callback), resource = { dispose: () => Reflect.apply(remove, target, [name, listener, options]) };
-    adopt(resource, `original controls ${name} listener`);
-    Reflect.apply(add, target, [name, listener, options]);
+    active++;
+    try {
+      assertCurrent(); const add = target.addEventListener; assertCurrent();
+      const remove = target.removeEventListener; assertCurrent();
+      if (typeof add !== 'function' || typeof remove !== 'function') throw new TypeError('Controls require original listener registration/removal methods.');
+      const listener = wrap(callback), resource = { dispose: () => Reflect.apply(remove, target, [name, listener, options]) };
+      adopt(resource, `original controls ${name} listener`);
+      assertCurrent(); Reflect.apply(add, target, [name, listener, options]); assertCurrent();
+    } catch (primary) { retain(primary); throw primary; }
+    finally { active--; }
   };
   const publish = (name, callback) => {
-    if (!current()) throw new Error('Controls publication lost its original owner.');
-    const original = wrap(callback); publications.set(name, original); state[name] = original; return original;
+    active++;
+    try {
+      if (!current()) throw new Error('Controls publication lost its original owner.');
+      const original = wrap(callback); publications.set(name, original); state[name] = original; assertCurrent(); return original;
+    } catch (primary) { retain(primary); throw primary; }
+    finally { active--; }
   };
   const shutdownScene = () => {
     revoke();
