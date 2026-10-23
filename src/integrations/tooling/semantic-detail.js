@@ -13,6 +13,7 @@ import { measureSymbolicResponseBytes } from '../../semantic/symbolic-type-respo
 import { captureSemanticRequest } from '../../semantic/request-snapshot.js';
 import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-query.js';
 import { withSemanticReaderCleanup } from '../../semantic/reader-lifetime.js';
+import { publishSemanticPage } from '../../semantic/page-publication.js';
 
 /** One cursor service per repository/query policy; stores reopen the exact requested generation. */
 export const createSemanticDetailRunner = ({ openStore = openPublishedSemanticStore,
@@ -49,7 +50,7 @@ export const createSemanticDetailRunner = ({ openStore = openPublishedSemanticSt
       const close = opened.close?.bind(opened);
       result = await withSemanticReaderCleanup(async () => {
         throwIfAborted(signal);
-        const value = await service({ store: opened.store, request, signal });
+        const value = await service({ store: opened.store, request, signal, deferPublication: true });
         throwIfAborted(signal);
         return value;
       }, () => close?.());
@@ -83,7 +84,8 @@ export const createSemanticDetailRunner = ({ openStore = openPublishedSemanticSt
       }
     }
     throwIfAborted(signal);
-    return assertSemanticQuery('detailResult', result);
+    assertSemanticQuery('detailResult', result);
+    return publishSemanticPage(result);
   };
 };
 export const runSemanticDetail = createSemanticDetailRunner();

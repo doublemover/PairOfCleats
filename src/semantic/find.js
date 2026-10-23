@@ -7,6 +7,7 @@ import { throwIfAborted } from '../shared/abort.js';
 import { discoverySelector, inspectDiscoveryFact } from './discovery-facts.js';
 import { captureSemanticRequest } from './request-snapshot.js';
 import { SEMANTIC_FIND_REQUEST_SCHEMA } from '../contracts/schemas/semantic-find.js';
+import { stageSemanticPagePublication } from './page-publication.js';
 const fail=(code,message)=>Object.assign(new Error(message),{code});
 export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWorkMs=250,maxContinuations=64,ttlMs=300000}={}) => {
   const maxima={records:maxRecords,bytes:maxBytes,workMs:maxWorkMs},continuations=new Map();
@@ -75,17 +76,21 @@ export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWork
     result.status=done&&complete?'complete':'partial';
     await attachSemanticSourceReferences({ store, result, signal, began: deadline - limits.workMs, limits });
     let pendingContinuation = null;
-    if(!done){if(!progressed)throw fail('ERR_SEMANTIC_OUTPUT_LIMIT','Selected operation evidence exceeds output allowance.');result.cursor=randomUUID();pendingContinuation={key,offset,seed,expires:Date.now()+ttlMs};result.frontier.push({reason:'response_budget',remainingCount:1});}
+    if(!done){if(!progressed)throw fail('ERR_SEMANTIC_OUTPUT_LIMIT','Selected operation evidence exceeds output allowance.');result.cursor=randomUUID();pendingContinuation={key,offset,seed};result.frontier.push({reason:'response_budget',remainingCount:1});}
     if(Buffer.byteLength(JSON.stringify(result))>limits.bytes)throw fail('ERR_SEMANTIC_OUTPUT_LIMIT','Semantic response exceeds output budget.');
     assertSemanticFind('result',result);
-    if(pendingContinuation){const now=Date.now();for(const [token,saved]of continuations)if(saved.expires<=now)continuations.delete(token);continuations.set(result.cursor,pendingContinuation);while(continuations.size>maxContinuations)continuations.delete(continuations.keys().next().value);}
-    return result;
+    return {result,pendingContinuation};
   };
   // A page owns a bounded set of verified readers; cursors retain only facts.
   // A fresh page/request must verify the current source content again.
   return async args => {
     const captured = { ...args, request: captureSemanticRequest(args.request, SEMANTIC_FIND_REQUEST_SCHEMA) };
-    return typeof captured.store?.withReadScope === 'function'
-      ? captured.store.withReadScope(() => find(captured)) : find(captured);
+    const {result,pendingContinuation}=await (typeof captured.store?.withReadScope === 'function'
+      ? captured.store.withReadScope(() => find(captured)) : find(captured));
+    throwIfAborted(captured.signal);
+    return stageSemanticPagePublication(result,()=>{
+      throwIfAborted(captured.signal);
+      if(pendingContinuation){const now=Date.now();for(const [token,saved]of continuations)if(saved.expires<=now)continuations.delete(token);continuations.set(result.cursor,{...pendingContinuation,expires:now+ttlMs});while(continuations.size>maxContinuations)continuations.delete(continuations.keys().next().value);}
+    },captured.deferPublication);
   };
 };

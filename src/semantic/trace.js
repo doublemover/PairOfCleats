@@ -8,6 +8,7 @@ import { captureSemanticRequest } from './request-snapshot.js';
 import { SEMANTIC_TRACE_REQUEST_SCHEMA } from '../contracts/schemas/semantic-trace.js';
 import { semanticTracePathDeclaration, semanticPathExecution } from './path-capabilities.js';
 import { inspectSemanticPathEdge } from './path-edge.js';
+import { stageSemanticPagePublication } from './page-publication.js';
 const fail = (code, message) => Object.assign(new Error(message), { code });
 export const DEFAULT_TRACE_KINDS = Object.freeze('defines reads writes mutates returns captures flowsTo argumentToParameter returnToResult sharesStorage copies packs transfers dispatches consumes'.split(' '));
 const refKey = ref => canonicalSemanticJson(ref);
@@ -173,12 +174,14 @@ export const createSemanticTraceService = ({ maxRecords = 128, maxEdges = 512, m
     const { result, pendingContinuation } = await (typeof captured.store?.withReadScope === 'function'
       ? captured.store.withReadScope(readPage) : readPage());
     throwIfAborted(captured.signal);
-    if (pendingContinuation) {
-      const now = Date.now();
-      for (const [token, saved] of continuations) if (saved.expires <= now) continuations.delete(token);
-      continuations.set(result.cursor, { ...pendingContinuation, expires: now + ttlMs });
-      while (continuations.size > maxContinuations) continuations.delete(continuations.keys().next().value);
-    }
-    return result;
+    return stageSemanticPagePublication(result, () => {
+      throwIfAborted(captured.signal);
+      if (pendingContinuation) {
+        const now = Date.now();
+        for (const [token, saved] of continuations) if (saved.expires <= now) continuations.delete(token);
+        continuations.set(result.cursor, { ...pendingContinuation, expires: now + ttlMs });
+        while (continuations.size > maxContinuations) continuations.delete(continuations.keys().next().value);
+      }
+    }, captured.deferPublication);
   };
 };

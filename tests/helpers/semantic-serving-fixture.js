@@ -10,7 +10,7 @@ import { getBuildsRoot, getRepoRoot } from '../../src/shared/repo-paths.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 
 /** Real partition/index writers and registrations, without a repository index. */
-export const createSemanticServingFixture = async ({ withOperands = false } = {}) => {
+export const createSemanticServingFixture = async ({ withOperands = false, withTraceEdge = false } = {}) => {
   const fixture = await createRecoveryFixture('first(); second();');
   const repoRoot = getRepoRoot(fixture.root);
   try {
@@ -18,6 +18,10 @@ export const createSemanticServingFixture = async ({ withOperands = false } = {}
     if (withOperands) rows.push({ family: 'operand', row: {
       parent: { partitionId: fixture.partitionId, localId: 0 }, slot: 'argument', ordinal: 0,
       child: { partitionId: fixture.partitionId, localId: 1 }, flags: []
+    } });
+    if (withTraceEdge) rows.push({ family: 'edge', row: { id: 0, kind: 'flowsTo',
+      from: {partitionId: fixture.partitionId,localId:0}, to: {partitionId:fixture.partitionId,localId:1},
+      callSite:null,operandOrdinal:null,contextKey:null,condition:null,evidence:null,certainty:'modeled'
     } });
     const partition = await fixture.write(rows);
     const store = fixture.store([partition]);

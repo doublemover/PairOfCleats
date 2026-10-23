@@ -10,6 +10,7 @@ import { throwIfAborted } from '../../shared/abort.js';
 import { captureSemanticRequest } from '../../semantic/request-snapshot.js';
 import { SEMANTIC_EXPLAIN_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-explain.js';
 import { withSemanticReaderCleanup } from '../../semantic/reader-lifetime.js';
+import { publishSemanticPage } from '../../semantic/page-publication.js';
 
 /** One cursor service per repository/query policy; stores reopen the exact requested generation. */
 export const createSemanticExplainRunner = ({ openStore = openSemanticQueryStore, maxServices = 32 } = {}) => {
@@ -38,12 +39,12 @@ export const createSemanticExplainRunner = ({ openStore = openSemanticQueryStore
     const close = opened.close?.bind(opened);
     const result = await withSemanticReaderCleanup(async () => {
       throwIfAborted(signal);
-      const value = await service({ store: opened.store, manifest: opened.manifest, request, signal });
+      const value = await service({ store: opened.store, manifest: opened.manifest, request, signal, deferPublication: true });
       throwIfAborted(signal);
       return value;
     }, () => close?.());
     throwIfAborted(signal);
-    return result;
+    return publishSemanticPage(result);
   };
 };
 export const runSemanticExplain = createSemanticExplainRunner();

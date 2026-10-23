@@ -9,6 +9,7 @@ import { addStorageFailureContext } from '../shared/storage/operation-error.js';
 import { captureSemanticRequest } from './request-snapshot.js';
 import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../contracts/schemas/semantic-query.js';
 import { readProviderEvidenceEntry, providerEvidenceState, createProviderEvidenceBudget } from './provider-evidence-detail.js';
+import { stageSemanticPagePublication } from './page-publication.js';
 
 const fail = (code, message) => Object.assign(new Error(message), { code });
 const fieldGroups = ['span', 'scope', 'data'];
@@ -26,7 +27,7 @@ export const createSemanticDetailService = ({ maxContinuations = 64, ttlMs = 300
   }
   if (!Number.isSafeInteger(maxContinuations) || maxContinuations < 1 || maxContinuations > 4096 || !Number.isSafeInteger(ttlMs) || ttlMs < 1 || ttlMs > 86400000) throw new TypeError('Invalid semantic continuation bounds.');
   const continuations = new Map();
-  return async ({ store, request, signal = null }) => {
+  const detail = async ({ store, request, signal = null }) => {
     request = captureSemanticRequest(request, SEMANTIC_DETAIL_REQUEST_SCHEMA);
     assertSemanticQuery('detailRequest', request);
     assertSemanticEnvelope('generation', request.generation);
@@ -187,18 +188,27 @@ export const createSemanticDetailService = ({ maxContinuations = 64, ttlMs = 300
     const extractionComplete = result.coverage.extraction.length > 0 && result.coverage.extraction.every((row) => row.state === 'complete');
     result.status = done && analysisComplete && extractionComplete && !result.frontier.length && !result.providerEvidence?.length ? 'complete' : 'partial';
     await attachSemanticSourceReferences({ store, result, signal, began, limits: { ...limits, bytes: limits.bytes - evidenceReadBytes } });
+    let pendingContinuation = null;
     if (!done) {
       if (!progressed) throw fail('ERR_SEMANTIC_OUTPUT_LIMIT', 'Selected semantic row cannot fit the output budget; select fewer field groups.');
-      const cursor = randomUUID(), now = Date.now();
-      for (const [token, saved] of continuations) if (saved.expires <= now) continuations.delete(token);
-      continuations.set(cursor, { key, state: structuredClone(state), expires: now + ttlMs });
-      while (continuations.size > maxContinuations) continuations.delete(continuations.keys().next().value);
+      const cursor = randomUUID();
+      pendingContinuation = { key, state: structuredClone(state) };
       result.cursor = cursor;
       result.frontier.push({ reason: 'response_budget', remainingCount: request.refs.length - state.index });
     }
     if (Buffer.byteLength(JSON.stringify(result)) + evidenceReadBytes > limits.bytes) throw fail('ERR_SEMANTIC_OUTPUT_LIMIT', 'Semantic response and retained evidence reads exceed the shared page byte budget.');
     assertSemanticQuery('detailResult', result);
     budgetUsage.set(result, { retainedEvidenceBytes: evidenceReadBytes });
-    return result;
+    return {result,pendingContinuation};
+  };
+  return async args => {
+    const captured = {...args,request:captureSemanticRequest(args.request,SEMANTIC_DETAIL_REQUEST_SCHEMA)};
+    const {result,pendingContinuation}=await (typeof captured.store?.withReadScope==='function'
+      ? captured.store.withReadScope(()=>detail(captured)):detail(captured));
+    throwIfAborted(captured.signal);
+    return stageSemanticPagePublication(result,()=>{
+      throwIfAborted(captured.signal);
+      if(pendingContinuation){const now=Date.now();for(const [token,saved]of continuations)if(saved.expires<=now)continuations.delete(token);continuations.set(result.cursor,{...pendingContinuation,expires:now+ttlMs});while(continuations.size>maxContinuations)continuations.delete(continuations.keys().next().value);}
+    },captured.deferPublication);
   };
 };
