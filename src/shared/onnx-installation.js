@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { assertNoSymlinkPath, readVerifiedContainedFileSync } from './contained-file.js';
+import { describeStorageFailure } from './storage/failure-observation.js';
 
 export const ONNX_INSTALLATION_VERSION = 1;
 export const ONNX_INSTALLATION_RECEIPT = '.pairofcleats-model-artifacts.json';
@@ -19,7 +20,8 @@ const readSmallJson = file => {
  * and verified. Older selected directories remain retained for active readers. */
 export const resolveInstalledOnnxPath = target => {
   const selector = onnxSelectionPath(target);
-  try { fs.lstatSync(selector); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  try { fs.lstatSync(selector); }
+  catch (error) { if (describeStorageFailure(error, { phase: 'onnx-installed-selector' }).code === 'ENOENT') return null; throw error; }
   assertNoSymlinkPath(path.dirname(target), selector);
   const selection = readSmallJson(selector);
   const prefix = `${path.basename(target)}.assets/`;
@@ -47,7 +49,7 @@ export const resolveInstalledOnnxPath = target => {
 export const readOnnxInstallationReceipt = root => {
   let receipt;
   try { receipt = readSmallJson(path.join(root, ONNX_INSTALLATION_RECEIPT)); }
-  catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  catch (error) { if (describeStorageFailure(error, { phase: 'onnx-installation-receipt' }).code === 'ENOENT') return null; throw error; }
   if (receipt?.version !== ONNX_INSTALLATION_VERSION || !safeOnnxRelativePath(receipt.graph)
     || receipt.graph.includes('/') || !/^[a-f0-9]{64}$/u.test(receipt.digest || '')
     || !Array.isArray(receipt.files) || !receipt.files.length || receipt.files.length > 128) throw new Error('Invalid ONNX closure receipt.');

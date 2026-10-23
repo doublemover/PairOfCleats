@@ -6,6 +6,7 @@ import { readOnnxInstallationReceipt } from './onnx-installation.js';
 import { readEmbeddingAcquisitionReceipt } from './embedding-acquisition-receipt.js';
 import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
 import { assertNoSymlinkPath } from './contained-file.js';
+import { describeStorageFailure } from './storage/failure-observation.js';
 
 const TOKENIZER_FILES = new Set([
   'config.json', 'tokenizer.json', 'tokenizer_config.json', 'special_tokens_map.json',
@@ -94,7 +95,7 @@ export const planEmbeddingArtifactInventory = ({ provider, modelId, modelsDir, r
     const selectedRoot = root && isEmbeddingModelRepositoryId(modelId) ? path.join(root, modelProfile.revision) : root;
     let receipt = null;
     try { if (selectedRoot) receipt = readEmbeddingAcquisitionReceipt(selectedRoot, resolveEmbeddingAcquisitionPlan(modelId, modelProfile)); }
-    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    catch (error) { if (describeStorageFailure(error, { phase: 'embedding-profile-receipt' }).code !== 'ENOENT') throw error; }
     if (receipt) return { revision: modelProfile.revision, hasWeights: true, hasTokenizer: true, modelPath: null,
       files: receipt.inventory.map(row => ({ rel: row.path, filePath: path.join(selectedRoot, ...row.path.split('/')), expected: row })) };
     if (!isEmbeddingModelRepositoryId(modelId) || !root || inventoryFiles(selectedRoot).length) {
@@ -111,7 +112,7 @@ export const planEmbeddingArtifactInventory = ({ provider, modelId, modelsDir, r
   if (provider === 'xenova' && modelRoot) {
     let receipt = null;
     try { receipt = readEmbeddingAcquisitionReceipt(modelRoot, resolveEmbeddingAcquisitionPlan(modelId)); }
-    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    catch (error) { if (describeStorageFailure(error, { phase: 'embedding-acquisition-receipt' }).code !== 'ENOENT') throw error; }
     if (receipt) return { hasWeights: true, hasTokenizer: true, modelPath: null,
       files: receipt.inventory.map(row => ({ rel: row.path, filePath: path.join(modelRoot, ...row.path.split('/')), expected: row })) };
   }

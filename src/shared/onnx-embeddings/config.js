@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { resolveInstalledOnnxPath } from '../onnx-installation.js';
 import path from 'node:path';
 import { isAbsolutePathNative } from '../file-paths.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
 
 const GRAPH_LEVELS = new Set(['disabled', 'basic', 'extended', 'all']);
 const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on', 'enabled']);
@@ -110,7 +111,8 @@ export const LARGE_MODEL_BYTES = Math.floor(1.5 * 1024 * 1024 * 1024);
 export const statSize = (filePath) => {
   try {
     return fs.statSync(filePath).size;
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'onnx-model-size' }).requireSettled();
     return null;
   }
 };
@@ -201,12 +203,14 @@ export function resolveOnnxModelPath({ rootDir, modelPath, modelsDir, modelId })
           path.join(candidate, 'onnx', 'model_quantized.onnx')
         ];
         for (const entry of nested) {
-          try { return readableFile(entry); } catch { /* Continue selected directory candidates. */ }
+          try { return readableFile(entry); }
+          catch (error) { observeStorageResource(error, { phase: 'onnx-directory-candidate' }).requireSettled(); }
         }
         throw new Error('The selected directory has no readable nonempty ONNX graph.');
       }
       return readableFile(candidate);
     } catch (cause) {
+      observeStorageResource(cause, { phase: 'onnx-model-selection' }).requireSettled();
       if (authoritative) {
         throw Object.assign(new Error(`Selected ONNX model path "${candidate}" is unavailable or unusable. Download/verify that graph or correct indexing.embeddings.onnx.modelPath.`, { cause }), {
           code: 'ERR_EMBEDDING_MODEL_PATH', modelPath: candidate
