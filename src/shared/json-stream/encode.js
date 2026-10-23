@@ -218,13 +218,22 @@ export const stringifyJsonValue = (value) => {
   return stringifyJsonValueInternal(value, new WeakSet());
 };
 
-export const writeArrayItems = async (stream, items, signal = null) => {
+export const writeArrayItems = async (stream, items, signal = null, readPrepared = null) => {
   const cooperate = createCooperativeYielder();
   let first = true;
   await consumeJsonRows(items, async item => {
     throwIfAborted(signal);
     if (!first) await writeChunk(stream, ',');
-    await writeJsonValue(stream, item, { cooperate, signal });
+    const prepared = readPrepared?.(item);
+    if (prepared) {
+      for (let offset = 0; offset < prepared.line.length;) {
+        throwIfAborted(signal);
+        let end = Math.min(prepared.line.length, offset + 64 * 1024);
+        const last = prepared.line.charCodeAt(end - 1), next = prepared.line.charCodeAt(end);
+        if (last >= 0xd800 && last <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) end--;
+        await writeChunk(stream, prepared.line.slice(offset, end)); offset = end;
+      }
+    } else await writeJsonValue(stream, item, { cooperate, signal });
     await cooperate();
     first = false;
   }, { signal });

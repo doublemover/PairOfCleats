@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import { createPreparedJsonlRows, readPreparedJsonlRow } from '../../../../../shared/json-stream/prepared-row.js';
 import { planChunkMetaRepresentations } from '../../sparse-representation-plan.js';
+import { addStorageFailureContext } from '../../../../../shared/storage/operation-error.js';
 import path from 'node:path';
 import { log } from '../../../../../shared/progress-runtime.js';
 import {
@@ -96,8 +97,8 @@ export const enqueueChunkMetaArtifacts = async ({
   // Only JSONL publishes a cold sidecar. Other primaries and their binary
   // compatibility output must retain the complete cold-field union inline.
   let enableHotColdSplit = chunkMetaUseJsonl && chunkMetaStreaming !== true;
-  let prepareProjectedRows = chunkMetaUseJsonl;
-  if (chunkMetaUseJsonl) chunkMetaIterator.enablePreparedRows?.();
+  let prepareProjectedRows = !chunkMetaUseColumnar;
+  if (!chunkMetaUseColumnar) chunkMetaIterator.enablePreparedRows?.();
   const preparedProjections = createPreparedJsonlRows();
   const hotProjections = new WeakMap(), coldProjections = new WeakMap();
   const project = (entry, cache, mapper) => {
@@ -147,6 +148,8 @@ export const enqueueChunkMetaArtifacts = async ({
   let outOfOrder = false;
   let firstOutOfOrder = null;
   let preparedColumnarHotRows = null;
+  let canonicalHotRows = null;
+  let releaseCanonicalRows = async () => {};
   if (chunkMetaStreaming && resolvedUseJsonl) {
     resolvedUseColumnar = false;
     resolvedUseShards = chunkMetaShardSize > 0 && chunkMetaCount > chunkMetaShardSize;
@@ -207,7 +210,10 @@ export const enqueueChunkMetaArtifacts = async ({
     if (outOfOrder) {
       if (enableHotColdSplit) {
         enableHotColdSplit = false;
-        jsonlScan.coldJsonlBytes = 0;
+        // Sorting stores complete rows. Their size/order receipt must describe
+        // that layout rather than the earlier hot-only projection.
+        jsonlScan = scanChunkMeta({ collectRows: false });
+        if (resolvedMaxJsonBytes && jsonlScan.totalJsonlBytes > resolvedMaxJsonBytes) resolvedUseShards = true;
       }
       const collector = createChunkMetaBucketCollector({
         outDir,
@@ -374,8 +380,8 @@ export const enqueueChunkMetaArtifacts = async ({
       || (
         Number.isFinite(Number(chunkMetaCount))
         && Number(chunkMetaCount) <= COMPAT_CHUNK_META_JSON_MAX_ROWS
-        && Number.isFinite(Number(jsonlScan?.totalJsonlBytes || 0))
-        && Number(jsonlScan?.totalJsonlBytes || 0) <= COMPAT_CHUNK_META_JSON_MAX_BYTES
+        && Number.isFinite(Number(jsonlScan?.totalJsonlBytes || 0) + Number(jsonlScan?.coldJsonlBytes || 0))
+        && (Number(jsonlScan?.totalJsonlBytes || 0) + Number(jsonlScan?.coldJsonlBytes || 0)) <= COMPAT_CHUNK_META_JSON_MAX_BYTES
       )
     )
   );
@@ -390,6 +396,19 @@ export const enqueueChunkMetaArtifacts = async ({
   const withRepresentationPlan = entry => representationPlan && entry.name === 'chunk_meta'
     ? { ...entry, extensions: { ...(entry.extensions || {}), representationPlan } } : entry;
   const addChunkPieceFile = (entry, filename) => addPieceFile(withRepresentationPlan(entry), filename);
+  const enqueueChunkWrite = (label, job, meta) => enqueueWrite(label, async args => {
+    let result, primary, failed = false;
+    try { result = await job(args); } catch (error) { primary = error; failed = true; }
+    try {
+      if (label === binaryTaskLabel) await releaseCanonicalRows('binary');
+      else if (label === hotShardsTaskLabel || label === formatArtifactLabel(jsonlPath)) await releaseCanonicalRows('hot');
+    } catch (error) {
+      primary = failed ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : error;
+      failed = true;
+    }
+    if (failed) throw primary;
+    return result;
+  }, meta);
 
   if (resolvedUseJsonl) {
     if (!shouldWriteCompatChunkMetaJson) {
@@ -500,49 +519,23 @@ export const enqueueChunkMetaArtifacts = async ({
         items: mapRows(source.items, (entry) => projectColdEntry(entry))
       };
     };
-    let materializedHotRowsCache = null;
-    let materializedHotRowsPromise = null;
-    const materializeHotRows = async () => {
-      if (Array.isArray(materializedHotRowsCache)) return materializedHotRowsCache;
-      if (materializedHotRowsPromise) return materializedHotRowsPromise;
-      materializedHotRowsPromise = (async () => {
-        const { items, itemsAsync } = createHotItemsSource();
-        if (itemsAsync) {
-          const materialized = [];
-          for await (const item of items) {
-            materialized.push(item);
-          }
-          materializedHotRowsCache = materialized;
-          return materialized;
-        }
-        if (Array.isArray(items)) {
-          materializedHotRowsCache = items;
-          return items;
-        }
-        const materialized = Array.from(items || []);
-        materializedHotRowsCache = materialized;
-        return materialized;
-      })().finally(() => {
-        materializedHotRowsPromise = null;
-      });
-      return materializedHotRowsPromise;
-    };
+    canonicalHotRows = () => createHotItemsSource().items;
     const writeCompatChunkMetaJson = async () => {
       if (!shouldWriteCompatChunkMetaJson) return;
-      const { items, itemsAsync } = createHotItemsSource();
-      if (itemsAsync) {
-        const materialized = await materializeHotRows();
-        await writeJsonArrayFile(compatJsonPath, materialized, { atomic: true });
-        return;
-      }
+      // Legacy JSON readers do not join a cold JSONL sidecar. Preserve their
+      // complete row union; sorted spill rows already contain it when needed.
+      const items = enableHotColdSplit ? chunkMetaIterator() : canonicalHotRows();
       await writeJsonArrayFile(compatJsonPath, items, { atomic: true });
     };
-    let collectedCleaned = false;
-    const cleanupCollected = async () => {
-      if (collectedCleaned) return;
-      collectedCleaned = true;
-      if (collected?.cleanup) await collected.cleanup();
+    const collectedReaders = new Set(['hot', ...(optionalBinaryColumnarEnabled ? ['binary'] : [])]);
+    let collectedCleanup = null;
+    const cleanupCollected = async (reader = 'hot') => {
+      collectedReaders.delete(reader);
+      if (collectedReaders.size) return;
+      collectedCleanup ||= Promise.resolve().then(() => collected?.cleanup?.());
+      await collectedCleanup;
     };
+    releaseCanonicalRows = cleanupCollected;
     if (!enableHotColdSplit) {
       await removeColdJsonlVariants();
       await removeArtifact(path.join(outDir, 'chunk_meta_cold.meta.json'));
@@ -550,7 +543,7 @@ export const enqueueChunkMetaArtifacts = async ({
     }
     if (resolvedUseShards) {
       const metaPath = path.join(outDir, 'chunk_meta.meta.json');
-      enqueueWrite(
+      enqueueChunkWrite(
         hotShardsTaskLabel,
         async ({ setPhase } = {}) => {
           setPhase?.('write:chunk-meta-shards');
@@ -673,7 +666,7 @@ export const enqueueChunkMetaArtifacts = async ({
       );
       if (enableHotColdSplit) {
         const coldMetaPath = path.join(outDir, 'chunk_meta_cold.meta.json');
-        enqueueWrite(
+        enqueueChunkWrite(
           coldShardsTaskLabel,
           async ({ setPhase } = {}) => {
             setPhase?.('write:chunk-meta-cold-shards');
@@ -754,7 +747,7 @@ export const enqueueChunkMetaArtifacts = async ({
         );
       }
     } else {
-      enqueueWrite(
+      enqueueChunkWrite(
         formatArtifactLabel(jsonlPath),
         async () => {
           const { items } = createHotItemsSource();
@@ -789,7 +782,7 @@ export const enqueueChunkMetaArtifacts = async ({
         }, offsetsPath);
       }
       if (enableHotColdSplit) {
-        enqueueWrite(
+        enqueueChunkWrite(
           formatArtifactLabel(coldJsonlPath),
           async () => {
             const { items } = createColdItemsSource();
@@ -825,7 +818,7 @@ export const enqueueChunkMetaArtifacts = async ({
       }
     }
   } else if (resolvedUseColumnar) {
-    enqueueWrite(
+    enqueueChunkWrite(
       formatArtifactLabel(columnarPath),
       async () => {
         let columnarRows = null;
@@ -864,7 +857,7 @@ export const enqueueChunkMetaArtifacts = async ({
     const binaryColumnarEstimatedBytes = Number.isFinite(Number(chunkMetaEstimatedJsonlBytes))
       ? Math.max(0, Math.floor(Number(chunkMetaEstimatedJsonlBytes)))
       : null;
-    enqueueWrite(
+    enqueueChunkWrite(
       binaryTaskLabel,
       async ({ setPhase } = {}) => {
         setPhase?.('materialize:chunk-meta-binary-columnar');
@@ -879,16 +872,10 @@ export const enqueueChunkMetaArtifacts = async ({
         const fileTable = [];
         const fileRefByPath = new Map();
         let serializationMs = 0;
-        let sourceRows = Array.isArray(preparedColumnarHotRows)
-          ? preparedColumnarHotRows
-          : mapRows(chunkMetaIterator(0, chunkMetaCount, false), (entry) => projectHotEntry(entry));
-        if (outOfOrder) {
-          const materialized = [];
-          for await (const row of toAsyncIterable(sourceRows)) {
-            materialized.push(row);
-          }
-          materialized.sort(compareChunkMetaIdOnly);
-          sourceRows = materialized;
+        const sourceRows = canonicalHotRows ? canonicalHotRows() : Array.isArray(preparedColumnarHotRows)
+          ? preparedColumnarHotRows : mapRows(chunkMetaIterator(0, chunkMetaCount, false), entry => projectHotEntry(entry));
+        if (outOfOrder && !canonicalHotRows) {
+          throw Object.assign(new Error('Chunk metadata has no admitted ordered row source.'), { code: 'ERR_CHUNK_META_ORDER_SOURCE' });
         }
         const rowPayloads = (async function* payloadIterator() {
           for await (const hotEntry of toAsyncIterable(sourceRows)) {

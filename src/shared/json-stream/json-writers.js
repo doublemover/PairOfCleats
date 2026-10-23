@@ -4,6 +4,7 @@ import { throwIfAborted } from './runtime.js';
 import { Writable } from 'node:stream';
 import { finished } from 'node:stream/promises';
 import { addStorageFailureContext } from '../storage/operation-error.js';
+import { readPreparedJsonlRow } from './prepared-row.js';
 
 // One serialization owner fans encoded bytes out to bounded writable sinks.
 // Join all finalizers before exposing either representation to publication.
@@ -106,7 +107,7 @@ export async function writeJsonArrayFile(filePath, items, options = {}) {
   });
   try {
     await writeChunk(stream, '[');
-    await writeArrayItems(stream, items, signal);
+    await writeArrayItems(stream, items, signal, readPreparedJsonlRow);
     await writeChunk(stream, ']');
     if (trailingNewline) await writeChunk(stream, '\n');
     return finalizeJsonWrite({
@@ -158,7 +159,7 @@ export async function writeJsonObjectFile(filePath, input = {}) {
       const header = `${JSON.stringify(key)}:[`;
       await writeChunk(stream, `${first ? '' : ','}${header}`);
       first = false;
-      await writeArrayItems(stream, items, signal);
+      await writeArrayItems(stream, items, signal, readPreparedJsonlRow);
       await writeChunk(stream, ']');
     }
     await writeChunk(stream, '}');
