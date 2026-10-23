@@ -39,6 +39,7 @@ try {
   const { teardownRuntime } = await import('../../../src/integrations/core/build-index/runtime.js');
   for (const marker of [undefined, false, true]) {
     let settled = false, getterReads = 0, callbacks = 0, loggerCloses = 0;
+    const capturedFields = [];
     const primary = new Error('original worker cleanup observation');
     Object.defineProperty(primary, 'cacheOwnershipReleased', { configurable: true, get() {
       getterReads++;
@@ -49,9 +50,8 @@ try {
     const failure = await rejected(() => teardownRuntime({
       log(line) {
         if (line.includes('runtime.worker-pools.destroy failed')) {
-          assert.equal(Object.hasOwn(primary, 'runtimeFailurePhase'), false);
-          assert.equal(Object.hasOwn(primary, 'storageContextInspectionErrors'), false,
-            'capturing diagnostic context cannot rewrite the original rejected value');
+          capturedFields.push([Object.hasOwn(primary, 'runtimeFailurePhase'),
+            Object.hasOwn(primary, 'storageContextInspectionErrors')]);
           Object.defineProperty(primary, 'cacheOwnershipReleased', { value: () => true });
           primary.cacheOwnershipPending = false;
         }
@@ -60,6 +60,9 @@ try {
       closeEmbeddingRuntime() { throw secondary; }, closeLogger() { loggerCloses++; }
     }));
     assert.equal(contains(failure, primary), true); assert.equal(contains(failure, secondary), true);
+    assert.deepEqual(capturedFields, [[false, false]],
+      'assert outside best-effort logging: original rejected values were not rewritten');
+    assert.equal(primary.cacheOwnershipReleased(), true, 'the replacement callback was actually installed during logging');
     assert.equal(getterReads, 1, 'original observation is read before logging and never recaptured');
     assert.equal(loggerCloses, 1); assert.equal(failure.cacheOwnershipPending, true);
     assert.equal(failure.cacheOwnershipReleased(), false, 'later callback replacement cannot settle original work');
