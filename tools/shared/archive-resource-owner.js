@@ -30,7 +30,9 @@ export const createArchiveResourceOwner = destination => {
   let primary, hasFailure = false, message = 'Archive extraction or resource cleanup failed.';
   let stopped = false, overflow = false, cleaned = false, cleanup = null, closing = null, reconciling = null;
   let cleanupFailure, cleanupFailed = false;
-  let recoveryContext = null;
+  let recoveryContext = null, primaryDescriptors = [];
+  const excludedFields = new Set(['cause', 'errors', 'message', 'stack', 'cacheOwnershipPending', 'cacheOwnershipReleased',
+    'archiveExtractionSession', 'archiveResourceErrors', 'cleanupError', 'recoveryPath']);
   const record = value => {
     const queue = [value];
     while (queue.length) {
@@ -42,28 +44,57 @@ export const createArchiveResourceOwner = destination => {
       if (objectLike(error) && observed.has(error)) continue;
       if (objectLike(error)) observed.add(error);
       if (errors.length < 128) errors.push(error); else { overflow = true; break; }
-      if (!hasFailure) {
-        hasFailure = true; primary = error;
+      const first = !hasFailure;
+      if (first) { hasFailure = true; primary = error; }
+      if (objectLike(error)) {
+        const retainObserver = observe => { if (observers.length < 128) observers.push(observe); else overflow = true; };
+        // Capture before any diagnostic/capability inspection can replace the
+        // property. Its own thrown failures are independent owners.
+        try {
+          const observe = error.cacheOwnershipReleased;
+          if (error.cacheOwnershipPending === true || typeof observe === 'function') retainObserver(() => {
+            try { return typeof observe === 'function' && observe.call(error) === true; }
+            catch (inspectionError) { record(inspectionError); return false; }
+          });
+        } catch (inspectionError) { retainObserver(() => false); queue.push(inspectionError); }
+        try {
+          const child = failureSessions.get(error) || Object.getOwnPropertyDescriptor(error, 'archiveExtractionSession')?.value;
+          if (isArchiveExtractionSession(child) && child !== session) children.add(child);
+        } catch (inspectionError) { retainObserver(() => false); queue.push(inspectionError); }
+        try {
+          const publication = Object.getOwnPropertyDescriptor(error, 'fileLockPublicationSession')?.value;
+          if (isFileLockPublicationSession(publication)) children.add(publication);
+        } catch (inspectionError) { retainObserver(() => false); queue.push(inspectionError); }
+      }
+      if (first) {
+        // Snapshot projection while the original observations still gate close.
+        // Proxy inspection must not first introduce native work after cleanup.
+        if (objectLike(error)) {
+          try {
+            for (const field of Reflect.ownKeys(error)) {
+              if (excludedFields.has(field)) continue;
+              if (primaryDescriptors.length === 128) { overflow = true; break; }
+              try {
+                const descriptor = Object.getOwnPropertyDescriptor(error, field);
+                if (descriptor) primaryDescriptors.push([field, descriptor]);
+              } catch (inspectionError) { queue.push(inspectionError); }
+            }
+          } catch (inspectionError) { queue.push(inspectionError); }
+        }
         try { const original = objectLike(error) ? error.message : null; if (typeof original === 'string') message = original; }
         catch (inspectionError) { queue.push(inspectionError); }
       }
-      if (!objectLike(error)) continue;
-      const child = getArchiveExtractionSession(error);
-      if (child && child !== session) children.add(child);
-      try {
-        const publication = Object.getOwnPropertyDescriptor(error, 'fileLockPublicationSession')?.value;
-        if (isFileLockPublicationSession(publication)) children.add(publication);
-      } catch (inspectionError) { observers.push(() => false); queue.push(inspectionError); }
-      try {
-        const observe = error.cacheOwnershipReleased;
-        if (error.cacheOwnershipPending === true || typeof observe === 'function') {
-          observers.push(() => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } });
-        }
-      } catch (inspectionError) { observers.push(() => false); queue.push(inspectionError); }
     }
   };
-  const originalResourcesSettled = () => !overflow && [...children].every(child => child.isSettled())
-    && observers.every(observe => observe());
+  const originalResourcesSettled = () => {
+    if (overflow) return false;
+    for (const child of children) {
+      try { if (!child.isSettled()) return false; }
+      catch (inspectionError) { record(inspectionError); return false; }
+    }
+    for (let index = 0; index < observers.length; index += 1) if (!observers[index]()) return false;
+    return !overflow;
+  };
   const nativeSettled = () => active.size === 0 && descriptors.every(owner => owner.closed) && originalResourcesSettled();
   const isSettled = () => cleaned && nativeSettled();
   const track = work => {
@@ -87,7 +118,7 @@ export const createArchiveResourceOwner = destination => {
       if (!originalResourcesSettled()) throw new Error('Original archive resource observations prohibit descriptor close.');
       if (owner.captureFailed) throw owner.captureFailure;
       const result = await owner.close.call(owner.handle);
-      if (result === false) throw new Error('Archive descriptor close explicitly remained unconfirmed.');
+      if (result !== undefined) throw new Error('Archive descriptor close did not confirm its standard void result.');
       owner.closed = true;
     })().catch(value => { record(value); throw value; }).finally(() => { owner.closing = null; });
     return owner.closing;
@@ -100,12 +131,21 @@ export const createArchiveResourceOwner = destination => {
     const result = new AggregateError(errors, message, { cause: primary });
     if (objectLike(primary)) {
       try {
-        for (const field of Reflect.ownKeys(primary)) {
-          if (['cause', 'errors', 'message', 'stack', 'cacheOwnershipPending', 'cacheOwnershipReleased',
-            'archiveExtractionSession', 'archiveResourceErrors', 'cleanupError', 'recoveryPath'].includes(field)
-            || field === 'recovery' && recoveryContext) continue;
-          const descriptor = Object.getOwnPropertyDescriptor(primary, field);
-          if (descriptor) Object.defineProperty(result, field, descriptor);
+        for (const [field, captured] of primaryDescriptors) {
+          if (field === 'recovery' && recoveryContext) continue;
+          const descriptor = { ...captured };
+          if (descriptor) {
+            const getter = descriptor.get, setter = descriptor.set;
+            if (typeof getter === 'function') descriptor.get = () => {
+              try { return getter.call(primary); }
+              catch (inspectionError) { record(inspectionError); throw inspectionError; }
+            };
+            if (typeof setter === 'function') descriptor.set = value => {
+              try { return setter.call(primary, value); }
+              catch (inspectionError) { record(inspectionError); throw inspectionError; }
+            };
+            Object.defineProperty(result, field, descriptor);
+          }
         }
       } catch (inspectionError) { record(inspectionError); result.errors.push(inspectionError); }
     }
@@ -140,6 +180,7 @@ export const createArchiveResourceOwner = destination => {
       await drain();
       await closeAll(true);
       await cleanupOwned();
+      if (!isSettled()) throw new Error('Original archive resource observations remain unconfirmed after cleanup.');
       return { resourceId, settled: true, pending: false };
     })().finally(() => { reconciling = null; });
     try { return await reconciling; }
