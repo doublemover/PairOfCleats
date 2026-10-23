@@ -1,5 +1,6 @@
 import { SPARSE_PROVIDER_IDS } from '../types.js';
 
+/** @returns {import('../types.js').SparseProvider<import('../types.js').SparseSearchParams,import('../types.js').SparseRankedResult>} */
 export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
   return {
     id: SPARSE_PROVIDER_IDS.JS_BM25,

@@ -5,6 +5,7 @@ import { isDenseVectorPayloadAvailable } from '../../../shared/dense-vector-arti
 
 const hasDenseVectors = (idx) => isDenseVectorPayloadAvailable(idx?.denseVec);
 
+/** @returns {import('../types.js').AnnProvider} */
 export function createDenseAnnProvider() {
   return {
     id: ANN_PROVIDER_IDS.DENSE,

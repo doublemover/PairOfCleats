@@ -1,4 +1,5 @@
 import { analyzeLiteralText } from '../shared/text-analyzer.js';
+/** @typedef {import('./query-types.js').QueryAst} QueryAst */
 import {
   extractNgrams,
   extractPunctuationTokens,
@@ -133,7 +134,7 @@ const tokenizeBooleanQuery = (raw) => {
  * Supports implicit AND adjacency and explicit `AND`/`OR`/`NOT` precedence.
  *
  * @param {string} raw
- * @returns {{ast:object|null,errors:string[]}}
+ * @returns {{ast:QueryAst|null,errors:string[]}}
  */
 const parseBooleanQuery = (raw) => {
   const { tokens, errors } = tokenizeBooleanQuery(raw);

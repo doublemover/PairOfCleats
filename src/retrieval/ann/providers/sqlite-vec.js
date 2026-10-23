@@ -1,6 +1,7 @@
 import { ANN_PROVIDER_IDS } from '../types.js';
 import { canRunAnnQuery, isAnnProviderAvailable } from '../utils.js';
 
+/** @returns {import('../types.js').AnnProvider} */
 export function createSqliteVectorAnnProvider({
   rankVectorAnnSqlite,
   vectorAnnState,

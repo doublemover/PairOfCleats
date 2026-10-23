@@ -29,6 +29,7 @@ const resolveAdapter = (mod) => {
   return openIndex && searchIndex ? { openIndex, searchIndex } : null;
 };
 
+/** @returns {import('../types.js').SparseProvider<import('../types.js').SparseSearchParams,import('../types.js').SparseRankedResult> & {available:boolean}} */
 export function createTantivyProvider({ verbose = false, logger } = {}) {
   const result = tryRequire('tantivy', { verbose, logger });
   const adapter = resolveAdapter(result.ok ? result.mod : null);

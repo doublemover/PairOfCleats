@@ -179,6 +179,11 @@ export const runAnnStage = async ({
     return bitmapToSet(candidateSet);
   };
 
+  /**
+   * @param {import('../ann/types.js').AnnProvider|null} provider
+   * @param {import('../ann/types.js').AnnCandidateSet|null} candidateSet
+   * @param {number|null} [requestedTopN]
+   */
   const runAnnQuery = async (provider, candidateSet, requestedTopN = null) => {
     throwIfAborted(signal);
     if (!provider || typeof provider.query !== 'function') {
