@@ -13,7 +13,7 @@ const { dir } = await prepareIsolatedTestCacheDir('queue-priority-dispatch');
 const admissionPolicy = resolveQueueAdmissionPolicy({ queueName: 'index',
   queueConfig: { maxQueued: 100, maxRunning: 1, maxTotal: 100, resourceBudgetUnits: 1000 } });
 const sloPolicy = resolveQueueSloPolicy({ queueName: 'index', queueConfig: { slo: {
-  maxQueueAgeMs: { degraded: 1000, overloaded: 5000 },
+  maxQueueAgeMs: { degraded: 60000, overloaded: 120000 },
   maxRunLatencyMs: { degraded: 1e12, overloaded: 2e12 },
   maxRetryRate: { degraded: 1, overloaded: 1 },
   maxSaturationRatio: { degraded: 1, overloaded: 1 }
@@ -26,7 +26,7 @@ const finish = async (queueDir, claimed) => completeJob(queueDir, claimed.id, 'd
   ownerId: claimed.lease.owner, expectedLeaseVersion: claimed.lease.version
 });
 
-for (const [state, age, expected] of [['healthy', 0, 'heavy'], ['degraded', 2000, 'light'], ['overloaded', 10000, 'light']]) {
+for (const [state, age, expected] of [['healthy', 0, 'heavy'], ['degraded', 90000, 'light'], ['overloaded', 180000, 'light']]) {
   const queueDir = path.join(dir, state);
   await fs.mkdir(queueDir);
   await saveQueue(queueDir, { jobs: [job('heavy', 'stage3', age), job('light')] }, 'index');
@@ -45,7 +45,7 @@ for (const [state, age, expected] of [['healthy', 0, 'heavy'], ['degraded', 2000
 {
   const queueDir = path.join(dir, 'bounded');
   await fs.mkdir(queueDir);
-  await saveQueue(queueDir, { jobs: [job('heavy-oldest', 'stage3', 10000), job('standard-next', 'stage2', 10000),
+  await saveQueue(queueDir, { jobs: [job('heavy-oldest', 'stage3', 180000), job('standard-next', 'stage2', 180000),
     ...Array.from({ length: 7 }, (_, i) => job(`light-${i}`))] }, 'index');
   const order = [];
   for (let index = 0; index < 9; index++) {
@@ -71,11 +71,11 @@ for (const [state, age, expected] of [['healthy', 0, 'heavy'], ['degraded', 2000
 {
   const queueDir = path.join(dir, 'eligible-scope');
   await fs.mkdir(queueDir);
-  const deferred = job('deferred-light', 'stage1', 10000, { nextEligibleAt: new Date(Date.now() + 60000).toISOString() });
-  const excluded = job('excluded-light', 'stage1', 10000);
+  const deferred = job('deferred-light', 'stage1', 180000, { nextEligibleAt: new Date(Date.now() + 60000).toISOString() });
+  const excluded = job('excluded-light', 'stage1', 180000);
   const running = job('running-light', 'stage1', 0, { status: 'running', idempotencyKey: 'duplicate-key' });
   const duplicate = job('duplicate-light', 'stage1', 0, { idempotencyKey: 'duplicate-key' });
-  await saveQueue(queueDir, { jobs: [deferred, excluded, running, duplicate, job('heavy', 'stage3', 10000), job('light')] }, 'index');
+  await saveQueue(queueDir, { jobs: [deferred, excluded, running, duplicate, job('heavy', 'stage3', 180000), job('light')] }, 'index');
   const claims = await Promise.all(Array.from({ length: 2 }, () => claimNextJob(queueDir, 'index', {
     ...options, admissionPolicy: { ...admissionPolicy, maxRunning: 2 }, admitJob: entry => entry.id !== excluded.id
   })));
@@ -90,7 +90,7 @@ for (const [state, age, expected] of [['healthy', 0, 'heavy'], ['degraded', 2000
 {
   const queueDir = path.join(dir, 'actual-worker');
   await fs.mkdir(queueDir);
-  await saveQueue(queueDir, { jobs: [job('worker-heavy', 'stage3', 10000), job('worker-light')] }, 'index');
+  await saveQueue(queueDir, { jobs: [job('worker-heavy', 'stage3', 180000), job('worker-light')] }, 'index');
   const executed = [];
   const worker = createQueueWorker({ queueDir, resolvedQueueName: 'index', staleQueueMaxRetries: 0,
     admissionPolicy, sloPolicy, monitorBuildProgress: false, startBuildProgressMonitor: () => async () => {},
