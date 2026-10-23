@@ -68,8 +68,8 @@ try {
   const referenceArgs = harness.spawnCalls.at(-1).args;
   assert.equal(referenceArgs[referenceArgs.indexOf('--include-declaration') + 1], 'false');
 
-  // Nonbinding completion/document-symbol requests retain their existing result
-  // semantics but discard results for an obsolete requesting buffer version.
+  // Completion and source-qualified document-symbol requests discard results
+  // for an obsolete requesting buffer version.
   for (const [provider, invoke] of [
     [harness.completionProviders[0].provider, value => value.provideCompletionItems(document, position, {}, {})],
     [harness.documentSymbolProviders[0].provider, value => value.provideDocumentSymbols(document, {})]

@@ -29,7 +29,7 @@ function captureNavigationRequest(document, position = null, includeDeclaration 
 }
 
 function sourceNavigationArgs(document, position, includeDeclaration = true, repoRoot = null) {
-  if (!document?.uri?.fsPath || !position || document.isDirty) {
+  if (!document?.uri?.fsPath || document.isDirty) {
     throw new Error('PairOfCleats indexed navigation requires a saved source document. Use Related Search for approximate matches.');
   }
   const captured = readCurrentSource({ repoRoot: repoRoot || path.dirname(document.uri.fsPath), file: document.uri.fsPath });
@@ -41,14 +41,17 @@ function sourceNavigationArgs(document, position, includeDeclaration = true, rep
   if (!form) {
     throw new Error('The document differs from disk. Save it before indexed navigation.');
   }
+  const sourceArgs = ['--source-hash', captured.sourceHash,
+    '--source-version', String(document.version ?? 0), '--coordinate-unit', 'utf16'];
+  if (position === null) return sourceArgs;
+  if (!position) throw new Error('Invalid navigation cursor.');
   if (!Number.isSafeInteger(position.line) || !Number.isSafeInteger(position.character)
     || position.line < 0 || position.character < 0) throw new Error('Invalid navigation cursor.');
   const line = position.line + 1, column = position.character + 1 + (form.bom && position.line === 0 ? 1 : 0);
   const span = sourceRangeOffsets(disk, { startLine: line, startCol: column, endLine: line, endCol: column });
   const left = disk.charCodeAt(span.start - 1), right = disk.charCodeAt(span.start);
   if (left >= 0xd800 && left <= 0xdbff && right >= 0xdc00 && right <= 0xdfff) throw new Error('Navigation cursor splits a UTF-16 surrogate pair.');
-  return ['--source-hash', captured.sourceHash,
-    '--source-version', String(document.version ?? 0), '--coordinate-unit', 'utf16',
+  return [...sourceArgs,
     '--line', String(line), '--column', String(column),
     '--include-declaration', String(includeDeclaration !== false)];
 }
@@ -57,13 +60,26 @@ function qualifiedNavigationRows(payload) {
   if (payload?.status !== 'resolved' || payload?.binding?.status !== 'resolved') return [];
   const rows = payload.results;
   if (!Array.isArray(rows)) return [];
-  const valid = row => row && typeof row === 'object' && row.coordinateUnit === 'utf16'
+  return rows.every(validNavigationRow) ? rows : [];
+}
+
+function validNavigationRow(row) {
+  return row && typeof row === 'object' && row.coordinateUnit === 'utf16'
     && /^[a-f0-9]{64}$/.test(row.sourceHash || '') && Number.isSafeInteger(row.startLine)
     && Number.isSafeInteger(row.startCol) && Number.isSafeInteger(row.endLine)
     && Number.isSafeInteger(row.endCol) && row.startLine >= 1 && row.startCol >= 1
     && row.endLine >= row.startLine && row.endCol >= 1
     && (row.endLine !== row.startLine || row.endCol >= row.startCol);
-  return rows.every(valid) ? rows : [];
+}
+
+function qualifiedDocumentSymbolRows(payload) {
+  if (!['resolved', 'partial'].includes(payload?.status)
+    || typeof payload?.generation?.baseBuildId !== 'string' || !payload.generation.baseBuildId
+    || !Number.isSafeInteger(payload.generation.semanticRevision) || payload.generation.semanticRevision < 0
+    || !Array.isArray(payload.results)) return [];
+  return payload.results.every(row => validNavigationRow(row)
+    && (row.selectionRange == null || validNavigationRow({ ...row.selectionRange,
+      sourceHash: row.sourceHash, coordinateUnit: row.coordinateUnit }))) ? payload.results : [];
 }
 
 function verifyLocationSource(file, sourceHash) {
@@ -78,4 +94,4 @@ function verifyLocationSource(file, sourceHash) {
   } catch { return false; }
 }
 
-module.exports = { captureNavigationRequest, sourceNavigationArgs, qualifiedNavigationRows, verifyLocationSource };
+module.exports = { captureNavigationRequest, sourceNavigationArgs, qualifiedNavigationRows, qualifiedDocumentSymbolRows, verifyLocationSource };

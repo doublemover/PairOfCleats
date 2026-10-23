@@ -10,6 +10,7 @@ const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
 const { snapshotConfiguration, renderEffectiveSettings } = require('./effective-settings.js');
 const { inspectCliVersion } = require('./installation-evidence.js');
 const { createDocumentAuthority, assertQualifiedEditor } = require('./document-authority.js');
+const { qualifyDocumentSymbols } = require('./document-symbols.js');
 const { createTaskObservations, taskRecoveryActions } = require('./task-observations.js');
 const taskObservations = createTaskObservations();
 const { generationFromContextPack, contextDiscoveryRequest, contextDiscoveryCliArgs } = require('./semantic-discovery.js');
@@ -18,7 +19,7 @@ const { resultTreeItemId, resultTreeHitOccurrences } = require('./results-tree-i
 const { createSemanticEvidenceWorkflow, sourceQualifiedSelection, qualifiedBindingSeed } = require('./semantic-evidence.js');
 let latestNavigationEvidence = null;
 const navigationLocationSources = new WeakMap();
-const { captureNavigationRequest, sourceNavigationArgs, qualifiedNavigationRows } = require('./source-navigation.js');
+const { captureNavigationRequest, sourceNavigationArgs, qualifiedNavigationRows, qualifiedDocumentSymbolRows } = require('./source-navigation.js');
 const { readGitHead, validateServiceRoot, mapServicePayload, verifyServiceRevision } = require('./service-repository.js');
 const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask,
   boundedLogLine, retainTaskLog } = require('./progress-view.js');
@@ -2199,20 +2200,6 @@ function mapNavigationSymbolKind(kind) {
   return vscode.SymbolKind.Object;
 }
 
-function createDocumentSymbol(entry) {
-  const range = createRangeFromNavigationEntry(entry) || new vscode.Range(
-    new vscode.Position(0, 0),
-    new vscode.Position(0, 0)
-  );
-  return new vscode.DocumentSymbol(
-    String(entry?.name || entry?.qualifiedName || 'symbol'),
-    String(entry?.qualifiedName || entry?.kind || ''),
-    mapNavigationSymbolKind(entry?.kind),
-    range,
-    range
-  );
-}
-
 function mapNavigationCompletionKind(kind) {
   const normalized = String(kind || '').trim().toLowerCase();
   if (normalized.includes('class')) return vscode.CompletionItemKind.Class;
@@ -2253,8 +2240,9 @@ async function runNavigationCommand({
 }) {
   if (!operations.isCurrent()) return [];
   const precise = kind === 'definitions' || kind === 'references';
+  const qualified = precise || kind === 'document-symbols' && sourceRequest !== null;
   const request = sourceRequest || (precise ? captureNavigationRequest(sourceDocument, position, includeDeclaration) : null);
-  if (precise && !request?.isCurrent()) return [];
+  if (qualified && !request?.isCurrent()) return [];
   const requestedSourceVersion = request?.version;
   const config = getExtensionConfiguration(repoContext);
   const apiSettings = readApiSettings(config);
@@ -2287,7 +2275,7 @@ async function runNavigationCommand({
   ];
   if (filePath) args.push('--file', filePath);
   if (query) args.push('--symbol', query);
-  if (precise) {
+  if (qualified) {
     try { args.push(...request.args(repoContext.repoRoot)); }
     catch (error) { noteNavigationDegraded('source-admission', error.message); return []; }
   }
@@ -2364,7 +2352,7 @@ async function runNavigationCommand({
     noteNavigationDegraded(`payload-${kind}`, result.payload.message || 'PairOfCleats navigation query failed.');
     return [];
   }
-  if (precise) {
+  if (qualified) {
     if (!request.isCurrent()) return [];
     const expectedHash = args[args.indexOf('--source-hash') + 1];
     try {
@@ -2379,6 +2367,16 @@ async function runNavigationCommand({
       || result.payload?.coordinateUnit !== 'utf16') {
       noteNavigationDegraded('source-echo', 'Indexed navigation did not retain the requested source identity/version.');
       return [];
+    }
+    if (kind === 'document-symbols') {
+      if (result.payload?.results?.length > DOCUMENT_SYMBOL_LIMIT) {
+        noteNavigationDegraded('document-symbol-bound', 'Native Outline response exceeds its 200-symbol bound. Inspect indexed evidence instead.');
+        return [];
+      }
+      const rows = qualifiedDocumentSymbolRows(result.payload);
+      if (!rows.length) noteNavigationDegraded('document-symbols-unqualified',
+        'Native Outline needs current source-qualified symbol ranges. Use Inspect Indexed Document Symbols for retained evidence, then save/rebuild as needed.');
+      return rows;
     }
     latestNavigationEvidence = { payload: result.payload, repoContext, sourceFile: request.file,
       position: request.position, sourceRequest: request };
@@ -2550,7 +2548,7 @@ function provideDocumentSymbolsForDocument(document, token) {
 }
 
 async function provideOwnedDocumentSymbols(document) {
-  const sourceRequest = captureNavigationRequest(document, null, true, { allowDirty: true });
+  const sourceRequest = captureNavigationRequest(document);
   if (!sourceRequest) return [];
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
   if (!repoContext.ok || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
@@ -2558,11 +2556,18 @@ async function provideOwnedDocumentSymbols(document) {
   if (!filePath) return [];
   const rows = await runNavigationCommand({
     kind: 'document-symbols',
-    repoContext,
+    repoContext, sourceRequest,
     filePath,
     limit: DOCUMENT_SYMBOL_LIMIT
   });
-  return operations.isCurrent() && sourceRequest.isCurrent() ? rows.map((entry) => createDocumentSymbol(entry)) : [];
+  try {
+    return await qualifyDocumentSymbols({ vscode, repoContext, rows, sourceRequest,
+      isCurrent: () => operations.isCurrent(), symbolKind: mapNavigationSymbolKind });
+  } catch (error) {
+    if (operations.isCurrent()) noteNavigationDegraded('document-symbol-source',
+      `Native Outline ranges remain unavailable: ${error.message} Use Inspect Indexed Document Symbols for retained evidence.`);
+    return [];
+  }
 }
 
 function provideCompletionItemsAtPosition(document, position, token) {
@@ -5059,6 +5064,31 @@ function inspectIndexedNavigation(kind) {
   return operations.run('indexed-navigation-picker', () => inspectOwnedIndexedNavigation(kind), { key: 'indexed-navigation-picker' });
 }
 
+function inspectIndexedDocumentSymbols() {
+  return operations.run('indexed-document-symbols', async () => {
+    const document = vscode.window.activeTextEditor?.document;
+    const request = captureNavigationRequest(document, null, true, { allowDirty: true });
+    if (!request) return;
+    const repoContext = await resolveRepoContext({ pathHint: document.uri, allowPrompt: false });
+    if (!repoContext.ok || !operations.isCurrent() || !request.isCurrent()) return;
+    const rows = await runNavigationCommand({ kind: 'document-symbols', repoContext,
+      filePath: request.file, limit: DOCUMENT_SYMBOL_LIMIT });
+    if (!operations.isCurrent() || !request.isCurrent()) return;
+    const evidence = await vscode.workspace.openTextDocument({ language: 'plaintext', content: [
+      'PairOfCleats indexed document symbols — retained evidence',
+      `Repository: ${repoContext.repoRoot}`, `Source: ${request.file}`,
+      'Indexed labels and chunk lines may be stale or unlocated. These are not native Outline positions.',
+      ...(document.isDirty ? ['Unsaved source differs: save before requesting exact native symbols.'] : []),
+      'Save source, then run PairOfCleats: Index Build to refresh indexed evidence.', '',
+      ...rows.map(row => `${row.name || row.qualifiedName || 'symbol'} • ${row.kind || 'unknown kind'} • indexed lines ${
+        row.startLine ?? 'unknown'}–${row.endLine ?? 'unknown'}`),
+      ...(rows.length ? [] : ['No retained indexed symbol evidence is available.'])
+    ].join('\n') });
+    if (!operations.isCurrent() || !request.isCurrent()) return;
+    await vscode.window.showTextDocument(evidence, { preview: true });
+  }, { key: 'indexed-document-symbols' });
+}
+
 function currentNavigationCursor(request) {
   const editor = vscode.window.activeTextEditor, position = editor?.selection?.active;
   return operations.isCurrent() && request.isCurrent() && editor?.document === request.document
@@ -5498,7 +5528,8 @@ function activate(context) {
     vscode.commands.registerCommand('pairofcleats.copyContext', node => copySelectedContext(node)),
     vscode.commands.registerCommand('pairofcleats.openEvidence', openCapturedEvidence),
     vscode.commands.registerCommand('pairofcleats.navigateDefinitions', () => inspectIndexedNavigation('definitions')),
-    vscode.commands.registerCommand('pairofcleats.navigateReferences', () => inspectIndexedNavigation('references'))
+    vscode.commands.registerCommand('pairofcleats.navigateReferences', () => inspectIndexedNavigation('references')),
+    vscode.commands.registerCommand('pairofcleats.inspectDocumentSymbols', inspectIndexedDocumentSymbols)
   );
   if (typeof vscode.workspace.onDidChangeConfiguration === 'function') {
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {

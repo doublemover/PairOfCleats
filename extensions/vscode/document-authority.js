@@ -118,7 +118,7 @@ function documentOffsets(document, { sourceText, start, end }) {
 
 /** One native provider request owns this bounded document cache. No editor is
  * revealed; each returned location uses an actually opened, versioned buffer. */
-function createDocumentAuthority({ workspace, isCurrent = () => true, maxDocuments = 25 }) {
+function createDocumentAuthority({ workspace, isCurrent = () => true, maxDocuments = 25, requestedDocument = null }) {
   const sources = new Map();
   async function qualify({ repoRoot, file, uri, sourceHash, range, span = null, fileOnly = false }) {
     if (!isCurrent()) return null;
@@ -130,7 +130,7 @@ function createDocumentAuthority({ workspace, isCurrent = () => true, maxDocumen
       sources.set(key, (async () => {
         const source = readVerifiedSource({ repoRoot: root, file, sourceHash });
         assertSourceUri(source, uri);
-        const document = await workspace.openTextDocument(uri);
+        const document = requestedDocument || await workspace.openTextDocument(uri);
         if (!isCurrent()) return null;
         assertSourceUri(source, document.uri);
         if (document.isClosed === true) throw new Error('Opened target document closed before location publication.');

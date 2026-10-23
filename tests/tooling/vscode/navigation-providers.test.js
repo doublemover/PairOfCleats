@@ -51,6 +51,10 @@ const document = {
   },
   getText(range) {
     return range ? symbol : sourceText;
+  },
+  positionAt(offset) {
+    const lines = sourceText.slice(0, offset).split('\n');
+    return new harness.fakeVscode.Position(lines.length - 1, lines.at(-1).length);
   }
 };
 
@@ -118,9 +122,12 @@ harness.queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
     ok: true,
+    status: 'resolved', sourceHash: hashFile(activeFile), sourceVersion: '1', coordinateUnit: 'utf16',
+    generation: { baseBuildId: 'qualified-symbols', semanticRevision: 0 },
     results: [
       {
         file: 'src/app.ts',
+        sourceHash: hashFile(activeFile), coordinateUnit: 'utf16',
         virtualPath: 'src/app.ts',
         startLine: 2,
         endLine: 6,

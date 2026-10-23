@@ -226,7 +226,7 @@ export const queryNavigationData = async ({
   const normalizedVirtualPath = relativeVirtualPath(repoRoot, normalizedFilePath);
   const resolvedLimit = toPositiveInt(limit, DEFAULT_LIMIT);
   const resolvedSymbolLimit = toPositiveInt(symbolLimit, DEFAULT_SYMBOL_LIMIT);
-  if (['definitions', 'references'].includes(normalizedKind)
+  if (['definitions', 'references', 'document-symbols'].includes(normalizedKind)
     && (qualified || sourceHash !== null || sourceVersion !== null || line !== null || column !== null
       || coordinateUnit !== 'utf16' || includeDeclaration !== true || generation !== null)) {
     const { queryQualifiedNavigation } = await import('./navigation-qualified.js');
@@ -454,6 +454,7 @@ const printUsage = () => {
   process.stderr.write(
     'Usage: pairofcleats tooling navigate --kind <definitions|references|document-symbols|completions> [--symbol <name>] [--file <path>] [--repo <root>] [--top N] [--json]\n'
     + 'Qualified definitions/references require --source-hash <sha256> --source-version <document version> --line <1-based> --column <1-based UTF-16> --coordinate-unit utf16; --include-declaration true|false.\n'
+    + 'Qualified document-symbols requires the same source hash/version/unit without a cursor. Unqualified rows are indexed evidence only.\n'
   );
 };
 

@@ -33,12 +33,14 @@ export const queryQualifiedNavigation = async ({ repoRoot, userConfig, kind, que
   const resultLimit = Number.isSafeInteger(limit) && limit > 0 ? Math.min(200, limit) : 25;
   const hash = typeof sourceHash === 'string' ? sourceHash.replace(/^sha256:/, '') : '';
   const relative = path.relative(repoRoot, path.resolve(repoRoot, filePath || ''));
-  if (!['definitions', 'references'].includes(kind) || !/^[a-f0-9]{64}$/i.test(hash)
-    || !Number.isSafeInteger(line) || line < 1 || !Number.isSafeInteger(column) || column < 1
+  const symbols = kind === 'document-symbols';
+  if (!['definitions', 'references', 'document-symbols'].includes(kind) || !/^[a-f0-9]{64}$/i.test(hash)
+    || (!symbols && (!Number.isSafeInteger(line) || line < 1 || !Number.isSafeInteger(column) || column < 1))
+    || (symbols && (line != null || column != null))
     || coordinateUnit !== 'utf16' || typeof includeDeclaration !== 'boolean'
     || (sourceVersion !== null && (typeof sourceVersion !== 'string' || sourceVersion.length > 128))
     || !relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
-    return { ...result, ok: false, code: 'ERR_NAVIGATION_REQUEST', message: 'Qualified navigation requires a contained source, exact SHA-256 and one-based UTF-16 cursor.' };
+    return { ...result, ok: false, code: 'ERR_NAVIGATION_REQUEST', message: 'Qualified navigation requires a contained source and exact SHA-256; definitions/references also require a one-based UTF-16 cursor.' };
   }
   result.sourceHash = hash.toLowerCase(); result.virtualPath = relative.replace(/\\/g, '/');
   const started = clock();
@@ -109,6 +111,12 @@ export const queryQualifiedNavigation = async ({ repoRoot, userConfig, kind, que
       }
       if (!source) { result.status = 'stale-source'; result.degraded.push('source_hash_not_in_generation'); return result; }
       if (!await liveSource(source)) { result.status = source.mapping ? 'partial' : 'stale-source'; return result; }
+      if (symbols) {
+        const { projectQualifiedDocumentSymbols } = await import('./navigation-document-symbols.js');
+        await projectQualifiedDocumentSymbols({ result, store, syntax, source, rows, position,
+          resultLimit, signal, budget });
+        return result;
+      }
       if (line > source.lineStarts.length) throw fail('ERR_NAVIGATION_REQUEST', 'Cursor line exceeds retained source.');
       const offset = source.lineStarts[line - 1] + column - 1;
       const lineEnd = source.lineStarts[line] ?? source.textLength;

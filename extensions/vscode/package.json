@@ -86,11 +86,16 @@
     "onCommand:pairofcleats.selectServiceRepository",
     "onCommand:pairofcleats.navigateDefinitions",
     "onCommand:pairofcleats.navigateReferences",
-    "onCommand:pairofcleats.openEvidence"
+    "onCommand:pairofcleats.openEvidence",
+    "onCommand:pairofcleats.inspectDocumentSymbols"
   ],
   "main": "./extension.js",
   "contributes": {
     "commands": [
+      {
+        "command": "pairofcleats.inspectDocumentSymbols",
+        "title": "PairOfCleats: Inspect Indexed Document Symbols"
+      },
       {
         "command": "pairofcleats.search",
         "title": "PairOfCleats: Search"
