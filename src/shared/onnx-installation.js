@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { assertNoSymlinkPath, readVerifiedContainedFileSync } from './contained-file.js';
 
 export const ONNX_INSTALLATION_VERSION = 1;
@@ -38,6 +39,7 @@ export const resolveInstalledOnnxPath = target => {
     assertNoSymlinkPath(installationRoot, file);
     const stat = fs.statSync(file);
     if (!stat.isFile() || stat.size !== entry.bytes) throw new Error('Selected ONNX installation has missing or truncated bytes.');
+    fs.accessSync(file, fs.constants.R_OK);
   }
   return graph;
 };
@@ -56,5 +58,7 @@ export const readOnnxInstallationReceipt = root => {
     seen.add(row.path);
   }
   if (!seen.has(receipt.graph)) throw new Error('ONNX closure receipt omits its graph.');
+  const expectedDigest = createHash('sha256').update(JSON.stringify(receipt.files)).digest('hex');
+  if (receipt.digest !== expectedDigest) throw new Error('ONNX closure receipt digest disagrees with its component identities.');
   return receipt;
 };

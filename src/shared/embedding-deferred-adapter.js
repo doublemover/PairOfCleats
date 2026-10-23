@@ -1,12 +1,17 @@
+import { observeEmbeddingOwnership } from './embedding-cache-lifetime.js';
+
 const closed = () => Object.assign(new Error('Embedding adapter lease is disposed.'), { code: 'ERR_EMBEDDING_RUNTIME_CLOSED' });
 
 /** Preserve synchronous adapter construction while byte verification and native
  * acquisition remain awaited operations owned by the returned lease. */
 export const createDeferredEmbeddingAdapter = ({ acquire, provider, methods }) => {
   let pending = null, adapter = null, disposed = false, disposing = null;
+  let acquisitionObserver = null;
   const ensure = () => {
     if (disposed) return Promise.reject(closed());
-    if (!pending) pending = Promise.resolve().then(acquire).then(value => { adapter = value; return value; });
+    if (!pending) pending = Promise.resolve().then(acquire).then(value => { adapter = value; return value; }, error => {
+      acquisitionObserver = observeEmbeddingOwnership(error); throw error;
+    });
     return pending;
   };
   const target = {
@@ -18,7 +23,8 @@ export const createDeferredEmbeddingAdapter = ({ acquire, provider, methods }) =
       if (!disposing) {
         disposed = true;
         disposing = pending ? pending.then(value => value.dispose?.(), error => {
-          if (error?.cacheOwnershipPending) throw error;
+          const observe = acquisitionObserver || observeEmbeddingOwnership(error);
+          if (observe && !observe()) throw error;
         }) : Promise.resolve();
         disposing = disposing.catch(error => { disposing = null; throw error; });
       }

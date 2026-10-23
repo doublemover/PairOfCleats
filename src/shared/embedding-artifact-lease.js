@@ -3,7 +3,8 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import PQueue from 'p-queue';
 import { withContainedFile } from './contained-file.js';
-import { throwIfAborted } from './abort.js';
+import { throwIfAborted, raceAbort, isAbortError } from './abort.js';
+import { stableStringify } from './stable-json.js';
 import { planEmbeddingArtifactInventory, buildVerifiedEmbeddingArtifact, unknownEmbeddingArtifact,
   assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from './embedding-artifact-identity.js';
 
@@ -30,10 +31,10 @@ const fingerprint = async file => {
     return { bytes, sha256: hash.digest('hex'), stat: after };
   });
 };
-const verify = async options => {
+const verify = async (options, selectedPlan = null) => {
   metrics.verifications++; metrics.active++; metrics.peakActive = Math.max(metrics.peakActive, metrics.active);
   try {
-    const plan = planEmbeddingArtifactInventory(options);
+    const plan = selectedPlan || planEmbeddingArtifactInventory(options);
     if (plan.immediate) return plan.immediate;
     if (!plan.hasWeights || !plan.hasTokenizer) return unknownEmbeddingArtifact(plan.modelPath ? (await fingerprint(plan.modelPath)).sha256 : null);
     const inventory = [], observed = [];
@@ -56,15 +57,32 @@ const verify = async options => {
  * verified. There is no path/stat digest cache for mutable installations. */
 export const acquireEmbeddingArtifactLease = async (options = {}, { signal = null, phase = 'selection' } = {}) => {
   throwIfAborted(signal);
-  const key = JSON.stringify([phase, options.provider, options.modelId, options.modelsDir, options.rootDir,
-    options.onnx, options.modelProfile, options.stub === true]);
-  let work = pending.get(key);
-  if (!work) {
+  // Coalesce the exact already-selected closure, not resource tuning knobs or a
+  // mutable selector path that may now point at a different installation.
+  const plan = planEmbeddingArtifactInventory(options);
+  const key = stableStringify([phase, plan.immediate ?? null, plan.modelPath ?? null,
+    plan.revision ?? null, plan.hasWeights, plan.hasTokenizer, plan.files]);
+  let entry = pending.get(key);
+  if (!entry) {
     if (pending.size >= 32) throw Object.assign(new Error('Embedding artifact verification queue is full.'), { code: 'ERR_EMBEDDING_ARTIFACT_QUEUE_FULL' });
-    work = verificationQueue.add(() => verify(options)); pending.set(key, work);
-    work.then(() => { if (pending.get(key) === work) pending.delete(key); }, () => { if (pending.get(key) === work) pending.delete(key); });
+    const work = verificationQueue.add(() => verify(options, plan));
+    entry = { work, settled: false }; pending.set(key, entry);
+    const observed = entry;
+    const settle = () => { observed.settled = true; if (pending.get(key) === observed) pending.delete(key); };
+    work.then(settle, settle);
   } else metrics.coalesced++;
-  const result = await work;
+  let result;
+  try { result = await raceAbort(signal, entry.work); }
+  catch (error) {
+    if (isAbortError(error) && !entry.settled) {
+      const observed = entry;
+      const owner = Object.freeze({ kind: 'embedding-artifact-verification',
+        get pending() { return !observed.settled; }, drain: () => observed.work });
+      Object.defineProperties(error, { artifactVerificationOwner: { value: owner },
+        cacheOwnershipPending: { get: () => owner.pending }, cacheOwnershipReleased: { value: () => !owner.pending } });
+    }
+    throw error;
+  }
   throwIfAborted(signal);
   // Missing provenance never gains a shared reusable attempt identity.
   const artifact = embeddingArtifactReusable(result) ? result : { ...result, attempt: randomUUID() };
