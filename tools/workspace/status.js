@@ -26,17 +26,20 @@ export async function runWorkspaceStatusCli() {
   }
 
   const workspaceConfig = loadWorkspaceConfig(argv.workspace);
-  const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: false });
+  const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: false, allowPartial: true });
+  const inspectionOk = manifest.diagnostics.errors.length === 0;
+  if (!inspectionOk) process.exitCode = 1;
   const readiness = describeWorkspaceReadiness(workspaceConfig, manifest);
 
   if (argv.json) {
     console.log(JSON.stringify({
-      ok: true,
+      ok: inspectionOk,
       workspacePath: workspaceConfig.workspacePath,
       manifestPath,
       repoSetId: manifest.repoSetId,
       manifestHash: manifest.manifestHash,
       repos: manifest.repos,
+      diagnostics: manifest.diagnostics,
       ...readiness
     }, null, 2));
     return;
@@ -58,6 +61,7 @@ export async function runWorkspaceStatusCli() {
   for (const action of readiness.nextActions.filter(entry => entry.command)) {
     console.error(`  next (${action.alias || action.repoId}/${action.mode}): ${action.command.map(value => JSON.stringify(value)).join(' ')}`);
   }
+  for (const failure of manifest.diagnostics.errors) console.error(`  inspection (${failure.repoId}): ${failure.code}: ${failure.message}`);
   console.error(readiness.qualification);
   console.error(`  search: ${readiness.nextCommands.search.map(value => JSON.stringify(value)).join(' ')}`);
 }

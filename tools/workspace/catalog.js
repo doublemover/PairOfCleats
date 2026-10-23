@@ -2,7 +2,6 @@
 import { createCli } from '../../src/shared/cli.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { WORKSPACE_INDEX_MODES, generateWorkspaceManifest } from '../../src/workspace/manifest.js';
-import { getRepoCacheRoot } from '../shared/dict-utils.js';
 import { describeWorkspaceReadiness } from './diagnostics.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 
@@ -19,7 +18,9 @@ export const runWorkspaceCatalogCli = async () => {
     throw new Error('workspace catalog requires --workspace <path>.');
   }
   const workspaceConfig = loadWorkspaceConfig(argv.workspace);
-  const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: false });
+  const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: false, allowPartial: true });
+  const inspectionOk = manifest.diagnostics.errors.length === 0;
+  if (!inspectionOk) process.exitCode = 1;
   const manifestByRepo = new Map((manifest.repos || []).map((entry) => [entry.repoId, entry]));
 
   const repos = workspaceConfig.repos
@@ -49,14 +50,14 @@ export const runWorkspaceCatalogCli = async () => {
         repoRootCanonical: repo.repoRootCanonical,
         // Prefer manifest-derived cache roots so repo-local cache.root overrides
         // are reflected in catalog output.
-        repoCacheRoot: manifestRepo.repoCacheRoot || getRepoCacheRoot(repo.repoRootCanonical),
+        repoCacheRoot: manifestRepo.repoCacheRoot || null,
         pointer: manifestRepo.build || null,
         modes
       };
     });
 
   const payload = {
-    ok: true,
+    ok: inspectionOk,
     workspacePath: workspaceConfig.workspacePath,
     workspaceDir: workspaceConfig.workspaceDir,
     workspaceName: workspaceConfig.name || null,
@@ -92,6 +93,7 @@ export const runWorkspaceCatalogCli = async () => {
       console.error(`  - ${mode}: ${reason}`);
     }
   }
+  for (const failure of payload.manifest.diagnostics.errors) console.error(`  inspection (${failure.repoId}): ${failure.code}: ${failure.message}`);
 };
 
 if (isDirectExecution(import.meta.url)) runWorkspaceCatalogCli().catch((error) => {

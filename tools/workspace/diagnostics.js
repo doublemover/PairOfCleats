@@ -5,6 +5,15 @@ import { WORKSPACE_INDEX_MODES } from '../../src/workspace/manifest.js';
 const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'bin', 'pairofcleats.js');
 const command = (...args) => [process.execPath, CLI, ...args];
 
+export const createWorkspaceBuildRecovery = (workspace, report, buildArgs) => ({
+  state: report.outcome === 'settlement-pending' ? 'wait-for-actual-child-settlement' : 'explicit-retry-available',
+  status: command('workspace', 'status', '--workspace', workspace.workspacePath),
+  retryCandidates: report.outcome === 'settlement-pending' ? [] : [...report.entries.filter(entry => entry.status !== 'passed'), ...report.skipped]
+    .sort((a, b) => a.repoId.localeCompare(b.repoId)).map(entry => ({ repoId: entry.repoId,
+      repoRootCanonical: entry.repoRootCanonical, reason: entry.reason || entry.status,
+      command: command('index', 'build', ...buildArgs, '--repo', entry.repoRootCanonical) }))
+});
+
 export const createWorkspaceNextCommands = workspace => ({
   validate: command('workspace', 'validate', '--workspace', workspace.workspacePath),
   status: command('workspace', 'status', '--workspace', workspace.workspacePath),
@@ -20,14 +29,17 @@ export const createWorkspaceNextCommands = workspace => ({
 /** Manifest inventory is actionable evidence, not backend or inference validation. */
 export const describeWorkspaceReadiness = (workspace, manifest) => {
   const byId = new Map(manifest.repos.map(repo => [repo.repoId, repo]));
+  const failures = new Map((manifest.diagnostics?.errors || []).map(error => [error.repoId, error]));
   const nextActions = workspace.repos.flatMap(repo => WORKSPACE_INDEX_MODES.map(mode => {
     const entry = byId.get(repo.repoId)?.indexes?.[mode];
-    const reason = entry?.availabilityReason || 'missing-index-dir';
+    const failure = failures.get(repo.repoId);
+    const reason = failure ? 'member-inspection-failed' : entry?.availabilityReason || 'missing-index-dir';
     const state = repo.enabled === false ? 'disabled' : reason === 'present' ? 'ready'
       : reason.startsWith('missing-') ? 'missing' : 'incompatible';
     return { repoId: repo.repoId, alias: repo.alias || null, repoRootCanonical: repo.repoRootCanonical, mode, state,
       reason: repo.enabled === false ? 'disabled-membership' : reason, verification: 'manifest-inventory-only',
-      command: ['missing', 'incompatible'].includes(state)
+      ...(failure ? { inspectionFailure: { code: failure.code, message: failure.message } } : {}),
+      command: state !== 'disabled' && failure ? command('config', 'validate', '--repo', repo.repoRootCanonical) : ['missing', 'incompatible'].includes(state)
         ? command('index', 'build', '--repo', repo.repoRootCanonical, '--mode', mode, '--incremental') : null,
       validateCommand: state === 'ready' ? command('index', 'validate', '--repo', repo.repoRootCanonical, '--mode', mode) : null,
       consequence: state === 'disabled' ? 'Excluded from default workspace search.' : state === 'ready'
