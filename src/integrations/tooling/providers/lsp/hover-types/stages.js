@@ -93,7 +93,7 @@ const recordSoftDeadlineCheck = ({
   });
 };
 
-const isTimeoutError = (err) => (
+export const isTimeoutError = (err) => (
   String(err?.message || err || '').toLowerCase().includes('timeout')
 );
 

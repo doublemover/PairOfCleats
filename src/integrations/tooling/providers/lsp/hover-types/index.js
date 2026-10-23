@@ -60,6 +60,7 @@ import {
   extractDefinitionLocations,
   extractSignatureHelpText,
   handleStageRequestError,
+  isTimeoutError,
   normalizeHoverContents,
   recordCircuitOpenCheck,
   recordCrashLoopCheck,
