@@ -18,7 +18,9 @@ try {
   const plan = planWorkspaceAuthoring({ workspacePath: file, roots: [first, second], aliases: ['one', 'two'] });
   await assert.rejects(fs.stat(file), { code: 'ENOENT' });
   assert.equal(plan.repos.length, 2);
-  assert.equal((await applyWorkspaceAuthoring(plan)).ok, true);
+  const created = await applyWorkspaceAuthoring(plan);
+  assert.equal(created.ok, true);
+  assert.deepEqual(created.publication, { planId: plan.planId, outputHash: plan.outputHash });
   assert.equal(loadWorkspaceConfig(file).repos.length, 2);
   assert.equal(Array.isArray(plan.nextCommands), true, 'existing command-list consumers retain their response shape');
   assert.equal(plan.commands.members.length, 2);

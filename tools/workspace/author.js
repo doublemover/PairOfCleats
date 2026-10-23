@@ -8,7 +8,7 @@ import { parseJsoncText } from '../../src/shared/jsonc.js';
 import { loadWorkspaceConfig, resolveWorkspaceConfig } from '../../src/workspace/config.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { atomicWriteText } from '../../src/shared/io/atomic-write.js';
-import { acquireFileLock, releaseFileLockOrThrow } from '../../src/shared/locks/file-lock.js';
+import { withFileLock } from '../../src/shared/locks/file-lock.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { createWorkspaceNextCommands } from './diagnostics.js';
 import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
@@ -78,22 +78,20 @@ export const applyWorkspaceAuthoring = async (plan, { signal = null } = {}) => {
     }
     return resolved;
   };
-  assertReviewedMembership();
-  const lock = await acquireFileLock({ lockPath: plan.workspacePath + '.authoring-lock', waitMs: 0, signal,
-    metadata: { scope: 'workspace-authoring', planId } });
-  if (!lock) throw new Error('Another workspace authoring owner is active; review a new plan after it settles.');
-  try {
+  const reviewedWorkspace = assertReviewedMembership();
+  const result = await withFileLock({ lockPath: plan.workspacePath + '.authoring-lock', waitMs: 0, signal,
+    metadata: { scope: 'workspace-authoring', planId } }, async () => {
     await atomicWriteText(plan.workspacePath, plan.content, { mkdir: false, mode: 0o600, createOnly: before === null,
       beforeCommit: () => {
         assertReviewedMembership();
         const latest = readWorkspaceText(plan.workspacePath);
         if ((latest === null ? null : hash(latest)) !== plan.inputHash) throw new Error('Workspace changed during staging; review a new plan.');
       } });
-    return { ok: true, workspacePath: plan.workspacePath, workspace: loadWorkspaceConfig(plan.workspacePath),
-      nextCommands: plan.nextCommands, commands: plan.commands };
-  } finally {
-    await releaseFileLockOrThrow(lock);
-  }
+    return { ok: true, workspacePath: plan.workspacePath, workspace: reviewedWorkspace,
+      publication: { planId, outputHash: plan.outputHash }, nextCommands: plan.nextCommands, commands: plan.commands };
+  });
+  if (!result) throw new Error('Another workspace authoring owner is active; review a new plan after it settles.');
+  return result;
 };
 
 export const runWorkspaceAuthoringCli = async (rawArgs = process.argv.slice(2)) => {

@@ -20,6 +20,9 @@ import { admitFirstSearchToolReceipt, describeAppliedFirstSearchCapabilities, de
 import { resolveWorkspaceChildRuntimeEnv } from '../../src/workspace/child-runtime-env.js';
 import { resolveFirstSearchSuggestion } from './first-search-suggestion.js';
 import { isResolvedCommandTrusted } from '../../src/shared/config-authority.js';
+import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
 const readOptional = file => {
@@ -140,6 +143,7 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
         'src/shared/managed-installation-retain.js', 'src/shared/managed-installation-contract.js', 'src/shared/toolchain-env.js',
         'src/shared/managed-go.js', 'tools/tooling/install-receipts.js', 'tools/tooling/install-requirements.js',
         'src/shared/storage/session.js', 'src/shared/storage/managed-child-session.js', 'src/shared/storage/child-environment.js',
+        'src/shared/storage/failure-observation.js', 'src/shared/storage/operation-error.js',
         'src/shared/storage/admission.js', 'src/shared/storage/layout.js', 'src/shared/storage/locator-contract.js',
         'src/shared/storage/locator-read.js', 'src/shared/storage/selected-layout.js', 'src/shared/storage/inventory.js',
         'src/shared/storage/transfer.js', 'tools/download/models.js', 'src/shared/embedding-model-profile.js',
@@ -242,10 +246,14 @@ export const applyFirstSearchPlan = async (approved, { execute = executeSetupSte
     return { ...outcome, commands, suggestion, capabilities: describeAppliedFirstSearchCapabilities(current, outcome),
       firstSearch: 'not-performed', qualification: 'Index validation completed only when listed; protocol/project/model inference readiness is not inferred.' };
   } catch (error) {
+    let failure;
+    try { failure = describeStorageFailure(error, { phase: 'first-search-step', defaultCode: 'ERR_SETUP_STEP' }); }
+    catch (pending) { error = pending; }
     primaryError = error;
     outcome.state = signal?.aborted ? 'cancelled' : 'blocked';
-    outcome.failed = { id: outcome.pending[0] || 'config', code: error.code || null };
-    if (error.cacheOwnershipPending) {
+    outcome.failed = { id: outcome.pending[0] || 'config', code: failure?.code || null,
+      message: failure ? redactDiagnosticText(failure.message, 2048) : 'Actual setup resource settlement remains unresolved.' };
+    if (!failure) {
       pendingSettlement = true;
       outcome.state = 'settlement-pending';
       let released = false;
@@ -269,8 +277,7 @@ export const applyFirstSearchPlan = async (approved, { execute = executeSetupSte
       try { await releaseFileLockOrThrow(lock); }
       catch (error) {
         if (!primaryError) throw error;
-        primaryError.setupCleanupError = error;
-        throw primaryError;
+        throw addStorageFailureContext(primaryError, { setupCleanupError: error }, error, { secondaryPresent: true });
       }
     }
   }
