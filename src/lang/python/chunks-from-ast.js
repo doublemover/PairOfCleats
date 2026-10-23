@@ -40,6 +40,7 @@ export function buildPythonChunksFromAst(text, astData) {
       kind: current.kind || 'FunctionDeclaration',
       meta: {
         pythonScopeId: current.scopeId || null,
+        ...(current.callOmissions ? { syntaxCallOmissions: current.callOmissions } : {}),
         startLine: current.startLine,
         definitionStartLine: current.definitionStartLine ?? current.startLine,
         definitionStartCol: current.definitionStartCol ?? current.startCol,

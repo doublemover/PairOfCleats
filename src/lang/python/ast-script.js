@@ -227,6 +227,8 @@ class Collector(ast.NodeVisitor):
         self.flow = {}
         self.scope_stack = []
         self.lexical_stack = []
+        self.call_omissions = {}
+        self.lambda_scopes = 0
     def current_func(self):
         return self.lexical_stack[-1]["name"] if self.lexical_stack else "(module)"
     def current_scope(self):
@@ -443,6 +445,30 @@ class Collector(ast.NodeVisitor):
         self.func_stack.pop()
     def visit_AsyncFunctionDef(self, node):
         self.visit_FunctionDef(node)
+    def visit_Lambda(self, node):
+        # Default expressions run when the lambda is created. The body belongs
+        # to a later anonymous invocation, never to the surrounding declaration.
+        for default in node.args.defaults:
+            self.visit(default)
+        for default in node.args.kw_defaults:
+            if default is not None:
+                self.visit(default)
+        surrounding = self.current_scope() or "(module)"
+        name = self.current_func() + ".<lambda@" + str(node.lineno) + ":" + str(node.col_offset) + ">"
+        self.lambda_scopes += 1
+        before = len(self.calls)
+        self.func_stack.append(name)
+        self.scope_stack.append(name)
+        self.lexical_stack.append({"name": name, "kind": "lambda"})
+        try:
+            self.visit(node.body)
+        finally:
+            self.lexical_stack.pop()
+            self.scope_stack.pop()
+            self.func_stack.pop()
+        omitted = len(self.calls) - before
+        if omitted:
+            self.call_omissions[surrounding] = self.call_omissions.get(surrounding, 0) + omitted
     def visit_Import(self, node):
         for alias in node.names:
             self.imports.add(alias.name)
@@ -627,6 +653,9 @@ def parse_source(source, filename=None, dataflow_flag=True, control_flow_flag=Tr
     for entry in collector.defs:
         calls = collector.call_map.get(entry["scopeId"])
         entry["calls"] = sorted(calls) if calls else []
+        omitted = collector.call_omissions.get(entry["scopeId"], 0)
+        if omitted:
+            entry["callOmissions"] = {"anonymousScopeCalls": omitted, "declarationHeaderCalls": 0}
         flow = collector.flow.get(entry["scopeId"])
         if flow:
             if dataflow_enabled:
@@ -654,6 +683,7 @@ def parse_source(source, filename=None, dataflow_flag=True, control_flow_flag=Tr
         "imports": sorted(collector.imports),
         "calls": collector.calls,
         "callDetails": collector.call_details,
+        "callCoverageReasons": ["anonymous_python_lambda_execution_unmodeled"] if collector.lambda_scopes else [],
         "usages": sorted(collector.usages),
         "exports": sorted(collector.exports)
     }
