@@ -387,7 +387,7 @@ export const pruneFederatedQueryCache = (cache, policy = {}) => {
     ? Math.max(1, Math.floor(Number(policy.maxEntries)))
     : FEDERATED_QUERY_CACHE_DEFAULTS.maxEntries;
   const maxBytes = Number.isFinite(Number(policy.maxBytes))
-    ? Math.max(1, Math.floor(Number(policy.maxBytes)))
+    ? Math.min(FEDERATED_QUERY_CACHE_MAX_READ_BYTES, Math.max(1, Math.floor(Number(policy.maxBytes))))
     : FEDERATED_QUERY_CACHE_DEFAULTS.maxBytes;
   const cutoff = resolveAgeCutoff(policy, Date.now());
 

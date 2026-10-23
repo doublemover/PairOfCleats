@@ -59,7 +59,13 @@ input. Each request owns its entry metadata while sharing frozen result payloads
 Immutable payload byte estimates are memoized; changing recency alone does not
 serialize result payloads again. Canonical result replacement invalidates parsed
 generation reuse. Relative-time and generation verification remain enforced by
-the federated search coordinator.
+the federated search coordinator. A larger optional retention policy cannot
+exceed the federated canonical reader's 16 MiB limit. Before reuse, the
+coordinator checks the persisted successful envelope, current manifest and
+selection, execution policy, per-mode caps and eligible hit provenance. Invalid
+envelopes are misses and receive no hit touch. Qualified warm responses receive
+an independent mutable clone without encoding the cached result as JSON for
+that ownership transfer; the selected transport still owns output encoding.
 
 The source and authored fixtures have not been executed or benchmarked during the
 current development pass. These operation changes do not establish latency,

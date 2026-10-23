@@ -35,7 +35,7 @@ import { verifyFederatedModeGeneration, buildPinnedFederatedModePlans,
 import { applyModeOverride } from './modes.js';
 import { resolveFederatedCursor } from './request.js';
 import { INTERNAL_EXACT_SEARCH_MODE } from '../cli.js';
-import { validateFederatedModeResult } from './results.js';
+import { validateFederatedModeResult, isReusableFederatedCacheResult } from './results.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 
 export const resolveFederatedUnavailableModes = ({repos,requestedModes,eligibleModesByRepo,cohortExcluded={}}) =>
@@ -694,7 +694,9 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     policy: cachePolicy,
     now: timeAnchor
   });
-  if (cachedEntry?.result) {
+  if (isReusableFederatedCacheResult(cachedEntry?.result, { manifestHash: manifest.manifestHash,
+    repoSetId: workspaceConfig.repoSetId, selectedRepoIds: selection.selectedRepoIds,
+    selectedReposByMode: selectedByMode, topN, strictFailures })) {
     await verifyRankedGeneration();
     emitShadow(null);
     touchFederatedQueryCacheEntry(cacheData, cacheKeyInfo.keyHash, new Date(timeAnchor).toISOString());
@@ -704,7 +706,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       if (!touched) await persistFederatedQueryCache({ cachePath, cache: cacheData });
     } catch (error) { observeStorageResource(error, { phase: 'federated-cache-touch' }).requireSettled(); }
     checkAbort();
-    return JSON.parse(stableStringify(cachedEntry.result));
+    return structuredClone(cachedEntry.result);
   }
   const persistCachedResult = async (result) => {
     checkAbort();
