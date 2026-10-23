@@ -1,5 +1,11 @@
 const DEFAULT_INDEX_JOB_COST = 1;
 const DEFAULT_EMBEDDING_JOB_COST = 4;
+export const MAX_QUEUE_PRIORITY_BYPASSES = 3;
+export const describeQueueDispatch = workerMode => ({
+  policy: workerMode === 'priority-only' ? 'light-first-bounded' : 'fifo',
+  maxPriorityBypasses: MAX_QUEUE_PRIORITY_BYPASSES,
+  fallback: 'oldest-eligible'
+});
 const DEFAULT_INDEX_SLO = Object.freeze({
   maxQueueAgeMs: {
     degraded: 5 * 60 * 1000,
@@ -245,7 +251,8 @@ export function evaluateQueueBackpressure({
       reasons: sloReasons,
       actions: {
         enqueue: enqueueMode,
-        workerMode
+        workerMode,
+        dispatch: describeQueueDispatch(workerMode)
       },
       metrics: {
         oldestQueuedAgeMs,

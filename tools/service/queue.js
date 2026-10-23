@@ -21,6 +21,7 @@ import {
 import { resolveQueueRetentionPolicy } from './retention-policy.js';
 import { normalizeObservability } from '../../src/shared/observability.js';
 import { admitQueueJobPaths, assertQueueArtifactPath, assertQueueJobId } from './queue-authority.js';
+import { createQueueDispatchSelection, queuePriorityBypasses } from './queue-dispatch.js';
 
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
 const VALID_JOB_STATUSES = new Set(['queued', 'running', 'done', 'failed']);
@@ -352,6 +353,7 @@ const normalizeJobRecord = (job = {}) => {
     status,
     attempts,
     maxRetries,
+    dispatchPriorityBypasses: queuePriorityBypasses(job),
     nextEligibleAt: normalizeIsoTimestamp(job?.nextEligibleAt || null),
     createdAt: normalizeIsoTimestamp(job?.createdAt || null) || new Date().toISOString(),
     startedAt: normalizeIsoTimestamp(job?.startedAt || null),
@@ -1168,7 +1170,18 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
     const nowIso = new Date(now).toISOString();
     const journalEntries = [];
     const runningDuplicateFor = createRunningQueueDuplicateLookup(queue.jobs);
-    let job = null;
+    // Resolve pressure from the current locked queue, never an earlier status
+    // response. Every independent claimant uses the same class/fairness policy.
+    const pressure = evaluateQueueBackpressure({
+      jobs: queue.jobs,
+      queueName: resolvedQueueName,
+      policy: options.admissionPolicy || resolveQueueAdmissionPolicy({ queueName: resolvedQueueName }),
+      sloPolicy: options.sloPolicy || resolveQueueSloPolicy({ queueName: resolvedQueueName }),
+      nowMs: now
+    });
+    const selection = createQueueDispatchSelection({
+      workerMode: pressure.slo.actions.workerMode, queueName: resolvedQueueName
+    });
     for (const entry of queue.jobs) {
       if (entry.status !== 'queued') continue;
       // Trusted embedded workers can restrict their ownership while this claim
@@ -1195,16 +1208,11 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
           continue;
         }
       }
-      if (!entry.nextEligibleAt) {
-        job = entry;
-        break;
-      }
-      const eligibleAt = Date.parse(entry.nextEligibleAt);
-      if (Number.isNaN(eligibleAt) || eligibleAt <= now) {
-        job = entry;
-        break;
-      }
+      const eligibleAt = entry.nextEligibleAt ? Date.parse(entry.nextEligibleAt) : NaN;
+      if (!Number.isNaN(eligibleAt) && eligibleAt > now) continue;
+      if (selection.consider(entry)) break;
     }
+    const { job, bypassed, ...dispatch } = selection.finish();
     if (!job) {
       if (journalEntries.length > 0) {
         await appendQueueJournalEntries(dirPath, resolvedQueueName, journalEntries);
@@ -1212,6 +1220,15 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
       }
       return null;
     }
+    if (bypassed) {
+      bypassed.dispatchPriorityBypasses = queuePriorityBypasses(bypassed) + 1;
+      // Replay must restore fairness even when the queue snapshot was lost
+      // after this journal append. The bypassed owner remains queued/eligible.
+      journalEntries.push(buildJournalEntry({ eventType: 'defer', job: bypassed,
+        queueName: resolvedQueueName, reason: 'dispatch-priority-bypass', at: nowIso,
+        extra: { dispatch } }));
+    }
+    job.dispatchPriorityBypasses = 0;
     if (!job.logPath) job.logPath = path.join(logsDir, `${job.id}.log`);
     if (!job.reportPath) job.reportPath = path.join(reportsDir, `${job.id}.json`);
     const previousStatus = assertAllowedTransition(job, 'running');
@@ -1253,7 +1270,8 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
       queueName: resolvedQueueName,
       reason: 'claim',
       workerId: options.ownerId || job?.lease?.owner || null,
-      at: nowIso
+      at: nowIso,
+      extra: { dispatch }
     }));
     await appendQueueJournalEntries(dirPath, resolvedQueueName, journalEntries);
     await saveQueue(dirPath, queue, resolvedQueueName);

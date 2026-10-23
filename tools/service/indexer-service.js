@@ -554,6 +554,7 @@ const queueWorker = createQueueWorker({
   queueDir,
   resolvedQueueName,
   admissionPolicy: queueAdmissionPolicy,
+  sloPolicy: queueOperationalEnvelope.slo,
   staleQueueMaxRetries,
   monitorBuildProgress,
   startBuildProgressMonitor,
