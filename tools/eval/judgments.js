@@ -1,3 +1,5 @@
+import { captureEvaluationArray } from './passive-evidence.js';
+
 const MODES = new Set(['code', 'prose', 'extracted-prose', 'records']);
 const admitted = new WeakSet();
 const invalid = message => Object.assign(new Error(message), { code: 'ERR_EVAL_JUDGMENT' });
@@ -32,11 +34,5 @@ export const captureEvaluationJudgment = original => {
 };
 
 export const captureEvaluationJudgments = rows => {
-  if (!Array.isArray(rows)) throw invalid('Relevance judgments require an explicit array.');
-  const captured = [];
-  for (let index = 0; index < rows.length; index++) {
-    if (!Object.hasOwn(rows, index)) throw invalid(`Missing relevance judgment at slot ${index + 1}.`);
-    captured.push(captureEvaluationJudgment(rows[index]));
-  }
-  return captured;
+  return Object.freeze(captureEvaluationArray(rows, invalid).map(captureEvaluationJudgment));
 };

@@ -1,4 +1,5 @@
 import { captureEvaluationJudgment } from './judgments.js';
+import { captureEvaluationHit } from './hit-evidence.js';
 
 const MATCH_MODES = new Set(['substring', 'exact']);
 
@@ -15,6 +16,7 @@ export function matchExpected(hit, expected, matchMode) {
   expected = captureEvaluationJudgment(expected);
   matchMode = resolveMatchMode(matchMode);
   if (!hit) return false;
+  hit = captureEvaluationHit(hit);
   if (expected.file && hit.file !== expected.file) return false;
   if (expected.name) {
     const hitName = typeof hit.name === 'string' ? hit.name.toLowerCase() : '';
