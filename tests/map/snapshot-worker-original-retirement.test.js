@@ -148,6 +148,42 @@ successfulController.abort(); assert.equal((await successfulAbort).name, 'AbortE
 const next = successfulCancellation.request('detail', {}, { lane: 'next' });
 successfulWorker.reply(successfulWorker.sent.at(-1), 'next'); assert.equal(await next, 'next'); successfulCancellation.dispose();
 
+// A query post can accept its message and then throw. Dispatch settlement is
+// independent, but the original client must retire before another native post.
+const posting = create(); await flush(); const postingWorker = all.at(-1);
+const originalPending = posting.request('detail', {}, { lane: 'original pending' }).catch(error => error);
+const originalMessage = postingWorker.sent.at(-1);
+postingWorker.postFailure = { kind: 'search', error: postError }; postingWorker.closeFailure = closeError;
+const postingFailure = await posting.request('search', { query: 'accepted before throw' }).catch(error => error);
+assert(contains(postingFailure, postError)); assert(contains(await originalPending, postError));
+assert.equal(posting.ready, false); assert.equal(postingWorker.closed, 1);
+assert(contains(posting.failure, postError)); assert(contains(posting.failure, closeError));
+const postingCount = postingWorker.sent.length;
+postingWorker.reply(originalMessage, 'obsolete completion');
+await assert.rejects(posting.request('search', { query: 'forbidden replacement' }), /retired|not ready/);
+assert.equal(postingWorker.sent.length, postingCount);
+postingWorker.closeFailure = null; posting.resourceOwner.release(); assert.equal(postingWorker.closed, 2);
+await assert.rejects(posting.request('search', { query: 'no implicit reactivation' }), /retired|not ready/);
+
+let querySceneReleased = false, queryCacheReleased = false;
+const queryBlocker = Object.freeze(Object.defineProperties(new Error('original query post still owns native work'), {
+  sceneOwnershipReleased: { value: () => querySceneReleased }, cacheOwnershipReleased: { value: () => queryCacheReleased }
+}));
+const blockedPost = create(); await flush(); const blockedPostWorker = all.at(-1);
+blockedPostWorker.postFailure = { kind: 'detail', error: queryBlocker };
+assert(contains(await blockedPost.request('detail', {}).catch(error => error), queryBlocker));
+assert.equal(blockedPost.ready, false); assert.equal(blockedPostWorker.closed, 0);
+const blockedPostCount = blockedPostWorker.sent.length;
+await assert.rejects(blockedPost.request('detail', {}), /retired|not ready/);
+assert.equal(blockedPostWorker.sent.length, blockedPostCount);
+querySceneReleased = true;
+assert.throws(() => blockedPost.resourceOwner.release(), error => contains(error, queryBlocker)); assert.equal(blockedPostWorker.closed, 0);
+queryCacheReleased = true; blockedPost.resourceOwner.release(); assert.equal(blockedPostWorker.closed, 1);
+const falseyPost = create(); await flush(); const falseyPostWorker = all.at(-1);
+falseyPostWorker.postFailure = { kind: 'detail', error: undefined };
+assert(contains(await falseyPost.request('detail', {}).catch(error => error), undefined));
+assert.equal(falseyPost.ready, false); assert.equal(falseyPostWorker.closed, 1);
+
 // A falsey original progress failure cannot turn accepted requests into success.
 let progressFails = false;
 const falsey = create({ onProgress() { if (progressFails) throw undefined; } }); await flush(); const falseyWorker = all.at(-1);

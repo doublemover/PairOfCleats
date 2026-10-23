@@ -129,12 +129,20 @@ export const createGraphWorkerClient = ({ snapshot, endpoint, token, demand = fa
       };
       pending.set(id, { kind, lane, revision, resolve, reject, cleanup: () => signal?.removeEventListener('abort', aborted) });
       lanes.set(lane, id);
+      let posting = false;
       try {
         signal?.addEventListener('abort', aborted, { once: true });
         if (signal?.aborted) { aborted(); return; }
         if (retired || !pending.has(id)) return;
+        posting = true;
         send({ protocol: MAP_DATA_PROTOCOL, snapshot, request: id, revision, kind, lane, payload });
-      } catch (error) { retain(error); retireRequest(id, combine(error)); }
+        posting = false;
+      } catch (error) {
+        retain(error); retireRequest(id, combine(error));
+        // A throwing original post may already have accepted native work. Do
+        // not free a dispatch slot while continuing to submit on that client.
+        if (posting) retire(error);
+      }
     });
   };
   const request = (kind, payload, options = {}) => queue.request({ lane: options.lane || kind, signal: options.signal,
