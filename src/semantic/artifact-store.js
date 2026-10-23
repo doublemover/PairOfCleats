@@ -5,7 +5,6 @@ import { resolvePublishedSemanticCoverage } from './coverage-resolution.js';
 import { assertSemanticQueryIndex } from '../contracts/validators/semantic-query-index.js';
 import { assertQueryIndexRow, compareQueryIndexRows, queryIndexOwnerCompare } from './query-index.js';
 import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.js';
-import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -17,6 +16,7 @@ import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelop
 import { validateSemanticRecord } from '../contracts/validators/semantic.js';
 import { observeStorageResource } from '../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../shared/storage/operation-error.js';
+import { readVerifiedContainedFile, withContainedFile } from '../shared/contained-file.js';
 import { closeSemanticReaders, completeSemanticReaderCleanup, semanticReaderFailure,
   withSemanticReaderCleanup } from './reader-lifetime.js';
 
@@ -102,6 +102,17 @@ export const createArtifactSemanticStore = ({
     return code === 'ERR_JSONL_CONTENT_INTEGRITY'
       ? addStorageFailureContext(error('Semantic part hash/size mismatch.'), {}, observation.retain(), { secondaryPresent: true })
       : caught;
+  };
+  const retainedSourceFailure = caught => {
+    const observation = observeStorageResource(caught, { phase: 'semantic-retained-source-read' });
+    observation.requireSettled();
+    let code;
+    try { code = caught?.code; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    return ['ERR_FILE_CHANGED', 'ERR_FILE_TOO_LARGE', 'ERR_FILE_INTEGRITY', 'ERR_UNSAFE_FILE_PATH'].includes(code)
+      ? addStorageFailureContext(error('Retained semantic source hash, size or containment mismatch.'), {},
+        observation.retain(), { secondaryPresent: true }) : caught;
   };
   const openVerifiedPieceReader = async (piece, signal) => {
     throwIfAborted(signal);
@@ -276,9 +287,13 @@ export const createArtifactSemanticStore = ({
         decodedBytes += source.byteLength;
         if (decodedBytes > maxRecordBytes) throw Object.assign(new Error('Source hydration exceeds decoded-source allowance.'), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
         const filePath = await resolveSemanticPartPath(root, 'semantic-sources/' + source.byteHash + '.utf8');
-        if ((await fs.stat(filePath)).size !== source.byteLength) throw error('Source size mismatch.');
-        const bytes = await fs.readFile(filePath);
-        if (createHash('sha256').update(bytes).digest('hex') !== source.byteHash) throw error('Source hash mismatch.');
+        let bytes;
+        try {
+          ({ buffer: bytes } = await readVerifiedContainedFile(root, filePath, {
+            maxBytes: source.byteLength, expectedBytes: source.byteLength, expectedHash: source.byteHash, signal
+          }));
+        } catch (caught) { throw retainedSourceFailure(caught); }
+        throwIfAborted(signal);
         text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
         if (text.length !== source.textLength || createHash('sha256').update(text, 'utf8').digest('hex') !== source.textHash) {
           throw error('Source text identity mismatch.');
@@ -454,14 +469,18 @@ export const createArtifactSemanticStore = ({
   };
   const verifySource = async (source, { signal = null, spans = [] } = {}) => {
     throwIfAborted(signal);
-    const length = source.coordinateUnit === 'byte' ? source.byteLength : source.textLength;
+    // Own only the identity fields consumed across awaits; line-start inventories
+    // and caller source containers need no full clone for streamed verification.
+    const expected = { coordinateUnit: source.coordinateUnit, encoding: source.encoding,
+      byteLength: source.byteLength, textLength: source.textLength, byteHash: source.byteHash, textHash: source.textHash };
+    const length = expected.coordinateUnit === 'byte' ? expected.byteLength : expected.textLength;
     if (!Array.isArray(spans) || spans.length > 16384 || spans.some(span => !Array.isArray(span) || span.length !== 2
       || span.some(offset => !Number.isSafeInteger(offset) || offset < 0 || offset > length) || span[1] < span[0])) {
       throw error('Retained semantic source span is outside its coordinate allowance.');
     }
-    const boundaries = source.encoding === 'binary' ? [] : [...new Set(spans.flat())].sort((a, b) => a - b);
+    const boundaries = expected.encoding === 'binary' ? [] : [...new Set(spans.flat())].sort((a, b) => a - b);
     let nextBoundary = 0;
-    const file = await resolveSemanticPartPath(root, 'semantic-sources/' + source.byteHash + '.utf8');
+    const file = await resolveSemanticPartPath(root, 'semantic-sources/' + expected.byteHash + '.utf8');
     const byteHash = createHash('sha256'), textHash = createHash('sha256');
     const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
     let byteLength = 0, textLength = 0;
@@ -474,19 +493,35 @@ export const createArtifactSemanticStore = ({
       }
       textLength += text.length; textHash.update(text, 'utf8');
     };
-    for await (const bytes of createReadStream(file, { highWaterMark: 65536, signal: signal || undefined })) {
-      throwIfAborted(signal);
-      byteLength += bytes.length;
-      if (byteLength > source.byteLength) throw error('Retained semantic source size mismatch.');
-      byteHash.update(bytes);
-      const text = source.encoding === 'binary' ? '' : decoder.decode(bytes, { stream: true });
-      consumeText(text);
-    }
-    const tail = source.encoding === 'binary' ? '' : decoder.decode(); consumeText(tail);
-    if (byteLength !== source.byteLength || textLength !== source.textLength
-      || byteHash.digest('hex') !== source.byteHash || textHash.digest('hex') !== source.textHash) {
-      throw error('Retained semantic source hash or length mismatch.');
-    }
+    try {
+      await withContainedFile(root, file, async descriptor => {
+        const before = await descriptor.stat();
+        if (!Number.isSafeInteger(expected.byteLength) || before.size !== expected.byteLength) throw error('Retained semantic source size mismatch.');
+        const scratch = Buffer.alloc(65536);
+        while (true) {
+          throwIfAborted(signal);
+          // The extra EOF probe can detect growth without admitting a source-sized
+          // allocation or reading more than the pinned size plus one byte.
+          const allowance = Math.min(scratch.length, expected.byteLength - byteLength + 1);
+          const { bytesRead } = await descriptor.read(scratch, 0, allowance, byteLength);
+          if (!Number.isInteger(bytesRead) || bytesRead < 0 || bytesRead > allowance) throw error('Invalid retained source read count.');
+          if (!bytesRead) break;
+          byteLength += bytesRead;
+          if (byteLength > expected.byteLength) throw error('Retained semantic source size mismatch.');
+          const bytes = scratch.subarray(0, bytesRead);
+          byteHash.update(bytes);
+          consumeText(expected.encoding === 'binary' ? '' : decoder.decode(bytes, { stream: true }));
+        }
+        consumeText(expected.encoding === 'binary' ? '' : decoder.decode());
+        const after = await descriptor.stat();
+        if (byteLength !== expected.byteLength || textLength !== expected.textLength || after.size !== expected.byteLength
+          || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs
+          || byteHash.digest('hex') !== expected.byteHash || textHash.digest('hex') !== expected.textHash) {
+          throw error('Retained semantic source hash or length mismatch.');
+        }
+        descriptor.verify();
+      });
+    } catch (caught) { throw retainedSourceFailure(caught); }
     throwIfAborted(signal);
   };
   return { withReadScope, findOperations: createArtifactOperationReader({ index: operationIndex, inventory, generation, readPieceRows, getReadScope: currentReadScope }), backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceReference, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
