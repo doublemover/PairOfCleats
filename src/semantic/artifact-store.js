@@ -1,6 +1,7 @@
 import { createArtifactOperationReader } from './operation-reader.js';
 import { createSourceReferenceReader } from './source-references.js';
 import { createNeighborReader } from './neighbors.js';
+import { captureSemanticDetailFields, captureSemanticRecordRef, captureSemanticRecordRefs } from './reader-input.js';
 import { resolvePublishedSemanticCoverage } from './coverage-resolution.js';
 import { assertSemanticQueryIndex } from '../contracts/validators/semantic-query-index.js';
 import { assertQueryIndexRow, compareQueryIndexRows, queryIndexOwnerCompare } from './query-index.js';
@@ -182,16 +183,12 @@ export const createArtifactSemanticStore = ({
     });
   };
   const getRecords = async (refs, fields = ['span', 'scope', 'data'], { signal = null, metrics = null } = {}) => {
-    if (!Array.isArray(refs) || refs.length > maxRecords) throw error('Semantic record request exceeds its limit.');
-    if (!Array.isArray(fields) || fields.some((field) => !['span', 'scope', 'data'].includes(field))) {
-      throw error('Unknown semantic detail field group.');
-    }
+    refs = captureSemanticRecordRefs(refs, maxRecords, error);
+    fields = captureSemanticDetailFields(fields, error);
     const work = new Map();
     const results = new Array(refs.length);
     for (let index = 0; index < refs.length; index += 1) {
       const ref = refs[index];
-      const check = validateSemanticRecord('recordRef', ref);
-      if (!check.ok) throw error(check.errors.join('; '));
       const partition = inventory.get(ref.partitionId);
       if (!partition) throw error('Record partition is not in the pinned generation.');
       const pieces = partition.members.semantic_records;
@@ -257,6 +254,7 @@ export const createArtifactSemanticStore = ({
     sourceUnitForPartition: id => inventory.get(id)?.sourceUnitId, iterateRows
   });
   const getSourceSpans = async (refs, { signal = null, maxBytes = 65536 } = {}) => {
+    refs = captureSemanticRecordRefs(refs, maxRecords, error);
     const records = await getRecords(refs, ['span'], { signal });
     const sourceByPartition = new Map();
     const decodedSources = new Map();
@@ -405,9 +403,10 @@ export const createArtifactSemanticStore = ({
     return row;
   };
   const getRelatedPage = async (ref, member, { offset = 0, limit = 128, signal = null, metrics = null } = {}) => {
+    ref = captureSemanticRecordRef(ref, error);
     throwIfAborted(signal);
     checkQueryIndex();
-    if (!validateSemanticRecord('recordRef', ref).ok || !inventory.has(ref.partitionId)
+    if (!inventory.has(ref.partitionId)
       || !['semantic_operands', 'semantic_ownership', 'semantic_lookup', 'semantic_records', 'semantic_edges'].includes(member)
       || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 512) throw error('Invalid related semantic request.');
     const scope = currentReadScope();
