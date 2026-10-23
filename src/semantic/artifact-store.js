@@ -286,6 +286,11 @@ export const createArtifactSemanticStore = ({
         decodedSources.set(source.byteHash, text);
       }
       if (record.span[1] > text.length) throw error('Source range mismatch.');
+      for (const offset of record.span) {
+        if (offset > 0 && offset < text.length && text.charCodeAt(offset - 1) >= 0xd800
+          && text.charCodeAt(offset - 1) <= 0xdbff && text.charCodeAt(offset) >= 0xdc00
+          && text.charCodeAt(offset) <= 0xdfff) throw error('Source excerpt span splits a Unicode scalar.');
+      }
       const excerpt = text.slice(record.span[0], record.span[1]);
       returnedBytes += Buffer.byteLength(excerpt);
       if (returnedBytes > maxBytes) throw Object.assign(new Error('Source excerpts exceed response byte limit.'), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
