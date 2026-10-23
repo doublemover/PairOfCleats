@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
+import { observeEmbeddingOwnership } from '../../../shared/embedding-cache-lifetime.js';
 
 const DAEMON_SESSION_MAX_ENTRIES = 8;
 const DAEMON_DICT_CACHE_MAX_ENTRIES = 32;
@@ -19,6 +20,14 @@ const DEFAULT_DAEMON_HEALTH = Object.freeze({
 
 const daemonSessions = new Map();
 const retiredDaemonSessions = new Set();
+// Retirement authority follows the actual lease, including replacements sharing
+// a warm key. Public diagnostic arrays and warm maps cannot erase that owner.
+const embeddingRetirementOwners = new WeakMap();
+const retirementOwners = session => {
+  let owners = embeddingRetirementOwners.get(session);
+  if (!owners) { owners = new Map(); embeddingRetirementOwners.set(session, owners); }
+  return owners;
+};
 
 /**
  * Return current timestamp in ISO-8601 format.
@@ -142,7 +151,7 @@ const trimDaemonSessions = () => {
     daemonSessions.delete(oldest[0]);
     retiredDaemonSessions.add(oldest[1]);
     clearRuntimeDaemonWarmCaches(oldest[1]);
-    if (!oldest[1].embeddingLeaseRetirements?.size && !oldest[1].embeddingLeaseErrors?.length) retiredDaemonSessions.delete(oldest[1]);
+    if (!retirementOwners(oldest[1]).size) retiredDaemonSessions.delete(oldest[1]);
   }
 };
 
@@ -181,21 +190,61 @@ const trimSetLru = (cache, maxEntries, onEvict = null) => {
   }
 };
 
+const refreshRetirementErrors = session => {
+  session.embeddingLeaseErrors = [...retirementOwners(session).values()]
+    .filter(owner => owner.failed).map(owner => owner.error);
+};
+const startEmbeddingRetirement = (session, owner, { retry = false } = {}) => {
+  if (owner.work || (owner.failed && !retry)) return;
+  const owners = retirementOwners(session);
+  session.embeddingLeaseRetirements ||= new Set();
+  retiredDaemonSessions.add(session);
+  const retirement = Promise.resolve().then(async () => {
+    if (owner.captureFailed) throw owner.error;
+    if (!owner.disposeCompleted) {
+      const result = await owner.dispose.call(owner.lease);
+      if (result === false) throw new Error('Daemon embedding lease disposal was explicitly unconfirmed.');
+      owner.disposeCompleted = true;
+    }
+    for (const [error, observe] of owner.observers) if (!observe()) throw error;
+    owners.delete(owner.lease);
+    refreshRetirementErrors(session);
+    if (!owners.size) retiredDaemonSessions.delete(session);
+  }).catch(error => {
+    owner.failed = true;
+    owner.error = error;
+    const observe = observeEmbeddingOwnership(error);
+    if (observe && !owner.observers.has(error)) owner.observers.set(error, observe);
+    refreshRetirementErrors(session);
+    throw error;
+  });
+  owner.work = retirement;
+  session.embeddingLeaseRetirements.add(retirement);
+  const settled = () => {
+    owner.work = null;
+    session.embeddingLeaseRetirements.delete(retirement);
+  };
+  retirement.then(settled, settled);
+};
 const retireEmbeddingLease = (session, key) => {
   const lease = session.embeddingWarmLeases?.get(key);
   if (!lease) return;
   session.embeddingWarmLeases.delete(key);
-  session.embeddingLeaseRetirements ||= new Set();
-  session.embeddingLeaseErrors ||= [];
-  const retirement = Promise.resolve().then(() => lease.dispose?.());
-  session.embeddingLeaseRetirements.add(retirement);
-  retirement.then(() => {
-    session.embeddingLeaseRetirements.delete(retirement);
-    if (!session.embeddingLeaseRetirements.size && !session.embeddingLeaseErrors.length) retiredDaemonSessions.delete(session);
-  }, error => {
-    session.embeddingLeaseRetirements.delete(retirement);
-    session.embeddingLeaseErrors.push(error);
-  });
+  const owners = retirementOwners(session);
+  let owner = owners.get(lease);
+  if (!owner) {
+    owner = { key, lease, dispose: null, disposeCompleted: false, captureFailed: false,
+      failed: false, error: null, work: null, observers: new Map() };
+    owners.set(lease, owner);
+    try {
+      const dispose = lease.dispose;
+      if (typeof dispose !== 'function') throw new TypeError('Daemon embedding lease has no disposal control.');
+      owner.dispose = dispose;
+    } catch (error) { owner.captureFailed = true; owner.failed = true; owner.error = error; }
+  }
+  startEmbeddingRetirement(session, owner);
+  // A capture failure is retained even though no native operation was invoked.
+  if (owner.captureFailed) { retiredDaemonSessions.add(session); refreshRetirementErrors(session); }
 };
 const trimEmbeddingWarmSet = (session, warmSet, maxEntries) => (
   trimSetLru(warmSet, maxEntries, key => retireEmbeddingLease(session, key))
@@ -204,11 +253,20 @@ const trimEmbeddingWarmSet = (session, warmSet, maxEntries) => (
 /** Join deterministic lease releases scheduled by eviction or recycling. */
 export const drainDaemonEmbeddingLeases = async (session) => {
   if (!session) return;
-  while (session.embeddingLeaseRetirements?.size) {
-    await Promise.allSettled([...session.embeddingLeaseRetirements]);
+  const owners = retirementOwners(session);
+  for (;;) {
+    const pending = [...owners.values()].map(owner => owner.work).filter(Boolean);
+    if (!pending.length) break;
+    await Promise.allSettled(pending);
   }
-  if (session.embeddingLeaseErrors?.length) {
-    throw new AggregateError(session.embeddingLeaseErrors.splice(0), 'Daemon embedding lease disposal failed.');
+  const errors = [...owners.values()].filter(owner => owner.failed).map(owner => owner.error);
+  if (errors.length) {
+    const failure = new AggregateError(errors, 'Daemon embedding lease disposal failed.');
+    Object.defineProperties(failure, {
+      cacheOwnershipPending: { get: () => owners.size > 0 },
+      cacheOwnershipReleased: { value: () => owners.size === 0 }
+    });
+    throw failure;
   }
 };
 
@@ -613,15 +671,28 @@ export const addDaemonEmbeddingWarmKey = (session, key, lease = null) => {
 };
 
 export const removeDaemonEmbeddingWarmKey = async (session, key, expectedLease = null) => {
-  if (!session || (expectedLease && session.embeddingWarmLeases?.get(key) !== expectedLease)) return;
-  session.embeddingWarmKeys?.delete(key);
-  retireEmbeddingLease(session, key);
+  if (!session) return;
+  const owners = retirementOwners(session);
+  const retained = expectedLease ? owners.get(expectedLease) : null;
+  if (expectedLease && session.embeddingWarmLeases?.get(key) !== expectedLease && retained?.key !== key) return;
+  // Retry only previously failed exact leases selected by this explicit call.
+  for (const owner of owners.values()) if (owner.key === key && (!expectedLease || owner.lease === expectedLease)) {
+    startEmbeddingRetirement(session, owner, { retry: true });
+  }
+  if (!expectedLease || session.embeddingWarmLeases?.get(key) === expectedLease) {
+    session.embeddingWarmKeys?.delete(key);
+    retireEmbeddingLease(session, key);
+  }
   await drainDaemonEmbeddingLeases(session);
 };
 
 export const closeRuntimeDaemonSession = async (session) => {
   if (!session) return;
   if (daemonSessions.get(session.key) === session) daemonSessions.delete(session.key);
+  retiredDaemonSessions.add(session);
+  // Explicit close may reconcile old failures. Automatic eviction/recycling and
+  // observational drains never retry a previously failed disposer.
+  for (const owner of retirementOwners(session).values()) startEmbeddingRetirement(session, owner, { retry: true });
   clearRuntimeDaemonWarmCaches(session);
   await drainDaemonEmbeddingLeases(session);
   retiredDaemonSessions.delete(session);
@@ -631,7 +702,15 @@ export const disposeRuntimeDaemonSessions = async () => {
   const sessions = new Set([...daemonSessions.values(), ...retiredDaemonSessions]);
   const results = await Promise.allSettled([...sessions].map(closeRuntimeDaemonSession));
   const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
-  if (errors.length) throw new AggregateError(errors, 'Daemon session shutdown failed.');
+  if (errors.length) {
+    const observers = errors.map(observeEmbeddingOwnership);
+    const released = () => observers.every(observe => typeof observe === 'function' && observe());
+    const failure = new AggregateError(errors, 'Daemon session shutdown failed.');
+    Object.defineProperties(failure, {
+      cacheOwnershipPending: { get: () => !released() }, cacheOwnershipReleased: { value: released }
+    });
+    throw failure;
+  }
 };
 
 export const __testRuntimeDaemonSessions = Object.freeze({

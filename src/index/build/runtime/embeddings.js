@@ -12,6 +12,7 @@ import { resolveStubDims } from '../../../shared/embedding.js';
 import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile } from '../../../shared/embedding-model-profile.js';
 import { normalizeEmbeddingProvider, resolveOnnxConfig, resolveOnnxModelPath } from '../../../shared/onnx-embeddings.js';
 import { resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
+import { observeEmbeddingOwnership, preserveEmbeddingCleanupFailure } from '../../../shared/embedding-cache-lifetime.js';
 
 /**
  * Resolve embedding runtime configuration and lazy embedding adapters.
@@ -145,16 +146,47 @@ export const resolveEmbeddingRuntime = async ({
   let embedder = null;
   let closed = false;
   let closing = null;
+  let batcherClosed = false;
+  let workDrained = false;
+  let observationsDrained = false;
+  let embedderDisposed = false;
+  let disposeEmbedder = null;
+  const cleanupObservers = new Map();
   const operations = new Set();
   const closeEmbeddingRuntime = () => {
     if (!closing) {
       closed = true;
       closing = (async () => {
-        await closeInlineEmbeddingBatcher(getChunkEmbeddings);
-        await Promise.allSettled([...operations]);
-        await observationWrite;
-        await embedder?.dispose?.();
-      })();
+        const errors = [];
+        const closeStep = async (done, action, confirm) => {
+          if (done) return;
+          try { await action(); confirm(); }
+          catch (error) {
+            errors.push(error);
+            const observe = observeEmbeddingOwnership(error);
+            if (observe && !cleanupObservers.has(error)) cleanupObservers.set(error, observe);
+          }
+        };
+        await closeStep(batcherClosed, () => closeInlineEmbeddingBatcher(getChunkEmbeddings), () => { batcherClosed = true; });
+        // A batcher failure cannot skip the runtime's original inference work.
+        await closeStep(workDrained, () => Promise.allSettled([...operations]), () => { workDrained = true; });
+        await closeStep(observationsDrained, () => observationWrite, () => { observationsDrained = true; });
+        await closeStep(embedderDisposed, async () => {
+          if (!disposeEmbedder && embedder) {
+            const owner = embedder, dispose = owner.dispose;
+            if (typeof dispose !== 'function') throw new TypeError('Inline embedder has no disposal control.');
+            disposeEmbedder = () => dispose.call(owner);
+          }
+          await disposeEmbedder?.();
+        }, () => { embedderDisposed = true; });
+        for (const [error, observe] of cleanupObservers) if (!observe() && !errors.includes(error)) errors.push(error);
+        if (errors.length) throw errors.slice(1).reduce(preserveEmbeddingCleanupFailure, errors[0]);
+      })().catch(error => {
+        // Only a subsequent explicit close retries failed steps. Admissions stay
+        // closed, confirmed steps stay complete, and the original lease survives.
+        closing = null;
+        throw error;
+      });
     }
     return closing;
   };
