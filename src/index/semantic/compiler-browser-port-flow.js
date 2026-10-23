@@ -1,3 +1,4 @@
+import { createCompilerTransferProjection } from './compiler-transfer-options.js';
 import { throwIfAborted } from '../../shared/abort.js';
 
 /** Bounded, source-backed endpoint candidates; no delivery or detachment claims.
@@ -49,26 +50,19 @@ export const createBrowserPortFlow = ({ documents, ledgers, platformType, signal
     if (changed) { const token = rootFor(doc, root); token.revision++; changedRoots.add(token); }
     return changed;
   };
+  const projection = createCompilerTransferProjection({ budget });
   const properties = (doc, node) => {
-    if (!node || !doc.ts.isObjectLiteralExpression(node)) return null;
-    const result = new Map();
-    for (const property of node.properties) {
-      if (!budget(doc)) return null;
-      if (!doc.ts.isPropertyAssignment(property) && !doc.ts.isShorthandPropertyAssignment(property)) return null;
-      const key = property.name;
-      if (!(doc.ts.isIdentifier(key) || doc.ts.isStringLiteralLike(key) || doc.ts.isNumericLiteral(key)) || result.has(key.text) || key.text === '__proto__') return null;
-      result.set(key.text, doc.ts.isPropertyAssignment(property) ? property.initializer : property.name);
-    }
-    return result;
+    const result = projection.properties(doc, node);
+    return result.state === 'supported' ? result.entries : null;
   };
   const transferred = (doc, call, resolvePort) => {
-    const { ts } = doc;
-    let list = call.arguments[1];
-    if (list && ts.isObjectLiteralExpression(list)) list = properties(doc, list)?.get('transfer');
-    if (!list) return [];
-    if (!ts.isArrayLiteralExpression(list) || list.elements.length > 32 || list.elements.some(value => ts.isSpreadElement(value) || ts.isOmittedExpression(value))) {
-      ledgers.get(doc).reasons.add('browser_port_transfer_list_dynamic_or_budget'); return [];
+    const { ts } = doc, selectedTransfer = projection.transfer(doc, call.arguments[1]);
+    if (selectedTransfer.state === 'absent') return [];
+    if (selectedTransfer.state !== 'supported') {
+      ledgers.get(doc).reasons.add('browser_port_transfer_list_dynamic_or_budget');
+      ledgers.get(doc).reasons.add('browser_port_transfer_' + selectedTransfer.reason); return [];
     }
+    const list = selectedTransfer.list;
     const result = [], allowed = [];
     let ordinal = 0, ordered = true;
     for (const value of list.elements) {
@@ -117,7 +111,8 @@ export const createBrowserPortFlow = ({ documents, ledgers, platformType, signal
     }
     return result;
   };
-  return { read, candidates, same, budget, transferred, bind,
+  return { read, candidates, same, budget, transferred, bind, projectTransfer: projection.transfer,
+    getTransferProjectionMetrics: projection.getMetrics,
     capture(fn) { const previous = captured, dependencies = new Set(); captured = dependencies;
       try { const value = fn(); return { value, dependencies, revisions: new Map([...dependencies].map(root => [root, root.revision])) }; } finally { captured = previous; } },
     drainChangedRoots() { const result = [...changedRoots]; changedRoots.clear(); return result; }

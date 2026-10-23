@@ -209,6 +209,16 @@ full cleanup-category capability or deep-suite green is claimed.
   mapping candidates without served-URL/launch/delivery proof. Producer identities
   advance to boundaryFlow11/workerFlow10; original authority negatives remain.
 
+- #1686: browser worker request emission and port inference now share a bounded
+  source-owned transfer/options projection. Exact literal list, absence and
+  unresolved reasons remain distinct; duplicate/spread/computed/accessor shapes
+  cannot select an overwritten first list. Current-collection AST caches share
+  property/list scans without exposing mutable authority maps. Existing endpoint,
+  duplicate-port, ordering, SharedArrayBuffer and Node schema owners remain.
+  Actual AST and compiler/stored-source consumer parity/identity/scheduling
+  controls are authored, unrun. Existing broad diagnostic categories are retained
+  alongside precise reasons. Worker producer identity advances 10→11.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -379,7 +389,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1683](https://github.com/doublemover/PairOfCleats/issues/1683) | [P2] Skip WASM flow construction when disabled or deferred and preserve structural projection | Pending full-scope review |
 | [#1684](https://github.com/doublemover/PairOfCleats/issues/1684) | [P2] Decode retained WASM from the same bounded snapshot that source verification admits | Pending full-scope review |
 | [#1685](https://github.com/doublemover/PairOfCleats/issues/1685) | [P2] Resolve fork file URLs before joining process-boundary source candidates | Source repair committed; runtime proof pending |
-| [#1686](https://github.com/doublemover/PairOfCleats/issues/1686) | [P2] Share qualified worker transfer options instead of selecting overwritten properties | Pending full-scope review |
+| [#1686](https://github.com/doublemover/PairOfCleats/issues/1686) | [P2] Share qualified worker transfer options instead of selecting overwritten properties | Source repair committed; runtime proof pending |
 | [#1687](https://github.com/doublemover/PairOfCleats/issues/1687) | [P2] Qualify and bound throughput result-file admission before aggregation | Pending full-scope review |
 | [#1688](https://github.com/doublemover/PairOfCleats/issues/1688) | [P2] Revoke ordered storage precision when fresh typed-array views escape through containers | Pending full-scope review |
 | [#1689](https://github.com/doublemover/PairOfCleats/issues/1689) | [P2] Preserve repository and occurrence identity in benchmark diagnostic replay | Pending full-scope review |

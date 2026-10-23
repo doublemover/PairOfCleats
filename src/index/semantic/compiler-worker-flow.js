@@ -306,10 +306,13 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
     if (!invocation) { ledger.reasons.add('dispatch_syntax_anchor_unavailable'); continue; }
     const dispatch = boundary(doc,call,'worker-message-dispatch-request',invocation,entry ? 'source:' + entry.item.source.sourceUnitId : null);
     edge(doc,'dispatches',invocation,dispatch,invocation); const payload = call.arguments[0]; if (payload) edge(doc,'consumes',doc.expressionFor(payload),dispatch,invocation,0);
-    const transferArg = call.arguments[1]; let transfer = null;
-    if (transferArg && doc.ts.isArrayLiteralExpression(transferArg)) transfer = transferArg;
-    else if (transferArg && doc.ts.isObjectLiteralExpression(transferArg)) { const property = transferArg.properties.find(property => doc.ts.isPropertyAssignment(property) && (doc.ts.isIdentifier(property.name) || doc.ts.isStringLiteral(property.name)) && property.name.text === 'transfer'); if (property && doc.ts.isArrayLiteralExpression(property.initializer)) transfer = property.initializer; else ledger.reasons.add('transfer_options_dynamic'); }
-    else if (transferArg) ledger.reasons.add('transfer_list_dynamic');
+    const selectedTransfer = portFlow.projectTransfer(doc, call.arguments[1]);
+    const transfer = selectedTransfer.state === 'supported' ? selectedTransfer.list : null;
+    if (selectedTransfer.state === 'unresolved') {
+      ledger.reasons.add('worker_transfer_' + selectedTransfer.reason);
+      ledger.reasons.add(doc.ts.isObjectLiteralExpression(call.arguments[1]) ? 'transfer_options_dynamic' : 'transfer_list_dynamic');
+      if (selectedTransfer.reason === 'list_spread_or_hole') ledger.reasons.add('transfer_list_spread_or_hole');
+    }
     if (transfer) for (const element of transfer.elements) {
       if (doc.ts.isSpreadElement(element) || doc.ts.isOmittedExpression(element)) { ledger.reasons.add('transfer_list_spread_or_hole'); continue; }
       if (platformType(doc,element,['SharedArrayBuffer'])) { ledger.reasons.add('shared_buffer_not_transferable'); continue; }

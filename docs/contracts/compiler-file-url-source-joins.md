@@ -21,7 +21,8 @@ mapping. It does not attest a served resource URL, bundler mapping, successful
 worker/process launch, callback activation or message delivery. Original platform
 declaration, source hash, exact mapping and unique inventory fences remain.
 
-Producer identities advance to boundaryFlow11/workerFlow10. New pure resolver
+The URL repair advanced boundaryFlow11/workerFlow10. Current workerFlow11 also
+includes the [shared transfer-options projection](compiler-transfer-options.md). New pure resolver
 and actual compiler/stored-graph controls distinguish decoded and literal-percent
 children, source refs on exact invocations, browser consumers, Node's narrower
 admission and reordered scheduling. Drive/UNC conversion checks are host-qualified
