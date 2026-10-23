@@ -143,7 +143,8 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
   const usages = new Set();
 
   const ast = prepareTypeScriptBabelSyntax(text, options);
-  const returnEvidence = createReturnCallEvidence(ast, { sourceOwned: ownsTypeScriptBabelSyntaxText(ast, text) });
+  const sourceOwned = ownsTypeScriptBabelSyntaxText(ast, text);
+  const returnEvidence = createReturnCallEvidence(ast, { sourceOwned });
   const constants = collectConstantReferences(ast);
   const getMemberName = (node) => resolveAstMemberName(node, { includeTsQualifiedName: true, constantKeys: constants.keys });
 
@@ -223,6 +224,8 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
     const detail = buildCallDetail({ callerName, calleeName, args, location });
     const returnedValue = returnEvidence.get(node);
     if (returnedValue) detail.returnedValue = returnedValue;
+    const lexicalBinding = sourceOwned && !ast.errors?.length ? constants.callRoots.get(node) : null;
+    if (lexicalBinding?.root === calleeName.split(/::|\./u)[0]) detail.lexicalBinding = lexicalBinding;
     if (node.type === 'NewExpression') detail.role = 'constructor';
     callDetails.push(detail);
     if (node.type !== 'NewExpression') calls.push([callerName, calleeName]);

@@ -1,6 +1,7 @@
 import { setImmediate as yieldPropagation } from 'node:timers/promises';
 import { resolveCrossFileFidelity, resolveCrossFilePropagationBudget, orderCrossFileChunks } from '../cross-file-fidelity.js';
 import { createSymbolRefCacheMaintenance } from './symbol-ref-cache-maintenance.js';
+import { isShadowedImportCall, collectShadowedImportCallees, unresolvedShadowedImport } from './lexical-call-binding.js';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { mergeSymbolicTypeGraphs } from '../../shared/symbolic-types.js';
 import { createCrossFileSourceReader } from './source-inputs.js';
@@ -488,6 +489,7 @@ export async function runCrossFilePropagation({
       throwIfAborted(abortSignal);
       if (!chunk) continue;
       const relations = chunk.codeRelations || {};
+      const shadowedImports = collectShadowedImportCallees(relations.callDetails);
       const droppedBefore = [droppedCallLinks, droppedCallSummaries, droppedUsageLinks];
       const fromChunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;
       const fileRelation = fileRelations
@@ -536,7 +538,7 @@ export async function runCrossFilePropagation({
           const callEntry = relations.calls[callIndex];
           if (!Array.isArray(callEntry) || callEntry.length < 2) { admission.calls.unsupported += 1; continue; }
           const callee = callEntry[1];
-          const symbolRef = resolveSymbolRefCached({
+          const symbolRef = shadowedImports.only.has(callee) ? unresolvedShadowedImport(callee) : resolveSymbolRefCached({
             targetName: callee,
             kindHint: null,
             fromFile: chunk.file
@@ -587,7 +589,7 @@ export async function runCrossFilePropagation({
           if (!callee && !dynamicSyntax) { admission.callDetails.unsupported += 1; continue; }
           // Supported dynamic syntax is unresolved evidence, not unsupported
           // extraction. A display spelling must never become a static target.
-          const symbolRef = detail.compilerBinding?.symbolRef || (callee ? resolveSymbolRefCached({
+          const symbolRef = detail.compilerBinding?.symbolRef || (isShadowedImportCall(detail) ? unresolvedShadowedImport(callee) : callee ? resolveSymbolRefCached({
             targetName: callee,
             kindHint: null,
             fromFile: chunk.file
@@ -764,6 +766,7 @@ export async function runCrossFilePropagation({
           for (const summary of callSummaries) {
             const callName = typeof summary?.name === 'string' ? summary.name : null;
             if (!callName || !returnCalls.has(callName)) continue;
+            if (!returnCallSites && shadowedImports.all.has(callName)) continue;
             if (returnCallSites && !returnCallSites.has(`${summary.start}:${summary.end}`)) continue;
             const resolvedUid = summary?.resolvedCalleeChunkUid || summary?.targetChunkUid || null;
             const resolvedChunk = resolvedUid ? chunkByUid.get(resolvedUid) : null;
@@ -788,6 +791,7 @@ export async function runCrossFilePropagation({
         // different same-spelling call's binding or declared return type.
         if (returnCallSites) return;
         for (const callName of returnCalls) {
+          if (shadowedImports.all.has(callName)) continue;
           if (resolvedViaSummaries.has(callName)) continue;
           const symbolRef = resolveSymbolRefCached({
             targetName: callName,

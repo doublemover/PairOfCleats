@@ -6,9 +6,10 @@ const traverse = babelTraverse.default || babelTraverse;
 export const collectConstantReferences = (ast) => {
   const keys = new WeakMap();
   const aliases = new WeakMap();
+  const callRoots = new WeakMap();
   // ESTree parser fallbacks retain their existing conservative behavior.
   if (ast?.type !== 'File' && !(ast?.type === 'Program' && Array.isArray(ast.directives))) {
-    return { keys, aliases };
+    return { keys, aliases, callRoots };
   }
   const resolve = (path, kind, seen = new Set()) => {
     if (!path?.node || seen.size >= 16) return null;
@@ -37,6 +38,18 @@ export const collectConstantReferences = (ast) => {
     }
     return resolve(init, kind, seen);
   };
+  const captureCallRoot = path => {
+    let root = path.get('callee');
+    while (root?.isMemberExpression() || root?.isOptionalMemberExpression()) root = root.get('object');
+    if (!root?.isIdentifier()) return;
+    const name = root.node.name, binding = root.scope.getBinding(name);
+    const programBinding = root.scope.getProgramParent().getBinding(name);
+    const isImport = value => value?.kind === 'module'
+      && (value.path.isImportSpecifier() || value.path.isImportDefaultSpecifier() || value.path.isImportNamespaceSpecifier());
+    callRoots.set(path.node, Object.freeze({ v: 1, root: name,
+      kind: isImport(binding) ? 'import' : binding ? 'local' : 'unbound',
+      shadowsImport: Boolean(binding && binding !== programBinding && isImport(programBinding)) }));
+  };
   try {
     traverse(ast.type === 'Program' ? { type: 'File', program: ast } : ast, {
       MemberExpression(path) {
@@ -50,6 +63,7 @@ export const collectConstantReferences = (ast) => {
         if (key !== null) keys.set(path.node.property, key);
       },
       CallExpression(path) {
+        captureCallRoot(path);
         const callee = path.get('callee');
         const alias = resolve(callee, 'alias');
         if (alias !== null && callee.scope.getBinding(alias.name) === alias.binding) {
@@ -57,17 +71,19 @@ export const collectConstantReferences = (ast) => {
         }
       },
       OptionalCallExpression(path) {
+        captureCallRoot(path);
         const callee = path.get('callee');
         const alias = resolve(callee, 'alias');
         if (alias !== null && callee.scope.getBinding(alias.name) === alias.binding) {
           aliases.set(callee.node, alias.name);
         }
-      }
+      },
+      NewExpression(path) { captureCallRoot(path); }
     });
   } catch {
     // Error-recovery ASTs can contain duplicate bindings that Babel scope rejects.
     // Discard partial proofs and leave the ordinary syntactic walker in charge.
-    return { keys: new WeakMap(), aliases: new WeakMap() };
+    return { keys: new WeakMap(), aliases: new WeakMap(), callRoots: new WeakMap() };
   }
-  return { keys, aliases };
+  return { keys, aliases, callRoots };
 };

@@ -2,6 +2,7 @@ import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { collectDeclaredReturnTypes } from '../metadata/docmeta.js';
 import { RETURN_BARE_TARGET_RX, RETURN_CALL_RX, RETURN_NEW_RX } from './constants.js';
 import { isTypeDeclaration } from './symbols.js';
+import { isShadowedImportCall } from './lexical-call-binding.js';
 import { normalizeLiteralInput, inspectLiteralStructure, isWholeQuotedLiteral } from '../type-inference/literal-expression.js';
 
 export const createParamTypeMap = () => Object.create(null);
@@ -117,6 +118,7 @@ export const extractReturnCalls = (chunkText, { knownCallees = null, chunk = nul
         || !evidence.ownerRanges.some(range => Array.isArray(range) && range.length === 2
           && range[0] === chunk.start && range[1] === chunk.end)
         || typeof detail.callee !== 'string' || !detail.callee) continue;
+      if (evidence.kind === 'construct' && isShadowedImportCall(detail)) continue;
       (evidence.kind === 'construct' ? news : calls).add(detail.callee);
       if (evidence.kind === 'call') callSites.add(`${detail.start}:${detail.end}`);
     }

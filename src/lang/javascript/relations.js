@@ -53,7 +53,8 @@ export function buildCodeRelations(text, relPath, options = {}) {
   const classStack = [];
 
   const ast = options.ast || parseJavaScriptAst(text, options);
-  const returnEvidence = createReturnCallEvidence(ast, { sourceOwned: ownsJavaScriptSyntaxText(ast, text) });
+  const sourceOwned = ownsJavaScriptSyntaxText(ast, text);
+  const returnEvidence = createReturnCallEvidence(ast, { sourceOwned });
   const constants = collectConstantReferences(ast);
   const getMemberName = (node) => resolveAstMemberName(node, { constantKeys: constants.keys });
 
@@ -489,6 +490,8 @@ export function buildCodeRelations(text, relPath, options = {}) {
           const detail = buildCallDetail({ callerName, calleeName, args, location });
           const returnedValue = returnEvidence.get(node);
           if (returnedValue) detail.returnedValue = returnedValue;
+          const lexicalBinding = sourceOwned && !ast.errors?.length ? constants.callRoots.get(node) : null;
+          if (lexicalBinding?.root === calleeName.split(/::|\./u)[0]) detail.lexicalBinding = lexicalBinding;
           if (node.type === 'NewExpression') detail.role = 'constructor';
           callDetails.push(detail);
         }

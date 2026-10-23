@@ -98,6 +98,8 @@ try {
   const mismatched = buildCodeRelations(changedText, 'changed.js', { ast: staleAst });
   assert.equal(mismatched.callDetails.some(detail => detail.returnedValue), false,
     'a parser snapshot from another source cannot authorize newly emitted return evidence');
+  assert.equal(mismatched.callDetails.some(detail => detail.lexicalBinding), false,
+    'a parser snapshot from another source cannot authorize lexical call-root facts');
   assert.equal(extractReturnCalls(changedText, { chunk: { ...staleChunk, lang: 'javascript', codeRelations: mismatched } }).calls.size, 0);
   const recoveredText = 'function recovered() { let duplicate; let duplicate; return factory(); }';
   const recoveredAst = parseJavaScriptAst(recoveredText, { ext: '.js' });
