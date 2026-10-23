@@ -20,6 +20,7 @@ try {
   // Saved executable paths are diagnostic history; rerun resolves today's CLI.
   harness.queuedResults.push({ code: 0, stdout: '{}' });
   await harness.extension._test.rerunWorkflowSession({ sessionId: 'old', commandId: 'pairofcleats.configDump',
+    title: 'PairOfCleats: Config Dump',
     repoRoot: repoA, invocation: { kind: 'operator', command: 'obsolete.exe', args: ['wrong-target'] } });
   assert.equal(harness.spawnCalls.at(-1).args[0], cliPath);
   const initial = { persistent: true };

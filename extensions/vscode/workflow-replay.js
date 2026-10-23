@@ -1,6 +1,6 @@
 const STRING_FIELDS = new Set(['rulesPath', 'direction', 'seed', 'indexDir', 'chunkUid', 'workspacePath', 'presentationMode']);
 const INTEGER_FIELDS = new Set(['depth', 'maxSuggestions', 'hops', 'maxFlows', 'concurrency']);
-const SOURCE_FIELDS = new Set(['source', 'repoRoot', 'mode', 'indexDir', 'indexSignature', 'indexCompatKey', 'seed']);
+const SOURCE_FIELDS = new Set(['source', 'repoRoot', 'mode', 'indexDir', 'indexSignature', 'indexCompatKey', 'seed', 'manifestHash']);
 
 function normalizeRiskSource(source) {
   if (!source || typeof source !== 'object' || Array.isArray(source)) return null;
@@ -12,7 +12,8 @@ function normalizeRiskSource(source) {
     else if (typeof value === 'string' && value.length <= 4096 && !value.includes('\0')) output[key] = value;
     else return null;
   }
-  return ['repoRoot', 'indexDir', 'indexSignature', 'seed'].every(key => output[key]) ? output : null;
+  return ['repoRoot', 'indexDir', 'indexSignature', 'seed'].every(key => output[key])
+    && /^[a-f0-9]{64}$/.test(output.manifestHash || '') ? output : null;
 }
 
 // Persist semantic inputs only. Executable paths/argv are historical diagnostics.

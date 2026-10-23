@@ -309,6 +309,7 @@ export function createVsCodeRuntimeHarness({
   const clipboardWrites = [];
   const editorHandlers = [];
   const workspaceHandlers = [];
+  const fileSystemWatchers = [];
   const documentHandlers = new Map();
   const originalFetch = globalThis.fetch;
   const fakeFetch = createFakeFetch(fetchCalls, queuedFetchResults, fetchImpl);
@@ -382,6 +383,16 @@ export function createVsCodeRuntimeHarness({
       onDidChangeWorkspaceFolders(handler) {
         workspaceHandlers.push(handler);
         return { dispose() {} };
+      },
+      createFileSystemWatcher(pattern) {
+        const listeners = new Map();
+        const watcher = { pattern, disposed: false, dispose() { this.disposed = true; listeners.clear(); } };
+        for (const event of ['onDidCreate', 'onDidChange', 'onDidDelete']) {
+          const handlers = new Set(); listeners.set(event, handlers);
+          watcher[event] = handler => { handlers.add(handler); return { dispose: () => handlers.delete(handler) }; };
+        }
+        watcher.fire = (event, uri) => { for (const handler of listeners.get(event) || []) handler(uri); };
+        fileSystemWatchers.push(watcher); return watcher;
       }
     },
     window: {
@@ -766,12 +777,18 @@ export function createVsCodeRuntimeHarness({
       this.setActiveEditor(nextEditor);
     },
     setWorkspaceFolders(folders) {
+      const previous = fakeVscode.workspace.workspaceFolders;
       fakeVscode.workspace.workspaceFolders = buildWorkspaceFolders(folders);
+      const before = new Set(previous.map(folder => folder.uri.toString()));
+      const after = new Set(fakeVscode.workspace.workspaceFolders.map(folder => folder.uri.toString()));
       const event = {
-        added: fakeVscode.workspace.workspaceFolders,
-        removed: []
+        added: fakeVscode.workspace.workspaceFolders.filter(folder => !before.has(folder.uri.toString())),
+        removed: previous.filter(folder => !after.has(folder.uri.toString()))
       };
       for (const handler of workspaceHandlers) handler(event);
+    },
+    fireIndexPublication(event = 'onDidChange', uri = null) {
+      for (const watcher of fileSystemWatchers) watcher.fire(event, uri);
     },
     async runCommand(commandId, ...args) {
       const handler = registeredCommands.get(commandId);

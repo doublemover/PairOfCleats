@@ -47,7 +47,7 @@ try {
   assert.throws(() => resolveRiskSource({ ...sourcePayload, provenance: { ...sourcePayload.provenance, repo: '../different' } },
     { repoRoot, seed: 'chunk:x' }), /qualified/);
   assert.throws(() => resolveRiskSource({ ...sourcePayload, primary: {} }, { repoRoot, seed: 'chunk:absent' }), /no chunk/);
-  const retained = { ...resolveRiskSource(sourcePayload, { repoRoot, seed: 'chunk:chunk-current' }), maxFlows: 3 };
+  const retained = { ...resolveRiskSource(sourcePayload, { repoRoot, seed: 'chunk:chunk-current' }), seed: 'chunk:chunk-current', maxFlows: 3 };
   fs.rmSync(selected, { recursive: true, force: true });
   const before = harness.spawnCalls.length;
   await harness.extension._test.runOperatorCommand(spec, { repoContext: { ok: true, repoRoot }, inputContext: retained });

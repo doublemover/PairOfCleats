@@ -71,6 +71,7 @@ function openSearchHit(vscodeApi, repoContext, hit) {
 function spawnBufferedProcess(...args) {
   if (!operations.isCurrent()) return { ok: false, error: new Error('PairOfCleats operation was cancelled.') };
   if (vscode.workspace.isTrusted !== true) return { ok: false, error: workspaceTrustError() };
+  operations.bindRepository(args[3]?.cwd);
   const result = spawnBufferedProcessUnchecked(...args);
   if (result.ok) operations.trackChild(result.child);
   return result;
@@ -268,6 +269,7 @@ function normalizeStringArray(value) {
  * @returns {import('vscode').WorkspaceConfiguration}
  */
 function getExtensionConfiguration(repoContext = null) {
+  operations.bindRepository(repoContext?.repoRoot);
   let resource = repoContext?.repoUri || repoContext?.uri || null;
   if (!resource) {
     const folders = vscode.workspace.workspaceFolders || [];
@@ -1160,32 +1162,35 @@ async function selectRepo() {
       placeHolder: 'Select the repository root to use for subsequent commands'
     });
   if (!picked) return;
-  operations.invalidate('repository-selected', { preserveCurrent: true });
+  operations.invalidate('repository-selected', { preserveCurrent: true, preserveBackground: true });
   await persistSelectedRepoCandidate(picked);
   vscode.window.showInformationMessage(`PairOfCleats will use ${picked.repoLabel} until you clear the selection.`);
 }
 
 async function clearSelectedRepo() {
-  operations.invalidate('repository-selection-cleared', { preserveCurrent: true });
+  operations.invalidate('repository-selection-cleared', { preserveCurrent: true, preserveBackground: true });
   await persistSelectedRepoCandidate(null);
   vscode.window.showInformationMessage('PairOfCleats cleared the explicit repository selection.');
 }
 
-async function finishWorkflowSession(sessionId, patch) {
+async function finishWorkflowSession(sessionId, patch, { terminalOwner = false } = {}) {
   const session = workflowSessions.find((entry) => entry.sessionId === sessionId);
   if (!session) return;
   if (patch.status) session.status = patch.status;
   if (patch.summaryLine !== undefined) session.summaryLine = patch.summaryLine || '';
   if (patch.outputHint !== undefined) session.outputHint = patch.outputHint || '';
   session.finishedAt = new Date().toISOString();
-  await persistWorkflowSessions();
+  if (terminalOwner) await operations.terminalState(() => persistWorkflowSessions());
+  else await persistWorkflowSessions();
   updateWorkflowStatusBar();
 }
 
 function validateReplayRepoContext(repoContext, mode) {
-  if (mode === 'api') return true;
   try {
-    if (repoContext.repoUri?.scheme && repoContext.repoUri.scheme !== 'file') throw new Error('local CLI requires a local repository');
+    if (mode === 'cli' && repoContext.repoUri?.scheme && repoContext.repoUri.scheme !== 'file') throw new Error('local CLI requires a local repository');
+    const folder = (vscode.workspace.workspaceFolders || []).find(entry => entry.uri?.scheme === 'file'
+      && entry.uri.fsPath && isContainedPath(repoContext.repoRoot, entry.uri.fsPath));
+    if (!folder) throw new Error('repository is no longer in this workspace');
     if (!fs.statSync(repoContext.repoRoot).isDirectory()) throw new Error('repository is not a directory');
     return true;
   } catch (error) {
@@ -1194,7 +1199,22 @@ function validateReplayRepoContext(repoContext, mode) {
   }
 }
 
+function captureWorkflowSession(session) {
+  const normalized = normalizeWorkflowSession(session);
+  if (!normalized) return null;
+  const json = JSON.stringify(normalized);
+  if (Buffer.byteLength(json) > 65536) return null;
+  const captured = JSON.parse(json), pending = [captured];
+  while (pending.length) {
+    const item = pending.pop();
+    if (!item || typeof item !== 'object') continue;
+    pending.push(...Object.values(item)); Object.freeze(item);
+  }
+  return captured;
+}
+
 async function rerunWorkflowSession(session) {
+  session = captureWorkflowSession(session);
   const spec = OPERATOR_COMMANDS_BY_ID.get(session?.commandId);
   const managedSpec = MANAGED_COMMANDS_BY_ID.get(session?.commandId);
   if ((!spec && !managedSpec) || !session?.repoRoot || session.invocation?.requestInvalid
@@ -1221,28 +1241,31 @@ async function rerunWorkflowSession(session) {
 }
 
 async function showRecentWorkflows() {
-  const sessions = workflowSessions.slice(0, 10);
+  const sessions = workflowSessions.slice(0, 10).map(captureWorkflowSession).filter(Boolean);
   if (!sessions.length || typeof vscode.window.showQuickPick !== 'function') {
     vscode.window.showInformationMessage('PairOfCleats has no recent workflows to show.');
     return;
   }
+  const items = Object.freeze(sessions.map((session) => Object.freeze({
+    label: `${session.title} (${session.status})`,
+    description: session.repoLabel,
+    detail: session.summaryLine || session.finishedAt || session.startedAt,
+    session
+  })));
   const selection = await vscode.window.showQuickPick(
-    sessions.map((session) => ({
-      label: `${session.title} (${session.status})`,
-      description: session.repoLabel,
-      detail: session.summaryLine || session.finishedAt || session.startedAt,
-      session
-    })),
+    items,
     {
       title: 'PairOfCleats recent workflows',
       placeHolder: 'Select a workflow to rerun'
     }
   );
   if (!selection?.session) return;
+  if (!items.includes(selection)) { vscode.window.showErrorMessage('Workflow selection must identify an original session from this picker.'); return; }
   await rerunWorkflowSession(selection.session);
 }
 
 async function showWorkflowStatus() {
+  const lastSession = captureWorkflowSession(getMostRecentWorkflowSession());
   const passiveRepo = resolvePassiveRepoContext();
   const items = [
     {
@@ -1264,7 +1287,7 @@ async function showWorkflowStatus() {
       action: 'select-repo'
     });
   }
-  const runningSession = getMostRecentRunningWorkflowSession();
+  const runningSession = captureWorkflowSession(getMostRecentRunningWorkflowSession());
   if (runningSession && MANAGED_COMMANDS_BY_ID.has(runningSession.commandId)) {
     const managedSpec = MANAGED_COMMANDS_BY_ID.get(runningSession.commandId);
     items.push({
@@ -1273,10 +1296,10 @@ async function showWorkflowStatus() {
       action: 'stop-running'
     });
   }
-  if (getMostRecentWorkflowSession()) {
+  if (lastSession) {
     items.push({
       label: 'Rerun last workflow',
-      description: getMostRecentWorkflowSession().title,
+      description: lastSession.title,
       action: 'rerun-last'
     });
     items.push({
@@ -1285,13 +1308,15 @@ async function showWorkflowStatus() {
       action: 'recent'
     });
   }
+  const issued = Object.freeze(items.map(item => Object.freeze(item)));
   const selection = typeof vscode.window.showQuickPick === 'function'
-    ? await vscode.window.showQuickPick(items, {
+    ? await vscode.window.showQuickPick(issued, {
       title: 'PairOfCleats workflow status',
       placeHolder: 'Choose an action'
     })
     : null;
   if (!selection) return;
+  if (!issued.includes(selection)) { vscode.window.showErrorMessage('Workflow status action must identify an original item from this picker.'); return; }
   if (selection.action === 'output') {
     getOutputChannel().show?.(true);
     return;
@@ -1305,12 +1330,11 @@ async function showWorkflowStatus() {
     return;
   }
   if (selection.action === 'rerun-last') {
-    const session = getMostRecentWorkflowSession();
-    if (!session) {
+    if (!lastSession) {
       vscode.window.showInformationMessage('PairOfCleats has no workflow to rerun.');
       return;
     }
-    await rerunWorkflowSession(session);
+    await rerunWorkflowSession(lastSession);
     return;
   }
   if (selection.action === 'stop-running') {
@@ -1948,6 +1972,8 @@ function captureInlineIdentity(document, repoContext, position = null) {
     version: document?.version ?? null,
     sourceHash: hash(String(document?.getText?.() || '')),
     dirty: document?.isDirty === true,
+    closed: document?.isClosed === true,
+    publicationEpoch: inlinePublicationEpoch,
     position: position ? [position.line, position.character] : null,
     policy: hash(JSON.stringify(Object.values(VSCODE_SETTINGS).map((key) => config.get(key) ?? null))),
     // The editor does not own index generation resolution. Missing generation
@@ -2098,7 +2124,9 @@ function clearInlineDecorations(editor = null) {
 }
 
 function invalidateInlineSignals() {
+  inlinePublicationEpoch++;
   operations.cancelKey('inline-refresh');
+  operations.cancelLabel('inline-hover');
   inlineSignalCache.clear();
   inlineRiskDiagnostics?.clear?.();
   clearInlineDecorations(vscode.window.activeTextEditor || null);
@@ -2598,6 +2626,7 @@ function provideInlineHoverAtPosition(document, position, token) {
 }
 
 async function provideOwnedInlineHover(document, position) {
+  if (document?.isClosed === true) return null;
   const config = getExtensionConfiguration({ uri: document?.uri });
   const inlineSettings = readInlineSettings(config);
   if (!inlineSettings.inlineHoverEnabled) return null;
@@ -2883,15 +2912,14 @@ async function promptPositiveInteger({
   });
   if (!raw) return null;
   const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed < 1) {
+  if (!/^\d+$/.test(raw) || !Number.isSafeInteger(parsed) || parsed < 1) {
     vscode.window.showErrorMessage(`PairOfCleats expected a positive integer, got "${raw}".`);
     return null;
   }
-  return Math.max(1, Math.floor(parsed));
+  return parsed;
 }
 
 async function promptImpactInput(repoContext) {
-  const activeFile = resolveRelativeActiveFile(repoContext);
   const seed = await promptTextInput({
     prompt: 'Impact seed ref (optional). Leave empty to use changed paths.',
     placeHolder: 'e.g. file:src/app.ts or chunk:chunkUid',
@@ -2928,8 +2956,7 @@ async function promptImpactInput(repoContext) {
     seed: seed || '',
     changed,
     direction: direction.value,
-    depth,
-    activeFile
+    depth
   };
 }
 
@@ -3043,6 +3070,12 @@ async function openPresentationDocument(filePath, languageHint = null) {
 }
 
 async function presentOperatorPayload(spec, payload, repoContext, inputContext, output) {
+  const assertRiskGeneration = () => {
+    if (spec.id !== 'pairofcleats.riskExplain') return;
+    const message = validateRiskSource(inputContext, repoContext.repoRoot);
+    if (message) throw Object.assign(new Error(message), { code: 'ERR_EDITOR_RISK_SOURCE_CHANGED' });
+  };
+  assertRiskGeneration();
   if (spec.id === 'pairofcleats.contextPack' || spec.id === 'pairofcleats.riskExplain') {
     latestAnalysisEvidence = { payload, repoContext };
   }
@@ -3050,6 +3083,7 @@ async function presentOperatorPayload(spec, payload, repoContext, inputContext, 
   if (presentationMode === 'output') return null;
   const rendered = await buildOperatorPresentation(spec, payload, inputContext);
   if (!rendered || !operations.isCurrent()) return null;
+  assertRiskGeneration();
   const exportDir = ensureOperatorExportDir(repoContext.repoRoot, spec);
   const baseName = buildPresentationExportBase(spec, payload, inputContext);
   const jsonPath = path.join(exportDir, `${baseName}.json`);
@@ -3962,6 +3996,11 @@ async function runBufferedJsonCommand({
         }
         const stdout = stdoutAccumulator.text();
         const stderr = stderrAccumulator.text();
+        if (timedOut) {
+          resolve({ ok: false, ...summarizeProcessFailure({ code, timedOut, cancelled: false, stdout, stderr,
+            stdoutTruncated: stdoutAccumulator.truncated(), stderrTruncated: stderrAccumulator.truncated(), timeoutMs: spec.timeoutMs }) });
+          return;
+        }
         const parsed = parseJsonPayload(stdout, {
           stdoutTruncated: stdoutAccumulator.truncated(),
           label: spec.title
@@ -4123,6 +4162,15 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
     return;
   }
   if (spec.id === 'pairofcleats.riskExplain' && invocation.inputContext?.sourceQualification) {
+    const sourceError = validateRiskSource(invocation.inputContext, repoRoot);
+    const chunkError = result.ok && result.payload?.chunk?.chunkUid !== invocation.inputContext.chunkUid
+      ? 'Risk response does not identify the selected chunk in its captured code generation.' : null;
+    if (sourceError || chunkError) {
+      const message = sourceError || `${chunkError} Run Risk Explain again to deliberately select the current generation.`;
+      output.appendLine(message); output.show?.(true);
+      await finishWorkflowSession(session.sessionId, { status: 'failed', summaryLine: message });
+      vscode.window.showErrorMessage(message); return;
+    }
     result.payload = { ...result.payload, sourceQualification: invocation.inputContext.sourceQualification };
   }
   appendOutputLines(output, summarizeOperatorPayload(spec, result.payload));
@@ -4136,6 +4184,10 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
   try {
     await presentOperatorPayload(spec, result.payload, repoContext, invocation.inputContext || null, output);
   } catch (err) {
+    if (err?.code === 'ERR_EDITOR_RISK_SOURCE_CHANGED') {
+      await finishWorkflowSession(session.sessionId, { status: 'failed', summaryLine: err.message });
+      vscode.window.showErrorMessage(err.message); return;
+    }
     output.appendLine(`- warning: failed to present operator payload: ${err?.message || err}`);
   }
   output.show?.(true);
@@ -4194,6 +4246,10 @@ async function runOperatorCommand(spec, { repoContext: seededRepoContext = null,
     ? await spec.resolveInput(repoContext, { cliResolution, config, output, execution })
     : undefined;
   if (inputContext === null) {
+    return;
+  }
+  if (typeof spec.resolveInput === 'function' && !hasRequiredWorkflowInput(spec.id, inputContext)) {
+    vscode.window.showErrorMessage('PairOfCleats command inputs are invalid or incomplete. Run the command again to choose valid inputs.');
     return;
   }
   if (spec.id === 'pairofcleats.riskExplain') {
@@ -4283,7 +4339,7 @@ async function stopManagedProcessEntry(entry, { reason = 'cancelled', summaryLin
 async function stopManagedCommand(stopSpec, { sessionId = null, repoRoot = null } = {}) {
   if (sessionId) {
     const active = Array.from(managedProcesses.values()).find((entry) => entry.sessionId === sessionId
-      && entry.spec.id === stopSpec.targetId);
+      && entry.spec.id === stopSpec.targetId && (!repoRoot || entry.repoRoot === repoRoot));
     if (!active) {
       vscode.window.showInformationMessage('PairOfCleats: that workflow has already stopped; refresh workflow status.');
       return;
@@ -4363,6 +4419,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     return spec.persistent ? { ok: true, status: 'already-running', sessionId: existing.sessionId } : existing.completion;
   }
   const output = getOutputChannel();
+  operations.preserveBackground();
   const env = buildSpawnEnv(config);
   output.appendLine('');
   output.appendLine(`=== ${spec.title} ===`);
@@ -4405,6 +4462,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
   const completion = new Promise((resolve) => {
     resolveCompletion = resolve;
   });
+  operations.trackPromise(completion);
   const finalize = async ({ code = 0, error = null } = {}) => {
     if (resolvedCompletion) return;
     resolvedCompletion = true;
@@ -4412,30 +4470,44 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     entry.progress = { ...entry.progress, phase: entry.stopping ? 'stopping' : 'settling' };
     entry.stdoutDecoder?.flush();
     entry.stderrDecoder?.flush();
-    const termination = entry.termination ? await entry.termination : null;
-    const stopUnconfirmed = entry.stopping && termination?.ok !== true;
+    const ownerCancelled = entry.scope?.controller.signal.aborted === true;
+    const terminationPromise = entry.termination || operations.observeTermination(entry.child);
+    const termination = terminationPromise ? await terminationPromise : null;
+    const stopUnconfirmed = (entry.stopping || ownerCancelled) && termination?.ok !== true;
     const watchOwnershipPending = entry.watchOwnershipPending === true;
     entry.cleanupUnconfirmed = stopUnconfirmed || watchOwnershipPending;
     if (!entry.cleanupUnconfirmed && managedProcesses.get(key) === entry) managedProcesses.delete(key);
     const stoppedByUser = entry.stopReason === 'cancelled';
-    const failed = Boolean(error) || timedOut || entry.cleanupUnconfirmed || entry.watchFailure === true || (!stoppedByUser && code !== 0);
-    const status = failed ? 'failed' : stoppedByUser ? 'cancelled' : 'succeeded';
+    const failed = Boolean(error) || timedOut || entry.cleanupUnconfirmed || entry.watchFailure === true
+      || (!stoppedByUser && !ownerCancelled && code !== 0);
+    const status = failed ? 'failed' : stoppedByUser ? 'cancelled' : ownerCancelled ? 'interrupted' : 'succeeded';
     const summaryLine = watchOwnershipPending
       ? `${spec.title} canonical watch teardown ownership remains pending. Inspect Tasks before any deliberate recovery.`
       : stopUnconfirmed
         ? `${spec.title} stop remains unconfirmed: ${termination?.message || 'owned termination did not settle successfully'}`
         : entry.watchFailure
           ? `${spec.title} canonical watch teardown reported failure; cancellation does not prove success.`
-          : stoppedByUser
-            ? (entry.stopSummaryLine || `${spec.title} stopped.`)
-            : failed
-              ? `${spec.title} exited with code ${code}.`
-              : `${spec.title} completed.`;
+          : failed
+            ? `${spec.title} exited with code ${code}.`
+            : stoppedByUser
+              ? (entry.stopSummaryLine || `${spec.title} stopped.`)
+              : ownerCancelled
+                ? `${spec.title} interrupted after its editor/repository owner was revoked; process settlement confirmed.`
+                : `${spec.title} completed.`;
     entry.status = status;
     entry.summaryLine = summaryLine;
     entry.progress = { ...entry.progress, phase: stopUnconfirmed ? 'stop-unconfirmed' : status, message: summaryLine };
     taskObservations.remember(entry, { status, summaryLine });
-    await finishWorkflowSession(session.sessionId, { status, summaryLine });
+    try {
+      await finishWorkflowSession(session.sessionId, { status, summaryLine }, { terminalOwner: true });
+    } catch (error) {
+      const message = `${spec.title} process settled, but its terminal workflow state could not be saved: ${error.message}`;
+      entry.status = 'failed'; entry.summaryLine = message;
+      entry.progress = { ...entry.progress, phase: 'failed', message };
+      taskObservations.remember(entry, { status: 'failed', summaryLine: message });
+      output.appendLine(message); vscode.window.showErrorMessage(message);
+      resolveCompletion({ ok: false, status: 'failed', code, statePersisted: false }); return;
+    }
     if (!stoppedByUser || failed) {
       if (failed) {
         output.appendLine(`[managed] ${summaryLine}`);
@@ -4448,6 +4520,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
   };
   const entry = {
     key,
+    scope: operations.current(),
     spec,
     child,
     repoRoot,
@@ -5591,24 +5664,26 @@ function activate(context) {
         if (typeof apiCapabilityCache !== 'undefined') apiCapabilityCache.clear();
         invalidateInlineSignals();
         updateWorkflowStatusBar();
+        void refreshInlineSignalsForActiveEditor();
       }
     }));
   }
   if (typeof vscode.window.onDidChangeActiveTextEditor === 'function') {
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(() => {
-      updateWorkflowStatusBar();
-      void refreshInlineSignalsForActiveEditor();
-    }));
-  }
-  if (typeof vscode.workspace.onDidChangeWorkspaceFolders === 'function') {
-    context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
-      operations.invalidate('workspace-folders-changed');
       invalidateInlineSignals();
       updateWorkflowStatusBar();
       void refreshInlineSignalsForActiveEditor();
     }));
   }
-  for (const event of ['onDidChangeTextDocument', 'onDidSaveTextDocument', 'onDidCloseTextDocument', 'onDidChangeConfiguration']) {
+  if (typeof vscode.workspace.onDidChangeWorkspaceFolders === 'function') {
+    context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(event => {
+      operations.invalidateRepositories((event?.removed || []).map(folder => folder.uri?.fsPath));
+      invalidateInlineSignals();
+      updateWorkflowStatusBar();
+      void refreshInlineSignalsForActiveEditor();
+    }));
+  }
+  for (const event of ['onDidChangeTextDocument', 'onDidSaveTextDocument', 'onDidCloseTextDocument']) {
     if (typeof vscode.workspace[event] !== 'function') continue;
     context.subscriptions.push(vscode.workspace[event](() => {
       invalidateInlineSignals();
@@ -5665,6 +5740,7 @@ let resultsTreeView = null;
 let managedProcesses = new Map();
 let inlineRiskDiagnostics = null;
 let inlineRiskDecorationType = null;
+let inlinePublicationEpoch = 0;
 
 function getOutputChannel() {
   if (!operations.isCurrent()) return { appendLine() {}, show() {}, clear() {} };

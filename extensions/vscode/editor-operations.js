@@ -1,5 +1,6 @@
 const { AsyncLocalStorage } = require('node:async_hooks');
 const cp = require('node:child_process');
+const path = require('node:path');
 
 /** One instance belongs to one extension host. Cancellation invalidates UI
  * authority immediately; actual resource settlement is tracked independently. */
@@ -7,6 +8,7 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
   const context = new AsyncLocalStorage();
   const scopes = new Set();
   const children = new Map();
+  const childTerminations = new WeakMap();
   const pending = new Set();
   const latest = new Map();
   const teardownFailures = [];
@@ -17,6 +19,38 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
     scope.epoch === epoch && !scope.controller.signal.aborted
   ));
   const cancelled = () => ({ ok: false, kind: 'cancelled', message: 'PairOfCleats operation was cancelled.' });
+  const normalizeRoot = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
+
+  function releaseScope(scope) {
+    if (!scope.finished || scope.resources) return;
+    scopes.delete(scope);
+    if (scope.key && latest.get(scope.key) === scope) latest.delete(scope.key);
+  }
+
+  function bindRepository(root) {
+    if (typeof root !== 'string' || !root) return;
+    const normalized = normalizeRoot(root);
+    for (let scope = current(); scope; scope = scope.parent) scope.repositories?.add(normalized);
+  }
+
+  function invalidateRepositories(removedRoots) {
+    const roots = removedRoots.filter(root => typeof root === 'string' && root).map(normalizeRoot);
+    if (!roots.length) return;
+    for (const scope of scopes) {
+      if (!scope.repositories?.size || [...scope.repositories].some(repository => roots.some(root => {
+        const relative = path.relative(root, repository);
+        return relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
+      }))) cancel(scope, 'repository-removed');
+    }
+  }
+
+  function cancelLabel(label) {
+    for (const scope of scopes) if (scope.label === label) cancel(scope, 'surface-invalidated');
+  }
+
+  function preserveBackground() {
+    for (let scope = current(); scope; scope = scope.parent) scope.background = true;
+  }
 
   function retain(promise) {
     const tracked = Promise.resolve(promise);
@@ -75,6 +109,7 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
         finish(`Owned process-tree helper failed: ${error.message}`);
       }
     }));
+    childTerminations.set(child, record.stopping);
     return record.stopping;
   }
 
@@ -89,7 +124,8 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
   async function run(label, callback, { key = null, token = null } = {}) {
     if (!alive || token?.isCancellationRequested) return undefined;
     if (key) cancel(latest.get(key), 'superseded');
-    const scope = { label, epoch, controller: new AbortController(), finished: false, resources: 0 };
+    const scope = { label, key, parent: current(), repositories: new Set(), epoch,
+      controller: new AbortController(), finished: false, resources: 0 };
     scopes.add(scope);
     if (key) latest.set(key, scope);
     const subscription = token?.onCancellationRequested?.(() => cancel(scope));
@@ -101,7 +137,7 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
     } finally {
       subscription?.dispose?.();
       scope.finished = true;
-      if (!scope.resources) scopes.delete(scope);
+      releaseScope(scope);
     }
   }
 
@@ -126,7 +162,7 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
       record.closed = true;
       children.delete(child);
       scope.resources -= 1;
-      if (scope.finished && !scope.resources) scopes.delete(scope);
+      releaseScope(scope);
       release();
     });
     if (!isCurrent(scope)) void stopChild(child);
@@ -147,10 +183,10 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
     }
   }
 
-  function invalidate(reason = 'context-changed', { preserveCurrent = false } = {}) {
+  function invalidate(reason = 'context-changed', { preserveCurrent = false, preserveBackground = false } = {}) {
     epoch += 1;
     for (const scope of scopes) {
-      if (preserveCurrent && scope === current()) scope.epoch = epoch;
+      if (preserveCurrent && scope === current() || preserveBackground && scope.background) scope.epoch = epoch;
       else cancel(scope, reason);
     }
     latest.clear();
@@ -172,6 +208,25 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
   }
 
   function wrapVscode(api) {
+    const uiCancellation = (scope, inherited) => {
+      const subscriptions = new Set();
+      return { token: {
+        get isCancellationRequested() { return scope.controller.signal.aborted || inherited?.isCancellationRequested === true; },
+        onCancellationRequested(listener, thisArg, disposables) {
+          let fired = false, active = true;
+          const notify = () => { if (active && !fired) { fired = true; listener.call(thisArg); } };
+          const previous = inherited?.onCancellationRequested?.(notify);
+          scope.controller.signal.addEventListener('abort', notify, { once: true });
+          const subscription = { dispose() {
+            active = false;
+            scope.controller.signal.removeEventListener('abort', notify); previous?.dispose?.(); subscriptions.delete(subscription);
+          } };
+          subscriptions.add(subscription); disposables?.push?.(subscription);
+          if (scope.controller.signal.aborted || inherited?.isCancellationRequested) queueMicrotask(notify);
+          return subscription;
+        }
+      }, dispose() { for (const subscription of [...subscriptions]) subscription.dispose(); } };
+    };
     const ownedUi = (object) => !object ? object : new Proxy(object, {
       get(target, name) {
         const value = target[name];
@@ -195,9 +250,14 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
         return (...args) => {
           if (!isCurrent()) return undefined;
           const scope = current();
-          const result = value.apply(target, args);
-          if (result?.then) return result.then((value) => isCurrent(scope) ? value : undefined);
-          return result;
+          const tokenIndex = name === 'showQuickPick' ? 2 : name === 'showInputBox' ? 1 : null;
+          const cancellation = scope && tokenIndex !== null ? uiCancellation(scope, args[tokenIndex]) : null;
+          if (cancellation) args[tokenIndex] = cancellation.token;
+          try {
+            const result = value.apply(target, args);
+            if (result?.then) return result.then((value) => isCurrent(scope) ? value : undefined).finally(() => cancellation?.dispose());
+            cancellation?.dispose(); return result;
+          } catch (error) { cancellation?.dispose(); throw error; }
         };
       }
     });
@@ -246,6 +306,9 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
 
   return {
     run, current, isCurrent, cancelled, trackChild, stopChild, request, invalidate, dispose, wrapVscode,
+    bindRepository, invalidateRepositories, cancelLabel,
+    preserveBackground, observeTermination: child => childTerminations.get(child) || null,
+    terminalState: callback => context.run(undefined, () => alive ? callback() : undefined),
     cancelCurrent: () => cancel(current()), cancelScope: cancel,
     cancelKey: (key) => cancel(latest.get(key)), trackPromise: retain
   };
