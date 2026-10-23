@@ -141,6 +141,10 @@ export const planCompilerSummaryDemand = async ({ store, request, context, signa
       if (callee.status === 'missing') stop('summary_demand_unknown_callee', JSON.parse(callee.ref));
       else if (!visited.has(callee.ref)) pending.push(callee.ref);
     }
+    for (const dependency of summary.schedulingDependencies) {
+      if (!step()) return finish('partial');
+      if (!visited.has(dependency)) pending.push(dependency);
+    }
   }
   if (!planned.length) return finish('unsupported');
   for (const task of [...context.tasks].sort((a, b) => a.taskId < b.taskId ? -1 : a.taskId > b.taskId ? 1 : 0)) {

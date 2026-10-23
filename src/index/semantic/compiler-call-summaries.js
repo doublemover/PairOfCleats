@@ -3,6 +3,7 @@ import { canonicalSemanticJson } from './identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { createCompilerSummaryRecorder, joinMayDependencies } from './compiler-summary-manifest.js';
 import { createSummaryComponentWorklist } from './compiler-summary-worklist.js';
+import { indexSummaryInformationDependencies } from './compiler-summary-information-dependencies.js';
 const key = canonicalSemanticJson;
 export const callInput = (call, ordinal) => ordinal === -1 ? call.receiver : call.arguments?.[ordinal];
 export const callUnknownInputs = call => [...new Map([call.receiver, ...(call.arguments || []), ...(call.unknownInputs || [])]
@@ -227,7 +228,14 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     return changed;
   };
   const orderedIds = [...functions.keys()].sort();
+  const information = indexSummaryInformationDependencies({ functions, calls, reverse, graph, key,
+    signal,
+    spend: () => { if (remainingWork-- <= 0) { exhausted = true; return false; } return true; } });
+  stats.informationDependencyVisits = information.visits;
+  stats.informationDependencyEdges = information.edges;
+  for (const id of orderedIds) recorder?.scheduling(id, graph.get(id));
   for(const id of orderedIds) {
+    if (exhausted) break;
     const summary = functions.get(id);
     if (!(summary.maxRounds>0&&maxIterations>0)) continue;
     if (derive(summary)) revisions.set(summaryIds.get(summary), 1);
@@ -236,7 +244,8 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
   const needsCall = call => dirtyCalls.has(call) || JSON.stringify(callRevisions.get(call)) !== JSON.stringify(targetRevision(call));
   let iterations=0,converged=true;
   for (const id of orderedIds) { const targets = graph.get(id); graph.delete(id); graph.set(id, new Set([...targets].sort())); }
-  for(const component of components(graph,signal)){
+  const schedulingComponents = components(graph,signal);
+  for(const component of schedulingComponents){
     const members = new Set(component);
     for (const id of component) markDirty(id);
     const roundLimit=component.reduce((limit,id)=>Math.min(limit,functions.get(id).maxRounds),maxIterations);
@@ -271,7 +280,8 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
   const analysisReasons = [...dirty].some(id => informationInvalidations.has(id)) ? ['call_summary_information_dependency_unsettled'] : [];
   for (const id of dirty) if (functions.has(id)) functions.get(id).converged = false;
   const complete = converged && !exhausted && dirty.size === 0;
-  return {functions,converged:complete,budgetIncomplete:!converged || exhausted,iterations,stats,ownershipReasons:[...ownershipReasons].sort(),
+  return {functions,converged:complete,budgetIncomplete:!converged || exhausted,iterations,stats,schedulingComponents,
+    informationSchedulingComplete:information.complete,ownershipReasons:[...ownershipReasons].sort(),
     analysisReasons,
     shadowManifest: recorder?.finish({ functions, reverse, converged: complete, ownershipReasons, analysisReasons }) || null};
 };

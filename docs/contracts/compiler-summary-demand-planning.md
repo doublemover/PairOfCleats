@@ -1,5 +1,10 @@
 # Plan-only compiler summary demands
 
+Version4 shadow manifests also carry conservative scheduling dependencies from
+the existing result/exception/field-write channels. Planning follows these under
+the same work, summary, retention and deadline limits as callee dependencies.
+They cannot qualify reuse or authorize execution; all existing blockers remain.
+
 `planSemanticSummaryDemand` is an explicit programmatic planning seam exported by
 the existing build-frontier owner. Version1 supports one immutable artifact-store
 declaration seed with `need:{kind:"return-value-inputs"}`. The request binds its

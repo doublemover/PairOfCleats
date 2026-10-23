@@ -2,7 +2,7 @@ import { canonicalSemanticJson, semanticHash } from './identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 
-export const COMPILER_SUMMARY_MANIFEST_VERSION = 3;
+export const COMPILER_SUMMARY_MANIFEST_VERSION = 4;
 export const COMPILER_SUMMARY_MANIFEST_MAX_BYTES = 1048576;
 const MAX_ENTRIES = 4096;
 const DOMAIN = 'finite-parameter-return-exception-field-may-v1';
@@ -81,7 +81,7 @@ export const createCompilerSummaryRecorder = ({ identity, signal = null,
         { maxBytes, check: () => throwIfAborted(signal) }) };
     const locator = { path: source.path, span: summary.span || null, sourceIdentity: summary.sourceIdentity || null };
     if (charge({ id, localInputs, locator })) owners.set(id, { localInputs, locator,
-      reads: new Set(), callees: new Set(), contributions: new Map(), supports: new Map() });
+      reads: new Set(), callees: new Set(), schedulingDependencies: new Set(), contributions: new Map(), supports: new Map() });
   };
   const read = (ownerId, refs) => {
     const owner = owners.get(ownerId);
@@ -106,6 +106,14 @@ export const createCompilerSummaryRecorder = ({ identity, signal = null,
     if (!owner || reason) return;
     const value = { callSite: occurrence, from, to, callee }, id = canonicalSemanticJson(value);
     if (!owner.contributions.has(id) && charge(value)) owner.contributions.set(id, value);
+  };
+  const scheduling = (ownerId, dependencies) => {
+    const owner = owners.get(ownerId);
+    if (!owner || reason) return;
+    for (const dependency of dependencies) if (!owner.schedulingDependencies.has(dependency)) {
+      if (!charge([ownerId, dependency])) return;
+      owner.schedulingDependencies.add(dependency);
+    }
   };
   const support = (ownerId, channel, values, callSite = null, callee = null) => {
     const owner = owners.get(ownerId);
@@ -150,13 +158,14 @@ export const createCompilerSummaryRecorder = ({ identity, signal = null,
       const callees = list([...owner.callees].sort(order), ref => ({ ref, status: functions.has(ref) ? 'available' : 'missing' }));
       const contributions = list([...owner.contributions].sort(([a], [b]) => order(a, b)), ([, value]) => value);
       const supports = list([...owner.supports].sort(([a], [b]) => order(a, b)), ([, value]) => value);
+      const schedulingDependencies = list([...owner.schedulingDependencies].sort(order));
       if (reason || !charge(payload)) break;
       const payloadHash = semanticHash('semantic.summary-payload.v2', payload, { maxBytes });
-      const supportHash = semanticHash('semantic.summary-support.v2', { reads, callees, contributions, supports }, { maxBytes });
-      const identityHash = semanticHash('semantic.summary-generation.v2', { declaration: id, localInputs: owner.localInputs,
+      const supportHash = semanticHash('semantic.summary-support.v3', { reads, callees, contributions, supports, schedulingDependencies }, { maxBytes });
+      const identityHash = semanticHash('semantic.summary-generation.v3', { declaration: id, localInputs: owner.localInputs,
         locator: owner.locator, payloadHash, supportHash }, { maxBytes });
       summaries.push({ declaration: id, locator: owner.locator, localInputs: owner.localInputs,
-        payload, reads, callees, contributions, supports, payloadHash, supportHash, identityHash });
+        payload, reads, callees, contributions, supports, schedulingDependencies, payloadHash, supportHash, identityHash });
     }
     if (reason) return unavailable();
     const value = { schemaVersion: COMPILER_SUMMARY_MANIFEST_VERSION, domain: DOMAIN,
@@ -166,5 +175,5 @@ export const createCompilerSummaryRecorder = ({ identity, signal = null,
     if (!charge(value)) return unavailable();
     return immutable(JSON.parse(canonicalSemanticJson(value, { maxBytes, check: () => throwIfAborted(signal) })));
   };
-  return Object.freeze({ register, read, call, contribution, support, finish });
+  return Object.freeze({ register, read, call, contribution, support, scheduling, finish });
 };

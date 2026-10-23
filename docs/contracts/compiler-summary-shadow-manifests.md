@@ -1,6 +1,12 @@
 # Compiler summary shadow manifests
 
-The existing compiler call-summary solver can record version3 shadow manifests.
+The current local format is version4. Conservative existing-channel scheduling
+dependencies are source-qualified declaration refs included in each support hash
+and generation identity. They order a fresh solve and inform bounded demand
+planning; they do not qualify cross-generation reuse or exhaustive dependency
+support. See [the existing worklist contract](compiler-summary-dirty-worklist.md).
+
+The existing compiler call-summary solver can record version4 shadow manifests.
 The compiler cross-file consumer registers one immutable group sidecar through
 the existing semantic evidence inventory and disk account, then links it from
 canonical analysis evidence. This is reusable instrumentation for #1132. It does

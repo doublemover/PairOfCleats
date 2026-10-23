@@ -54,8 +54,8 @@ for (const maxIterations of [0, 1]) {
   assert.equal(buildCallDependencySummaries(documents, { maxIterations }).converged, false);
 }
 
-// A later information edge can invalidate a component that is independent in the
-// call graph. Until an information-SCC owner recomputes it, it is not converged.
+// A prospective existing-channel write orders an information dependency even
+// when its negative reverse lookup had no predecessor before instantiation.
 const functions = [0, 10, 20].map(base => ({ declaration: ref(base), parameters: [ref(base + 1)],
   returns: [ref(base === 0 ? 13 : base + 2)], exceptions: [], effects: [], span: [base * 10, base * 10 + 90], complete: true }));
 const information = [{ summaries: functions, calls: [{ occurrence: ref(15), result: ref(13), targets: [ref(20)],
@@ -63,8 +63,10 @@ const information = [{ summaries: functions, calls: [{ occurrence: ref(15), resu
 flowEdges: [edge(1, 14), edge(13, 12), edge(21, 22)] }];
 for (const referenceSchedule of [false, true]) {
   const result = buildCallDependencySummaries(information, { referenceSchedule });
-  assert.equal(result.converged, false); assert.equal(result.functions.get(key(ref(0))).converged, false);
-  assert.ok(result.analysisReasons.includes('call_summary_information_dependency_unsettled'));
+  assert.equal(result.converged, true); assert.equal(result.functions.get(key(ref(0))).converged, true);
+  assert.deepEqual([...result.functions.get(key(ref(0))).dependencies], [0]);
+  assert.deepEqual(result.analysisReasons, []);
+  assert.ok(result.informationSchedulingComplete); assert.ok(result.stats.informationDependencyEdges > 0);
 }
 
 const drive = reference => {
@@ -84,4 +86,4 @@ const duplicate = make(2); duplicate[1].summaries[0].declaration = duplicate[0].
 assert.throws(() => buildCallDependencySummaries(duplicate), { code: 'ERR_COMPILER_SUMMARY_IDENTITY' });
 const controller = new AbortController(); controller.abort();
 assert.throws(() => buildCallDependencySummaries(make(2), { signal: controller.signal }), { code: 'ABORT_ERR' });
-console.log('Fresh summary worklist preserves scan semantics and retains unsettled information components.');
+console.log('Fresh summary worklist preserves scan semantics and schedules existing information channels.');

@@ -56,7 +56,7 @@ const validSourceIdentity = (value, summary) => {
     && value.locatorHash === semanticHash('semantic.summary-locator.v1', value.locator);
 };
 const validSummary = summary => {
-  if (!exact(summary, ['declaration', 'locator', 'localInputs', 'payload', 'reads', 'callees', 'contributions', 'supports', 'payloadHash', 'supportHash', 'identityHash'])
+  if (!exact(summary, ['declaration', 'locator', 'localInputs', 'payload', 'reads', 'callees', 'contributions', 'supports', 'schedulingDependencies', 'payloadHash', 'supportHash', 'identityHash'])
     || !reference(summary.declaration) || !exact(summary.locator, ['path', 'span', 'sourceIdentity'])
     || typeof summary.locator.path !== 'string' || !exact(summary.localInputs,
     ['sourceUnitId', 'sourceHash', 'flowPartitionId', 'flowHash', 'policyHash', 'dependencyIdentityHash'])
@@ -78,7 +78,7 @@ const validSummary = summary => {
       || !Number.isSafeInteger(effect.parameter) || effect.parameter < -1 || effect.parameter >= payload.parameters.length
       || !array(effect.path) || !effect.path.every(propertyKey)
       || !refs(effect.refs) || !ordinals(effect.dependencies))) return false;
-  const structure = array(summary.reads) && unique(summary.reads, row => row.ref)
+  const structure = refs(summary.schedulingDependencies) && array(summary.reads) && unique(summary.reads, row => row.ref)
     && summary.reads.every(row => exact(row, ['ref', 'predecessors']) && reference(row.ref) && refs(row.predecessors))
     && array(summary.callees) && unique(summary.callees, row => row.ref)
     && summary.callees.every(row => exact(row, ['ref', 'status']) && reference(row.ref) && ['available', 'missing'].includes(row.status))
@@ -91,9 +91,9 @@ const validSummary = summary => {
       && Number.isSafeInteger(row.input) && row.input >= -1 && row.input < payload.parameters.length
       && [row.callSite, row.callee].every(ref => ref === null || reference(ref)));
   return structure && summary.payloadHash === semanticHash('semantic.summary-payload.v2', payload)
-    && summary.supportHash === semanticHash('semantic.summary-support.v2', { reads: summary.reads, callees: summary.callees,
-      contributions: summary.contributions, supports: summary.supports })
-    && summary.identityHash === semanticHash('semantic.summary-generation.v2', { declaration: summary.declaration,
+    && summary.supportHash === semanticHash('semantic.summary-support.v3', { reads: summary.reads, callees: summary.callees,
+      contributions: summary.contributions, supports: summary.supports, schedulingDependencies: summary.schedulingDependencies })
+    && summary.identityHash === semanticHash('semantic.summary-generation.v3', { declaration: summary.declaration,
       localInputs: summary.localInputs, locator: summary.locator, payloadHash: summary.payloadHash, supportHash: summary.supportHash });
 };
 
@@ -127,6 +127,10 @@ export const admitCompilerSummaryManifest = ({ manifest, expectedIdentity, signa
   if (Buffer.byteLength(encoded) > value.limits.maxBytes || value.summaries.length > value.limits.maxEntries
     || value.converged && (value.analysisReasons.length || value.summaries.some(summary => !summary.payload.converged))) {
     return decision('summary_manifest_recorded_limits_or_convergence_mismatch');
+  }
+  const declarations = new Set(value.summaries.map(summary => summary.declaration));
+  if (value.summaries.some(summary => summary.schedulingDependencies.some(ref => !declarations.has(ref)))) {
+    return decision('summary_manifest_scheduling_dependency_unavailable');
   }
   const expected = canonicalSemanticJson(expectedIdentity, { maxBytes: COMPILER_SUMMARY_MANIFEST_MAX_BYTES, check: () => throwIfAborted(signal) });
   if (canonicalSemanticJson(value.identity) !== expected) return decision('summary_manifest_broad_identity_changed');
