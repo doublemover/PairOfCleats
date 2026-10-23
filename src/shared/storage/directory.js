@@ -98,7 +98,7 @@ export const withStorageDirectory = async (directory, action) => {
         if (!originalResourcesSettled()) throw new Error('Original storage directory work prohibits native close.');
         if (closeCaptureError) throw closeCaptureError;
         const result = await closeMethod.call(handle);
-        if (result === false) throw new Error('Storage directory close explicitly remained unconfirmed.');
+        if (result !== undefined) throw new Error('Storage directory close did not confirm its standard void result.');
         closed = true;
         return [];
       } catch (error) { return [observeFailure(error)]; }
