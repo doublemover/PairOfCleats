@@ -1,4 +1,5 @@
 import importlib
+import copy
 import json
 import os
 import sys
@@ -76,6 +77,54 @@ class AnalysisBehaviorTests(unittest.TestCase):
                 self.analysis.config.build_env = value
             elif key == 'run_process':
                 self.analysis.runner.run_process = value
+
+    def test_canonical_nested_and_partial_risk_evidence_reaches_registered_session(self):
+        original = self._payload_for_args
+
+        def canonical(args):
+            payload = copy.deepcopy(original(args))
+            if args[:2] == ['risk', 'explain']:
+                flow = payload['flows'][0]
+                flow['evidence'] = {'callSitesByStep': flow.pop('callSitesByStep')}
+                flow['callSitesByStep'] = [[{'details': {'file': 'stale-alias.js'}}]]
+                payload['partialFlows'] = [{'partialFlowId': 'partial-1', 'evidence': {
+                    'callSitesByStep': [[{'details': {'file': 'src/partial.js', 'startLine': 9}}]]}}]
+            return payload
+
+        self._payload_for_args = canonical
+        try:
+            self.analysis.PairOfCleatsRiskExplainCommand(self.window).run(chunk='chunk-risk')
+            session = self.results_state.get_last_risk_explain(self.window)
+            hits = session['hits']
+            self.assertTrue(any(hit.get('file') == 'src/util.js' and hit.get('startLine') == 7 for hit in hits))
+            partial = next(hit for hit in hits if hit.get('file') == 'src/partial.js')
+            self.assertEqual(partial['section'], 'risk-step-partial')
+            self.assertIn('partial flow partial-1', partial['headline'])
+            self.assertFalse(any(hit.get('file') == 'stale-alias.js' for hit in hits))
+        finally:
+            self._payload_for_args = original
+
+    def test_context_primary_retains_source_identity_without_inventing_hash_authority(self):
+        digest = 'a' * 64
+        identity = {'policy': 'working-tree-preview', 'currentHash': 'sha256:' + digest,
+                    'indexedHash': 'sha256:' + digest, 'drift': 'unchanged'}
+        payload = {'primary': {'file': 'src/index.js', 'ref': {'type': 'chunk', 'chunkUid': 'owned'},
+                              'range': {'startLine': 1, 'endLine': 2}, 'excerpt': 'context'},
+                   'evidence': {'primary': {'fileBacked': True, 'source': 'indexed-source-verified', 'sourceIdentity': identity}}}
+        hit = self.analysis._collect_context_pack_hits(payload)[0]
+        self.assertEqual(hit['sourceHash'], digest)
+        self.assertEqual(hit['sourceIdentity'], identity)
+        self.assertEqual(hit['ref']['chunkUid'], 'owned')
+        identity['drift'] = 'changed'
+        self.assertEqual(hit['sourceIdentity']['drift'], 'unchanged', 'retained evidence is invocation-owned')
+        self.assertIsNone(self.analysis._collect_context_pack_hits(payload)[0]['sourceHash'])
+        identity['drift'] = 'unchanged'
+        identity['currentHash'] = identity['indexedHash'] = 'sha1:' + 'b' * 40
+        self.assertIsNone(self.analysis._collect_context_pack_hits(payload)[0]['sourceHash'],
+                          'SHA1 identity cannot masquerade as the editor verifier SHA256 receipt')
+        payload['primary']['evidence'] = {'fileBacked': False, 'sourceIdentity': None}
+        self.assertIsNone(self.analysis._collect_context_pack_hits(payload)[0]['sourceIdentity'],
+                          'an explicit primary observation cannot borrow envelope fallback authority')
 
     def test_context_pack_panel_export_reopen_and_actions(self):
         with isolated_temp_directory() as temp_root:

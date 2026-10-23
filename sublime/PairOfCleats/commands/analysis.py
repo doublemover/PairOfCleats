@@ -264,11 +264,53 @@ def _callsite_details_to_hit(details, section, headline):
     }
 
 
+def _append_flow_evidence_hits(state, payload, section):
+    if not isinstance(payload, dict):
+        return
+    for field, partial in (('flows', False), ('partialFlows', True)):
+        flows = payload.get(field)
+        if not isinstance(flows, list):
+            continue
+        for flow in flows:
+            if not isinstance(flow, dict):
+                continue
+            evidence = flow.get('evidence')
+            # Older payloads placed steps directly on a flow. An explicitly
+            # present canonical evidence value cannot borrow that stale alias.
+            steps = evidence.get('callSitesByStep') if isinstance(evidence, dict) else (
+                flow.get('callSitesByStep') if 'evidence' not in flow else None)
+            if not isinstance(steps, list):
+                continue
+            flow_id = flow.get('partialFlowId' if partial else 'flowId') or 'risk'
+            for step_index, step in enumerate(steps, start=1):
+                if not isinstance(step, list):
+                    continue
+                for entry in step:
+                    details = entry.get('details') if isinstance(entry, dict) else None
+                    hit = _callsite_details_to_hit(details, section + ('-partial' if partial else ''),
+                        '{0} {1} step {2}'.format('partial flow' if partial else 'flow', flow_id, step_index))
+                    if hit:
+                        _append_unique_hit(state, hit)
+
+
 def _collect_context_pack_hits(payload):
     state = _new_hit_collector()
     primary = payload.get('primary') if isinstance(payload, dict) else None
     if isinstance(primary, dict) and primary.get('file'):
         range_info = primary.get('range') or {}
+        evidence = primary.get('evidence')
+        if 'evidence' not in primary:
+            envelope = payload.get('evidence')
+            evidence = envelope.get('primary') if isinstance(envelope, dict) else None
+        identity = evidence.get('sourceIdentity') if isinstance(evidence, dict) else None
+        source_hash = None
+        if (isinstance(identity, dict) and isinstance(evidence, dict)
+                and evidence.get('fileBacked') is True and evidence.get('source') == 'indexed-source-verified'
+                and identity.get('policy') == 'working-tree-preview' and identity.get('drift') == 'unchanged'
+                and identity.get('currentHash') == identity.get('indexedHash')
+                and isinstance(identity.get('currentHash'), str)
+                and re.match(r'^sha256:[a-f0-9]{64}\Z', identity['currentHash'])):
+            source_hash = identity['currentHash'][7:]
         _append_unique_hit(state, {
             'file': primary.get('file'),
             'startLine': range_info.get('startLine'),
@@ -276,6 +318,9 @@ def _collect_context_pack_hits(payload):
             'section': 'primary',
             'name': 'Primary Context',
             'headline': primary.get('excerpt') or '',
+            'ref': copy.deepcopy(primary.get('ref')),
+            'sourceIdentity': copy.deepcopy(identity),
+            'sourceHash': source_hash,
         })
 
     for node in ((payload.get('graph') or {}).get('nodes') or [])[:128]:
@@ -299,27 +344,7 @@ def _collect_context_pack_hits(payload):
                     merged['headline'] = 'query: {0}'.format(query)
                 _append_unique_hit(state, merged)
 
-    risk = payload.get('risk') if isinstance(payload, dict) else None
-    flows = risk.get('flows') if isinstance(risk, dict) else None
-    if isinstance(flows, list):
-        for flow in flows:
-            flow_id = flow.get('flowId') if isinstance(flow, dict) else None
-            evidence = flow.get('evidence') if isinstance(flow, dict) else None
-            steps = evidence.get('callSitesByStep') if isinstance(evidence, dict) else None
-            if not isinstance(steps, list):
-                continue
-            for step_index, step in enumerate(steps, start=1):
-                if not isinstance(step, list):
-                    continue
-                for entry in step:
-                    details = entry.get('details') if isinstance(entry, dict) else None
-                    hit = _callsite_details_to_hit(
-                        details,
-                        'risk-evidence',
-                        'flow {0} step {1}'.format(flow_id or 'risk', step_index),
-                    )
-                    if hit:
-                        _append_unique_hit(state, hit)
+    _append_flow_evidence_hits(state, payload.get('risk') if isinstance(payload, dict) else None, 'risk-evidence')
 
     return _finalize_hits(state)
 
@@ -335,25 +360,7 @@ def _collect_risk_explain_hits(payload):
             'headline': chunk.get('kind') or '',
         })
 
-    flows = payload.get('flows') if isinstance(payload, dict) else None
-    if isinstance(flows, list):
-        for flow in flows:
-            flow_id = flow.get('flowId') if isinstance(flow, dict) else None
-            steps = flow.get('callSitesByStep') if isinstance(flow, dict) else None
-            if not isinstance(steps, list):
-                continue
-            for step_index, step in enumerate(steps, start=1):
-                if not isinstance(step, list):
-                    continue
-                for entry in step:
-                    details = entry.get('details') if isinstance(entry, dict) else None
-                    hit = _callsite_details_to_hit(
-                        details,
-                        'risk-step',
-                        'flow {0} step {1}'.format(flow_id or 'risk', step_index),
-                    )
-                    if hit:
-                        _append_unique_hit(state, hit)
+    _append_flow_evidence_hits(state, payload, 'risk-step')
 
     return _finalize_hits(state)
 
