@@ -36,7 +36,7 @@ try {
       { code: 'ERR_OPERATIONAL_TOOL_UNAVAILABLE' });
     assert.equal(runs, 0); assert.equal(releases, 0);
   });
-  await withTemporaryEnv({ PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([repoRoot]), PAIROFCLEATS_TRUSTED_CONFIG: null }, async () => {
+  await withTemporaryEnv({ PAIROFCLEATS_HOME: path.join(temporary, 'home'), PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([repoRoot]), PAIROFCLEATS_TRUSTED_CONFIG: null }, async () => {
     let escaped;
     const value = await withOperationalTool('ripgrep', { repoRoot }, async selected => {
       assert.equal(releases, 0, 'version and capability probes retain the generation into the consumer');

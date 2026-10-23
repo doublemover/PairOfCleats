@@ -2,10 +2,11 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { getToolingConfig, resolveToolRoot } from '../shared/dict-utils.js';
 import { locateToolExecutable, resolveToolsById } from './utils.js';
-import { bindProvisioningCommand, createToolProvisioningPlan, identifyProvisioningExecutable, verifyToolProvisioningPlan } from './provisioning-plan.js';
+import { bindProvisioningCommand, createToolProvisioningPlan, identifyProvisioningExecutable, probeProvisioningCommand, verifyToolProvisioningPlan } from './provisioning-plan.js';
 import { verifyOperationalCapability, OPERATIONAL_TOOL_IDS } from './operational-probes.js';
 import { retainManagedToolInstallation } from '../../src/shared/managed-installation.js';
-import { verifyRetainedManagedInstallation } from './managed-verification.js';
+import { retainManagedResourceFailure, verifyRetainedManagedInstallation } from './managed-verification.js';
+import { runOperationalChildWithStorage } from './operational-storage.js';
 import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { observeProvisioningResource } from './provisioning-failure.js';
@@ -41,7 +42,9 @@ export const withOperationalTool = async (id, { repoRoot, commandOverride = null
   const held = tool.managedInstallation ? await (dependencies.retain || retainManagedToolInstallation)({ toolingRoot: config.dir, toolId: id,
     descriptorId: tool.managedInstallation.descriptorId, installId: tool.managedInstallation.installId }) : { release: () => true };
   const resourceId = randomUUID();
-  const verified = await verifyRetainedManagedInstallation(held, async () => {
+  const storageRecoveries = new Set();
+  let verified;
+  try { verified = await verifyRetainedManagedInstallation(held, async () => {
     const settlement = { resourceId, settled: true, pending: false };
     const operations = new Set(), observations = [];
     let open = true;
@@ -62,7 +65,10 @@ export const withOperationalTool = async (id, { repoRoot, commandOverride = null
         return !isPathWithinRoot(selected, repoRoot) || isApplicationOwnedCommand({ commandPath: selected, repoRoot, toolRoot: resolveToolRoot() });
       };
       const provisioning = await verifyToolProvisioningPlan(createToolProvisioningPlan({ tool, selection: { scope: 'cache', plan: null }, env, signal, isAllowed }),
-        { env, signal, cwd: resolveToolRoot(), ...(dependencies.probe ? { probe: dependencies.probe } : {}) });
+        { env, signal, cwd: resolveToolRoot(), probe: (selected, args, options) => runOperationalChildWithStorage({ id,
+          toolingRoot: config.dir, repoRoot, command: selected, identity: identify(selected, { signal }), env: options.env, cwd: options.cwd,
+          registerRecovery: recovery => storageRecoveries.add(recovery) }, ({ env: routed }) =>
+          (dependencies.probe || probeProvisioningCommand)(selected, args, { ...options, env: routed })) });
       if (provisioning.state !== 'requirements-verified') throw unavailable(id, provisioning.steps.filter(step => step.state !== 'verified')
         .map(step => `${step.id}: ${step.reason || step.state}`).join('; '));
       const selectedEnv = resolveNoProvisionToolingEnvironment(bindProvisioningCommand({ cmd: identity.path, args: [] }, provisioning, env).env,
@@ -82,9 +88,15 @@ export const withOperationalTool = async (id, { repoRoot, commandOverride = null
       const run = (args, options = {}) => track(async () => {
         check();
         try {
-          const result = remember(await (dependencies.spawn || spawnResolvedSubprocess)(identity.path, [...prefix, ...args], {
+          const launch = {
             cwd: repoRoot, outputEncoding: 'utf8', maxOutputBytes: 16 * 1024 * 1024, timeoutMs: 30000,
             rejectOnNonZeroExit: false, ...options, env: selectedEnv, signal
+          };
+          const result = remember(await runOperationalChildWithStorage({ id, toolingRoot: config.dir, repoRoot,
+            command: identity.path, identity, env: selectedEnv, cwd: launch.cwd,
+            registerRecovery: recovery => storageRecoveries.add(recovery) }, ({ env: routed }) => {
+            check();
+            return (dependencies.spawn || spawnResolvedSubprocess)(identity.path, [...prefix, ...args], { ...launch, env: routed });
           }));
           check();
           if (result.outputCapture?.stdout?.truncated || result.outputCapture?.stderr?.truncated) throw Object.assign(new Error('Selected operational tool exceeded its output limit.'), { code: 'ERR_OPERATIONAL_OUTPUT_LIMIT' });
@@ -104,17 +116,25 @@ export const withOperationalTool = async (id, { repoRoot, commandOverride = null
           });
         };
         try {
-          const result = await runner({ ...options, command: identity.path, args: [...prefix, ...args], env: selectedEnv,
+          const launch = { ...options, command: identity.path, args: [...prefix, ...args], env: selectedEnv,
             onSpawn: () => { spawned = true; }, onSettlement: outcome => {
               closed = outcome.closeObserved; treeSettled = outcome.treeCleanupSettled && !outcome.treeCleanupFailed;
               const original = outcome.isSettled;
               observeClosure = typeof original === 'function' ? () => original.call(outcome) === true : () => closed && treeSettled;
-            } });
-          if (spawned && (!closed || !treeSettled)) throw retainStreamFailure(new Error('Streaming child returned before exact closure.'));
+            } };
+          const result = await runOperationalChildWithStorage({ id, toolingRoot: config.dir, repoRoot,
+            command: identity.path, identity, env: selectedEnv, cwd: launch.cwd || repoRoot,
+            registerRecovery: recovery => storageRecoveries.add(recovery) }, async ({ env: routed }) => {
+            try {
+              check();
+              const value = await runner({ ...launch, env: routed });
+              if (spawned && (!closed || !treeSettled)) throw retainStreamFailure(new Error('Streaming child returned before exact closure.'));
+              return value;
+            } catch (error) { throw spawned && !observeClosure() ? retainStreamFailure(error) : error; }
+          });
           remember(result); check(); return result;
         } catch (error) {
-          const failure = spawned && !observeClosure() ? retainStreamFailure(error) : error;
-          remember(failure); throw failure;
+          remember(error); throw error;
         }
       });
       const capability = await verifyOperationalCapability({ id, command: identity.path, argsPrefix: prefix, cwd: resolveToolRoot(), env: selectedEnv, signal }, {
@@ -136,7 +156,24 @@ export const withOperationalTool = async (id, { repoRoot, commandOverride = null
       if (operations.size) throw error;
       throw withSettlement(error, settlement);
     } finally { open = false; }
-  }, {}, resourceId);
+  }, {}, resourceId); }
+  catch (value) {
+    const primary = value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+    const original = primary.managedInstallSession;
+    if (!original) throw primary;
+    const originalObservation = observeProvisioningResource(primary, { phase: 'operational-installation-and-storage' });
+    const released = () => { try { originalObservation.requireSettled(); return [...storageRecoveries].every(recovery => recovery.isReleased()); } catch { return false; } };
+    const retain = cleanupError => retainManagedResourceFailure(primary, { session: recovery, released, cleanupError });
+    const recovery = Object.freeze({ resourceId: original.resourceId, releaseAfterSettlement: receipt => {
+      try {
+        if (!receipt || Object.keys(receipt).sort().join(',') !== 'pending,resourceId,settled'
+          || receipt.resourceId !== original.resourceId || receipt.settled !== true || receipt.pending !== false) throw new Error('Operational installation requires its exact settlement receipt.');
+        for (const storage of storageRecoveries) storage.releaseAfterClosure();
+        return original.releaseAfterSettlement(receipt);
+      } catch (cleanupError) { throw retain(cleanupError); }
+    } });
+    throw retain();
+  }
   return verified.value;
 };
 
