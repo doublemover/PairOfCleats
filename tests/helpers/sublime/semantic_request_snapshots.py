@@ -144,6 +144,15 @@ with patch.object(api, 'run_async', side_effect=async_request), \
         before = len(dispatched)
         stale_picker(2)
         assert len(dispatched) == before
+        trace_snapshot = dict(snapshot, transport='cli')
+        semantic.inspect(window, trace_snapshot)
+        window.quick_panel_callback(2)
+        window.quick_panel_callback(1)
+        stale_depth = window.input['done']
+        semantic.inspect(window, trace_snapshot)
+        before = len(dispatched)
+        stale_depth('2')
+        assert len(dispatched) == before, 'superseded trace-bound input cannot acquire an operation from an older picker'
 
 # Registered command seeding keeps the original source across repo and
 # capabilities prompts; equal-text sibling views do not adopt that request.

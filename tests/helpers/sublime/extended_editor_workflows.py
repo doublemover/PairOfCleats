@@ -5,7 +5,7 @@ import os
 import threading
 from unittest.mock import patch
 
-from runtime_harness import FakeRegion, FakeWindow, install_fake_modules, isolated_temp_directory
+from runtime_harness import FakeRegion, FakeView, FakeWindow, install_fake_modules, isolated_temp_directory
 
 sublime, _plugin = install_fake_modules()
 paths = importlib.import_module('PairOfCleats.lib.paths')
@@ -114,6 +114,7 @@ assert semantic.qualified_binding_seed(dict(bound, status='partial')) is None
 assert semantic.qualified_binding_seed(dict(bound, binding={'status': 'ambiguous', 'targetId': json.dumps(ref)})) is None
 assert semantic.qualified_binding_seed(dict(bound, binding={'status': 'resolved', 'targetId': 'spelling-only'})) is None
 seed_requests = []
+window.set_active_view(FakeView('/selected-target/source.py', 'qualified cursor source'))
 with patch.object(search_commands, 'qualified_navigation_evidence', return_value=bound), \
         patch.object(semantic, 'execute', side_effect=lambda target_window, operation, request, context, done: seed_requests.append((operation, request))):
     semantic.PairOfCleatsSemanticEvidenceCommand(window).run(repo_root='/selected-target')

@@ -119,7 +119,8 @@ def choose_trace_options(window, context, on_done, on_cancel):
     chosen_kinds = []
     extra = {}
     def current():
-        return operations.is_current(context['scope'])
+        return (operations.is_current(context['scope'])
+                and (not context.get('pickerScope') or operations.is_current(context['pickerScope'])))
     def cancel():
         if current() and callable(on_cancel):
             on_cancel()
@@ -440,7 +441,7 @@ def inspect(window, state, on_back=None):
                                       record['ref'], 'downstream' if chosen == 2 else 'upstream', extra)
                 execute(window, operation, request, state['context'], lambda next_state: inspect(window, next_state, restore), restore)
             if operation in ('trace', 'explain'):
-                choose_trace_options(window, state['context'], submit, restore)
+                choose_trace_options(window, dict(state['context'], pickerScope=picker_scope), submit, restore)
             else:
                 submit()
         window.show_quick_panel([actions[index] for index in offered], action)
