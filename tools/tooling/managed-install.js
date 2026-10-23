@@ -11,7 +11,7 @@ import { addStorageFailureContext } from '../../src/shared/storage/operation-err
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 import { extractArchive, getArchiveExtractionSession } from '../shared/archive-extraction.js';
-import { computeSha256, downloadToBuffer, settleInstallDownload } from './install-shared.js';
+import { downloadToBuffer, settleInstallDownload } from './install-shared.js';
 import { runInstallWithStorageAdmission } from './install-storage.js';
 import { retainManagedToolInstallation } from '../../src/shared/managed-installation.js';
 import { isKnownManagedInstallationDescriptor, isKnownManagedInstallationReceipt } from '../../src/shared/managed-installation-contract.js';
@@ -61,8 +61,7 @@ export const validatePinnedInstallDescriptor = (descriptor, { approvedOrigins = 
     || /(?:latest|nightly|next)/i.test(descriptor.version)) throw new Error('Managed install needs a versioned canonical tool/profile/recipe descriptor.');
   if (descriptor.platform !== platform || descriptor.arch !== arch) throw new Error('Pinned managed recipe does not match this platform/architecture.');
   if (!['zip', 'tar.gz'].includes(descriptor.archive?.type)
-    || !/^[a-f0-9]{64}$/.test(descriptor.archive?.sha256 || '')
-    || !Number.isSafeInteger(descriptor.archive?.bytes) || descriptor.archive.bytes <= 0 || descriptor.archive.bytes > DEFAULT_LIMITS.maxBytes) throw new Error('Managed recipe requires bounded archive bytes and an immutable SHA256.');
+    || !Number.isSafeInteger(descriptor.archive?.bytes) || descriptor.archive.bytes <= 0 || descriptor.archive.bytes > DEFAULT_LIMITS.maxBytes) throw new Error('Managed recipe requires bounded archive bytes and exactly one immutable SHA256 or SHA512.');
   const url = new URL(descriptor.archive.url);
   if (url.protocol !== 'https:' || url.username || url.password || !approvedOrigins.includes(url.origin)
     || /(?:\/latest(?:\/|$)|@latest(?:\/|$)|[?&](?:version|tag)=latest)/i.test(url.href)) throw new Error('Archive source is outside its canonical approved immutable source authority.');
@@ -343,8 +342,9 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     const fetched = await download({ url: pinned.archive.url, label: pinned.toolId + ' pinned archive',
       timeoutMs: 120000, maxBytes: pinned.archive.bytes, redirect: 'error', signal });
     signal?.throwIfAborted();
+    const digestAlgorithm = Object.hasOwn(pinned.archive, 'sha512') ? 'sha512' : 'sha256';
     if (fetched.sourceUrl !== pinned.archive.url || fetched.body.length !== pinned.archive.bytes
-      || computeSha256(fetched.body) !== pinned.archive.sha256) throw new Error('Pinned tool archive source/size/SHA256 mismatch.');
+      || createHash(digestAlgorithm).update(fetched.body).digest('hex') !== pinned.archive[digestAlgorithm]) throw new Error('Pinned tool archive source/size/immutable digest mismatch.');
     const archive = path.join(stage, 'archive.' + pinned.archive.type);
     await fs.writeFile(archive, fetched.body, { flag: 'wx' });
     const extracted = path.join(stage, 'extracted');
