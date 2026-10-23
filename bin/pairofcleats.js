@@ -1302,6 +1302,9 @@ function printHelp({ includeAll = false, topicTokens = [] } = {}) {
 }
 
 function printRequestedHelp(helpArgs) {
+  validateArgs(helpArgs, ['all', 'json', 'repo'], ['repo']);
+  helpArgs = helpArgs.filter((arg, index) => arg !== '--repo'
+    && !arg.startsWith('--repo=') && helpArgs[index - 1] !== '--repo');
   if (helpArgs.includes('--json')) {
     const all = helpArgs.includes('--all');
     const topic = helpArgs.filter(arg => !['--json', '--all', '--help', '-h'].includes(arg)).join(' ');

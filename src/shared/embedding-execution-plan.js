@@ -41,6 +41,15 @@ const projectEnvironment = rawEnv => {
     return [key, typeof value === 'boolean' ? (value ? '1' : '0') : Number.isFinite(value) ? String(value) : null];
   }));
 };
+const projectSourceFacts = source => {
+  if (!source || !Array.isArray(source.files)) return source;
+  return { ...source, files: source.files.map(file => {
+    if (file?.readState !== 'missing' || file.exists !== false
+      || file.errorCode !== 'ENOENT' || file.contentHash !== null) return file;
+    const { readState: ignoredReadState, ...facts } = file;
+    return facts;
+  }) };
+};
 const pick = (value, keys) => Object.fromEntries(keys.filter(key => value?.[key] !== undefined).map(key => [key, value[key]]));
 const fail = message => Object.assign(new Error(`Invalid embedding execution plan: ${message}`), { code: 'ERR_EMBEDDING_EXECUTION_PLAN' });
 const digest = plan => {
@@ -84,7 +93,7 @@ export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId =
       indexing: Object.fromEntries(['concurrency', 'importConcurrency', 'ioConcurrencyCap', 'embeddingBatchSize'].map(key => [key, userConfig.indexing?.[key] ?? null])),
       scheduler: projectSchedulerRequestConfig(userConfig.runtime?.scheduler, userConfig.indexing?.scheduler) },
     environment: projectEnvironment(rawEnv),
-    sources: { config: intent?.configSources || null, model: argv.model ? 'cli.model' : configured.model ? 'config.indexing.embeddings.model'
+    sources: { config: projectSourceFacts(intent?.configSources) || null, model: argv.model ? 'cli.model' : configured.model ? 'config.indexing.embeddings.model'
       : userConfig.models?.id ? 'config.models.id' : 'default', intent: selected.reason || 'resolved-parent' }
   };
   const planText = JSON.stringify(plan);

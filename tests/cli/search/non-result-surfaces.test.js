@@ -72,8 +72,10 @@ assert.match(stripAnsi(invalidMode.stderr), /Invalid --mode wat/);
 const removedFlag = runCli(['--human', '--', 'alpha'], { allowFailure: true });
 assert.equal(removedFlag.status, 1);
 assert.match(stripAnsi(removedFlag.stderr), /Search Error/);
-assert.match(stripAnsi(removedFlag.stderr), /flag --human/);
-assert.match(stripAnsi(removedFlag.stderr), /next switch to --json/);
+assert.match(stripAnsi(removedFlag.stderr), /code invalid_request/);
+assert.match(stripAnsi(removedFlag.stderr), /--human was removed/);
+assert.match(stripAnsi(removedFlag.stderr), /readable output is the default/);
+assert.match(stripAnsi(removedFlag.stderr), /Use --json only for machine-readable output/);
 
 for (const flag of ['--human', '--headline']) {
   const result = runLegacySearch(['test', flag], helpEnv, { allowFailure: true });

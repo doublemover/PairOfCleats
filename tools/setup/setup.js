@@ -575,7 +575,9 @@ if (argv.plan || argv['apply-plan']) {
 
   } catch (error) {
     const result = error.result ? { ...error.result, status: error.result.status ?? error.result.exitCode ?? null } : null;
-    recordError(activeStep, result, redactDiagnosticText(error.message || String(error), 2048));
+    const message = redactDiagnosticText(error.message || String(error), 2048);
+    recordError(activeStep, result, message);
+    warn(message);
     summary.lifecycle = { state: error.cacheOwnershipPending ? 'settlement-pending' : cancellation.signal.aborted ? 'cancelled' : 'blocked',
       step: activeStep, code: error.code || null,
       settlement: error.cacheOwnershipPending ? 'actual-child-resource-owner-unconfirmed' : 'no-pending-owner-reported' };

@@ -5,6 +5,7 @@ const terminalUrl = new URL('../../../src/shared/cli/display/terminal.js', impor
 const hook = registerHooks({ load(url, context, next) {
   if (url === terminalUrl) return { format: 'module', shortCircuit: true, source:
     `export const normalizeProgressMode = value => value;
+    export const resolveWidth = term => term.width;
     export const resolveTerminal = stream => ({ hideCursor:()=>stream.write('hide\\n'), showCursor:()=>stream.write('show\\n'),
       eraseLine:()=>stream.write('erase\\n'), up:()=>{}, width:80 });` };
   return next(url, context);
