@@ -1,5 +1,7 @@
-import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { withContainedFile } from '../shared/contained-file.js';
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../shared/storage/operation-error.js';
 import { loadPiecesManifest } from '../shared/artifact-io/manifest-read.js';
 import { checksumString } from '../shared/hash.js';
 import { composeAbortSignals, throwIfAborted } from '../shared/abort.js';
@@ -10,11 +12,10 @@ import { createSymbolicTypeGraph, normalizeSymbolicTypeRef, validateSymbolicType
 import { SYMBOLIC_TYPE_GRAPH_MAX_BYTES, SYMBOLIC_TYPE_TOTAL_MAX_BYTES } from '../contracts/schemas/symbolic-types.js';
 
 /** Read only the admitted size from an opened immutable-generation file. */
-const readBoundedFile = async (filePath, maxBytes, signal) => {
-  const handle = await fs.open(filePath, 'r');
-  try {
+const readBoundedFile = (indexDir, filePath, maxBytes, signal) =>
+  withContainedFile(indexDir, filePath, async handle => {
     const { size } = await handle.stat();
-    if (!Number.isSafeInteger(size) || size > maxBytes) throw symbolicTypeError('symbolic_type_limit', 'Symbolic artifact exceeds its read allowance.');
+    if (!Number.isSafeInteger(size) || size < 0 || size > maxBytes) throw symbolicTypeError('symbolic_type_limit', 'Symbolic artifact exceeds its read allowance.');
     const bytes = Buffer.alloc(size);
     let offset = 0;
     while (offset < size) {
@@ -24,18 +25,26 @@ const readBoundedFile = async (filePath, maxBytes, signal) => {
       offset += read.bytesRead;
     }
     if ((await handle.read(Buffer.alloc(1), 0, 1, null)).bytesRead) throw symbolicTypeError('symbolic_type_corrupt', 'Symbolic artifact grew during read.');
+    handle.verify();
     return bytes;
-  } finally { await handle.close(); }
-};
+  });
 const readJson = bytes => {
   try { return JSON.parse(bytes.toString('utf8')); }
   catch { throw symbolicTypeError('symbolic_type_corrupt', 'Invalid symbolic artifact JSON.'); }
 };
 const readRegisteredFile = async (indexDir, relativePath, maxBytes, signal) => {
-  try { return await readBoundedFile(await resolveSemanticPartPath(indexDir, relativePath), maxBytes, signal); }
+  try { return await readBoundedFile(indexDir, await resolveSemanticPartPath(indexDir, relativePath), maxBytes, signal); }
   catch (error) {
-    if (error?.code === 'ENOENT') throw symbolicTypeError('symbolic_type_missing', 'A registered symbolic artifact is missing.');
-    if (error?.code === 'ERR_SEMANTIC_INTEGRITY') throw symbolicTypeError('symbolic_type_corrupt', 'A symbolic artifact path is outside its generation.');
+    const observation = observeStorageResource(error, { phase: 'symbolic-type-read' });
+    observation.requireSettled();
+    let code;
+    try { code = error?.code; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    const reason = code === 'ENOENT' ? 'symbolic_type_missing' : code === 'ERR_SEMANTIC_INTEGRITY' ? 'symbolic_type_corrupt' : null;
+    if (reason) throw addStorageFailureContext(symbolicTypeError(reason, reason === 'symbolic_type_missing'
+      ? 'A registered symbolic artifact is missing.' : 'A symbolic artifact path is outside its generation.'), {},
+    observation.retain(), { secondaryPresent: true });
     throw error;
   }
 };
