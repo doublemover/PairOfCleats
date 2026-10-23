@@ -1,3 +1,4 @@
+import { CONTEXT_TASK_POLICY_SCHEMA } from '../../contracts/schemas/context-task.js';
 import { buildSearchRequestProperties } from '../../shared/search-request-schema.js';
 import { SEMANTIC_TRACE_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-trace.js';
 import { SEMANTIC_FIND_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-find.js';
@@ -195,6 +196,8 @@ export function getToolDefs(defaultModelId) {
             includeDisabled: { type: 'boolean' },
             maxFederatedRepos: { type: 'number' },
             seed: { type: 'string', description: 'Chunk/file/symbol seed reference.' },
+            taskPolicy: CONTEXT_TASK_POLICY_SCHEMA,
+            pathSemantics: { enum: ['graph-witness'] },
             hops: { type: 'number', description: 'Neighborhood depth.' },
             includeGraph: { type: 'boolean' },
             includeSemantic: { type: 'boolean' },

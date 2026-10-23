@@ -41,6 +41,7 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
     scriptName: 'impact',
     argv: ['node', 'impact', ...rawArgs],
     options: buildGraphCliOptions({
+      pathSemantics: { type: 'string', choices: ['graph-witness'] },
       seed: { type: 'string' },
       changed: { type: 'array' },
       changedFile: { type: 'string' }

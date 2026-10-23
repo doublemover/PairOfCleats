@@ -33,6 +33,7 @@ export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
     scriptName: 'graph-context',
     argv: ['node', 'graph-context', ...rawArgs],
     options: buildGraphCliOptions({
+      pathSemantics: { type: 'string', choices: ['graph-witness'] },
       seed: { type: 'string' },
       includePaths: { type: 'boolean', default: false }
     })
