@@ -10,9 +10,21 @@ const leafName = (value) => {
   return parts.length ? parts[parts.length - 1] : text;
 };
 
+const resolveOwnedSymbol = entry => {
+  const symbol = entry?.symbol || entry?.meta?.symbol || null;
+  if (!symbol || typeof symbol !== 'object' || Array.isArray(symbol)) return null;
+  const ownerUid = entry.chunkUid, symbolUid = symbol.chunkUid;
+  // Legacy entries may supply only one identity. A supplied disagreement or
+  // malformed identity must not redirect this definition to another chunk.
+  if (ownerUid != null && (typeof ownerUid !== 'string' || !ownerUid.length)) return null;
+  if (symbolUid != null && (typeof symbolUid !== 'string' || !symbolUid.length)) return null;
+  if (ownerUid != null && symbolUid != null && ownerUid !== symbolUid) return null;
+  return symbol;
+};
+
 const buildCandidate = (entry) => {
   if (!entry) return null;
-  const symbol = entry.symbol || entry.meta?.symbol || null;
+  const symbol = resolveOwnedSymbol(entry);
   if (!symbol) return null;
   return {
     symbolId: symbol.symbolId || null,
@@ -38,7 +50,7 @@ export const buildSymbolIndex = (entries) => {
   const byFile = new Map();
   for (const entry of entries || []) {
     if (!entry) continue;
-    const symbol = entry.symbol || entry.meta?.symbol || null;
+    const symbol = resolveOwnedSymbol(entry);
     if (!symbol) continue;
     const name = entry.qualifiedName || entry.name;
     if (name) {
@@ -107,6 +119,7 @@ export const resolveSymbolRef = ({
   const allEntries = baseEntries.length ? baseEntries : leafEntries;
 
   for (const entry of allEntries) {
+    if (!resolveOwnedSymbol(entry)) continue;
     if (importedName && importedName !== '*' && importedName !== 'default') {
       const entryName = entry?.qualifiedName || entry?.name || '';
       const entryLeaf = leafName(entryName);

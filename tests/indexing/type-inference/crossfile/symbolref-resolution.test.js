@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import { buildSymbolIndex, resolveSymbolRef } from '../../../../src/index/type-inference-crossfile/resolver.js';
 
 const fail = (message) => {
@@ -93,3 +94,37 @@ if (unresolved.status !== 'unresolved') {
 }
 
 console.log('symbolref-resolution tests passed');
+
+const ownerEntry = buildEntry({ name: 'Owned', file: 'src/owner.js', chunkUid: 'uid-owner' });
+const mismatchedOwner = structuredClone(ownerEntry);
+mismatchedOwner.symbol.chunkUid = 'uid-unrelated';
+const rejectedIndex = buildSymbolIndex([mismatchedOwner]);
+assert.equal(rejectedIndex.byName.has('Owned'), false, 'a symbol cannot name a different host chunk');
+assert.equal(rejectedIndex.byFile.has('src/owner.js'), false, 'import narrowing cannot reintroduce an unowned candidate');
+for (const malformed of ['', 3, true, {}, []]) {
+  for (const field of ['owner', 'symbol']) {
+    const entry = structuredClone(ownerEntry);
+    if (field === 'owner') entry.chunkUid = malformed;
+    else entry.symbol.chunkUid = malformed;
+    assert.equal(buildSymbolIndex([entry]).byName.has('Owned'), false, `explicit ${field} identity is not an omitted legacy identity`);
+  }
+}
+for (const omitted of ['owner', 'symbol']) {
+  const entry = structuredClone(ownerEntry);
+  if (omitted === 'owner') delete entry.chunkUid;
+  else delete entry.symbol.chunkUid;
+  const result = resolveSymbolRef({ targetName: 'Owned', symbolIndex: buildSymbolIndex([entry]), fileSet: new Set(['src/owner.js']) });
+  assert.equal(result.status, 'resolved');
+  assert.equal(result.resolved.chunkUid, 'uid-owner', 'one-sided legacy identity retains its existing compatible owner');
+}
+const suppliedIndex = { byName: new Map([['Owned', [mismatchedOwner, ownerEntry]]]),
+  byFile: new Map([['src/owner.js', [mismatchedOwner, ownerEntry]]]) };
+for (const imported of [false, true]) {
+  const result = resolveSymbolRef({ targetName: 'Owned', fromFile: 'src/use.js', symbolIndex: suppliedIndex,
+    fileSet: new Set(['src/owner.js', 'src/use.js']),
+    fileRelations: imported ? new Map([['src/use.js', { importBindings: { Owned: { imported: 'Owned', module: './owner.js' } } }]]) : null });
+  assert.equal(result.status, 'resolved');
+  assert.equal(result.candidates.length, 1, 'caller-supplied indexes must apply the same owner check before scoring/capping');
+  assert.equal(result.resolved.chunkUid, 'uid-owner');
+}
+console.log('symbolref canonical owner agreement and legacy one-sided identity controls passed');
