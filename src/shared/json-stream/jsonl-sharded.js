@@ -209,6 +209,7 @@ const runShardedWrite = async (input, useAsyncIterable) => {
     diskAccount = null
   } = input || {};
   const resolvedCompression = compression === 'none' ? null : compression;
+  const resolvedGzipOptions = gzipOptions && typeof gzipOptions === 'object' ? { ...gzipOptions } : gzipOptions;
   if (diskAccount && (typeof diskAccount.reserve !== 'function' || typeof diskAccount.release !== 'function' || resolvedCompression)) {
     throw new TypeError('Shared sharded disk admission requires an uncompressed writer and reserve/release owner.');
   }
@@ -233,7 +234,7 @@ const runShardedWrite = async (input, useAsyncIterable) => {
     compressionPool = null;
   };
   if (resolvedCompression === 'zstd' && !compressionPool) {
-    const codecOptions = { compression: resolvedCompression, gzipOptions };
+    const codecOptions = { compression: resolvedCompression, gzipOptions: resolvedGzipOptions };
     compressionPool = borrowJsonlCompressionPool(codecOptions);
     if (!compressionPool) { compressionPool = createJsonlCompressionPool(codecOptions); ownedCompressionPool = true; }
   }
@@ -243,7 +244,7 @@ const runShardedWrite = async (input, useAsyncIterable) => {
     partsDirName,
     partPrefix,
     compression: resolvedCompression,
-    gzipOptions,
+    gzipOptions: resolvedGzipOptions,
     highWaterMark,
     signal,
     offsets,

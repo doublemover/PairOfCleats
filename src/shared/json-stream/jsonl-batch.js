@@ -3,6 +3,7 @@ import { borrowJsonlCompressionPool } from './jsonl-compression-scope.js';
 import { createJsonlCompressionPool } from './jsonl-compression-pool.js';
 import { createJsonWriteStream, writeChunk } from './streams.js';
 import { createAbortError } from './runtime.js';
+import { addStorageFailureContext } from '../storage/operation-error.js';
 
 const MIN_BLOCK_BYTES = 1024 * 1024;
 const MAX_BLOCK_BYTES = 4 * 1024 * 1024;
@@ -68,15 +69,6 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
   const resolvedBlockSize = resolveBlockSize(blockSize, resolvedCompression);
   // Codec admission happens before any output descriptor is opened.
   if (useWorkerCompression) resolveZstd(options);
-  const { stream, done, getBytesWritten } = createJsonWriteStream(filePath, {
-    compression: useWorkerCompression ? null : resolvedCompression,
-    gzipOptions,
-    atomic,
-    highWaterMark,
-    signal,
-    preallocateBytes
-  });
-
   let ownedPool = false;
   let compressionPool = pool || (useWorkerCompression ? borrowJsonlCompressionPool(options) : null);
   if (useWorkerCompression) {
@@ -91,6 +83,10 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
       ownedPool = true;
     }
   }
+  const { stream, done, getBytesWritten } = createJsonWriteStream(filePath, {
+    compression: useWorkerCompression ? null : resolvedCompression,
+    gzipOptions, atomic, highWaterMark, signal, preallocateBytes
+  });
 
   const maxInFlight = useWorkerCompression
     ? Math.max(
@@ -156,8 +152,8 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
       try { stream.destroy(failed); } catch {}
       try { await done; } catch {}
       if (ownedPool && compressionPool) {
-        await compressionPool.close();
-        compressionPool = null;
+        try { await compressionPool.close(); compressionPool = null; }
+        catch (error) { failed = addStorageFailureContext(failed, {}, error, { secondaryPresent: true }); }
       }
     })();
     await failPromise;
@@ -306,7 +302,7 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
       if (failed) throw failed;
     } catch (err) {
       await fail(err);
-      throw err;
+      throw failed;
     } finally {
       detachAbort();
     } })();
@@ -314,8 +310,10 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
   };
 
   const destroy = async (err) => {
+    const primary = err || new Error('JSONL write aborted.');
     try {
-      await fail(err || new Error('JSONL write aborted.'));
+      await fail(primary);
+      if (failed && failed !== primary) throw failed;
     } finally {
       detachAbort();
     }
