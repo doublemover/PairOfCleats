@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { readVerifiedContainedFileSync } from '../contained-file.js';
 import { assertStorageLocatorShape, assertStorageSelectionShape } from './locator-contract.js';
+import { describeStorageFailure } from './failure-observation.js';
 
 export const STORAGE_LOCATOR_NAME = 'storage-locations.json';
 
@@ -27,7 +28,8 @@ export const readStorageLocator = home => {
     }
     return { status: 'present', target, value, sha256: hash };
   } catch (error) {
-    if (!locatorRead && error.code === 'ENOENT') return { status: 'missing', target, value: { schemaVersion: 1, categories: {} }, sha256: null };
-    return { status: 'invalid', target, value: null, sha256: null, error: { code: error.code || 'ERR_STORAGE_LOCATOR', message: error.message } };
+    const diagnostic = describeStorageFailure(error, { phase: 'storage-locator-read', defaultCode: 'ERR_STORAGE_LOCATOR' });
+    if (!locatorRead && diagnostic.code === 'ENOENT') return { status: 'missing', target, value: { schemaVersion: 1, categories: {} }, sha256: null };
+    return { status: 'invalid', target, value: null, sha256: null, error: diagnostic };
   }
 };
