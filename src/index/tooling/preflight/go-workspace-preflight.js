@@ -1,7 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { buildGoWorkspacePartitionKey } from '../go-workspace-partitioning.js';
-import { resolveToolingCommandProfile } from '../command-resolver.js';
 import { runWorkspaceCommandPreflight } from './workspace-command-preflight.js';
 import { findWorkspaceMarkersNearPaths, normalizeWorkspaceRootRel } from '../workspace-model.js';
 import {
@@ -36,24 +35,7 @@ const isGoWorkspacePreflightServer = (server) => {
   return id === 'gopls' || cmd === 'gopls' || languages.includes('go');
 };
 
-const resolveManagedGoCommand = ({
-  ctx,
-  server,
-  requestedCmd,
-  requestedArgs,
-  probeSuffix
-}) => {
-  const profile = resolveToolingCommandProfile({
-    providerId: `${String(server?.id || 'gopls').trim() || 'gopls'}-${String(probeSuffix || 'go-workspace')}`,
-    cmd: String(requestedCmd || 'go').trim() || 'go',
-    args: Array.isArray(requestedArgs) ? requestedArgs.map((entry) => String(entry)) : [],
-    repoRoot: String(ctx?.repoRoot || process.cwd()),
-    toolingConfig: ctx?.toolingConfig || {}
-  });
-  return String(profile?.resolved?.cmd || requestedCmd || 'go').trim() || 'go';
-};
-
-const resolveModuleCommand = (ctx, server) => {
+const resolveModuleCommand = (server) => {
   const requestedCmd = String(server?.goWorkspaceModuleCmd || 'go').trim() || 'go';
   const args = Array.isArray(server?.goWorkspaceModuleArgs) && server.goWorkspaceModuleArgs.length
     ? server.goWorkspaceModuleArgs.map((entry) => String(entry))
@@ -63,19 +45,13 @@ const resolveModuleCommand = (ctx, server) => {
     ? Math.max(500, Math.floor(timeoutRaw))
     : DEFAULT_MODULE_TIMEOUT_MS;
   return {
-    cmd: resolveManagedGoCommand({
-      ctx,
-      server,
-      requestedCmd,
-      requestedArgs: args,
-      probeSuffix: 'go-workspace-module'
-    }),
+    cmd: requestedCmd,
     args,
     timeoutMs
   };
 };
 
-const resolveWarmupCommand = (ctx, server) => {
+const resolveWarmupCommand = (server) => {
   const requestedCmd = String(server?.goWorkspaceWarmupCmd || 'go').trim() || 'go';
   const args = Array.isArray(server?.goWorkspaceWarmupArgs) && server.goWorkspaceWarmupArgs.length
     ? server.goWorkspaceWarmupArgs.map((entry) => String(entry))
@@ -85,13 +61,7 @@ const resolveWarmupCommand = (ctx, server) => {
     ? Math.max(500, Math.floor(timeoutRaw))
     : DEFAULT_WARMUP_TIMEOUT_MS;
   return {
-    cmd: resolveManagedGoCommand({
-      ctx,
-      server,
-      requestedCmd,
-      requestedArgs: args,
-      probeSuffix: 'go-workspace-warmup'
-    }),
+    cmd: requestedCmd,
     args,
     timeoutMs
   };
@@ -413,7 +383,7 @@ const resolveGoWorkspaceWarmupPreflight = async ({
   if (!shouldRunGoWorkspaceWarmupPreflight(repoRoot, server, documents)) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
-  const warmupCommand = resolveWarmupCommand(ctx, server);
+  const warmupCommand = resolveWarmupCommand(server);
   const negativeCacheTtlMs = resolveGoWorkspaceNegativeCacheTtlMs(server);
   return await runWorkspaceCommandPreflight({
     ctx,
@@ -423,6 +393,7 @@ const resolveGoWorkspaceWarmupPreflight = async ({
     timeoutMs: warmupCommand.timeoutMs,
     abortSignal,
     reasonPrefix: 'go_workspace_warmup_probe',
+    providerId: 'gopls',
     label: 'go workspace warmup',
     log: typeof ctx?.logger === 'function' ? ctx.logger : () => {},
     successCache: {
@@ -619,7 +590,7 @@ export const resolveGoWorkspaceModulePreflight = async ({
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
 
-  const command = resolveModuleCommand(ctx, server);
+  const command = resolveModuleCommand(server);
   const negativeCacheTtlMs = resolveGoWorkspaceNegativeCacheTtlMs(server);
   const blockedPartitions = [];
   const readyPartitions = [];
@@ -639,6 +610,7 @@ export const resolveGoWorkspaceModulePreflight = async ({
       timeoutMs: command.timeoutMs,
       abortSignal,
       reasonPrefix: 'go_workspace_module_probe',
+      providerId: 'gopls',
       label: 'go workspace module',
       log: typeof ctx?.logger === 'function' ? ctx.logger : () => {},
       successCache: {

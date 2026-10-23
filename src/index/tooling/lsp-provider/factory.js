@@ -81,6 +81,7 @@ export const createConfiguredLspProvider = (server) => {
     version: server.version || '1.0.0',
     priority: Number.isFinite(server.priority) ? server.priority : 80,
     languages: server.languages || [],
+    requiresWorkspaceExecution: server.requiresWorkspaceExecution === true,
     profileContractVersion: server.profileContractVersion || 1,
     exclusiveLanguageGroup: server.exclusiveLanguageGroup || null,
     replacesProviderIds: server.replacesProviderIds || [],

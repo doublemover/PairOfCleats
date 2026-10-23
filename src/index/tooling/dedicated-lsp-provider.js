@@ -245,6 +245,7 @@ export const createDedicatedLspProvider = (descriptor) => {
     // host observation requires a live execution rather than durable replay.
     profileContractVersion: descriptor.profileContractVersion || 1,
     languages: descriptor.languages,
+    requiresWorkspaceExecution: descriptor.requiresWorkspaceExecution === true,
     kinds: Array.isArray(descriptor.kinds) && descriptor.kinds.length
       ? descriptor.kinds
       : ['types', 'diagnostics'],

@@ -1,7 +1,7 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { buildProviderRecovery } from './recovery.js';
-import { resolveWorkspaceExecutionAuthority } from '../../shared/workspace-execution-authority.js';
+import { resolveProviderWorkspaceExecutionAuthority } from './workspace-execution.js';
 import { getXxhashBackend } from '../../shared/hash.js';
 import { listToolingProviders } from './provider-registry.js';
 import {
@@ -408,7 +408,9 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       });
     }
 
-    const executionAuthority = resolveWorkspaceExecutionAuthority({ repoRoot, providerId, languages: provider.languages });
+    const executionAuthority = resolveProviderWorkspaceExecutionAuthority({ repoRoot, providerId,
+      languages: provider.languages, requiresWorkspaceExecution: provider.requiresWorkspaceExecution,
+      server: { id: providerId, cmd: resolveProviderCommandOverride({ providerId, toolingConfig }).cmd || provider.requires?.cmd } });
     if (!providerReport.enabled) {
       addCheck({
         name: 'enabled',
@@ -521,7 +523,12 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
         const probeOk = commandProfile.probe?.ok === true;
         const commandDefinitelyMissing = !probeOk
           && isProbeCommandDefinitelyMissing(commandProfile.probe);
-        if (!probeOk && commandDefinitelyMissing) {
+        if (commandProfile.resolved?.mode === 'blocked' || commandProfile.probe?.validationFailure
+          || commandProfile.probe?.cacheOwnershipPending === true) {
+          providerAvailable = false;
+          addCheck({ name: `${providerId}-command-admission`, status: 'warn',
+            message: `${requestedCmd} launch blocked (${commandProfile.probe?.validationFailure?.reasonCode || commandProfile.resolved?.reason || 'resource settlement pending'}); no handshake attempted.` });
+        } else if (!probeOk && commandDefinitelyMissing) {
           providerAvailable = false;
           addCheck({
             name: `${providerId}-command`,
@@ -599,7 +606,12 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
               const requirementProbeOk = requirementProfile.probe?.ok === true;
               const requirementMissing = !requirementProbeOk
                 && isProbeCommandDefinitelyMissing(requirementProfile.probe);
-              if (!requirementProbeOk && requirementMissing) {
+              if (requirementProfile.resolved?.mode === 'blocked' || requirementProfile.probe?.validationFailure
+                || requirementProfile.probe?.cacheOwnershipPending === true) {
+                providerAvailable = false;
+                addCheck({ name: `${providerId}-runtime-${requirement.id}-admission`, status: 'warn',
+                  message: `${requirement.label} launch blocked (${requirementProfile.probe?.validationFailure?.reasonCode || requirementProfile.resolved?.reason || 'resource settlement pending'}).` });
+              } else if (!requirementProbeOk && requirementMissing) {
                 addCheck({
                   name: `${providerId}-runtime-${requirement.id}`,
                   status: missingBinaryStatus,

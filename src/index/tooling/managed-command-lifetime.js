@@ -2,6 +2,7 @@ import path from 'node:path';
 import { resolveManagedToolInstallation, retainManagedToolInstallation, retainManagedToolInstallationSync } from '../../shared/managed-installation.js';
 import { resolveStorageLayout } from '../../shared/storage/layout.js';
 import { isStorageSessionReleaseFailure, retainSessionFailure } from '../../shared/storage/session.js';
+import { throwIfAborted } from '../../shared/abort.js';
 
 const pendingInstallations = new Set();
 const installationOwners = new WeakMap();
@@ -133,9 +134,15 @@ export const retainPendingManagedCommand = (lease, error, { cleanupError = null,
  * and any owner-reported tree cleanup settle. Timeout or cancellation alone
  * never release it. A delayed exact child close may reconcile a pending error. */
 export const runWithManagedCommandInstallation = async (options, run) => {
+  throwIfAborted(options.signal);
   const lease = await retainManagedCommandInstallation(options);
-  if (!lease) return run({ onSpawn: null });
-  let child = null, closeObserved = false, invocationSettled = false, ownerSettlement = null, primaryFailure = null;
+  const admitInvocation = () => {
+    throwIfAborted(options.signal);
+    options.beforeSpawn?.();
+    throwIfAborted(options.signal);
+  };
+  if (!lease) { admitInvocation(); return run({ onSpawn: null }); }
+  let child = null, closeObserved = false, invocationStarted = false, invocationSettled = false, ownerSettlement = null, primaryFailure = null;
   const reconcile = () => {
     const treeSettled = ownerSettlement === null || ownerSettlement() === true;
     if (!invocationSettled || !closeObserved || !treeSettled) return false;
@@ -162,6 +169,10 @@ export const runWithManagedCommandInstallation = async (options, run) => {
   };
   try {
     lease.assertHeld();
+    // Lease acquisition can await I/O. A cancelled or newly denied launch has
+    // no child: release that exact acquisition before invoking the spawn owner.
+    admitInvocation();
+    invocationStarted = true;
     const value = await run({ onSpawn });
     invocationSettled = true;
     if (!reconcile()) {
@@ -171,6 +182,11 @@ export const runWithManagedCommandInstallation = async (options, run) => {
     }
     return value;
   } catch (error) {
+    if (!invocationStarted) {
+      try { lease.releaseAfterSettlement({ settled: true, pending: false }); }
+      catch (cleanupError) { throw retainPendingManagedCommand(lease, error, { cleanupError }); }
+      throw error;
+    }
     // Capture the subprocess owner's predicate before adding our own pending
     // marker. Our retained lease must not make a later actual close permanent.
     ownerSettlement = observePending(error, lease);

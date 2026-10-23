@@ -27,6 +27,18 @@ try {
     assert.equal(await f.protected(), true, 'incomplete evidence keeps the physical generation leased');
     assert.equal(exactLease.releaseAfterSettlement({ settled: true, pending: false }), true);
     assert.equal(await f.protected(), false);
+    let deniedRuns = 0;
+    const deniedLaunch = Object.assign(new Error('launch authority revoked during lease acquisition'), { code: 'ERR_FIXTURE_DENIED' });
+    await assert.rejects(runWithManagedCommandInstallation({ ...options, beforeSpawn: () => { throw deniedLaunch; } }, () => {
+      deniedRuns += 1;
+    }), error => error === deniedLaunch);
+    assert.equal(deniedRuns, 0, 'denied launch never enters the process owner');
+    assert.equal(await f.protected(), false, 'no-child denial releases the exact acquisition');
+    const admissionCancellation = new AbortController();
+    await assert.rejects(runWithManagedCommandInstallation({ ...options, signal: admissionCancellation.signal,
+      beforeSpawn: () => admissionCancellation.abort() }, () => { deniedRuns += 1; }), { code: 'ABORT_ERR' });
+    assert.equal(deniedRuns, 0);
+    assert.equal(await f.protected(), false, 'cancellation before invocation cannot leave an orphan lease');
     const normal = await runWithManagedCommandInstallation(options, async ({ onSpawn }) => {
       assert.equal(await f.protected(), true);
       const child = new EventEmitter(); onSpawn(child); child.emit('close', 0, null);

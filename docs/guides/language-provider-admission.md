@@ -55,6 +55,18 @@ provider output and late live output observe the same composed request/context
 cancellation signal as preflight, including profile verification and result
 admission. These controls do not cancel or discard already owned child teardown.
 
+Go/Rust workspace commands now retain command admission instead of replacing a
+denied profile with the original executable text. They recheck launch authority,
+use the shared managed-installation lease until subprocess settlement and apply
+the existing environment that disables implicit toolchain provisioning. Cache
+admission and marker publication receive cancellation. Their v3 preflight cache
+includes executable metadata, effective environment and bounded contained watched
+inputs; successes expire after five minutes and failures after fifteen seconds
+unless a caller supplies a stricter existing policy. This cache records probe
+health, not project dependency closure or durable semantic freshness.
+Doctor uses the same repository execution gate and reports denied or pending
+commands separately, without attempting an LSP handshake for them.
+
 Phpactor's dedicated profile and generic PHP LSP route now parse PHP function
 and completion-label presentation, including `$` parameter names, nullable and
 union/intersection types, PHPDoc shapes/generics, by-reference and variadic

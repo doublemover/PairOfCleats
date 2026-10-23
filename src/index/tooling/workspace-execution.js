@@ -25,7 +25,7 @@ export const resolveProviderWorkspaceExecutionAuthority = ({ repoRoot, workspace
   if (authorized) return null;
   const providerId = String(input.providerId || input.server?.workspaceExecutionProfile || input.server?.id || 'provider');
   const reasonCode = `${providerId}_workspace_trust_required`;
-  const message = `${providerId} requires an exact launch-owned repository trust grant before project autoloaders, generated PHP or extensions may execute.`;
+  const message = `${providerId} requires an exact launch-owned repository trust grant before project loaders, build hooks or extensions may execute.`;
   return { state: 'blocked', blockProvider: true, reasonCode, message,
     check: { name: reasonCode, status: 'warn', message } };
 };
