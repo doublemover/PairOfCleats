@@ -222,6 +222,15 @@ Typed index-watch lifecycle frames can show **idle-watch**, indexing and degrade
 
 **Select Service Repository** separates the API host's repository path from this editor's local checkout. `/status` must admit that service root and report a matching Git revision with clean service source; editor worktree freshness remains unverified. Paths are mapped using service-host path rules and traversal is rejected. Non-Git identities require local CLI or another qualified workflow. Sublime has no automatic SSH/WSL/container shell transport: run a compatible CLI on the host where Sublime executes, or deliberately select supported API operations. `require` never silently switches to CLI. Connection recovery does not replay mutations or change binds/credentials.
 
+Search, symbol completion, Server Status and Index Health retain the repository,
+endpoint and nested settings observed before service mapping. Switching the
+selected repository during the native mapping prompt cannot retarget that
+pending request. Status and health map the service repository explicitly and
+display both roots. A local Git revision change during mapping requires a new
+selection; stale saved mappings cannot supply that revision. Cancelling
+**Select Repository** keeps the previous choice. The additional command-level
+regressions are authored; supported host/topology qualification remains open.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only

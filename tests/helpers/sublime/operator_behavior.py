@@ -52,6 +52,7 @@ class OperatorBehaviorTests(unittest.TestCase):
             'run_async': self.operator.api_client.run_async,
             'health_json': self.operator.api_client.health_json,
             'status_json': self.operator.api_client.status_json,
+            'service_resolve': self.operator.service_repository.resolve,
         }
         self.operator.config.get_settings = lambda _window: {
             'api_server_url': 'http://127.0.0.1:7464',
@@ -70,10 +71,13 @@ class OperatorBehaviorTests(unittest.TestCase):
         self.operator.api_client.run_async = self._run_async
         self.operator.api_client.health_json = self._health_json
         self.operator.api_client.status_json = self._status_json
+        self.operator.service_repository.resolve = lambda _window, _settings, root, on_done: on_done(root)
 
     def tearDown(self):
         for key, value in self._originals.items():
-            if key == 'get_settings':
+            if key == 'service_resolve':
+                self.operator.service_repository.resolve = value
+            elif key == 'get_settings':
                 self.operator.config.get_settings = value
             elif key == 'validate_settings':
                 self.operator.config.validate_settings = value

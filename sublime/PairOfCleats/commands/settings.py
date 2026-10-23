@@ -118,12 +118,12 @@ class PairOfCleatsShowEffectiveSettingsCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsSelectRepoCommand(sublime_plugin.WindowCommand):
     def run(self, clear=False):
-        paths.select_repo(self.window)
         if clear:
+            paths.select_repo(self.window)
             ui.show_status('PairOfCleats: repository selection cleared.')
             return
         paths.resolve_repo_root_interactive(self.window, lambda root, reason: (
-            paths.select_repo(self.window, root), ui.show_status(reason or root or 'Selection cancelled.')))
+            ui.show_status(reason or root or 'Selection cancelled.')), force_prompt=True)
 
 
 def _render_effective_settings(settings, overrides):

@@ -69,18 +69,19 @@ def has_repo_root(window, path_hint=None, allow_fallback=True):
     return root is not None
 
 
-def resolve_repo_root_interactive(window, on_done, path_hint=None, allow_fallback=True, prompt='PairOfCleats repo'):
+def resolve_repo_root_interactive(window, on_done, path_hint=None, allow_fallback=True, prompt='PairOfCleats repo',
+                                  force_prompt=False):
     scope = operations.capture(window)
     callback = on_done
     def on_done(root, reason):
         if operations.is_current(scope):
             callback(root, reason)
     resolution = _describe_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
+    repo_roots = resolution.get('repo_roots') or []
     selected_root = resolution.get('selected_root')
-    if selected_root:
+    if selected_root and not (force_prompt and len(repo_roots) > 1):
         on_done(selected_root, resolution.get('reason'))
         return
-    repo_roots = resolution.get('repo_roots') or []
     if len(repo_roots) <= 1 or window is None or not hasattr(window, 'show_quick_panel'):
         on_done(None, resolution.get('reason'))
         return
@@ -98,10 +99,19 @@ def resolve_repo_root_interactive(window, on_done, path_hint=None, allow_fallbac
         items.append([label, hint])
 
     def on_select(index):
+        if not operations.is_current(scope):
+            return
         if index < 0:
             on_done(None, 'Repo selection cancelled.')
             return
+        if index >= len(repo_roots):
+            return
         chosen = repo_roots[index]
+        current = _describe_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
+        if not any(os.path.normcase(entry['root']) == os.path.normcase(chosen['root'])
+                   for entry in current.get('repo_roots') or []):
+            on_done(None, 'Selected repository is no longer available. Choose a current repository.')
+            return
         select_repo(window, chosen.get('root'))
         on_done(chosen.get('root'), 'Using selected repo: {0}'.format(chosen.get('root')))
 
@@ -140,9 +150,10 @@ def _describe_repo_root(window, path_hint=None, allow_fallback=True):
 
     def add_root(root, source):
         normalized = os.path.abspath(root)
-        if normalized in seen_roots:
+        identity = os.path.normcase(normalized)
+        if identity in seen_roots:
             return
-        seen_roots.add(normalized)
+        seen_roots.add(identity)
         repo_roots.append({'root': normalized, 'source': source})
 
     if hint_repo_root:

@@ -3,6 +3,8 @@ import ntpath
 import os
 import posixpath
 import re
+import copy
+from urllib.parse import urlsplit, urlunsplit
 
 from . import api_client, operations, ui
 
@@ -58,74 +60,130 @@ def git_head(root):
 
 
 def validate_root(value):
+    if not isinstance(value, str):
+        raise ValueError('Use an absolute service-host repository path without traversal components.')
     root = value.strip()
-    if (not root or '\0' in root or not (posixpath.isabs(root) or ntpath.isabs(root))
+    drive, tail = ntpath.splitdrive(root)
+    if (not root or '\0' in root or '\r' in root or '\n' in root
+            or root.startswith(('\\\\?\\', '\\\\.\\'))
+            or root.startswith('\\') and not root.startswith('\\\\')
+            or drive and (tail and not ntpath.isabs(tail) or not tail and len(drive) == 2)
+            or not (posixpath.isabs(root) or ntpath.isabs(root))
             or any(part in ('.', '..') for part in root.replace('\\', '/').split('/'))):
         raise ValueError('Use an absolute service-host repository path without traversal components.')
     return root
 
 
 def relative_file(value, root):
+    root = validate_root(root)
+    if not isinstance(value, str) or not value or any(char in value for char in ('\0', '\r', '\n')):
+        raise ValueError('Service returned an invalid source path.')
     flavor = ntpath if ntpath.splitdrive(root)[0] else posixpath
-    relative = flavor.relpath(value, root) if flavor.isabs(value) else value
+    # Validate before normalization: relpath would erase traversal components.
+    if any(part in ('.', '..') for part in value.replace('\\', '/').split('/')):
+        raise ValueError('Service returned a source path with traversal components.')
+    try:
+        relative = flavor.relpath(value, root) if flavor.isabs(value) else value
+    except ValueError:
+        raise ValueError('Service returned a source path outside its selected repository.')
     normalized = relative.replace('\\', '/')
     if (not normalized or normalized.startswith('/') or ':' in normalized
-            or any(part in ('.', '..') for part in normalized.split('/'))):
+            or any(part in ('', '.', '..') for part in normalized.split('/'))):
         raise ValueError('Service returned a source path outside its selected repository.')
     return normalized
 
 
 def map_payload(payload, root):
-    result = dict(payload)
+    if not isinstance(payload, dict):
+        raise ValueError('Service returned an invalid search response.')
+    result = copy.deepcopy(payload)
     for section in ('code', 'prose', 'extractedProse', 'records'):
-        if isinstance(payload.get(section), list):
-            result[section] = [dict(hit, file=relative_file(hit['file'], root)) for hit in payload[section]]
+        if section not in payload:
+            continue
+        if not isinstance(payload[section], list):
+            raise ValueError('Service returned invalid search section membership.')
+        for hit in result[section]:
+            if not isinstance(hit, dict) or 'file' not in hit:
+                raise ValueError('Service returned a search hit without a qualified source path.')
+            hit['file'] = relative_file(hit['file'], root)
     return result
 
 
 def resolve(window, settings, local_root, on_done, force=False):
     scope = operations.capture(window)
+    settings = copy.deepcopy(settings)
+    local_root = os.path.abspath(local_root)
     base = api_client.normalize_base_url(settings.get('api_server_url'))
+    try:
+        parsed = urlsplit(base)
+        hostname = parsed.hostname or ''
+        if ':' in hostname:
+            hostname = '[' + hostname + ']'
+        endpoint = urlunsplit((parsed.scheme, hostname + (':' + str(parsed.port) if parsed.port else ''), parsed.path, '', ''))
+    except ValueError:
+        ui.show_error('PairOfCleats: API endpoint is invalid. Inspect User Settings.')
+        return
     commit = git_head(local_root)
     if not commit:
         ui.show_error('PairOfCleats: service mapping requires a readable Git HEAD. Use local CLI mode for unsupported source identities.')
         return
-    mappings = (window.settings().get(KEY) or {}) if hasattr(window, 'settings') else _MAPPINGS.setdefault(window.id(), {})
+    stored = window.settings().get(KEY) if hasattr(window, 'settings') else _MAPPINGS.get(window.id())
+    mappings = copy.deepcopy(stored) if isinstance(stored, dict) else {}
     key = base + '::' + local_root
     existing = None if force else mappings.get(key)
+    if not isinstance(existing, dict) or existing.get('commit') != commit or not isinstance(existing.get('serviceRoot'), str):
+        existing = None
+
+    def current():
+        if not operations.is_current(scope):
+            return False
+        if git_head(local_root) != commit:
+            ui.show_error('PairOfCleats: local Git revision changed during service mapping. Select the repository again.')
+            return False
+        return True
+
     def check(value):
+        if not current():
+            return
         try:
             root = validate_root(value)
         except ValueError as error:
             ui.show_error(str(error))
             return
         def ready(response):
-            if not operations.is_current(scope):
+            if not current():
                 return
             if response.error:
                 ui.show_error(response.error)
                 return
-            provenance = ((response.payload or {}).get('coverage') or {}).get('currentProvenance') or {}
-            observed = (provenance.get('head') or {}).get('commitId') or provenance.get('commit')
-            if not observed or observed.lower() != commit or provenance.get('dirty') is not False:
+            payload = response.payload if isinstance(response.payload, dict) else {}
+            coverage = payload.get('coverage')
+            provenance = coverage.get('currentProvenance') if isinstance(coverage, dict) else None
+            provenance = provenance if isinstance(provenance, dict) else {}
+            head = provenance.get('head')
+            observed = (head.get('commitId') if isinstance(head, dict) else None) or provenance.get('commit')
+            if not isinstance(observed, str) or observed.lower() != commit or provenance.get('dirty') is not False:
                 ui.show_error('PairOfCleats: service source revision does not match this checkout, or its source is dirty.')
                 return
             def use(index):
-                if index != 0 or not operations.is_current(scope):
+                if index != 0 or not current():
                     return
-                mappings[key] = {'serviceRoot': root, 'commit': commit}
-                _MAPPINGS[window.id()] = mappings
+                # Preserve mappings admitted by other requests during this wait.
+                latest = window.settings().get(KEY) if hasattr(window, 'settings') else _MAPPINGS.get(window.id())
+                updated = copy.deepcopy(latest) if isinstance(latest, dict) else {}
+                updated[key] = {'serviceRoot': root, 'commit': commit}
+                _MAPPINGS[window.id()] = updated
                 if hasattr(window, 'settings'):
-                    window.settings().set(KEY, mappings)
+                    window.settings().set(KEY, updated)
                 on_done(root)
             if existing:
                 use(0)
             else:
-                window.show_quick_panel([['Use repository mapping', base + ' ' + root,
+                window.show_quick_panel([['Use repository mapping', endpoint + ' ' + root,
                     'Revision ' + commit[:12] + '; editor working-tree freshness remains unverified.']], use)
         api_client.run_async(lambda: api_client.status_json(base, root, settings), ready,
                              window=window, scope=scope)
     if existing:
         check(existing['serviceRoot'])
     else:
-        window.show_input_panel('Repository path on service host ' + base, local_root, check, None, None)
+        window.show_input_panel('Repository path on service host ' + endpoint, local_root, check, None, None)

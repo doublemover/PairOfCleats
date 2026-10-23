@@ -1,4 +1,5 @@
 import json
+import copy
 import os
 from urllib.parse import urlparse
 
@@ -254,7 +255,9 @@ def get_setting_groups():
 def get_settings(window=None):
     base = _load_base_settings()
     overrides = filter_project_settings(extract_project_settings(window))
-    return merge_settings(base, overrides)
+    # Sublime returns live nested values. A pending picker/request owns the
+    # values observed here, including lists and environment dictionaries.
+    return copy.deepcopy(merge_settings(base, overrides))
 
 
 def _api_origin(value):

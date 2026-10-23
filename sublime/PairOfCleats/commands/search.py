@@ -1,5 +1,6 @@
 import os
 import uuid
+import copy
 import sublime
 import sublime_plugin
 
@@ -331,6 +332,8 @@ def _prompt_limit(window, options, on_done):
 
 def _execute_search(window, query, overrides=None, explain=False, enumeration=False, append_session=None, service_root=None,
                     operation_scope=None):
+    overrides = copy.deepcopy(overrides)
+    append_session = copy.deepcopy(append_session)
     if not _saved_scope_available(overrides):
         return
     if not query and not enumeration:
@@ -382,8 +385,21 @@ def _execute_search(window, query, overrides=None, explain=False, enumeration=Fa
         ui.show_error('PairOfCleats: service repository mapping changed. Restart indexed browsing.')
         return
     if execution.get('mode') == 'api' and not service_root:
-        service_repository.resolve(window, settings, repo_root, lambda selected: _execute_search(
-            window, query, overrides, explain, enumeration, append_session, selected, operation_scope=scope))
+        # Mapping may involve HTTP and native input. Resume the admitted request,
+        # never resolve a different repository or today's settings afterward.
+        service_repository.resolve(window, settings, repo_root, lambda selected: _dispatch_search(
+            window, query, repo_root, settings, resolved, execution, scope, explain, enumeration, append_session, selected))
+        return
+    _dispatch_search(window, query, repo_root, settings, resolved, execution, scope, explain, enumeration,
+                     append_session, service_root)
+
+
+def _dispatch_search(window, query, repo_root, settings, resolved, execution, scope, explain=False,
+                     enumeration=False, append_session=None, service_root=None):
+    if not operations.is_current(scope):
+        return
+    if append_session and service_root and append_session.get('serviceRoot') != service_root:
+        ui.show_error('PairOfCleats: service repository mapping changed. Restart indexed browsing.')
         return
 
     def handle_payload(result):
@@ -582,6 +598,7 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
     if not query:
         return
 
+    scope = operations.capture(window, key='symbol-lookup')
     settings = config.get_settings(window)
     repo_root, reason = _resolve_repo_root(window)
     if not repo_root:
@@ -610,11 +627,20 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
         return
 
     if execution.get('mode') == 'api' and not service_root:
-        service_repository.resolve(window, settings, repo_root, lambda selected: _execute_symbol_lookup(
-            window, query, on_hits, limit, title, selected))
+        service_repository.resolve(window, settings, repo_root, lambda selected: _dispatch_symbol_lookup(
+            window, query, on_hits, repo_root, settings, resolved, execution, scope, title, selected))
+        return
+    _dispatch_symbol_lookup(window, query, on_hits, repo_root, settings, resolved, execution, scope, title, service_root)
+
+
+def _dispatch_symbol_lookup(window, query, on_hits, repo_root, settings, resolved, execution, scope,
+                            title, service_root=None):
+    if not operations.is_current(scope):
         return
 
     def on_done(result):
+        if not operations.is_current(scope):
+            return
         if result.returncode != 0:
             message = result.output.strip() or '{0} failed.'.format(title)
             ui.show_error(message)
@@ -649,10 +675,12 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
             show_panel=bool(settings.get('progress_panel_on_start', True)),
         )
         def on_api_done(result):
+            if not operations.is_current(scope):
+                return
             if result.error:
                 tasks.complete_task(window, task, status='failed', details=result.error)
                 if execution.get('allow_fallback'):
-                    _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done)
+                    _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done, scope)
                     return
                 ui.show_error(result.error)
                 return
@@ -671,14 +699,15 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
             on_api_done,
             on_progress=lambda message: tasks.note_progress(window, task, details=message),
             window=window,
+            scope=scope,
             task=task,
         )
         return
 
-    _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done)
+    _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done, scope)
 
 
-def _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done):
+def _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done, scope=None):
     args = search_lib.build_search_args(
         query,
         repo_root=repo_root,
@@ -699,7 +728,8 @@ def _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, tit
         title=title,
         capture_json=True,
         on_done=on_done,
-        stream_output=False
+        stream_output=False,
+        operation_scope=scope,
     )
 
 
