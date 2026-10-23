@@ -479,7 +479,7 @@ class Collector(ast.NodeVisitor):
                     args.append(f"{kw.arg}=" + format_arg_value(kw.value))
                 else:
                     args.append("**...")
-            self.call_details.append({"caller": caller, "callee": callee, "args": args})
+            self.call_details.append({"caller": caller, "callerScopeId": self.current_scope() or "(module)", "callee": callee, "args": args})
         self.generic_visit(node)
     def visit_Assign(self, node):
         writes = set()

@@ -193,7 +193,6 @@ export function buildChunkRelations({ lang, chunk, fileRelations, callIndex = nu
       : (Array.isArray(fileRelations.calls)
         ? fileRelations.calls.filter(([caller]) => caller && caller === chunk.name)
         : []);
-    if (callsForChunk.length) output.calls = callsForChunk;
     let detailsForChunk = [];
     if (callIndex?.callDetailsByChunkIndex && Number.isFinite(chunkIndex)) {
       detailsForChunk = callIndex.callDetailsByChunkIndex.get(chunkIndex) || [];
@@ -202,6 +201,21 @@ export function buildChunkRelations({ lang, chunk, fileRelations, callIndex = nu
     } else if (Array.isArray(fileRelations.callDetails)) {
       detailsForChunk = fileRelations.callDetails.filter((detail) => detail?.caller === chunk.name);
     }
+    if (lang?.id === 'python' && typeof chunk.meta?.pythonScopeId === 'string'
+      && fileRelations.callOwnership === 'python-lexical-scope-v1') {
+      // A display name can recur in separate lexical declarations. Preserve
+      // the collector's source-qualified owner through the public projection.
+      // Intersect both already-budgeted channels; never reconstruct discarded
+      // calls from an unbudgeted chunk metadata copy.
+      detailsForChunk = detailsForChunk.filter(detail => detail.callerScopeId === chunk.meta.pythonScopeId);
+      const callees = new Set(detailsForChunk.map(detail => detail.callee).filter(Boolean));
+      const seen = new Set();
+      output.calls = callsForChunk.filter(([, callee]) => {
+        if (!callees.has(callee) || seen.has(callee)) return false;
+        seen.add(callee); return true;
+      });
+      output.callCoverage = 'partial-python-syntax-lexical-ownership';
+    } else if (callsForChunk.length) output.calls = callsForChunk;
     if (detailsForChunk.length) output.callDetails = detailsForChunk;
   }
   if (lang?.attachName && chunk?.name) output.name = chunk.name;

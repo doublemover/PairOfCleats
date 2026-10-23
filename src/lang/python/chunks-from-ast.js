@@ -39,6 +39,7 @@ export function buildPythonChunksFromAst(text, astData) {
       name: current.name,
       kind: current.kind || 'FunctionDeclaration',
       meta: {
+        pythonScopeId: current.scopeId || null,
         startLine: current.startLine,
         definitionStartLine: current.definitionStartLine ?? current.startLine,
         definitionStartCol: current.definitionStartCol ?? current.startCol,
