@@ -7,20 +7,20 @@ import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { parseJsonBodyOrSendError, resolveRepoOrSendError } from './request-helpers.js';
 
 export const handleSemanticExplainRoute = async ({ req, res, corsHeaders, parseJsonBody, resolveRepo }) => withHttpRequestLifetime(req, res, async (lifetime) => {
-  const parsed = await lifetime.prepare(parseJsonBodyOrSendError(req, res, parseJsonBody, corsHeaders));
+  const parsed = await lifetime.prepare(() => parseJsonBodyOrSendError(req, res, parseJsonBody, corsHeaders));
   if (!parsed.ok) return true;
   try { assertSemanticExplain('request', parsed.payload); } catch (error) {
     sendError(res, 400, ERROR_CODES.INVALID_REQUEST, error.message, { semanticCode: error.code }, corsHeaders || {});
     return true;
   }
-  const resolved = await lifetime.prepare(resolveRepoOrSendError(res, resolveRepo, parsed.payload.repoRoot, corsHeaders));
+  const resolved = await lifetime.prepare(() => resolveRepoOrSendError(res, resolveRepo, parsed.payload.repoRoot, corsHeaders));
   if (!resolved.ok) return true;
   const controller = lifetime;
   try {
     const result = await runSemanticExplain({ ...parsed.payload, repoRoot: resolved.repoPath }, { signal: controller.signal });
     sendJson(res, 200, { ok: true, result }, corsHeaders || {});
   } catch (error) {
-    if (lifetime.closed()) return true;
+    if (lifetime.closedAfterFailure(error)) return true;
     const failure = classifySemanticDetailError(error);
     const code = failure.status === 404 ? ERROR_CODES.NO_INDEX : failure.status === 403 ? ERROR_CODES.FORBIDDEN
       : failure.status < 500 ? ERROR_CODES.INVALID_REQUEST : ERROR_CODES.INTERNAL;

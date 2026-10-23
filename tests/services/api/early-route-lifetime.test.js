@@ -34,7 +34,7 @@ try {
     ['semantic-enrichment', 'handleSemanticEnrichmentRoute'], ['runtime-evidence', 'handleRuntimeEvidenceRoute']];
   for (const [file, exported] of specs) {
     const handler = (await import(`../../../tools/api/router/${file}.js`))[exported];
-    for (const seam of ['entry', 'body', 'repository', 'operation', 'healthy']) {
+    for (const seam of ['entry', 'body', 'repository', 'request-error', 'operation', 'healthy']) {
       const req = new EventEmitter(), res = new EventEmitter();
       let writes = 0;
       res.writeHead = () => { writes++; }; res.end = () => { res.writableEnded = true; };
@@ -48,11 +48,16 @@ try {
       };
       await handler({ req, res, operation: 'families', parseJsonBody: async () => {
         if (seam === 'body') disconnect(); return { repoRoot: 'authored' };
-      }, resolveRepo: async () => { if (seam === 'repository') disconnect(); return 'authored'; } });
+      }, resolveRepo: async () => {
+        if (seam === 'repository') disconnect();
+        if (seam === 'request-error') req.emit('error', new Error('request stream failed'));
+        return 'authored';
+      } });
       assert.equal(globalThis.__routeLifetimeEvents.length, ['healthy', 'operation'].includes(seam) ? 1 : 0, `${file}:${seam}`);
       if (seam === 'operation') assert.equal(globalThis.__routeLifetimeEvents[0].aborted, true);
       assert.equal(writes, seam === 'healthy' ? 1 : 0);
       assert.equal(req.listenerCount('aborted'), 0);
+      assert.equal(req.listenerCount('error'), 0);
       assert.equal(res.listenerCount('close'), 0);
       assert.equal(res.listenerCount('error'), 0);
     }

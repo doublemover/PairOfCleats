@@ -1,5 +1,6 @@
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { sendError } from '../response.js';
+import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
 
 export const parseStringList = (value) => {
   if (Array.isArray(value)) {
@@ -79,6 +80,7 @@ export const parseJsonBodyOrSendError = async (
   try {
     return { ok: true, payload: await parseJsonBody(req) };
   } catch (err) {
+    observeStorageResource(err, { phase: 'http-body-preparation' }).requireSettled();
     sendClassifiedRequestError(
       res,
       classifyBodyParseError(err, fallbackMessage),
@@ -98,6 +100,7 @@ export const resolveRepoOrSendError = async (
   try {
     return { ok: true, repoPath: await resolveRepo(repoValue) };
   } catch (err) {
+    observeStorageResource(err, { phase: 'http-repository-preparation' }).requireSettled();
     sendClassifiedRequestError(
       res,
       classifyRepoResolveError(err, fallbackMessage),
