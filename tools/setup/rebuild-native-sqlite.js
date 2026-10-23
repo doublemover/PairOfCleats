@@ -17,7 +17,8 @@ export const rebuildSqliteNativeFromSource = (root, runNpmCommand) => {
   const packageRoot = path.join(root, 'node_modules', 'better-sqlite3');
   const build = runNpmCommand(['run', 'build-release'], {
     cwd: packageRoot,
-    buildFromSource: true
+    // build-release already passes --force_build=1; no legacy npm config key.
+    buildFromSource: false
   });
   if (!build.ok) return build;
 
@@ -26,7 +27,7 @@ export const rebuildSqliteNativeFromSource = (root, runNpmCommand) => {
 
 export const rebuildSqliteNativeFromSourceAsync = async (root, runNpmCommand) => {
   const build = await runNpmCommand(['run', 'build-release'], {
-    cwd: path.join(root, 'node_modules', 'better-sqlite3'), buildFromSource: true
+    cwd: path.join(root, 'node_modules', 'better-sqlite3'), buildFromSource: false
   });
   return build.ok ? promoteSqliteBuild(root) : build;
 };

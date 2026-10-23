@@ -121,10 +121,10 @@ export const runSetupPreflight = ({ nodeVersion = process.versions.node, platfor
     }
     toolchain = { make: make.split(/\r?\n/)[0], compiler, cCompiler };
   }
-  const childEnv = { NODE_GYP_FORCE_PYTHON: python.executable, npm_config_python: python.executable };
+  const childEnv = { NODE_GYP_FORCE_PYTHON: python.executable, npm_package_config_node_gyp_python: python.executable };
   if (platform === 'win32') {
     childEnv.GYP_MSVS_VERSION = toolchain.compiler.installationPath;
-    childEnv.npm_config_msvs_version = toolchain.compiler.installationPath;
+    childEnv.npm_package_config_node_gyp_msvs_version = toolchain.compiler.installationPath;
     childEnv.WindowsSdkDir = toolchain.sdk.root;
     childEnv.WindowsSDKVersion = toolchain.sdk.version + '\\';
   } else {

@@ -1,0 +1,21 @@
+diff --git a/node_modules/node-gyp/lib/find-python.js b/node_modules/node-gyp/lib/find-python.js
+index 273b5957b4992f4625a799a98454b9a65e144b7a..4800d8f617df3aea6cc69c90a6e26819fa9039bf 100644
+--- a/node_modules/node-gyp/lib/find-python.js
++++ b/node_modules/node-gyp/lib/find-python.js
+@@ -2,6 +2,7 @@
+ 
+ const log = require('./log')
+ const semver = require('semver')
++const path = require('path')
+ const { execFile } = require('./util')
+ const win = process.platform === 'win32'
+ 
+@@ -167,7 +168,7 @@
+     let exec = command
+     let args = this.argsExecutable
+     let shell = false
+-    if (this.win) {
++    if (this.win && !(path.win32.isAbsolute(command) && path.win32.extname(command).toLowerCase() === '.exe')) {
+       // Arguments have to be manually quoted
+       exec = `"${exec}"`
+       args = args.map(a => `"${a}"`)

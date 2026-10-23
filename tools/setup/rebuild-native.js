@@ -131,7 +131,7 @@ const buildNpmEnv = ({ buildFromSource = false } = {}) => {
 const runNativeCommand = async (command, args, { cwd = root, buildFromSource = false,
   signal = null, compilerJobs = bootstrapBudget.cpuCount, env: extraEnv = {}, capture = false } = {}) => {
   const env = { ...buildNpmEnv({ buildFromSource }), ...extraEnv,
-    npm_config_jobs: String(compilerJobs) };
+    npm_package_config_node_gyp_jobs: String(compilerJobs) };
   try {
     const result = await spawnResolvedSubprocess(command, args, {
       cwd, stdio: capture ? 'pipe' : 'inherit', env, signal, timeoutMs: 600000,
@@ -418,7 +418,6 @@ const packages = [
 const adapters = new Map(packages.map(entry => [entry.packageName, inspectNativeBuildAdapter(root, entry.packageName)])
   .filter(([, adapter]) => adapter));
 const headerCache = path.join(root, '.cache', 'native-build', 'headers');
-const headerDirectory = path.join(headerCache, process.versions.node);
 const prepareHeaders = async ({ signal, compilerJobs }) => {
   // No concurrent node-gyp downloads or global header-cache mutation. The
   // prepared headers become read-only inputs to every package-local build.
@@ -438,7 +437,10 @@ const buildLocal = async (adapter, context) => {
   // Recheck the admitted owner at dispatch, not only while constructing the DAG.
   const current = inspectNativeBuildAdapter(root, adapter.packageName);
   if (!current || current.nodeGyp !== adapter.nodeGyp) return { ok: false, message: 'Native adapter input changed before dispatch.' };
-  const env = { npm_config_nodedir: headerDirectory, npm_config_devdir: headerCache };
+  // Downloaded node-gyp headers use <version>/<arch>/node.lib on Windows.
+  // --nodedir describes a Node source tree and instead selects Release/node.lib.
+  // Keep the prepared task cache, using node-gyp's installed-header layout.
+  const env = { npm_package_config_node_gyp_nodedir: '', npm_package_config_node_gyp_devdir: headerCache };
   const options = { ...context, cwd: adapter.packageRoot, capture: true, env };
   if (!adapter.forceSource) {
     const prebuild = await runNativeCommand(process.execPath, [adapter.prebuildTest], options);
@@ -446,7 +448,8 @@ const buildLocal = async (adapter, context) => {
     if (context.signal.aborted) return prebuild;
   }
   return runNativeCommand(process.execPath, [adapter.nodeGyp, 'rebuild',
-    '--jobs=' + context.compilerJobs, '--nodedir=' + headerDirectory,
+    '--jobs=' + context.compilerJobs, '--devdir=' + headerCache,
+    '--dist-url=https://nodejs.org/download/release', '--target=' + process.versions.node,
     '--arch=' + process.arch], options);
 };
 const buildFallback = async (entry, context) => {

@@ -36,6 +36,18 @@ changing runtime/dependencies or rebuilding derived artifacts.
   verification cannot repair missing patches. Do not share native modules
   across Node versions or bypass a missing/stale readiness receipt.
 
+Windows local native builds use the prepared node-gyp installed-header cache
+(`--devdir`), whose import library is `<version>/<arch>/node.lib`. Passing that
+cache as `--nodedir` incorrectly selects the Node source-tree layout
+`Release/node.lib`. The locked node-gyp Python discovery patch invokes selected
+absolute `.exe` paths directly, preserving argument boundaries without a shell;
+relative commands and CMD launchers retain their existing discovery behavior.
+Child options use npm 11's supported `npm_package_config_node_gyp_*` keys.
+SQLite's `build-release` already selects `--force_build=1` and needs no legacy
+npm build-from-source environment option. The explicit VSCE signing installer
+policy covers its locked package; package/release signing remains separately
+qualified.
+
 The [October 5 policy](../archived/node-runtime-policy-2026-10-05.md) records
 the superseded Node 24 baseline and earlier action migration. The
 [macOS comparison proposal](../benchmarks/node-runtime-comparison.md) remains

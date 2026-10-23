@@ -41,4 +41,16 @@ for (const dep of required) {
   );
 }
 
+if (process.platform === 'win32') {
+  // Inspect the actual node-gyp project produced by locked bootstrap, rather
+  // than a copied command fixture: downloaded headers select <arch>/node.lib.
+  const project = fs.readFileSync(path.join(root, 'node_modules/tree-sitter/build/tree_sitter_runtime_binding.vcxproj'), 'utf8')
+    .replaceAll('\\\\', '\\');
+  const library = path.join(root, '.cache/native-build/headers', process.versions.node, process.arch, 'node.lib');
+  assert.ok(project.includes(library), 'actual Windows binding must link the installed architecture library');
+  assert.ok(fs.statSync(library).size > 0, 'selected import library must exist');
+  assert.equal(project.includes(path.join(root, '.cache/native-build/headers', process.versions.node, 'Release/node.lib')), false,
+    'a downloaded header cache is not a Node source checkout');
+}
+
 console.log('rebuild native required contract test passed');

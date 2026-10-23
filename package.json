@@ -173,6 +173,7 @@
     }
   },
   "allowScripts": {
+    "@vscode/vsce-sign@2.1.0": true,
     "@derekstride/tree-sitter-sql@0.3.11": true,
     "@eagleoutice/tree-sitter-r@1.1.2": true,
     "@ganezdragon/tree-sitter-perl@1.1.1": true,
