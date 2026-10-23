@@ -4,9 +4,8 @@ import { buildHighlightRegex } from './highlight.js';
 import {
   buildPhraseNgrams,
   annotateQueryAst,
-  parseQueryWithFallback,
-  tokenizePhrase,
-  tokenizeQueryTerms
+  createQueryLeafAnalysis,
+  parseQueryWithFallback
 } from '../query-parse.js';
 import {
   classifyQuery,
@@ -75,25 +74,26 @@ export function buildQueryPlan({
   };
   const parseResult = parseQueryWithFallback(query);
   const parsedQuery = parseResult.parsed;
-  const queryAst = applyQueryMatchPolicy(annotateQueryAst(parsedQuery.ast, dict, tokenizationOptions, postingsConfig), queryMatch);
-  const includeTokens = tokenizeQueryTerms(parsedQuery.includeTerms, dict, tokenizationOptions);
+  const leafAnalysis = createQueryLeafAnalysis(dict, tokenizationOptions, { postingsConfig: postingsConfig || {}, queryMatch });
+  const queryAst = applyQueryMatchPolicy(annotateQueryAst(parsedQuery.ast, dict, tokenizationOptions, postingsConfig, leafAnalysis), queryMatch);
+  const includeTokens = leafAnalysis.tokenizeTerms(parsedQuery.includeTerms);
   const phraseTokens = parsedQuery.phrases
-    .map((phrase) => tokenizePhrase(phrase, dict, tokenizationOptions))
+    .map((phrase) => leafAnalysis.tokenizePhrase(phrase))
     .filter((tokens) => tokens.length);
   const phraseInfo = buildPhraseNgrams(phraseTokens, postingsConfig);
   const phraseNgrams = phraseInfo.ngrams;
   const phraseNgramSet = phraseNgrams.length ? new Set(phraseNgrams) : null;
   const phraseRange = { min: phraseInfo.minLen, max: phraseInfo.maxLen };
-  const excludeTokens = tokenizeQueryTerms(parsedQuery.excludeTerms, dict, tokenizationOptions);
+  const excludeTokens = leafAnalysis.tokenizeTerms(parsedQuery.excludeTerms);
   const excludePhraseTokens = parsedQuery.excludePhrases
-    .map((phrase) => tokenizePhrase(phrase, dict, tokenizationOptions))
+    .map((phrase) => leafAnalysis.tokenizePhrase(phrase))
     .filter((tokens) => tokens.length);
   const excludePhraseInfo = buildPhraseNgrams(excludePhraseTokens, postingsConfig);
   const excludePhraseNgrams = excludePhraseInfo.ngrams;
   const excludePhraseRange = excludePhraseInfo.minLen && excludePhraseInfo.maxLen
     ? { min: excludePhraseInfo.minLen, max: excludePhraseInfo.maxLen }
     : null;
-  const phraseScoringTokens = tokenizeQueryTerms(parsedQuery.phrases, dict, { ...tokenizationOptions, caseSensitive: false });
+  const phraseScoringTokens = leafAnalysis.tokenizeScoringTerms(parsedQuery.phrases);
   const queryTokens = [...includeTokens, ...phraseScoringTokens];
   const rx = buildHighlightRegex(queryTokens, { caseSensitive: caseTokens });
   const embeddingQueryText = [...parsedQuery.includeTerms, ...parsedQuery.phrases]

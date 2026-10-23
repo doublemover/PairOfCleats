@@ -1,4 +1,5 @@
 import { stem as stemEnglish } from '../shared/tokenize.js';
+import { types } from 'node:util';
 import {
   parseChurnArg as parseChurnArgCore,
   parseModifiedArgs as parseModifiedArgsCore,
@@ -268,6 +269,95 @@ export const tokenizePhrase = (phrase, dict, options = {}) => {
   });
 };
 
+const originalSetHas = Set.prototype.has;
+const tokenHookKeys = ['tokenHook', 'expandToken', 'languageTokenHook', 'tokenHooks'];
+const primitive = value => value == null || ['string', 'number', 'boolean', 'undefined'].includes(typeof value);
+const plainOptions = input => input && typeof input === 'object' && !types.isProxy(input)
+  && [Object.prototype, null].includes(Object.getPrototypeOf(input));
+const captureCoreOptions = input => {
+  if (!plainOptions(input) || tokenHookKeys.some(key => key in input)) return null;
+  const owned = {};
+  for (const key of ['caseSensitive', 'language', 'lang', 'languages', 'stemming', 'cjkFallback',
+    'cjkMinGram', 'cjkMaxGram', 'segmentation', 'dpMaxTokenLength']) {
+    const descriptor = Object.getOwnPropertyDescriptor(input, key);
+    if (!descriptor) { if (key in input) return null; continue; }
+    if (!Object.hasOwn(descriptor, 'value')) return null;
+    const value = descriptor.value;
+    if (key === 'languages' && Array.isArray(value)) {
+      if (types.isProxy(value)) return null;
+      // The profile consumes only the first language, not the config's other
+      // dictionary inventory arrays or its adaptive segmentation schedule.
+      const length = Object.getOwnPropertyDescriptor(value, 'length').value;
+      const first = length ? Object.getOwnPropertyDescriptor(value, '0') : null;
+      if (length && (!first || !Object.hasOwn(first, 'value') || !primitive(first.value))) return null;
+      owned[key] = Object.freeze(length ? [first.value] : []);
+    } else { if (!primitive(value)) return null; owned[key] = value; }
+  }
+  return Object.freeze(owned);
+};
+const passiveNgramOptions = input => {
+  if (!plainOptions(input)) return false;
+  return ['enablePhraseNgrams', 'phraseMinN', 'phraseMaxN'].every(key => {
+    const descriptor = Object.getOwnPropertyDescriptor(input, key);
+    return descriptor ? Object.hasOwn(descriptor, 'value') && primitive(descriptor.value) : !(key in input);
+  });
+};
+const reusableCoreOptions = (dict, options, postingsConfig, queryMatch) => {
+  if (!types.isSet(dict) || types.isProxy(dict) || Object.getPrototypeOf(dict) !== Set.prototype
+    || !Reflect.ownKeys(dict).every(key => {
+      if (!['__maxTokenLength', 'maxLen'].includes(key)) return false;
+      const descriptor = Object.getOwnPropertyDescriptor(dict, key);
+      return descriptor && Object.hasOwn(descriptor, 'value') && typeof descriptor.value === 'number'
+        && Number.isFinite(descriptor.value) && descriptor.value >= 0;
+    }) || dict.has !== originalSetHas || !passiveNgramOptions(postingsConfig) || typeof queryMatch !== 'string') return null;
+  return captureCoreOptions(options);
+};
+
+/** One synchronous cold-plan owner. Reuse only the pure default core; aggregate
+ * language projection still receives its original raw terms, order and profile.
+ * Custom hooks/dictionaries/options retain the unchanged tokenizer call path.
+ */
+export const createQueryLeafAnalysis = (dict, options = {}, { postingsConfig = {}, queryMatch = 'auto' } = {}) => {
+  const capturedOptions = reusableCoreOptions(dict, options, postingsConfig, queryMatch);
+  const reusable = capturedOptions !== null;
+  const ownedOptions = reusable ? capturedOptions : options;
+  const terms = new Map(), phrases = new Map();
+  let termCoreAnalyses = 0, phraseCoreAnalyses = 0;
+  const queryTerms = (rawTerms, selectedOptions) => {
+    const entries = Array.isArray(rawTerms) ? rawTerms : rawTerms ? [rawTerms] : [];
+    if (!reusable || !entries.every(entry => typeof entry === 'string')) {
+      return tokenizeQueryTerms(rawTerms, dict, selectedOptions);
+    }
+    const baseTokens = [];
+    const caseSensitive = selectedOptions.caseSensitive === true;
+    for (const entry of entries) {
+      const key = JSON.stringify([caseSensitive, entry]);
+      if (!terms.has(key)) {
+        terms.set(key, Object.freeze(tokenizeQueryTermsCore([entry], dict, selectedOptions)));
+        termCoreAnalyses++;
+      }
+      baseTokens.push(...terms.get(key));
+    }
+    return applyLanguageTokenHooks({ rawTerms, baseTokens, options: selectedOptions, kind: 'query' });
+  };
+  return Object.freeze({
+    tokenizeTerms: rawTerms => queryTerms(rawTerms, ownedOptions),
+    // Form this at the same aggregate call boundary as the original planner.
+    tokenizeScoringTerms: rawTerms => queryTerms(rawTerms, { ...ownedOptions, caseSensitive: false }),
+    tokenizePhrase: phrase => {
+      if (!reusable || typeof phrase !== 'string') return tokenizePhrase(phrase, dict, ownedOptions);
+      if (!phrases.has(phrase)) {
+        phrases.set(phrase, Object.freeze(tokenizePhraseCore(phrase, dict, ownedOptions)));
+        phraseCoreAnalyses++;
+      }
+      return applyLanguageTokenHooks({ rawTerms: [phrase], baseTokens: phrases.get(phrase), options: ownedOptions, kind: 'phrase' });
+    },
+    // Internal work accounting; no new plan/cache/API/artifact output fields.
+    snapshotWork: () => Object.freeze({ reusableDefaultCore: reusable,
+      termCoreAnalyses: reusable ? termCoreAnalyses : null, phraseCoreAnalyses: reusable ? phraseCoreAnalyses : null })
+  });
+};
+
 /**
  * Walk boolean query AST and attach token/ngram payloads per node type.
  *
@@ -275,19 +365,20 @@ export const tokenizePhrase = (phrase, dict, options = {}) => {
  * @param {Set<string>|Map<string, number>|object|null} dict
  * @param {object} [options]
  * @param {object} [postingsConfig]
+ * @param {object|null} [leafAnalysis] Internal synchronous plan-owned analyzers.
  * @returns {object|null}
  */
-export function annotateQueryAst(ast, dict, options = {}, postingsConfig) {
+export function annotateQueryAst(ast, dict, options = {}, postingsConfig, leafAnalysis = null) {
   if (!ast || typeof ast !== 'object') return null;
   const visit = (node) => {
     if (!node || typeof node !== 'object') return node;
     const next = { ...node };
     if (next.type === BOOLEAN_NODE_TYPES.TERM) {
-      next.tokens = tokenizeQueryTerms([next.value], dict, options);
+      next.tokens = leafAnalysis ? leafAnalysis.tokenizeTerms([next.value]) : tokenizeQueryTerms([next.value], dict, options);
       return next;
     }
     if (next.type === BOOLEAN_NODE_TYPES.PHRASE) {
-      const tokens = tokenizePhrase(next.value, dict, options);
+      const tokens = leafAnalysis ? leafAnalysis.tokenizePhrase(next.value) : tokenizePhrase(next.value, dict, options);
       next.tokens = tokens;
       next.caseSensitive = options.caseSensitive === true;
       const phraseInfo = buildPhraseNgrams([tokens], postingsConfig);
