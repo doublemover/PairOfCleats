@@ -130,6 +130,11 @@ function resolveCommand(primary, rest) {
     if (sub === 'validate') {
       return { script: 'tools/index/validate.js', extraArgs: [], args: rest };
     }
+    if (sub === 'recover') {
+      validateArgs(rest, ['repo', 'action', 'operation', 'index-root', 'mode', 'resume-target', 'plan-file', 'graph-capability', 'json'],
+        ['repo', 'action', 'operation', 'index-root', 'mode', 'resume-target', 'plan-file', 'graph-capability']);
+      return { script: 'tools/index/recover.js', extraArgs: [], args: rest };
+    }
     if (sub === 'report') {
       validateArgs(rest, ['repo', 'json', 'all', 'runtime', 'index-root', 'build', 'attempt', 'mode', 'explain', 'redact-paths'], ['repo', 'index-root', 'build', 'attempt', 'mode', 'explain']);
       return { script: 'tools/index/report-artifacts.js', extraArgs: [], args: rest };
@@ -871,6 +876,10 @@ function resolveCommand(primary, rest) {
     if (sub === 'doctor') {
       validateArgs(rest, ['repo', 'json', 'strict', 'non-strict'], ['repo']);
       return { script: 'tools/tooling/doctor.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'prepare-sourcekit') {
+      validateArgs(rest, ['repo', 'swift', 'apply', 'json'], ['repo', 'swift']);
+      return { script: 'tools/tooling/prepare-sourcekit.js', extraArgs: [], args: rest };
     }
     if (sub === 'detect') {
       const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(TOOLING_DETECT_OPTIONS);

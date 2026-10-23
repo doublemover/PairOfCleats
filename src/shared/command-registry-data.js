@@ -129,6 +129,12 @@ export const COMMAND_REGISTRY = Object.freeze([
   entry('index.validate', ['index', 'validate'], 'tools/index/validate.js', 'Validate index artifacts.', {
     helpGroup: 'Index'
   }),
+  entry('index.recover', ['index', 'recover'], 'tools/index/recover.js', 'Inspect retained recovery and execute an exact reviewed plan.', {
+    helpGroup: 'Index', supportTier: 'operator', capability: false,
+    helpExamples: ['pairofcleats index recover --repo . --action candidates --json',
+      'pairofcleats index recover --repo . --index-root /path/to/retained-build --operation graph --json',
+      'pairofcleats index recover --repo . --action execute --plan-file reviewed-plan.json --json']
+  }),
   entry('index.report', ['index', 'report'], 'tools/index/report-artifacts.js', 'Inspect artifact health and persisted runtime attempts.', {
     helpGroup: 'Index', capability: false, supportTier: 'operator',
     helpExamples: ['pairofcleats index report --repo . --runtime --json', 'pairofcleats index report --runtime --index-root /path/to/build --explain embeddings.model']
@@ -276,6 +282,10 @@ export const COMMAND_REGISTRY = Object.freeze([
     helpGroup: 'Tooling',
     capability: false,
     supportTier: 'operator'
+  }),
+  entry('tooling.prepare-sourcekit', ['tooling', 'prepare-sourcekit'], 'tools/tooling/prepare-sourcekit.js', 'Preview or explicitly prepare a trusted SourceKit package workspace.', {
+    helpGroup: 'Tooling', supportTier: 'operator', capability: false,
+    helpExamples: ['pairofcleats tooling prepare-sourcekit --repo . --swift /absolute/path/to/swift --json']
   }),
   entry('tooling.install', ['tooling', 'install'], 'tools/tooling/install.js', 'Install or plan external tooling dependencies.', {
     helpGroup: 'Tooling',

@@ -92,3 +92,16 @@ export const configureSnapshotCommand = (command, name) => {
   for (const [key, definition] of Object.entries(spec.positional || {})) command.positional(key, definition);
   return command.options(spec.options);
 };
+
+/** Recovery inspects by default; mutation requires an exact reviewed plan file. */
+export const INDEX_RECOVERY_OPTIONS = {
+  repo: { type: 'string' },
+  action: { type: 'string', choices: ['inspect', 'execute', 'open-graph', 'candidates'], default: 'inspect' },
+  operation: { type: 'string', choices: ['validate', 'publish', 'graph', 'resume', 'refresh', 'clean'] },
+  'index-root': { type: 'string' },
+  mode: { type: 'string', choices: ['all', 'code', 'prose', 'extracted-prose', 'records'] },
+  'resume-target': { type: 'string', choices: ['stage2', 'full'] },
+  'plan-file': { type: 'string' },
+  'graph-capability': { type: 'string' },
+  json: { type: 'boolean', default: false }
+};
