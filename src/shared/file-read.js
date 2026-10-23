@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
-import { openContainedFileSync } from './contained-file.js';
+import { withContainedFileSync } from './contained-file.js';
+import { createContainedFileResource } from './contained-file-resource.js';
 
 const normalizeJsonReadOptions = (options) => (
   options && typeof options === 'object' && !Array.isArray(options)
@@ -28,21 +29,21 @@ export function readFileRangeSync(filePath, start, end, repoRoot = null) {
   const safeEnd = Number.isFinite(end) ? Math.max(safeStart, Math.floor(end)) : safeStart;
   const length = Math.max(0, safeEnd - safeStart);
   if (!length) return Buffer.alloc(0);
-  let fd = null;
-  try {
-    fd = repoRoot ? openContainedFileSync(repoRoot, filePath) : fs.openSync(filePath, 'r');
+  const readRange = descriptor => {
     const buffer = Buffer.allocUnsafe(length);
     let bytesRead = 0;
     while (bytesRead < length) {
-      const progress = fs.readSync(fd,buffer,bytesRead,length-bytesRead,safeStart+bytesRead);
+      const progress = descriptor.read(buffer, bytesRead, length - bytesRead, safeStart + bytesRead);
       if (!Number.isSafeInteger(progress) || progress < 0 || progress > length-bytesRead) throw new Error('Invalid file range read progress.');
       if (progress === 0) break;
       bytesRead += progress;
     }
     return buffer.subarray(0, bytesRead);
-  } finally {
-    if (fd !== null) fs.closeSync(fd);
-  }
+  };
+  if (repoRoot) return withContainedFileSync(repoRoot, filePath, readRange);
+  const methods = { receiver: fs, close: fs.closeSync, stat: fs.fstatSync, read: fs.readSync };
+  const fd = fs.openSync(filePath, 'r');
+  return createContainedFileResource({ fd, sync: true, methods }).runSync(readRange);
 }
 
 export async function pathExists(targetPath) {
