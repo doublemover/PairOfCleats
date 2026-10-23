@@ -1,6 +1,7 @@
 import { propertyPathsOverlap } from './compiler-property-paths.js';
 import { canonicalSemanticJson } from './identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { createCompilerSummaryRecorder, joinMayDependencies } from './compiler-summary-manifest.js';
 const key = canonicalSemanticJson;
 export const callInput = (call, ordinal) => ordinal === -1 ? call.receiver : call.arguments?.[ordinal];
 export const callUnknownInputs = call => [...new Map([call.receiver, ...(call.arguments || []), ...(call.unknownInputs || [])]
@@ -27,7 +28,8 @@ const components = (graph, signal) => {
   return result.reverse();
 };
 /** Bounded monotone parameter-to-return may-depend summaries; field effects and exception inputs are caller-instantiated may channels. */
-export const buildCallDependencySummaries = (documents, { maxIterations = 12, signal } = {}) => {
+export const buildCallDependencySummaries = (documents, { maxIterations = 12, signal,
+  manifestIdentity = null, manifestLimits = null } = {}) => {
   throwIfAborted(signal);
   const canonicalKeys = new WeakMap();
   const key = value => {
@@ -41,10 +43,13 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
   const callers = new Map(); let cacheMemberships = 0, cacheEntries = 0, activeCall = null;
   const stats = { derives: 0, reverseEdgeVisits: 0, aliasCandidates: 0, callInstantiations: 0,
     reachabilityCacheHits: 0, dirtyFunctionVisits: 0, cachedMemberships: 0 };
+  const recorder = manifestIdentity ? createCompilerSummaryRecorder({ identity: manifestIdentity, signal,
+    ...(manifestLimits || {}) }) : null;
 
   let remainingWork=1000000,exhausted=false;
   const add=(from,to)=>{
     if(!from||!to)return false;const a=key(from),b=key(to);
+    if (activeCall) recorder?.contribution(activeCall.ownerId, key(activeCall.occurrence), a, b);
     if(!reverse.has(b))reverse.set(b,new Set());const inputs=reverse.get(b),changed=!inputs.has(a);inputs.add(a);
     if (changed) {
       for (const id of nodeDependents.get(b) || []) dirty.add(id);
@@ -66,6 +71,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
       const id=key(summary.declaration);
       const current={...summary,dependencies:new Set(),exceptionDependencies:new Set(),effectDependencies:new Map(),aliases:document.aliases||[],fieldPathDepth:document.policy?.enrichment.fieldPathDepth??8,widened:false,calls:[],maxRounds:document.policy?.enrichment.maxSccIterations??maxIterations,converged:false};
       functions.set(id,current); graph.set(id,new Set()); revisions.set(id,0); summaryIds.set(current,id);
+      recorder?.register(id, current, document);
       const ordinals = new Map(); current.parameters.forEach((ref, ordinal) => { if (ref) ordinals.set(key(ref), ordinal); });
       for (const field of current.parameterFields || []) ordinals.set(key(field.ref), field.parameter);
       const rootOrdinals = new Map(); current.parameters.forEach((ref, ordinal) => { if (ref && !rootOrdinals.has(key(ref))) rootOrdinals.set(key(ref), ordinal); });
@@ -95,6 +101,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
         if(!qualified) {ownershipUncertain=true;ownershipReasons.add('call_execution_owner_unavailable_or_ambiguous');}
       }
       const entry={...call,ownerId,effectRoutes};calls.push(entry);if(ownerId)functions.get(ownerId).calls.push(entry);
+      if (ownerId) recorder?.call(ownerId, call.targets, key);
     }
     if(ownershipUncertain)for(const owner of owners)functions.get(key(owner.declaration)).complete=false;
   }
@@ -121,6 +128,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
       if(indexes.ordinals.has(current))result.add(indexes.ordinals.get(current));
       for(const previous of reverse.get(current)||[]){ stats.reverseEdgeVisits++; pending.push(previous); }
     }
+    recorder?.read(ownerId, seen);
     if (!exhausted && (query || cacheEntries < 4096) && cacheMemberships + seen.size <= 65536) {
       if (!query) { query = { valid: true, result, calls: new Set(), watched: new Set() }; cacheEntries++; }
       query.valid = true; query.result = result;
@@ -133,7 +141,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     }
     return result;
   };
-  const union=(target,values)=>{let changed=false;for(const value of values)if(!target.has(value)){target.add(value);changed=true;}return changed;};
+  const union=joinMayDependencies;
   const derive=summary=>{
     stats.derives++;
     let changed=union(summary.dependencies,inputs(summary,summary.returns));
@@ -232,7 +240,9 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     for(const id of component)functions.get(id).converged=complete;
     if(exhausted)break;
   }
-  return {functions,converged:converged&&!exhausted,iterations,stats,ownershipReasons:[...ownershipReasons].sort()};
+  const complete = converged && !exhausted;
+  return {functions,converged:complete,iterations,stats,ownershipReasons:[...ownershipReasons].sort(),
+    shadowManifest: recorder?.finish({ functions, reverse, converged: complete, ownershipReasons }) || null};
 };
 
 /** Join known alternatives at the call site without promoting the remainder to exactness. */
