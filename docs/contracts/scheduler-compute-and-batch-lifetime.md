@@ -78,15 +78,42 @@ result. Skipped or pretokenized chunk indices discard obsolete lookahead, and
 cancellation clears retained rows. A rejected receipt cannot populate future
 rows before the existing file-local inline fallback.
 
-These are tokenizer execution and retention contracts. They do not move Babel,
-TypeScript, semantic compiler sessions, whole-file lint or complexity analysis
-onto workers. A coarse file-analysis implementation still needs a separately
-qualified source/config/parser contract, real coordinator integration, bounded
-native/cache ownership and differential output evidence. Aggregate scheduler
-telemetry also cannot reconstruct exact ready sets for decision-level cost
-replay; offline shadow comparison requires additional admissibility and commit
-frontier evidence before it can make evaluable recommendations. No speedup or
-cross-platform acceptance follows from these contracts.
+## Opt-in coarse file-local analysis
+
+The real file processor can submit a complete JS/JSX/TS/TSX file phase through
+the existing single-task worker/process transport when worker configuration is
+explicitly `enabled: true`. Automatic/default worker routing retains its existing
+tokenizer path. This is an internal qualification boundary, not default adoption.
+
+The versioned binary input binds source, supported settings, Node/V8 and existing
+semantic producer versions. Source is limited to 2 MiB, serialized input to 4 MiB,
+and serialized results to 8 MiB. The scheduler reserves the bounded transport and
+result allowance before dispatch. The original file task retains CPU admission
+while actual worker compute runs, plus its byte/memory/file-window reservations;
+language pressure waits still use their existing suspension/reacquisition owner.
+The process transport independently reserves its full bounded result capacity.
+
+The worker invokes canonical `processFileCpu`: AST preparation, file-local
+relations, lint, complexity, risk/type enrichment, local tokenization and existing
+parse/lexical checkpoint projections remain together. ASTs, callbacks, shared
+caches and publication handles are never cloned. Normalized risk-rule descriptors
+preserve policy/provenance and reconstruct their exact regex engine in the worker.
+Observer events are bounded and replay only after accepting the completed result.
+
+Compiler sessions, live SCM, embeddings, document extraction, native parser or
+native classification ownership and unsupported language settings decline before
+dispatch. The existing inline implementation remains fallback authority. A
+received completed projection refusal or invalid receipt may fall back; abort,
+pressure and uncertain backend lifetime errors propagate. Accepted observer
+failures cannot trigger duplicate analysis. Embedded/native/compiler routes and
+parser-cache budgets still need separate ownership qualification.
+
+The authored differential and real Worker/process transport controls remain
+unexecuted pending a frozen shared candidate. No parity, measured break-even,
+throughput improvement or cross-platform acceptance is established by source.
+Aggregate scheduler telemetry alone cannot reconstruct exact ready sets for
+decision-level replay; additional admissibility and commit-frontier evidence is
+required before a cost comparator can make evaluable recommendations.
 
 ## Focused consumer controls
 
@@ -97,6 +124,9 @@ cross-platform acceptance follows from these contracts.
 - `tests/indexing/file-processor/scm-command-compute-suspension.test.js`
 - `tests/indexing/file-processor/tokenize-batch-bounds-order.test.js`
 - `tests/indexing/file-processor/tokenize-batch-receipt-lifetime.test.js`
+- `tests/indexing/file-processor/coarse-worker-file-analysis.test.js`
+- `tests/indexing/file-processor/coarse-worker-production-route.test.js`
+- `tests/indexing/workers/coarse-file-analysis-transport.test.js`
 - `tests/shared/concurrency/scheduler-compute-suspension.test.js`
 - `tests/shared/concurrency/scheduler-detached-wait-ownership.test.js`
 - `tests/shared/concurrency/scheduler-invalid-resource-request.test.js`

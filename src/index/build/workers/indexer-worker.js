@@ -274,7 +274,7 @@ const reportTiming = (label, startedAt, status) => {
   const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
   parentPort.postMessage({
     type: 'worker-task',
-    task: label.startsWith('tokenize') ? 'tokenize' : 'quantize',
+    task: label.startsWith('tokenize') ? 'tokenize' : label === 'quantizeVectors' ? 'quantize' : 'unknown',
     threadId,
     durationMs,
     status
@@ -349,7 +349,7 @@ let lastResult = null;
 const withWorkerError = (fn, label) => async (input) => {
   const startedAt = process.hrtime.bigint();
   parentPort?.postMessage({ type: 'worker-task-start', threadId,
-    task: label.startsWith('tokenize') ? 'tokenize' : 'quantize' });
+    task: label.startsWith('tokenize') ? 'tokenize' : label === 'quantizeVectors' ? 'quantize' : 'unknown' });
   lastTask = label;
   lastStage = 'payload';
   lastPayload = input;
@@ -390,6 +390,14 @@ export const tokenizeBatch = withWorkerError(input => {
     return tokenizeOne(item, context);
   });
 }, 'tokenizeBatch');
+
+// Lazy loading avoids paying compiler/lint initialization or parser-cache
+// memory in token-only workers. The existing worker heap and lifecycle own it.
+export const analyzeFile = withWorkerError(async input => {
+  const { executeFileAnalysis } = await import('./file-analysis-task.js');
+  return executeFileAnalysis(input, { dictWords, codeDictWords, codeDictWordsByLanguage, codeDictLanguages,
+    backend: nativeParentPort ? 'worker' : 'process', tokenize: tokenizeOne });
+}, 'analyzeFile');
 
 export const quantizeVectors = withWorkerError((input) => {
   const { vectors = [] } = input || {};

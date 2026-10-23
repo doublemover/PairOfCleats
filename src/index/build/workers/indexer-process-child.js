@@ -31,7 +31,7 @@ process.on('message', async message => {
   if (message?.type !== 'task' || message.generation !== generation || !tasks || busy) return;
   busy = true;
   try {
-    if (!['tokenizeChunk', 'tokenizeBatch', 'quantizeVectors'].includes(message.name) || !Buffer.isBuffer(message.payload)
+    if (!['tokenizeChunk', 'tokenizeBatch', 'quantizeVectors', 'analyzeFile'].includes(message.name) || !Buffer.isBuffer(message.payload)
       || message.payload.length > maxMessageBytes) throw new Error('Invalid bounded process task.');
     const result = await tasks[message.name](deserialize(message.payload));
     const payload = serialize(result);

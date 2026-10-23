@@ -15,7 +15,8 @@ import { buildPostingsPayloadMetadata } from './postings-payload.js';
 import { createFileScanner } from './file-scan.js';
 import { createTokenizationContext } from './tokenization.js';
 import { reuseCachedBundle } from './file-processor/cached-bundle.js';
-import { processFileCpu } from './file-processor/cpu.js';
+import { processFileCpuWithWorker } from './file-processor/coarse-worker.js';
+import { fileAnalysisAdmissionBytes, isFileAnalysisCandidate } from './workers/file-analysis-contract.js';
 import { loadCachedBundleForFile, writeBundleForFile } from './file-processor/incremental.js';
 import { resolvePreReadSkip } from './file-processor/skip.js';
 import { createCrashStageUpdater } from './file-processor/crash-stage.js';
@@ -417,7 +418,9 @@ export function createFileProcessor(options) {
       ? withSchedulerCpuSuspended(() => ioQueue.add(fn, { signal, cpu: waitOnly ? 0 : 1 }))
       : waitOnly ? withSchedulerCpuSuspended(fn) : fn();
     const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn, { signal,
-      bytes: Math.max(64 * 1024, Number(fileStat?.size || 0) * 4) }) : (fn) => fn();
+      bytes: isFileAnalysisCandidate({ mode, ext, workerPool })
+        ? fileAnalysisAdmissionBytes(fileStat?.size || 0)
+        : Math.max(64 * 1024, Number(fileStat?.size || 0) * 4) }) : (fn) => fn();
     // Known waits release only parent compute. Child compute obtains its own
     // permit; source/AST/window and all retained-byte ownership stay admitted.
     const runEmbedding = (fn, { signal: operationSignal = signal } = {}) => embeddingQueue
@@ -740,7 +743,7 @@ export function createFileProcessor(options) {
 
     updateCrashStage('pre-cpu:handoff-to-cpu:start');
     if (semantic && !artifacts.fileBuffer) artifacts.fileBuffer = await runIo(() => readContainedFile(root, abs, { expectedStat: fileStat }));
-    const cpuResult = await runCpu(() => processFileCpu({
+    const cpuResult = await runCpu(() => processFileCpuWithWorker({
       semantic,
       sourceBytes: artifacts.fileBuffer,
       abs,

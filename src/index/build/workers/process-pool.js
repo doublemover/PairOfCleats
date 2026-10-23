@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createAbortError } from '../../../shared/abort.js';
 import { killChildProcessTree } from '../../../shared/kill-tree.js';
 import { estimateRetainedBytes, readEffectiveMemory } from '../../../shared/effective-memory.js';
+import { FILE_ANALYSIS_MAX_OUTPUT_BYTES } from './file-analysis-contract.js';
 
 const MB = 1024 * 1024;
 const accounts = new WeakMap();
@@ -90,7 +91,8 @@ export class IndexerProcessPool extends EventEmitter {
     let release, buffer, outputLimit, reservationBytes;
     try {
       const retained = estimateRetainedBytes(payload);
-      outputLimit = Math.min(this.maxMessageBytes, Math.max(4096, retained * 16));
+      outputLimit = Math.min(this.maxMessageBytes, name === 'analyzeFile'
+        ? FILE_ANALYSIS_MAX_OUTPUT_BYTES + 4096 : Math.max(4096, retained * 16));
       reservationBytes = retained * 3 + outputLimit * 2;
       release = this.account.reserve(reservationBytes);
       buffer = serialize(payload);
