@@ -84,6 +84,55 @@ try {
   await assert.rejects(fs.access(`${file}.bak`), { code: 'ENOENT' });
   await assert.rejects(fs.access(`${file}.edit.lock`), { code: 'ENOENT' });
 
+  // No one-field intermediate can repair this three-way invalid combination.
+  // The actual object editor must supply a valid atomic transition, while all
+  // ordinary leaf previews continue to enforce the same canonical constraints.
+  const blockedSource = '{\n // outer comment stays\n "retrieval": {\n'
+    + '  "annCandidateCap": 20000,\n  "annCandidateMinDocCount": 30000,\n'
+    + '  // unchanged maximum comment stays\n  "annCandidateMaxDocCount": 1000,\n'
+    + '  // unrelated nested comment stays\n  "relationBoost": { "enabled": true }\n },\n'
+    + ' "threads": 2, "search": { "hyperlinks": "off" }\n}\n';
+  await fs.writeFile(file, blockedSource);
+  for (const [field, value] of [['annCandidateMinDocCount', 100], ['annCandidateMaxDocCount', 50000], ['annCandidateCap', 1000]]) {
+    const blocked = await preview(owner, ['retrieval', field], value);
+    assert.equal(blocked.ok, false); assert.equal(blocked.previewId, undefined);
+    assert.equal(await fs.readFile(file, 'utf8'), blockedSource);
+  }
+  const inspection = await owner.session.inspectConfig({ scopeId: owner.scope.id });
+  assert.equal(inspection.validation.ok, false); assert.equal(inspection.effective, null);
+  const objectField = inspection.fields.find(field => field.path.join('.') === 'retrieval');
+  assert.equal(objectField.editScope, 'repository-object'); assert.equal(objectField.editable, true);
+  assert.equal(objectField.schema.properties.annCandidateCap.type, 'number');
+  const invalidObject = await preview(owner, ['retrieval'], { ...objectField.requested, annCandidateCap: 'wrong-type' });
+  assert.equal(invalidObject.ok, false); assert.equal(invalidObject.previewId, undefined);
+  const corrected = { ...objectField.requested, annCandidateCap: 1000, annCandidateMinDocCount: 100 };
+  const atomic = await preview(owner, ['retrieval'], corrected);
+  assert.equal(atomic.ok, true); assert.deepEqual(atomic.diff[0].path, ['retrieval']);
+  await save(owner, atomic);
+  const recoveredSource = await fs.readFile(file, 'utf8');
+  for (const comment of ['// outer comment stays', '// unchanged maximum comment stays', '// unrelated nested comment stays']) {
+    assert.ok(recoveredSource.includes(comment), comment);
+  }
+  assert.deepEqual(parseJsoncText(recoveredSource).retrieval, corrected);
+  assert.deepEqual(parseJsoncText(recoveredSource).search, { hyperlinks: 'off' });
+  assert.equal(resolveOperationalGuardrails({ userConfig: await effective(owner) }).annCandidateCap, 1000);
+  await assert.rejects(save(owner, atomic), { code: 'ERR_TUI_SETTINGS_PREVIEW' });
+  await assert.rejects(preview(owner, ['tooling'], {}), { code: 'ERR_TUI_SETTINGS_FIELD' },
+    'atomic retrieval repair cannot expose a generic execution-authority object editor');
+  const staleObject = await preview(owner, ['retrieval'], { ...corrected, annCandidateCap: 900 });
+  await fs.writeFile(file, recoveredSource.replace('"threads": 2', '"threads": 3'));
+  await assert.rejects(save(owner, staleObject), { code: 'ERR_TUI_SETTINGS_STALE' });
+
+  const trustedOwner = await start({ ...baseEnv, PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([repo]) });
+  const authorized = await preview(trustedOwner, ['cache', 'root'], path.join(root, 'reviewed-cache'));
+  assert.equal(authorized.ok, true);
+  const beforeRevocation = await fs.readFile(file, 'utf8');
+  trustedOwner.env.PAIROFCLEATS_TRUSTED_REPOS = '[]';
+  await assert.rejects(save(trustedOwner, authorized), { code: 'ERR_TUI_SETTINGS_AUTHORITY' },
+    'a previously reviewed leaf cannot outlive its actual launch-selected field authority');
+  await assert.rejects(save(trustedOwner, authorized), { code: 'ERR_TUI_SETTINGS_PREVIEW' });
+  assert.equal(await fs.readFile(file, 'utf8'), beforeRevocation);
+
   assert.equal(getOperationalGuardrailDiagnostic({ guardrailCode: 'op_guardrail_rrf_k_invalid' }), null);
   assert.equal(getOperationalGuardrailDiagnostic(false), null);
 } finally { for (const session of sessions) session.dispose(); await rmDirRecursive(root); }

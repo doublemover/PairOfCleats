@@ -319,6 +319,8 @@ impl SettingsUi {
                             }
                             let value = if field["requestedPresent"].as_bool() == Some(true) {
                                 field["requested"].clone()
+                            } else if field["editScope"] == "repository-object" {
+                                json!({})
                             } else if field["effectiveRecorded"].as_bool() == Some(true) {
                                 field["effective"].clone()
                             } else if let Some(default) = field["schema"].get("default") {
@@ -650,6 +652,10 @@ impl SettingsUi {
             Page::Edit => {
                 lines.push(format!("Edit {} | Enter previews | Esc discards | cursor/Home/End", if self.array_item { "array string item" } else if self.advanced { "advanced JSON" } else { "schema literal" }));
                 let name = self.selected_field().map(field_name).unwrap_or_default();
+                if let Some(field) = self.selected_field() {
+                    lines.push(crate::text_editor::schema_hint(&field["schema"]));
+                    if let Some(description) = field["description"].as_str() { lines.push(description.into()); }
+                }
                 return self.scroll.lines(lines, &format!("Field: {name}\n{}", self.cursor.visible(&self.draft, width)), height, width);
             }
             Page::Preview => {
@@ -830,6 +836,35 @@ mod tests {
         end(&mut ui, json!({"saved":true}));
         assert!(ui.draft.is_empty());
         assert!(ui.draft_binding.is_none());
+    }
+
+    #[test]
+    fn atomic_retrieval_editor_preserves_correctable_object_draft_and_never_copies_effective_defaults() {
+        let mut ui = selected();
+        ui.inspection.as_mut().unwrap()["fields"][0] = json!({"path":["retrieval"],"editable":true,
+            "schema":{"type":"object","properties":{"annCandidateCap":{"type":"number"}}},
+            "editScope":"repository-object","requestedPresent":false,"effectiveRecorded":true,
+            "effective":{"unrequestedEffectiveValue":"MUST-NOT-BECOME-AN-OVERRIDE"},
+            "description":"Edit repository retrieval overrides together"});
+        key(&mut ui, KeyCode::Char('e'));
+        assert_eq!(ui.draft, "{}");
+        ui.draft = "{\"annCandidateCap\":\"wrong\",\"annCandidateMinDocCount\":100}".into();
+        key(&mut ui, KeyCode::Enter);
+        let submitted = ui.outbox.back().unwrap();
+        assert_eq!(submitted["params"]["path"], json!(["retrieval"]));
+        assert_eq!(submitted["params"]["value"]["annCandidateMinDocCount"], 100);
+        end(&mut ui, json!({"ok":false,"validation":{"ok":false,"errors":["annCandidateCap must be a number"]}}));
+        assert!(ui.page == Page::Edit && ui.preview.is_none());
+        assert!(ui.draft.contains("annCandidateMinDocCount"));
+        assert!(!ui.outbox.iter().any(|request| request["method"] == "commit"));
+        ui.draft = ui.draft.replace("\"wrong\"", "1000");
+        key(&mut ui, KeyCode::Enter);
+        assert_eq!(ui.outbox.back().unwrap()["params"]["value"]["annCandidateCap"], 1000);
+        end(&mut ui, json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"valid-object", "diff":[]}));
+        key(&mut ui, KeyCode::Enter);
+        assert_eq!(ui.outbox.back().unwrap()["params"]["previewId"], "valid-object");
+        end(&mut ui, json!({"saved":true}));
+        assert!(ui.draft.is_empty() && ui.draft_binding.is_none());
     }
 
     #[test]

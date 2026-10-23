@@ -50,6 +50,46 @@ const collectFields = (schema, prefix = []) => Object.entries(schema.properties 
   if (BLOCKED_KEYS.has(key)) return [];
   return child.properties ? collectFields(child, keys) : [{ path: keys, schema: child }];
 });
+// Some externally invalid cross-field combinations have no valid single-field
+// intermediate. This is one bounded data-only object, using its actual schema;
+// execution/storage authority objects do not gain a generic parent editor.
+const editableFields = schema => [
+  ...(schema.properties?.retrieval?.type === 'object' ? [{ path: ['retrieval'], schema: schema.properties.retrieval,
+    editScope: 'repository-object', description: 'Edit repository retrieval overrides together; canonical effective guardrails validate the complete combination.' }] : []),
+  ...collectFields(schema)
+];
+const plainObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const applyObjectEdit = (raw, keys, before, after) => {
+  const changes = [];
+  const checkKeys = (value, depth = 0) => {
+    if (!value || typeof value !== 'object') return;
+    if (depth > 20) fail('ERR_TUI_SETTINGS_VALUE', 'The object change exceeds the bounded editor depth.');
+    for (const key of Object.keys(value)) {
+      if (BLOCKED_KEYS.has(key)) fail('ERR_TUI_SETTINGS_FIELD', 'This object change requires a private editor.');
+      checkKeys(value[key], depth + 1);
+    }
+  };
+  checkKeys(after);
+  const visit = (pathKeys, prior, next) => {
+    if (JSON.stringify(prior) === JSON.stringify(next)) return;
+    if (pathKeys.length > 20 || pathKeys.some(key => BLOCKED_KEYS.has(key))) {
+      fail('ERR_TUI_SETTINGS_FIELD', 'This object change requires a private editor.');
+    }
+    if (plainObject(prior) && plainObject(next)) {
+      for (const key of new Set([...Object.keys(prior), ...Object.keys(next)])) visit([...pathKeys, key],
+        Object.hasOwn(prior, key) ? prior[key] : undefined, Object.hasOwn(next, key) ? next[key] : undefined);
+      return;
+    }
+    if (changes.length >= 256) fail('ERR_TUI_SETTINGS_VALUE', 'The object change exceeds the bounded editor operation limit.');
+    changes.push({ pathKeys, value: next });
+  };
+  visit(keys, before, after);
+  // Change only differing properties, preserving comments around unchanged
+  // members and outside the reviewed object rather than replacing its text.
+  for (const change of changes) raw = applyEdits(raw, modify(raw, change.pathKeys, change.value,
+    { formattingOptions: { insertSpaces: true, tabSize: 2 } }));
+  return raw;
+};
 const projectDocument = read => {
   const raw = read.buffer.toString('utf8');
   return { raw, buffer: read.buffer, encodingValid: Buffer.from(raw).equals(read.buffer),
@@ -83,6 +123,12 @@ export const createTuiSettingsSession = ({ toolRoot, schemaPath = path.join(tool
   let disposed = false;
   let schemaMemo = null;
   const previews = new Map();
+  const fieldAuthority = (keys, selected, value, includeValue = false) => {
+    const probe = wrappedValue(keys, 'editable-probe');
+    if (atPath(applyRepoConfigAuthority(probe, selected.configRoot, env), keys) !== 'editable-probe') return false;
+    return !includeValue || JSON.stringify(atPath(applyRepoConfigAuthority(wrappedValue(keys, value), selected.configRoot, env), keys))
+      === JSON.stringify(value);
+  };
   const validateEffectiveRetrieval = (config, selected) => {
     // Reuse canonical authority/trusted-source precedence for the proposed bytes;
     // never publish a temporary repository config or initialize search backends.
@@ -183,13 +229,13 @@ export const createTuiSettingsSession = ({ toolRoot, schemaPath = path.join(tool
       fail('ERR_TUI_SETTINGS_STALE', 'Configuration or schema changed during inspection. Reload it.');
     }
     requireScope(scopeId);
-    const fields = collectFields(schema.schema).map(field => {
+    const fields = editableFields(schema.schema).map(field => {
       const requested = atPath(config, field.path);
-      const probe = wrappedValue(field.path, 'editable-probe');
-      const admitted = atPath(applyRepoConfigAuthority(probe, selected.configRoot, env), field.path) === 'editable-probe';
+      const admitted = fieldAuthority(field.path, selected, requested, requested !== undefined);
       const privateValue = !unchangedByRedaction(field.path, requested);
       const editable = admitted && !privateValue;
       return { path: field.path, schema: structuredClone(field.schema),
+        ...(field.editScope ? { editScope: field.editScope, description: field.description } : {}),
         requested: privateValue ? { redacted: true } : safeValue(field.path, requested),
         requestedPresent: requested !== undefined,
         effective: privateValue ? { redacted: true } : safeValue(field.path, atPath(effective?.userConfig, field.path)),
@@ -227,12 +273,11 @@ export const createTuiSettingsSession = ({ toolRoot, schemaPath = path.join(tool
         })];
     } else {
       if (!document.encodingValid) fail('ERR_TUI_SETTINGS_ENCODING', 'Configuration cannot be edited as UTF-8.');
-      const field = collectFields(schema.schema).find(entry => JSON.stringify(entry.path) === JSON.stringify(request.path));
+      const field = editableFields(schema.schema).find(entry => JSON.stringify(entry.path) === JSON.stringify(request.path));
       const removing = request.operation === 'remove';
       if (!field || !['edit', 'remove'].includes(request.operation)) fail('ERR_TUI_SETTINGS_FIELD', 'Choose a setting from the current schema.');
       const old = parseJsoncText(document.raw);
-      const probe = wrappedValue(field.path, 'editable-probe');
-      if (atPath(applyRepoConfigAuthority(probe, selected.configRoot, env), field.path) !== 'editable-probe') {
+      if (!fieldAuthority(field.path, selected, request.value, !removing)) {
         fail('ERR_TUI_SETTINGS_AUTHORITY', 'This setting is controlled by launch trust policy.');
       }
       if (!unchangedByRedaction(field.path, atPath(old, field.path)) || !unchangedByRedaction(field.path, request.value)) {
@@ -241,8 +286,10 @@ export const createTuiSettingsSession = ({ toolRoot, schemaPath = path.join(tool
       if (!removing && (Buffer.byteLength(JSON.stringify(request.value) ?? '') > 64 * 1024 || request.value === undefined)) {
         fail('ERR_TUI_SETTINGS_VALUE', 'The selected value is missing or exceeds the editor limit.');
       }
-      raw = applyEdits(document.raw, modify(document.raw, field.path, request.value,
-        { formattingOptions: { insertSpaces: true, tabSize: 2 } }));
+      raw = field.editScope === 'repository-object' && !removing
+        ? applyObjectEdit(document.raw, field.path, atPath(old, field.path), request.value)
+        : applyEdits(document.raw, modify(document.raw, field.path, request.value,
+          { formattingOptions: { insertSpaces: true, tabSize: 2 } }));
       diff = [{ path: field.path, before: safeValue(field.path, atPath(old, field.path)),
         after: safeValue(field.path, request.value), beforePresent: atPath(old, field.path) !== undefined,
         afterPresent: !removing,
@@ -260,7 +307,8 @@ export const createTuiSettingsSession = ({ toolRoot, schemaPath = path.join(tool
     while (previews.size >= MAX_PREVIEWS) previews.delete(previews.keys().next().value);
     const previewId = randomUUID();
     previews.set(previewId, { scopeId: selected.id, raw, revision: document.revision, schemaRevision: schema.revision,
-      reset, backupRevision: backup?.revision ?? null, expiresAt: now() + PREVIEW_TTL_MS });
+      reset, editPath: reset ? null : [...request.path], operation: request.operation,
+      backupRevision: backup?.revision ?? null, expiresAt: now() + PREVIEW_TTL_MS });
     return { ok: true, scope: selected, previewId, validation, diff,
       backupPath: reset && document.found ? `${file}.bak` : null,
       overwritesBackup: Boolean(backup?.found), requiresResetConfirmation: reset };
@@ -307,7 +355,12 @@ export const createTuiSettingsSession = ({ toolRoot, schemaPath = path.join(tool
       }
       // Trusted configuration can change without changing repository bytes.
       // Re-admit the current effective combination before backup or publication.
-      const effectiveValidation = validateEffectiveRetrieval(parseJsoncText(pending.raw), selected);
+      const proposed = parseJsoncText(pending.raw);
+      if (pending.editPath && !fieldAuthority(pending.editPath, selected, atPath(proposed, pending.editPath), pending.operation !== 'remove')) {
+        previews.delete(previewId);
+        fail('ERR_TUI_SETTINGS_AUTHORITY', 'The selected field authority changed. Reload and preview again.');
+      }
+      const effectiveValidation = validateEffectiveRetrieval(proposed, selected);
       if (!effectiveValidation.ok) {
         previews.delete(previewId);
         fail('ERR_TUI_SETTINGS_GUARDRAIL', effectiveValidation.errors.join('\n'));
