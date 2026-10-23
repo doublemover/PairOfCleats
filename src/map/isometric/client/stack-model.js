@@ -53,9 +53,9 @@ export function buildStackModel(files, edges, {scale=1,groupDepth=1,maxFiles=500
       if(!file||(ref.file&&ref.file!==owner))return null;
       return {file,member:null,nonresidentMember:ref.member,anchor:{x:file.x,y:file.topY,z:file.z}};
     }
-      // A supplied file and member must agree; never silently connect a mismatched endpoint.
-      if(ref.file && ref.file!==found.file.key)return null;
-      return {file:found.file,member:found.segment,anchor:{x:found.file.x+found.segment.x,y:found.segment.y,z:found.file.z+found.segment.z}};
+    // A supplied file and member must agree; never silently connect a mismatched endpoint.
+    if(ref.file && ref.file!==found.file.key)return null;
+    return {file:found.file,member:found.segment,anchor:{x:found.file.x+found.segment.x,y:found.segment.y,z:found.file.z+found.segment.z}};
     }
     const file=fileByPath.get(ref?.file);return file?{file,member:null,anchor:{x:file.x,y:file.topY,z:file.z}}:null;
   };

@@ -169,10 +169,10 @@ function createPythonAstPool({ pythonBin, config, log }) {
       } catch {}
       const killTask = (async () => {
         await killChildProcessTree(worker.proc, {
-        killTree: true,
-        detached: false,
-        graceMs: 100,
-        awaitGrace: true
+          killTree: true,
+          detached: false,
+          graceMs: 100,
+          awaitGrace: true
         });
         await runWithTimeout(() => worker.closed, { timeoutMs: 5000,
           errorFactory: () => Object.assign(new Error('Python AST worker close was not confirmed.'),

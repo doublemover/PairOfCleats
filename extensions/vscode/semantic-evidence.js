@@ -170,74 +170,74 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
       });
       if (!choice || choice.action === 'back') return;
       try {
-      if (choice.action === 'copy') {
-        await vscode.env.clipboard.writeText(JSON.stringify(payload, null, 2));
-        continue;
-      }
-      if (choice.action === 'plan') {
-        const proposed = await runOperation('enrichment', payload.enrichment.suggestions.slice(0, 8).map(item => item.taskId), state);
-        if (proposed) await inspect(proposed, failures);
-        await show(payload, state);
-        continue;
-      }
-      if (choice.action === 'more') {
-        const original = await execute(state.operation, captureSemanticData({ ...state.request, cursor: payload.cursor }), state);
-        if (!operations.isCurrent()) return;
-        const next = captureSemanticResponse(original);
-        if (!sameGeneration(next?.generation, state.generation)) throw new Error('Continuation generation changed. Restart from seed.');
-        const page = await show(next, state);
-        if (page) await inspect(page, failures);
-        await show(payload, state);
-        continue;
-      }
-      const action = await pick([
-        { label: 'Inspect source-qualified detail', value: 'detail' },
-        { label: 'Trace upstream (depth 2)', value: 'trace', direction: 'upstream' },
-        { label: 'Trace downstream (depth 2)', value: 'trace', direction: 'downstream' },
-        { label: 'Explain evidence and proposed enrichment', value: 'explain', direction: 'upstream' },
-        { label: 'Open exact source (requires captured source mapping)', value: 'open' }
-      ].filter(item => item.value === 'open' || supported(item.value)), { title: choice.label,
-        placeHolder: state.transport === 'api' ? 'Only operations advertised by this service are offered' : 'Bounded canonical semantic operations' });
-      if (!action) continue;
-      if (action.value === 'open') {
-        const source = (payload.sourceRefs || []).find(item => item?.ref?.partitionId === choice.record.ref?.partitionId
-          && item?.ref?.localId === choice.record.ref?.localId);
-        const target = sourceQualifiedSelection(state.repoContext, source, choice.record);
-        const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: () => operations.isCurrent(), maxDocuments: 1 });
-        const qualified = await authority.qualify({ repoRoot: state.repoContext.repoRoot, file: target.file,
-          uri: vscode.Uri.file(target.file), sourceHash: target.sourceHash, span: { start: target.start, end: target.end } });
-        if (!qualified || !operations.isCurrent()) return;
-        const editor = await vscode.window.showTextDocument(qualified.document);
-        await authority.assertCurrent();
-        if (!operations.isCurrent()) return;
-        assertQualifiedEditor(editor, qualified);
-        editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
-        editor.revealRange(editor.selection);
-      } else {
-        let extra = { direction: action.direction };
-        if (action.value === 'trace' || action.value === 'explain') {
-          const depth = await vscode.window.showInputBox({ prompt: 'Trace depth (1–64; records 128 / edges 512 / 64 KiB / 250 ms)', value: '2' });
-          if (depth === undefined) continue;
-          if (!/^\d+$/.test(depth) || Number(depth) < 1 || Number(depth) > 64) throw new Error('Trace depth must be between 1 and 64.');
-          const kinds = await pick(['flowsTo', 'defines', 'reads', 'writes', 'callTarget',
-            'constructTarget', 'argumentToParameter', 'returnToResult'], { canPickMany: true,
-            title: 'Trace edge kinds (empty selection uses canonical supported kinds)' });
-          if (!kinds) continue;
-          const slot = await pick(['Any slot', 'input', 'output', 'argument', 'receiver',
-            'parameter', 'returnValue', 'propertyValue', 'element'], { title: 'Trace slot' });
-          if (!slot) continue;
-          extra = { ...extra, depth: Number(depth), kinds };
-          if (slot !== 'Any slot') {
-            const ordinal = await vscode.window.showInputBox({ prompt: `${slot} ordinal (zero based)`, value: '0' });
-            if (ordinal === undefined) continue;
-            if (!/^\d+$/.test(ordinal) || !Number.isSafeInteger(Number(ordinal))) throw new Error('Slot ordinal must be a nonnegative safe integer.');
-            extra.slot = { name: slot, ordinal: Number(ordinal) };
-          }
+        if (choice.action === 'copy') {
+          await vscode.env.clipboard.writeText(JSON.stringify(payload, null, 2));
+          continue;
         }
-        const detail = await runOperation(action.value, choice.record.ref, state, extra);
-        if (detail) await inspect(detail, failures);
-        await show(payload, state);
-      }
+        if (choice.action === 'plan') {
+          const proposed = await runOperation('enrichment', payload.enrichment.suggestions.slice(0, 8).map(item => item.taskId), state);
+          if (proposed) await inspect(proposed, failures);
+          await show(payload, state);
+          continue;
+        }
+        if (choice.action === 'more') {
+          const original = await execute(state.operation, captureSemanticData({ ...state.request, cursor: payload.cursor }), state);
+          if (!operations.isCurrent()) return;
+          const next = captureSemanticResponse(original);
+          if (!sameGeneration(next?.generation, state.generation)) throw new Error('Continuation generation changed. Restart from seed.');
+          const page = await show(next, state);
+          if (page) await inspect(page, failures);
+          await show(payload, state);
+          continue;
+        }
+        const action = await pick([
+          { label: 'Inspect source-qualified detail', value: 'detail' },
+          { label: 'Trace upstream (depth 2)', value: 'trace', direction: 'upstream' },
+          { label: 'Trace downstream (depth 2)', value: 'trace', direction: 'downstream' },
+          { label: 'Explain evidence and proposed enrichment', value: 'explain', direction: 'upstream' },
+          { label: 'Open exact source (requires captured source mapping)', value: 'open' }
+        ].filter(item => item.value === 'open' || supported(item.value)), { title: choice.label,
+          placeHolder: state.transport === 'api' ? 'Only operations advertised by this service are offered' : 'Bounded canonical semantic operations' });
+        if (!action) continue;
+        if (action.value === 'open') {
+          const source = (payload.sourceRefs || []).find(item => item?.ref?.partitionId === choice.record.ref?.partitionId
+          && item?.ref?.localId === choice.record.ref?.localId);
+          const target = sourceQualifiedSelection(state.repoContext, source, choice.record);
+          const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: () => operations.isCurrent(), maxDocuments: 1 });
+          const qualified = await authority.qualify({ repoRoot: state.repoContext.repoRoot, file: target.file,
+            uri: vscode.Uri.file(target.file), sourceHash: target.sourceHash, span: { start: target.start, end: target.end } });
+          if (!qualified || !operations.isCurrent()) return;
+          const editor = await vscode.window.showTextDocument(qualified.document);
+          await authority.assertCurrent();
+          if (!operations.isCurrent()) return;
+          assertQualifiedEditor(editor, qualified);
+          editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
+          editor.revealRange(editor.selection);
+        } else {
+          let extra = { direction: action.direction };
+          if (action.value === 'trace' || action.value === 'explain') {
+            const depth = await vscode.window.showInputBox({ prompt: 'Trace depth (1–64; records 128 / edges 512 / 64 KiB / 250 ms)', value: '2' });
+            if (depth === undefined) continue;
+            if (!/^\d+$/.test(depth) || Number(depth) < 1 || Number(depth) > 64) throw new Error('Trace depth must be between 1 and 64.');
+            const kinds = await pick(['flowsTo', 'defines', 'reads', 'writes', 'callTarget',
+              'constructTarget', 'argumentToParameter', 'returnToResult'], { canPickMany: true,
+              title: 'Trace edge kinds (empty selection uses canonical supported kinds)' });
+            if (!kinds) continue;
+            const slot = await pick(['Any slot', 'input', 'output', 'argument', 'receiver',
+              'parameter', 'returnValue', 'propertyValue', 'element'], { title: 'Trace slot' });
+            if (!slot) continue;
+            extra = { ...extra, depth: Number(depth), kinds };
+            if (slot !== 'Any slot') {
+              const ordinal = await vscode.window.showInputBox({ prompt: `${slot} ordinal (zero based)`, value: '0' });
+              if (ordinal === undefined) continue;
+              if (!/^\d+$/.test(ordinal) || !Number.isSafeInteger(Number(ordinal))) throw new Error('Slot ordinal must be a nonnegative safe integer.');
+              extra.slot = { name: slot, ordinal: Number(ordinal) };
+            }
+          }
+          const detail = await runOperation(action.value, choice.record.ref, state, extra);
+          if (detail) await inspect(detail, failures);
+          await show(payload, state);
+        }
       } catch (error) {
         failures.push(await reportEditorFailure(error, { isCurrent: () => operations.isCurrent(),
           notify: message => vscode.window.showErrorMessage(message), prefix: 'PairOfCleats semantic evidence: ',

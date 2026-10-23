@@ -31,7 +31,7 @@ const buildPlannerInputKey = async (label, runs, { requestYield } = {}) => {
     hash.update(String(Number.isFinite(stat?.size) ? stat.size : -1));
     hash.update('\n');
     const pendingYield1 = requestCooperativeYield(requestYield);
-      if (pendingYield1) await pendingYield1;
+    if (pendingYield1) await pendingYield1;
   }
   return hash.digest('hex');
 };

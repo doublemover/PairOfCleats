@@ -856,20 +856,20 @@ export async function buildToolingReport(root, languageOverride = null, options 
   if (options.skipToolDetection !== true) {
     const detect = options.detectTool || (await import('./owned-detect.js')).detectToolOwned;
     for (const tool of resolveToolsForLanguages(languageList, toolingConfig.dir, root, toolingConfig)) {
-    signal?.throwIfAborted();
-    const status = await detect(tool, { signal });
-    signal?.throwIfAborted();
-    tools.push({
-      id: tool.id,
-      label: tool.label,
-      docs: tool.docs,
-      languages: tool.languages,
-      found: status.found,
-      source: status.source,
-      path: status.path,
-      probe: status.probe || null,
-      install: tool.install || {}
-    });
+      signal?.throwIfAborted();
+      const status = await detect(tool, { signal });
+      signal?.throwIfAborted();
+      tools.push({
+        id: tool.id,
+        label: tool.label,
+        docs: tool.docs,
+        languages: tool.languages,
+        found: status.found,
+        source: status.source,
+        path: status.path,
+        probe: status.probe || null,
+        install: tool.install || {}
+      });
     }
   }
   return {

@@ -126,10 +126,10 @@ export const createDockerfileChunker = ({ parseStructure = parseDockerfileStruct
     return chunks.map((chunk) => {
       const instruction = chunk.meta?.preamble ? null : structure.instructions[instructionIndex++];
       return { ...chunk, meta: { ...chunk.meta,
-      parser: structure.parser, parserCoverage: structure.coverage,
-      ...(instruction ? { astRange: {
-        start: instruction.start, end: instruction.end
-      } } : {}) } };
+        parser: structure.parser, parserCoverage: structure.coverage,
+        ...(instruction ? { astRange: {
+          start: instruction.start, end: instruction.end
+        } } : {}) } };
     });
   }
   for (let i = 0; i < lines.length; i += 1) {

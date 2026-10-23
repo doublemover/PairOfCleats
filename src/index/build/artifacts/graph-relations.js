@@ -519,59 +519,59 @@ export async function enqueueGraphRelationsArtifacts({
       let primaryError = null;
       let failed = false;
       try {
-      let nextOut = await outGroups.next();
-      let nextIn = await inGroups.next();
-      let totalBytes = 0;
-      for (let g = 0; g < GRAPH_RELATION_GRAPHS.length; g += 1) {
-        const graphName = GRAPH_RELATION_GRAPHS[g];
-        const ids = nodeLists[g] || [];
-        for (const id of ids) {
-          let out = [];
-          while (!nextOut.done && (nextOut.value.g < g || (nextOut.value.g === g && String(nextOut.value.id) < String(id)))) {
-            nextOut = await outGroups.next();
-          }
-          if (!nextOut.done && nextOut.value.g === g && nextOut.value.id === id) {
-            out = nextOut.value.neighbors;
-            edgeCounts[g] += out.length;
-            nextOut = await outGroups.next();
-          }
-          let incoming = [];
-          while (!nextIn.done && (nextIn.value.g < g || (nextIn.value.g === g && String(nextIn.value.id) < String(id)))) {
-            nextIn = await inGroups.next();
-          }
-          if (!nextIn.done && nextIn.value.g === g && nextIn.value.id === id) {
-            incoming = nextIn.value.neighbors;
-            nextIn = await inGroups.next();
-          }
-
-          const node = g === 2
-            ? { id, file: id, out, in: incoming }
-            : (() => {
-              const chunk = chunkByUid.get(id) || null;
-              const attrs = chunk ? buildChunkNodeAttrs(chunk) : {};
-              return { id, ...attrs, out, in: incoming };
-            })();
-
-          const row = { graph: graphName, node };
-          const line = JSON.stringify(row);
-          const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
-          maxRowBytes = Math.max(maxRowBytes, lineBytes);
-          if (byteCap) {
-            if (totalBytes + lineBytes > byteCap) {
-              if (byteCapStats) {
-                if (!byteCapStats.truncated) byteCapStats.truncated = true;
-                byteCapStats.droppedRows += 1;
-                byteCapStats.droppedByGraph = byteCapStats.droppedByGraph || {};
-                byteCapStats.droppedByGraph[graphName] = (byteCapStats.droppedByGraph[graphName] || 0) + 1;
-              }
-              continue;
+        let nextOut = await outGroups.next();
+        let nextIn = await inGroups.next();
+        let totalBytes = 0;
+        for (let g = 0; g < GRAPH_RELATION_GRAPHS.length; g += 1) {
+          const graphName = GRAPH_RELATION_GRAPHS[g];
+          const ids = nodeLists[g] || [];
+          for (const id of ids) {
+            let out = [];
+            while (!nextOut.done && (nextOut.value.g < g || (nextOut.value.g === g && String(nextOut.value.id) < String(id)))) {
+              nextOut = await outGroups.next();
             }
-            totalBytes += lineBytes;
+            if (!nextOut.done && nextOut.value.g === g && nextOut.value.id === id) {
+              out = nextOut.value.neighbors;
+              edgeCounts[g] += out.length;
+              nextOut = await outGroups.next();
+            }
+            let incoming = [];
+            while (!nextIn.done && (nextIn.value.g < g || (nextIn.value.g === g && String(nextIn.value.id) < String(id)))) {
+              nextIn = await inGroups.next();
+            }
+            if (!nextIn.done && nextIn.value.g === g && nextIn.value.id === id) {
+              incoming = nextIn.value.neighbors;
+              nextIn = await inGroups.next();
+            }
+
+            const node = g === 2
+              ? { id, file: id, out, in: incoming }
+              : (() => {
+                const chunk = chunkByUid.get(id) || null;
+                const attrs = chunk ? buildChunkNodeAttrs(chunk) : {};
+                return { id, ...attrs, out, in: incoming };
+              })();
+
+            const row = { graph: graphName, node };
+            const line = JSON.stringify(row);
+            const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
+            maxRowBytes = Math.max(maxRowBytes, lineBytes);
+            if (byteCap) {
+              if (totalBytes + lineBytes > byteCap) {
+                if (byteCapStats) {
+                  if (!byteCapStats.truncated) byteCapStats.truncated = true;
+                  byteCapStats.droppedRows += 1;
+                  byteCapStats.droppedByGraph = byteCapStats.droppedByGraph || {};
+                  byteCapStats.droppedByGraph[graphName] = (byteCapStats.droppedByGraph[graphName] || 0) + 1;
+                }
+                continue;
+              }
+              totalBytes += lineBytes;
+            }
+            orderingHasher.update(line);
+            yield row;
           }
-          orderingHasher.update(line);
-          yield row;
         }
-      }
       } catch (error) {
         failed = true;
         primaryError = error;

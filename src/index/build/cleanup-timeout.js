@@ -101,13 +101,13 @@ export const runBuildCleanupWithTimeout = async ({
         timeoutMs: resolvedTimeoutMs,
         errorFactory: () => {
           const error = createTimeoutError({
-          message: `[cleanup] ${label} timed out after ${resolvedTimeoutMs}ms.`,
-          code: 'BUILD_CLEANUP_TIMEOUT',
-          retryable: false,
-          meta: {
-            label,
-            timeoutMs: resolvedTimeoutMs
-          }
+            message: `[cleanup] ${label} timed out after ${resolvedTimeoutMs}ms.`,
+            code: 'BUILD_CLEANUP_TIMEOUT',
+            retryable: false,
+            meta: {
+              label,
+              timeoutMs: resolvedTimeoutMs
+            }
           });
           cleanupTimeoutError = error;
           if (deadlineOwner && typeof deadlineOwner === 'object') ownedTimeoutErrors.set(error, deadlineOwner);

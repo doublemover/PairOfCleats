@@ -19,19 +19,19 @@ const releases = [{ version, stable: true, files: [{ version, filename, ...targe
   size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }] }];
 const sdk = await ensureManagedGoSdk({ toolingRoot: dir, cwd: dir,
   storageEstimate: { complete: true, writes: [{ destination: 'artifacts', requiredBytes: 1024 * 1024 }] }, dependencies: {
-  download: async ({ url }) => ({ sourceUrl: url, body: url === GO_RELEASE_INDEX_URL
-    ? Buffer.from(JSON.stringify(releases)) : bytes }),
-  extract: async (_archive, destination) => {
-    const extension = process.platform === 'win32' ? '.exe' : '';
-    for (const name of [`bin/go${extension}`, `bin/gofmt${extension}`, 'src/runtime/runtime.go',
-      `pkg/tool/${target.os}_${target.arch}/compile${extension}`]) {
-      const file = path.join(destination, 'go', name);
-      await fs.mkdir(path.dirname(file), { recursive: true }); await fs.writeFile(file, bytes);
-    }
-    await fs.writeFile(path.join(destination, 'go/VERSION'), version);
-  },
-  probe: async (_command, { resourceId }) => ({ ok: true, status: 0, stdout: `go version ${version} ${target.os}/${target.arch}\n`, settlement: { resourceId, settled: true, pending: false } })
-} });
+    download: async ({ url }) => ({ sourceUrl: url, body: url === GO_RELEASE_INDEX_URL
+      ? Buffer.from(JSON.stringify(releases)) : bytes }),
+    extract: async (_archive, destination) => {
+      const extension = process.platform === 'win32' ? '.exe' : '';
+      for (const name of [`bin/go${extension}`, `bin/gofmt${extension}`, 'src/runtime/runtime.go',
+        `pkg/tool/${target.os}_${target.arch}/compile${extension}`]) {
+        const file = path.join(destination, 'go', name);
+        await fs.mkdir(path.dirname(file), { recursive: true }); await fs.writeFile(file, bytes);
+      }
+      await fs.writeFile(path.join(destination, 'go/VERSION'), version);
+    },
+    probe: async (_command, { resourceId }) => ({ ok: true, status: 0, stdout: `go version ${version} ${target.os}/${target.arch}\n`, settlement: { resourceId, settled: true, pending: false } })
+  } });
 const explicit = { PATH: path.join(dir, 'selected-path'), GOROOT: path.join(dir, 'selected-sdk'),
   GOTOOLCHAIN: 'go1.26.4+path' };
 const original = { ...explicit };

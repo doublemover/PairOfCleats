@@ -169,7 +169,7 @@ export async function runCrossFilePropagation({
         && (Object.hasOwn(chunk.docmeta || {}, 'exported') || Object.hasOwn(chunk.docmeta || {}, 'exportNames'))
         ? { moduleExports: { exported: chunk.docmeta?.exported, exportNames: chunk.docmeta?.exportNames,
           typeOnlyExportNames: chunk.docmeta?.typeOnlyExportNames },
-          start: chunk.start, end: chunk.end } : {}),
+        start: chunk.start, end: chunk.end } : {}),
       returnTypes: extractReturnTypes(chunk),
       typeDeclaration: isTypeDeclaration(chunk.kind),
       paramNames,

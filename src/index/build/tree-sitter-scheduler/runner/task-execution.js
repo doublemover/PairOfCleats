@@ -78,27 +78,27 @@ export const executeTreeSitterSchedulerTasks = async ({
           activeChildren += 1;
           peakActiveChildren = Math.max(peakActiveChildren, activeChildren);
           try { return await spawnSubprocess(
-          process.execPath,
-          [
-            schedulerExecPath,
-            '--outDir', outDir,
-            '--grammarKeys', grammarKeysForTask.join(','),
-            '--profileOut', profileOut
-          ],
-          {
-            cwd: runtime?.root || undefined,
-            env: runtimeEnv,
-            stdio: ['ignore', 'pipe', 'pipe'],
-            shell: false,
-            signal: effectiveAbortSignal,
-            timeoutMs: taskTimeoutMs,
-            killTree: true,
-            ownershipId: runtime?.subprocessOwnership?.stage1FilePrefix
-              ? `${runtime.subprocessOwnership.stage1FilePrefix}:tree-sitter:${task.taskId}` : undefined,
-            rejectOnNonZeroExit: true,
-            onStdout: streamLogs ? (chunk) => stdoutBuffer.push(chunk) : null,
-            onStderr: streamLogs ? (chunk) => stderrBuffer.push(chunk) : null
-          }
+            process.execPath,
+            [
+              schedulerExecPath,
+              '--outDir', outDir,
+              '--grammarKeys', grammarKeysForTask.join(','),
+              '--profileOut', profileOut
+            ],
+            {
+              cwd: runtime?.root || undefined,
+              env: runtimeEnv,
+              stdio: ['ignore', 'pipe', 'pipe'],
+              shell: false,
+              signal: effectiveAbortSignal,
+              timeoutMs: taskTimeoutMs,
+              killTree: true,
+              ownershipId: runtime?.subprocessOwnership?.stage1FilePrefix
+                ? `${runtime.subprocessOwnership.stage1FilePrefix}:tree-sitter:${task.taskId}` : undefined,
+              rejectOnNonZeroExit: true,
+              onStdout: streamLogs ? (chunk) => stdoutBuffer.push(chunk) : null,
+              onStderr: streamLogs ? (chunk) => stderrBuffer.push(chunk) : null
+            }
           ); } finally { activeChildren -= 1; }
         };
         if (runtime?.scheduler?.schedule) {

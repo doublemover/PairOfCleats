@@ -42,7 +42,7 @@ export const writeSourceLinkedEvidence = async ({ report, sources, state, policy
   if (report.schemaVersion !== 1 || report.kind !== 'source-linked-evidence'
     || !text(report.producerId) || !text(report.adapterVersion) || !text(report.method) || !text(report.evidenceKind)
     || !digest(identity) || semanticHash('tooling.source-linked-evidence.v1', identityInput,
-      { maxBytes, check: () => throwIfAborted(signal) }) !== identity
+    { maxBytes, check: () => throwIfAborted(signal) }) !== identity
     || !report.generation || !digest(report.project?.configHash) || !digest(report.project?.dependencyHash)
     || !text(report.runtime?.family) || !text(report.runtime?.version) || !text(report.runtime?.qualification)
     || (report.runtime.profileHash !== null && !digest(report.runtime.profileHash))

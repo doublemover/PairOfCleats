@@ -81,7 +81,7 @@ export const createOwnedStdioClient = ({ command, args, cwd, env, signal, onSpaw
     onStdout: chunk => parser.push(chunk),
     // stderr is intentionally discarded; it can contain private configuration.
     onStderr: () => {} })).then(result => ({ exitCode: result.exitCode, signal: result.signal || null }),
-  error => { childFailure = error; return { exitCode: null, signal: null }; }).then(result => {
+    error => { childFailure = error; return { exitCode: null, signal: null }; }).then(result => {
     const pendingClosure = ownedCleanupIsPending(childFailure);
     const pendingError = pendingClosure && failure && failure !== childFailure
       ? combineOwnedErrors(failure, [childFailure]) : childFailure;

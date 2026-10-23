@@ -576,57 +576,57 @@ export async function compactDatabase(input, resources = null) {
 const isDirectRun = isDirectExecution(import.meta.url);
 if (isDirectRun) {
   await runNativeDatabaseCommand({ commandIdentity: 'sqlite.compact', delegated: true }, async resources => {
-  const argv = createCli({
-    scriptName: 'pairofcleats sqlite compact',
-    options: SQLITE_COMPACT_OPTIONS
-  }).strictOptions().parse();
+    const argv = createCli({
+      scriptName: 'pairofcleats sqlite compact',
+      options: SQLITE_COMPACT_OPTIONS
+    }).strictOptions().parse();
 
-  const { display, logger } = createToolDisplayLogger({ argv, stream: process.stderr });
-  try {
+    const { display, logger } = createToolDisplayLogger({ argv, stream: process.stderr });
+    try {
 
-  const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
-  const indexRoot = typeof argv['index-root'] === 'string' && argv['index-root']
-    ? path.resolve(argv['index-root'])
-    : null;
-  const vectorExtension = getVectorExtensionConfig(root, userConfig);
-  const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot });
+      const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
+      const indexRoot = typeof argv['index-root'] === 'string' && argv['index-root']
+        ? path.resolve(argv['index-root'])
+        : null;
+      const vectorExtension = getVectorExtensionConfig(root, userConfig);
+      const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot });
 
-  const modeArg = (argv.mode || 'all').toLowerCase();
-  if (!['all', 'code', 'prose'].includes(modeArg)) {
-    display.close();
-    throw new Error('Invalid mode. Use --mode all|code|prose (sqlite compaction only supports code/prose).');
-  }
+      const modeArg = (argv.mode || 'all').toLowerCase();
+      if (!['all', 'code', 'prose'].includes(modeArg)) {
+        display.close();
+        throw new Error('Invalid mode. Use --mode all|code|prose (sqlite compaction only supports code/prose).');
+      }
 
-  const targets = [];
-  if (modeArg === 'all' || modeArg === 'code') {
-    targets.push({ mode: 'code', path: sqlitePaths.codePath });
-  }
-  if (modeArg === 'all' || modeArg === 'prose') {
-    targets.push({ mode: 'prose', path: sqlitePaths.prosePath });
-  }
+      const targets = [];
+      if (modeArg === 'all' || modeArg === 'code') {
+        targets.push({ mode: 'code', path: sqlitePaths.codePath });
+      }
+      if (modeArg === 'all' || modeArg === 'prose') {
+        targets.push({ mode: 'prose', path: sqlitePaths.prosePath });
+      }
 
-  resources.admitScope({ repoCacheRoot: resolveRepoCacheRootPath(root, userConfig), indexRoot,
-    userConfig, targets: targets.map(target => target.path) });
+      resources.admitScope({ repoCacheRoot: resolveRepoCacheRootPath(root, userConfig), indexRoot,
+        userConfig, targets: targets.map(target => target.path) });
 
-  const modeTask = display.task('SQLite compact', { total: targets.length, stage: 'sqlite' });
-  let completed = 0;
-  for (const target of targets) {
-    modeTask.set(completed, targets.length, { message: `compacting ${target.mode}` });
-    await compactDatabase({
-      dbPath: target.path,
-      repoRoot: root,
-      mode: target.mode,
-      vectorExtension,
-      dryRun: argv['dry-run'],
-      keepBackup: argv['keep-backup'],
-      indexDir: getIndexDir(root, target.mode, userConfig, { indexRoot }),
-      logger
-    }, resources);
-    completed += 1;
-    modeTask.set(completed, targets.length, { message: `compacted ${target.mode}` });
-  }
+      const modeTask = display.task('SQLite compact', { total: targets.length, stage: 'sqlite' });
+      let completed = 0;
+      for (const target of targets) {
+        modeTask.set(completed, targets.length, { message: `compacting ${target.mode}` });
+        await compactDatabase({
+          dbPath: target.path,
+          repoRoot: root,
+          mode: target.mode,
+          vectorExtension,
+          dryRun: argv['dry-run'],
+          keepBackup: argv['keep-backup'],
+          indexDir: getIndexDir(root, target.mode, userConfig, { indexRoot }),
+          logger
+        }, resources);
+        completed += 1;
+        modeTask.set(completed, targets.length, { message: `compacted ${target.mode}` });
+      }
 
-  display.log('SQLite compaction complete.');
-  } finally { display.close(); }
+      display.log('SQLite compaction complete.');
+    } finally { display.close(); }
   });
 }

@@ -59,7 +59,7 @@ export const shadowQueryRoute = ({ query, queryAst = null, requestKind = 'text',
   features.naturalLanguageTokens = text.split(/\s+/u).filter(token => /^[A-Za-z][A-Za-z'-]*$/u.test(token)).length;
   const label = features.structuralRequest ? 'semantic-fact' : features.unqualifiedExplicitSyntax ? 'unknown'
     : features.explicitBoolean || features.phrase ? 'explicit-boolean-or-phrase'
-    : features.path || features.symbol ? 'symbol-or-path' : features.naturalLanguageTokens >= 3 ? 'natural-language' : 'unknown';
+      : features.path || features.symbol ? 'symbol-or-path' : features.naturalLanguageTokens >= 3 ? 'natural-language' : 'unknown';
   const proposal = label === 'semantic-fact' ? 'existing-semantic-find-request-only'
     : label === 'explicit-boolean-or-phrase' ? 'existing-hybrid-with-explicit-constraints'
       : label === 'symbol-or-path' ? 'shadow-lexical-effort-preference'

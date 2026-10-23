@@ -18,7 +18,7 @@ const packet = () => ({ version: '1.0.0', seed: { type: 'file', path: 'a.js' },
 const fixture = () => {
   const value = { results: { repoRoot: 'C:/selected/repo', repoUri: 'file:///C:/selected/repo',
     hits: [{ file: 'a.js', name: 'Original source' }] }, packet: packet(), fetched: [], documents: [], shown: [], copies: [], writes: [], errors: [],
-    sourcePicks: 0, reviews: 0 };
+  sourcePicks: 0, reviews: 0 };
   value.operations = createEditorOperations({ spawn() { assert.fail('collector does not spawn'); } });
   const api = { workspace: {
     async openTextDocument({ content }) { const document = { content, version: 1, isClosed: false, isDirty: false, getText() { return this.content; } };

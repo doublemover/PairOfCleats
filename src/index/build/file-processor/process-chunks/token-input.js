@@ -40,8 +40,8 @@ export const canUseLineTokenStreamSlice = ({
 };
 
 export const createChunkTokenBatchInput = ({ chunksForProcessing, text, cachedLexicalBySpan, lexicalCheckpoint,
-tokenMode, containerExt, relKey, containerLanguageId, commentRangeAssignments, normalizedCommentsConfig,
-chunkLineRanges, fileLineCount, tokenizationFileStreamEnabled, lineIndex, fileStat, workerDictOverride }) => index => {
+  tokenMode, containerExt, relKey, containerLanguageId, commentRangeAssignments, normalizedCommentsConfig,
+  chunkLineRanges, fileLineCount, tokenizationFileStreamEnabled, lineIndex, fileStat, workerDictOverride }) => index => {
   const chunk = chunksForProcessing[index];
   if (!chunk || chunk.end - chunk.start > TOKENIZE_BATCH_MAX_TEXT_BYTES
     || cachedLexicalBySpan?.has(chunk.start + ':' + chunk.end)) return null;

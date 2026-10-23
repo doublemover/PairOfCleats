@@ -9,9 +9,9 @@ const relations = target => ({ callLinks: [{ to: { resolved: { chunkUid: target 
   usageLinks: [{ ref: { resolved: { chunkUid: target } } }], callDetails: [{ targetChunkUid: target }] });
 const piece = order => ({ chunkMeta: order.map(uid => ({ chunkUid: uid, metaV2: { chunkUid: uid },
   codeRelations: relations(uid === 'A' ? 'B' : 'A') })), tokenPostings: { docLengths: order.map(() => 1) },
-  callSites: [{ callerChunkUid: 'A', targetChunkUid: 'B' }],
-  riskFlows: [{ source: { chunkUid: 'A' }, sink: { chunkUid: 'B' }, path: { chunkUids: ['A', 'B'] },
-    evidence: { callSitesByStep: [[{ targetChunkUid: 'B', details: { targetChunkUid: 'B' } }]] } }] });
+callSites: [{ callerChunkUid: 'A', targetChunkUid: 'B' }],
+riskFlows: [{ source: { chunkUid: 'A' }, sink: { chunkUid: 'B' }, path: { chunkUids: ['A', 'B'] },
+  evidence: { callSitesByStep: [[{ targetChunkUid: 'B', details: { targetChunkUid: 'B' } }]] } }] });
 for (const order of [['A', 'B'], ['B', 'A']]) {
   const { state, mergeState } = fixture();
   mergeIndexInput({ input: piece(order), dir: 'first', state, mergeState });

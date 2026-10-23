@@ -305,8 +305,8 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     busyStats: pool => ({ actuallyRunning: pool && pool === currentPool
       ? (Array.isArray(pool.threads) ? pool.threads.filter(worker => runningByWorker.has(worker.threadId)).length
         : runningByWorker.size) : 0, completedTasks,
-      workerWallMs, scope: 'worker-owned-task-wall-time', cpuTimeMs: null,
-      method: 'worker-start-end-events; excludes throttle, startup and backend queue waits' }),
+    workerWallMs, scope: 'worker-owned-task-wall-time', cpuTimeMs: null,
+    method: 'worker-start-end-events; excludes throttle, startup and backend queue waits' }),
     runtimeObservationStats: (pool) => {
       if (!pool || pool !== currentPool) return [];
       pruneInactiveDiagnostics();

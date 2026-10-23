@@ -677,107 +677,107 @@ const processFilesInTransformScope = async ({
   let stage1ShuttingDown = false;
 
   try {
-  const perfEventBaseLogger = await createPerfEventLogger({
-    buildRoot: runtime.buildRoot || runtime.root,
-    mode,
-    stream: 'heavy-file',
-    enabled: mode === 'code' && enablePerfEvents
-  });
-  perfEventLogger = createHeavyFilePerfAggregator({
-    logger: perfEventBaseLogger
-  });
+    const perfEventBaseLogger = await createPerfEventLogger({
+      buildRoot: runtime.buildRoot || runtime.root,
+      mode,
+      stream: 'heavy-file',
+      enabled: mode === 'code' && enablePerfEvents
+    });
+    perfEventLogger = createHeavyFilePerfAggregator({
+      logger: perfEventBaseLogger
+    });
 
-  if (runtime.semanticPolicy?.enabled && mode === 'code') {
-    if (incrementalState?.enabled && runtime.cacheWriterLease && runtime.semanticPolicy.storage.decodedCacheBytes > 0) {
-      runtime.semanticReplayVerification = createSemanticReplayVerificationContext({
-        bundleDir: incrementalState.bundleDir, lease: runtime.cacheWriterLease,
-        maxBytes: Math.min(8 * 1024 * 1024, runtime.semanticPolicy.storage.decodedCacheBytes) });
-      incrementalState.semanticReplayVerification = runtime.semanticReplayVerification;
+    if (runtime.semanticPolicy?.enabled && mode === 'code') {
+      if (incrementalState?.enabled && runtime.cacheWriterLease && runtime.semanticPolicy.storage.decodedCacheBytes > 0) {
+        runtime.semanticReplayVerification = createSemanticReplayVerificationContext({
+          bundleDir: incrementalState.bundleDir, lease: runtime.cacheWriterLease,
+          maxBytes: Math.min(8 * 1024 * 1024, runtime.semanticPolicy.storage.decodedCacheBytes) });
+        incrementalState.semanticReplayVerification = runtime.semanticReplayVerification;
+      }
+      completedSemanticFiles = await preloadFileCompletions({ entries, incrementalState, log,
+        semanticContext: { repoRoot: runtime.root, repositoryNamespace: runtime.repoId || getRepoId(runtime.root),
+          replayVerification: runtime.semanticReplayVerification,
+          signal: effectiveAbortSignal, dependencySignatures: createSemanticCacheDependencySignatures({
+            dependencySignatures: incrementalState.manifest.dependencySignatures,
+            policy: runtime.semanticPolicy, root: runtime.root, languageOptions: runtime.languageOptions }) } });
     }
-    completedSemanticFiles = await preloadFileCompletions({ entries, incrementalState, log,
-      semanticContext: { repoRoot: runtime.root, repositoryNamespace: runtime.repoId || getRepoId(runtime.root),
-        replayVerification: runtime.semanticReplayVerification,
-        signal: effectiveAbortSignal, dependencySignatures: createSemanticCacheDependencySignatures({
-          dependencySignatures: incrementalState.manifest.dependencySignatures,
-          policy: runtime.semanticPolicy, root: runtime.root, languageOptions: runtime.languageOptions }) } });
-  }
-  if (runtime.semanticPolicy?.enabled && mode === 'code' && !state.semanticDiskAccount) {
+    if (runtime.semanticPolicy?.enabled && mode === 'code' && !state.semanticDiskAccount) {
     // Recover crash-completed files before sweeping, while no workers are
     // running. Commit their pins first; reclaim obsolete retained objects before
     // opening the disk account so garbage cannot prevent admission forever.
-    await pruneIncrementalManifest({ enabled: incrementalState?.enabled,
-      manifest: incrementalState?.manifest, manifestPath: incrementalState?.manifestPath,
-      bundleDir: incrementalState?.bundleDir, seenFiles: new Set(entries.map(entry => entry.rel)), signal: effectiveAbortSignal });
-    const reopened = await reopenSemanticDiskAccount({
-      limit: runtime.semanticPolicy.storage.maxDiskWorkingSetBytes,
-      roots: [incrementalState?.incrementalDir, runtime.buildRoot,
-        runtime.repoCacheRoot && path.join(runtime.repoCacheRoot, 'builds'),
-        runtime.repoCacheRoot && path.join(runtime.repoCacheRoot, 'semantic-frontier')],
-      signal: effectiveAbortSignal
-    });
-    state.semanticDiskAccount = reopened.account;
-    state.semanticRetainedWorkingSet = { bytes: reopened.retainedBytes, files: reopened.retainedFiles };
-  }
-  const treeSitterEnabled = mode === 'code' && runtime?.languageOptions?.treeSitter?.enabled !== false;
-  if (treeSitterEnabled) {
+      await pruneIncrementalManifest({ enabled: incrementalState?.enabled,
+        manifest: incrementalState?.manifest, manifestPath: incrementalState?.manifestPath,
+        bundleDir: incrementalState?.bundleDir, seenFiles: new Set(entries.map(entry => entry.rel)), signal: effectiveAbortSignal });
+      const reopened = await reopenSemanticDiskAccount({
+        limit: runtime.semanticPolicy.storage.maxDiskWorkingSetBytes,
+        roots: [incrementalState?.incrementalDir, runtime.buildRoot,
+          runtime.repoCacheRoot && path.join(runtime.repoCacheRoot, 'builds'),
+          runtime.repoCacheRoot && path.join(runtime.repoCacheRoot, 'semantic-frontier')],
+        signal: effectiveAbortSignal
+      });
+      state.semanticDiskAccount = reopened.account;
+      state.semanticRetainedWorkingSet = { bytes: reopened.retainedBytes, files: reopened.retainedFiles };
+    }
+    const treeSitterEnabled = mode === 'code' && runtime?.languageOptions?.treeSitter?.enabled !== false;
+    if (treeSitterEnabled) {
     // Semantic sources require their full native/fact owner unless the durable
     // completion verifier already admitted them. A geometry descriptor alone
     // cannot certify complete semantic lanes.
-    const cachedParseFiles = runtime.semanticPolicy?.enabled ? new Set()
-      : await preloadParseCheckpoints({ entries, incrementalState, repoRoot: runtime.root, signal: effectiveAbortSignal });
-    const plannerInput = resolveTreeSitterPlannerEntries({
-      entries: entries.filter(entry => !cachedParseFiles.has(entry.abs) && !completedSemanticFiles.has(entry.abs)),
-      root: runtime.root
-    });
-    if (plannerInput.skipped > 0) {
-      log(
-        `[tree-sitter:schedule] prefilter: skipped ${plannerInput.skipped} entries; `
+      const cachedParseFiles = runtime.semanticPolicy?.enabled ? new Set()
+        : await preloadParseCheckpoints({ entries, incrementalState, repoRoot: runtime.root, signal: effectiveAbortSignal });
+      const plannerInput = resolveTreeSitterPlannerEntries({
+        entries: entries.filter(entry => !cachedParseFiles.has(entry.abs) && !completedSemanticFiles.has(entry.abs)),
+        root: runtime.root
+      });
+      if (plannerInput.skipped > 0) {
+        log(
+          `[tree-sitter:schedule] prefilter: skipped ${plannerInput.skipped} entries; `
         + `${plannerInput.entries.length} queued for planning.`
-      );
-    }
-    log('[tree-sitter:schedule] planning global batches...');
-    treeSitterScheduler = await runTreeSitterScheduler({
-      mode,
-      runtime,
-      entries: plannerInput.entries,
-      outDir,
-      fileTextCache,
-      abortSignal: effectiveAbortSignal,
-      log,
-      crashLogger
-    });
-    const schedStats = treeSitterScheduler?.stats ? treeSitterScheduler.stats() : null;
-    if (schedStats) {
-      log(
-        `[tree-sitter:schedule] plan ready: grammars=${schedStats.grammarKeys} ` +
+        );
+      }
+      log('[tree-sitter:schedule] planning global batches...');
+      treeSitterScheduler = await runTreeSitterScheduler({
+        mode,
+        runtime,
+        entries: plannerInput.entries,
+        outDir,
+        fileTextCache,
+        abortSignal: effectiveAbortSignal,
+        log,
+        crashLogger
+      });
+      const schedStats = treeSitterScheduler?.stats ? treeSitterScheduler.stats() : null;
+      if (schedStats) {
+        log(
+          `[tree-sitter:schedule] plan ready: grammars=${schedStats.grammarKeys} ` +
         `entries=${schedStats.indexEntries} cache=${schedStats.cacheEntries}`
-      );
-      if ((Number(schedStats.parserCrashSignatures) || 0) > 0) {
-        const degradedSummary = {
-          parserCrashSignatures: Number(schedStats.parserCrashSignatures) || 0,
-          failedGrammarKeys: Number(schedStats.failedGrammarKeys) || 0,
-          degradedVirtualPaths: Number(schedStats.degradedVirtualPaths) || 0,
-          quarantineDecisions: Number(schedStats.quarantineDecisions) || 0
-        };
-        if (state && typeof state === 'object') {
-          state.treeSitterDegraded = degradedSummary;
-        }
-        logLine(
-          `[tree-sitter:schedule] parser quarantine active: signatures=${degradedSummary.parserCrashSignatures} ` +
+        );
+        if ((Number(schedStats.parserCrashSignatures) || 0) > 0) {
+          const degradedSummary = {
+            parserCrashSignatures: Number(schedStats.parserCrashSignatures) || 0,
+            failedGrammarKeys: Number(schedStats.failedGrammarKeys) || 0,
+            degradedVirtualPaths: Number(schedStats.degradedVirtualPaths) || 0,
+            quarantineDecisions: Number(schedStats.quarantineDecisions) || 0
+          };
+          if (state && typeof state === 'object') {
+            state.treeSitterDegraded = degradedSummary;
+          }
+          logLine(
+            `[tree-sitter:schedule] parser quarantine active: signatures=${degradedSummary.parserCrashSignatures} ` +
           `failedGrammars=${degradedSummary.failedGrammarKeys} ` +
           `degradedVirtualPaths=${degradedSummary.degradedVirtualPaths} ` +
           `quarantineDecisions=${degradedSummary.quarantineDecisions}`,
-          {
-            kind: 'warning',
-            mode,
-            stage: 'processing',
-            substage: 'tree-sitter-scheduler',
-            treeSitterDegraded: degradedSummary
-          }
-        );
+            {
+              kind: 'warning',
+              mode,
+              stage: 'processing',
+              substage: 'tree-sitter-scheduler',
+              treeSitterDegraded: degradedSummary
+            }
+          );
+        }
       }
     }
-  }
     assignFileIndexes(entries);
     const repoFileCount = Array.isArray(entries) ? entries.length : 0;
     const scmFilesPosix = entries.map((entry) => (

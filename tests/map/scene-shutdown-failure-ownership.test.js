@@ -56,7 +56,7 @@ const setup = () => Object.assign(state, { disposeScene: null, THREE, dom: { app
   assets: {}, visuals: {}, layout: { style: 'stacks' }, stackPipeOwners: [], stackPacketOwner: null,
   shapeGeometryCache: new Map(), normalMapState: null, disposeControls: null, disposeResidency: null });
 const expectFailure = invoke => { try { invoke(); assert.fail('expected retained scene cleanup'); }
-  catch (error) { assert.equal(error.sceneOwnershipPending, true); return error; } };
+catch (error) { assert.equal(error.sceneOwnershipPending, true); return error; } };
 try {
   globalThis.window = { innerWidth: 800, innerHeight: 600, devicePixelRatio: 1 };
   globalThis.document = { createElement: () => ({ getContext: () => ({

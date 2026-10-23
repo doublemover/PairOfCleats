@@ -4415,14 +4415,14 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     const summaryLine = watchOwnershipPending
       ? `${spec.title} canonical watch teardown ownership remains pending. Inspect Tasks before any deliberate recovery.`
       : stopUnconfirmed
-      ? `${spec.title} stop remains unconfirmed: ${termination?.message || 'owned termination did not settle successfully'}`
-      : entry.watchFailure
-      ? `${spec.title} canonical watch teardown reported failure; cancellation does not prove success.`
-      : stoppedByUser
-      ? (entry.stopSummaryLine || `${spec.title} stopped.`)
-      : failed
-        ? `${spec.title} exited with code ${code}.`
-        : `${spec.title} completed.`;
+        ? `${spec.title} stop remains unconfirmed: ${termination?.message || 'owned termination did not settle successfully'}`
+        : entry.watchFailure
+          ? `${spec.title} canonical watch teardown reported failure; cancellation does not prove success.`
+          : stoppedByUser
+            ? (entry.stopSummaryLine || `${spec.title} stopped.`)
+            : failed
+              ? `${spec.title} exited with code ${code}.`
+              : `${spec.title} completed.`;
     entry.status = status;
     entry.summaryLine = summaryLine;
     entry.progress = { ...entry.progress, phase: stopUnconfirmed ? 'stop-unconfirmed' : status, message: summaryLine };
@@ -4901,19 +4901,19 @@ async function executeOwnedSearchCommand({
  * @returns {Promise<void>}
  */
 function currentQualifiedSemanticSeed(repoContext) {
-    const captured = latestNavigationEvidence;
-    const editor = vscode.window.activeTextEditor;
-    const document = editor?.document;
-    const position = editor?.selection?.active;
-    if (!captured || captured.repoContext.repoRoot !== repoContext.repoRoot
+  const captured = latestNavigationEvidence;
+  const editor = vscode.window.activeTextEditor;
+  const document = editor?.document;
+  const position = editor?.selection?.active;
+  if (!captured || captured.repoContext.repoRoot !== repoContext.repoRoot
       || document?.uri?.fsPath !== captured.sourceFile || !position
       || position.line !== captured.position.line || position.character !== captured.position.character) return null;
-    try {
-      const args = sourceNavigationArgs(document, position, true, repoContext.repoRoot);
-      if (args[args.indexOf('--source-hash') + 1] !== captured.payload.sourceHash
+  try {
+    const args = sourceNavigationArgs(document, position, true, repoContext.repoRoot);
+    if (args[args.indexOf('--source-hash') + 1] !== captured.payload.sourceHash
         || args[args.indexOf('--source-version') + 1] !== captured.payload.sourceVersion) return null;
-      return qualifiedBindingSeed(captured.payload);
-    } catch { return null; }
+    return qualifiedBindingSeed(captured.payload);
+  } catch { return null; }
 }
 
 const runSemanticEvidence = createSemanticEvidenceWorkflow({

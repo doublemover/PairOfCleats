@@ -76,7 +76,7 @@ export const createOnnxQualificationLease = ({ binding, candidate, memory, memor
     graphOptimizationLevel: candidate.graphOptimizationLevel, enableCpuMemArena: candidate.enableCpuMemArena,
     enableMemPattern: candidate.enableMemPattern, executionMode: 'sequential',
     executionProviders: [{ name: 'cpu', useArena: candidate.enableCpuMemArena }] },
-    active: new Set(), closed: false });
+  active: new Set(), closed: false });
   return lease;
 };
 

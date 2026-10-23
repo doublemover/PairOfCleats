@@ -128,17 +128,17 @@ const createButton = (container, label, onClick) => {
 
 const persistPanelState = (() => {
   return () => {
-      const payload = {
-        layout: state.panelState.layout,
-        scoring: state.panelState.scoring,
-        colors: state.panelState.colors,
-        controls: state.panelState.controls,
-        visuals: state.panelState.visuals,
-        performance: state.panelState.performance,
-        appearance: state.appearance || {}
-      };
-      state.settingsSession?.update(payload);
-      state.settingsSession?.scheduleSave();
+    const payload = {
+      layout: state.panelState.layout,
+      scoring: state.panelState.scoring,
+      colors: state.panelState.colors,
+      controls: state.panelState.controls,
+      visuals: state.panelState.visuals,
+      performance: state.panelState.performance,
+      appearance: state.appearance || {}
+    };
+    state.settingsSession?.update(payload);
+    state.settingsSession?.scheduleSave();
   };
 })();
 

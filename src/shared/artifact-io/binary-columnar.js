@@ -240,7 +240,7 @@ export const writeBinaryRowFrames = async ({
     const closed=await Promise.allSettled([dataHandle,offsetsHandle,lengthsHandle].filter(Boolean).map(handle=>handle.close()));
     const closeErrors=closed.filter(result=>result.status==='rejected').map(result=>result.reason);
     if(closeErrors.length){if(primaryError)primaryError.cleanupErrors=[...(primaryError.cleanupErrors||[]),...closeErrors];
-      else primaryError=new AggregateError(closeErrors,'Binary row frame close failed.');}
+    else primaryError=new AggregateError(closeErrors,'Binary row frame close failed.');}
   }
   if (primaryError || !wrotePayload) {
     await Promise.allSettled([

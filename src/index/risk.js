@@ -295,79 +295,79 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
       break;
     }
     for (const statement of splitRiskStatements(lines[i])) {
-    const line = statement.text;
-    const columnOffset = statement.start;
-    const lineNo = i + 1;
-    const lineLowerRef = { value: null };
-    const sourceMatches = collectLineMatches(rules.sources, line, lineNo, languageId, lineLowerRef, columnOffset);
-    const sinkMatches = collectLineMatches(rules.sinks, line, lineNo, languageId, lineLowerRef, columnOffset);
-    const sanitizerMatches = collectLineMatches(rules.sanitizers, line, lineNo, languageId, lineLowerRef, columnOffset);
-    if (sourceMatches.length) sourcesRaw.push(...sourceMatches);
-    if (sinkMatches.length) sinksRaw.push(...sinkMatches);
-    if (sanitizerMatches.length) sanitizersRaw.push(...sanitizerMatches);
+      const line = statement.text;
+      const columnOffset = statement.start;
+      const lineNo = i + 1;
+      const lineLowerRef = { value: null };
+      const sourceMatches = collectLineMatches(rules.sources, line, lineNo, languageId, lineLowerRef, columnOffset);
+      const sinkMatches = collectLineMatches(rules.sinks, line, lineNo, languageId, lineLowerRef, columnOffset);
+      const sanitizerMatches = collectLineMatches(rules.sanitizers, line, lineNo, languageId, lineLowerRef, columnOffset);
+      if (sourceMatches.length) sourcesRaw.push(...sourceMatches);
+      if (sinkMatches.length) sinksRaw.push(...sinkMatches);
+      if (sanitizerMatches.length) sanitizersRaw.push(...sanitizerMatches);
 
-    if (analysisStatus.status !== 'ok') continue;
+      if (analysisStatus.status !== 'ok') continue;
 
-    const sanitizedVars = [];
-    if (sanitizerMatches.length && taint.size) {
-      const ranges = sanitizerMatches
-        .map((match) => resolveSanitizerRange(line, match))
-        .filter(Boolean);
-      for (const name of taint.keys()) {
-        if (!lineContainsVar(line, name)) continue;
-        if (ranges.some((range) => lineContainsVarRange(line, name, range.start, range.end))) {
-          sanitizedVars.push(name);
-        }
-      }
-    }
-    const assignment = isAssignment(line);
-    if (assignment) {
-      nodes += 1;
-      const rhsTainted = new Set();
-      for (const [name, info] of taint.entries()) {
-        if (sanitizedVars.includes(name)) continue;
-        if (lineContainsVar(assignment.rhs, name)) {
-          for (const source of toArray(info?.sources)) rhsTainted.add(source);
-        }
-      }
-      const { sources: newSources, ruleIds } = combineSourceEvidence(sourceMatches, rhsTainted);
-      if (newSources.length) {
-        let confidence = 0;
-        for (const entry of newSources) {
-          confidence = Math.max(confidence,
-            Number.isFinite(entry?.confidence)
-              ? entry.confidence
-              : Number.isFinite(entry?.rule?.confidence)
-                ? entry.rule.confidence
-                : 0
-          );
-        }
-        taint.set(assignment.name, { sources: newSources, ruleIds, confidence });
-        edges += newSources.length;
-      } else taint.delete(assignment.name);
-    }
-
-    if (sinkMatches.length) {
-      nodes += 1;
-      for (const sink of sinkMatches) {
-        const range = resolveSanitizerRange(line, sink);
-        if (!range) continue;
-        const argumentEnd = range.end ?? sink.matchIndex + sink.matchLength;
-        const priorSanitizerRanges = sanitizerMatches.filter(match => match.matchIndex < sink.matchIndex
-          || (match.matchIndex >= range.start && match.matchIndex < argumentEnd))
-          .map(match => resolveSanitizerRange(line, match)).filter(Boolean);
-        const taintedSources = new Set();
-        for (const [name, info] of taint.entries()) {
-          if (lineContainsVarRange(line, name, range.start, argumentEnd)
-            && !priorSanitizerRanges.some(sanitizer => lineContainsVarRange(line,name,sanitizer.start,sanitizer.end))) {
-            for (const source of toArray(info?.sources)) taintedSources.add(source);
+      const sanitizedVars = [];
+      if (sanitizerMatches.length && taint.size) {
+        const ranges = sanitizerMatches
+          .map((match) => resolveSanitizerRange(line, match))
+          .filter(Boolean);
+        for (const name of taint.keys()) {
+          if (!lineContainsVar(line, name)) continue;
+          if (ranges.some((range) => lineContainsVarRange(line, name, range.start, range.end))) {
+            sanitizedVars.push(name);
           }
         }
-        const inlineSources = sourceMatches.filter(source => source.matchIndex >= range.start && source.matchIndex < argumentEnd
+      }
+      const assignment = isAssignment(line);
+      if (assignment) {
+        nodes += 1;
+        const rhsTainted = new Set();
+        for (const [name, info] of taint.entries()) {
+          if (sanitizedVars.includes(name)) continue;
+          if (lineContainsVar(assignment.rhs, name)) {
+            for (const source of toArray(info?.sources)) rhsTainted.add(source);
+          }
+        }
+        const { sources: newSources, ruleIds } = combineSourceEvidence(sourceMatches, rhsTainted);
+        if (newSources.length) {
+          let confidence = 0;
+          for (const entry of newSources) {
+            confidence = Math.max(confidence,
+              Number.isFinite(entry?.confidence)
+                ? entry.confidence
+                : Number.isFinite(entry?.rule?.confidence)
+                  ? entry.rule.confidence
+                  : 0
+            );
+          }
+          taint.set(assignment.name, { sources: newSources, ruleIds, confidence });
+          edges += newSources.length;
+        } else taint.delete(assignment.name);
+      }
+
+      if (sinkMatches.length) {
+        nodes += 1;
+        for (const sink of sinkMatches) {
+          const range = resolveSanitizerRange(line, sink);
+          if (!range) continue;
+          const argumentEnd = range.end ?? sink.matchIndex + sink.matchLength;
+          const priorSanitizerRanges = sanitizerMatches.filter(match => match.matchIndex < sink.matchIndex
+          || (match.matchIndex >= range.start && match.matchIndex < argumentEnd))
+            .map(match => resolveSanitizerRange(line, match)).filter(Boolean);
+          const taintedSources = new Set();
+          for (const [name, info] of taint.entries()) {
+            if (lineContainsVarRange(line, name, range.start, argumentEnd)
+            && !priorSanitizerRanges.some(sanitizer => lineContainsVarRange(line,name,sanitizer.start,sanitizer.end))) {
+              for (const source of toArray(info?.sources)) taintedSources.add(source);
+            }
+          }
+          const inlineSources = sourceMatches.filter(source => source.matchIndex >= range.start && source.matchIndex < argumentEnd
           && !priorSanitizerRanges.some(sanitizer => source.matchIndex >= sanitizer.start
             && (sanitizer.end == null || source.matchIndex < sanitizer.end)));
-        const { sources: lineSources } = combineSourceEvidence(inlineSources, taintedSources);
-        for (const source of lineSources) {
+          const { sources: lineSources } = combineSourceEvidence(inlineSources, taintedSources);
+          for (const source of lineSources) {
             addFlow({
               source: source.rule.name,
               sink: sink.rule.name,
@@ -379,24 +379,24 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
               evidence: buildEvidence(line, lineNo, columnOffset + 1)
             });
             if (analysisStatus.status !== 'ok') break;
+          }
+          if (analysisStatus.status !== 'ok') break;
         }
-        if (analysisStatus.status !== 'ok') break;
+        edges += sinkMatches.length;
       }
-      edges += sinkMatches.length;
-    }
-    for (const name of sanitizedVars) taint.delete(name);
+      for (const name of sanitizedVars) taint.delete(name);
 
-    if (analysisStatus.status !== 'ok') break;
-    if (caps.maxNodes && nodes > caps.maxNodes) {
-      analysisStatus.status = 'capped';
-      analysisStatus.reason = 'maxNodes';
-      break;
-    }
-    if (caps.maxEdges && edges > caps.maxEdges) {
-      analysisStatus.status = 'capped';
-      analysisStatus.reason = 'maxEdges';
-      break;
-    }
+      if (analysisStatus.status !== 'ok') break;
+      if (caps.maxNodes && nodes > caps.maxNodes) {
+        analysisStatus.status = 'capped';
+        analysisStatus.reason = 'maxNodes';
+        break;
+      }
+      if (caps.maxEdges && edges > caps.maxEdges) {
+        analysisStatus.status = 'capped';
+        analysisStatus.reason = 'maxEdges';
+        break;
+      }
     }
     if (analysisStatus.status !== 'ok') break;
   }

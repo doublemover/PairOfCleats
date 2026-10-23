@@ -67,14 +67,14 @@ export const createYamlChunker = ({ parseStructure = parseYamlStructure, now = (
         documentRange:{start:document.start,end:document.end},sectionRangeSource:'application-document-boundaries'}});
       continue;
     }
-  for (let index = 0; index < entries.length; index += 1) {
-    if (expired()) return unavailable();
-    const heading = entries[index];
-    chunks.push({ start: index === 0 ? start : heading.sectionStart, end: entries[index + 1]?.sectionStart ?? end,
-      name: heading.name, kind: 'ConfigSection', meta: { ...meta, title: heading.name, documentIndex: heading.documentIndex,
-        keyRange: heading.keyRange, valueRange: heading.valueRange, propertyRange: heading.propertyRange,
-        sectionRangeSource: 'application-line-boundaries', propertyRangeSource: 'application-key/value-span' } });
-  }
+    for (let index = 0; index < entries.length; index += 1) {
+      if (expired()) return unavailable();
+      const heading = entries[index];
+      chunks.push({ start: index === 0 ? start : heading.sectionStart, end: entries[index + 1]?.sectionStart ?? end,
+        name: heading.name, kind: 'ConfigSection', meta: { ...meta, title: heading.name, documentIndex: heading.documentIndex,
+          keyRange: heading.keyRange, valueRange: heading.valueRange, propertyRange: heading.propertyRange,
+          sectionRangeSource: 'application-line-boundaries', propertyRangeSource: 'application-key/value-span' } });
+    }
   }
   if (expired()) return unavailable();
   Object.freeze(outputMetrics);

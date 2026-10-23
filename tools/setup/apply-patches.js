@@ -242,13 +242,13 @@ const publishPatches = (root, prepared, { verifyOnly, verbose, log, started }) =
   for (const item of prepared) {
     try {
       if (item.after) {
-      const temporary = fs.mkdtempSync(path.join(path.dirname(item.target), '.poc-patch-'));
-      try {
-        const staged = path.join(temporary, 'target');
-        fs.writeFileSync(staged, item.after, { mode: fs.statSync(item.target).mode & 0o777 });
-        fs.renameSync(staged, item.target);
-        published++;
-      } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
+        const temporary = fs.mkdtempSync(path.join(path.dirname(item.target), '.poc-patch-'));
+        try {
+          const staged = path.join(temporary, 'target');
+          fs.writeFileSync(staged, item.after, { mode: fs.statSync(item.target).mode & 0o777 });
+          fs.renameSync(staged, item.target);
+          published++;
+        } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
       }
     } catch (cause) {
       throw Object.assign(new Error(`Patch publication failed for ${item.name} (${item.relative}); ${published} target files changed before failure. Re-run verified bootstrap to repair partial completion.`, { cause }), {

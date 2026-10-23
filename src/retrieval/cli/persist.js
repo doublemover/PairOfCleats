@@ -22,46 +22,46 @@ export async function recordSearchArtifacts({
     const noResultPath = path.join(metricsDir, 'noResultQueries');
     await fs.mkdir(path.dirname(metricsPath), { recursive: true });
     await withFileLock({ lockPath: path.join(metricsDir, '.search-metrics.lock'), waitMs: 5000, timeoutBehavior: 'throw' }, async () => {
-    const metrics = await readJsonFileSafe(metricsPath, { fallback: {} });
-    const inc = (file, key) => {
-      if (!Object.hasOwn(metrics, file)) {
-        Object.defineProperty(metrics, file, { value: { md: 0, extractedProse: 0, code: 0, records: 0, terms: [] }, enumerable: true, configurable: true, writable: true });
-      }
-      metrics[file][key] = (metrics[file][key] || 0) + 1;
-      queryTokens.forEach((token) => {
-        if (!metrics[file].terms.includes(token)) metrics[file].terms.push(token);
-      });
-    };
-    proseHits.forEach((hit) => inc(hit.file, 'md'));
-    extractedProseHits.forEach((hit) => inc(hit.file, 'extractedProse'));
-    codeHits.forEach((hit) => inc(hit.file, 'code'));
-    recordHits.forEach((hit) => inc(hit.file, 'records'));
-    await atomicWriteJson(metricsPath, metrics);
+      const metrics = await readJsonFileSafe(metricsPath, { fallback: {} });
+      const inc = (file, key) => {
+        if (!Object.hasOwn(metrics, file)) {
+          Object.defineProperty(metrics, file, { value: { md: 0, extractedProse: 0, code: 0, records: 0, terms: [] }, enumerable: true, configurable: true, writable: true });
+        }
+        metrics[file][key] = (metrics[file][key] || 0) + 1;
+        queryTokens.forEach((token) => {
+          if (!metrics[file].terms.includes(token)) metrics[file].terms.push(token);
+        });
+      };
+      proseHits.forEach((hit) => inc(hit.file, 'md'));
+      extractedProseHits.forEach((hit) => inc(hit.file, 'extractedProse'));
+      codeHits.forEach((hit) => inc(hit.file, 'code'));
+      recordHits.forEach((hit) => inc(hit.file, 'records'));
+      await atomicWriteJson(metricsPath, metrics);
 
-    await fs.appendFile(
-      historyPath,
-      JSON.stringify({
-        time: new Date().toISOString(),
-        query,
-        mdFiles: proseHits.length,
-        extractedProseFiles: extractedProseHits.length,
-        codeFiles: codeHits.length,
-        recordFiles: recordHits.length,
-        ms: elapsedMs,
-        cached: cacheHit,
-        asOfType: asOf?.type || null,
-        asOfIdentity: asOf?.identityHash
-          ? String(asOf.identityHash).slice(0, 8)
-          : null
-      }) + '\n'
-    );
-
-    if (proseHits.length === 0 && extractedProseHits.length === 0 && codeHits.length === 0 && recordHits.length === 0) {
       await fs.appendFile(
-        noResultPath,
-        JSON.stringify({ time: new Date().toISOString(), query }) + '\n'
+        historyPath,
+        JSON.stringify({
+          time: new Date().toISOString(),
+          query,
+          mdFiles: proseHits.length,
+          extractedProseFiles: extractedProseHits.length,
+          codeFiles: codeHits.length,
+          recordFiles: recordHits.length,
+          ms: elapsedMs,
+          cached: cacheHit,
+          asOfType: asOf?.type || null,
+          asOfIdentity: asOf?.identityHash
+            ? String(asOf.identityHash).slice(0, 8)
+            : null
+        }) + '\n'
       );
-    }
+
+      if (proseHits.length === 0 && extractedProseHits.length === 0 && codeHits.length === 0 && recordHits.length === 0) {
+        await fs.appendFile(
+          noResultPath,
+          JSON.stringify({ time: new Date().toISOString(), query }) + '\n'
+        );
+      }
     });
   } catch {}
 }

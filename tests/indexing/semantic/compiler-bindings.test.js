@@ -62,9 +62,9 @@ try {
   assert.ok(wrappedApply && wrappedApply.certainty === 'modeled');
   assert.ok(edges.some(edge => edge.kind === 'argumentToParameter' && edge.callSite?.partitionId === wrappedApply.from.partitionId
     && edge.callSite.localId === wrappedApply.from.localId && (() => {
-      const span = records.get(edge.from.partitionId + ':' + edge.from.localId)?.span;
-      return span && dynamicText.slice(...span) === '16';
-    })()), 'production apply projection retains the erased wrapper array element as its actual argument');
+    const span = records.get(edge.from.partitionId + ':' + edge.from.localId)?.span;
+    return span && dynamicText.slice(...span) === '16';
+  })()), 'production apply projection retains the erased wrapper array element as its actual argument');
   for(const text of ['adapted.call({value:0},9)','bound(10)']) {
     const target=dynamicCalls.find(edge=>callText(edge)===text);
     assert.ok(target&&target.certainty==='modeled','production adapter resolves source candidate '+text);

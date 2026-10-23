@@ -599,9 +599,9 @@ export function createSearchPipeline(context) {
           bm25B,
           getTokenIndexForQuery,
           candidateMetrics,
-            eligibilityPlan,
-            throwIfAborted: abortIfNeeded,
-            needLexicalCandidates: annDiscovery === 'lexical-rerank'
+          eligibilityPlan,
+          throwIfAborted: abortIfNeeded,
+          needLexicalCandidates: annDiscovery === 'lexical-rerank'
               && (annEnabled || modeProfilePolicy?.allowSparseFallback === true),
           queryAst,
           matchesQueryAst: queryAst ? matchesQueryAst : null

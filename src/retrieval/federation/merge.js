@@ -70,12 +70,12 @@ export const mergeFederatedResults = ({
     const describe = (stream, rank) => {
       const hit = stream.hits[rank];
       return {
-          hit, stream, rank,
-          id: hit.id, file: hit.file, start: hit.start,
-          repoId: stream.repoResult.repoId,
-          repoPriority: stream.repoResult.priority ?? 0,
-          rrfScore: 1 / (rrfK + (rank + 1)),
-          __insertIndex: stream.offset + rank
+        hit, stream, rank,
+        id: hit.id, file: hit.file, start: hit.start,
+        repoId: stream.repoResult.repoId,
+        repoPriority: stream.repoResult.priority ?? 0,
+        rrfScore: 1 / (rrfK + (rank + 1)),
+        __insertIndex: stream.offset + rank
       };
     };
     // Rounding can tie adjacent RRF contributions at large accepted k values.
@@ -111,13 +111,13 @@ export const mergeFederatedResults = ({
       const { hit, stream, rrfScore, __insertIndex } = entry;
       const { repoResult } = stream;
       return compactMergedHit({
-          ...hit,
-          repoId: repoResult.repoId,
-          repoAlias: repoResult.repoAlias || null,
-          globalId: `${repoResult.repoId}:${hit.id}`,
-          repoPriority: repoResult.priority ?? 0,
-          rrfScore,
-          __insertIndex
+        ...hit,
+        repoId: repoResult.repoId,
+        repoAlias: repoResult.repoAlias || null,
+        globalId: `${repoResult.repoId}:${hit.id}`,
+        repoPriority: repoResult.priority ?? 0,
+        rrfScore,
+        __insertIndex
       });
     });
   }

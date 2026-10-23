@@ -11,8 +11,8 @@ const item = { uri, name: 'caller', kind: 12, range: enclosure, selectionRange: 
 const options = { identity: { sourceHash: source.byteHash, sourceUnitId: source.sourceUnitId,
   sessionId: 'session', profileId: 'profile', contextHash: 'a'.repeat(64), uri,
   generation: { baseBuildId: 'fixture', semanticRevision: 0 } },
-  consumers: ['navigation', 'hierarchyDetail'], projectReady: 'ready',
-  sourceForUri: value => value === uri ? { source, text } : null };
+consumers: ['navigation', 'hierarchyDetail'], projectReady: 'ready',
+sourceForUri: value => value === uri ? { source, text } : null };
 const record = (collector, requestClass, payload, params = { item }) => collector.record({ requestClass,
   params, response: { attempted: true, payload } });
 

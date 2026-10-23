@@ -351,24 +351,24 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     return expression(node, next, context);
   };
   try {
-  const context = { return: returnExit, exception, break: null, continue: null, labels: new Map(), iterationLabels: [], finalizerDepth: 0 };
-  let head = ts.isSourceFile(owner) ? statement(owner, exit, context)
-    : ts.isBlock(owner.body) ? statement(owner.body, exit, context)
-      : expression(owner.body, eventBlock(owner.body, { kind: 'return', value: owner.body }, returnExit, context), context);
-  for (let i = (owner.parameters?.length || 0) - 1; i >= 0; i -= 1) {
-    const parameter = owner.parameters[i];
-    if (!isRuntimeNode(parameter)) continue;
-    if (parameter.initializer || parameter.dotDotDotToken || !ts.isIdentifier(parameter.name)) reasons.add('parameter_pattern_default_or_rest_conservative');
-    const present = write(parameter.name, parameter, head, context, 'parameter');
-    if (parameter.initializer) {
-      const branch = add(parameter, { kind: 'condition', predicate: { operation: 'isUndefined', inputs: [parameter] } }, 'normal', context);
-      link(branch, expression(parameter.initializer, write(parameter.name, parameter.initializer, head, context), context), 'controlTrue');
-      link(branch, present, 'controlFalse');
-      head = branch;
-    } else head = present;
-  }
-  const entry = add(owner, null, 'entry', context); link(entry, head);
-  return { blocks, entry, exit, returnExit, exception, reasons, stats, truncated: false };
+    const context = { return: returnExit, exception, break: null, continue: null, labels: new Map(), iterationLabels: [], finalizerDepth: 0 };
+    let head = ts.isSourceFile(owner) ? statement(owner, exit, context)
+      : ts.isBlock(owner.body) ? statement(owner.body, exit, context)
+        : expression(owner.body, eventBlock(owner.body, { kind: 'return', value: owner.body }, returnExit, context), context);
+    for (let i = (owner.parameters?.length || 0) - 1; i >= 0; i -= 1) {
+      const parameter = owner.parameters[i];
+      if (!isRuntimeNode(parameter)) continue;
+      if (parameter.initializer || parameter.dotDotDotToken || !ts.isIdentifier(parameter.name)) reasons.add('parameter_pattern_default_or_rest_conservative');
+      const present = write(parameter.name, parameter, head, context, 'parameter');
+      if (parameter.initializer) {
+        const branch = add(parameter, { kind: 'condition', predicate: { operation: 'isUndefined', inputs: [parameter] } }, 'normal', context);
+        link(branch, expression(parameter.initializer, write(parameter.name, parameter.initializer, head, context), context), 'controlTrue');
+        link(branch, present, 'controlFalse');
+        head = branch;
+      } else head = present;
+    }
+    const entry = add(owner, null, 'entry', context); link(entry, head);
+    return { blocks, entry, exit, returnExit, exception, reasons, stats, truncated: false };
   } catch (error) {
     if (error !== constructionStop) throw error;
     reasons.add('cfg_construction_work_or_byte_budget');

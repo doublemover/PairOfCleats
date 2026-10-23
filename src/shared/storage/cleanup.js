@@ -43,7 +43,7 @@ export const planCacheRootCleanup = async ({ cacheRoot, authorityRoots = [], max
   const root = path.resolve(cacheRoot);
   const inventory = await inspectStorageInventory({ roots: [{ id: 'command-probes', category: 'command-probes',
     path: path.join(root, PROBE_RELATIVE_ROOT), retention: 'derived' }], maxEntries, maxDurationMs,
-    includeFiles: true, signal });
+  includeFiles: true, signal });
   const lease = await inspectStorageAccess(path.join(root, PROBE_RELATIVE_ROOT));
   let authorityError = null;
   let authoritySnapshots = [];

@@ -229,25 +229,25 @@ async function loadPipeline(modelId, modelsDir, modelProfile = null, localFilesO
     expiresAt: now + PIPELINE_CACHE_TTL_MS
   });
   entry.promise = loadTransformersModule(modelsDir)
-      // v2 selected model_quantized.onnx by default. Keep the same weights and
-      // cache identity after the Transformers.js migration (Node defaults to fp32).
-      .then(async (mod) => {
-        const components = await loadEmbeddingModelComponents(mod, {
-          modelId, modelsDir, modelProfile, localFilesOnly, sessionOptions, modelFileName
-        });
-        if (components.pipeline) return pipelineLifetime.loaded(entry, components.pipeline);
-        const { tokenizer, model } = components;
-        try {
-          return pipelineLifetime.loaded(entry, createPreparedTextEncoder({ tokenizer, model, Tensor: mod.Tensor, profile: modelProfile,
-            sessionOptions, modelFileName, resourceOwner: components.resourceOwner }));
-        } catch (error) {
-          components.resourceOwner.retainFailure(error);
-          try { await components.resourceOwner.close(); }
-          catch (cleanup) { throw preserveEmbeddingCleanupFailure(error, cleanup); }
-          throw error;
-        }
-      })
-      .catch(err => { throw pipelineLifetime.failed(entry, err); });
+  // v2 selected model_quantized.onnx by default. Keep the same weights and
+  // cache identity after the Transformers.js migration (Node defaults to fp32).
+    .then(async (mod) => {
+      const components = await loadEmbeddingModelComponents(mod, {
+        modelId, modelsDir, modelProfile, localFilesOnly, sessionOptions, modelFileName
+      });
+      if (components.pipeline) return pipelineLifetime.loaded(entry, components.pipeline);
+      const { tokenizer, model } = components;
+      try {
+        return pipelineLifetime.loaded(entry, createPreparedTextEncoder({ tokenizer, model, Tensor: mod.Tensor, profile: modelProfile,
+          sessionOptions, modelFileName, resourceOwner: components.resourceOwner }));
+      } catch (error) {
+        components.resourceOwner.retainFailure(error);
+        try { await components.resourceOwner.close(); }
+        catch (cleanup) { throw preserveEmbeddingCleanupFailure(error, cleanup); }
+        throw error;
+      }
+    })
+    .catch(err => { throw pipelineLifetime.failed(entry, err); });
   pipelineCache.set(cacheKey, entry);
   const lease = acquirePipeline(entry);
   pruneCache(pipelineCache, { maxEntries: PIPELINE_CACHE_MAX_ENTRIES, now, onEvict: retirePipelineEntry });

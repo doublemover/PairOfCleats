@@ -479,21 +479,21 @@ export const persistFederatedQueryCache = async ({
 } = {}) => {
   if (!cachePath || !cache) return;
   await withFileLock({ lockPath: `${cachePath}.lock`, waitMs: 5000, timeoutBehavior: 'throw' }, async () => {
-  const disk = await loadFederatedQueryCache({ cachePath, repoSetId: cache.repoSetId });
-  foldFederatedTouches(cache, cachePath);
-  const merged = { ...disk.entries };
-  for (const [key, entry] of Object.entries(cache.entries || {})) {
-    if (!merged[key] || toMs(entry.lastUsedAt) >= toMs(merged[key].lastUsedAt)) merged[key] = entry;
-  }
-  for (const entry of Object.values(merged)) entry.payloadId ||= randomUUID();
-  const normalized = {
-    schemaVersion: FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
-    repoSetId: cache.repoSetId || null,
-    updatedAt: cache.updatedAt || null,
-    entries: sortObjectDeep(merged)
-  };
-  pruneFederatedQueryCache(normalized, cachePolicies.get(cache) || {});
-  await atomicWriteText(path.resolve(cachePath), stableStringify(normalized), { newline: true });
-  await clearQueryCacheTouchesUnlocked(cachePath);
+    const disk = await loadFederatedQueryCache({ cachePath, repoSetId: cache.repoSetId });
+    foldFederatedTouches(cache, cachePath);
+    const merged = { ...disk.entries };
+    for (const [key, entry] of Object.entries(cache.entries || {})) {
+      if (!merged[key] || toMs(entry.lastUsedAt) >= toMs(merged[key].lastUsedAt)) merged[key] = entry;
+    }
+    for (const entry of Object.values(merged)) entry.payloadId ||= randomUUID();
+    const normalized = {
+      schemaVersion: FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
+      repoSetId: cache.repoSetId || null,
+      updatedAt: cache.updatedAt || null,
+      entries: sortObjectDeep(merged)
+    };
+    pruneFederatedQueryCache(normalized, cachePolicies.get(cache) || {});
+    await atomicWriteText(path.resolve(cachePath), stableStringify(normalized), { newline: true });
+    await clearQueryCacheTouchesUnlocked(cachePath);
   });
 };

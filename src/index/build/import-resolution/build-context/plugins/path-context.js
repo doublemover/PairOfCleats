@@ -349,12 +349,12 @@ const classifyOptionalDependency = ({ spec = '', rawSpec = '' } = {}) => {
 export const createPathContextPlugin = ({ entries = [] } = {}) => {
   const indexedFiles = new Set(entries.map(entry => normalizeImporterRel(typeof entry === 'string' ? entry : entry?.rel)));
   return Object.freeze({
-  id: 'path-context',
-  priority: 12,
-  fingerprint: 'v6',
-  classify(input = {}) {
-    input = { ...input, indexedFiles };
-    return classifyBazelRootTraversal(input)
+    id: 'path-context',
+    priority: 12,
+    fingerprint: 'v6',
+    classify(input = {}) {
+      input = { ...input, indexedFiles };
+      return classifyBazelRootTraversal(input)
       || classifyOptionalDependency(input)
       || classifyDartPackageRootReference(input)
       || classifyBuildRuntimeRootReference(input)
@@ -364,6 +364,6 @@ export const createPathContextPlugin = ({ entries = [] } = {}) => {
       || classifyFixtureReference(input)
       || classifyConfigRootSentinel(input)
       || classifyConfigRootedSpecifier(input);
-  }
+    }
   });
 };

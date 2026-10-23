@@ -130,10 +130,10 @@ export const createVfsManifestCollector = ({
   const appendRows = (rows, { log: rowLog } = {}) => {
     if (cleaned || finalizePromise) return Promise.reject(new Error('VFS manifest collector is already finalized.'));
     return enqueue(async () => {
-    if (!Array.isArray(rows) || !rows.length) return;
-    for (const row of rows) {
-      await appendRow(row, rowLog);
-    }
+      if (!Array.isArray(rows) || !rows.length) return;
+      for (const row of rows) {
+        await appendRow(row, rowLog);
+      }
     });
   };
 
@@ -141,24 +141,24 @@ export const createVfsManifestCollector = ({
     if (cleaned) return Promise.reject(new Error('VFS manifest collector is already cleaned.'));
     if (finalizePromise) return finalizePromise;
     finalizePromise = enqueue(async () => {
-    if (runs.length) {
-      if (buffer.length) await spill();
+      if (runs.length) {
+        if (buffer.length) await spill();
+        return {
+          kind: COLLECTOR_KIND,
+          runs: runs.slice(),
+          stats,
+          cleanup: cleanupRunsDir
+        };
+      }
+      if (buffer.length) {
+        buffer.sort((a, b) => compareVfsManifestRows(a.row, b.row));
+      }
       return {
         kind: COLLECTOR_KIND,
-        runs: runs.slice(),
+        rows: buffer.map((entry) => entry.row),
         stats,
         cleanup: cleanupRunsDir
       };
-    }
-    if (buffer.length) {
-      buffer.sort((a, b) => compareVfsManifestRows(a.row, b.row));
-    }
-    return {
-      kind: COLLECTOR_KIND,
-      rows: buffer.map((entry) => entry.row),
-      stats,
-      cleanup: cleanupRunsDir
-    };
     });
     return finalizePromise;
   };

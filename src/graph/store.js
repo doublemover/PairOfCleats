@@ -252,12 +252,12 @@ export const buildGraphIndex = ({
   const importGraphAdjacency = imports.adjacency;
   const resolvedCsr = includeCsr
     ? {
-        version: Number.isFinite(graphRelations?.version) ? graphRelations.version : 1,
-        generatedAt: typeof graphRelations?.generatedAt === 'string' ? graphRelations.generatedAt : null,
-        callGraph: call.csr,
-        usageGraph: usage.csr,
-        importGraph: imports.csr
-      }
+      version: Number.isFinite(graphRelations?.version) ? graphRelations.version : 1,
+      generatedAt: typeof graphRelations?.generatedAt === 'string' ? graphRelations.generatedAt : null,
+      callGraph: call.csr,
+      usageGraph: usage.csr,
+      importGraph: imports.csr
+    }
     : null;
   if (!includeCsr) {
     importGraphIds.ids = null;

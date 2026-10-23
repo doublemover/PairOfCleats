@@ -59,11 +59,11 @@ const collectPhraseEntriesFromHashBuckets = async ({
         const phrase = resolvePhraseFromIds(entry?.ids, tokenIdMap);
         if (phrase) rows.push([phrase, entry?.posting]);
         const pendingYield2 = requestCooperativeYield(requestYield);
-      if (pendingYield2) await pendingYield2;
+        if (pendingYield2) await pendingYield2;
       }
     }
     const pendingYield3 = requestCooperativeYield(requestYield);
-      if (pendingYield3) await pendingYield3;
+    if (pendingYield3) await pendingYield3;
   }
   return rows;
 };
@@ -222,14 +222,14 @@ const collectRowsWithAdaptiveSpill = async ({
           for (const bufferedRow of bufferedRows) {
             await collector.append(bufferedRow);
             const pendingYield4 = requestCooperativeYield(requestYield);
-      if (pendingYield4) await pendingYield4;
+            if (pendingYield4) await pendingYield4;
           }
           bufferedRows = null;
         }
       }
     }
     const pendingYield5 = requestCooperativeYield(requestYield);
-      if (pendingYield5) await pendingYield5;
+    if (pendingYield5) await pendingYield5;
   }
   if (typeof map.clear === 'function') map.clear();
 
@@ -315,13 +315,13 @@ const foldSortedRows = async ({
       for await (const row of items) {
         processRow(row);
         const pendingYield6 = requestCooperativeYield(requestYield);
-      if (pendingYield6) await pendingYield6;
+        if (pendingYield6) await pendingYield6;
       }
     } else {
       for (const row of items) {
         processRow(row);
         const pendingYield7 = requestCooperativeYield(requestYield);
-      if (pendingYield7) await pendingYield7;
+        if (pendingYield7) await pendingYield7;
       }
     }
   }

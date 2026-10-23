@@ -110,20 +110,20 @@ export const runToolLifecycleCli = async () => {
   process.once('SIGINT', onInterrupt);
   process.once('SIGTERM', onTerminate);
   try {
-  const root = resolveRepoRootArg(argv.repo);
-  const tooling = getToolingConfig(root);
-  const tool = resolveToolsById([argv.tool], tooling.dir, root, tooling)[0] || null;
-  let payload;
-  if (argv['apply-plan']) {
-    const approved = await readToolLifecycleApproval(argv['apply-plan'], {
-      toolingRoot: tooling.dir, toolId: argv.tool, signal: cancellation.signal
-    });
-    payload = await applyToolLifecyclePlan(approved, { tool, signal: cancellation.signal });
-  } else payload = await planToolLifecycle({ toolingRoot: tooling.dir, id: argv.tool, operation: argv.operation, receiptId: argv.receipt, tool,
-    signal: cancellation.signal });
-  if (argv.json) console.log(JSON.stringify(payload, null, 2));
-  else console.error(JSON.stringify(payload, null, 2));
-  if (!process.exitCode) process.exitCode = payload.state === 'blocked' || payload.ok === false ? 1 : 0;
+    const root = resolveRepoRootArg(argv.repo);
+    const tooling = getToolingConfig(root);
+    const tool = resolveToolsById([argv.tool], tooling.dir, root, tooling)[0] || null;
+    let payload;
+    if (argv['apply-plan']) {
+      const approved = await readToolLifecycleApproval(argv['apply-plan'], {
+        toolingRoot: tooling.dir, toolId: argv.tool, signal: cancellation.signal
+      });
+      payload = await applyToolLifecyclePlan(approved, { tool, signal: cancellation.signal });
+    } else payload = await planToolLifecycle({ toolingRoot: tooling.dir, id: argv.tool, operation: argv.operation, receiptId: argv.receipt, tool,
+      signal: cancellation.signal });
+    if (argv.json) console.log(JSON.stringify(payload, null, 2));
+    else console.error(JSON.stringify(payload, null, 2));
+    if (!process.exitCode) process.exitCode = payload.state === 'blocked' || payload.ok === false ? 1 : 0;
   } finally {
     process.removeListener('SIGINT', onInterrupt);
     process.removeListener('SIGTERM', onTerminate);

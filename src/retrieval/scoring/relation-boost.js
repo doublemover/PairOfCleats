@@ -203,10 +203,10 @@ export const computeRelationBoost = ({
   }
   for (const source of cachedRelations ? [] : callDetails) {
     for (const detail of source) {
-    const base = extractSymbolBaseName(detail?.callee || '');
-    const normalized = normalizeToken(base, caseTokens);
-    if (!normalized) continue;
-    callTokenSet.add(normalized);
+      const base = extractSymbolBaseName(detail?.callee || '');
+      const normalized = normalizeToken(base, caseTokens);
+      if (!normalized) continue;
+      callTokenSet.add(normalized);
     }
   }
   for (const entry of cachedRelations ? [] : usageSource) {

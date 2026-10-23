@@ -92,7 +92,7 @@ export const buildTokenAndFieldPostings = async ({
       for (const [token, posting] of postingsMap.entries()) {
         entries.push([token, posting]);
         const pendingYield3 = requestCooperativeYield(requestYield);
-      if (pendingYield3) await pendingYield3;
+        if (pendingYield3) await pendingYield3;
       }
       if (typeof postingsMap.clear === 'function') postingsMap.clear();
       entries.sort((a, b) => sortStrings(a[0], b[0]));
@@ -103,7 +103,7 @@ export const buildTokenAndFieldPostings = async ({
         vocab[i] = token;
         postings[i] = normalizeTfPostingList(posting);
         const pendingYield4 = requestCooperativeYield(requestYield);
-      if (pendingYield4) await pendingYield4;
+        if (pendingYield4) await pendingYield4;
       }
       const lengthsRaw = fieldDocLengths[field] || [];
       const lengths = Array.isArray(lengthsRaw)

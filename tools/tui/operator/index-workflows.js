@@ -46,7 +46,7 @@ const effects = command => SETUP.has(command.registryId)
   ? 'Setup can download/install dependencies, models, dictionaries or tooling, modify selected configuration and build indexes. Review every skip/scope field; credentials use the existing private environment/config handoff.'
   : command.registryId === 'service.mcp' ? 'Start a session-owned framed MCP client/server pair for this repository. Health verifies initialize and tools/list responses only. No arbitrary tool execution or external attachment is admitted. Cancel settles the owned process tree.'
     : command.registryId === 'service.api' ? 'Start a session-owned API child bound to 127.0.0.1 only. Credentials come from the existing private API token environment; no token is accepted in this form. A running PID is not health evidence. Cancel stops only this owned job.'
-    : command.registryId === 'cache.gc' ? 'Canonical cache garbage collection can cover shared cache roots. apply=true mutates; review exact roots and retention limits. Existing active-owner exclusions remain enforced by the canonical GC.'
+      : command.registryId === 'cache.gc' ? 'Canonical cache garbage collection can cover shared cache roots. apply=true mutates; review exact roots and retention limits. Existing active-owner exclusions remain enforced by the canonical GC.'
         : command.registryId.startsWith('report.') ? 'Generate a scoped report/evaluation. Explicit output paths may be written; build flags can start expensive work. Native result views retain bounded producer JSON, including uncertainty and partial coverage.'
           : 'Run the selected canonical command under supervisor ownership; review exact scope, inputs and argv. Exit success alone does not establish artifact readiness.';
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
@@ -301,91 +301,91 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
     // that slot across async admission so parallel launches cannot overbook it.
     const serviceReservation = serviceKind ? serviceControls.reserve({ scopeId: plan.scope.id, kind: serviceKind }) : null;
     try {
-    const check = async ({ signal }) => {
-      requireScope(plan.scope.id);
-      const current = await inspect(plan.scope, plan.command, plan.values, signal);
-      if (current.some((row, index) => row.repo !== plan.observations[index]?.repo
+      const check = async ({ signal }) => {
+        requireScope(plan.scope.id);
+        const current = await inspect(plan.scope, plan.command, plan.values, signal);
+        if (current.some((row, index) => row.repo !== plan.observations[index]?.repo
         || row.configFingerprint !== plan.observations[index]?.configFingerprint
         || fingerprint(row.inputFiles) !== fingerprint(plan.observations[index]?.inputFiles)
         || fingerprint(row.outputFiles) !== fingerprint(plan.observations[index]?.outputFiles)
         || (row.embeddings?.assets && !row.embeddings.assets.present))) {
-        fail('ERR_TUI_WORKFLOW_STALE', 'Configuration, model readiness or workspace membership changed. Preview again.');
-      }
-    };
-    // Admission and cancellation remain in the existing supervisor registry.
-    await startJob({ jobId, title: plan.command.commandPath.join(' '), argv: plan.argv,
-      cwd: plan.scope.configRoot, retry: { maxAttempts: 1, delayMs: 0 },
-      envPatch: applyObservabilityContextEnv({}, createObservabilityEnvelope({ surface: 'tui',
-        operation: plan.command.id, correlation: { correlationId: jobId } })),
-      resultPolicy: { captureStdout: BUILDERS.has(plan.command.registryId) ? 'text' : plan.command.capture || 'json', maxBytes: 768 * 1024 } }, {
-      beforeRun: check,
-      ...(plan.backend ? { execute: context => plan.backend.execute({ ...context, launcherJob: operationOwner }) }
-        : plan.storage ? { execute: plan.storage.execute } : plan.service ? { execute: plan.service.execute }
-        : plan.command.registryId === 'service.api' ? {
-          execute: context => api.run({ scope: plan.scope, jobId, argv: plan.argv }, context)
-        } : plan.command.registryId === 'service.mcp' ? {
-        execute: context => mcp.run({ scope: plan.scope, jobId }, context)
-      } : SEMANTIC_PAGED_COMMANDS.has(plan.command.registryId) ? {
-        execute: async context => {
-          const input = plan.observations[0].inputFiles.request;
-          const read = readVerifiedContainedFileSync(plan.scope.configRoot, input.path, { maxBytes: 768 * 1024 });
-          if (read.hash !== input.sha256) fail('ERR_TUI_WORKFLOW_STALE', 'The semantic request changed after preview.');
-          const result = await semantic.open({ scope: plan.scope, commandId: plan.command.registryId,
-            request: JSON.parse(read.buffer.toString('utf8')), requestSha256: read.hash }, context);
-          return { exitCode: 0, stdout: JSON.stringify(result), signal: null };
+          fail('ERR_TUI_WORKFLOW_STALE', 'Configuration, model readiness or workspace membership changed. Preview again.');
         }
-      } : {}),
-      afterRun: async ({ payload, signal }) => {
-        const backendState = maintenance.status();
-        if (plan.backend && backendState?.blocked) return { workflow: { commandId: plan.command.id,
-          processStatus: payload.status, maintenance: backendState, publications: [], observed: false } };
-        let verification = null;
-        if (SETUP.has(plan.command.registryId)) {
-          const bootstrap = await inspectBootstrapReadiness({ root: toolRoot });
-          try {
-            const child = await spawnSubprocess(process.execPath, [path.join(toolRoot, 'bin/pairofcleats.js'),
-              'tooling', 'doctor', `--repo=${plan.scope.configRoot}`, '--json'], {
-              cwd: plan.scope.configRoot, env, signal, timeoutMs: 10000, maxOutputBytes: 512 * 1024,
-              stdio: ['ignore', 'pipe', 'pipe'], rejectOnNonZeroExit: false });
-            const complete = !child.outputCapture?.stdout?.truncated && !child.outputCapture?.stdout?.encodingLoss;
-            const doctor = complete ? JSON.parse(child.stdout) : null;
-            verification = { bootstrap, doctor: sanitizeRuntimeReceipt(doctor), processExitCode: child.exitCode,
-              ready: bootstrap.ready === true && child.exitCode === 0 && doctor?.summary?.status === 'ok',
-              note: 'Fresh bootstrap and canonical doctor observations; install process exit is not readiness.' };
-          } catch (error) { verification = { bootstrap, ready: false, errorCode: error.code || 'ERR_TUI_SETUP_VERIFICATION',
-            note: 'Post-install verification did not complete; readiness remains unverified.' }; }
-        }
-        const publications = [];
-        // Read-only commands and snapshot maintenance do not produce a ready
-        // index. Their process results remain distinct from an explicit status
-        // validation; avoid repeatedly scanning all artifacts after each one.
-        const validateCurrent = payload.status === 'done' && BUILDERS.has(plan.command.registryId);
-        const observationSignal = validateCurrent ? AbortSignal.any([signal, AbortSignal.timeout(5000)]) : undefined;
-        for (const repo of targets(plan.scope, plan.values)) {
-          publications.push(await observeIndexPublication(repo, loadUserConfig(repo, { env }),
-            { signal: observationSignal, validateCurrent }));
-        }
-        return { workflow: { commandId: plan.command.id, processStatus: payload.status, verification,
-          ...(plan.backend ? { maintenance: backendState } : {}),
-          publications: publications.map((row, index) => {
-            const changed = row.generation?.generationKey !== plan.observations[index]?.publication.generation?.generationKey;
-            return { ...row, changedSincePreview: changed,
-              producedReadyGeneration: BUILDERS.has(plan.command.registryId) && payload.status === 'done'
+      };
+      // Admission and cancellation remain in the existing supervisor registry.
+      await startJob({ jobId, title: plan.command.commandPath.join(' '), argv: plan.argv,
+        cwd: plan.scope.configRoot, retry: { maxAttempts: 1, delayMs: 0 },
+        envPatch: applyObservabilityContextEnv({}, createObservabilityEnvelope({ surface: 'tui',
+          operation: plan.command.id, correlation: { correlationId: jobId } })),
+        resultPolicy: { captureStdout: BUILDERS.has(plan.command.registryId) ? 'text' : plan.command.capture || 'json', maxBytes: 768 * 1024 } }, {
+        beforeRun: check,
+        ...(plan.backend ? { execute: context => plan.backend.execute({ ...context, launcherJob: operationOwner }) }
+          : plan.storage ? { execute: plan.storage.execute } : plan.service ? { execute: plan.service.execute }
+            : plan.command.registryId === 'service.api' ? {
+              execute: context => api.run({ scope: plan.scope, jobId, argv: plan.argv }, context)
+            } : plan.command.registryId === 'service.mcp' ? {
+              execute: context => mcp.run({ scope: plan.scope, jobId }, context)
+            } : SEMANTIC_PAGED_COMMANDS.has(plan.command.registryId) ? {
+              execute: async context => {
+                const input = plan.observations[0].inputFiles.request;
+                const read = readVerifiedContainedFileSync(plan.scope.configRoot, input.path, { maxBytes: 768 * 1024 });
+                if (read.hash !== input.sha256) fail('ERR_TUI_WORKFLOW_STALE', 'The semantic request changed after preview.');
+                const result = await semantic.open({ scope: plan.scope, commandId: plan.command.registryId,
+                  request: JSON.parse(read.buffer.toString('utf8')), requestSha256: read.hash }, context);
+                return { exitCode: 0, stdout: JSON.stringify(result), signal: null };
+              }
+            } : {}),
+        afterRun: async ({ payload, signal }) => {
+          const backendState = maintenance.status();
+          if (plan.backend && backendState?.blocked) return { workflow: { commandId: plan.command.id,
+            processStatus: payload.status, maintenance: backendState, publications: [], observed: false } };
+          let verification = null;
+          if (SETUP.has(plan.command.registryId)) {
+            const bootstrap = await inspectBootstrapReadiness({ root: toolRoot });
+            try {
+              const child = await spawnSubprocess(process.execPath, [path.join(toolRoot, 'bin/pairofcleats.js'),
+                'tooling', 'doctor', `--repo=${plan.scope.configRoot}`, '--json'], {
+                cwd: plan.scope.configRoot, env, signal, timeoutMs: 10000, maxOutputBytes: 512 * 1024,
+                stdio: ['ignore', 'pipe', 'pipe'], rejectOnNonZeroExit: false });
+              const complete = !child.outputCapture?.stdout?.truncated && !child.outputCapture?.stdout?.encodingLoss;
+              const doctor = complete ? JSON.parse(child.stdout) : null;
+              verification = { bootstrap, doctor: sanitizeRuntimeReceipt(doctor), processExitCode: child.exitCode,
+                ready: bootstrap.ready === true && child.exitCode === 0 && doctor?.summary?.status === 'ok',
+                note: 'Fresh bootstrap and canonical doctor observations; install process exit is not readiness.' };
+            } catch (error) { verification = { bootstrap, ready: false, errorCode: error.code || 'ERR_TUI_SETUP_VERIFICATION',
+              note: 'Post-install verification did not complete; readiness remains unverified.' }; }
+          }
+          const publications = [];
+          // Read-only commands and snapshot maintenance do not produce a ready
+          // index. Their process results remain distinct from an explicit status
+          // validation; avoid repeatedly scanning all artifacts after each one.
+          const validateCurrent = payload.status === 'done' && BUILDERS.has(plan.command.registryId);
+          const observationSignal = validateCurrent ? AbortSignal.any([signal, AbortSignal.timeout(5000)]) : undefined;
+          for (const repo of targets(plan.scope, plan.values)) {
+            publications.push(await observeIndexPublication(repo, loadUserConfig(repo, { env }),
+              { signal: observationSignal, validateCurrent }));
+          }
+          return { workflow: { commandId: plan.command.id, processStatus: payload.status, verification,
+            ...(plan.backend ? { maintenance: backendState } : {}),
+            publications: publications.map((row, index) => {
+              const changed = row.generation?.generationKey !== plan.observations[index]?.publication.generation?.generationKey;
+              return { ...row, changedSincePreview: changed,
+                producedReadyGeneration: BUILDERS.has(plan.command.registryId) && payload.status === 'done'
                 && row.ready === true && row.producerCorrelations?.includes(jobId) === true };
-          }) } };
-      }
-    });
-    const serviceControlId = serviceKind ? serviceControls.register({ scopeId: plan.scope.id, kind: serviceKind, jobId,
-      reservation: serviceReservation,
-      inspectClosure: () => {
-        const owner = { api, mcp, indexer }[serviceKind];
-        return { closed: !owner.status(plan.scope.id).some(entry => entry.jobId === jobId) };
-      } }) : null;
-    return { launched: true, jobId, commandId: plan.command.id, canonicalArgv: plan.storage || plan.service || plan.backend ? null : plan.argv,
-      ...(serviceKind ? { serviceControlId } : {}),
-      ...(plan.storage || plan.service || plan.backend ? { executionOwner: plan.backend ? 'authenticated-canonical-cache-child'
-        : plan.storage ? 'canonical-storage-api' : 'canonical-service-worker-owners' } : {}),
-      note: 'Track this owned job for progress, cancellation, publication evidence and artifact references.' };
+            }) } };
+        }
+      });
+      const serviceControlId = serviceKind ? serviceControls.register({ scopeId: plan.scope.id, kind: serviceKind, jobId,
+        reservation: serviceReservation,
+        inspectClosure: () => {
+          const owner = { api, mcp, indexer }[serviceKind];
+          return { closed: !owner.status(plan.scope.id).some(entry => entry.jobId === jobId) };
+        } }) : null;
+      return { launched: true, jobId, commandId: plan.command.id, canonicalArgv: plan.storage || plan.service || plan.backend ? null : plan.argv,
+        ...(serviceKind ? { serviceControlId } : {}),
+        ...(plan.storage || plan.service || plan.backend ? { executionOwner: plan.backend ? 'authenticated-canonical-cache-child'
+          : plan.storage ? 'canonical-storage-api' : 'canonical-service-worker-owners' } : {}),
+        note: 'Track this owned job for progress, cancellation, publication evidence and artifact references.' };
     } finally { serviceControls.releaseReservation(serviceReservation); }
   };
   const discard = request => { assertTuiWorkflowRequest('discard', request); findPlan(request); plans.delete(request.previewId); return { discarded: true }; };

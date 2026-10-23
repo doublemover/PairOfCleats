@@ -239,29 +239,29 @@ export async function extractPdf({
     const result = await readPdfPages({ pdfjs: runtime.mod, source, policy: resolvedPolicy,
       standardFontDataUrl: resolveStandardFontDataUrl() });
     const pages = result;
-      const nonEmptyPageCount = pages.reduce((count, page) => count + (page.text ? 1 : 0), 0);
-      if (!pages.length || nonEmptyPageCount === 0) {
-        return buildFailedResult('unsupported_scanned', [], {
-          sourceType: 'pdf',
-          policy: resolvedPolicy
-        });
+    const nonEmptyPageCount = pages.reduce((count, page) => count + (page.text ? 1 : 0), 0);
+    if (!pages.length || nonEmptyPageCount === 0) {
+      return buildFailedResult('unsupported_scanned', [], {
+        sourceType: 'pdf',
+        policy: resolvedPolicy
+      });
+    }
+    return {
+      ok: true,
+      pages,
+      warnings: normalizeWarnings(warnings),
+      fidelity: buildDocumentExtractionFidelity({
+        sourceType: 'pdf',
+        status: 'ok',
+        warnings,
+        policy: resolvedPolicy
+      }),
+      extractor: {
+        name: runtime.name,
+        version: runtime.version,
+        target: runtime.target
       }
-      return {
-        ok: true,
-        pages,
-        warnings: normalizeWarnings(warnings),
-        fidelity: buildDocumentExtractionFidelity({
-          sourceType: 'pdf',
-          status: 'ok',
-          warnings,
-          policy: resolvedPolicy
-        }),
-        extractor: {
-          name: runtime.name,
-          version: runtime.version,
-          target: runtime.target
-        }
-      };
+    };
   } catch (err) {
     if (isPendingPdfExtractionFailure(err)) throw err;
     return buildFailedResult(resolvePdfFailureReason(err), [err?.message], {

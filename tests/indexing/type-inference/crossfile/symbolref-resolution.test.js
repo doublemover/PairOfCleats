@@ -149,7 +149,7 @@ for (const [targetName, imported, expected] of [
 const unrelatedEntry = { ...buildEntry({ name: 'Unrelated', file: 'src/lib.js', chunkUid: 'uid-unrelated' }), kind: 'function' };
 assert.equal(resolveSymbolRef({ targetName: 'Missing', kindHint: 'function',
   symbolIndex: { byName: new Map([['Missing', [unrelatedEntry]]]) }, fileSet: new Set(['src/lib.js']) }).status, 'unresolved',
-  'a kind hint can rank matching candidates, but cannot manufacture a name match');
+'a kind hint can rank matching candidates, but cannot manufacture a name match');
 console.log('symbolref imported member path, case and positive name-match controls passed');
 
 for (const module of ['./missing.js', 'external-package', '@configured/alias']) {

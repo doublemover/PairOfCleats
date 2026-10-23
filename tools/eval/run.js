@@ -84,94 +84,94 @@ const evalCaches = {
 };
 
 const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqliteCache, display }, async () => {
-const allCases = loadDataset();
-const cases = limit > 0 ? allCases.slice(0, limit) : allCases;
-if (!cases.length) {
-  throw Object.assign(new Error(`No eval cases found at ${datasetPath}`), { code: 'ERR_EVAL_DATASET' });
-}
-
-const admittedCases = captureEvaluationDatasetCases(cases).map(admitted => ({ ...admitted,
-  selection: resolveEvaluationCohorts(admitted.mode, [...admitted.silver, ...admitted.gold]) }));
-const results = [];
-const queryTask = display.task('Queries', { total: cases.length, stage: 'queries' });
-let processedCases = 0;
-for (const { entry, query, silver, gold, selection } of admittedCases) {
-  const payload = await runSearch(query, selection.requestMode);
-  const cohorts = selection.modes.map(cohortMode => {
-    const hits = selectEvaluationCohort(payload, cohortMode);
-    const scopedSilver = judgmentsForCohort(silver, cohortMode), scopedGold = judgmentsForCohort(gold, cohortMode);
-    const silverJudgments = collectExpectedJudgments(hits, scopedSilver, isMatch, { mode: cohortMode });
-    const goldJudgments = collectExpectedJudgments(hits, scopedGold, isMatch, { mode: cohortMode });
-    const metric = ({ ranks, totalRelevant }) => totalRelevant ? {
-      recallAtK: Object.fromEntries(ks.map(k => [k, computeRecallAtK(ranks, totalRelevant, k)])),
-      mrr: computeMRR(ranks), ndcgAtK: Object.fromEntries(ks.map(k => [k, computeNDCG(ranks, totalRelevant, k)]))
-    } : null;
-    return { mode: cohortMode, totals: { relevant: silverJudgments.totalRelevant, gold: goldJudgments.totalRelevant, hits: hits.length },
-      metrics: metric(silverJudgments), goldMetrics: metric(goldJudgments) };
-  });
-  const macroMetrics = key => {
-    const observed = cohorts.map(row => row[key]).filter(Boolean);
-    if (!observed.length) return null;
-    const average = getter => observed.reduce((sum, row) => sum + getter(row), 0) / observed.length;
-    return { recallAtK: Object.fromEntries(ks.map(k => [k, average(row => row.recallAtK[k])])),
-      ndcgAtK: Object.fromEntries(ks.map(k => [k, average(row => row.ndcgAtK[k])])), mrr: average(row => row.mrr) };
-  };
-  const vectorOracleReplay = await evaluateDatasetVectorReplay({ entry, query, topN });
-  results.push({ query, mode: selection.requestMode || 'default', cohorts,
-    ...(vectorOracleReplay ? { vectorOracleReplay } : {}),
-    totals: { relevant: cohorts.reduce((sum, row) => sum + row.totals.relevant, 0),
-      gold: cohorts.reduce((sum, row) => sum + row.totals.gold, 0), hits: cohorts.reduce((sum, row) => sum + row.totals.hits, 0) },
-    metrics: macroMetrics('metrics'), goldMetrics: macroMetrics('goldMetrics') });
-  processedCases += 1;
-  queryTask.set(processedCases, cases.length);
-}
-
-const aggregate = (field) => {
-  const judged = results.filter(entry => entry.metrics);
-  if (!judged.length) return null;
-  const sum = judged.reduce((acc, entry) => acc + entry.metrics[field], 0);
-  return sum / judged.length;
-};
-
-const aggregateMap = (key) => {
-  const totals = {};
-  const judged = results.filter(entry => entry.metrics);
-  if (!judged.length) return totals;
-  for (const k of ks) {
-    const sum = judged.reduce((acc, entry) => acc + entry.metrics[key][k], 0);
-    totals[k] = sum / judged.length;
+  const allCases = loadDataset();
+  const cases = limit > 0 ? allCases.slice(0, limit) : allCases;
+  if (!cases.length) {
+    throw Object.assign(new Error(`No eval cases found at ${datasetPath}`), { code: 'ERR_EVAL_DATASET' });
   }
-  return totals;
-};
 
-const summary = {
-  cases: results.length,
-  recallAtK: aggregateMap('recallAtK'),
-  ndcgAtK: aggregateMap('ndcgAtK'),
-  mrr: aggregate('mrr')
-};
+  const admittedCases = captureEvaluationDatasetCases(cases).map(admitted => ({ ...admitted,
+    selection: resolveEvaluationCohorts(admitted.mode, [...admitted.silver, ...admitted.gold]) }));
+  const results = [];
+  const queryTask = display.task('Queries', { total: cases.length, stage: 'queries' });
+  let processedCases = 0;
+  for (const { entry, query, silver, gold, selection } of admittedCases) {
+    const payload = await runSearch(query, selection.requestMode);
+    const cohorts = selection.modes.map(cohortMode => {
+      const hits = selectEvaluationCohort(payload, cohortMode);
+      const scopedSilver = judgmentsForCohort(silver, cohortMode), scopedGold = judgmentsForCohort(gold, cohortMode);
+      const silverJudgments = collectExpectedJudgments(hits, scopedSilver, isMatch, { mode: cohortMode });
+      const goldJudgments = collectExpectedJudgments(hits, scopedGold, isMatch, { mode: cohortMode });
+      const metric = ({ ranks, totalRelevant }) => totalRelevant ? {
+        recallAtK: Object.fromEntries(ks.map(k => [k, computeRecallAtK(ranks, totalRelevant, k)])),
+        mrr: computeMRR(ranks), ndcgAtK: Object.fromEntries(ks.map(k => [k, computeNDCG(ranks, totalRelevant, k)]))
+      } : null;
+      return { mode: cohortMode, totals: { relevant: silverJudgments.totalRelevant, gold: goldJudgments.totalRelevant, hits: hits.length },
+        metrics: metric(silverJudgments), goldMetrics: metric(goldJudgments) };
+    });
+    const macroMetrics = key => {
+      const observed = cohorts.map(row => row[key]).filter(Boolean);
+      if (!observed.length) return null;
+      const average = getter => observed.reduce((sum, row) => sum + getter(row), 0) / observed.length;
+      return { recallAtK: Object.fromEntries(ks.map(k => [k, average(row => row.recallAtK[k])])),
+        ndcgAtK: Object.fromEntries(ks.map(k => [k, average(row => row.ndcgAtK[k])])), mrr: average(row => row.mrr) };
+    };
+    const vectorOracleReplay = await evaluateDatasetVectorReplay({ entry, query, topN });
+    results.push({ query, mode: selection.requestMode || 'default', cohorts,
+      ...(vectorOracleReplay ? { vectorOracleReplay } : {}),
+      totals: { relevant: cohorts.reduce((sum, row) => sum + row.totals.relevant, 0),
+        gold: cohorts.reduce((sum, row) => sum + row.totals.gold, 0), hits: cohorts.reduce((sum, row) => sum + row.totals.hits, 0) },
+      metrics: macroMetrics('metrics'), goldMetrics: macroMetrics('goldMetrics') });
+    processedCases += 1;
+    queryTask.set(processedCases, cases.length);
+  }
 
-const report = {
-  generatedAt: new Date().toISOString(),
-  repo: repoRoot,
-  dataset: datasetPath,
-  limit,
-  backend,
-  topN,
-  ann: annFlag,
-  ks,
-  relevancePolicy: 'mode-qualified-cohort-macro.v2:distinct-document-one-to-one.v1',
-  vectorEvaluationPolicy: 'independent-original-and-stored.v1;saved-stage-replay-separated',
-  summary,
-  results
-};
-const fusionReplay = await evaluateDatasetFusionReplay({ cases });
-if (fusionReplay) report.fusionReplay = fusionReplay;
-const shadowRouting = evaluateDatasetShadowRouting({ cases });
-if (shadowRouting) report.shadowRouting = shadowRouting;
-const taskSpanReplay = await evaluateDatasetTaskSpans({ cases });
-if (taskSpanReplay) report.taskSpanReplay = taskSpanReplay;
-return report;
+  const aggregate = (field) => {
+    const judged = results.filter(entry => entry.metrics);
+    if (!judged.length) return null;
+    const sum = judged.reduce((acc, entry) => acc + entry.metrics[field], 0);
+    return sum / judged.length;
+  };
+
+  const aggregateMap = (key) => {
+    const totals = {};
+    const judged = results.filter(entry => entry.metrics);
+    if (!judged.length) return totals;
+    for (const k of ks) {
+      const sum = judged.reduce((acc, entry) => acc + entry.metrics[key][k], 0);
+      totals[k] = sum / judged.length;
+    }
+    return totals;
+  };
+
+  const summary = {
+    cases: results.length,
+    recallAtK: aggregateMap('recallAtK'),
+    ndcgAtK: aggregateMap('ndcgAtK'),
+    mrr: aggregate('mrr')
+  };
+
+  const report = {
+    generatedAt: new Date().toISOString(),
+    repo: repoRoot,
+    dataset: datasetPath,
+    limit,
+    backend,
+    topN,
+    ann: annFlag,
+    ks,
+    relevancePolicy: 'mode-qualified-cohort-macro.v2:distinct-document-one-to-one.v1',
+    vectorEvaluationPolicy: 'independent-original-and-stored.v1;saved-stage-replay-separated',
+    summary,
+    results
+  };
+  const fusionReplay = await evaluateDatasetFusionReplay({ cases });
+  if (fusionReplay) report.fusionReplay = fusionReplay;
+  const shadowRouting = evaluateDatasetShadowRouting({ cases });
+  if (shadowRouting) report.shadowRouting = shadowRouting;
+  const taskSpanReplay = await evaluateDatasetTaskSpans({ cases });
+  if (taskSpanReplay) report.taskSpanReplay = taskSpanReplay;
+  return report;
 });
 
 if (argv.out) {

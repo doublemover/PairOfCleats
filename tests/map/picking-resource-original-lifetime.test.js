@@ -8,7 +8,7 @@ import { getPendingSceneResourceOwners } from '../../src/map/isometric/client/sc
 const baseline = new Set(getPendingSceneResourceOwners()), finish = [];
 const make = ({ makeIndex, makeFence } = {}) => {
   const state = { sourceIndex: { snapshot: {} }, geometryRevision: 1, cameraRevision: 1, scene: {}, renderer: {},
-    getViewport: () => ({ width: 640, height: 480 }) }, indices = [], fences = [];
+      getViewport: () => ({ width: 640, height: 480 }) }, indices = [], fences = [];
   const createIndex = options => {
     const value = makeIndex?.(options) || { calls: 0, query: () => ({ records: [] }),
       intersect: () => ({ hits: ['original hit'], metrics: { original: true } }), dispose() { this.calls++; } };
@@ -131,7 +131,7 @@ try {
   let nesting = false, nested = false;
   const newer = make({ makeIndex: () => ({ calls: 0, query() { if (!nesting && !nested) {
     nesting = true; newer.pick(); nesting = false; nested = true; throw false; } return {}; },
-    intersect: () => ({ hits: ['newer'], metrics: { newer: true } }), dispose() { this.calls++; } }) });
+  intersect: () => ({ hits: ['newer'], metrics: { newer: true } }), dispose() { this.calls++; } }) });
   const olderFailure = fail(newer.pick); assert.equal(olderFailure.cause, false);
   assert.equal(newer.state.pickIndex, newer.indices[0]); assert.equal(newer.state.pickFence, newer.fences[0]);
   assert.deepEqual([newer.indices[0].calls, newer.fences[0].calls], [0, 0]); assert.deepEqual(newer.state.pickMetrics, { newer: true }); newer.owner.retire();

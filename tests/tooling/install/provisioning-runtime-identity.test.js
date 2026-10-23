@@ -40,5 +40,5 @@ await assert.rejects(verifyToolProvisioningPlan(preview, { signal: alreadyCancel
 const pending = Object.assign(new Error('fixture pending exact child'), { cacheOwnershipPending: true });
 await assert.rejects(probeProvisioningCommand('fixture', [], { spawn: async () => { throw pending; } }), error => error.cause === pending
   && error.cacheOwnershipReleased() === false,
-  'unknown async teardown cannot be flattened into an ordinary missing-prerequisite result');
+'unknown async teardown cannot be flattened into an ordinary missing-prerequisite result');
 console.log('Provisioning requires typed recognized runtimes and read-only plans.');

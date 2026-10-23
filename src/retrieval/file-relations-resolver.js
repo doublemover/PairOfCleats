@@ -58,9 +58,9 @@ export const resolveFileRelations = (relationsStore, filePath, caseSensitiveFile
     // A Map can mutate even when Object.freeze(map) is true. Rebuild mutable
     // input here; query-scoped prepared ranking evidence owns repeated reuse.
     const normalized = new Map();
-      for (const [key, value] of relationsStore.entries()) {
-        addCaseInsensitiveLookupEntry(normalized, key, value);
-      }
+    for (const [key, value] of relationsStore.entries()) {
+      addCaseInsensitiveLookupEntry(normalized, key, value);
+    }
     return getCaseInsensitiveLookupValue(normalized, filePath);
   }
   if (Object.prototype.hasOwnProperty.call(relationsStore, filePath)) {

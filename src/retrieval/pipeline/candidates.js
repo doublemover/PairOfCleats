@@ -31,89 +31,89 @@ export const createCandidateSetBuilder = ({
 
     const candidates = candidatePool?.acquire ? candidatePool.acquire() : new Set();
     try {
-    let matched = false;
-    const addCandidate = (id) => {
-      candidates.add(id);
-      return candidateCap && candidates.size >= candidateCap;
-    };
+      let matched = false;
+      const addCandidate = (id) => {
+        candidates.add(id);
+        return candidateCap && candidates.size >= candidateCap;
+      };
 
-    if (postingsConfig.enablePhraseNgrams !== false && idx.phraseNgrams?.vocab && idx.phraseNgrams?.postings) {
-      const vocabIndex = idx.phraseNgrams.vocabIndex
+      if (postingsConfig.enablePhraseNgrams !== false && idx.phraseNgrams?.vocab && idx.phraseNgrams?.postings) {
+        const vocabIndex = idx.phraseNgrams.vocabIndex
         || (idx.phraseNgrams.vocabIndex = createVocabIndex(idx.phraseNgrams.vocab));
-      const ngrams = extractNgrams(tokens, postingsConfig.phraseMinN, postingsConfig.phraseMaxN);
-      for (const ng of new Set(ngrams)) {
-        const hit = vocabIndex.get(ng);
-        if (hit === undefined) continue;
-        const posting = idx.phraseNgrams.postings[hit] || [];
-        for (const id of posting) {
-          if (addCandidate(id)) {
-            if (candidatePool?.release) candidatePool.release(candidates);
-            return null;
+        const ngrams = extractNgrams(tokens, postingsConfig.phraseMinN, postingsConfig.phraseMaxN);
+        for (const ng of new Set(ngrams)) {
+          const hit = vocabIndex.get(ng);
+          if (hit === undefined) continue;
+          const posting = idx.phraseNgrams.postings[hit] || [];
+          for (const id of posting) {
+            if (addCandidate(id)) {
+              if (candidatePool?.release) candidatePool.release(candidates);
+              return null;
+            }
           }
+          matched = matched || posting.length > 0;
         }
-        matched = matched || posting.length > 0;
       }
-    }
 
-    if (postingsConfig.enableChargrams !== false && idx.chargrams?.vocab && idx.chargrams?.postings) {
-      const vocabIndex = idx.chargrams.vocabIndex
+      if (postingsConfig.enableChargrams !== false && idx.chargrams?.vocab && idx.chargrams?.postings) {
+        const vocabIndex = idx.chargrams.vocabIndex
         || (idx.chargrams.vocabIndex = createVocabIndex(idx.chargrams.vocab));
-      const sample = idx.chargrams.vocab[0];
-      const hashedChargrams = typeof idx.chargrams?.fields?.hash?.prefix === 'string'
+        const sample = idx.chargrams.vocab[0];
+        const hashedChargrams = typeof idx.chargrams?.fields?.hash?.prefix === 'string'
         || (typeof sample === 'string' && sample.startsWith('h64:'));
-      if (hashedChargrams) assertChargramHashIdentity(idx.chargrams?.fields?.hash);
-      const visitedPostings = new Set();
-      for (const token of new Set(tokens)) {
-        if (chargramMaxTokenLength && token.length > chargramMaxTokenLength) continue;
-        if (hashedChargrams) {
-          let stopEarly = false;
-          forEachRollingChargramHash(
-            token,
-            postingsConfig.chargramMinN,
-            postingsConfig.chargramMaxN,
-            { maxTokenLength: chargramMaxTokenLength },
-            (gram) => {
-              const hit = vocabIndex.get(gram);
-              if (hit === undefined || visitedPostings.has(hit)) return true;
-              visitedPostings.add(hit);
-              const posting = idx.chargrams.postings[hit] || [];
-              for (const id of posting) {
-                if (addCandidate(id)) {
-                  if (candidatePool?.release) candidatePool.release(candidates);
-                  stopEarly = true;
-                  return false;
+        if (hashedChargrams) assertChargramHashIdentity(idx.chargrams?.fields?.hash);
+        const visitedPostings = new Set();
+        for (const token of new Set(tokens)) {
+          if (chargramMaxTokenLength && token.length > chargramMaxTokenLength) continue;
+          if (hashedChargrams) {
+            let stopEarly = false;
+            forEachRollingChargramHash(
+              token,
+              postingsConfig.chargramMinN,
+              postingsConfig.chargramMaxN,
+              { maxTokenLength: chargramMaxTokenLength },
+              (gram) => {
+                const hit = vocabIndex.get(gram);
+                if (hit === undefined || visitedPostings.has(hit)) return true;
+                visitedPostings.add(hit);
+                const posting = idx.chargrams.postings[hit] || [];
+                for (const id of posting) {
+                  if (addCandidate(id)) {
+                    if (candidatePool?.release) candidatePool.release(candidates);
+                    stopEarly = true;
+                    return false;
+                  }
                 }
+                matched = matched || posting.length > 0;
+                return true;
               }
-              matched = matched || posting.length > 0;
-              return true;
-            }
-          );
-          if (stopEarly) return null;
-        } else {
-          for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; n++) {
-            for (const gram of tri(token, n)) {
-              const hit = vocabIndex.get(gram);
-              if (hit === undefined || visitedPostings.has(hit)) continue;
-              visitedPostings.add(hit);
-              const posting = idx.chargrams.postings[hit] || [];
-              for (const id of posting) {
-                if (addCandidate(id)) {
-                  if (candidatePool?.release) candidatePool.release(candidates);
-                  return null;
+            );
+            if (stopEarly) return null;
+          } else {
+            for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; n++) {
+              for (const gram of tri(token, n)) {
+                const hit = vocabIndex.get(gram);
+                if (hit === undefined || visitedPostings.has(hit)) continue;
+                visitedPostings.add(hit);
+                const posting = idx.chargrams.postings[hit] || [];
+                for (const id of posting) {
+                  if (addCandidate(id)) {
+                    if (candidatePool?.release) candidatePool.release(candidates);
+                    return null;
+                  }
                 }
+                matched = matched || posting.length > 0;
               }
-              matched = matched || posting.length > 0;
             }
           }
         }
       }
-    }
 
-    if (!matched) {
-      if (candidatePool?.release) candidatePool.release(candidates);
-      return null;
-    }
-    return candidates;
+      if (!matched) {
+        if (candidatePool?.release) candidatePool.release(candidates);
+        return null;
+      }
+      return candidates;
     } catch (error) {
       candidatePool?.release?.(candidates);
       throw error;

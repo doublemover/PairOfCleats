@@ -34,7 +34,7 @@ try {
   flow.addFlowCredits(10000);
   assert.deepEqual(received.slice(baseline).filter(value => value.taskId === 'restart')
     .map(value => [value.jobId, value.event]), [['active-job', 'task:start'], ['active-job', 'task:end'],
-      ['active-job', 'task:start'], ['active-job', 'task:progress'], ['other-job', 'task:end']]);
+    ['active-job', 'task:start'], ['active-job', 'task:progress'], ['other-job', 'task:end']]);
 
   const saturated = createFlowController({ runId: 'chunk-run', nextSeq: () => ++seq, eventLogRecorder: null });
   for (let index = 0; index < FLOW_DEFAULT_CREDITS - 1; index++) saturated.emit('task:progress', { taskId: String(index) });

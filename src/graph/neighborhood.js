@@ -543,12 +543,12 @@ export const buildGraphNeighborhood = ({
         const targets = projectSymbolRefTargets(cappedToRef).filter(target =>
           currentRef.type !== 'symbol' || target.symbolId === currentRef.symbolId);
         const edge = {
-            edgeType,
-            graph: 'symbolEdges',
-            from: fromRef,
-            to: cappedToRef,
-            confidence,
-            evidence: entry.edge.reason ? { note: entry.edge.reason } : null
+          edgeType,
+          graph: 'symbolEdges',
+          from: fromRef,
+          to: cappedToRef,
+          confidence,
+          evidence: entry.edge.reason ? { note: entry.edge.reason } : null
         };
         // Keep source evidence when the candidate budget admits no traversal.
         // An explicit null prevents the generic resolved-endpoint fallback.

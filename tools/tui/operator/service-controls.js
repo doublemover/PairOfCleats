@@ -54,14 +54,14 @@ export const createTuiServiceControls = ({ requireScope, getJob, cancelJob } = {
       let closed = false;
       try { closed = entry.inspectClosure()?.closed === true; } catch {}
       return {
-      serviceId: entry.id, service: entry.kind, jobId: entry.jobId, phase: entry.owner.status,
-      canStop: getJob(entry.jobId) === entry.owner && entry.owner.settled !== true
+        serviceId: entry.id, service: entry.kind, jobId: entry.jobId, phase: entry.owner.status,
+        canStop: getJob(entry.jobId) === entry.owner && entry.owner.settled !== true
         && !entry.owner.finalized && !entry.owner.abortController.signal.aborted,
-      stopRequested: entry.owner.abortController.signal.aborted,
-      executionSettled: entry.owner.settled === true,
-      resourceClosure: closed ? 'confirmed' : 'unconfirmed',
-      settlementPending: entry.owner.settled !== true || !closed,
-      healthMeaning: 'This control identity proves current-session job ownership only. Health is reported separately by its protocol owner.'
+        stopRequested: entry.owner.abortController.signal.aborted,
+        executionSettled: entry.owner.settled === true,
+        resourceClosure: closed ? 'confirmed' : 'unconfirmed',
+        settlementPending: entry.owner.settled !== true || !closed,
+        healthMeaning: 'This control identity proves current-session job ownership only. Health is reported separately by its protocol owner.'
       };
     });
   };

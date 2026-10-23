@@ -50,7 +50,7 @@ try {
     machineConfig = configPath ? await readPlan(configPath) : null;
   } catch (error) { configurationErrors.push({ source: 'machine-config', path: argv['machine-config'] || null,
     code: error.code || 'ERR_STORAGE_MACHINE_CONFIG', message: error.message, authorityGranted: false });
-    configPath = null; machineConfig = null; }
+  configPath = null; machineConfig = null; }
   const layoutInput = { home: argv.home || null, machineConfig, machineConfigPath: configPath,
     overrides: argv['cache-root'] ? { cache: argv['cache-root'] } : {} };
   let layout;
@@ -91,7 +91,7 @@ try {
   else if (action === 'inspect' && STORAGE_INVENTORY_ADAPTERS.includes(argv.category)) {
     const root = argv.path || (argv.category === 'command-probes' ? path.join(currentCache || cacheRoot, 'tooling', 'command-probes')
       : argv.category === 'dictionaries' ? legacy.find(entry => entry.id === 'legacy-dictionaries')?.path
-      : argv.category === 'managed-installations' ? legacy.find(entry => entry.id === 'legacy-tooling')?.path : null);
+        : argv.category === 'managed-installations' ? legacy.find(entry => entry.id === 'legacy-tooling')?.path : null);
     receipt = await inspectStorageCategory({ category: argv.category, root, home: layout.home.path,
       registeredRoots: [...Object.values(layout.descriptors).map(descriptor => descriptor.path), ...legacy.map(entry => entry.path)],
       request: argv.plan ? await readPlan(argv.plan) : null, ...limits });
@@ -125,7 +125,7 @@ try {
       dictionaries: 'legacy-dictionaries', tmp: 'legacy-scratch' }[argv.category];
     const currentPath = argv.category === 'cache' ? currentCache
       : argv.category === 'tmp' && layout.descriptors.tmp.source === 'locator.categories.tmp' ? layout.descriptors.tmp.path
-      : legacy.find(entry => entry.id === compatibilityId)?.path;
+        : legacy.find(entry => entry.id === compatibilityId)?.path;
     receipt = await planStorageConfiguration({ layout, category: argv.category, currentPath, currentSource: explicitSource,
       target: argv.path, machineConfigPath: configPath, repoRoot });
   } else if (action === 'configure-apply') receipt = await applyStorageConfiguration(await readPlan(argv.plan), {

@@ -14,7 +14,7 @@ const previous = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, file: 'a.js
   lexiconFilterStats: { tokens: 9 }, encodingFallbackClass: null, dependencySignatures: { a: 'v1' } };
 const next = { ...previous, chunks: [{ ...previous.chunks[0], text: 'bbbb',
   metaV2: { risk: { severity: 2 } }, docmeta: { risk: { source: 'new' } } }],
-  lexiconFilterStats: { tokens: 10 }, parseCheckpoint: { complete: false }, dependencySignatures: { a: 'v2' } };
+lexiconFilterStats: { tokens: 10 }, parseCheckpoint: { complete: false }, dependencySignatures: { a: 'v2' } };
 delete next.encodingFallbackClass;
 assert.equal(shouldReuseExistingBundle(previous, next), false);
 for (const edit of [row => { row.chunks[0].docmeta.risk.source = 'new'; },

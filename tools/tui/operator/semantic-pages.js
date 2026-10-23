@@ -53,8 +53,8 @@ export const createTuiSemanticPages = ({ toolRoot, requireScope, now = Date.now,
       entry.pages += 1;
       const result = { ...data.page, nativePageCommitted: true,
         nativeContinuation: data.hasMore ? { id: entry.id, scopeId: entry.scopeId,
-        commandId: entry.commandId, requestSha256: entry.requestSha256, pages: entry.pages,
-        expiresAt: new Date(entry.createdAt + TTL_MS).toISOString() } : null };
+          commandId: entry.commandId, requestSha256: entry.requestSha256, pages: entry.pages,
+          expiresAt: new Date(entry.createdAt + TTL_MS).toISOString() } : null };
       if (!data.hasMore) await close(entry);
       return result;
     } catch (error) {

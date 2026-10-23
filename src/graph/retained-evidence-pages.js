@@ -49,48 +49,48 @@ export const createRetainedEvidencePages = ({ indexDir, manifest, maxBytes = MAX
   let parts = null;
   const loadParts = async signal => {
     if (parts) return parts;
-  let pieces = sortManifestEntries(pinned.pieces.filter(piece => piece.name === family));
-  if (new Set(pieces.map(piece => piece.path)).size !== pieces.length) throw fail('Duplicate retained-evidence physical inventory.');
-  const metadata = pinned.pieces.filter(piece => piece.name === family + '_meta');
-  if (metadata.length > 1) throw fail('Ambiguous retained-evidence metadata.');
-  if (metadata.length) {
-    const piece = metadata[0], expected = checksum(piece, fail);
-    if (!Number.isSafeInteger(piece.bytes) || piece.bytes < 0 || piece.bytes > maxBytes) throw fail('Invalid retained-evidence metadata byte allowance.');
-    const { buffer } = await readVerifiedContainedFile(indexDir, resolveManifestPath(indexDir, piece.path, true), {
-      maxBytes, expectedBytes: piece.bytes, signal,
-      ...(expected.algorithm === 'xxh64' ? {} : { expectedHash: expected.value, hashAlgorithm: expected.algorithm })
-    });
-    if (expected.algorithm === 'xxh64') {
-      const hasher = await (await import('../shared/hash/xxhash-backend.js')).createXxhash64Hasher();
-      hasher.update(buffer);
-      if (hasher.digest() !== expected.value) throw fail('Retained-evidence metadata checksum mismatch.');
-    }
-    const meta = normalizeManifest(JSON.parse(buffer.toString('utf8')));
-    if (!validateArtifact(family + '_meta', meta).ok || meta.artifact !== family || meta.compression !== 'none') {
-      throw fail('Unsupported or invalid retained-evidence metadata.', 'ERR_CALL_SITE_PAGING_UNAVAILABLE');
-    }
-    const byPath = new Map(pieces.map(part => [part.path, part]));
-    const paths = meta.parts.map(part => typeof part === 'string' ? part : part.path);
-    if (paths.length !== pieces.length || new Set(paths).size !== paths.length || paths.some(file => !byPath.has(file))
+    let pieces = sortManifestEntries(pinned.pieces.filter(piece => piece.name === family));
+    if (new Set(pieces.map(piece => piece.path)).size !== pieces.length) throw fail('Duplicate retained-evidence physical inventory.');
+    const metadata = pinned.pieces.filter(piece => piece.name === family + '_meta');
+    if (metadata.length > 1) throw fail('Ambiguous retained-evidence metadata.');
+    if (metadata.length) {
+      const piece = metadata[0], expected = checksum(piece, fail);
+      if (!Number.isSafeInteger(piece.bytes) || piece.bytes < 0 || piece.bytes > maxBytes) throw fail('Invalid retained-evidence metadata byte allowance.');
+      const { buffer } = await readVerifiedContainedFile(indexDir, resolveManifestPath(indexDir, piece.path, true), {
+        maxBytes, expectedBytes: piece.bytes, signal,
+        ...(expected.algorithm === 'xxh64' ? {} : { expectedHash: expected.value, hashAlgorithm: expected.algorithm })
+      });
+      if (expected.algorithm === 'xxh64') {
+        const hasher = await (await import('../shared/hash/xxhash-backend.js')).createXxhash64Hasher();
+        hasher.update(buffer);
+        if (hasher.digest() !== expected.value) throw fail('Retained-evidence metadata checksum mismatch.');
+      }
+      const meta = normalizeManifest(JSON.parse(buffer.toString('utf8')));
+      if (!validateArtifact(family + '_meta', meta).ok || meta.artifact !== family || meta.compression !== 'none') {
+        throw fail('Unsupported or invalid retained-evidence metadata.', 'ERR_CALL_SITE_PAGING_UNAVAILABLE');
+      }
+      const byPath = new Map(pieces.map(part => [part.path, part]));
+      const paths = meta.parts.map(part => typeof part === 'string' ? part : part.path);
+      if (paths.length !== pieces.length || new Set(paths).size !== paths.length || paths.some(file => !byPath.has(file))
       || meta.totalRecords !== pieces.reduce((sum, part) => sum + part.count, 0)
       || meta.totalBytes !== pieces.reduce((sum, part) => sum + part.bytes, 0)) throw fail('Retained-evidence metadata disagrees with registered physical inventory.');
-    pieces = paths.map(file => byPath.get(file));
-  } else if (!pieces.length) throw fail('Retained-evidence family is not registered.', 'ERR_CALL_SITE_PAGING_UNAVAILABLE');
-  const selected = pieces.map(piece => {
-    if (!piece.path?.endsWith('.jsonl') || piece.compression && piece.compression !== 'none') {
-      throw fail('This retained evidence representation has no positioned JSONL page route.', 'ERR_CALL_SITE_PAGING_UNAVAILABLE');
-    }
-    const offsets = pinned.pieces.find(candidate => candidate.name === family + '_offsets'
+      pieces = paths.map(file => byPath.get(file));
+    } else if (!pieces.length) throw fail('Retained-evidence family is not registered.', 'ERR_CALL_SITE_PAGING_UNAVAILABLE');
+    const selected = pieces.map(piece => {
+      if (!piece.path?.endsWith('.jsonl') || piece.compression && piece.compression !== 'none') {
+        throw fail('This retained evidence representation has no positioned JSONL page route.', 'ERR_CALL_SITE_PAGING_UNAVAILABLE');
+      }
+      const offsets = pinned.pieces.find(candidate => candidate.name === family + '_offsets'
       && candidate.path === piece.path + '.offsets.bin');
-    if (!offsets || !Number.isSafeInteger(piece.count) || piece.count < 0
+      if (!offsets || !Number.isSafeInteger(piece.count) || piece.count < 0
       || offsets.count !== piece.count || !Number.isSafeInteger(piece.bytes) || piece.bytes < 0
       || !Number.isSafeInteger(offsets.bytes) || offsets.bytes !== piece.count * 8
       || piece.bytes > maxBytes) throw fail('Retained-evidence piece/offset inventory is incomplete or exceeds its read allowance.');
-    return { piece, offsets, dataHash: checksum(piece, fail), offsetsHash: checksum(offsets, fail) };
-  });
-  throwIfAborted(signal);
-  parts = selected;
-  return parts;
+      return { piece, offsets, dataHash: checksum(piece, fail), offsetsHash: checksum(offsets, fail) };
+    });
+    throwIfAborted(signal);
+    parts = selected;
+    return parts;
   };
   const assertPublication = () => {
     // Bypass timestamp caches: equal metadata does not qualify the same generation.

@@ -104,7 +104,7 @@ export const createOnnxResourceOwner = ({ session, tokenizer, qualificationSlot 
     if (settled) observe(); else settlementObservers.add(observe);
     return () => settlementObservers.delete(observe);
   }, get settled() { return settled; },
-    get pending() { return !settled; } });
+  get pending() { return !settled; } });
   return resourceOwner;
 };
 

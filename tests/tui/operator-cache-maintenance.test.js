@@ -112,7 +112,7 @@ const context = signal => ({ signal, env, jobId: 'owned-backend', launcherJob: {
 }
 {
   const f = fixture({ ownerFailure: Object.assign(new Error('Foreign reader lease remains active.'),
-    { code: 'ERR_REPO_CACHE_DELEGATION_BUSY' }) }), plan = await f.actor.prepare(preview);
+      { code: 'ERR_REPO_CACHE_DELEGATION_BUSY' }) }), plan = await f.actor.prepare(preview);
   await assert.rejects(plan.execute(context(new AbortController().signal)), { code: 'ERR_REPO_CACHE_DELEGATION_BUSY' });
   assert.equal(f.resumed, 1, 'a failed pre-child handoff is cancelled through its canonical owner');
   assert.equal(f.actor.status().blocked, false);

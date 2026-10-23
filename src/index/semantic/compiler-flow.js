@@ -177,23 +177,23 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
       throwIfAborted(signal);
       const block = queue[index++]; queued.delete(block);
       try {
-      const input = merge(block), transfer = createDefinitionTransfer(input, { spend: spendDefinitions });
-      incoming.set(block, input);
-      if (writes.has(block)) transfer.set(block.symbol, new Set([writes.get(block).local]));
-      // A field path is a may-location: retain older candidates rather than claiming an alias-safe kill.
-      if (heapWrites.has(block)) for (const field of block.fields) {
-        const strong = block.fields.length === 1 && ordered.strongAt(symbols.get(field).location, block.node);
-        for (const token of overlaps.get(field) || [field]) {
-          if (!spendDefinitions((strong ? 0 : transfer.get(token)?.size || 0) + 1)) throw definitionBudgetError();
-          transfer.set(token,new Set([...(strong ? [] : transfer.get(token)||[]),heapWrites.get(block).local]));
+        const input = merge(block), transfer = createDefinitionTransfer(input, { spend: spendDefinitions });
+        incoming.set(block, input);
+        if (writes.has(block)) transfer.set(block.symbol, new Set([writes.get(block).local]));
+        // A field path is a may-location: retain older candidates rather than claiming an alias-safe kill.
+        if (heapWrites.has(block)) for (const field of block.fields) {
+          const strong = block.fields.length === 1 && ordered.strongAt(symbols.get(field).location, block.node);
+          for (const token of overlaps.get(field) || [field]) {
+            if (!spendDefinitions((strong ? 0 : transfer.get(token)?.size || 0) + 1)) throw definitionBudgetError();
+            transfer.set(token,new Set([...(strong ? [] : transfer.get(token)||[]),heapWrites.get(block).local]));
+          }
         }
-      }
-      for (const copy of block.orderedCopies || []) transfer.set(copy.targetToken, new Set([copy.value.local]));
-      const output = transfer.finish();
-      if (!definitionStatesEqual(outgoing.get(block), output, { spend: spendDefinitions })) {
-        outgoing.set(block, output);
-        for (const successor of block.successors) if (!queued.has(successor.to)) { queue.push(successor.to); queued.add(successor.to); }
-      }
+        for (const copy of block.orderedCopies || []) transfer.set(copy.targetToken, new Set([copy.value.local]));
+        const output = transfer.finish();
+        if (!definitionStatesEqual(outgoing.get(block), output, { spend: spendDefinitions })) {
+          outgoing.set(block, output);
+          for (const successor of block.successors) if (!queued.has(successor.to)) { queue.push(successor.to); queued.add(successor.to); }
+        }
       } catch (error) {
         if (error.code !== 'ERR_COMPILER_DEFINITION_BUDGET') throw error;
         definitionBudgetExhausted = true; reasons.add('reaching_definition_state_budget'); break;

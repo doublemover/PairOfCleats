@@ -41,7 +41,7 @@ try {
   let closed = 0;
   const cleanup = new Error('input close failed');
   const deniedItems = (function* () { try { yield { text: 'first' }; yield { text: 'second' }; }
-    finally { closed++; throw cleanup; } })();
+  finally { closed++; throw cleanup; } })();
   const denied = createSemanticDiskAccount(1);
   await assert.rejects(writeJsonLinesSharded({ dir: quota, partsDirName: 'parts', partPrefix: 'part-', items: deniedItems,
     maxBytes: 1024, diskAccount: denied }), error => error.code === 'ERR_SEMANTIC_DISK_LIMIT' && error.cleanupError === cleanup);

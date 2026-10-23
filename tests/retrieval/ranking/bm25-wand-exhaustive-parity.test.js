@@ -45,7 +45,7 @@ const random = () => { state = (Math.imul(state, 1664525) + 1013904223) >>> 0; r
 const broadLengths = Array.from({ length: 1200 }, () => 1 + random() % 30);
 const broad = admitSortedPostings({ vocab: ['left', 'right'], postings: [0, 1].map(() =>
   Array.from({ length: 1200 }, (_, id) => [id, 1 + random() % 9])), docLengths: broadLengths,
-  avgDocLen: broadLengths.reduce((sum, value) => sum + value, 0) / 1200, totalDocs: 1200 });
+avgDocLen: broadLengths.reduce((sum, value) => sum + value, 0) / 1200, totalDocs: 1200 });
 const worst = { chunkMeta: Array.from({ length: 1200 }, () => ({ weight: 0.1 + random() % 50 / 10 })), tokenIndex: broad };
 for (const k1 of [0.1, 1.2, 16]) for (const b of [0, 0.75, 1]) compare({ idx: worst, tokens: ['right', 'left', 'right'], topN: 7, k1, b });
 const unsorted = { ...broad, postings: [[...broad.postings[0]].reverse(), broad.postings[1]] };

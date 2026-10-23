@@ -46,12 +46,12 @@ export const resolveWorkspaceExecutionAuthority = ({ repoRoot, workspaceRoot = r
     : language === 'ruby'
       ? 'Ruby LSP requires an exact launch-owned repository trust grant before Bundler, composed bundles or project add-ons can run.'
       : language === 'perl'
-      ? 'Perl Navigator requires an exact launch-owned repository trust grant before interpreter checks can execute BEGIN, use or project dependencies.'
-      : language === 'java'
-      ? 'Java workspace tooling requires an exact launch-owned repository trust grant; native Java AST analysis remains available.'
-      : language === 'kotlin'
-      ? 'Official Kotlin LSP requires an exact launch-owned repository trust grant before Gradle/Maven import, plugins or dependencies can execute; native Kotlin parsing remains available.'
-      : 'Zig workspace tooling requires an exact launch-owned repository trust grant; Zig is currently a tooling-only route.';
+        ? 'Perl Navigator requires an exact launch-owned repository trust grant before interpreter checks can execute BEGIN, use or project dependencies.'
+        : language === 'java'
+          ? 'Java workspace tooling requires an exact launch-owned repository trust grant; native Java AST analysis remains available.'
+          : language === 'kotlin'
+            ? 'Official Kotlin LSP requires an exact launch-owned repository trust grant before Gradle/Maven import, plugins or dependencies can execute; native Kotlin parsing remains available.'
+            : 'Zig workspace tooling requires an exact launch-owned repository trust grant; Zig is currently a tooling-only route.';
   return { state: 'blocked', blockProvider: true, reasonCode, message,
     check: { name: reasonCode, status: 'warn', message } };
 };

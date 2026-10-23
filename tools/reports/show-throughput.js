@@ -1690,10 +1690,10 @@ const buildComparison = () => {
   }
   return { schemaVersion: 1, mode: modeFilter || 'code', currentRoot: resultsRoot, baselineRoot: compareRoot,
     rows: sortRows(rows.map((entry) => ({
-    ...entry,
-    label: entry.folder,
-    regressionSeverity: Math.abs(Number(entry.deltaBuildPct) || 0) + Math.abs(Number(entry.deltaChunksPct) || 0)
-  })), sortMetric).slice(0, topN) };
+      ...entry,
+      label: entry.folder,
+      regressionSeverity: Math.abs(Number(entry.deltaBuildPct) || 0) + Math.abs(Number(entry.deltaChunksPct) || 0)
+    })), sortMetric).slice(0, topN) };
 };
 const printCompareText = comparison => {
   console.log('Compare Overview');

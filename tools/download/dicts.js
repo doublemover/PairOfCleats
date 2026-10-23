@@ -42,166 +42,166 @@ const onTerminate = () => { process.exitCode = 143; controller.abort(new Error('
 process.once('SIGINT', onInterrupt);
 process.once('SIGTERM', onTerminate);
 try {
-await runDictionaryWriteSession({ dictDir, signal: controller.signal }, async ({ signal, trackResource }) => {
-await fs.mkdir(dictDir, { recursive: true });
-await fs.mkdir(path.join(dictDir, 'slang'), { recursive: true });
-await fs.mkdir(path.join(dictDir, 'repos'), { recursive: true });
+  await runDictionaryWriteSession({ dictDir, signal: controller.signal }, async ({ signal, trackResource }) => {
+    await fs.mkdir(dictDir, { recursive: true });
+    await fs.mkdir(path.join(dictDir, 'slang'), { recursive: true });
+    await fs.mkdir(path.join(dictDir, 'repos'), { recursive: true });
 
-const manifestPath = path.join(dictDir, 'dictionaries.json');
-const manifestStat = await fs.lstat(manifestPath).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
-if (manifestStat && (!manifestStat.isFile() || manifestStat.isSymbolicLink() || manifestStat.size > 8 * 1024 * 1024)) throw new Error('Dictionary manifest must be a bounded regular file; existing evidence was preserved.');
-let manifest = manifestStat ? JSON.parse(await fs.readFile(manifestPath, 'utf8')) : {};
-if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) throw new Error('Dictionary manifest must be an object; existing evidence was preserved.');
+    const manifestPath = path.join(dictDir, 'dictionaries.json');
+    const manifestStat = await fs.lstat(manifestPath).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
+    if (manifestStat && (!manifestStat.isFile() || manifestStat.isSymbolicLink() || manifestStat.size > 8 * 1024 * 1024)) throw new Error('Dictionary manifest must be a bounded regular file; existing evidence was preserved.');
+    let manifest = manifestStat ? JSON.parse(await fs.readFile(manifestPath, 'utf8')) : {};
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) throw new Error('Dictionary manifest must be an object; existing evidence was preserved.');
 
-const hashOverrides = parseHashOverrides(argv.sha256);
-const downloadPolicy = resolveDownloadPolicy(userConfig, { defaultMaxBytes: DEFAULT_MAX_DOWNLOAD_BYTES });
+    const hashOverrides = parseHashOverrides(argv.sha256);
+    const downloadPolicy = resolveDownloadPolicy(userConfig, { defaultMaxBytes: DEFAULT_MAX_DOWNLOAD_BYTES });
 
-const SOURCES = {
-  en: {
-    name: 'en',
-    url: 'https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt',
-    file: 'en.txt'
-  }
-};
+    const SOURCES = {
+      en: {
+        name: 'en',
+        url: 'https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt',
+        file: 'en.txt'
+      }
+    };
 
-/**
+    /**
  * Download a dictionary source into the cache.
  * @param {{name:string,url:string,file:string}} source
  * @returns {Promise<{name:string,skipped:boolean}>}
  */
-async function downloadSource(source) {
-  const sourceResources = [];
-  const trackSourceResource = resource => { sourceResources.push(resource); return trackResource(resource); };
-  let primaryError = null;
-  try {
-  const outputPath = path.join(dictDir, assertDownloadFileName(source.file));
-  const entry = manifest[source.name] || {};
+    async function downloadSource(source) {
+      const sourceResources = [];
+      const trackSourceResource = resource => { sourceResources.push(resource); return trackResource(resource); };
+      let primaryError = null;
+      try {
+        const outputPath = path.join(dictDir, assertDownloadFileName(source.file));
+        const entry = manifest[source.name] || {};
 
-  if (!argv.force && !argv.update && fsSync.existsSync(outputPath)) {
-    return { name: source.name, skipped: true };
-  }
+        if (!argv.force && !argv.update && fsSync.existsSync(outputPath)) {
+          return { name: source.name, skipped: true };
+        }
 
-  const headers = {};
-  const expectedHash = resolveExpectedHash(source, downloadPolicy, hashOverrides);
-  const reusableSource = argv.update && !argv.force && entry.url === source.url && entry.file === source.file
+        const headers = {};
+        const expectedHash = resolveExpectedHash(source, downloadPolicy, hashOverrides);
+        const reusableSource = argv.update && !argv.force && entry.url === source.url && entry.file === source.file
     && (!expectedHash || (entry.verified === true && entry.sha256 === expectedHash));
-  const reuseOptions = { root: dictDir, file: outputPath, maxBytes: downloadPolicy.maxBytes,
-    expectedHash: expectedHash || (entry.verified === true ? entry.sha256 : null), signal };
-  const reusable = reusableSource ? await inspectReusableDictionary(reuseOptions) : null;
-  const canReuse = reusable !== null;
-  if (canReuse) {
-    if (entry.etag) headers['If-None-Match'] = entry.etag;
-    if (entry.lastModified) headers['If-Modified-Since'] = entry.lastModified;
-  }
+        const reuseOptions = { root: dictDir, file: outputPath, maxBytes: downloadPolicy.maxBytes,
+          expectedHash: expectedHash || (entry.verified === true ? entry.sha256 : null), signal };
+        const reusable = reusableSource ? await inspectReusableDictionary(reuseOptions) : null;
+        const canReuse = reusable !== null;
+        if (canReuse) {
+          if (entry.etag) headers['If-None-Match'] = entry.etag;
+          if (entry.lastModified) headers['If-Modified-Since'] = entry.lastModified;
+        }
 
-  const response = await fetchDownloadUrl(source.url, {
-    headers,
-    responseType: 'stream',
-    maxBytes: downloadPolicy.maxBytes,
-    timeoutMs: downloadPolicy.timeoutMs,
-    maxRedirects: downloadPolicy.maxRedirects,
-    signal, onResource: trackSourceResource
-  });
-  if (response.statusCode === 304) {
-    response.stream?.resume?.();
-    if (!canReuse || !sameReusableDictionary(reusable, await inspectReusableDictionary(reuseOptions))) {
-      throw new Error(`Unexpected 304 for ${source.url}: usable local dictionary bytes are unavailable.`);
+        const response = await fetchDownloadUrl(source.url, {
+          headers,
+          responseType: 'stream',
+          maxBytes: downloadPolicy.maxBytes,
+          timeoutMs: downloadPolicy.timeoutMs,
+          maxRedirects: downloadPolicy.maxRedirects,
+          signal, onResource: trackSourceResource
+        });
+        if (response.statusCode === 304) {
+          response.stream?.resume?.();
+          if (!canReuse || !sameReusableDictionary(reusable, await inspectReusableDictionary(reuseOptions))) {
+            throw new Error(`Unexpected 304 for ${source.url}: usable local dictionary bytes are unavailable.`);
+          }
+          return { name: source.name, skipped: true };
+        }
+        if (response.statusCode !== 200) {
+          response.stream?.resume?.();
+          throw new Error(`Failed to download ${source.url}: ${response.statusCode}`);
+        }
+
+        const { tempPath, bytes, lastByte, hashHex } = await streamDictionaryToFile(response.stream, outputPath, {
+          maxBytes: downloadPolicy.maxBytes,
+          expectedHash,
+          policy: downloadPolicy, signal, trackResource: trackSourceResource
+        });
+        if (!bytes) throw new Error(`Downloaded empty dictionary payload for ${source.name}.`);
+        let actualHash = null;
+        try {
+          actualHash = verifyDownloadHash({
+            source,
+            expectedHash,
+            actualHash: hashHex,
+            policy: downloadPolicy,
+            warn: (message) => console.warn(message)
+          });
+        } catch (err) {
+          await fs.rm(tempPath, { force: true });
+          throw err;
+        }
+
+        signal.throwIfAborted();
+        if (lastByte !== 10) {
+          await fs.appendFile(tempPath, '\n');
+        }
+        signal.throwIfAborted();
+        await replaceFile(tempPath, outputPath);
+
+        manifest[source.name] = {
+          url: source.url,
+          file: source.file,
+          sha256: actualHash || expectedHash || null,
+          verified: Boolean(expectedHash),
+          etag: response.headers.etag || null,
+          lastModified: response.headers['last-modified'] || null,
+          downloadedAt: new Date().toISOString()
+        };
+
+        return { name: source.name, skipped: false };
+      } catch (error) { primaryError = error; throw error; }
+      finally { await closeDictionaryResources(sourceResources, { primaryError }); }
     }
-    return { name: source.name, skipped: true };
-  }
-  if (response.statusCode !== 200) {
-    response.stream?.resume?.();
-    throw new Error(`Failed to download ${source.url}: ${response.statusCode}`);
-  }
 
-  const { tempPath, bytes, lastByte, hashHex } = await streamDictionaryToFile(response.stream, outputPath, {
-    maxBytes: downloadPolicy.maxBytes,
-    expectedHash,
-    policy: downloadPolicy, signal, trackResource: trackSourceResource
-  });
-  if (!bytes) throw new Error(`Downloaded empty dictionary payload for ${source.name}.`);
-  let actualHash = null;
-  try {
-    actualHash = verifyDownloadHash({
-      source,
-      expectedHash,
-      actualHash: hashHex,
-      policy: downloadPolicy,
-      warn: (message) => console.warn(message)
+    const langs = argv.lang
+      ? argv.lang.split(',').map((l) => l.trim()).filter(Boolean)
+      : defaultDictConfig.languages;
+
+    const sources = [];
+    for (const lang of langs) {
+      const src = SOURCES[lang];
+      if (src) sources.push(src);
+    }
+
+    const urlSources = parseNameUrlSources(argv.url, {
+      hashes: hashOverrides,
+      fileNameFromName: (name) => `${name}.txt`
     });
-  } catch (err) {
-    await fs.rm(tempPath, { force: true });
-    throw err;
-  }
+    sources.push(...urlSources);
 
-  signal.throwIfAborted();
-  if (lastByte !== 10) {
-    await fs.appendFile(tempPath, '\n');
-  }
-  signal.throwIfAborted();
-  await replaceFile(tempPath, outputPath);
+    if (!sources.length) {
+      console.error('No dictionary sources configured. Use --lang or --url name=url.');
+      throw new Error('No selected dictionary sources; no network request ran.');
+    }
 
-  manifest[source.name] = {
-    url: source.url,
-    file: source.file,
-    sha256: actualHash || expectedHash || null,
-    verified: Boolean(expectedHash),
-    etag: response.headers.etag || null,
-    lastModified: response.headers['last-modified'] || null,
-    downloadedAt: new Date().toISOString()
-  };
+    const results = [];
+    const failures = [];
+    for (const source of sources) {
+      signal.throwIfAborted();
+      try {
+        const result = await downloadSource(source);
+        results.push(result);
+      } catch (err) {
+        if (signal.aborted || err.cacheOwnershipPending) throw err;
+        const message = err?.message || String(err);
+        failures.push({ name: source?.name || '(unknown)', message });
+        console.error(`[download-dicts] ${source?.name || '(unknown)'}: ${message}`);
+      }
+    }
 
-  return { name: source.name, skipped: false };
-  } catch (error) { primaryError = error; throw error; }
-  finally { await closeDictionaryResources(sourceResources, { primaryError }); }
-}
+    signal.throwIfAborted();
+    await atomicWriteJson(manifestPath, manifest, { mkdir: false });
 
-const langs = argv.lang
-  ? argv.lang.split(',').map((l) => l.trim()).filter(Boolean)
-  : defaultDictConfig.languages;
-
-const sources = [];
-for (const lang of langs) {
-  const src = SOURCES[lang];
-  if (src) sources.push(src);
-}
-
-const urlSources = parseNameUrlSources(argv.url, {
-  hashes: hashOverrides,
-  fileNameFromName: (name) => `${name}.txt`
-});
-sources.push(...urlSources);
-
-if (!sources.length) {
-  console.error('No dictionary sources configured. Use --lang or --url name=url.');
-  throw new Error('No selected dictionary sources; no network request ran.');
-}
-
-const results = [];
-const failures = [];
-for (const source of sources) {
-  signal.throwIfAborted();
-  try {
-    const result = await downloadSource(source);
-    results.push(result);
-  } catch (err) {
-    if (signal.aborted || err.cacheOwnershipPending) throw err;
-    const message = err?.message || String(err);
-    failures.push({ name: source?.name || '(unknown)', message });
-    console.error(`[download-dicts] ${source?.name || '(unknown)'}: ${message}`);
-  }
-}
-
-signal.throwIfAborted();
-await atomicWriteJson(manifestPath, manifest, { mkdir: false });
-
-const downloaded = results.filter((r) => !r.skipped).length;
-const skipped = results.filter((r) => r.skipped).length;
-console.error(`Done. downloaded=${downloaded} skipped=${skipped} failed=${failures.length}`);
-if (failures.length > 0) {
-  process.exitCode = 1;
-}
-});
+    const downloaded = results.filter((r) => !r.skipped).length;
+    const skipped = results.filter((r) => r.skipped).length;
+    console.error(`Done. downloaded=${downloaded} skipped=${skipped} failed=${failures.length}`);
+    if (failures.length > 0) {
+      process.exitCode = 1;
+    }
+  });
 } catch (error) {
   console.error(`[download-dicts] ${error.message}`);
   if (error.cacheOwnershipPending) console.error('[download-dicts] Actual request/output closure remains unconfirmed; dictionary storage lease and publication lock are retained.');

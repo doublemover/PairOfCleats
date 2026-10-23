@@ -504,7 +504,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
       finish({ status: aborted && !job.timedOut ? 'cancelled' : 'failed', exitCode: null, result: null,
         error: { code: ownedCleanupIsPending(job.resourceError) ? 'ERR_TUI_RESOURCE_PENDING'
           : job.timedOut ? 'ERR_TUI_OPERATION_TIMEOUT' : aborted ? 'ABORT_ERR'
-          : String(error?.code ?? 'ERR_TUI_OPERATION_FAILED').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 80) } });
+            : String(error?.code ?? 'ERR_TUI_OPERATION_FAILED').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 80) } });
     }).finally(() => { job.settled = true; clearTimeout(timer); cleanupFinalizedJob(jobId, job); });
     job.settlement.catch(() => {});
   };

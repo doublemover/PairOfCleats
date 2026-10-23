@@ -12,9 +12,9 @@ export const createBuildIndexOutcome = ({ result = {}, repo = null, requestedSta
     const status = facts.cancelled || value.cancelled ? 'cancelled'
       : facts.notAdmitted || value.notAdmitted || perModeFacts.some(entry => entry.notAdmitted) ? 'not-admitted'
         : facts.queued || value.queued || perModeFacts.some(entry => entry.queued) ? 'pending'
-        : facts.background || value.background ? 'pending'
-          : facts.skipped || value.skipped ? 'skipped'
-            : 'completed';
+          : facts.background || value.background ? 'pending'
+            : facts.skipped || value.skipped ? 'skipped'
+              : 'completed';
     return { stage, status, modes: value.modes || modes, reason: facts.reason || value.reason || null,
       queueId: facts.queueId || value.queueId || null,
       validation: value.validation || { status: 'unknown' },

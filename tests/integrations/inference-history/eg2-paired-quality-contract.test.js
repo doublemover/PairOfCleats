@@ -7,7 +7,7 @@ const identity = { provider: 'cpu', modelRevision: 'a'.repeat(40), modelSha256: 
   documentPrefix: 'doc: ', queryPrefix: 'query: ', chunkerIdentity: 'fixture1', dimensions: 2, maxLength: 8192 };
 const side = { identity, documents: [{ id: 'constructor', effectiveInput: 'doc: exact', vector: [1, 0] },
   { id: 'target', effectiveInput: 'doc: target', vector: [0, 1] }],
-  queries: [{ id: '__proto__', effectiveInput: 'query: exact', vector: [1, 0] }] };
+queries: [{ id: '__proto__', effectiveInput: 'query: exact', vector: [1, 0] }] };
 const paired = { reference: structuredClone(side), candidate: structuredClone(side), k: 2,
   judgments: JSON.parse('{"__proto__":{"target":1}}') };
 paired.candidate.identity.dtype = 'q8'; paired.candidate.identity.graphSha256 = 'd'.repeat(64);

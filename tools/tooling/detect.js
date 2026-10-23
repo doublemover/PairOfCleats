@@ -22,44 +22,44 @@ process.once('SIGINT', onInterrupt);
 process.once('SIGTERM', onTerminate);
 
 try {
-const report = await buildToolingReport(root, languageOverride, {
-  skipScan: languageOverride.length > 0, signal: cancellation.signal
-});
+  const report = await buildToolingReport(root, languageOverride, {
+    skipScan: languageOverride.length > 0, signal: cancellation.signal
+  });
 
-if (argv.json) {
-  emitJson(report);
-} else {
+  if (argv.json) {
+    emitJson(report);
+  } else {
 
-const languageList = Object.keys(report.languages || {});
-if (!languageList.length) {
-  console.error('[tooling] No target languages detected.');
-} else {
-  console.error(`[tooling] Languages detected: ${languageList.join(', ')}`);
-}
+    const languageList = Object.keys(report.languages || {});
+    if (!languageList.length) {
+      console.error('[tooling] No target languages detected.');
+    } else {
+      console.error(`[tooling] Languages detected: ${languageList.join(', ')}`);
+    }
 
-if (Object.keys(report.formats || {}).length) {
-  const formatList = Object.keys(report.formats).join(', ');
-  console.error(`[tooling] Formats detected: ${formatList}`);
-}
+    if (Object.keys(report.formats || {}).length) {
+      const formatList = Object.keys(report.formats).join(', ');
+      console.error(`[tooling] Formats detected: ${formatList}`);
+    }
 
-const missing = report.tools.filter((tool) => !tool.found);
-const available = report.tools.filter((tool) => tool.found);
-if (available.length) {
-  console.error('[tooling] Available tools:');
-  for (const tool of available) {
-    console.error(`- ${tool.id} (${tool.label})`);
+    const missing = report.tools.filter((tool) => !tool.found);
+    const available = report.tools.filter((tool) => tool.found);
+    if (available.length) {
+      console.error('[tooling] Available tools:');
+      for (const tool of available) {
+        console.error(`- ${tool.id} (${tool.label})`);
+      }
+    }
+
+    if (missing.length) {
+      console.error('[tooling] Missing tools:');
+      for (const tool of missing) {
+        console.error(`- ${tool.id} (${tool.label})`);
+        if (tool.docs) console.error(`  Docs: ${tool.docs}`);
+      }
+      console.error('Run: pairofcleats tooling install --scope cache');
+    }
   }
-}
-
-if (missing.length) {
-  console.error('[tooling] Missing tools:');
-  for (const tool of missing) {
-    console.error(`- ${tool.id} (${tool.label})`);
-    if (tool.docs) console.error(`  Docs: ${tool.docs}`);
-  }
-  console.error('Run: pairofcleats tooling install --scope cache');
-}
-}
 } catch (error) {
   const failure = { root, languages: {}, formats: {}, tools: [], ready: false,
     state: error.cacheOwnershipPending ? 'settlement-pending' : cancellation.signal.aborted ? 'cancelled' : 'blocked',
