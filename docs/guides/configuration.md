@@ -20,7 +20,11 @@ node bin/pairofcleats.js config dump --repo "path/to/your-project" --json
 
 Effective validation uses the canonical loader, authority filtering and trusted
 merge. Its source/ignored-path report explains why a schema-valid repository
-setting may not take effect. It does not start language tools, verify a model,
+setting may not take effect. It also applies search's existing ANN min/max/cap
+and positive RRF constraints to the merged values and runtime defaults. A valid
+schema with a conflicting effective combination reports schema accepted and
+effective rejected, retaining the stable guardrail code and affected fields.
+It does not start language tools, verify a model,
 download anything or establish index readiness. Human `config dump` also lists
 the selected source layers and discarded authority paths.
 Both effective validation and dump accept an explicit `--config <file>` with

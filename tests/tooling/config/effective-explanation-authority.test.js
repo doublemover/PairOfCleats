@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { explainEffectiveConfiguration, formatEffectiveConfiguration } from '../../../tools/config/effective.js';
-import { withTemporaryEnv } from '../../helpers/test-env.js';
+import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 import { loadUserConfig } from '../../../tools/dict-utils/config.js';
 import { buildConfigurationDump } from '../../../tools/config/dump-payload.js';
 
@@ -58,6 +58,32 @@ try {
     assert.equal(dump.diagnostic.environmentScope, 'explicit-preview-input');
     assert.equal(dump.diagnostic.liveRunReceipt, false);
     assert.equal((await buildConfigurationDump({ repoRoot: root, configPath: path.join(root, 'missing-dump.json') })).ok, false);
+    const guardrailConfig = path.join(root, 'guardrail.json');
+    const invalidCombination = JSON.stringify({ retrieval: { annCandidateMaxDocCount: 1000 } });
+    await fs.writeFile(guardrailConfig, invalidCombination);
+    const guardrailEnv = applyTestEnv({ syncProcess: false, testConfig: {}, extraEnv: selectedEnv });
+    const rejected = await explainEffectiveConfiguration({ repoRoot: root, configPath: guardrailConfig, env: guardrailEnv });
+    assert.equal(rejected.ok, false); assert.equal(rejected.validation.schema, 'accepted');
+    assert.equal(rejected.validation.effective, 'rejected'); assert.equal(rejected.validation.runtime, 'not-probed');
+    assert.equal(rejected.errorCode, 'op_guardrail_ann_candidate_cap_out_of_range');
+    assert.equal(rejected.errors[0].code, rejected.errorCode);
+    assert.match(formatEffectiveConfiguration(rejected), /retrieval.annCandidateCap/);
+    assert.match(formatEffectiveConfiguration(rejected), /op_guardrail_ann_candidate_cap_out_of_range/);
+    const deniedDump = await buildConfigurationDump({ repoRoot: root, configPath: guardrailConfig, env: guardrailEnv, includeCapabilities: true }, {
+      capabilities() { assert.fail('rejected effective configuration cannot authorize a requested capability probe'); }
+    });
+    assert.equal(deniedDump.ok, false); assert.deepEqual(deniedDump.errors, rejected.errors);
+    assert.equal(await fs.readFile(guardrailConfig, 'utf8'), invalidCombination, 'explanation is read-only');
+    const trusted = path.join(suite, `${path.basename(root)}-trusted-guardrail.json`);
+    try {
+      await fs.writeFile(trusted, JSON.stringify({ retrieval: { annCandidateCap: 1000 } }));
+      const completed = await explainEffectiveConfiguration({ repoRoot: root, configPath: guardrailConfig,
+        env: { ...guardrailEnv, PAIROFCLEATS_TRUSTED_CONFIG: trusted } });
+      assert.equal(completed.ok, true); assert.equal(completed.validation.schema, 'accepted');
+      assert.equal(completed.configSources.trustedMerge, true);
+      assert.equal(completed.userConfig.retrieval.annCandidateCap, 1000);
+      assert.equal(completed.validation.runtime, 'not-probed');
+    } finally { await fs.rm(trusted, { force: true }); }
   });
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('Effective config explanation distinguishes authority and readiness.');

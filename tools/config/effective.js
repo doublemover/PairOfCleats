@@ -4,12 +4,16 @@ import { createRuntimePreview } from '../../src/shared/runtime-envelope/preview.
 import { sanitizeRuntimeReceipt } from '../../src/shared/runtime-envelope/receipt.js';
 import { resolveCurrentProcessRuntimeEnvelope } from '../../src/shared/runtime-envelope/resolve-current-process-envelope.js';
 import { normalizeEmbeddingProvider } from '../../src/shared/onnx-embeddings/config.js';
+import { getOperationalGuardrailDiagnostic, resolveOperationalGuardrails } from '../../src/retrieval/operational-guardrails.js';
 
 /** Canonical loader/preview projection. Does not probe providers or install assets. */
 export const explainEffectiveConfiguration = async ({ repoRoot, configPath = null, env = process.env } = {}) => {
   let configSources = null;
+  let schemaState = 'rejected-or-unreadable';
   try {
     const userConfig = loadUserConfig(repoRoot, { env, configPath, onSources: value => { configSources = value; } });
+    schemaState = 'accepted';
+    resolveOperationalGuardrails({ userConfig });
     const policy = await getAutoPolicy(repoRoot, userConfig);
     const preview = await createRuntimePreview({ repoRoot, userConfig, policy, configSources, env,
       envelope: resolveCurrentProcessRuntimeEnvelope({ userConfig, autoPolicy: policy, env }) });
@@ -35,10 +39,11 @@ export const explainEffectiveConfiguration = async ({ repoRoot, configPath = nul
       readiness: 'Configuration acceptance does not establish executable, protocol, model or index readiness.'
     });
   } catch (error) {
+    const guardrail = getOperationalGuardrailDiagnostic(error);
     return sanitizeRuntimeReceipt({ schemaVersion: 1, kind: 'effective-configuration', ok: false, repoRoot,
-      configSources, validation: { schema: 'rejected-or-unreadable', effective: 'rejected', runtime: 'not-probed', artifacts: 'not-probed' },
-      errors: error.errors || [{ code: error.code || 'ERR_EFFECTIVE_CONFIG', message: error.message }],
-      errorCode: error.code || 'ERR_EFFECTIVE_CONFIG' });
+      configSources, validation: { schema: schemaState, effective: 'rejected', runtime: 'not-probed', artifacts: 'not-probed' },
+      errors: guardrail ? [guardrail] : error.errors || [{ code: error.code || 'ERR_EFFECTIVE_CONFIG', message: error.message }],
+      errorCode: guardrail?.code || error.code || 'ERR_EFFECTIVE_CONFIG' });
   }
 };
 

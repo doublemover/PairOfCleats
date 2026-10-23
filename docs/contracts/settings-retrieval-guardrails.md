@@ -16,7 +16,8 @@ A partial source that the trusted layer completes or overrides is evaluated as
 the effective combination. Only privately recognized errors from the shared
 guardrail owner become ordinary field diagnostics; other loader failures
 propagate. Invalid previews retain the existing rejection/draft behavior and
-issue no save token. The schema-only config-validation CLI is unchanged.
+issue no save token. Default raw-schema config validation is unchanged; the
+existing `--effective` mode uses this shared retrieval owner as well.
 
 Save rechecks current effective constraints synchronously after existing final
 repository/schema/backup revision checks and before backup or config publication.

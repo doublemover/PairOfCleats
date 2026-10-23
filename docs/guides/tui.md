@@ -245,7 +245,9 @@ constant after canonical repository authority and trusted configuration merging.
 Conflicts produce field-specific errors before a save token is issued; current
 effective constraints are checked again before publication. To reduce an ANN
 maximum below the default cap, lower the cap first, then the maximum. No value is
-silently clamped. The separate `config validate` command remains schema-only.
+silently clamped. Default `config validate` remains a raw schema check;
+`config validate --effective` checks the effective combination without probing
+runtime readiness.
 
 `[R]` previews replacement with the canonical default template. Review the diff
 and backup location, type literal `RESET`, then press `[Enter]`. Reset preserves
