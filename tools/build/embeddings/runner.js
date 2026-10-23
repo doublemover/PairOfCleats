@@ -438,7 +438,6 @@ export const createEmbeddingTextReuseCache = ({
     set(text, vector) {
       if (!canCache(text)) return;
       if (!isVectorLike(vector) || vector.length <= 0) return;
-      promote(text, vector);
       if (typeof persistentStore?.set === 'function') {
         try {
           persistentStore.set(text, vector);
@@ -447,6 +446,7 @@ export const createEmbeddingTextReuseCache = ({
           if (isAbortError(error) || error instanceof AggregateError) throw error;
         }
       }
+      promote(text, vector);
     },
     promote(text, vector) {
       if (canCache(text) && isVectorLike(vector) && vector.length > 0) promote(text, vector);
@@ -513,22 +513,25 @@ export const createEmbeddingInFlightCoalescer = ({
       // The owner reports compute failure directly; zero followers is valid.
       // Observe rejection without changing the promise delivered to followers.
       promise.catch(() => {});
+      const entry = { promise };
+      let settled = false;
       const finalize = () => {
-        inFlight.delete(text);
+        if (settled) return false;
+        settled = true;
+        if (inFlight.get(text) === entry) inFlight.delete(text);
+        return true;
       };
-      inFlight.set(text, { promise });
+      inFlight.set(text, entry);
       stats.claims += 1;
       if (inFlight.size > stats.peakSize) stats.peakSize = inFlight.size;
       return {
         owner: true,
         promise,
         resolve(value) {
-          finalize();
-          resolveClaim?.(value);
+          if (finalize()) resolveClaim(value);
         },
         reject(err) {
-          finalize();
-          rejectClaim?.(err);
+          if (finalize()) rejectClaim(err);
         }
       };
     },

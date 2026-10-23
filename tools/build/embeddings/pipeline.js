@@ -1,5 +1,8 @@
 import { canonicalBundleSourceKey } from '../../../src/shared/bundle-source-key.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
+import { isAbortError } from '../../../src/shared/abort.js';
+import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 
 /**
  * Create per-file embeddings processor for code/doc payloads.
@@ -346,107 +349,136 @@ export const createFileEmbeddingsProcessor = ({
       const computeTexts = [];
       const computeSlots = [];
       const computeGroups = [];
-      for (let i = 0; i < uniqueTexts.length; i += 1) {
-        const text = uniqueTexts[i];
-        const indices = uniqueIndices[i] || [];
-        const slot = { text, indices, claim: null };
-        const canJoin = canCoalesceInFlight && canUseTextCache && canCacheText(text) && typeof text === 'string';
-        if (canJoin) {
-          const claim = embeddingInFlightCoalescer.claim(text);
-          if (claim && claim.owner === false && claim.promise) {
-            pendingClaims.push({ indices, text, promise: claim.promise });
-            inFlightJoined += indices.length;
-            continue;
-          }
-          if (claim && claim.owner === true) {
-            slot.claim = claim;
-            inFlightOwned += indices.length;
-          }
+      let tokenEstimates = null, releaseTokenRows = null;
+      let computeFailed = false, computeFailure;
+      const releaseEstimatedRows = async () => {
+        if (!releaseTokenRows) return;
+        const release = releaseTokenRows; releaseTokenRows = null;
+        try { await release(); }
+        catch (error) {
+          if (computeFailed) throw addStorageFailureContext(computeFailure, {}, error, { secondaryPresent: true });
+          throw error;
         }
-        computeTexts.push(text);
-        computeGroups.push(groups[indices[0]]);
-        computeSlots.push(slot);
-      }
-
-      let tokenEstimates = null;
-      let releaseTokenRows = null;
-      if (estimateTokensBatch && computeTexts.length > 0) {
-        try {
-          const estimated = await estimateTokensBatch(computeTexts, label);
-          releaseTokenRows = typeof estimated?.release === 'function' ? estimated.release : null;
-          if (Array.isArray(estimated) && estimated.length === computeTexts.length) {
-            tokenEstimates = estimated.map((value) => Math.max(1, Math.floor(Number(value) || 1)));
-          }
-        } catch {
-          tokenEstimates = null;
-        }
-      }
-
-      let computed = [];
+      };
       try {
-        onEmbeddingPrepared?.({ groupId: groups[0]?.groupId, delta: true,
-          tokens: computeTexts.reduce((sum, text, index) => sum + resolveTokenEstimate(text, tokenEstimates?.[index]), 0)
-            - texts.reduce((sum, text) => sum + resolveTokenEstimate(text), 0) });
-        if (computeTexts.length > 0) {
-          if (globalBatchingEnabled) {
-            computed = await enqueueGlobalBatchRequest({
-              texts: computeTexts,
-              label,
-              tokenEstimates,
-              groups: computeGroups
-            });
-          } else {
-            computed = await runBatched({
-              texts: computeTexts,
-              batchSize: embeddingBatchSize,
-              maxBatchTokens: embeddingBatchTokenBudget,
-              estimateTokens: estimateEmbeddingTokens,
-              tokenEstimates,
-              groups: computeGroups,
-              embed: dispatch,
-              onBatch: batchObserver
-                ? (batchInfo) => {
-                  batchObserver({
-                    ...batchInfo,
-                    label
-                  });
-                }
-                : null
-            });
+        for (let i = 0; i < uniqueTexts.length; i += 1) {
+          const text = uniqueTexts[i];
+          const indices = uniqueIndices[i] || [];
+          const slot = { text, indices, claim: null };
+          const canJoin = canCoalesceInFlight && canUseTextCache && canCacheText(text) && typeof text === 'string';
+          if (canJoin) {
+            const claim = embeddingInFlightCoalescer.claim(text);
+            if (claim && claim.owner === false && claim.promise) {
+              pendingClaims.push({ indices, text, promise: claim.promise });
+              inFlightJoined += indices.length;
+              continue;
+            }
+            if (claim && claim.owner === true && claim.promise) {
+              slot.claim = claim;
+              slot.claimPending = true;
+              inFlightOwned += indices.length;
+            }
           }
-          assertVectorArrays(computed, computeTexts.length, label);
+          computeSlots.push(slot);
+          computeTexts.push(text);
+          computeGroups.push(groups[indices[0]]);
         }
-      } catch (err) {
-        for (const slot of computeSlots) {
-          slot.claim?.reject?.(err);
-        }
-        throw err;
-      } finally {
-        releaseTokenRows?.();
-      }
 
-      for (let i = 0; i < computeSlots.length; i += 1) {
-        const slot = computeSlots[i];
-        const vector = computed[i] || null;
-        for (const targetIndex of slot.indices) {
-          vectors[targetIndex] = vector;
+        if (estimateTokensBatch && computeTexts.length > 0) {
+          try {
+            const estimated = await estimateTokensBatch(computeTexts, label);
+            const release = estimated?.release;
+            releaseTokenRows = typeof release === 'function' ? () => release.call(estimated) : null;
+            if (Array.isArray(estimated) && estimated.length === computeTexts.length) {
+              tokenEstimates = estimated.map((value) => Math.max(1, Math.floor(Number(value) || 1)));
+            }
+          } catch (error) {
+            observeStorageResource(error, { phase: 'embedding-token-estimation' }).requireSettled();
+            if (isAbortError(error) || error instanceof AggregateError) throw error;
+            tokenEstimates = null;
+          }
         }
-        if (canUseTextCache && canCacheText(slot.text) && isVectorLike(vector) && vector.length > 0) {
-          embeddingTextCache.set(slot.text, vector);
-        }
-        slot.claim?.resolve?.(vector);
-      }
 
-      if (pendingClaims.length > 0) {
-        await Promise.all(pendingClaims.map(async (claim) => {
-          const vector = await claim.promise;
-          for (const targetIndex of claim.indices) {
+        let computed = [];
+        try {
+          onEmbeddingPrepared?.({ groupId: groups[0]?.groupId, delta: true,
+            tokens: computeTexts.reduce((sum, text, index) => sum + resolveTokenEstimate(text, tokenEstimates?.[index]), 0)
+              - texts.reduce((sum, text) => sum + resolveTokenEstimate(text), 0) });
+          if (computeTexts.length > 0) {
+            if (globalBatchingEnabled) {
+              computed = await enqueueGlobalBatchRequest({
+                texts: computeTexts,
+                label,
+                tokenEstimates,
+                groups: computeGroups
+              });
+            } else {
+              computed = await runBatched({
+                texts: computeTexts,
+                batchSize: embeddingBatchSize,
+                maxBatchTokens: embeddingBatchTokenBudget,
+                estimateTokens: estimateEmbeddingTokens,
+                tokenEstimates,
+                groups: computeGroups,
+                embed: dispatch,
+                onBatch: batchObserver
+                  ? (batchInfo) => {
+                    batchObserver({
+                      ...batchInfo,
+                      label
+                    });
+                  }
+                  : null
+              });
+            }
+            assertVectorArrays(computed, computeTexts.length, label);
+          }
+        } catch (error) {
+          computeFailed = true; computeFailure = error; throw error;
+        } finally {
+          await releaseEstimatedRows();
+        }
+
+        for (let i = 0; i < computeSlots.length; i += 1) {
+          const slot = computeSlots[i];
+          const vector = computed[i] || null;
+          for (const targetIndex of slot.indices) {
             vectors[targetIndex] = vector;
           }
-          if (canUseTextCache && canCacheText(claim.text) && isVectorLike(vector) && vector.length > 0) {
-            (embeddingTextCache.promote || embeddingTextCache.set).call(embeddingTextCache, claim.text, vector);
+          if (canUseTextCache && canCacheText(slot.text) && isVectorLike(vector) && vector.length > 0) {
+            embeddingTextCache.set(slot.text, vector);
           }
-        }));
+          if (slot.claimPending) {
+            slot.claimPending = false;
+            slot.claim.resolve(vector);
+          }
+        }
+
+        if (pendingClaims.length > 0) {
+          await Promise.all(pendingClaims.map(async (claim) => {
+            const vector = await claim.promise;
+            for (const targetIndex of claim.indices) {
+              vectors[targetIndex] = vector;
+            }
+            if (canUseTextCache && canCacheText(claim.text) && isVectorLike(vector) && vector.length > 0) {
+              (embeddingTextCache.promote || embeddingTextCache.set).call(embeddingTextCache, claim.text, vector);
+            }
+          }));
+        }
+
+      } catch (error) {
+        let failure = error;
+        if (releaseTokenRows) {
+          computeFailed = true; computeFailure = failure;
+          try { await releaseEstimatedRows(); } catch (cleanupError) { failure = cleanupError; }
+        }
+        for (const slot of computeSlots) {
+          if (!slot.claimPending) continue;
+          slot.claimPending = false;
+          try { slot.claim.reject(failure); }
+          catch (claimError) { failure = addStorageFailureContext(failure, {}, claimError, { secondaryPresent: true }); }
+        }
+        throw failure;
       }
 
       usageObserver?.({

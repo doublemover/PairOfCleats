@@ -36,6 +36,21 @@ Only scoped `npm run format` and `git diff --check` ran for these batches.
 No runtime/native/benchmark tests ran; no accepted closure, performance result,
 full cleanup-category capability or deep-suite green is claimed.
 
+## Additional source batches (runtime unqualified)
+
+- #1554 (`cc967c5f8`): verified immutable TUI install generations and atomic
+  selection; see the qualification limits below.
+- #1579: the real processor's attempt guard now spans claim acquisition,
+  estimation, provider completion, token-row release and cache publication.
+  Every acquired claim settles on failure; successful earlier claims retain
+  their vectors. Finalizers are identity-qualified/idempotent and cannot delete
+  a replacement claim. Terminal persistence cannot warm a healthy memory hit;
+  ordinary advisory writes and estimation fallback remain supported. Regressions
+  use the exported production coalescer/cache, deferred provider, first/second-key
+  failures, cancellation/release failure, replacement ownership and capacity
+  bypass, without native inference. Authored controls are unrun; scoped format
+  and whitespace checks passed.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -99,7 +114,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1576](https://github.com/doublemover/PairOfCleats/issues/1576) | [P2] Reconcile final score explanations after graph, model, and federated ranking | Pending full-scope review |
 | [#1577](https://github.com/doublemover/PairOfCleats/issues/1577) | [P2] Preserve Boolean complement queries in the Tantivy sparse route | Pending full-scope review |
 | [#1578](https://github.com/doublemover/PairOfCleats/issues/1578) | [P2] Distinguish Tantivy native failures from successful empty search results | Pending full-scope review |
-| [#1579](https://github.com/doublemover/PairOfCleats/issues/1579) | [P2] Settle embedding coalescer claims when post-inference cache publication fails | Pending full-scope review |
+| [#1579](https://github.com/doublemover/PairOfCleats/issues/1579) | [P2] Settle embedding coalescer claims when post-inference cache publication fails | Source repair authored; runtime proof pending |
 | [#1580](https://github.com/doublemover/PairOfCleats/issues/1580) | [P2] Enforce semantic SQLite byte admission before hydrating related payloads | Pending full-scope review |
 | [#1581](https://github.com/doublemover/PairOfCleats/issues/1581) | [Perf] Bound semantic trace continuation bytes and avoid copying full history per page | Pending full-scope review |
 | [#1582](https://github.com/doublemover/PairOfCleats/issues/1582) | [P1] Frame code and documentation separately in embedding chunk cache identities | Source repair committed; runtime proof pending |
