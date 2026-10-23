@@ -116,6 +116,7 @@ export const SUGGEST_TESTS_OPTIONS = {
 };
 
 export const MAP_REPORT_OPTIONS = {
+  'graph-capability': { type: 'string', description: 'Exact validated graph capability; requires an explicit retained --index-root and code mode.' },
   serve: { type: 'boolean', default: false },
   input: { type: 'string' },
   port: { type: 'number' },

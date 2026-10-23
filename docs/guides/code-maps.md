@@ -36,6 +36,25 @@ admission; a generation changed during the report fails without publishing a
 new cached model. The default cache remains outside source, under the repository
 cache root; `--cache-dir` selects an explicit cache destination.
 
+## Retained graph capability
+
+An independently validated graph capability can expose graph artifacts from an
+attempt whose embeddings or aggregate build failed. Supply the exact reviewed
+retained build root and capability ID:
+
+```text
+pairofcleats report map --repo <repository> --index-root <retained-build-root> --graph-capability <capability-id> --format json --json
+```
+
+The backend resolves its own immutable snapshot and validates the receipt. The
+report holds the existing reader lease through map reads, rendering and output
+publication. `identity.selectedIndex.indexDir` identifies the actual immutable
+consumer directory; `graphCapability` records the ID, source build and snapshot
+root. Missing, corrupt, stale or foreign authority fails without falling back to
+the normal current pointer. This read does not promote the attempt, repair vectors
+or turn a failed aggregate build into success. Source implementation and authored
+controls remain subject to frozen-candidate Windows qualification.
+
 ## Interactive evidence workspace
 
 Run `pairofcleats service api --repo /your/repository` and open the printed `/map/workspace`
@@ -53,7 +72,12 @@ Graphviz is only required when you request rendered formats:
 - `format=svg`
 - `format=html`
 
-If Graphviz is not installed or `dot` is not on your `PATH`, these formats will fail (or the API may downgrade to DOT when possible).
+SVG/HTML rendering selects the canonical operational Graphviz command and retains
+its verified installation and child-storage owner through the bounded render.
+The SVG/font/plugin probe must pass; this read does not install tools. A settled
+missing capability or render failure returns nonzero and may emit explicitly
+labelled DOT recovery input. It does not report successful SVG/HTML. Unconfirmed
+child or installation cleanup propagates without publishing a fallback report.
 
 ### DOT-only mode
 
