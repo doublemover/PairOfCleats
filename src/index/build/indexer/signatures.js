@@ -251,6 +251,7 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
   };
   const { batchSize: _batchSize, ...embeddings } = payload.embeddings;
   const artifacts = {
+    pieceAssemblyProducer: SEMANTIC_ANALYSIS_VERSIONS.pieceAssembly,
     artifactSchemaHash: payload.artifactSchemaHash, artifacts: payload.artifacts,
     incrementalBundleFormat: payload.incrementalBundleFormat, profile: payload.profile
   };
