@@ -1,15 +1,8 @@
+import { observeEmbeddingOwnership as observePending } from '../embedding-cache-lifetime.js';
+
 const describe = error => {
   try { return typeof error?.message === 'string' ? error.message : 'ONNX cache resource cleanup remains pending.'; }
   catch { return 'ONNX cache resource cleanup remains pending.'; }
-};
-
-const observePending = error => {
-  if (!error || (typeof error !== 'object' && typeof error !== 'function')) return null;
-  try {
-    const observer = error.cacheOwnershipReleased;
-    if (error.cacheOwnershipPending !== true && typeof observer !== 'function') return null;
-    return () => { try { return typeof observer === 'function' && observer.call(error) === true; } catch { return false; } };
-  } catch { return () => false; }
 };
 
 const retainedFailure = (error, owner) => {

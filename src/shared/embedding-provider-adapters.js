@@ -263,6 +263,7 @@ export const createEmbeddingProviderAdapter = ({
   normalizeEmbeddingProvider
 }) => {
   const resolvedProvider = normalizeEmbeddingProvider(provider, { strict: true });
+  onnxConfig = snapshotEmbeddingMetadata(onnxConfig);
   if (useStub) {
     const safeDims = resolveStubDims(modelProfile?.dimensions ?? dims);
     const embed = async (texts) => {
@@ -338,7 +339,8 @@ export const createEmbeddingProviderAdapter = ({
         try {
           return await onnxEmbedder.getEmbeddings(texts);
         } catch (err) {
-          if (err?.cacheOwnershipPending) throw err;
+          const observe = observeEmbeddingOwnership(err);
+          if (observe && !observe()) throw err;
           if (isDlopenFailure(err)) {
             warnFallback(err);
             return ensureFallback(err).embed(texts);
@@ -351,7 +353,8 @@ export const createEmbeddingProviderAdapter = ({
         try {
           return await onnxEmbedder.getEmbedding(text);
         } catch (err) {
-          if (err?.cacheOwnershipPending) throw err;
+          const observe = observeEmbeddingOwnership(err);
+          if (observe && !observe()) throw err;
           if (isDlopenFailure(err)) {
             warnFallback(err);
             return ensureFallback(err).embedOne(text);
@@ -364,7 +367,8 @@ export const createEmbeddingProviderAdapter = ({
         try {
           return await onnxEmbedder.estimateTokens(texts);
         } catch (err) {
-          if (err?.cacheOwnershipPending) throw err;
+          const observe = observeEmbeddingOwnership(err);
+          if (observe && !observe()) throw err;
           if (isDlopenFailure(err)) {
             warnFallback(err);
             return ensureFallback(err).estimateTokensBatch(texts);
@@ -380,7 +384,8 @@ export const createEmbeddingProviderAdapter = ({
         try {
           await onnxEmbedder.prewarm({ tokenizer, model, texts });
         } catch (err) {
-          if (err?.cacheOwnershipPending) throw err;
+          const observe = observeEmbeddingOwnership(err);
+          if (observe && !observe()) throw err;
           if (isDlopenFailure(err)) {
             warnFallback(err);
             const fallback = ensureFallback(err);

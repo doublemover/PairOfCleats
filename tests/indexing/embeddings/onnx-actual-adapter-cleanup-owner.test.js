@@ -28,7 +28,7 @@ const hooks = registerHooks({
     return next(url, context);
   }
 });
-let adapter, pending, startupAdapter, startupPending;
+let adapter, pending, startupAdapter, startupPending, nativePendingAdapter, nativePendingFailure, nativeSettled = false;
 try {
   const modelPath = path.join(dir, 'model.onnx'), modelId = 'controlled-local-tokenizer';
   await fs.writeFile(modelPath, 'inert graph bytes; never native');
@@ -70,12 +70,34 @@ try {
   refuseTokenizer = false;
   await startupPending.onnxResourceOwner.release();
   assert.equal(startupPending.cacheOwnershipReleased(), true);
+
+  let nativeCreates = 0, nativeTokenizerReleases = 0, substituteObserver = false;
+  const nativePrimary = new Error('native construction still owns original work');
+  Object.defineProperties(nativePrimary, { code: { value: 'ERR_DLOPEN_FAILED' }, cacheOwnershipPending: { value: false },
+    cacheOwnershipReleased: { get() { return substituteObserver ? () => true : function () { assert.equal(this, nativePrimary); return nativeSettled; }; } } });
+  Object.freeze(nativePrimary);
+  globalThis.__onnxCleanupOwnerFixture.AutoTokenizer.from_pretrained = async () => Object.assign(() => ({}), {
+    dispose() { nativeTokenizerReleases++; }
+  });
+  globalThis.__onnxCleanupOwnerFixture.InferenceSession.create = async () => { nativeCreates++; throw nativePrimary; };
+  const nativePendingPath = path.join(dir, 'pending-construction.onnx'); await fs.writeFile(nativePendingPath, 'pending native construction');
+  nativePendingAdapter = createOnnxEmbedder({ rootDir: dir, modelsDir: dir, modelId, onnxConfig: { modelPath: nativePendingPath } });
+  nativePendingFailure = await nativePendingAdapter.embedderPromise.then(() => assert.fail('pending native construction must reject'), error => error);
+  assert.equal(nativeCreates, 1, 'original pending construction cannot authorize a low-memory retry');
+  assert.equal(nativeTokenizerReleases, 0, 'pending construction retains its tokenizer');
+  substituteObserver = true;
+  await assert.rejects(nativePendingAdapter.dispose()); assert.equal(nativeTokenizerReleases, 0);
+  nativeSettled = true; await nativePendingFailure.onnxResourceOwner.release();
+  assert.equal(nativeTokenizerReleases, 1); assert.equal(nativePendingFailure.cacheOwnershipReleased(), true);
 } finally {
   refuse = false;
+  nativeSettled = true;
   await pending?.onnxResourceOwner?.release();
   await startupPending?.onnxResourceOwner?.release();
+  await nativePendingFailure?.onnxResourceOwner?.release();
   await adapter?.dispose().catch(() => {});
   await startupAdapter?.dispose().catch(() => {});
+  await nativePendingAdapter?.dispose().catch(() => {});
   hooks.deregister(); delete globalThis.__onnxCleanupOwnerFixture;
   await fs.rm(dir, { recursive: true, force: true });
 }

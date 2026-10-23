@@ -10,7 +10,7 @@ import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 const { dir } = await prepareIsolatedTestCacheDir('onnx-qualified-output-lifetime');
 const modelId = 'Xenova/bge-m3', adapters = [], controls = [], tokenOptions = [];
 const cleanup = Object.freeze(new Error('controlled ONNX output disposal failure'));
-let nextControl;
+let nextControl, tokenizerError = null;
 class Tensor {
   constructor(type, data, dims) { Object.assign(this, { type, data, dims, closes: 0, failClose: false }); }
   dispose() {
@@ -20,6 +20,7 @@ class Tensor {
   }
 }
 const tokenizer = Object.assign((texts, options) => {
+  if (tokenizerError) throw tokenizerError;
   tokenOptions.push(options);
   return { input_ids: texts.map(() => [1, 2]), attention_mask: texts.map(() => [1, 1]) };
 }, { dispose() {} });
@@ -102,6 +103,18 @@ try {
   await failed.dispose(); assert.equal(pending.sessionCloses, 1);
   assert.equal(pending.outputs[0].closes, 2); assert.equal(observeEmbeddingOwnership(error)(), true);
 
+  const { adapter: tokenPending, control: tokenOwner } = await create('valid');
+  let tokenSettled = false, substituteTokenObserver = false;
+  const tokenError = new Error('controlled tokenizer original native work');
+  Object.defineProperties(tokenError, { cacheOwnershipPending: { value: false }, cacheOwnershipReleased: { get() {
+    return substituteTokenObserver ? () => true : function () { assert.equal(this, tokenError); return tokenSettled; };
+  } } }); Object.freeze(tokenError); tokenizerError = tokenError;
+  const tokenFailure = await tokenPending.getEmbedding('tokenizer resource still active').then(() => assert.fail('expected rejection'), value => value);
+  assert.equal(tokenFailure, tokenError); assert.equal(tokenOwner.runs, 0);
+  substituteTokenObserver = true;
+  await assert.rejects(tokenPending.dispose()); assert.equal(tokenOwner.sessionCloses, 0, 'tokenizer work retains its loaded session and tokenizer');
+  tokenSettled = true; tokenizerError = null; await tokenPending.dispose(); assert.equal(tokenOwner.sessionCloses, 1);
+
   const { adapter: active, control: native } = await create('valid');
   let settled = false;
   const nativeError = Object.freeze(Object.assign(new Error('controlled native work pending'), {
@@ -116,6 +129,7 @@ try {
   await active.dispose(); assert(native.feeds.every(value => value.closes === 1)); assert.equal(native.sessionCloses, 1);
   assert.equal(observeEmbeddingOwnership(nativeFailure)(), true);
 } finally {
+  tokenizerError = null;
   for (const control of controls) if (control.nativeError) control.nativeError = null;
   await Promise.allSettled(adapters.map(adapter => adapter.dispose()));
   hooks.deregister(); delete globalThis.__onnxQualifiedLifetimeFixture;

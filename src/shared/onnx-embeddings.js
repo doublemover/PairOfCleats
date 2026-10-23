@@ -7,6 +7,7 @@ import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-leas
 import { createDeferredEmbeddingAdapter } from './embedding-deferred-adapter.js';
 import { resolveEmbeddingDenseContract, validateEmbeddingDenseContract, resolveOnnxEmbeddingProcessing } from './embedding-dense-contract.js';
 import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
+import { observeEmbeddingOwnership } from './embedding-cache-lifetime.js';
 import path from 'node:path';
 import {
   DEFAULT_EMBEDDING_TRUNCATION,
@@ -200,7 +201,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
     );
   }
   if (!modelArtifact) return createDeferredEmbeddingAdapter({ provider: 'onnx', methods: ['getEmbedding', 'getEmbeddings', 'estimateTokens', 'prewarm'],
-    acquire: async () => createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, dims, normalize, qualificationLease,
+    acquire: async () => createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig: normalized, dims, normalize, qualificationLease,
       modelArtifact: await resolveEmbeddingArtifactIdentityAsync({ provider: 'onnx', modelId, modelsDir, rootDir, onnx: normalized }) }) });
   const selectedArtifact = modelArtifact;
   const modelSize = statSize(resolvedModelPath);
@@ -250,7 +251,8 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
         try {
           session = await InferenceSession.create(resolvedModelPath, sessionOptions);
         } catch (err) {
-          if (err?.cacheOwnershipPending) throw err;
+          const observe = observeEmbeddingOwnership(err);
+          if (observe && !observe()) throw err;
           if (!lowMemory && !qualificationSlot) {
             const fallbackOptions = buildSessionOptions(normalized, { lowMemory: true });
             effectiveSessionOptions = fallbackOptions;
@@ -288,11 +290,20 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
   const sessionReference = cacheLifetime.createReference(sessionEntry, operations);
   const ownOperation = (fn) => (...args) => {
     if (disposed) return Promise.reject(new Error('ONNX adapter is disposed.'));
+    if (sessionEntry.operationFailure) return Promise.reject(sessionEntry.operationFailure);
     const selected = args.map(value => Array.isArray(value) ? value.slice()
       : value && typeof value === 'object' ? { ...value, ...(Array.isArray(value.texts) ? { texts: value.texts.slice() } : {}) } : value);
     const work = Promise.resolve().then(() => fn(...selected));
     operations.add(work);
-    work.then(() => operations.delete(work), () => operations.delete(work));
+    work.then(() => operations.delete(work), error => {
+      operations.delete(work);
+      const observe = observeEmbeddingOwnership(error);
+      if (observe && !observe() && sessionEntry.loaded?.resourceOwner) {
+        sessionEntry.operationFailure ||= error;
+        sessionEntry.loaded.resourceOwner.retainOperationFailure(error);
+        retireEntry(cacheKey, sessionEntry).catch(() => {});
+      }
+    });
     return work;
   };
   const tokenizationCache = {

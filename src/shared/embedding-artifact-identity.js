@@ -5,6 +5,7 @@ import { resolveOnnxModelPath } from './onnx-embeddings/config.js';
 import { readOnnxInstallationReceipt } from './onnx-installation.js';
 import { readEmbeddingAcquisitionReceipt } from './embedding-acquisition-receipt.js';
 import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
+import { assertNoSymlinkPath } from './contained-file.js';
 
 const TOKENIZER_FILES = new Set([
   'config.json', 'tokenizer.json', 'tokenizer_config.json', 'special_tokens_map.json',
@@ -100,6 +101,7 @@ export const planEmbeddingArtifactInventory = ({ provider, modelId, modelsDir, r
   const modelPath = provider === 'onnx' ? resolveOnnxModelPath({
     rootDir, modelPath: onnx?.resolvedModelPath || onnx?.modelPath, modelsDir, modelId
   }) : null;
+  if (modelPath) assertNoSymlinkPath(path.dirname(modelPath), modelPath);
   const modelRoot = resolveEmbeddingArtifactRoot(modelId, modelsDir);
   if (provider === 'xenova' && modelRoot) {
     let receipt = null;
@@ -139,7 +141,7 @@ export const unknownEmbeddingArtifact = unknown;
 export const resolveEmbeddingArtifactIdentity = options => {
   const plan = planEmbeddingArtifactInventory(options);
   if (plan.immediate) return plan.immediate;
-  if (!plan.hasWeights || !plan.hasTokenizer) return unknown(plan.modelPath ? fingerprintFile(plan.modelPath).sha256 : null);
+  if (!plan.hasWeights || !plan.hasTokenizer) return unknown();
   const inventory = plan.files
     .map(({ rel, filePath, expected }) => {
       const identity = fingerprintFile(filePath);

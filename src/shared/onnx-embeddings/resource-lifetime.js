@@ -1,11 +1,4 @@
-const observePending = error => {
-  if (!error || (typeof error !== 'object' && typeof error !== 'function')) return null;
-  try {
-    const observe = error.cacheOwnershipReleased;
-    if (error.cacheOwnershipPending !== true && typeof observe !== 'function') return null;
-    return () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } };
-  } catch { return () => false; }
-};
+import { observeEmbeddingOwnership as observePending } from '../embedding-cache-lifetime.js';
 
 const captureResource = (resource, name, required = false) => {
   let method = null, captureError = null, captureFailed = false, released = !resource;
@@ -36,12 +29,14 @@ export const createOnnxResourceOwner = ({ session, tokenizer, qualificationSlot 
   const tokens = captureResource(tokenizer, 'dispose');
   const capacity = captureResource(qualificationSlot, 'release', true);
   const observers = new Map();
+  const operationObservers = new Map();
   const retain = error => {
     if (observers.has(error)) return;
     const observe = observePending(error);
     if (observe) observers.set(error, observe);
   };
-  retain(primaryError);
+  const primaryObserver = observePending(primaryError);
+  if (primaryObserver) operationObservers.set(primaryError, primaryObserver);
   let flight = null, settled = false, tensorReleaseStarted = false;
   const settlementObservers = new Set();
   const sessionOwner = owner || Object.freeze({ session, tokenizer, qualificationSlot });
@@ -88,6 +83,8 @@ export const createOnnxResourceOwner = ({ session, tokenizer, qualificationSlot 
       // A pending native run or output disposal keeps its session/tokenizer and
       // qualification capacity alive. Preserve the original scope for retry.
       if (tensorScopes.size) throw failure(failures);
+      for (const [error, observe] of operationObservers) if (!observe()) failures.push(error);
+      if (failures.length) throw failure(failures);
       // Attempt every independent native resource in reverse acquisition order.
       for (const resource of [native, tokens]) {
         try { await resource.release(); }
@@ -98,7 +95,7 @@ export const createOnnxResourceOwner = ({ session, tokenizer, qualificationSlot 
         catch (error) { failures.push(error); retain(error); }
       }
       settled = native.released && tokens.released && capacity.released
-        && [...observers.values()].every(observe => observe());
+        && [...observers.values(), ...operationObservers.values()].every(observe => observe());
       if (!settled) throw failure(failures);
       for (const observe of settlementObservers) {
         try { observe(); } catch { /* Observers cannot undo confirmed native settlement. */ }
@@ -108,7 +105,11 @@ export const createOnnxResourceOwner = ({ session, tokenizer, qualificationSlot 
     }).finally(() => { flight = null; });
     return flight;
   };
-  const resourceOwner = Object.freeze({ release, onSettled: observe => {
+  const resourceOwner = Object.freeze({ release, retainOperationFailure: error => {
+    if (settled) throw new Error('Released ONNX owner cannot acquire operation failures.');
+    const observe = observePending(error);
+    if (observe && !operationObservers.has(error)) operationObservers.set(error, observe);
+  }, onSettled: observe => {
     if (typeof observe !== 'function') throw new TypeError('ONNX settlement observer must be a function.');
     if (settled) observe(); else settlementObservers.add(observe);
     return () => settlementObservers.delete(observe);

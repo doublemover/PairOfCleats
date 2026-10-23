@@ -11,18 +11,24 @@ import { planEmbeddingArtifactInventory, buildVerifiedEmbeddingArtifact, unknown
 
 const verificationQueue = new PQueue({ concurrency: 2 });
 const pending = new Map();
+const MAX_FILE_BYTES = 64n * 1024n ** 3n;
+const MAX_CLOSURE_BYTES = 128 * 1024 ** 3;
 const fields = ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs'];
 const metrics = { verifications: 0, coalesced: 0, filesHashed: 0, bytesHashed: 0, peakActive: 0, active: 0 };
 const changed = () => Object.assign(new Error('Embedding artifact changed during verified acquisition.'), { code: 'ERR_EMBEDDING_ARTIFACT_CHANGED' });
 const sameFile = (left, right) => fields.every(field => left[field] === right[field]);
-const fingerprint = async file => {
+const fingerprint = async (file, remainingBytes = BigInt(MAX_CLOSURE_BYTES)) => {
   const root = path.dirname(file);
   return withContainedFile(root, file, async handle => {
     const before = await handle.stat({ bigint: true }), hash = createHash('sha256'), scratch = Buffer.allocUnsafe(1024 * 1024);
+    if (before.size < 0n || before.size > MAX_FILE_BYTES || before.size > remainingBytes) {
+      throw Object.assign(new Error('Selected embedding artifact exceeds its bounded file size.'), { code: 'ERR_EMBEDDING_ARTIFACT_LIMIT' });
+    }
     let bytes = 0;
-    for (;;) {
-      const { bytesRead } = await handle.read(scratch, 0, scratch.length, null);
-      if (!bytesRead) break;
+    while (BigInt(bytes) < before.size) {
+      const count = Math.min(scratch.length, Number(before.size) - bytes);
+      const { bytesRead } = await handle.read(scratch, 0, count, bytes);
+      if (!Number.isSafeInteger(bytesRead) || bytesRead <= 0 || bytesRead > count) throw changed();
       bytes += bytesRead; hash.update(scratch.subarray(0, bytesRead));
     }
     const after = await handle.stat({ bigint: true }), current = await fs.stat(file, { bigint: true });
@@ -37,10 +43,13 @@ const verify = async (options, selectedPlan = null) => {
   try {
     const plan = selectedPlan || planEmbeddingArtifactInventory(options);
     if (plan.immediate) return plan.immediate;
-    if (!plan.hasWeights || !plan.hasTokenizer) return unknownEmbeddingArtifact(plan.modelPath ? (await fingerprint(plan.modelPath)).sha256 : null);
+    if (!plan.hasWeights || !plan.hasTokenizer) return unknownEmbeddingArtifact();
     const inventory = [], observed = [];
+    let closureBytes = 0;
     for (const row of plan.files) {
-      const value = await fingerprint(row.filePath);
+      const value = await fingerprint(row.filePath, BigInt(MAX_CLOSURE_BYTES - closureBytes));
+      closureBytes += value.bytes;
+      if (closureBytes > MAX_CLOSURE_BYTES) throw Object.assign(new Error('Selected embedding closure exceeds its total byte bound.'), { code: 'ERR_EMBEDDING_ARTIFACT_LIMIT' });
       if (row.expected && (value.bytes !== row.expected.bytes || value.sha256 !== row.expected.sha256)) {
         throw Object.assign(new Error('Selected ONNX closure bytes disagree with their installation identity.'), { code: 'ERR_ONNX_ARTIFACT_INTEGRITY' });
       }

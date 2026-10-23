@@ -18,7 +18,7 @@ const source = [
   "const graph = field(7, field(5, Buffer.concat([entry('location', 'nested/weights.custom'), entry('length', '4'), Buffer.from([112, 1])])));",
   'export async function pipeline(task, modelId, options) {',
   "  if (options.dtype !== 'q8') throw new Error('wrong selected precision');",
-  "  const root = path.join(env.cacheDir, modelId); fs.mkdirSync(path.join(root, 'onnx/nested'), { recursive: true });",
+  "  const root = path.join(options.cache_dir, modelId); fs.mkdirSync(path.join(root, 'onnx/nested'), { recursive: true });",
   "  for (const file of ['config.json', 'tokenizer.json', 'tokenizer_config.json']) fs.writeFileSync(path.join(root, file), '{}');",
   "  fs.writeFileSync(path.join(root, 'onnx/model.onnx'), Buffer.from([0x3a, 0]));",
   "  fs.writeFileSync(path.join(root, 'onnx/model_quantized.onnx'), graph);",
