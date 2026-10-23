@@ -4,6 +4,7 @@ import { RETURN_BARE_TARGET_RX, RETURN_CALL_RX, RETURN_NEW_RX } from './constant
 import { isTypeDeclaration } from './symbols.js';
 import { isShadowedImportCall } from './lexical-call-binding.js';
 import { normalizeLiteralInput, inspectLiteralStructure, isWholeQuotedLiteral } from '../type-inference/literal-expression.js';
+import { createReturnTypeFact } from './return-evidence.js';
 
 export const createParamTypeMap = () => Object.create(null);
 
@@ -67,6 +68,22 @@ export const extractReturnTypes = (chunk) => {
     types.push(chunk.name);
   }
   return uniqueTypes(types);
+};
+
+export const extractReturnTypeFacts = chunk => {
+  const facts = [], seen = new Set(), docmeta = chunk?.docmeta || {};
+  const add = (type, source, confidence, evidence = null) => {
+    if (typeof type !== 'string' || !type.trim()) return;
+    const fact = createReturnTypeFact(chunk, type.trim(), source, confidence, evidence);
+    const key = JSON.stringify(fact);
+    if (!seen.has(key)) { seen.add(key); facts.push(fact); }
+  };
+  for (const type of collectDeclaredReturnTypes(docmeta)) add(type, 'annotation', null);
+  if (Array.isArray(docmeta.inferredTypes?.returns)) {
+    for (const entry of docmeta.inferredTypes.returns) add(entry?.type, entry?.source, entry?.confidence, entry?.evidence);
+  }
+  if (isTypeDeclaration(chunk?.kind) && chunk?.name) add(chunk.name, 'declaration', null);
+  return Object.freeze(facts);
 };
 
 export const extractParamTypes = (chunk) => {

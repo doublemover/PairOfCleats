@@ -7,11 +7,13 @@ import { mergeSymbolicTypeGraphs } from '../../shared/symbolic-types.js';
 import { createCrossFileSourceReader } from './source-inputs.js';
 import { FLOW_CONFIDENCE, FLOW_SOURCE } from './constants.js';
 import { addInferredParam, addInferredReturn } from './apply.js';
+import { propagateReturnTypeFact } from './return-evidence.js';
 import {
   ensureParamTypeMap,
   extractParamTypes,
   extractReturnCalls,
   extractReturnTypes,
+  extractReturnTypeFacts,
   getParamTypeList,
   inferArgType
 } from './extract.js';
@@ -141,6 +143,7 @@ export async function runCrossFilePropagation({
   throwIfAborted(abortSignal);
   chunks = orderCrossFileChunks(chunks);
   const symbolEntries = [];
+  const entryChunks = new WeakMap();
   const entryByKey = new Map();
   const entryByUid = new Map();
   const chunkByUid = new Map();
@@ -176,6 +179,7 @@ export async function runCrossFilePropagation({
       paramTypes: ensureParamTypeMap(paramTypes)
     };
     symbolEntries.push(entry);
+    entryChunks.set(entry, chunk);
     entryByKey.set(`${chunk.file}::${chunk.name}`, entry);
     if (chunkUid) {
       entryByUid.set(chunkUid, entry);
@@ -412,6 +416,14 @@ export async function runCrossFilePropagation({
     }
   }
 
+  // Own one seed snapshot after tooling and constructor inference. Do not feed
+  // later mutations back into this pass or make results depend on bundle order.
+  for (const entry of symbolEntries) {
+    const chunk = entryChunks.get(entry);
+    entry.returnTypeFacts = extractReturnTypeFacts(chunk);
+    entry.returnTypes = uniqueTypes(entry.returnTypeFacts.map(fact => fact.type));
+  }
+
   const normalizeRisk = (chunk) => {
     if (!chunk) return null;
     if (!chunk.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
@@ -632,6 +644,7 @@ export async function runCrossFilePropagation({
             summary.kind = resolvedEntry.kind || null;
             summary.legacy = true;
             if (resolvedEntry.returnTypes?.length) summary.returnTypes = resolvedEntry.returnTypes;
+            if (resolvedEntry.returnTypeFacts?.length) summary.returnTypeFacts = resolvedEntry.returnTypeFacts;
             if (resolvedEntry.paramNames?.length) summary.params = resolvedEntry.paramNames;
             if (resolvedEntry.paramTypes && Object.keys(resolvedEntry.paramTypes).length) {
               summary.paramTypes = resolvedEntry.paramTypes;
@@ -782,17 +795,18 @@ export async function runCrossFilePropagation({
             if (returnCallSites && !returnCallSites.has(`${summary.start}:${summary.end}`)) continue;
             const resolvedUid = summary?.resolvedCalleeChunkUid || summary?.targetChunkUid || null;
             const resolvedChunk = resolvedUid ? chunkByUid.get(resolvedUid) : null;
-            const returnTypes = Array.isArray(summary?.returnTypes) && summary.returnTypes.length
-              ? summary.returnTypes
-              : (Array.isArray(entryByUid.get(resolvedUid)?.returnTypes)
-                ? entryByUid.get(resolvedUid).returnTypes
+            const returnFacts = Array.isArray(summary?.returnTypeFacts) && summary.returnTypeFacts.length
+              ? summary.returnTypeFacts
+              : (Array.isArray(entryByUid.get(resolvedUid)?.returnTypeFacts)
+                ? entryByUid.get(resolvedUid).returnTypeFacts
                 : []);
-            if (!returnTypes.length) continue;
+            if (!returnFacts.length) continue;
             resolvedViaSummaries.add(callName);
             const hopCount = resolvedChunk?.file && resolvedChunk.file !== chunk.file ? 1 : 0;
             const confidence = confidenceForHop(hopCount);
-            for (const type of returnTypes) {
-              if (addInferredReturn(chunk.docmeta, type, FLOW_SOURCE, confidence)) {
+            for (const fact of returnFacts) {
+              const propagated = propagateReturnTypeFact(fact, resolvedChunk, confidence);
+              if (addInferredReturn(chunk.docmeta, propagated.type, FLOW_SOURCE, propagated.confidence, propagated.evidence)) {
                 inferredReturns += 1;
               }
             }
@@ -812,12 +826,13 @@ export async function runCrossFilePropagation({
           });
           if (!symbolRef?.resolved?.chunkUid) continue;
           const entry = entryByUid.get(symbolRef.resolved.chunkUid);
-          const returnTypes = toTypeNameList(entry?.returnTypes);
-          if (!returnTypes.length) continue;
+          const returnFacts = entry?.returnTypeFacts || [];
+          if (!returnFacts.length) continue;
           const hopCount = entry?.file !== chunk.file ? 1 : 0;
           const confidence = confidenceForHop(hopCount);
-          for (const type of returnTypes) {
-            if (addInferredReturn(chunk.docmeta, type, FLOW_SOURCE, confidence)) {
+          for (const fact of returnFacts) {
+            const propagated = propagateReturnTypeFact(fact, entryChunks.get(entry), confidence);
+            if (addInferredReturn(chunk.docmeta, propagated.type, FLOW_SOURCE, propagated.confidence, propagated.evidence)) {
               inferredReturns += 1;
             }
           }
