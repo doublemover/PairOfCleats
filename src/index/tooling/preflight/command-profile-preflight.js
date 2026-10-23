@@ -2,6 +2,7 @@ import {
   isProbeCommandDefinitelyMissing,
   resolveToolingCommandProfile
 } from '../command-resolver.js';
+import { composeAbortSignals, throwIfAborted } from '../../../shared/abort.js';
 
 const normalizeCheck = (value) => (
   value && typeof value === 'object'
@@ -84,11 +85,14 @@ export const resolveCommandProfilePreflightResult = ({
   providerId,
   requestedCommand,
   ctx = null,
+  signal = null,
   unavailableCheck = null,
   unavailableMessage = null,
   blockWhenDefinitelyMissing = false,
   blockFlag = 'blockProvider'
 } = {}) => {
+  signal = composeAbortSignals(signal, ctx?.signal, ctx?.abortSignal);
+  throwIfAborted(signal);
   const command = requestedCommand && typeof requestedCommand === 'object'
     ? requestedCommand
     : { cmd: '', args: [] };
@@ -101,7 +105,8 @@ export const resolveCommandProfilePreflightResult = ({
     cmd: normalizedRequested.cmd,
     args: normalizedRequested.args,
     repoRoot: ctx?.repoRoot || process.cwd(),
-    toolingConfig: ctx?.toolingConfig || {}
+    toolingConfig: ctx?.toolingConfig || {},
+    signal
   });
   if (commandProfile.probe.ok) {
     return {
@@ -187,8 +192,10 @@ export const resolveRuntimeCommandFromPreflight = ({
   missingProfileCheck = null,
   providerId = null,
   repoRoot = null,
-  toolingConfig = null
+  toolingConfig = null,
+  signal = null
 } = {}) => {
+  throwIfAborted(signal);
   const requestedCommand = preflight?.requestedCommand && typeof preflight.requestedCommand === 'object'
     ? {
       cmd: String(preflight.requestedCommand.cmd || '').trim(),
@@ -207,7 +214,8 @@ export const resolveRuntimeCommandFromPreflight = ({
       cmd: requestedCommand.cmd,
       args: requestedCommand.args,
       repoRoot: repoRoot || process.cwd(),
-      toolingConfig: toolingConfig || {}
+      toolingConfig: toolingConfig || {},
+      signal
     });
   }
   const cmd = commandProfile?.resolved?.mode === 'blocked' ? ''

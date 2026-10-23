@@ -211,6 +211,7 @@ export const createConfiguredLspProvider = (server) => {
         providerId,
         repoRoot: ctx?.repoRoot || process.cwd(),
         toolingConfig: ctx?.toolingConfig || {},
+        signal: abortSignal,
         missingProfileCheck: {
           name: 'lsp_preflight_command_profile_missing',
           status: 'warn',
@@ -291,6 +292,9 @@ export const createConfiguredLspProvider = (server) => {
   provider.preflightClass = server.preflightClass
     || (server.workspaceMarkerOptions && server.requireWorkspaceModel !== false ? 'workspace' : 'probe');
   provider.preflight = async (ctx, inputs = {}) => {
+    const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
+    throwIfAborted(abortSignal);
+    ctx = { ...ctx, abortSignal };
     if (server.retiredKotlinProfile) return kotlinLspMigrationDiagnostic();
     const executionAuthority = executionAuthorityFor(ctx);
     if (executionAuthority) return executionAuthority;
@@ -363,6 +367,7 @@ export const createConfiguredLspProvider = (server) => {
       server,
       repoRoot: ctx?.repoRoot || process.cwd()
     });
+    throwIfAborted(abortSignal);
     return resolveConfiguredWorkspacePreflight({
       ctx,
       server,

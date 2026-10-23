@@ -290,6 +290,7 @@ export const createDedicatedLspProvider = (descriptor) => {
           },
           waveToken: resolveWaveToken(inputs)
         });
+        throwIfAborted(abortSignal);
         const currentAuthority = executionAuthorityFor(ctx);
         if (currentAuthority) return buildBaseResult(providerRef, [...checks, currentAuthority.check]);
         appendPreflightChecks(checks, preflight);
@@ -307,6 +308,7 @@ export const createDedicatedLspProvider = (descriptor) => {
         providerId: descriptor.id,
         repoRoot: ctx?.repoRoot || process.cwd(),
         toolingConfig: ctx?.toolingConfig || {},
+        signal: abortSignal,
         missingProfileCheck: {
           name: `${descriptor.id}_preflight_command_profile_missing`,
           status: 'warn',
@@ -330,6 +332,7 @@ export const createDedicatedLspProvider = (descriptor) => {
       let collectCleanup = null;
       let result;
       let workspaceRouting;
+      let primaryFailure = null;
       try {
         throwIfAborted(abortSignal);
         if (typeof descriptor.prepareCollect === 'function') {
@@ -342,6 +345,7 @@ export const createDedicatedLspProvider = (descriptor) => {
             abortSignal
           });
           if (typeof prepared?.cleanup === 'function') collectCleanup = prepared.cleanup;
+          throwIfAborted(abortSignal);
           if (Array.isArray(prepared?.args)) resolvedArgs = prepared.args;
           if (Array.isArray(prepared?.checks) && prepared.checks.length) checks.push(...prepared.checks);
           if (prepared?.skip === true) {
@@ -429,11 +433,30 @@ export const createDedicatedLspProvider = (descriptor) => {
           toolingConfig: ctx?.toolingConfig || null,
           cwd: ctx?.repoRoot || process.cwd()
         });
+      } catch (error) {
+        primaryFailure = error;
+        throw error;
       } finally {
         if (typeof collectCleanup === 'function') {
-          await Promise.resolve(collectCleanup());
+          try { await collectCleanup(); } catch (cleanupError) {
+            if (!primaryFailure) throw cleanupError;
+            const errors = [primaryFailure, cleanupError];
+            const failure = new AggregateError(errors, primaryFailure.message, { cause: primaryFailure });
+            failure.name = primaryFailure.name;
+            failure.code = primaryFailure.code;
+            const pending = () => errors.some(error => {
+              try { return typeof error?.cacheOwnershipReleased === 'function'
+                ? error.cacheOwnershipReleased() !== true : error?.cacheOwnershipPending === true; }
+              catch { return true; }
+            });
+            Object.defineProperties(failure, {
+              cacheOwnershipPending: { get: pending }, cacheOwnershipReleased: { value: () => !pending() }
+            });
+            throw failure;
+          }
         }
       }
+      throwIfAborted(abortSignal);
 
       return {
         provider: providerRef,
@@ -478,6 +501,9 @@ export const createDedicatedLspProvider = (descriptor) => {
       return String(value || '');
     };
     provider.preflight = async (ctx, inputs = {}) => {
+      const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
+      throwIfAborted(abortSignal);
+      ctx = { ...ctx, abortSignal };
       const config = resolveProviderConfig(ctx, descriptor.configKey);
       if (config.enabled !== true) {
         return {
@@ -526,11 +552,12 @@ export const createDedicatedLspProvider = (descriptor) => {
           config,
           inputs,
           log: getLogger(ctx),
-          abortSignal: inputs?.abortSignal || ctx?.abortSignal || null,
+          abortSignal,
           requestedCommand: commandPreflight.requestedCommand,
           commandProfile: commandPreflight.commandProfile
         })
         : { state: 'ready', blockProvider: false, check: null };
+      throwIfAborted(abortSignal);
       const currentAuthority = executionAuthorityFor(ctx);
       if (currentAuthority) return currentAuthority;
       if (shouldBlockProviderFromPreflight(customPreflight)) {

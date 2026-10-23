@@ -204,7 +204,7 @@ const isAbortSignalLike = (signal) => (
 );
 
 export const resolveRequestedAbortSignal = (ctx, inputs) => {
-  return composeAbortSignals(ctx?.abortSignal, inputs?.abortSignal);
+  return composeAbortSignals(ctx?.signal, ctx?.abortSignal, inputs?.signal, inputs?.abortSignal);
 };
 
 export const createManagedAbortBridge = (upstreamSignal) => {

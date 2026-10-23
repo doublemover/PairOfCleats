@@ -601,6 +601,7 @@ export const createSourcekitProvider = () => ({
     const requestedCommand = resolveSourcekitRequestedCommand(ctx);
     const commandPreflight = resolveCommandProfilePreflightResult({
       providerId: 'sourcekit',
+      signal: abortSignal,
       requestedCommand,
       ctx,
       blockWhenDefinitelyMissing: true,
@@ -795,6 +796,7 @@ export const createSourcekitProvider = () => ({
       ? preflight.requestedCommand
       : resolveSourcekitRequestedCommand(ctx);
     const runtimeCommand = resolveRuntimeCommandFromPreflight({
+      signal: abortSignal,
       preflight,
       fallbackRequestedCommand: requestedCommand,
       providerId: 'sourcekit',

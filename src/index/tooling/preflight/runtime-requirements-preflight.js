@@ -2,7 +2,8 @@ import {
   isProbeCommandDefinitelyMissing,
   resolveToolingCommandProfile
 } from '../command-resolver.js';
-import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { resolveProviderWorkspaceExecutionAuthority } from '../workspace-execution.js';
+import { composeAbortSignals, throwIfAborted } from '../../../shared/abort.js';
 
 /**
  * Resolve runtime prerequisite checks as a preflight classification.
@@ -15,7 +16,9 @@ export const resolveRuntimeRequirementsPreflight = ({
   providerId,
   requirements
 }) => {
-  const executionAuthority = resolveWorkspaceExecutionAuthority({
+  const signal = composeAbortSignals(ctx?.signal, ctx?.abortSignal);
+  throwIfAborted(signal);
+  const executionAuthority = resolveProviderWorkspaceExecutionAuthority({
     repoRoot: ctx?.repoRoot || process.cwd(), providerId
   });
   if (executionAuthority) return { ...executionAuthority, checks: [executionAuthority.check] };
@@ -38,7 +41,8 @@ export const resolveRuntimeRequirementsPreflight = ({
       cmd: requirementCmd,
       args: requirementArgs,
       repoRoot: ctx?.repoRoot || process.cwd(),
-      toolingConfig: ctx?.toolingConfig || {}
+      toolingConfig: ctx?.toolingConfig || {},
+      signal
     });
     profiles.push({ id: requirementId, commandProfile });
     const validationReason = commandProfile?.probe?.validationFailure?.reasonCode;

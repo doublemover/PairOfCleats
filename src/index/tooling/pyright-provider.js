@@ -251,6 +251,7 @@ export const createPyrightProvider = () => ({
     });
     const commandPreflight = resolveCommandProfilePreflightResult({
       providerId: 'pyright',
+      signal: abortSignal,
       requestedCommand,
       ctx,
       unavailableCheck: {
@@ -343,6 +344,7 @@ export const createPyrightProvider = () => ({
     });
 
     const runtimeCommand = resolveRuntimeCommandFromPreflight({
+      signal: abortSignal,
       preflight,
       fallbackRequestedCommand: requestedCommand,
       providerId: 'pyright',

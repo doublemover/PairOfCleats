@@ -505,6 +505,8 @@ export const createClangdProvider = () => ({
     return hashProviderConfig({ clangd: ctx?.toolingConfig?.clangd || {} });
   },
   async preflight(ctx, inputs = {}) {
+    const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
+    throwIfAborted(abortSignal);
     const log = typeof inputs?.log === 'function'
       ? inputs.log
       : (typeof ctx?.logger === 'function' ? ctx.logger : (() => {}));
@@ -539,6 +541,7 @@ export const createClangdProvider = () => ({
       compileCommandsDir
     });
     const commandPreflight = resolveCommandProfilePreflightResult({
+      signal: abortSignal,
       providerId: 'clangd',
       requestedCommand,
       ctx,
@@ -679,6 +682,7 @@ export const createClangdProvider = () => ({
         compileCommandsDir
       });
     const runtimeCommand = resolveRuntimeCommandFromPreflight({
+      signal: abortSignal,
       preflight,
       fallbackRequestedCommand: requestedCommand,
       providerId: 'clangd',
