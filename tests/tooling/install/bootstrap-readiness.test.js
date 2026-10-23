@@ -16,7 +16,7 @@ const write = (relative, text) => {
   fs.writeFileSync(file, text);
 };
 const required = ['better-sqlite3', 'tree-sitter', 'tree-sitter-javascript'];
-const inputs = ['.nvmrc', 'tools/setup/preflight.js', 'src/shared/direct-execution.js', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
+const inputs = ['.nvmrc', 'tools/setup/checkout-diagnose.js', 'tools/setup/preflight.js', 'src/shared/direct-execution.js', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
   'tools/setup/bootstrap-tasks.js', 'tools/setup/native-build-plan.js',
   'tools/setup/windows-capability.js',
@@ -38,14 +38,18 @@ for (const directory of ['tools/bench/index', 'tools/bench/sqlite']) {
     }
   }
 }
-const execute = entry => runNodeFixture([path.join(root, entry)], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: {
+const execute = (entry, args = entry === 'bin/pairofcleats.js' ? ['search', 'fixture'] : []) => runNodeFixture([path.join(root, entry), ...args], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: {
   cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 65536
 } });
 try {
-  write('package.json', JSON.stringify({ type: 'module', dependencies: Object.fromEntries(required.map(name => [name, '1.0.0'])) }));
+  write('package.json', JSON.stringify({ type: 'module', version: '1.2.3', dependencies: Object.fromEntries(required.map(name => [name, '1.0.0'])) }));
   write('package-lock.json', '{}');
   for (const relative of inputs) write(relative, fs.readFileSync(path.join(sourceRoot, relative), 'utf8'));
   for (const entry of entries) write(entry, fs.readFileSync(path.join(sourceRoot, entry), 'utf8'));
+  const information = execute('bin/pairofcleats.js', ['--version']);
+  assert.equal(information.status, 0);
+  assert.equal(information.stderr.trim(), '1.2.3', 'dependency-free information remains available without admitting a workload');
+  assert.equal(information.stdout, '');
   // Exercise the actual imported qualification API against this unprepared
   // installation. Only its inert dependencies point to the prepared checkout;
   // the copied bootstrap owner keeps this fixture's real installation root.
@@ -131,6 +135,9 @@ try {
   record();
   const receipt = JSON.parse(fs.readFileSync(path.join(root, BOOTSTRAP_RECEIPT), 'utf8'));
   receipt.runtime.abi = 'stale'; write(BOOTSTRAP_RECEIPT, JSON.stringify(receipt));
-  assert.match((await inspectBootstrapReadiness({ root })).reason, /native ABI/);
+  const staleAbi = await inspectBootstrapReadiness({ root });
+  assert.equal(staleAbi.ready, false);
+  assert.ok(staleAbi.mismatches.some(row => row.field === 'runtime.abi' && row.observed === 'stale'
+    && row.expected === process.versions.modules), 'the exact structured ABI mismatch rejects admission');
   console.log('Bootstrap readiness: absent, incomplete, stale, native activation and CLI/test/bench admission passed');
 } finally { fs.rmSync(root, { recursive: true, force: true }); }

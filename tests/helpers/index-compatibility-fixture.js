@@ -112,6 +112,7 @@ export const createMixedProfileFixture = (tmpPrefix) =>
 
 export const createLoadSearchIndexesMemoryOptions = (rootDir, overrides = {}) => ({
   rootDir,
+  indexDirByMode: Object.fromEntries(['code', 'prose', 'extracted-prose', 'records'].map(mode => [mode, path.join(rootDir, 'index-' + mode)])),
   userConfig: {},
   searchMode: 'default',
   runProse: true,

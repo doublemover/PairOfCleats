@@ -26,12 +26,16 @@ assert.match(fs.readFileSync(path.join(root, 'src/shared/native-package-probe.js
 assert.match(source, /cwd:\s*resolveNodeModulesPath\(packageNameResult\.pkgName\),\s*buildFromSource/,
   'last-resort package install must retain its package directory/source request');
 
-for (const name of ['tree-sitter', '@ganezdragon/tree-sitter-perl', 'tree-sitter-swift']) {
+for (const name of ['tree-sitter', 'tree-sitter-swift']) {
   const adapter = inspectNativeBuildAdapter(root, name);
   assert.ok(adapter, 'reviewed patched binding must retain an admitted local adapter: ' + name);
   assert.equal(adapter.forceSource, true, 'a prebuild must not bypass native source patches');
   assert.deepEqual(adapter.outputs, [path.join(root, 'node_modules', ...name.split('/'), 'build')]);
 }
+// The locked Perl binding resolves node-addon-api 7.1.1, outside the reviewed
+// helper hashes. Its existing serial fallback above still forces patched source.
+assert.equal(inspectNativeBuildAdapter(root, '@ganezdragon/tree-sitter-perl'), null,
+  'an unreviewed helper graph must retain the source-forced serial fallback');
 assert.equal(inspectNativeBuildAdapter(root, 'better-sqlite3'), null, 'SQLite uses its exclusive transaction');
 assert.equal(inspectNativeBuildAdapter(root, '@derekstride/tree-sitter-sql'), null,
   'grammar generation/npm fetching must remain on the serial fallback');

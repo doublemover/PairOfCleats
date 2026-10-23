@@ -21,7 +21,7 @@ import { applyBuildPragmas } from '../../../src/storage/sqlite/build/pragmas.js'
 import { normalizeDenseVectorMeta } from '../../../src/shared/dense-vector-meta.js';
 import { resolveDenseVectorBinaryPayloadPath } from '../../../src/shared/dense-vector-binary.js';
 import { openDenseVectorBinarySourceSync } from '../../../src/shared/dense-vector-stream.js';
-import { readContainedFileSync } from '../../../src/shared/contained-file.js';
+import { readVerifiedContainedFileSync } from '../../../src/shared/contained-file.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
 
@@ -55,8 +55,8 @@ const resolveSqliteDenseArtifactSource = ({ vectorsPath, modelId = null, dims = 
     const resolvedBasePath = path.resolve(vectorsPath);
     const metaPath = `${resolvedBasePath}.meta.json`;
     const dir = path.dirname(resolvedBasePath);
-    const readMeta = filename => normalizeDenseVectorMeta(JSON.parse(readContainedFileSync(dir, filename,
-      { maxBytes: 64 * 1024 * 1024, signal }).toString('utf8')));
+    const readMeta = filename => normalizeDenseVectorMeta(JSON.parse(readVerifiedContainedFileSync(dir, filename,
+      { maxBytes: 64 * 1024 * 1024, signal }).buffer.toString('utf8')));
     const sourceMeta = readMeta(metaPath);
     const meta = sourceMeta ? { ...sourceMeta, count: sourceMeta.count ?? sourceMeta.totalRecords } : null;
     if (!meta || !Number.isSafeInteger(meta.count) || meta.count < 0

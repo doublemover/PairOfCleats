@@ -39,21 +39,30 @@ const cases = [
   ['alphabeta delta "alpha beta"', { dpMaxTokenLength: 24 }]
 ];
 for (const [query, supplied] of cases) for (const match of ['auto', 'all', 'any']) {
-  const dict = new Set(['alpha', 'beta', 'gamma', 'delta', 'running', 'walked', 'runners']);
+  const entries = ['alpha', 'beta', 'gamma', 'delta', 'running', 'walked', 'runners'];
+  const baselineDict = new Set(entries), dict = new Set(entries);
   const options = { ...supplied, caseSensitive: supplied.caseSensitive === true };
   const postings = { enablePhraseNgrams: true, phraseMinN: 2, phraseMaxN: 3 };
-  const baseline = project(query, dict, options, postings, match);
+  const baseline = project(query, baselineDict, options, postings, match);
+  if (Object.hasOwn(baselineDict, '__ahoMatcher')) {
+    assert.equal(createQueryLeafAnalysis(baselineDict, options).snapshotWork().reusableDefaultCore, false,
+      'already attached matcher state retains the original fallback');
+  }
   const leaf = createQueryLeafAnalysis(dict, options);
-  assert.equal(leaf.snapshotWork().reusableDefaultCore, true);
+  assert.equal(leaf.snapshotWork().reusableDefaultCore, true, JSON.stringify({ query, supplied, dictionaryKeys: Reflect.ownKeys(dict) }));
   assert.deepEqual(project(query, dict, options, postings, match, leaf), baseline);
-  const actual = buildQueryPlan({ query, argv: { match }, dict, dictConfig: supplied,
+  const actual = buildQueryPlan({ query, argv: { match }, dict: new Set(entries), dictConfig: supplied,
     caseTokens: options.caseSensitive, postingsConfig: postings });
   assert.deepEqual(projectFields(actual, baseline), baseline);
   const serialized = JSON.stringify(serializeQueryPlan(actual));
   assert.equal(serialized, JSON.stringify(serializeQueryPlan({ ...actual, ...baseline })));
   const restored = hydrateQueryPlan(JSON.parse(serialized));
   assert.deepEqual(restored.queryTokens, actual.queryTokens);
-  assert.deepEqual(restored.cacheFilters, actual.cacheFilters);
+  assert.deepEqual(restored.cacheFilters, JSON.parse(JSON.stringify(actual.cacheFilters)),
+    'the existing JSON cache preserves every serializable filter value');
+  for (const [key, value] of Object.entries(actual.cacheFilters)) {
+    assert.deepEqual(restored.cacheFilters[key], value, 'omitted undefined filters retain their existing lookup semantics');
+  }
   assert.equal(restored.highlightRegex.source, actual.highlightRegex.source);
   assert.equal(Object.hasOwn(actual, 'leafAnalysis'), false);
   assert.equal(Object.hasOwn(actual, 'snapshotWork'), false);

@@ -108,11 +108,15 @@ try {
   const added = [...slices.map(value => value.partition), ...boundaries, ...workers];
   const partitions = [...fixture.syntaxPartitions, ...added], store = fixture.storeFor(partitions);
   await validateSemanticPartitions({ store, partitions });
-  const records = new Map(), edges = [], coverage = [];
+  const records = new Map(), edges = [], coverage = [], compilerCoverage = [];
+  const compilerPartitions = new Set(added.map(partition => partition.partitionId));
   for (const partition of partitions) {
     for await (const row of store.iterateRows(partition.partitionId, 'semantic_records')) records.set(partition.partitionId + ':' + row.id, row);
     for await (const row of store.iterateRows(partition.partitionId, 'semantic_edges')) edges.push(row);
-    for await (const row of store.iterateRows(partition.partitionId, 'semantic_coverage')) coverage.push(row);
+    for await (const row of store.iterateRows(partition.partitionId, 'semantic_coverage')) {
+      coverage.push(row);
+      if (compilerPartitions.has(partition.partitionId)) compilerCoverage.push(row);
+    }
   }
   for (const [doc, roles] of marked) {
     for (const { role, ref } of roles) if (role === 'write') {
@@ -132,6 +136,10 @@ try {
   assert.ok(edges.some(edge => edge.kind === 'reads' && key(edge.to) === key(immutableRead.ref)),
     'the immutable slice still retains its ordinary source value read');
   assert.ok(coverage.some(row => row.reason?.includes('destructuring_write_requires_pattern_analysis')));
-  assert.ok(coverage.filter(row => row.phase === 'boundaryModels').every(row => row.state === 'partial'));
+  const boundaryCoverage = compilerCoverage.filter(row => row.phase === 'boundaryModels');
+  assert.ok(boundaryCoverage.length > 0);
+  assert.ok(boundaryCoverage.every(row => row.state === 'partial'));
+  assert.ok(coverage.some(row => row.phase === 'boundaryModels' && row.state === 'unsupported'),
+    'syntax-only partition coverage never borrows compiler boundary qualification');
   console.log('Compiler pattern targets stay references across CFG, value slice and payload-use consumers');
 } finally { await fs.rm(root, { recursive: true, force: true }); }

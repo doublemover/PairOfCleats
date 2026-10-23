@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { buildArtifactSchemaIndex } from '../../../src/contracts/artifact-schema-index.js';
 import { USR_REPORT_SCHEMA_DEFS, USR_SCHEMA_DEFS } from '../../../src/contracts/schemas/usr.js';
+import { MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { loadRunRules } from '../../runner/run-config.js';
 import {
   assertEvidenceAvailability,
@@ -434,9 +435,8 @@ const expandSimpleBraceAlternates = (value) => {
     path.join(root, 'docs', 'specs', 'tooling-and-api-contract.md'),
     'utf8'
   );
-  assert.match(
-    toolingApiSpec,
-    /\*\*Status:\*\* Active implemented public tooling\/API contract; current MCP schema version is `1\.4\.1`\./,
+  assert.ok(
+    toolingApiSpec.includes('**Status:** Active implemented public tooling/API contract; current MCP schema version is `' + MCP_SCHEMA_VERSION + '`.'),
     'tooling/API contract spec must record active implemented status and current MCP schema version'
   );
   assert.doesNotMatch(
@@ -446,18 +446,24 @@ const expandSimpleBraceAlternates = (value) => {
   );
 
   const httpApiSpec = await fsPromises.readFile(path.join(root, 'docs', 'specs', 'http-api.md'), 'utf8');
+  assert.match(httpApiSpec, /DEPRECATED[\s\S]*\[HTTP API server contract\]\(\.\.\/api\/server\.md\)/,
+    'superseded HTTP proposal redirects to the authoritative current guide');
+  const archivedHttpApi = await fsPromises.readFile(path.join(root, 'docs', 'archived', 'http-api.md'), 'utf8');
+  assert.match(archivedHttpApi, /DEPRECATED[\s\S]*HTTP API server contract[\s\S]*historical/,
+    'the original proposal remains archived with its provenance and replacement');
+  const httpApiGuide = await fsPromises.readFile(path.join(root, 'docs', 'api', 'server.md'), 'utf8');
   assert.match(
-    httpApiSpec,
-    /\*\*Implementation status:\*\* active implemented contract.*workspacePath-based federated search/,
-    'HTTP API spec must record current implemented snapshot/diff/as-of/federated surface status'
+    httpApiGuide,
+    /Runtime validators and schemas remain authoritative:[\s\S]*`GET \/index\/snapshots`[\s\S]*`GET \/index\/diffs`/,
+    'current HTTP guide identifies runtime authority and implemented snapshot/diff surfaces'
   );
   assert.match(
-    httpApiSpec,
-    /`workspacePath` \(required, allowlisted\)[\s\S]*`workspaceId` \(optional cross-check against the resolved workspace\)/,
+    httpApiGuide,
+    /Required:[\s\S]*`workspacePath` \(string, non-empty, allowlisted\)[\s\S]*Optional:[\s\S]*`workspaceId` \(must match resolved workspace `repoSetId` when provided\)/,
     'HTTP API spec must document workspacePath as required and workspaceId as a cross-check'
   );
   assert.doesNotMatch(
-    httpApiSpec,
+    httpApiGuide,
     /federation pending|pending Phase 14\.6|\(new\)/,
     'HTTP API spec must not retain stale pending/new route language for implemented surfaces'
   );
