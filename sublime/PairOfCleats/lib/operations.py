@@ -111,7 +111,7 @@ def _cancel_handles(handles):
     return failures
 
 
-def shutdown(window=None, timeout=5.0, all_windows=False):
+def shutdown(window=None, timeout=5.0, all_windows=False, close_window=True):
     global _ALIVE
     window_id = _window_id(window)
     with _LOCK:
@@ -120,7 +120,8 @@ def shutdown(window=None, timeout=5.0, all_windows=False):
         for identifier, state in _STATES.items():
             if all_windows or identifier == window_id:
                 state['epoch'] += 1
-                state['closed'] = True
+                if all_windows or close_window:
+                    state['closed'] = True
         handles = [record['handle'] for record in _RECORDS
                    if all_windows or record['scope']['windowId'] == window_id]
     deadline = time.monotonic() + timeout

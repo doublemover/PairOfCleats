@@ -61,6 +61,14 @@ with isolated_temp_directory() as temporary:
     window.quick_panel_callback(1)
     assert paths.resolve_repo_root(window) == second
 
+    acknowledged = paths._SELECTED_REPOS.get(window.id())
+    settings_commands.PairOfCleatsSelectRepoCommand(window).run()
+    with patch.object(window.settings(), 'set', side_effect=OSError('original repository choice save failure')):
+        window.quick_panel_callback(0)
+    assert paths.resolve_repo_root(window) == second
+    assert paths._SELECTED_REPOS.get(window.id()) == acknowledged
+    assert 'original repository choice save failure' in sublime.last_error
+
     paths.select_repo(window, first)
     user = sublime.load_settings(config.SETTINGS_FILE)
     user.update({'api_execution_mode': 'require', 'api_server_url': 'http://localhost:7345',

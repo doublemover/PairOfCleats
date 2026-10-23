@@ -98,4 +98,36 @@ finally:
     operations.release(handle)
     watch.clear_if_done(window)
 
+# Watch cancellation refuses false success and retains the exact failure while
+# continuing to request every sibling stop.
+class DisposalHandle:
+    def __init__(self, failure=None):
+        self.process = self
+        self.failure, self.cancelled, self.returncode = failure, False, None
+
+    def poll(self):
+        return self.returncode
+
+    def cancel(self):
+        self.cancelled = True
+        if self.failure:
+            raise self.failure
+
+first_window, second_window = FakeWindow(), FakeWindow()
+first_owner = DisposalHandle(OSError('original watch cancellation failure'))
+second_owner = DisposalHandle()
+watch.register(first_window, first_owner, '/first-watch')
+watch.register(second_window, second_owner, '/second-watch')
+assert watch.stop_all(reason='controlled-disposal') is False
+assert first_owner.cancelled and second_owner.cancelled
+assert watch.snapshot(first_window)['cleanupUnconfirmed']
+assert 'original watch cancellation failure' in watch.snapshot(first_window)['cancelError']
+index_commands = importlib.import_module('PairOfCleats.commands.index')
+index_commands._run_index_watch_stop(first_window)
+assert 'watch cancellation remains unconfirmed' in sublime.last_error
+assert 'original watch cancellation failure' in sublime.last_error
+for target, owner in ((first_window, first_owner), (second_window, second_owner)):
+    owner.returncode = 0
+    watch.clear_if_done(target)
+
 print('Sublime typed watch readiness and terminal failure survive cancellation and revoked UI publication')

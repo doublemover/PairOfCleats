@@ -358,6 +358,15 @@ dispatch failures retain their initiating error beside independent cleanup error
 These consumer and fault fixtures are authored, unrun, and do not qualify a real
 Sublime installation or the Python 3.3 runtime.
 
+Disposal now revokes publication before adapter cancellation, visits independent
+adapters after individual failures and snapshots task membership during reentrant
+completion. Watch/task cancellation errors remain visible uncertainty. A native
+window-close request reaps its old work without permanently disabling a window
+when Sublime's save prompt cancels that close. Repository selection acknowledges
+native persistence before replacing its fallback cache. These boundary fixtures
+are authored and unrun; actual close/unload behavior still needs supported-host
+qualification.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only

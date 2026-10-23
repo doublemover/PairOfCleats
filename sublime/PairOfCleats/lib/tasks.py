@@ -235,13 +235,19 @@ def clear_window(window):
 def clear_all():
     with _RENDER_LOCK:
         _PENDING_RENDERS.clear()
-    for active in _ACTIVE_TASKS.values():
-        for task in active:
+    for active in list(_ACTIVE_TASKS.values()):
+        for task in list(active):
             task['status'] = 'interrupted'
             task['details'] = 'Editor disposed; owned operation settlement remains tracked.'
             cancel = task.get('cancel')
             if callable(cancel):
-                cancel()
+                try:
+                    cancel()
+                except Exception as error:
+                    task['status'] = 'failed'
+                    task['cleanupUnconfirmed'] = True
+                    task['details'] = 'Editor disposal cancellation failed: ' + str(error)
+                    print('PairOfCleats task {0}: {1}'.format(task.get('id'), task['details']))
     _RECENT_TASKS.clear()
 
 

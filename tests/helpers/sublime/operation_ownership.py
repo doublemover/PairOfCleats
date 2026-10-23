@@ -98,4 +98,42 @@ assert operations.is_current(new) and operations.is_current(separate)
 first.set_folders(['changed-project'])
 assert not operations.is_current(new), 'project context changes revoke callbacks even before a host hook'
 assert operations.is_current(separate)
+
+# A native close request can be cancelled by Sublime's own save prompt. Its
+# old work is reaped and fenced, while a new command in that same live window
+# remains usable without reloading the plugin.
+plugin = importlib.import_module('PairOfCleats.plugin')
+watch = importlib.import_module('PairOfCleats.lib.watch')
+operations.activate()
+closing, sibling = FakeWindow(), FakeWindow()
+closing_scope = operations.capture(closing)
+sibling_scope = operations.capture(sibling)
+observed = []
+class CloseHandle:
+    def cancel(self):
+        observed.append(('cancel', operations.is_current(closing_scope)))
+
+    def wait(self, timeout):
+        observed.append(('wait', timeout >= 0))
+        operations.release(self)
+        return True
+
+owned_close = operations.track(closing_scope, CloseHandle())
+listener = plugin.PairOfCleatsWindowListener()
+listener.on_window_command(closing, 'close_window', {})
+assert observed == [('cancel', False), ('wait', True)]
+assert not operations.is_current(closing_scope) and operations.is_current(sibling_scope)
+listener.on_post_window_command(closing, 'close_window', {})
+assert operations.is_current(operations.capture(closing)), 'cancelled native close must not permanently disable the window'
+
+# Unload revokes callback authority first and visits every independent adapter
+# even when completion and watch disposal have their own failures.
+scope = operations.capture(closing)
+with patch.object(plugin.completion_target, 'clear_all', side_effect=OSError('original completion disposal failure')), \
+        patch.object(plugin.watch, 'stop_all', side_effect=RuntimeError('independent watch disposal failure')), \
+        patch.object(plugin.tasks, 'clear_all') as clear_tasks, patch('builtins.print') as printed:
+    plugin.plugin_unloaded()
+    assert not operations.is_current(scope) and clear_tasks.call_count == 1
+    diagnostics = '\n'.join(value[0][0] for value in printed.call_args_list)
+    assert 'original completion disposal failure' in diagnostics and 'independent watch disposal failure' in diagnostics
 print('Sublime owned process/HTTP disposal, queued UI fencing and window/request isolation passed')

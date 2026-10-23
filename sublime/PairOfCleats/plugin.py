@@ -27,11 +27,24 @@ def plugin_loaded():
     config.prime_settings()
 
 
+def _dispose_phase(label, callback):
+    try:
+        return callback()
+    except Exception as error:
+        print('PairOfCleats {0} failed: {1}'.format(label, error))
+
+
+def _dispose_all(reason):
+    # Revoke publication before any adapter cancellation can invoke callbacks.
+    # Independent adapters still receive disposal if an earlier phase fails.
+    _dispose_phase('owned operation disposal', lambda: operations.shutdown(all_windows=True))
+    _dispose_phase('completion disposal', completion_target.clear_all)
+    _dispose_phase('watch disposal', lambda: watch.stop_all(reason=reason))
+    _dispose_phase('task display disposal', tasks.clear_all)
+
+
 def plugin_unloaded():
-    completion_target.clear_all()
-    watch.stop_all(reason='plugin_unload')
-    operations.shutdown(all_windows=True)
-    tasks.clear_all()
+    _dispose_all('plugin_unload')
 
 
 class PairOfCleatsWindowListener(sublime_plugin.EventListener):
@@ -40,9 +53,12 @@ class PairOfCleatsWindowListener(sublime_plugin.EventListener):
 
     def on_window_command(self, window, command_name, args):
         if command_name == 'close_window':
-            completion_target.clear_window(window)
-            watch.stop(window, reason='window_close')
-            operations.shutdown(window)
+            # The native close can be cancelled by its save prompt. Reap the
+            # old work and revoke its epoch without permanently disabling an
+            # otherwise live window if the user keeps it open.
+            _dispose_phase('window operation disposal', lambda: operations.shutdown(window, close_window=False))
+            _dispose_phase('window completion disposal', lambda: completion_target.clear_window(window))
+            _dispose_phase('window watch disposal', lambda: watch.stop(window, reason='window_close'))
 
     def on_post_window_command(self, window, command_name, args):
         if command_name == 'close_window':
@@ -57,7 +73,4 @@ class PairOfCleatsWindowListener(sublime_plugin.EventListener):
         operations.invalidate(window)
 
     def on_exit(self):
-        completion_target.clear_all()
-        watch.stop_all(reason='app_exit')
-        operations.shutdown(all_windows=True)
-        tasks.clear_all()
+        _dispose_all('app_exit')

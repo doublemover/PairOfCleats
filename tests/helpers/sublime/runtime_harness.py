@@ -42,6 +42,9 @@ class FakeSettings:
     def set(self, key, value):
         self._data[key] = value
 
+    def erase(self, key):
+        self._data.pop(key, None)
+
     def update(self, values):
         for key, value in (values or {}).items():
             self._data[key] = value

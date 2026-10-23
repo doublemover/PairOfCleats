@@ -1,5 +1,5 @@
 import os
-from . import operations
+from . import operations, ui
 
 SELECTED_REPO_KEY = 'pairofcleats_selected_repo'
 _SELECTED_REPOS = {}
@@ -9,15 +9,15 @@ def select_repo(window, root=None):
     """A window-local choice never changes project settings or starts indexing."""
     if not window:
         return
-    if root:
-        _SELECTED_REPOS[window.id()] = os.path.abspath(root)
-    else:
-        _SELECTED_REPOS.pop(window.id(), None)
     if hasattr(window, 'settings'):
         if root:
             window.settings().set(SELECTED_REPO_KEY, os.path.abspath(root))
         else:
             window.settings().erase(SELECTED_REPO_KEY)
+    if root:
+        _SELECTED_REPOS[window.id()] = os.path.abspath(root)
+    else:
+        _SELECTED_REPOS.pop(window.id(), None)
 
 
 def _normalize_config_path(value):
@@ -116,7 +116,11 @@ def resolve_repo_root_interactive(window, on_done, path_hint=None, allow_fallbac
                    for entry in current.get('repo_roots') or []):
             on_done(None, 'Selected repository is no longer available. Choose a current repository.')
             return
-        select_repo(window, chosen.get('root'))
+        try:
+            select_repo(window, chosen.get('root'))
+        except Exception as error:
+            ui.show_error('PairOfCleats: repository selection save failed: ' + str(error))
+            return
         on_done(chosen.get('root'), 'Using selected repo: {0}'.format(chosen.get('root')))
 
     window.show_quick_panel(items, on_select)

@@ -16,8 +16,9 @@ def register(window, handle, root):
     key = _window_key(window)
     previous = _WATCHERS.get(key)
     if previous and _is_handle_running(previous.get('handle')):
-        _cancel_handle(handle)
-        raise RuntimeError('Previous watch still owns process settlement. Inspect/stop it before starting another watch.')
+        error = _cancel_handle(handle)
+        raise RuntimeError('Previous watch still owns process settlement. Inspect/stop it before starting another watch.'
+                           + (' Rejected replacement cancellation failed: ' + str(error) if error else ''))
     token = _NEXT_TOKEN
     _NEXT_TOKEN += 1
     _WATCHERS[key] = {
@@ -46,7 +47,7 @@ def snapshot(window):
         parent_alive = False
     snapshot_entry['running'] = parent_alive
     snapshot_entry['settling'] = not parent_alive
-    snapshot_entry['cleanupUnconfirmed'] = bool(getattr(entry.get('handle'), '_cleanup_failures', None))
+    snapshot_entry['cleanupUnconfirmed'] = bool(entry.get('cancelError') or getattr(entry.get('handle'), '_cleanup_failures', None))
     return snapshot_entry
 
 
@@ -61,17 +62,24 @@ def stop(window, reason='user'):
         return False
     entry['stopping'] = True
     entry['stopReason'] = reason
-    _cancel_handle(entry.get('handle'))
-    return True
+    error = _cancel_handle(entry.get('handle'))
+    if error:
+        entry['cancelError'] = str(error)
+    return error is None
 
 
 def stop_all(reason='shutdown'):
+    confirmed = True
     for key, entry in list(_WATCHERS.items()):
         if not entry:
             continue
         entry['stopping'] = True
         entry['stopReason'] = reason
-        _cancel_handle(entry.get('handle'))
+        error = _cancel_handle(entry.get('handle'))
+        if error:
+            entry['cancelError'] = str(error)
+            confirmed = False
+    return confirmed
 
 
 def clear_if_done(window, token=None):
@@ -114,5 +122,7 @@ def _cancel_handle(handle):
     if handle:
         try:
             handle.cancel()
-        except Exception:
-            pass
+        except Exception as error:
+            print('PairOfCleats watch cancellation failed: ' + str(error))
+            return error
+    return None

@@ -180,7 +180,11 @@ def _run_index_watch_stop(window):
     if watch.stop(window, reason='user'):
         ui.show_status('PairOfCleats: watch stopping...')
     else:
-        ui.show_status('PairOfCleats: no watch to stop.')
+        retained = watch.snapshot(window)
+        if retained and retained.get('cancelError'):
+            ui.show_error('PairOfCleats: watch cancellation remains unconfirmed: ' + retained['cancelError'])
+        else:
+            ui.show_status('PairOfCleats: no watch to stop.')
 
 
 def _resolve_validated_index_repo(window):

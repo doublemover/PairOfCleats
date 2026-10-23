@@ -162,4 +162,22 @@ assert 'original spawn failure' in completed[0].error and 'spawn settlement fail
 assert not failed_handle.wait(0)
 failed_handle._cleanup_failures[:] = []
 operations.release(failed_handle)
+
+# Disposal snapshots its task membership: one cancellation exception or a
+# sibling that synchronously removes itself cannot skip the remaining tasks.
+operations.activate()
+disposal_window, disposal_other = FakeWindow(), FakeWindow()
+disposal_calls = []
+first_disposal = tasks.start_task(disposal_window, 'first disposal', show_panel=False)
+second_disposal = tasks.start_task(disposal_window, 'second disposal', show_panel=False)
+third_disposal = tasks.start_task(disposal_other, 'third disposal', show_panel=False)
+first_disposal['cancel'] = lambda: (_ for _ in ()).throw(OSError('original task disposal failure'))
+second_disposal['cancel'] = lambda: tasks.complete_task(disposal_window, second_disposal, status='cancelled')
+third_disposal['cancel'] = lambda: disposal_calls.append('third')
+tasks.clear_all()
+assert first_disposal['status'] == 'failed' and first_disposal['cleanupUnconfirmed']
+assert 'original task disposal failure' in first_disposal['details']
+assert second_disposal not in tasks.active_tasks(disposal_window) and disposal_calls == ['third']
+tasks._ACTIVE_TASKS.pop(disposal_window.id(), None)
+tasks._ACTIVE_TASKS.pop(disposal_other.id(), None)
 print('Sublime task rendering, exact cancellation and original settlement failures retain their owners')
