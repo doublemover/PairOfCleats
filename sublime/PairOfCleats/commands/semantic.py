@@ -273,28 +273,58 @@ def execute(window, operation, request, context, on_done, on_error=None):
         stream_output=False, timeout_ms=5000, on_done=done, operation_scope=scope, on_settled=cleanup)
 
 
-def open_source(window, state, record):
+def open_source(window, state, record, request_current=None):
+    context = state['context']
+    has_scope = 'scope' in context
+    scope = context.get('scope')
+    revoked = False
+    def current():
+        nonlocal revoked
+        if revoked:
+            return False
+        if has_scope and (not isinstance(scope, dict) or scope.get('window') is not window
+                          or not operations.is_current(scope)):
+            revoked = True
+            return False
+        try:
+            admitted = request_current is None or callable(request_current) and request_current() is True
+        except BaseException:
+            revoked = True
+            raise
+        if not admitted or has_scope and not operations.is_current(scope):
+            revoked = True
+            return False
+        return True
+    if not current():
+        return None
+    root = os.path.realpath(context['root'])
+    reference = record.get('ref')
+    span = record.get('span')
+    if (not isinstance(span, list) or len(span) != 2 or any(not isinstance(value, int) or isinstance(value, bool) for value in span)
+            or span[0] < 0 or span[1] < span[0]):
+        raise ValueError('Record has no exact source span.')
+    span = tuple(span)
     source = next((row for row in state['payload'].get('sourceRefs', [])
-                   if row.get('ref') == record.get('ref')), None)
+                   if row.get('ref') == reference), None)
     if not source or source.get('coordinateUnit') != 'utf16':
         raise ValueError('Exact opening requires a captured UTF-16 source mapping. Use Explain first; byte/generated mappings remain unavailable.')
     relative = source.get('path') or ''
     if (not relative or relative.startswith('/') or ':' in relative or '\\' in relative
             or any(part in ('.', '..') for part in relative.split('/'))):
         raise ValueError('Source is outside the selected repository.')
-    root = os.path.realpath(state['context']['root'])
+    source_hash = source.get('sourceHash')
     filename = os.path.realpath(os.path.join(root, relative))
-    verified = read_verified_source(root, filename, source.get('sourceHash'))
+    if not current():
+        return None
+    verified = read_verified_source(root, filename, source_hash)
     text = verified['sourceText']
-    span = record.get('span')
-    if (not isinstance(span, list) or len(span) != 2 or any(not isinstance(value, int) or isinstance(value, bool) for value in span)
-            or span[0] < 0 or span[1] < span[0]):
-        raise ValueError('Record has no exact source span.')
     start_line, start_col = utf16_source_position(text, span[0])
     end_line, end_col = utf16_source_position(text, span[1])
-    results.open_hit(window, {'file': relative, 'sourceHash': source['sourceHash'],
+    if not current():
+        return None
+    return results.open_hit(window, {'file': relative, 'sourceHash': source_hash,
         'startLine': start_line, 'startCol': start_col, 'endLine': end_line, 'endCol': end_col,
-        'coordinateUnit': 'utf16'}, root)
+        'coordinateUnit': 'utf16'}, root, request_current=current)
 
 
 def inspect(window, state, on_back=None):

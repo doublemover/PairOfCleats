@@ -162,11 +162,13 @@ def execute_qualified_navigation(view, query, kind, on_hits, limit, title, inclu
                     return
                 candidate = candidates[index]
                 from ..commands import semantic
-                state = {'context': {'root': repo_root}, 'payload': {'sourceRefs': [
+                state = {'context': {'root': repo_root, 'scope': scope}, 'payload': {'sourceRefs': [
                     dict(candidate, path=candidate.get('file'))]}}
                 try:
-                    semantic.open_source(window, state, {'ref': candidate.get('ref'), 'span': candidate.get('span')})
-                    ui.show_status('PairOfCleats: candidate evidence opened; binding remains ambiguous and references were not pooled.')
+                    opened = semantic.open_source(window, state,
+                        {'ref': candidate.get('ref'), 'span': candidate.get('span')}, request_current=source_current)
+                    if opened is not None and source_current():
+                        ui.show_status('PairOfCleats: candidate evidence opened; binding remains ambiguous and references were not pooled.')
                 except (ValueError, OSError, UnicodeError) as error:
                     ui.show_error(str(error))
             window.show_quick_panel([[candidate.get('targetId'), candidate.get('file') or 'external source',
