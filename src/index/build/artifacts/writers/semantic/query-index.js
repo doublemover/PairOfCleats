@@ -9,17 +9,27 @@ import { createJsonlBatchWriter } from '../../../../../shared/json-stream/jsonl-
 import { canonicalSemanticJson } from '../../../../semantic/identity.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import { compareQueryIndexRows, queryIndexKey } from '../../../../../semantic/query-index.js';
+import { createContainedFileResource } from '../../../../../shared/contained-file-resource.js';
+import { observeStorageResource } from '../../../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../../../shared/storage/operation-error.js';
 
 const members = ['semantic_operands', 'semantic_lookup', 'semantic_ownership', 'semantic_records', 'semantic_edges'];
 const withOwnedHandle = async (file, flags, run) => {
   const handle = await fs.open(file, flags);
-  let primary = null;
-  try { return await run(handle); }
-  catch (error) { primary = error; throw error; }
-  finally {
-    try { await handle.close(); }
-    catch (error) { if (primary) primary.cleanupError ||= error; else throw error; }
+  const owner = createContainedFileResource({ handle, sync: false });
+  return owner.run(() => {
+    const writeFile = handle.writeFile, sync = handle.sync;
+    if (typeof writeFile !== 'function' || typeof sync !== 'function') throw new TypeError('Query index descriptor lacks its original write/sync operations.');
+    return run(Object.freeze({ writeFile: (...args) => writeFile.call(handle, ...args), sync: () => sync.call(handle) }));
+  });
+};
+const failWriter = async (writer, primary) => {
+  const observation = observeStorageResource(primary, { phase: 'semantic-query-index-writer' });
+  try { await writer.destroy(primary); }
+  catch (secondary) {
+    throw addStorageFailureContext(observation.retain(), { cleanupError: secondary }, secondary, { secondaryPresent: true });
   }
+  throw observation.retain();
 };
 
 /** Publication-time physical index; canonical partition identities exclude this layout. */
@@ -113,8 +123,7 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
           }
           await writer.close();
         } catch (error) {
-          try { await writer.destroy(error); } catch (cleanupError) { error.cleanupError ||= cleanupError; }
-          throw error;
+          await failWriter(writer, error);
         }
         ownedRuns.set(target, targetBytes);
         next.push(target);
@@ -149,8 +158,7 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
           }
           await writer.close();
         } catch (error) {
-          try { await writer.destroy(error); } catch (cleanupError) { error.cleanupError ||= cleanupError; }
-          throw error;
+          await failWriter(writer, error);
         }
         await withOwnedHandle(file + offsetsSuffix, 'wx', async handle => { await handle.writeFile(offsets); await handle.sync(); });
         await withOwnedHandle(file, 'r+', handle => handle.sync());
@@ -182,16 +190,27 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
     observeWork();
     return validateIndex({ schemaVersion, generation, partitionHashes: inventory.map(({ partitionId, canonicalHash }) => ({ partitionId, canonicalHash })), pieces, rowCount });
   } catch (error) {
+    const observation = observeStorageResource(error, { phase: 'semantic-query-index-retirement' });
+    const retained = { semanticQueryIndexDirectory: directory,
+      semanticQueryIndexReservedBytes: workingReserved + finalReserved };
+    const requireRetirement = () => {
+      try { observation.requireSettled(); }
+      catch (pending) { throw addStorageFailureContext(pending, retained); }
+    };
+    requireRetirement();
+    const failure = observation.retain();
+    requireRetirement();
     // The directory is a verified child created here, never a live generation root.
     try {
       await fs.rm(directory, { recursive: true, force: true });
+      requireRetirement();
       diskAccount.release(workingReserved + finalReserved);
       workingReserved = 0; finalReserved = 0; ownedRuns.clear(); observeWork();
     } catch (cleanupError) {
       // A failed deletion leaves recoverable physical bytes and their credits.
       // Preserve the original quota/IO/cancellation error as the primary cause.
-      error.cleanupError ||= cleanupError;
+      throw addStorageFailureContext(failure, { ...retained, cleanupError }, cleanupError, { secondaryPresent: true });
     }
-    throw error;
+    throw failure;
   }
 };
