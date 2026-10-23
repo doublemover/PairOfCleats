@@ -322,6 +322,21 @@ full cleanup-category capability or deep-suite green is claimed.
   typeNormalization 8 to 9. #1709 API handoff and #1678 broader positional consumer
   repairs remain pending. See [the authority contract](../contracts/callable-parameter-authority.md).
 
+- #1709: symbols now retain a fixed-size source parameter summary independent
+  of signature/name/language display trimming, and API reports consume it before
+  any legacy interpretation. Canonical shape and semantic counts/ranges/language
+  admission reject contradictory authority. A present unavailable summary cannot
+  fall back to text. The bounded language/schema-keyed legacy JS/TS subset now
+  distinguishes type arrows, explicit receivers, real defaults and required
+  trailing positions; unsupported input remains observable incomplete validation.
+  Report 1.1.0 adds typed parameter qualification; RecordsProducer 3 to 4 changes
+  publication identity. Real compiler/Babel writer/reload/report, independent TS
+  diagnostic, trim, legacy/corruption and actual-index CLI cases are authored,
+  unrun. The old optional fixture's TypeScript question-mark syntax now has
+  explicit TypeScript language instead of a JS filename; values/assertions remain.
+  #1678 actual-argument/type/risk/timer-spread work remains pending. See
+  [the handoff contract](../contracts/api-callable-parameter-handoff.md).
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -515,7 +530,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1706](https://github.com/doublemover/PairOfCleats/issues/1706) | [P2] Reject skipped architecture rules before reporting a complete clean evaluation | Source repair committed; runtime proof pending |
 | [#1707](https://github.com/doublemover/PairOfCleats/issues/1707) | [Enhancement] Preserve source and policy witnesses in actionable architecture reports | Pending full-scope review |
 | [#1708](https://github.com/doublemover/PairOfCleats/issues/1708) | [Perf] Reuse architecture policy matches and avoid preparing capped adjacency tails | Pending full-scope review |
-| [#1709](https://github.com/doublemover/PairOfCleats/issues/1709) | [P2] Qualify API parameter requirements instead of interpreting TypeScript type syntax as runtime arity | Pending full-scope review |
+| [#1709](https://github.com/doublemover/PairOfCleats/issues/1709) | [P2] Qualify API parameter requirements instead of interpreting TypeScript type syntax as runtime arity | Source repair committed; runtime proof pending |
 | [#1710](https://github.com/doublemover/PairOfCleats/issues/1710) | [Perf] Prepare embedded-cache parents once and reuse qualified child opens across relocation | Pending full-scope review |
 | [#1711](https://github.com/doublemover/PairOfCleats/issues/1711) | [P2] Reconcile chunk-seeded import projection with graph-witness endpoint domains | Pending full-scope review |
 | [#1712](https://github.com/doublemover/PairOfCleats/issues/1712) | [P2] Collect CSS imports from tokens instead of comment/string substrings and truncated URLs | Source repair committed; runtime proof pending |

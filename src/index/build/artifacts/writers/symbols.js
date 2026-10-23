@@ -12,6 +12,7 @@ import {
 } from '../helpers.js';
 import { buildTrimMetadata, TRIM_REASONS } from '../trim-policy.js';
 import { createPreparedJsonlRows } from '../../../../shared/json-stream/prepared-row.js';
+import { summarizeCallableParameters } from '../../../../contracts/callable-parameters.js';
 import {
   buildJsonlVariantPaths,
   buildShardedPartEntries,
@@ -53,8 +54,8 @@ const maybeTrimRow = (row, preparedRows) => {
     trimmed.lang = null;
     trimReasons.push(TRIM_REASONS.symbolsClearLang);
   }
-  if (trimmed.extensions) {
-    delete trimmed.extensions;
+  if (trimmed.extensions && Object.keys(trimmed.extensions).some(key => key !== 'callableParameters')) {
+    trimmed.extensions = trimmed.extensions.callableParameters ? { callableParameters: trimmed.extensions.callableParameters } : undefined;
     trimReasons.push(TRIM_REASONS.symbolsDropExtensions);
   }
   const compacted = prepare(trimmed);
@@ -102,6 +103,7 @@ const buildSymbolRow = (chunk, stats, preparedRows) => {
     exported: typeof chunk.docmeta?.exported === 'boolean' ? chunk.docmeta.exported : null,
     exportNames: Array.isArray(chunk.docmeta?.exportNames) ? [...chunk.docmeta.exportNames] : []
   };
+  if (chunk.docmeta?.callableParameters) row.extensions = { callableParameters: summarizeCallableParameters(chunk.docmeta.callableParameters) };
   const trimmedResult = maybeTrimRow(row, preparedRows);
   if (!trimmedResult.row) {
     recordTrimStats(stats, { dropped: true, trimReasons: trimmedResult.trimReasons });

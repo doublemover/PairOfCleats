@@ -1,3 +1,5 @@
+import { API_CONTRACT_REPORT_VERSION } from '../../contracts/schemas/api-contracts.js';
+import { CALLABLE_PARAMETERS_VERSION, isQualifiedCallableSummary, unavailableCallableParameters } from '../../contracts/callable-parameters.js';
 import path from 'node:path';
 import { createCli } from '../../shared/cli.js';
 import { isDirectExecution } from '../../shared/direct-execution.js';
@@ -126,11 +128,15 @@ const signatureArityCache = new Map();
  * @param {string} signature
  * @returns {{requiredCount:number,maxCount:number|null,variadic:boolean}|null}
  */
-const parseSignatureArity = (signature) => {
+const parseSignatureArity = (signature, language) => {
   if (!signature || typeof signature !== 'string') return null;
   const text = String(signature);
+  if (text.length > 4096 || /[\u2026]|\/\*|\/\//u.test(text)) return null;
   const start = text.indexOf('(');
   if (start === -1) return null;
+  const prefix = text.slice(0, start).trim();
+  if (!/^(?:(?:export|default|declare|public|private|protected|static|async|abstract|override)\s+)*(?:function\s*\*?\s*)?(?:[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)?$/u.test(prefix)) return null;
+  if (language === 'javascript' && /\b(?:declare|public|private|protected|abstract|override)\b/u.test(prefix)) return null;
   let depth = 0;
   let inSingle = false;
   let inDouble = false;
@@ -189,11 +195,13 @@ const parseSignatureArity = (signature) => {
     return {
       requiredCount: 0,
       maxCount: 0,
+      formalSlotCount: 0, runtimeSlotCount: 0,
       variadic: false
     };
   }
 
   const params = [];
+  const delimiters = [];
   let current = '';
   depth = 0;
   inSingle = false;
@@ -244,11 +252,13 @@ const parseSignatureArity = (signature) => {
       continue;
     }
     if (ch === '(' || ch === '[' || ch === '{') {
+      delimiters.push(ch === '(' ? ')' : ch === '[' ? ']' : '}');
       depth += 1;
       current += ch;
       continue;
     }
     if (ch === ')' || ch === ']' || ch === '}') {
+      if (delimiters.pop() !== ch) return null;
       depth = Math.max(0, depth - 1);
       current += ch;
       continue;
@@ -265,14 +275,17 @@ const parseSignatureArity = (signature) => {
     }
     if (ch === ',' && depth === 0 && angleDepth === 0) {
       const trimmed = current.trim();
-      if (trimmed) params.push(trimmed);
+      if (!trimmed) return null;
+      params.push(trimmed);
       current = '';
       continue;
     }
     current += ch;
   }
+  if (depth || angleDepth || inSingle || inDouble || inBacktick || params.length > 256) return null;
   const final = current.trim();
   if (final) params.push(final);
+  if (params.length > 256 || delimiters.length) return null;
 
   const isTopLevelTokenMatch = (value, predicate) => {
     let level = 0;
@@ -315,46 +328,51 @@ const parseSignatureArity = (signature) => {
     return false;
   };
 
-  let requiredCount = 0;
-  let optionalCount = 0;
-  let variadic = false;
-
-  for (const param of params) {
-    const trimmed = param.trim();
-    if (!trimmed) continue;
-    if (trimmed === '*') continue;
-    if (trimmed.startsWith('...') || trimmed.startsWith('*')) {
-      variadic = true;
+  let requiredCount = 0, runtimeSlotCount = 0, variadic = false;
+  for (let index = 0; index < params.length; index++) {
+    const trimmed = params[index].trim();
+    if (/^this\s*:/u.test(trimmed)) {
+      if (language !== 'typescript' || index !== 0) return null;
       continue;
     }
-    const hasDefault = isTopLevelTokenMatch(trimmed, (ch) => ch === '=');
-    const hasOptionalMark = isTopLevelTokenMatch(trimmed, (ch, idx, value) => {
-      if (ch !== '?') return false;
-      const rest = value.slice(idx + 1);
-      return !rest || rest.startsWith(':') || rest.startsWith(' =') || rest.startsWith('=');
-    });
-    if (hasDefault || hasOptionalMark) {
-      optionalCount += 1;
-    } else {
-      requiredCount += 1;
+    if (!/^(?:\.\.\.)?(?:[A-Za-z_$]|[\[{])/u.test(trimmed) || /\bextends\b/u.test(trimmed)) return null;
+    if (language === 'javascript' && isTopLevelTokenMatch(trimmed, ch => ch === ':' || ch === '?')) return null;
+    const position = runtimeSlotCount++;
+    if (trimmed.startsWith('...')) {
+      if (index !== params.length - 1) return null;
+      variadic = true; continue;
     }
+    const hasDefault = isTopLevelTokenMatch(trimmed, (ch, index, value) => ch === '='
+      && value[index + 1] !== '>' && value[index + 1] !== '=' && !/[=!<>]/u.test(value[index - 1] || ''));
+    const hasOptionalMark = isTopLevelTokenMatch(trimmed, (ch, index, value) => ch === '?' && /^\s*(?::|=|$)/u.test(value.slice(index + 1)));
+    if (!hasDefault && !hasOptionalMark) requiredCount = position + 1;
   }
-
-  const maxCount = variadic ? null : requiredCount + optionalCount;
-  return {
-    requiredCount,
-    maxCount,
-    variadic
-  };
+  return { requiredCount, maxCount: variadic ? null : runtimeSlotCount, variadic, formalSlotCount: params.length, runtimeSlotCount };
 };
 
-const resolveSignatureArity = (signature) => {
-  if (!signature) return null;
-  const key = String(signature);
-  if (signatureArityCache.has(key)) return signatureArityCache.get(key);
-  const parsed = parseSignatureArity(key);
-  signatureArityCache.set(key, parsed);
-  return parsed;
+const resolveSignatureArity = symbol => {
+  const declared = typeof symbol.lang === 'string' && symbol.lang ? symbol.lang.toLowerCase() : null;
+  const language = declared ? ['typescript', 'ts', 'tsx'].includes(declared) ? 'typescript'
+    : ['javascript', 'js', 'jsx'].includes(declared) ? 'javascript' : null
+    : /\.(?:[cm]?ts|tsx)$/iu.test(symbol.file || '') ? 'typescript'
+      : /\.(?:[cm]?js|jsx)$/iu.test(symbol.file || '') ? 'javascript' : null;
+  if (Object.hasOwn(symbol.extensions || {}, 'callableParameters')) {
+    const summary = symbol.extensions.callableParameters;
+    if (language && summary?.language !== language || declared && !language) return unavailableCallableParameters('parameter-language-mismatch', language);
+    return isQualifiedCallableSummary(summary) ? structuredClone(summary) : unavailableCallableParameters(summary?.reason || 'parameter-summary-invalid', language, summary?.parser || null);
+  }
+  if (!language || typeof symbol.signature !== 'string' || symbol.signature.length > 4096) return unavailableCallableParameters('legacy-language-or-signature-unavailable', language);
+  const key = JSON.stringify(['legacy-parameter-subset-v2', language, symbol.signature]);
+  if (signatureArityCache.has(key)) return structuredClone(signatureArityCache.get(key));
+  const parsed = parseSignatureArity(symbol.signature, language);
+  const summary = parsed ? { schemaVersion: CALLABLE_PARAMETERS_VERSION, projection: 'arity-summary', language, parser: null,
+    source: 'legacy-signature-subset', state: 'partial', reason: 'bounded-legacy-parameter-subset',
+    formalSlotCount: parsed.formalSlotCount, runtimeSlotCount: parsed.runtimeSlotCount, declarationRange: null, signatureRange: null,
+    arity: { state: 'complete', min: parsed.requiredCount, max: parsed.maxCount, variadic: parsed.variadic } }
+    : unavailableCallableParameters('legacy-signature-unsupported', language);
+  if (signatureArityCache.size >= 4096) signatureArityCache.delete(signatureArityCache.keys().next().value);
+  signatureArityCache.set(key, summary);
+  return structuredClone(summary);
 };
 
 /**
@@ -447,11 +465,11 @@ export const buildApiContractsReport = ({
       observedCalls = observedCalls.slice(0, maxCallsPerSymbol);
     }
 
-    const signatureInfo = resolveSignatureArity(symbol.signature);
+    const signatureInfo = resolveSignatureArity(symbol);
     const entryWarnings = [];
-    if (signatureInfo) {
-      const requiredCount = Number.isFinite(signatureInfo.requiredCount) ? signatureInfo.requiredCount : null;
-      const maxCount = Number.isFinite(signatureInfo.maxCount) ? signatureInfo.maxCount : null;
+    if (isQualifiedCallableSummary(signatureInfo)) {
+      const requiredCount = signatureInfo.arity.min;
+      const maxCount = signatureInfo.arity.max;
       for (const call of observedCalls) {
         const arity = Array.isArray(call.args) ? call.args.length : null;
         const belowRequired = requiredCount != null && arity != null && arity < requiredCount;
@@ -462,7 +480,7 @@ export const buildApiContractsReport = ({
             expected = requiredCount === maxCount
               ? `Expected ${requiredCount}.`
               : `Expected ${requiredCount}-${maxCount}.`;
-          } else if (requiredCount != null && maxCount == null && signatureInfo.variadic) {
+          } else if (requiredCount != null && maxCount == null && signatureInfo.arity.variadic) {
             expected = `Expected ${requiredCount}+ (variadic).`;
           } else if (requiredCount != null) {
             expected = `Expected >= ${requiredCount}.`;
@@ -480,6 +498,12 @@ export const buildApiContractsReport = ({
       }
     }
 
+    if (!isQualifiedCallableSummary(signatureInfo) && observedCalls.length) {
+      const warning = { code: 'CALLABLE_PARAMETER_AUTHORITY_UNAVAILABLE',
+        message: 'Callable parameter authority is unavailable; exact argument-count validation is incomplete.',
+        data: { symbolId, reason: signatureInfo.reason, indexSignature: reportProvenance.indexSignature || null } };
+      if (warn(warning)) entryWarnings.push(warning);
+    }
     return {
       symbol: {
         symbolId: symbolId || 'unknown',
@@ -490,7 +514,8 @@ export const buildApiContractsReport = ({
       },
       signature: {
         declared: symbol.signature || null,
-        tooling: null
+        tooling: null,
+        parameters: signatureInfo
       },
       observedCalls: observedCalls.map((call) => ({
         arity: Array.isArray(call.args) ? call.args.length : null,
@@ -529,7 +554,7 @@ export const buildApiContractsReport = ({
   }
 
   const report = {
-    version: '1.0.0',
+    version: API_CONTRACT_REPORT_VERSION,
     provenance: reportProvenance,
     options: {
       onlyExports,

@@ -6,7 +6,7 @@ const symbols = [
   {
     symbolId: 'sym-optional',
     chunkUid: 'chunk-optional',
-    file: 'src/example.js',
+    file: 'src/example.ts', lang: 'typescript',
     name: 'doThing',
     kind: 'Function',
     signature: 'doThing(a, b=1, c?)'
@@ -14,7 +14,7 @@ const symbols = [
   {
     symbolId: 'sym-rest',
     chunkUid: 'chunk-rest',
-    file: 'src/example.js',
+    file: 'src/example.ts', lang: 'typescript',
     name: 'log',
     kind: 'Function',
     signature: 'log(a, ...rest)'

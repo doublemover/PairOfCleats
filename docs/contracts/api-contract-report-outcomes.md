@@ -8,8 +8,9 @@ existing atomic writer, then emits the requested report once and rethrows the
 original policy exception. Fail-on-warning still exits 2, including zero-detail
 caps. Successful reports still exit 0.
 
-JSON stdout contains the existing schema-valid report, without added prose or a
-new envelope/version. The concise policy summary remains on stderr. Markdown
+JSON stdout contains the schema-valid report, without added prose or an
+outcome envelope. The subsequent [parameter handoff](api-callable-parameter-handoff.md)
+advances the report to 1.1.0 for its explicit formal-parameter qualification. The concise policy summary remains on stderr. Markdown
 uses the same report renderer on success or policy failure. `--emitArtifact`
 writes the same `api_contracts.jsonl` symbol rows for either analyzed outcome.
 Load, schema, internal and artifact-write failures remain ordinary exit-1

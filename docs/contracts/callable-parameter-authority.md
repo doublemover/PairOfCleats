@@ -39,6 +39,7 @@ enrichment and JSON payload boundaries, with exact callback/object/function
 annotations, decorator changes, receiver/default/optional/pattern slots,
 constructors, overload identity, same-line neighbors, known-empty fields,
 recovery qualification and 300-slot counts. Existing structural operand tests
-remain. API symbol-row/report consumption (#1709) and qualified actual/formal
-argument/type/risk handoffs (#1678) remain separate pending implementation;
-this producer receipt alone does not close those consumer defects.
+remain. API symbol-row/report consumption (#1709) now uses the
+[compact arity handoff](api-callable-parameter-handoff.md). Qualified actual/formal
+argument/type/risk handoffs (#1678) remain pending; this producer receipt alone
+does not close those consumer defects.

@@ -48,6 +48,9 @@ export const renderApiContracts = (report) => {
     if (signature) {
       lines.push(`  signature: ${displayApiValue(signature)}`);
     }
+    const parameters = entry.signature?.parameters;
+    if (parameters) lines.push(`  parameters: ${displayApiValue(parameters.source)}; ${displayApiValue(parameters.state)}; `
+      + `${displayApiValue(parameters.language)}; ${displayApiValue(parameters.reason)}`);
     const calls = Array.isArray(entry.observedCalls) ? entry.observedCalls : [];
     if (calls.length) {
       lines.push(`  calls: ${calls.length}`);

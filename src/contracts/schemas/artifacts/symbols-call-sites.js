@@ -1,4 +1,5 @@
 import { CALL_SITE_SEMANTIC_REF_SCHEMA } from '../call-site-semantic-ref.js';
+import { CALLABLE_PARAMETER_SUMMARY_SCHEMA } from '../../callable-parameters.js';
 
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
@@ -94,7 +95,7 @@ const symbolRecord = {
     signature: nullableString,
     exported: { type: ['boolean', 'null'] },
     exportNames: { type: 'array', items: { type: 'string' }, uniqueItems: true },
-    extensions: { type: 'object' }
+    extensions: { type: 'object', properties: { callableParameters: CALLABLE_PARAMETER_SUMMARY_SCHEMA }, additionalProperties: true }
   },
   additionalProperties: true
 };
