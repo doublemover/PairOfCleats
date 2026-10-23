@@ -52,7 +52,10 @@ export const parseRawWorkspaceBuildArgs = (rawArgs) => {
 
   for (let i = 0; i < rawArgs.length; i += 1) {
     const arg = rawArgs[i];
-    if (arg === '--') { buildArgs.push(...rawArgs.slice(i)); break; }
+    if (arg === '--') {
+      if (i + 1 < rawArgs.length) throw new Error('workspace build accepts build flags only; positional arguments after -- are unsupported.');
+      break;
+    }
     const workspaceValue = readValue(arg, i, 'workspace');
     if (workspaceValue) {
       workspacePath = workspaceValue.value;
@@ -123,16 +126,19 @@ const printWorkspaceBuildHelp = () => {
   console.error('  -h, --help                Show this help');
 };
 
-export const runRepoBuild = async ({ repo, buildArgs }, { spawn = spawnSubprocess, resolveEnv = resolveWorkspaceChildRuntimeEnv } = {}) => {
+export const runRepoBuild = async ({ repo, buildArgs, signal: abortSignal = null, baseEnv = process.env }, { spawn = spawnSubprocess, resolveEnv = resolveWorkspaceChildRuntimeEnv } = {}) => {
   const startedAt = Date.now();
   try {
-    const env = await resolveEnv({ repoRoot: repo.repoRootCanonical, buildArgs, baseEnv: process.env });
+    abortSignal?.throwIfAborted();
+    const env = await resolveEnv({ repoRoot: repo.repoRootCanonical, buildArgs, baseEnv: { ...baseEnv } });
+    abortSignal?.throwIfAborted();
     const result = await spawn(
       process.execPath,
       [BUILD_INDEX_SCRIPT, ...buildArgs, '--repo', repo.repoRootCanonical],
       {
         cwd: repo.repoRootCanonical,
         env,
+        signal: abortSignal,
         stdio: ['ignore', 'ignore', 'pipe'],
         captureStdout: false,
         captureStderr: true,
@@ -157,6 +163,9 @@ export const runRepoBuild = async ({ repo, buildArgs }, { spawn = spawnSubproces
         : (stderr || (signal ? `build_index exited via signal ${signal}` : `build_index exited with code ${result.exitCode}`))
     };
   } catch (err) {
+    // Unknown child teardown still belongs to the actual subprocess owner.
+    // Do not turn it into a settled failure that permits another acquisition.
+    if (err?.cacheOwnershipPending) throw err;
     const result = err?.result && typeof err.result === 'object' ? err.result : {};
     const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
     const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
@@ -179,11 +188,16 @@ export const runRepoBuild = async ({ repo, buildArgs }, { spawn = spawnSubproces
 };
 
 export const runWorkspaceBuildReport = async (workspaceConfig, {
-  buildArgs,
-  includeDisabled,
-  concurrency,
-  strict
-}, { runBuild = runRepoBuild } = {}) => {
+  buildArgs = [],
+  includeDisabled = false,
+  concurrency = WORKSPACE_BUILD_OPTIONS.concurrency.default,
+  strict = false,
+  signal = null,
+  baseEnv = process.env
+} = {}, { runBuild = runRepoBuild } = {}) => {
+  concurrency = resolveWorkspaceBuildConcurrency(concurrency);
+  const invocationEnv = { ...baseEnv };
+  const invocationArgs = [...buildArgs];
   // Retain this invocation's target inventory before any build callback awaits.
   const configured = workspaceConfig.repos.map(repo => ({ ...repo }));
   const targets = configured
@@ -197,18 +211,20 @@ export const runWorkspaceBuildReport = async (workspaceConfig, {
   const results = new Array(targets.length);
   let cursor = 0;
   let stopScheduling = false;
+  let pendingOwnerError = null;
   const worker = async () => {
     while (true) {
-      if (strict && stopScheduling) return;
+      if (signal?.aborted || pendingOwnerError || (strict && stopScheduling)) return;
       const next = cursor;
       if (next >= targets.length) return;
       cursor += 1;
       const repo = targets[next];
       let result;
-      try { result = await runBuild({ repo, buildArgs }); }
+      try { result = await runBuild({ repo, buildArgs: [...invocationArgs], signal, baseEnv: { ...invocationEnv } }); }
       catch (error) {
+        if (error?.cacheOwnershipPending && !pendingOwnerError) pendingOwnerError = error;
         result = { repoId: repo.repoId, repoRootCanonical: repo.repoRootCanonical, exitCode: null,
-          signal: null, durationMs: 0, status: 'failed', error: error?.message || String(error) };
+          signal: null, durationMs: 0, status: error?.cacheOwnershipPending ? 'settlement-pending' : 'failed', error: error?.message || String(error) };
       }
       if (!result || typeof result !== 'object') {
         result = { exitCode: null, signal: null, durationMs: 0, status: 'failed', error: 'Repository build returned no outcome.' };
@@ -224,15 +240,22 @@ export const runWorkspaceBuildReport = async (workspaceConfig, {
   await Promise.all(workers);
   const entries = results.filter(Boolean);
   const skipped = identities.filter((_repo, index) => !results[index])
-    .map(repo => ({ ...repo, status: 'skipped', reason: 'strict-failure' }));
+    .map(repo => ({ ...repo, status: 'skipped', reason: pendingOwnerError ? 'settlement-pending' : signal?.aborted ? 'cancelled' : 'strict-failure' }));
   const failed = entries.filter(entry => entry.status !== 'passed').length;
-  return {
+  const report = {
     total: entries.length, failed, entries,
     configured: configured.length, selected: targets.length, attempted: entries.length,
-    passed: entries.length - failed, skippedAfterFailure: skipped.length,
+    passed: entries.length - failed, skippedAfterFailure: skipped.filter(entry => entry.reason === 'strict-failure').length,
+    skippedCancelled: skipped.filter(entry => entry.reason === 'cancelled').length,
+    skippedSettlementPending: skipped.filter(entry => entry.reason === 'settlement-pending').length,
     excludedDisabled: excluded.length, skipped, excluded,
-    outcome: targets.length === 0 ? 'no-work' : failed ? 'failed' : 'passed'
+    outcome: targets.length === 0 ? 'no-work' : pendingOwnerError ? 'settlement-pending' : signal?.aborted ? 'cancelled' : failed ? 'failed' : 'passed'
   };
+  if (pendingOwnerError) {
+    pendingOwnerError.workspaceBuildDiagnostics = report;
+    throw pendingOwnerError;
+  }
+  return report;
 };
 
 /** Compatibility owner: existing callers receive attempted build entries only. */
@@ -245,24 +268,46 @@ export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2)) {
   }
   const options = parseRawWorkspaceBuildArgs(rawArgs);
   const workspaceConfig = loadWorkspaceConfig(options.workspacePath);
-  const diagnostics = await runWorkspaceBuildReport(workspaceConfig, options);
+  const cancellation = new AbortController();
+  let cancellationExitCode = null;
+  const onInterrupt = () => { cancellationExitCode = 130; cancellation.abort(new Error('Workspace build interrupted.')); };
+  const onTerminate = () => { cancellationExitCode = 143; cancellation.abort(new Error('Workspace build terminated.')); };
+  process.once('SIGINT', onInterrupt);
+  process.once('SIGTERM', onTerminate);
+  let diagnostics;
+  try { diagnostics = await runWorkspaceBuildReport(workspaceConfig, { ...options, signal: cancellation.signal }); }
+  catch (error) {
+    if (!error?.cacheOwnershipPending) throw error;
+    const payload = { ok: false, state: 'settlement-pending', workspacePath: workspaceConfig.workspacePath,
+      manifestRefresh: 'not-performed-settlement-pending', diagnostics: error.workspaceBuildDiagnostics,
+      nextAction: 'The actual subprocess owner still has unresolved teardown. Do not replay this build until it settles.' };
+    if (options.json) console.log(JSON.stringify(payload, null, 2));
+    else console.error(JSON.stringify(payload, null, 2));
+    process.exitCode = cancellationExitCode || 1;
+    return;
+  }
+  finally {
+    process.removeListener('SIGINT', onInterrupt);
+    process.removeListener('SIGTERM', onTerminate);
+  }
   const buildDiagnostics = diagnostics.entries;
   const failed = buildDiagnostics.filter((entry) => entry.status !== 'passed');
-  const manifestResult = await generateWorkspaceManifest(workspaceConfig, { write: true });
+  const manifestResult = diagnostics.outcome === 'cancelled' ? null : await generateWorkspaceManifest(workspaceConfig, { write: true });
 
   const payload = {
-    ok: failed.length === 0,
+    ok: failed.length === 0 && diagnostics.outcome !== 'cancelled',
     workspacePath: workspaceConfig.workspacePath,
-    manifestPath: manifestResult.manifestPath,
-    repoSetId: manifestResult.manifest.repoSetId,
-    manifestHash: manifestResult.manifest.manifestHash,
+    manifestPath: manifestResult?.manifestPath || null,
+    repoSetId: workspaceConfig.repoSetId,
+    manifestHash: manifestResult?.manifest.manifestHash || null,
+    manifestRefresh: manifestResult ? 'completed' : 'not-performed-cancelled',
     diagnostics
   };
 
   if (options.json) {
     console.log(JSON.stringify(payload, null, 2));
   } else {
-    console.error('Workspace build complete');
+    console.error(`Workspace build ${diagnostics.outcome}`);
     console.error(`- workspace: ${payload.workspacePath}`);
     console.error(`- repos built: ${payload.diagnostics.total}`);
     console.error(`- repos selected: ${diagnostics.selected}; skipped after failure: ${diagnostics.skippedAfterFailure}; disabled: ${diagnostics.excludedDisabled}`);
@@ -282,6 +327,7 @@ export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2)) {
     for (const entry of diagnostics.skipped) console.error(`  - ${entry.repoId}: skipped (${entry.reason})`);
   }
 
+  if (cancellationExitCode) { process.exitCode = cancellationExitCode; return; }
   if (failed.length > 0) {
     const firstSignal = failed.find((entry) => typeof entry?.signal === 'string' && entry.signal.trim().length > 0)?.signal || null;
     if (firstSignal) {
