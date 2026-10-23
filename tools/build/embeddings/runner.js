@@ -3949,7 +3949,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         // before admitting the manifest/ready state; cleanup failure stays failed.
         await modeVectorSpool.close();
         const validation = await publishEmbeddingGeneration({
-          statePath, indexState,
+          statePath, indexState, signal: config.signal,
           publishManifest: async () => {
             try {
               await scheduleIo(() => updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims,

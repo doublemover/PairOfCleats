@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { updatePieceManifest } from '../../../tools/build/embeddings/manifest.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -129,6 +130,17 @@ assert.ok(JSON.parse(await fs.readFile(manifestPath, 'utf8')).pieces.some(piece 
 await fs.rm(`${manifestPath}.bak`, { force: true });
 await fs.writeFile(manifestPath, '{truncated');
 await assert.rejects(updatePieceManifest({ indexDir, mode: 'code', totalChunks: 1, dims: 4 }), /valid existing manifest/);
+
+await fs.writeFile(manifestPath, stableBytes);
+const originalReadFileSync = fsSync.readFileSync;
+try {
+  fsSync.readFileSync = function (filename, ...args) {
+    if (String(filename) === manifestPath) throw Object.assign(new Error('injected manifest access denial'), { code: 'EACCES' });
+    return originalReadFileSync.call(this, filename, ...args);
+  };
+  await assert.rejects(updatePieceManifest({ indexDir, mode: 'code', totalChunks: 1, dims: 4 }), /valid existing manifest/);
+} finally { fsSync.readFileSync = originalReadFileSync; }
+assert.equal(await fs.readFile(manifestPath, 'utf8'), stableBytes, 'unreadable existing authority is never treated as a new manifest');
 assert.equal(await fs.readFile(manifestPath, 'utf8'), '{truncated', 'failed recovery cannot replace the prior manifest');
 await fs.writeFile(manifestPath, JSON.stringify({ pieces: [] }));
 await assert.rejects(updatePieceManifest({ indexDir, mode: 'code', totalChunks: 1, dims: 4 }), /valid existing manifest/);

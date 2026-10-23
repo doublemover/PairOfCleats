@@ -54,5 +54,17 @@ try {
       assert.equal(statePiece.checksum, `${checksum.algo}:${checksum.value}`);
     }
   }
+  for (const abortAt of ['manifest', 'validation', 'receipt']) {
+    const controller = new AbortController();
+    const abort = phase => { if (abortAt === phase) controller.abort(); };
+    const indexState = { embeddings: { ready: true, pending: false } };
+    await assert.rejects(publishEmbeddingGeneration({ statePath, indexState, signal: controller.signal,
+      publishManifest: async () => { abort('manifest'); },
+      validate: async () => { abort('validation'); return { ok: true }; },
+      commitReceipt: async () => { abort('receipt'); }
+    }), error => error.name === 'AbortError' || error.code === 'ABORT_ERR');
+    assert.equal((await persisted()).embeddings.ready, false);
+    assert.equal((await persisted()).embeddings.pending, true);
+  }
 } finally { await fs.rm(dir, { recursive: true, force: true }); }
 console.log('Embedding publication stays pending through manifest, validation and receipt fault boundaries.');

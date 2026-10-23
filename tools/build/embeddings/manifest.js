@@ -42,10 +42,9 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims, b
   const hnswStats = loadMeta('dense_vectors_hnsw.meta.json', { count: totalChunks, dims });
   const hnswDocStats = loadMeta('dense_vectors_doc_hnsw.meta.json', { count: totalChunks, dims });
   const hnswCodeStats = loadMeta('dense_vectors_code_hnsw.meta.json', { count: totalChunks, dims });
-  const manifestExists = fsSync.existsSync(manifestPath) || fsSync.existsSync(`${manifestPath}.bak`);
   let existing = null;
-  if (manifestExists) {
-    let loadError;
+  {
+    let loadError = null;
     for (const sourcePath of [manifestPath, manifestBakPath]) {
       try {
         // Validate each candidate before trusting it or cleaning up recovery
@@ -58,10 +57,11 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims, b
         existing = candidate;
         break;
       } catch (error) {
-        loadError = error;
+        if (error.cacheOwnershipPending || error instanceof AggregateError) throw error;
+        if (error.code !== 'ENOENT') loadError ||= error;
       }
     }
-    if (!existing) throw new Error(`Cannot refresh embedding pieces without a valid existing manifest: ${loadError.message}`, { cause: loadError });
+    if (!existing && loadError) throw new Error(`Cannot refresh embedding pieces without a valid existing manifest: ${loadError.message}`, { cause: loadError });
   }
   if (!existing || typeof existing !== 'object') {
     existing = {
