@@ -305,7 +305,9 @@ export const createGraphStore = ({
   if (!indexDir) {
     throw new Error('GraphStore requires indexDir');
   }
-  const resolvedManifest = manifest || loadPiecesManifest(indexDir, { maxBytes, strict });
+  // Cache identity and every later artifact lookup share this owned inventory.
+  // A caller cannot redirect in-flight reads after admission has been hashed.
+  const resolvedManifest = structuredClone(manifest || loadPiecesManifest(indexDir, { maxBytes, strict }));
   const admissionScope = buildLocalCacheKey({ namespace: 'graph-store-admission', payload: {
     indexDir, strict, maxBytes, manifest: resolvedManifest
   } }).key;
