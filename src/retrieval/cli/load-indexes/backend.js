@@ -4,6 +4,7 @@ import { pathExists } from '../../../shared/file-read.js';
 import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
 import { readJsonFile } from '../../../shared/artifact-io/json.js';
 import { tryRequire } from '../../../shared/optional-deps.js';
+import { hasTantivyAdapter } from '../../sparse/providers/tantivy-adapter.js';
 import { normalizeTantivyConfig, resolveTantivyPaths } from '../../../shared/tantivy.js';
 import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../shared/dict-utils.js';
 import { loadIndex } from '../../cli-index.js';
@@ -69,6 +70,7 @@ export function createIndexBackendLoader({
     if (!dep.ok) {
       throw new Error('Tantivy backend requested but the optional "tantivy" module is not available.');
     }
+    if (!hasTantivyAdapter(dep.mod)) throw new Error('Tantivy backend requested but its module has no compatible synchronous open/search adapter.');
   }
 
   const loadIndexCachedLocal = async (dir, options = {}, mode = null) => {

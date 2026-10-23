@@ -624,10 +624,12 @@ export function createSearchPipeline(context) {
         throw createError(
           ERROR_CODES.CAPABILITY_MISSING,
           'Sparse retrieval backend is unavailable for this query. ' +
-            'Rebuild sparse artifacts or enable ANN search.',
+            `Provider: ${sparseUnavailable.provider || normalizedSparseBackend}. Rebuild sparse artifacts or enable ANN search.`,
           {
             reasonCode: RETRIEVAL_SPARSE_UNAVAILABLE_CODE,
             reason: sparseUnavailable.reason || 'sparse_unavailable',
+            provider: sparseUnavailable.provider || normalizedSparseBackend,
+            failureCode: sparseUnavailable.failureCode || null,
             mode,
             profileId,
             missingTables: sparseUnavailable.missingTables || null

@@ -12,6 +12,7 @@
  * @property {object} [options]
  * @property {boolean} [includeZeroScores]
  * @property {object|null} [work]
+ * @property {(()=>void)|null} [throwIfAborted]
  */
 
 /** Native FTS compilation/execution remains distinct from ordinary BM25. The
@@ -50,6 +51,7 @@
  * @template {SparseSearchResult} [Result=SparseSearchResult]
  * @typedef {object} SparseProvider
  * @property {string} id
+ * @property {{booleanUniverse?:'eligible-id-completion'}} [capabilities]
  * @property {(params: Params) => Result} search
  */
 

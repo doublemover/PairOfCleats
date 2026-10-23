@@ -82,6 +82,18 @@ full cleanup-category capability or deep-suite green is claimed.
   cancellation, successful exact work and provider health; all unrun. Only scoped
   formatting and whitespace checks ran for these source batches.
 
+- #1577/#1578: Tantivy now declares and consumes eligible-id Boolean completion,
+  retaining positive-before-zero scores and bounded top-k memory. Only complement
+  queries enumerate the admitted domain, with cancellation/work accounting. Native
+  open/query failures reach the existing sparse unavailable/fallback policy;
+  method-shape preflight and malformed-response admission are explicit. Original
+  API receivers and filtered positive overfetch are retained. Actual planner →
+  pipeline controls compare authored NOT/OR-NOT/nested/filtered oracles with JS
+  BM25, and cover native failure/empty/abort and explicit/policy ANN fallback.
+  These are unrun; real optional Tantivy and SQLite parity qualification remain
+  separate. **#1578 remains partial until #1595 result-cache outcome admission
+  prevents a legitimately degraded ANN fallback becoming a healthy cache hit.**
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -143,8 +155,8 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1574](https://github.com/doublemover/PairOfCleats/issues/1574) | [P1] Fence clean-artifacts deletion against live cache readers and builders | Source partial; category owners/drain pending |
 | [#1575](https://github.com/doublemover/PairOfCleats/issues/1575) | [P2] Delay standalone atomic zstd publication until owned codec teardown settles | Pending full-scope review |
 | [#1576](https://github.com/doublemover/PairOfCleats/issues/1576) | [P2] Reconcile final score explanations after graph, model, and federated ranking | Source repair authored; runtime proof pending |
-| [#1577](https://github.com/doublemover/PairOfCleats/issues/1577) | [P2] Preserve Boolean complement queries in the Tantivy sparse route | Pending full-scope review |
-| [#1578](https://github.com/doublemover/PairOfCleats/issues/1578) | [P2] Distinguish Tantivy native failures from successful empty search results | Pending full-scope review |
+| [#1577](https://github.com/doublemover/PairOfCleats/issues/1577) | [P2] Preserve Boolean complement queries in the Tantivy sparse route | Source repair authored; optional-native/parity proof pending |
+| [#1578](https://github.com/doublemover/PairOfCleats/issues/1578) | [P2] Distinguish Tantivy native failures from successful empty search results | Source partial; result-cache outcome admission #1595 pending |
 | [#1579](https://github.com/doublemover/PairOfCleats/issues/1579) | [P2] Settle embedding coalescer claims when post-inference cache publication fails | Source repair authored; runtime proof pending |
 | [#1580](https://github.com/doublemover/PairOfCleats/issues/1580) | [P2] Enforce semantic SQLite byte admission before hydrating related payloads | Pending full-scope review |
 | [#1581](https://github.com/doublemover/PairOfCleats/issues/1581) | [Perf] Bound semantic trace continuation bytes and avoid copying full history per page | Pending full-scope review |

@@ -126,17 +126,29 @@ export const runCandidateStage = ({
     });
     sparseType = 'none';
   } else if (wantsTantivy) {
-    const tantivyResult = tantivyProvider.search({
-      idx,
-      queryTokens,
-      mode,
-      topN: expandedTopN,
-      allowedIds: sparseAllowedIds
-    });
-    bmHits = tantivyResult.hits;
-    sparseType = tantivyResult.type;
-    if (bmHits.length) {
-      candidates = buildCandidatesFromHits(bmHits);
+    try {
+      if (needsUniverse && tantivyProvider.capabilities?.booleanUniverse !== 'eligible-id-completion') {
+        throw Object.assign(new Error('Selected Tantivy provider does not support the admitted Boolean universe.'), {
+          code: 'ERR_SPARSE_BOOLEAN_UNSUPPORTED'
+        });
+      }
+      const work = {};
+      const tantivyResult = tantivyProvider.search({ idx, queryTokens, mode, topN: expandedTopN,
+        allowedIds: sparseAllowedIds, includeZeroScores: needsUniverse, work, throwIfAborted });
+      candidateMetrics.tantivyExecution = work;
+      bmHits = tantivyResult.hits;
+      sparseType = tantivyResult.type;
+      if (bmHits.length) candidates = buildCandidatesFromHits(bmHits);
+    } catch (error) {
+      const failure = observeRetrievalProviderFailure(error);
+      throwIfAborted?.();
+      if (failure.abort) throw error;
+      emitSparseUnavailable(sqliteFtsDiagnostics, 'provider_error', mode, {
+        provider: tantivyProvider.id || 'tantivy', failureCode: failure.code,
+        message: failure.message || 'Tantivy query failed.'
+      });
+      failure.requireSettled();
+      sparseType = 'none';
     }
   } else if (sqliteFtsEligible) {
     if (sqliteFtsCanPushdown) {

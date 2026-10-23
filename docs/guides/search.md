@@ -247,3 +247,14 @@ caller cancellation. Both provider and stored-vector routes honor caller abort
 first, then report internal deadline exhaustion as incomplete/unknown recall.
 Already-scored stored coordinates are reported; incomplete scans are never exact.
 Original pending resources remain terminal and cannot become fallback success.
+
+Tantivy declares Boolean-universe completion separately from native positive
+scoring. Pure complements and OR-complement branches complete only over the
+already admitted mode/filter IDs, using bounded top-k retention and cancellation
+checks; the completion row count is recorded. Ordinary positive queries retain
+native overfetch without a complement scan. A compatible native method shape,
+index open and query are separate admission steps. Native open/query exceptions
+are provider failures, successful empty arrays remain healthy empty results, and
+caller abort remains terminal. The shared sparse policy controls any ANN fallback;
+a forced sparse-only failure is actionable instead of a false no-match response.
+Optional-native execution remains separate from deterministic adapter qualification.
