@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { withFixtureCallArguments } from '../../helpers/call-arguments.js';
 import assert from 'node:assert/strict';
 import { buildApiContractsReport } from '../../../src/integrations/tooling/api-contracts.js';
 import { validateApiContracts } from '../../../src/contracts/validators/analysis.js';
@@ -22,7 +23,7 @@ const callSites = [
     startLine: 10,
     args: ['1']
   }
-];
+].map(withFixtureCallArguments);
 
 try {
   buildApiContractsReport({
@@ -56,7 +57,7 @@ for (const maxWarnings of [0, 1, undefined]) {
   }, `detected violations must fail independently of the detail cap ${maxWarnings}`);
 }
 
-const clean = buildApiContractsReport({ symbols, callSites: [{ ...callSites[0], args: ['1', '2'] }],
+const clean = buildApiContractsReport({ symbols, callSites: [withFixtureCallArguments({ ...callSites[0], args: ['1', '2'] })],
   failOnWarn: true, caps: { maxWarnings: 0 }, indexCompatKey: 'compat-api-clean-zero-cap' });
 assert.equal(clean.warnings, null);
 assert.equal(clean.truncation, null, 'no detected warnings means no warning-detail omission');

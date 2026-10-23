@@ -3,7 +3,6 @@
   "ids": [
     "ci/duplicate-scanner-contract",
     "cli/general/legacy-entrypoint-symlink-contract",
-    "indexing/build-state/runtime-receipt",
     "indexing/discovery/discover-scm-root-alias",
     "indexing/ignore/contract-matrix",
     "indexing/incremental/reuse",

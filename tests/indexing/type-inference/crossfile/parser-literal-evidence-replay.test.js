@@ -39,7 +39,9 @@ try {
         docmeta: { paramNames: ['value'], exported: true, exportNames: [`sink${index}`] }, codeRelations: {} })),
       { file: callerFile, fileHash: sha1(callerText), fileHashAlgo: 'sha1', chunkUid: 'caller', name: 'caller', kind: 'function',
         start: 0, end: callerText.length, docmeta: {}, codeRelations: structuredClone(relations) }
-    ];
+    ].map(chunk => ({ ...chunk,
+      metaV2: { symbol: { scheme: 'poc', qualifiedName: chunk.name, symbolId: `symbol:${chunk.chunkUid}`,
+        symbolKey: `key:${chunk.chunkUid}`, chunkUid: chunk.chunkUid, kindGroup: 'function' } } }));
     const run = chunks => applyCrossFileInference({ rootDir: root, buildRoot: root, cacheRoot: path.join(root, parser),
       chunks, enabled: true, cacheEnabled: true, useTooling: false, enableTypeInference: true, enableRiskCorrelation: false, log: () => {} });
     const cold = makeChunks(), stats = await run(cold); assert.equal(stats.cacheHit, false);

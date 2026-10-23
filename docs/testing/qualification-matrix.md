@@ -6,7 +6,14 @@ Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
 
-The repair program targets Windows with Node 26.12.1. The post-wave source
+The repair program targets Windows with Node 26.12.1. All workers are parked.
+After `d256540ac`, the user requested a full solo Windows validation pass and
+failure repair; [the current receipt](../archived/windows-solo-validation-2026-10-23.md)
+records fresh setup, focused failures/repairs and pending full-tree acceptance.
+The current discovery contains 4348 default-all cases; older inventory totals
+below are historical. Current source is not fully qualified.
+
+The following earlier post-wave checkpoint remains revision-specific. The post-wave source
 checkpoint 85be53744 has fresh locked bootstrap and separate native/patch
 verification: 37 required packages, 33 language routes, 8 patches/25 targets/60
 hunks, exit 0 and no warning/error lines in complete final logs. Its 26 focused
@@ -14,9 +21,9 @@ cases and repaired 40-case gate pass; all remaining front-gate checks pass.
 Activation and selected controls remain separate from full runtime qualification.
 The latest previously fully qualified production/test source remains
 `d4dcba4134f6103e3a59703d90fdbde5ca54d09e`. The broad development wave is not yet
-fully qualified. At the user's later direction, sixteen Sol 6.1/xhigh workers
-finish source implementation under the [exclusive owner plan](../archived/parallel-implementation-wave-2026-10-23.md);
-workers then park and the lead continues solo. Broad final-tree cohort execution
+fully qualified. Sixteen workers previously implemented under the
+[exclusive owner plan](../archived/parallel-implementation-wave-2026-10-23.md);
+those workers are now parked and the lead continues solo. Broad final-tree cohort execution
 waits for the resulting frozen candidate. The [current issue receipt](../archived/github-issue-repairs-2026-10-21.md)
 records 970 reports and their source/acceptance limits, including ten newly assigned
 P2 reports. Initial 70 broad cases have 60 passes, 9 failures and 1 timeout; the
@@ -27,7 +34,7 @@ admission, controlled writer/rollback/cleanup faults, and UTF-8 stream boundarie
 The actual release contracts phase passes separately from full release acceptance.
 At the user's request, new authority fixtures use ordinary filesystem controls
 and injected link metadata without elevation or creating links. The existing
-49-case physical-link cohort is optional capability qualification for this
+48-case physical-link cohort is optional capability qualification for this
 program, not a completion prerequisite or a claimed pass. Historical Linux and
 physical-link results below retain their original source and scope; no new Linux
 execution is part of this program.

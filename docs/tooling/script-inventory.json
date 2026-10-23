@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-23T03:59:34.990Z",
+  "generatedAt": "2026-10-23T22:38:49.068Z",
   "scripts": [
     {
       "name": "audit:duplicates",
@@ -252,6 +252,11 @@
     {
       "command": "pairofcleats index diff",
       "summary": "Compute and inspect index diffs.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats index recover",
+      "summary": "Inspect retained recovery and execute an exact reviewed plan.",
       "supportTier": "operator"
     },
     {
@@ -527,6 +532,11 @@
     {
       "command": "pairofcleats tooling navigate",
       "summary": "Query indexed definitions, references, and document symbols.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats tooling prepare-sourcekit",
+      "summary": "Preview or explicitly prepare a trusted SourceKit package workspace.",
       "supportTier": "operator"
     },
     {

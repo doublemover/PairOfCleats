@@ -39,6 +39,7 @@ const PUBLIC_CLI_FLAGS = new Set([
   'flow-id',
   'format',
   'hops',
+  'granularity',
   'host',
   'includeCallersCallees',
   'includeDisabled',
@@ -71,6 +72,7 @@ const PUBLIC_CLI_FLAGS = new Set([
   'mode',
   'no-fallback',
   'output',
+  'pathSemantics',
   'port',
   'quality',
   'queue',
@@ -93,16 +95,20 @@ const PUBLIC_CLI_FLAGS = new Set([
   'strictEvidence',
   'strictRisk',
   'tag',
+  'task',
   'timeout-ms',
   'tools',
   'top',
   'watch',
+  'wholeFileFallback',
   'workspace',
   'workspaceId'
 ]);
 const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_ARCHIVE_DISCOVERY_TEST_DIR',
   'PAIROFCLEATS_DEPENDENCY_TEST_DIR',
+  // Synthetic negative credential specimen; never a runtime/public setting.
+  'PAIROFCLEATS_FUTURE_SECRET',
   'PAIROFCLEATS_EMBEDDING_TEST_DIR',
   'PAIROFCLEATS_FTS_TEST_DIR',
   'PAIROFCLEATS_VECTOR_CACHE_TEST_DIR',
@@ -293,7 +299,7 @@ const KNOWN_ENV_VARS = new Set([
 const BUDGETS = {
   configKeys: 5,
   envVars: 1,
-  cliFlags: 73
+  cliFlags: 77
 };
 const PUBLIC_FLAG_SOURCES = new Set([
   'bin/pairofcleats.js',

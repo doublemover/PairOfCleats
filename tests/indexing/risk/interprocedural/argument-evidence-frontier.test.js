@@ -10,7 +10,7 @@ const run = (args, formals = 'a,b,c,d,e,value') => {
     .map(detail => ({ ...detail, targetChunkUid: sink.chunkUid }));
   sink.docmeta.callableParameters = relations.functionMeta.sink.callableParameters;
   sink.docmeta.paramNames = relations.functionMeta.sink.paramNames;
-  return computeRiskScenario({ chunks: [source, sink], runtime: createRiskRuntime({ strictness: 'argAware',
+  return computeRiskScenario({ chunks: [source, sink], runtime: createRiskRuntime({ strictness: 'argAware', caps: { maxPartialFlows: 10, maxBlockedExpansionsPerPartial: 10 },
     sourceRules: [{ id: 'source.req.body', patterns: [/req\.body/i] }] }) });
 };
 const tail = run('0,0,0,0,0,req.body');

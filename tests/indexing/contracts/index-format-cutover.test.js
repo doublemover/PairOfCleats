@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createSseResponder } from '../../../tools/api/sse.js';
@@ -100,9 +101,11 @@ try {
   const importDir = path.join(root, 'artifact-import');
   await fs.mkdir(path.join(importDir, 'pieces'), { recursive: true });
   for (const surface of [undefined, '0.0.2', '0.1.1']) {
+    const semanticManifest = JSON.stringify({ artifactSurfaceVersion: surface });
     await fs.writeFile(path.join(importDir, 'pieces', 'manifest.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
-      buildId: 'fixture', pieces: [{ name: 'semantic_manifest', path: 'semantic_manifest.json' }] }));
-    await fs.writeFile(path.join(importDir, 'semantic_manifest.json'), JSON.stringify({ artifactSurfaceVersion: surface }));
+      buildId: 'fixture', pieces: [{ name: 'semantic_manifest', path: 'semantic_manifest.json',
+        checksum: `sha256:${createHash('sha256').update(semanticManifest).digest('hex')}`, bytes: Buffer.byteLength(semanticManifest) }] }));
+    await fs.writeFile(path.join(importDir, 'semantic_manifest.json'), semanticManifest);
     let payloadAccesses = 0;
     class NoDatabase { constructor() { payloadAccesses += 1; throw new Error('Unsupported import opened database.'); } }
     const index = new Proxy({}, { get() { payloadAccesses += 1; throw new Error('Unsupported import accessed artifact payload.'); } });

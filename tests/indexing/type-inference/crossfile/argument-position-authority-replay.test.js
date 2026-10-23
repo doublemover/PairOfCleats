@@ -24,6 +24,8 @@ try {
     const relations = buildCodeRelations(text, 'slots.js', { ast });
     const makeChunks = () => raw.map(chunk => ({ ...chunk, file: 'slots.js', lang: 'javascript',
       fileHash: sha1(text), fileHashAlgo: 'sha1', chunkUid: chunk.name,
+      metaV2: { symbol: { scheme: 'poc', qualifiedName: chunk.name, symbolId: `symbol:${chunk.name}`,
+        symbolKey: `key:${chunk.name}`, chunkUid: chunk.name, kindGroup: 'function' } },
       docmeta: extractDocMeta(text, chunk, relations),
       codeRelations: { callDetails: chunk.name === 'caller' ? structuredClone(relations.callDetails) : [] } }));
     const run = chunks => applyCrossFileInference({ rootDir: root, buildRoot: root, cacheRoot: path.join(root, parser),

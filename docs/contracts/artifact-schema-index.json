@@ -1,5 +1,5 @@
 {
-  "schemaHash": "9a65a71a3e8b7fe895682233e3c12e2738736bf0",
+  "schemaHash": "8c3a2ea3d86889249110a32c4609e61c66141dd0",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -235,13 +235,16 @@
         "vectors"
       ],
       "optionalFields": [
+        "absence",
         "embeddingGeneration",
         "embeddingIdentity",
         "levels",
         "maxVal",
         "minVal",
         "model",
-        "scale"
+        "quantizationVersion",
+        "scale",
+        "zeroPoint"
       ]
     },
     {
@@ -258,6 +261,7 @@
         "path"
       ],
       "optionalFields": [
+        "absence",
         "artifact",
         "bytes",
         "embeddingGeneration",
@@ -268,8 +272,10 @@
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
-        "schemaVersion"
+        "schemaVersion",
+        "zeroPoint"
       ]
     },
     {
@@ -280,13 +286,16 @@
         "vectors"
       ],
       "optionalFields": [
+        "absence",
         "embeddingGeneration",
         "embeddingIdentity",
         "levels",
         "maxVal",
         "minVal",
         "model",
-        "scale"
+        "quantizationVersion",
+        "scale",
+        "zeroPoint"
       ]
     },
     {
@@ -303,6 +312,7 @@
         "path"
       ],
       "optionalFields": [
+        "absence",
         "artifact",
         "bytes",
         "embeddingGeneration",
@@ -313,8 +323,10 @@
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
-        "schemaVersion"
+        "schemaVersion",
+        "zeroPoint"
       ]
     },
     {
@@ -329,6 +341,7 @@
         "space"
       ],
       "optionalFields": [
+        "absence",
         "backendGeneration",
         "embeddingGeneration",
         "embeddingIdentity",
@@ -338,9 +351,11 @@
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
         "variant",
-        "version"
+        "version",
+        "zeroPoint"
       ]
     },
     {
@@ -355,6 +370,7 @@
         "table"
       ],
       "optionalFields": [
+        "absence",
         "backendGeneration",
         "embeddingGeneration",
         "embeddingIdentity",
@@ -364,9 +380,11 @@
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
         "variant",
-        "version"
+        "version",
+        "zeroPoint"
       ]
     },
     {
@@ -377,13 +395,16 @@
         "vectors"
       ],
       "optionalFields": [
+        "absence",
         "embeddingGeneration",
         "embeddingIdentity",
         "levels",
         "maxVal",
         "minVal",
         "model",
-        "scale"
+        "quantizationVersion",
+        "scale",
+        "zeroPoint"
       ]
     },
     {
@@ -400,6 +421,7 @@
         "path"
       ],
       "optionalFields": [
+        "absence",
         "artifact",
         "bytes",
         "embeddingGeneration",
@@ -410,8 +432,10 @@
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
-        "schemaVersion"
+        "schemaVersion",
+        "zeroPoint"
       ]
     },
     {
@@ -426,6 +450,7 @@
         "space"
       ],
       "optionalFields": [
+        "absence",
         "backendGeneration",
         "embeddingGeneration",
         "embeddingIdentity",
@@ -435,9 +460,11 @@
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
         "variant",
-        "version"
+        "version",
+        "zeroPoint"
       ]
     },
     {
@@ -452,6 +479,7 @@
         "table"
       ],
       "optionalFields": [
+        "absence",
         "backendGeneration",
         "embeddingGeneration",
         "embeddingIdentity",
@@ -461,9 +489,11 @@
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
         "variant",
-        "version"
+        "version",
+        "zeroPoint"
       ]
     },
     {
@@ -478,6 +508,7 @@
         "space"
       ],
       "optionalFields": [
+        "absence",
         "backendGeneration",
         "embeddingGeneration",
         "embeddingIdentity",
@@ -487,9 +518,11 @@
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
         "variant",
-        "version"
+        "version",
+        "zeroPoint"
       ]
     },
     {
@@ -504,6 +537,7 @@
         "table"
       ],
       "optionalFields": [
+        "absence",
         "backendGeneration",
         "embeddingGeneration",
         "embeddingIdentity",
@@ -513,9 +547,11 @@
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
         "variant",
-        "version"
+        "version",
+        "zeroPoint"
       ]
     },
     {
@@ -527,6 +563,7 @@
         "table"
       ],
       "optionalFields": [
+        "absence",
         "embeddingColumn",
         "embeddingGeneration",
         "embeddingIdentity",
@@ -536,8 +573,10 @@
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
-        "version"
+        "version",
+        "zeroPoint"
       ]
     },
     {

@@ -1,18 +1,23 @@
 # PairOfCleats Roadmap
 
-Status: Active solo implementation; runtime validation deferred
+Status: Windows validation in progress; solo issue repairs
 Last audited: 2026-10-23
 Last reconciled: 2026-10-23
 Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
+Current reconciliation, 2026-10-23: after source commit `d256540ac`, the user
+requested a full Windows validation pass and failure repairs before more backlog
+implementation. Workers remain parked. The [current validation receipt](archived/windows-solo-validation-2026-10-23.md)
+separates current observations from older qualified sources.
+
 Continue on `codex/pr557-audit-repairs-20261012` through
 [PR #572](https://github.com/doublemover/PairOfCleats/pull/572), retaining its
 existing `main` base. Node is **26.12.1**. Publication is authorized; no merge is
 authorized. The user resumed work **solo**, with all workers parked, and requested
-source implementation across the backlog before runtime testing. Formatting and
-static checks continue before granular commits. Commit and push completed batches;
+source implementation first, then explicitly switched to validation after the
+next commit. Formatting and static checks continue before granular commits. Commit and push completed batches;
 refresh the PR overview at least every 20 commits.
 
 The refreshed snapshot contains **1,151 open reports (#147–#1722)**: P0 0,

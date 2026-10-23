@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { withFixtureCallArguments } from '../../helpers/call-arguments.js';
 import assert from 'node:assert';
 import { buildApiContractsReport } from '../../../src/integrations/tooling/api-contracts.js';
 
@@ -36,7 +37,7 @@ const callSites = [
     startLine: 20,
     args: ['1', '2', '3']
   }
-];
+].map(withFixtureCallArguments);
 
 const report = buildApiContractsReport({
   symbols,

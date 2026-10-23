@@ -31,10 +31,14 @@ try {
   catch (error) { failure = error; }
   assert.equal(failure.cacheOwnershipReleased(), false); assert.equal(closes, 1);
   const beforeReads = reads, beforeOpens = opens;
-  closeDenied = false; getContainedFileSession(failure).releaseAfterCloseSync();
-  assert.equal(failure.cacheOwnershipReleased(), true); assert.equal(closes, 2);
-  assert.equal(reads, beforeReads); assert.equal(opens, beforeOpens, 'recovery closes the original descriptor without reopening or replay');
-  held = null;
+  closeDenied = false;
+  assert.throws(() => getContainedFileSession(failure).releaseAfterCloseSync(),
+    'a rejected synchronous close cannot be retried by a possibly reused fd number');
+  assert.equal(failure.cacheOwnershipReleased(), false); assert.equal(closes, 1);
+  assert.equal(reads, beforeReads); assert.equal(opens, beforeOpens, 'refused recovery cannot reopen, replay or issue another close');
+  // This injection throws before closing, so the fixture alone knows this exact
+  // fd remains open. Dispose it without claiming the failed owner was released.
+  originalClose.call(fs, held); held = null;
   assert.equal(assembleCompositeContextPack(options).primary.excerpt, text);
   const controller = new AbortController();
   fs.readSync = function (fd, ...args) {

@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-23T03:39:39.727Z",
+  "generatedAt": "2026-10-23T22:37:59.148Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
-    "cliFlags": 73
+    "cliFlags": 77
   },
   "allowlists": {
     "configKeys": [
@@ -34,6 +34,7 @@
       "filter",
       "flow-id",
       "format",
+      "granularity",
       "hops",
       "host",
       "includeCallersCallees",
@@ -67,6 +68,7 @@
       "mode",
       "no-fallback",
       "output",
+      "pathSemantics",
       "port",
       "quality",
       "queue",
@@ -89,10 +91,12 @@
       "strictEvidence",
       "strictRisk",
       "tag",
+      "task",
       "timeout-ms",
       "tools",
       "top",
       "watch",
+      "wholeFileFallback",
       "workspace",
       "workspaceId"
     ],
@@ -141,6 +145,7 @@
       "PAIROFCLEATS_FILE_CACHE_MAX",
       "PAIROFCLEATS_FORCE_CHUNK_AUTHOR_HYDRATION",
       "PAIROFCLEATS_FTS_TEST_DIR",
+      "PAIROFCLEATS_FUTURE_SECRET",
       "PAIROFCLEATS_HOME",
       "PAIROFCLEATS_IMPORT_GRAPH",
       "PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY",
@@ -3210,6 +3215,7 @@
       "files": [
         "extensions/vscode/security.js",
         "src/shared/env/runtime.js",
+        "tests/perf/bench/language-report-environment-metadata.test.js",
         "tests/retrieval/filters/filter-core-contract-matrix.test.js",
         "tests/security/editor-tui-authority.test.js",
         "tests/services/api/trust-boundary-rejections.test.js",
@@ -3392,7 +3398,6 @@
         "tools/bench/index/postings-real.js",
         "tools/bench/index/scheduler-build.js",
         "tools/bench/index/scheduler-store-format.js",
-        "tools/bench/language/logging.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js",
         "tools/release/verify-surface.js",
@@ -3418,10 +3423,10 @@
     {
       "name": "PAIROFCLEATS_CRASH_LOG_ANNOUNCE",
       "files": [
+        "src/shared/diagnostic-environment.js",
         "src/shared/env/runtime.js",
         "tests/indexing/crash-log-announcement.test.js",
         "tools/bench/language-repos/run-loop.js",
-        "tools/bench/language/logging.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3505,6 +3510,7 @@
       "files": [
         "src/shared/env/runtime.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
+        "tests/storage/sqlite/dense-binary-close-failure.test.js",
         "tests/storage/sqlite/dense-binary-short-read.test.js",
         "tests/storage/sqlite/utils-dense-binary-load.test.js",
         "tools/config/inventory.js"
@@ -3527,6 +3533,7 @@
         "tests/helpers/baseline-prerequisites.js",
         "tests/perf/bench/language-no-ann-forwarding.test.js",
         "tests/perf/bench/language-prerequisite-runtime.test.js",
+        "tests/shared/storage/cli-reviewed-context-and-selectors.test.js",
         "tests/shared/storage/dictionary-language-reader-budget.test.js",
         "tests/shared/storage/dictionary-real-stream-lifetime.test.js",
         "tests/tooling/install/setup-readiness-exit.test.js",
@@ -3584,6 +3591,7 @@
     {
       "name": "PAIROFCLEATS_EMBEDDINGS",
       "files": [
+        "src/shared/diagnostic-environment.js",
         "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "src/shared/error-codes.js",
@@ -3677,6 +3685,13 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_FUTURE_SECRET",
+      "files": [
+        "tests/perf/bench/language-report-environment-metadata.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_HOME",
       "files": [
         "src/shared/env/runtime.js",
@@ -3693,6 +3708,7 @@
         "tests/services/mcp/sdk-mode.test.js",
         "tests/shared/cache/contract-matrix.test.js",
         "tests/shared/storage/cleanup-failure-observation.test.js",
+        "tests/shared/storage/cli-reviewed-context-and-selectors.test.js",
         "tests/shared/storage/dictionary-language-reader-budget.test.js",
         "tests/shared/storage/dictionary-real-stream-lifetime.test.js",
         "tests/shared/storage/dictionary-secondary-failures-retain-ownership.test.js",
@@ -3708,28 +3724,46 @@
         "tests/shared/storage/write-reservation-creation-recovery.test.js",
         "tests/tooling/cache/tooling-cache-contained-resource.test.js",
         "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
+        "tests/tooling/ingest/operational-producer-launches.test.js",
         "tests/tooling/install/archive-consumer-resource-recovery.test.js",
+        "tests/tooling/install/ast-grep-managed-recipe.test.js",
         "tests/tooling/install/bootstrap-json-output.test.js",
         "tests/tooling/install/bootstrap-json-signal-contract.test.js",
         "tests/tooling/install/dictionary-writer-resource-lifetime.test.js",
         "tests/tooling/install/download-component-cleanup-ownership.test.js",
         "tests/tooling/install/download-model-selection.test.js",
+        "tests/tooling/install/download-selected-closure.test.js",
         "tests/tooling/install/go-sdk-frozen-recovery.test.js",
         "tests/tooling/install/install-allocation-admission.test.js",
         "tests/tooling/install/install-download-resource-lifetime.test.js",
         "tests/tooling/install/install-dry-run-cli-no-probe.test.js",
+        "tests/tooling/install/lifecycle-prerequisite-preflight.test.js",
+        "tests/tooling/install/managed-archive-digest-authority.test.js",
         "tests/tooling/install/managed-directory-resource-recovery.test.js",
+        "tests/tooling/install/managed-dotnet-sdk-verification.test.js",
+        "tests/tooling/install/managed-explicit-repair-ownership.test.js",
         "tests/tooling/install/managed-hook-failure-values.test.js",
         "tests/tooling/install/managed-install-publication-lifetime.test.js",
+        "tests/tooling/install/managed-operational-probe-storage.test.js",
+        "tests/tooling/install/managed-prerequisite-consumer-lifetime.test.js",
         "tests/tooling/install/managed-publication-frozen-recovery.test.js",
         "tests/tooling/install/managed-retain-partial-admission.test.js",
         "tests/tooling/install/managed-reuse-frozen-recovery.test.js",
+        "tests/tooling/install/operational-dictionary-and-release-consumers.test.js",
+        "tests/tooling/install/operational-execution-trust-and-lifetime.test.js",
+        "tests/tooling/install/operational-installed-capability-reuse.test.js",
+        "tests/tooling/install/operational-storage-lifetime.test.js",
+        "tests/tooling/install/operational-storage-selected-layout.test.js",
         "tests/tooling/install/phpactor-platform-contract.test.js",
+        "tests/tooling/install/provisioning-version-constraints.test.js",
         "tests/tooling/install/setup-json-prompts.test.js",
         "tests/tooling/install/setup-model-readiness.test.js",
         "tests/tooling/install/storage-admission-frozen-recovery.test.js",
         "tests/tooling/install/tooling-post-install-verification.test.js",
         "tests/tooling/install/tooling-report-cancellation.test.js",
+        "tests/tooling/install/tooling-report-prerequisite-readiness.test.js",
+        "tests/tooling/lsp/managed-dotnet-provider-lifetime.test.js",
+        "tests/tooling/lsp/managed-runtime-closure-settlement.test.js",
         "tests/tooling/lsp/managed-session-installation-lifetime.test.js",
         "tests/tooling/providers/managed-command-frozen-recovery.test.js",
         "tests/tooling/providers/managed-command-settlement.test.js",
@@ -3846,6 +3880,7 @@
         "tests/shared/runtime/env-envelope-overrides.test.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
         "tests/storage/sqlite/incremental-no-change.test.js",
+        "tests/tooling/workspace/build-runtime-child-observation.test.js",
         "tools/bench/embeddings/model-bakeoff.js",
         "tools/config/inventory.js"
       ]
@@ -3918,10 +3953,13 @@
         "src/shared/storage/layout.js",
         "tests/perf/bench/language-default-cache-root.test.js",
         "tests/perf/bench/language-resource-roots.test.js",
+        "tests/shared/storage/cli-reviewed-context-and-selectors.test.js",
         "tests/shared/storage/configuration-explicit-override-precedence.test.js",
         "tests/shared/storage/layout-resolution.test.js",
         "tests/shared/storage/selected-environment-resolvers.test.js",
         "tests/tooling/config/effective-explanation-authority.test.js",
+        "tests/tooling/install/download-selected-closure.test.js",
+        "tests/tooling/install/model-readiness-resource-admission.test.js",
         "tests/tooling/install/setup-model-readiness.test.js",
         "tools/bench/embeddings/model-bakeoff.js",
         "tools/bench/language/prerequisite-runtime.js",
@@ -3939,6 +3977,7 @@
         "tests/shared/runtime/env-envelope-overrides.test.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
         "tests/tooling/config/runtime-diagnostics-readonly.test.js",
+        "tests/tooling/workspace/build-runtime-child-observation.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4033,6 +4072,7 @@
       "name": "PAIROFCLEATS_QUERY_CACHE_MEMORY_FRESH_MS",
       "files": [
         "src/shared/env/runtime.js",
+        "tests/retrieval/cache/query-cache-engine-ownership.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4040,6 +4080,7 @@
       "name": "PAIROFCLEATS_QUERY_CACHE_PREWARM",
       "files": [
         "src/shared/env/runtime.js",
+        "tests/retrieval/cache/query-cache-engine-ownership.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4054,6 +4095,7 @@
       "name": "PAIROFCLEATS_QUERY_CACHE_STRATEGY",
       "files": [
         "src/shared/env/runtime.js",
+        "tests/retrieval/cache/query-cache-engine-ownership.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4067,6 +4109,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER",
       "files": [
+        "src/shared/diagnostic-environment.js",
         "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
@@ -4079,6 +4122,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_ADAPTIVE",
       "files": [
+        "src/shared/diagnostic-environment.js",
         "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tools/config/inventory.js"
@@ -4095,6 +4139,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_CPU",
       "files": [
+        "src/shared/diagnostic-environment.js",
         "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tests/indexing/semantic/compiler-single-cpu-lifecycle.test.js",
@@ -4107,6 +4152,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_IO",
       "files": [
+        "src/shared/diagnostic-environment.js",
         "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
@@ -4151,6 +4197,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_MEM",
       "files": [
+        "src/shared/diagnostic-environment.js",
         "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tests/indexing/semantic/compiler-single-cpu-lifecycle.test.js",
@@ -4485,6 +4532,7 @@
         "tests/indexing/postings/helpers/vector-only-cleanup-fixture.js",
         "tests/ops/failure-injection/retrieval-hotpath.test.js",
         "tests/perf/bench/language-default-cache-root.test.js",
+        "tests/perf/bench/language-report-environment-metadata.test.js",
         "tests/retrieval/filters/semantic-filter-contract-matrix.test.js",
         "tests/retrieval/parity/equivalence.test.js",
         "tests/retrieval/pipeline/ann-lazy-import.test.js",
@@ -4503,7 +4551,6 @@
         "tests/tooling/script-coverage/actions/tools.js",
         "tools/bench/ab-sweep.js",
         "tools/bench/index/scheduler-store-format.js",
-        "tools/bench/language/logging.js",
         "tools/config/inventory.js",
         "tools/release/verify-surface.js",
         "tools/service/indexer-service-helpers.js"
@@ -4539,25 +4586,41 @@
     {
       "name": "PAIROFCLEATS_TEST_ID",
       "files": [
+        "tests/cli/build-index/all.test.js",
+        "tests/cli/general/canonical-workflows.test.js",
+        "tests/cli/general/metadata-and-index-admission.test.js",
+        "tests/cli/search/contract-matrix.test.js",
         "tests/context-pack/graph-selection.test.js",
         "tests/context-pack/risk-filters-parity.test.js",
         "tests/context-pack/risk-truncation-contract.test.js",
         "tests/helpers/test-env.js",
+        "tests/indexing/file-processor/capped-read-compute-suspension.test.js",
+        "tests/indexing/file-processor/coarse-worker-file-analysis.test.js",
+        "tests/indexing/file-processor/mixed-scm-token-waits-admission.test.js",
+        "tests/indexing/file-processor/serial-compute-wait-ownership.test.js",
+        "tests/indexing/file-processor/tokenizer-resource-fallback-authority.test.js",
         "tests/indexing/fixtures/health-authority.test.js",
         "tests/indexing/incremental/tokenization-cache.test.js",
         "tests/indexing/tree-sitter/js-ts-export-bindings.test.js",
+        "tests/indexing/workers/coarse-file-analysis-facade.test.js",
+        "tests/indexing/workers/coarse-file-analysis-transport.test.js",
+        "tests/indexing/workers/process-task-scheduler-retirement.test.js",
         "tests/retrieval/backend/boolean-complement-cli.test.js",
         "tests/runner/run-execution.js",
         "tests/security/download-redirect-deadline.test.js",
         "tests/services/api/semantic-detail-format-compatibility.test.js",
+        "tests/shared/concurrency/scheduler-exact-ready-replay.test.js",
         "tests/shared/dense-vector-binary-writes.test.js",
         "tests/shared/subprocess/sync-timeout-detached-tree.test.js",
         "tests/smoke/baseline-negative.test.js",
         "tests/smoke/baseline.test.js",
         "tests/tooling/api-contracts/export-identity-cli.test.js",
+        "tests/tooling/api-contracts/qualified-target-joins-cli.test.js",
+        "tests/tooling/api-contracts/typescript-parameter-cli.test.js",
         "tests/tooling/api-contracts/zero-warning-cap-cli.test.js",
         "tests/tooling/ci/lsp-runtime-qualification.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
+        "tests/tooling/index/recovery-cli-authority.test.js",
         "tests/tooling/install/node-pty-fresh-lifecycle.test.js",
         "tests/tooling/install/phpactor-download-authority.test.js",
         "tests/tooling/lsp/go-rust-signature-boundaries.test.js",
@@ -4763,6 +4826,7 @@
       "name": "PAIROFCLEATS_TESTING",
       "files": [
         "src/shared/cli/legacy-entrypoint.js",
+        "src/shared/diagnostic-environment.js",
         "src/shared/env/testing.js",
         "src/shared/ops/failure-injection.js",
         "tests/ci/env-usage-scope.test.js",
@@ -4806,7 +4870,6 @@
         "tests/tooling/setup/windows-capability-evidence-budget.test.js",
         "tools/bench/ab-sweep.js",
         "tools/bench/index/scheduler-store-format.js",
-        "tools/bench/language/logging.js",
         "tools/config/contract-doc.js",
         "tools/config/inventory.js",
         "tools/release/check.js",
@@ -4819,6 +4882,7 @@
     {
       "name": "PAIROFCLEATS_THREADS",
       "files": [
+        "src/shared/diagnostic-environment.js",
         "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "src/shared/runtime-envelope/resolve.js",
@@ -4831,6 +4895,7 @@
         "tests/integrations/core/embedding-plan-handoff.test.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/language-default-cache-root.test.js",
+        "tests/perf/bench/language-report-environment-metadata.test.js",
         "tests/perf/bench/run.test.js",
         "tests/retrieval/backend/boolean-complement-cli.test.js",
         "tests/run.js",
@@ -4851,6 +4916,7 @@
         "src/shared/storage/layout.js",
         "src/shared/toolchain-env.js",
         "tests/perf/bench/language-resource-roots.test.js",
+        "tests/shared/storage/cli-reviewed-context-and-selectors.test.js",
         "tests/tooling/install/install-dry-run-cli-no-probe.test.js",
         "tests/tooling/install/phpactor-platform-contract.test.js",
         "tests/tooling/providers/managed-command-settlement.test.js",
@@ -4908,17 +4974,30 @@
         "tests/helpers/sourcekit-preflight-fixture.js",
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env.js",
+        "tests/indexing/artifacts/completed-stage-recovery.test.js",
         "tests/indexing/build-state/produced-contract.test.js",
+        "tests/indexing/build/failed-stage-import-authority.test.js",
+        "tests/indexing/build/immutable-graph-capability.test.js",
+        "tests/indexing/build/ordinary-failed-stage-reuse.test.js",
+        "tests/indexing/build/recovery-bounded-durable-result.test.js",
+        "tests/indexing/build/retained-stage-resume.test.js",
+        "tests/indexing/build/retained-stage-validation-publication.test.js",
+        "tests/indexing/build/reviewed-fresh-generation-recovery.test.js",
         "tests/indexing/extracted-prose/extraction-report.test.js",
+        "tests/indexing/incremental/piece-output-producer-identity.test.js",
         "tests/indexing/runtime/initialization-resource-unwind.test.js",
         "tests/retrieval/parity/partial-ranks-report.test.js",
         "tests/retrieval/relation-boost-zero-config.test.js",
         "tests/run.js",
         "tests/security/repository-authority.test.js",
         "tests/security/tooling-cache-authority.test.js",
+        "tests/shared/storage/cli-reviewed-context-and-selectors.test.js",
         "tests/storage/vector-extension/trust-revalidation.test.js",
         "tests/tooling/api-contracts/export-identity-cli.test.js",
+        "tests/tooling/api-contracts/qualified-target-joins-cli.test.js",
+        "tests/tooling/api-contracts/typescript-parameter-cli.test.js",
         "tests/tooling/api-contracts/zero-warning-cap-cli.test.js",
+        "tests/tooling/architecture/rule-input-cli.test.js",
         "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
         "tests/tooling/config/effective-explanation-authority.test.js",
         "tests/tooling/config/source-metadata.test.js",
@@ -4927,16 +5006,30 @@
         "tests/tooling/doctor/generic-preset-matrix.test.js",
         "tests/tooling/doctor/zls-zig-compatibility.test.js",
         "tests/tooling/index-stats/verify-manifest-formats.test.js",
+        "tests/tooling/index/clean-artifacts-reader-exclusion.test.js",
+        "tests/tooling/index/recovery-cli-authority.test.js",
+        "tests/tooling/ingest/operational-producer-launches.test.js",
+        "tests/tooling/install/ast-grep-managed-recipe.test.js",
         "tests/tooling/install/bootstrap-json-output.test.js",
         "tests/tooling/install/bootstrap-json-signal-contract.test.js",
         "tests/tooling/install/download-component-cleanup-ownership.test.js",
         "tests/tooling/install/download-model-selection.test.js",
+        "tests/tooling/install/download-selected-closure.test.js",
+        "tests/tooling/install/first-search-outcome-contract.test.js",
         "tests/tooling/install/first-search-plan-readonly.test.js",
         "tests/tooling/install/install-dry-run-cli-no-probe.test.js",
+        "tests/tooling/install/lifecycle-prerequisite-preflight.test.js",
+        "tests/tooling/install/managed-prerequisite-consumer-lifetime.test.js",
+        "tests/tooling/install/operational-dictionary-and-release-consumers.test.js",
+        "tests/tooling/install/operational-execution-trust-and-lifetime.test.js",
+        "tests/tooling/install/operational-installed-capability-reuse.test.js",
+        "tests/tooling/install/operational-storage-lifetime.test.js",
+        "tests/tooling/install/provisioning-version-constraints.test.js",
         "tests/tooling/install/setup-json-prompts.test.js",
         "tests/tooling/install/setup-model-readiness.test.js",
         "tests/tooling/install/tooling-install-test-helper.js",
         "tests/tooling/install/tooling-report-cancellation.test.js",
+        "tests/tooling/install/tooling-report-prerequisite-readiness.test.js",
         "tests/tooling/install/uninstall.test.js",
         "tests/tooling/lsp/configured-provider-gopls-preset-profile.test.js",
         "tests/tooling/lsp/configured-provider-gopls-profile.test.js",
@@ -4945,11 +5038,14 @@
         "tests/tooling/lsp/go-workspace-managed-go-resolution.test.js",
         "tests/tooling/reports/bench-language-stage-timing-report.test.js",
         "tests/tooling/reports/compare-models-partial-ranks.test.js",
+        "tests/tooling/reports/map-graph-capability-consumer.test.js",
+        "tests/tooling/reports/map-operational-render.test.js",
         "tests/tooling/reports/summary/index-lifecycle.test.js",
         "tests/tooling/reports/summary/report-all-mode-integration.test.js",
         "tests/tooling/reports/summary/report-json-error-contract.test.js",
         "tests/tooling/reports/summary/summary-build-case-helpers.js",
         "tests/tooling/service/runtime-config-revalidation.test.js",
+        "tests/tooling/workspace/build-runtime-child-observation.test.js",
         "tests/tui/native-artifact-actions.test.js",
         "tests/tui/native-index-workflows.test.js",
         "tests/tui/native-job-inspection.test.js",
@@ -4958,6 +5054,8 @@
         "tests/tui/operator-artifacts.test.js",
         "tests/tui/operator-cache-maintenance.test.js",
         "tests/tui/operator-index-workflows.test.js",
+        "tests/tui/operator-reader-retirement.test.js",
+        "tests/tui/operator-retained-graph.test.js",
         "tests/tui/operator-search-file-authority.test.js",
         "tests/tui/operator-search-lifecycle.test.js",
         "tests/tui/operator-settings-retrieval-guardrails.test.js",
@@ -4989,28 +5087,48 @@
         "tests/tooling/ci/lsp-runtime-qualification.test.js",
         "tests/tooling/config/effective-explanation-authority.test.js",
         "tests/tooling/config/loader-schema-contract.test.js",
+        "tests/tooling/doctor/denied-command-admission.test.js",
         "tests/tooling/doctor/generic-preset-matrix.test.js",
+        "tests/tooling/doctor/handshake-admission-and-cancellation.test.js",
         "tests/tooling/doctor/zls-zig-compatibility.test.js",
         "tests/tooling/install/application-owned-node-detect.test.js",
+        "tests/tooling/install/ast-grep-managed-recipe.test.js",
         "tests/tooling/install/bootstrap-json-output.test.js",
         "tests/tooling/install/bootstrap-json-signal-contract.test.js",
+        "tests/tooling/install/first-search-outcome-contract.test.js",
         "tests/tooling/install/gopls-sdk-version-contract.test.js",
         "tests/tooling/install/install-dry-run-cli-no-probe.test.js",
+        "tests/tooling/install/lifecycle-prerequisite-preflight.test.js",
+        "tests/tooling/install/managed-prerequisite-consumer-lifetime.test.js",
+        "tests/tooling/install/operational-execution-trust-and-lifetime.test.js",
+        "tests/tooling/install/operational-installed-capability-reuse.test.js",
+        "tests/tooling/install/operational-storage-lifetime.test.js",
         "tests/tooling/install/phpactor-platform-contract.test.js",
+        "tests/tooling/install/provisioning-version-constraints.test.js",
         "tests/tooling/install/ruby-cache-environment.test.js",
+        "tests/tooling/install/sourcekit-explicit-prepare-operation.test.js",
         "tests/tooling/install/tooling-report-cancellation.test.js",
+        "tests/tooling/install/tooling-report-prerequisite-readiness.test.js",
         "tests/tooling/install/uninstall.test.js",
         "tests/tooling/lsp/configured-provider-gopls-preset-profile.test.js",
         "tests/tooling/lsp/configured-provider-gopls-profile.test.js",
         "tests/tooling/lsp/configured-provider-lua-broken-layout-preflight.test.js",
+        "tests/tooling/lsp/csharp-project-trust-and-dotnet-host.test.js",
+        "tests/tooling/lsp/dedicated-provider-denied-command-preflight.test.js",
         "tests/tooling/lsp/dedicated-providers-multifile-session-reuse-cases.js",
         "tests/tooling/lsp/go-workspace-managed-go-resolution.test.js",
+        "tests/tooling/lsp/managed-dotnet-provider-lifetime.test.js",
+        "tests/tooling/lsp/phpactor-retained-signatures-and-context.test.js",
+        "tests/tooling/lsp/runtime-requirement-denial-admission.test.js",
+        "tests/tooling/lsp/sourcekit-passive-operation-admission.test.js",
+        "tests/tooling/lsp/workspace-probe-admission-and-cache.test.js",
         "tests/tooling/providers/explicit-official-kotlin-profile.test.js",
         "tests/tooling/providers/explicit-script-lsp-profiles.test.js",
         "tests/tooling/service/runtime-config-revalidation.test.js",
         "tests/tooling/typescript-compiler-compatibility.test.js",
         "tests/tooling/typescript-loader-parity.test.js",
         "tests/tooling/typescript-runtime-subprocess.test.js",
+        "tests/tooling/workspace/build-runtime-child-observation.test.js",
         "tests/tui/native-artifact-actions.test.js",
         "tests/tui/native-index-workflows.test.js",
         "tests/tui/native-search-conpty.test.js",
@@ -5205,6 +5323,7 @@
         "tests/services/mcp/repo-path-resolution.test.js",
         "tests/shared/runtime/env-envelope-overrides.test.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
+        "tests/tooling/workspace/build-runtime-child-observation.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -5358,7 +5477,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 476,
+    "totalFlags": 484,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -5375,6 +5494,7 @@
       "dry-run",
       "flow-id",
       "format",
+      "granularity",
       "hops",
       "host",
       "includeCallersCallees",
@@ -5408,6 +5528,7 @@
       "mode",
       "no-fallback",
       "output",
+      "pathSemantics",
       "port",
       "queue",
       "quiet",
@@ -5429,10 +5550,12 @@
       "strictEvidence",
       "strictRisk",
       "tag",
+      "task",
       "timeout-ms",
       "tools",
       "top",
       "watch",
+      "wholeFileFallback",
       "workspace",
       "workspaceId"
     ],
@@ -5502,6 +5625,7 @@
       "coverage",
       "coverage-dir",
       "crash-bundle",
+      "cssSourceFacts",
       "csv",
       "ctags",
       "customConditions",
@@ -5649,6 +5773,7 @@
       "maxCallsPerSymbol",
       "maxEdgeBytes",
       "maxNodeBytes",
+      "maxOutputBytes",
       "maxPerHit",
       "maxSymbols",
       "maxTotal",
@@ -5684,6 +5809,7 @@
       "non-strict",
       "normalize",
       "notes-out",
+      "once",
       "only",
       "onlyExported",
       "onlyExports",
@@ -5801,6 +5927,7 @@
       "strict",
       "stub-embeddings",
       "surface",
+      "swift",
       "symbols",
       "table",
       "tags",
@@ -5854,6 +5981,7 @@
       "dry-run",
       "flow-id",
       "format",
+      "granularity",
       "hops",
       "host",
       "includeCallersCallees",
@@ -5887,6 +6015,7 @@
       "mode",
       "no-fallback",
       "output",
+      "pathSemantics",
       "port",
       "queue",
       "quiet",
@@ -5908,9 +6037,11 @@
       "strictEvidence",
       "strictRisk",
       "tag",
+      "task",
       "timeout-ms",
       "tools",
       "watch",
+      "wholeFileFallback",
       "workspace",
       "workspaceId"
     ],
@@ -5933,6 +6064,7 @@
           "dry-run",
           "flow-id",
           "format",
+          "granularity",
           "hops",
           "host",
           "includeCallersCallees",
@@ -5966,6 +6098,7 @@
           "mode",
           "no-fallback",
           "output",
+          "pathSemantics",
           "port",
           "queue",
           "quiet",
@@ -5987,9 +6120,11 @@
           "strictEvidence",
           "strictRisk",
           "tag",
+          "task",
           "timeout-ms",
           "tools",
           "watch",
+          "wholeFileFallback",
           "workspace",
           "workspaceId"
         ]
@@ -6159,6 +6294,12 @@
         ]
       },
       {
+        "file": "tests/indexing/build/immutable-graph-capability.test.js",
+        "flags": [
+          "strict"
+        ]
+      },
+      {
         "file": "tests/indexing/chunking/preamble-and-unicode-coverage.test.js",
         "flags": [
           "maskBits",
@@ -6178,6 +6319,12 @@
         "file": "tests/indexing/file-processor/generated-artifact-content.test.js",
         "flags": [
           "include"
+        ]
+      },
+      {
+        "file": "tests/indexing/imports/css-import-registry-replay.test.js",
+        "flags": [
+          "cssSourceFacts"
         ]
       },
       {
@@ -6361,6 +6508,12 @@
         ]
       },
       {
+        "file": "tests/lang/contracts/handlebars-ast-boundaries.test.js",
+        "flags": [
+          "collectorNow"
+        ]
+      },
+      {
         "file": "tests/lang/contracts/jsonc-structure-boundaries.test.js",
         "flags": [
           "collectorNow",
@@ -6368,7 +6521,47 @@
         ]
       },
       {
+        "file": "tests/lang/contracts/native-call-argument-authority.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled",
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/native-call-scope-roles.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled",
+          "treeSitter"
+        ]
+      },
+      {
         "file": "tests/lang/contracts/python-declaration-header-ownership.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled",
+          "pythonAst"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/python-lambda-execution-ownership.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled",
+          "pythonAst"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/python-parenthesized-prefix-coverage.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled",
+          "pythonAst"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/python-repeated-lexical-call-ownership.test.js",
         "flags": [
           "astDataflowEnabled",
           "controlFlowEnabled",
@@ -6444,6 +6637,18 @@
         "file": "tests/map/canonical-member-inventory.test.js",
         "flags": [
           "maxEdges"
+        ]
+      },
+      {
+        "file": "tests/map/preview-graph-export-admission.test.js",
+        "flags": [
+          "scope"
+        ]
+      },
+      {
+        "file": "tests/map/preview-session-inspection-isolation.test.js",
+        "flags": [
+          "include"
         ]
       },
       {
@@ -6586,6 +6791,12 @@
           "retries",
           "shard-count",
           "shard-index"
+        ]
+      },
+      {
+        "file": "tools/analysis/map-iso-preview.js",
+        "flags": [
+          "once"
         ]
       },
       {
@@ -7218,8 +7429,10 @@
       {
         "file": "tools/dicts/generate-repo-dict.js",
         "flags": [
+          "cwd",
           "extensions",
           "include-prose",
+          "maxOutputBytes",
           "min-count",
           "out",
           "repo"
@@ -7653,6 +7866,14 @@
         ]
       },
       {
+        "file": "tools/reports/report-code-map.js",
+        "flags": [
+          "input",
+          "maxOutputBytes",
+          "timeoutMs"
+        ]
+      },
+      {
         "file": "tools/reports/show-throughput/options.js",
         "flags": [
           "compare",
@@ -7773,6 +7994,15 @@
         ]
       },
       {
+        "file": "tools/tooling/prepare-sourcekit.js",
+        "flags": [
+          "apply",
+          "json",
+          "repo",
+          "swift"
+        ]
+      },
+      {
         "file": "tools/tooling/uninstall.js",
         "flags": [
           "allow-unmarked-cache",
@@ -7862,7 +8092,7 @@
     "duplicated": [
       {
         "flag": "json",
-        "count": 60,
+        "count": 61,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -7920,6 +8150,7 @@
           "tools/testing/shared-module-migration.js",
           "tools/testing/shared-module-performance.js",
           "tools/tooling/lifecycle.js",
+          "tools/tooling/prepare-sourcekit.js",
           "tools/tui/install.js",
           "tools/workspace/catalog.js",
           "tools/workspace/manifest.js",
@@ -7981,7 +8212,7 @@
       },
       {
         "flag": "repo",
-        "count": 45,
+        "count": 46,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -8024,6 +8255,7 @@
           "tools/reports/show-throughput/options.js",
           "tools/sqlite/verify-extensions.js",
           "tools/tooling/lifecycle.js",
+          "tools/tooling/prepare-sourcekit.js",
           "tools/tooling/uninstall.js",
           "tools/triage/context-pack.js",
           "tools/triage/decision.js",
@@ -8069,7 +8301,7 @@
       },
       {
         "flag": "treeSitter",
-        "count": 17,
+        "count": 19,
         "files": [
           "src/lang/javascript/chunks.js",
           "src/lang/typescript/chunks.js",
@@ -8083,6 +8315,8 @@
           "tests/indexing/tree-sitter/streaming-chunking.test.js",
           "tests/indexing/tree-sitter/xml-runtime.test.js",
           "tests/lang/contracts/clike-registry-prepared-relations.test.js",
+          "tests/lang/contracts/native-call-argument-authority.test.js",
+          "tests/lang/contracts/native-call-scope-roles.test.js",
           "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
           "tests/lang/contracts/syntax-call-canonical-handoff.test.js",
           "tests/security/java-workspace-execution-authority.test.js",
@@ -8146,8 +8380,25 @@
         ]
       },
       {
+        "flag": "pythonAst",
+        "count": 11,
+        "files": [
+          "tests/indexing/language-registry/python-ast-heavy-skip.test.js",
+          "tests/indexing/language-registry/python-prepared-ast-runtime.test.js",
+          "tests/indexing/language-registry/python-prepared-chunks.test.js",
+          "tests/lang/contracts/python-declaration-header-ownership.test.js",
+          "tests/lang/contracts/python-lambda-execution-ownership.test.js",
+          "tests/lang/contracts/python-parenthesized-prefix-coverage.test.js",
+          "tests/lang/contracts/python-repeated-lexical-call-ownership.test.js",
+          "tests/lang/python/positional-defaults.test.js",
+          "tests/lang/python/python-contract-matrix.test.js",
+          "tests/lang/python/registry-relations.test.js",
+          "tests/lang/python/utf8-chunk-ranges.test.js"
+        ]
+      },
+      {
         "flag": "input",
-        "count": 9,
+        "count": 10,
         "files": [
           "src/shared/kill-tree/windows.js",
           "tools/bench/vfs/hash-routing-lookup.js",
@@ -8157,7 +8408,38 @@
           "tools/ingest/gtags.js",
           "tools/ingest/lsif.js",
           "tools/ingest/scip.js",
+          "tools/reports/report-code-map.js",
           "tools/test_times/report.js"
+        ]
+      },
+      {
+        "flag": "astDataflowEnabled",
+        "count": 9,
+        "files": [
+          "tests/indexing/language-registry/python-prepared-chunks.test.js",
+          "tests/lang/contracts/native-call-argument-authority.test.js",
+          "tests/lang/contracts/native-call-scope-roles.test.js",
+          "tests/lang/contracts/python-declaration-header-ownership.test.js",
+          "tests/lang/contracts/python-lambda-execution-ownership.test.js",
+          "tests/lang/contracts/python-parenthesized-prefix-coverage.test.js",
+          "tests/lang/contracts/python-repeated-lexical-call-ownership.test.js",
+          "tests/lang/contracts/syntax-call-canonical-handoff.test.js",
+          "tests/lang/helpers/heuristic-adapter-contracts.js"
+        ]
+      },
+      {
+        "flag": "controlFlowEnabled",
+        "count": 9,
+        "files": [
+          "tests/indexing/language-registry/python-prepared-chunks.test.js",
+          "tests/lang/contracts/native-call-argument-authority.test.js",
+          "tests/lang/contracts/native-call-scope-roles.test.js",
+          "tests/lang/contracts/python-declaration-header-ownership.test.js",
+          "tests/lang/contracts/python-lambda-execution-ownership.test.js",
+          "tests/lang/contracts/python-parenthesized-prefix-coverage.test.js",
+          "tests/lang/contracts/python-repeated-lexical-call-ownership.test.js",
+          "tests/lang/contracts/syntax-call-canonical-handoff.test.js",
+          "tests/lang/helpers/heuristic-adapter-contracts.js"
         ]
       },
       {
@@ -8218,20 +8500,6 @@
         ]
       },
       {
-        "flag": "pythonAst",
-        "count": 8,
-        "files": [
-          "tests/indexing/language-registry/python-ast-heavy-skip.test.js",
-          "tests/indexing/language-registry/python-prepared-ast-runtime.test.js",
-          "tests/indexing/language-registry/python-prepared-chunks.test.js",
-          "tests/lang/contracts/python-declaration-header-ownership.test.js",
-          "tests/lang/python/positional-defaults.test.js",
-          "tests/lang/python/python-contract-matrix.test.js",
-          "tests/lang/python/registry-relations.test.js",
-          "tests/lang/python/utf8-chunk-ranges.test.js"
-        ]
-      },
-      {
         "flag": "top",
         "count": 8,
         "files": [
@@ -8243,6 +8511,19 @@
           "tools/reports/parity-matrix.js",
           "tools/reports/show-throughput/options.js",
           "tools/test_times/report.js"
+        ]
+      },
+      {
+        "flag": "include",
+        "count": 7,
+        "files": [
+          "src/map/build-map.js",
+          "tests/indexing/file-processor/generated-artifact-content.test.js",
+          "tests/indexing/map/chunkuid-join.test.js",
+          "tests/indexing/map/code-map-contract-matrix.test.js",
+          "tests/map/preview-session-inspection-isolation.test.js",
+          "tests/shared/cache/contract-matrix.test.js",
+          "tests/shared/generated-artifact-discovery.test.js"
         ]
       },
       {
@@ -8270,18 +8551,6 @@
         ]
       },
       {
-        "flag": "include",
-        "count": 6,
-        "files": [
-          "src/map/build-map.js",
-          "tests/indexing/file-processor/generated-artifact-content.test.js",
-          "tests/indexing/map/chunkuid-join.test.js",
-          "tests/indexing/map/code-map-contract-matrix.test.js",
-          "tests/shared/cache/contract-matrix.test.js",
-          "tests/shared/generated-artifact-discovery.test.js"
-        ]
-      },
-      {
         "flag": "quiet",
         "count": 6,
         "files": [
@@ -8291,6 +8560,30 @@
           "tools/build/tantivy-index.js",
           "tools/ci/build-artifacts.js",
           "tools/download/extensions.js"
+        ]
+      },
+      {
+        "flag": "scope",
+        "count": 6,
+        "files": [
+          "bin/pairofcleats.js",
+          "tests/map/preview-graph-export-admission.test.js",
+          "tests/shared/cache/contract-matrix.test.js",
+          "tools/tooling/install-clangd.js",
+          "tools/tooling/install-lua-language-server.js",
+          "tools/tooling/install-phpactor-phar.js"
+        ]
+      },
+      {
+        "flag": "strict",
+        "count": 6,
+        "files": [
+          "tests/indexing/build/immutable-graph-capability.test.js",
+          "tests/indexing/map/chunkuid-join.test.js",
+          "tests/indexing/map/code-map-contract-matrix.test.js",
+          "tools/bench/language/prerequisite-check.js",
+          "tools/index/reconcile-identity.js",
+          "tools/triage/ingest.js"
         ]
       },
       {
@@ -8351,17 +8644,6 @@
         ]
       },
       {
-        "flag": "scope",
-        "count": 5,
-        "files": [
-          "bin/pairofcleats.js",
-          "tests/shared/cache/contract-matrix.test.js",
-          "tools/tooling/install-clangd.js",
-          "tools/tooling/install-lua-language-server.js",
-          "tools/tooling/install-phpactor-phar.js"
-        ]
-      },
-      {
         "flag": "size",
         "count": 5,
         "files": [
@@ -8373,17 +8655,6 @@
         ]
       },
       {
-        "flag": "strict",
-        "count": 5,
-        "files": [
-          "tests/indexing/map/chunkuid-join.test.js",
-          "tests/indexing/map/code-map-contract-matrix.test.js",
-          "tools/bench/language/prerequisite-check.js",
-          "tools/index/reconcile-identity.js",
-          "tools/triage/ingest.js"
-        ]
-      },
-      {
         "flag": "ann",
         "count": 4,
         "files": [
@@ -8391,16 +8662,6 @@
           "tools/bench/embeddings/model-bakeoff.js",
           "tools/reports/combined-summary.js",
           "tools/triage/context-pack.js"
-        ]
-      },
-      {
-        "flag": "astDataflowEnabled",
-        "count": 4,
-        "files": [
-          "tests/indexing/language-registry/python-prepared-chunks.test.js",
-          "tests/lang/contracts/python-declaration-header-ownership.test.js",
-          "tests/lang/contracts/syntax-call-canonical-handoff.test.js",
-          "tests/lang/helpers/heuristic-adapter-contracts.js"
         ]
       },
       {
@@ -8421,16 +8682,6 @@
           "tools/config/reset.js",
           "tools/docs/script-inventory.js",
           "tools/reports/diagnostics-report.js"
-        ]
-      },
-      {
-        "flag": "controlFlowEnabled",
-        "count": 4,
-        "files": [
-          "tests/indexing/language-registry/python-prepared-chunks.test.js",
-          "tests/lang/contracts/python-declaration-header-ownership.test.js",
-          "tests/lang/contracts/syntax-call-canonical-handoff.test.js",
-          "tests/lang/helpers/heuristic-adapter-contracts.js"
         ]
       },
       {
@@ -8828,6 +9079,14 @@
         ]
       },
       {
+        "flag": "apply",
+        "count": 2,
+        "files": [
+          "tools/cache/clear-cache.js",
+          "tools/tooling/prepare-sourcekit.js"
+        ]
+      },
+      {
         "flag": "arch",
         "count": 2,
         "files": [
@@ -8860,6 +9119,14 @@
         ]
       },
       {
+        "flag": "collectorNow",
+        "count": 2,
+        "files": [
+          "tests/lang/contracts/handlebars-ast-boundaries.test.js",
+          "tests/lang/contracts/jsonc-structure-boundaries.test.js"
+        ]
+      },
+      {
         "flag": "collectorScanBudget",
         "count": 2,
         "files": [
@@ -8881,6 +9148,14 @@
         "files": [
           "tests/fixtures/medium/generate.js",
           "tools/bench/query-generator.js"
+        ]
+      },
+      {
+        "flag": "cwd",
+        "count": 2,
+        "files": [
+          "tests/tooling/install/managed-child-storage-settlement.test.js",
+          "tools/dicts/generate-repo-dict.js"
         ]
       },
       {
@@ -9097,6 +9372,14 @@
         "files": [
           "bin/pairofcleats.js",
           "tests/map/canonical-member-inventory.test.js"
+        ]
+      },
+      {
+        "flag": "maxOutputBytes",
+        "count": 2,
+        "files": [
+          "tools/dicts/generate-repo-dict.js",
+          "tools/reports/report-code-map.js"
         ]
       },
       {
@@ -9348,6 +9631,14 @@
         ]
       },
       {
+        "flag": "timeoutMs",
+        "count": 2,
+        "files": [
+          "src/shared/kill-tree/windows.js",
+          "tools/reports/report-code-map.js"
+        ]
+      },
+      {
         "flag": "tokens",
         "count": 2,
         "files": [
@@ -9407,6 +9698,8 @@
     "dynamicOptionFiles": [
       "bin/dispatch-runtime-env.js",
       "extensions/vscode/extension.js",
+      "extensions/vscode/filter-pagination.js",
+      "extensions/vscode/search-replay.js",
       "src/index/build/args.js",
       "src/index/build/context-window.js",
       "src/index/build/file-processor/cpu.js",
@@ -9441,7 +9734,7 @@
       "src/retrieval/cli/run-search-session/mode-expansion.js",
       "src/retrieval/evaluation/fusion-replay.js",
       "src/retrieval/federation/args.js",
-      "src/retrieval/federation/coordinator.js",
+      "src/retrieval/federation/modes.js",
       "src/retrieval/index-cache.js",
       "src/retrieval/query-parse.js",
       "src/shared/cli-option-validators.js",
@@ -9449,6 +9742,7 @@
       "src/shared/concurrency/scheduler-core/index.js",
       "src/shared/embedding-model-loading.js",
       "src/shared/onnx-embeddings/qualification.js",
+      "src/workspace/child-runtime-env.js",
       "tests/helpers/published-runtime-witness.js",
       "tests/helpers/semantic-cache-fixture.js",
       "tests/helpers/semantic-recovery.js",
@@ -9457,10 +9751,13 @@
       "tests/indexing/chunking/chunker-options-forwarding.test.js",
       "tests/indexing/contracts/semantic-foundations.test.js",
       "tests/indexing/contracts/semantic-handoff-contracts.test.js",
+      "tests/indexing/imports/xml-schema-reference-replay.test.js",
       "tests/indexing/lifecycle/build-entry-failure-no-unsettled-warning.test.js",
+      "tests/indexing/postings/phrase-hash-spill-failure-ownership.test.js",
       "tests/indexing/registry-borrowed-lock-capability.test.js",
       "tests/indexing/runtime/build-intent-and-stage-handoff.test.js",
       "tests/indexing/semantic/compiler-erased-runtime-context.test.js",
+      "tests/indexing/semantic/compiler-source-identity-index.test.js",
       "tests/indexing/semantic/embedded-cache.test.js",
       "tests/indexing/semantic/embedded-map-source-authority.test.js",
       "tests/indexing/semantic/retained-evidence-scalar-spans.test.js",
@@ -9475,7 +9772,6 @@
       "tests/indexing/tree-sitter/memory-plateau.test.js",
       "tests/indexing/tree-sitter/native-artifact-resource-lifetime.test.js",
       "tests/lang/contracts/dockerfile-ast-boundaries.test.js",
-      "tests/lang/contracts/handlebars-ast-boundaries.test.js",
       "tests/lang/contracts/html-registry-metadata.test.js",
       "tests/lang/contracts/jinja-django-lexical-boundaries.test.js",
       "tests/lang/contracts/mustache-parse-token-boundaries.test.js",
@@ -9487,6 +9783,7 @@
       "tests/map/workspace/dom-interaction.test.js",
       "tests/map/workspace/lazy-projection.test.js",
       "tests/map/workspace/loaded-response-find.test.js",
+      "tests/map/workspace/page-identity-lookup.test.js",
       "tests/map/workspace/projection.test.js",
       "tests/perf/bench/run.test.js",
       "tests/perf/parsers/xml-cold-budget.test.js",
@@ -9498,6 +9795,7 @@
       "tests/storage/semantic/partitions.test.js",
       "tests/storage/semantic/prepared-row-bytes.test.js",
       "tests/storage/semantic/reader-input-ownership.test.js",
+      "tests/storage/semantic/runtime-adapter-read-ownership.test.js",
       "tests/storage/semantic/runtime-claims-recovery.test.js",
       "tests/storage/semantic/runtime-destination-ownership.test.js",
       "tests/storage/semantic/runtime-import-publication.test.js",
@@ -9508,13 +9806,14 @@
       "tests/storage/semantic/source-reference-input-ownership.test.js",
       "tests/storage/sqlite/build-root-active-generation-plan.test.js",
       "tests/storage/sqlite/minhash-bundle-identity.test.js",
+      "tests/tooling/reports/map-graph-capability-consumer.test.js",
+      "tests/tooling/reports/map-operational-render.test.js",
       "tests/tooling/signature-parse/signature-contract-matrix.test.js",
       "tests/tooling/typescript-root-preflight.test.js",
       "tests/tooling/typescript-symbolic-frontend.test.js",
       "tools/analysis/delta-risk.js",
       "tools/analysis/explain-risk.js",
       "tools/analysis/graph-evidence.js",
-      "tools/analysis/map-iso-preview.js",
       "tools/analysis/runtime-evidence.js",
       "tools/analysis/semantic-detail.js",
       "tools/analysis/semantic-explain.js",
@@ -9534,11 +9833,11 @@
       "tools/docs/recipes/contracts.js",
       "tools/eval/run.js",
       "tools/index/cache-gc.js",
+      "tools/index/recover.js",
       "tools/index/report-artifacts.js",
       "tools/index/stats.js",
       "tools/index/validate.js",
       "tools/reports/compare-models.js",
-      "tools/reports/report-code-map.js",
       "tools/service/indexer-service.js",
       "tools/service/subprocess-log.js",
       "tools/setup/bootstrap.js",
@@ -9549,7 +9848,8 @@
       "tools/tooling/detect.js",
       "tools/tooling/doctor.js",
       "tools/tooling/install.js",
-      "tools/workspace/author.js"
+      "tools/workspace/author.js",
+      "tools/workspace/build.js"
     ]
   }
 }

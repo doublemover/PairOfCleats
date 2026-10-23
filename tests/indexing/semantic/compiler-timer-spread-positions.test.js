@@ -24,7 +24,7 @@ try {
   for (const partition of [...fixture.syntaxPartitions, ...partitions]) {
     for await (const row of store.iterateRows(partition.partitionId, 'semantic_records')) records.set(key({ partitionId: partition.partitionId, localId: row.id }), row);
     for await (const row of store.iterateRows(partition.partitionId, 'semantic_edges')) edges.push(row);
-    for await (const row of store.iterateRows(partition.partitionId, 'semantic_coverage')) coverage.push(row);
+    if (partitions.includes(partition)) for await (const row of store.iterateRows(partition.partitionId, 'semantic_coverage')) coverage.push(row);
   }
   for (const [handlerName, expected] of [['empty', true], ['one', true], ['two', true], ['unknown', false], ['ordinary', true]]) {
     const handler = doc.nodes.find(node => ts.isFunctionExpression(node) && node.name?.text === handlerName);

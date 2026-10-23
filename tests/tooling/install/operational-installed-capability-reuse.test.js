@@ -21,7 +21,7 @@ try {
   const adapter = `import fs from 'node:fs/promises'; export async function withOperationalTool(id, selection, execute) {
     if(id!=='graphviz'||selection.commandOverride!==${JSON.stringify(command)}) throw new Error('Only the explicitly selected trusted Graphviz fixture is authorized');
     await fs.appendFile(${JSON.stringify(trace)},JSON.stringify({id,command:selection.commandOverride})+'\\n');
-    if(process.env.PAIROFCLEATS_FIXTURE_RENDERER!=='qualified') throw Object.assign(new Error('Selected renderer has no SVG plugin'),{code:'ERR_OPERATIONAL_TOOL_UNAVAILABLE'});
+    if(process.env.TEST_RENDERER_CAPABILITY!=='qualified') throw Object.assign(new Error('Selected renderer has no SVG plugin'),{code:'ERR_OPERATIONAL_TOOL_UNAVAILABLE'});
     return execute({capability:{ok:true,identity:{family:'graphviz',version:'16.1.0'},level:'explicit-fixture-svg-operation'}});
   }`;
   await fs.writeFile(preload, `import { registerHooks } from 'node:module'; registerHooks({load(url,context,next){
@@ -31,7 +31,7 @@ try {
     PAIROFCLEATS_HOME: path.join(temporary, 'home'), PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([repo]), PAIROFCLEATS_TRUSTED_CONFIG: null,
     PATH: bin, Path: bin, NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --import=${pathToFileURL(preload).href}`.trim() } });
   const run = qualified => runNode(['tools/tooling/install.js', '--repo', repo, '--tools', 'graphviz', '--scope', 'cache', '--no-fallback', '--json'],
-    'installed Graphviz fixture capability reuse', process.cwd(), { ...env, PAIROFCLEATS_FIXTURE_RENDERER: qualified ? 'qualified' : 'missing' },
+    'installed Graphviz fixture capability reuse', process.cwd(), { ...env, TEST_RENDERER_CAPABILITY: qualified ? 'qualified' : 'missing' },
     { timeoutMs: 10000, stdio: 'pipe', allowFailure: true });
   const failed = run(false); assert.equal(failed.status, 1, failed.stderr);
   const blocked = JSON.parse(failed.stdout);
