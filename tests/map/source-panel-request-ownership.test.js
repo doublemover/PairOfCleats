@@ -10,5 +10,11 @@ assert.notEqual(calls[0].lane,calls[1].lane,'independent source disclosures do n
 await one.query('members',{fileRow:0,cursor:40});assert.equal(calls[0].lane,calls[2].lane,'the same panel continuation supersedes its own old page');
 a.remove();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(calls[0].signal.aborted,true);assert.equal(calls[1].signal.aborted,false);
 await assert.rejects(one.query('detail',{}),error=>error.name==='AbortError');
-two.dispose();two.dispose();assert.equal(calls[1].signal.aborted,true);await window.happyDOM.close();
+two.dispose();two.dispose();assert.equal(calls[1].signal.aborted,true);
+let current=true,complete,dispatches=0;
+const scoped=createSourceViewRequestOwner({host:b,isCurrent:()=>current,request:()=>{dispatches++;return new Promise(resolve=>{complete=resolve;});}});
+const stale=scoped.query('members',{});current=false;complete({rows:['original source']});
+await assert.rejects(stale,{name:'AbortError'});
+await assert.rejects(scoped.query('members',{}),{name:'AbortError'});assert.equal(dispatches,1);
+scoped.dispose();await window.happyDOM.close();
 console.log('Source panel continuation lanes and actual disconnect cancellation authored; browser lifecycle qualification deferred.');

@@ -20,15 +20,18 @@ const observeRemoval=(host,removed)=>{
 };
 
 /** Operation lanes belong to the actual panel, not to a globally shared kind. */
-export const createSourceViewRequestOwner = ({host,request}) => {
+export const createSourceViewRequestOwner = ({host,request,isCurrent=()=>true}) => {
   const id=++serial,controller=new AbortController();let retired=false;
   let unregister=()=>{};
   const dispose=()=>{if(retired)return;retired=true;controller.abort(new DOMException('Source panel retired.','AbortError'));unregister();};
   unregister=observeRemoval(host,dispose);
   return {
-    query(kind,payload,options={}){
-      if(retired)return Promise.reject(new DOMException('Source panel retired.','AbortError'));
-      return request(kind,payload,{...options,lane:`source-view:${id}:${kind}`,signal:controller.signal});
+    async query(kind,payload,options={}){
+      const current=()=>{if(retired)return false;const accepted=isCurrent()===true;return !retired&&accepted;};
+      if(!current())throw new DOMException('Source panel retired.','AbortError');
+      const result=await request(kind,payload,{...options,lane:`source-view:${id}:${kind}`,signal:controller.signal});
+      if(!current())throw new DOMException('Source panel superseded.','AbortError');
+      return result;
     },
     get retired(){return retired;},
     dispose
