@@ -34,8 +34,9 @@ results, falsey/frozen read plus close failure, numeric-generation refusal and
 invalid read progress. Existing fd-zero and positive short-read fixtures remain
 unchanged. Disposable descriptor cleanup is not resource-settlement evidence.
 
-This does not adopt the other catch-to-fallback JSON helpers in `file-read.js`,
-the opaque lock-info borrower, stream owners or atomic publication. It adds no
+The JSON helpers have their separate
+[descriptor/fallback contract](json-fallback-resource-lifetime.md). This range
+borrower does not adopt diagnostic/stale lock-info, streams or atomic publication. It adds no
 new resource registry, coordinator/category lease, cross-process authority or
 issue-completion claim. The existing contained-path checks and ordinary raw
 path semantics remain distinct and unchanged.

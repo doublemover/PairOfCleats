@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import { withContainedFileSync } from './contained-file.js';
 import { createContainedFileResource } from './contained-file-resource.js';
+import { readJsonResourceText, readJsonResourceTextSync } from './file-read-resource.js';
+import { observeStorageResource } from './storage/failure-observation.js';
 
 const normalizeJsonReadOptions = (options) => (
   options && typeof options === 'object' && !Array.isArray(options)
@@ -10,10 +12,16 @@ const normalizeJsonReadOptions = (options) => (
 );
 
 const createJsonReadErrorEmitter = ({ filePath, onError, sync }) => (phase, error) => {
+  const observation = observeStorageResource(error, { phase: `json-${phase}` });
+  observation.requireSettled();
   if (typeof onError !== 'function') return;
   try {
     onError({ path: String(filePath), error, phase, sync });
-  } catch {}
+  } catch (inspection) {
+    try { observeStorageResource(inspection, { phase: 'json-report' }).requireSettled(); }
+    catch (pending) { throw observation.retain(pending, { inspectionPresent: true }); }
+  }
+  observation.requireSettled();
 };
 
 const createJsonFileTooLargeError = ({ size, maxBytes }) => {
@@ -78,7 +86,11 @@ export async function readJsonFileSafe(
   }
   let raw = '';
   try {
-    raw = await fsPromises.readFile(filePath, 'utf8');
+    raw = await readJsonResourceText(filePath, stat => {
+      if (Number.isFinite(maxBytes) && maxBytes > 0 && stat.size > maxBytes) {
+        throw createJsonFileTooLargeError({ size: stat.size, maxBytes });
+      }
+    });
   } catch (error) {
     emitError('read', error);
     return fallback;
@@ -113,7 +125,11 @@ export function readJsonFileSyncSafe(
   }
   let raw = '';
   try {
-    raw = fs.readFileSync(filePath, 'utf8');
+    raw = readJsonResourceTextSync(filePath, stat => {
+      if (Number.isFinite(maxBytes) && maxBytes > 0 && stat.size > maxBytes) {
+        throw createJsonFileTooLargeError({ size: stat.size, maxBytes });
+      }
+    });
   } catch (error) {
     emitError('read', error);
     return fallback;
@@ -130,7 +146,7 @@ export function readJsonLinesSyncSafe(filePath) {
   if (!filePath || !fs.existsSync(filePath)) return [];
   const PARSE_FAILED = Symbol('PARSE_FAILED');
   try {
-    const raw = fs.readFileSync(filePath, 'utf8');
+    const raw = readJsonResourceTextSync(filePath);
     return raw
       .split(/\r?\n/)
       .map((line) => line.trim())
@@ -143,7 +159,8 @@ export function readJsonLinesSyncSafe(filePath) {
         }
       })
       .filter((entry) => entry !== PARSE_FAILED);
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'json-lines-read' }).requireSettled();
     return [];
   }
 }
