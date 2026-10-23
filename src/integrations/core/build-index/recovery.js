@@ -5,6 +5,9 @@ import { assertNoSymlinkPath } from '../../../shared/contained-file.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 import { readBuildMetadata, verifyCompletedStage } from '../../../index/build/completed-stage.js';
+import { readCompletedStage } from '../../../index/build/completed-stage.js';
+import { updateBuildState } from '../../../index/build/build-state.js';
+import { sealRetainedGraph, withRetainedGraph } from './recovery-graph.js';
 import { resolveArtifactPublicationPath } from '../../../index/build/artifact-publication.js';
 import { acquireIndexLock, readIndexLockInfo } from '../../../index/build/lock.js';
 import { createIndexCacheLease, assertIndexCacheLease } from '../../../index/build/cache-lease.js';
@@ -40,7 +43,7 @@ const pointerIdentity = async (root, userConfig) => {
  */
 export const planBuildRecovery = async ({ root, userConfig, indexRoot, operation = 'validate', modes = null, signal = null }) => {
   throwIfAborted(signal);
-  if (!['validate', 'publish'].includes(operation)) throw fail('ERR_RECOVERY_OPERATION', 'Supported recovery operations are validate and publish.');
+  if (!['validate', 'publish', 'graph'].includes(operation)) throw fail('ERR_RECOVERY_OPERATION', 'Supported recovery operations are validate, publish and graph.');
   const buildRoot = validRoot(root, indexRoot, userConfig);
   const { value: state, hash: stateHash } = await readBuildMetadata(buildRoot, path.join(buildRoot, 'build_state.json'), 8 * 1024 * 1024);
   if (state?.artifactSurfaceVersion !== ARTIFACT_SURFACE_VERSION || state.schemaVersion !== 1
@@ -48,20 +51,22 @@ export const planBuildRecovery = async ({ root, userConfig, indexRoot, operation
     || !samePath(state.buildRoot || '.', buildRoot) || !samePath(state.repoRoot || '.', root)) {
     throw fail('ERR_RECOVERY_GENERATION', 'Retained build metadata belongs to another repository or format.');
   }
-  const selectedModes = modes || state.modes;
+  const selectedModes = modes || (operation === 'graph' ? ['code'] : state.modes);
   if (!Array.isArray(selectedModes) || !selectedModes.length || selectedModes.length > 4
     || selectedModes.some(mode => !MODES.has(mode)) || new Set(selectedModes).size !== selectedModes.length) {
     throw fail('ERR_RECOVERY_MODES', 'Recovery requires explicit supported modes present in retained metadata.');
   }
   if (selectedModes.some(mode => !state.modes?.includes(mode))) throw fail('ERR_RECOVERY_MODES', 'Requested mode is absent from the selected generation.');
+  if (operation === 'graph' && (selectedModes.length !== 1 || selectedModes[0] !== 'code')) throw fail('ERR_RECOVERY_MODES', 'Graph capability validation requires exactly the retained code mode.');
   const evidence = [];
   for (const mode of selectedModes) {
     throwIfAborted(signal);
     try {
       const { value: publication, hash: publicationHash } = await readBuildMetadata(buildRoot, resolveArtifactPublicationPath(buildRoot, mode));
-      const completion = publication.completedStage;
+      const completion = await readCompletedStage({ buildRoot, mode, state, signal });
       evidence.push({ mode, status: completion ? 'sealed-unverified' : 'unverified', publicationHash,
-        completion: completion || null, reason: completion ? 'exact-bytes-revalidation-required' : 'completion-receipt-missing' });
+        completion: completion || null, graphCapability: state.graphCapabilities?.[mode]?.graphCapability || completion?.snapshot?.graphCapability || null,
+        reason: completion ? 'exact-bytes-revalidation-required' : 'completion-receipt-missing' });
     } catch (error) {
       if (!['ENOENT', 'ERR_FILE_TOO_LARGE'].includes(error.code) && !(error instanceof SyntaxError)) throw error;
       evidence.push({ mode, status: 'unverified', publicationHash: null, completion: null,
@@ -79,7 +84,7 @@ export const planBuildRecovery = async ({ root, userConfig, indexRoot, operation
     requiredDownloads: [], additionalArtifactBytes: 0,
     blocked: lock ? 'repository-writer-lease-present' : null,
     limitations: ['No working-tree refresh or missing-stage resume is authorized.',
-      'Stage seals are exact-byte evidence; an independent immutable graph capability is unavailable.',
+      'Graph capability is independent of vector/SQLite readiness and normal current selection.',
       'Publication requires every selected mode seal and normal validation under current validation policy.'] };
   return { ...plan, planId: hash(plan) };
 };
@@ -89,6 +94,34 @@ export const planBuildRecovery = async ({ root, userConfig, indexRoot, operation
  */
 export const executeBuildRecovery = async ({ root, userConfig, plan, signal = null, log = () => {} }) => {
   if (!plan?.planId) throw fail('ERR_RECOVERY_PLAN', 'A reviewed recovery plan is required.');
+  if (hash(Object.fromEntries(Object.entries(plan).filter(([key]) => key !== 'planId'))) !== plan.planId
+    || !samePath(plan.repoRoot || '.', root) || plan.configIdentity !== hash(userConfig)) {
+    throw fail('ERR_RECOVERY_PLAN_STALE', 'Recovery request differs from the reviewed plan or current configuration.');
+  }
+  const selectedRoot = validRoot(root, plan.buildRoot, userConfig);
+  const { value: prior } = await readBuildMetadata(selectedRoot, path.join(selectedRoot, 'build_state.json'), 8 * 1024 * 1024, signal);
+  const completed = prior.recoveryTransactions?.[plan.planId];
+  if (completed?.status === 'completed') {
+    if (completed.operation !== plan.operation || completed.buildId !== plan.buildId || prior.buildId !== plan.buildId) throw fail('ERR_RECOVERY_PLAN_STALE', 'Completed recovery belongs to another generation.');
+    // Completion is historical authority, never a new mutation or current-pointer claim.
+    if (plan.operation === 'graph') return withRetainedGraph({ root, userConfig, buildRoot: selectedRoot, buildId: plan.buildId, signal },
+      graph => ({ ...completed.result, graph, alreadyComplete: true }));
+    const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+    const lock = await acquireIndexLock({ repoCacheRoot, signal, requireSettlement: true,
+      storageContext: { repoRoot: root, userConfig }, metadata: { owner: 'build-recovery-confirmation' }, log });
+    if (!lock) throw fail('ERR_RECOVERY_BUSY', 'Repository writer lease is unavailable for completion confirmation.');
+    const lease = createIndexCacheLease(lock, repoCacheRoot);
+    let operationError = null;
+    try {
+      const validation = await validateIndexArtifacts({ root, indexRoot: selectedRoot, userConfig, modes: plan.modes,
+        sqliteEnabled: userConfig.sqlite?.use !== false, strict: true, abortSignal: signal });
+      if (!validation.ok) throw fail('ERR_RECOVERY_PLAN_STALE', 'Previously completed recovery artifacts no longer validate.');
+      return { ...completed.result, alreadyComplete: true,
+        publication: { ...completed.result.publication, currentPointerUnchangedSinceCompletion:
+          completed.currentPointerIdentity === await pointerIdentity(root, userConfig) } };
+    } catch (error) { operationError = error; throw error; }
+    finally { await releaseCacheWriterOwnership({ lease, release: () => lock.release(), operationError }); }
+  }
   const currentPlan = await planBuildRecovery({ root, userConfig, indexRoot: plan.buildRoot,
     operation: plan.operation, modes: plan.modes, signal });
   if (currentPlan.planId !== plan.planId || hash(Object.fromEntries(Object.entries(plan).filter(([key]) => key !== 'planId'))) !== plan.planId) {
@@ -113,7 +146,9 @@ export const executeBuildRecovery = async ({ root, userConfig, plan, signal = nu
       inputs: { recoveryPlanId: plan.planId, sourceScope: plan.sourceScope, modes: plan.modes },
       embeddings: { observation: { state: 'not-run', provider: null, dims: null, observedAt: null } } });
     await persistRuntimeAttempt(plan.buildRoot, attempt, { lifecycle: 'running' });
-    const validation = await validateIndexArtifacts({ root, indexRoot: plan.buildRoot, userConfig, modes: plan.modes,
+    const graph = plan.operation === 'graph' ? await sealRetainedGraph({ root, userConfig, buildRoot: plan.buildRoot,
+      buildId: plan.buildId, repoCacheRoot, lease, signal }) : null;
+    const validation = graph ? { ok: true } : await validateIndexArtifacts({ root, indexRoot: plan.buildRoot, userConfig, modes: plan.modes,
       sqliteEnabled: userConfig.sqlite?.use !== false, strict: true, abortSignal: signal });
     if (!validation.ok) throw Object.assign(fail('ERR_RECOVERY_VALIDATION', 'Retained generation failed required validation; pointer preserved.'), { validation });
     throwIfAborted(signal);
@@ -128,8 +163,11 @@ export const executeBuildRecovery = async ({ root, userConfig, plan, signal = nu
       buildRoot: plan.buildRoot, runtimeAttemptId: attempt.attemptId, recoveryPlanId: plan.planId,
       sourceScope: plan.sourceScope, work: { parsedFiles: 0, embeddedFiles: 0, rebuiltArtifacts: 0 },
       validation: { status: 'passed' }, publication: { status: published ? 'published' : 'retained' },
+      ...(graph ? { graph } : {}),
       originalFailurePreserved: true };
     await persistRuntimeAttempt(plan.buildRoot, attempt, { lifecycle: 'succeeded', runtime: { recovery: result.work } });
+    await updateBuildState(plan.buildRoot, { recoveryTransactions: { [plan.planId]: { status: 'completed', operation: plan.operation,
+      buildId: plan.buildId, currentPointerIdentity: await pointerIdentity(root, userConfig), result } } });
     return result;
   } catch (error) {
     operationError = error;
@@ -145,4 +183,12 @@ export const executeBuildRecovery = async ({ root, userConfig, plan, signal = nu
   } finally {
     await releaseCacheWriterOwnership({ lease, release: () => lock.release(), operationError });
   }
+};
+
+export const withBuildGraphCapability = async ({ root, userConfig, indexRoot, capabilityId = null, signal = null }, consume) => {
+  const buildRoot = validRoot(root, indexRoot, userConfig);
+  const { value: state } = await readBuildMetadata(buildRoot, path.join(buildRoot, 'build_state.json'), 8 * 1024 * 1024, signal);
+  if (state.artifactSurfaceVersion !== ARTIFACT_SURFACE_VERSION || !samePath(state.repoRoot || '.', root)
+    || !samePath(state.buildRoot || '.', buildRoot) || typeof state.buildId !== 'string') throw fail('ERR_RECOVERY_GENERATION', 'Graph generation identity is invalid.');
+  return withRetainedGraph({ root, userConfig, buildRoot, buildId: state.buildId, capabilityId, signal }, consume);
 };

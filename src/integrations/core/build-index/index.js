@@ -33,7 +33,7 @@ import { buildSqliteIndex } from './sqlite.js';
 import { runEmbeddingsStage, runSqliteStage, runStage } from './stages.js';
 import { validateBuildIntent } from '../../../shared/cli-option-validators.js';
 import { createBuildIndexOutcome } from './outcome.js';
-import { planBuildRecovery, executeBuildRecovery } from './recovery.js';
+import { planBuildRecovery, executeBuildRecovery, withBuildGraphCapability as consumeBuildGraphCapability } from './recovery.js';
 import { readBuildAttemptComparison, formatBuildAttemptComparison } from '../../../index/build/runtime/compare.js';
 
 const toolRoot = resolveToolRoot();
@@ -98,6 +98,8 @@ async function buildIndexRun(repoRoot, options = {}) {
       indexRoot: recovery.indexRoot, operation: recovery.operation, modes: recovery.modes, signal });
     if (recovery.action === 'execute') return executeBuildRecovery({ root, userConfig,
       plan: recovery.plan, signal, log: options.log });
+    if (recovery.action === 'open-graph') return consumeBuildGraphCapability({ root, userConfig,
+      indexRoot: recovery.indexRoot, capabilityId: recovery.capabilityId, signal }, receipt => receipt);
     throw Object.assign(new Error('Recovery action must be inspect or execute.'), { code: 'ERR_RECOVERY_OPERATION' });
   }
   const invocation = resolveBuildInvocationArgs(options);
@@ -432,13 +434,22 @@ async function buildIndexRun(repoRoot, options = {}) {
   return attachObservability({ modes, stage1: stage1Result, stage2: stage2Result, repo: root }, observability);
 }
 
+/** Graph consumers keep this callback active until their original file/worker
+ * owners settle. The normal search/current selector is not involved.
+ */
+export const withBuildGraphCapability = (repoRoot, { indexRoot, capabilityId = null, abortSignal = null } = {}, consume) => {
+  const root = getRepoRoot(repoRoot);
+  return consumeBuildGraphCapability({ root, userConfig: loadUserConfig(root), indexRoot, capabilityId,
+    signal: coerceAbortSignal(abortSignal) }, consume);
+};
+
 export { buildSqliteIndex };
 
 export async function buildIndex(repoRoot, options = {}) {
   const requestedStage = normalizeStage(options.stage);
   try {
     const result = await buildIndexRun(repoRoot, options);
-    if (options.compareAttempts || options.recovery?.action === 'inspect') return result;
+    if (options.compareAttempts || ['inspect', 'open-graph'].includes(options.recovery?.action)) return result;
     return { ...result, outcome: createBuildIndexOutcome({ result, repo: repoRoot,
       requestedStage, modes: result?.modes || options.modes || [] }) };
   } catch (error) {

@@ -53,6 +53,11 @@ try {
   assert.equal(state.phases.promote.status, 'failed', 'original failed attempt is historical evidence');
   assert.equal(state.runtime.attempts.find(attempt => attempt.attemptId === seal.originatingAttemptId).lifecycle, 'failed');
   assert.equal(state.runtime.attempts.at(-1).lifecycle, 'succeeded');
+  const pointerAfterRecovery = await fs.readFile(pointer, 'utf8');
+  const repeated = await buildIndex(root, { recovery: { action: 'execute', plan } });
+  assert.equal(repeated.alreadyComplete, true);
+  assert.equal(repeated.runtimeAttemptId, recovered.runtimeAttemptId);
+  assert.equal(await fs.readFile(pointer, 'utf8'), pointerAfterRecovery, 'repeated reviewed publication must not rewrite the pointer');
   const republish = await buildIndex(root, { recovery: { action: 'inspect', indexRoot: retainedRoot, operation: 'publish' } });
   const restore = setProgressHandlers({ log: message => {
     if (message === '[build] updated current.json') throw new Error('injected post-commit notification failure');

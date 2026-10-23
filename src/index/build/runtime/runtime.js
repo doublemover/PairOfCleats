@@ -40,7 +40,7 @@ import { normalizeRiskConfig } from '../../risk.js';
 import { normalizeRiskInterproceduralConfig } from '../../risk-interprocedural/config.js';
 import { normalizeRecordsConfig } from '../records.js';
 import { resolveCurrentProcessRuntimeEnvelope } from '../../../shared/runtime-envelope/resolve-current-process-envelope.js';
-import { buildContentConfigHash } from './hash.js';
+import { buildContentConfigHash, projectSemanticEnvironment } from './hash.js';
 import { normalizeStage, buildStageOverrides } from './stage.js';
 import {
   configureRuntimeLogger,
@@ -1157,6 +1157,7 @@ async function createBuildRuntimeImpl({
         argv,
         rawArgv,
         userConfig,
+        stageReuseEnvironment: projectSemanticEnvironment(envConfig),
         repoCacheRoot,
         indexRuntimeStorage,
         platformRuntimePreset,
