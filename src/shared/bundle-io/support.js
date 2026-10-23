@@ -1,7 +1,6 @@
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { normalizeBundleSourceKeys } from '../bundle-source-key.js';
-import fs from 'node:fs/promises';
 import { runOwnedBundleTransform } from './transform-owner.js';
 import { atomicWriteJson } from '../io/atomic-write.js';
 import { removePathWithRetry } from '../io/remove-path-with-retry.js';
@@ -67,9 +66,7 @@ export const writeBundleJsonChecksum = async (bundlePath, bundle) => {
   const normalized = canonicalizeBundlePayloadForChecksum(bundle, { typedArraysBeforeToJSON: true });
   const checksum = await checksumBundlePayload(normalized);
   if (!checksum || !checksum.value || !checksum.algo) {
-    try {
-      await fs.rm(resolveBundleJsonChecksumPath(bundlePath), { force: true });
-    } catch {}
+    await removeFileOrThrow(resolveBundleJsonChecksumPath(bundlePath));
     return { checksum: null, checksumAlgo: null };
   }
   await atomicWriteJson(resolveBundleJsonChecksumPath(bundlePath), {

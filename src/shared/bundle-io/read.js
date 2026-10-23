@@ -24,13 +24,14 @@ import {
 import { checksumBundlePayload } from './support.js';
 import { applyBundlePatch, readBundlePatches } from './patch.js';
 import { normalizeBundleSourceKeys } from '../bundle-source-key.js';
+import { normalizeArtifactReadFailure, readArtifactFailureField, requireArtifactReadFailureSettled } from '../artifact-io/json/fallback.js';
 
 const unpackr = new Unpackr({ useRecords: false });
 const normalizeRead = (result, signal = null) => {
   throwIfAborted(signal);
   if (!result.ok) return result;
   try { return { ...result, bundle: normalizeBundleSourceKeys(result.bundle) }; }
-  catch { return { ok: false, reason: 'invalid bundle source key' }; }
+  catch (error) { requireArtifactReadFailureSettled(error); return { ok: false, reason: 'invalid bundle source key' }; }
 };
 
 export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX_BUNDLE_BYTES, repoRoot = process.cwd(), signal = null, expectedEncodedBytes = null, expectedPatchBytes = null } = {}) {
@@ -41,7 +42,11 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
   let encoded;
   try { encoded = await readVerifiedContainedFile(path.dirname(bundlePath), bundlePath, {
     maxBytes: boundedBytes, expectedBytes: expectedEncodedBytes, signal }); }
-  catch (error) { if (error.code === 'ERR_FILE_TOO_LARGE') return { ok: false, reason: 'bundle too large' }; throw error; }
+  catch (value) {
+    const error = normalizeArtifactReadFailure(value);
+    if (readArtifactFailureField(error, 'code') === 'ERR_FILE_TOO_LARGE') return { ok: false, reason: 'bundle too large' };
+    throw error;
+  }
   throwIfAborted(signal);
   const resolvedFormat = format || resolveBundleFormatFromName(bundlePath);
   if (resolvedFormat === 'msgpack') {
@@ -103,7 +108,8 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
       for (const patch of patches.patches) {
         patchedBundle = applyBundlePatch({ bundle: patchedBundle, patch });
       }
-    } catch {
+    } catch (error) {
+      requireArtifactReadFailureSettled(error);
       return { ok: false, reason: 'invalid bundle patch' };
     }
     if (!patchedBundle || !Array.isArray(patchedBundle.chunks)) {
@@ -138,10 +144,12 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
     if (!verified.ok) {
       return verified;
     }
-  } catch (err) {
+  } catch (value) {
+    const err = requireArtifactReadFailureSettled(value);
     throwIfAborted(signal);
-    if (['EACCES', 'EPERM'].includes(err?.code)) throw err;
-    if (err?.code !== 'ENOENT') {
+    const code = readArtifactFailureField(err, 'code');
+    if (['EACCES', 'EPERM'].includes(code)) throw err;
+    if (code !== 'ENOENT') {
       return { ok: false, reason: 'invalid bundle checksum' };
     }
   }

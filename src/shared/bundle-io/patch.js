@@ -7,6 +7,11 @@ import { atomicWriteJson, atomicWriteText } from '../io/atomic-write.js';
 import { stringifyJsonValue } from '../json-stream/encode.js';
 import { canonicalizeBundlePayloadForChecksum } from '../bundle-checksum.js';
 import { stableStringify } from '../stable-json.js';
+import { createContainedFileResource } from '../contained-file-resource.js';
+import { readArtifactFailureField, requireArtifactReadFailureSettled } from '../artifact-io/json/fallback.js';
+import { persistenceFileIdentity, assertPersistenceFileIdentity } from '../io/file-identity.js';
+import { retainPersistenceFailure } from '../io/persistence-helpers.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
 import {
   BUNDLE_PATCH_FIELD_KEYS,
   BUNDLE_PATCH_FORMAT_TAG,
@@ -169,9 +174,10 @@ export const readBundlePatches = async (bundlePath, { repoRoot = process.cwd(), 
   let stat = null;
   try {
     stat = await fs.stat(patchPath);
-  } catch (error) {
+  } catch (value) {
+    const error = requireArtifactReadFailureSettled(value);
     throwIfAborted(signal);
-    if (error.code !== 'ENOENT') throw error;
+    if (readArtifactFailureField(error, 'code') !== 'ENOENT') throw error;
     if (expectedBytes > 0) return { ok: false, reason: 'selected bundle patch missing' };
     return { ok: true, patches: [] };
   }
@@ -183,9 +189,10 @@ export const readBundlePatches = async (bundlePath, { repoRoot = process.cwd(), 
     const read = await readVerifiedContainedFile(path.dirname(patchPath), patchPath, {
       maxBytes: MAX_BUNDLE_PATCH_BYTES, expectedBytes, signal });
     raw = read.buffer.toString('utf8');
-  } catch (error) {
+  } catch (value) {
+    const error = requireArtifactReadFailureSettled(value);
     throwIfAborted(signal);
-    if (['EACCES', 'EPERM'].includes(error.code)) throw error;
+    if (['EACCES', 'EPERM'].includes(readArtifactFailureField(error, 'code'))) throw error;
     return { ok: false, reason: 'failed to read bundle patch' };
   }
   const entryCount = countPatchEntries(raw);
@@ -217,7 +224,8 @@ export const readBundlePatches = async (bundlePath, { repoRoot = process.cwd(), 
 const readBundlePatchMeta = async (bundlePath) => {
   const metaPath = resolveBundlePatchMetaPath(bundlePath);
   try {
-    const raw = await fs.readFile(metaPath, 'utf8');
+    const read = await readVerifiedContainedFile(path.dirname(metaPath), metaPath, { maxBytes: 65536 });
+    const raw = read.buffer.toString('utf8');
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return null;
     const bytes = Number(parsed.bytes);
@@ -229,7 +237,8 @@ const readBundlePatchMeta = async (bundlePath) => {
       bytes: Math.floor(bytes),
       entries: Math.floor(entries)
     };
-  } catch {
+  } catch (error) {
+    requireArtifactReadFailureSettled(error);
     return null;
   }
 };
@@ -296,75 +305,108 @@ export async function writeBundlePatch({
   }
   let workerResult = null;
   let workerError = null;
+  let workerFailed = false;
+  let workerObservation = null;
   try {
     let existingBytes = 0;
     let existingEntries = 0;
     let existingRaw = '';
     let stat = null;
     try {
-      stat = await fs.stat(patchPath);
-    } catch {}
-    if (stat && stat.size > 0) {
-      const meta = await readBundlePatchMeta(bundlePath);
-      if (
-        meta
+      stat = await fs.lstat(patchPath, { bigint: true });
+    } catch (value) {
+      const error = requireArtifactReadFailureSettled(value);
+      if (readArtifactFailureField(error, 'code') !== 'ENOENT') throw error;
+    }
+    if (stat && stat.size > BigInt(MAX_BUNDLE_PATCH_BYTES)) {
+      workerResult = { applied: false, reason: 'patch-file-too-large' };
+    } else {
+      const patchIdentity = stat ? persistenceFileIdentity(stat) : null;
+      if (stat && stat.size > 0) {
+        const meta = await readBundlePatchMeta(bundlePath);
+        if (
+          meta
         && Number.isFinite(meta.bytes)
         && Number.isFinite(meta.entries)
-        && meta.bytes === stat.size
-      ) {
-        existingBytes = meta.bytes;
-        existingEntries = meta.entries;
-      } else {
-        existingRaw = await fs.readFile(patchPath, 'utf8');
-        existingBytes = Buffer.byteLength(existingRaw, 'utf8');
-        existingEntries = countPatchEntries(existingRaw);
+        && meta.bytes === Number(stat.size)
+        ) {
+          existingBytes = meta.bytes;
+          existingEntries = meta.entries;
+        } else {
+          const existingRead = await readVerifiedContainedFile(path.dirname(patchPath), patchPath,
+            { maxBytes: MAX_BUNDLE_PATCH_BYTES, expectedBytes: Number(stat.size) });
+          existingRaw = existingRead.buffer.toString('utf8');
+          existingBytes = Buffer.byteLength(existingRaw, 'utf8');
+          existingEntries = countPatchEntries(existingRaw);
+        }
       }
-    }
-    const appendBytes = existingBytes > 0 && !existingRaw
-      ? Buffer.byteLength(`\n${serialized}`, 'utf8')
-      : bytes;
-    if ((existingBytes + appendBytes) > MAX_BUNDLE_PATCH_BYTES) {
-      workerResult = { applied: false, reason: 'patch-file-too-large' };
-    } else if (existingEntries >= MAX_BUNDLE_PATCH_ENTRIES) {
-      workerResult = { applied: false, reason: 'patch-entry-limit' };
-    } else {
-      if (existingBytes > 0 && !existingRaw) {
-        await fs.appendFile(patchPath, `\n${serialized}`, 'utf8');
+      const appendBytes = existingBytes > 0 && !existingRaw
+        ? Buffer.byteLength(`\n${serialized}`, 'utf8')
+        : bytes;
+      if ((existingBytes + appendBytes) > MAX_BUNDLE_PATCH_BYTES) {
+        workerResult = { applied: false, reason: 'patch-file-too-large' };
+      } else if (existingEntries >= MAX_BUNDLE_PATCH_ENTRIES) {
+        workerResult = { applied: false, reason: 'patch-entry-limit' };
       } else {
-        const nextRaw = appendSerializedPatchLine(existingRaw, serialized);
-        await atomicWriteText(patchPath, nextRaw, { newline: false });
-      }
-      const nextBytes = existingBytes + appendBytes;
-      const nextEntries = existingEntries + 1;
-      await writeBundlePatchMeta(bundlePath, {
-        bytes: nextBytes,
-        entries: nextEntries
-      });
-      await writeBundleJsonChecksum(bundlePath, nextBundle);
-      const chunkPatch = patch.chunks;
-      const operation = chunkPatch
-        ? ((chunkPatch.deleteCount === 0
+        if (existingBytes > 0 && !existingRaw) {
+          const handle = await fs.open(patchPath, 'a');
+          const owner = createContainedFileResource({ handle, sync: false, additionalMethods: ['writeFile', 'sync'] });
+          await owner.run(async descriptor => {
+            assertPersistenceFileIdentity(await descriptor.stat({ bigint: true }), patchIdentity);
+            if (await descriptor.writeFile(`\n${serialized}`, 'utf8') !== undefined) throw Object.assign(
+              new Error('Bundle patch append did not confirm its standard void result.'), { cacheOwnershipPending: true });
+            if (await descriptor.sync() !== undefined) throw Object.assign(
+              new Error('Bundle patch sync did not confirm its standard void result.'), { cacheOwnershipPending: true });
+            const writtenIdentity = persistenceFileIdentity(await descriptor.stat({ bigint: true }));
+            assertPersistenceFileIdentity(await fs.lstat(patchPath, { bigint: true }), writtenIdentity);
+          });
+        } else {
+          const nextRaw = appendSerializedPatchLine(existingRaw, serialized);
+          await atomicWriteText(patchPath, nextRaw, { newline: false, beforeCommit: async () => {
+            let current;
+            try { current = await fs.lstat(patchPath, { bigint: true }); }
+            catch (value) {
+              const error = requireArtifactReadFailureSettled(value);
+              if (!patchIdentity && readArtifactFailureField(error, 'code') === 'ENOENT') return;
+              throw error;
+            }
+            assertPersistenceFileIdentity(current, patchIdentity);
+          } });
+        }
+        const nextBytes = existingBytes + appendBytes;
+        const nextEntries = existingEntries + 1;
+        await writeBundlePatchMeta(bundlePath, {
+          bytes: nextBytes,
+          entries: nextEntries
+        });
+        await writeBundleJsonChecksum(bundlePath, nextBundle);
+        const chunkPatch = patch.chunks;
+        const operation = chunkPatch
+          ? ((chunkPatch.deleteCount === 0
             && chunkPatch.start >= (Array.isArray(previousBundle?.chunks)
               ? previousBundle.chunks.length
               : 0))
-          ? 'append'
-          : 'replace')
-        : 'set';
-      workerResult = {
-        applied: true,
-        reason: null,
-        patchPath,
-        bytes,
-        operation
-      };
+            ? 'append'
+            : 'replace')
+          : 'set';
+        workerResult = {
+          applied: true,
+          reason: null,
+          patchPath,
+          bytes,
+          operation
+        };
+      }
     }
   } catch (error) {
-    workerError = error;
+    workerFailed = true; workerError = error;
+    workerObservation = observeStorageResource(error, { phase: 'bundle-patch-worker' }).retain();
   }
-  await releaseFileLockOrThrow(lock, {
-    workerError,
-    releaseOptions: { force: true }
-  });
-  if (workerError) throw workerError;
+  try {
+    await releaseFileLockOrThrow(lock, { workerError: workerFailed ? workerObservation : null, releaseOptions: { force: true } });
+  } catch (error) {
+    throw retainPersistenceFailure(error, workerFailed ? [workerObservation] : [], { bundlePatchPath: patchPath });
+  }
+  if (workerFailed) throw workerError;
   return workerResult;
 }
