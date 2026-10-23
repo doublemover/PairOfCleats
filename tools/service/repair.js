@@ -158,7 +158,7 @@ export async function describeOrphanArtifacts(dirPath, queueName = null) {
         loadQueue(dirPath, partitionName),
         loadQuarantine(dirPath, partitionName)
       ]);
-      return [...queue.jobs, ...quarantine.jobs];
+      return [...queue.jobs, ...quarantine.jobs, ...queue.cleanupHolds.map(hold => hold.job)];
     }))
   ).flat();
   const referenced = collectReferencedArtifacts(dirPath, referencedJobs);
@@ -209,6 +209,7 @@ export async function inspectRepairState(dirPath, queueName = null, { jobId = nu
       jobs: heartbeat
     },
     locks,
+    cleanup: { pending: queue.cleanupHolds.length, holds: queue.cleanupHolds },
     duplicateGroups,
     orphans: {
       logs: orphans.logs,

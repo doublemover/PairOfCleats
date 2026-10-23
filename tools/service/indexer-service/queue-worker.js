@@ -1,17 +1,31 @@
 import path from 'node:path';
 import { createLifecycleRegistry } from '../../../src/shared/lifecycle/registry.js';
 import { createCorrelationId, normalizeObservability } from '../../../src/shared/observability.js';
+import { captureQueueFailureOwnership, createQueueCleanupRecovery, queueCleanupRecoveryError } from '../queue-cleanup.js';
 
 const NOOP_ASYNC = async () => {};
+const failureMessage = (error, observations, secondary) => {
+  try {
+    const message = error?.message;
+    return typeof message === 'string' ? message
+      : error !== null && ['object', 'function'].includes(typeof error) ? 'Owned execution failed.' : String(error);
+  } catch (inspection) {
+    secondary.push(inspection);
+    const observation = captureQueueFailureOwnership(inspection);
+    if (observation.present) observations.push(observation);
+    return 'Owned execution failure diagnosis is unreadable.';
+  }
+};
 export const bindClaimedJobExecution = (job) => {
   const parent = normalizeObservability(job.observability, {
     surface: 'service', operation: 'indexer-job', context: { jobId: job.id }
   });
-  return { ...job, observability: { ...parent, correlation: {
-    ...parent.correlation,
-    parentCorrelationId: parent.correlation.correlationId,
-    correlationId: createCorrelationId('service-execution')
-  } } };
+  return { ...job, ...(job.lease ? { lease: { ...job.lease } } : {}),
+    ...(job.delivery ? { delivery: { ...job.delivery } } : {}), observability: { ...parent, correlation: {
+      ...parent.correlation,
+      parentCorrelationId: parent.correlation.correlationId,
+      correlationId: createCorrelationId('service-execution')
+    } } };
 };
 const STALE_SWEEP_MIN_INTERVAL_MS = 1000;
 const SHUTDOWN_POLL_INTERVAL_MS = 250;
@@ -95,12 +109,16 @@ export const createQueueWorker = ({
     maxConsecutiveRenewalFailures: 3
   }),
   jobHeartbeatIntervalMs = 30000,
-  shutdownPollIntervalMs = SHUTDOWN_POLL_INTERVAL_MS
+  shutdownPollIntervalMs = SHUTDOWN_POLL_INTERVAL_MS,
+  retainJobCleanup = async (...args) => (await import('../queue.js')).retainJobCleanup(...args),
+  reconcileJobCleanup = async (...args) => (await import('../queue.js')).reconcileJobCleanup(...args)
 }) => {
   let staleSweepPromise = null;
   let lastStaleSweepAtMs = 0;
   const workerOwnerId = `queue-worker:${process.pid}:${Math.random().toString(16).slice(2, 10)}`;
   const activeJobControls = new Set();
+  const pendingRetirements = new Set();
+  let cleanupRecoveryPromise = null;
   let currentShutdownState = { ...DEFAULT_SHUTDOWN_STATE };
   let shutdownMonitor = null;
   let shutdownRefreshPromise = null;
@@ -207,7 +225,7 @@ export const createQueueWorker = ({
     await updateShutdownWorkerState({
       pid: process.pid,
       ownerId: workerOwnerId,
-      status: status || (activeJobControls.size > 0 ? 'running' : 'idle'),
+      status: pendingRetirements.size ? 'cleanup-pending' : status || (activeJobControls.size > 0 ? 'running' : 'idle'),
       activeJobs: [...new Set(Array.from(activeJobControls.values(), control => control.jobId))],
       lastSeenAt: new Date().toISOString()
     });
@@ -252,6 +270,47 @@ export const createQueueWorker = ({
     return currentShutdownState;
   };
 
+  const performCleanupRecovery = async (metrics = null) => {
+    let recovered = 0;
+    for (const retirement of [...pendingRetirements]) {
+      const { capability, job, claimControl } = retirement;
+      try {
+        await retainJobCleanup(queueDir, resolvedQueueName, capability);
+        await reconcileJobCleanup(queueDir, resolvedQueueName, capability);
+      } catch (error) {
+        if (error?.queueCleanupRecovery !== capability) {
+          const observation = captureQueueFailureOwnership(error);
+          if (observation.present && !observation.released()) retirement.observations.push(observation);
+        }
+        retirement.error = queueCleanupRecoveryError(capability, [error]);
+        throw retirement.error;
+      }
+      // Resource recovery preserves the failed disposer outcome. It never
+      // retries work or turns an earlier nominal process exit into job success.
+      pendingRetirements.delete(retirement); activeJobControls.delete(claimControl);
+      recovered++;
+      try {
+        if (!claimControl.leaseLost) {
+          const recoveryMetrics = metrics || { processed: 0, succeeded: 0, failed: 0, retried: 0 };
+          recoveryMetrics.processed++;
+          await finalizeJobRun({ job: { ...job, maxRetries: 0 }, metrics: recoveryMetrics,
+            runResult: { ...buildDefaultRunResult(), exitCode: 1, cancelled: false,
+              error: 'Original resource cleanup failed; exact owner settlement was subsequently confirmed.' } });
+        }
+      } catch (error) {
+        if (!LEASE_FENCE_ERRORS.has(error?.code)) throw error;
+      } finally { await syncWorkerShutdownState(); }
+    }
+    return { recovered, pending: pendingRetirements.size };
+  };
+  const recoverPendingCleanup = (metrics = null) => {
+    if (!cleanupRecoveryPromise) {
+      cleanupRecoveryPromise = performCleanupRecovery(metrics).finally(() => { cleanupRecoveryPromise = null; });
+      cleanupRecoveryPromise.catch(() => {});
+    }
+    return cleanupRecoveryPromise;
+  };
+
   /**
    * Claim and process one queue job, including retries, subprocess execution,
    * heartbeat maintenance, and final completion updates.
@@ -261,6 +320,7 @@ export const createQueueWorker = ({
    */
   const processQueueOnce = async (metrics, batchState = null) => {
     if (batchState?.failed) return false;
+    await recoverPendingCleanup(metrics);
     await ensureStaleSweep();
     if (currentShutdownState?.stopClaiming || batchState?.failed) {
       return false;
@@ -289,6 +349,8 @@ export const createQueueWorker = ({
       handled: false,
       runResult: buildDefaultRunResult()
     };
+    let executionFailed = false, executionError, retirement;
+    const observations = [], cleanupErrors = [];
     try {
       activeJobControls.add(claimControl);
       if (batchState?.failed) {
@@ -311,7 +373,10 @@ export const createQueueWorker = ({
         }
       }
     } catch (err) {
-      const message = err?.message || String(err);
+      executionFailed = true; executionError = err;
+      const observation = captureQueueFailureOwnership(err);
+      if (observation.present && !observation.released()) observations.push(observation);
+      const message = failureMessage(err, observations, cleanupErrors);
       console.error(`[indexer] job ${job.id} execution failed before completion: ${message}`);
       execution = {
         handled: false,
@@ -322,9 +387,22 @@ export const createQueueWorker = ({
       };
     } finally {
       await jobLifecycle.close().catch(err => {
-        console.error(`[indexer] job ${job.id} resource cleanup failed: ${err?.message || err}`);
+        cleanupErrors.push(err);
+        observations.push(captureQueueFailureOwnership(err, { required: true }));
+        console.error(`[indexer] job ${job.id} resource cleanup failed: ${failureMessage(err, observations, cleanupErrors)}`);
       });
-      activeJobControls.delete(claimControl);
+      if (observations.length) {
+        retirement = { job, claimControl, observations, ...createQueueCleanupRecovery({ dirPath: queueDir,
+          queueName: resolvedQueueName, job, observations,
+          causes: [...(executionFailed ? [executionError] : []), ...cleanupErrors] }) };
+        pendingRetirements.add(retirement);
+        try { await retainJobCleanup(queueDir, resolvedQueueName, retirement.capability); }
+        catch (error) {
+          const observation = captureQueueFailureOwnership(error);
+          if (observation.present && !observation.released()) observations.push(observation);
+          retirement.error = queueCleanupRecoveryError(retirement.capability, [error]);
+        }
+      } else activeJobControls.delete(claimControl);
       try {
         await syncWorkerShutdownState();
       } catch (err) {
@@ -332,6 +410,7 @@ export const createQueueWorker = ({
         console.error(`[indexer] job ${job.id} shutdown state update failed: ${err?.message || err}`);
       }
     }
+    if (retirement) throw retirement.error;
     if (claimControl.leaseLost) {
       console.error(`[indexer] job ${job.id} completion skipped after lease loss: ${claimControl.leaseLost.message}`);
       return true;
@@ -464,6 +543,7 @@ export const createQueueWorker = ({
   return {
     processQueueOnce,
     runBatch,
-    runWorkLoop
+    runWorkLoop,
+    recoverPendingCleanup
   };
 };

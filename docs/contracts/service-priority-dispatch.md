@@ -45,5 +45,36 @@ Authored actual-consumer fixtures:
   fatal sibling cancellation, delayed teardown and definitive renewal fences.
 
 These are source and authored coverage, not a completed queue/runtime receipt.
-Durable recovery after an independently failed resource disposer remains outside
-this claim-generation repair; a settled execution is not proof of native closure.
+
+Failed resource disposal or an execution error with an unresolved original
+resource observer retains the exact claim in the worker. The worker reports
+`cleanup-pending`, retains its cancellation control, and does not submit success,
+retry or ordinary completion. It writes a versioned `cleanup-holds.json` receipt
+(or `cleanup-holds-<partition>.json`) under the existing queue lock. This receipt
+is separate from queue snapshots so ordinary save/compaction cannot erase it.
+It captures the original job, owner, lease version, attempt and failure code.
+Original observers and causes remain in private process capabilities, never JSON.
+
+Queue claims, enqueue and quarantine retry refuse a partition with retained
+cleanup. The held job cannot be completed/quarantined or recovered through lease
+expiry. Job inspection, repair diagnosis and backpressure status expose the
+hold; artifact retention also preserves its original logs/reports. Journal
+compaction and replay retain hold observations without treating a replayed
+identifier as release authority.
+
+The original worker can reconcile only after its captured resource observers
+confirm settlement. Changed advisory flags, replaced observers, matching job IDs,
+PIDs and elapsed leases grant no release. Recovery preserves the failed disposer
+outcome by quarantining the original claim without automatic execution retry.
+An old claim's retained failure/release never overwrites a newer claim's lease.
+Native indexer sessions retain their worker through failure and use this same
+reconciliation owner during session disposal.
+
+After process restart, durable holds remain fenced: the new worker has no
+original capability and cannot infer closure. There is no generic force-clear or
+PID-based recovery path. A disposer with no usable settlement observer remains
+unknown. Failure to persist the hold is retained locally and reported with the
+original failure; persistence failure does not prove a durable receipt exists.
+`services/queue/cleanup-retirement` and `tui/operator-indexer-cleanup-retention`
+exercise these actual owners with controlled resources; supported native and
+restart-host qualification remains deferred.

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { atomicWriteText } from '../../src/shared/io/atomic-write.js';
 import { normalizeObservability } from '../../src/shared/observability.js';
 import { admitQueueJobPaths, assertQueueArtifactPath, assertQueueJobId } from './queue-authority.js';
+import { normalizeQueueCleanupHolds } from './queue-cleanup.js';
 
 const normalizeQueueName = (value) => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -119,8 +120,17 @@ export async function loadQueueJournal(dirPath, queueName = null) {
 export function replayQueueJournal(entries = [], { dirPath = null } = {}) {
   const queueJobs = new Map();
   const quarantineJobs = new Map();
+  const cleanupHolds = new Map();
   for (const rawEntry of entries) {
     const entry = admitJournalEntry(rawEntry, dirPath);
+    if (entry?.target === 'cleanup') {
+      const original = entry.extra?.cleanupHold;
+      // Replay with a root validates original artifact containment as well.
+      const hold = dirPath ? normalizeQueueCleanupHolds(dirPath, [original])[0] : cloneJson(original);
+      if (entry.eventType === 'cleanup-released') cleanupHolds.delete(hold.id);
+      else cleanupHolds.set(hold.id, hold);
+      continue;
+    }
     const jobId = entry?.jobId ?? null;
     if (!jobId) continue;
     const snapshot = entry?.snapshot && typeof entry.snapshot === 'object'
@@ -140,7 +150,7 @@ export function replayQueueJournal(entries = [], { dirPath = null } = {}) {
     queueJobs.set(jobId, snapshot);
   }
   return {
-    queue: { jobs: Array.from(queueJobs.values()) },
+    queue: { jobs: Array.from(queueJobs.values()), ...(cleanupHolds.size ? { cleanupHolds: [...cleanupHolds.values()] } : {}) },
     quarantine: { jobs: Array.from(quarantineJobs.values()) }
   };
 }

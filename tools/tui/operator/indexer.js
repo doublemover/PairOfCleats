@@ -19,6 +19,8 @@ import { createServiceRuntimeEnvResolver } from '../../service/indexer-service-h
 import { resolveQueueLeasePolicy } from '../../service/lease-policy.js';
 import { resolveQueueAdmissionPolicy } from '../../service/admission-policy.js';
 import { claimNextJob, completeJob, quarantineJob, queueSummary, ensureQueueDir, touchJobHeartbeat } from '../../service/queue.js';
+import { captureQueueFailureOwnership } from '../../service/queue-cleanup.js';
+import { settleOwnedActions } from './settle-owned.js';
 
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
@@ -156,23 +158,41 @@ export const createTuiIndexer = ({ toolRoot, requireScope, env = process.env,
           completeShutdownState: async () => null,
           resolveLeasePolicy: ({ job, queueName }) => resolveQueueLeasePolicy({ job, queueName }),
           shutdownPollIntervalMs: 250 });
+        entry.runtime = worker;
         await worker.runWorkLoop({ requestedConcurrency: values.concurrency ?? 1,
           intervalMs: values.interval ?? 1000, watch: values.watch === true, serviceExecutionMode: 'subprocess' });
         if (authorityError) throw authorityError;
         return { exitCode: combined.aborted ? 130 : metrics?.failed ? 1 : 0, signal: null,
           stdout: JSON.stringify({ ...review, stopped: true, metrics, cancellationSettled: combined.aborted,
             processSuccessIsPublishedIndexReadiness: false }) };
-      } finally { active.delete(controller); settled(); }
+      } catch (error) {
+        const observation = captureQueueFailureOwnership(error);
+        if (observation.present && !observation.released()) {
+          entry.failure = error; entry.observation = observation;
+        }
+        throw error;
+      } finally {
+        if (!entry.observation || entry.observation.released()) active.delete(controller);
+        settled();
+      }
     };
     return { review, execute };
   };
   return { prepare,
     status: scopeId => [...active.values()].filter(entry => entry.scopeId === scopeId)
-      .map(entry => ({ service: 'indexer', jobId: entry.jobId, phase: entry.worker?.status || 'starting',
-        ...entry.worker, healthMeaning: 'Canonical queue worker/lease observations; no published-index readiness claim.' })),
+      .map(entry => ({ service: 'indexer', jobId: entry.jobId, ...entry.worker,
+        phase: entry.observation && !entry.observation.released() ? 'cleanup-pending' : entry.worker?.status || 'starting',
+        healthMeaning: 'Canonical queue worker/lease observations; no published-index readiness claim.' })),
     dispose: async () => {
       const owned = [...active.values()];
       for (const entry of owned) entry.controller.abort();
-      await Promise.all(owned.map(entry => entry.settlement));
+      await settleOwnedActions(Object.fromEntries(owned.map((entry, index) => [index, async () => {
+        await entry.settlement;
+        if (entry.observation) {
+          await entry.runtime?.recoverPendingCleanup();
+          if (!entry.observation.released()) throw entry.failure;
+        }
+        active.delete(entry.controller);
+      }])));
     } };
 };
