@@ -3,6 +3,7 @@ import { canonicalSemanticJson } from '../index/semantic/identity.js';
 import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelopes.js';
 import { throwIfAborted } from '../shared/abort.js';
 import { observeStorageResource } from '../shared/storage/failure-observation.js';
+import { captureSemanticRecordRef } from './reader-input.js';
 
 const integrity = message => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_INTEGRITY' });
 
@@ -11,23 +12,42 @@ const integrity = message => Object.assign(new Error(message), { code: 'ERR_SEMA
  */
 export const createSourceReferenceReader = ({ sourceUnitForPartition, iterateRows }) => async (record, { signal = null } = {}) => {
   throwIfAborted(signal);
-  if (!record.span) return null;
-  const sourceUnitId = sourceUnitForPartition(record.ref.partitionId);
+  if (!record || typeof record !== 'object') throw integrity('Invalid source reference record.');
+  const spanProperty = Object.getOwnPropertyDescriptor(record, 'span');
+  if (spanProperty && !Object.hasOwn(spanProperty, 'value')) throw integrity('Source reference span must be an own data value.');
+  const inputSpan = spanProperty?.value;
+  if (inputSpan == null) return null;
+  if (!Array.isArray(inputSpan) || Object.getOwnPropertyDescriptor(inputSpan, 'length')?.value !== 2) {
+    throw integrity('Invalid source reference span.');
+  }
+  const span = [];
+  for (let index = 0; index < 2; index++) {
+    const descriptor = Object.getOwnPropertyDescriptor(inputSpan, String(index));
+    if (!descriptor || !Object.hasOwn(descriptor, 'value') || !Number.isSafeInteger(descriptor.value) || descriptor.value < 0) {
+      throw integrity('Invalid source reference span.');
+    }
+    span.push(descriptor.value);
+  }
+  if (span[1] < span[0]) throw integrity('Invalid source reference span.');
+  const refProperty = Object.getOwnPropertyDescriptor(record, 'ref');
+  if (!refProperty || !Object.hasOwn(refProperty, 'value')) throw integrity('Source reference RecordRef must be an own data value.');
+  const ref = captureSemanticRecordRef(refProperty.value, integrity);
+  const sourceUnitId = sourceUnitForPartition(ref.partitionId);
   if (!sourceUnitId) throw integrity('Source reference partition is outside the pinned inventory.');
   let source = null;
-  for await (const row of iterateRows(record.ref.partitionId, 'semantic_sources', { signal, batchRows: 1 })) {
+  for await (const row of iterateRows(ref.partitionId, 'semantic_sources', { signal, batchRows: 1 })) {
     if (source) throw integrity('Source reference has multiple retained source headers.');
     source = assertSemanticEnvelope('source', row);
   }
   if (!source || source.sourceUnitId !== sourceUnitId) throw integrity('Source reference header disagrees with its partition.');
   const coordinateLength = source.coordinateUnit === 'byte' ? source.byteLength : source.textLength;
-  if (record.span[0] < 0 || record.span[1] < record.span[0] || record.span[1] > coordinateLength) {
+  if (span[1] > coordinateLength) {
     throw integrity('Source reference span exceeds retained source coordinates.');
   }
   // Mapped source needs its own qualified coordinate adapter. Returning its
   // path as an ordinary source path would give an incorrect editor selection.
   if (source.mapping !== null) return null;
-  return { ref: record.ref, sourceUnitId, sourceHash: source.byteHash,
+  return { ref, sourceUnitId, sourceHash: source.byteHash,
     path: source.path, coordinateUnit: source.coordinateUnit };
 };
 
