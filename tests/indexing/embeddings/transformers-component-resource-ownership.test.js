@@ -46,9 +46,9 @@ try {
   mod.AutoModel.from_pretrained = async () => { calls++; throw unknown; };
   const unknownFailure = await rejected(loadEmbeddingModelComponents(mod, { modelId: 'controlled-pending', modelProfile: profile }));
   const unknownScope = unknownFailure.cleanupErrors[0].transformersResourceOwner;
-  assert.equal(unknownFailure.cause, unknown); assert.equal(partialCloses, 1);
-  await rejected(unknownScope.release()); assert.equal(partialCloses, 1);
-  externalClosed = true; await unknownScope.release(); assert.equal(unknownFailure.cacheOwnershipReleased(), true);
+  assert.equal(unknownFailure.cause, unknown); assert.equal(partialCloses, 0, 'pending model construction keeps the acquired tokenizer alive');
+  await rejected(unknownScope.release()); assert.equal(partialCloses, 0);
+  externalClosed = true; await unknownScope.release(); assert.equal(unknownFailure.cacheOwnershipReleased(), true); assert.equal(partialCloses, 1);
   assert.equal(calls, 2, 'partial acquisition reconciliation never calls the model factory');
 
   let modelCloses = 0, exactTokenizerCloses = 0;
@@ -80,6 +80,16 @@ try {
   const explicitFalse = captureTransformersResource({ dispose: async () => false });
   const falseFailure = await rejected(explicitFalse.retire());
   assert.equal(falseFailure.code, 'ERR_TRANSFORMERS_RESOURCE_UNCONFIRMED'); assert.equal(explicitFalse.pending, true);
+
+  let disposalSettled = false, disposalCalls = 0, substitute = false;
+  const disposalPending = new Error('native disposal still owns its first attempt');
+  Object.defineProperties(disposalPending, { cacheOwnershipPending: { value: false }, cacheOwnershipReleased: { get() {
+    return substitute ? () => true : () => disposalSettled;
+  } } }); Object.freeze(disposalPending);
+  const disposalOwner = captureTransformersResource({ dispose() { if (++disposalCalls === 1) throw disposalPending; } });
+  await rejected(disposalOwner.retire()); substitute = true;
+  await rejected(disposalOwner.release()); assert.equal(disposalCalls, 1, 'explicit retry cannot repeat unsettled native disposal');
+  disposalSettled = true; await disposalOwner.release(); assert.equal(disposalCalls, 2); assert.equal(disposalOwner.pending, false);
 } finally {
   externalClosed = true;
   await Promise.allSettled(encoders.map(encoder => encoder.dispose()));

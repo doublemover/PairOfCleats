@@ -81,6 +81,17 @@ assert.equal(capacityPending.cause, primary); assert.ok(capacityPending.errors.i
 refuseCapacity = false; await capacityPending.onnxResourceOwner.release();
 assert.equal(nativeReleases, 1); assert.equal(capacityPending.cacheOwnershipReleased(), true);
 
+let nativeSettled = false, nativeAttempts = 0, nativeCapacity = 0, substitute = false;
+const nativePending = new Error('native release attempt remains pending');
+Object.defineProperties(nativePending, { cacheOwnershipPending: { value: false }, cacheOwnershipReleased: { get() {
+  return substitute ? () => true : () => nativeSettled;
+} } }); Object.freeze(nativePending);
+const nativeOwner = createOnnxResourceOwner({ session: { release() { if (++nativeAttempts === 1) throw nativePending; } },
+  qualificationSlot: { release() { nativeCapacity++; } } });
+await assert.rejects(nativeOwner.release()); substitute = true;
+await assert.rejects(nativeOwner.release()); assert.equal(nativeAttempts, 1); assert.equal(nativeCapacity, 0);
+nativeSettled = true; await nativeOwner.release(); assert.equal(nativeAttempts, 2); assert.equal(nativeCapacity, 1);
+
 // Deferred disposal may ignore an ordinary failed acquisition, never a pending owner.
 const deferred = createDeferredEmbeddingAdapter({ provider: 'controlled', methods: ['getEmbedding'], acquire: async () => { throw nested; } });
 await assert.rejects(deferred.getEmbedding('source'), error => error === nested);

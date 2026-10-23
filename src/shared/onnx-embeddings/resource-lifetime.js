@@ -2,6 +2,7 @@ import { observeEmbeddingOwnership as observePending } from '../embedding-cache-
 
 const captureResource = (resource, name, required = false) => {
   let method = null, captureError = null, captureFailed = false, released = !resource;
+  const blockers = new Map();
   try {
     method = resource?.[name];
     if (resource && typeof method !== 'function') {
@@ -14,7 +15,13 @@ const captureResource = (resource, name, required = false) => {
     async release() {
       if (released) return;
       if (captureFailed) throw captureError;
-      await Reflect.apply(method, resource, []);
+      for (const [error, observe] of blockers) if (!observe()) throw error;
+      try { await Reflect.apply(method, resource, []); }
+      catch (error) {
+        const observe = observePending(error);
+        if (observe && !blockers.has(error)) blockers.set(error, observe);
+        throw error;
+      }
       released = true;
     }
   };

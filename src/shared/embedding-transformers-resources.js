@@ -49,6 +49,7 @@ export const captureTransformersResource = (resource, role = 'transformers resou
     if (lastError && !retry) return Promise.reject(lastError);
     flight = Promise.resolve().then(async () => {
       if (captureFailed) throw captureError;
+      for (const [error, observe] of blockers) if (!observe()) throw error;
       if (!disposed) {
         const confirmed = method ? await method.call(resource) : undefined;
         if (confirmed === false) throw Object.assign(new Error('Transformers resource disposal was explicitly unconfirmed.'),

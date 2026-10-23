@@ -4,6 +4,7 @@ import { normalizeEmbeddingGemma2Output } from './embedding-model-profile.js';
 import { createRunQueue } from './onnx-embeddings/run-queue.js';
 import { observeEmbeddingOwnership, preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
 import { createTransformersResourceScope, trackPendingTransformersOwner, transformersCleanupFailure } from './embedding-transformers-resources.js';
+import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
 
 const INTEGER_OPTIONS = new Set(['intraOpNumThreads', 'interOpNumThreads']);
 const BOOLEAN_OPTIONS = new Set(['enableCpuMemArena', 'enableMemPattern', 'enableProfiling']);
@@ -63,8 +64,58 @@ export const normalizeEg2ModelFileName = (value) => {
   return value;
 };
 
+const invalidTokens = message => Object.assign(new Error(message), { code: 'ERR_EMBEDDING_PREPARED_INPUT' });
+const assertTextInputs = texts => {
+  if (!Array.isArray(texts) || texts.length > 1024 || texts.some(text => typeof text !== 'string')) {
+    throw new Error('Prepared embedding inputs require at most 1024 strings.');
+  }
+  if (texts.reduce((sum, text) => sum + text.length, 0) > 4 * 1024 * 1024) {
+    throw new Error('Prepared embedding text exceeds the bounded preparation budget.');
+  }
+};
+const admitFields = encoded => {
+  if (!encoded || typeof encoded !== 'object' || Array.isArray(encoded)) throw invalidTokens('Tokenizer omitted prepared input fields.');
+  const fields = Object.keys(encoded);
+  if (!fields.includes('input_ids') || !fields.includes('attention_mask') || fields.length > 16) throw invalidTokens('Tokenizer omitted required prepared inputs or exceeded the field bound.');
+  return fields;
+};
+const admitPreparedRows = (encoded, count, maxLength) => {
+  const fields = admitFields(encoded);
+  for (const field of fields) {
+    if (!Array.isArray(encoded[field]) || encoded[field].length !== count) throw invalidTokens('Tokenizer row cardinality differs from its requested text batch.');
+  }
+  // Validate the entire native response before publishing any opaque row item
+  // or converting an integer into the narrower BigInt64 representation.
+  for (let index = 0; index < count; index++) {
+    const length = encoded.input_ids[index]?.length;
+    if (!Number.isSafeInteger(length) || length < 1 || length > maxLength) throw invalidTokens('Invalid prepared token length.');
+    for (const field of fields) {
+      const values = encoded[field][index];
+      if (!Array.isArray(values) || values.length !== length || values.some(value => !Number.isSafeInteger(value)
+        || value < 0 || field === 'attention_mask' && value !== 0 && value !== 1)) throw invalidTokens('Invalid prepared token value or field width.');
+    }
+    if (!encoded.attention_mask[index].some(value => value === 1)) throw invalidTokens('Prepared attention row has no admitted tokens.');
+  }
+  return fields;
+};
+const admitPaddedInputs = (encoded, count, maxLength) => {
+  const fields = admitFields(encoded), width = encoded.input_ids?.dims?.[1];
+  if (!Number.isSafeInteger(width) || width < 1 || width > maxLength) throw invalidTokens('Invalid padded token width.');
+  for (const field of fields) {
+    const tensor = encoded[field], shape = tensor?.dims, data = tensor?.data;
+    if (tensor?.type !== 'int64' || !Array.isArray(shape) || shape.length !== 2 || shape[0] !== count || shape[1] !== width
+      || !(data instanceof BigInt64Array) || data.length !== count * width) throw invalidTokens('Tokenizer tensor cardinality, type or width differs from its requested text batch.');
+    for (const value of data) if (value < 0n || field === 'attention_mask' && value !== 0n && value !== 1n) throw invalidTokens('Tokenizer tensor contains an invalid token or mask value.');
+    if (field === 'attention_mask') for (let row = 0; row < count; row++) {
+      if (!data.subarray(row * width, (row + 1) * width).some(value => value === 1n)) throw invalidTokens('Padded attention row has no admitted tokens.');
+    }
+  }
+};
+
 /** Keep prepared IDs private, bound each admission, and pad without tokenizing twice. */
 export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, sessionOptions, modelFileName = null, resourceOwner = null }) => {
+  profile = snapshotEmbeddingMetadata(profile);
+  sessionOptions = normalizeEg2SessionOptions(sessionOptions);
   const components = resourceOwner || createTransformersResourceScope('prepared encoder model components');
   if (resourceOwner) {
     if (!components.pending || !components.owns(tokenizer) || !components.owns(model)) throw new Error('Prepared encoder components belong to another resource owner or are already closed.');
@@ -112,28 +163,19 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
   };
   const prepare = async (texts) => withTensorScope(async scope => {
     assertAvailable();
-    if (!Array.isArray(texts) || texts.length > 1024 || texts.some((text) => typeof text !== 'string')) {
-      throw new Error('Prepared embedding inputs require at most 1024 strings.');
-    }
+    assertTextInputs(texts);
     if (!texts.length) return [];
-    if (texts.reduce((sum, text) => sum + text.length, 0) > 4 * 1024 * 1024) {
-      throw new Error('Prepared embedding text exceeds the bounded preparation budget.');
-    }
     const started = performance.now();
     const encoded = await tokenizer(texts, {
       padding: false, truncation: true, max_length: profile.maxLength, return_tensor: false
     });
     captureValues(scope, encoded);
-    const fields = Object.keys(encoded);
-    if (!fields.includes('input_ids') || !fields.includes('attention_mask')) throw new Error('Tokenizer omitted required prepared inputs.');
+    const fields = admitPreparedRows(encoded, texts.length, profile.maxLength);
     const rows = texts.map((_, index) => {
       const length = encoded.input_ids[index]?.length;
-      if (!Number.isInteger(length) || length < 1 || length > profile.maxLength) throw new Error('Invalid prepared token length.');
       const row = {};
       for (const field of fields) {
         const values = encoded[field][index];
-        if (!Array.isArray(values) || values.length !== length
-          || values.some((value) => !Number.isSafeInteger(value))) throw new Error('Invalid prepared token input.');
         row[field] = BigInt64Array.from(values, BigInt);
       }
       const item = Object.freeze({ tokenLength: length });
@@ -181,9 +223,11 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
     const fields = Object.keys(rows[0]);
     const side = tokenizer.padding_side ?? 'right';
     if (!['left', 'right'].includes(side)) throw new Error('Unsupported tokenizer padding side.');
+    const padTokenId = tokenizer.pad_token_id ?? 0;
+    if (typeof padTokenId !== 'number' || !Number.isSafeInteger(padTokenId) || padTokenId < 0) throw invalidTokens('Invalid prepared pad token integer.');
     for (const field of fields) {
       const data = new BigInt64Array(items.length * longest);
-      if (field === 'input_ids') data.fill(BigInt(tokenizer.pad_token_id ?? 0));
+      if (field === 'input_ids') data.fill(BigInt(padTokenId));
       rows.forEach((row, index) => {
         if (Object.keys(row).length !== fields.length || !row[field]) throw new Error('Prepared input fields differ.');
         const offset = index * longest + (side === 'left' ? longest - items[index].tokenLength : 0);
@@ -201,9 +245,12 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
   });
   const embed = async (texts) => withTensorScope(async scope => {
     assertAvailable();
+    assertTextInputs(texts);
+    if (!texts.length) return [];
     const started = performance.now();
     const inputs = await tokenizer(texts, { padding: true, truncation: true, max_length: profile.maxLength });
     captureValues(scope, inputs);
+    admitPaddedInputs(inputs, texts.length, profile.maxLength);
     metrics.preparationCalls += 1;
     metrics.preparationMs += performance.now() - started;
     return run(inputs, texts.length, { count: texts.length, prepared: false }, scope);

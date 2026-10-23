@@ -3,6 +3,7 @@ import { isEmbeddingModelRepositoryId, resolveEmbeddingArtifactRoot } from './em
 import { createTransformersResourceScope } from './embedding-transformers-resources.js';
 import { preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
 import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
+import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
 
 export { EMBEDDING_ACQUISITION_RECEIPT } from './embedding-acquisition-receipt.js';
 
@@ -18,6 +19,8 @@ export const loadEmbeddingModelComponents = async (mod, {
   modelId, modelsDir, modelProfile = null, localFilesOnly = false,
   sessionOptions = {}, modelFileName = null
 }) => {
+  modelProfile = snapshotEmbeddingMetadata(modelProfile);
+  sessionOptions = snapshotEmbeddingMetadata(sessionOptions);
   const plan = resolveEmbeddingAcquisitionPlan(modelId, modelProfile);
   const options = {
     ...(localFilesOnly ? { local_files_only: true } : {}),
@@ -39,7 +42,7 @@ export const loadEmbeddingModelComponents = async (mod, {
   config.vision_config = null;
   config.audio_config = null;
   const tokenizer = await AutoTokenizer.from_pretrained(modelId, options);
-  const resourceOwner = createTransformersResourceScope('embedding model components');
+  const resourceOwner = createTransformersResourceScope('embedding model components', { drainFailuresBeforeResources: true });
   resourceOwner.adopt(tokenizer, 'embedding tokenizer');
   try {
     const model = await AutoModel.from_pretrained(modelId, {
