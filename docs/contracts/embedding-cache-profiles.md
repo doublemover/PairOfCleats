@@ -24,6 +24,11 @@ index projections and replacement overhead before publication. Active, unknown,
 unreadable, linked or changed candidates block optional persistence when no safe
 retirement satisfies the bound. Whole-profile retirement revalidates a complete
 producer/reference closure under shared exclusive storage admission.
+Retirement admits at most 64 MiB of encoded metadata, indexes and standalone payload
+qualification per candidate and shares a cooperative two-second scan deadline
+across selected candidates. Every cache metadata identity must match. Stray
+SQLite WAL/SHM files are unqualified; the V3 text store uses confirmed DELETE
+journaling. A budget expiry refuses persistence without granting deletion authority.
 
 The catalog is at most eight records/64 KiB. Hot appends update this bounded
 metadata rather than scan every file index. Dirty/crash recovery and settled
@@ -35,8 +40,9 @@ their profile leases release. Reservations can conservatively deny a cache write
 the required vector artifact producer continues independently.
 
 This budget describes managed V3 ordinary file lengths. Older compatibility
-bytes, filesystem allocation, compressed/sparse allocation and deleted-open bytes
-remain separate observations, not inferred free space or whole-app quota proof.
+bytes, shared coordination files, filesystem allocation, compressed/sparse
+allocation and deleted-open bytes remain separate observations, not inferred free
+space or whole-app quota proof.
 
 New file-cache records contain ordered references and file hashes/signatures,
 rather than a second copy of all three vector channels. Immutable chunk keys

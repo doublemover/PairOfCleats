@@ -15,7 +15,7 @@ export const EMBEDDING_PROFILE_LIMITS = Object.freeze({ maxProfiles: 8, maxBytes
   maxInventoryEntries: 8192, maxInventoryMs: 2000 });
 const MODES = ['code', 'prose', 'extracted-prose', 'records'];
 const registeredFile = filename => filename === EMBEDDING_PROFILE_MARKER
-  || /^text-vectors\.sqlite(?:-wal|-shm|-journal)?$/.test(filename)
+  || /^text-vectors\.sqlite(?:-journal)?$/.test(filename)
   || MODES.some(mode => filename === `${mode}/cache.meta.json`)
   || /^(?:global-chunks|(?:code|prose|extracted-prose|records)\/files)\/(?:cache\.index\.(?:json|bin|delta)|cache\.meta\.json|[A-Za-z0-9_-]{1,256}\.(?:embcache\.zst|json)|shards\/shard-\d{5,}\.bin)$/.test(filename);
 const registeredDirectory = filename => !filename || filename === 'global-chunks' || filename === 'global-chunks/shards'
@@ -26,9 +26,9 @@ export const readProfileMarker = async descriptor => {
   try { return JSON.parse((await readVerifiedContainedFile(descriptor.profile, descriptor.marker, { maxBytes: 4096 })).buffer.toString('utf8')); }
   catch (error) { if (error.cacheOwnershipPending || error instanceof AggregateError) throw error; return null; }
 };
-export const inspectProfileFiles = (descriptor, { signal = null } = {}) => inspectStorageInventory({
+export const inspectProfileFiles = (descriptor, { signal = null, maxDurationMs = EMBEDDING_PROFILE_LIMITS.maxInventoryMs } = {}) => inspectStorageInventory({
   roots: [{ id: descriptor.key, path: descriptor.profile, retention: 'derived' }], includeFiles: true,
-  maxEntries: EMBEDDING_PROFILE_LIMITS.maxInventoryEntries, maxDurationMs: EMBEDDING_PROFILE_LIMITS.maxInventoryMs, signal });
+  maxEntries: EMBEDDING_PROFILE_LIMITS.maxInventoryEntries, maxDurationMs, signal });
 export const sameProfileInventory = (left, right) => {
   const sameEntries = (a, b) => { const byPath = new Map(b?.map(entry => [entry.relativePath, entry])); return a?.length === b?.length && a.every(entry => {
     const match = byPath.get(entry.relativePath);
@@ -40,15 +40,27 @@ export const sameProfileInventory = (left, right) => {
 
 /** A whole profile is a closed derived-storage unit: references never escape
  * its indexes. Exclusive admission is supplied only by the shared lifecycle owner. */
-export const inspectProfileRetirement = async (descriptor, inventory, { exclusive = false } = {}) => {
+export const inspectProfileRetirement = async (descriptor, inventory, { exclusive = false, signal = null,
+  deadline = Date.now() + EMBEDDING_PROFILE_LIMITS.maxInventoryMs } = {}) => {
   const item = inventory.items[0], marker = await readProfileMarker(descriptor);
   let qualified = item.complete && isProfileMarker(marker, descriptor)
     && item.files.every(file => file.identity.nlink === 1 && registeredFile(file.relativePath.split(path.sep).join('/')))
     && item.directories.every(directory => registeredDirectory(directory.relativePath.split(path.sep).join('/')));
   let globalIndex = null;
+  const qualificationBytes = item.files.filter(file => !/^text-vectors\.sqlite/.test(file.relativePath)
+    && !/(?:^|[\\/])shards[\\/]/.test(file.relativePath)).reduce((sum, file) => sum + file.identity.size, 0);
+  const withinBudget = () => { throwIfAborted(signal); return Date.now() < deadline && qualificationBytes <= 64 * 1024 * 1024; };
+  qualified &&= withinBudget();
   if (qualified) {
     for (const file of item.files) {
+      if (!qualified || !withinBudget()) { qualified = false; break; }
       const name = path.basename(file.relativePath);
+      if (name === 'cache.meta.json') {
+        try {
+          const { buffer } = await readVerifiedContainedFile(descriptor.profile, path.join(descriptor.profile, file.relativePath), { maxBytes: 64 * 1024 });
+          if (JSON.parse(buffer.toString('utf8')).identityKey !== descriptor.key) qualified = false;
+        } catch (error) { if (error.cacheOwnershipPending || error instanceof AggregateError) throw error; qualified = false; }
+      }
       if (/\.(?:embcache\.zst|json)$/.test(name) && !['profile.meta.json', 'cache.meta.json', 'cache.index.json'].includes(name)) {
         try { if (!await isOwnedStandaloneCacheFile(descriptor.profile, path.join(descriptor.profile, file.relativePath), descriptor.key)) qualified = false; }
         catch (error) { if (error.cacheOwnershipPending || error instanceof AggregateError) throw error; qualified = false; }
@@ -57,6 +69,7 @@ export const inspectProfileRetirement = async (descriptor, inventory, { exclusiv
     const directories = new Set(item.files.filter(file => /cache\.index\.(?:json|bin|delta)$/.test(file.relativePath))
       .map(file => path.dirname(path.join(descriptor.profile, file.relativePath))));
     for (const directory of directories) {
+      if (!qualified || !withinBudget()) { qualified = false; break; }
       try {
         const index = await readEmbeddingIndex(directory, descriptor.key, { strict: true });
         if (index.identityKey !== descriptor.key || Object.values(index.entries || {}).some(entry => entry.path
@@ -67,10 +80,14 @@ export const inspectProfileRetirement = async (descriptor, inventory, { exclusiv
         }
       } catch (error) { if (error.cacheOwnershipPending || error instanceof AggregateError) throw error; qualified = false; }
     }
-    if (globalIndex) {
-      const references = await collectReferenceProtection(path.join(descriptor.profile, 'global-chunks'), globalIndex, { readIndex: readEmbeddingIndex });
-      if (references.incomplete) qualified = false;
+    if (globalIndex && qualified) {
+      if (!withinBudget()) qualified = false;
+      else {
+        const references = await collectReferenceProtection(path.join(descriptor.profile, 'global-chunks'), globalIndex, { readIndex: readEmbeddingIndex });
+        if (references.incomplete) qualified = false;
+      }
     }
+    qualified &&= withinBudget();
   }
   const lease = exclusive ? { complete: true, protected: false }
     : await inspectStorageAccess(descriptor.profile, { coordinationRoot: descriptor.coordinationRoot });

@@ -22,6 +22,7 @@ for (let index = 0; index < EMBEDDING_PROFILE_LIMITS.maxProfiles; index++) {
   const marker = JSON.parse(await fs.readFile(descriptor.marker, 'utf8'));
   await fs.writeFile(descriptor.marker, JSON.stringify({ ...marker, lastUse: new Date(Date.now() - 600000 + index * 1000).toISOString() }));
 }
+await fs.writeFile(path.join(path.dirname(directories[1]), 'cache.meta.json'), JSON.stringify({ identityKey: identities[9].key }));
 await reconcileEmbeddingProfileBudget(directories[0]);
 const held = acquireEmbeddingProfileSession(directories[0]);
 try {
@@ -29,7 +30,8 @@ try {
   const inventory = await inspectEmbeddingCacheProfiles(dir);
   assert.equal(inventory.complete, true); assert.equal(inventory.profiles.length, 8);
   assert.ok(inventory.profiles.some(value => value.key === identities[0].key), 'a live original profile lease blocks retirement');
-  assert.ok(!inventory.profiles.some(value => value.key === identities[1].key), 'the oldest unleased closed profile retires as one reference unit');
+  assert.ok(inventory.profiles.some(value => value.key === identities[1].key), 'foreign metadata never grants retirement authority');
+  assert.ok(!inventory.profiles.some(value => value.key === identities[2].key), 'the oldest fully qualified unleased profile retires as one reference unit');
   for (const index of [0, 8, 0]) {
     const cacheIndex = await readCacheIndex(directories[index], identities[index].key);
     assert.equal((await readCacheEntries(directories[index], ['row'], cacheIndex))[0].entry.codeVectors[0][0], index);

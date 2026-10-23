@@ -86,15 +86,15 @@ export const planEmbeddingProfileRetention = ({ inventory, currentKey, currentPa
     reason: count > countLimit ? 'protected-profile-history' : bytes > byteLimit ? 'protected-profile-bytes' : null };
 };
 
-const retire = async (root, entry, signal) => {
+const retire = async (root, entry, signal, deadline) => {
   const descriptor = descriptorFor(root, entry);
-  const preview = await inspectProfileFiles(descriptor, { signal });
-  const decision = await inspectProfileRetirement(descriptor, preview);
+  const preview = await inspectProfileFiles(descriptor, { signal, maxDurationMs: Math.max(1, deadline - Date.now()) });
+  const decision = await inspectProfileRetirement(descriptor, preview, { signal, deadline });
   if (!decision.eligible || decision.marker.lastUse !== entry.lastUse) return false;
   const excluded = await withExclusiveStorageAccess(descriptor.profile, async () => {
-    const fresh = await inspectProfileFiles(descriptor, { signal });
+    const fresh = await inspectProfileFiles(descriptor, { signal, maxDurationMs: Math.max(1, deadline - Date.now()) });
     if (!sameProfileInventory(preview.items[0], fresh.items[0])) return false;
-    const qualified = await inspectProfileRetirement(descriptor, fresh, { exclusive: true });
+    const qualified = await inspectProfileRetirement(descriptor, fresh, { exclusive: true, signal, deadline });
     if (!qualified.eligible || qualified.marker.lastUse !== entry.lastUse) return false;
     const target = path.resolve(descriptor.profile);
     if (!isPathWithinRoot(target, root) || target === path.resolve(root)) throw new Error('Profile retirement escaped its authorized cache root.');
@@ -142,13 +142,15 @@ export const withEmbeddingProfileMutation = async (directory, incomingBytes, act
     const currentPath = path.relative(descriptor.root, descriptor.profile);
     const reservation = incomingBytes + (catalog.profiles.some(entry => entry.relativePath === currentPath) ? 0 : 4096);
     await saveCatalog(descriptor.root, { ...catalog, dirty: true });
+    const retirementDeadline = Date.now() + EMBEDDING_PROFILE_LIMITS.maxInventoryMs;
     for (;;) {
       const plan = planEmbeddingProfileRetention({ inventory: { complete: true, profiles: catalog.profiles }, currentPath, incomingBytes: reservation, maxBytes, maxAgeMs });
       if (!plan.admitted) { await saveCatalog(descriptor.root, { ...catalog, dirty: false }); return null; }
       let blocked = false;
       for (const selected of plan.selected) {
         throwIfAborted(signal);
-        if (await retire(descriptor.root, selected, signal)) catalog.profiles = catalog.profiles.filter(entry => entry !== selected);
+        if (Date.now() >= retirementDeadline) { await saveCatalog(descriptor.root, { ...catalog, dirty: false }); return null; }
+        if (await retire(descriptor.root, selected, signal, retirementDeadline)) catalog.profiles = catalog.profiles.filter(entry => entry !== selected);
         else {
           selected.eligible = false; blocked = true;
           const marker = await readProfileMarker(descriptorFor(descriptor.root, selected));
