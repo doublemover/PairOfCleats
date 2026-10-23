@@ -5,6 +5,7 @@ import { openPublishedSemanticStore } from '../../../src/semantic/published-stor
 import { createSemanticDetailRunner } from '../../../src/integrations/tooling/semantic-detail.js';
 import { createSemanticFindRunner } from '../../../src/integrations/tooling/semantic-find.js';
 import { createSemanticExplainRunner } from '../../../src/integrations/tooling/semantic-explain.js';
+import { createSemanticTraceRunner } from '../../../src/integrations/tooling/semantic-trace.js';
 
 // Actual query services with injected store acquisition/cleanup boundaries.
 const fixture = await createSemanticServingFixture();
@@ -25,6 +26,7 @@ try {
   const cases = [
     [createSemanticDetailRunner, { ...scope, refs: [fixture.ref] }, 'getCoverage'],
     [createSemanticFindRunner, { ...scope, selector: { field: 'astKind', value: 'Identifier' } }, 'findOperations'],
+    [createSemanticTraceRunner, { ...scope, seed: fixture.ref, direction: 'downstream', kinds: ['flowsTo'] }, 'getCoverage'],
     [createSemanticExplainRunner, { ...scope, seed: fixture.ref, direction: 'downstream', kinds: ['flowsTo'] }, 'getCoverage']
   ];
   for (const [create, request, method] of cases) {

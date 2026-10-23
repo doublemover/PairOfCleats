@@ -10,11 +10,16 @@ import { getBuildsRoot, getRepoRoot } from '../../src/shared/repo-paths.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 
 /** Real partition/index writers and registrations, without a repository index. */
-export const createSemanticServingFixture = async () => {
+export const createSemanticServingFixture = async ({ withOperands = false } = {}) => {
   const fixture = await createRecoveryFixture('first(); second();');
   const repoRoot = getRepoRoot(fixture.root);
   try {
-    const partition = await fixture.write([semanticNode(0, 8), semanticNode(1, fixture.source.textLength)]);
+    const rows = [semanticNode(0, 8), semanticNode(1, fixture.source.textLength)];
+    if (withOperands) rows.push({ family: 'operand', row: {
+      parent: { partitionId: fixture.partitionId, localId: 0 }, slot: 'argument', ordinal: 0,
+      child: { partitionId: fixture.partitionId, localId: 1 }, flags: []
+    } });
+    const partition = await fixture.write(rows);
     const store = fixture.store([partition]);
     const options = { root: fixture.stagingRoot, generation: fixture.generation, partitions: [partition],
       store, diskAccount: fixture.account, batchRows: 128, batchBytes: 65536 };

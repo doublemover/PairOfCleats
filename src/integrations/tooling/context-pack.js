@@ -23,6 +23,7 @@ import { getRepoRoot } from '../../shared/repo-paths.js';
 import { loadWorkspaceConfig } from '../../workspace/config.js';
 import { toRealPathSync } from '../../workspace/identity.js';
 import { selectWorkspaceRepos } from '../../retrieval/federation/select.js';
+import { throwIfAborted } from '../../shared/abort.js';
 
 const DEFAULT_MAX_FEDERATED_CONTEXT_PACK_REPOS = 4;
 const MAX_FEDERATED_CONTEXT_PACK_REPOS = 16;
@@ -315,7 +316,8 @@ const mergeFederatedRiskPayloads = ({ basePayload, repoResults, workspaceConfig,
   };
 };
 
-async function buildSingleRepoCompositeContextPackPayload(input = {}) {
+async function buildSingleRepoCompositeContextPackPayload(input = {}, context = {}) {
+  throwIfAborted(context.signal);
   const repoRoot = getRepoRoot(input.repoRoot || null, process.cwd());
   if (!input.seed) {
     throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST', 'Missing seed.', 400);
@@ -406,7 +408,7 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
   });
 
   if (input.includeSemantic === true) payload = attachSemanticContextSection(payload,
-    await buildSemanticContextSection({ repoRoot, indexDir, primary: payload.primary, userConfig }));
+    await buildSemanticContextSection({ repoRoot, indexDir, primary: payload.primary, userConfig, signal: context.signal }));
 
   const validation = validateCompositeContextPack(payload);
   if (!validation.ok) {
@@ -466,7 +468,7 @@ export async function buildFederatedCompositeContextPackPayload(input = {}, cont
     const repoPayload = await buildSingleRepoCompositeContextPackPayload({
       ...input,
       repoRoot: repo.repoRootCanonical
-    });
+    }, context);
     repoResults.push({
       repo,
       payload: {
@@ -526,6 +528,7 @@ export async function buildFederatedCompositeContextPackPayload(input = {}, cont
  *   hops:number,
  *   includeGraph?:boolean,
  *   includeTypes?:boolean,
+ *   includeSemantic?:boolean,
  *   includeRisk?:boolean,
  *   includeRiskPartialFlows?:boolean,
  *   strictRisk?:boolean,
@@ -547,13 +550,15 @@ export async function buildFederatedCompositeContextPackPayload(input = {}, cont
  *   maxWorkUnits?:number|null,
  *   maxWallClockMs?:number|null
  * }} [input]
- * @param {{trustedWorkspaceConfig?:boolean}} [context]
+ * @param {{trustedWorkspaceConfig?:boolean, signal?:AbortSignal}} [context]
  * @returns {Promise<object>}
  */
 export async function buildCompositeContextPackPayload(input = {}, context = {}) {
+  throwIfAborted(context.signal);
   const payload = shouldUseFederatedContextPack(input)
     ? await buildFederatedCompositeContextPackPayload(input, context)
-    : await buildSingleRepoCompositeContextPackPayload(input);
+    : await buildSingleRepoCompositeContextPackPayload(input, context);
+  throwIfAborted(context.signal);
   const bounded = enforceContextPackResponseBudget(payload, input);
   const validation = validateCompositeContextPack(bounded);
   if (!validation.ok) throw createContextPackRequestError('ERR_CONTEXT_PACK_SCHEMA', validation.errors.join('; '), 500);
