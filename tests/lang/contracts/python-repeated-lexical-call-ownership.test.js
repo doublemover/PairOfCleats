@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { buildLanguageContext, buildChunkRelations } from '../../../src/index/language-registry.js';
 import { applyRelationInferenceBudget, buildCallIndex } from '../../../src/index/build/file-processor/relations.js';
+import { attachCallDetailsByChunkIndex } from '../../../src/index/build/file-processor/process-chunks/dedupe.js';
 import { shutdownPythonAstPool } from '../../../src/lang/python.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
@@ -27,6 +28,13 @@ try {
   assert.ok(context.pythonAst && !context.pythonAst.error, 'real CPython transport supplies scoped observations');
   const relations = lang.buildRelations({ text, context, options: {} });
   const callIndex = buildCallIndex(relations);
+  const rangedRelations = { ...relations, callDetails: relations.callDetails.map(detail => {
+    const start = text.indexOf(detail.callee + '(');
+    return { ...detail, start, end: text.indexOf(')', start) + 1 };
+  }) };
+  const rangedIndex = buildCallIndex(rangedRelations);
+  attachCallDetailsByChunkIndex(rangedIndex, context.pythonChunks);
+  assert.ok(rangedIndex.callDetailsByChunkIndex instanceof Map, 'real geometric index supplies the competing range owner');
   for (const [name, expected] of [
     ['factory.Local', [['first_default'], ['second_default']]],
     ['factory.Local.run', [['first_body'], ['second_body']]],
@@ -38,8 +46,9 @@ try {
     chunks.forEach((chunk, index) => {
       const definition = context.pythonAst.defs.find(entry => entry.scopeId === chunk.meta.pythonScopeId);
       assert.deepEqual(definition.calls, expected[index]);
-      for (const selectedIndex of [null, callIndex]) {
-        const selected = buildChunkRelations({ lang, chunk, fileRelations: relations, callIndex: selectedIndex });
+      for (const [selectedRelations, selectedIndex] of [[relations, null], [relations, callIndex], [rangedRelations, rangedIndex]]) {
+        const selected = buildChunkRelations({ lang, chunk, fileRelations: selectedRelations, callIndex: selectedIndex,
+          chunkIndex: context.pythonChunks.indexOf(chunk) });
         assert.deepEqual(selected.calls, expected[index].map(callee => [name, callee]));
         assert.deepEqual(selected.callDetails.map(detail => detail.callee), expected[index]);
         assert.ok(selected.callDetails.every(detail => detail.callerScopeId === chunk.meta.pythonScopeId));

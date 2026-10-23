@@ -188,21 +188,28 @@ export function buildChunkRelations({ lang, chunk, fileRelations, callIndex = nu
   if (chunk?.meta?.syntaxCallOmissions) output.callOmissions = { ...chunk.meta.syntaxCallOmissions };
   else if (Array.isArray(fileRelations.callCoverageReasons)) output.callCoverageReasons = [...fileRelations.callCoverageReasons];
   if (chunk?.name) {
+    const pythonScopedCalls = lang?.id === 'python' && typeof chunk.meta?.pythonScopeId === 'string'
+      && fileRelations.callOwnership === 'python-lexical-scope-v1';
     const callsForChunk = callIndex?.callsByCaller
       ? (callIndex.callsByCaller.get(chunk.name) || [])
       : (Array.isArray(fileRelations.calls)
         ? fileRelations.calls.filter(([caller]) => caller && caller === chunk.name)
         : []);
     let detailsForChunk = [];
-    if (callIndex?.callDetailsByChunkIndex && Number.isFinite(chunkIndex)) {
+    if (pythonScopedCalls) {
+      // Header calls can lie in a nested declaration's source range while
+      // belonging to its enclosing scope. A geometric index cannot override it.
+      detailsForChunk = callIndex?.callDetailsByCaller
+        ? callIndex.callDetailsByCaller.get(chunk.name) || []
+        : (fileRelations.callDetails || []).filter(detail => detail?.caller === chunk.name);
+    } else if (callIndex?.callDetailsByChunkIndex && Number.isFinite(chunkIndex)) {
       detailsForChunk = callIndex.callDetailsByChunkIndex.get(chunkIndex) || [];
     } else if (callIndex?.callDetailsByCaller) {
       detailsForChunk = callIndex.callDetailsByCaller.get(chunk.name) || [];
     } else if (Array.isArray(fileRelations.callDetails)) {
       detailsForChunk = fileRelations.callDetails.filter((detail) => detail?.caller === chunk.name);
     }
-    if (lang?.id === 'python' && typeof chunk.meta?.pythonScopeId === 'string'
-      && fileRelations.callOwnership === 'python-lexical-scope-v1') {
+    if (pythonScopedCalls) {
       // A display name can recur in separate lexical declarations. Preserve
       // the collector's source-qualified owner through the public projection.
       // Intersect both already-budgeted channels; never reconstruct discarded

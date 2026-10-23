@@ -5,6 +5,9 @@ definition line and byte column. Call details carry that ID as `callerScopeId`,
 and AST chunks retain it as `meta.pythonScopeId`. The registered chunk projection
 uses this identity before selecting calls, so repeated functions or local classes
 with the same display name do not merge their body or header observations.
+This lexical owner also takes precedence over the generic smallest-source-range
+call index: a method's default expression can physically lie inside the method
+chunk while its evaluation belongs to the enclosing class.
 
 The projection intersects the existing, already-budgeted call and detail arrays.
 It does not recover observations from an extra metadata store after inference
