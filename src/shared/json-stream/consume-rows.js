@@ -5,14 +5,19 @@ import { addStorageFailureContext } from '../storage/operation-error.js';
  * may reuse yielded storage on its next advance. Unexpected next()/value/work
  * failures still close the captured iterator, preserving independent cleanup.
  */
-export const consumeJsonRows = async (items, consume, { signal = null, awaitSyncValues = false } = {}) => {
+export const consumeJsonRows = async (items, consume, { signal = null, awaitSyncValues = false, syncOnly = false } = {}) => {
   throwIfAborted(signal);
-  const asyncMethod = items?.[Symbol.asyncIterator];
-  const iterator = typeof asyncMethod === 'function' ? asyncMethod.call(items) : items?.[Symbol.iterator]?.();
-  if (!iterator || typeof iterator.next !== 'function') throw new TypeError('JSON output requires a synchronous or asynchronous iterable.');
-  const next = iterator.next.bind(iterator);
+  const asyncMethod = syncOnly ? null : items?.[Symbol.asyncIterator];
+  const method = asyncMethod == null ? items?.[Symbol.iterator] : asyncMethod;
+  if (typeof method !== 'function') throw new TypeError(syncOnly
+    ? 'JSON output requires a synchronous iterable.' : 'JSON output requires a synchronous or asynchronous iterable.');
+  const iterator = method.call(items);
+  if (iterator === null || !['object', 'function'].includes(typeof iterator)) throw new TypeError('JSON iterator is not an object.');
   let completed = false, failed = false, primary;
   try {
+    const nextMethod = iterator.next;
+    if (typeof nextMethod !== 'function') throw new TypeError('JSON iterator next() is not callable.');
+    const next = nextMethod.bind(iterator);
     while (true) {
       throwIfAborted(signal);
       const entry = typeof asyncMethod === 'function' ? await next() : next();

@@ -41,6 +41,15 @@ const run = async (items, options = {}) => {
 };
 const expectedRows = [1, 2, 3].map(id => ({ id, nested: { value: `雪😀-${id}` } }));
 const expected = expectedRows.map(row => JSON.stringify(row) + '\n').join('');
+const contains = (error, expected) => {
+  const pending = [error], seen = new Set();
+  while (pending.length) {
+    const value = pending.pop(); if (value === expected) return true;
+    if (!value || typeof value !== 'object' || seen.has(value)) continue;
+    seen.add(value); pending.push(value.cause, ...(Array.isArray(value.errors) ? value.errors : []));
+  }
+  return false;
+};
 const reusedRows = function* () {
   const row = { id: 0, nested: { value: '' } };
   for (const next of expectedRows) {
@@ -134,19 +143,39 @@ try {
           reserve() { if (failure === 'abort') controller.abort(); else throw denied; }, release() {}
         } } : {})
       }), error => {
-        assert.equal(error.cleanupError, cleanupError, `${failure} retains input cleanup error`);
+        assert.ok(contains(error, cleanupError), `${failure} retains input cleanup error`);
         if (failure === 'oversized') return error.code === 'ERR_JSON_TOO_LARGE';
-        if (failure === 'source') return error === sourceError;
+        if (failure === 'source') return contains(error, sourceError);
         if (failure === 'abort') return error.name === 'AbortError';
-        if (failure === 'write') return error === writeError;
-        if (failure === 'serialization') return error instanceof TypeError;
-        return error === denied;
+        if (failure === 'write') return contains(error, writeError);
+        if (failure === 'serialization') return error instanceof TypeError || error.cause instanceof TypeError;
+        return contains(error, denied);
       });
     } finally { fsSync.createWriteStream = originalCreate; }
     assert.equal(advances, failure === 'source' ? 2 : 1, `${failure} cannot request an extra row`);
     assert.equal(closed, 1);
     assert.deepEqual(await fs.readdir(failureDir), ['parts'], `${failure} retires staging directory`);
     assert.equal(await fs.readFile(path.join(oldParts, 'old'), 'utf8'), 'retained generation');
+  }
+  for (const useAsync of [false, true]) {
+    for (const getterFailure of [false, true]) {
+      const primary = Object.freeze(new Error('captured next failed'));
+      const cleanup = Object.freeze(new Error('frozen iterator close failed'));
+      let gets = 0, calls = 0, closes = 0;
+      const iterator = { return() { closes++; throw cleanup; } };
+      Object.defineProperty(iterator, 'next', { get() {
+        gets++;
+        if (getterFailure) throw primary;
+        return function () { calls++; throw primary; };
+      } });
+      const items = { [useAsync ? Symbol.asyncIterator : Symbol.iterator]() { return iterator; } };
+      await assert.rejects((useAsync ? writeJsonLinesShardedAsync : writeJsonLinesSharded)({
+        dir: failureDir, partsDirName: 'parts', partPrefix: 'part-', items
+      }), error => contains(error, primary) && contains(error, cleanup));
+      assert.equal(gets, 1); assert.equal(calls, getterFailure ? 0 : 1); assert.equal(closes, 1);
+      assert.deepEqual(await fs.readdir(failureDir), ['parts']);
+      assert.equal(await fs.readFile(path.join(oldParts, 'old'), 'utf8'), 'retained generation');
+    }
   }
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('Sharded JSONL consumes reusable yields before advancing; exact bytes, offsets and failure ownership verified.');
