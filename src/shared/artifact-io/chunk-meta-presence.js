@@ -7,6 +7,8 @@ import {
   resolveArtifactPresence
 } from './manifest.js';
 import { joinPathSafe } from '../path-normalize.js';
+import { readJsonResourceTextSync } from '../file-read-resource.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
 
 const CHUNK_META_DIRECT_CANDIDATES = [
   'chunk_meta.json',
@@ -43,7 +45,8 @@ const hasManifestChunkMetaArtifacts = (dir) => {
     const stat = fsSync.statSync(manifestPath);
     if (!stat.isFile()) return false;
     if (stat.size > MANIFEST_CHUNK_META_PARSE_MAX_BYTES) return true;
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'chunk-meta-presence-stat' }).requireSettled();
     return false;
   }
   try {
@@ -56,14 +59,23 @@ const hasManifestChunkMetaArtifacts = (dir) => {
       maxBytes: MAX_JSON_BYTES,
       strict: false
     });
+    if (presence?.error !== null && presence?.error !== undefined) {
+      observeStorageResource(presence.error, { phase: 'chunk-meta-presence-source' }).requireSettled();
+    }
     if (!presence || presence.format === 'missing') return false;
     if (presence.error) return false;
     if (presence.missingMeta) return false;
     if (Array.isArray(presence.missingPaths) && presence.missingPaths.length) return false;
     return Array.isArray(presence.paths) && presence.paths.length > 0;
   } catch (err) {
-    if (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
-    if (err?.code === 'ERR_JSON_TOO_LARGE') return true;
+    const observation = observeStorageResource(err, { phase: 'chunk-meta-presence-manifest' });
+    observation.requireSettled();
+    let code;
+    try { code = observation.primary.code; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    if (code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
+    if (code === 'ERR_JSON_TOO_LARGE') return true;
     return false;
   }
 };
@@ -80,7 +92,7 @@ const hasChunkMetaShardedAsync = async (dir) => (
 
 const hasChunkMetaBinaryColumnarPayloadSync = (dir, metaPath) => {
   try {
-    const parsed = JSON.parse(fsSync.readFileSync(metaPath, 'utf8')) || {};
+    const parsed = JSON.parse(readJsonResourceTextSync(metaPath)) || {};
     const dataName = typeof parsed?.data === 'string' ? parsed.data : 'chunk_meta.binary-columnar.bin';
     const offsetsName = typeof parsed?.offsets === 'string'
       ? parsed.offsets
@@ -95,7 +107,8 @@ const hasChunkMetaBinaryColumnarPayloadSync = (dir, metaPath) => {
     return fsSync.existsSync(dataPath)
       && fsSync.existsSync(offsetsPath)
       && fsSync.existsSync(lengthsPath);
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'chunk-meta-presence-binary' }).requireSettled();
     return false;
   }
 };

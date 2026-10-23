@@ -59,7 +59,8 @@ export async function pathExists(targetPath) {
   try {
     await fsPromises.access(targetPath, fs.constants.F_OK);
     return true;
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'path-exists' }).requireSettled();
     return false;
   }
 }
