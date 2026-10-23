@@ -51,8 +51,31 @@ export const normalizeTypeEntry = (entry) => {
   };
 };
 
+const compareText = (left, right) => left < right ? -1 : left > right ? 1 : 0;
+// Scores are existing evidence strengths, not calibrated probabilities. Missing
+// confidence sorts after every explicit finite score, including explicit zero.
+const compareAdmission = (left, right) => {
+  const knownLeft = Number.isFinite(left.confidence), knownRight = Number.isFinite(right.confidence);
+  if (knownLeft !== knownRight) return knownLeft ? -1 : 1;
+  if (knownLeft && left.confidence !== right.confidence) return right.confidence - left.confidence;
+  return compareText(left.normalizedType || left.type, right.normalizedType || right.type)
+    || compareText(left.source || '', right.source || '')
+    || compareText(left.type, right.type) || compareText(left.originalText, right.originalText);
+};
+
+// Keep capped admission streaming even for Set/Map/iterable callers. The public
+// collection-conversion helper retains its existing array-returning contract.
+const iterateTypeEntries = function* (value) {
+  if (value == null) return;
+  if (typeof value === 'string') { yield value; return; }
+  if (value instanceof Map) { yield* value.values(); return; }
+  if (Array.isArray(value) || value instanceof Set || hasIterable(value)) { yield* value; return; }
+  if (typeof value === 'object' && Object.hasOwn(value, 'type')) yield value;
+};
+
 /**
- * Merge and dedupe type entries, keeping highest-confidence variants.
+ * Merge and dedupe by canonical type/source, admitting strongest bounded facts
+ * before the existing display ordering. A zero/absent cap remains uncapped.
  *
  * @param {unknown} existing
  * @param {unknown} incoming
@@ -63,21 +86,29 @@ export const mergeTypeEntries = (existing, incoming, options = {}) => {
   const capValue = Number(options?.cap);
   const cap = Number.isFinite(capValue) && capValue > 0 ? Math.floor(capValue) : 0;
   const map = new Map();
+  let truncated = false;
   const addEntry = (entry) => {
     const normalized = normalizeTypeEntry(entry);
     if (!normalized) return;
     const key = JSON.stringify([normalized.normalizedType || normalized.type, normalized.source || '']);
     const prior = map.get(key);
-    if (!prior) {
-      map.set(key, normalized);
+    if (prior) {
+      if (compareAdmission(normalized, prior) < 0) map.set(key, normalized);
       return;
     }
-    const priorConfidence = Number.isFinite(prior.confidence) ? prior.confidence : 0;
-    const nextConfidence = Number.isFinite(normalized.confidence) ? normalized.confidence : 0;
-    if (nextConfidence > priorConfidence) map.set(key, normalized);
+    if (!cap || map.size < cap) { map.set(key, normalized); return; }
+    truncated = true;
+    let weakestKey, weakest;
+    for (const [candidateKey, candidate] of map) {
+      if (!weakest || compareAdmission(candidate, weakest) > 0) { weakestKey = candidateKey; weakest = candidate; }
+    }
+    if (compareAdmission(normalized, weakest) < 0) {
+      map.delete(weakestKey);
+      map.set(key, normalized);
+    }
   };
-  for (const entry of toTypeEntryCollection(existing)) addEntry(entry);
-  for (const entry of toTypeEntryCollection(incoming)) addEntry(entry);
+  for (const entry of iterateTypeEntries(existing)) addEntry(entry);
+  for (const entry of iterateTypeEntries(incoming)) addEntry(entry);
   const list = Array.from(map.values());
   list.sort((a, b) => {
     const typeCmp = a.type.localeCompare(b.type);
@@ -88,8 +119,5 @@ export const mergeTypeEntries = (existing, incoming, options = {}) => {
     const confB = Number.isFinite(b.confidence) ? b.confidence : 0;
     return confB - confA;
   });
-  if (cap && list.length > cap) {
-    return { list: list.slice(0, cap), truncated: true };
-  }
-  return { list, truncated: false };
+  return { list, truncated };
 };

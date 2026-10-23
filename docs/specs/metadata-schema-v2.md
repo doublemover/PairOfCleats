@@ -143,6 +143,12 @@ type TypeEntry = {
 };
 ```
 
+Capped candidate admission keeps stronger explicit finite scores before the
+existing display order; unknown confidence follows explicit zero. Canonical
+type/source pairs retain distinct provenance without score aggregation. These
+are evidence strengths rather than calibrated probabilities. See the
+[admission policy and qualification limits](../contracts/type-candidate-admission.md).
+
 ## 6) Relations (summary)
 
 - `relations.calls`: light-weight call edge list
