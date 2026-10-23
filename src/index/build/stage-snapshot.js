@@ -65,7 +65,8 @@ export const snapshotStageOutput = async ({ runtime, mode, manifest, inventory, 
   if (mode === 'code') {
     try {
       graphCapability = await writeGraphCapabilityReceipt({ root: runtime.root, sourceBuildRoot: runtime.buildRoot,
-        indexRoot: snapshotRoot, buildId: runtime.buildId, manifest: selectedManifest, descriptorHash, signal, assertOwned });
+        indexRoot: snapshotRoot, buildId: runtime.buildId, manifest: selectedManifest, descriptorHash,
+        producerIdentity: completion.producer || null, signal, assertOwned });
     } catch (error) {
       if (error.code !== 'ERR_GRAPH_CAPABILITY_VALIDATION') throw error;
       graphCapability = { status: 'unavailable', reason: error.message };

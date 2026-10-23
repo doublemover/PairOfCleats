@@ -50,13 +50,16 @@ try {
   assert.equal(await fs.readFile(pointerPath, 'utf8'), oldPointer);
   assert.equal(JSON.parse(oldPointer).buildId, healthy.buildId);
 
-  let childSettled = false, retainedError;
+  let childSettled = false, retainedError, originalFailure;
   await assert.rejects(withBuildGraphCapability(root, { indexRoot: retainedRoot }, async () => {
-    throw Object.assign(new Error('consumer original descriptor close pending'), {
+    originalFailure = Object.assign(new Error('consumer original descriptor close pending'), {
       cacheOwnershipPending: true, cacheOwnershipReleased: () => childSettled
     });
+    throw originalFailure;
   }), error => { retainedError = error; return typeof error.releaseGraphReader === 'function'; });
   assert.ok(inspectRepoCacheAccess(getRepoCacheRoot(root)).some(owner => owner.reason === 'resource-settlement-unconfirmed'));
+  originalFailure.cacheOwnershipPending = false;
+  originalFailure.cacheOwnershipReleased = () => true;
   assert.throws(() => retainedError.releaseGraphReader(), 'unsettled original child retains the reader lease');
   childSettled = true;
   assert.equal(retainedError.releaseGraphReader(), true);

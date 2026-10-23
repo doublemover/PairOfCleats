@@ -12,7 +12,7 @@ import { acquireRepoCacheAccessLease } from '../../shared/cache/repo-access.js';
 import { getRepoCacheRoot } from '../../shared/dict-utils.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
-import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { addStorageFailureContext, readStorageFailureContext } from '../../shared/storage/operation-error.js';
 import { combineCacheWriterErrors } from './cache-writer-drain.js';
 import { readBuildMetadata, stageIdentityHash, sameStagePath } from './stage-output.js';
 
@@ -71,7 +71,8 @@ export const validateGraphCapabilityInputs = async ({ root, indexRoot, manifest,
   let semantic = { state: 'unavailable', generation: null, partitions: 0 };
   if (names.has('semantic_manifest')) {
     const opened = await openPublishedSemanticStore({ indexDir, repoRoot: root, signal });
-    await validateSemanticPartitions({ store: opened.store, partitions: opened.manifest.partitions, signal });
+    await opened.store.withReadScope(() => validateSemanticPartitions({ store: opened.store,
+      partitions: opened.manifest.partitions, signal }));
     semantic = { state: opened.manifest.status, generation: opened.manifest.generation, partitions: opened.manifest.partitions.length };
   }
   return { files: arrays.file_meta.length, chunks: arrays.chunk_meta.length, identities: identity.summary,
@@ -82,12 +83,13 @@ export const validateGraphCapabilityInputs = async ({ root, indexRoot, manifest,
 };
 
 export const writeGraphCapabilityReceipt = async ({ root, sourceBuildRoot, indexRoot, buildId, manifest,
-  descriptorHash, signal, assertOwned }) => {
+  descriptorHash, producerIdentity = null, signal, assertOwned }) => {
   const coverage = await validateGraphCapabilityInputs({ root, indexRoot, manifest, signal });
   const identity = { schemaVersion: 1, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     validationPolicyVersion: GRAPH_CAPABILITY_POLICY_VERSION, capability: 'graph', mode: 'code',
     repoRoot: path.resolve(root), sourceBuildRoot: path.resolve(sourceBuildRoot), buildId,
     indexRoot: path.resolve(indexRoot), descriptorHash, semanticGeneration: coverage.semantic.generation,
+    producerIdentity: producerIdentity || { identity: null, reason: 'historical-producer-not-established' },
     coverageHash: stageIdentityHash(coverage) };
   const receipt = { ...identity, capabilityId: stageIdentityHash(identity), status: 'ready', coverage };
   await atomicWriteJson(path.join(indexRoot, 'graph-capability.json'), receipt, { signal, createOnly: true,
@@ -103,9 +105,10 @@ export const withGraphCapability = async ({ root, userConfig, indexRoot, capabil
   if (typeof consume !== 'function' || typeof verifySnapshot !== 'function') throw new TypeError('Graph capability requires its consumer and exact snapshot validator.');
   const lease = acquireRepoCacheAccessLease(getRepoCacheRoot(root, userConfig), { scope: 'graph-capability-reader',
     requireSettlement: true, resourceId: `graph:${capabilityId || indexRoot}` });
-  let operationError = null, released = false;
+  let operationError = null, operationObservation = null, released = false;
   const release = () => {
-    if (operationError) observeStorageResource(operationError, { phase: 'graph-capability-consumer' }).requireSettled();
+    if (operationObservation && (!operationObservation.call(operationError)
+      || !readStorageFailureContext(operationError)?.complete)) throw operationError;
     if (!released) released = lease.release() === true;
     if (!released) throw Object.assign(new Error('Graph capability reader lease release remains unconfirmed.'),
       { code: 'ERR_GRAPH_CAPABILITY_READER_RELEASE', cacheOwnershipPending: true, cacheOwnershipReleased: () => released });
@@ -123,8 +126,9 @@ export const withGraphCapability = async ({ root, userConfig, indexRoot, capabil
     throwIfAborted(signal);
     return await consume(Object.freeze({ ...receipt, indexDir: path.join(indexRoot, 'index-code') }));
   } catch (error) {
-    operationError = error;
-    throw error;
+    operationError = addStorageFailureContext(error, { graphCapabilityPhase: 'consumer' }, null, { forceAggregate: true });
+    operationObservation = Object.getOwnPropertyDescriptor(operationError, 'cacheOwnershipReleased').value;
+    throw operationError;
   } finally {
     try { release(); }
     catch (error) {
