@@ -8,6 +8,14 @@ transport admits every option or uses the same envelope. These outputs are not
 index artifacts unless explicitly stated. Runtime validators are authoritative;
 old phase numbers do not establish current implementation or qualification.
 
+Graph context and impact outputs optionally carry `pathCapability` when their
+builder receives `pathSemantics: "graph-witness"`. The versioned shared semantic
+path declaration names each real producer/operation, graph relation kinds,
+direction, exact index signature and existing caps. Returned witness chains and
+edge domains are validated; unknown extraction, unresolved targets and truncated
+or unrequested witnesses remain explicit. `indexCompatKey` alone cannot pin this
+capability. Graph witnesses provide no executable-path or feasibility proof.
+
 ## Small report example
 
 The existing `tests/shared/contracts/analysis-schemas-validate.test.js` fixture

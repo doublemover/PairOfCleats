@@ -82,6 +82,7 @@ export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
       edgeFilters,
       caps,
       includePaths: argv.includePaths === true,
+      pathSemantics: argv.pathSemantics,
       indexCompatKey: graphInputs.indexCompatKey || null,
       indexSignature: graphInputs.indexSignature || null,
       repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),

@@ -14,6 +14,7 @@ const CONTEXT_PACK_PAYLOAD_FIELDS = Object.freeze([
   'includeUsages',
   'includeCallersCallees',
   'includePaths',
+  'pathSemantics',
   'maxBytes',
   'maxTokens',
   'maxTypeEntries',

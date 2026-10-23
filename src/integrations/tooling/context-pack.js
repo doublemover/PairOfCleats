@@ -396,6 +396,7 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}, context = 
     includeUsages: input.includeUsages !== false,
     includeCallersCallees: input.includeCallersCallees !== false,
     includePaths: input.includePaths === true,
+    pathSemantics: input.pathSemantics,
     depth: Math.max(0, Math.floor(Number(input.hops))),
     maxBytes: normalizeOptionalNumber(input.maxBytes),
     maxTokens: normalizeOptionalNumber(input.maxTokens),

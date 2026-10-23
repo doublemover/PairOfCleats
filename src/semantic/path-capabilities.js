@@ -1,5 +1,5 @@
 import { SEMANTIC_EDGE_KINDS } from '../contracts/schemas/semantic.js';
-import { SEMANTIC_PATH_CAPABILITY_VERSION, SEMANTIC_TRACE_OPERAND_SLOTS,
+import { GRAPH_PATH_EDGE_KINDS, SEMANTIC_PATH_CAPABILITY_VERSION, SEMANTIC_TRACE_OPERAND_SLOTS,
   SEMANTIC_TRACE_PATH_SEMANTICS } from '../contracts/schemas/semantic-path.js';
 
 const common = {
@@ -18,13 +18,20 @@ const declarations = [semantic('balanced-call-value', 'prefix-balanced-call-site
     ...common, id: 'semantic-path:graph-witness:v1', semantics: 'graph-witness', operation: 'graph_context',
     producer: { id: 'graph-context-pack', version: '1.0.0' }, referenceKind: 'graph-node-ref',
     scopeIdentity: 'index-signature', contextPolicy: 'graph-adjacency', directions: ['out', 'in', 'both'],
-    edgeKindPolicy: 'graph-relation-kinds', edgeKinds: [], operandSlots: [], completeness: 'source-coverage-and-truncation'
+    edgeKindPolicy: 'graph-relation-kinds', edgeKinds: [...GRAPH_PATH_EDGE_KINDS], operandSlots: [], completeness: 'source-coverage-and-truncation'
   }];
 
 /** Declarations describe existing distinct substrates, never interchangeable paths.
  * Returned copies grant no mutation or execution authority over their producers.
  */
 export const getSemanticPathCapabilityDeclarations = () => structuredClone(declarations);
+export const graphWitnessPathDeclaration = (operation = 'graph_context') => {
+  if (!['graph_context', 'graph_impact'].includes(operation)) throw new TypeError('Unsupported graph path operation.');
+  const declaration = structuredClone(declarations.find(value => value.semantics === 'graph-witness'));
+  return { ...declaration, operation, producer: {
+    id: operation === 'graph_context' ? 'graph-context-pack' : 'graph-impact', version: '1.0.0'
+  } };
+};
 export const semanticTracePathDeclaration = (semantics = 'balanced-call-value', operation = 'semantic_trace') => {
   if (!SEMANTIC_TRACE_PATH_SEMANTICS.includes(semantics) || !['semantic_trace', 'semantic_explain'].includes(operation)) {
     throw Object.assign(new TypeError('Unsupported semantic path operation or semantics.'), { code: 'ERR_SEMANTIC_QUERY_CONTRACT' });

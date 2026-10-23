@@ -172,6 +172,7 @@ const contextPackSchema = {
     includeRiskPartialFlows: { type: 'boolean' },
     strictRisk: { type: 'boolean' },
     strictEvidence: { type: 'boolean' },
+    pathSemantics: { const: 'graph-witness' },
     includeImports: { type: 'boolean' },
     includeUsages: { type: 'boolean' },
     includeCallersCallees: { type: 'boolean' },

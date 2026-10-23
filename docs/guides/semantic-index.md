@@ -321,8 +321,13 @@ may return without an earlier entry in the page's path. The declared policy is
 therefore prefix balanced. `relation-neighborhood` follows the selected semantic
 relations without balancing those crossings. The separate `graph-witness`
 declaration describes graph-node references and index signatures; it is not an
-accepted semantic trace mode. Graph producer publication of that declaration is a
-separate integration responsibility.
+accepted semantic trace mode. Graph context and impact builders accept that mode
+and publish a graph capability pinned to their exact index signature. Their
+returned relation domains and witness chains are checked in the selected graph
+direction; source extraction remains unqualified. Compatibility identity alone
+cannot supply a graph witness generation identity. Graph witness capabilities
+retain existing caps and report unresolved targets, omitted witnesses and
+truncation explicitly.
 
 Opt-in validation checks retained edge endpoints, call-site source ownership and
 available operand ordinals with at most six record hydrations per edge. Malformed
