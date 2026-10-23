@@ -6,6 +6,7 @@ import { pendingRerankerWorkFailure, trackRerankerWork } from '../rerankers/fail
 import { classifyRerankerError } from './reranker-error-classification.js';
 import { captureRerankerAdapter, captureRerankerScores } from './reranker-evidence-admission.js';
 import { assertRerankPoolAdapter } from './rerank-policy.js';
+import { reconcileSelectedScore } from '../scoring/score-adjustment.js';
 
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const freeze = (value, depth = 0) => {
@@ -74,6 +75,9 @@ const runEvidence = async ({ adapter, query, hits, signal, maxMs = 2000,
     diagnostic.status = 'scored';
     const ranked = members.map((hit, index) => ({ ...hit, sourceScore: hit.score, sourceScoreType: hit.scoreType,
       score: scores.get(index), scoreType: 'model_rerank', reranker: originalAdapter.id,
+      ...(hit.scoreBreakdown ? { scoreBreakdown: reconcileSelectedScore(hit.scoreBreakdown, {
+        score: scores.get(index), type: 'model_rerank', stage: 'model', sourceScore: hit.score, sourceType: hit.scoreType
+      }) } : {}),
       rerankProvenance: { schemaVersion: 1, identity: diagnostic.resultIdentity, policyKey,
         generation: requestSource?.generation ?? null, sourceIdentity: identities[index], sourceRank: index + 1,
         poolCap: members.length, finalOutputCap }, __rank: index }))

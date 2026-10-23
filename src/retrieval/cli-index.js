@@ -346,8 +346,8 @@ export function requireIndexDir(root, mode, userConfig, options = {}) {
 export function buildQueryCacheKey(payload) {
   const keyInfo = buildLocalCacheKey({
     namespace: 'query-cache',
-    // v7 includes Boolean complement rows without positive lexical scores.
-    version: 7,
+    // v8 includes sign-safe ranking and reconciled final score explanations.
+    version: 8,
     payload
   });
   return { key: keyInfo.key, payload };

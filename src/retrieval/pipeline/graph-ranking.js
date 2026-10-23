@@ -1,3 +1,4 @@
+import { reconcileSelectedScore } from '../scoring/score-adjustment.js';
 import { resolveGraphNodeIndexes } from '../../graph/prepared-node-indexes.js';
 import { createWorkBudget } from '../../graph/work-budget.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
@@ -252,6 +253,9 @@ export const applyGraphRanking = ({
         }
       };
     }
+    if (next.scoreBreakdown) next.scoreBreakdown = reconcileSelectedScore(next.scoreBreakdown, {
+      score: next.score, type: next.scoreType, stage: 'graph', sourceScore: entry.score, sourceType: entry.scoreType
+    });
     return next;
   });
 

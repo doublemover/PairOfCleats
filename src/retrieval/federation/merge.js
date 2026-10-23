@@ -1,5 +1,6 @@
 import { MinHeap } from '../../shared/min-heap.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
+import { reconcileSelectedScore } from '../scoring/score-adjustment.js';
 
 const MODE_TO_PAYLOAD_KEY = Object.freeze({
   code: 'code',
@@ -30,14 +31,18 @@ const materializeMergedHit = ({ hit: source, stream, rrfScore }) => {
     ...hit
   } = source;
   const { repoResult } = stream;
+  const score = Number(rrfScore.toFixed(12));
   return Object.assign(hit, {
     repoId: repoResult.repoId,
     repoAlias: repoResult.repoAlias || null,
     globalId: `${repoResult.repoId}:${source.id}`,
     sourceScore: hit.score,
     sourceScoreType: hit.scoreType || null,
-    score: Number(rrfScore.toFixed(12)),
+    score,
     scoreType: 'federated_rrf',
+    ...(hit.scoreBreakdown ? { scoreBreakdown: reconcileSelectedScore(hit.scoreBreakdown, {
+      score, type: 'federated_rrf', stage: 'federation', sourceScore: source.score, sourceType: source.scoreType
+    }) } : {}),
     rankMethod: 'reciprocal-rank',
     repoPriority: repoResult.priority ?? 0
   });

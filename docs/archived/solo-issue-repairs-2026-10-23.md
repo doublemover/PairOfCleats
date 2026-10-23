@@ -68,6 +68,20 @@ full cleanup-category capability or deep-suite green is claimed.
   prerequisite, never a silent successful return. Source inputs and null/empty
   meanings are retained. Scoped format and whitespace checks passed.
 
+- #1570/#1576: shared relative adjustment uses division for negative similarities
+  under positive factors; definition/export/exact/phrase bonuses cannot penalize
+  those candidates. Raw ANN evidence is retained. Graph/model/federation producers
+  reconcile selected score/type after actual normalization, preserving at most
+  three named source-stage pairs and existing components. Local/federated result
+  key versions advance to 8 without deleting user caches. Authored direct
+  fusion/rank, CLI-default pipeline, composition and budget controls are unrun.
+- #1583: provider and stored ANN catches share caller/deadline/independent-abort
+  classification after original resource observation. Stored deadline receipts
+  retain actual scored work, remain incomplete, and stop further admission.
+  Controlled actual-scorer block-yield regressions compare internal/caller/both
+  cancellation, successful exact work and provider health; all unrun. Only scoped
+  formatting and whitespace checks ran for these source batches.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -122,20 +136,20 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1567](https://github.com/doublemover/PairOfCleats/issues/1567) | [P2] Preserve small Set buckets when unioning bitmap filter candidates | Source repair authored; native/runtime proof pending |
 | [#1568](https://github.com/doublemover/PairOfCleats/issues/1568) | [P2] Require coverage for every returned source before marking semantic queries complete | Pending full-scope review |
 | [#1569](https://github.com/doublemover/PairOfCleats/issues/1569) | [P2] Scope parser degradation by canonical VFS identity, not path substrings | Pending full-scope review |
-| [#1570](https://github.com/doublemover/PairOfCleats/issues/1570) | [P2] Prevent metadata and phrase boosts from penalizing negative ANN scores | Pending full-scope review |
+| [#1570](https://github.com/doublemover/PairOfCleats/issues/1570) | [P2] Prevent metadata and phrase boosts from penalizing negative ANN scores | Source repair authored; runtime proof pending |
 | [#1571](https://github.com/doublemover/PairOfCleats/issues/1571) | [P2] Scope offsets validation reuse to verified artifacts instead of process-global path strings | Source repair authored; runtime proof pending |
 | [#1572](https://github.com/doublemover/PairOfCleats/issues/1572) | [P2] Reject empty offsets sidecars for nonempty JSONL artifacts | Source repair authored; runtime proof pending |
 | [#1573](https://github.com/doublemover/PairOfCleats/issues/1573) | [P2] Bind federated result-cache reuse to each repository's effective retrieval plan | Pending full-scope review |
 | [#1574](https://github.com/doublemover/PairOfCleats/issues/1574) | [P1] Fence clean-artifacts deletion against live cache readers and builders | Source partial; category owners/drain pending |
 | [#1575](https://github.com/doublemover/PairOfCleats/issues/1575) | [P2] Delay standalone atomic zstd publication until owned codec teardown settles | Pending full-scope review |
-| [#1576](https://github.com/doublemover/PairOfCleats/issues/1576) | [P2] Reconcile final score explanations after graph, model, and federated ranking | Pending full-scope review |
+| [#1576](https://github.com/doublemover/PairOfCleats/issues/1576) | [P2] Reconcile final score explanations after graph, model, and federated ranking | Source repair authored; runtime proof pending |
 | [#1577](https://github.com/doublemover/PairOfCleats/issues/1577) | [P2] Preserve Boolean complement queries in the Tantivy sparse route | Pending full-scope review |
 | [#1578](https://github.com/doublemover/PairOfCleats/issues/1578) | [P2] Distinguish Tantivy native failures from successful empty search results | Pending full-scope review |
 | [#1579](https://github.com/doublemover/PairOfCleats/issues/1579) | [P2] Settle embedding coalescer claims when post-inference cache publication fails | Source repair authored; runtime proof pending |
 | [#1580](https://github.com/doublemover/PairOfCleats/issues/1580) | [P2] Enforce semantic SQLite byte admission before hydrating related payloads | Pending full-scope review |
 | [#1581](https://github.com/doublemover/PairOfCleats/issues/1581) | [Perf] Bound semantic trace continuation bytes and avoid copying full history per page | Pending full-scope review |
 | [#1582](https://github.com/doublemover/PairOfCleats/issues/1582) | [P1] Frame code and documentation separately in embedding chunk cache identities | Source repair committed; runtime proof pending |
-| [#1583](https://github.com/doublemover/PairOfCleats/issues/1583) | [P2] Classify stored-ANN planner timeouts before generic abort propagation | Pending full-scope review |
+| [#1583](https://github.com/doublemover/PairOfCleats/issues/1583) | [P2] Classify stored-ANN planner timeouts before generic abort propagation | Source repair authored; runtime proof pending |
 | [#1584](https://github.com/doublemover/PairOfCleats/issues/1584) | [Perf] Admit ONNX inference before padding and bound shared-session queue bytes | Pending full-scope review |
 | [#1585](https://github.com/doublemover/PairOfCleats/issues/1585) | [P3] Apply count-aware ANN deadlines to provider preflight and stop expired dispatch | Pending full-scope review |
 | [#1586](https://github.com/doublemover/PairOfCleats/issues/1586) | [P2] Stop producer execution when its last confirmed queue lease expires | Pending full-scope review |

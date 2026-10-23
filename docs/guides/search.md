@@ -222,3 +222,28 @@ Readable output includes bounded source excerpts with line numbers and lightweig
 ### Empty-result guidance
 
 Empty results include `retrieval.emptyResults` diagnostics in JSON and actionable guidance in human output. Guidance distinguishes query/filter combinations, metadata enumeration, and recorded backend fallback. It never infers a stale index from an empty result. Use `pairofcleats index report` for recorded coverage, skipped-file reasons, revision comparison, and saved watcher backlog. A dirty working tree remains unverified; matching clean revisions do not prove current filesystem contents were indexed.
+
+### Relative ranking adjustments and final explanations
+
+Dense-only ranking retains raw higher-is-better provider similarity. For a
+positive metadata/phrase factor, nonnegative scores multiply by that factor;
+negative scores divide by it. A common positive factor preserves strict ordering
+and a promotion cannot lower a candidate's score. Neutral factors preserve the
+exact raw score. A zero factor is the limiting finite demotion for a negative
+score. This is relative score adjustment, not cross-provider calibration or a
+claim that different metrics have equal numeric scales. Raw provider similarity
+remains in ANN evidence; symbol/phrase explanations show the actual contribution.
+
+Every retained `scoreBreakdown.selected` describes the emitted final score/type,
+including graph adjustment, model reranking and rounded federated reciprocal rank.
+`selected.sources` retains at most three named input pairs (`graph`, `model`,
+`federation`), while existing graph, sparse and ANN components remain intact.
+Normal explanation budgets still apply; searches without explanations do not
+allocate them. Local and federated result-key version 8 prevents prior ranking or
+stale explanation payloads from satisfying these changed result semantics.
+
+An opted-in count-aware ANN deadline belongs to the planner, independently of
+caller cancellation. Both provider and stored-vector routes honor caller abort
+first, then report internal deadline exhaustion as incomplete/unknown recall.
+Already-scored stored coordinates are reported; incomplete scans are never exact.
+Original pending resources remain terminal and cannot become fallback success.

@@ -5,6 +5,7 @@ import { createScoreBreakdown } from '../output/score-breakdown.js';
 import { createRelationBoostEvaluator } from '../scoring/relation-boost.js';
 import { resolveAnnType } from './provider-runtime.js';
 import { exactLookupIntent } from '../scoring/exact-intent.js';
+import { applyRankFactor } from '../scoring/score-adjustment.js';
 
 /**
  * Execute ranking stage over fused sparse+ANN scores.
@@ -152,8 +153,9 @@ export const runRankStage = ({
       phraseMatches = matchInfo.matches;
       if (phraseMatches) {
         phraseFactor = Math.min(0.5, phraseMatches * 0.1);
-        phraseBoost = score * phraseFactor;
-        score += phraseBoost;
+        const adjusted = applyRankFactor(score, 1 + phraseFactor);
+        phraseBoost = adjusted - score;
+        score = adjusted;
       }
     }
     let symbolBoost = 0;
@@ -169,8 +171,9 @@ export const runRankStage = ({
       factor *= exact.factor;
       symbolFactor = factor;
       if (factor !== 1) {
-        symbolBoost = score * (factor - 1);
-        score *= factor;
+        const adjusted = applyRankFactor(score, factor);
+        symbolBoost = adjusted - score;
+        score = adjusted;
       }
       symbolInfo = {
         exactSymbol: exact.symbol,
@@ -178,7 +181,8 @@ export const runRankStage = ({
         definition: isDefinition,
         export: isExported,
         factor: symbolFactor,
-        boost: symbolBoost
+        boost: symbolBoost,
+        adjustment: 'signed-relative-factor'
       };
     }
     let relationInfo = null;
@@ -221,7 +225,8 @@ export const runRankStage = ({
         phrase: phraseNgramSet ? {
           matches: phraseMatches,
           boost: phraseBoost,
-          factor: phraseFactor
+          factor: phraseFactor,
+          adjustment: 'signed-relative-factor'
         } : null,
         symbol: symbolInfo,
         blend: blendEnabled && !useRrf ? blendInfo : null,

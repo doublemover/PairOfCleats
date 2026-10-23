@@ -166,8 +166,8 @@ export const buildFederatedQueryCacheKeyPayload = ({
   limits = {},
   runtime = {}
 } = {}) => ({
-  // Child mode roots are pinned before execution and strict completeness admission.
-  v: 7,
+  // Child authority plus sign-safe ranking and reconciled final score evidence.
+  v: 8,
   repoSetId: repoSetId || null,
   manifestHash: manifestHash || null,
   workspace: normalizeWorkspace(workspace),
