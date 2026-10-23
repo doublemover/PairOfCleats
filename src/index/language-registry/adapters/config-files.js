@@ -13,21 +13,27 @@ const TOML_EXTS = new Set(['.toml']);
 const XML_EXTS = new Set(['.xml', '.props', '.targets', '.csproj', '.config', '.projitems']);
 const YAML_EXTS = new Set(['.yaml', '.yml']);
 
-export const createConfigDataAdapter = ({ id, match, collectImports = () => [] }) => ({
+export const createConfigDataAdapter = ({ id, match, collectImports = () => [], literalImports = false }) => ({
   id,
   match,
   collectImports: (text, options) => collectImports(text, options),
+  ...(literalImports ? { collectImportEntries: (text, options) => {
+    const values = collectImports(text, options);
+    const entries = values.map(specifier => ({ specifier, provenance: 'parsed-literal' }));
+    if (values.coverage) Object.defineProperty(entries, 'coverage', { value: values.coverage });
+    return entries;
+  } } : {}),
   prepare: async () => ({}),
-  buildRelations: ({ text, options }) => buildSimpleRelations({ imports: collectImports(text, options) }),
+  buildRelations: ({ text, options }) => buildSimpleRelations({ imports: collectImports(text, options), literalImports }),
   extractDocMeta: () => ({}),
   flow: () => null,
   attachName: false
 });
 
 export const createJsonConfigAdapter = () => {
-  const adapter = createConfigDataAdapter({ id: 'json', match: createExtensionMatcher(JSON_EXTS), collectImports: collectJsonImports });
+  const adapter = createConfigDataAdapter({ id: 'json', match: createExtensionMatcher(JSON_EXTS), collectImports: collectJsonImports, literalImports: true });
   adapter.buildRelations = ({ text, ext, relPath, options }) => buildSimpleRelations({ imports: collectJsonImports(text,
-    { ...options, ext: ext ?? options?.ext, relPath: relPath ?? options?.relPath }) });
+    { ...options, ext: ext ?? options?.ext, relPath: relPath ?? options?.relPath }), literalImports: true });
   return adapter;
 };
 
@@ -41,16 +47,19 @@ export const buildConfigFileAdapters = () => [
   createConfigDataAdapter({
     id: 'toml',
     match: createExtensionMatcher(TOML_EXTS),
-    collectImports: collectTomlImports
+    collectImports: collectTomlImports,
+    literalImports: true
   }),
   createConfigDataAdapter({
     id: 'xml',
     match: createExtensionMatcher(XML_EXTS),
-    collectImports: collectXmlImports
+    collectImports: collectXmlImports,
+    literalImports: true
   }),
   createConfigDataAdapter({
     id: 'yaml',
     match: createExtensionMatcher(YAML_EXTS),
-    collectImports: collectYamlImports
+    collectImports: collectYamlImports,
+    literalImports: true
   })
 ];

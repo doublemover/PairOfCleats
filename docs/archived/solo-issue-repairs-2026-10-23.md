@@ -257,6 +257,16 @@ full cleanup-category capability or deep-suite green is claimed.
   sourceChunking 17 to 18. No preprocessor, network or browser execution.
   See [the CSS contract](../contracts/css-import-source-facts.md).
 
+- #1488 follow-through: parsed JSON/JSONC/YAML/TOML/XML collector values now
+  use literal sanitation and carry parsed-literal provenance through the config
+  adapter, registry, simple relations and import replay. Paired punctuation,
+  embedded quote, whitespace and namespace-prefix identities cannot collapse
+  through scanner cleanup; controls/length checks remain. INI and unparsed
+  scanner routes retain their original cleanup. Actual syntax-owner/registry/
+  relation/import-pass and bundle round-trip tables are authored, unrun.
+  Import producer 13 to 14 invalidates prior semantic scan receipts. Earlier
+  template fixes and their original negative coverage remain unchanged.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged

@@ -1,4 +1,5 @@
-import { addBudgetedCollectorImport, createCollectorBudgetContext, sanitizeCollectorImportToken } from './utils.js';
+import { addBudgetedCollectorImport, createCollectorBudgetContext } from './utils.js';
+import { sanitizeImportSpecifier } from '../../shared/import-specifier.js';
 import { isJsoncFile, parseJsoncStructure } from '../../../shared/jsonc-structure.js';
 import { JSON_REFERENCE_KEYS, JSON_REFERENCE_NODE_LIMIT, JSON_REFERENCE_VALUE_DEPTH } from '../../../shared/json-reference-policy.js';
 
@@ -7,8 +8,8 @@ const MAX_TRAVERSE_NODES = JSON_REFERENCE_NODE_LIMIT;
 const MAX_REFERENCE_VALUE_DEPTH = JSON_REFERENCE_VALUE_DEPTH;
 
 const addImport = (imports, value, scanBudget = null) => {
-  if (scanBudget) return addBudgetedCollectorImport(imports, value, scanBudget);
-  const token = sanitizeCollectorImportToken(value);
+  if (scanBudget) return addBudgetedCollectorImport(imports, value, scanBudget, { literal: true });
+  const token = sanitizeImportSpecifier(value, { literal: true });
   if (!token) return;
   imports.add(token);
 };
@@ -91,7 +92,7 @@ export const createJsoncImportCollector = ({ parseStructure = parseJsoncStructur
     for (const entry of structure.importEntries) {
       if (context.budget.maxLines > 0 && entry.line >= context.budget.maxLines) continue;
       if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch()) break;
-      addBudgetedCollectorImport(imports, entry.value, context.scanBudget);
+      addBudgetedCollectorImport(imports, entry.value, context.scanBudget, { literal: true });
     }
     return [...imports];
   } finally {

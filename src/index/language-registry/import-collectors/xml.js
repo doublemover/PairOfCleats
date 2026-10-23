@@ -15,7 +15,7 @@ export const createXmlImportCollector = ({ parseStructure = parseXmlStructure } 
     for (const entry of structure.importEntries) {
       if (context.budget.maxLines > 0 && entry.endLine >= context.budget.maxLines) continue;
       if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch()) break;
-      addBudgetedCollectorImport(imports, entry.value, context.scanBudget);
+      addBudgetedCollectorImport(imports, entry.value, context.scanBudget, { literal: true });
     }
     return [...imports];
   } finally {
