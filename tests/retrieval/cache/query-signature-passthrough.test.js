@@ -4,6 +4,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
 import { resolveQueryCacheLookup } from '../../../src/retrieval/cli/run-search-session/cache-policy.js';
+import { QUERY_PARSER_VERSION } from '../../../src/retrieval/query-plan-schema.js';
 
 applyTestEnv();
 
@@ -92,7 +93,8 @@ const lookup = await resolveQueryCacheLookup({
 });
 
 assert.equal(lookup.cacheHit, false);
-assert.equal(lookup.cacheSignature, stableStringifyForSignature(indexSignaturePayload));
+assert.equal(lookup.cacheSignature, stableStringifyForSignature({ index: indexSignaturePayload,
+  queryParserVersion: QUERY_PARSER_VERSION, metadataPredicateVersion: 2 }));
 assert.equal(typeof lookup.cacheKey, 'string');
 assert.ok(lookup.queryCachePath.endsWith('queryCache.json'));
 

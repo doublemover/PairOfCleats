@@ -4,6 +4,7 @@ import { sortAndTrimEntriesByNewest } from './cache-trim.js';
 import { TimestampRetention } from './timestamp-retention.js';
 import { loadBoundedJsonFileSync } from '../shared/cache/json-file.js';
 import { applyQueryCacheTouches, loadQueryCacheTouches } from './query-cache-touches.js';
+import { forkQueryCacheSnapshot, recordQueryCacheSnapshot, estimateQueryCacheEntryBytes } from './query-cache-state.js';
 
 const QUERY_CACHE_VERSION = 1;
 const queryCacheDiskCache = new Map();
@@ -13,13 +14,18 @@ const QUERY_CACHE_MAX_PATH_ENTRIES = 128;
 const QUERY_CACHE_MAX_READ_BYTES = 8 * 1024 * 1024;
 const QUERY_CACHE_CORRUPT_SUFFIX = '.corrupt';
 const MEMORY_CACHE_KEY = ':memory:query-cache';
+const MAX_RETAINED_QUERY_CACHE_BYTES = 16 * 1024 * 1024;
+let diskCacheBytes = 0;
+let hotCacheBytes = 0;
+const hotValidationTimes = new WeakMap();
 
-const trimPathCacheEntries = (cacheMap, maxEntries = QUERY_CACHE_MAX_PATH_ENTRIES) => {
+const trimPathCacheEntries = (cacheMap, maxEntries = QUERY_CACHE_MAX_PATH_ENTRIES, onEvict = null) => {
   if (!(cacheMap instanceof Map)) return;
   const resolvedMaxEntries = Math.max(1, Math.floor(Number(maxEntries) || QUERY_CACHE_MAX_PATH_ENTRIES));
   while (cacheMap.size > resolvedMaxEntries) {
     const oldestKey = cacheMap.keys().next()?.value;
     if (!oldestKey) break;
+    onEvict?.(cacheMap.get(oldestKey));
     cacheMap.delete(oldestKey);
   }
 };
@@ -75,7 +81,7 @@ const getLookup = (cache) => {
   return rebuildLookup(cache);
 };
 
-const createEmptyCache = () => ({ version: QUERY_CACHE_VERSION, entries: [] });
+const createEmptyCache = () => recordQueryCacheSnapshot({ version: QUERY_CACHE_VERSION, entries: [] });
 
 const normalizeLookupKey = (key, signature) => (
   key && signature ? `${key}::${signature}` : null
@@ -101,10 +107,12 @@ const ensureHotCache = (cachePath, maxEntries = HOT_CACHE_MAX_ENTRIES_DEFAULT) =
   if (!state) {
     state = {
       entries: new TimestampRetention(),
+      sizes: new Map(),
+      bytes: 0,
       maxEntries: normalizeHotCacheMaxEntries(maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT)
     };
     queryCacheHotEntries.set(pathKey, state);
-    trimPathCacheEntries(queryCacheHotEntries);
+    trimPathCacheEntries(queryCacheHotEntries, QUERY_CACHE_MAX_PATH_ENTRIES, entry => { hotCacheBytes -= entry.bytes; });
   } else if (maxEntries != null) {
     state.maxEntries = normalizeHotCacheMaxEntries(
       maxEntries,
@@ -117,12 +125,14 @@ const ensureHotCache = (cachePath, maxEntries = HOT_CACHE_MAX_ENTRIES_DEFAULT) =
 const clearHotCache = (cachePath) => {
   const pathKey = resolveCachePathKey(cachePath);
   if (!pathKey) return;
+  hotCacheBytes -= queryCacheHotEntries.get(pathKey)?.bytes || 0;
   queryCacheHotEntries.delete(pathKey);
 };
 
 const clearDiskCache = (cachePath) => {
   const pathKey = resolveCachePathKey(cachePath);
   if (!pathKey) return;
+  diskCacheBytes -= queryCacheDiskCache.get(pathKey)?.bytes || 0;
   queryCacheDiskCache.delete(pathKey);
 };
 
@@ -161,8 +171,20 @@ const quarantineCorruptCacheFileSync = (cachePath, onWarning) => {
 const trimHotCache = (state) => {
   if (!(state?.entries instanceof TimestampRetention)) return;
   const maxEntries = normalizeHotCacheMaxEntries(state.maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT);
-  if (state.entries.size <= maxEntries) return;
-  state.entries.trim(maxEntries);
+  const overflow = state.entries.size > maxEntries;
+  if (overflow) state.entries.trim(maxEntries);
+  if (overflow || state.reconcileSizes) {
+    for (const [key, size] of state.sizes) {
+      if (state.entries.get(key)) continue;
+      state.sizes.delete(key); state.bytes -= size; hotCacheBytes -= size;
+    }
+    state.reconcileSizes = false;
+  }
+  while (hotCacheBytes > MAX_RETAINED_QUERY_CACHE_BYTES) {
+    const oldest = queryCacheHotEntries.keys().next().value;
+    if (oldest == null) break;
+    clearHotCache(oldest);
+  }
 };
 
 const rememberHotCacheEntry = ({
@@ -170,12 +192,21 @@ const rememberHotCacheEntry = ({
   key,
   signature,
   entry,
-  maxEntries = null
+  maxEntries = null,
+  validated = false
 }) => {
   const lookupKey = normalizeLookupKey(key, signature);
   if (!lookupKey || !entry) return;
   const state = ensureHotCache(cachePath, maxEntries ?? HOT_CACHE_MAX_ENTRIES_DEFAULT);
   if (!state) return;
+  const resident = state.entries.get(lookupKey);
+  const samePayload = resident && (entry.payloadId ? entry.payloadId === resident.payloadId : entry.payload === resident.payload);
+  hotValidationTimes.set(entry, validated ? Date.now() : hotValidationTimes.get(entry) ?? (samePayload
+    ? hotValidationTimes.get(resident) ?? Number(resident.ts || 0) : Number(entry.ts || 0)));
+  const size = estimateQueryCacheEntryBytes(entry);
+  const previousSize = state.sizes.get(lookupKey) || 0;
+  state.sizes.set(lookupKey, size);
+  state.bytes += size - previousSize; hotCacheBytes += size - previousSize;
   state.entries.set(lookupKey, entry);
   trimHotCache(state);
 };
@@ -198,7 +229,7 @@ const getHotCacheEntry = ({
     ? Math.max(0, Math.floor(Number(memoryFreshMs)))
     : 0;
   if (freshnessMs > 0) {
-    const ageMs = Date.now() - Number(entry.ts || 0);
+    const ageMs = Date.now() - Number(hotValidationTimes.get(entry) ?? entry.ts ?? 0);
     if (!Number.isFinite(ageMs) || ageMs > freshnessMs) return null;
   }
   return entry;
@@ -217,6 +248,9 @@ const prewarmHotCache = ({
   if (!state) return;
   const policy = normalizeHotCacheMaxEntries(maxEntries, state.maxEntries);
   if (state.prewarmGeneration === generation && state.prewarmLimit === policy) { trimHotCache(state); return; }
+  if (state.prewarmLimit != null && policy < state.prewarmLimit) {
+    state.entries.trim(policy); state.reconcileSizes = true;
+  }
   const sorted = sortAndTrimEntriesByNewest(
     list.filter((entry) => entry?.key && entry?.signature),
     {
@@ -230,7 +264,13 @@ const prewarmHotCache = ({
     const lookupKey = normalizeLookupKey(entry.key, entry.signature);
     if (!lookupKey) continue;
     const resident = state.entries.get(lookupKey);
-    if (!resident || Number(entry.ts || 0) > Number(resident.ts || 0)) state.entries.set(lookupKey, entry);
+    if (!resident || Number(entry.ts || 0) > Number(resident.ts || 0)) {
+      rememberHotCacheEntry({ cachePath, key: entry.key, signature: entry.signature, entry, maxEntries: state.maxEntries });
+    }
+    const validated = state.entries.get(lookupKey);
+    if (validated && ((entry.payloadId && validated.payloadId === entry.payloadId) || entry.payload === validated.payload)) {
+      hotValidationTimes.set(validated, Date.now());
+    }
   }
   trimHotCache(state);
   state.prewarmGeneration = generation;
@@ -258,17 +298,18 @@ export function loadQueryCache(cachePath, options = {}) {
   }
   const cached = queryCacheDiskCache.get(cachePath);
   if (cached?.signature === signature && cached?.value) {
-    applyQueryCacheTouches(cached.value, loadQueryCacheTouches(cachePath));
+    const snapshot = forkQueryCacheSnapshot(cached.value);
+    applyQueryCacheTouches(snapshot, loadQueryCacheTouches(cachePath));
     if (options.prewarm === true) {
       prewarmHotCache({
         cachePath,
-        entries: cached.value.entries,
+        entries: snapshot.entries,
         generation: signature,
         hotMaxEntries: options.maxHotEntries,
         maxEntries: options.prewarmMaxEntries
       });
     }
-    return cached.value;
+    return snapshot;
   }
   const { data, error: readError } = loadBoundedJsonFileSync(cachePath, {
     fallback: null,
@@ -279,20 +320,25 @@ export function loadQueryCache(cachePath, options = {}) {
     && Number(data.version) === QUERY_CACHE_VERSION
     && Array.isArray(data.entries)
   ) {
-    applyQueryCacheTouches(data, loadQueryCacheTouches(cachePath));
-    queryCacheDiskCache.set(cachePath, { signature, value: data });
-    trimPathCacheEntries(queryCacheDiskCache);
-    rebuildLookup(data);
+    const canonical = forkQueryCacheSnapshot(data);
+    const bytes = (() => { try { return fs.statSync(cachePath).size; } catch { return QUERY_CACHE_MAX_READ_BYTES; } })();
+    clearDiskCache(cachePath);
+    queryCacheDiskCache.set(cachePath, { signature, value: canonical, bytes }); diskCacheBytes += bytes;
+    trimPathCacheEntries(queryCacheDiskCache, QUERY_CACHE_MAX_PATH_ENTRIES, entry => { diskCacheBytes -= entry.bytes; });
+    while (diskCacheBytes > MAX_RETAINED_QUERY_CACHE_BYTES) clearDiskCache(queryCacheDiskCache.keys().next().value);
+    const snapshot = forkQueryCacheSnapshot(canonical);
+    applyQueryCacheTouches(snapshot, loadQueryCacheTouches(cachePath));
+    rebuildLookup(snapshot);
     if (options.prewarm === true) {
       prewarmHotCache({
         cachePath,
-        entries: data.entries,
+        entries: snapshot.entries,
         generation: signature,
         hotMaxEntries: options.maxHotEntries,
         maxEntries: options.prewarmMaxEntries
       });
     }
-    return data;
+    return snapshot;
   }
   const health = options?.health && typeof options.health === 'object'
     ? options.health
@@ -324,14 +370,20 @@ export function loadQueryCache(cachePath, options = {}) {
  * @param {number} maxEntries
  * @returns {{entries?:Array}}
  */
-export function pruneQueryCache(cache, maxEntries) {
+export function pruneQueryCache(cache, maxEntries, maxBytes = QUERY_CACHE_MAX_READ_BYTES) {
   if (!cache || !Array.isArray(cache.entries)) return cache;
   cache.entries = cache.entries
-    .filter((entry) => entry && entry.key && entry.ts)
+    .filter((entry) => entry && entry.key && Number.isFinite(Number(entry.ts)) && Number(entry.ts) > 0)
     .sort((a, b) => b.ts - a.ts);
   if (cache.entries.length > maxEntries) {
     cache.entries = cache.entries.slice(0, maxEntries);
   }
+  let bytes = Buffer.byteLength(JSON.stringify({ version: QUERY_CACHE_VERSION, entries: [] }));
+  cache.entries = cache.entries.filter(entry => {
+    const size = estimateQueryCacheEntryBytes(entry) + 1;
+    if (bytes + size > maxBytes) return false;
+    bytes += size; return true;
+  });
   rebuildLookup(cache);
   return cache;
 }
@@ -366,7 +418,8 @@ export function findQueryCacheEntry(cache, key, signature, options = {}) {
         key,
         signature,
         entry,
-        maxEntries: options?.maxHotEntries
+        maxEntries: options?.maxHotEntries,
+        validated: true
       });
     }
     return entry;

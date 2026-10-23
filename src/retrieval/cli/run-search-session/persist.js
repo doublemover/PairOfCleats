@@ -2,11 +2,17 @@ import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { withFileLock } from '../../../shared/locks/file-lock.js';
 import { loadBoundedJsonFile } from '../../../shared/cache/json-file.js';
 import { randomUUID } from 'node:crypto';
-import { applyQueryCacheTouches, loadQueryCacheTouches, clearQueryCacheTouchesUnlocked } from '../../query-cache-touches.js';
+import { applyQueryCacheTouches, loadQueryCacheTouches, clearQueryCacheTouchesUnlocked,
+  awaitQueryCacheTouchPublication, requireQueryCacheTouchSettlement } from '../../query-cache-touches.js';
 import {
   pruneQueryCache,
-  rememberQueryCacheEntry
+  rememberQueryCacheEntry,
+  findQueryCacheEntry
 } from '../../query-cache.js';
+import { snapshotQueryCachePayload, upsertQueryCacheEntry, forkQueryCacheSnapshot,
+  captureQueryCacheSubmission, mergeQueryCacheSubmission, acknowledgeQueryCacheSubmission } from '../../query-cache-state.js';
+import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 
 export function resolveAnnBackendUsed({
   vectorAnnEnabled,
@@ -37,10 +43,13 @@ export async function persistSearchSession({
   extractedProseHits,
   codeHits,
   recordHits,
-  queryCacheMaxEntries
+  queryCacheMaxEntries,
+  signal = null
 }) {
+  throwIfAborted(signal);
   let nextCacheData = cacheData;
   let nextCacheShouldPersist = cacheShouldPersist;
+  let preparedEntry = null;
 
   if (!(queryCacheEnabled && cacheKey)) {
     return {
@@ -53,9 +62,9 @@ export async function persistSearchSession({
     nextCacheData = { version: 1, entries: [] };
   }
   if (!cacheHit) {
-    if (nextCacheData && Array.isArray(nextCacheData.entries)) {
-      nextCacheData.entries = nextCacheData.entries.filter((entry) => entry.key !== cacheKey);
-    }
+    let payload;
+    try { payload = snapshotQueryCachePayload({ prose: proseHits, extractedProse: extractedProseHits, code: codeHits, records: recordHits }); }
+    catch { return { cacheData: nextCacheData, cacheShouldPersist: nextCacheShouldPersist }; }
     const entry = {
       key: cacheKey,
       payloadId: randomUUID(),
@@ -66,38 +75,53 @@ export async function persistSearchSession({
         query,
         backend: backendLabel
       },
-      payload: {
-        prose: proseHits,
-        extractedProse: extractedProseHits,
-        code: codeHits,
-        records: recordHits
-      }
+      payload
     };
+    preparedEntry = entry;
     if (nextCacheData && Array.isArray(nextCacheData.entries)) {
-      nextCacheData.entries.push(entry);
+      upsertQueryCacheEntry(nextCacheData, entry);
       nextCacheShouldPersist = Boolean(queryCachePath);
     }
-    rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
+    if (!nextCacheShouldPersist) {
+      throwIfAborted(signal);
+      rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
+    }
   }
   if (nextCacheShouldPersist && nextCacheData && queryCachePath) {
     pruneQueryCache(nextCacheData, queryCacheMaxEntries);
+    const submittedCache = nextCacheData;
+    const submitted = captureQueryCacheSubmission(submittedCache);
     try {
+      await awaitQueryCacheTouchPublication(queryCachePath);
+      throwIfAborted(signal);
       await withFileLock({ lockPath: `${queryCachePath}.lock`, waitMs: 5000, timeoutBehavior: 'throw' }, async () => {
         const { data: disk } = await loadBoundedJsonFile(queryCachePath, { maxBytes: 8 * 1024 * 1024 });
+        throwIfAborted(signal);
+        requireQueryCacheTouchSettlement(queryCachePath);
         if (disk?.version === 1) applyQueryCacheTouches(disk, loadQueryCacheTouches(queryCachePath));
-        const byKey = new Map();
-        for (const entry of [...(disk?.version === 1 && Array.isArray(disk.entries) ? disk.entries : []), ...nextCacheData.entries]) {
-          if (!entry?.key) continue;
-          const old = byKey.get(entry.key);
-          if (!old || Number(entry.ts || 0) >= Number(old.ts || 0)) byKey.set(entry.key, entry);
-        }
-        nextCacheData = { version: 1, entries: [...byKey.values()] };
-        for (const entry of nextCacheData.entries) entry.payloadId ||= randomUUID();
-        pruneQueryCache(nextCacheData, queryCacheMaxEntries);
-        await atomicWriteJson(queryCachePath, nextCacheData, { spaces: 2 });
+        const merged = mergeQueryCacheSubmission(disk?.version === 1 && Array.isArray(disk.entries)
+          ? forkQueryCacheSnapshot(disk) : { entries: [] }, submitted);
+        for (const entry of merged.entries) entry.payloadId ||= randomUUID();
+        pruneQueryCache(merged, queryCacheMaxEntries);
+        throwIfAborted(signal);
+        await atomicWriteJson(queryCachePath, merged, { spaces: 0, signal });
         await clearQueryCacheTouchesUnlocked(queryCachePath);
+        acknowledgeQueryCacheSubmission(submittedCache, submitted);
+        nextCacheData = merged;
+        nextCacheShouldPersist = false;
+        findQueryCacheEntry(merged, cacheKey, cacheSignature, { cachePath: queryCachePath,
+          strategy: 'disk-first', maxHotEntries: queryCacheMaxEntries });
       });
-    } catch {}
+    } catch (error) {
+      observeStorageResource(error, { phase: 'query-cache-checkpoint' }).requireSettled();
+      if (isAbortError(error)) throw error;
+    }
+  }
+  throwIfAborted(signal);
+  // A best-effort flush failure may retain this completed result for retry;
+  // cancellation never publishes a staged miss to the shared hot cache.
+  if (preparedEntry && nextCacheShouldPersist) {
+    rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, preparedEntry, queryCacheMaxEntries);
   }
 
   return {

@@ -296,7 +296,8 @@ async function persistSessionQueryCache({
   query,
   backendLabel,
   hitsByMode,
-  queryCacheMaxEntries
+  queryCacheMaxEntries,
+  signal = null
 }) {
   return persistSearchSession({
     queryCacheEnabled,
@@ -313,7 +314,8 @@ async function persistSessionQueryCache({
     extractedProseHits: hitsByMode['extracted-prose'],
     codeHits: hitsByMode.code,
     recordHits: hitsByMode.records,
-    queryCacheMaxEntries
+    queryCacheMaxEntries,
+    signal
   });
 }
 
@@ -645,7 +647,8 @@ export async function runSearchSession({
       cacheFilters,
       graphRankingConfig,
       queryCacheTtlMs,
-      queryCacheMaxEntries
+      queryCacheMaxEntries,
+      signal
     }
   });
   if (queryCacheEnabled) {
@@ -770,7 +773,8 @@ export async function runSearchSession({
     query,
     backendLabel,
     hitsByMode,
-    queryCacheMaxEntries
+    queryCacheMaxEntries,
+    signal
   }));
 
   return {

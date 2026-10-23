@@ -64,6 +64,10 @@ try {
     touchFederatedQueryCacheEntry(touched, 'a');
     pruneFederatedQueryCache(touched, policy);
     assert.equal(payloadSerializations, 0, 'byte accounting reuses the serialized size of an immutable result');
+    upsertFederatedQueryCacheEntry(touched, { keyHash: 'checkpoint-small', manifestHash: 'generation-a',
+      result: { small: true }, policy });
+    await persistFederatedQueryCache({ cachePath, cache: touched });
+    assert.equal(payloadSerializations, 1, 'a full checkpoint serializes a retained payload only for the final durable envelope');
   } finally { JSON.stringify = originalStringify; }
 
   const staleLeft = await loadFederatedQueryCache({ cachePath, repoSetId });
@@ -72,7 +76,7 @@ try {
   upsertFederatedQueryCacheEntry(staleRight, { keyHash: 'right', manifestHash: 'generation-a', result: { right: true }, policy });
   await Promise.all([persistFederatedQueryCache({ cachePath, cache: staleLeft }), persistFederatedQueryCache({ cachePath, cache: staleRight })]);
   const merged = await loadFederatedQueryCache({ cachePath, repoSetId });
-  assert.deepEqual(Object.keys(merged.entries).sort(), ['a', 'left', 'right']);
+  assert.deepEqual(Object.keys(merged.entries).sort(), ['a', 'checkpoint-small', 'left', 'right']);
   upsertFederatedQueryCacheEntry(merged, { keyHash: 'a', manifestHash: 'generation-b', result: { fresh: true }, policy });
   await persistFederatedQueryCache({ cachePath, cache: merged });
   touchFederatedQueryCacheEntry(cache, 'a', new Date(Date.now() + 100000).toISOString());

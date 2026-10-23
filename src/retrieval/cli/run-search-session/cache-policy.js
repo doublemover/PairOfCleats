@@ -6,8 +6,10 @@ import {
   rememberQueryCacheEntry
 } from '../../query-cache.js';
 import { resolveRetrievalCachePath } from '../cache-paths.js';
-import { randomUUID } from 'node:crypto';
 import { persistQueryCacheTouch } from '../../query-cache-touches.js';
+import { upsertQueryCacheEntry } from '../../query-cache-state.js';
+import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 import { QUERY_PARSER_VERSION } from '../../query-plan-schema.js';
 
 const normalizePositiveIntOrNull = (value) => (
@@ -135,8 +137,10 @@ export async function resolveQueryCacheLookup({
   cacheStrategy,
   cachePrewarmEnabled,
   cachePrewarmLimit,
-  cacheMemoryFreshMs
+  cacheMemoryFreshMs,
+  signal = null
 }) {
+  throwIfAborted(signal);
   let cacheHit = false;
   let cacheKey = null;
   let cacheSignature = null;
@@ -293,8 +297,9 @@ export async function resolveQueryCacheLookup({
     };
   }
 
+  const timestamp = Number(entry.ts);
   const ttl = Number.isFinite(Number(entry.ttlMs)) ? Number(entry.ttlMs) : queryCacheTtlMs;
-  if (ttl && (Date.now() - entry.ts) > ttl) {
+  if (!Number.isFinite(timestamp) || timestamp <= 0 || (ttl && (Date.now() - timestamp) > ttl)) {
     return {
       queryCachePath,
       cacheHit,
@@ -338,37 +343,36 @@ export async function resolveQueryCacheLookup({
     };
   }
 
+  // Rendering/comment joins own mutable hit rows. Cache payloads retain their
+  // immutable admitted data independently of those downstream enrichments.
+  try { cachedPayload = structuredClone(cachedPayload); }
+  catch { return { queryCachePath, cacheHit: false, cacheKey, cacheSignature, cacheData,
+    cachedPayload: null, cacheShouldPersist: false, cacheHotPathHit }; }
+  throwIfAborted(signal);
   cacheHit = true;
-  entry.ts = Date.now();
+  entry = { ...entry, ts: Math.max(Number(entry.ts || 0), Date.now()) };
   let touchPersisted = false;
   if (entry.payloadId && queryCachePath) {
     try { touchPersisted = await persistQueryCacheTouch({ cachePath: queryCachePath, key: cacheKey,
       signature: cacheSignature, payloadId: entry.payloadId, ts: entry.ts, maxEntries: queryCacheMaxEntries }); }
-    catch { touchPersisted = false; }
+    catch (error) {
+      observeStorageResource(error, { phase: 'query-cache-touch' }).requireSettled();
+      if (isAbortError(error)) throw error;
+      touchPersisted = false;
+    }
   }
+  throwIfAborted(signal);
   if (touchPersisted) {
     rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
     return { queryCachePath, cacheHit, cacheKey, cacheSignature, cacheData,
       cachedPayload, cacheShouldPersist: false, cacheHotPathHit };
   }
-  entry.payloadId ||= randomUUID();
   rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
   if (!cacheData) {
     cacheData = loadQueryCache(queryCachePath, { prewarm: false });
   }
   if (cacheData && Array.isArray(cacheData.entries)) {
-    const existingIndex = cacheData.entries.findIndex((candidate) => (
-      candidate?.key === cacheKey && candidate?.signature === cacheSignature
-    ));
-    if (existingIndex >= 0) {
-      cacheData.entries[existingIndex] = {
-        ...cacheData.entries[existingIndex],
-        ts: entry.ts,
-        payloadId: entry.payloadId
-      };
-    } else {
-      cacheData.entries.push(entry);
-    }
+    upsertQueryCacheEntry(cacheData, entry, { replacement: false });
     cacheShouldPersist = Boolean(queryCachePath);
   }
 

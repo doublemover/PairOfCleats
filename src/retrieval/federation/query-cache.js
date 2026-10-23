@@ -6,7 +6,8 @@ import { stableStringify } from '../../shared/stable-json.js';
 import { loadBoundedJsonFile } from '../../shared/cache/json-file.js';
 import { randomUUID } from 'node:crypto';
 import { withFileLock } from '../../shared/locks/file-lock.js';
-import { loadQueryCacheTouches, persistQueryCacheTouch, clearQueryCacheTouchesUnlocked } from '../query-cache-touches.js';
+import { loadQueryCacheTouches, persistQueryCacheTouch, clearQueryCacheTouchesUnlocked,
+  awaitQueryCacheTouchPublication, requireQueryCacheTouchSettlement } from '../query-cache-touches.js';
 
 export const FEDERATED_QUERY_CACHE_SCHEMA_VERSION = 2;
 
@@ -489,8 +490,10 @@ export const persistFederatedQueryCache = async ({
   const submitted = Object.fromEntries(Object.entries(cache.entries || {}).map(([key, entry]) => [key, { ...entry }]));
   const origins = new Map(cacheEntryOrigins.get(cache) || []);
   const policy = cachePolicies.get(cache) || {};
+  await awaitQueryCacheTouchPublication(cachePath);
   await withFileLock({ lockPath: `${cachePath}.lock`, waitMs: 5000, timeoutBehavior: 'throw' }, async () => {
     const disk = await loadFederatedQueryCache({ cachePath, repoSetId: cache.repoSetId });
+    requireQueryCacheTouchSettlement(cachePath);
     const merged = { ...disk.entries };
     for (const [key, entry] of Object.entries(submitted)) {
       const replaced = !origins.has(key) || entry.payloadId !== origins.get(key);
@@ -507,7 +510,9 @@ export const persistFederatedQueryCache = async ({
       schemaVersion: FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
       repoSetId: cache.repoSetId || null,
       updatedAt: cache.updatedAt || null,
-      entries: sortObjectDeep(merged)
+      // Preserve frozen payload identities so byte accounting never needs a
+      // second serialization of every retained payload during checkpointing.
+      entries: Object.fromEntries(Object.keys(merged).sort((a, b) => a.localeCompare(b)).map(key => [key, merged[key]]))
     };
     pruneFederatedQueryCache(normalized, policy);
     await atomicWriteText(path.resolve(cachePath), stableStringify(normalized), { newline: true });

@@ -36,6 +36,7 @@ import { applyModeOverride } from './modes.js';
 import { resolveFederatedCursor } from './request.js';
 import { INTERNAL_EXACT_SEARCH_MODE } from '../cli.js';
 import { validateFederatedModeResult } from './results.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 
 export const resolveFederatedUnavailableModes = ({repos,requestedModes,eligibleModesByRepo,cohortExcluded={}}) =>
   (repos || []).flatMap(repo=>(requestedModes || [])
@@ -701,7 +702,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       const touched = await persistFederatedQueryCacheTouch({ cachePath, cache: cacheData,
         keyHash: cacheKeyInfo.keyHash, maxEntries: cachePolicy.maxEntries });
       if (!touched) await persistFederatedQueryCache({ cachePath, cache: cacheData });
-    } catch {}
+    } catch (error) { observeStorageResource(error, { phase: 'federated-cache-touch' }).requireSettled(); }
     checkAbort();
     return JSON.parse(stableStringify(cachedEntry.result));
   }
@@ -720,7 +721,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
         cachePath,
         cache: cacheData
       });
-    } catch {}
+    } catch (error) { observeStorageResource(error, { phase: 'federated-cache-checkpoint' }).requireSettled(); }
   };
 
   /**
