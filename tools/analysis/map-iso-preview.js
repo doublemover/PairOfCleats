@@ -37,25 +37,20 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('--port must be an integer from 0 to 65535.');
   const toolRoot = resolveToolRoot(), controller = new AbortController();
   const onAbort = () => controller.abort(signal?.reason);
-  const originalOff = process.off, originalSignalRemove = signal?.removeEventListener;
-  signal?.addEventListener('abort', onAbort, { once: true });
-  if (signal?.aborted) onAbort();
   let server, session, temporaryOutput = null, snapshotTransport=null,activeSnapshotRequests=0;
   const reportClose = error => stderr.write(`${projectMapReadFailure(error).message}\n`);
   const onSignal = () => { close().catch(reportClose); };
-  const lifetime = createMapPreviewLifetime({ controller, detach: () => {
-    const errors = [];
-    for (const action of [() => Reflect.apply(originalOff, process, ['SIGINT', onSignal]),
-      () => Reflect.apply(originalOff, process, ['SIGTERM', onSignal]),
-      () => { if (signal) Reflect.apply(originalSignalRemove, signal, ['abort', onAbort]); }]) {
-      try { action(); } catch (error) { errors.push(error); }
-    }
-    if (errors.length) throw combineMapReadCleanupFailure(null, errors, { hasPrimary: false, terminal: true });
-  } });
+  const lifetime = createMapPreviewLifetime({ controller });
   const close = lifetime.close;
-  controller.signal.addEventListener('abort', () => { if (server?.listening) close().catch(reportClose); }, { once: true });
-  process.once('SIGINT', onSignal); process.once('SIGTERM', onSignal);
   try {
+    lifetime.listen(controller.signal, 'abort', () => { if (server?.listening) close().catch(reportClose); }, { options: { once: true } });
+    if (signal) {
+      lifetime.listen(signal, 'abort', onAbort, { options: { once: true } });
+      if (signal.aborted) onAbort();
+    }
+    lifetime.listen(process, 'SIGINT', onSignal, { add: 'once', remove: 'off' });
+    lifetime.listen(process, 'SIGTERM', onSignal, { add: 'once', remove: 'off' });
+    controller.signal.throwIfAborted();
     let input, identity,preferenceStore=null;
     const sessionToken=randomBytes(32).toString('hex');
     if (argv.input) {
@@ -180,6 +175,7 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
     lifetime.finishStartup();
     return { server, close, ready, session: createMapPreviewSessionView(session), resourceOwner: lifetime.resourceOwner };
   } catch (error) {
+    lifetime.retainFailure(error);
     lifetime.finishStartup();
     try { await close(); } catch (cleanup) { throw combineMapReadCleanupFailure(error, [cleanup], { hasPrimary: true, terminal: true }); }
     throw error;
