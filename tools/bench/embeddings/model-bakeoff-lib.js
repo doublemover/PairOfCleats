@@ -1,5 +1,10 @@
 import path from 'node:path';
 
+export const formatElapsed = (startedAtMs, nowMs = Date.now()) => {
+  const elapsedMs = Math.max(0, nowMs - startedAtMs);
+  return elapsedMs < 1000 ? `${elapsedMs}ms` : `${(elapsedMs / 1000).toFixed(1)}s`;
+};
+
 const QUICK_BAKEOFF_DEFAULTS = Object.freeze({
   limit: 20,
   embeddingSampleFiles: 50,

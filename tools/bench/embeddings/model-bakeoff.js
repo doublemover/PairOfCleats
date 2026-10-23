@@ -18,6 +18,7 @@ const { writeJsonFileResolved } = await import('../../../src/shared/json-file.js
 const { sleep } = await import('../../../src/shared/sleep.js');
 const { spawnSubprocess, spawnSubprocessSync } = await import('../../../src/shared/subprocess/runner.js');
 const {
+  formatElapsed,
   resolveBakeoffFastPathDefaults,
   resolveBakeoffBuildPlan,
   resolveBakeoffCurrentBuildRoot,
