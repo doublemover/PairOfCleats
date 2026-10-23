@@ -5,6 +5,7 @@ import { assertNoSymlinkPath, verifyContainedFileHandle, readVerifiedContainedFi
 import { atomicWriteText } from '../../../src/shared/io/atomic-write.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
 import { resolveTrustedTuiCommand, runTrustedTuiCommand } from './command.js';
+import { createOwnedCleanupRetirements, ownedCleanupIsPending } from './settle-owned.js';
 
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
 const clipboardNames = () => process.platform === 'win32' ? ['powershell']
@@ -16,10 +17,12 @@ const clipboardArgs = name => name === 'powershell' ? ['-NoLogo', '-NoProfile', 
 /** Side effects only act on current, reverified collector selections. */
 export const createTuiArtifactActions = ({ registry, toolRoot, env = process.env }) => {
   const controllers = new Set(), work = new Set();
+  const retirements = createOwnedCleanupRetirements();
   let disposed = false;
   const execute = async (method, request, { signal, onSpawn } = {}) => {
     assertTuiArtifactRequest(method, request);
     if (disposed) fail('ERR_TUI_ARTIFACT_SESSION', 'Artifact session is closed.');
+    retirements.assertSettled();
     if (work.size) fail('ERR_TUI_ARTIFACT_BUSY', 'An artifact action is already running.');
     const controller = new AbortController();
     controllers.add(controller);
@@ -68,12 +71,14 @@ export const createTuiArtifactActions = ({ registry, toolRoot, env = process.env
             await verifyDestination(handle, target);
           } });
       } catch (error) {
+        retirements.capture(error);
+        if (ownedCleanupIsPending(error)) throw error;
         if (error.causeCode === 'EEXIST') fail('ERR_TUI_ARTIFACT_DESTINATION_EXISTS', 'Destination exists; choose a new filename.');
         throw error;
       }
       return { exported: true, bytes: read.buffer.length, sha256: read.hash,
         sourceJobId: request.sourceJobId, artifactId: request.artifactId };
-    })();
+    })().catch(error => { throw retirements.capture(error); });
     work.add(operation);
     try { return await operation; }
     finally { controllers.delete(controller); work.delete(operation); }
@@ -82,5 +87,6 @@ export const createTuiArtifactActions = ({ registry, toolRoot, env = process.env
     disposed = true;
     for (const controller of controllers) controller.abort();
     await Promise.allSettled([...work]);
+    retirements.assertSettled();
   } };
 };

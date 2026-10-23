@@ -3,6 +3,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { assertNoSymlinkPath, readVerifiedContainedFile } from '../../../src/shared/contained-file.js';
 import { throwIfAborted, isAbortError } from '../../../src/shared/abort.js';
+import { createOwnedCleanupRetirements, ownedCleanupIsPending } from './settle-owned.js';
 
 // Protocol JSON cannot supply this binding. Collectors name approved roots;
 // stat observations alone never enter the action registry as authority.
@@ -23,6 +24,7 @@ export const createTuiArtifactRegistry = ({ maxJobs = 8, maxArtifacts = 64,
     if (!Number.isSafeInteger(value) || value <= 0 || value > ceiling) throw new TypeError('Invalid artifact registry bound.');
   }
   const records = new Map(), lifetime = new AbortController(), work = new Set();
+  const retirements = createOwnedCleanupRetirements();
   let disposed = false;
   const current = (sourceJobId, generation) => {
     if (disposed) fail('ERR_TUI_ARTIFACT_SESSION', 'Artifact session is closed.');
@@ -32,6 +34,7 @@ export const createTuiArtifactRegistry = ({ maxJobs = 8, maxArtifacts = 64,
   };
   const signalFor = (record, signal) => AbortSignal.any([lifetime.signal, record.controller.signal, ...(signal ? [signal] : [])]);
   const beginJob = sourceJobId => {
+    retirements.assertSettled();
     if (disposed) fail('ERR_TUI_ARTIFACT_SESSION', 'Artifact session is closed.');
     if (typeof sourceJobId !== 'string' || !sourceJobId || sourceJobId.length > 128 || /[\x00-\x1f\x7f]/.test(sourceJobId)) {
       fail('ERR_TUI_ARTIFACT_SCOPE', 'Job identity is unavailable for artifact actions.');
@@ -74,6 +77,8 @@ export const createTuiArtifactRegistry = ({ maxJobs = 8, maxArtifacts = 64,
         rows.push({ ...row, path: scope.target, artifactId, snapshotVerified: true,
           actions: pin.type === 'file' ? ['open', 'copy', 'export'] : ['open', 'copy'] });
       } catch (error) {
+        retirements.capture(error);
+        if (ownedCleanupIsPending(error)) throw error;
         if (isAbortError(error) || scopedSignal.aborted) throw error;
         rows.push({ ...row, snapshotVerified: false, actions: [], unavailableCode: errorCode(error) });
       }
@@ -103,7 +108,8 @@ export const createTuiArtifactRegistry = ({ maxJobs = 8, maxArtifacts = 64,
     return { pin, read, signal: scopedSignal };
   };
   const track = operation => async (...args) => {
-    const pending = operation(...args);
+    retirements.assertSettled();
+    const pending = Promise.resolve().then(() => operation(...args)).catch(error => { throw retirements.capture(error); });
     work.add(pending);
     try { return await pending; } finally { work.delete(pending); }
   };
@@ -116,6 +122,7 @@ export const createTuiArtifactRegistry = ({ maxJobs = 8, maxArtifacts = 64,
         records.clear();
       }
       await Promise.allSettled([...work]);
+      retirements.assertSettled();
     }
   };
 };

@@ -8,7 +8,7 @@ import { normalizeLineBreaks } from './supervisor/request-utils.js';
 import { createCli } from '../../src/shared/cli.js';
 import { assertTuiControlReason } from '../../src/contracts/validators/tui-request.js';
 import { createTuiArtifactRegistry } from './operator/artifact-registry.js';
-import { drainTuiBackendReaders } from './operator/backend-reader-drain.js';
+import { drainTuiBackendReaders, disposeTuiSessionSlot } from './operator/backend-reader-drain.js';
 import { createSupervisorOutput } from './supervisor/output.js';
 import { createSupervisorShutdown } from './supervisor/shutdown.js';
 
@@ -164,8 +164,8 @@ const runArtifact = async (request, context) => {
 
 let indexWorkflows = null, workflowModules = null;
 const drainBackendReaders = input => drainTuiBackendReaders({ ...input, jobs: state.jobs,
-  closeSearch: async () => { const selected = searchSession; searchSession = null; await selected?.dispose(); },
-  closeArtifactActions: async () => { const selected = artifactActions; artifactActions = null; await selected?.dispose(); },
+  closeSearch: () => disposeTuiSessionSlot({ current: () => searchSession, replace: value => { searchSession = value; } }),
+  closeArtifactActions: () => disposeTuiSessionSlot({ current: () => artifactActions, replace: value => { artifactActions = value; } }),
   resetArtifactRegistry: async () => {
     await artifactRegistry.dispose();
     artifactRegistry = createTuiArtifactRegistry();

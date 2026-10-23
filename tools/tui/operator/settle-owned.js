@@ -16,6 +16,29 @@ export const ownedCleanupIsPending = error => {
   return observation.present && !observation.released();
 };
 
+/** Retain rejected original work after its promise has settled. A caller may
+ * retire the session only after every captured resource observation confirms
+ * closure; allSettled alone proves only JavaScript promise settlement.
+ */
+export const createOwnedCleanupRetirements = () => {
+  const retained = new Map();
+  const capture = error => {
+    const observation = captureOwnedCleanup(error);
+    if (observation.present && !observation.released()) retained.set(error, observation);
+    return error;
+  };
+  const assertSettled = () => {
+    const pending = [];
+    for (const [error, observation] of retained) {
+      if (observation.released()) retained.delete(error);
+      else pending.push(error);
+    }
+    if (pending.length === 1) throw pending[0];
+    if (pending.length > 1) throw combineOwnedErrors(pending[0], pending.slice(1));
+  };
+  return { capture, assertSettled };
+};
+
 export const combineOwnedErrors = (primary, cleanup) => {
   const all = [primary, ...cleanup];
   all.forEach(captureOwnedCleanup);

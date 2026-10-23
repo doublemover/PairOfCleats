@@ -11,6 +11,7 @@ import { getSearchRequestSchema } from '../../api/validation.js';
 import { readVerifiedContainedFile, assertNoSymlinkPath } from '../../../src/shared/contained-file.js';
 import { resolveTrustedTuiCommand, runTrustedTuiCommand } from './command.js';
 import { buildSearchDiagnostics } from '../../../src/retrieval/output/search-diagnostics.js';
+import { createOwnedCleanupRetirements, ownedCleanupIsPending } from './settle-owned.js';
 
 const MODES = [['code', 'code'], ['prose', 'prose'], ['extractedProse', 'extracted-prose'], ['records', 'records']];
 const MAX_OUTPUT_BYTES = 768 * 1024;
@@ -23,10 +24,11 @@ const hitKey = (mode, hit) => createHash('sha256').update(JSON.stringify([
 ])).digest('hex');
 
 /** One live native query owns its scope, continuation, child and source identities. */
-export const createTuiSearchSession = ({ toolRoot, env = process.env } = {}) => {
+export const createTuiSearchSession = ({ toolRoot, env = process.env, spawn = spawnSubprocess } = {}) => {
   const scopes = createTuiSettingsSession({ toolRoot, env });
   const pendingWork = new Set();
   const controllers = new Set();
+  const retirements = createOwnedCleanupRetirements();
   let epoch = 0, current = null, pending = null, disposed = false;
   const describe = request => {
     assertTuiSearchRequest('describe', request);
@@ -48,7 +50,7 @@ export const createTuiSearchSession = ({ toolRoot, env = process.env } = {}) => 
     const built = buildSearchRequestArgs({ ...state.search, ...(cursor ? { cursor } : {}) },
       { includeRepo: true, repoPath: state.scope.configRoot, defaultOutput: 'compact', allowedOutputs: ['compact'] });
     if (!built.ok) fail('ERR_TUI_SEARCH_REQUEST', built.message);
-    const child = await spawnSubprocess(process.execPath, [path.join(toolRoot, 'bin/pairofcleats.js'),
+    const child = await spawn(process.execPath, [path.join(toolRoot, 'bin/pairofcleats.js'),
       'search', ...built.args, ...(built.query ? ['--', built.query] : [])], {
       cwd: state.scope.configRoot, env, signal, onSpawn, timeoutMs: 15000,
       stdio: ['ignore', 'pipe', 'pipe'], maxOutputBytes: MAX_OUTPUT_BYTES, rejectOnNonZeroExit: true
@@ -93,13 +95,14 @@ export const createTuiSearchSession = ({ toolRoot, env = process.env } = {}) => 
       outputBudget: payload.outputBudget ?? null, diagnostics: safeText(child.stderr).slice(0, 8192) };
   };
   const withOwnedOperation = async (executeOperation, signal, { query = false } = {}) => {
+    retirements.assertSettled();
     const controller = new AbortController();
     if (query) pending = controller;
     controllers.add(controller);
     const abort = () => controller.abort(signal?.reason);
     signal?.addEventListener('abort', abort, { once: true });
     if (signal?.aborted) abort();
-    const operation = Promise.resolve().then(() => executeOperation(controller.signal));
+    const operation = Promise.resolve().then(() => executeOperation(controller.signal)).catch(error => { throw retirements.capture(error); });
     pendingWork.add(operation);
     try { return await operation; }
     finally {
@@ -117,15 +120,17 @@ export const createTuiSearchSession = ({ toolRoot, env = process.env } = {}) => 
     pending?.abort();
     const selectedEpoch = ++epoch;
     current = null;
-    const scope = await scopes.selectScope({ kind: 'repo', target: request.repoPath }, { signal });
-    throwIfAborted(signal);
-    if (selectedEpoch !== epoch) fail('ERR_TUI_SEARCH_STALE', 'A newer query replaced this request.');
-    const state = { resultId: randomUUID(), epoch, scope, search: structuredClone(request.search),
-      hits: new Map(), counts: {}, cursor: null };
-    const result = await run(state, null, signal, onSpawn);
-    if (state.epoch !== epoch || disposed) fail('ERR_TUI_SEARCH_STALE', 'A newer query replaced this request.');
-    current = state;
-    return result;
+    return withOwnedOperation(async ownedSignal => {
+      const scope = await scopes.selectScope({ kind: 'repo', target: request.repoPath }, { signal: ownedSignal });
+      throwIfAborted(ownedSignal);
+      if (selectedEpoch !== epoch) fail('ERR_TUI_SEARCH_STALE', 'A newer query replaced this request.');
+      const state = { resultId: randomUUID(), epoch, scope, search: structuredClone(request.search),
+        hits: new Map(), counts: {}, cursor: null };
+      const result = await execute(state, null, ownedSignal, onSpawn);
+      if (state.epoch !== epoch || disposed) fail('ERR_TUI_SEARCH_STALE', 'A newer query replaced this request.');
+      current = state;
+      return result;
+    }, signal, { query: true });
   };
   const continueSearch = async (request, { signal, onSpawn } = {}) => {
     assertTuiSearchRequest('continue', request);
@@ -136,28 +141,32 @@ export const createTuiSearchSession = ({ toolRoot, env = process.env } = {}) => 
   };
   const source = async (request, { signal } = {}) => {
     assertTuiSearchRequest('source', request);
-    const state = requireCurrent(request.resultId), hit = state.hits.get(request.hitId);
-    if (!hit) fail('ERR_TUI_SEARCH_HIT', 'Choose a hit from the current search.');
-    throwIfAborted(signal);
-    const context = createExcerptSourceContext();
-    try {
-      const target = path.resolve(state.scope.configRoot, hit.file);
-      const indexedHash = /^(?:sha1:)?[a-f0-9]{40}$/i.test(hit.sourceHash || '') ? hit.sourceHash : null;
-      const excerpt = resolveExcerpt({ filePath: target, repoRoot: state.scope.configRoot,
-        start: hit.start, end: hit.end, indexedHash, sourceContext: context,
-        maxBytes: 16 * 1024, maxTokens: 4096 });
+    return withOwnedOperation(async signal => {
+      const state = requireCurrent(request.resultId), hit = state.hits.get(request.hitId);
+      if (!hit) fail('ERR_TUI_SEARCH_HIT', 'Choose a hit from the current search.');
       throwIfAborted(signal);
-      requireCurrent(request.resultId);
-      return { available: true, resultId: state.resultId, hitId: request.hitId,
-        file: safeLabel(hit.file), startLine: hit.startLine ?? null, endLine: hit.endLine ?? null,
-        excerpt: safeText(excerpt.excerpt), truncated: excerpt.truncated,
-        sourceIdentity: excerpt.sourceIdentity, fileUri: pathToFileURL(target).href };
-    } catch (error) {
-      if (['ENOENT', 'ERR_FILE_TOO_LARGE'].includes(error.code)) {
-        return { available: false, resultId: state.resultId, hitId: request.hitId, reason: error.code };
-      }
-      throw error;
-    } finally { context.clear(); }
+      const context = createExcerptSourceContext();
+      try {
+        const target = path.resolve(state.scope.configRoot, hit.file);
+        const indexedHash = /^(?:sha1:)?[a-f0-9]{40}$/i.test(hit.sourceHash || '') ? hit.sourceHash : null;
+        const excerpt = resolveExcerpt({ filePath: target, repoRoot: state.scope.configRoot,
+          start: hit.start, end: hit.end, indexedHash, sourceContext: context,
+          maxBytes: 16 * 1024, maxTokens: 4096 });
+        throwIfAborted(signal);
+        requireCurrent(request.resultId);
+        return { available: true, resultId: state.resultId, hitId: request.hitId,
+          file: safeLabel(hit.file), startLine: hit.startLine ?? null, endLine: hit.endLine ?? null,
+          excerpt: safeText(excerpt.excerpt), truncated: excerpt.truncated,
+          sourceIdentity: excerpt.sourceIdentity, fileUri: pathToFileURL(target).href };
+      } catch (error) {
+        retirements.capture(error);
+        if (ownedCleanupIsPending(error)) throw error;
+        if (['ENOENT', 'ERR_FILE_TOO_LARGE'].includes(error.code)) {
+          return { available: false, resultId: state.resultId, hitId: request.hitId, reason: error.code };
+        }
+        throw error;
+      } finally { context.clear(); }
+    }, signal);
   };
   const open = async (request, { signal, onSpawn } = {}) => {
     assertTuiSearchRequest('open', request);
@@ -185,6 +194,6 @@ export const createTuiSearchSession = ({ toolRoot, env = process.env } = {}) => 
     dispose() {
       disposed = true; epoch++; for (const controller of controllers) controller.abort();
       pending = null; current = null; scopes.dispose();
-      return Promise.allSettled([...pendingWork]).then(() => undefined);
+      return Promise.allSettled([...pendingWork]).then(() => retirements.assertSettled());
     } };
 };

@@ -71,3 +71,14 @@ backpressure, durable final events, incomplete flushes, concurrent shutdown,
 rejected closers, post-terminal artifact work and backend admission. Tests and
 native host/ConPTY acceptance remain deferred; no process or terminal was launched
 to validate this source group.
+
+## Retained operator readers
+
+Search queries, source reads, artifact inventories and artifact side effects
+capture original cleanup observations before a rejected promise leaves their
+active work set. Promise settlement alone does not authorize disposal or a new
+reader. Unconfirmed original file or child ownership remains in the existing
+session, including when disposal itself caused the rejection through abort.
+Repeated disposal checks the original proof; it does not reread inputs or
+recreate a consumer. Backend drain clears a session slot only after that exact
+owner's disposal succeeds. A failed slot retains its original recovery methods.

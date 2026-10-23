@@ -1,5 +1,15 @@
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
 
+/** A rejected disposal retains the original session and its recovery methods.
+ * Clear only the exact slot whose disposal actually confirmed settlement.
+ */
+export const disposeTuiSessionSlot = async ({ current, replace }) => {
+  const selected = current();
+  if (!selected) return;
+  await selected.dispose();
+  if (current() === selected) replace(null);
+};
+
 /** A drain receipt belongs to the exact active maintenance job and retained
  * lease. The launcher exclusion is an in-memory operation instance, never a
  * reusable protocol job ID. Every owner callback must finish actual teardown.
