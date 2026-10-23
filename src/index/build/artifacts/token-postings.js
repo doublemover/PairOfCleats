@@ -11,6 +11,7 @@ import { encodeVarint64List } from '../../../shared/artifact-io/varint.js';
 import { writeBinaryRowFrames } from '../../../shared/artifact-io/binary-columnar.js';
 import { removePathWithRetry } from '../../../shared/io/remove-path-with-retry.js';
 import { estimatePostingsBytes, formatBytes } from './helpers.js';
+import { planTokenPostingsRepresentations, assertTokenPostingsRepresentationPlan } from './sparse-representation-plan.js';
 
 const normalizeTokenPostingsFormat = (value, artifactMode) => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -56,6 +57,7 @@ export function resolveTokenPostingsPlan({
   tokenPostingsShardSize,
   tokenPostingsShardThreshold,
   tokenPostingsBinaryColumnar = false,
+  tokenPostingsBinaryColumnarRequired = false,
   tokenPostingsPackedAutoThresholdBytes = null,
   postings,
   maxJsonBytes,
@@ -64,6 +66,14 @@ export function resolveTokenPostingsPlan({
   log
 }) {
   const tokenPostingsFormat = normalizeTokenPostingsFormat(tokenPostingsFormatConfig, artifactMode);
+  const withRepresentations = plan => {
+    const representationPlan = planTokenPostingsRepresentations({
+      primary: plan.tokenPostingsFormat === 'packed' ? 'packed' : plan.tokenPostingsUseShards ? 'sharded' : 'json',
+      binaryColumnar: tokenPostingsBinaryColumnar,
+      requireBinaryColumnar: tokenPostingsBinaryColumnarRequired
+    });
+    return { ...plan, tokenPostingsBinaryColumnar: representationPlan.emitBinaryColumnar, representationPlan };
+  };
   let resolvedShardSize = normalizeShardSize(tokenPostingsShardSize);
   let tokenPostingsUseShards = tokenPostingsFormat === 'sharded'
     || (tokenPostingsFormat === 'auto'
@@ -113,22 +123,22 @@ export function resolveTokenPostingsPlan({
         `Token postings estimate ~${formatBytes(tokenPostingsEstimate.estimatedBytes)}; ` +
         `switching auto format to packed (threshold ${formatBytes(packedThreshold)}).`
       );
-      return {
+      return withRepresentations({
         tokenPostingsFormat: 'packed',
         tokenPostingsUseShards,
         tokenPostingsShardSize: resolvedShardSize,
         tokenPostingsBinaryColumnar: tokenPostingsBinaryColumnar === true,
         tokenPostingsEstimate
-      };
+      });
     }
   }
-  return {
+  return withRepresentations({
     tokenPostingsFormat,
     tokenPostingsUseShards,
     tokenPostingsShardSize: resolvedShardSize,
     tokenPostingsBinaryColumnar: tokenPostingsBinaryColumnar === true,
     tokenPostingsEstimate
-  };
+  });
 }
 
 const encodePostingPairs = (posting) => {
@@ -158,6 +168,7 @@ export async function enqueueTokenPostingsArtifacts({
   tokenPostingsUseShards,
   tokenPostingsShardSize,
   tokenPostingsBinaryColumnar = false,
+  representationPlan = null,
   tokenPostingsCompression,
   writePriority = 0,
   tokenPostingsEstimatedBytes = null,
@@ -168,9 +179,14 @@ export async function enqueueTokenPostingsArtifacts({
   formatArtifactLabel,
   reuseContext = null
 }) {
+  const primaryLayout = tokenPostingsFormat === 'packed' ? 'packed' : tokenPostingsUseShards ? 'sharded' : 'json';
+  const writeBinaryColumnar = representationPlan
+    ? assertTokenPostingsRepresentationPlan(representationPlan, primaryLayout).emitBinaryColumnar
+    : tokenPostingsBinaryColumnar;
   const proof = tokenPostingsRepresentationProof({ state, postings, policy: reuseContext?.policy,
     format: { tokenPostingsFormat, tokenPostingsUseShards, tokenPostingsShardSize,
-      tokenPostingsBinaryColumnar, tokenPostingsCompression, blockSize: DEFAULT_PACKED_BLOCK_SIZE } });
+      tokenPostingsBinaryColumnar: writeBinaryColumnar, representationPlan,
+      tokenPostingsCompression, blockSize: DEFAULT_PACKED_BLOCK_SIZE } });
   const familyPlan = await reuseTokenPostingsFamily({ ...reuseContext, outDir, proof, addPieceFile });
   if (familyPlan.reused) return familyPlan;
   const vocabIds = Array.isArray(postings.tokenVocabIds) ? postings.tokenVocabIds : null;
@@ -191,6 +207,7 @@ export async function enqueueTokenPostingsArtifacts({
       type: 'postings',
       name: 'token_postings',
       format: 'packed',
+      ...(representationPlan ? { extensions: { representationPlan } } : {}),
       count: postings.tokenVocab.length
     }, packedPath);
     addPieceFile({
@@ -214,6 +231,7 @@ export async function enqueueTokenPostingsArtifacts({
             blockSize: packed.blockSize,
             vocabCount: postings.tokenVocab.length,
             offsets: path.basename(offsetsPath),
+            ...(representationPlan ? { extensions: { representationPlan } } : {}),
             ...(tokenIdMeta ? { tokenId: tokenIdMeta } : {})
           },
           arrays: {
@@ -260,6 +278,7 @@ export async function enqueueTokenPostingsArtifacts({
         type: 'postings',
         name: 'token_postings',
         format: 'json',
+        ...(representationPlan ? { extensions: { representationPlan } } : {}),
         count: partCount,
         compression: tokenPostingsCompression || null
       }, path.join(shardsDir, partName));
@@ -300,7 +319,9 @@ export async function enqueueTokenPostingsArtifacts({
             vocabCount: postings.tokenVocab.length,
             parts,
             compression: tokenPostingsCompression || null,
-            ...(tokenIdMeta ? { extensions: { tokenId: tokenIdMeta } } : {})
+            ...((tokenIdMeta || representationPlan) ? { extensions: {
+              ...(tokenIdMeta ? { tokenId: tokenIdMeta } : {}), ...(representationPlan ? { representationPlan } : {})
+            } } : {})
           }, 'token-postings-meta'),
           arrays: {
             docLengths: state.docLengths
@@ -327,7 +348,8 @@ export async function enqueueTokenPostingsArtifacts({
         docLengths: state.docLengths
       }
     }, {
-      piece: { type: 'postings', name: 'token_postings', count: postings.tokenVocab.length },
+      piece: { type: 'postings', name: 'token_postings', count: postings.tokenVocab.length,
+        ...(representationPlan ? { extensions: { representationPlan } } : {}) },
       priority: writePriority,
       estimatedBytes: tokenPostingsEstimatedBytes
     });
@@ -338,7 +360,7 @@ export async function enqueueTokenPostingsArtifacts({
   const binaryLengthsPath = path.join(outDir, 'token_postings.binary-columnar.lengths.varint');
   const binaryMetaPath = path.join(outDir, 'token_postings.binary-columnar.meta.json');
   const binaryTaskLabel = 'token_postings.binary-columnar.bundle';
-  if (tokenPostingsBinaryColumnar) {
+  if (writeBinaryColumnar) {
     enqueueWrite(
       binaryTaskLabel,
       async ({ setPhase } = {}) => {

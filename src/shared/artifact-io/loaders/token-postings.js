@@ -198,9 +198,42 @@ const loadTokenPostingsRaw = (
   } = {}
 ) => {
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
-  const useBinaryColumnar = resolveManifestBinaryColumnarPreference(resolvedManifest, {
+  let useBinaryColumnar = resolveManifestBinaryColumnarPreference(resolvedManifest, {
     fallback: preferBinaryColumnar
   });
+  let sources = null;
+  const primaryPieces = resolvedManifest?.pieces?.filter(piece => piece?.name === 'token_postings') || [];
+  const representationPlans = primaryPieces.map(piece => piece.extensions?.representationPlan).filter(plan => plan != null);
+  if (representationPlans.length) {
+    const failPlan = message => Object.assign(new Error(message), { code: 'ERR_MANIFEST_INVALID' });
+    const plan = representationPlans[0];
+    if (representationPlans.length !== primaryPieces.length || plan.schemaVersion !== 1 || plan.family !== 'token-postings'
+      || !['packed', 'json', 'sharded'].includes(plan.primary) || typeof plan.emitBinaryColumnar !== 'boolean'
+      || !Array.isArray(plan.compatibility) || plan.compatibility.length !== (plan.emitBinaryColumnar ? 1 : 0)
+      || (plan.emitBinaryColumnar && plan.compatibility[0] !== 'binary-columnar-v1')
+      || representationPlans.some(other => other.schemaVersion !== plan.schemaVersion || other.family !== plan.family
+        || other.primary !== plan.primary || other.emitBinaryColumnar !== plan.emitBinaryColumnar
+        || JSON.stringify(other.compatibility) !== JSON.stringify(plan.compatibility))) {
+      throw failPlan('Token-postings primary pieces disagree with their recorded representation plan.');
+    }
+    sources = resolveManifestArtifactSources({ dir, manifest: resolvedManifest, name: 'token_postings', strict, maxBytes });
+    if (sources?.format !== plan.primary) throw failPlan('Token-postings recorded primary layout differs from the selected source.');
+    useBinaryColumnar &&= plan.emitBinaryColumnar;
+    if (plan.emitBinaryColumnar) {
+      const required = [
+        ['token_postings_binary_columnar', 'token_postings.binary-columnar.bin'],
+        ['token_postings_binary_columnar_offsets', 'token_postings.binary-columnar.offsets.bin'],
+        ['token_postings_binary_columnar_lengths', 'token_postings.binary-columnar.lengths.varint'],
+        ['token_postings_binary_columnar_meta', 'token_postings.binary-columnar.meta.json']
+      ];
+      for (const [name, filename] of required) {
+        const pieces = resolvedManifest.pieces.filter(piece => piece.name === name);
+        if (pieces.length !== 1 || pieces[0].path !== filename || !existsOrBak(path.join(dir, filename))) {
+          throw Object.assign(new Error(`Token-postings compatibility plan is missing ${name}.`), { code: 'ERR_MANIFEST_INCOMPLETE' });
+        }
+      }
+    }
+  }
   const resolveManifestPiece = (targetPath, expectedName = null) => {
     if (!resolvedManifest || typeof resolvedManifest !== 'object') return null;
     const pieces = Array.isArray(resolvedManifest.pieces) ? resolvedManifest.pieces : [];
@@ -425,7 +458,7 @@ const loadTokenPostingsRaw = (
     });
     if (binary) return binary;
   }
-  const sources = resolveManifestArtifactSources({
+  sources ||= resolveManifestArtifactSources({
     dir,
     manifest: resolvedManifest,
     name: 'token_postings',

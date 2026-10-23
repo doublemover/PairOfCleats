@@ -18,7 +18,8 @@ const RECEIPT_PATH = 'pieces/token-postings.reuse.json';
 const RECEIPT_NAME = 'token_postings_reuse_receipt';
 const familyEntry = entry => entry?.name?.startsWith('token_postings') && entry.name !== RECEIPT_NAME;
 const coreIdentity = piece => ({ path: piece.path, name: piece.name, format: piece.format,
-  count: piece.count ?? null, compression: piece.compression ?? null });
+  count: piece.count ?? null, compression: piece.compression ?? null,
+  representationPlan: piece.extensions?.representationPlan || null });
 
 /** Bind the loaded dictionary meaning, not path/size/mtime hints. Unknown
  * containers decline reuse; no separate global cache survives this build. */
