@@ -20,7 +20,9 @@ import { admitFirstSearchToolReceipt, describeAppliedFirstSearchCapabilities, de
 import { resolveWorkspaceChildRuntimeEnv } from '../../src/workspace/child-runtime-env.js';
 import { resolveFirstSearchSuggestion } from './first-search-suggestion.js';
 import { isResolvedCommandTrusted } from '../../src/shared/config-authority.js';
-import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
+import { describeStorageFailure, observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { readJsonResourceTextSync } from '../../src/shared/file-read-resource.js';
+import { sha256File } from '../../src/shared/hash.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 
@@ -29,8 +31,19 @@ const readOptional = file => {
   try {
     const stat = fs.lstatSync(file);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024 * 1024) throw new Error('Setup config must be a bounded regular file.');
-    return fs.readFileSync(file, 'utf8');
-  } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+    return readJsonResourceTextSync(file, opened => {
+      if (opened.size > 1024 * 1024) throw new Error('Setup config must be a bounded regular file.');
+    });
+  } catch (error) {
+    const observation = observeStorageResource(error, { phase: 'first-search-config-read' });
+    observation.requireSettled();
+    let code;
+    try { code = observation.primary.code; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    if (code === 'ENOENT') return null;
+    throw error;
+  }
 };
 
 export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', model = null, backend = 'memory', tools = [], signal = null } = {}) => {
@@ -122,6 +135,27 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
     args: [path.join(toolRoot, 'tools/build/lmdb-index.js'), '--repo', repoRoot, '--mode', 'code'], effects: ['build selected LMDB representation'], bytes: 'unknown' });
   operations.push({ id: 'validate', command: process.execPath,
     args: [path.join(toolRoot, 'tools/index/validate.js'), '--repo', repoRoot, '--mode', 'code'], effects: ['read-only artifact validation'] });
+  const setupInputs = [];
+  for (const relative of ['package.json', 'package-lock.json', '.nvmrc', 'docs/config/schema.json', 'tools/setup/first-search-plan.js',
+    'tools/setup/model-readiness.js', 'tools/setup/first-search-capabilities.js', 'tools/setup/first-search-suggestion.js', 'tools/shared/operator-cli-options.js',
+    'src/workspace/child-runtime-env.js', 'bin/dispatch-runtime-env.js', 'tools/dict-utils/config.js', 'tools/tooling/install.js', 'tools/tooling/utils.js', 'tools/tooling/provisioning-plan.js',
+    'src/shared/config-authority.js', 'src/shared/cli-option-sets.js', 'src/shared/cli-option-validators.js',
+    'src/shared/runtime-envelope/resolve.js', 'src/shared/runtime-envelope/env-patch.js',
+    'tools/tooling/install-execution.js', 'tools/tooling/install-storage.js', 'tools/tooling/managed-install.js', 'tools/tooling/install-go-sdk.js',
+    'tools/tooling/owned-detect.js', 'tools/tooling/install-preview.js', 'src/shared/managed-installation.js',
+    'src/shared/managed-installation-retain.js', 'src/shared/managed-installation-contract.js', 'src/shared/toolchain-env.js',
+    'src/shared/managed-go.js', 'tools/tooling/install-receipts.js', 'tools/tooling/install-requirements.js',
+    'src/shared/storage/session.js', 'src/shared/storage/managed-child-session.js', 'src/shared/storage/child-environment.js',
+    'src/shared/storage/failure-observation.js', 'src/shared/storage/operation-error.js',
+    'src/shared/storage/admission.js', 'src/shared/storage/layout.js', 'src/shared/storage/locator-contract.js',
+    'src/shared/storage/locator-read.js', 'src/shared/storage/selected-layout.js', 'src/shared/storage/inventory.js',
+    'src/shared/storage/transfer.js', 'tools/download/models.js', 'src/shared/embedding-model-profile.js',
+    'src/shared/embedding-model-loading.js', 'src/shared/hash.js', 'src/shared/file-read-resource.js']) {
+    // One original descriptor borrower at a time. An unsettled hash cannot be
+    // detached by an early Promise.all rejection while sibling reads continue.
+    setupInputs.push([relative, await sha256File(path.join(toolRoot, relative), { signal })]);
+  }
+  signal?.throwIfAborted();
   const plan = {
     schemaVersion: 1, kind: 'first-search-plan', applicationRoot: toolRoot, repoRoot,
     choices: { profile, model, backend, tools: selectedTools },
@@ -133,22 +167,7 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
     inputIdentity: { target: targetIdentity, config: currentText === null ? null : hash(currentText), effective: hash(stableStringify(effective)),
       proposedEffective: hash(stableStringify(proposedEffective)),
       runtime: process.version, executable: process.execPath, platform: process.platform, arch: process.arch,
-      setupInputs: ['package.json', 'package-lock.json', '.nvmrc', 'docs/config/schema.json', 'tools/setup/first-search-plan.js',
-        'tools/setup/model-readiness.js', 'tools/setup/first-search-capabilities.js', 'tools/setup/first-search-suggestion.js', 'tools/shared/operator-cli-options.js',
-        'src/workspace/child-runtime-env.js', 'bin/dispatch-runtime-env.js', 'tools/dict-utils/config.js', 'tools/tooling/install.js', 'tools/tooling/utils.js', 'tools/tooling/provisioning-plan.js',
-        'src/shared/config-authority.js', 'src/shared/cli-option-sets.js', 'src/shared/cli-option-validators.js',
-        'src/shared/runtime-envelope/resolve.js', 'src/shared/runtime-envelope/env-patch.js',
-        'tools/tooling/install-execution.js', 'tools/tooling/install-storage.js', 'tools/tooling/managed-install.js', 'tools/tooling/install-go-sdk.js',
-        'tools/tooling/owned-detect.js', 'tools/tooling/install-preview.js', 'src/shared/managed-installation.js',
-        'src/shared/managed-installation-retain.js', 'src/shared/managed-installation-contract.js', 'src/shared/toolchain-env.js',
-        'src/shared/managed-go.js', 'tools/tooling/install-receipts.js', 'tools/tooling/install-requirements.js',
-        'src/shared/storage/session.js', 'src/shared/storage/managed-child-session.js', 'src/shared/storage/child-environment.js',
-        'src/shared/storage/failure-observation.js', 'src/shared/storage/operation-error.js',
-        'src/shared/storage/admission.js', 'src/shared/storage/layout.js', 'src/shared/storage/locator-contract.js',
-        'src/shared/storage/locator-read.js', 'src/shared/storage/selected-layout.js', 'src/shared/storage/inventory.js',
-        'src/shared/storage/transfer.js', 'tools/download/models.js', 'src/shared/embedding-model-profile.js',
-        'src/shared/embedding-model-loading.js']
-        .map(relative => [relative, hash(fs.readFileSync(path.join(toolRoot, relative)))]) },
+      setupInputs },
     prerequisites: prerequisitePlans,
     reuseCandidates: reuseCandidates.map(entry => ({ toolId: entry.toolId, path: entry.path || null,
       state: entry.path && entry.source !== 'blocked' ? 'located-not-probed' : entry.source === 'blocked' ? 'authority-blocked' : 'not-found',
@@ -165,8 +184,16 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
 const executeSetupStep = async (command, args, options) => {
   const result = await spawnResolvedSubprocess(command, args, { ...options, outputEncoding: 'utf8',
     maxOutputBytes: 1024 * 1024, rejectOnNonZeroExit: false });
-  return { ok: result.exitCode === 0 && !result.signal, status: result.exitCode, signal: result.signal,
-    stdout: typeof result.stdout === 'string' ? result.stdout : null };
+  const observation = observeStorageResource(result, { phase: 'first-search-subprocess-result' });
+  observation.requireSettled();
+  let projected;
+  try {
+    const exitCode = result.exitCode, signal = result.signal, stdout = result.stdout;
+    projected = { ok: exitCode === 0 && !signal, status: exitCode, signal,
+      stdout: typeof stdout === 'string' ? stdout : null };
+  } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+  observation.requireSettled();
+  return projected;
 };
 
 export const applyFirstSearchPlan = async (approved, { execute = executeSetupStep, signal = null, jsonOutput = false } = {}) => {
@@ -177,6 +204,7 @@ export const applyFirstSearchPlan = async (approved, { execute = executeSetupSte
   let current;
   try { current = await createFirstSearchPlan({ ...approved.choices, repoRoot: approved.repoRoot, signal }); }
   catch (error) {
+    observeStorageResource(error, { phase: 'first-search-replanning' }).requireSettled();
     if (!signal?.aborted) throw error;
     return { schemaVersion: 1, kind: 'setup-plan-result', planId: approved.planId || null,
       repoRoot: approved.repoRoot, state: 'cancelled', completed: [], pending: ['config'],
@@ -224,12 +252,19 @@ export const applyFirstSearchPlan = async (approved, { execute = executeSetupSte
       const env = step.id === 'index' ? await resolveWorkspaceChildRuntimeEnv({ repoRoot: current.repoRoot, buildArgs: step.args.slice(3), baseEnv: process.env }) : { ...process.env };
       const result = await execute(step.command, step.args, { cwd: current.applicationRoot,
         stdio: step.output ? ['ignore', 'pipe', 'inherit'] : jsonOutput ? ['ignore', 'ignore', 'inherit'] : 'inherit', env, signal });
-      if (result?.ok !== true || result.signal || signal?.aborted) {
+      const observation = observeStorageResource(result, { phase: 'first-search-step-result' });
+      observation.requireSettled();
+      let ok, status, childSignal, stdout;
+      try { ok = result?.ok; status = result?.status; childSignal = result?.signal; stdout = result?.stdout; }
+      catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+      observation.requireSettled();
+      if (ok !== true || status !== 0 || childSignal || signal?.aborted) {
         outcome.state = signal?.aborted ? 'cancelled' : 'blocked';
-        outcome.failed = { id: step.id, status: result?.status ?? null, signal: result?.signal || null };
+        outcome.failed = { id: step.id, status: Number.isInteger(status) ? status : null,
+          signal: typeof childSignal === 'string' ? childSignal : null };
         break;
       }
-      if (step.output === 'selected-tool-install-receipt') outcome.toolingReadiness = admitFirstSearchToolReceipt(result.stdout,
+      if (step.output === 'selected-tool-install-receipt') outcome.toolingReadiness = admitFirstSearchToolReceipt(stdout,
         { repoRoot: current.repoRoot, tools: current.choices.tools });
       outcome.completed.push(step.id);
       outcome.pending.shift();
@@ -258,16 +293,23 @@ export const applyFirstSearchPlan = async (approved, { execute = executeSetupSte
       outcome.state = 'settlement-pending';
       let released = false;
       let releasing = null;
-      Object.defineProperty(error, 'setupPlanSession', { configurable: true, value: { resourceId: lock.payload.lockId,
+      const originalFailure = error;
+      const settlement = observeStorageResource(originalFailure, { phase: 'first-search-retained-execution' });
+      const session = Object.freeze({ resourceId: lock.payload.lockId,
         releaseAfterSettlement: receipt => {
           if (receipt?.resourceId !== lock.payload.lockId || receipt.settled !== true || receipt.pending !== false) throw new Error('Setup child settlement remains unconfirmed.');
+          settlement.requireSettled();
           if (released) return true;
-          if (error.cacheOwnershipReleased?.() !== true) throw new Error('Setup child settlement remains unconfirmed by its actual execution owner.');
           if (!releasing) releasing = releaseFileLockOrThrow(lock).then(() => { released = true; return true; })
-            .catch(releaseError => { releasing = null; throw releaseError; });
+            .catch(releaseError => {
+              releasing = null;
+              throw addStorageFailureContext(originalFailure, { setupPlanSession: session, setupOutcome: outcome, setupCleanupError: releaseError },
+                releaseError, { secondaryPresent: true, nonEnumerable: ['setupPlanSession'] });
+            });
           return releasing;
-        } } });
-      error.setupOutcome = outcome;
+        } });
+      error = addStorageFailureContext(originalFailure, { setupPlanSession: session, setupOutcome: outcome }, undefined,
+        { nonEnumerable: ['setupPlanSession'] });
       throw error;
     }
     return { ...outcome, commands: current.commands, capabilities: describeAppliedFirstSearchCapabilities(current, outcome),

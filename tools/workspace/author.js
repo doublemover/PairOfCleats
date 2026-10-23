@@ -11,7 +11,8 @@ import { atomicWriteText } from '../../src/shared/io/atomic-write.js';
 import { withFileLock } from '../../src/shared/locks/file-lock.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { createWorkspaceNextCommands } from './diagnostics.js';
-import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
+import { describeStorageFailure, observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { readJsonResourceTextSync } from '../../src/shared/file-read-resource.js';
 
 const hash = text => createHash('sha256').update(text).digest('hex');
 const identifyMembers = workspace => workspace.repos.map(repo => {
@@ -28,8 +29,19 @@ const readWorkspaceText = file => {
   try {
     const stat = fs.lstatSync(file);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024 * 1024) throw new Error('Workspace authoring requires a bounded regular config file.');
-    return fs.readFileSync(file, 'utf8');
-  } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+    return readJsonResourceTextSync(file, opened => {
+      if (opened.size > 1024 * 1024) throw new Error('Workspace authoring requires a bounded regular config file.');
+    });
+  } catch (error) {
+    const observation = observeStorageResource(error, { phase: 'workspace-authoring-read' });
+    observation.requireSettled();
+    let code;
+    try { code = observation.primary.code; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    if (code === 'ENOENT') return null;
+    throw error;
+  }
 };
 
 export const planWorkspaceAuthoring = ({ workspacePath, operation = 'init', roots = [], aliases = [] } = {}) => {
