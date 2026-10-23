@@ -103,7 +103,7 @@ export function buildMcpSearchArgs(args = {}) {
     includeRepo: true,
     repoPath: args.repoPath,
     topFlag: '-n',
-    topMin: 1,
+    topMin: 0,
     omitModeBoth: true
   });
 

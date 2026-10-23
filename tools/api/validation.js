@@ -1,90 +1,17 @@
+import { buildSearchRequestProperties, createSearchStringListSchema } from '../../src/shared/search-request-schema.js';
 import { cloneJsonSchema, compileSchema, createAjv } from '../../src/shared/validation/ajv-factory.js';
 import {
-  INTEGER_MIN_ZERO_FLAG_FIELDS,
-  REPEATED_LIST_FIELDS,
-  STRING_FLAG_FIELDS,
   SEARCH_REQUEST_REQUIREMENT,
   buildSearchRequestArgs,
   validateLegacySearchContext
 } from '../../src/shared/search-request.js';
 
-const stringListSchema = {
-  anyOf: [
-    { type: 'string' },
-    { type: 'array', items: { type: 'string' } }
-  ]
-};
-
-const metaSchema = {
-  anyOf: [
-    { type: 'string' },
-    {
-      type: 'array',
-      items: {
-        anyOf: [
-          { type: 'string' },
-          { type: 'number' },
-          { type: 'boolean' },
-          { type: 'object' },
-          { type: 'null' }
-        ]
-      }
-    },
-    { type: 'object', additionalProperties: true }
-  ]
-};
-
-const stringFieldProperties = Object.fromEntries(
-  STRING_FLAG_FIELDS.map(([field]) => [field, { type: 'string' }])
-);
-
-const integerMinZeroFieldProperties = Object.fromEntries(
-  INTEGER_MIN_ZERO_FLAG_FIELDS.map(([field]) => [field, { type: 'integer', minimum: 0 }])
-);
-
-const repeatedListFieldProperties = Object.fromEntries(
-  REPEATED_LIST_FIELDS.map(([field]) => [field, stringListSchema])
-);
-
+const stringListSchema = createSearchStringListSchema();
 const searchRequestSchema = {
   type: 'object',
   additionalProperties: false,
   ...SEARCH_REQUEST_REQUIREMENT,
-  properties: {
-    query: { type: 'string' },
-    repoPath: { type: 'string' },
-    repo: { type: 'string' },
-    asOf: { type: 'string' },
-    snapshot: { type: 'string' },
-    snapshotId: { type: 'string' },
-    cursor: { type: 'string', minLength: 1, maxLength: 8192 },
-    output: { type: 'string', enum: ['compact', 'json', 'full'] },
-    mode: { type: 'string', enum: ['code', 'prose', 'records', 'both', 'all', 'extracted-prose'] },
-    backend: { type: 'string', enum: ['auto', 'memory', 'sqlite', 'sqlite-fts', 'lmdb'] },
-    ann: { type: 'boolean' },
-    allowSparseFallback: { type: 'boolean' },
-    allowUnsafeMix: { type: 'boolean' },
-    top: { type: 'integer', minimum: 0 },
-    context: { type: 'integer', const: 0, deprecated: true },
-    ...stringFieldProperties,
-    ...integerMinZeroFieldProperties,
-    visibility: { type: 'string' },
-    extends: { type: 'string' },
-    lint: { type: 'boolean' },
-    async: { type: 'boolean' },
-    generator: { type: 'boolean' },
-    returns: { type: 'boolean' },
-    case: { type: 'boolean' },
-    caseFile: { type: 'boolean' },
-    caseTokens: { type: 'boolean' },
-    path: stringListSchema,
-    paths: stringListSchema,
-    ...repeatedListFieldProperties,
-    meta: metaSchema,
-    metaJson: {
-      type: ['string', 'object', 'array', 'number', 'boolean', 'null']
-    }
-  }
+  properties: buildSearchRequestProperties({ includeRepoAlias: true })
 };
 
 const federatedSelectionSchema = {
