@@ -1,5 +1,6 @@
 import { MAX_CANDIDATES_GLOBAL_SCAN, MAX_CANDIDATES_PER_REF } from './constants.js';
 import { resolveRelativeImport } from './resolve-relative-import.js';
+import { selectImportedTargets } from './import-targets.js';
 
 const toKey = (value) => (value ? String(value) : '');
 
@@ -35,20 +36,12 @@ const buildCandidate = (entry) => {
   };
 };
 
-const defaultDeclarationKinds = new Set(['ExportDefaultFunctionDeclaration', 'ExportDefaultClassDeclaration', 'ExportDefaultFunction']);
-const matchesImportedTarget = (entry, importedTarget) => {
-  if (!importedTarget) return false;
-  const name = entry?.qualifiedName || entry?.name || '';
-  if (importedTarget === 'default') return name === 'default' || defaultDeclarationKinds.has(entry?.kind);
-  return name === importedTarget || leafName(importedTarget) === importedTarget && leafName(name) === importedTarget;
-};
-
-const scoreCandidate = ({ entry, targetName, leaf, kindHint, importedTarget }) => {
+const scoreCandidate = ({ entry, targetName, leaf, kindHint, importMatched }) => {
   let score = 0;
   const name = entry?.qualifiedName || entry?.name || '';
   if (name === targetName) score += 3;
   if (leaf && leafName(name) === leaf) score += 2;
-  if (matchesImportedTarget(entry, importedTarget)) score += 3;
+  if (importMatched) score += 3;
   if (score > 0 && kindHint && entry?.kind && entry.kind === kindHint) score += 1;
   return score;
 };
@@ -99,6 +92,7 @@ export const resolveSymbolRef = ({
   let narrowedEntries = [];
   let hasImportNarrowing = false;
   let runtimeTypeOnly = false;
+  let runtimeExportUnavailable = false;
 
   if (fileRelations && fromFile) {
     const relation = typeof fileRelations.get === 'function'
@@ -125,7 +119,15 @@ export const resolveSymbolRef = ({
         const resolvedFile = resolveRelativeImport(fromFile, binding.module, fileSet);
         if (resolvedFile) {
           importHint.resolvedFile = resolvedFile;
-          if (!runtimeTypeOnly) narrowedEntries = symbolIndex?.byFile?.get(resolvedFile) || [];
+          if (!runtimeTypeOnly) {
+            const moduleEntries = (symbolIndex?.byFile?.get(resolvedFile) || []).filter(entry => resolveOwnedSymbol(entry));
+            narrowedEntries = selectImportedTargets(moduleEntries, {
+              imported: importedName, suffix, legacyTarget: importedTarget, runtimeOnly,
+              lookupName: symbolIndex?.byName ? target => symbolIndex.byName.get(target) || [] : null
+            });
+            runtimeExportUnavailable = runtimeOnly === true && !narrowedEntries.length
+              && moduleEntries.some(entry => entry.moduleExports !== undefined);
+          }
         }
       }
     }
@@ -141,7 +143,6 @@ export const resolveSymbolRef = ({
 
   for (const entry of allEntries) {
     if (!resolveOwnedSymbol(entry)) continue;
-    if (hasImportNarrowing && !matchesImportedTarget(entry, importedTarget)) continue;
     candidates.push(entry);
   }
 
@@ -162,7 +163,7 @@ export const resolveSymbolRef = ({
 
   const scored = candidates.map((entry) => ({
     entry,
-    score: scoreCandidate({ entry, targetName: name, leaf, kindHint, importedTarget: hasImportNarrowing ? importedTarget : null })
+    score: scoreCandidate({ entry, targetName: name, leaf, kindHint, importMatched: hasImportNarrowing })
   }));
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
@@ -199,6 +200,7 @@ export const resolveSymbolRef = ({
     candidates: formatted,
     status: formatted.length ? 'ambiguous' : 'unresolved',
     resolved: null,
-    ...(runtimeTypeOnly ? { reason: 'type-only-import' } : {})
+    ...(runtimeTypeOnly ? { reason: 'type-only-import' }
+      : runtimeExportUnavailable ? { reason: 'module-export-unavailable' } : {})
   };
 };

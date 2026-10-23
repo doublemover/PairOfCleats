@@ -1,4 +1,4 @@
-export const MODULE_EXPORTS_VERSION = '2';
+export const MODULE_EXPORTS_VERSION = '3';
 const inventories = new WeakMap();
 const startOf = node => node?.start ?? node?.range?.[0];
 const endOf = node => node?.end ?? node?.range?.[1];
@@ -23,11 +23,18 @@ const memberPath = node => {
 };
 
 const buildInventory = ast => {
-  const declarations = new Map(), exported = new Map();
-  const addExport = (local, name) => {
+  const declarations = new Map(), exported = new Map(), typeOnlyExported = new Map();
+  const runtimeLocals = new Set(), typeLocals = new Set();
+  const typeDeclarationKinds = new Set(['TSInterfaceDeclaration', 'TSTypeAliasDeclaration', 'TSDeclareFunction',
+    'InterfaceDeclaration', 'TypeAlias', 'OpaqueType', 'DeclareClass', 'DeclareFunction', 'DeclareVariable']);
+  const addExport = (local, name, typeOnly = false) => {
     if (typeof local !== 'string' || typeof name !== 'string') return;
     if (!exported.has(local)) exported.set(local, new Set());
     exported.get(local).add(name);
+    if (typeOnly) {
+      if (!typeOnlyExported.has(local)) typeOnlyExported.set(local, new Set());
+      typeOnlyExported.get(local).add(name);
+    }
   };
   const addDeclaration = (name, node, owner, latestStart = startOf(node)) => {
     if (typeof name !== 'string') return;
@@ -36,29 +43,36 @@ const buildInventory = ast => {
   };
   for (const stmt of ast.body) {
     const node = stmt.declaration || stmt;
+    const typeOnlyDeclaration = node.declare === true || typeDeclarationKinds.has(node.type);
+    const recordLocal = (name, typeOnly = typeOnlyDeclaration) => (typeOnly ? typeLocals : runtimeLocals).add(name);
     const names = [];
     if (node.type === 'ImportDeclaration') {
-      for (const spec of node.specifiers || []) addDeclaration(spec.local?.name, spec, stmt);
+      for (const spec of node.specifiers || []) {
+        addDeclaration(spec.local?.name, spec, stmt);
+        recordLocal(spec.local?.name, ['type', 'typeof'].includes(node.importKind) || ['type', 'typeof'].includes(spec.importKind));
+      }
     }
     if (node.type === 'VariableDeclaration') {
       for (const decl of node.declarations || []) {
         for (const name of patternNames(decl.id)) {
-          names.push(name); addDeclaration(name, decl, stmt, startOf(decl.init || decl));
+          names.push(name); addDeclaration(name, decl, stmt, startOf(decl.init || decl)); recordLocal(name);
         }
       }
     } else if (node.id?.name) {
-      names.push(node.id.name); addDeclaration(node.id.name, node, stmt);
+      names.push(node.id.name); addDeclaration(node.id.name, node, stmt); recordLocal(node.id.name);
     } else if (stmt.type === 'ExportDefaultDeclaration' && node.type !== 'Identifier') {
       names.push('default'); addDeclaration('default', node, stmt);
       addDeclaration('anonymous', node, stmt);
+      recordLocal('default'); recordLocal('anonymous');
     }
     if (stmt.type === 'ExportDefaultDeclaration') {
       addExport(node.type === 'Identifier' ? node.name : names[0], 'default');
       if (names[0] === 'default') addExport('anonymous', 'default');
     }
     if (stmt.type === 'ExportNamedDeclaration' && !stmt.source) {
-      for (const name of names) addExport(name, name);
-      for (const spec of stmt.specifiers || []) addExport(nameOf(spec.local), nameOf(spec.exported));
+      for (const name of names) addExport(name, name, stmt.exportKind === 'type');
+      for (const spec of stmt.specifiers || []) addExport(nameOf(spec.local), nameOf(spec.exported),
+        stmt.exportKind === 'type' || spec.exportKind === 'type');
     }
     if (stmt.type === 'TSExportAssignment' && node.expression?.type === 'Identifier') {
       addExport(node.expression.name, 'default');
@@ -99,10 +113,10 @@ const buildInventory = ast => {
     if (!name || name.includes('.')) continue;
     if (expr.right.type === 'Identifier') addExport(expr.right.name, name);
     else if (['FunctionExpression', 'ArrowFunctionExpression'].includes(expr.right.type)) {
-      addDeclaration(left, expr, stmt, startOf(expr.right)); addExport(left, name);
+      addDeclaration(left, expr, stmt, startOf(expr.right)); runtimeLocals.add(left); addExport(left, name);
     }
   }
-  return { declarations, exported };
+  return { declarations, exported, typeOnlyExported, runtimeLocals, typeLocals };
 };
 
 /** Module syntax supplies binding identity; declaration kind and signature text do not. */
@@ -117,5 +131,9 @@ export const resolveJsTsExports = (ast, chunk) => {
   if (!declaration && declarations.length) return { exported: null, exportNames: [] };
   const names = declaration ? inventory.exported.get(chunk.name) : null;
   const exportNames = names ? [...names].sort() : [];
-  return { exported: exportNames.length > 0, exportNames };
+  const typeOnly = inventory.typeOnlyExported.get(chunk.name);
+  const nonRuntime = inventory.typeLocals.has(chunk.name) && !inventory.runtimeLocals.has(chunk.name);
+  const typeOnlyExportNames = exportNames.filter(name => nonRuntime || typeOnly?.has(name));
+  return { exported: exportNames.length > 0, exportNames,
+    ...(typeOnlyExportNames.length ? { typeOnlyExportNames } : {}) };
 };

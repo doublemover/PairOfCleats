@@ -101,7 +101,7 @@ export const extractParamTypes = (chunk) => {
   return { paramNames, paramTypes };
 };
 
-export const extractReturnCalls = (chunkText, { knownCallees = null, chunk = null, importBindings = null } = {}) => {
+export const extractReturnCalls = (chunkText, { knownCallees = null, chunk = null, importBindings = null, admitConstructor = null } = {}) => {
   const calls = new Set();
   const news = new Set();
   if (['javascript', 'typescript', 'jsx', 'tsx'].includes(chunk?.lang)) {
@@ -119,7 +119,8 @@ export const extractReturnCalls = (chunkText, { knownCallees = null, chunk = nul
           && range[0] === chunk.start && range[1] === chunk.end)
         || typeof detail.callee !== 'string' || !detail.callee) continue;
       if (evidence.kind === 'construct' && (isShadowedImportCall(detail)
-        || importBindings?.[detail.callee.split(/::|\./u)[0]]?.typeOnly === true)) continue;
+        || importBindings?.[detail.callee.split(/::|\./u)[0]]?.typeOnly === true
+        || admitConstructor && !admitConstructor(detail.callee))) continue;
       (evidence.kind === 'construct' ? news : calls).add(detail.callee);
       if (evidence.kind === 'call') callSites.add(`${detail.start}:${detail.end}`);
     }

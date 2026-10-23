@@ -81,6 +81,23 @@ const malformed = parseJavaScriptAst('export const value = 1; export { value };'
 assert.ok(malformed.errors.length > 0, 'recovered parser errors remain visible to export admission');
 assert.deepEqual(resolveJsTsExports(malformed, { name: 'value', start: 13, end: 22 }), { exported: null, exportNames: [] });
 assert.deepEqual(resolveJsTsExports(null, {}), { exported: null, exportNames: [] });
+for (const text of [
+  'class Value {} export type { Value as Erased }; export { Value as Runtime }; interface Shape {} export { Shape };',
+  'class Value {} export { type Value as Erased, Value as Runtime }; interface Shape {} export { Shape };'
+]) {
+  const ast = prepareTypeScriptBabelSyntax(text, { ext: '.ts' }); assert.ok(ast && !ast.errors?.length);
+  const chunks = buildTypeScriptChunksFromBabel(text, { ext: '.ts' });
+  assert.deepEqual(resolveJsTsExports(ast, chunks.find(chunk => chunk.name === 'Value')),
+    { exported: true, exportNames: ['Erased', 'Runtime'], typeOnlyExportNames: ['Erased'] });
+  assert.deepEqual(resolveJsTsExports(ast, chunks.find(chunk => chunk.name === 'Shape')),
+    { exported: true, exportNames: ['Shape'], typeOnlyExportNames: ['Shape'] });
+}
+{
+  const text = 'export default interface Shape { value: string; }';
+  const ast = prepareTypeScriptBabelSyntax(text, { ext: '.ts' });
+  const [chunk] = buildTypeScriptChunksFromBabel(text, { ext: '.ts' });
+  assert.deepEqual(resolveJsTsExports(ast, chunk), { exported: true, exportNames: ['default'], typeOnlyExportNames: ['default'] });
+}
 assert.equal(SEMANTIC_ANALYSIS_VERSIONS.moduleExports, MODULE_EXPORTS_VERSION);
 const { moduleExports: _oldAbsent, ...oldVersions } = SEMANTIC_ANALYSIS_VERSIONS;
 assert.notEqual(semanticAnalysisPolicyIdentity({ enrichment: {} }), semanticAnalysisPolicyIdentity({ enrichment: {} }, oldVersions));

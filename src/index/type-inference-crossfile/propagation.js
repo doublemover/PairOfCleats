@@ -165,6 +165,11 @@ export async function runCrossFilePropagation({
       chunkUid,
       qualifiedName: chunk.metaV2?.symbol?.qualifiedName || chunk.name,
       symbol: chunk.metaV2?.symbol || null,
+      ...(['javascript', 'typescript', 'jsx', 'tsx'].includes(chunk.lang)
+        && (Object.hasOwn(chunk.docmeta || {}, 'exported') || Object.hasOwn(chunk.docmeta || {}, 'exportNames'))
+        ? { moduleExports: { exported: chunk.docmeta?.exported, exportNames: chunk.docmeta?.exportNames,
+          typeOnlyExportNames: chunk.docmeta?.typeOnlyExportNames },
+          start: chunk.start, end: chunk.end } : {}),
       returnTypes: extractReturnTypes(chunk),
       typeDeclaration: isTypeDeclaration(chunk.kind),
       paramNames,
@@ -381,7 +386,8 @@ export async function runCrossFilePropagation({
     const fileRelation = fileRelations
       ? (typeof fileRelations.get === 'function' ? fileRelations.get(chunk.file) : fileRelations[chunk.file]) : null;
     const parsed = extractReturnCalls(chunkText, { knownCallees: collectKnownCallees(chunk), chunk,
-      importBindings: fileRelation?.importBindings });
+      importBindings: fileRelation?.importBindings,
+      admitConstructor: targetName => resolveSymbolRefCached({ targetName, fromFile: chunk.file })?.reason !== 'module-export-unavailable' });
     returnCallsByChunk.set(chunk, parsed);
     return parsed;
   };
