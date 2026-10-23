@@ -20,6 +20,7 @@ import {
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { compareStrings } from '../shared/sort.js';
 import { admitCsrFamily } from './csr-order.js';
+import { addStorageFailureContext } from '../shared/storage/operation-error.js';
 
 const GRAPH_INDEX_CACHE_MAX = 3;
 const graphIndexCache = new Map();
@@ -549,12 +550,24 @@ export const createGraphStore = ({
     let cachedArtifacts = getCachedGraphArtifacts(cacheKey, telemetry);
     if (!cachedArtifacts) {
       const loadStartedAt = Date.now();
-      const [graphRelations, csrPayload, symbolEdges, callSiteIndex] = await Promise.all([
-        wantsGraphRelations && hasArtifact('graph_relations') ? loadGraph() : null,
-        wantsGraphCsr ? loadGraphCsr() : null,
-        wantsSymbolEdges && hasArtifact('symbol_edges') ? loadSymbolEdges() : null,
-        wantsCallSites && hasArtifact('call_sites') ? loadCallSiteIndex() : null
-      ]);
+      // Admission can fail synchronously or asynchronously after another read
+      // has started. Drain every started owner and retain the first observed
+      // classification together with all independent recovery prerequisites.
+      let firstFailure, failed = false;
+      const outcomes = await Promise.allSettled([
+        () => wantsGraphRelations && hasArtifact('graph_relations') ? loadGraph() : null,
+        () => wantsGraphCsr ? loadGraphCsr() : null,
+        () => wantsSymbolEdges && hasArtifact('symbol_edges') ? loadSymbolEdges() : null,
+        () => wantsCallSites && hasArtifact('call_sites') ? loadCallSiteIndex() : null
+      ].map(read => Promise.resolve().then(read).catch(error => {
+        if (!failed) { firstFailure = error; failed = true; }
+        throw error;
+      })));
+      if (failed) {
+        throw outcomes.filter(row => row.status === 'rejected' && row.reason !== firstFailure)
+          .reduce((primary, row) => addStorageFailureContext(primary, {}, row.reason, { secondaryPresent: true }), firstFailure);
+      }
+      const [graphRelations, csrPayload, symbolEdges, callSiteIndex] = outcomes.map(row => row.value);
       // Another compatible caller can finish its synchronous build while this
       // caller awaits artifact admission. Reuse it before building a second copy.
       const completed = getCachedGraphIndex(cacheKey);

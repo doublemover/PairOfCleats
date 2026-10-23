@@ -6,8 +6,11 @@ import { GRAPH_NAMES, normalizeEdgeFilter } from './neighborhood/filter.js';
 import { nodeKey } from './ordering.js';
 import { resolveSeedNodeRef } from './neighborhood/seed-meta.js';
 import { throwIfAborted } from '../shared/abort.js';
+import { GRAPH_PATH_CAPABILITY_SCHEMA } from '../contracts/schemas/analysis/graph.js';
+import { compileSchema, createAjv } from '../shared/validation/ajv-factory.js';
 
 const fail = message => Object.assign(new Error(message), { code: 'ERR_GRAPH_PATH_CONTRACT' });
+const validateCapability = compileSchema(createAjv({ strict: true, allErrors: true, allowUnionTypes: true }), GRAPH_PATH_CAPABILITY_SCHEMA);
 const same = (a, b) => canonicalSemanticJson(a) === canonicalSemanticJson(b);
 const refKind = ref => nodeKey(ref) && (ref.chunkUid || ref.symbolId || ref.path) ? ref.type : null;
 
@@ -15,10 +18,12 @@ const refKind = ref => nodeKey(ref) && (ref.chunkUid || ref.symbolId || ref.path
 export const graphPathProjectionErrors = (payload, operation) => {
   const cap = payload.pathCapability;
   if (!cap) return [];
+  if (!validateCapability(cap)) return ['Invalid canonical graph path capability.'];
   const errors = [];
   if (!same(cap.declaration, graphWitnessPathDeclaration(operation))
     || cap.scope.indexSignature !== payload.provenance?.indexSignature
-    || cap.scope.repo !== (payload.provenance?.repo || null)) errors.push('Graph path declaration or pinned scope mismatch.');
+    || cap.scope.repo !== (payload.provenance?.repo || null)
+    || !same(cap.limits, normalizeCaps(payload.provenance?.capsUsed?.graph))) errors.push('Graph path declaration, pinned scope or provenance allowance mismatch.');
   const edges = operation === 'graph_context' ? payload.edges : [];
   for (const edge of edges || []) {
     const from = resolveSeedNodeRef(edge.from), to = resolveSeedNodeRef(edge.to);
@@ -49,13 +54,16 @@ export const graphPathProjectionErrors = (payload, operation) => {
   return errors;
 };
 
-export const attachGraphPathCapability = (payload, { pathSemantics, operation, graphIndex, edgeFilters, caps,
+export const attachGraphPathCapability = (payload, { pathSemantics, operation, graphIndex, graphRelations, edgeFilters, caps,
   direction, depth, includePaths, signal } = {}) => {
   throwIfAborted(signal);
   if (pathSemantics === undefined) return payload;
   if (pathSemantics !== 'graph-witness') throw fail('Unsupported graph path semantics.');
   const signature = payload.provenance?.indexSignature;
   if (!signature || graphIndex?.indexSignature && graphIndex.indexSignature !== signature) throw fail('Graph path declaration requires the exact selected index signature.');
+  if (graphIndex?.graphRelations && graphRelations && graphIndex.graphRelations !== graphRelations) {
+    throw fail('Graph witness cannot rebind a pinned index signature to different relation inputs.');
+  }
   const filter = normalizeEdgeFilter(edgeFilters);
   const frontier = [...new Set([...(payload.truncation || []).map(row => row.cap), ...(payload.warnings || []).map(row => row.code),
     ...((payload.edges || []).some(edge => !resolveSeedNodeRef(edge.to)) ? ['unresolved-edge-target'] : []),

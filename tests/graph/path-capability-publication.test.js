@@ -36,6 +36,9 @@ assert.equal(buildGraphContextPack({ ...base, pathSemantics: undefined }).pathCa
 assert.throws(() => buildGraphContextPack({ ...base, pathSemantics: 'feasible-path' }), { code: 'ERR_GRAPH_PATH_CONTRACT' });
 assert.throws(() => buildGraphContextPack({ ...base, indexSignature: null, indexCompatKey: 'compat-only' }), { code: 'ERR_GRAPH_PATH_CONTRACT' });
 assert.throws(() => buildGraphContextPack({ ...base, graphIndex: { indexSignature: 'other' } }), { code: 'ERR_GRAPH_PATH_CONTRACT' });
+assert.throws(() => buildGraphContextPack({ ...base, graphIndex: {
+  indexSignature: base.indexSignature, graphRelations: structuredClone(graphRelations)
+} }), { code: 'ERR_GRAPH_PATH_CONTRACT' });
 const aborted = new AbortController(); aborted.abort();
 assert.throws(() => buildImpactAnalysis({ ...base, signal: aborted.signal }), { code: 'ABORT_ERR' });
 const unresolved = buildGraphContextPack({ ...base, graphRelations: null, symbolEdges: [{ from: { chunkUid: 'A' },

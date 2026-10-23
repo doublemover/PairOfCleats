@@ -63,7 +63,7 @@ export const buildGraphContextPack = ({
     truncation: neighborhood.truncation || null,
     warnings: neighborhood.warnings || null,
     stats: neighborhood.stats || null
-  }, { pathSemantics, operation: 'graph_context', graphIndex, edgeFilters, caps,
+  }, { pathSemantics, operation: 'graph_context', graphIndex, graphRelations, edgeFilters, caps,
     direction, depth: normalizeDepth(depth, 1), includePaths, signal });
 };
 

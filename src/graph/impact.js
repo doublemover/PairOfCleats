@@ -143,7 +143,7 @@ export const buildImpactAnalysis = ({
 } = {}) => {
   throwIfAborted(signal);
   const declare = (payload, traversalDirection) => attachGraphPathCapability(payload, { pathSemantics,
-    operation: 'graph_impact', graphIndex, edgeFilters, caps, direction: traversalDirection,
+    operation: 'graph_impact', graphIndex, graphRelations, edgeFilters, caps, direction: traversalDirection,
     depth: normalizeDepth(depth, 1), includePaths: true, signal });
   const truncation = createTruncationRecorder({ scope: 'impact' });
   const warnings = { list: [], seen: new Set() };
