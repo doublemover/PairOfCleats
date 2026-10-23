@@ -723,6 +723,7 @@ export async function createIndexerWorkerPool(input = {}) {
           });
         } finally {
           activeTasks = Math.max(0, activeTasks - 1);
+          queueController.recordWorkSettled();
           completedRequests += 1;
           updatePoolMetrics();
           await lifecycle.handleTaskDrained();

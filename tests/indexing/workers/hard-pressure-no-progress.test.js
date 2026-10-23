@@ -77,3 +77,40 @@ await assert.rejects(processFixtureChunks(context), error => error === pressure)
 assert.equal(context.workerState.tokenWorkerDisabled, false, 'pressure failure cannot become inline execution or a backend retry');
 assert.equal(context.tokenizationStats.chunks, 0);
 console.log('hard pressure admission has bounded no-progress disposition without bypassing resource ownership');
+
+// Capacity release is evidence only when this exact owner issued the slot.
+// Duplicate/stale release cannot create apparent progress or steal another job.
+{
+  const state = make(); state.recover();
+  const foreign = make(); foreign.recover();
+  try {
+    const first = await state.queue.acquireLanguageThrottleSlot(payload);
+    const second = await state.queue.acquireLanguageThrottleSlot(payload);
+    const other = await foreign.queue.acquireLanguageThrottleSlot(payload);
+    state.queue.releaseLanguageThrottleSlot({ ...first });
+    state.queue.releaseLanguageThrottleSlot(other);
+    assert.equal(state.queue.snapshot().languageThrottle.activeByLanguage.typescript, 2);
+    assert.equal(state.queue.snapshot().languageThrottle.progressEpoch, 0);
+    state.queue.releaseLanguageThrottleSlot(first);
+    state.queue.releaseLanguageThrottleSlot(first);
+    assert.equal(state.queue.snapshot().languageThrottle.activeByLanguage.typescript, 1);
+    assert.equal(state.queue.snapshot().languageThrottle.progressEpoch, 1);
+    state.queue.releaseLanguageThrottleSlot(second);
+    foreign.queue.releaseLanguageThrottleSlot(other);
+  } finally { await state.queue.close(); await foreign.queue.close(); }
+}
+
+// A different language/backend can finish the final drain candidate. Its real
+// settlement advances the shorter no-drain deadline without a global wake.
+{
+  const state = make(); state.setDraining(1);
+  try {
+    const waiting = state.queue.acquireLanguageThrottleSlot(payload); waiting.catch(() => {});
+    await state.tick(1000);
+    state.setDraining(0); state.queue.recordWorkSettled();
+    await state.tick(1000 + TOKENIZER_PRESSURE_NO_PROGRESS_MS);
+    await assert.rejects(waiting, error => error.resourcePressure.reason === 'pressure-no-safe-drain'
+      && error.resourcePressure.progressEpoch === 1 && error.resourcePressure.waitMs === 6000);
+    assert.equal(state.queue.snapshot().languageThrottle.waiting, 0);
+  } finally { await state.queue.close(); }
+}

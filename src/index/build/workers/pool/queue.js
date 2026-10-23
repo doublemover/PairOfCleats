@@ -1,5 +1,6 @@
 import { evaluateTokenizerPressureWait, createTokenizerPressureError, TOKENIZER_PRESSURE_NO_PROGRESS_MS, TOKENIZER_PRESSURE_MAX_WAIT_MS } from './pressure-admission.js';
 import { createAbortError, throwIfAborted } from '../../../../shared/abort.js';
+import { withSchedulerCpuSuspended } from '../../../../shared/concurrency/scheduler-task-scope.js';
 import {
   PRESSURE_STATE_NORMAL,
   clampRatio,
@@ -73,6 +74,7 @@ export const createWorkerPoolQueue = (input = {}) => {
   let pressureCacheEvictionCount = 0;
   let pressureCacheEvictionBytes = 0;
   const tokenizeInFlightByLanguage = new Map();
+  const ownedSlots = new WeakSet();
   const pressureThrottleWaitersByLanguage = new Map();
   const pressureCache = new Map();
   let pressureCacheOrdinal = 0;
@@ -129,7 +131,8 @@ export const createWorkerPoolQueue = (input = {}) => {
     };
     const resume = capacity => { if (settled) return; settled = true; cleanup(); resolve(capacity === true); };
     const onAbort = () => { if (settled) return; settled = true; cleanup(); reject(createAbortError()); };
-    resume.deadline = deadline; pressureDeadline = Math.min(pressureDeadline, deadline);
+    resume.deadline = deadline; resume.progressEpoch = progressEpoch;
+    pressureDeadline = Math.min(pressureDeadline, deadline);
     waiters.add(resume); pressureThrottleWaitersByLanguage.set(languageId, waiters);
     signal?.addEventListener('abort', onAbort, { once: true });
     if (signal?.aborted) onAbort(); else schedulePressureRefresh();
@@ -144,8 +147,10 @@ export const createWorkerPoolQueue = (input = {}) => {
       // Deadline scans happen only at a due deadline, not on every 50ms sample.
       for (const waiters of [...pressureThrottleWaitersByLanguage.values()]) {
         for (const resume of [...waiters]) {
-          if (now() >= resume.deadline) resume(false);
-          else pressureDeadline = Math.min(pressureDeadline, resume.deadline);
+          const deadline = Number.isFinite(resume.deadline) && progressEpoch > resume.progressEpoch
+            ? Math.min(resume.deadline, lastProgressAt + TOKENIZER_PRESSURE_NO_PROGRESS_MS) : resume.deadline;
+          if (now() >= deadline) resume(false);
+          else pressureDeadline = Math.min(pressureDeadline, deadline);
         }
       }
     }
@@ -276,7 +281,9 @@ export const createWorkerPoolQueue = (input = {}) => {
       const active = Number(tokenizeInFlightByLanguage.get(languageId) || 0);
       if ((!Number.isFinite(limit) || active < limit) && (capacityAdmission || !pendingCapacityWakes.has(languageId))) {
         tokenizeInFlightByLanguage.set(languageId, active + 1);
-        return { languageId, limit };
+        const slot = Object.freeze({ languageId, limit });
+        ownedSlots.add(slot);
+        return slot;
       }
       let deadline = Infinity;
       if (limit === 0) {
@@ -299,22 +306,47 @@ export const createWorkerPoolQueue = (input = {}) => {
         }
       } else pressureWaitStartedAt = null;
       const waitStart = now();
-      const capacityWake = await waitForThrottleSignal(languageId, signal, deadline);
-      if (capacityWake) {
+      let capacityWake;
+      let capacityClaimed = false;
+      const releaseCapacityWake = () => {
+        if (!capacityClaimed) return;
         const pending = pendingCapacityWakes.get(languageId) || 0;
         if (pending <= 1) pendingCapacityWakes.delete(languageId); else pendingCapacityWakes.set(languageId, pending - 1);
+        capacityClaimed = false;
+      };
+      try {
+        // This is admission, not worker execution. Only the wait relinquishes
+        // compute; the caller reacquires before sampling or dispatching work.
+        capacityWake = await withSchedulerCpuSuspended(() => waitForThrottleSignal(languageId, signal, deadline).then(value => {
+          capacityClaimed = value;
+          return value;
+        }));
+      } finally {
+        // A CPU reacquisition failure must also retire a delivered wake claim.
+        releaseCapacityWake();
+        pressureThrottleWaitCount += 1;
+        pressureThrottleWaitMs += Math.max(0, now() - waitStart);
       }
       capacityAdmission = capacityWake;
-      pressureThrottleWaitCount += 1;
-      pressureThrottleWaitMs += Math.max(0, now() - waitStart);
     }
   };
 
+  const recordWorkSettled = () => {
+    lastProgressAt = now();
+    progressEpoch += 1;
+    // Another language/quantization task can be the final independent drain.
+    // Revisit zero-slot waits after the no-progress interval, without waking
+    // every contender on each release or sampling every waiter on each tick.
+    if (Number.isFinite(pressureDeadline)) pressureDeadline = Math.min(pressureDeadline,
+      lastProgressAt + TOKENIZER_PRESSURE_NO_PROGRESS_MS);
+  };
+
   const releaseLanguageThrottleSlot = (slot) => {
+    if (!slot || !ownedSlots.delete(slot)) return;
     const languageId = normalizeLanguageId(slot?.languageId);
     if (!languageId) return;
     const current = Number(tokenizeInFlightByLanguage.get(languageId) || 0);
-    if (current > 0) { lastProgressAt = now(); progressEpoch += 1; }
+    if (current > 0) recordWorkSettled();
     if (current <= 1) {
       tokenizeInFlightByLanguage.delete(languageId);
     } else {
@@ -344,6 +376,7 @@ export const createWorkerPoolQueue = (input = {}) => {
       hardBlockCount: pressureHardBlockCount,
       noProgressLimitMs: TOKENIZER_PRESSURE_NO_PROGRESS_MS, maxWaitMs: TOKENIZER_PRESSURE_MAX_WAIT_MS,
       progressEpoch, reliefStatus, terminalPressureReason: pressureFailure?.resourcePressure?.reason || null,
+      waiting: [...pressureThrottleWaitersByLanguage.values()].reduce((sum, rows) => sum + rows.size, 0),
       activeByLanguage: Object.fromEntries(tokenizeInFlightByLanguage.entries())
     },
     cacheEviction: {
@@ -375,6 +408,7 @@ export const createWorkerPoolQueue = (input = {}) => {
     recordPressureCacheEntry,
     acquireLanguageThrottleSlot,
     releaseLanguageThrottleSlot,
+    recordWorkSettled,
     snapshot
   };
 };
