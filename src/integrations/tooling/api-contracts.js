@@ -21,6 +21,7 @@ import { loadUserConfig } from '../../shared/dict-utils.js';
 import { getRepoRoot } from '../../shared/repo-paths.js';
 import { writeJsonLinesFile } from '../../shared/json-stream/jsonl-write.js';
 import { apiContractSymbolIdentity, buildApiContractTargetJoins, createApiContractCallTargetIndex } from './api-contract-targets.js';
+import { emitReportOutcome } from './report-outcome.js';
 
 /**
  * Build non-null API contract cap payload used in report metadata.
@@ -607,37 +608,29 @@ export async function runApiContractsCli(rawArgs = process.argv.slice(2)) {
     maxWarnings: normalizeOptionalNumber(argv.maxWarnings)
   };
 
-  const report = buildApiContractsReport({
-    symbols,
-    callSites,
-    callSitesByTarget,
-    onlyExports: argv.onlyExports === true,
-    failOnWarn: argv.failOnWarn === true,
-    caps,
-    indexCompatKey: indexCompatKey || null,
-    indexSignature: indexSignature || null,
-    repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),
-    indexDir: toPosix(path.relative(process.cwd(), indexDir) || '.')
+  const format = String(argv.format || 'json').toLowerCase();
+  return emitReportOutcome({ label: 'ApiContracts', validate: validateApiContracts, policyCodes: ['ERR_API_CONTRACT_WARN'],
+    build: () => buildApiContractsReport({
+      symbols,
+      callSites,
+      callSitesByTarget,
+      onlyExports: argv.onlyExports === true,
+      failOnWarn: argv.failOnWarn === true,
+      caps,
+      indexCompatKey: indexCompatKey || null,
+      indexSignature: indexSignature || null,
+      repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),
+      indexDir: toPosix(path.relative(process.cwd(), indexDir) || '.')
+    }),
+    emit: report => {
+      if (format === 'md' || format === 'markdown') console.log(renderApiContracts(report));
+      else console.log(JSON.stringify(report, null, 2));
+    },
+    emitArtifact: argv.emitArtifact ? async report => {
+      const targetDir = argv.artifactDir ? path.resolve(argv.artifactDir) : indexDir;
+      await writeJsonLinesFile(path.join(targetDir, 'api_contracts.jsonl'), report.symbols, { atomic: true });
+    } : null
   });
-
-  const validation = validateApiContracts(report);
-  if (!validation.ok) {
-    throw new Error(`ApiContracts schema validation failed: ${validation.errors.join('; ')}`);
-  }
-
-  const format = String(argv.format || (argv.json ? 'json' : 'json')).toLowerCase();
-  if (format === 'md' || format === 'markdown') {
-    console.log(renderApiContracts(report));
-  } else {
-    console.log(JSON.stringify(report, null, 2));
-  }
-
-  if (argv.emitArtifact) {
-    const targetDir = argv.artifactDir ? path.resolve(argv.artifactDir) : indexDir;
-    const outPath = path.join(targetDir, 'api_contracts.jsonl');
-    await writeJsonLinesFile(outPath, report.symbols, { atomic: true });
-  }
-  return report;
 }
 
 if (isDirectExecution(import.meta.url)) {

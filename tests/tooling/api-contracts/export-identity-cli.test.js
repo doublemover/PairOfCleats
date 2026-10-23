@@ -8,6 +8,7 @@ import { buildIndex } from '../../../src/integrations/core/index.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { getIndexDir, loadUserConfig } from '../../../src/shared/dict-utils.js';
 import { loadJsonArrayArtifactRows } from '../../../src/shared/artifact-io/loaders.js';
+import { validateApiContracts } from '../../../src/contracts/validators/analysis.js';
 import { validateArtifact } from '../../../src/contracts/validators/artifacts.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/api-contracts/export-identity-cli/')[1];
@@ -49,6 +50,12 @@ console.log(JSON.stringify({ selected, exitCode: result.exitCode, stderr: result
 if (operation === 'fail') {
   assert.equal(result.exitCode, 2, 'bad exported calls must fail even with zero retained warning details');
   assert.equal(result.stderr.trim(), 'API contracts warnings detected.');
+  const report = JSON.parse(result.stdout);
+  assert.equal(validateApiContracts(report).ok, true, 'export-only policy failures retain the qualified report');
+  assert.ok(report.symbols.length > 0);
+  const omitted = report.truncation.find(entry => entry.cap === 'maxWarnings');
+  assert.equal(omitted.observed, 5); assert.equal(omitted.omitted, 5);
+  assert.equal(report.warnings, null);
 } else {
   assert.equal(result.exitCode, 0, result.stderr); assert.equal(result.stderr, '');
   const report = JSON.parse(result.stdout);
