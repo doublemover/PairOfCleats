@@ -27,7 +27,10 @@ export const resolveEmbeddingQuantizationSpec = (input = {}) => {
 /** Validate before any coercion can truncate, wrap or manufacture byte rows. */
 export const assertQuantizedEmbeddingRow = (row, { spec = resolveEmbeddingQuantizationSpec(), dims = null, allowEmpty = true } = {}) => {
   if (!(Array.isArray(row) || row instanceof Uint8Array)) throw invalid('Quantized row must be an array or Uint8Array.');
-  if (!row.length && allowEmpty) return row;
+  if (!row.length) {
+    if (allowEmpty) return row;
+    throw invalid('Present quantized rows must be nonempty.');
+  }
   if (dims != null && row.length !== dims) throw invalid(`Quantized row width ${row.length} differs from ${dims}.`);
   for (let index = 0; index < row.length; index++) {
     const value = row[index];
@@ -36,15 +39,23 @@ export const assertQuantizedEmbeddingRow = (row, { spec = resolveEmbeddingQuanti
   return row;
 };
 
-export const resolveDenseQuantizationSpec = (meta = {}) => {
+export const resolveDenseQuantizationSpec = (meta = {}, expected = null) => {
+  meta ||= {};
   const spec = resolveEmbeddingQuantizationSpec(meta);
   const identity = meta.embeddingIdentity?.quantization;
+  for (const version of [meta.quantizationVersion, identity?.version]) {
+    if (version != null && version !== 1 && version !== EMBEDDING_QUANTIZATION_VERSION) throw invalid('Unsupported dense quantization codec version.');
+  }
   if (meta.quantizationVersion >= EMBEDDING_QUANTIZATION_VERSION || identity?.version >= EMBEDDING_QUANTIZATION_VERSION) {
     if (meta.scale != null && meta.scale !== spec.scale) throw invalid('Dense metadata scale disagrees with its codec.');
     if (identity) {
       const expected = resolveEmbeddingQuantizationSpec(identity);
       if (['minVal', 'maxVal', 'levels'].some(key => expected[key] !== spec[key])) throw invalid('Dense metadata disagrees with its embedding identity codec.');
     }
+  }
+  if (expected) {
+    const requested = resolveEmbeddingQuantizationSpec(expected);
+    if (['minVal', 'maxVal', 'levels'].some(key => requested[key] !== spec[key])) throw invalid('Dense source codec disagrees with the selected backend codec.');
   }
   return spec;
 };

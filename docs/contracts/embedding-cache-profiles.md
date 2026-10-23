@@ -39,6 +39,17 @@ published vector artifacts keep their separate owners. No native speedup, corpus
 compression ratio, cross-process crash qualification or whole-app quota acceptance
 is claimed by these source changes.
 
+Canonical metadata must match the complete profile key as strictly as the legacy
+tier. Repeated references to one immutable chunk must agree on its hash, digest
+and channel lengths before any read. Hydration accepts only complete bounded
+read batches; cancellation and unresolved resource failures remain failures.
+Empty documentation rows survive prior-file, global-chunk and in-memory reuse;
+they do not require another inference or replace already admitted code bytes.
+
+The locked index journal uses read/write handles with explicit offsets. This
+allows Windows to truncate a checkpointed or interrupted tail while retaining
+the existing checksum, sequence and cleanup-failure contracts.
+
 Prune/compaction builds a generation-local physical-path summary after logical
 retention. Each shard carries its live entries/bytes and newest access timestamp;
 physical eviction compares these scalars and removes the recorded keys only after

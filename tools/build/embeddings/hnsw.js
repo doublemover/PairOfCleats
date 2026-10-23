@@ -13,6 +13,7 @@ import { copyFileWithDurability } from '../../../src/shared/io/persistence-helpe
 import { resolveVectorsSource } from './vector-source.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
 import { buildNativeBackendReuseKey } from './backend-reuse-key.js';
+import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
 
 const TRACE_ARTIFACT_IO = getEnvConfig().traceArtifactIo === true;
 
@@ -174,6 +175,7 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
       minVal: Number.isFinite(Number(quantization?.minVal)) ? Number(quantization.minVal) : undefined,
       maxVal: Number.isFinite(Number(quantization?.maxVal)) ? Number(quantization.maxVal) : undefined,
       levels: Number.isFinite(Number(quantization?.levels)) ? Number(quantization.levels) : undefined,
+      quantizationVersion: quantization?.version,
       extensions: { nativeBuildKey: buildNativeBackendReuseKey({ backend: 'hnsw', config, normalize, dims, modelId, quantization, scale }) }
     };
     await writeJsonObjectFile(metaPath, { fields: hnswMeta, atomic: true });
@@ -203,6 +205,8 @@ const writeHnswIndexInProcess = async ({
   logger,
   signal = null
 }) => {
+  quantization = resolveEmbeddingQuantizationSpec(quantization);
+  scale = quantization.scale;
   const vectorsSource = Array.isArray(vectors) && vectors.length
     ? { count: vectors.length, vectors, rows: null }
     : resolveVectorsSource(vectorsPath, {
@@ -211,6 +215,7 @@ const writeHnswIndexInProcess = async ({
       tryCandidateJson: true,
       expectedDims: dims,
       expectedModelId: modelId,
+      expectedQuantization: quantization,
       signal
     });
   if (!vectorsSource || !Number.isFinite(vectorsSource.count) || vectorsSource.count <= 0) {
@@ -233,6 +238,7 @@ const writeHnswIndexInProcess = async ({
         ? (entry.vector ?? entry.values ?? null)
         : entry;
       if (vec && typeof vec.length === 'number' && vec.length) {
+        assertQuantizedEmbeddingRow(vec, { spec: quantization, dims, allowEmpty: false });
         const floatVec = dequantizeUint8ToFloat32(
           vec,
           quantization?.minVal,
@@ -253,6 +259,7 @@ const writeHnswIndexInProcess = async ({
       throwIfAborted(signal);
       const vec = vectorsSource.vectors[i];
       if (!vec || typeof vec.length !== 'number' || !vec.length) continue;
+      assertQuantizedEmbeddingRow(vec, { spec: quantization, dims, allowEmpty: false });
       const floatVec = dequantizeUint8ToFloat32(
         vec,
         quantization?.minVal,

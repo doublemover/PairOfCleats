@@ -48,13 +48,18 @@ try {
   assert.deepEqual(Object.keys(current.entries).sort(), ['after-tail', 'left', 'right']);
 
   const originalOpen = fs.open;
+  let injectedCleanupFailures = 0;
   try {
     fs.open = async function (filename, ...args) {
       const handle = await originalOpen.call(this, filename, ...args);
-      if (String(filename) === logPath && args[0] === 'a+') handle.truncate = async () => { throw new Error('checkpoint published before injected log cleanup failure'); };
+      if (String(filename) === logPath) handle.truncate = async () => {
+        injectedCleanupFailures++;
+        throw new Error('checkpoint published before injected log cleanup failure');
+      };
       return handle;
     };
     await assert.rejects(writeCacheIndex(shared, current), /log cleanup failure/);
+    assert.equal(injectedCleanupFailures, 1, 'fault injection reaches the checkpoint-owned truncation regardless of open flags');
   } finally { fs.open = originalOpen; }
   assert.deepEqual(Object.keys((await readCacheIndex(shared, identity, { strict: true })).entries).sort(), ['after-tail', 'left', 'right'],
     'replay ignores records already folded into the published checkpoint');

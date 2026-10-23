@@ -21,13 +21,15 @@ export const digestQuantizedChannels = (vectors, quantization = {}) => {
 export const buildReferencedFileCache = ({ filePayload, chunkHashes, codeVectors, docVectors, mergedVectors,
   identityKey, identity, buildInputKey }) => {
   if (!Array.isArray(chunkHashes) || !chunkHashes.length || chunkHashes.length > 32768) return null;
+  if ([codeVectors, docVectors, mergedVectors].some(rows => !Array.isArray(rows) || rows.length !== chunkHashes.length)) return null;
+  const spec = resolveEmbeddingQuantizationSpec(identity?.quantization);
   const chunks = new Map(), records = [];
   for (let index = 0; index < chunkHashes.length; index++) {
     const chunkHash = chunkHashes[index]; if (typeof chunkHash !== 'string' || !chunkHash) return null;
     const vectors = { code: codeVectors[index] || [], doc: docVectors[index] || [], merged: mergedVectors[index] || [] };
     for (const vector of Object.values(vectors)) assertQuantizedEmbeddingRow(vector, {
-      spec: resolveEmbeddingQuantizationSpec(identity?.quantization), dims: identity?.dims });
-    const digest = digestQuantizedChannels(vectors, identity?.quantization), inputKey = buildInputKey(chunkHash);
+      spec, dims: identity?.dims });
+    const digest = digestQuantizedChannels(vectors, spec), inputKey = buildInputKey(chunkHash);
     if (!inputKey) return null;
     const cacheKey = `${inputKey}-${digest}`;
     records.push({ key: cacheKey, hash: chunkHash, digest,
@@ -49,27 +51,34 @@ export const hydrateReferencedFileCache = async ({ entry, identityKey, readChunk
   if (references.schemaVersion !== 1 || references.identityKey !== identityKey || entry.cacheMeta?.identityKey !== identityKey
     || !Array.isArray(references.records) || references.records.length > 32768
     || references.records.length !== entry.chunkHashes?.length) return null;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) return null;
+  let spec;
+  try { spec = resolveEmbeddingQuantizationSpec(entry.cacheMeta?.identity?.quantization); }
+  catch { return null; }
   const unique = new Map(); let bytes = 0;
   for (let index = 0; index < references.records.length; index++) {
     const ref = references.records[index];
-    if (!ref || ref.hash !== entry.chunkHashes[index] || typeof ref.key !== 'string' || !/^[a-f0-9]{64}$/.test(ref.digest || '')) return null;
+    if (!ref || ref.hash !== entry.chunkHashes[index] || !/^[A-Za-z0-9_-]{1,256}$/.test(ref.key || '') || !/^[a-f0-9]{64}$/.test(ref.digest || '')) return null;
     for (const channel of CHANNELS) {
       const length = ref.channels?.[channel];
       if (!Number.isSafeInteger(length) || length < 0) return null;
       bytes += length;
     }
     if (bytes > maxBytes) return null;
+    const prior = unique.get(ref.key);
+    if (prior && (prior.hash !== ref.hash || prior.digest !== ref.digest
+      || CHANNELS.some(channel => prior.channels[channel] !== ref.channels[channel]))) return null;
     unique.set(ref.key, ref);
   }
   const retained = new Map(), keys = [...unique.keys()];
   for (let offset = 0; offset < keys.length; offset += 64) {
     const batch = keys.slice(offset, offset + 64), results = await readChunks(batch);
+    if (!Array.isArray(results) || results.length !== batch.length) return null;
     for (let index = 0; index < batch.length; index++) {
       const ref = unique.get(batch[index]), payload = results[index]?.entry;
       if (payload?.key !== ref.key || payload.hash !== ref.hash || payload.cacheMeta?.identityKey !== identityKey) return null;
       const vectors = { code: payload.codeVectors?.[0] || [], doc: payload.docVectors?.[0] || [], merged: payload.mergedVectors?.[0] || [] };
       let digest; try {
-        const spec = resolveEmbeddingQuantizationSpec(entry.cacheMeta?.identity?.quantization);
         for (const vector of Object.values(vectors)) assertQuantizedEmbeddingRow(vector, { spec, dims: entry.cacheMeta?.identity?.dims });
         digest = digestQuantizedChannels(vectors, spec);
       } catch { return null; }

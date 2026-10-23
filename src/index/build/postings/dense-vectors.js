@@ -94,8 +94,9 @@ export const buildDenseVectors = async ({
         } catch (error) {
           throwIfAborted(abortSignal);
           if (isAbortError(error) || ['ERR_PROCESS_TASK_BUDGET', 'ERR_TOKENIZER_RESOURCE_PRESSURE',
-            'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', 'ERR_WORKER_POOL_CLEANUP_TIMEOUT'].includes(error?.code)
-            || error?.cleanupError || error instanceof AggregateError) throw error;
+            'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', 'ERR_WORKER_POOL_CLEANUP_TIMEOUT', 'BUILD_CLEANUP_TIMEOUT',
+            'PISCINA_DESTROY_TIMEOUT', 'PISCINA_WORKER_TERMINATE_TIMEOUT', 'PISCINA_FORCE_TERMINATE_INCOMPLETE'].includes(error?.code)
+            || error?.workerOwnershipPending || error?.cacheOwnershipPending || error?.cleanupError || error instanceof AggregateError) throw error;
           if (!warnedWorker) { warnedWorker = true; log?.('Quantize worker unavailable; falling back to inline quantization.'); }
         }
       }

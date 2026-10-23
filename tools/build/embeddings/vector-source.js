@@ -12,6 +12,8 @@ import {
 import { materializeDenseVectorRows } from '../../../src/shared/dense-vector-artifacts.js';
 import { decodeDenseVectorValidity, isDenseVectorRowPresent } from '../../../src/shared/dense-vector-validity.js';
 import { resolveBinaryVectorsSource } from './vector-source-binary.js';
+import { assertQuantizedEmbeddingRow, resolveDenseQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
+import { stableStringify } from '../../../src/shared/stable-json.js';
 
 export const toCanonicalArtifactBase = (base) => {
   if (!base || typeof base !== 'string') return '';
@@ -74,21 +76,40 @@ export const resolveShardCount = (meta) => {
   return 0;
 };
 
-const readVectorsPayload = (filePath) => {
+const invalid = message => Object.assign(new Error(message), { code: 'ERR_DENSE_VECTOR_SOURCE_IDENTITY' });
+const admitMeta = (raw, { expectedDims, expectedModelId, expectedEmbeddingIdentity, expectedEmbeddingGeneration, expectedQuantization }) => {
+  const meta = raw?.fields || raw || {};
+  if (typeof meta !== 'object' || Array.isArray(meta)) throw invalid('Dense textual metadata must be an object.');
+  resolveDenseQuantizationSpec(meta, expectedQuantization);
+  if ((expectedDims != null && meta.dims != null && expectedDims !== meta.dims)
+    || (expectedModelId != null && meta.model != null && meta.model !== expectedModelId)
+    || (expectedEmbeddingIdentity != null && stableStringify(meta.embeddingIdentity) !== stableStringify(expectedEmbeddingIdentity))
+    || (expectedEmbeddingGeneration != null && meta.embeddingGeneration !== expectedEmbeddingGeneration)) throw invalid('Dense textual metadata disagrees with the selected backend input.');
+  return { ...meta, dims: meta.dims ?? expectedDims ?? undefined };
+};
+const readVectorsPayload = (filePath, selection) => {
   const data = readJsonFile(filePath, { maxBytes: Number.POSITIVE_INFINITY });
   const vectors = Array.isArray(data?.arrays?.vectors)
     ? data.arrays.vectors
     : (Array.isArray(data?.vectors) ? data.vectors : null);
-  return vectors ? materializeDenseVectorRows({ ...(data.fields || data), vectors }) : null;
+  return vectors ? materializeDenseVectorRows({ ...admitMeta(data, selection), vectors }) : null;
 };
 
 const applyValidity = (rows, meta) => ({
   async *[Symbol.asyncIterator]() {
     decodeDenseVectorValidity(meta);
+    const spec = resolveDenseQuantizationSpec(meta);
     let id = 0;
     for await (const row of rows) {
-      yield isDenseVectorRowPresent(meta, id++) ? row : { vector: [] };
+      if (id >= resolveShardCount(meta)) throw invalid('Dense textual payload contains extra rows.');
+      const vector = row && typeof row === 'object' && !Array.isArray(row) && !ArrayBuffer.isView(row)
+        ? row.vector ?? row.values : row;
+      if (isDenseVectorRowPresent(meta, id++)) {
+        assertQuantizedEmbeddingRow(vector, { spec, dims: meta.dims ?? null });
+        yield row;
+      } else yield { vector: [] };
     }
+    if (id !== resolveShardCount(meta)) throw invalid('Dense textual payload row count disagrees with metadata.');
   }
 });
 
@@ -110,10 +131,12 @@ export const resolveVectorsSource = (vectorsPath, {
   expectedModelId = null,
   expectedEmbeddingIdentity = null,
   expectedEmbeddingGeneration = null,
+  expectedQuantization = null,
   signal = null,
   metrics = null
 } = {}) => {
   if (!vectorsPath) return null;
+  const selection = { expectedDims, expectedModelId, expectedEmbeddingIdentity, expectedEmbeddingGeneration, expectedQuantization };
   const dir = path.dirname(vectorsPath);
   const base = path.basename(vectorsPath, path.extname(vectorsPath));
   const ext = path.extname(vectorsPath) || '.json';
@@ -128,7 +151,7 @@ export const resolveVectorsSource = (vectorsPath, {
   if (preferBinary) {
     for (const artifactBase of baseCandidates) {
       const binary = resolveBinaryVectorsSource({ dir, artifactBase, manifest, expectedDims, expectedModelId,
-        expectedEmbeddingIdentity, expectedEmbeddingGeneration, signal, metrics });
+        expectedEmbeddingIdentity, expectedEmbeddingGeneration, expectedQuantization, signal, metrics });
       if (binary) return binary;
     }
   }
@@ -138,7 +161,7 @@ export const resolveVectorsSource = (vectorsPath, {
     const hasShardedMeta = fsSync.existsSync(metaPath) || fsSync.existsSync(`${metaPath}.bak`);
     if (!hasShardedMeta) continue;
     try {
-      const meta = readJsonFile(metaPath, { maxBytes: Number.POSITIVE_INFINITY });
+      const meta = admitMeta(readJsonFile(metaPath, { maxBytes: Number.POSITIVE_INFINITY }), selection);
       const count = resolveShardCount(meta);
       const shardManifest = buildShardOnlyManifest(artifactBase, meta);
       if (!shardManifest) {
@@ -155,24 +178,24 @@ export const resolveVectorsSource = (vectorsPath, {
           materialize: true
         }), meta)
       };
-    } catch {}
+    } catch (error) { if (error.code === 'ERR_EMBEDDING_QUANTIZATION' || error.code === 'ERR_DENSE_VECTOR_SOURCE_IDENTITY') throw error; }
   }
 
   if (tryCandidateJson) {
     for (const artifactBase of baseCandidates) {
       const candidatePath = path.join(dir, `${artifactBase}${ext}`);
       try {
-        const vectors = readVectorsPayload(candidatePath);
+        const vectors = readVectorsPayload(candidatePath, selection);
         if (!Array.isArray(vectors) || !vectors.length) continue;
         return { count: vectors.length, vectors, rows: null };
-      } catch {}
+      } catch (error) { if (error.code === 'ERR_EMBEDDING_QUANTIZATION' || error.code === 'ERR_DENSE_VECTOR_SOURCE_IDENTITY') throw error; }
     }
   }
 
   try {
-    const vectors = readVectorsPayload(vectorsPath);
+    const vectors = readVectorsPayload(vectorsPath, selection);
     if (!Array.isArray(vectors) || !vectors.length) return null;
     return { count: vectors.length, vectors, rows: null };
-  } catch {}
+  } catch (error) { if (error.code === 'ERR_EMBEDDING_QUANTIZATION' || error.code === 'ERR_DENSE_VECTOR_SOURCE_IDENTITY') throw error; }
   return null;
 };

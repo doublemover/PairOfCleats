@@ -7,7 +7,7 @@ import { resolveEmbeddingQuantizationSpec } from '../../../src/shared/embedding-
 const malformed = [
   () => [], () => ({}), () => null, () => undefined,
   rows => [...rows, rows[0]], rows => rows.slice(1),
-  () => [null], () => [undefined], () => ['oops'], () => [[1]],
+  () => [null], () => [undefined], () => [[]], () => ['oops'], () => [[1]],
   () => [[NaN, Infinity]], () => [[1.5, 2]], () => [[-1, 2]], () => [[1, 256]],
   () => [Uint8Array.of(255, 255)]
 ];
@@ -70,7 +70,8 @@ for (const typed of [false, true]) {
   assert.deepEqual(snapshot(actual), snapshot(expected), 'a late invalid row also discards earlier valid-looking rows in that batch');
 }
 for (const code of ['ABORT_ERR', 'ERR_PROCESS_TASK_BUDGET', 'ERR_TOKENIZER_RESOURCE_PRESSURE',
-  'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', 'ERR_WORKER_POOL_CLEANUP_TIMEOUT']) {
+  'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', 'ERR_WORKER_POOL_CLEANUP_TIMEOUT', 'BUILD_CLEANUP_TIMEOUT',
+  'PISCINA_DESTROY_TIMEOUT', 'PISCINA_WORKER_TERMINATE_TIMEOUT', 'PISCINA_FORCE_TERMINATE_INCOMPLETE']) {
   const error = Object.assign(new Error(code), { code });
   await assert.rejects(buildDenseVectors({ chunks: [{ embedding: [.1, .2] }],
     quantizePool: { async runQuantize() { throw error; } } }), actual => actual === error);

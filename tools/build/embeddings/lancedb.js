@@ -14,6 +14,7 @@ import { resolveVectorsSource } from './vector-source.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
 import { buildNativeBackendReuseKey } from './backend-reuse-key.js';
 import { inventoryBackendPayload } from './backend-payload-copy.js';
+import { resolveEmbeddingQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
 
 let warnedMissing = false;
 const TRACE_ARTIFACT_IO = getEnvConfig().traceArtifactIo === true;
@@ -76,10 +77,13 @@ export async function writeLanceDbIndex({
 }) {
   const resolvedConfig = normalizeLanceDbConfig(config);
   if (!resolvedConfig.enabled) return { skipped: true, reason: 'disabled' };
+  quantization = resolveEmbeddingQuantizationSpec(quantization);
+  scale = quantization.scale;
   const lanceEnv = getLanceDbEnv();
   const vectorsSource = Array.isArray(vectors) && vectors.length
     ? { count: vectors.length, vectors, rows: null }
-    : resolveVectorsSource(vectorsPath, { stopOnShardMetaWithoutManifest: true, expectedDims: dims, expectedModelId: modelId, signal });
+    : resolveVectorsSource(vectorsPath, { stopOnShardMetaWithoutManifest: true, expectedDims: dims,
+      expectedModelId: modelId, expectedQuantization: quantization, signal });
   if (TRACE_ARTIFACT_IO && vectorsPath) {
     const exists = fsSync.existsSync(vectorsPath)
       || fsSync.existsSync(`${vectorsPath}.gz`)
@@ -198,8 +202,9 @@ export async function writeLanceDbIndex({
       scale: Number.isFinite(Number(scale)) ? Number(scale) : undefined,
       minVal: Number.isFinite(Number(quantization?.minVal)) ? Number(quantization.minVal) : undefined,
       maxVal: Number.isFinite(Number(quantization?.maxVal)) ? Number(quantization.maxVal) : undefined,
-      levels: Number.isFinite(Number(quantization?.levels)) ? Number(quantization.levels) : undefined
-      , extensions: { lancePublicationId: publicationId,
+      levels: Number.isFinite(Number(quantization?.levels)) ? Number(quantization.levels) : undefined,
+      quantizationVersion: quantization.version,
+      extensions: { lancePublicationId: publicationId,
         nativeBuildKey: buildNativeBackendReuseKey({ backend: 'lancedb', config: resolvedConfig, normalize, dims, modelId, quantization, scale }),
         ...(nativePayloadInventory ? { nativePayloadInventory } : {}) }
     };

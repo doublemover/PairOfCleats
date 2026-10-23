@@ -1021,10 +1021,10 @@ export const readCacheMeta = (cacheRoot, identity, mode) => {
   const profile = resolveEmbeddingCacheProfile({ cacheRoot, identity });
   const paths = [resolveCacheMetaPath(cacheRoot, identity, mode),
     path.join(resolveEmbeddingsCacheModeDir(profile.legacy, mode), 'cache.meta.json')];
-  for (const [index, metaPath] of paths.entries()) {
+  for (const metaPath of paths) {
     try {
       const parsed = JSON.parse(fsSync.readFileSync(metaPath, 'utf8'));
-      if (index === 0 || parsed?.identityKey === identityKey) return parsed;
+      if (parsed?.identityKey === identityKey) return parsed;
     } catch { /* Missing/corrupt compatibility metadata is not authority. */ }
   }
   return null;

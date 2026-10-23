@@ -5,7 +5,7 @@ import { createTempPath, replaceFile } from './json-stream/atomic.js';
 import { joinPathSafe } from './path-normalize.js';
 import { resolveBinaryArtifactPath } from './artifact-io/manifest.js';
 import { decodeDenseVectorValidity } from './dense-vector-validity.js';
-import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from './embedding-quantization-spec.js';
+import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec, resolveDenseQuantizationSpec } from './embedding-quantization-spec.js';
 import {
   normalizeDenseVectorMeta,
   resolveDenseVectorCountFromBuffer
@@ -171,13 +171,19 @@ const hydrateDenseVectorFromBinaryBuffer = ({
 }) => {
   const normalizedMeta = normalizeDenseVectorMeta(meta);
   if (!normalizedMeta) return null;
+  const spec = resolveDenseQuantizationSpec(normalizedMeta);
   decodeDenseVectorValidity(normalizedMeta);
   const relPath = typeof normalizedMeta.path === 'string' && normalizedMeta.path
     ? normalizedMeta.path
     : `${baseName}.bin`;
   const view = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
   const { dims, count, requiredBytes } = resolveDenseVectorCountFromBuffer(normalizedMeta, view.length);
-  if (!dims || !count || view.length < requiredBytes) return null;
+  if (!dims || !count || view.length !== requiredBytes) return null;
+  const validity = decodeDenseVectorValidity(normalizedMeta);
+  for (let row = 0; row < count; row++) {
+    if (validity && !(validity[row >> 3] & (1 << (row & 7)))) continue;
+    assertQuantizedEmbeddingRow(view.subarray(row * dims, (row + 1) * dims), { spec, dims, allowEmpty: false });
+  }
   return {
     ...normalizedMeta,
     model: normalizedMeta.model || modelId || null,

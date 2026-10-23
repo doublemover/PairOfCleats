@@ -9,6 +9,10 @@ import { iterateDenseVectorBinaryRows } from '../../../src/shared/dense-vector-s
 import { encodeEmbeddingsCache, decodeEmbeddingsCache } from '../../../src/shared/embeddings-cache/format.js';
 import { resolveEmbeddingQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { resolveVectorsSource } from '../../../tools/build/embeddings/vector-source.js';
+import { loadDenseVectorBinaryFromMetaAsync } from '../../../src/shared/dense-vector-binary.js';
+import { materializeDenseVectorRows } from '../../../src/shared/dense-vector-meta.js';
+import { quantizeEmbeddingVectorUint8 } from '../../../src/shared/embedding-quantization.js';
 
 for (const quantization of [{}, { minVal: -2, maxVal: 2, levels: 16 }, { minVal: -.75, maxVal: .5, levels: 128 }]) {
   const spec = resolveEmbeddingQuantizationSpec(quantization);
@@ -44,6 +48,15 @@ assert.equal(meta.validity.validCount, 1);
 const rows = [];
 for await (const row of iterateDenseVectorBinaryRows({ root: dir, filename: path.join(dir, meta.path), meta })) rows.push([...row.vector]);
 assert.deepEqual(rows, [[9, 6], []]);
+const direct = await loadDenseVectorBinaryFromMetaAsync({ dir, baseName: 'dense_vectors_uint8', meta });
+assert.deepEqual(materializeDenseVectorRows(direct).map(row => [...row]), rows);
+const textual = resolveVectorsSource(path.join(dir, 'dense_vectors_uint8.json'), { preferBinary: false, expectedDims: 2, expectedQuantization: spec });
+const textualRows = [];
+for await (const row of textual.rows) textualRows.push([...row.vector]);
+assert.deepEqual(textualRows, rows);
+assert.throws(() => resolveVectorsSource(path.join(dir, 'dense_vectors_uint8.json'), {
+  preferBinary: false, expectedQuantization: { ...spec, levels: 128 } }), /source codec disagrees/);
+assert.throws(() => materializeDenseVectorRows({ ...meta, quantizationVersion: 999, vectors }), /Unsupported dense quantization codec/);
 const payload = { cacheMeta: { identity, identityKey: 'fixture' }, codeVectors: vectors, docVectors: [[], []], mergedVectors: vectors };
 const cached = await decodeEmbeddingsCache(await encodeEmbeddingsCache(payload));
 assert.deepEqual(cached.mergedVectors.map(row => [...row]), [[9, 6], []]);
@@ -52,8 +65,15 @@ await assert.rejects(encodeEmbeddingsCache({ ...payload, codeVectors: [[1.5, 1],
 await assert.rejects(writeDenseVectorArtifacts({ indexDir: dir, baseName: 'bad', vectors: [[16, 1]],
   vectorFields: { dims: 2, embeddingIdentity: identity, minVal: -2, maxVal: 2, levels: 16 } }), /Invalid quantized value/);
 await fs.writeFile(path.join(dir, meta.path), Uint8Array.of(16, 1, spec.paddingValue, spec.paddingValue));
+assert.equal(await loadDenseVectorBinaryFromMetaAsync({ dir, baseName: 'dense_vectors_uint8', meta }), null);
+assert.throws(() => materializeDenseVectorRows({ ...meta, vectors: [[16, 1], []] }), /Invalid quantized value/);
 await assert.rejects(async () => { for await (const row of iterateDenseVectorBinaryRows({ root: dir, filename: path.join(dir, meta.path), meta })) void row; }, /Invalid quantized value/);
 for (const quantization of [{ minVal: 1, maxVal: 1 }, { minVal: 2, maxVal: -2 }, { levels: Infinity }, { minVal: NaN }]) {
   assert.throws(() => resolveEmbeddingQuantizationSpec(quantization), /Quantization/);
+}
+for (const levels of [2, 16, 128, 256]) {
+  const actual = quantizeEmbeddingVectorUint8([-3, -2, -1, 0, 1, 2, 3], -2, 2, levels);
+  assert.deepEqual([...actual], [0, 0, Math.round((levels - 1) / 4), Math.round((levels - 1) / 2),
+    Math.round(3 * (levels - 1) / 4), levels - 1, levels - 1]);
 }
 console.log('Inline/deferred bytes, dense metadata, binary streaming and cache admission share one immutable effective codec.');

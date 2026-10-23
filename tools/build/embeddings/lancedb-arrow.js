@@ -2,11 +2,13 @@ import { DataType, Field, FixedSizeList, Float32, Int64, Schema, Struct,
   RecordBatch, Table, makeData } from 'apache-arrow';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
+import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
 
 /** One schema for every batch, independent of configured column spelling. */
 export const createLanceVectorContract = ({ dims, idColumn, embeddingColumn, batchSize,
   quantization, normalize }) => {
   if (!Number.isSafeInteger(dims) || dims < 1) throw new Error('LanceDB dimensions must be a positive integer.');
+  const spec = resolveEmbeddingQuantizationSpec(quantization);
   if (idColumn === embeddingColumn) throw new Error('LanceDB ID and vector columns must differ.');
   const rowBytes = dims * Float32Array.BYTES_PER_ELEMENT + BigInt64Array.BYTES_PER_ELEMENT;
   if (!Number.isSafeInteger(rowBytes) || rowBytes > 16 * 1024 * 1024) throw new Error('LanceDB vector exceeds the bounded batch byte limit.');
@@ -24,11 +26,12 @@ export const createLanceVectorContract = ({ dims, idColumn, embeddingColumn, bat
       if (!Number.isSafeInteger(id) || id < 0) throw new Error('LanceDB document ID is invalid.');
       if (!vector || vector.length !== dims) throw new Error(`LanceDB vector dimension mismatch at document ${id}.`);
       for (let i = 0; i < dims; i++) if (!Number.isFinite(vector[i])) throw new Error(`LanceDB vector is non-finite at document ${id}.`);
+      assertQuantizedEmbeddingRow(vector, { spec, dims, allowEmpty: false });
       // Decode directly into this batch's owned row. The shared decoder retains
       // identical Float32 rounding before normalization without a per-row buffer
       // allocation and subsequent copy into the contiguous column.
       const destination = values.subarray(count * dims, (count + 1) * dims);
-      const decoded = dequantizeUint8ToFloat32(vector, quantization?.minVal, quantization?.maxVal, quantization?.levels, destination);
+      const decoded = dequantizeUint8ToFloat32(vector, spec.minVal, spec.maxVal, spec.levels, destination);
       if (!decoded || !decoded.every(Number.isFinite)) throw new Error('LanceDB decoded vector is invalid.');
       if (normalize !== false) normalizeEmbeddingVectorInPlace(decoded);
       ids[count] = BigInt(id);

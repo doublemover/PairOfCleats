@@ -98,10 +98,10 @@ import {
 } from './cache.js';
 import { flushCacheIndexIfNeeded } from './cache-flush.js';
 import { buildReferencedFileCache, hydrateReferencedFileCache } from './cache/file-references.js';
+import { hasReusableQuantizedChannels, buildOrReuseQuantizedChannels } from './quantized-channels.js';
 import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
 import {
   assertVectorArrays,
-  buildQuantizedVectors,
   createDimsValidator,
   ensureVectorArrays,
   isDimsMismatch,
@@ -2376,7 +2376,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                 const codeVec = ensureVectorArrays(cached.codeVectors, 1)[0] || [];
                 const docVec = ensureVectorArrays(cached.docVectors, 1)[0] || [];
                 const mergedVec = ensureVectorArrays(cached.mergedVectors, 1)[0] || [];
-                if (!isNonEmptyVector(codeVec) || !isNonEmptyVector(docVec) || !isNonEmptyVector(mergedVec)) {
+                if (!hasReusableQuantizedChannels({ code: codeVec, doc: docVec, merged: mergedVec }, { quantization, dims: cacheDims })) {
                   globalChunkCacheRejected += 1;
                   return { cacheKey, vectors: null, rejected: true };
                 }
@@ -2926,7 +2926,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           }
         }, progressHeartbeatMs);
 
-        let sharedZeroVec = new Float32Array(0);
         /**
          * Update per-mode progress/cache counters after one file completion.
          *
@@ -2975,12 +2974,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             if (isVectorLike(vec) && vec.length) assertDims(vec.length);
           }
 
-          const dims = dimsValidator.getDims();
-          if (dims && sharedZeroVec.length !== dims) {
-            sharedZeroVec = new Float32Array(dims);
-          }
-          const zeroVec = sharedZeroVec;
-
           const cachedCodeVectors = [];
           const cachedDocVectors = [];
           const cachedMergedVectors = [];
@@ -2988,24 +2981,18 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             const reusedCode = reuse?.code?.[i];
             const reusedDoc = reuse?.doc?.[i];
             const reusedMerged = reuse?.merged?.[i];
-            if (isNonEmptyVector(reusedCode) && isNonEmptyVector(reusedDoc) && isNonEmptyVector(reusedMerged)) {
-              assertDims(reusedCode.length);
-              assertDims(reusedDoc.length);
-              assertDims(reusedMerged.length);
-              cachedCodeVectors.push(reusedCode);
-              cachedDocVectors.push(reusedDoc);
-              cachedMergedVectors.push(reusedMerged);
-              continue;
-            }
             const embedCode = isVectorLike(fileCodeEmbeds[i]) ? fileCodeEmbeds[i] : [];
             const embedDoc = isVectorLike(docVectorsRaw[i]) ? docVectorsRaw[i] : [];
-            const quantized = buildQuantizedVectors({
+            const quantized = buildOrReuseQuantizedChannels({
+              reused: { code: reusedCode, doc: reusedDoc, merged: reusedMerged },
               codeVector: embedCode,
               docVector: embedDoc,
-              zeroVector: zeroVec,
               quantization,
               normalize: embeddingNormalize
             });
+            assertDims(quantized.quantizedCode.length);
+            assertDims(quantized.quantizedDoc.length);
+            assertDims(quantized.quantizedMerged.length);
             cachedCodeVectors.push(quantized.quantizedCode);
             cachedDocVectors.push(quantized.quantizedDoc);
             cachedMergedVectors.push(quantized.quantizedMerged);
@@ -3019,7 +3006,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
               const codeVec = cachedCodeVectors[i] || null;
               const docVec = cachedDocVectors[i] || null;
               const mergedVec = cachedMergedVectors[i] || null;
-              if (!isNonEmptyVector(codeVec) || !isNonEmptyVector(docVec) || !isNonEmptyVector(mergedVec)) {
+              if (!hasReusableQuantizedChannels({ code: codeVec, doc: docVec, merged: mergedVec }, { quantization, dims: cacheDims })) {
                 continue;
               }
               if (!crossFileChunkDedupe.has(chunkHash)) {
@@ -3479,9 +3466,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                 const deduped = chunkHash ? crossFileChunkDedupe.get(chunkHash) : null;
                 if (
                   deduped
-                  && isNonEmptyVector(deduped.code)
-                  && isNonEmptyVector(deduped.doc)
-                  && isNonEmptyVector(deduped.merged)
+                  && hasReusableQuantizedChannels(deduped, { quantization, dims: cacheDims, hasDoc: Boolean(chunkDocTexts[i]) })
                 ) {
                   reuse.code[i] = deduped.code;
                   reuse.doc[i] = deduped.doc;
@@ -3502,9 +3487,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                   const vectors = globalChunkCached?.vectors || null;
                   if (
                     vectors
-                    && isNonEmptyVector(vectors.code)
-                    && isNonEmptyVector(vectors.doc)
-                    && isNonEmptyVector(vectors.merged)
+                    && hasReusableQuantizedChannels(vectors, { quantization, dims: cacheDims, hasDoc: Boolean(chunkDocTexts[i]) })
                   ) {
                     reuse.code[i] = vectors.code;
                     reuse.doc[i] = vectors.doc;

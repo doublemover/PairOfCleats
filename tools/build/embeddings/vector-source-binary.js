@@ -6,6 +6,7 @@ import { readVerifiedContainedFileSync } from '../../../src/shared/contained-fil
 import { normalizeDenseVectorStreamMeta, iterateDenseVectorBinaryRows } from '../../../src/shared/dense-vector-stream.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { createXxhash64Hasher } from '../../../src/shared/hash/xxhash-backend.js';
+import { resolveDenseQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
 
 const invalid = message => Object.assign(new Error(message), { code: 'ERR_DENSE_VECTOR_SOURCE_IDENTITY' });
 const fields = value => value?.fields || value;
@@ -30,7 +31,7 @@ const readMetadata = (dir, filename, entry = null) => {
 /** Only a manifest-selected binary and its metadata may replace textual ANN
  * handoff. An undeclared neighboring binary is never discovered implicitly. */
 export const resolveBinaryVectorsSource = ({ dir, artifactBase, manifest, expectedDims = null, expectedModelId = null,
-  expectedEmbeddingIdentity = null, expectedEmbeddingGeneration = null, signal = null, metrics = null }) => {
+  expectedEmbeddingIdentity = null, expectedEmbeddingGeneration = null, expectedQuantization = null, signal = null, metrics = null }) => {
   const descriptor = Object.entries(DENSE_VECTOR_BINARY_ARTIFACTS).find(([name, spec]) => name === artifactBase || spec.baseName === artifactBase);
   if (!descriptor) return null;
   const [name, spec] = descriptor;
@@ -42,6 +43,7 @@ export const resolveBinaryVectorsSource = ({ dir, artifactBase, manifest, expect
   const metaPath = resolveBinaryArtifactPath(dir, spec.metaName, { manifest, strict: true });
   const metadata = readMetadata(dir, metaPath, metaEntries[0]);
   const meta = normalizeDenseVectorStreamMeta(metadata.meta);
+  resolveDenseQuantizationSpec(meta, expectedQuantization);
   if (meta.format !== 'uint8-row-major' || (meta.artifact != null && meta.artifact !== spec.baseName)
     || (expectedDims != null && meta.dims !== expectedDims) || (expectedModelId != null && meta.model !== expectedModelId)
     || (expectedEmbeddingIdentity != null && stableStringify(meta.embeddingIdentity) !== stableStringify(expectedEmbeddingIdentity))

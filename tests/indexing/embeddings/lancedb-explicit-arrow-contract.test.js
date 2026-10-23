@@ -28,4 +28,11 @@ for (const embeddingColumn of ['vector', 'embedding', 'features']) {
 assert.throws(() => normalizeLanceDbConfig({ idColumn: 'same', embeddingColumn: 'same' }), /distinct/);
 const bounded = createLanceVectorContract({ dims: 4096, idColumn: 'id', embeddingColumn: 'features', batchSize: 1e9, normalize: false });
 assert.ok(bounded.capacity * (4096 * 4 + 8) <= 16 * 1024 * 1024);
+const smaller = createLanceVectorContract({ dims: 2, idColumn: 'id', embeddingColumn: 'features', batchSize: 2,
+  quantization: { minVal: -2, maxVal: 2, levels: 16 }, normalize: false });
+assert.throws(() => smaller.append(0, [16, 1]), /Invalid quantized value/);
+assert.throws(() => smaller.append(0, [1.5, 1]), /Invalid quantized value/);
+smaller.append(2, [15, 0]);
+assert.deepEqual([...smaller.take().getChild('features').get(0)], [2, -2]);
+smaller.release();
 console.log('explicit byte-bounded Arrow schema and ingestion-buffer ownership');

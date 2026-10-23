@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { atomicWriteText } from '../../../../src/shared/io/atomic-write.js';
@@ -157,7 +158,9 @@ export const checkpointEmbeddingIndex = async (directory, index) => {
   const key = JSON.stringify([path.resolve(directory), index.identityKey]); records.delete(key);
   await atomicWriteText(filenames.legacy, payload);
   await atomicWriteText(filenames.canonical, payload);
-  const handle = await fs.open(filenames.log, 'a+');
+  // Windows append-only handles cannot truncate a retired journal. The cache
+  // writer lock already owns ordering; use read/write access and explicit offsets.
+  const handle = await fs.open(filenames.log, fsConstants.O_RDWR | fsConstants.O_CREAT);
   try { verifyContainedFileHandle(handle, directory, filenames.log); await handle.truncate(0); await handle.sync(); }
   finally { await handle.close(); }
 };
@@ -179,7 +182,7 @@ export const appendEmbeddingIndexDelta = async (directory, index, { keys = [], f
   const payload = Buffer.from(JSON.stringify(delta)); metrics.deltaSerializations++; metrics.encodedBytes += payload.length;
   if (payload.length > MAX_FRAME_BYTES || record.offset + payload.length + 36 > MAX_INDEX_BYTES) { await checkpointEmbeddingIndex(directory, index); return; }
   assertNoSymlinkPath(directory, filenames.log, { allowMissing: true });
-  const handle = await fs.open(filenames.log, 'a+');
+  const handle = await fs.open(filenames.log, fsConstants.O_RDWR | fsConstants.O_CREAT);
   try {
     verifyContainedFileHandle(handle, directory, filenames.log);
     if (record.partial) await handle.truncate(record.offset);
@@ -187,7 +190,7 @@ export const appendEmbeddingIndexDelta = async (directory, index, { keys = [], f
     const frame = Buffer.concat([prefix, payload, createHash('sha256').update(payload).digest()]);
     let offset = 0;
     while (offset < frame.length) {
-      const part = await handle.write(frame, offset, frame.length - offset, null);
+      const part = await handle.write(frame, offset, frame.length - offset, record.offset + offset);
       if (!part.bytesWritten) throw failure('Embedding index delta append made no progress.');
       offset += part.bytesWritten;
     }

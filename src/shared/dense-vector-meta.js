@@ -1,4 +1,5 @@
 import { decodeDenseVectorValidity, isDenseVectorRowPresent } from './dense-vector-validity.js';
+import { assertQuantizedEmbeddingRow, resolveDenseQuantizationSpec } from './embedding-quantization-spec.js';
 const toPositiveInteger = (value) => {
   const number = Number(value);
   return Number.isFinite(number) && number > 0
@@ -60,8 +61,12 @@ export const isDenseVectorPayloadAvailable = (denseVec) => {
  * @returns {Array<Uint8Array|number[]>}
  */
 export const materializeDenseVectorRows = (denseVec) => {
+  const spec = resolveDenseQuantizationSpec(denseVec);
   if (Array.isArray(denseVec?.vectors)) {
     decodeDenseVectorValidity(denseVec);
+    for (const [id, vector] of denseVec.vectors.entries()) if (isDenseVectorRowPresent(denseVec, id)) {
+      assertQuantizedEmbeddingRow(vector, { spec, dims: denseVec.dims ?? null });
+    }
     return denseVec.validity && denseVec.validity.validCount !== denseVec.vectors.length
       ? denseVec.vectors.map((vector, id) => isDenseVectorRowPresent(denseVec, id) ? vector : new Uint8Array(0))
       : denseVec.vectors;
@@ -74,6 +79,7 @@ export const materializeDenseVectorRows = (denseVec) => {
   for (let row = 0; row < count; row += 1) {
     const start = row * dims;
     rows[row] = isDenseVectorRowPresent(denseVec, row) ? buffer.subarray(start, start + dims) : new Uint8Array(0);
+    assertQuantizedEmbeddingRow(rows[row], { spec, dims });
   }
   return rows;
 };
