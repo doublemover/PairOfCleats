@@ -40,7 +40,8 @@ export const readStorageFailureContext = error => {
  * producer passes secondaryPresent:true for a caught null/undefined failure.
  */
 export const addStorageFailureContext = (value, fields = {}, secondary = null,
-  { nonEnumerable = [], secondaryPresent = secondary !== null && secondary !== undefined } = {}) => {
+  { nonEnumerable = [], secondaryPresent = secondary !== null && secondary !== undefined,
+    forceAggregate = false } = {}) => {
   const primary = asError(value);
   const additional = secondaryPresent && secondary !== primary ? asError(secondary) : null;
   const inspections = [], inspectionObservations = [], observers = [], observed = new WeakSet();
@@ -108,7 +109,7 @@ export const addStorageFailureContext = (value, fields = {}, secondary = null,
       storageContextInspectionErrors: { get: () => snapshotContext(state).inspectionErrors, configurable: true }
     } : {})
   });
-  let useAggregate = Boolean(additional || inspections.length || state.parents.length || overflow);
+  let useAggregate = Boolean(forceAggregate || additional || inspections.length || state.parents.length || overflow);
   if (!useAggregate) {
     try {
       useAggregate = !Object.isExtensible(primary) || Object.hasOwn(primary, 'storageContextInspectionErrors')

@@ -38,12 +38,12 @@ const release = owner => {
   return true;
 };
 
-const rememberFailure = (error, owner) => {
+const rememberFailure = (error, owner, originalObservation = null) => {
   const state = owners.get(owner);
   if (!state) throw new TypeError('Build runtime storage requires its actual admitted owner.');
   if (retainedErrors.get(error) === owner || state.pending.has(error) || isStorageSessionReleaseFailure(error, owner.session)) return;
   const inspectionErrors = [];
-  const observe = pendingObserver(error, inspectionErrors);
+  const observe = originalObservation || pendingObserver(error, inspectionErrors);
   if (observe) {
     if (state.pending.size >= 128) state.unknownPending = true;
     else state.pending.set(error, observe);
@@ -54,14 +54,26 @@ const rememberFailure = (error, owner) => {
   }
 };
 
-const retainedFailure = (error, owner, { cleanupError, cleanupFailed = false, runtime = null } = {}) => {
-  rememberFailure(error, owner);
+const retainedFailure = (error, owner, { cleanupError, cleanupFailed = false, runtime = null,
+  originalObservations = [] } = {}) => {
+  const capturedErrors = new Set(originalObservations.map(observation => observation.error));
+  const independentObservations = originalObservations.filter(observation => retainedErrors.get(observation.error) !== owner
+    && !isStorageSessionReleaseFailure(observation.error, owner.session));
+  for (const observation of independentObservations) rememberFailure(observation.error, owner, observation.observe);
+  // The teardown aggregate is composed only from these captured originals. Its
+  // public closure may include this exact owner's earlier outward failure; do
+  // not turn that diagnostic into a self-settlement prerequisite.
+  if (!originalObservations.length) rememberFailure(error, owner);
   if (cleanupFailed) rememberFailure(cleanupError, owner);
   const state = owners.get(owner);
-  const failure = createRuntimeFailure(error, { cleanupError, cleanupFailed, additionalErrors: state.inspectionErrors });
+  const failure = createRuntimeFailure(error, { cleanupError, cleanupFailed,
+    additionalErrors: [...state.inspectionErrors, ...independentObservations.map(observation => observation.context)] });
   // Diagnostic inspection can itself fail with an independent resource owner.
   // Capture each original observation before exposing the aggregate.
-  for (const original of failure.errors) rememberFailure(original, owner);
+  for (const original of failure.errors) {
+    if (originalObservations.length && (original === error || capturedErrors.has(original))) continue;
+    rememberFailure(original, owner);
+  }
   for (const original of state.inspectionErrors) if (!failure.errors.includes(original)) failure.errors.push(original);
   if (!Object.hasOwn(failure, 'code')) Object.defineProperty(failure, 'code', { value: 'ERR_INDEX_RUNTIME_STORAGE_PENDING', enumerable: true });
   Object.defineProperties(failure, {
@@ -77,9 +89,11 @@ const retainedFailure = (error, owner, { cleanupError, cleanupFailed = false, ru
 /** Only the actual runtime teardown calls this after all of its resource steps
  * finish. A failed step retains the category even when other steps succeeded.
  */
-export const retainBuildRuntimeStorageFailure = (runtime, error) => {
+export const retainBuildRuntimeStorageFailure = (runtime, error, {
+  originalObservations = [], unownedFailure = error
+} = {}) => {
   const owner = runtime?.indexRuntimeStorage;
-  return owners.has(owner) ? retainedFailure(error, owner, { runtime }) : error;
+  return owners.has(owner) ? retainedFailure(error, owner, { runtime, originalObservations }) : unownedFailure;
 };
 
 export const releaseBuildRuntimeStorage = runtime => {

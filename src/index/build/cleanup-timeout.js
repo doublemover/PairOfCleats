@@ -78,6 +78,7 @@ export const runBuildCleanupWithTimeout = async ({
   const resolvedTimeoutMs = resolveBuildCleanupTimeoutMs(timeoutMs);
   const startedAtMs = Date.now();
   let cleanupOperation = null;
+  let cleanupTimeoutError = null;
   const runCleanup = () => {
     if (!cleanupOperation) {
       cleanupOperation = trackPendingCleanupOperation(Promise.resolve().then(() => cleanup()));
@@ -108,6 +109,7 @@ export const runBuildCleanupWithTimeout = async ({
             timeoutMs: resolvedTimeoutMs
           }
           });
+          cleanupTimeoutError = error;
           if (deadlineOwner && typeof deadlineOwner === 'object') ownedTimeoutErrors.set(error, deadlineOwner);
           return error;
         }
@@ -120,7 +122,9 @@ export const runBuildCleanupWithTimeout = async ({
       pending: false
     };
   } catch (error) {
-    if (error?.code !== 'BUILD_CLEANUP_TIMEOUT') throw error;
+    // Only this timer's actual exception is a cleanup deadline. An external
+    // code/getter cannot replace a primary or impersonate timeout ownership.
+    if (cleanupTimeoutError === null || error !== cleanupTimeoutError) throw error;
     const elapsedMs = Math.max(0, Date.now() - startedAtMs);
     const pending = Boolean(cleanupOperation) && pendingCleanupOperations.has(cleanupOperation);
     if (pending) {

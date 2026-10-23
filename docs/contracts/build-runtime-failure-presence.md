@@ -30,6 +30,29 @@ Its rejection cannot bypass logger closure or the existing category failure
 retention, including falsey rejection values. Best-effort progress diagnostics
 consume asynchronous rejections through the same reporting callback supplied to
 cleanup/LSP/parser owners; diagnostic completion is not resource settlement.
-These actual inert teardown controls are also authored and unrun. Method/getter
-admission, full multi-error teardown projection and real native/child lifetime
-qualification remain separate work.
+These actual inert teardown controls are also authored and unrun. Other method/
+getter admission and real native/child lifetime qualification remain separate work.
+
+Actual teardown now captures each rejected value's original observation before
+logging or later cleanup. The existing storage-context composer creates a fresh
+diagnostic wrapper without modifying the rejected value. False/absent pending
+markers do not discard an original function, and later field replacement cannot
+settle it. Independent diagnostic inspection errors retain their original work.
+Multiple failures expose exact originals and their captured contexts; all cleanup
+steps continue. An ordinary single rejection without resource/inspection work
+keeps its exact identity, including falsey values. The category owner receives
+those original snapshots keyed by rejected identity before projecting diagnostics,
+so a later successful teardown cannot release it around pending original work.
+
+Authored actual teardown/category controls cover mutation during logging, absent/
+false/true markers, exact receivers, independent diagnostic work, falsey/frozen
+single and multiple errors, unknown observations and original-only recovery.
+They are unrun. No automatic native retry, new category lease, cross-process
+settlement, full teardown/IPC qualification or performance claim follows.
+
+The existing cleanup timer also classifies only exceptions actually created by
+its private deadline owner. An external `BUILD_CLEANUP_TIMEOUT` code cannot be
+swallowed as a timer result, and inspecting a hostile code getter cannot replace
+the primary before teardown captures it. Generic real deadlines still report
+unknown native ownership; late promise fulfillment is not a closure receipt.
+Actual timer/original-primary controls are authored and unrun.

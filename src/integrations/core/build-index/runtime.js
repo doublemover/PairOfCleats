@@ -9,6 +9,7 @@ import {
 } from '../../../index/build/cleanup-timeout.js';
 import { drainLspSessionPool } from '../../tooling/providers/lsp/session-pool.js';
 import { releaseBuildRuntimeStorage, retainBuildRuntimeStorageFailure } from '../../../index/build/runtime/storage.js';
+import { captureRuntimeFailureObservation, composeRuntimeTeardownFailures } from '../../../index/build/runtime/failure.js';
 
 /**
  * Teardown build runtime resources (workers, scheduler, parser pools).
@@ -30,6 +31,7 @@ export const teardownRuntime = async (runtime) => {
     try { Promise.resolve(log(line)).catch(() => {}); } catch {}
   };
   const teardownErrors = [];
+  const teardownObservations = [];
   const runTeardownStepWithTimeout = async (label, cleanup, timeoutMs = cleanupTimeoutMs) => {
     const startedAtMs = Date.now();
     report(`[cleanup] ${label} start`);
@@ -43,8 +45,10 @@ export const teardownRuntime = async (runtime) => {
       });
       report(`[cleanup] ${label} done (${Math.max(0, Date.now() - startedAtMs)}ms)`);
     } catch (error) {
-      try { report(`[cleanup] ${label} failed after ${Math.max(0, Date.now() - startedAtMs)}ms: ${error?.message || error}`); } catch {}
+      const observation = captureRuntimeFailureObservation(error);
+      teardownObservations.push(observation);
       teardownErrors.push(error);
+      report(`[cleanup] ${label} failed after ${Math.max(0, Date.now() - startedAtMs)}ms: ${observation.context.message}`);
     }
   };
   await runTeardownStepWithTimeout(
@@ -133,17 +137,11 @@ export const teardownRuntime = async (runtime) => {
   await runTeardownStepWithTimeout('runtime.cache-writers.drain', () => runtime.cacheWriterDrain?.());
   await runTeardownStepWithTimeout('runtime.semantic-replay.clear', () => runtime.semanticReplayVerification?.clear());
   await runTeardownStepWithTimeout('runtime.logger.close', () => runtime.closeLogger?.());
-  if (teardownErrors.length === 1) {
-    throw retainBuildRuntimeStorageFailure(runtime, teardownErrors[0]);
-  }
-  if (teardownErrors.length > 1) {
-    const pending = teardownErrors.filter(error => error?.cacheOwnershipPending === true);
-    throw retainBuildRuntimeStorageFailure(runtime, Object.assign(new AggregateError(teardownErrors, '[cleanup] runtime teardown failed.'), {
-      cacheOwnershipPending: pending.length > 0,
-      ...(pending.length ? { cacheOwnershipReleased: () => pending.every(error => {
-        try { return error.cacheOwnershipReleased?.() === true; } catch { return false; }
-      }) } : {})
-    }));
+  if (teardownErrors.length) {
+    const failure = composeRuntimeTeardownFailures(teardownObservations);
+    throw retainBuildRuntimeStorageFailure(runtime, teardownErrors.length === 1 ? teardownErrors[0] : failure, {
+      originalObservations: teardownObservations, unownedFailure: failure
+    });
   }
   releaseBuildRuntimeStorage(runtime);
 };
