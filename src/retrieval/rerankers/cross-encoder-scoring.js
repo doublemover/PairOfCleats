@@ -6,12 +6,24 @@ import { captureCrossEncoderOutputs } from './cross-encoder-outputs.js';
 import { captureCrossEncoderRuntime, assertCapturedCrossEncoderRuntime, captureCrossEncoderTokens, captureCrossEncoderPair, captureCrossEncoderSource } from './cross-encoder-inputs.js';
 
 const invalid = message => Object.assign(new Error(message), { code: 'ERR_LOCAL_RERANKER_PROFILE' });
+const typedArrayPrototype = Object.getPrototypeOf(Float32Array.prototype);
+const typedArrayLength = Object.getOwnPropertyDescriptor(typedArrayPrototype, 'length').get;
+const typedArrayKind = Object.getOwnPropertyDescriptor(typedArrayPrototype, Symbol.toStringTag).get;
+const ownData = (original, name) => {
+  const descriptor = Object.getOwnPropertyDescriptor(original, name);
+  return descriptor && Object.hasOwn(descriptor, 'value') ? descriptor.value : undefined;
+};
 
 export const decodeCrossEncoderLogit = tensor => {
-  const type = tensor?.type, dims = tensor?.dims, data = tensor?.data;
-  if (type !== 'float32' || !Array.isArray(dims) || dims.length !== 2
-    || !Object.hasOwn(dims, 0) || !Object.hasOwn(dims, 1) || dims[0] !== 1 || dims[1] !== 1
-    || !(data instanceof Float32Array) || data.length !== 1) throw invalid('Cross-encoder must return exactly one finite FP32 logit.');
+  if (tensor?.type !== 'float32') throw invalid('Cross-encoder must return exactly one finite FP32 logit.');
+  const dims = tensor.dims;
+  if (!Array.isArray(dims) || ownData(dims, 'length') !== 2
+    || ownData(dims, 0) !== 1 || ownData(dims, 1) !== 1) throw invalid('Cross-encoder must return exactly one finite FP32 logit.');
+  // The supported runtime exposes data through its original CPU-data getter.
+  // Once returned, public length/prototype fields cannot replace native shape.
+  const data = tensor.data;
+  if (!ArrayBuffer.isView(data) || Reflect.apply(typedArrayKind, data, []) !== 'Float32Array'
+    || Reflect.apply(typedArrayLength, data, []) !== 1) throw invalid('Cross-encoder must return exactly one finite FP32 logit.');
   const logit = data[0];
   if (!Number.isFinite(logit)) throw invalid('Cross-encoder must return exactly one finite FP32 logit.');
   return logit >= 0 ? 1 / (1 + Math.exp(-logit)) : Math.exp(logit) / (1 + Math.exp(logit));

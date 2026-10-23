@@ -113,3 +113,19 @@ automatic recovery from opaque native result acquisition. Inspectable malformed
 rows still fail output admission while their captured tensor children receive
 normal cleanup. Actual runtime/output-layout and native recovery qualification
 remain separate; the new direct scorer and adapter controls are **UNVALIDATED**.
+
+Logit decoding admits the original dimensions as dense own passive data before
+requesting CPU data. A dimension accessor or malformed shape cannot trigger a
+later tensor-data read. The supported runtime's original CPU-data getter remains
+supported and is read once. The returned buffer must have the intrinsic typed
+array kind `Float32Array` and exactly one intrinsic element. A shadowed public
+length, replaced prototype, wider buffer, proxy or prototype-only lookalike
+cannot supply a single-logit FP32 witness. Decoding reads the admitted primitive
+logit once and requires it to be finite.
+
+Original dimension inspection failures retain their exact causes and pending
+work observers through the existing tensor owner; independent work must settle
+before any captured tensor disposal. The additional actual scorer/tensor and
+direct decoder controls are authored and **UNVALIDATED**. Installed runtime
+source inspection supports the expected dimensions/data layout; it does not
+qualify real native output behavior, concurrent buffer mutation or cleanup safety.
