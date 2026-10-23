@@ -74,3 +74,12 @@ cancellation or its budget, leaving unperformed accounting unknown. Canonical
 inventory and each category's own bounded reader retain their existing limits;
 these are read-only observations rather than a filesystem snapshot or vendor
 write-containment qualification.
+
+Category inspection also stops before starting a receipt revalidation, secondary
+scan or final lease check after cancellation or budget exhaustion. It reports
+the retained observations with `complete:false`, `stopReason` and an explicit
+unperformed lease revalidation; unscanned byte counts stay unknown. Dictionary
+inspection observes leases again only while its inspection remains admitted.
+The CLI rechecks cancellation after selected machine-configuration reads before
+resolving fallback layouts, locators or compatibility locations. Original pending
+resources still take precedence over an ordinary cancellation receipt.

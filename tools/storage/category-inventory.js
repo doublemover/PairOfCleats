@@ -24,12 +24,21 @@ export const inspectStorageCategory = async ({ category, root, home, request = n
     throw new TypeError('Category inventory requires a registered owner and explicit absolute root/home.');
   }
   root = path.resolve(root); home = path.resolve(home);
+  if (!Number.isSafeInteger(maxEntries) || maxEntries < 1 || !Number.isSafeInteger(maxDurationMs) || maxDurationMs < 1) {
+    throw new TypeError('Category inventory requires positive bounded limits.');
+  }
+  const started = Date.now();
+  const stopped = () => signal?.aborted ? 'cancelled' : Date.now() - started >= maxDurationMs ? 'time-budget' : null;
   const base = { schemaVersion: 1, category, path: root, home, timestamp: new Date().toISOString(),
     external: !isPathWithinRoot(root, home), scopeProvenance: 'explicit-read-only-category-inspection',
     mutationPerformed: false, deletionAuthority: false, cleanupAuthority: false };
+  const interrupted = (extra, stopReason = stopped()) => ({ ...base, ...extra, complete: false, status: stopReason, stopReason,
+    ownerQualified: false, leaseRevalidation: 'not-performed-budget-or-cancellation', logicalBytes: null, allocatedBytes: null });
+  if (stopped()) return interrupted({ lease: null });
   if (category === 'command-probes') base.policy = readStorageProbePolicy(home);
+  if (stopped()) return interrupted({ lease: null });
   if (category === 'managed-installations') return { ...await inspectManagedStorageReceipts({ root, home, registeredRoots,
-    maxEntries, maxDurationMs, signal }), ...base, owner: 'existing-managed-install-receipt-producer' };
+    maxEntries, maxDurationMs: Math.max(1, maxDurationMs - (Date.now() - started)), signal }), ...base, owner: 'existing-managed-install-receipt-producer' };
   if (category === 'embedding-profiles') {
     if (!request || request.schemaVersion !== 1 || request.kind !== 'embedding-storage-profile-request'
       || !request.identity || typeof request.identity !== 'object' || Array.isArray(request.identity)
@@ -37,33 +46,41 @@ export const inspectStorageCategory = async ({ category, root, home, request = n
       throw new TypeError('Embedding inventory requires a read-only full-identity profile request JSON.');
     }
     const profile = await inspectEmbeddingStorageProfile({ cacheRoot: root, identity: request.identity,
-      repoId: request.repoId || null, maxEntries, maxDurationMs, signal });
+      repoId: request.repoId || null, maxEntries, maxDurationMs: Math.max(1, maxDurationMs - (Date.now() - started)), signal });
     return { ...profile, ...base, complete: profile.complete, owner: 'existing-strict-embedding-index-and-reference-readers' };
   }
   const lease = await inspectStorageAccess(root, category === 'dictionaries'
     ? { coordinationRoot: path.join(home, 'state', 'storage-access') } : {});
+  if (stopped()) return interrupted({ lease });
   if (lease.protected || !lease.complete) return { ...base, complete: false, status: 'active-or-unknown-owner', lease,
     logicalBytes: null, allocatedBytes: null, ownerQualified: false };
   if (category === 'dictionaries') {
     try {
-      const inventory = await inspectDictionaryStorage({ root, maxEntries, maxDurationMs, signal });
-      return { ...base, inventory, lease, complete: inventory.complete, status: 'known-consumer-bytes-observed',
+      const inventory = await inspectDictionaryStorage({ root, maxEntries,
+        maxDurationMs: Math.max(1, maxDurationMs - (Date.now() - started)), signal });
+      if (stopped()) return interrupted({ inventory, lease });
+      const afterLease = await inspectStorageAccess(root, { coordinationRoot: path.join(home, 'state', 'storage-access') });
+      if (stopped()) return interrupted({ inventory, lease, afterLease });
+      return { ...base, inventory, lease, complete: inventory.complete && afterLease.complete && !afterLease.protected, status: 'known-consumer-bytes-observed',
+        afterLease, leaseRevalidation: 'observed',
         ownerQualified: false, consumerSchemaRecognized: true, retention: 'includes-durable-user-and-repository-dictionaries',
         limitation: 'Read-only category recognition grants neither migration permission proof nor cleanup authority.' };
     } catch (error) { return { ...base, complete: false, ownerQualified: false, status: 'unknown-or-incomplete-category',
       lease, logicalBytes: null, allocatedBytes: null, error: errorRecord(error) }; }
   }
-  const started = Date.now();
   const physical = await inspectStorageInventory({ roots: [{ id: 'command-probes', category, path: root,
-    retention: 'derived' }], maxEntries, maxDurationMs, signal, includeFiles: true });
+    retention: 'derived' }], maxEntries, maxDurationMs: Math.max(1, maxDurationMs - (Date.now() - started)), signal, includeFiles: true });
   const files = [];
+  if (physical.stopReason) return interrupted({ physical, files, lease }, physical.stopReason);
   let complete = physical.complete;
   for (const file of physical.items[0].files || []) {
-    if (signal?.aborted || Date.now() - started >= maxDurationMs) { complete = false; break; }
+    if (stopped()) { complete = false; break; }
     const target = path.join(root, file.relativePath);
     try {
       const read = readToolingCacheEntry(target);
+      if (stopped()) { complete = false; break; }
       const after = storageFileIdentity(await fs.lstat(target, { bigint: true }));
+      if (stopped()) { complete = false; break; }
       const qualified = path.basename(file.relativePath) === file.relativePath
         && isOwnedCommandProbeCacheEntry(read.payload, file.relativePath) && sameStorageFileIdentity(file.identity, after);
       files.push({ path: target, ownerQualified: qualified, protected: !qualified, retention: qualified ? 'derived' : 'unknown',
@@ -73,9 +90,10 @@ export const inspectStorageCategory = async ({ category, root, home, request = n
     } catch (error) { complete = false; files.push({ path: target, ownerQualified: false, protected: true,
       retention: 'unknown', logicalBytes: null, allocatedBytes: null, error: errorRecord(error), deletionAuthority: false }); }
   }
+  if (stopped()) return interrupted({ physical, files, lease, protectedFiles: files.filter(file => file.protected).length });
   const afterLease = await inspectStorageAccess(root);
-  if (!afterLease.complete || afterLease.protected) complete = false;
+  if (stopped() || !afterLease.complete || afterLease.protected) complete = false;
   return { ...base, complete, status: complete ? 'observed-owner-files' : 'incomplete-or-concurrent-owner', physical, files,
-    lease: afterLease, protectedFiles: files.filter(file => file.protected).length,
+    lease: afterLease, leaseRevalidation: 'observed', stopReason: stopped(), protectedFiles: files.filter(file => file.protected).length,
     owner: 'complete-command-probe-producer-key', measurement: 'observed-files-not-a-filesystem-snapshot' };
 };

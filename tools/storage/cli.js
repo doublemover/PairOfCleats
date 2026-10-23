@@ -39,7 +39,9 @@ export const runStorageCli = async (rawArgs = process.argv.slice(2), { signal = 
     signal?.throwIfAborted();
     if (!file) throw new Error('This storage action requires --plan.');
     const target = path.resolve(file);
-    return JSON.parse((await readVerifiedContainedFile(path.parse(target).root, target, { maxBytes: 32 * 1024 * 1024, signal })).buffer.toString('utf8'));
+    const read = await readVerifiedContainedFile(path.parse(target).root, target, { maxBytes: 32 * 1024 * 1024, signal });
+    signal?.throwIfAborted();
+    return JSON.parse(read.buffer.toString('utf8'));
   };
 
   let action = String(argv._[0] || 'list'), mutationStarted = false;
@@ -52,6 +54,7 @@ export const runStorageCli = async (rawArgs = process.argv.slice(2), { signal = 
     try { ({ repoRoot, userConfig } = resolveRepoConfig(argv.repo)); }
     catch (error) { configurationErrors.push({ source: 'repository-config', path: repoRoot,
       ...describeStorageFailure(error, { phase: 'storage-cli-repository-config', defaultCode: 'ERR_STORAGE_REPO_CONFIG' }), authorityGranted: false }); }
+    signal?.throwIfAborted();
     let configPath = null;
     let machineConfig = null;
     try {
@@ -61,6 +64,7 @@ export const runStorageCli = async (rawArgs = process.argv.slice(2), { signal = 
     } catch (error) { configurationErrors.push({ source: 'machine-config', path: argv['machine-config'] || null,
       ...describeStorageFailure(error, { phase: 'storage-cli-machine-config', defaultCode: 'ERR_STORAGE_MACHINE_CONFIG' }), authorityGranted: false });
     configPath = null; machineConfig = null; }
+    signal?.throwIfAborted();
     const layoutInput = { home: argv.home || null, machineConfig, machineConfigPath: configPath,
       overrides: argv['cache-root'] ? { cache: argv['cache-root'] } : {} };
     let layout;
@@ -68,12 +72,15 @@ export const runStorageCli = async (rawArgs = process.argv.slice(2), { signal = 
     catch (error) {
       configurationErrors.push({ source: 'machine-storage-layout', path: configPath,
         ...describeStorageFailure(error, { phase: 'storage-cli-layout', defaultCode: 'ERR_STORAGE_LAYOUT' }), authorityGranted: false });
+      signal?.throwIfAborted();
       layout = resolveStorageLayout({ ...layoutInput, machineConfig: null, machineConfigPath: null });
     }
+    signal?.throwIfAborted();
     let storageLocator = null;
     try { storageLocator = readStorageLocator(layout.home.path); layout = applyStorageLocatorSelections(layout, storageLocator); }
     catch (error) { configurationErrors.push({ source: 'active-storage-locator',
       ...describeStorageFailure(error, { phase: 'storage-cli-locator', defaultCode: 'ERR_STORAGE_LOCATOR' }), authorityGranted: false }); }
+    signal?.throwIfAborted();
     const cacheRoot = layout.descriptors.cache.path;
     let legacy = [];
     let currentCache;
@@ -127,9 +134,11 @@ export const runStorageCli = async (rawArgs = process.argv.slice(2), { signal = 
     }
     else if (['inspect', 'doctor'].includes(action) && diagnosticScope.adapter) {
       const inspect = action === 'doctor' ? diagnoseStorageCategory : inspectStorageCategory;
+      const request = argv.plan ? await readPlan(argv.plan) : null;
+      signal?.throwIfAborted();
       receipt = await inspect({ category: argv.category, root: diagnosticScope.root, home: layout.home.path,
         registeredRoots: [...Object.values(layout.descriptors).map(descriptor => descriptor.path), ...legacy.map(entry => entry.path)],
-        request: argv.plan ? await readPlan(argv.plan) : null, ...limits });
+        request, ...limits });
       receipt = { ...receipt, inspectionScope: diagnosticScope.inspectionScope };
     } else if (action === 'inspect') receipt = { ...await inspectStorageLayout(diagnosticScope.layout, { ...limits, exact: argv.exact,
       extraRoots: diagnosticScope.extraRoots, category: argv.category || null }), inspectionScope: diagnosticScope.inspectionScope };

@@ -16,32 +16,49 @@ const errorRecord = error => describeStorageFailure(error, { phase: 'managed-sto
 export const inspectManagedStorageReceipts = async ({ root, home, registeredRoots = [], maxEntries = 100000,
   maxDurationMs = 10000, signal = null } = {}) => {
   if (!path.isAbsolute(root || '') || !path.isAbsolute(home || '') || !Array.isArray(registeredRoots)
-    || registeredRoots.length > 1024 || registeredRoots.some(candidate => !path.isAbsolute(candidate || ''))) {
+    || registeredRoots.length > 1024 || registeredRoots.some(candidate => !path.isAbsolute(candidate || ''))
+    || !Number.isSafeInteger(maxEntries) || maxEntries < 1 || !Number.isSafeInteger(maxDurationMs) || maxDurationMs < 1) {
     throw new TypeError('Managed receipt inventory requires explicit tooling/home and launch-selected roots.');
   }
   root = path.resolve(root); home = path.resolve(home);
   const started = Date.now();
   const receiptRoot = path.join(root, 'install-receipts');
   const coordinationRoot = path.join(home, 'state', 'storage-access');
-  const beforeLease = await inspectStorageAccess(root, { coordinationRoot });
-  const inventory = await inspectStorageInventory({ roots: [{ id: 'managed-install-receipts', category: 'tooling',
-    path: receiptRoot, retention: 'evidence' }], includeFiles: true, maxEntries, maxDurationMs, signal });
   const receipts = [];
   const scan = new Map();
-  let complete = inventory.complete && inventory.items[0].status === 'scanned'
+  const stopped = () => signal?.aborted ? 'cancelled' : Date.now() - started >= maxDurationMs ? 'time-budget' : null;
+  let beforeLease = null, afterLease = null, inventory = null, secondaryInventory = null, complete = false;
+  const finish = (stopReason = stopped()) => ({ schemaVersion: 1, category: 'managed-installations', path: root, home,
+    complete: complete && !stopReason, stopReason,
+    status: complete && !stopReason ? 'observed-declared-secondary-storage' : 'incomplete-or-unqualified-secondary-storage',
+    receiptInventory: inventory, secondaryInventory, receipts, lease: afterLease || beforeLease,
+    leaseRevalidation: afterLease ? 'observed' : 'not-performed-budget-or-cancellation-or-protected-owner', mutationPerformed: false,
+    deletionAuthority: false, migrationAuthority: false, observedWrites: false,
+    accounting: 'existing-producer-receipts-and-bounded-launch-selected-paths; external-and-unknown-bytes-unscanned',
+    limitation: 'Declared routing does not prove subprocess write containment or settled descendants; receipt paths grant no mutation authority.' });
+  if (stopped()) return finish();
+  beforeLease = await inspectStorageAccess(root, { coordinationRoot });
+  if (stopped() || !beforeLease.complete || beforeLease.protected) return finish();
+  inventory = await inspectStorageInventory({ roots: [{ id: 'managed-install-receipts', category: 'tooling',
+    path: receiptRoot, retention: 'evidence' }], includeFiles: true, maxEntries,
+  maxDurationMs: Math.max(1, maxDurationMs - (Date.now() - started)), signal });
+  if (stopped() || inventory.stopReason) return finish(stopped() || inventory.stopReason);
+  complete = inventory.complete && inventory.items[0].status === 'scanned'
     && inventory.items[0].files.length > 0 && beforeLease.complete && !beforeLease.protected;
   for (const file of inventory.items[0].files || []) {
-    if (signal?.aborted || Date.now() - started >= maxDurationMs) { complete = false; break; }
+    if (stopped()) { complete = false; break; }
     const target = path.join(receiptRoot, file.relativePath);
     try {
       const parts = file.relativePath.split(path.sep);
       if (parts.length !== 2 || !/^[a-z0-9][a-z0-9.-]{0,100}$/u.test(parts[0])
         || !/^[a-f0-9]{64}\.json$/u.test(parts[1])) throw new Error('Unknown receipt path is protected.');
       const read = await readVerifiedContainedFile(receiptRoot, target, { maxBytes: 1024 * 1024,
-        expectedBytes: file.identity.size, expectedFileIdentity: { dev: file.identity.dev, ino: file.identity.ino } });
+        expectedBytes: file.identity.size, expectedFileIdentity: { dev: file.identity.dev, ino: file.identity.ino }, signal });
+      if (stopped()) { complete = false; break; }
       if (!sameStorageFileIdentity(file.identity, storageFileIdentity(await fs.lstat(target, { bigint: true })))) {
         throw new Error('Managed receipt changed during inventory.');
       }
+      if (stopped()) { complete = false; break; }
       const value = validateToolInstallReceipt(JSON.parse(read.buffer.toString('utf8')));
       const { receiptId } = value;
       if (value.toolId !== parts[0] || receiptId !== parts[1].slice(0, -5)) {
@@ -57,6 +74,7 @@ export const inspectManagedStorageReceipts = async ({ root, home, registeredRoot
       const secondary = validateToolSecondaryStorage(value.secondaryStorage);
       const locations = [];
       for (const location of secondary.locations) {
+        if (stopped()) { complete = false; break; }
         const selected = path.resolve(location.path);
         const admitted = !location.external && [root, ...registeredRoots].some(approved => isPathWithinRoot(selected, path.resolve(approved)));
         const status = location.external ? 'declared-external-override-unscanned'
@@ -77,7 +95,7 @@ export const inspectManagedStorageReceipts = async ({ root, home, registeredRoot
     } catch (error) { complete = false; receipts.push({ path: target, status: 'unknown-or-incomplete-receipt',
       protected: true, ownerQualified: false, deletionAuthority: false, error: errorRecord(error) }); }
   }
-  let secondaryInventory = null;
+  if (stopped()) return finish();
   const remainingEntries = maxEntries - inventory.visitedEntries;
   const remainingDuration = maxDurationMs - (Date.now() - started);
   if (scan.size && remainingEntries > 0 && remainingDuration > 0 && !signal?.aborted) {
@@ -91,13 +109,9 @@ export const inspectManagedStorageReceipts = async ({ root, home, registeredRoot
         allocatedBytes: observed.allocatedBytes, accountingComplete: observed.complete,
         activeLease: 'installation/runtime-resource-owner-coverage-is-category-specific' });
     }
-  } else if (scan.size) complete = false;
-  const afterLease = await inspectStorageAccess(root, { coordinationRoot });
+  } else if (scan.size) { complete = false; return finish(remainingEntries <= 0 ? 'entry-budget' : 'time-budget'); }
+  if (stopped() || secondaryInventory?.stopReason) return finish(stopped() || secondaryInventory?.stopReason);
+  afterLease = await inspectStorageAccess(root, { coordinationRoot });
   complete &&= afterLease.complete && !afterLease.protected;
-  return { schemaVersion: 1, category: 'managed-installations', path: root, home, complete,
-    status: complete ? 'observed-declared-secondary-storage' : 'incomplete-or-unqualified-secondary-storage',
-    receiptInventory: inventory, secondaryInventory, receipts, lease: afterLease, mutationPerformed: false,
-    deletionAuthority: false, migrationAuthority: false, observedWrites: false,
-    accounting: 'existing-producer-receipts-and-bounded-launch-selected-paths; external-and-unknown-bytes-unscanned',
-    limitation: 'Declared routing does not prove subprocess write containment or settled descendants; receipt paths grant no mutation authority.' };
+  return finish();
 };
