@@ -8,6 +8,7 @@ import { formatEmbeddingInput, resolveEmbeddingInputFormatting } from '../../../
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../src/shared/embedding-identity.js';
 import { decodeOnnxEmbeddingOutput, runOnnxEmbeddingSession } from '../../../src/shared/onnx-embeddings/output.js';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
+import { estimateTokensHeuristic } from '../../../src/shared/embedding-adapter-helpers.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv({ testing: '1', embeddings: null });
@@ -65,7 +66,7 @@ try {
     assert.equal(docs[0][0], 1, 'vectors survive captured native tensor disposal');
     assert.equal(docs[1][1], 1, 'source item ordering is retained');
     const estimates = await wrapper.getChunkEmbeddings.estimateTokensBatch(['alpha', '文档']);
-    assert.equal(estimates.length, 2);
+    assert.deepEqual(estimates, ['alpha', '文档'].map(estimateTokensHeuristic), 'token admission estimates the same raw document bytes used by inference');
     const query = await getQueryEmbedding({ modelId, provider: 'xenova', normalize: true, text: 'find parser' });
     assert.equal(query[0], 1);
     assert.deepEqual(records.at(-1).texts, [modelId === m3 ? 'find parser' : `${instruction}find parser`]);

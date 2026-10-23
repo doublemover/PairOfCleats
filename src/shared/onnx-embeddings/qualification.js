@@ -80,10 +80,11 @@ export const createOnnxQualificationLease = ({ binding, candidate, memory, memor
   return lease;
 };
 
-export const acquireOnnxQualificationSlot = (lease, { modelArtifact, modelPath, lowMemory }) => {
+export const acquireOnnxQualificationSlot = (lease, { modelArtifact, modelPath, lowMemory, processing = null }) => {
   const entry = leases.get(lease);
   if (!entry || entry.closed || entry.active.size >= entry.candidate.sessions
     || digest(modelArtifact) !== digest(entry.binding.modelArtifact)
+    || digest(processing) !== digest(entry.binding.processing)
     || path.resolve(modelPath) !== entry.binding.modelPath
     || digest(currentOnnxQualificationRuntime()) !== digest(entry.binding.runtime)) throw invalid('ONNX qualification capability is stale, forged, full or incompatible.');
   if (lowMemory && (entry.candidate.enableCpuMemArena || entry.candidate.enableMemPattern
@@ -99,5 +100,11 @@ export const closeOnnxQualificationLease = lease => {
   const entry = leases.get(lease);
   if (!entry) throw invalid('Unknown ONNX qualification capability.');
   entry.closed = true;
-  if (entry.active.size) throw Object.assign(invalid('ONNX qualification still owns unsettled native sessions.'), { cacheOwnershipPending: true });
+  if (entry.active.size) {
+    const error = invalid('ONNX qualification still owns unsettled native sessions.');
+    Object.defineProperties(error, { qualificationLease: { value: lease },
+      cacheOwnershipPending: { get: () => entry.active.size > 0 },
+      cacheOwnershipReleased: { value: () => entry.closed && entry.active.size === 0 } });
+    throw error;
+  }
 };

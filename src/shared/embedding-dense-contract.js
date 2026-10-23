@@ -24,7 +24,7 @@ export const resolveEmbeddingDenseContract = modelId => {
   const id = String(modelId || '').trim().toLowerCase();
   const contract = CONTRACTS.get(id);
   if (contract) return contract;
-  if (/(^|\/)bge-m3(?:[-_]|$)/i.test(id) || /(^|\/)(?:multilingual-)?e5[^/]*instruct/i.test(id)) {
+  if (/(^|\/)bge-m3/i.test(id) || /(^|\/)(?:multilingual-)?e5[^/]*instruct/i.test(id)) {
     throw Object.assign(new Error(`Embedding model "${modelId}" has no qualified dense encoding contract. Select Xenova/bge-m3 or intfloat/multilingual-e5-large-instruct, or qualify its export and pooling first.`), {
       code: 'ERR_EMBEDDING_MODEL_CONTRACT'
     });
@@ -54,4 +54,13 @@ export const validateEmbeddingDenseContract = (contract, { normalize } = {}) => 
   if (contract?.normalize && normalize === false) throw Object.assign(new Error(
     `${contract.id} requires normalized dense embeddings.`
   ), { code: 'ERR_EMBEDDING_MODEL_CONTRACT' });
+};
+
+/** The experiment's binding and the provider must describe identical work. */
+export const resolveOnnxEmbeddingProcessing = (modelId, { normalize = true } = {}) => {
+  const contract = resolveEmbeddingDenseContract(modelId);
+  validateEmbeddingDenseContract(contract, { normalize });
+  return { normalize: normalize !== false,
+    pooling: contract?.pooling ?? 'preferred-output-or-host-mask-mean-v1', truncation: 'truncate',
+    ...(contract ? { denseEncoding: { ...contract } } : {}) };
 };

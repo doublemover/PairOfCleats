@@ -10,7 +10,7 @@ const single = { sessions: 1, intraOpNumThreads: 1, interOpNumThreads: 1,
 const { sessions: ignored, ...settings } = single; void ignored;
 const bind = overrides => createOnnxQualificationBinding({ modelArtifact, modelPath, cpuBudget: 4, memory,
   sessionSettings: settings, processing: { normalize: true }, workload: { digest: 'fixture' }, ...overrides });
-const binding = bind(), native = { modelArtifact, modelPath, lowMemory: false };
+const binding = bind(), native = { modelArtifact, modelPath, lowMemory: false, processing: { normalize: true } };
 const lease = createOnnxQualificationLease({ binding, candidate: single, memory });
 const first = acquireOnnxQualificationSlot(lease, native);
 assert.equal(first.options.intraOpNumThreads, 1);
@@ -40,6 +40,9 @@ for (const override of [
 ]) assert.throws(() => createOnnxQualificationLease({ binding, candidate: { ...single, sessions: 2 }, memory,
   memoryEvidence: evidence, now: at, ...override }), { code: 'ERR_ONNX_QUALIFICATION_PROFILE' });
 const changedModel = createOnnxQualificationLease({ binding, candidate: single, memory });
+for (const processing of [null, { normalize: false }, { normalize: true, pooling: 'cls' }]) {
+  assert.throws(() => acquireOnnxQualificationSlot(changedModel, { ...native, processing }), { code: 'ERR_ONNX_QUALIFICATION_PROFILE' });
+}
 assert.throws(() => acquireOnnxQualificationSlot(changedModel, { ...native, modelArtifact: { ...modelArtifact, digest: 'b'.repeat(64) } }), { code: 'ERR_ONNX_QUALIFICATION_PROFILE' });
 closeOnnxQualificationLease(changedModel);
 for (const field of ['enableCpuMemArena', 'enableMemPattern', 'graphOptimizationLevel']) {

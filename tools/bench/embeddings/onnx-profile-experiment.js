@@ -8,6 +8,8 @@ import { resolveEmbeddingArtifactIdentityAsync } from '../../../src/shared/embed
 import { embeddingArtifactReusable } from '../../../src/shared/embedding-artifact-identity.js';
 import { observeProcessThreads } from '../../../src/shared/provider-thread-observation.js';
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings/config.js';
+import { resolveOnnxEmbeddingProcessing } from '../../../src/shared/embedding-dense-contract.js';
+import { preserveEmbeddingCleanupFailure } from '../../../src/shared/embedding-cache-lifetime.js';
 
 const safeBaseline = Object.freeze({ sessions: 1, intraOpNumThreads: 1, interOpNumThreads: 1,
   graphOptimizationLevel: 'basic', enableCpuMemArena: false, enableMemPattern: false });
@@ -45,6 +47,15 @@ const compareVectors = (reference, actual) => {
 const sourceIdentity = async () => Object.fromEntries(await Promise.all([
   ['experiment', import.meta.url], ['runtime', new URL('../../../src/shared/onnx-embeddings.js', import.meta.url)],
   ['output', new URL('../../../src/shared/onnx-embeddings/output.js', import.meta.url)],
+  ['denseContract', new URL('../../../src/shared/embedding-dense-contract.js', import.meta.url)],
+  ['outputAdmission', new URL('../../../src/shared/embedding-output-admission.js', import.meta.url)],
+  ['vectorNormalization', new URL('../../../src/shared/embedding-vector-utils.js', import.meta.url)],
+  ['tokenization', new URL('../../../src/shared/onnx-embeddings/tokenization.js', import.meta.url)],
+  ['tensorLifetime', new URL('../../../src/shared/onnx-embeddings/tensor-lifetime.js', import.meta.url)],
+  ['tensorResources', new URL('../../../src/shared/embedding-transformers-resources.js', import.meta.url)],
+  ['sessionCacheLifetime', new URL('../../../src/shared/onnx-embeddings/cache-lifetime.js', import.meta.url)],
+  ['failureComposition', new URL('../../../src/shared/embedding-cache-lifetime.js', import.meta.url)],
+  ['failureInspection', new URL('../../../src/shared/embedding-cache-failure-inspection.js', import.meta.url)],
   ['qualification', new URL('../../../src/shared/onnx-embeddings/qualification.js', import.meta.url)],
   ['resourceLifetime', new URL('../../../src/shared/onnx-embeddings/resource-lifetime.js', import.meta.url)]
 ].map(async ([name, url]) => {
@@ -80,14 +91,14 @@ export const runOnnxProfileExperiment = async ({ rootDir, modelId, modelsDir, on
   const bindingFor = settings => {
     const { sessions: ignored, ...sessionSettings } = settings; void ignored;
     return createOnnxQualificationBinding({ modelArtifact, modelPath, cpuBudget, memory, source,
-      workload, sessionSettings, processing: { normalize: true, pooling: 'preferred-output-or-host-mask-mean-v1', truncation: 'truncate' } });
+      workload, sessionSettings, processing: resolveOnnxEmbeddingProcessing(modelId) });
   };
   const candidateBinding = bindingFor(candidate);
   const candidateLease = createOnnxQualificationLease({ binding: candidateBinding, candidate, memory, memoryEvidence });
   const baselineBinding = bindingFor(safeBaseline);
   const baselineLease = createOnnxQualificationLease({ binding: baselineBinding, candidate: safeBaseline, memory });
   const native = createSession === createOnnxEmbedder;
-  let primary = null, reference = null, baseline = null, measured = null;
+  let primary, hasPrimary = false, reference = null, baseline = null, measured = null;
   const execute = async (settings, lease) => {
     const sessions = [], stages = { rssBefore: process.memoryUsage().rss, peakRssBytes: 0,
       threadBefore: observeProcessThreads(), initializationMs: 0, warmupMs: 0, inferenceMs: 0 };
@@ -101,7 +112,7 @@ export const runOnnxProfileExperiment = async ({ rootDir, modelId, modelsDir, on
     };
     const check = () => { throwIfAborted(signal); if (pressure) throw invalid('Profile crossed its sampled current-memory envelope.'); };
     sample(); const sampler = setInterval(sample, 5); sampler.unref?.();
-    const beforeCpu = process.cpuUsage(); let failure = null, result = null;
+    const beforeCpu = process.cpuUsage(); let failure, hasFailure = false, result = null;
     try {
       const initializeAt = performance.now();
       for (let index = 0; index < settings.sessions; index++) {
@@ -140,7 +151,7 @@ export const runOnnxProfileExperiment = async ({ rootDir, modelId, modelsDir, on
       stages.inferenceMs = performance.now() - inferAt;
       stages.threadAfter = observeProcessThreads();
       result = { vectors: output, stages, sessions: sessions.map(session => session.executionInfo()) };
-    } catch (error) { failure = error; }
+    } catch (error) { failure = error; hasFailure = true; }
     finally {
       const cleanup = [], disposeAt = performance.now();
       for (const session of sessions.reverse()) try { await session.dispose(); } catch (error) { cleanup.push(error); }
@@ -151,11 +162,11 @@ export const runOnnxProfileExperiment = async ({ rootDir, modelId, modelsDir, on
       const cpu = process.cpuUsage(beforeCpu); stages.processCpuMicros = cpu.user + cpu.system;
       stages.disposalConfirmed = cleanup.length === 0;
       if (cleanup.length) {
-        const error = failure || cleanup.shift(); error.cleanupErrors = cleanup; error.cacheOwnershipPending = true;
-        error.qualificationLease = lease; failure = error;
+        if (!hasFailure) { failure = cleanup.shift(); hasFailure = true; }
+        for (const error of cleanup) failure = preserveEmbeddingCleanupFailure(failure, error);
       }
     }
-    if (failure) throw failure;
+    if (hasFailure) throw failure;
     return result;
   };
   try {
@@ -174,13 +185,14 @@ export const runOnnxProfileExperiment = async ({ rootDir, modelId, modelsDir, on
         candidateOsPageCache: 'uncontrolled-after-reference-model' }, baseline,
       measured: { stages: measured.stages, sessions: measured.sessions }, parity, memoryEvidence: qualifiedMemory,
       activation: 'none', accepted: false };
-  } catch (error) { primary = error; throw error; }
+  } catch (error) { primary = error; hasPrimary = true; throw error; }
   finally {
     const failures = [];
     for (const lease of [candidateLease, baselineLease]) try { closeOnnxQualificationLease(lease); } catch (error) { failures.push(error); }
     if (failures.length) {
-      if (primary) { primary.qualificationCleanupErrors = failures; primary.cacheOwnershipPending = true; }
-      else throw Object.assign(new AggregateError(failures, 'ONNX profile ownership did not settle.'), { cacheOwnershipPending: true });
+      if (!hasPrimary) primary = failures.shift();
+      for (const error of failures) primary = preserveEmbeddingCleanupFailure(primary, error);
+      throw primary;
     }
   }
 };

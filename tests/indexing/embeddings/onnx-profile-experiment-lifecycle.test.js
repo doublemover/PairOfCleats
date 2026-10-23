@@ -6,6 +6,8 @@ import { runOnnxProfileExperiment } from '../../../tools/bench/embeddings/onnx-p
 import { acquireOnnxQualificationSlot } from '../../../src/shared/onnx-embeddings/qualification.js';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
 import { readEffectiveMemory } from '../../../src/shared/effective-memory.js';
+import { resolveOnnxEmbeddingProcessing } from '../../../src/shared/embedding-dense-contract.js';
+import { observeEmbeddingOwnership } from '../../../src/shared/embedding-cache-lifetime.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 const { dir } = await prepareIsolatedTestCacheDir('onnx-profile-experiment-lifecycle', { clean: true });
 const modelId = 'fixture/qualification', modelDir = path.join(dir, 'models', 'fixture', 'qualification');
@@ -21,7 +23,8 @@ let loaded = 0, disposed = 0, active = 0, peakActive = 0, failAt = Infinity, cal
 const failure = new Error('controlled profile inference failure');
 const createSession = input => {
   loaded++;
-  const slot = acquireOnnxQualificationSlot(input.qualificationLease, { modelArtifact: input.modelArtifact, modelPath, lowMemory: false });
+  const slot = acquireOnnxQualificationSlot(input.qualificationLease, { modelArtifact: input.modelArtifact, modelPath, lowMemory: false,
+    processing: resolveOnnxEmbeddingProcessing(input.modelId) });
   let closed = false;
   return { embedderPromise: Promise.resolve(),
     getEmbeddings: async texts => {
@@ -45,6 +48,10 @@ assert.equal(report.parity.maxAbsoluteError, 0); assert.equal(report.parity.topK
 assert.equal(report.measured.stages.disposalConfirmed, true); assert.equal(loaded, 2); assert.equal(disposed, 2);
 assert.equal(peakActive, 1, 'one session preserves serialized inference scratch ownership');
 assert.equal(report.binding.workload.batchSize, 2);
+assert.deepEqual(report.binding.processing, resolveOnnxEmbeddingProcessing(modelId));
+for (const key of ['denseContract', 'outputAdmission', 'tokenization', 'tensorLifetime', 'tensorResources', 'sessionCacheLifetime']) {
+  assert.match(report.source[key], /^[a-f0-9]{64}$/);
+}
 assert.equal(report.measured.sessions[0].requestedSessionOptions.graphOptimizationLevel, 'extended');
 assert.equal(report.measured.sessions[0].effectiveNativeThreads, null);
 
@@ -56,4 +63,29 @@ await assert.rejects(runOnnxProfileExperiment({ ...options, createSession, signa
 assert.equal(disposed, loaded, 'cancellation drains inference before disposal and lease release');
 await assert.rejects(runOnnxProfileExperiment({ ...options, createSession, texts: ['x'.repeat(65537)] }), { code: 'ERR_ONNX_PROFILE_EXPERIMENT' });
 await assert.rejects(runOnnxProfileExperiment({ ...options, createSession, candidate: { ...candidate, sessions: 2 } }), { code: 'ERR_ONNX_QUALIFICATION_PROFILE' });
+
+// Immutable primary/cleanup failures and their original lease settlement must
+// survive the experiment boundary without mutation or false success.
+controller = null;
+const primary = Object.freeze(new Error('frozen profile inference failure'));
+const cleanup = Object.freeze(new Error('frozen profile disposal failure'));
+let failedSession, refuseCleanup = true;
+const createFailedSession = input => {
+  const slot = acquireOnnxQualificationSlot(input.qualificationLease, { modelArtifact: input.modelArtifact, modelPath,
+    lowMemory: false, processing: resolveOnnxEmbeddingProcessing(input.modelId) });
+  failedSession = { embedderPromise: Promise.resolve(), getEmbeddings: async () => { throw primary; },
+    executionInfo: () => ({}), dispose: async () => { if (refuseCleanup) throw cleanup; slot.release(); } };
+  return failedSession;
+};
+const retained = await runOnnxProfileExperiment({ ...options, createSession: createFailedSession })
+  .then(() => assert.fail('failed experiment must reject'), error => error);
+const contains = (error, target) => error === target || Array.isArray(error?.errors) && error.errors.some(value => contains(value, target));
+assert(contains(retained, primary)); assert(contains(retained, cleanup));
+assert.equal(observeEmbeddingOwnership(retained)(), false);
+assert.equal(primary.cleanupErrors, undefined); assert.equal(cleanup.cacheOwnershipPending, undefined);
+refuseCleanup = false; await failedSession.dispose();
+assert.equal(observeEmbeddingOwnership(retained)(), true, 'original closed qualification lease observes actual slot settlement');
+await runOnnxProfileExperiment({ ...options, createSession: input => {
+  const session = createSession(input); session.getEmbeddings = async () => { throw undefined; }; return session;
+} }).then(() => assert.fail('falsey inference failure cannot publish a report'), error => assert.equal(error, undefined));
 console.log('inert ONNX profile association, parity, cancellation and disposal assertions complete');

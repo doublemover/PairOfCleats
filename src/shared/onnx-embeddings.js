@@ -5,7 +5,7 @@ import { createOnnxCacheLifetime } from './onnx-embeddings/cache-lifetime.js';
 import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from './embedding-artifact-identity.js';
 import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-lease.js';
 import { createDeferredEmbeddingAdapter } from './embedding-deferred-adapter.js';
-import { resolveEmbeddingDenseContract, validateEmbeddingDenseContract } from './embedding-dense-contract.js';
+import { resolveEmbeddingDenseContract, validateEmbeddingDenseContract, resolveOnnxEmbeddingProcessing } from './embedding-dense-contract.js';
 import path from 'node:path';
 import {
   DEFAULT_EMBEDDING_TRUNCATION,
@@ -205,7 +205,8 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
   const lowMemory = Number.isFinite(modelSize) && modelSize >= LARGE_MODEL_BYTES;
   const closureBytes = selectedArtifact.inventory?.reduce((total, item) => total + (Number(item.bytes) || 0), 0) || 0;
   const qualificationSlot = qualificationLease ? acquireOnnxQualificationSlot(qualificationLease,
-    { modelArtifact: selectedArtifact, modelPath: resolvedModelPath, lowMemory: lowMemory || closureBytes >= LARGE_MODEL_BYTES }) : null;
+    { modelArtifact: selectedArtifact, modelPath: resolvedModelPath, lowMemory: lowMemory || closureBytes >= LARGE_MODEL_BYTES,
+      processing: resolveOnnxEmbeddingProcessing(modelId, { normalize }) }) : null;
   const tokenizerId = normalized.tokenizerId || modelId;
   const cacheKey = JSON.stringify({
     resolvedModelPath,
