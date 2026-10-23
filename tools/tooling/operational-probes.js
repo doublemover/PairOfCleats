@@ -71,6 +71,13 @@ export const verifyOperationalCapability = async ({ id, command, argsPrefix = []
     const ok = help.ok && /--format\b/.test(help.stdout) && /--override-filename\b/.test(help.stdout) && /--manifest-path\b/.test(help.stdout);
     return { ok, identity, level: ok ? 'cargo-subcommand-option-contract' : 'cargo-cyclonedx-options-unavailable' };
   }
+  if (id === 'git-lfs') {
+    const args = ['pointer', '--check', '--strict', '--stdin'];
+    const canonical = await run(args, { input: 'version https://git-lfs.github.com/spec/v1\noid sha256:' + '0'.repeat(64) + '\nsize 0\n' });
+    const malformed = await run(args, { input: 'not a Git LFS pointer\n' });
+    const ok = canonical.ok && !String(canonical.stdout || '').trim() && !malformed.ok && malformed.status === 1;
+    return { ok, identity, level: ok ? 'local-canonical-pointer-validation' : 'lfs-pointer-validation-rejected' };
+  }
   if (id === 'npm-sbom') {
     const help = await run(['sbom', '--help']);
     const ok = help.ok && /npm sbom/.test(help.stdout) && /--sbom-format/.test(help.stdout);
@@ -82,7 +89,7 @@ export const verifyOperationalCapability = async ({ id, command, argsPrefix = []
 export const verifyManagedOperationalTool = async (input, { probe = probeProvisioningCommand } = {}) => {
   if (!path.isAbsolute(input.toolingRoot || '') || !path.isAbsolute(input.root || '')) throw new Error('Managed operational verification requires its launch-selected tooling owner and exact generation root.');
   const id = input.descriptor.toolId, identity = identifyProvisioningExecutable(input.command, { signal: input.signal });
-  const env = resolveNoProvisionToolingEnvironment(process.env, { command: input.command, providerId: id,
+  const env = resolveNoProvisionToolingEnvironment(input.env || process.env, { command: input.command, providerId: id,
     toolingRoot: input.toolingRoot, cwd: input.root });
   return { ...await verifyOperationalCapability({ id, command: input.command, argsPrefix: input.args || [],
     cwd: input.root, env, signal: input.signal, expectedVersion: input.descriptor.version }, {

@@ -5,6 +5,7 @@ import { downloadOfficialGitHubRelease } from './official-release-download.js';
 // https://graphviz.org/download/ (ZIP checksums + GitLab package HEAD sizes)
 // https://api.github.com/repos/BurntSushi/ripgrep/releases/tags/15.2.0
 // https://api.github.com/repos/scip-code/scip/releases/tags/v0.10.0
+// https://api.github.com/repos/git-lfs/git-lfs/releases/tags/v3.8.1
 const GRAPHVIZ = {
   x64: [9767733, '733e49626c492242eb8dca30ea627b6ead20710e207998c7933b4909d92d6abc', '64'],
   ia32: [8271496, '37906f29ede26cf1952f8cf942c1e7814ab86ef448130136c8607b1b6ffe0870', '32']
@@ -24,6 +25,18 @@ const SCIP = {
   'linux-x64': ['linux-amd64', 12357047, 'eeb28ebbff443c01609fb1691809958f3f0c7a8651af689a5bc8560061cd8ab0'],
   'linux-arm64': ['linux-arm64', 11542121, '6ab677dc2c4bf2955975d0530766152e45daaa988f9404068d8adecacd0bb24c']
 };
+// Upstream Makefile PREFIX and archive rules identify git-lfs-3.8.1 as the
+// package root. Portable archives are used directly; install.sh and the global
+// git-lfs install/configuration command are never run by this recipe.
+const GIT_LFS = {
+  'win32-x64': ['windows-amd64', 5870805, '5bb771c12b3dacc535e912d0270a010c209d4da2e63819c5918e3547c2defed9'],
+  'win32-ia32': ['windows-386', 5779824, 'd036588bd9027b7bf2a57e9fcb476ab95880f078d9b0a622869f397fb9030088'],
+  'win32-arm64': ['windows-arm64', 5270378, '7e70990e339efab3e793affb919355b548c9a41c5b6bb52d90267bcb84ba4784'],
+  'darwin-x64': ['darwin-amd64', 6202683, '4292b3518e717e53c20a6c2c0696e2069a21e97500ad14b80b06bd52de8f3b72'],
+  'darwin-arm64': ['darwin-arm64', 5559976, '0ba10e897e0496412cd86eacaed4ed554c97ddc29bc5c709d28faa5eaaa2222c'],
+  'linux-x64': ['linux-amd64', 5917265, 'e72cf723a4a660438862282e8aecf3885fc8123e88bfcad534cf6b941a354b75'],
+  'linux-arm64': ['linux-arm64', 5350198, '67895dd77b63329796bc5efdd47b57f218e1f7b98717ebaf936a8238dbcaec0f']
+};
 
 const recipe = ({ toolId, version, platform, arch, url, bytes, sha256, type, command, root = null }) => {
   // Shared archive extraction enforces a 1 GiB ceiling. Reserve that inclusive
@@ -36,6 +49,14 @@ const recipe = ({ toolId, version, platform, arch, url, bytes, sha256, type, com
 };
 
 export const resolveOperationalManagedRecipe = (id, { platform = process.platform, arch = process.arch } = {}) => {
+  if (id === 'git-lfs') {
+    const asset = GIT_LFS[`${platform}-${arch}`];
+    if (!asset) return null;
+    const [target, bytes, sha256] = asset, version = '3.8.1', type = platform === 'linux' ? 'tar.gz' : 'zip';
+    return recipe({ toolId: id, version, platform, arch, bytes, sha256, type, root: `git-lfs-${version}`,
+      command: platform === 'win32' ? 'git-lfs.exe' : 'git-lfs',
+      url: `https://github.com/git-lfs/git-lfs/releases/download/v${version}/git-lfs-${target}-v${version}.${type}` });
+  }
   if (id === 'cargo-cyclonedx' && platform === 'win32' && arch === 'x64') {
     // cargo-dist's published dist-manifest.json identifies a flat ZIP with
     // cargo-cyclonedx.exe; other targets use tar.xz, unsupported by our bounded

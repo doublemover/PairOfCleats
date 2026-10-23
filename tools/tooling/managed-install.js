@@ -197,7 +197,7 @@ export const inspectManagedInstallation = async ({ toolingRoot, toolId, descript
 
 /** Explicit selected provisioning only. Prior generations and unowned assets are never adopted. */
 const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approvedOrigins,
-  verify, repair = false, signal = null, download = downloadToBuffer, extract = extractArchive, onProgress = () => {} } = {}) => {
+  verify, repair = false, signal = null, env = process.env, download = downloadToBuffer, extract = extractArchive, onProgress = () => {} } = {}) => {
   const pinned = validatePinnedInstallDescriptor(descriptor, { approvedOrigins });
   if (typeof verify !== 'function') throw new Error('The canonical recipe must provide executable/runtime/capability verification.');
   signal?.throwIfAborted();
@@ -208,7 +208,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     const held = await retainManagedToolInstallation({ toolingRoot, toolId: pinned.toolId, descriptorId: pinned.descriptorId });
     const resourceId = randomUUID();
     const verification = await verifyRetainedManagedInstallation(held, verify,
-      { root: held.root, command: held.command, args: held.args, descriptor: pinned, toolingRoot, signal }, resourceId);
+      { root: held.root, command: held.command, args: held.args, descriptor: pinned, toolingRoot, env, signal }, resourceId);
     return { ...reused, reused: true, downloadedBytes: 0, verification };
   }
   const owner = await resolveOwner(toolingRoot, pinned.toolId, { create: true });
@@ -323,7 +323,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
       admitVerification();
       const retained = await inspectGeneration(owner, pinned.toolId, resumable.receipt.installId, { signal });
       if (!retained.ok) throw new Error('Retained managed generation changed before verification admission.');
-      const verification = await verifyOwnedInstallation(verify, { root: retained.root, command: retained.command, args: retained.args, descriptor: pinned, toolingRoot, signal }, transactionId);
+      const verification = await verifyOwnedInstallation(verify, { root: retained.root, command: retained.command, args: retained.args, descriptor: pinned, toolingRoot, env, signal }, transactionId);
       if (releaseSession(verificationLease) !== true) throw new Error('Retained-generation verification lease changed before publication.');
       verificationLease = null;
       const publication = await withExclusiveStorageAccess(owner, async () => {
@@ -369,7 +369,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     await checkpoint({ files: files.length });
     admitVerification('managed-new-generation-verifier');
     const verification = await verifyOwnedInstallation(verify, { root: packageRoot, command: path.join(packageRoot, pinned.command),
-      args: pinned.args || [], descriptor: pinned, toolingRoot, signal }, transactionId);
+      args: pinned.args || [], descriptor: pinned, toolingRoot, env, signal }, transactionId);
     if (identity(await captureFiles(packageRoot, DEFAULT_LIMITS, { signal })) !== identity(files)) throw new Error('Tool verification mutated immutable installation bytes.');
     if (releaseSession(verificationLease) !== true) throw new Error('New-generation verification lease changed before publication.');
     verificationLease = null;

@@ -24,7 +24,7 @@ export const resolveInstallerRequirementProbeArgs = (commandName) => {
   if (name === 'dotnet-runtime') return [['--list-runtimes']];
   if (name === 'php') return [['-r', 'echo json_encode(["family"=>"php","version"=>PHP_VERSION,"binary"=>PHP_BINARY,"extensions"=>get_loaded_extensions()]);']];
   if (name === 'ruby') return [['-rjson', '-rrbconfig', '-rrubygems', '-e', 'puts JSON.generate({family: "ruby", version: RUBY_VERSION, executable: RbConfig.ruby, components: Gem::Specification.find_all_by_name("bundler").empty? ? [] : ["bundler"]})']];
-  if (name === 'python' || name === 'python3') return [['-c', 'import importlib.util,json,sys; print(json.dumps({"family":"python","version":sys.version.split()[0],"executable":sys.executable,"components":[name for name in ("venv","ensurepip","pip") if importlib.util.find_spec(name) is not None]}))']];
+  if (name === 'python' || name === 'python3') return [['-I', '-B', '-c', 'import importlib.util,json,sys; print(json.dumps({"family":"python","version":sys.version.split()[0],"executable":sys.executable,"components":[name for name in ("venv","ensurepip","pip") if importlib.util.find_spec(name) is not None]}))']];
   if (name === 'java' || name === 'javac') return [['-version']];
   if (name === 'rustup') return [['show', 'active-toolchain']];
   if (name === 'composer' || name === 'gem') return [['--version']];
@@ -61,6 +61,7 @@ export const verifyInstallerRequirementProbe = (commandName, probe, { minimumGoV
     } else {
       const patterns = {
         npm: /^(\d+\.\d+\.\d+)$/,
+        git: /^git version (\d+\.\d+\.\d+)(?:[.\s]|$)/,
         node: /^v(\d+\.\d+\.\d+)$/,
         gem: /^(\d+\.\d+\.\d+)$/,
         composer: /^Composer version (\d+\.\d+\.\d+)\b/,

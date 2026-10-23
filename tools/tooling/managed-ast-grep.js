@@ -42,11 +42,11 @@ export const resolveAstGrepManagedRecipe = ({ platform = process.platform, arch 
 /** A version string is only executable identity. Readiness additionally proves
  * the pinned parser can perform a local stdin match without scanning a project.
  */
-export const verifyManagedAstGrep = async ({ root, command, descriptor, toolingRoot, resourceId, signal = null }, { probe = probeProvisioningCommand } = {}) => {
+export const verifyManagedAstGrep = async ({ root, command, descriptor, toolingRoot, env: baseEnv = process.env, resourceId, signal = null }, { probe = probeProvisioningCommand } = {}) => {
   if (!path.isAbsolute(toolingRoot || '') || !path.isAbsolute(root || '')) throw new Error('Managed ast-grep verification requires its launch-selected tooling owner and exact generation root.');
   const settlement = { resourceId, settled: true, pending: false };
   const identity = identifyProvisioningExecutable(command, { signal });
-  const env = resolveNoProvisionToolingEnvironment(process.env, { command, providerId: 'ast-grep', toolingRoot, cwd: root });
+  const env = resolveNoProvisionToolingEnvironment(baseEnv, { command, providerId: 'ast-grep', toolingRoot, cwd: root });
   const options = { cwd: root, signal, timeoutMs: 4000, maxOutputBytes: 65536, env };
   const run = (args, extra = {}) => runOperationalChildWithStorage({ id: 'ast-grep', toolingRoot, repoRoot: toolingRoot,
     command, identity, env, cwd: root }, ({ env: routed }) => probe(command, args, { ...options, ...extra, env: routed }));

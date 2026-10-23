@@ -8,7 +8,8 @@ import { toolingFailureReport } from '../../../tools/tooling/cli-failure-report.
 
 for (const [id, platform, arches] of [['graphviz', 'win32', ['x64', 'ia32']], ['ripgrep', 'win32', ['x64', 'ia32', 'arm64']],
   ['ripgrep', 'darwin', ['x64', 'arm64']], ['ripgrep', 'linux', ['x64', 'arm64']], ['scip', 'darwin', ['x64', 'arm64']],
-  ['scip', 'linux', ['x64', 'arm64']], ['cargo-cyclonedx', 'win32', ['x64']]]) {
+  ['scip', 'linux', ['x64', 'arm64']], ['cargo-cyclonedx', 'win32', ['x64']], ['git-lfs', 'win32', ['x64', 'ia32', 'arm64']],
+  ['git-lfs', 'darwin', ['x64', 'arm64']], ['git-lfs', 'linux', ['x64', 'arm64']]]) {
   for (const arch of arches) {
     const recipe = resolveOperationalManagedRecipe(id, { platform, arch });
     const pinned = validatePinnedInstallDescriptor(recipe.managedDescriptor, { ...recipe, platform, arch });
@@ -24,22 +25,30 @@ assert.equal(identifyOperationalTool('universal-ctags', { stdout: 'Exuberant Cta
 assert.equal(identifyOperationalTool('gnu-global', { stdout: 'another global tool 1.0' }), null);
 assert.equal(identifyOperationalTool('graphviz', { stderr: 'dot - graphviz version 16.1.0 (20260904)' }).version, '16.1.0');
 
-for (const id of ['graphviz', 'ripgrep', 'scip']) {
+for (const id of ['graphviz', 'ripgrep', 'scip', 'git-lfs']) {
   let calls = 0;
   const result = await verifyOperationalCapability({ id, command: 'explicit-inert-fixture-command' }, { probe: async (_command, args, options) => {
     calls++;
-    if (args[0] === '--version' || args[0] === '-V') return { ok: true, stdout: ({ ripgrep: 'ripgrep 15.2.0', scip: 'scip version v0.10.0', graphviz: 'dot - graphviz version 16.1.0' })[id] };
+    if (args[0] === '--version' || args[0] === '-V' || args[0] === 'version') return { ok: true, stdout: ({ ripgrep: 'ripgrep 15.2.0', scip: 'scip version v0.10.0', graphviz: 'dot - graphviz version 16.1.0', 'git-lfs': 'git-lfs/3.8.1 (GitHub; windows amd64; go 1.27.0)' })[id] };
     assert.equal(options.timeoutMs, 4000);
     assert.equal(options.maxOutputBytes, 65536);
     if (id === 'graphviz') { assert.equal(args[0], '-Tsvg'); return { ok: true, stdout: '<svg><text>pairofcleats-render-probe</text></svg>' }; }
     if (id === 'ripgrep') return { ok: true, stdout: JSON.stringify({ type: 'match', data: { lines: { text: 'pairofcleats-rg-probe\n' } } }) };
+    if (id === 'git-lfs') {
+      assert.deepEqual(args, ['pointer', '--check', '--strict', '--stdin']);
+      const valid = options.input.startsWith('version https://git-lfs.github.com/spec/v1\n');
+      return { ok: valid, status: valid ? 0 : 1, stdout: '' };
+    }
     assert.deepEqual(args, ['print', '--json', '-']);
     assert.ok(Buffer.isBuffer(options.input));
     assert.ok(options.input.includes(Buffer.from('pairofcleats-probe.js')));
     return { ok: true, stdout: JSON.stringify({ documents: [{ relative_path: 'pairofcleats-probe.js' }] }) };
   } });
-  assert.equal(result.ok, true); assert.equal(calls, 2);
+  assert.equal(result.ok, true); assert.equal(calls, id === 'git-lfs' ? 3 : 2);
 }
+const falseLfs = await verifyOperationalCapability({ id: 'git-lfs', command: 'explicit-trusted-fixture' }, { probe: async (_command, args) =>
+  ({ ok: true, status: 0, stdout: args[0] === 'version' ? 'git-lfs/3.8.1 (GitHub)' : '' }) });
+assert.equal(falseLfs.ok, false, 'exit-zero on both valid and malformed input cannot qualify Git LFS pointer capability');
 const missingPlugin = await verifyOperationalCapability({ id: 'graphviz', command: 'trusted-inert-fixture' }, { probe: async (_command, args) =>
   args[0] === '-V' ? { ok: true, stderr: 'dot - graphviz version 16.1.0' } : { ok: false, stderr: 'Format: "svg" not recognized' } });
 assert.equal(missingPlugin.ok, false, 'a version string cannot qualify missing renderer libraries/plugins');

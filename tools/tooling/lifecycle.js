@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createCli } from '../../src/shared/cli.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
-import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
+import { getToolingConfig, resolveRepoRootArg, resolveToolRoot } from '../shared/dict-utils.js';
 import { readToolInstallReceipts, verifyToolInstallReceipt } from './install-receipts.js';
 import { inspectManagedInstallation, inspectManagedToolRemoval, installPinnedManagedTool, removePinnedManagedTool, validatePinnedInstallDescriptor } from './managed-install.js';
 import { resolveToolsById, selectInstallPlan } from './utils.js';
 import { readVerifiedContainedFile } from '../../src/shared/contained-file.js';
 import { toolingFailureReport } from './cli-failure-report.js';
+import { bindProvisioningCommand, createToolProvisioningPlan, verifyToolProvisioningPlan } from './provisioning-plan.js';
+import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
+import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 export const TOOL_LIFECYCLE_PLAN_VERSION = 1;
@@ -54,6 +58,21 @@ export const planToolLifecycle = async ({ toolingRoot, id, operation = 'verify',
     let pinned = null;
     if (descriptor) pinned = validatePinnedInstallDescriptor(descriptor, { approvedOrigins: selection.plan.approvedOrigins });
     if (pinned && pinned.toolId !== id) throw new Error('Canonical tool and managed recipe identity disagree.');
+    const isAllowed = command => {
+      const repo = tool?.authorityRepoRoot;
+      if (!path.isAbsolute(repo || '')) return false;
+      if (isRepoTrusted(repo)) return true;
+      try {
+        const physical = fs.realpathSync(command);
+        return !isPathWithinRoot(physical, repo) || isApplicationOwnedCommand({ commandPath: physical, repoRoot: repo, toolRoot: resolveToolRoot() });
+      } catch { return false; }
+    };
+    const provisioning = tool && ['install', 'update', 'repair'].includes(operation)
+      ? createToolProvisioningPlan({ tool, selection, isAllowed, signal }) : null;
+    for (const step of provisioning?.steps || []) if (['missing', 'incompatible', 'blocked'].includes(step.state)) {
+      blockers.push({ code: 'managed-prerequisite-unavailable', requirement: step.id, reason: step.reason,
+        nextAction: step.nextAction || 'Repair the selected launch/install prerequisite and re-plan before managed publication.' });
+    }
     if (managed.state === 'repair-required' && !managed.receipt) blockers.push({ code: 'managed-ownership-evidence-unavailable',
       nextAction: 'Preserve the unknown selector/receipt and recover its ownership metadata before publication, replacement or removal.' });
     if (managed.state === 'repair-required' && managed.receipt && ['install', 'update'].includes(operation)) blockers.push({ code: 'explicit-owned-repair-required',
@@ -64,7 +83,7 @@ export const planToolLifecycle = async ({ toolingRoot, id, operation = 'verify',
     if (operation === 'verify' && !managed.ok) blockers.push({ code: 'managed-generation-not-ready', nextAction: 'Inspect the selected owned generation; no external bytes are adopted.' });
     const body = { schemaVersion: TOOL_LIFECYCLE_PLAN_VERSION, kind: 'tool-lifecycle-plan', toolId: id, operation, toolingRoot: path.resolve(toolingRoot),
       receiptId: managed.receipt?.installId || null, ownership: 'managed', desiredDescriptorId: pinned?.descriptorId || null,
-      verification: { state: managed.state, protocol: 'not-probed' }, removal,
+      verification: { state: managed.state, protocol: 'not-probed' }, provisioning, removal,
       state: blockers.length ? 'blocked' : 'ready-for-explicit-apply', blockers,
       effects: operation === 'remove' ? ['remove only selected owned idle generation; retain receipts and other versions']
         : ['install', 'update', 'repair'].includes(operation) ? ['download exact approved archive if needed', 'verify immutable sibling', 'atomically select only after verification; preserve prior version and drift evidence']
@@ -84,7 +103,7 @@ export const planToolLifecycle = async ({ toolingRoot, id, operation = 'verify',
   return { ...body, planId: digest(body) };
 };
 
-export const applyToolLifecyclePlan = async (approved, { tool = null, signal = null } = {}) => {
+export const applyToolLifecyclePlan = async (approved, { tool = null, signal = null, probePrerequisite = null } = {}) => {
   signal?.throwIfAborted();
   const current = await planToolLifecycle({ toolingRoot: approved.toolingRoot, id: approved.toolId,
     operation: approved.operation, receiptId: approved.receiptId, tool, signal });
@@ -94,10 +113,16 @@ export const applyToolLifecyclePlan = async (approved, { tool = null, signal = n
   if (current.removal) return { ...await removePinnedManagedTool(current.removal, { signal }), applied: true };
   if (['install', 'update', 'repair'].includes(current.operation) && current.desiredDescriptorId) {
     const selection = selectInstallPlan(tool, 'cache', false);
+    const provisioning = await verifyToolProvisioningPlan(current.provisioning, { signal, cwd: resolveToolRoot(),
+      ...(probePrerequisite ? { probe: probePrerequisite } : {}) });
+    if (provisioning.state !== 'requirements-verified') return { ok: false, applied: false, state: 'blocked',
+      phase: 'prerequisite-verification', approvedPlanId: current.planId, provisioning,
+      blockers: provisioning.steps.filter(step => step.state !== 'verified').map(step => ({ code: 'managed-prerequisite-unavailable', requirement: step.id, reason: step.reason })) };
+    const env = bindProvisioningCommand({ cmd: process.execPath, args: [] }, provisioning).env;
     return { ...await installPinnedManagedTool({ toolingRoot: approved.toolingRoot,
       descriptor: selection.plan.managedDescriptor, approvedOrigins: selection.plan.approvedOrigins,
       download: selection.plan.download,
-      verify: tool.verifyManagedInstall, repair: current.operation === 'repair', signal }), applied: true };
+      env, verify: tool.verifyManagedInstall, repair: current.operation === 'repair', signal }), applied: true };
   }
   // Verification does not execute or adopt the tool. Mutating operations fail
   // closed until the owning versioned recipe exposes publication and leases.

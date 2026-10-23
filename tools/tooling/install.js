@@ -16,7 +16,7 @@ import { ensureManagedGoSdk } from './install-go-sdk.js';
 import { applyManagedGoEnvironment, resolveManagedGoSdk } from '../../src/shared/managed-go.js';
 import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
-import { bindProvisioningCommand, createToolProvisioningPlan, probeProvisioningCommand, verifyToolProvisioningPlan } from './provisioning-plan.js';
+import { bindProvisioningCommand, createToolProvisioningPlan, identifyProvisioningExecutable, probeProvisioningCommand, verifyToolProvisioningPlan } from './provisioning-plan.js';
 import { buildToolInstallReceipt, writeToolInstallReceipt } from './install-receipts.js';
 import { assertToolReceiptFailureSettled } from './receipt-resource-owner.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
@@ -26,6 +26,8 @@ import { bindDeclaredInstallAdmission, resolveDeclaredInstallAdmission, runToolI
 import { installPinnedManagedTool, validatePinnedInstallDescriptor } from './managed-install.js';
 import { createToolInstallPreview } from './install-preview.js';
 import { toolingFailureReport } from './cli-failure-report.js';
+import { withOperationalTool } from './operational-execution.js';
+import { OPERATIONAL_TOOL_IDS } from './operational-probes.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats tooling install',
@@ -124,7 +126,27 @@ try {
         continue;
       }
       if (verifiedPath) {
-        results.push({ id: tool.id, status: 'already-installed', path: verifiedPath, probe: status.probe || null, provisioning });
+        let probe = status.probe || null;
+        if (OPERATIONAL_TOOL_IDS.has(tool.id)) {
+          try {
+            const expected = status.executableIdentity;
+            const qualified = await withOperationalTool(tool.id, { repoRoot: root, commandOverride: verifiedPath, signal: cancellation.signal },
+              selected => selected.capability, { getConfig: () => toolingConfig, resolveTools: () => [tool], identify: (command, options) => {
+                const actual = identifyProvisioningExecutable(command, options);
+                if (command === verifiedPath && expected && (actual.path !== expected.path || actual.sha256 !== expected.sha256 || actual.size !== expected.size)) {
+                  throw Object.assign(new Error('Detected operational executable changed before capability verification.'), { code: 'ERR_TOOL_EXECUTABLE_CHANGED' });
+                }
+                return actual;
+              } });
+            probe = { ...probe, capability: qualified, verificationLevel: qualified.level };
+          } catch (error) {
+            if (error.cacheOwnershipPending || cancellation.signal.aborted) throw error;
+            results.push({ id: tool.id, status: 'verification-failed', path: verifiedPath, provisioning,
+              error: error.message, code: error.code || null, probe });
+            continue;
+          }
+        }
+        results.push({ id: tool.id, status: 'already-installed', path: verifiedPath, probe, provisioning });
         continue;
       }
       if (!selection.plan) {
@@ -149,6 +171,7 @@ try {
           const installed = await installPinnedManagedTool({ toolingRoot: path.resolve(toolingConfig.dir),
             descriptor: selection.plan.managedDescriptor, approvedOrigins: selection.plan.approvedOrigins,
             download: selection.plan.download,
+            env: bindProvisioningCommand({ cmd: process.execPath, args: [] }, provisioning).env,
             verify: tool.verifyManagedInstall, signal: cancellation.signal, onProgress: event => console.error(`[tooling-install] ${tool.id}: ${event.state}`) });
           results.push({ id: tool.id, status: installed.ok ? installed.reused ? 'already-installed' : 'installed' : 'verification-failed',
             path: installed.command || null, provisioning, managedInstallation: installed,

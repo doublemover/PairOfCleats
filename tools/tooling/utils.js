@@ -428,10 +428,12 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
         'gnu-global': 'No approved portable native archive is declared; select a verified GNU Global installation or authorize a separate platform package action. File/stdin ingest requires no producer.',
         'cargo-cyclonedx': 'The pinned native ZIP covers Windows x64. Other official archives use tar.xz, which the bounded extractor does not support; no external extractor or source build is substituted.',
         'npm-sbom': 'Reuse the selected npm supplied by the supported Node bootstrap; tooling setup does not replace the bootstrap toolchain.',
-        cargo: 'Reuse an explicitly selected compatible Cargo toolchain. Native linker/SDK installation is a separate system prerequisite.'
+        cargo: 'Reuse an explicitly selected compatible Cargo toolchain. Native linker/SDK installation is a separate system prerequisite.',
+        'git-lfs': 'The pinned portable archives cover Windows x64/ia32/arm64 and macOS/Linux x64/arm64. Repository fetch/checkout and any Git filter/configuration change require a separately selected LFS workflow.'
       };
       return { id, label, languages: [], capabilities: [capability], consumerArgsPrefix: id === 'cargo-cyclonedx' ? ['cyclonedx'] : [],
         ...(id === 'cargo-cyclonedx' ? { prerequisites: [{ id: 'cargo', command: 'cargo', family: 'cargo', versionRange: '>=1.85.0', kind: 'project-sdk', phase: 'launch', dependsOn: [] }] } : {}),
+        ...(id === 'git-lfs' ? { prerequisites: [{ id: 'git', command: 'git', family: 'git', kind: 'core-prerequisite', phase: 'launch', dependsOn: [] }] } : {}),
         detect: { cmd: ({ graphviz: 'dot', ripgrep: 'rg', 'universal-ctags': 'ctags', 'gnu-global': 'global', 'npm-sbom': 'npm' })[id] || id, args, binDirs: [binDir] },
         install: managedRecipe ? { cache: managedRecipe } : {}, verifyManagedInstall: verifyManagedOperationalTool,
         provisioningBlocker: blockers[id] || 'No approved native archive is declared for this platform/architecture.' };

@@ -60,8 +60,8 @@ try {
   assert.equal(verifyInstallerRequirementProbe('php', { ok: true, stdout: JSON.stringify({ family: 'php', version: '8.4.0', binary: command,
     extensions: [42, null] }) }, { requiredComponents: ['json'] }).reason, 'missing_runtime_components');
   const pythonArgs = resolveInstallerRequirementProbeArgs('python3')[0];
-  assert.equal(pythonArgs[0], '-c'); assert.ok(pythonArgs[1].includes('find_spec'));
-  assert.equal(pythonArgs[1].includes('pip install'), false, 'component discovery cannot install packages');
+  assert.deepEqual(pythonArgs.slice(0, 3), ['-I', '-B', '-c']); assert.ok(pythonArgs[3].includes('find_spec'));
+  assert.equal(pythonArgs[3].includes('pip install'), false, 'component discovery cannot install packages or write bytecode');
 
   const jdk = path.join(temporary, 'jdk'), secondJdk = path.join(temporary, 'other-jdk');
   for (const root of [jdk, secondJdk]) {

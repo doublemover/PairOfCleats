@@ -1,6 +1,8 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
+import { readStorageLocator } from '../../src/shared/storage/locator-read.js';
+import { applyStorageLocatorSelections } from '../../src/shared/storage/selected-layout.js';
 import { planManagedChildStorage } from '../../src/shared/storage/child-environment.js';
 import { runManagedChildWithStorage } from '../../src/shared/storage/managed-child-session.js';
 import { observeProvisioningResource } from './provisioning-failure.js';
@@ -17,10 +19,14 @@ const asError = value => value && typeof value === 'object' ? value : new Error(
  */
 export const runOperationalChildWithStorage = async ({ id, toolingRoot, repoRoot, command, identity, env, cwd = repoRoot,
   registerRecovery = () => {} }, execute) => {
-  const layout = resolveStorageLayout({ env, overrides: { tooling: toolingRoot }, cwd });
+  const baseLayout = resolveStorageLayout({ env, overrides: { tooling: toolingRoot }, cwd });
+  const layout = applyStorageLocatorSelections(baseLayout, readStorageLocator(baseLayout.home.path));
   const toolIdentity = createHash('sha256').update(JSON.stringify(identity)).digest('hex');
   const plan = planManagedChildStorage({ baseEnv: env, layout, command, family: FAMILIES[id] || null, cwd,
     managed: true, toolId: id, toolIdentity, projectIdentity: path.resolve(repoRoot) });
+  if (plan.storageLocator.sha256 !== layout.locator.sha256 || plan.storageLocator.target !== layout.locator.path) {
+    throw Object.assign(new Error('Operational storage categories changed while selecting launch authority; re-plan before preparation.'), { code: 'ERR_OPERATIONAL_STORAGE_SELECTION_CHANGED' });
+  }
   if (plan.exceptions.some(exception => exception.status === 'unsupported-owner-adapter-required')) {
     throw Object.assign(new Error(`Selected ${id} has no canonical secondary-write storage adapter.`), { code: 'ERR_OPERATIONAL_STORAGE_UNSUPPORTED' });
   }

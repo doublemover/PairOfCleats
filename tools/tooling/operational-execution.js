@@ -140,7 +140,7 @@ export const withOperationalTool = async (id, { repoRoot, commandOverride = null
       const capability = await verifyOperationalCapability({ id, command: identity.path, argsPrefix: prefix, cwd: resolveToolRoot(), env: selectedEnv, signal }, {
         probe: async (_command, args, options) => {
           const result = await run(args.slice(prefix.length), options);
-          return { ok: result.exitCode === 0, stdout: result.stdout || '', stderr: result.stderr || '' };
+          return { ok: result.exitCode === 0, status: result.exitCode, stdout: result.stdout || '', stderr: result.stderr || '' };
         }
       });
       if (!capability.ok) throw unavailable(id, capability.level);
