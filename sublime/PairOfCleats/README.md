@@ -339,6 +339,15 @@ or showing query/options input. The chosen root stays in the pending request,
 so a later active file or explicit repository choice cannot substitute another
 target before dispatch. Ambiguous roots use the existing repository picker.
 
+Map generation retains one operation and a settings snapshot from repository
+selection through its options and CLI settlement. New maps, cancellation and
+project replacement revoke older native steps/results. Saved map packets are
+independent snapshots and failed persistence retains the acknowledged entry.
+History/report failures are reported separately from successfully generated
+output, and a browser refusal is no longer reported as a successful open.
+Actual command, persistence and host-notification regressions are authored and
+unrun; native browser/filesystem qualification remains pending.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only

@@ -1,8 +1,10 @@
 import importlib
 import json
+import copy
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -84,7 +86,8 @@ class MapBehaviorTests(unittest.TestCase):
     def _install_successful_map_runner(self, out_path='https://example.test/map'):
         runner_calls = []
 
-        def _run_process(command, args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None):
+        def _run_process(command, args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None, **options):
+            self.assertIsNotNone(options.get('operation_scope'))
             runner_calls.append({'cwd': cwd, 'title': title})
             on_done(_FakeResult({
                 'ok': True,
@@ -117,7 +120,8 @@ class MapBehaviorTests(unittest.TestCase):
             'warnings': ['dataflow metadata missing'],
         }
 
-        def _run_process(command, args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None):
+        def _run_process(command, args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None, **options):
+            self.assertIsNotNone(options.get('operation_scope'))
             on_done(_FakeResult(payload))
 
         self.map_commands.runner.run_process = _run_process
@@ -130,6 +134,78 @@ class MapBehaviorTests(unittest.TestCase):
         self.assertEqual(self.opened_urls, ['https://example.test/map'])
         panel = self.window.panels['pairofcleats-map']
         self.assertIn('Warnings:', panel.appended)
+
+    def test_map_options_keep_original_runtime_and_revoke_old_native_steps(self):
+        def original_root(_window, on_done, **options):
+            self.assertIsNotNone(options.get('operation_scope'))
+            on_done('C:/repo')
+        resolver = patch.object(self.map_commands, '_with_map_repo_root', side_effect=original_root)
+        resolver.start()
+        self.addCleanup(resolver.stop)
+        settings = self.map_commands.config.get_settings(self.window)
+        settings.update({'map_prompt_options': True, 'env': {'ORIGINAL_PROFILE': 'captured'}})
+        calls = []
+        self.map_commands.runner.run_process = lambda *args, **options: calls.append((args, options))
+        self.map_commands.config.get_settings = lambda _window: copy.deepcopy(settings)
+        self.map_commands.config.build_env = lambda snapshot: dict(snapshot.get('env') or {})
+        command = self.map_commands.PairOfCleatsMapRepoCommand(self.window)
+        command.run()
+        old_type = self.window.quick_panel_callback
+        old_type(0)
+        format_choice = self.window.quick_panel_callback
+        old_type(1)
+        self.assertIs(self.window.quick_panel_callback, format_choice)
+        settings['env']['ORIGINAL_PROFILE'] = 'replacement'
+        format_choice(0)
+        format_choice(0)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][1]['env']['ORIGINAL_PROFILE'], 'captured')
+        old_result = calls[0][1]['on_done']
+        command.run()
+        cancelled_type = self.window.quick_panel_callback
+        cancelled_type(-1)
+        cancelled_type(0)
+        self.assertEqual(len(calls), 1)
+        old_result(_FakeResult({'ok': True, 'outPath': 'https://example.test/obsolete', 'format': 'html-iso'}))
+        self.assertEqual(self.opened_urls, [])
+
+        command.run()
+        original_type = self.window.quick_panel_callback
+        self.window.set_project_data({'settings': {'pairofcleats': {'map_max_edges': 15}}})
+        original_type(0)
+        self.assertIs(self.window.quick_panel_callback, original_type)
+        self.assertEqual(len(calls), 1)
+
+    def test_map_history_isolation_and_host_open_refusal(self):
+        payload = {'repo': 'C:/repo', 'outPath': 'https://example.test/original',
+                   'summary': {'counts': {'files': 1}}, 'format': 'html-iso'}
+        self.map_state.record_last_map(self.window, payload)
+        payload['summary']['counts']['files'] = 99
+        saved = self.map_state.get_last_map(self.window)
+        self.assertEqual(saved['summary']['counts']['files'], 1)
+        saved['summary']['counts']['files'] = 98
+        self.assertEqual(self.map_state.get_last_map(self.window)['summary']['counts']['files'], 1)
+        acknowledged = copy.deepcopy(self.window.project_data())
+        with patch.object(self.window, 'set_project_data', side_effect=OSError('original map history failure')):
+            with self.assertRaisesRegex(OSError, 'original map history failure'):
+                self.map_state.record_last_map(self.window, {'outPath': 'replacement'})
+        self.assertEqual(self.window.project_data(), acknowledged)
+        self.map_commands.webbrowser.open_new_tab = lambda url: False
+        self.assertFalse(self.map_commands._open_in_browser('https://example.test/original'))
+        self.assertIn('browser refused', self.sublime.last_error)
+
+    def test_generated_map_remains_usable_after_independent_history_and_panel_failures(self):
+        settings = self.map_commands.config.get_settings(self.window)
+        settings['map_show_report_panel'] = True
+        self.map_commands.config.get_settings = lambda _window: copy.deepcopy(settings)
+        self._install_successful_map_runner()
+        with patch.object(self.map_state, 'record_last_map', side_effect=OSError('original map persistence failure')), \
+                patch.object(self.map_commands.ui, 'write_output_panel', side_effect=RuntimeError('independent map panel failure')):
+            self.map_commands._dispatch_map(self.window, 'repo', None, 'C:/repo')
+        self.assertEqual(self.opened_urls, ['https://example.test/map'])
+        self.assertIn('generation completed', self.sublime.last_error)
+        self.assertIn('original map persistence failure', self.sublime.last_error)
+        self.assertIn('independent map panel failure', self.sublime.last_error)
 
     def test_map_open_last_viewer_opens_local_file_predictably(self):
         with isolated_temp_directory() as tmp:

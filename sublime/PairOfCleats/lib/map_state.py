@@ -1,10 +1,13 @@
+import copy
+
+
 def get_last_map(window):
     if window is None:
         return None
     _, state = _load_state(window)
     entry = state.get('last_map')
     if isinstance(entry, dict):
-        return dict(entry)
+        return copy.deepcopy(entry)
     return None
 
 
@@ -12,7 +15,8 @@ def record_last_map(window, payload, report_text=None):
     if window is None or not isinstance(payload, dict):
         return
     data, state = _load_state(window)
-    entry = dict(payload)
+    data, state = dict(data), dict(state)
+    entry = copy.deepcopy(payload)
     if isinstance(report_text, str) and report_text:
         entry['reportText'] = report_text
     state['last_map'] = entry

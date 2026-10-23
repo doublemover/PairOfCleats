@@ -1,6 +1,7 @@
 import json
 import os
 import webbrowser
+import copy
 from urllib.parse import quote, urlparse
 
 import sublime
@@ -14,6 +15,8 @@ from ..lib import results
 from ..lib import runner
 from ..lib import ui
 from ..lib import views
+from ..lib import operations
+from ..lib.prompts import NativePrompt
 
 MAP_TYPE_CHOICES = [
     ('combined', 'combined (imports + calls + usages + dataflow)'),
@@ -58,8 +61,10 @@ def _has_map_state(window):
     return map_state.get_last_map(window) is not None
 
 
-def _with_map_repo_root(window, on_resolved, path_hint=None):
+def _with_map_repo_root(window, on_resolved, path_hint=None, operation_scope=None):
     def handle_repo_root(repo_root, reason):
+        if operation_scope is not None and not operations.is_current(operation_scope):
+            return
         if not repo_root:
             ui.show_error('PairOfCleats: {0}'.format(reason))
             return
@@ -105,10 +110,12 @@ def _open_in_browser(path_value):
         except Exception:
             url = 'file:///{0}'.format(local_path.replace('\\', '/'))
     try:
-        webbrowser.open_new_tab(url)
+        if not webbrowser.open_new_tab(url):
+            ui.show_error('PairOfCleats: the browser refused the generated map output.')
+            return False
         return True
-    except Exception:
-        ui.show_error('PairOfCleats: failed to open browser.')
+    except Exception as error:
+        ui.show_error('PairOfCleats: failed to open generated map output: ' + str(error))
         return False
 
 
@@ -148,7 +155,7 @@ def _render_report(payload):
     return '\n'.join(lines) + '\n'
 
 
-def _offer_rebuild(window, warnings):
+def _offer_rebuild(window, warnings, operation_scope=None):
     if not warnings or window is None:
         return
     needs = any(
@@ -162,7 +169,7 @@ def _offer_rebuild(window, warnings):
         if index == 0:
             window.run_command('pair_of_cleats_index_build_all')
 
-    window.show_quick_panel(
+    NativePrompt(window, operation_scope, key='map-rebuild').choose(
         ['Rebuild index with dataflow/control-flow enabled', 'Dismiss'],
         on_select
     )
@@ -206,7 +213,7 @@ def _open_map_output(window, payload):
     return True
 
 
-def _prompt_map_type(window, settings, on_done):
+def _prompt_map_type(window, settings, on_done, prompt=None):
     default_type = map_lib.resolve_map_type(settings)
     labels = [entry[1] for entry in MAP_TYPE_CHOICES]
     selected_index = 0
@@ -220,10 +227,10 @@ def _prompt_map_type(window, settings, on_done):
             return
         on_done(MAP_TYPE_CHOICES[index][0])
 
-    window.show_quick_panel(labels, on_select, selected_index=selected_index)
+    (prompt or NativePrompt(window, key='map-options')).choose(labels, on_select, selected_index=selected_index)
 
 
-def _prompt_map_format(window, settings, on_done):
+def _prompt_map_format(window, settings, on_done, prompt=None):
     default_format = map_lib.resolve_map_format(settings)
     labels = [entry[1] for entry in MAP_FORMAT_CHOICES]
     selected_index = 0
@@ -237,11 +244,15 @@ def _prompt_map_format(window, settings, on_done):
             return
         on_done(MAP_FORMAT_CHOICES[index][0])
 
-    window.show_quick_panel(labels, on_select, selected_index=selected_index)
+    (prompt or NativePrompt(window, key='map-options')).choose(labels, on_select, selected_index=selected_index)
 
 
-def _dispatch_map(window, scope, focus, repo_root, map_type=None, map_format=None):
-    settings = config.get_settings(window)
+def _dispatch_map(window, scope, focus, repo_root, map_type=None, map_format=None,
+                  settings_snapshot=None, operation_scope=None):
+    operation_scope = operation_scope or operations.capture(window, key='map-generation')
+    if not operations.is_current(operation_scope):
+        return
+    settings = copy.deepcopy(settings_snapshot) if settings_snapshot is not None else config.get_settings(window)
 
     errors = config.validate_settings(settings, repo_root, workflow='map')
     if errors:
@@ -262,6 +273,8 @@ def _dispatch_map(window, scope, focus, repo_root, map_type=None, map_format=Non
         return
 
     def handle_payload(result):
+        if not operations.is_current(operation_scope):
+            return
         if result.error:
             ui.show_error(result.error)
             return
@@ -274,24 +287,45 @@ def _dispatch_map(window, scope, focus, repo_root, map_type=None, map_format=Non
             ui.show_error('PairOfCleats map returned invalid JSON.')
             return
 
-        resolved_payload = dict(payload)
+        resolved_payload = copy.deepcopy(payload)
         resolved_payload.setdefault('repo', repo_root)
         resolved_payload.setdefault('format', map_format)
         resolved_payload.setdefault('outPath', output_path)
         resolved_payload.setdefault('modelPath', model_path)
         resolved_payload.setdefault('nodeListPath', node_list_path)
         report_text = _render_report(resolved_payload)
-        map_state.record_last_map(window, resolved_payload, report_text=report_text)
+        failures = []
+        try:
+            map_state.record_last_map(window, resolved_payload, report_text=report_text)
+        except Exception as error:
+            failures.append('Map history save failed: ' + str(error))
+        if not operations.is_current(operation_scope):
+            return
         if _should_show_report_panel(settings, resolved_payload):
-            ui.write_output_panel(window, 'pairofcleats-map', report_text)
-        _offer_rebuild(window, resolved_payload.get('warnings') or [])
-        _open_map_output(window, resolved_payload)
+            try:
+                ui.write_output_panel(window, 'pairofcleats-map', report_text)
+            except Exception as error:
+                failures.append('Map report display failed: ' + str(error))
+        try:
+            _offer_rebuild(window, resolved_payload.get('warnings') or [], operation_scope)
+        except Exception as error:
+            failures.append('Map rebuild prompt failed: ' + str(error))
+        if not operations.is_current(operation_scope):
+            return
+        try:
+            _open_map_output(window, resolved_payload)
+        except Exception as error:
+            failures.append('Generated map output could not open: ' + str(error))
+        if failures:
+            ui.show_error('PairOfCleats map generation completed.\n' + '\n'.join(failures))
 
     ui.show_status('PairOfCleats: generating map...')
-    _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_format, output_path, model_path, node_list_path, handle_payload)
+    _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_format, output_path,
+                      model_path, node_list_path, handle_payload, operation_scope)
 
 
-def _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_format, output_path, model_path, node_list_path, on_done):
+def _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_format, output_path,
+                      model_path, node_list_path, on_done, operation_scope=None):
     args = map_lib.build_map_args(
         repo_root,
         settings,
@@ -318,26 +352,33 @@ def _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_f
         capture_json=True,
         on_done=on_done,
         stream_output=settings.get('map_stream_output') is True,
-        panel_name='pairofcleats-map'
+        panel_name='pairofcleats-map',
+        operation_scope=operation_scope,
     )
 
 
 def _run_with_options(window, scope, focus, map_type=None, map_format=None, path_hint=None):
-    settings = config.get_settings(window)
-
+    operation_scope = operations.capture(window, key='map-generation')
     def on_repo_root(repo_root):
+        if not operations.is_current(operation_scope):
+            return
+        settings = config.get_settings(window)
+        prompt = NativePrompt(window, operation_scope)
+        def dispatch(selected_type, selected_format):
+            _dispatch_map(window, scope, focus, repo_root, map_type=selected_type, map_format=selected_format,
+                          settings_snapshot=settings, operation_scope=operation_scope)
         if not settings.get('map_prompt_options'):
-            _dispatch_map(window, scope, focus, repo_root, map_type=map_type, map_format=map_format)
+            dispatch(map_type, map_format)
             return
 
         def after_type(selected_type):
             def after_format(selected_format):
-                _dispatch_map(window, scope, focus, repo_root, map_type=selected_type, map_format=selected_format)
-            _prompt_map_format(window, settings, after_format)
+                dispatch(selected_type, selected_format)
+            _prompt_map_format(window, settings, after_format, prompt)
 
-        _prompt_map_type(window, settings, after_type)
+        _prompt_map_type(window, settings, after_type, prompt)
 
-    _with_map_repo_root(window, on_repo_root, path_hint=path_hint)
+    _with_map_repo_root(window, on_repo_root, path_hint=path_hint, operation_scope=operation_scope)
 
 
 class PairOfCleatsMapRepoCommand(sublime_plugin.WindowCommand):
