@@ -1,4 +1,15 @@
-# Minimal API Server
+# HTTP API server contract
+
+This is the current endpoint/envelope guide, reconciled with source on
+2026-10-22 for PR #572. Runtime validators and schemas remain authoritative:
+[request validation](../../tools/api/validation.js),
+[router](../../tools/api/router.js),
+[response projection](../../tools/api/response.js),
+[shared error producer](../../src/shared/error-codes.js) and
+[trust boundary](../../tools/api/trust-boundary.js). The conflicting
+[Phase 14.6/15.3 proposal](../archived/http-api.md) is deprecated and historical.
+Examples and fixture mappings below do not establish current-head execution;
+the development batch remains unvalidated.
 
 Experimental `POST /analysis/graph-evidence` pages retained occurrences or resolved
 adjacency from an explicit immutable build. It shares authorized repository and
@@ -12,11 +23,22 @@ handlers. It is intended for local developer tooling (or local agent orchestrati
 not for exposing publicly.
 
 Auth behavior:
-- When bound to a non-localhost address, auth is required unless `--allow-unauthenticated` is set.
-- When bound to localhost, auth is optional unless you provide a token (then it is required).
+- Non-localhost bindings require a token and reject `--allow-unauthenticated`.
+- Localhost bindings without a token allow unauthenticated requests. A configured
+  token is required unless the explicit local-only opt-out is selected.
 
 Provide a bearer token via `PAIROFCLEATS_API_TOKEN` or `--auth-token`. Use
-`--allow-unauthenticated` only when you explicitly want to disable auth.
+`--allow-unauthenticated` only for a localhost binding when explicitly disabling
+token authentication. It cannot authorize an unauthenticated non-local listener.
+
+| Listener | Token configured | Local opt-out | Result |
+| --- | --- | --- | --- |
+| Localhost | No | Either | Unauthenticated |
+| Localhost | Yes | No | Bearer token required |
+| Localhost | Yes | Yes | Unauthenticated, explicit local choice |
+| Non-local | No | Either | Startup refused |
+| Non-local | Yes | No | Bearer token required |
+| Non-local | Yes | Yes | Startup refused |
 
 The server runs in-process and does not shell out to the CLI.
 
@@ -36,7 +58,7 @@ Options:
 - `--json`: emit a JSON startup line with `host`, `port`, and `baseUrl`
 - `--quiet`: suppress non-essential logs
 - `--auth-token <token>`: bearer token required for requests (or set `PAIROFCLEATS_API_TOKEN`)
-- `--allow-unauthenticated`: explicit opt-out to disable auth
+- `--allow-unauthenticated`: localhost-only opt-out to disable auth
 - `--cors-allowed-origins <list>`: comma-separated allowlist of origins
 - `--cors-allow-any`: explicit opt-in to allow any origin (unsafe)
 - `--allowed-repo-roots <list>`: comma-separated allowlist for `repoPath` overrides
@@ -67,8 +89,8 @@ Response:
 ```json
 {
   "ok": true,
-  "repo": "/path/to/repo",
-  "status": { "...": "see core status output" }
+  "status": { "...": "see core status output" },
+  "trustBoundary": { "...": "redacted effective listener/auth/root policy" }
 }
 ```
 
@@ -76,8 +98,8 @@ Response:
 Streams status as Server-Sent Events (SSE). Each event includes JSON `data`.
 
 Events:
-- `start` `{ ok, repo }`
-- `result` `{ ok, repo, status }`
+- `start` `{ ok }`
+- `result` `{ ok, status }`
 - `error` `{ ok: false, code, message }`
 - `done` `{ ok }`
 
@@ -90,7 +112,7 @@ Response:
 # TYPE ...
 ```
 
-### `POST /search`
+### `GET /search` and `POST /search`
 Executes the search pipeline with the provided payload and returns JSON output.
 
 Payload schema (canonical):
@@ -106,7 +128,7 @@ Optional:
 - `output` (`compact` | `json` | `full`)
 - `mode` (`code` | `prose` | `records` | `both` | `all` | `extracted-prose`)
 - `backend` (`auto` | `memory` | `sqlite` | `sqlite-fts` | `lmdb`)
-- `ann` (boolean), `top` (integer)
+- `ann` (boolean), `top` (nonnegative integer)
 - `cursor` (filter-only continuation), `asOf`, `snapshot` / `snapshotId` (generation selectors)
 - Deprecated compatibility input `context: 0` is a no-op. Positive/invalid context
   values fail with a migration message; use source excerpts or context packs.
@@ -123,14 +145,17 @@ Optional:
 Enumeration returns the CLI's ordered IDs, totals and `pagination.nextCursor`.
 Repeat identical filters/modes and the original generation with that cursor;
 text plus cursor and conflicting generation selectors fail. GET `/search` decodes
-the same fields. The viewer's search operation uses this same POST contract.
+the same fields, using `q` for query text and repeated values for list filters.
+`q` may be absent for effective filter-only enumeration, for example
+`/search?ext=.js&mode=code&backend=memory&top=5`. A cursor belongs to that original
+filter/mode/generation request, not a new text search. Explicit `asOf` cannot
+silently fall back to a current generation. The viewer uses the same POST contract.
 
 Response:
 ```json
 {
   "ok": true,
-  "repo": "/path/to/repo",
-  "result": { "code": [ ... ], "prose": [ ... ] }
+  "result": { "code": [], "prose": [] }
 }
 ```
 
@@ -140,7 +165,26 @@ Errors:
 - `403 FORBIDDEN` for disallowed repo paths.
 - `409 NO_INDEX` when indexes are missing.
 - `500 INTERNAL` for unexpected failures.
-Error payloads include `{ ok: false, code, message }` plus optional `errors` (validation) or `error` (internal detail).
+JSON errors use the flat shared envelope: `ok`, `code`, `namespaceCode`,
+`message` and `hint`. Route-specific fields such as `errors` (validation) or
+`error` (diagnostic detail) are optional additions. `error` is not a mandatory
+nested protocol object, and JSON search success uses `result`, not `results`.
+Index-format diagnostics may add their explicit rebuild details. Server paths
+are redacted from diagnostics/metadata; source snippets and query text remain
+source content rather than being rewritten as server paths.
+
+For example, an unknown route returns HTTP 404 with this JSON body:
+
+<!-- example: http-not-found -->
+```json
+{
+  "ok": false,
+  "code": "NOT_FOUND",
+  "namespaceCode": "poc.not_found",
+  "message": "Not found.",
+  "hint": "Verify the requested path/resource exists and is accessible."
+}
+```
 
 ### `POST /search/federated`
 Executes workspace federated search and returns a merged JSON payload.
@@ -175,7 +219,7 @@ matches `/search`.
 Events:
 - `start` `{ ok: true }`
 - `progress` `{ ok: true, phase, message }`
-- `result` `{ ok: true, repo, result }`
+- `result` `{ ok: true, result }`
 - `error` `{ ok: false, code, message }`
 - `done` `{ ok }`
 
@@ -188,9 +232,58 @@ curl -N http://127.0.0.1:7345/search/stream \
 
 Notes:
 - By default, `output` is `compact` (uses `--json --compact` in the CLI).
-- Missing indexes return `409 NO_INDEX` with a JSON error payload.
+- Admission failures before SSE headers (auth, body/content type, schema and
+  repository authorization) return their normal HTTP status and JSON error.
+- After admission, the route commits HTTP 200 SSE headers and emits `start`/
+  `progress` before search execution. Missing indexes then produce an `error`
+  event with `code: "NO_INDEX"`, followed by `done` with `ok: false`; they cannot
+  change that response into HTTP 409 JSON. Ordinary backend failures use
+  `INTERNAL`; unsupported index format uses `INVALID_REQUEST` with rebuild
+  details. Failure produces no `result`. A disconnected/aborted stream cannot
+  guarantee delivery of a final event.
+- Normal completion emits `result`, then `done` with `ok: true`. SSE error data
+  follows the event contract above; it need not include every JSON-error field.
 - `Content-Type: application/json` is required for POST payloads.
 - `repoPath` overrides are disabled by default and only allowed when `--allowed-repo-roots` is set.
+
+## Snapshot and diff routes
+
+These routes share the listener/authentication and repository authorization
+owners above. They use the flat JSON error envelope; invalid/missing IDs are
+classified by the route instead of falling back to another resource.
+
+| Method and route | Success body fields beyond `ok: true` |
+| --- | --- |
+| `GET /index/snapshots` | `snapshots` |
+| `GET /index/snapshots/:id` | `snapshot` |
+| `POST /index/snapshots` | `snapshot` |
+| `GET /index/diffs` | `diffs` |
+| `GET /index/diffs/:id` | `diff` |
+| `GET /index/diffs/:id/events` | HTTP 200 `application/x-ndjson`, stored/shaped event rows |
+
+Snapshot create accepts the existing label/tags/modes/snapshotId/retentionTier/
+waitMs inputs and runs the canonical snapshot validation/publication owner.
+See [snapshot and IndexRef semantics](../specs/index-refs-and-snapshots.md),
+[diff semantics](../specs/index-diffs.md),
+[federation](../specs/federated-search.md), and the actual
+[snapshot](../../tools/api/router/index-snapshots.js)/
+[diff](../../tools/api/router/index-diffs.js) routes. The old Phase proposal's
+custom `ERR_*` envelope is not a second HTTP protocol. Success/search metadata
+stays in its actual producer payload; there is no invented `results` wrapper.
+
+## Contract coverage owners
+
+These fixtures preserve executable examples, with execution deferred for the
+current development source:
+
+| Behavior | Fixture |
+| --- | --- |
+| Flat documented 404 envelope, shared namespace/hint | [router contract matrix](../../tests/services/api/router-contract-matrix.test.js) reads the marked JSON example above |
+| JSON search success, request types, missing index, auth and CORS | [search contract matrix](../../tests/services/api/search-contract-matrix.test.js) |
+| Pre-header JSON vs post-header SSE failure; success parity/filter-only GET | [search stream outcomes](../../tests/services/api/search-stream-outcomes.test.js) |
+| Valid local/non-local startup and rejected unsafe combinations | [trust-boundary matrix](../../tests/services/api/trust-boundary-matrix.test.js), [startup rejections](../../tests/services/api/trust-boundary-rejections.test.js) |
+| Listener authority and independent Origin/token admission | [Host authority](../../tests/services/api/host-authority.test.js) |
+| Repository, path decode, snapshot/diff classification | [repo authorization](../../tests/services/api/repo-authorization.test.js), [route classification](../../tests/services/api/index-route-client-error-classification.test.js), [decode validation](../../tests/services/api/index-route-decode-validation.test.js) |
 
 ## Error codes and troubleshooting
 PairOfCleats uses the shared error code registry in `docs/contracts/mcp-error-codes.md`.

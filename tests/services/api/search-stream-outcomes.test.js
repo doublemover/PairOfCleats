@@ -23,15 +23,24 @@ const router = createApiRouter({ host: '127.0.0.1', defaultRepo: process.cwd() }
 const server = http.createServer(router.handleRequest);
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
-const post = async (route) => {
+const post = async (route, payload = { query: '/api/status', mode: 'code' }, expectedStatus = 200) => {
   const response = await fetch(base + route, { method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: '/api/status', mode: 'code' }),
+    body: JSON.stringify(payload),
     signal: AbortSignal.timeout(3000) });
-  assert.equal(response.status, 200);
+  assert.equal(response.status, expectedStatus);
   return response;
 };
 try {
+  globalThis.__streamSearchFixture = () => assert.fail('invalid admission cannot start a search');
+  const invalidStream = await post('/search/stream', {}, 400);
+  assert.match(invalidStream.headers.get('content-type'), /application\/json/u,
+    'pre-header stream admission failure retains its HTTP JSON error contract');
+  const invalidBody = await invalidStream.json();
+  assert.equal(invalidBody.ok, false); assert.equal(invalidBody.code, ERROR_CODES.INVALID_REQUEST);
+  assert.equal(invalidBody.namespaceCode, 'poc.invalid_request');
+  assert.equal(typeof invalidBody.hint, 'string');
+
   for (const [error, code] of [
     [new Error('Index not found. Build an index first.'), ERROR_CODES.NO_INDEX],
     [Object.assign(new Error('Unsupported index format: rebuild required.'), {
@@ -62,6 +71,8 @@ try {
       code: [{ file: 'src/status.js', snippet }],
       retrieval: { indexPath: '/private/cache/index' }, observability: { repoRoot: '/private/repository' } });
     const json = await (await post('/search')).json();
+    assert.equal(json.ok, true); assert.equal(Object.hasOwn(json, 'result'), true);
+    assert.equal(Object.hasOwn(json, 'results'), false, 'JSON success retains the shipped singular result envelope');
     const events = parseSseEvents(await (await post('/search/stream')).text());
     assert.equal(events.filter(event => event.event === 'done').length, 1);
     assert.equal(events.at(-1).data.ok, true);
@@ -71,6 +82,15 @@ try {
     assert.equal(streamed.code[0].snippet, snippet);
     assert.equal(JSON.stringify(streamed).includes('/private/'), false);
   }
+  globalThis.__streamSearchFixture = async (_repo, options) => {
+    assert.equal(options.query, ''); assert.ok(options.args.includes('--ext'));
+    return { code: [], prose: [] };
+  };
+  const filtered = await fetch(`${base}/search?ext=.js&mode=code&backend=memory&top=5`, {
+    signal: AbortSignal.timeout(3000)
+  });
+  assert.equal(filtered.status, 200, 'documented filter-only GET does not require q');
+  assert.deepEqual((await filtered.json()).result.code, []);
   const req = new EventEmitter(), res = new EventEmitter();
   let ends = 0;
   res.writeHead = () => { res.headersSent = true; };
