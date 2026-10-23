@@ -1,6 +1,7 @@
 """Authored real navigation/picker/opening controls with inert host boundaries."""
 import hashlib
 import importlib
+import json
 import os
 from unittest.mock import patch
 from runtime_harness import FakeView, FakeWindow, FakeRegion, install_fake_modules, isolated_temp_directory
@@ -152,5 +153,54 @@ with isolated_temp_directory() as temporary:
         search.PairOfCleatsGotoDefinitionCommand(source).run(None)
         callbacks.pop(0)(Result(payload('source.py')))
         assert [(region.a, region.b) for region in source.sel()] == [(0, 6)], 'same-view target can intentionally move the original cursor after selection admission'
+
+        reset()
+        delivered, evidence = payload(), []
+        target_id = json.dumps({'partitionId': 'sy1:' + 'a' * 64, 'localId': 1})
+        delivered['binding']['targetId'] = target_id
+        delivered['generation'] = {'baseBuildId': 'original-generation', 'semanticRevision': 0}
+        navigation.execute_qualified_navigation(source, 'Widget', 'definitions', lambda *_args: None, 10, 'Inert captured evidence',
+                                                on_evidence=lambda packet, root: evidence.append(packet))
+        callbacks.pop(0)(Result(delivered))
+        assert len(evidence) == 1
+        delivered['binding']['targetId'] = 'foreign original response mutation'
+        delivered['results'][0]['file'] = 'foreign-result.py'
+        evidence[0]['binding']['targetId'] = 'foreign consumer mutation'
+        evidence[0]['generation']['baseBuildId'] = 'foreign-generation'
+        captured = navigation.qualified_navigation_evidence(window, temporary)
+        assert captured['binding']['targetId'] == target_id and captured['generation']['baseBuildId'] == 'original-generation'
+        assert captured['results'][0]['file'] == 'target.py', 'original transport and evidence callback mutations cannot rewrite private navigation evidence'
+        captured['binding']['targetId'] = 'foreign returned cursor evidence'
+        captured['results'][0]['startLine'] = 99
+        repeated = navigation.qualified_navigation_evidence(window, temporary)
+        assert repeated['binding']['targetId'] == target_id and repeated['results'][0]['startLine'] == 1
+
+        reset()
+        delivered, received = payload(), []
+        delivered['results'][0]['ref'] = {'type': 'symbol', 'symbolId': 'original-symbol'}
+        navigation.execute_qualified_navigation(source, 'Widget', 'references', lambda hits, *_args: received.extend(hits), 10, 'Inert captured hits')
+        callbacks.pop(0)(Result(delivered))
+        assert len(received) == 1
+        received[0]['ref']['symbolId'] = 'foreign nested result'
+        delivered['results'][0]['ref']['symbolId'] = 'foreign nested transport'
+        assert navigation.qualified_navigation_evidence(window, temporary)['results'][0]['ref']['symbolId'] == 'original-symbol'
+        change_disk()
+        assert navigation.qualified_navigation_evidence(window, temporary) is None, 'isolated packet data cannot revive changed original source bytes'
+
+        class Opaque(dict):
+            def __deepcopy__(self, _memo):
+                raise AssertionError('data capture cannot invoke an unknown object copy hook')
+
+        nested = 'leaf'
+        for _index in range(66):
+            nested = [nested]
+        for unsupported in (Opaque({'generation': 'foreign'}), object(), {1: 'foreign key'}, nested):
+            reset()
+            delivered, received = payload(), []
+            delivered['extra'] = unsupported
+            navigation.execute_qualified_navigation(source, 'Widget', 'definitions', lambda *_args: None, 10, 'Inert invalid evidence',
+                                                    on_evidence=lambda packet, root: received.append(packet))
+            callbacks.pop(0)(Result(delivered))
+            assert received == [None] and navigation.qualified_navigation_evidence(window, temporary) is None
 
 print('Sublime original request/picker/deferred target controls authored; execution deferred')

@@ -7,6 +7,21 @@ from .source_authority import read_current_source, read_verified_source, source_
 _QUALIFIED_NAVIGATION = {}
 
 
+def _copy_navigation_data(value, depth=0):
+    """Only ordinary decoded data; copying cannot invoke object copy hooks."""
+    if depth > 64:
+        raise ValueError('Navigation evidence exceeds the editor nesting admission.')
+    if value is None or type(value) in (str, int, float, bool):
+        return value
+    if type(value) is dict:
+        if any(type(key) is not str for key in value):
+            raise ValueError('Navigation evidence requires original JSON object keys.')
+        return {key: _copy_navigation_data(child, depth + 1) for key, child in value.items()}
+    if type(value) is list:
+        return [_copy_navigation_data(child, depth + 1) for child in value]
+    raise ValueError('Navigation evidence requires original decoded JSON data.')
+
+
 def _request_view_matches(view, window, captured, require_cursor=False):
     if (not view or not view.is_valid() or not view.window() or view.window().id() != window.id()
             or view.id() != captured['viewId'] or view.buffer_id() != captured['bufferId']
@@ -17,7 +32,7 @@ def _request_view_matches(view, window, captured, require_cursor=False):
     return not require_cursor or bool(selections and selections[0].begin() == captured['point'])
 
 
-def qualified_navigation_evidence(window, repo_root):
+def _qualified_navigation_packet(window, repo_root):
     captured = _QUALIFIED_NAVIGATION.get(window.id())
     view = window.active_view()
     if (not captured or not operations.is_current(captured['scope'])
@@ -30,6 +45,13 @@ def qualified_navigation_evidence(window, repo_root):
     except (ValueError, OSError, UnicodeError):
         return None
     return captured['payload']
+
+
+def qualified_navigation_evidence(window, repo_root):
+    # Consumers may retain or annotate their packet. Those edits cannot replace
+    # the private original cursor-binding/source evidence cached by this owner.
+    payload = _qualified_navigation_packet(window, repo_root)
+    return _copy_navigation_data(payload) if payload is not None else None
 
 
 
@@ -110,9 +132,16 @@ def execute_qualified_navigation(view, query, kind, on_hits, limit, title, inclu
         if result.error or result.returncode != 0:
             failed(result.error or 'Indexed navigation did not complete. Inspect its task diagnostics.')
             return
-        payload = result.payload or {}
+        payload = result.payload
         if not isinstance(payload, dict):
             failed('PairOfCleats: indexed navigation returned an invalid response.')
+            return
+        try:
+            payload = _copy_navigation_data(payload)
+        except ValueError as error:
+            failed('PairOfCleats: ' + str(error))
+            return
+        if not operations.is_current(scope) or not _request_view_matches(view, window, captured, require_cursor=True):
             return
         if (payload.get('sourceHash') != source_hash or payload.get('sourceVersion') != version
                 or payload.get('coordinateUnit') != 'utf16'):
@@ -120,11 +149,11 @@ def execute_qualified_navigation(view, query, kind, on_hits, limit, title, inclu
             return
         captured['payload'] = payload
         _QUALIFIED_NAVIGATION[window.id()] = captured
-        if qualified_navigation_evidence(window, repo_root) is None:
+        if _qualified_navigation_packet(window, repo_root) is None:
             failed('PairOfCleats: the saved source or cursor changed before indexed navigation completed.')
             return
         if callable(on_evidence):
-            on_evidence(payload, repo_root)
+            on_evidence(_copy_navigation_data(payload), repo_root)
             return
         if payload.get('status') == 'ambiguous' and (payload.get('binding') or {}).get('candidates'):
             candidates = payload['binding']['candidates']
@@ -152,7 +181,7 @@ def execute_qualified_navigation(view, query, kind, on_hits, limit, title, inclu
             ui.show_status('PairOfCleats: partial indexed navigation; missing occurrences remain unknown.')
         hits = [dict(row, section='indexed-' + kind + '-' + payload.get('status', 'unknown')) for row in payload.get('results', []) if row.get('coordinateUnit') == 'utf16'
                 and isinstance(row.get('sourceHash'), str) and len(row['sourceHash']) == 64]
-        on_hits(hits, repo_root, {'navigation_current': lambda: source_current(require_cursor=True),
+        on_hits(_copy_navigation_data(hits), repo_root, {'navigation_current': lambda: source_current(require_cursor=True),
                                 'navigation_source_current': source_current})
     cli = paths.resolve_cli(settings, repo_root)
     runner.run_process(cli['command'], list(cli.get('args_prefix') or []) + args,
