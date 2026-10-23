@@ -4,6 +4,7 @@ import { createAbortError, throwIfAborted } from '../../shared/abort.js';
 import { buildRetrievalHitKey } from '../hit-comparison.js';
 import { pendingRerankerWorkFailure, trackRerankerWork } from '../rerankers/failure-ownership.js';
 import { classifyRerankerError } from './reranker-error-classification.js';
+import { captureRerankerAdapter, captureRerankerScores } from './reranker-evidence-admission.js';
 
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const freeze = (value, depth = 0) => {
@@ -17,12 +18,12 @@ const cancelled = () => Object.assign(createAbortError('Reranker cancelled'), { 
 /** Adapters only score a request-owned snapshot. Timeout fallback isolates late
  * work, retaining actual adapter ownership until its own settlement confirms.
  * Legacy direct calls reject errors unless fallback is explicitly requested. */
-export const rerankEvidence = async ({ adapter, query, hits, signal, maxMs = 2000,
+const runEvidence = async ({ adapter, query, hits, signal, maxMs = 2000,
   finalOutputCap = hits.length, policyKey = null, sourceContext = null,
-  fallback = false, onDiagnostic = null }) => {
+  fallback = false }, captureDiagnostic) => {
   throwIfAborted(signal, 'Reranker cancelled');
   if (!adapter) return hits;
-  if (!adapter.id || typeof adapter.rerank !== 'function') throw new TypeError('Reranker requires id and rerank');
+  const originalAdapter = captureRerankerAdapter(adapter);
   if (!Array.isArray(hits) || hits.length > 64) throw new RangeError('Reranker evidence window exceeds64');
   if (!Number.isSafeInteger(finalOutputCap) || finalOutputCap < 0 || finalOutputCap > 64
     || !Number.isSafeInteger(maxMs) || maxMs < 1 || maxMs > 10000) throw new RangeError('Invalid reranker output/deadline cap.');
@@ -31,12 +32,13 @@ export const rerankEvidence = async ({ adapter, query, hits, signal, maxMs = 200
   const cancel = () => { controller.abort(signal?.reason); rejectCancelled?.(cancelled()); };
   const cancellation = new Promise((_, reject) => { rejectCancelled = reject; });
   signal?.addEventListener('abort', cancel, { once: true });
-  const diagnostic = { schemaVersion: 1, adapter: adapter.id, adapterIdentity: adapter.identityKey ?? null,
+  const diagnostic = { schemaVersion: 1, adapter: originalAdapter.id, adapterIdentity: originalAdapter.identityKey,
     policyKey, pool: hits.length, finalOutputCap, status: 'not-started', pending: false, reason: null, resultIdentity: null };
   const attach = (output, settlement = null) => {
-    Object.defineProperty(output, 'rerankDiagnostic', { value: Object.freeze({ ...diagnostic }) });
+    const captured = Object.freeze({ ...diagnostic });
+    Object.defineProperty(output, 'rerankDiagnostic', { value: captured });
     if (settlement) Object.defineProperties(output, { rerankerSettlement: { value: settlement }, rerankerOwner: { value: adapter } });
-    onDiagnostic?.({ ...diagnostic });
+    captureDiagnostic(captured, settlement ? tracked : null, adapter);
     return output;
   };
   try {
@@ -49,13 +51,13 @@ export const rerankEvidence = async ({ adapter, query, hits, signal, maxMs = 200
     const identities = members.map(hit => buildRetrievalHitKey(hit, null, requestSource || {}));
     if (policyKey && (identities.some(key => !key) || new Set(identities).size !== identities.length
       || !requestSource?.generation)) throw new Error('Expanded rerank pools require unique source and selected generation identities.');
-    diagnostic.resultIdentity = digest({ version: 1, adapter: adapter.identityKey ?? adapter.id,
+    diagnostic.resultIdentity = digest({ version: 1, adapter: originalAdapter.identityKey ?? originalAdapter.id,
       query: requestQuery, sourceContext: requestSource, members: identities, policyKey,
       sourceScores: members.map(hit => [hit.score ?? null, hit.scoreType ?? null, hit.sparseScore ?? null, hit.annScore ?? null]),
-      finalOutputCap, maxMs, fallback, tie: 'source-rank', formatting: adapter.formattingIdentity ?? null });
+      finalOutputCap, maxMs, fallback, tie: 'source-rank', formatting: originalAdapter.formattingIdentity });
     work = Promise.resolve().then(() => {
       throwIfAborted(controller.signal);
-      return adapter.rerank({ query: requestQuery, hits: borrowed, signal: controller.signal, sourceContext: requestSource });
+      return originalAdapter.rerank({ query: requestQuery, hits: borrowed, signal: controller.signal, sourceContext: requestSource });
     });
     tracked = trackRerankerWork(work);
     const result = await Promise.race([work, cancellation, new Promise((_, reject) => {
@@ -66,18 +68,10 @@ export const rerankEvidence = async ({ adapter, query, hits, signal, maxMs = 200
       }, maxMs);
     })]);
     throwIfAborted(signal, 'Reranker cancelled');
-    if (!Array.isArray(result) || result.length !== members.length) throw new TypeError('Reranker must score each evidence member');
-    const scores = new Map(), minimum = adapter.scoreRange?.min ?? -1000000, maximum = adapter.scoreRange?.max ?? 1000000;
-    if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || minimum > maximum) throw new TypeError('Invalid reranker score range.');
-    for (const entry of result) {
-      if (!entry || Object.keys(entry).some(key => key !== 'index' && key !== 'score') || !Number.isInteger(entry.index)
-        || entry.index < 0 || entry.index >= members.length || scores.has(entry.index)
-        || !Number.isFinite(entry.score) || entry.score < minimum || entry.score > maximum) throw new TypeError('Invalid reranker evidence scores');
-      scores.set(entry.index, entry.score);
-    }
+    const scores = captureRerankerScores(result, members.length, originalAdapter);
     diagnostic.status = 'scored';
     const ranked = members.map((hit, index) => ({ ...hit, sourceScore: hit.score, sourceScoreType: hit.scoreType,
-      score: scores.get(index), scoreType: 'model_rerank', reranker: adapter.id,
+      score: scores.get(index), scoreType: 'model_rerank', reranker: originalAdapter.id,
       rerankProvenance: { schemaVersion: 1, identity: diagnostic.resultIdentity, policyKey,
         generation: requestSource?.generation ?? null, sourceIdentity: identities[index], sourceRank: index + 1,
         poolCap: members.length, finalOutputCap }, __rank: index }))
@@ -106,4 +100,18 @@ export const rerankEvidence = async ({ adapter, query, hits, signal, maxMs = 200
       schemaVersion: 1, identity: diagnostic.resultIdentity, policyKey, status: 'pre-rerank-fallback', reason: diagnostic.reason } })),
     diagnostic.pending ? tracked.promise : null);
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); }
+};
+
+/** Diagnostics observe an already selected outcome. Their original failure is
+ * independent of scoring and cannot retry the adapter or relabel it fallback. */
+export const rerankEvidence = async options => {
+  const onDiagnostic = options.onDiagnostic;
+  let diagnostic = null, tracked = null, originalAdapter = null;
+  const output = await runEvidence(options, (value, work, adapter) => { diagnostic = value; tracked = work; originalAdapter = adapter; });
+  try { if (diagnostic && onDiagnostic != null) await onDiagnostic({ ...diagnostic }); }
+  catch (primary) {
+    if (tracked?.pending) throw pendingRerankerWorkFailure(primary, originalAdapter, tracked);
+    throw primary;
+  }
+  return output;
 };
