@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildCacheIdentity, resolveCacheDir, resolveLegacyCacheDir, readCacheIndex,
-  writeCacheEntries, readCacheEntries, encodeCacheEntryPayload, readCacheMeta } from '../../../tools/build/embeddings/cache.js';
+  writeCacheEntries, readCacheEntries, encodeCacheEntryPayload, readCacheMeta, resolvePriorCacheDir,
+  resolveCacheEntryPath, resolveCacheReadFallbacks } from '../../../tools/build/embeddings/cache.js';
 import { createCacheIndex } from '../../../tools/build/embeddings/cache/index-state.js';
 import { resolveEmbeddingCacheProfile } from '../../../src/shared/embeddings-cache/layout.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
@@ -31,8 +32,16 @@ await writeCacheEntries(legacy, createCacheIndex(a.key), [{ cacheKey: 'legacy', 
 const primary = await readCacheIndex(directories[0], a.key), legacyIndex = await readCacheIndex(legacy, a.key);
 const [fallback] = await readCacheEntries(directories[0], ['legacy'], primary, { fallbacks: [{ cacheDir: legacy, cacheIndex: legacyIndex }] });
 assert.deepEqual(Array.from(fallback.entry.codeVectors[0]), [7, 8]);
+const prior = resolvePriorCacheDir(dir, a.identity, 'code'); await fs.mkdir(prior, { recursive: true });
+const priorPayload = { ...legacyPayload, key: 'prior' };
+await fs.writeFile(resolveCacheEntryPath(prior, priorPayload.key), await encodeCacheEntryPayload(priorPayload));
+assert.equal(await writeCacheEntries(prior, createCacheIndex(a.key), [{ cacheKey: 'denied', payload: priorPayload }]), null,
+  'V2 compatibility storage does not gain a V3 write/cleanup owner');
+const priorRead = await readCacheEntries(directories[0], ['prior'], primary,
+  { fallbacks: await resolveCacheReadFallbacks(dir, a.identity, 'code', a.key) });
+assert.deepEqual(Array.from(priorRead[0].entry.codeVectors[0]), [7, 8]);
 const descriptor = resolveEmbeddingCacheProfile({ cacheRoot: dir, identity: a.identity });
-assert.equal(descriptor.layoutVersion, 2); assert.equal(descriptor.identityKey, a.key);
+assert.equal(descriptor.layoutVersion, 3); assert.equal(descriptor.identityKey, a.key);
 await fs.writeFile(path.join(path.dirname(legacy), 'cache.meta.json'), JSON.stringify({ identityKey: a.key }));
 assert.equal(readCacheMeta(dir, b.identity, 'code'), null, 'foreign legacy metadata does not grant profile compatibility');
 console.log('complete embedding identities retain independent warm namespaces and a read-only legacy tier');

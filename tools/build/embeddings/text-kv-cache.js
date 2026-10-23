@@ -3,6 +3,10 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { sha1 } from '../../../src/shared/hash.js';
 import { resolveCacheBase } from './cache.js';
+import { acquireEmbeddingProfileSession } from './cache/profile-access.js';
+import { withEmbeddingProfileMutation, reconcileEmbeddingProfileBudget } from './cache/profile-retention.js';
+import { createTextDatabaseLifetime } from './cache/text-database-lifetime.js';
+import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
 
 const PROFILE_DB_FILE = 'text-vectors.sqlite';
 const DEFAULT_MAX_ENTRIES = 500000;
@@ -10,6 +14,10 @@ const PRUNE_INTERVAL_WRITES = 512;
 const VECTOR_ENCODING_FLOAT32 = 'float32';
 const VECTOR_ENCODING_FLOAT16 = 'float16';
 const VECTOR_ROW_VERSION = 2;
+const DATABASE_CAPACITY_BYTES = 64 * 1024 * 1024;
+// Prepay the complete bounded database and one full rollback journal. Keeping
+// DELETE journaling avoids an open WAL outgrowing the admitted profile budget.
+const DATABASE_RESERVATION_BYTES = DATABASE_CAPACITY_BYTES * 2.5 + 256 * 1024;
 
 const FLOAT32_BITS_VIEW = new Uint32Array(1);
 const FLOAT32_VALUE_VIEW = new Float32Array(FLOAT32_BITS_VIEW.buffer);
@@ -194,7 +202,12 @@ const resolveMaxEntries = (value) => {
  *  close:()=>Promise<void>
  * }|null>}
  */
-export const createPersistentEmbeddingTextKvStore = async ({
+export const createPersistentEmbeddingTextKvStore = async (options = {}) => {
+  if (!options.Database || !options.cacheRoot || !options.cacheIdentity || !options.cacheIdentityKey) return null;
+  const directory = resolveCacheBase(options.cacheRoot, options.cacheIdentity);
+  return withEmbeddingProfileMutation(directory, DATABASE_RESERVATION_BYTES, () => openPersistentTextStore(options), options.retention);
+};
+const openPersistentTextStore = async ({
   Database = null,
   cacheRoot = null,
   cacheIdentity = null,
@@ -219,10 +232,20 @@ export const createPersistentEmbeddingTextKvStore = async ({
   }
 
   let db = null;
+  const session = acquireEmbeddingProfileSession(baseDir);
+  let lifetime = null;
   try {
     db = new Database(dbPath);
-    db.pragma('journal_mode = WAL');
+    lifetime = createTextDatabaseLifetime(db, session);
+    if (db.pragma('journal_mode = DELETE', { simple: true }) !== 'delete') throw new Error('Text cache rollback journal mode is unconfirmed.');
     db.pragma('synchronous = NORMAL');
+    db.pragma('temp_store = MEMORY');
+    const pageSize = Number(db.pragma('page_size', { simple: true }));
+    if (!Number.isSafeInteger(pageSize) || pageSize < 512 || pageSize > 65536 || (pageSize & (pageSize - 1))) throw new Error('Text cache page size is unknown.');
+    const pageLimit = Math.floor(DATABASE_CAPACITY_BYTES / pageSize);
+    if (Number(db.pragma(`max_page_count = ${pageLimit}`, { simple: true })) !== pageLimit) {
+      throw new Error('Text cache database exceeds its admitted page capacity.');
+    }
     db.exec(`
       CREATE TABLE IF NOT EXISTS text_vectors (
         cache_key TEXT PRIMARY KEY,
@@ -249,25 +272,31 @@ export const createPersistentEmbeddingTextKvStore = async ({
       if (!columns.has(name)) db.exec(`ALTER TABLE text_vectors ADD COLUMN ${name} ${type}`);
     }
   } catch (err) {
-    try { db?.close?.(); } catch {}
+    if (lifetime) {
+      try { await lifetime.close(err); }
+      catch (cleanupError) { throw new AggregateError([err, cleanupError], 'Text cache initialization and cleanup failed.', { cause: err }); }
+    } else session?.releaseAfterSettlement({ resourceId: session.resourceId, settled: true, pending: false });
+    observeStorageResource(err, { phase: 'embedding-text-cache-initialization' }).requireSettled();
+    if (err instanceof AggregateError) throw err;
     if (typeof log === 'function') {
       log(`[embeddings] persistent text cache disabled (sqlite init failed): ${err?.message || err}`);
     }
     return null;
   }
 
-  const getStmt = db.prepare(`
+  try {
+    const getStmt = db.prepare(`
     SELECT vector_blob AS vectorBlob, dims AS dims, format_version AS formatVersion,
       vector_encoding AS vectorEncoding, payload_bytes AS payloadBytes, payload_sha256 AS payloadSha256
     FROM text_vectors
     WHERE cache_key = ?
   `);
-  const touchStmt = db.prepare(`
+    const touchStmt = db.prepare(`
     UPDATE text_vectors
     SET last_access_at = ?, hit_count = hit_count + ?
     WHERE cache_key = ?
   `);
-  const upsertStmt = db.prepare(`
+    const upsertStmt = db.prepare(`
     INSERT INTO text_vectors (
       cache_key,
       dims,
@@ -291,8 +320,8 @@ export const createPersistentEmbeddingTextKvStore = async ({
       updated_at = excluded.updated_at,
       last_access_at = excluded.last_access_at
   `);
-  const countStmt = db.prepare('SELECT COUNT(*) AS total FROM text_vectors');
-  const pruneStmt = db.prepare(`
+    const countStmt = db.prepare('SELECT COUNT(*) AS total FROM text_vectors');
+    const pruneStmt = db.prepare(`
     DELETE FROM text_vectors
     WHERE cache_key IN (
       SELECT cache_key
@@ -301,160 +330,178 @@ export const createPersistentEmbeddingTextKvStore = async ({
       LIMIT ?
     )
   `);
-  const pruneTx = db.transaction((overflow) => {
-    if (overflow > 0) {
-      pruneStmt.run(overflow);
-    }
-  });
-
-  let writesSincePrune = 0;
-  const counters = {
-    hits: 0,
-    misses: 0,
-    writes: 0,
-    prunes: 0,
-    errors: 0,
-    transactions: 0, writesAvoided: 0, touchesCoalesced: 0, queueLatencyMs: 0
-  };
-
-  const maybePrune = () => {
-    writesSincePrune += 1;
-    if (writesSincePrune < PRUNE_INTERVAL_WRITES) return;
-    writesSincePrune = 0;
-    try {
-      const total = Math.max(0, Number(countStmt.get()?.total || 0));
-      const overflow = Math.max(0, total - maxRows);
-      if (overflow <= 0) return;
-      pruneTx(overflow);
-      persistedDigests.clear();
-      counters.prunes += overflow;
-    } catch {
-      counters.errors += 1;
-    }
-  };
-
-  const pendingWrites = new Map(), pendingTouches = new Map(), persistedDigests = new Map();
-  const MAX_PENDING_KEYS = 256, MAX_PENDING_BYTES = 4 * 1024 * 1024, MAX_TOUCH_KEYS = 1024;
-  let pendingBytes = 0, flushTimer = null, touchTimer = null, closed = false;
-  const rememberDigest = (key, digest) => {
-    persistedDigests.delete(key); persistedDigests.set(key, digest);
-    while (persistedDigests.size > 4096) persistedDigests.delete(persistedDigests.keys().next().value);
-  };
-  const writeTx = db.transaction((writes, touches) => {
-    for (const [key, entry] of writes) upsertStmt.run(key, entry.dims, entry.vectorBlob,
-      VECTOR_ROW_VERSION, resolvedVectorEncoding, entry.vectorBlob.byteLength, entry.payloadSha256,
-      entry.now, entry.now, entry.now);
-    for (const [key, entry] of touches) touchStmt.run(entry.now, entry.count, key);
-  });
-  const flush = () => {
-    clearTimeout(flushTimer); clearTimeout(touchTimer); flushTimer = null; touchTimer = null;
-    if (!pendingWrites.size && !pendingTouches.size) return true;
-    const writes = Array.from(pendingWrites), touches = Array.from(pendingTouches);
-    try {
-      writeTx(writes, touches); counters.transactions++;
-      for (const [key, entry] of writes) {
-        counters.writes++; counters.queueLatencyMs += Date.now() - entry.queuedAt;
-        rememberDigest(key, entry.payloadSha256); maybePrune();
+    const pruneTx = db.transaction((overflow) => {
+      if (overflow > 0) {
+        pruneStmt.run(overflow);
       }
-      pendingWrites.clear(); pendingTouches.clear(); pendingBytes = 0;
-      return true;
-    } catch {
-      // Cache persistence is advisory. A failed transaction must never advertise
-      // a persisted digest, retain an unbounded queue, or fail the index build.
-      counters.errors++; pendingWrites.clear(); pendingTouches.clear(); pendingBytes = 0;
-      return false;
-    }
-  };
-  const scheduleFlush = () => {
-    if (!flushTimer) { flushTimer = setTimeout(flush, 25); flushTimer.unref?.(); }
-  };
-  const touch = key => {
-    const prior = pendingTouches.get(key);
-    if (prior) { prior.count++; prior.now = new Date().toISOString(); counters.touchesCoalesced++; }
-    else pendingTouches.set(key, { now: new Date().toISOString(), count: 1 });
-    if (pendingTouches.size >= MAX_TOUCH_KEYS) flush();
-    else if (!touchTimer) { touchTimer = setTimeout(flush, 1000); touchTimer.unref?.(); }
-  };
-  const store = {
-    get(text) {
-      if (closed || typeof text !== 'string' || !text.length) return null;
-      const key = buildCacheKey(cacheIdentityKey, text, resolvedVectorEncoding);
+    });
+
+    let writesSincePrune = 0;
+    const counters = {
+      hits: 0,
+      misses: 0,
+      writes: 0,
+      prunes: 0,
+      errors: 0,
+      transactions: 0, writesAvoided: 0, touchesCoalesced: 0, queueLatencyMs: 0
+    };
+
+    const maybePrune = () => {
+      writesSincePrune += 1;
+      if (writesSincePrune < PRUNE_INTERVAL_WRITES) return;
+      writesSincePrune = 0;
       try {
-        const queued = pendingWrites.get(key);
-        const row = queued ? { ...queued, formatVersion: VECTOR_ROW_VERSION, vectorEncoding: resolvedVectorEncoding,
-          payloadBytes: queued.vectorBlob.byteLength } : getStmt.get(key);
-        if (!row || !row.vectorBlob) {
-          persistedDigests.delete(key);
-          counters.misses += 1;
-          return null;
-        }
-        const vector = decodeVectorRow(row, resolvedVectorEncoding, expectedDims);
-        if (!vector || !vector.length) {
-          counters.misses += 1;
-          return null;
-        }
-        counters.hits += 1;
-        if (!queued) rememberDigest(key, row.payloadSha256);
-        touch(key);
-        return vector;
-      } catch {
+        const total = Math.max(0, Number(countStmt.get()?.total || 0));
+        const overflow = Math.max(0, total - maxRows);
+        if (overflow <= 0) return;
+        pruneTx(overflow);
+        persistedDigests.clear();
+        counters.prunes += overflow;
+      } catch (error) {
+        observeStorageResource(error, { phase: 'embedding-text-cache-prune' }).requireSettled();
+        if (error instanceof AggregateError) throw error;
         counters.errors += 1;
-        return null;
       }
-    },
-    set(text, vector) {
-      if (closed || typeof text !== 'string' || !text.length) return false;
-      const normalized = toFloat32Copy(vector);
-      if (!normalized || !normalized.length || (expectedDims && normalized.length !== expectedDims)
+    };
+
+    const pendingWrites = new Map(), pendingTouches = new Map(), persistedDigests = new Map();
+    const MAX_PENDING_KEYS = 256, MAX_PENDING_BYTES = 4 * 1024 * 1024, MAX_TOUCH_KEYS = 1024;
+    let pendingBytes = 0, flushTimer = null, touchTimer = null, closed = false, terminalFailure = null;
+    const rememberDigest = (key, digest) => {
+      persistedDigests.delete(key); persistedDigests.set(key, digest);
+      while (persistedDigests.size > 4096) persistedDigests.delete(persistedDigests.keys().next().value);
+    };
+    const writeTx = db.transaction((writes, touches) => {
+      for (const [key, entry] of writes) upsertStmt.run(key, entry.dims, entry.vectorBlob,
+        VECTOR_ROW_VERSION, resolvedVectorEncoding, entry.vectorBlob.byteLength, entry.payloadSha256,
+        entry.now, entry.now, entry.now);
+      for (const [key, entry] of touches) touchStmt.run(entry.now, entry.count, key);
+    });
+    const flush = () => {
+      clearTimeout(flushTimer); clearTimeout(touchTimer); flushTimer = null; touchTimer = null;
+      if (terminalFailure) throw terminalFailure;
+      if (!pendingWrites.size && !pendingTouches.size) return true;
+      const writes = Array.from(pendingWrites), touches = Array.from(pendingTouches);
+      try {
+        writeTx(writes, touches); counters.transactions++;
+        for (const [key, entry] of writes) {
+          counters.writes++; counters.queueLatencyMs += Date.now() - entry.queuedAt;
+          rememberDigest(key, entry.payloadSha256); maybePrune();
+        }
+        pendingWrites.clear(); pendingTouches.clear(); pendingBytes = 0;
+        return true;
+      } catch (error) {
+        observeStorageResource(error, { phase: 'embedding-text-cache-flush' }).requireSettled();
+        if (error instanceof AggregateError) throw error;
+        // Cache persistence is advisory. A failed transaction must never advertise
+        // a persisted digest, retain an unbounded queue, or fail the index build.
+        counters.errors++; pendingWrites.clear(); pendingTouches.clear(); pendingBytes = 0;
+        return false;
+      }
+    };
+    const flushFromTimer = () => { try { flush(); } catch (error) { terminalFailure ||= error; } };
+    const scheduleFlush = () => {
+      if (!flushTimer) { flushTimer = setTimeout(flushFromTimer, 25); flushTimer.unref?.(); }
+    };
+    const touch = key => {
+      const prior = pendingTouches.get(key);
+      if (prior) { prior.count = Math.min(Number.MAX_SAFE_INTEGER, prior.count + 1); prior.now = new Date().toISOString(); counters.touchesCoalesced++; }
+      else pendingTouches.set(key, { now: new Date().toISOString(), count: 1 });
+      if (pendingTouches.size >= MAX_TOUCH_KEYS) flush();
+      else if (!touchTimer) { touchTimer = setTimeout(flushFromTimer, 1000); touchTimer.unref?.(); }
+    };
+    const store = {
+      get(text) {
+        if (terminalFailure) throw terminalFailure;
+        if (closed || typeof text !== 'string' || !text.length) return null;
+        const key = buildCacheKey(cacheIdentityKey, text, resolvedVectorEncoding);
+        try {
+          const queued = pendingWrites.get(key);
+          const row = queued ? { ...queued, formatVersion: VECTOR_ROW_VERSION, vectorEncoding: resolvedVectorEncoding,
+            payloadBytes: queued.vectorBlob.byteLength } : getStmt.get(key);
+          if (!row || !row.vectorBlob) {
+            persistedDigests.delete(key);
+            counters.misses += 1;
+            return null;
+          }
+          const vector = decodeVectorRow(row, resolvedVectorEncoding, expectedDims);
+          if (!vector || !vector.length) {
+            counters.misses += 1;
+            return null;
+          }
+          counters.hits += 1;
+          if (!queued) rememberDigest(key, row.payloadSha256);
+          touch(key);
+          return vector;
+        } catch (error) {
+          observeStorageResource(error, { phase: 'embedding-text-cache-read' }).requireSettled();
+          if (error instanceof AggregateError) throw error;
+          counters.errors += 1;
+          return null;
+        }
+      },
+      set(text, vector) {
+        if (terminalFailure) throw terminalFailure;
+        if (closed || typeof text !== 'string' || !text.length) return false;
+        const normalized = toFloat32Copy(vector);
+        if (!normalized || !normalized.length || (expectedDims && normalized.length !== expectedDims)
         || !normalized.every(Number.isFinite)) return false;
-      const key = buildCacheKey(cacheIdentityKey, text, resolvedVectorEncoding);
-      const now = new Date().toISOString();
-      const encodedVector = encodeVectorBlob(normalized, resolvedVectorEncoding);
-      if (!encodedVector) return false;
-      const digest = vectorDigest(encodedVector, normalized.length, resolvedVectorEncoding);
-      if (pendingWrites.get(key)?.payloadSha256 === digest || persistedDigests.get(key) === digest) {
-        counters.writesAvoided++; return true;
+        const key = buildCacheKey(cacheIdentityKey, text, resolvedVectorEncoding);
+        const now = new Date().toISOString();
+        const encodedVector = encodeVectorBlob(normalized, resolvedVectorEncoding);
+        if (!encodedVector) return false;
+        const digest = vectorDigest(encodedVector, normalized.length, resolvedVectorEncoding);
+        if (pendingWrites.get(key)?.payloadSha256 === digest || persistedDigests.get(key) === digest) {
+          counters.writesAvoided++; return true;
+        }
+        const bytes = encodedVector.byteLength + key.length * 2 + 192;
+        if (bytes > MAX_PENDING_BYTES) return false;
+        if (pendingWrites.size >= MAX_PENDING_KEYS || pendingBytes + bytes > MAX_PENDING_BYTES) flush();
+        const prior = pendingWrites.get(key);
+        if (prior) pendingBytes -= prior.bytes;
+        pendingWrites.set(key, { dims: normalized.length, vectorBlob: encodedVector, payloadSha256: digest,
+          now, queuedAt: Date.now(), bytes }); pendingBytes += bytes;
+        scheduleFlush();
+        return true;
+      },
+      getMany(texts) { return new Map([...new Set(texts)].map(text => [text, this.get(text)])); },
+      setMany(entries) { for (const [text, vector] of entries) this.set(text, vector); return flush(); },
+      flush,
+      size() {
+        try {
+          return Math.max(0, Number(countStmt.get()?.total || 0));
+        } catch (error) {
+          observeStorageResource(error, { phase: 'embedding-text-cache-count' }).requireSettled();
+          if (error instanceof AggregateError) throw error;
+          counters.errors += 1;
+          return 0;
+        }
+      },
+      stats() {
+        return {
+          ...counters,
+          maxEntries: maxRows,
+          vectorEncoding: resolvedVectorEncoding,
+          databaseCapacityBytes: DATABASE_CAPACITY_BYTES,
+          pendingWrites: pendingWrites.size, pendingTouches: pendingTouches.size, pendingBytes,
+          size: this.size()
+        };
+      },
+      async close() {
+        if (closed) return;
+        let flushError = null;
+        try { flush(); } catch (error) { flushError = error; }
+        try { await lifetime.close(flushError); }
+        catch (error) { if (flushError) throw new AggregateError([flushError, error], 'Text cache flush and close failed.', { cause: flushError }); throw error; }
+        closed = true; persistedDigests.clear();
+        await reconcileEmbeddingProfileBudget(baseDir);
+        if (flushError) throw flushError;
       }
-      const bytes = encodedVector.byteLength + key.length * 2 + 192;
-      if (pendingWrites.size >= MAX_PENDING_KEYS || pendingBytes + bytes > MAX_PENDING_BYTES) flush();
-      const prior = pendingWrites.get(key);
-      if (prior) pendingBytes -= prior.bytes;
-      pendingWrites.set(key, { dims: normalized.length, vectorBlob: encodedVector, payloadSha256: digest,
-        now, queuedAt: Date.now(), bytes }); pendingBytes += bytes;
-      // A single large row remains supported, but never retained beyond set().
-      if (bytes > MAX_PENDING_BYTES) return flush();
-      scheduleFlush();
-      return true;
-    },
-    getMany(texts) { return new Map([...new Set(texts)].map(text => [text, this.get(text)])); },
-    setMany(entries) { for (const [text, vector] of entries) this.set(text, vector); return flush(); },
-    flush,
-    size() {
-      try {
-        return Math.max(0, Number(countStmt.get()?.total || 0));
-      } catch {
-        counters.errors += 1;
-        return 0;
-      }
-    },
-    stats() {
-      return {
-        ...counters,
-        maxEntries: maxRows,
-        vectorEncoding: resolvedVectorEncoding,
-        pendingWrites: pendingWrites.size, pendingTouches: pendingTouches.size, pendingBytes,
-        size: this.size()
-      };
-    },
-    async close() {
-      if (closed) return;
-      flush(); closed = true; persistedDigests.clear();
-      try {
-        db?.close?.();
-      } catch {
-        counters.errors += 1;
-      }
-    }
-  };
-  return store;
+    };
+    return store;
+  } catch (error) {
+    try { await lifetime.close(error); }
+    catch (cleanupError) { throw new AggregateError([error, cleanupError], 'Text cache statement setup and cleanup failed.', { cause: error }); }
+    throw error;
+  }
 };

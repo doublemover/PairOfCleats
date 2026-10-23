@@ -1,19 +1,42 @@
 # Embedding cache profiles and chunk references
 
 Persistent embedding indexes write beneath the existing configured embedding
-cache root. Layout 2 appends `profiles-v2/<complete identity key>` after the
+cache root. Layout 3 appends `profiles-v3/<complete identity key>` after the
 readable provider/model/dimensions labels. The complete key retains model artifact,
 revision, formatting, pooling, normalization, quantization and execution identity.
 Sanitized labels cannot merge two profiles. Canonical index and metadata files
 remain independently validated against that full identity.
 
-Legacy tuple directories are a read-only compatibility tier. Index, standalone
+Layout 2 profile directories and legacy tuples are read-only compatibility tiers. Index, standalone
 entry and metadata reuse still require matching identities. New writes never
 overwrite a legacy profile inventory. This compatibility tier is not a whole-app
 relocation or cleanup transaction. `resolveEmbeddingCacheProfile` exposes both
 locations and lifecycle ownership for the shared storage descriptor, migration
-and quota owners. Cross-profile quota/retention acceptance belongs to that shared
-policy; new layout isolation does not establish a bounded history of profiles.
+and quota owners. V3 adds a bounded eight-entry profile budget catalog, using the
+existing file-lock and shared storage session/exclusion/lifecycle owners. Earlier
+writers did not acquire these leases, so their V2 and tuple bytes are preserved
+for migration rather than granted new deletion authority.
+
+Managed V3 history admits at most eight profiles and defaults to a finite 2 GiB
+ordinary-file-length budget. Existing positive `cache.maxGb` and `cache.maxAgeDays`
+values supply the byte and age policies. Admission reserves encoded payloads,
+index projections and replacement overhead before publication. Active, unknown,
+unreadable, linked or changed candidates block optional persistence when no safe
+retirement satisfies the bound. Whole-profile retirement revalidates a complete
+producer/reference closure under shared exclusive storage admission.
+
+The catalog is at most eight records/64 KiB. Hot appends update this bounded
+metadata rather than scan every file index. Dirty/crash recovery and settled
+maintenance use bounded inventory (8,192 entries/two seconds); incomplete scans
+deny admission. Live native owners retain their prepaid byte reservations through
+reconciliation. Profile access uses bounded advisory touches, and retained shard
+descriptors are capped at sixteen with confirmed original closure required before
+their profile leases release. Reservations can conservatively deny a cache write;
+the required vector artifact producer continues independently.
+
+This budget describes managed V3 ordinary file lengths. Older compatibility
+bytes, filesystem allocation, compressed/sparse allocation and deleted-open bytes
+remain separate observations, not inferred free space or whole-app quota proof.
 
 New file-cache records contain ordered references and file hashes/signatures,
 rather than a second copy of all three vector channels. Immutable chunk keys
@@ -43,6 +66,10 @@ Canonical metadata must match the complete profile key as strictly as the legacy
 tier. Repeated references to one immutable chunk must agree on its hash, digest
 and channel lengths before any read. Hydration accepts only complete bounded
 read batches; cancellation and unresolved resource failures remain failures.
+The compressed codec limits native decompression output to the caller's entry
+allowance (at most 64 MiB), caps row count at 32,768, and rejects trailing bytes or
+noncanonical section metadata. Shard and standalone consumers pass their actual
+read allowance through this boundary before admitting rows.
 Empty documentation rows survive prior-file, global-chunk and in-memory reuse;
 they do not require another inference or replace already admitted code bytes.
 
@@ -60,3 +87,13 @@ symlink, realpath and root-containment checks. Protected metadata and shared-fil
 reference pins remain independent eviction barriers. `work.summaryEntryVisits`
 reports summary construction visits; it is operation accounting, not elapsed-time
 or lock-duration qualification.
+
+The runner connects the configured persistent text cache to its existing batched
+write/coalesced-touch store. A connection prepays a 64 MiB SQLite page capacity and
+bounded rollback-journal allowance before opening. DELETE journaling and the exact
+native page limit must be confirmed. The original database closer and profile
+lease survive failed teardown; a retry cannot replace that closer or omit an
+original pending-resource prerequisite. Pending vector writes remain capped at
+256 keys/4 MiB, touch keys at 1,024, and digest memoization at 4,096 keys. Native
+SQLite limits, crash behavior, accuracy and throughput still require external
+qualification; authored source controls are not executed evidence.

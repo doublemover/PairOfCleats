@@ -3,7 +3,8 @@ import { constants as fsConstants } from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { atomicWriteText } from '../../../../src/shared/io/atomic-write.js';
-import { assertNoSymlinkPath, openContainedFile, verifyContainedFileHandle } from '../../../../src/shared/contained-file.js';
+import { assertNoSymlinkPath, withContainedFile, verifyContainedFileHandle } from '../../../../src/shared/contained-file.js';
+import { createContainedFileResource } from '../../../../src/shared/contained-file-resource.js';
 import { createCacheIndex, normalizeCacheIndex } from './index-state.js';
 
 const MAX_FRAME_BYTES = 16 * 1024 * 1024;
@@ -25,7 +26,7 @@ const remember = (key, record) => {
     records.delete(first); bytes -= previous.checkpointBytes + previous.offset;
   }
 };
-const readExact = async (handle, size, position) => {
+const readExact = async (handle, size, position, journal = true) => {
   const buffer = Buffer.alloc(size);
   let offset = 0;
   while (offset < size) {
@@ -33,7 +34,7 @@ const readExact = async (handle, size, position) => {
     if (!bytesRead) break;
     offset += bytesRead;
   }
-  metrics.journalReadBytes += offset;
+  if (journal) metrics.journalReadBytes += offset;
   return offset === size ? buffer : null;
 };
 const apply = (index, delta) => {
@@ -65,8 +66,7 @@ const replay = async (directory, record, logStat) => {
   if (!logStat) { record.offset = 0; record.logIdentity = null; record.logStamp = null; return; }
   if (Number(logStat.size) > MAX_INDEX_BYTES) throw failure('Embedding index delta log exceeds its bounded replay limit.');
   const filename = paths(directory).log;
-  const handle = await openContainedFile(directory, filename);
-  try {
+  await withContainedFile(directory, filename, async handle => {
     const size = Number(logStat.size);
     while (record.offset < size) {
       const prefix = size - record.offset >= 4 ? await readExact(handle, 4, record.offset) : null;
@@ -83,9 +83,9 @@ const replay = async (directory, record, logStat) => {
       apply(record.index, delta);
       record.offset += 4 + bytes + 32;
     }
-    verifyContainedFileHandle(handle, directory, filename);
+    handle.verify();
     record.logIdentity = logIdentity(logStat); record.logStamp = stamp(logStat);
-  } finally { await handle.close(); }
+  });
 };
 
 const load = async (directory, identityKey) => {
@@ -102,16 +102,17 @@ const load = async (directory, identityKey) => {
     if (source) {
       checkpointBytes = Number(checkpointStat.size);
       if (checkpointBytes > MAX_INDEX_BYTES) throw failure('Embedding index checkpoint exceeds its read budget.');
-      const handle = await openContainedFile(directory, source);
-      try {
-        const raw = await handle.readFile('utf8'); metrics.checkpointReads++; metrics.checkpointBytes += Buffer.byteLength(raw);
+      await withContainedFile(directory, source, async handle => {
+        const buffer = await readExact(handle, checkpointBytes, 0, false);
+        if (!buffer) throw failure('Embedding index checkpoint read was incomplete.');
+        const raw = buffer.toString('utf8'); metrics.checkpointReads++; metrics.checkpointBytes += buffer.length;
         const parsed = JSON.parse(raw);
         if (parsed.version !== 1 || identityKey && parsed.identityKey && parsed.identityKey !== identityKey) throw failure('Embedding cache checkpoint identity/version mismatch.');
         index = normalizeCacheIndex(parsed, identityKey);
         if (index.journal && (index.journal.version !== 1 || typeof index.journal.generation !== 'string' || !index.journal.generation
           || !Number.isSafeInteger(index.journal.sequence) || index.journal.sequence < 0)) throw failure('Invalid embedding index checkpoint log identity.');
-        verifyContainedFileHandle(handle, directory, source);
-      } finally { await handle.close(); }
+        handle.verify();
+      });
     }
     record = { index, checkpointStamp, checkpointBytes, offset: 0, logStamp: null, logIdentity: null, partial: false };
   }
@@ -141,7 +142,7 @@ export const readEmbeddingIndex = async (directory, identityKey, { strict = fals
     return await operation;
   } catch (error) {
     records.delete(key);
-    if (strict || forUpdate) throw error;
+    if (strict || forUpdate || error.cacheOwnershipPending || error instanceof AggregateError) throw error;
     return createCacheIndex(identityKey);
   } finally { if (reads.get(key) === operation) reads.delete(key); }
 };
@@ -161,8 +162,8 @@ export const checkpointEmbeddingIndex = async (directory, index) => {
   // Windows append-only handles cannot truncate a retired journal. The cache
   // writer lock already owns ordering; use read/write access and explicit offsets.
   const handle = await fs.open(filenames.log, fsConstants.O_RDWR | fsConstants.O_CREAT);
-  try { verifyContainedFileHandle(handle, directory, filenames.log); await handle.truncate(0); await handle.sync(); }
-  finally { await handle.close(); }
+  const owner = createContainedFileResource({ handle, sync: false });
+  await owner.run(async () => { verifyContainedFileHandle(handle, directory, filenames.log); await handle.truncate(0); await handle.sync(); });
 };
 
 /** Publish only changed pointers/aliases after their shard bytes are synced. */
@@ -183,7 +184,8 @@ export const appendEmbeddingIndexDelta = async (directory, index, { keys = [], f
   if (payload.length > MAX_FRAME_BYTES || record.offset + payload.length + 36 > MAX_INDEX_BYTES) { await checkpointEmbeddingIndex(directory, index); return; }
   assertNoSymlinkPath(directory, filenames.log, { allowMissing: true });
   const handle = await fs.open(filenames.log, fsConstants.O_RDWR | fsConstants.O_CREAT);
-  try {
+  const owner = createContainedFileResource({ handle, sync: false });
+  await owner.run(async () => {
     verifyContainedFileHandle(handle, directory, filenames.log);
     if (record.partial) await handle.truncate(record.offset);
     const prefix = Buffer.alloc(4); prefix.writeUInt32LE(payload.length);
@@ -200,7 +202,7 @@ export const appendEmbeddingIndexDelta = async (directory, index, { keys = [], f
     const stat = await handle.stat({ bigint: true }); record.logIdentity = logIdentity(stat); record.logStamp = stamp(stat);
     if (record.offset >= Math.max(MIN_CHECKPOINT_BYTES, record.checkpointBytes)) await checkpointEmbeddingIndex(directory, index);
     else remember(lease.key, record);
-  } finally { await handle.close(); }
+  });
 };
 
 /** Copy only affected metadata into a caller's independent lookup inventory. */

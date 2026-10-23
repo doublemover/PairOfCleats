@@ -40,7 +40,7 @@ export const resolveEmbeddingsCacheBase = ({
   const dimsKey = Number.isFinite(Number(dims)) ? `${Math.floor(Number(dims))}d` : 'dims-unknown';
   const labels = path.join(cacheRoot || '', providerKey, modelKey, dimsKey);
   return identity && typeof identity === 'object'
-    ? path.join(labels, 'profiles-v2', buildEmbeddingIdentityKey(identity)) : labels;
+    ? path.join(labels, 'profiles-v3', buildEmbeddingIdentityKey(identity)) : labels;
 };
 
 /** Adoption descriptor for shared storage inventory/migration/lifecycle owners.
@@ -48,10 +48,12 @@ export const resolveEmbeddingsCacheBase = ({
  */
 export const resolveEmbeddingCacheProfile = ({ cacheRoot, identity }) => {
   const labels = { cacheRoot, provider: identity?.provider, modelId: identity?.modelId, dims: identity?.dims };
-  return Object.freeze({ category: 'derived-embedding-cache', layoutVersion: 2,
+  const legacy = resolveEmbeddingsCacheBase(labels);
+  return Object.freeze({ category: 'derived-embedding-cache', layoutVersion: 3,
     identityKey: buildEmbeddingIdentityKey(identity), rebuildable: true,
     canonical: resolveEmbeddingsCacheBase({ ...labels, identity }),
-    legacy: resolveEmbeddingsCacheBase(labels),
+    prior: path.join(legacy, 'profiles-v2', buildEmbeddingIdentityKey(identity)),
+    legacy,
     migration: 'identity-validated-read-only-fallback',
     lifecycleOwner: 'existing-embedding-shard-index-and-shared-storage-policy' });
 };

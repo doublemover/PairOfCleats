@@ -116,7 +116,8 @@ export const createReferenceCacheWriter = ({ lock, readIndex, writeIndex, publis
         const chunk = chunks[index], old = existing[index]?.entry;
         let valid = old?.key === chunk.cacheKey && old.hash === chunk.payload.hash && old.cacheMeta?.identityKey === canonical.identityKey;
         if (valid) {
-          try { valid = digestQuantizedChannels({ code: old.codeVectors?.[0], doc: old.docVectors?.[0], merged: old.mergedVectors?.[0] }) === chunk.digest; }
+          try { valid = digestQuantizedChannels({ code: old.codeVectors?.[0], doc: old.docVectors?.[0], merged: old.mergedVectors?.[0] },
+            chunk.payload.cacheMeta?.identity?.quantization) === chunk.digest; }
           catch { valid = false; }
         }
         if (!valid) {
@@ -183,6 +184,7 @@ export const collectReferenceProtection = async (globalDir, index, { readIndex =
         for (const key of reference.keys) protectedKeys.add(key);
       }
     } catch (error) {
+      if (error.cacheOwnershipPending || error instanceof AggregateError) throw error;
       if (error.code !== 'ENOENT') return { incomplete: true, protectedKeys };
     }
   }

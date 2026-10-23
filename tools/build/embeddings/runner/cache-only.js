@@ -7,7 +7,8 @@ import { buildEmbeddingIdentityKey } from '../../../../src/shared/embedding-iden
 import { buildChunkSignature } from '../chunks.js';
 import { createDeterministicFileStreamSampler, selectDeterministicFileSample } from '../sampling.js';
 import { buildCacheKey, readCacheIndex, readCacheMeta, readCacheEntries, resolveCacheDir,
-  resolveLegacyCacheDir, resolveGlobalChunkCacheDir, withEmbeddingCacheReadLock } from '../cache.js';
+  resolveCacheReadFallbacks, resolveGlobalChunkCacheDir, withEmbeddingCacheReadLock } from '../cache.js';
+import { observeStorageResource } from '../../../../src/shared/storage/failure-observation.js';
 import { hydrateReferencedFileCache } from '../cache/file-references.js';
 import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../../../../src/shared/embedding-quantization-spec.js';
 
@@ -115,14 +116,14 @@ export const planStage3CacheOnly = async ({ roots, identity, identityKey, cacheR
       let entries = [...chunks.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0])));
       if (!sampler && sampling.maxFiles && sampling.maxFiles < entries.length) entries = selectDeterministicFileSample({
         fileEntries: entries, mode, maxFiles: sampling.maxFiles, seed: sampling.seed });
-      const fileDir = resolveCacheDir(cacheRoot, identity, mode), legacyDir = resolveLegacyCacheDir(cacheRoot, identity, mode);
+      const fileDir = resolveCacheDir(cacheRoot, identity, mode);
       const meta = await readCacheMeta(cacheRoot, identity, mode);
       if (meta?.identityKey && meta.identityKey !== identityKey) return refuse('cache-profile-mismatch');
       const index = await readCacheIndex(fileDir, identityKey, { strict: true });
-      const legacy = legacyDir ? await readCacheIndex(legacyDir, identityKey, { strict: true }) : null;
       const globalDir = resolveGlobalChunkCacheDir(cacheRoot, identity);
       const globalIndex = await readCacheIndex(globalDir, identityKey, { strict: true });
-      const fallbacks = legacyDir ? [{ cacheDir: legacyDir, cacheIndex: legacy, allowUnindexedStandalone: true }] : [];
+      const fallbacks = await resolveCacheReadFallbacks(cacheRoot, identity, mode, identityKey, { strict: true });
+      const globalFallbacks = await resolveCacheReadFallbacks(cacheRoot, identity, 'global-chunks', identityKey, { strict: true });
       for (const [file, items] of entries) {
         throwIfAborted(signal);
         if (++work.filesChecked > MAX_FILES || work.chunksChecked + items.length > MAX_CHUNKS) return refuse('preflight-coverage-budget');
@@ -134,7 +135,7 @@ export const planStage3CacheOnly = async ({ roots, identity, identityKey, cacheR
         const result = (await readCacheEntries(fileDir, [cacheKey], index, { fallbacks }))[0];
         let cached = result?.entry;
         if (cached?.chunkReferences) cached = await withEmbeddingCacheReadLock(globalDir,
-          () => hydrateReferencedFileCache({ entry: cached, identityKey, readChunks: keys => readCacheEntries(globalDir, keys, globalIndex) }),
+          () => hydrateReferencedFileCache({ entry: cached, identityKey, readChunks: keys => readCacheEntries(globalDir, keys, globalIndex, { fallbacks: globalFallbacks }) }),
           { waitMs: 0 });
         throwIfAborted(signal);
         if (cached?.key !== cacheKey || cached.hash !== hash || cached.chunkSignature !== signature
@@ -148,6 +149,8 @@ export const planStage3CacheOnly = async ({ roots, identity, identityKey, cacheR
     }
     return work.filesChecked ? { eligible: true, reason: 'complete-verified-cache-coverage', work } : refuse('no-cache-inputs');
   } catch (error) {
+    observeStorageResource(error, { phase: 'embedding-cache-only-preflight' }).requireSettled();
+    if (error instanceof AggregateError) throw error;
     if (isAbortError(error) || signal?.aborted) { throwIfAborted(signal); throw error; }
     return refuse('cache-or-input-unavailable');
   }

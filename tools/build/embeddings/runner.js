@@ -6,6 +6,11 @@ import { createEmbeddingVectorSpool } from './vector-spool.js';
 import { encodeIncrementalManifest, INCREMENTAL_MANIFEST_MAX_BYTES } from '../../../src/index/build/incremental/manifest-codec.js';
 import { readEffectiveMemory, estimateRetainedBytes } from '../../../src/shared/effective-memory.js';
 import { throwIfAborted, isAbortError } from '../../../src/shared/abort.js';
+import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
+import { tryImport } from '../../../src/shared/optional-deps.js';
+import { createPersistentEmbeddingTextKvStore } from './text-kv-cache.js';
+import { settleEmbeddingCacheConsumers } from './cache/settle-consumers.js';
+import { reconcileEmbeddingProfileBudget } from './cache/profile-retention.js';
 import { canonicalBundleSourceKey } from '../../../src/shared/bundle-source-key.js';
 import { reusePriorChunkVectors } from './prior-chunk-reuse.js';
 import { reuseNativeBackend } from './backend-reuse.js';
@@ -89,7 +94,7 @@ import {
   withEmbeddingCacheReadLock,
   flushCacheIndex,
   resolveCacheDir,
-  resolveLegacyCacheDir,
+  resolveCacheReadFallbacks,
   resolveCacheRoot,
   resolveGlobalChunkCacheDir,
   shouldFastRejectCacheLookup,
@@ -436,7 +441,10 @@ export const createEmbeddingTextReuseCache = ({
       if (typeof persistentStore?.set === 'function') {
         try {
           persistentStore.set(text, vector);
-        } catch {}
+        } catch (error) {
+          observeStorageResource(error, { phase: 'embedding-text-cache-set' }).requireSettled();
+          if (isAbortError(error) || error instanceof AggregateError) throw error;
+        }
       }
     },
     promote(text, vector) {
@@ -1727,15 +1735,14 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
   crashLogger.updatePhase('stage3:init');
   let embedder;
   let cleanupScheduler = null;
+  let persistentTextCacheStore = null;
   onCleanup(async () => {
-    try { await cleanupScheduler?.shutdown?.({ awaitRunning: true, timeoutMs: 5000 }); }
-    finally {
-      try { await embedder?.dispose?.(); }
-      finally {
-        try { await crashLogger.close?.(); }
-        finally { finalize(); }
-      }
+    const failures = [];
+    for (const settle of [() => cleanupScheduler?.shutdown?.({ awaitRunning: true, timeoutMs: 5000 }),
+      () => persistentTextCacheStore?.close?.(), () => embedder?.dispose?.(), () => crashLogger.close?.(), () => finalize()]) {
+      try { await settle(); } catch (error) { failures.push(error); }
     }
+    if (failures.length) throw new AggregateError(failures, 'Embedding runtime owners failed to settle.', { cause: failures[0] });
   });
   const cacheOnlyPlan = useStubEmbeddings ? { eligible: false, reason: 'stub-fast-path', work: null }
     : await planStage3CacheOnly({ roots: receiptRoots, identity: cacheIdentity, identityKey: cacheIdentityKey,
@@ -1881,7 +1888,13 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
   const cacheMaxAgeDays = Number(embeddingsConfig.cache?.maxAgeDays);
   const cacheMaxBytes = Number.isFinite(cacheMaxGb) ? Math.max(0, cacheMaxGb) * 1024 * 1024 * 1024 : 0;
   const cacheMaxAgeMs = Number.isFinite(cacheMaxAgeDays) ? Math.max(0, cacheMaxAgeDays) * 24 * 60 * 60 * 1000 : 0;
-  const persistentTextCacheStore = null;
+  const cacheRetention = Object.freeze({ maxBytes: cacheMaxBytes, maxAgeMs: cacheMaxAgeMs, signal: config.signal });
+  if (!stubFastPathEnabled && embeddingArtifactReusable(modelArtifact) && embeddingsConfig.persistentTextCache !== false) {
+    const sqlite = await tryImport('better-sqlite3');
+    if (sqlite.ok) persistentTextCacheStore = await createPersistentEmbeddingTextKvStore({ Database: sqlite.mod.default,
+      cacheRoot, cacheIdentity, cacheIdentityKey, maxEntries: embeddingsConfig.persistentTextCacheMaxEntries,
+      vectorEncoding: resolveEmbeddingsPersistentTextCacheVectorEncoding(indexingConfig), retention: cacheRetention, log: warn });
+  }
   const maintenanceConfig = normalizeEmbeddingsMaintenanceConfig(embeddingsConfig.maintenance || {});
   const queuedMaintenance = new Set();
   /**
@@ -2282,15 +2295,10 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         const cacheDir = modePersistentCacheEnabled
           ? resolveCacheDir(cacheRoot, cacheIdentity, mode)
           : null;
-        if (cacheDir) {
-          await scheduleIo(() => fs.mkdir(cacheDir, { recursive: true }));
-        }
         let cacheIndex = cacheDir
           ? await scheduleIo(() => readCacheIndex(cacheDir, cacheIdentityKey))
           : null;
-        const legacyCacheDir = cacheDir ? resolveLegacyCacheDir(cacheRoot, cacheIdentity, mode) : null;
-        const legacyCacheIndex = legacyCacheDir ? await scheduleIo(() => readCacheIndex(legacyCacheDir, cacheIdentityKey)) : null;
-        const fileCacheFallbacks = legacyCacheDir ? [{ cacheDir: legacyCacheDir, cacheIndex: legacyCacheIndex, allowUnindexedStandalone: true }] : [];
+        const fileCacheFallbacks = cacheDir ? await scheduleIo(() => resolveCacheReadFallbacks(cacheRoot, cacheIdentity, mode, cacheIdentityKey)) : [];
         let cacheIndexDirty = false;
         const cacheMeta = modePersistentCacheEnabled
           ? await scheduleIo(() => readCacheMeta(cacheRoot, cacheIdentity, mode))
@@ -2314,20 +2322,18 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         const globalChunkCacheDir = modeGlobalChunkCacheEnabled
           ? resolveGlobalChunkCacheDir(cacheRoot, cacheIdentity)
           : null;
-        if (globalChunkCacheDir) {
-          await scheduleIo(() => fs.mkdir(globalChunkCacheDir, { recursive: true }));
-        }
         const globalChunkCacheIndex = globalChunkCacheDir ? await scheduleIo(() => readCacheIndex(globalChunkCacheDir, cacheIdentityKey)) : null;
-        const legacyGlobalChunkDir = globalChunkCacheDir ? resolveLegacyCacheDir(cacheRoot, cacheIdentity, 'global-chunks') : null;
-        const legacyGlobalChunkIndex = legacyGlobalChunkDir ? await scheduleIo(() => readCacheIndex(legacyGlobalChunkDir, cacheIdentityKey)) : null;
-        const globalCacheFallbacks = legacyGlobalChunkDir ? [{ cacheDir: legacyGlobalChunkDir, cacheIndex: legacyGlobalChunkIndex, allowUnindexedStandalone: true }] : [];
+        const globalCacheFallbacks = globalChunkCacheDir ? await scheduleIo(() => resolveCacheReadFallbacks(cacheRoot, cacheIdentity, 'global-chunks', cacheIdentityKey)) : [];
         const cacheBatchReader = createCacheBatchReader({cacheDir,cacheIndex,scheduleIo,fallbacks:fileCacheFallbacks,
           hydrateEntry: async entry => {
             if (!entry.chunkReferences) return entry;
             try { return await scheduleIo(() => withEmbeddingCacheReadLock(globalChunkCacheDir,
               () => hydrateReferencedFileCache({ entry, identityKey: cacheIdentityKey,
-                readChunks: keys => readCacheEntries(globalChunkCacheDir, keys, globalChunkCacheIndex) }))); }
-            catch (error) { if (isAbortError(error)) throw error; return null; }
+                readChunks: keys => readCacheEntries(globalChunkCacheDir, keys, globalChunkCacheIndex, { fallbacks: globalCacheFallbacks }) }))); }
+            catch (error) {
+              observeStorageResource(error, { phase: 'embedding-reference-hydration' }).requireSettled();
+              if (isAbortError(error) || error instanceof AggregateError) throw error; return null;
+            }
           } });
         const globalChunkCacheMemo = createLruCache({ name: 'stage3-global-vector-reuse',
           maxEntries: 2048, maxMb: 8, sizeCalculation: entry => entry.bytes });
@@ -3041,7 +3047,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                   const persisted = await writeReferencedCacheFile({ globalDir: globalChunkCacheDir, globalIndex: globalChunkCacheIndex,
                     fileDir: entry.cacheDir, fileIndex: cacheIndex, filePayload: referenced.filePayload,
                     encodedFile: prepared.find(item => item.kind === 'file-reference')?.encodedPayload,
-                    chunks, mode, options: { shardHandlePool: cacheShardHandlePool } });
+                    chunks, mode, options: { ...cacheRetention, shardHandlePool: cacheShardHandlePool } });
                   if (!persisted) return;
                   if (referenced.filePayload) markCacheIndexDirty();
                   for (const chunk of chunks) {
@@ -3051,7 +3057,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                 }
               });
             } catch (error) {
-              if (isAbortError(error)) throw error;
+              observeStorageResource(error, { phase: 'embedding-reference-admission' }).requireSettled();
+              if (isAbortError(error) || error instanceof AggregateError) throw error;
               // Cache admission is optional; missing references are rebuilt from
               // source. Required published vector artifacts retain their owner.
             }
@@ -3132,6 +3139,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           }
         });
         getBatchingStats = computeFileEmbeddings.batchingStats;
+        let fileProcessingFailure = null;
         try {
           /**
            * Process one file's chunk items with cache lookup and fallback compute.
@@ -3414,7 +3422,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
               merged: new Array(items.length).fill(null)
             };
             if (cacheEligible) {
-              const priorKey = cacheIndex?.files?.[normalizedRel] || legacyCacheIndex?.files?.[normalizedRel];
+              const priorKey = cacheIndex?.files?.[normalizedRel]
+                || fileCacheFallbacks.find(fallback => fallback.cacheIndex?.files?.[normalizedRel])?.cacheIndex.files[normalizedRel];
               if (priorKey && priorKey !== cacheKey) {
                 const clearStalePriorFileKey = () => {
                   if (!cacheIndex?.files || typeof cacheIndex.files !== 'object') return;
@@ -3422,7 +3431,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                   delete cacheIndex.files[normalizedRel];
                   markCacheIndexDirty();
                 };
-                const priorIndexEntry = cacheIndex?.entries?.[priorKey] || legacyCacheIndex?.entries?.[priorKey] || null;
+                const priorIndexEntry = cacheIndex?.entries?.[priorKey]
+                  || fileCacheFallbacks.find(fallback => fallback.cacheIndex?.entries?.[priorKey])?.cacheIndex.entries[priorKey] || null;
                 if (!priorIndexEntry) {
                   clearStalePriorFileKey();
                 } else {
@@ -3548,14 +3558,11 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
               Math.max(0, Math.floor(Number(adaptiveRun?.adjustments || 0)))
             );
           }
-        } finally {
+        } catch (error) { fileProcessingFailure = error; throw error; }
+        finally {
           stopProgressTimer();
-          if (typeof computeFileEmbeddings?.drain === 'function') {
-            await computeFileEmbeddings.drain();
-          }
-          await cacheBatchReader.drain();
-          await writerQueue.onIdle();
-          await cacheShardHandlePool.close();
+          await settleEmbeddingCacheConsumers({ compute: computeFileEmbeddings, reader: cacheBatchReader,
+            writer: writerQueue, shards: cacheShardHandlePool, primary: fileProcessingFailure });
           emitProgressSnapshot({ force: true, summary: true });
           cacheTask.done({ message: `${cacheHits}/${cacheAttempts} cache hits` });
           embedTask.done({
@@ -3569,9 +3576,10 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         }
         await flushCacheIndexMaybe({ force: true });
         if (globalChunkCacheIndex) {
-          const globalFlush = await scheduleIo(() => flushCacheIndex(globalChunkCacheDir, globalChunkCacheIndex, {identityKey:cacheIdentityKey, maxBytes:cacheMaxBytes, maxAgeMs:cacheMaxAgeMs}));
-          if (globalFlush.budgetExceeded) warn(`[embeddings-cache] Global physical storage remains above ${cacheMaxBytes} bytes; protected metadata or open cache files remain.`);
+          const globalFlush = await scheduleIo(() => flushCacheIndex(globalChunkCacheDir, globalChunkCacheIndex, {identityKey:cacheIdentityKey, ...cacheRetention}));
+          if (globalFlush?.budgetExceeded) warn(`[embeddings-cache] Global physical storage remains above ${cacheMaxBytes} bytes; protected metadata or open cache files remain.`);
         }
+        if (cacheDir) await scheduleIo(() => reconcileEmbeddingProfileBudget(cacheDir, { signal: config.signal }));
 
         await modeVectorSpool.seal();
         stageCheckpoints.record({
@@ -4019,8 +4027,10 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             updatedAt: cacheMetaNow
           };
           try {
-            await scheduleIo(() => writeCacheMeta(cacheRoot, cacheIdentity, mode, cacheMetaPayload));
-          } catch {
+            await scheduleIo(() => writeCacheMeta(cacheRoot, cacheIdentity, mode, cacheMetaPayload, cacheRetention));
+          } catch (error) {
+            observeStorageResource(error, { phase: 'embedding-cache-metadata' }).requireSettled();
+            if (isAbortError(error) || error instanceof AggregateError) throw error;
           // Ignore cache meta write failures.
           }
         }

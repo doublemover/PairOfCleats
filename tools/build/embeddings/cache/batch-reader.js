@@ -1,12 +1,17 @@
-import fs from 'node:fs/promises';
 import { decodeEmbeddingsCache } from '../../../../src/shared/embeddings-cache/index.js';
 import { createBoundedWriterQueue } from '../writer-queue.js';
 import { readCacheEntry, resolveCacheShardPath } from '../cache.js';
+import { withEmbeddingProfileAccess } from './profile-access.js';
+import { withContainedFile } from '../../../../src/shared/contained-file.js';
 
 /** Read a batch with one open/stat per shard and bounded coalesced ranges. */
-export const readCacheEntries = async (cacheDir, cacheKeys, cacheIndex = null, {
+export const readCacheEntries = (cacheDir, cacheKeys, cacheIndex = null, options = {}) => withEmbeddingProfileAccess(cacheDir,
+  () => readCacheEntriesUnlocked(cacheDir, cacheKeys, cacheIndex, options));
+const readCacheEntriesUnlocked = async (cacheDir, cacheKeys, cacheIndex = null, {
   maxReadBytes = 8 * 1024 * 1024, maxEntryBytes = maxReadBytes, fallbacks = [], allowUnindexedStandalone = false
 } = {}) => {
+  if (!Number.isSafeInteger(maxReadBytes) || maxReadBytes < 12 || maxReadBytes > 64 * 1024 * 1024
+    || !Number.isSafeInteger(maxEntryBytes) || maxEntryBytes < 12 || maxEntryBytes > maxReadBytes) throw new TypeError('Invalid cache read byte reservation.');
   const results = new Map();
   const groups = new Map();
   for (const key of [...new Set(cacheKeys)]) {
@@ -14,7 +19,7 @@ export const readCacheEntries = async (cacheDir, cacheKeys, cacheIndex = null, {
     const pointer = cacheIndex?.entries?.[physicalKey];
     if (cacheIndex && !pointer && !allowUnindexedStandalone) { results.set(key,{path:null,entry:null}); continue; }
     if (!pointer?.shard) {
-      results.set(key, await readCacheEntry(cacheDir, physicalKey, cacheIndex));
+      results.set(key, await readCacheEntry(cacheDir, physicalKey, cacheIndex, { maxBytes: maxEntryBytes }));
       continue;
     }
     const shardPath = resolveCacheShardPath(cacheDir, pointer.shard);
@@ -29,31 +34,33 @@ export const readCacheEntries = async (cacheDir, cacheKeys, cacheIndex = null, {
     groups.set(shardPath,group);
   }
   for (const [shardPath, requests] of groups) {
-    let handle;
     try {
-      if(await fs.realpath(shardPath)!==shardPath)throw Error('Noncanonical cache shard');
-      handle = await fs.open(shardPath,'r');
-      const stat = await handle.stat();
-      requests.sort((a,b)=>a.offset-b.offset || a.key.localeCompare(b.key));
-      for(let cursor=0;cursor<requests.length;){
-        const first=requests[cursor], start=first.offset;
-        let end=start+first.length, stop=cursor+1;
-        while(stop<requests.length && requests[stop].offset+requests[stop].length-start<=maxReadBytes) {
-          end=Math.max(end,requests[stop].offset+requests[stop].length);stop++;
+      await withContainedFile(cacheDir, shardPath, async handle => {
+        const stat = await handle.stat();
+        requests.sort((a,b)=>a.offset-b.offset || a.key.localeCompare(b.key));
+        for(let cursor=0;cursor<requests.length;){
+          const first=requests[cursor], start=first.offset;
+          let end=start+first.length, stop=cursor+1;
+          while(stop<requests.length && requests[stop].offset+requests[stop].length-start<=maxReadBytes) {
+            end=Math.max(end,requests[stop].offset+requests[stop].length);stop++;
+          }
+          if(end>stat.size){for(const request of requests.slice(cursor,stop))results.set(request.key,{path:shardPath,entry:null});cursor=stop;continue;}
+          const buffer=Buffer.alloc(end-start);let read=0;
+          while(read<buffer.length){const part=await handle.read(buffer,read,buffer.length-read,start+read);if(!part.bytesRead)break;read+=part.bytesRead;}
+          for(const request of requests.slice(cursor,stop)){
+            let entry=null;
+            if(read===buffer.length){try{entry=await decodeEmbeddingsCache(buffer.subarray(request.offset-start,request.offset-start+request.length), { maxBytes: maxEntryBytes });}catch{}}
+            if (entry && entry.key !== request.physicalKey) entry = null;
+            results.set(request.key,{path:shardPath,entry,indexEntry:request.pointer});
+          }
+          cursor=stop;
         }
-        if(end>stat.size){for(const request of requests.slice(cursor,stop))results.set(request.key,{path:shardPath,entry:null});cursor=stop;continue;}
-        const buffer=Buffer.alloc(end-start);let read=0;
-        while(read<buffer.length){const part=await handle.read(buffer,read,buffer.length-read,start+read);if(!part.bytesRead)break;read+=part.bytesRead;}
-        for(const request of requests.slice(cursor,stop)){
-          let entry=null;
-          if(read===buffer.length){try{entry=await decodeEmbeddingsCache(buffer.subarray(request.offset-start,request.offset-start+request.length));}catch{}}
-          if (entry && entry.key !== request.physicalKey) entry = null;
-          results.set(request.key,{path:shardPath,entry,indexEntry:request.pointer});
-        }
-        cursor=stop;
-      }
-    }catch{for(const request of requests)results.set(request.key,{path:shardPath,entry:null});}
-    finally{await handle?.close();}
+        handle.verify();
+      });
+    }catch(error){
+      if (error.cacheOwnershipPending || error instanceof AggregateError) throw error;
+      for(const request of requests)results.set(request.key,{path:shardPath,entry:null});
+    }
   }
   for (const fallback of fallbacks) {
     const missing = [...new Set(cacheKeys)].filter(key => !results.get(key)?.entry);

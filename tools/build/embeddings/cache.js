@@ -1,3 +1,4 @@
+import { createCachePhysicalStorage } from './cache/physical-storage.js';
 import { readEmbeddingIndex, checkpointEmbeddingIndex, appendEmbeddingIndexDelta, syncEmbeddingIndexDelta } from './cache/index-log.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
@@ -15,7 +16,10 @@ import {
   resolveEmbeddingsCacheRoot
 } from '../../../src/shared/embeddings-cache/index.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
-import { acquireFileLock } from '../../../src/shared/locks/file-lock.js';
+import { withFileLock } from '../../../src/shared/locks/file-lock.js';
+import { withEmbeddingProfileAccess } from './cache/profile-access.js';
+import { withEmbeddingProfileMutation, withEmbeddingProfileMaintenance } from './cache/profile-retention.js';
+export { createShardAppendHandlePool } from './cache/shard-handles.js';
 import { createTempPath, replaceFile } from './atomic.js';
 import {
   mergeCacheIndex,
@@ -25,6 +29,8 @@ import { resolveEmbeddingCacheProfile } from '../../../src/shared/embeddings-cac
 import { createReferenceCacheWriter, collectReferenceProtection } from './cache/file-references.js';
 import { readCacheEntries as readReferenceEntries } from './cache/batch-reader.js';
 import { buildCachePhysicalSummary, compareCachePhysicalAge } from './cache/physical-summary.js';
+import { assertNoSymlinkPath, verifyContainedFileHandle, readVerifiedContainedFile, withContainedFile } from '../../../src/shared/contained-file.js';
+import { createContainedFileResource } from '../../../src/shared/contained-file-resource.js';
 
 const CACHE_KEY_SCHEMA_VERSION = 'embeddings-cache-v1';
 const GLOBAL_CHUNK_CACHE_KEY_SCHEMA_VERSION = 'embeddings-global-chunk-cache-v2';
@@ -77,12 +83,13 @@ const resolveCacheLockPath = (cacheDir) => (
 const withCacheLock = async (cacheDir, worker, options = {}) => {
   const lockPath = resolveCacheLockPath(cacheDir);
   if (!lockPath) return null;
+  assertNoSymlinkPath(path.parse(path.resolve(cacheDir)).root, cacheDir, { allowMissing: true });
   const waitMs = Number.isFinite(Number(options.waitMs)) ? Math.max(0, Number(options.waitMs)) : DEFAULT_LOCK_WAIT_MS;
   const pollMs = Number.isFinite(Number(options.pollMs)) ? Math.max(1, Number(options.pollMs)) : DEFAULT_LOCK_POLL_MS;
   const staleMs = Number.isFinite(Number(options.staleMs)) ? Math.max(1, Number(options.staleMs)) : DEFAULT_LOCK_STALE_MS;
   const log = typeof options.log === 'function' ? options.log : null;
 
-  const lock = await acquireFileLock({
+  return withEmbeddingProfileAccess(cacheDir, () => withFileLock({
     lockPath,
     waitMs,
     pollMs,
@@ -94,13 +101,7 @@ const withCacheLock = async (cacheDir, worker, options = {}) => {
     onBusy: () => {
       if (log) log(`[embeddings-cache] Cache lock timeout: ${lockPath}`);
     }
-  });
-  if (!lock) return null;
-  try {
-    return await worker();
-  } finally {
-    await lock.release();
-  }
+  }, worker));
 };
 
 /**
@@ -138,6 +139,16 @@ export const resolveCacheBase = (cacheRoot, identity) => resolveEmbeddingsCacheB
 });
 export const resolveLegacyCacheDir = (cacheRoot, identity, mode) => path.join(resolveEmbeddingCacheProfile({ cacheRoot, identity }).legacy,
   mode === 'global-chunks' ? 'global-chunks' : path.join(path.basename(resolveEmbeddingsCacheModeDir('', mode)), 'files'));
+export const resolvePriorCacheDir = (cacheRoot, identity, mode) => path.join(resolveEmbeddingCacheProfile({ cacheRoot, identity }).prior,
+  mode === 'global-chunks' ? 'global-chunks' : path.join(path.basename(resolveEmbeddingsCacheModeDir('', mode)), 'files'));
+export const resolveCacheReadFallbacks = async (cacheRoot, identity, mode, identityKey, options = {}) => {
+  const results = await Promise.allSettled([resolvePriorCacheDir(cacheRoot, identity, mode), resolveLegacyCacheDir(cacheRoot, identity, mode)]
+    .map(async cacheDir => ({ cacheDir, cacheIndex: await readCacheIndex(cacheDir, identityKey, options), allowUnindexedStandalone: true })));
+  const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);
+  if (failures.length === 1) throw failures[0];
+  if (failures.length) throw new AggregateError(failures, 'Embedding fallback inventories failed.', { cause: failures[0] });
+  return results.map(result => result.value);
+};
 
 /**
  * Resolve the mode-specific cache directory.
@@ -241,14 +252,13 @@ export const resolveCacheEntryPath = (cacheDir, cacheKey, options = {}) => {
  * @param {string|null} filePath
  * @returns {Promise<object|null>}
  */
-export const readCacheEntryFile = async (filePath) => {
+export const readCacheEntryFile = async (filePath, { maxBytes = 64 * 1024 * 1024 } = {}) => {
   if (!filePath) return null;
+  const { buffer: raw } = await readVerifiedContainedFile(path.dirname(filePath), filePath, { maxBytes });
   if (filePath.endsWith('.json')) {
-    const raw = await fs.readFile(filePath, 'utf8');
-    return JSON.parse(raw);
+    return JSON.parse(raw.toString('utf8'));
   }
-  const raw = await fs.readFile(filePath);
-  return decodeEmbeddingsCache(raw);
+  return decodeEmbeddingsCache(raw, { maxBytes });
 };
 
 /**
@@ -288,49 +298,17 @@ export const buildChunkHashesFingerprint = (chunkHashes) => {
  * Create a reusable shard append handle pool for a flush window.
  * @returns {{get:(shardPath:string)=>Promise<{handle:import('node:fs/promises').FileHandle,size:number}>,close:()=>Promise<void>}}
  */
-export const createShardAppendHandlePool = () => {
-  const handles = new Map();
-  return {
-    async get(shardPath) {
-      let entry = handles.get(shardPath) || null;
-      if (!entry) {
-        let handle = null;
-        try {
-          handle = await fs.open(shardPath, 'a');
-          const stat = await handle.stat();
-          entry = { handle, size: stat.size };
-          handles.set(shardPath, entry);
-        } catch (error) {
-          if (handle) {
-            try {
-              await handle.close();
-            } catch {}
-          }
-          throw error;
-        }
-      }
-      return entry;
-    },
-    async close() {
-      for (const entry of handles.values()) {
-        try {
-          await entry.handle.close();
-        } catch {}
-      }
-      handles.clear();
-    }
-  };
-};
-
 /**
  * Read the cache index from disk, falling back to a fresh index on errors.
  * @param {string|null} cacheDir
  * @param {string|null} [identityKey]
  * @returns {Promise<object>}
  */
-export const readCacheIndex = (cacheDir, identityKey = null, options = {}) => readEmbeddingIndex(cacheDir, identityKey, options);
+export const readCacheIndex = (cacheDir, identityKey = null, options = {}) => withEmbeddingProfileAccess(cacheDir,
+  () => readEmbeddingIndex(cacheDir, identityKey, options));
 const readCacheIndexForUpdate = (cacheDir, identityKey = null) => readEmbeddingIndex(cacheDir, identityKey, { forUpdate: true });
-export const writeCacheIndex = checkpointEmbeddingIndex;
+export const writeCacheIndex = (directory, index) => withEmbeddingProfileMutation(directory,
+  Buffer.byteLength(JSON.stringify(index)) * 3 + 4096, () => checkpointEmbeddingIndex(directory, index));
 
 /**
  * Build stable shard pointer fingerprint used for failed-read memoization.
@@ -415,14 +393,13 @@ const repointCacheIndexEntryPath = (cacheIndex, cacheKey, entryPath) => {
  * @param {{shard?:string,offset?:number,length?:number}|null} shardEntry
  * @returns {Promise<object|null>}
  */
-const readCacheEntryFromShard = async (cacheDir, shardEntry) => {
+const readCacheEntryFromShard = async (cacheDir, shardEntry, maxBytes) => {
   const shardPath = resolveCacheShardPath(cacheDir, shardEntry?.shard);
   if (!shardPath || !fsSync.existsSync(shardPath)) return null;
-  const handle = await fs.open(shardPath, 'r');
-  try {
+  return withContainedFile(cacheDir, shardPath, async handle => {
     const length = Number(shardEntry?.length) || 0;
     const offset = Number(shardEntry?.offset) || 0;
-    if (!length || offset < 0) return null;
+    if (!Number.isSafeInteger(length) || length <= 0 || length > maxBytes || !Number.isSafeInteger(offset) || offset < 0) return null;
     const stat = await handle.stat();
     if (!Number.isFinite(stat?.size) || (offset + length) > stat.size) {
       return null;
@@ -440,14 +417,13 @@ const readCacheEntryFromShard = async (cacheDir, shardEntry) => {
       totalRead += bytesRead;
     }
     if (totalRead !== length) return null;
+    handle.verify();
     try {
-      return decodeEmbeddingsCache(buffer);
+      return await decodeEmbeddingsCache(buffer, { maxBytes });
     } catch {
       return null;
     }
-  } finally {
-    await handle.close();
-  }
+  });
 };
 
 /**
@@ -457,7 +433,9 @@ const readCacheEntryFromShard = async (cacheDir, shardEntry) => {
  * @param {object|null} [cacheIndex]
  * @returns {Promise<{path:string|null,entry:object|null,indexEntry?:object}>}
  */
-export const readCacheEntry = async (cacheDir, cacheKey, cacheIndex = null) => {
+export const readCacheEntry = (cacheDir, cacheKey, cacheIndex = null, { maxBytes = 64 * 1024 * 1024 } = {}) => withEmbeddingProfileAccess(cacheDir,
+  () => readCacheEntryUnlocked(cacheDir, cacheKey, cacheIndex, maxBytes));
+const readCacheEntryUnlocked = async (cacheDir, cacheKey, cacheIndex, maxBytes) => {
   const indexEntry = cacheIndex?.entries?.[cacheKey];
   const failedShardPointers = getFailedShardPointers(cacheIndex);
   const shardPointerFingerprint = buildShardPointerFingerprint(indexEntry);
@@ -466,7 +444,7 @@ export const readCacheEntry = async (cacheDir, cacheKey, cacheIndex = null) => {
     : null;
   const shouldTryShard = Boolean(indexEntry?.shard && (!failedShardPointers || !failedShardPointers.has(shardFailureKey)));
   if (shouldTryShard) {
-    const entry = await readCacheEntryFromShard(cacheDir, indexEntry);
+    const entry = await readCacheEntryFromShard(cacheDir, indexEntry, maxBytes);
     if (entry) {
       if (failedShardPointers && shardFailureKey) {
         failedShardPointers.delete(shardFailureKey);
@@ -481,24 +459,16 @@ export const readCacheEntry = async (cacheDir, cacheKey, cacheIndex = null) => {
   if (primaryPath && fsSync.existsSync(primaryPath)) {
     try {
       repairShardIndexEntryToStandalonePath(cacheIndex, cacheKey, primaryPath);
-      return { path: primaryPath, entry: await readCacheEntryFile(primaryPath) };
-    } catch {
-      try {
-        await fs.rm(primaryPath, { force: true });
-      } catch {}
-    }
+      return { path: primaryPath, entry: await readCacheEntryFile(primaryPath, { maxBytes }) };
+    } catch (error) { if (error.cacheOwnershipPending || error instanceof AggregateError) throw error; }
   }
   const legacyPath = resolveCacheEntryPath(cacheDir, cacheKey, { legacy: true });
   if (legacyPath && fsSync.existsSync(legacyPath)) {
     try {
       repairShardIndexEntryToStandalonePath(cacheIndex, cacheKey, legacyPath);
       repointCacheIndexEntryPath(cacheIndex, cacheKey, legacyPath);
-      return { path: legacyPath, entry: await readCacheEntryFile(legacyPath) };
-    } catch {
-      try {
-        await fs.rm(legacyPath, { force: true });
-      } catch {}
-    }
+      return { path: legacyPath, entry: await readCacheEntryFile(legacyPath, { maxBytes }) };
+    } catch (error) { if (error.cacheOwnershipPending || error instanceof AggregateError) throw error; }
   }
   return { path: primaryPath, entry: null };
 };
@@ -593,6 +563,7 @@ const selectShardForWrite = async (cacheDir, cacheIndex, payloadBytes, maxShardB
 const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = {}) => {
   const shardDir = resolveCacheShardDir(cacheDir);
   if (!shardDir) return null;
+  assertNoSymlinkPath(cacheDir, shardDir, { allowMissing: true });
   await fs.mkdir(shardDir, { recursive: true });
   const shardName = await selectShardForWrite(cacheDir, cacheIndex, buffer.length, options.maxShardBytes);
   const shardPath = resolveCacheShardPath(cacheDir, shardName);
@@ -607,6 +578,7 @@ const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = 
      * append between writes. Refresh size each time so returned offsets stay aligned with disk.
      */
     const stat = await pooled.handle.stat();
+    if (stat.nlink !== 1) throw new Error('Embedding shard append refuses unknown physical aliases.');
     const offset = stat.size;
     await writeCacheBuffer(pooled.handle, payload, offset);
     await pooled.handle.sync();
@@ -623,8 +595,11 @@ const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = 
     };
   }
   const handle = await fs.open(shardPath, 'a');
-  try {
+  const owner = createContainedFileResource({ handle, sync: false });
+  return owner.run(async () => {
+    verifyContainedFileHandle(handle, cacheDir, shardPath);
     const stat = await handle.stat();
+    if (stat.nlink !== 1) throw new Error('Embedding shard append refuses unknown physical aliases.');
     const offset = stat.size;
     await writeCacheBuffer(handle, payload, offset);
     await handle.sync();
@@ -638,9 +613,7 @@ const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = 
       length: buffer.length,
       sizeBytes: totalBytes
     };
-  } finally {
-    await handle.close();
-  }
+  });
 };
 
 /**
@@ -679,24 +652,26 @@ const appendShardEntry = async (cacheDir, cacheIndex, buffer, options = {}) => (
 export const writeCacheEntry = async (cacheDir, cacheKey, payload, options = {}) => {
   const targetPath = resolveCacheEntryPath(cacheDir, cacheKey);
   if (!targetPath) return null;
-  const tempPath = createTempPath(targetPath);
-  try {
-    const buffer = Buffer.isBuffer(options.encodedBuffer)
-      ? options.encodedBuffer
-      : await encodeEmbeddingsCache(payload, options);
-    if (options.index) {
-      const shardEntry = await appendShardEntry(cacheDir, options.index, buffer, options);
-      if (shardEntry) return shardEntry;
-    }
-    await fs.writeFile(tempPath, buffer);
-    await replaceFile(tempPath, targetPath);
-    return { path: targetPath, sizeBytes: buffer.length };
-  } catch (err) {
+  const buffer = Buffer.isBuffer(options.encodedBuffer) ? options.encodedBuffer : await encodeEmbeddingsCache(payload, options);
+  return withEmbeddingProfileMutation(cacheDir, reserveCacheWrite(cacheKey, payload, buffer), async () => {
+    assertNoSymlinkPath(path.parse(path.resolve(cacheDir)).root, cacheDir, { allowMissing: true });
+    await fs.mkdir(cacheDir, { recursive: true });
+    const tempPath = createTempPath(targetPath);
     try {
-      await fs.rm(tempPath, { force: true });
-    } catch {}
-    throw err;
-  }
+      if (options.index) {
+        const shardEntry = await appendShardEntry(cacheDir, options.index, buffer, options);
+        if (shardEntry) return shardEntry;
+      }
+      await fs.writeFile(tempPath, buffer);
+      await replaceFile(tempPath, targetPath);
+      return { path: targetPath, sizeBytes: buffer.length };
+    } catch (err) {
+      try {
+        await fs.rm(tempPath, { force: true });
+      } catch {}
+      throw err;
+    }
+  }, options);
 };
 
 /**
@@ -788,6 +763,8 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
   const deleteShards = options.deleteShards !== false;
   if (!maxBytes && !maxAgeMs) return { removedKeys: [], removedShards: [], changed: false };
   const beforePhysical = await inspectCachePhysicalStorage(cacheDir,cacheIndex);
+  if (!beforePhysical.complete) return { removedKeys: [], removedShards: [], changed: false,
+    blocked: 'physical-inventory-incomplete', physicalBytes: null, budgetExceeded: maxBytes > 0 };
   const reachability = await collectReferenceProtection(cacheDir, cacheIndex, { readIndex: readCacheIndex });
   const observedPhysicalBytes = beforePhysical.reduce((sum, file) => sum + file.sizeBytes, 0);
   if (reachability.incomplete) return { removedKeys: [], removedShards: [], changed: false,
@@ -850,6 +827,12 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
   // boundary, rather than scanning the corpus per shard/comparison/removal.
   const physicalSummary = compaction.copiedBytes > 0 ? summarize() : beforeCompaction;
   let physical = await inspectCachePhysicalStorage(cacheDir,cacheIndex,physicalSummary);
+  if (!physical.complete) {
+    cacheIndex.updatedAt = new Date().toISOString();
+    for (const [input, target] of Object.entries(cacheIndex.chunkInputs || {})) if (!cacheIndex.entries[target]) delete cacheIndex.chunkInputs[input];
+    return { removedKeys: plan.removeKeys, removedShards, changed: plan.removeKeys.length > 0 || removedShards.length > 0 || compaction.copiedBytes > 0,
+      blocked: 'physical-inventory-incomplete', physicalBytes: null, budgetExceeded: maxBytes > 0, work };
+  }
   let physicalBytes=physical.reduce((sum,file)=>sum+file.sizeBytes,0);
   const physicalRemoved=[];
   if(deleteShards && maxBytes>0 && physicalBytes>maxBytes){
@@ -898,7 +881,9 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
  * }} [options]
  * @returns {Promise<{removedKeys:string[],removedShards:string[],changed:boolean,locked:boolean}>}
  */
-export const flushCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
+export const flushCacheIndex = (cacheDir, cacheIndex, options = {}) => withEmbeddingProfileMaintenance(cacheDir,
+  () => flushCacheIndexUnlocked(cacheDir, cacheIndex, options), options);
+const flushCacheIndexUnlocked = async (cacheDir, cacheIndex, options = {}) => {
   if (!cacheDir || !cacheIndex) {
     return { removedKeys: [], removedShards: [], changed: false, locked: false };
   }
@@ -917,8 +902,9 @@ export const flushCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
     }
     Object.assign(cacheIndex, onDisk);
     const physical=await inspectCachePhysicalStorage(cacheDir,onDisk);
-    const physicalBytes=physical.reduce((sum,file)=>sum+file.sizeBytes,0);
-    return {...pruneResult,physicalBytes,budgetExceeded:Number(options.maxBytes)>0&&physicalBytes>Number(options.maxBytes)};
+    const physicalBytes=physical.complete ? physical.reduce((sum,file)=>sum+file.sizeBytes,0) : null;
+    return {...pruneResult,physicalBytes,inventoryComplete:physical.complete,
+      budgetExceeded:Number(options.maxBytes)>0&&(physicalBytes==null||physicalBytes>Number(options.maxBytes))};
   }, options.lock);
 
   if (!lockResult) {
@@ -1020,6 +1006,7 @@ export const readCacheMeta = (cacheRoot, identity, mode) => {
   const identityKey = buildEmbeddingIdentityKey(identity);
   const profile = resolveEmbeddingCacheProfile({ cacheRoot, identity });
   const paths = [resolveCacheMetaPath(cacheRoot, identity, mode),
+    path.join(resolveEmbeddingsCacheModeDir(profile.prior, mode), 'cache.meta.json'),
     path.join(resolveEmbeddingsCacheModeDir(profile.legacy, mode), 'cache.meta.json')];
   for (const metaPath of paths) {
     try {
@@ -1038,11 +1025,13 @@ export const readCacheMeta = (cacheRoot, identity, mode) => {
  * @param {object} meta
  * @returns {Promise<void>}
  */
-export const writeCacheMeta = async (cacheRoot, identity, mode, meta) => {
+export const writeCacheMeta = async (cacheRoot, identity, mode, meta, options = {}) => {
   const metaPath = resolveCacheMetaPath(cacheRoot, identity, mode);
   if (!metaPath) return;
-  await fs.mkdir(path.dirname(metaPath), { recursive: true });
-  await writeJsonObjectFile(metaPath, { fields: meta, atomic: true });
+  return withEmbeddingProfileMutation(path.dirname(metaPath), Buffer.byteLength(JSON.stringify(meta)) + 4096, async () => {
+    await fs.mkdir(path.dirname(metaPath), { recursive: true });
+    await writeJsonObjectFile(metaPath, { fields: meta, atomic: true });
+  }, options);
 };
 
 /**
@@ -1093,6 +1082,13 @@ export const shouldFastRejectCacheLookup = ({
 /** Append an already encoded batch under one cross-process lock. */
 export const writeCacheEntries = async (cacheDir, cacheIndex, writes, options = {}) => {
   if (!cacheDir || !cacheIndex) throw new TypeError('Batch cache writes require an index');
+  const prepared = [];
+  for (const write of writes) prepared.push({ ...write, encodedPayload: Buffer.isBuffer(write.encodedPayload)
+    ? write.encodedPayload : await encodeCacheEntryPayload(write.payload) });
+  const reservation = prepared.reduce((sum, write) => sum + reserveCacheWrite(write.cacheKey, write.payload, write.encodedPayload), 0);
+  return withEmbeddingProfileMutation(cacheDir, reservation, () => writeCacheEntriesUnlocked(cacheDir, cacheIndex, prepared, options), options);
+};
+const writeCacheEntriesUnlocked = async (cacheDir, cacheIndex, writes, options) => {
   return withCacheLock(cacheDir, async () => {
     const canonical = await readCacheIndexForUpdate(cacheDir, cacheIndex.identityKey);
     const pointers=[], keys = [], fileKeys = new Set();
@@ -1113,73 +1109,6 @@ export const writeCacheEntries = async (cacheDir, cacheIndex, writes, options = 
   },options.lock);
 };
 
-/** Compact only registered cache shards, streaming at most the selected I/O budget. */
-const compactCacheShards = async (cacheDir, cacheIndex, maxIoBytes = 128 * 1024 * 1024, summary) => {
-  let copiedBytes=0, reclaimedBytes=0;
-  for(const oldName of Object.keys(cacheIndex.shards || {}).sort()){
-    const oldPath=resolveCacheShardPath(cacheDir,oldName);
-    if(!oldPath)continue;
-    let stat;try{stat=await fs.lstat(oldPath);}catch{continue;}
-    if(!stat.isFile()||stat.isSymbolicLink()||await fs.realpath(oldPath)!==oldPath)continue;
-    const shardSummary = summary.shards.get(oldName);
-    const live=(shardSummary?.entries || []).slice().sort((a,b)=>a.offset-b.offset);
-    const liveBytes=shardSummary?.liveBytes || 0;
-    if(!live.length||liveBytes>stat.size*0.75||copiedBytes+liveBytes>maxIoBytes
-      ||live.some(entry=>!Number.isSafeInteger(entry.length)||entry.length<=0||entry.length>16*1024*1024
-        ||!Number.isSafeInteger(entry.offset)||entry.offset<4||entry.offset+entry.length>stat.size))continue;
-    const stagedIndex={...cacheIndex,shards:{...cacheIndex.shards}};
-    const newName=allocateShard(stagedIndex),newPath=resolveCacheShardPath(cacheDir,newName);
-    const input=await fs.open(oldPath,'r');let output;
-    const replacements=[];let offset=0;
-    try{
-      output=await fs.open(newPath,'wx');
-      for(const entry of live){
-        const buffer=Buffer.alloc(entry.length);let read=0;
-        while(read<buffer.length){const part=await input.read(buffer,read,buffer.length-read,entry.offset+read);if(!part.bytesRead)throw Error('Incomplete cache shard');read+=part.bytesRead;}
-        await decodeEmbeddingsCache(buffer);
-        const prefix=Buffer.alloc(4);prefix.writeUInt32LE(buffer.length);
-        await writeCacheBuffer(output,prefix,offset);await writeCacheBuffer(output,buffer,offset+4);
-        replacements.push({...entry,shard:newName,offset:offset+4,length:buffer.length,sizeBytes:buffer.length+4,
-          path:null,storageEpoch:(cacheIndex.storageEpoch||0)+1});
-        offset+=buffer.length+4;
-      }
-      await output.sync();
-    }finally{await input.close();await output?.close();}
-    cacheIndex.storageEpoch=(cacheIndex.storageEpoch||0)+1;
-    cacheIndex.nextShardId=stagedIndex.nextShardId;
-    cacheIndex.currentShard=newName;
-    cacheIndex.shards[newName]={createdAt:new Date().toISOString(),sizeBytes:offset};
-    for(const entry of replacements)cacheIndex.entries[entry.key]=entry;
-    delete cacheIndex.shards[oldName];
-    await writeCacheIndex(cacheDir,cacheIndex);
-    try{await fs.rm(oldPath);reclaimedBytes+=stat.size-offset;}catch{}
-    copiedBytes+=offset;
-  }
-  return {copiedBytes,reclaimedBytes};
-};
-
-const inspectCachePhysicalStorage = async (cacheDir,cacheIndex,summary = null) => {
-  const files=new Map(), visited = new Set();
-  const add=async (file, protectedFile=false)=>{
-    if(!file)return;
-    const resolved=path.resolve(file),root=path.resolve(cacheDir)+path.sep;
-    if(!resolved.startsWith(root))return;
-    if(visited.has(resolved))return;
-    visited.add(resolved);
-    try{const stat=await fs.lstat(resolved);if(stat.isFile()&&!stat.isSymbolicLink() && await fs.realpath(resolved)===resolved)files.set(resolved,{path:resolved,sizeBytes:stat.size,mtimeMs:stat.mtimeMs,protected:protectedFile});}catch{}
-  };
-  for(const shard of Object.keys(cacheIndex.shards||{}))await add(resolveCacheShardPath(cacheDir,shard));
-  if (summary) for (const filename of summary.paths.keys()) await add(filename);
-  else for(const entry of Object.values(cacheIndex.entries||{}))if(!entry.shard)await add(entry.path||resolveCacheEntryPath(cacheDir,entry.key));
-  for(const file of [resolveCacheIndexPath(cacheDir),resolveCacheIndexBinaryPath(cacheDir),path.join(cacheDir,'cache.index.delta'),path.join(cacheDir,'cache.meta.json')])await add(file,true);
-  // Orphan shard/encoded-key files are owned by this cache; other selected files are untouched.
-  for(const [dir,pattern] of [[cacheDir,/^[a-f0-9]{40,64}\.(?:embcache\.zst|json)$/i],
-    [resolveCacheShardDir(cacheDir),/^shard-\d{5,}\.bin$/]]){
-    try{for(const name of await fs.readdir(dir))if(pattern.test(name))await add(path.join(dir,name));}catch{}
-  }
-  return [...files.values()];
-};
-
 const writeCacheBuffer = async (handle,buffer,offset) => {
   let written=0;
   while(written<buffer.length){
@@ -1190,9 +1119,26 @@ const writeCacheBuffer = async (handle,buffer,offset) => {
 };
 
 export { readCacheEntries, createCacheBatchReader } from './cache/batch-reader.js';
-export const withEmbeddingCacheReadLock = withCacheLock;
-export const writeReferencedCacheFile = createReferenceCacheWriter({ lock: withCacheLock,
+export const withEmbeddingCacheReadLock = (directory, action, options) => fsSync.existsSync(directory || '')
+  ? withCacheLock(directory, action, options) : withEmbeddingProfileAccess(directory, action);
+const writeReferencedCacheFileUnlocked = createReferenceCacheWriter({ lock: withCacheLock,
   readIndex: readCacheIndexForUpdate, writeIndex: writeCacheIndex, publishDelta: appendEmbeddingIndexDelta,
   syncIndex: syncEmbeddingIndexDelta, append: appendShardEntryUnlocked,
   readEntries: (...args) => readReferenceEntries(...args),
   upsert: upsertCacheIndexEntry, writeFiles: writeCacheEntries });
+const reserveCacheWrite = (key, payload, buffer) => {
+  const index = { entries: {}, files: {}, storageEpoch: 0 };
+  const entry = upsertCacheIndexEntry(index, key, payload, { shard: 'shard-999999999999999.bin', offset: Number.MAX_SAFE_INTEGER,
+    length: buffer.length, sizeBytes: buffer.length + 4 });
+  // Each changed projection reserves checkpoint + compatibility + journal and
+  // temporary replacement space, without serializing any existing index.
+  return buffer.length + 4 + 4 * Buffer.byteLength(JSON.stringify({ entry, files: index.files, inputKey: key })) + 4096;
+};
+export const writeReferencedCacheFile = async input => {
+  const reservation = input.chunks.reduce((sum, chunk) => sum + reserveCacheWrite(chunk.cacheKey, chunk.payload, chunk.encodedPayload),
+    input.filePayload ? reserveCacheWrite(input.filePayload.key, input.filePayload, input.encodedFile) : 0);
+  return withEmbeddingProfileMutation(input.globalDir, reservation, () => writeReferencedCacheFileUnlocked(input), input.options);
+};
+
+const { compactCacheShards, inspectCachePhysicalStorage } = createCachePhysicalStorage({ resolveCacheShardPath, resolveCacheEntryPath,
+  resolveCacheShardDir, resolveCacheIndexPath, resolveCacheIndexBinaryPath, allocateShard, writeCacheIndex, writeCacheBuffer });
