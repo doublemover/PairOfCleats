@@ -42,6 +42,7 @@ try {
     for (const backend of ['tantivy', 'auto']) {
       const hits = await pipeline(query, { backend })(index(), 'code', null);
       assert.deepEqual(hits.map(hit => hit.id).sort((a, b) => a - b), expected, `${backend}: ${query}`);
+      assert.equal(hits.executionOutcome.cacheable, true);
       if (query === 'alpha OR NOT gamma') { assert.equal(hits[0].id, 0); assert.equal(hits[1].sparseScore, 0); }
     }
   }
@@ -67,6 +68,8 @@ try {
       const hits = await pipeline('alpha', { provider, overrides: { annEnabled: !allowFallback,
         profilePolicyByMode: allowFallback ? { code: { allowSparseFallback: true } } : null } })(index(), 'code', [1]);
       assert.deepEqual(hits.map(hit => hit.id), [1]);
+      assert.equal(hits.executionOutcome.cacheable, false);
+      assert.ok(hits.executionOutcome.reasons.includes('sparse-provider-failure'));
     }
     assert.equal(annCalls, 2, 'ANN execution is explicit or policy-admitted');
   }

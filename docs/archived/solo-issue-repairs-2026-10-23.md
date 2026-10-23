@@ -91,8 +91,22 @@ full cleanup-category capability or deep-suite green is claimed.
   pipeline controls compare authored NOT/OR-NOT/nested/filtered oracles with JS
   BM25, and cover native failure/empty/abort and explicit/policy ANN fallback.
   These are unrun; real optional Tantivy and SQLite parity qualification remain
-  separate. **#1578 remains partial until #1595 result-cache outcome admission
-  prevents a legitimately degraded ANN fallback becoming a healthy cache hit.**
+  separate. The following #1595 source batch adds result-cache outcome admission;
+  runtime proof of this composed path remains pending.
+
+- #1595 / #1578 cache follow-through: canonical bounded per-mode execution
+  receipts now span real pipeline → session → immutable cache metadata → lookup
+  and diagnostics. Transient failure, relevant cooldown/preflight fallback,
+  budget exhaustion and optional-stage fallback/pending work refuse ordinary
+  reuse. Legacy/malformed/partial metadata is rejected before timestamp touches.
+  Healthy completed/empty/equivalent fallback execution remains reusable; receipt
+  completion does not certify ANN recall. Existing publication/locking owners are
+  retained. The actual session regression uses the existing recording vector/FTS
+  seams and deterministic stub embeddings, with recovery without generation/key
+  changes, healthy repeats/empties, cancellation and warning assertions. Positive
+  storage fixtures now explicitly declare canonical authored execution metadata;
+  their original publication/identity/resource assertions are retained. No runtime
+  tests ran; real backend/model qualification and resulting-tree checks remain open.
 
 ## Remaining integration and qualification
 
@@ -156,7 +170,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1575](https://github.com/doublemover/PairOfCleats/issues/1575) | [P2] Delay standalone atomic zstd publication until owned codec teardown settles | Pending full-scope review |
 | [#1576](https://github.com/doublemover/PairOfCleats/issues/1576) | [P2] Reconcile final score explanations after graph, model, and federated ranking | Source repair authored; runtime proof pending |
 | [#1577](https://github.com/doublemover/PairOfCleats/issues/1577) | [P2] Preserve Boolean complement queries in the Tantivy sparse route | Source repair authored; optional-native/parity proof pending |
-| [#1578](https://github.com/doublemover/PairOfCleats/issues/1578) | [P2] Distinguish Tantivy native failures from successful empty search results | Source partial; result-cache outcome admission #1595 pending |
+| [#1578](https://github.com/doublemover/PairOfCleats/issues/1578) | [P2] Distinguish Tantivy native failures from successful empty search results | Source/provider/cache repair authored; runtime proof pending |
 | [#1579](https://github.com/doublemover/PairOfCleats/issues/1579) | [P2] Settle embedding coalescer claims when post-inference cache publication fails | Source repair authored; runtime proof pending |
 | [#1580](https://github.com/doublemover/PairOfCleats/issues/1580) | [P2] Enforce semantic SQLite byte admission before hydrating related payloads | Pending full-scope review |
 | [#1581](https://github.com/doublemover/PairOfCleats/issues/1581) | [Perf] Bound semantic trace continuation bytes and avoid copying full history per page | Pending full-scope review |
@@ -173,7 +187,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1592](https://github.com/doublemover/PairOfCleats/issues/1592) | [P2] Enforce or retire SQLite FTS time and batch controls instead of only reporting them | Pending full-scope review |
 | [#1593](https://github.com/doublemover/PairOfCleats/issues/1593) | [Perf] Bind service progress reads once and bound retained-generation discovery | Pending full-scope review |
 | [#1594](https://github.com/doublemover/PairOfCleats/issues/1594) | [Perf] Preserve dependency-qualified import reuse across unrelated file-set changes | Pending full-scope review |
-| [#1595](https://github.com/doublemover/PairOfCleats/issues/1595) | [P2] Keep transient degraded search results out of indefinitely refreshed healthy caches | Pending full-scope review |
+| [#1595](https://github.com/doublemover/PairOfCleats/issues/1595) | [P2] Keep transient degraded search results out of indefinitely refreshed healthy caches | Source repair authored; session/cache recovery proof pending |
 | [#1596](https://github.com/doublemover/PairOfCleats/issues/1596) | [Perf] Admit Stage2 source preparation before hydration and share verified snapshots | Pending full-scope review |
 | [#1597](https://github.com/doublemover/PairOfCleats/issues/1597) | [Perf] Prepare semantic provider merge inventories once per immutable batch | Pending full-scope review |
 | [#1598](https://github.com/doublemover/PairOfCleats/issues/1598) | [P2] Reject partial dictionary reads before caching lexical analyzer state | Pending full-scope review |

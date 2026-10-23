@@ -11,6 +11,7 @@ import { upsertQueryCacheEntry } from '../../query-cache-state.js';
 import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
 import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 import { QUERY_PARSER_VERSION } from '../../query-plan-schema.js';
+import { areRetrievalExecutionsReusable } from '../../../contracts/retrieval-execution.js';
 
 const normalizePositiveIntOrNull = (value) => (
   Number.isFinite(Number(value)) ? Math.max(1, Math.floor(Number(value))) : null
@@ -297,6 +298,12 @@ export async function resolveQueryCacheLookup({
     };
   }
 
+  const requiredModes = [[runCode, 'code'], [runProse, 'prose'], [runExtractedProse, 'extracted-prose'], [runRecords, 'records']]
+    .filter(([enabled]) => enabled).map(([, mode]) => mode);
+  if (!areRetrievalExecutionsReusable(entry.meta?.executionOutcomes, requiredModes)) {
+    return { queryCachePath, cacheHit: false, cacheKey, cacheSignature, cacheData,
+      cachedPayload: null, cacheShouldPersist, cacheHotPathHit: false };
+  }
   const timestamp = Number(entry.ts);
   const ttl = Number.isFinite(Number(entry.ttlMs)) ? Number(entry.ttlMs) : queryCacheTtlMs;
   if (!Number.isFinite(timestamp) || timestamp <= 0 || (ttl && (Date.now() - timestamp) > ttl)) {
@@ -345,9 +352,16 @@ export async function resolveQueryCacheLookup({
 
   // Rendering/comment joins own mutable hit rows. Cache payloads retain their
   // immutable admitted data independently of those downstream enrichments.
-  try { cachedPayload = structuredClone(cachedPayload); }
-  catch { return { queryCachePath, cacheHit: false, cacheKey, cacheSignature, cacheData,
-    cachedPayload: null, cacheShouldPersist: false, cacheHotPathHit }; }
+  try {
+    cachedPayload = structuredClone(cachedPayload);
+    Object.defineProperty(cachedPayload, 'executionOutcomes', { value: structuredClone(entry.meta.executionOutcomes) });
+  }
+  catch (error) {
+    observeStorageResource(error, { phase: 'query-cache-hit-admission' }).requireSettled();
+    if (isAbortError(error)) throw error;
+    return { queryCachePath, cacheHit: false, cacheKey, cacheSignature, cacheData,
+      cachedPayload: null, cacheShouldPersist: false, cacheHotPathHit };
+  }
   throwIfAborted(signal);
   cacheHit = true;
   entry = { ...entry, ts: Math.max(Number(entry.ts || 0), Date.now()) };

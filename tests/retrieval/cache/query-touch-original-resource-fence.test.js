@@ -1,3 +1,4 @@
+import { createCacheFixtureExecutions } from './query-cache-fixture.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -43,7 +44,7 @@ try {
   original.cacheOwnershipReleased = () => true;
   await assert.rejects(touch(), pendingFailure);
   await assert.rejects(awaitQueryCacheTouchPublication(cachePath), pendingFailure);
-  await assert.rejects(persistSearchSession({ queryCacheEnabled: true, cacheKey: 'new-miss', cacheHit: false,
+  await assert.rejects(persistSearchSession({ executionOutcomes: createCacheFixtureExecutions(), queryCacheEnabled: true, cacheKey: 'new-miss', cacheHit: false,
     cacheData: { version: 1, entries: [] }, queryCachePath: cachePath, cacheSignature: 'generation',
     codeHits: [], proseHits: [], extractedProseHits: [], recordHits: [], queryCacheMaxEntries: 8 }), pendingFailure);
   assert.equal(publications, 1, 'neither a later touch nor a canonical miss checkpoint can bypass the original unresolved resource');

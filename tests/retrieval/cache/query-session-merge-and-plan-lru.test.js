@@ -1,3 +1,4 @@
+import { createCacheFixtureExecutions } from './query-cache-fixture.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -8,7 +9,7 @@ import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 const { dir } = await prepareIsolatedTestCacheDir('query-session-merge-and-plan-lru');
 try {
   const queryCachePath = path.join(dir, 'results.json');
-  const persist = cacheKey => persistSearchSession({ queryCacheEnabled: true, cacheKey, cacheHit: false,
+  const persist = cacheKey => persistSearchSession({ executionOutcomes: createCacheFixtureExecutions(), queryCacheEnabled: true, cacheKey, cacheHit: false,
     cacheData: { version: 1, entries: [] }, queryCachePath, cacheShouldPersist: false,
     queryCacheTtlMs: 60000, cacheSignature: 'generation-a', query: cacheKey, backendLabel: 'memory',
     proseHits: [], extractedProseHits: [], codeHits: [{ id: cacheKey }], recordHits: [], queryCacheMaxEntries: 10 });

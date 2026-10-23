@@ -245,6 +245,7 @@ export const runAnnStage = async ({
         reservation.attempt.status = 'deadline'; countWork.receipt.reasonEnded = 'deadline';
         return { hits: [], succeeded: false, budgetEnded: true };
       }
+      annMetrics.failedAttempts = (annMetrics.failedAttempts || 0) + 1;
       if (reservation) { reservation.attempt.status = 'failed'; reservation.attempt.reason = failure.code || failure.message || 'provider-error'; }
       try { providerRuntime.recordProviderFailure(provider, mode, failure.message || 'query failed'); }
       catch (inspection) { throw failure.retain(inspection, { inspectionPresent: true }); }
@@ -325,6 +326,7 @@ export const runAnnStage = async ({
               countWork.receipt.reasonEnded = 'deadline'; reservation.attempt.status = 'deadline'; countHandled = true; providerAvailable = true;
               countWork.finish({ hits: [], metrics });
             } else {
+              annMetrics.failedAttempts = (annMetrics.failedAttempts || 0) + 1;
               reservation.attempt.status = 'failed'; reservation.attempt.reason = failure.code || failure.message || 'stored-scan-error';
               countWork.receipt.route = 'ann'; countWork.receipt.reason = 'stored-scan-unavailable';
             }
@@ -336,7 +338,10 @@ export const runAnnStage = async ({
       for (const backend of vectorActive && !countHandled ? orderedBackends : []) {
         const provider = providers.get(backend);
         if (!provider || typeof provider.query !== 'function') continue;
-        if (typeof provider.preflight !== 'function' && providerRuntime.isProviderCoolingDown(provider, mode)) continue;
+        if (typeof provider.preflight !== 'function' && providerRuntime.isProviderCoolingDown(provider, mode)) {
+          annMetrics.cooldownSkips = (annMetrics.cooldownSkips || 0) + 1;
+          continue;
+        }
         let providerInitiallyAvailable = false;
         try {
           providerInitiallyAvailable = provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
@@ -345,6 +350,7 @@ export const runAnnStage = async ({
           throwIfAborted(signal);
           if (failure.abort) throw error;
           failure.requireSettled();
+          annMetrics.failedAttempts = (annMetrics.failedAttempts || 0) + 1;
           providerInitiallyAvailable = false;
         }
         if (!providerInitiallyAvailable) continue;
@@ -354,7 +360,7 @@ export const runAnnStage = async ({
           embedding: queryEmbedding,
           signal
         });
-        if (!preflightOk) continue;
+        if (!preflightOk) { annMetrics.preflightFailures = (annMetrics.preflightFailures || 0) + 1; continue; }
         const resolveProviderAvailability = () => {
           try {
             return provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;

@@ -1,6 +1,8 @@
+import { isRetrievalExecution } from '../../contracts/retrieval-execution.js';
+
 const MODES = ['code', 'prose', 'extractedProse', 'records'];
 const ACTIONS = new Map([['coverage-check', 'index-report'], ['backend-fallback', 'tooling-doctor'],
-  ['no-indexed-metadata-match', 'tooling-doctor']]);
+  ['no-indexed-metadata-match', 'tooling-doctor'], ['retrieval-provider-fallback', 'tooling-doctor']]);
 
 /** Presentation of recorded retrieval facts. This never diagnoses staleness,
  * reconstructs omitted reasons, or authorizes a response-provided command. */
@@ -20,7 +22,13 @@ export const buildSearchDiagnostics = (retrieval) => {
     fidelity: ['complete', 'fallback-derived'].includes(retrieval?.fidelity?.status)
       ? retrieval.fidelity.status : 'unknown'
   };
-  const inputReasons = Array.isArray(retrieval?.emptyResults) ? retrieval.emptyResults : [];
+  const executionReasons = ['code', 'prose', 'extracted-prose', 'records'].flatMap(mode => {
+    const outcome = retrieval?.fidelity?.byMode?.[mode];
+    return isRetrievalExecution(outcome, mode) && outcome.status === 'partial' ? [{ code: 'retrieval-provider-fallback',
+      message: `Recorded ${mode} execution is partial: ${(outcome.reasons || []).slice(0, 8).join(', ')}.`,
+      next: 'Retry after provider recovery; use tooling-doctor if it persists.' }] : [];
+  });
+  const inputReasons = [...executionReasons, ...(Array.isArray(retrieval?.emptyResults) ? retrieval.emptyResults : [])];
   if (inputReasons.length > 8) truncated = true;
   const reasons = inputReasons.slice(0, 8).map(reason => ({ code: text(reason?.code, 64),
     message: text(reason?.message, 512), next: text(reason?.next, 512) })).filter(reason => reason.code && reason.message);

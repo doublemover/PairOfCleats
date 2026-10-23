@@ -4,6 +4,7 @@ import { resolveRetrievalCacheDir } from './cache-paths.js';
 import { incCacheEvent } from '../../shared/metrics/core.js';
 import { ERROR_CODES } from '../../shared/error-codes.js';
 import { createSearchPipeline } from '../pipeline.js';
+import { createRetrievalExecutionOutcome } from '../pipeline/execution-outcome.js';
 import { runSearchByMode } from './search-runner.js';
 import { resolveSqliteFtsRoutingByMode } from '../routing-policy.js';
 import {
@@ -296,6 +297,7 @@ async function persistSessionQueryCache({
   query,
   backendLabel,
   hitsByMode,
+  executionOutcomes,
   queryCacheMaxEntries,
   signal = null
 }) {
@@ -314,6 +316,7 @@ async function persistSessionQueryCache({
     extractedProseHits: hitsByMode['extracted-prose'],
     codeHits: hitsByMode.code,
     recordHits: hitsByMode.records,
+    executionOutcomes,
     queryCacheMaxEntries,
     signal
   });
@@ -735,6 +738,9 @@ export async function runSearchSession({
     code: codeHits,
     records: recordHits
   };
+  const executionOutcomes = cacheHit ? cachedPayload.executionOutcomes
+    : Object.fromEntries(EMBEDDING_MODE_ORDER.filter(mode => modeState[mode].run).map(mode => [mode,
+      hitsByMode[mode].executionOutcome || createRetrievalExecutionOutcome({ mode, unrecorded: true })]));
   const expandedByMode = await expandSessionHitsByMode({
     expandModeHits,
     modeState,
@@ -773,6 +779,7 @@ export async function runSearchSession({
     query,
     backendLabel,
     hitsByMode,
+    executionOutcomes,
     queryCacheMaxEntries,
     signal
   }));
@@ -788,6 +795,7 @@ export async function runSearchSession({
     codeExpanded,
     recordExpanded,
     contextExpansionStats,
+    executionOutcomes,
     annBackend: annBackendUsed,
     profile: {
       byMode: profilePolicyByMode || null,

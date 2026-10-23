@@ -1,3 +1,4 @@
+import { createCacheFixtureExecutions } from './query-cache-fixture.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -8,7 +9,7 @@ import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 const { dir } = await prepareIsolatedTestCacheDir('query-touch-payload-identity');
 try {
   const cachePath = path.join(dir, 'cache.json');
-  await persistSearchSession({ queryCacheEnabled: true, cacheKey: 'key', cacheHit: false,
+  await persistSearchSession({ executionOutcomes: createCacheFixtureExecutions(), queryCacheEnabled: true, cacheKey: 'key', cacheHit: false,
     cacheData: { version: 1, entries: [] }, queryCachePath: cachePath, queryCacheTtlMs: 60000,
     cacheSignature: 'generation', codeHits: [{ id: 1, text: 'x'.repeat(100000) }],
     proseHits: [], extractedProseHits: [], recordHits: [], queryCacheMaxEntries: 8 });

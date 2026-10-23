@@ -292,6 +292,7 @@ export const runRankStage = ({
       explain
     });
     scored = ranked.entries;
+    rankMetrics.graph = ranked.stats;
   }
 
   return scored

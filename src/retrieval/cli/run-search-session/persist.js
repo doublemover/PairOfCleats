@@ -13,6 +13,7 @@ import { snapshotQueryCachePayload, upsertQueryCacheEntry, forkQueryCacheSnapsho
   captureQueryCacheSubmission, mergeQueryCacheSubmission, acknowledgeQueryCacheSubmission } from '../../query-cache-state.js';
 import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
 import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
+import { areRetrievalExecutionsReusable } from '../../../contracts/retrieval-execution.js';
 
 export function resolveAnnBackendUsed({
   vectorAnnEnabled,
@@ -43,6 +44,7 @@ export async function persistSearchSession({
   extractedProseHits,
   codeHits,
   recordHits,
+  executionOutcomes = null,
   queryCacheMaxEntries,
   signal = null
 }) {
@@ -57,6 +59,11 @@ export async function persistSearchSession({
       cacheShouldPersist: nextCacheShouldPersist
     };
   }
+  // A completed fallback can serve this request while still requiring a fresh
+  // provider attempt later. Ordinary cache recency must never certify it healthy.
+  if (!cacheHit && !areRetrievalExecutionsReusable(executionOutcomes)) {
+    return { cacheData: nextCacheData, cacheShouldPersist: nextCacheShouldPersist };
+  }
 
   if (!nextCacheData && !cacheHit && queryCachePath) {
     nextCacheData = { version: 1, entries: [] };
@@ -64,7 +71,10 @@ export async function persistSearchSession({
   if (!cacheHit) {
     let payload;
     try { payload = snapshotQueryCachePayload({ prose: proseHits, extractedProse: extractedProseHits, code: codeHits, records: recordHits }); }
-    catch { return { cacheData: nextCacheData, cacheShouldPersist: nextCacheShouldPersist }; }
+    catch (error) {
+      observeStorageResource(error, { phase: 'query-cache-payload-admission' }).requireSettled();
+      return { cacheData: nextCacheData, cacheShouldPersist: nextCacheShouldPersist };
+    }
     const entry = {
       key: cacheKey,
       payloadId: randomUUID(),
@@ -73,7 +83,8 @@ export async function persistSearchSession({
       signature: cacheSignature,
       meta: {
         query,
-        backend: backendLabel
+        backend: backendLabel,
+        executionOutcomes: snapshotQueryCachePayload(executionOutcomes)
       },
       payload
     };

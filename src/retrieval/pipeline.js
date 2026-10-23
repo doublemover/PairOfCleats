@@ -1,3 +1,4 @@
+import { attachRetrievalExecution, createRetrievalExecutionOutcome } from './pipeline/execution-outcome.js';
 import { enumerateFilterMatches } from './pipeline/filter-enumeration.js';
 import { filterChunkIds } from './output.js';
 import { createChunkFilterPredicate } from './output/filters.js';
@@ -558,7 +559,8 @@ export function createSearchPipeline(context) {
       const allowedIdx = filterResult.allowed;
       const allowedCount = allowedIdx ? getAllowedSize(allowedIdx) : 0;
       if (filtersEnabled && allowedIdx && allowedCount === 0) {
-        return [];
+        return attachRetrievalExecution([], createRetrievalExecutionOutcome({ mode, eligibleEmpty: true,
+          requestedSparse: vectorOnlyProfile ? null : normalizedSparseBackend, annRequested: annEnabled }));
       }
       throwIfAborted();
 
@@ -797,7 +799,7 @@ export function createSearchPipeline(context) {
         })
       ));
 
-      return await rerankEvidence({ adapter: reranker, query, hits: ranked, signal,
+      const reranked = await rerankEvidence({ adapter: reranker, query, hits: ranked, signal,
         finalOutputCap: searchTopN, maxMs: modelRerankPolicy.maxMs,
         fallback: modelRerankPolicy.enabled, policyKey: modelRerankPolicy.key, poolPolicy: modelRerankPolicy,
         sourceContext: { mode, generation: rerankSourceContext?.generation || idx.generationTag?.buildGenerationKey
@@ -807,6 +809,17 @@ export function createSearchPipeline(context) {
           scoreBlend: scoreBlend || null, symbolBoost: symbolBoost || null, relationBoost: relationBoost || null,
           graphRankingConfig: graphRankingConfig || null } : null },
         onDiagnostic: value => { rankMetrics.modelReranker = value; } });
+      const requestedSparse = vectorOnlyProfile ? null : normalizedSparseBackend === 'tantivy' ? tantivyProvider.id
+        : sqliteFtsDesiredForMode ? sqliteFtsProvider.id : bm25Provider.id;
+      const sparseFailed = !vectorOnlyProfile && Boolean(sqliteFtsDesiredForMode && sqliteFtsUnavailable
+        || sparseType === 'none' && sparseUnavailable || sqliteFtsDiagnostics.some(diagnostic => (
+        diagnostic.code === RETRIEVAL_SPARSE_UNAVAILABLE_CODE && diagnostic.provider === requestedSparse
+          && diagnostic.reason !== 'profile_vector_only')));
+      return attachRetrievalExecution(reranked, createRetrievalExecutionOutcome({ mode,
+        requestedSparse,
+        effectiveSparse: sparseType, sparseFailed, annRequested: Boolean(annEnabledForMode), annMetrics,
+        rerankerRequested: Boolean(reranker), rerankerDiagnostic: rankMetrics.modelReranker,
+        graphMetrics: rankMetrics.graph, eligibleEmpty: meta.length === 0 || annMetrics.countAware?.eligibleCount === 0 }));
     } finally {
       for (const set of releaseSets) {
         candidatePool.release(set);

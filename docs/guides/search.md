@@ -258,3 +258,22 @@ are provider failures, successful empty arrays remain healthy empty results, and
 caller abort remains terminal. The shared sparse policy controls any ANN fallback;
 a forced sparse-only failure is actionable instead of a false no-match response.
 Optional-native execution remains separate from deterministic adapter qualification.
+
+### Result-cache execution admission
+
+Per-mode execution receipts distinguish requested/effective routes from whether
+an individual query returned hits. Transient sparse/ANN failure, relevant cooldown
+fallback, internal work exhaustion, graph truncation and reranker fallback/pending
+work make that result non-reusable by the ordinary result cache. The current
+request can still receive the supported fallback, with `retrieval.fidelity` and
+bounded diagnostics recording the partial execution. A later request re-executes
+under the existing provider recovery policy; cache access never extends recovery
+indefinitely. Healthy completed execution, including valid empty results and
+qualified healthy fallbacks, remains cacheable. Completion here describes owned
+execution, not certified approximate-nearest-neighbor recall.
+
+Admission requires version-1 per-mode execution metadata in addition to source
+and query identity. Legacy, missing, wrong-mode, malformed and partial receipts
+are rejected before any cache touch. Healthy hits retain their original execution
+facts. Existing immutable payload, lock, cancellation and touch-publication owners
+remain in charge of publication; this adds no degraded-cache TTL or public knob.

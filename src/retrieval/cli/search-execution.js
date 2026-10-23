@@ -303,6 +303,7 @@ export async function executeSearchAndEmit(input) {
     embeddingProvider,
     embeddingOnnx,
     cacheInfo: searchResult.cache,
+    executionOutcomes: searchResult.executionOutcomes,
     profileInfo: searchResult.profile || null,
     intentInfo: queryPlan.intentInfo,
     resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
