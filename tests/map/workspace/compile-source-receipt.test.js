@@ -10,7 +10,7 @@ const workers = [];
 globalThis.Worker = class {
   constructor() { workers.push(this); }
   postMessage(request) { this.request = request; }
-  terminate() { this.terminated = true; }
+  terminate() { if (this.terminationFailure) throw this.terminationFailure; this.terminated = true; }
   complete() {
     const layout = resolve(parse(this.request.source));
     this.onmessage({ data: { svg: render(layout, { theme: DARK_THEME }),
@@ -48,6 +48,16 @@ try {
   $('export-story').click();
   assert.equal(JSON.parse(await blobs.at(-1).text()).source, 'node latest "latest"');
   assert.doesNotMatch($('notice').textContent, /late obsolete/);
+  const retainedSvg = $('diagram').innerHTML, count = workers.length;
+  $('source').value = 'node unclosed "unclosed"'; $('compile').click();
+  const unclosed = workers.at(-1); unclosed.terminationFailure = new Error('original worker remains unclosed');
+  unclosed.complete(); await settle();
+  assert.equal($('diagram').innerHTML, retainedSvg);
+  assert.match($('notice').textContent, /original worker remains unclosed/);
+  $('compile').click(); await settle();
+  assert.equal(workers.length, count + 1); assert.match($('notice').textContent, /controller retired/);
+  $('export-story').click();
+  assert.equal(JSON.parse(await blobs.at(-1).text()).source, 'node latest "latest"');
 } finally {
   URL.createObjectURL = createObjectURL; URL.revokeObjectURL = revokeObjectURL;
   window.dispatchEvent(new window.Event('pagehide')); await window.happyDOM.close();
