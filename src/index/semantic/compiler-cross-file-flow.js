@@ -7,6 +7,7 @@ import { propertyPathsOverlap } from './compiler-property-paths.js';
 import { buildCallDependencySummaries, joinCallDependencySummaries, callInput, callUnknownInputs } from './compiler-call-summaries.js';
 import { COMPILER_SUMMARY_MANIFEST_VERSION } from './compiler-summary-manifest.js';
 import { persistSemanticEvidence } from './lsp-evidence.js';
+import { admitCompilerSummaryManifest } from './compiler-summary-admission.js';
 /** Call-site-owned may-depend channels; shared callee facts remain immutable. */
 export const collectCompilerCrossFileFlow = async ({ group, state, policy, signal }) => {
   const documents = group.flowDocuments || [], output = [];
@@ -27,6 +28,9 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
     summaryArtifactRef = await persistSemanticEvidence({ value: summaries.shadowManifest,
       stagingRoot: activeDocuments[0].item.root, diskAccount: state.semanticDiskAccount,
       inventory: state.semanticEvidenceArtifacts, signal });
+    state.semanticCompilerSummaryAdmissions ||= new Map();
+    state.semanticCompilerSummaryAdmissions.set(summaryArtifactRef,
+      admitCompilerSummaryManifest({ manifest: summaries.shadowManifest, expectedIdentity: manifestIdentity, signal }));
   }
   for (const document of documents) {
     throwIfAborted(signal);

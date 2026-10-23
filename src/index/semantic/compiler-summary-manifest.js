@@ -2,7 +2,7 @@ import { canonicalSemanticJson, semanticHash } from './identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 
-export const COMPILER_SUMMARY_MANIFEST_VERSION = 1;
+export const COMPILER_SUMMARY_MANIFEST_VERSION = 2;
 export const COMPILER_SUMMARY_MANIFEST_MAX_BYTES = 1048576;
 const MAX_ENTRIES = 4096;
 const DOMAIN = 'finite-parameter-return-exception-field-may-v1';
@@ -61,6 +61,7 @@ export const createCompilerSummaryRecorder = ({ identity, signal = null,
   };
   if (!identity) discard('summary_manifest_identity_unavailable');
   else charge(identity);
+  const broadIdentityHash = reason ? null : semanticHash('semantic.summary-shadow-identity.v1', identity, { maxBytes });
   const unavailable = () => immutable({ schemaVersion: COMPILER_SUMMARY_MANIFEST_VERSION, domain: DOMAIN,
     mode: 'shadow', qualifiesReuse: false, reuseGuard: 'full-group-rebuild-required', status: 'unavailable', reason,
     limits: { maxBytes, maxEntries }, summaries: [] });
@@ -75,11 +76,12 @@ export const createCompilerSummaryRecorder = ({ identity, signal = null,
     if (!charge(policy)) return;
     const localInputs = { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash,
       flowPartitionId: partition.partitionId, flowHash: partition.canonicalHash,
+      dependencyIdentityHash: broadIdentityHash,
       policyHash: semanticHash('semantic.summary-shadow-policy.v1', policy,
         { maxBytes, check: () => throwIfAborted(signal) }) };
-    const locator = { path: source.path, span: summary.span || null };
+    const locator = { path: source.path, span: summary.span || null, sourceIdentity: summary.sourceIdentity || null };
     if (charge({ id, localInputs, locator })) owners.set(id, { localInputs, locator,
-      reads: new Set(), callees: new Set(), contributions: new Map() });
+      reads: new Set(), callees: new Set(), contributions: new Map(), supports: new Map() });
   };
   const read = (ownerId, refs) => {
     const owner = owners.get(ownerId);
@@ -99,11 +101,20 @@ export const createCompilerSummaryRecorder = ({ identity, signal = null,
       owner.callees.add(target);
     }
   };
-  const contribution = (ownerId, occurrence, from, to) => {
+  const contribution = (ownerId, occurrence, from, to, callee) => {
     const owner = owners.get(ownerId);
     if (!owner || reason) return;
-    const value = { callSite: occurrence, from, to }, id = canonicalSemanticJson(value);
+    const value = { callSite: occurrence, from, to, callee }, id = canonicalSemanticJson(value);
     if (!owner.contributions.has(id) && charge(value)) owner.contributions.set(id, value);
+  };
+  const support = (ownerId, channel, values, callSite = null, callee = null) => {
+    const owner = owners.get(ownerId);
+    if (!owner || reason) return;
+    for (const input of values) {
+      const value = { channel, input, callSite, callee }, id = canonicalSemanticJson(value);
+      if (!owner.supports.has(id) && charge(value)) owner.supports.set(id, value);
+      if (reason) return;
+    }
   };
   const finish = ({ functions, reverse, converged, ownershipReasons }) => {
     if (reason) return unavailable();
@@ -138,9 +149,14 @@ export const createCompilerSummaryRecorder = ({ identity, signal = null,
         predecessors: list(reverse.get(ref) || []).sort(order) }));
       const callees = list([...owner.callees].sort(order), ref => ({ ref, status: functions.has(ref) ? 'available' : 'missing' }));
       const contributions = list([...owner.contributions].sort(([a], [b]) => order(a, b)), ([, value]) => value);
+      const supports = list([...owner.supports].sort(([a], [b]) => order(a, b)), ([, value]) => value);
       if (reason || !charge(payload)) break;
+      const payloadHash = semanticHash('semantic.summary-payload.v2', payload, { maxBytes });
+      const supportHash = semanticHash('semantic.summary-support.v2', { reads, callees, contributions, supports }, { maxBytes });
+      const identityHash = semanticHash('semantic.summary-generation.v2', { declaration: id, localInputs: owner.localInputs,
+        locator: owner.locator, payloadHash, supportHash }, { maxBytes });
       summaries.push({ declaration: id, locator: owner.locator, localInputs: owner.localInputs,
-        payload, reads, callees, contributions });
+        payload, reads, callees, contributions, supports, payloadHash, supportHash, identityHash });
     }
     if (reason) return unavailable();
     const value = { schemaVersion: COMPILER_SUMMARY_MANIFEST_VERSION, domain: DOMAIN,
@@ -150,5 +166,5 @@ export const createCompilerSummaryRecorder = ({ identity, signal = null,
     if (!charge(value)) return unavailable();
     return immutable(JSON.parse(canonicalSemanticJson(value, { maxBytes, check: () => throwIfAborted(signal) })));
   };
-  return Object.freeze({ register, read, call, contribution, finish });
+  return Object.freeze({ register, read, call, contribution, support, finish });
 };

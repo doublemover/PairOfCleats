@@ -12,6 +12,7 @@ import { createCompilerOrderedStorage, indexCompilerOrderedStorage } from './com
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { createCompilerSummarySourceIdentities } from './compiler-summary-source-identity.js';
 /** Source-owned definition versions plus monotone reaching-definition joins. */
 export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourceFile, nodes, expressionFor, declarationFor,
   source, bytes, bindingPartition, context, root, policy, diskAccount, signal }) => {
@@ -370,6 +371,9 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
   const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: root, source, sourceBytes: bytes, partitionId,
     producerHash: semanticHash('semantic.cfg-producer.v1', { version: Number(SEMANTIC_ANALYSIS_VERSIONS.cfgFlow) }), contextHash: context.contextKey,
     policyHash: semanticHash('semantic.cfg-policy.v1', { maxSccIterations: policy.enrichment.maxSccIterations, fieldPathDepth: policy.enrichment.fieldPathDepth, constructionMaxBytes }), diskAccount, signal });
+  const sourceIdentities = createCompilerSummarySourceIdentities({ ts, sourceFile, source, summaries, signal });
   return { partition, coverage: [coverage], edges: unique.map(([, row]) => row), fieldAccesses, aliases, orderedAccesses, orderedOperations,
-    callExecutionOwnership: 'cfg', callEffects: expand(callEffects), summaries: summaries.map(summary => ({ ...summary, returns: expand(summary.returns), exceptions: expand(summary.exceptions), effects: expand(summary.effects), parameterFields: expand(summary.parameterFields) })) };
+    callExecutionOwnership: 'cfg', callEffects: expand(callEffects), summaries: summaries.map(summary => ({ ...summary,
+      sourceIdentity: sourceIdentities.get(summary.owner) || null,
+      returns: expand(summary.returns), exceptions: expand(summary.exceptions), effects: expand(summary.effects), parameterFields: expand(summary.parameterFields) })) };
 };

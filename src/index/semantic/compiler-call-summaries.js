@@ -40,7 +40,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
   const functions=new Map(),reverse=new Map(),calls=[],graph=new Map(),ownershipReasons=new Set();
   const summaryIndexes = new WeakMap(), summaryIds = new WeakMap(), nodeDependents = new Map();
   const nodeCalls = new Map(), cacheWatchers = new Map(), dirty = new Set(), dirtyCalls = new Set(), callRevisions = new WeakMap(), revisions = new Map();
-  const callers = new Map(); let cacheMemberships = 0, cacheEntries = 0, activeCall = null;
+  const callers = new Map(); let cacheMemberships = 0, cacheEntries = 0, activeCall = null, activeTarget = null;
   const stats = { derives: 0, reverseEdgeVisits: 0, aliasCandidates: 0, callInstantiations: 0,
     reachabilityCacheHits: 0, dirtyFunctionVisits: 0, cachedMemberships: 0 };
   const recorder = manifestIdentity ? createCompilerSummaryRecorder({ identity: manifestIdentity, signal,
@@ -49,7 +49,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
   let remainingWork=1000000,exhausted=false;
   const add=(from,to)=>{
     if(!from||!to)return false;const a=key(from),b=key(to);
-    if (activeCall) recorder?.contribution(activeCall.ownerId, key(activeCall.occurrence), a, b);
+    if (activeCall) recorder?.contribution(activeCall.ownerId, key(activeCall.occurrence), a, b, activeTarget);
     if(!reverse.has(b))reverse.set(b,new Set());const inputs=reverse.get(b),changed=!inputs.has(a);inputs.add(a);
     if (changed) {
       for (const id of nodeDependents.get(b) || []) dirty.add(id);
@@ -142,15 +142,19 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     return result;
   };
   const union=joinMayDependencies;
+  const supportedUnion = (summary, channel, target, values) => {
+    recorder?.support(summaryIds.get(summary), channel, values, activeCall ? key(activeCall.occurrence) : null, activeTarget);
+    return union(target, values);
+  };
   const derive=summary=>{
     stats.derives++;
-    let changed=union(summary.dependencies,inputs(summary,summary.returns));
-    changed=union(summary.exceptionDependencies,inputs(summary,summary.exceptions||[]))||changed;
+    let changed=supportedUnion(summary,'return',summary.dependencies,inputs(summary,summary.returns));
+    changed=supportedUnion(summary,'exception',summary.exceptionDependencies,inputs(summary,summary.exceptions||[]))||changed;
     for(const effect of summary.effects||[]){
       const id=key({parameter:effect.parameter,path:effect.path});
       if(!summary.effectDependencies.has(id))summary.effectDependencies.set(id,{parameter:effect.parameter,path:effect.path,refs:[],dependencies:new Set()});
       const entry=summary.effectDependencies.get(id);if(!entry.refs.some(ref=>key(ref)===key(effect.ref)))entry.refs.push(effect.ref);
-      changed=union(entry.dependencies,inputs(summary,[effect.ref]))||changed;
+      changed=supportedUnion(summary,'effect:'+id,entry.dependencies,inputs(summary,[effect.ref]))||changed;
     }
     return changed;
   };
@@ -161,7 +165,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     const owner=functions.get(call.ownerId);if(!owner)return changed;
     // Only call-owned summaries propagate exception inputs. No raw callee payload crosses calls.
     for(const input of dependencyInputs(call,target,target.exceptionDependencies))for(const destination of call.effectRoutes?.exceptionTargets||[])changed=add(input,destination)||changed;
-    if(call.effectRoutes?.exceptionEscapes)changed=union(owner.exceptionDependencies,inputs(owner,dependencyInputs(call,target,target.exceptionDependencies)))||changed;
+    if(call.effectRoutes?.exceptionEscapes)changed=supportedUnion(owner,'exception',owner.exceptionDependencies,inputs(owner,dependencyInputs(call,target,target.exceptionDependencies)))||changed;
     for(const effect of [...target.effectDependencies.values()]){
       if(target.restIndex>=0 && effect.parameter===target.restIndex) {changed=owner.complete!==false||changed;owner.complete=false;continue;}
       if(remainingWork--<=0){exhausted=true;break;}
@@ -179,7 +183,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
         if(parameter<0&&!receiver)continue;
         const path=[...alias.path,...effect.path];if(path.length>owner.fieldPathDepth){owner.widened=true;continue;}const id=key({parameter,path});
         if(!owner.effectDependencies.has(id)){owner.effectDependencies.set(id,{parameter,path,refs:[],dependencies:new Set()});changed=true;}
-        changed=union(owner.effectDependencies.get(id).dependencies,inputs(owner,dependencyInputs(call,target,effect.dependencies)))||changed;
+        changed=supportedUnion(owner,'effect:'+id,owner.effectDependencies.get(id).dependencies,inputs(owner,dependencyInputs(call,target,effect.dependencies)))||changed;
       }
     }
     return changed;
@@ -188,7 +192,11 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     if (remainingWork-- <= 0) { exhausted = true; return false; }
     stats.callInstantiations++;
     let changed = false;
-    for(const ref of call.targets.slice(0,32)) changed = instantiateTarget(call,functions.get(key(ref))) || changed;
+    for(const ref of call.targets.slice(0,32)) {
+      activeTarget = key(ref);
+      try { changed = instantiateTarget(call,functions.get(activeTarget)) || changed; }
+      finally { activeTarget = null; }
+    }
     if(call.incompleteTargets || call.targets.length > 32 || !call.targets.length || call.hasSpread || call.targets.some(ref=>{const target=functions.get(key(ref));return !target||target.async||target.generator||!target.complete||call.invocationKind==='construct'&&!target.constructible;})) {
       for(const argument of callUnknownInputs(call)) changed = add(argument,call.result) || changed;
       const owner = functions.get(call.ownerId); if(owner) {
@@ -198,7 +206,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
           for(const read of call.effectRoutes?.reads || []) changed=add(value,read.ref)||changed;
           for(const destination of call.effectRoutes?.exceptionTargets || []) changed=add(value,destination)||changed;
         }
-        if(call.effectRoutes?.exceptionEscapes) changed=union(owner.exceptionDependencies,inputs(owner,values))||changed;
+        if(call.effectRoutes?.exceptionEscapes) changed=supportedUnion(owner,'exception',owner.exceptionDependencies,inputs(owner,values))||changed;
       }
     }
     return changed;
