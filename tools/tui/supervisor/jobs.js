@@ -11,8 +11,7 @@ import {
   resolveCapturedResult,
   resolveResultPolicy,
   resolveRetryPolicy,
-  resolveRunRequest,
-  sleep
+  resolveRunRequest
 } from './request-utils.js';
 import { createJobWatchdogController, resolveWatchdogPolicy } from './watchdog.js';
 import { ownedCleanupIsPending, combineOwnedErrors } from '../operator/settle-owned.js';
@@ -209,6 +208,32 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
       }
     }, { jobId });
 
+    const waitForRetry = async attempt => {
+      if (job.nativeTaskStarted) {
+        emit('task:end', { taskId: 'native-owner', status: 'failed',
+          message: 'This execution attempt failed; a retry remains a separate attempt.' }, { jobId });
+        job.nativeTaskStarted = false;
+      }
+      const signal = job.abortController.signal;
+      if (signal.aborted) return false;
+      const taskId = 'supervisor:retry';
+      emit('task:start', { taskId, status: 'running', stage: 'retry', state: 'waiting',
+        message: `Waiting to start attempt ${attempt + 1}/${retryPolicy.maxAttempts}.` }, { jobId });
+      if (retryPolicy.delayMs > 0) await new Promise(resolve => {
+        const finish = () => { clearTimeout(timer); signal.removeEventListener('abort', finish); resolve(); };
+        const timer = setTimeout(finish, retryPolicy.delayMs);
+        signal.addEventListener('abort', finish, { once: true });
+        if (signal.aborted) finish();
+      });
+      emit('task:end', { taskId, status: signal.aborted ? 'cancelled' : 'done', stage: 'retry',
+        state: signal.aborted ? 'cancelled' : 'ready', message: signal.aborted
+          ? 'Retry wait cancelled; no replacement execution was started.' : 'Retry wait elapsed.' }, { jobId });
+      return !signal.aborted;
+    };
+    const cancelRetryPayload = payload => Object.assign(payload, { status: 'cancelled',
+      terminationReason: 'cancelled', exitCode: 130,
+      error: { code: job.cancelReason || 'CANCELLED', message: 'Retry cancelled before replacement execution.' } });
+
     /**
      * Run one attempt of the configured command with stream decoding and watchdogs.
      *
@@ -218,6 +243,8 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
     const runAttempt = async (attempt) => {
       job.attempts = attempt;
       job.timedOut = false;
+      let attemptOpen = true;
+      const ownsAttempt = () => attemptOpen && !job.finalized && getJob(jobId) === job && job.attempts === attempt;
       const { command, args, cwd } = resolveRunRequest(request, { root });
       const envPatch = request?.envPatch && typeof request.envPatch === 'object' ? request.envPatch : {};
       const env = applyProgressContextEnv({
@@ -242,7 +269,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
        * @returns {void}
        */
       const markActivity = () => {
-        lastActivityAt = Date.now();
+        if (ownsAttempt()) lastActivityAt = Date.now();
       };
       const stdoutDecoder = createJobStreamDecoder({
         job,
@@ -277,6 +304,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
 
       try {
         if (beforeRun) await beforeRun({ signal: job.abortController.signal });
+        job.abortController.signal.throwIfAborted();
         // Only trusted workflow owners can supply this callback. Protocol JSON
         // continues to select canonical argv and can never supply executable code.
         const spawnOptions = {
@@ -290,6 +318,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
           signal: job.abortController.signal,
           timeoutMs: effectiveTimeoutMs,
           onSpawn: (child) => {
+            if (!ownsAttempt()) return;
             job.pid = child?.pid || null;
             job.status = 'running';
             markActivity();
@@ -298,12 +327,13 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
               spawnedAt: nowIso()
             }, { jobId });
           },
-          onStdout: (chunk) => stdoutDecoder.push(chunk),
-          onStderr: (chunk) => stderrDecoder.push(chunk)
+          onStdout: (chunk) => { if (ownsAttempt()) stdoutDecoder.push(chunk); },
+          onStderr: (chunk) => { if (ownsAttempt()) stderrDecoder.push(chunk); }
         };
         const result = execute
           ? await execute({ signal: job.abortController.signal, env, cwd, jobId,
             onSpawn: spawnOptions.onSpawn, onStdout: spawnOptions.onStdout, onStderr: spawnOptions.onStderr, onActivity: payload => {
+              if (!ownsAttempt()) return;
               job.status = 'running';
               markActivity();
               if (!job.nativeTaskStarted) {
@@ -313,6 +343,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
             } })
           : await spawnSubprocess(command, args, spawnOptions);
 
+        attemptOpen = false;
         stdoutDecoder.flush();
         stderrDecoder.flush();
 
@@ -320,7 +351,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
         job.timedOut = job.cancelReason === 'watchdog_timeout';
         const status = cancelled
           ? 'cancelled'
-          : (result.exitCode === 0 ? 'done' : 'failed');
+          : (result.exitCode === 0 && !result.signal ? 'done' : 'failed');
         const payload = {
           status,
           terminationReason: job.timedOut ? 'timeout' : cancelled ? 'cancelled' : result.signal ? 'signal' : 'exit',
@@ -337,19 +368,19 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
         };
 
         if (status === 'failed' && attempt < retryPolicy.maxAttempts) {
+          watchdog.stop();
           emitLog(jobId, 'warn', `attempt ${attempt} failed; retrying (${attempt + 1}/${retryPolicy.maxAttempts})`, {
             attempt,
             maxAttempts: retryPolicy.maxAttempts
           });
-          if (retryPolicy.delayMs > 0) {
-            await sleep(retryPolicy.delayMs);
-          }
-          return runAttempt(attempt + 1);
+          if (await waitForRetry(attempt)) return runAttempt(attempt + 1);
+          cancelRetryPayload(payload);
         }
 
         await completeAttempt(payload);
         await emitArtifacts(job, request, { cwd });
       } catch (error) {
+        attemptOpen = false;
         retainPendingResource(job, error);
         job.timedOut = error?.code === 'SUBPROCESS_TIMEOUT' || job.cancelReason === 'watchdog_timeout';
         const cancelled = job.abortController.signal.aborted || error?.name === 'AbortError';
@@ -371,19 +402,19 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
           }
         };
         if (!cancelled && error?.cacheOwnershipPending !== true && attempt < retryPolicy.maxAttempts) {
+          watchdog.stop();
           emitLog(jobId, 'warn', `attempt ${attempt} failed; retrying (${attempt + 1}/${retryPolicy.maxAttempts})`, {
             attempt,
             maxAttempts: retryPolicy.maxAttempts,
             error: payload.error.message
           });
-          if (retryPolicy.delayMs > 0) {
-            await sleep(retryPolicy.delayMs);
-          }
-          return runAttempt(attempt + 1);
+          if (await waitForRetry(attempt)) return runAttempt(attempt + 1);
+          cancelRetryPayload(payload);
         }
         await completeAttempt(payload);
         await emitArtifacts(job, request, { cwd });
       } finally {
+        attemptOpen = false;
         watchdog.stop();
       }
       return null;
