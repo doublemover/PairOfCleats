@@ -6,6 +6,16 @@ The legacy cross-file propagation phase records its work through the existing re
 
 The output-cache schema is version 5. Its fingerprint includes each chunk's source hash and hash algorithm in addition to full relation/docmeta input and producer policy identities. Type inference declines cache reuse and writes when any source input lacks a recognized byte identity. Tooling replay also remains disabled until all compiler/config/ambient dependencies have authoritative identities. Relation-only propagation can retain its existing qualified cache route.
 
+File-relation identity failure is distinct from absent relations. Only null or
+undefined represents an omitted file-relation input. A supplied Map/record whose
+iteration, enumeration, payload access or canonical encoding fails propagates
+the exact original error before cache lookup and mutable propagation; it cannot
+borrow the absent-relations fingerprint. This also preserves private error
+ownership instead of replacing a failed identity with an advisory empty value.
+An identity failure occurs before a fingerprint-owned start receipt exists.
+This admission does not qualify arbitrary payload sizes/depths or external
+mutation during a run; broader bounded capture remains separate work.
+
 When return inference reads source, it uses a bounded contained descriptor capture and the Stage1 encoding decoder. A known SHA1, SHA256 or xxh64 identity must match the captured bytes. A source replacement, missing pinned source, unsafe path or operational read error fails the phase; these do not become an empty clean result. Legacy unqualified inputs can still be evaluated, but their source-read coverage is explicitly unqualified and cannot authorize type-output replay. Missing unqualified sources are counted as unavailable. This is a qualification of the bytes used, not a claim of complete syntax, fixed-point analysis, graph projection or impact coverage.
 
 Source reads are restricted to the admitted chunk inventory. Direct and `metaV2`

@@ -36,21 +36,23 @@ const compareStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
  * @returns {Array<{file:string,usages:number,relationHash:string}>|null}
  */
 const resolveFileRelationSignatures = (fileRelations) => {
-  if (!fileRelations) return null;
-  try {
-    const entries = typeof fileRelations.entries === 'function'
-      ? Array.from(fileRelations.entries())
-      : Object.entries(fileRelations);
-    return entries
-      .map(([file, relation]) => ({
-        file,
-        usages: Array.isArray(relation?.usages) ? relation.usages.length : 0,
-        relationHash: sha1(stableStringify(relation || null))
-      }))
-      .sort((a, b) => compareStrings(String(a.file || ''), String(b.file || '')));
-  } catch {
-    return null;
+  if (fileRelations == null) return null;
+  if (typeof fileRelations !== 'object' || Array.isArray(fileRelations)) {
+    throw new TypeError('Cross-file fileRelations must be an object, Map or null.');
   }
+  // Failure to establish identity is not evidence of absent relations. Preserve
+  // the exact failure (including any privately owned resource error) before a
+  // cached result can be read or mutable propagation begins.
+  const entries = typeof fileRelations.entries === 'function'
+    ? Array.from(fileRelations.entries())
+    : Object.entries(fileRelations);
+  return entries
+    .map(([file, relation]) => ({
+      file,
+      usages: Array.isArray(relation?.usages) ? relation.usages.length : 0,
+      relationHash: sha1(stableStringify(relation || null))
+    }))
+    .sort((a, b) => compareStrings(String(a.file || ''), String(b.file || '')));
 };
 
 const normalizeCacheMaxBytes = (value) => {
