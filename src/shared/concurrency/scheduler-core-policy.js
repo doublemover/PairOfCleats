@@ -20,12 +20,20 @@ export const normalizeSchedulerByteCount = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 };
 
-export const normalizeSchedulerRequest = (req = {}) => ({
-  cpu: Math.max(0, Math.floor(Number(req?.cpu || 0))),
-  io: Math.max(0, Math.floor(Number(req?.io || 0))),
-  mem: Math.max(0, Math.floor(Number(req?.mem || 0))),
-  bytes: normalizeSchedulerByteCount(req?.bytes)
-});
+export const normalizeSchedulerRequest = (req = {}) => {
+  const normalized = {};
+  for (const kind of ['cpu', 'io', 'mem', 'bytes']) {
+    let value;
+    try { value = req?.[kind] == null ? 0 : Number(req[kind]); } catch { value = NaN; }
+    if (!Number.isFinite(value) || !Number.isSafeInteger(Math.floor(Math.max(0, value)))) {
+      throw Object.assign(new TypeError(`Scheduler ${kind} request must be a finite, safe resource count.`), {
+        code: 'ERR_SCHEDULER_RESOURCE_REQUEST', resource: kind
+      });
+    }
+    normalized[kind] = Math.max(0, Math.floor(value));
+  }
+  return normalized;
+};
 
 export const resolveSchedulerPercentile = (values, ratio) => {
   if (!Array.isArray(values) || !values.length) return 0;

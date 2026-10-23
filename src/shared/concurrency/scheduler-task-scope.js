@@ -10,6 +10,7 @@ export const currentSchedulerTaskLease = () => scope.getStore() || null;
  * parallel waits started by the task itself join the same reacquisition. */
 export const withSchedulerCpuSuspended = operation => {
   const lease = scope.getStore();
-  if (!lease?.suspendCpu || suspendedScopes.getStore() === lease) return operation();
+  if (!lease?.suspendCpu) return operation();
+  if (suspendedScopes.getStore() === lease) return lease.trackWait ? lease.trackWait(operation) : operation();
   return lease.suspendCpu(() => suspendedScopes.run(lease, operation));
 };

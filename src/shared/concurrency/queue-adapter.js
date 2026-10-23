@@ -1,6 +1,6 @@
 import { createAbortError, isAbortSignal, throwIfAborted } from '../abort.js';
 import { awaitWithKeepalive } from '../promise-keepalive.js';
-import { normalizeSchedulerByteLimit, normalizeSchedulerMaxPending } from './scheduler-core-policy.js';
+import { normalizeSchedulerByteLimit, normalizeSchedulerMaxPending, normalizeSchedulerRequest } from './scheduler-core-policy.js';
 
 /**
  * Adapt a build scheduler queue to a PQueue-like interface used by runWithQueue.
@@ -97,8 +97,10 @@ export function createSchedulerQueueAdapter({
     }));
   };
   const add = async (fn, options = {}) => {
-    const bytesRaw = Number(options?.bytes);
-    const bytes = Number.isFinite(bytesRaw) && bytesRaw > 0 ? Math.floor(bytesRaw) : 0;
+    // Validate before joining the bounded producer window. Invalid bytes must
+    // not turn into an uncharged request, nor strand an admission waiter.
+    const overrides = normalizeSchedulerRequest({ bytes: options?.bytes, cpu: options?.cpu });
+    const bytes = overrides.bytes;
     const signal = isAbortSignal(options?.signal) ? options.signal : null;
     throwIfAborted(signal);
     const generation = clearGeneration;
@@ -113,7 +115,7 @@ export function createSchedulerQueueAdapter({
     const baseTokens = { ...(tokens || { cpu: 1 }) };
     // Internal nested compute requests may add a CPU charge; callers cannot
     // lower the queue's existing CPU, I/O or memory envelope.
-    if (Number.isSafeInteger(options.cpu) && options.cpu > 0) baseTokens.cpu = Math.max(baseTokens.cpu || 0, options.cpu);
+    if (overrides.cpu > 0) baseTokens.cpu = Math.max(baseTokens.cpu || 0, overrides.cpu);
     const tokenRequest = {
       ...baseTokens,
       ...(bytes > 0 ? { bytes } : {}),

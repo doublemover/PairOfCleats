@@ -179,7 +179,14 @@ export function createSchedulerDispatch({
   const createTaskLease = (queue, used, signal) => {
     const cpu = used.cpu;
     const lease = { queue, used, signal, active: true, surfaceActive: true, suspended: false, depth: 0, resuming: false,
-      resumePromise: null, resumeResolve: null, resumeReject: null };
+      resumePromise: null, resumeResolve: null, resumeReject: null, pendingWaits: new Set() };
+    lease.trackWait = operation => {
+      let pending;
+      try { pending = Promise.resolve(operation()); } catch (error) { pending = Promise.reject(error); }
+      lease.pendingWaits.add(pending);
+      pending.finally(() => lease.pendingWaits.delete(pending)).catch(() => {});
+      return pending;
+    };
     const enqueueResume = () => {
       if (lease.resuming || !lease.active || !lease.suspended || lease.depth) return;
       lease.resuming = true;
@@ -209,7 +216,7 @@ export function createSchedulerDispatch({
         enqueueResume();
       }, error => { lease.resuming = false; rejectResume(error); });
     };
-    lease.suspendCpu = async operation => {
+    const suspendCpu = async operation => {
       if (!lease.active) throw new Error('Scheduler task retired before nested wait.');
       if (!cpu) return operation();
       lease.depth++;
@@ -234,6 +241,13 @@ export function createSchedulerDispatch({
       }
       if (failed) throw primary;
       return value;
+    };
+    lease.suspendCpu = operation => lease.trackWait(() => suspendCpu(operation));
+    lease.drainWaits = () => {
+      const drain = async () => {
+        while (lease.pendingWaits.size) await Promise.allSettled([...lease.pendingWaits]);
+      };
+      return lease.suspended ? drain() : suspendCpu(drain);
     };
     return lease;
   };
@@ -265,21 +279,27 @@ export function createSchedulerDispatch({
       .then(() => {
         if (state.shuttingDown) throw new Error('scheduler is shut down');
         if (next.signal?.aborted) throw createAbortError();
-        return runWithSchedulerTaskLease(lease, next.fn);
+        return runWithSchedulerTaskLease(lease, async () => {
+          let value, primary, failed = false;
+          try { value = await next.fn(); } catch (error) { primary = error; failed = true; }
+          if (lease.pendingWaits.size) {
+            const detached = Object.assign(new Error('Scheduler task finished with an unawaited nested wait.'), {
+              code: 'ERR_SCHEDULER_UNAWAITED_WAIT'
+            });
+            // Promise races/timeouts do not settle their losing operation.
+            // Keep source/result bytes, memory and file-window ownership until
+            // every operation registered by this task has actually retired.
+            try { await lease.drainWaits(); }
+            catch (error) { detached.cpuReacquisitionError = error; }
+            if (!failed) { primary = detached; failed = true; }
+            else { try { primary.schedulerUnawaitedWait = detached; } catch {} }
+          }
+          if (failed) throw primary;
+          return value;
+        });
       })
-      .then(
-        (value) => {
-          queue.stats.completed += 1;
-          config.counters.completed += 1;
-          next.resolve(value);
-        },
-        (err) => {
-          queue.stats.failed += 1;
-          config.counters.failed += 1;
-          next.reject(err);
-        }
-      )
-      .finally(() => {
+      .then(value => ({ value, failed: false }), error => ({ error, failed: true }))
+      .then(outcome => {
         appendBounded(queue.stats.runSamples, Math.max(0, config.nowMs() - startedAt), config.WAIT_TIME_SAMPLE_LIMIT);
         queue.runningSince.delete(next);
         queue.running -= 1;
@@ -294,6 +314,16 @@ export function createSchedulerDispatch({
         release(queue, used);
         state.runningTasks.delete(done);
         pump();
+        // Completion is observable only after this exact task's reservations
+        // retire. Immediate optional-child admission must see the released state.
+        if (outcome.failed) {
+          queue.stats.failed += 1; config.counters.failed += 1; next.reject(outcome.error);
+        } else {
+          queue.stats.completed += 1; config.counters.completed += 1; next.resolve(outcome.value);
+        }
+      }).catch(error => {
+        // Never leave the public request pending if teardown diagnostics fail.
+        next.reject(error);
       });
     state.runningTasks.add(done);
     void done;
@@ -347,6 +377,13 @@ export function createSchedulerDispatch({
       config.counters.rejectedByReason.abort += 1;
       return Promise.reject(createAbortError());
     }
+    let normalizedReq;
+    try { normalizedReq = config.normalizeRequest(tokensReq || {}); }
+    catch (error) {
+      config.counters.rejected += 1;
+      config.counters.rejectedByReason.invalidRequest += 1;
+      return Promise.reject(error);
+    }
     if (!config.enabled && !queueLifecycle.ensureQueue(queueName).concurrency) {
       const done = Promise.resolve().then(() => {
         if (state.shuttingDown) throw new Error('scheduler is shut down');
@@ -356,7 +393,6 @@ export function createSchedulerDispatch({
       state.runningTasks.add(done);
       return done;
     }
-    const normalizedReq = config.normalizeRequest(tokensReq || {});
     const queue = queueLifecycle.ensureQueue(queueName);
     // An internal nested operation must not wait for bytes/memory held by its
     // own parent. Dispatch older runnable work first, then either reserve now
