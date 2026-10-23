@@ -30,12 +30,12 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `227475c29` bounds type-candidate evidence admission
-(typeNormalization8), captures semantic requests and explanation identities before
-callbacks, and retains original source descriptors, published-lock retries and
-Sublime/map lifetimes. Dispositions:141 historical,564 source,165 partial,87 pending.
-All new controls remain unvalidated. MCP1.9.0 generated snapshots are stale;
-durable service recovery and final Windows acceptance remain open.
+Latest source continuation: `1801dd996` shares effective search guardrails with
+settings preview/save (#838), captures original evaluation/AST/editor evidence,
+and retains original range/JSON/lock metadata descriptors before output/fallback.
+Dispositions:141 historical,565 source,165 partial,86 pending. All new controls
+remain unvalidated. MCP1.9.0 generated snapshots are stale; durable service
+recovery and final Windows acceptance remain open.
 
 ### Execution order
 
@@ -84,7 +84,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `227475c29` repairs watch/pointer and queue authority,
+Current source through `1801dd996` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
