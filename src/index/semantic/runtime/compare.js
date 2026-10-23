@@ -16,7 +16,7 @@ const location = row => canonicalSemanticJson({ sourceUnitId: row.join.sourceUni
 export const compareRuntimeCaptures = async ({ destination, request, signal = null }) => {
   assertRuntimeClaims('compareRequest', request); request = structuredClone(request);
   const check = runtimeClaimsBudget(request.limits, signal), families = [];
-  let operationError = null;
+  let operationError = null, operationErrorPresent = false;
   try {
     for (const generationId of [request.leftFamily, request.rightFamily]) {
       check(); families.push(await openRuntimeQueryFamily({ destination, generationId, signal: check.signal }));
@@ -96,6 +96,6 @@ export const compareRuntimeCaptures = async ({ destination, request, signal = nu
     check(); return assertRuntimeClaims('compareResult', result);
   } catch (error) {
     try { check(); } catch (budgetError) { error = budgetError; }
-    operationError = error; throw error;
-  } finally { await closeRuntimeResources(families, operationError); }
+    operationErrorPresent = true; operationError = error; throw error;
+  } finally { await closeRuntimeResources(families, operationError, { hasOperationError: operationErrorPresent }); }
 };

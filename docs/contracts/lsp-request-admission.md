@@ -33,7 +33,7 @@ admission counters. Existing method `requested` counters count admitted guard
 attempts; the client's request/write metrics describe transport admission and
 local encoding failures. Queue residence is not a server response timeout.
 
-Shared LSP producer identity is `lspBindings45`; signature cache policy is
+Shared LSP producer identity is `lspBindings46`; signature cache policy is
 `rq11`. Prior malformed-response negatives and previous admission semantics
 cannot supply current reuse. No cache directories are deleted. The document,
 writer, envelope, local-write, lease and method-queue regressions are authored

@@ -60,7 +60,7 @@ export const retainRuntimeRaw = async ({ destination, inputPath, artifact, maxBy
     diskAccount.reserve(artifact.byteLength); reserved = true;
     const source = await fs.open(inputPath, 'r');
     let target = null;
-    let copyError = null;
+    let copyError = null, copyErrorPresent = false;
     const buffer = Buffer.alloc(64 * 1024);
     try {
       target = await fs.open(temporary, 'wx');
@@ -74,8 +74,8 @@ export const retainRuntimeRaw = async ({ destination, inputPath, artifact, maxBy
         await target.writeFile(buffer.subarray(0, read.bytesRead));
       }
       await target.sync();
-    } catch (error) { copyError = error; throw error; }
-    finally { await closeRuntimeResources([source, target], copyError); }
+    } catch (error) { copyErrorPresent = true; copyError = error; throw error; }
+    finally { await closeRuntimeResources([source, target], copyError, { hasOperationError: copyErrorPresent }); }
     await hashRuntimeFile({ filename: temporary, expectedHash: artifact.hash, expectedBytes: artifact.byteLength, maxBytes, signal });
     await assertRuntimeDiskReserve({ destination, diskReserveBytes });
     throwIfAborted(signal);

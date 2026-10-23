@@ -1,3 +1,4 @@
+import { describeStorageFailure } from '../../shared/storage/failure-observation.js';
 import { assertSemanticTaskAuthority } from './task-authority.js';
 import { createWasmTaskInventory, wasmTaskInventoryHash, WASM_DEPENDENCY_KEY } from './wasm/task-authority.js';
 import { prepareWasmTaskExecution, executeWasmTask } from './wasm/task-execution.js';
@@ -138,8 +139,10 @@ const prepareBindingGroup = async ({ state, runtime, policy, kind = 'bind', phas
       compilerInventory = await state.semanticCompilerPreflight;
     }
   } catch (error) {
-    throwIfAborted(signal); if (!['ERR_SEMANTIC_DEPENDENCY_UNSEALED', 'ERR_SEMANTIC_NATIVE_UNSEALED'].includes(error.code)) throw error;
-    dependencyFailure = error.message;
+    const diagnostic = describeStorageFailure(error, { phase: 'semantic-frontier-dependency' });
+    throwIfAborted(signal);
+    if (!['ERR_SEMANTIC_DEPENDENCY_UNSEALED', 'ERR_SEMANTIC_NATIVE_UNSEALED'].includes(diagnostic.code)) throw error;
+    dependencyFailure = diagnostic.message;
   }
   const authorityHash = binaryInventory ? wasmTaskInventoryHash(binaryInventory) : nativeInventory ? nativeTaskInventoryHash(nativeInventory)
     : compilerInventory ? compilerInventoryHash(compilerInventory) : null;

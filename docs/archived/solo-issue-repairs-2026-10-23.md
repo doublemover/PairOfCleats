@@ -184,6 +184,20 @@ full cleanup-category capability or deep-suite green is claimed.
   close methods required by the already-implemented native-close contract and
   assert exactly three closes; generation assertions remain intact.
 
+- #1690: CPU profile projection now completes the owned verified read before
+  content decoding; only settled UTF-8/JSON content errors become malformed
+  coverage. Native authority and frontier advisory catches observe original
+  resources before cancellation or diagnostic access, preserving exact causes
+  and close sessions. Runtime evidence/offset/family and staging/destination
+  cleanup compose independent failures without inspecting arbitrary original
+  messages or losing falsey failure presence. Real FileHandle fault controls
+  cover direct profile, immutable import/pointer, cancellation, integrity,
+  malformed content and close-only recovery; native discovery/frontier controls
+  isolate executable resolution and qualify portable error propagation only,
+  never Linux ELF or actual tools. All controls are authored, unrun. Offline
+  parser identity advances 3→4 and shared native/LSP admission lspBindings45→46;
+  raw format versions, request-cache rq11 and public authority rules remain.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -358,7 +372,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1687](https://github.com/doublemover/PairOfCleats/issues/1687) | [P2] Qualify and bound throughput result-file admission before aggregation | Pending full-scope review |
 | [#1688](https://github.com/doublemover/PairOfCleats/issues/1688) | [P2] Revoke ordered storage precision when fresh typed-array views escape through containers | Pending full-scope review |
 | [#1689](https://github.com/doublemover/PairOfCleats/issues/1689) | [P2] Preserve repository and occurrence identity in benchmark diagnostic replay | Pending full-scope review |
-| [#1690](https://github.com/doublemover/PairOfCleats/issues/1690) | [P2] Preserve original read ownership before projecting CPU-profile or native-authority fallbacks | Pending full-scope review |
+| [#1690](https://github.com/doublemover/PairOfCleats/issues/1690) | [P2] Preserve original read ownership before projecting CPU-profile or native-authority fallbacks | Source repair committed; runtime proof pending |
 | [#1691](https://github.com/doublemover/PairOfCleats/issues/1691) | [P2] Keep benchmark progress confidence unknown until observations support it | Pending full-scope review |
 | [#1692](https://github.com/doublemover/PairOfCleats/issues/1692) | [Perf] Parse native include directives once per snapshot and deduplicate admitted probes | Pending full-scope review |
 | [#1693](https://github.com/doublemover/PairOfCleats/issues/1693) | [P1] Do not delete a benchmark cache after refusing its live index lock | Source repair committed; runtime proof pending |

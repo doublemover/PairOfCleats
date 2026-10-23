@@ -7,6 +7,8 @@ import { isWithinRoot } from '../../workspace/identity.js';
 import { resolveCompileCommandsDir } from '../tooling/compile-commands.js';
 import { resolveProviderCommandOverride } from '../tooling/provider-command-override.js';
 import { resolveNativeExecutable, collectNativeToolchainFiles } from './native-toolchain.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 import { throwIfAborted } from '../../shared/abort.js';
 
 export const NATIVE_DEPENDENCY_KEY = 'semantic.native.clangd-inventory.v1';
@@ -160,9 +162,17 @@ const collectInventory = async ({ repoRoot, toolingConfig, sources, signal = nul
 export const collectNativeTaskInventory = async options => {
   try { return await collectInventory(options); }
   catch (error) {
+    const observation = observeStorageResource(error, { phase: 'native-authority-discovery' });
+    observation.requireSettled();
     throwIfAborted(options.signal);
-    if (error.code === 'ERR_SEMANTIC_NATIVE_UNSEALED') throw error;
-    throw fail('Native authority discovery is incomplete: ' + (error.code || error.message));
+    let code, message;
+    try { code = observation.primary.code; message = observation.primary.message; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    if (code === 'ERR_SEMANTIC_NATIVE_UNSEALED') throw error;
+    const reason = typeof code === 'string' && code ? code : typeof message === 'string' ? message : 'read failed';
+    throw addStorageFailureContext(fail('Native authority discovery is incomplete: ' + reason),
+      { cacheOwnershipPending: true, cacheOwnershipReleased: observation.isSettled }, error, { secondaryPresent: true });
   }
 };
 

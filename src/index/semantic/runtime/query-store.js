@@ -64,6 +64,6 @@ export const openRuntimeQueryFamily = async ({ destination, generationId, signal
       close: () => { closing ??= closeRuntimeResources([db, evidence]); return closing; } };
   } catch (error) {
     if (error.code === 'ENOENT') error = runtimeImportError('Pinned runtime family unavailable.', 'ERR_RUNTIME_FAMILY_UNAVAILABLE');
-    await closeRuntimeResources([db, evidence], error);
+    await closeRuntimeResources([db, evidence], error, { hasOperationError: true });
   }
 };

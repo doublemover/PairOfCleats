@@ -54,3 +54,27 @@ Streaming verification rechecks the shared opened-descriptor containment guard
 before committing its result. Native database and file resource cleanup attempts
 every close even if another fails. An open/query error remains the primary cause
 when cleanup also fails, and failed closes remain explicit errors.
+
+## Original read failures and advisory content
+
+The CPU-profile adapter finishes its bounded, contained, size/hash-qualified read
+before decoding content. Only confirmed UTF-8/JSON content failures yield malformed
+coverage. Read/integrity failures and original unconfirmed descriptors propagate
+through family/staging/destination cleanup with their original observations and
+close-only recovery session. Recovery does not parse, yield, recreate output or
+publish a pointer. Streaming code-log read failures also bypass content catches.
+Offline parser identity advances to version 4; raw interchange formats stay at 1.
+
+Native authority discovery and its build-frontier consumer observe settlement
+before cancellation/diagnostic classification. A pending read cannot become an
+ordinary unsupported/deferred authority. Settled unsupported native inputs retain
+that policy. Native/LSP producer identity is lspBindings46; platform sealing and
+runtime launch authority are unchanged. Portable error-boundary fixtures intercept
+executable resolution; they do not qualify ELF or actual native tools on Windows.
+
+Runtime independent resource, staging and destination cleanup preserves explicit
+failure presence, including null/undefined/false values and frozen originals.
+Inventory reconciliation cannot prevent an independent lock-release attempt;
+neither can it replace the original descriptor failure. Authored actual FileHandle,
+import/pointer, native discovery/frontier and independent-cleanup regressions are
+unrun. Scoped formatting/whitespace checks cover this source batch only.

@@ -40,7 +40,7 @@ const verifyCitations = async ({ destination, inputs, citations, repositoryNames
   for (const pin of inputs) {
     check();
     const family = await bounded(() => openRuntimeQueryFamily({ destination, generationId: pin.generationId, signal: check.signal }), check);
-    let citationError = null;
+    let citationError = null, citationErrorPresent = false;
     try {
       if (family.manifestHash !== pin.manifestHash || family.capture.captureId !== pin.captureId
         || family.capture.repositoryNamespace !== repositoryNamespace || !same(family.capture.generation, generation)) fail('Claim input family scope or manifest changed.');
@@ -68,8 +68,8 @@ const verifyCitations = async ({ destination, inputs, citations, repositoryNames
         }
         records.set(row.evidenceId, row);
       }
-    } catch (error) { citationError = error; throw error; }
-    finally { await closeRuntimeResources([family], citationError); }
+    } catch (error) { citationErrorPresent = true; citationError = error; throw error; }
+    finally { await closeRuntimeResources([family], citationError, { hasOperationError: citationErrorPresent }); }
   }
   if (records.size !== citations.length) fail('Claim citation points outside the pinned family inventory.');
   return { records, diskReserveBytes };

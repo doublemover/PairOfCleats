@@ -1,3 +1,5 @@
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
+import { closeRuntimeResources } from './close-resources.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { acquireFileLock } from '../../../shared/locks/file-lock.js';
@@ -42,10 +44,10 @@ export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorking
   const lock = createLockReleaseHandle({ lock: rawLock, releaseLabel: 'runtime-writer.release' });
   let lockBytes;
   try { lockBytes = (await fs.lstat(rawLock.lockPath)).size; }
-  catch (error) { await lock.release(); throw error; }
+  catch (error) { await closeRuntimeResources([{ close: () => lock.release() }], error, { hasOperationError: true }); }
   if (maxDiskWorkingSetBytes == null) {
     try { maxDiskWorkingSetBytes = await readRuntimeDestinationBudget(root, signal); }
-    catch (error) { await lock.release(); throw error; }
+    catch (error) { await closeRuntimeResources([{ close: () => lock.release() }], error, { hasOperationError: true }); }
   }
   const shared = diskAccount || createSemanticDiskAccount(maxDiskWorkingSetBytes);
   const accountingOwner = accountingOwners.get(shared) || shared;
@@ -57,7 +59,7 @@ export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorking
   catch (error) {
     // Do not unblock a later shared-account owner before the earlier one drains.
     previous.then(unlock, unlock);
-    await lock.release(); throw error;
+    await closeRuntimeResources([{ close: () => lock.release() }], error, { hasOperationError: true });
   }
   let charged = 0, admitted = false;
   let ledger = charges.get(accountingOwner);
@@ -70,6 +72,7 @@ export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorking
     release(bytes) { shared.release(bytes); charged -= bytes; },
     get used() { return charged; }, limit: maxDiskWorkingSetBytes
   };
+  let operationFailed = false, operationError;
   try {
     throwIfAborted(signal);
     for (const other of ledger.keys()) {
@@ -97,29 +100,31 @@ export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorking
       account.release(oldBytes);
     }
     return await operation({ destination: root, account });
-  } finally {
+  } catch (error) { operationFailed = true; operationError = error; throw error; }
+  finally {
+    const cleanupErrors = [];
     try {
       if (admitted) {
         try {
           const retained = (await inventory(root, null)).retainedBytes;
           if (retained > charged) account.reserve(retained - charged);
           else account.release(charged - retained);
-        } finally {
-          // Even a refused reconciliation must preserve the credits already
-          // charged, so a later admission cannot charge owned writes twice.
-          ledger.set(root, charged);
-        }
+        } finally { ledger.set(root, charged); }
       }
-    } finally {
-      try {
-        await lock.release();
-        // The inventory includes this live lease. Only its confirmed removal
-        // returns these exact credits; do not reopen the destination unlocked.
-        if (admitted) account.release(lockBytes);
-      } finally {
-        if (admitted) ledger.set(root, charged);
-        unlock();
-      }
+    } catch (error) { cleanupErrors.push(error); }
+    try {
+      await lock.release();
+      // Only confirmed removal returns these exact lock credits.
+      if (admitted) account.release(lockBytes);
+    } catch (error) { cleanupErrors.push(error); }
+    finally {
+      try { if (admitted) ledger.set(root, charged); }
+      finally { unlock(); }
+    }
+    if (cleanupErrors.length) {
+      let failure = operationFailed ? operationError : cleanupErrors.shift();
+      for (const error of cleanupErrors) failure = addStorageFailureContext(failure, {}, error, { secondaryPresent: true });
+      throw failure;
     }
   }
 };

@@ -103,7 +103,7 @@ export const queryRuntimeEvidence = async ({ destination, request, signal = null
     for (let familyIndex = 0; familyIndex < request.familyGenerations.length; familyIndex += 1) {
       result.cost.familyOpens += 1;
       const family = await openRuntimeQueryFamily({ destination, generationId: request.familyGenerations[familyIndex], signal: child.signal, metrics: result.cost });
-      let familyError = null;
+      let familyError = null, familyErrorPresent = false;
       try {
         const { capture, manifest } = family;
         if (capture.repositoryNamespace !== request.repositoryNamespace
@@ -152,8 +152,8 @@ export const queryRuntimeEvidence = async ({ destination, request, signal = null
           } else { result.omitted.push({ generationId: manifest.generationId, evidenceId: entry.evidence_id, reason: 'row_byte_allowance' }); result.status = 'partial'; }
         }
         if (entries.length <= remaining && !deadlineReached()) position = { familyIndex: familyIndex + 1, ordinal: 0 };
-      } catch (error) { familyError = error; throw error; }
-      finally { await closeRuntimeResources([family], familyError); }
+      } catch (error) { familyErrorPresent = true; familyError = error; throw error; }
+      finally { await closeRuntimeResources([family], familyError, { hasOperationError: familyErrorPresent }); }
     }
     if (deadlineReached()) { result.status = 'partial'; result.warnings.push('query_time_allowance_exhausted'); }
     updateCursor();
