@@ -2,8 +2,10 @@
 
 `tooling navigate` retains its spelling-search path for compatibility, explicitly
 labelled `status: approximate` and `binding.status: unqualified-spelling`. It does
-not establish a unique binding. Completions and document-symbol selection retain
-their existing behavior.
+not establish a unique binding. Completions retain their indexed evidence behavior.
+Native VS Code Outline uses the qualified document-symbol path below; the explicit
+Inspect Indexed Document Symbols command keeps approximate rows available as
+labelled indexed evidence.
 
 Definitions/references may instead provide `--source-hash` (SHA-256 of exact UTF-8
 document bytes), `--source-version`, `--line`, `--column`, `--coordinate-unit utf16`
@@ -20,6 +22,17 @@ record refs; ambiguous, unresolved, external and partial states remain distinct.
 References additionally check each occurrence's binding against the selected
 target and honor includeDeclaration. There is no second compiler/LSP client.
 
+Qualified `--kind document-symbols` requires the same source hash/version and
+UTF-16 coordinate unit, without a cursor. Canonical syntax declarations, definition
+occurrences and operand relationships provide each exact identifier range and,
+when unique, its structural declaration container. Results include `sourceSpan`
+with half-open UTF-16 offsets, one-based outer coordinates, and `selectionRange`
+with its own exact identifier span. Missing/ambiguous containers retain the exact
+identifier as the bounded range; missing identifier coordinates never become a
+synthetic origin. Generation, pinned source hash and complete syntax coverage
+qualify native Outline publication. The editor also rechecks its original clean
+document/version/URI and uses the host's UTF-16 `positionAt` mapping.
+
 Locations use retained source manifests/line starts. Retained bytes and current
 contained source bytes must match their pinned hash before returning coordinates;
 no offset is joined against unrelated live text. Generated/mapped sources require
@@ -35,9 +48,12 @@ Budget/cap/incomplete binding coverage is explicit partial evidence. The present
 source lookup can scan source manifests and does not expose navigation continuation;
 large-generation lookup indexing/resume remains an open implementation improvement.
 
-This is an **unvalidated source checkpoint**, not closure of #1303. The authored
+This remains a source checkpoint, not closure of #1303. The #1543 actual
+collector/query/provider control passed under an inert registered Windows editor
+host at its recorded source; real editor-host and resulting-tree acceptance are
+separate. The authored
 ordinary-file/store-interface control covers shadowed names, imported aliases,
 declaration policy, Unicode/CRLF ranges, hash drift, authority, incomplete work and
 corruption. Actual producer -> persisted facts -> both editor hosts, generated
 source mappings, large-generation indexing and full runtime qualification remain
-required. No test, native setup or editor-host run is implied by this document.
+required. No real editor-host or broad final-tree pass is implied by this document.

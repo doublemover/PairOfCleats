@@ -2,7 +2,6 @@
 import { MAP_REPORT_OPTIONS } from '../shared/operator-cli-options.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { createCli } from '../../src/shared/cli.js';
@@ -21,6 +20,8 @@ import { stableStringify } from '../../src/shared/stable-json.js';
 import { emitJson } from '../shared/cli-utils.js';
 import { publishMapOutput } from './map-output-publication.js';
 import { runMapPreview } from '../analysis/map-iso-preview.js';
+import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
+import { isAbortError } from '../../src/shared/abort.js';
 
 const argv = createCli({
   scriptName: 'report map',
@@ -172,12 +173,22 @@ if (argv.serve) {
     return `${targetPath.slice(0, targetPath.length - currentExt.length)}${fallbackExt}`;
   };
 
-  const renderSvg = (dot) => {
-    const result = spawnSync('dot', ['-Tsvg'], {
-      input: dot,
-      encoding: 'utf8'
-    });
-    if (result.status !== 0) {
+  const renderSvg = async (dot) => {
+    let result;
+    try {
+      const { runOperationalCommand } = await import('../tooling/operational-execution.js');
+      result = await runOperationalCommand({ id: 'graphviz', repoRoot, args: ['-Tsvg'],
+        options: { input: dot, maxOutputBytes: 16 * 1024 * 1024, timeoutMs: 30000 } });
+    } catch (error) {
+      // Only a settled unavailable/failed render can yield DOT recovery input.
+      // Unconfirmed child or retained-installation cleanup remains a failure.
+      const failure = describeStorageFailure(error, { phase: 'map-graphviz-render',
+        defaultCode: 'ERR_MAP_RENDER_FORMAT_UNAVAILABLE', defaultMessage: 'Graphviz dot failed.' });
+      if (isAbortError(error)) throw error;
+      warnings.push(failure.message);
+      return null;
+    }
+    if (result.exitCode !== 0) {
       const message = result.stderr || result.stdout || 'Graphviz dot failed.';
       warnings.push(message.trim());
       return null;
@@ -196,7 +207,7 @@ if (argv.serve) {
     output = renderDot(mapModel);
   } else if (format === 'svg' || format === 'html') {
     const dot = renderDot(mapModel);
-    const svg = renderSvg(dot);
+    const svg = await renderSvg(dot);
     if (!svg) {
       formatUnavailable = true;
       resolvedFormat = 'dot';
