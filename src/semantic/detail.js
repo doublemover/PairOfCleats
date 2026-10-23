@@ -4,6 +4,8 @@ import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.
 import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelopes.js';
 import { assertSemanticQuery } from '../contracts/validators/semantic-query.js';
 import { throwIfAborted } from '../shared/abort.js';
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../shared/storage/operation-error.js';
 import { readProviderEvidenceEntry, providerEvidenceState, createProviderEvidenceBudget } from './provider-evidence-detail.js';
 
 const fail = (code, message) => Object.assign(new Error(message), { code });
@@ -133,11 +135,19 @@ export const createSemanticDetailService = ({ maxContinuations = 64, ttlMs = 300
           page = await readProviderEvidenceEntry({ store, ref, record: state.providerRecord,
             offset: state.offset, budget: evidenceBudget, signal: evidenceSignal });
         } catch (error) {
+          const observation = observeStorageResource(error, { phase: 'semantic-provider-evidence' });
+          observation.requireSettled();
           throwIfAborted(signal);
-          const budgetLimited = ['ERR_SEMANTIC_EVIDENCE_BUDGET', 'ERR_FILE_TOO_LARGE'].includes(error.code)
-            || deadline.aborted && (error === deadline.reason || ['AbortError', 'TimeoutError'].includes(error.name));
+          let code, name;
+          try { code = error?.code; name = error?.name; }
+          catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+          observation.requireSettled();
+          const budgetLimited = ['ERR_SEMANTIC_EVIDENCE_BUDGET', 'ERR_FILE_TOO_LARGE'].includes(code)
+            || deadline.aborted && (error === deadline.reason || ['AbortError', 'TimeoutError'].includes(name));
           if (!budgetLimited) {
-            if (['ENOENT', 'ENOTDIR'].includes(error.code)) throw Object.assign(fail('ERR_SEMANTIC_INTEGRITY', 'A retained provider evidence artifact or source is missing.'), { cause: error });
+            if (['ENOENT', 'ENOTDIR'].includes(code)) throw addStorageFailureContext(
+              fail('ERR_SEMANTIC_INTEGRITY', 'A retained provider evidence artifact or source is missing.'), {},
+              observation.retain(), { secondaryPresent: true });
             throw error;
           }
           if (hadProgress) break;

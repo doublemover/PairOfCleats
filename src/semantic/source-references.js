@@ -2,6 +2,7 @@ import { performance } from 'node:perf_hooks';
 import { canonicalSemanticJson } from '../index/semantic/identity.js';
 import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelopes.js';
 import { throwIfAborted } from '../shared/abort.js';
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
 
 const integrity = message => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_INTEGRITY' });
 
@@ -52,8 +53,14 @@ export const attachSemanticSourceReferences = async ({ store, result, signal, be
       let source;
       try { source = await store.getSourceReference(record, { signal: scopedSignal }); }
       catch (error) {
+        const observation = observeStorageResource(error, { phase: 'semantic-source-reference' });
+        observation.requireSettled();
         throwIfAborted(signal);
-        if (!deadline.aborted || !(error === deadline.reason || ['AbortError', 'TimeoutError'].includes(error?.name))) throw error;
+        let name;
+        try { name = error?.name; }
+        catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+        observation.requireSettled();
+        if (!deadline.aborted || !(error === deadline.reason || ['AbortError', 'TimeoutError'].includes(name))) throw error;
         incomplete = true;
         break;
       }
