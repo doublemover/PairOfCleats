@@ -30,6 +30,7 @@ import { createAuthGuard } from './router/auth.js';
 import { createAuthorityGuard, isSameOriginRequest } from './router/authority.js';
 import { createBodyParser } from './router/body.js';
 import { createRepoCacheManager } from './router/cache.js';
+import { closeApiRouterResources } from './router/close.js';
 import { createCorsResolver } from './router/cors.js';
 import { createRepoResolver } from './router/paths.js';
 import { getRepoCacheGenerationContext } from '../../src/shared/repo-cache-config.js';
@@ -740,13 +741,10 @@ export const createApiRouter = ({
   return {
     handleRequest,
     close() {
-      if (!closing) closing = (async () => {
-        try { await artifactBrowser?.close(); }
-        finally {
-          try { await closeRepoCaches(); }
-          finally { await (await import('../../src/shared/embedding-adapter.js')).disposeEmbeddingAdapterCaches(); }
-        }
-      })();
+      if (!closing) closing = closeApiRouterResources({
+        closeArtifacts: () => artifactBrowser?.close(), closeRepoCaches,
+        closeEmbeddings: async () => (await import('../../src/shared/embedding-adapter.js')).disposeEmbeddingAdapterCaches()
+      });
       return closing;
     }
   };

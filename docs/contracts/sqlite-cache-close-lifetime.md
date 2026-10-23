@@ -47,3 +47,32 @@ Authored scope and actual report-entry controls cover success, falsey dual failu
 original method replacement, pending work and an outstanding lease. They are unrun.
 Real SQLite native lifetime/retry/GC and wider end-to-end request propagation
 remain outstanding qualification or follow-up work.
+
+## Repository and service retirement propagation
+
+The repository manager now records retirement in a service-scoped ledger that
+references the existing cache and frozen close owners. Implicit LRU/generation
+retirement stays nonthrowing and does not retry native closure. Explicit
+`clearRepoCaches`/`closeRepoCaches` attempts every affected entry, then reports
+`ERR_REPO_CACHE_RETIREMENT` with original failures and live original settlement
+observers. Generation admission can proceed while an old lease retires; that
+retirement never establishes deletion authority. Idle ledger entries are pruned.
+
+Safe bounded receipts distinguish `settled`, `retiring` outstanding leases and
+`failed` closure. Counts separate active lease owners and failed-close owners;
+no live owner/handle objects enter the receipt. Error diagnostics retain up to
+128 independent observations per entry; overflow stays explicit and cannot
+claim settlement. Reconciliation observes original owners without invoking
+native close; explicit original-owner recovery remains the only retry path.
+
+API router cleanup attempts artifact, repository and embedding owners even when
+an earlier one fails, preserving primary/secondary causes and resource observers.
+Its memoized close promise retains the first shutdown receipt/error; it is not a
+poll of later state. The manager's current retirement receipt observes subsequent
+lease release or explicit original-owner reconciliation. MCP clear returns the
+same internal safe receipt and propagates classified failures.
+
+The manager/LRU/cache, generation, implicit eviction, lease, falsey/frozen cause,
+MCP parity and actual API close controls are authored and unrun. Scoped formatting
+and whitespace checks cover this propagation batch only; the original native
+qualification limits above remain open.

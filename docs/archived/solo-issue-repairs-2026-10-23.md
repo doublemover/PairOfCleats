@@ -172,6 +172,18 @@ full cleanup-category capability or deep-suite green is claimed.
   for this protocol/admission batch, with current contract references updated;
   previous caches remain untouched. See the [request admission contract](../contracts/lsp-request-admission.md).
 
+- #1718: repository retirement now references existing actual SQLite close
+  owners, retains implicit eviction/generation errors and reports them through
+  explicit clear/close. Bounded safe receipts distinguish active leases from
+  failed close; late original-owner reconciliation is observed without native
+  retries or handle adoption. API shutdown attempts independent artifact/repo/
+  embedding cleanup and preserves both failures; MCP clear propagates the same
+  outcome. Real manager/cache/LRU, falsey/frozen close, healthy peer, generation,
+  implicit eviction, outstanding lease, original-owner and actual router controls
+  are authored, unrun. Existing generation fixtures now supply inert synchronous
+  close methods required by the already-implemented native-close contract and
+  assert exactly three closes; generation assertions remain intact.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -374,7 +386,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1715](https://github.com/doublemover/PairOfCleats/issues/1715) | [P2] Separate XML schema namespace identifiers from schema-location dependencies | Pending full-scope review |
 | [#1716](https://github.com/doublemover/PairOfCleats/issues/1716) | [P2] Own symbolic graph bytes before hydration callbacks and validated-entry caching | Pending full-scope review |
 | [#1717](https://github.com/doublemover/PairOfCleats/issues/1717) | [P2] Project JS/TS literals safely instead of JSON-stringifying parser values into type evidence | Pending full-scope review |
-| [#1718](https://github.com/doublemover/PairOfCleats/issues/1718) | [P2] Surface retained SQLite closure failures through repository cache shutdown | Pending full-scope review |
+| [#1718](https://github.com/doublemover/PairOfCleats/issues/1718) | [P2] Surface retained SQLite closure failures through repository cache shutdown | Source repair committed; runtime proof pending |
 | [#1719](https://github.com/doublemover/PairOfCleats/issues/1719) | [P2] Project SQL usages by AST role without erasing decoded identifier identity | Pending full-scope review |
 | [#1720](https://github.com/doublemover/PairOfCleats/issues/1720) | [P2] Reject or model SQL table column-alias lists before resolving catalog columns | Pending full-scope review |
 | [#1721](https://github.com/doublemover/PairOfCleats/issues/1721) | [P2] Qualify RST and AsciiDoc headings before partitioning literal and nested content | Pending full-scope review |

@@ -63,12 +63,14 @@ try {
   await apiManager.refreshBuildPointer(apiEntry);
   await mcpManager.refreshBuildPointer(mcpEntry);
 
+  let sqliteCloses = 0;
+  const inertDb = () => ({ close() { sqliteCloses++; } });
   sharedEntry.indexCache.set('shared', { ok: true });
-  sharedEntry.sqliteCache.set('shared', { ok: true });
+  sharedEntry.sqliteCache.set('shared', inertDb());
   apiEntry.indexCache.set('api', { ok: true });
-  apiEntry.sqliteCache.set('api', { ok: true });
+  apiEntry.sqliteCache.set('api', inertDb());
   mcpEntry.indexCache.set('mcp', { ok: true });
-  mcpEntry.sqliteCache.set('mcp', { ok: true });
+  mcpEntry.sqliteCache.set('mcp', inertDb());
 
   await writePointer(buildRootB);
 
@@ -87,6 +89,7 @@ try {
   assert.equal(mcpEntry.indexCache.size(), 0, 'mcp cache should clear on active-generation change');
   assert.equal(mcpEntry.sqliteCache.size(), 0, 'mcp sqlite cache should clear on active-generation change');
 
+  assert.equal(sqliteCloses, 3, 'generation retirement closes each actual inert database exactly once');
   sharedManager.closeRepoCaches();
   apiManager.closeRepoCaches();
   mcpManager.closeRepoCaches();
