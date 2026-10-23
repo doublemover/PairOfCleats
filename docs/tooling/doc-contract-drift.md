@@ -1,6 +1,6 @@
 # Doc Contract Drift
 
-Status: OK
+Status: DRIFT
 
 ## searchCliFlags
 - doc: docs/contracts/search-cli.md
@@ -18,7 +18,7 @@ Status: OK
 ## artifactSchemas
 - doc: docs/contracts/artifact-schemas.md
 - source: src/contracts/schemas/artifacts.js
-- missing in docs: none
+- missing in docs (2): graph_relation_edges, graph_relation_edges_meta
 - extra in docs: none
 
 ## scoreBreakdown

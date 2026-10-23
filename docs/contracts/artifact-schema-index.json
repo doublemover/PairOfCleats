@@ -1,5 +1,5 @@
 {
-  "schemaHash": "ee58d3f6cf7fdfadc865aa9cf3df6b8fa8529bcf",
+  "schemaHash": "9a65a71a3e8b7fe895682233e3c12e2738736bf0",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -767,6 +767,42 @@
       ]
     },
     {
+      "artifact": "graph_relation_edges",
+      "schemaVersion": {
+        "const": 1
+      },
+      "requiredFields": [
+        "from",
+        "graph",
+        "schemaVersion",
+        "to"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "graph_relation_edges_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
       "artifact": "graph_relations",
       "schemaVersion": null,
       "requiredFields": [
@@ -776,7 +812,9 @@
         "usageGraph",
         "version"
       ],
-      "optionalFields": []
+      "optionalFields": [
+        "upstreamCoverage"
+      ]
     },
     {
       "artifact": "graph_relations_meta",
@@ -904,9 +942,12 @@
         "name"
       ],
       "optionalFields": [
+        "chunkUid",
         "exported",
         "kind",
-        "signature"
+        "signature",
+        "symbolId",
+        "virtualPath"
       ]
     },
     {
@@ -990,6 +1031,7 @@
       "optionalFields": [
         "artifacts",
         "droppedRecords",
+        "inputCoverage",
         "provenance",
         "reason"
       ]
@@ -1251,7 +1293,10 @@
         "verification",
         "version"
       ],
-      "optionalFields": []
+      "optionalFields": [
+        "modeProvenance",
+        "modeProvenanceVersion"
+      ]
     },
     {
       "artifact": "snapshot_record",

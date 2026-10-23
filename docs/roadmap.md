@@ -1,11 +1,11 @@
 # PairOfCleats Roadmap
 
 Status: Active
-Last audited: 2026-10-21
-Last reconciled: 2026-10-22
+Last audited: 2026-10-23
+Last reconciled: 2026-10-23
 Canonical for: initiative status, execution order, and remaining work
 
-Current reconciliation, 2026-10-22: 957 open issues are being reconciled by
+Current reconciliation, 2026-10-23: 963 open issues are being reconciled by
 priority and shared owner; historical implementation and acceptance remain distinct.
 
 ## Current GitHub repair program
@@ -16,8 +16,8 @@ existing `main` base. The latest qualified production/test source checkpoint is
 `d4dcba4134f6103e3a59703d90fdbde5ca54d09e`; publication is authorized and working.
 No merge is authorized. Preserve granular commits and verify remote/PR identities.
 
-The live inventory now contains **957 open issues (#584–#1540)**: P0 0, P1 52,
-P2 448, P3 102, P4 0, Perf 102, and unprioritized 253. This includes 873 new
+The live inventory now contains **963 open issues (#584–#1546)**: P0 0, P1 52,
+P2 454, P3 102, P4 0, Perf 102, and unprioritized 253. This includes 879 new
 reports. The [current repair receipt](archived/github-issue-repairs-2026-10-21.md)
 contains every issue and its disposition. The
 [previous receipt](archived/github-issue-repairs-2026-10-20.md) records 77 earlier
@@ -30,12 +30,18 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `ae324aeeb` pins direct semantic selectors/refs,
-repairs destructuring accessor candidates (callFlow36), qualifies original editor
-sources, and retains first lock-worker and strict JSON descriptor prerequisites.
-Effective config/dump shares search guardrails. Dispositions:141 historical,
-565 source,166 partial,85 pending. New controls remain unvalidated; MCP1.9.0
-snapshots, durable service recovery and final Windows acceptance remain open.
+Latest implementation wave is frozen at `c849bf600`: cold query leaf reuse, compiler pattern
+reference roles, original semantic/configuration/JSONC/artifact read lifetimes,
+and snapshot worker/request/session publication. Dispositions:141 historical,
+565 source,167 partial,90 pending. All three agents are parked. The lead is now
+performing the requested thorough Windows validation pass. Fresh locked setup and
+native/patch verification pass (37 packages/33 routes; no warnings/errors), as do
+26 focused cases, repaired 40-case gate and the complete front-gate checks.
+Broader Windows cohort acceptance remains pending. The
+[active Windows validation receipt](archived/windows-post-wave-validation-2026-10-22.md)
+records failures, repairs and limits. New P2 reports #1541–#1546 are inventoried
+pending; embedding processing/shape/codec owners batch after validation, with
+Outline and viewer consumers separate. No complete deep-suite pass is claimed.
 
 ### Execution order
 
@@ -49,8 +55,8 @@ snapshots, durable service recovery and final Windows acceptance remain open.
    front gate passes at f05fb0d4e. A further 33 storage/publication/cache/contract
    repairs have focused proof and the complete front gate passes at d4dcba413. Remaining
    watch/pointer/queue authority and editor-package owners continue next. Three
-   Sol 6.1/xhigh agents now own independent storage/setup, semantic/indexing and
-   retrieval/editor/map spans in real files. The lead owns shared integration,
+   Sol 6.1/xhigh agents completed their storage/setup, semantic/indexing and
+   retrieval/editor/map spans in real files and are parked for validation. The lead owns shared integration,
    native/core work, validation, Git and publication. Research #1504 and above
    remains with the semantic owner. No worktree or elevation is required.
 3. Remaining P2 correctness/contract issues, then P3, grouped by owner.
@@ -61,11 +67,12 @@ snapshots, durable service recovery and final Windows acceptance remain open.
 6. Final candidate-wide Windows discovery/cohort reconciliation and relevant
    qualification. Keep release/real-model/optional-backend claims separate.
 
-The user's latest direction defers validation until the broad backlog development
-pass is complete. The three agents and the lead edit real repository files and author
-regressions without executing tests, syntax campaigns or formatting. Publish
-completed owner groups as explicitly **unvalidated development checkpoints**;
-these commits do not replace the last qualified source identified above. Recent source batches cover final response/risk
+The user's latest direction freezes the completed implementation wave and parks
+all three agents for a thorough lead-owned testing/validation pass. Prepare the
+locked installation, refresh generated contracts, run focused regressions and
+explicit Windows cohorts, and fix actual failures. Implementation checkpoints
+remain **unvalidated** until their exact-source results are recorded; they do
+not replace the last qualified source above. Recent source batches cover final response/risk
 accounting, MCP domain errors, TUI bounded flow and event timing, architecture
 detection, canonical map member/file inventory and editor generation-bound
 risk requests. Recent source also shares bounded codec admission, repairs immutable syntax
@@ -76,15 +83,15 @@ remain open. Native log/review presentation, profile/reference caches and timest
 now have source checkpoints; whole-app cache migration/quota and shared transform
 mixed provider/semantic CPU wait boundaries remain open. Shared Stage1 transform sessions, parse descriptors, embedding token batches,
 risk prefixes and editor HTTP/history/diagnostic projections now have further
-source checkpoints; their regressions and runtime/measurement proof remain open. After
-the development pass, prepare the changed dependency installation, establish
+source checkpoints; their regressions and runtime/measurement proof remain open. During
+this validation pass, prepare the changed dependency installation, establish
 fail-before controls where required, run affected checks and the complete front
 gate, then reconcile Windows cohorts. Do not run repeated broad suites,
 raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `ae324aeeb` repairs watch/pointer and queue authority,
+Current wave after `ae324aeeb` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
@@ -123,8 +130,8 @@ Unicode type roots and own parameter/argument names reach parser/cache/public
 consumers. Complete source-checked semantic tokens and iterative symbols preserve
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
-moduleExports3/sourceChunking11/importResolution9/typeNormalization8/compilerBindings22/
-lspBindings40/rq10/cfgFlow26/callFlow36/valueSlice9/boundaryFlow9/workerFlow8. VSCode and Sublime retain
+moduleExports3/sourceChunking12/importResolution9/typeNormalization8/compilerBindings22/
+lspBindings40/rq10/cfgFlow27/callFlow36/valueSlice10/boundaryFlow10/workerFlow9. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 Proto/SemanticDB/ShellCheck report adapters are3 and SCIP importer is5; the other
 five report adapters remain2.

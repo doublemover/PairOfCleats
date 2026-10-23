@@ -1,7 +1,7 @@
 # Phase 12 Tooling and API Contract Spec (Refined)
 
 **Document ID:** PHASE12_TOOLING_AND_API_CONTRACT_SPEC_REFINED  
-**Status:** Active implemented public tooling/API contract; current MCP schema version is `1.4.1`.
+**Status:** Active implemented public tooling/API contract; current MCP schema version is `1.9.0`.
 **Last audited:** 2026-05-21
 
 ## 0. Purpose

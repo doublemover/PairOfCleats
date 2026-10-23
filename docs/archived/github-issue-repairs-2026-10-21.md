@@ -5,8 +5,8 @@ Starting source: `8685a0decb70fde42f32896f52825009c5970dda`. Branch:
 
 ## Inventory and acceptance
 
-The live open-issue inventory contains 957 issues, #584–#1540, including 873
-new reports after #667. Title/body priority census: P0 0, P1 52, P2 448, P3 102,
+The live open-issue inventory contains 963 issues, #584–#1546, including 879
+new reports after #667. Title/body priority census: P0 0, P1 52, P2 454, P3 102,
 P4 0, Perf 102, and unprioritized 253. There are no labels in this inventory.
 Priority-marked performance reports remain in their priority cohort. Unprioritized
 feature work is not silently elevated above reported correctness defects.
@@ -559,7 +559,7 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#771](https://github.com/doublemover/PairOfCleats/issues/771) | P2 | [P2] Prevent superseded editor searches from taking over newer results | development implemented; integration/validation deferred |
 | [#772](https://github.com/doublemover/PairOfCleats/issues/772) | P3 | [P3] Map normalized search tokens back to original excerpt text for highlighting | development implemented; integration/validation deferred |
 | [#773](https://github.com/doublemover/PairOfCleats/issues/773) | P3 | [P3] Honor VS Code provider cancellation before spawning and while navigation runs | development implemented; integration/validation deferred; original VSCode buffer/cursor/declaration request retained through repository/target-opening awaits988c1fda7; stale completion/symbol results discarded; actual registered-provider controls authored unvalidated; real host/source atomicity open; exact original indexed picker/request/item/display authority 057f19cab, supersession and stale globals refused; authored unvalidated; actual reviewed context collection captures original repository/seeds/immutable packets and final displayed preview 85f26ab4a; authored unvalidated; semantic picker and nested view authority 333b62993 with unchanged source/URI/generation negatives; authored unvalidated; exact captured publication/root/URI/source and nested original parent authority 46eae017b, with native command extras isolated from private prerequisites; authored unvalidated; original semantic editor error/inspection/notification evidence4caa0fbf5, with registered command controls; authored unvalidated |
-| [#774](https://github.com/doublemover/PairOfCleats/issues/774) | other | [Enhancement] Reuse per-leaf tokenization when building a cold query plan | pending |
+| [#774](https://github.com/doublemover/PairOfCleats/issues/774) | other | [Enhancement] Reuse per-leaf tokenization when building a cold query plan | partial 1ab1cff5a query-owned pure leaf reuse with independent AST/flat/scoring outputs; hooks/custom dictionaries retain original calls, real planner/count controls authored unvalidated; variant/shared/Aho paths and measured CPU/allocation remain open |
 | [#775](https://github.com/doublemover/PairOfCleats/issues/775) | other | [Enhancement] Reopen cached VS Code history results without rerunning search | source authored; unvalidated |
 | [#776](https://github.com/doublemover/PairOfCleats/issues/776) | P2 | [P2] Rank throughput regressions with one format-independent total ordering | development implemented; integration/validation deferred |
 | [#777](https://github.com/doublemover/PairOfCleats/issues/777) | P2 | [P2] Do not silently truncate deep graph witness paths at the internal 5,000-node guard | development implemented; integration/validation deferred |
@@ -1327,6 +1327,12 @@ bootstrap, native probes, benchmarks or new performance measurements were run.
 | [#1538](https://github.com/doublemover/PairOfCleats/issues/1538) | other | Acquire retrieval judgments actively with bias-corrected fixed-pool evaluation | pending; new dependency-ordered research/feature scope |
 | [#1539](https://github.com/doublemover/PairOfCleats/issues/1539) | other | Share selected build-world families without mixing truth, closure or ranked completion | pending; new dependency-ordered research/feature scope |
 | [#1540](https://github.com/doublemover/PairOfCleats/issues/1540) | other | Intern occurrence-preserving syntax DAGs for pure summaries and lazy structural queries | pending; new dependency-ordered research/feature scope |
+| [#1541](https://github.com/doublemover/PairOfCleats/issues/1541) | P2 | [P2] Qualify BGE-M3 dense encoding instead of applying generic mean pooling and BGE query instructions | pending; newly filed during the parked-worker Windows validation wave; source report reviewed, implementation and runtime qualification remain open |
+| [#1542](https://github.com/doublemover/PairOfCleats/issues/1542) | P2 | [P2] Separate instruction-tuned E5 input templates from legacy query and passage prefixes | pending; newly filed during the parked-worker Windows validation wave; source report reviewed, implementation and runtime qualification remain open |
+| [#1543](https://github.com/doublemover/PairOfCleats/issues/1543) | P2 | [P2] Qualify indexed document-symbol ranges before publishing native VS Code Outline entries | pending; newly filed during the parked-worker Windows validation wave; source report reviewed, implementation and runtime qualification remain open |
+| [#1544](https://github.com/doublemover/PairOfCleats/issues/1544) | P2 | [P2] Validate provider embedding cardinality and tensor shape before normalizing away mismatches | pending; newly filed during the parked-worker Windows validation wave; source report reviewed, implementation and runtime qualification remain open |
+| [#1545](https://github.com/doublemover/PairOfCleats/issues/1545) | P2 | [P2] Preserve artifact-read failures alongside terminal viewer reader cleanup failures | pending; newly filed during the parked-worker Windows validation wave; source report reviewed, implementation and runtime qualification remain open |
+| [#1546](https://github.com/doublemover/PairOfCleats/issues/1546) | P2 | [P2] Carry the effective quantization contract through inline encoding and artifact identity | pending; newly filed during the parked-worker Windows validation wave; source report reviewed, implementation and runtime qualification remain open |
 
 User steering after batch 3: discontinue ignored development drafts, apply completed
 changes to real files, and frontload remaining implementation before further test
@@ -4518,3 +4524,94 @@ No tests, syntax/lint/format, bootstrap, compiler/native/database/child/IPC/edit
 browser/GPU/model, build or benchmark checks ran. Locked setup, generated MCP1.9.0
 snapshots/inventories, fail-before/after proof, front gate and final Windows
 cohorts remain deferred; author-workspace receipts remain historical.
+
+### Frozen implementation wave and lead-owned Windows validation
+
+The user requested that the current wave finish, the three workers park, and the
+lead perform a thorough validation pass. All three workers are now parked. This
+supersedes the earlier execution deferral; historical receipts retain their dates.
+Latest qualified production/test source remains
+`d4dcba4134f6103e3a59703d90fdbde5ca54d09e` until new exact-source evidence exists.
+
+After 506e56451, this wave contains:
+
+- 1ab1cff5a: query-plan-local pure leaf reuse, retaining original stateful hook,
+  custom dictionary and mutable ngram fallback. Actual parity, isolation and core
+  invocation counts are authored. #774 becomes partial; no measured speedup.
+- 38d720512: compiler pattern targets distinguish writes from lexical reads,
+  retaining receiver/key/default/value reads. Root review preserved actual reads
+  inside constructed delete operands. Shared cfgFlow27/valueSlice10/boundaryFlow10/
+  workerFlow9 retire changed meaning; compilerBindings22/callFlow36 unchanged.
+- e8cdfccda/fb8ec7afe: semantic query-index original file resources and immutable
+  source refs/spans survive write/close/iterator/accounting failures. No format
+  change; generic stream/store/outer lease lifetimes remain open.
+- aeded9475/166d15962/dae49aa0a: configuration, JSONC/workspace and chunk-meta
+  presence reads use original bounded descriptor owners; parse/output/fallback
+  follow original close. Pending work cannot become optional missing/defaults.
+- c91d1786e/f6ebaef05: snapshot worker and request queue retain original dispatch,
+  callbacks/listener cleanup, exact falsey failures and physical capacity. Failed
+  cancellation transport retires the client rather than accepting replacements.
+- Final map session publication: original attempt/source/client/disposer fences,
+  synchronous readiness retention, captured callbacks/host cleanup, stale
+  construction and reentrant setter/ready controls. Exact late owners can remain
+  pending for deliberate scoped reconciliation; no automatic failed native retry.
+
+Every new implementation and authored regression above is UNVALIDATED at this
+checkpoint. Dispositions:141 historical,565 source,167 partial,84 pending (957).
+The existing 141 closing references remain unchanged. Native/browser/real editor,
+physical quiescence and performance are not established by inert owner controls.
+
+Validation begins with Node26.12.1, preserved pre-bootstrap native binary/version
+metadata, fresh locked bootstrap, generated contract refresh and formatting.
+Then focused regressions, the complete front gate and explicitly enumerated
+Windows cohorts run with 30-second case deadlines, zero retries and native-status
+redo disabled. Native lifecycle and measured performance run serially. Actual
+failures are repaired, not hidden by deadline/contract/coverage relaxation.
+Physical links remain optional per the later user direction; Linux/WSL, real
+models, optional sqlite-vec and release qualification remain separate. Historical
+author-workspace receipts under .tmp/.testLogs are not clean-checkout promises.
+
+Validation setup continuation (source c849bf600): final map session batch is
+93f25e53c; f14d7526b contains only the required ESLint whitespace repairs.
+50d4ebb45 repairs three source/fixture parse failures found by formatting.
+c849bf600 repairs node-gyp's Windows downloaded-header/source-tree layout
+mismatch, uses npm 11-supported child config, preserves literal absolute Python
+exe arguments without CMD via a versioned dependency patch, and drops SQLite's
+redundant legacy build-from-source environment key. The locked signing installer
+now has an explicit policy entry. The only lockfile version change is optional
+ip-address10.7.3 to10.7.4; npm's fresh locked install reports zero vulnerabilities.
+The required import-library/project and Python invocation controls are authored.
+Fresh complete setup/patch verification and fixture qualification are still in
+progress; these statements do not claim a final suite pass. Historical local
+logs are under .tmp/tasks/windows-post-wave-20261022, not clean-checkout evidence.
+
+### Post-wave testing checkpoint, 2026-10-23
+
+All three workers remain parked. The lead repaired actual test/setup failures,
+without widening deadlines, adding retries, removing assertions or changing
+platform/security settings. The [Windows validation receipt](windows-post-wave-validation-2026-10-22.md)
+records the original failure receipts and limits. Fresh locked bootstrap and
+separate native/patch verification exit0,37 required packages/33 language routes,
+8 patches/25 targets/60 hunks, zero warning/error lines in complete final logs.
+Swift's native bit32 regression fails before repair and passes afterward;
+sourceChunking12 retires the changed derived meaning.
+
+The final focused batch passes26/26. The first gate passes34/40, exposing storage
+diagnostic import cycles, an unavailable SQLite dense reader import, fixture
+cache-root drift and a missing fixture build generation. The lock-release helper
+is factored out of generic diagnostics with its original release owner intact;
+explicit undefined secondary failures now retain undefined. SQLite uses the
+actual verified contained reader. Selected fixture indexes and build identity
+are explicit. The repaired gate passes40/40. Generated freshness, command surface,
+workflow, config budget and environment checks pass. Source/code format passes
+with affected follow-up ESLint repairs. Broader Windows cohorts remain pending;
+these results do not establish complete deep-suite acceptance.
+
+A fresh live inventory adds #1541–#1546, all P2: M3/E5 model semantics, native
+Outline source authority, embedding shape admission, viewer double-failure
+composition and actual quantization identity. Batch the shared embedding
+processing/identity owners together after this validation wave; retain Outline
+and viewer ownership as separate consumers. These six reports remain pending,
+not silently folded into prior source claims. Dispositions now141 historical,
+565 source,167 partial,90 pending (963 total); historical closing references
+remain unchanged. No issue was closed and no merge is authorized.

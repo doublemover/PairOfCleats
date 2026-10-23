@@ -9,6 +9,14 @@ below retain their original provenance. Current acceptance belongs in the
 [roadmap](../roadmap.md); neither those inventories nor an offline contract
 establish a fresh hosted security scan.
 
+## October 22 Windows validation preparation
+
+The locked install at source c849bf600 resolves optional `ip-address` 10.7.3 to
+10.7.4 for GHSA-rxp7-6hxx-x8q5. This is the only lockfile version change in that
+batch. The subsequent fresh `npm ci --include=dev --ignore-scripts` audit reports
+zero vulnerabilities. Full native setup and Windows suite acceptance remain
+separate, and this does not establish a hosted security rescan.
+
 ## October 7 hosted checkpoint
 
 The completion and dependency proposals through PR540 are merged or specifically

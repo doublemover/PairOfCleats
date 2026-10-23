@@ -48,6 +48,14 @@ npm build-from-source environment option. The explicit VSCE signing installer
 policy covers its locked package; package/release signing remains separately
 qualified.
 
+The Swift0.7.1 scanner patch uses 64-bit suppressor constants and bit tests for
+its token32 force-try marker. The original code shifts beyond Windows' 32-bit
+unsigned long (and a 32-bit signed literal). The native C regression checks the
+actual scanner's mask, suppressed try! context and ordinary bang control. The
+shared sourceChunking12 identity retires old derived meaning. Activation also
+parses and resets a real Swift force-try/bang sample; full runtime qualification
+remains separate.
+
 The [October 5 policy](../archived/node-runtime-policy-2026-10-05.md) records
 the superseded Node 24 baseline and earlier action migration. The
 [macOS comparison proposal](../benchmarks/node-runtime-comparison.md) remains

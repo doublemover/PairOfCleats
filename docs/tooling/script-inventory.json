@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-12T02:44:48.221Z",
+  "generatedAt": "2026-10-23T03:59:34.990Z",
   "scripts": [
     {
       "name": "audit:duplicates",
@@ -175,6 +175,11 @@
       "supportTier": "operator"
     },
     {
+      "command": "pairofcleats checkout diagnose",
+      "summary": "Inspect source-checkout readiness metadata without activating native dependencies.",
+      "supportTier": "operator"
+    },
+    {
       "command": "pairofcleats cli audit",
       "summary": "Run the local command-surface self-audit.",
       "supportTier": "operator"
@@ -218,6 +223,11 @@
       "command": "pairofcleats graph-context",
       "summary": "Build a graph context pack for a seed.",
       "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats graph-evidence",
+      "summary": "Page retained graph evidence in an explicitly pinned build; qualification pending.",
+      "supportTier": "experimental"
     },
     {
       "command": "pairofcleats history help",
@@ -420,6 +430,76 @@
       "supportTier": "operator"
     },
     {
+      "command": "pairofcleats storage cleanup-apply",
+      "summary": "Apply an exact reviewed disposable-cache plan through the cleanup owner.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats storage cleanup-plan",
+      "summary": "Inspect or plan storage cleanup-plan; mutations require their explicit reviewed apply action.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats storage configure-apply",
+      "summary": "Select an exact reviewed storage destination through a retained configuration receipt.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats storage configure-plan",
+      "summary": "Inspect or plan storage configure-plan; mutations require their explicit reviewed apply action.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats storage doctor",
+      "summary": "Inspect or plan storage doctor; mutations require their explicit reviewed apply action.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats storage explain",
+      "summary": "Inspect or plan storage explain; mutations require their explicit reviewed apply action.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats storage inspect",
+      "summary": "Inspect or plan storage inspect; mutations require their explicit reviewed apply action.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats storage list",
+      "summary": "Inspect or plan storage list; mutations require their explicit reviewed apply action.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats storage migration-apply",
+      "summary": "Inspect or plan storage migration-apply; mutations require their explicit reviewed apply action.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats storage migration-plan",
+      "summary": "Inspect or plan storage migration-plan; mutations require their explicit reviewed apply action.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats storage migration-rollback",
+      "summary": "Inspect or plan storage migration-rollback; mutations require their explicit reviewed apply action.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats storage migration-status",
+      "summary": "Inspect or plan storage migration-status; mutations require their explicit reviewed apply action.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats storage policy-apply",
+      "summary": "Inspect or plan storage policy-apply; mutations require their explicit reviewed apply action.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats storage policy-plan",
+      "summary": "Inspect or plan storage policy-plan; mutations require their explicit reviewed apply action.",
+      "supportTier": "operator"
+    },
+    {
       "command": "pairofcleats suggest-tests",
       "summary": "Suggest tests impacted by a change list.",
       "supportTier": "stable"
@@ -437,6 +517,11 @@
     {
       "command": "pairofcleats tooling install",
       "summary": "Install or plan external tooling dependencies.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats tooling lifecycle",
+      "summary": "Inspect tool installation receipts and lifecycle plans; unsupported mutations report blockers.",
       "supportTier": "operator"
     },
     {
@@ -465,6 +550,11 @@
       "supportTier": "operator"
     },
     {
+      "command": "pairofcleats workspace add",
+      "summary": "Plan added workspace members; write only with --apply.",
+      "supportTier": "operator"
+    },
+    {
       "command": "pairofcleats workspace build",
       "summary": "Build workspace indexes.",
       "supportTier": "stable"
@@ -475,6 +565,11 @@
       "supportTier": "stable"
     },
     {
+      "command": "pairofcleats workspace init",
+      "summary": "Plan a new workspace; write only with --apply.",
+      "supportTier": "operator"
+    },
+    {
       "command": "pairofcleats workspace manifest",
       "summary": "Generate workspace manifest.",
       "supportTier": "stable"
@@ -483,6 +578,11 @@
       "command": "pairofcleats workspace status",
       "summary": "Show workspace status.",
       "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats workspace validate",
+      "summary": "Validate workspace configuration without probing indexes.",
+      "supportTier": "operator"
     }
   ],
   "phaseSpecDir": null
