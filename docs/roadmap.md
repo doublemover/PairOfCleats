@@ -1,6 +1,6 @@
 # PairOfCleats Roadmap
 
-Status: Active
+Status: Paused at user request
 Last audited: 2026-10-23
 Last reconciled: 2026-10-23
 Canonical for: initiative status, execution order, and remaining work
@@ -30,10 +30,11 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Sixteen Sol 6.1/xhigh workers are finishing their current batches under an
+The sixteen Sol 6.1/xhigh worker wave followed an
 [exclusive owner plan](archived/parallel-implementation-wave-2026-10-23.md).
-The user now directs them to finish, commit and park; the lead continues solo
-with integration, publication and deferred validation. P0–P4 remain first.
+The user has now paused all work after committing completed batches. The
+[pause handoff](archived/implementation-pause-2026-10-23.md) preserves resume work.
+P0–P4 remain first when resumed.
 Fresh locked setup/native verification previously passed 37 packages/33 routes
 without warnings/errors; 26 focused cases, repaired 40-case gate and the complete
 front gate passed at their recorded source. At 245be5fc2 the first 70 broad cases
@@ -46,7 +47,7 @@ spans add immutable graph capability consumption, bounded opt-in JS/TS coarse
 worker analysis, distinct backend/waiter shutdown accounting and pending-provider
 fallback protection. MCP 1.10.0 and generated surfaces await final-tree refresh
 and qualification. New #1551 has a source repair preserving deferred artifact
-writes; #1552 phrase spill and #1553 exact API target joins are assigned in-flight.
+writes; #1552 phrase spill and #1553 exact API target joins are also committed.
 No complete deep-suite pass is claimed.
 
 ### Execution order
@@ -135,8 +136,8 @@ Unicode type roots and own parameter/argument names reach parser/cache/public
 consumers. Complete source-checked semantic tokens and iterative symbols preserve
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
-moduleExports3/recordsProducer3/sourceChunking16/importResolution11/pieceAssembly3/typeNormalization8/compilerBindings23/
-lspBindings43/rq10/cfgFlow28/callFlow44/valueSlice10/boundaryFlow10/workerFlow9. VSCode and Sublime retain
+moduleExports3/recordsProducer3/sourceChunking17/importResolution11/pieceAssembly3/typeNormalization8/compilerBindings23/
+lspBindings44/rq10/cfgFlow28/callFlow45/valueSlice10/boundaryFlow10/workerFlow9. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 Proto/SemanticDB/ShellCheck report adapters are3 and SCIP importer is5; the other
 five report adapters remain2.
