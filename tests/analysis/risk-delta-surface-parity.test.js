@@ -797,10 +797,10 @@ await withTemporaryEnv(env, async () => {
     const buildId = `build-unreadable-${family}`;
     await seedBuild({ repoCacheRoot, buildId, chunkUid: 'chunk-alpha-a', flows: [flowStableA], partialFlows: [] });
     const target = path.resolve(repoCacheRoot, 'builds', buildId, 'index-code', `${family}.json`);
-    const original = fsSync.readFileSync;
+    const original = fsSync.openSync;
     let readFailures = 0;
     try {
-      fsSync.readFileSync = function(file, ...args) {
+      fsSync.openSync = function(file, ...args) {
         if (typeof file === 'string' && path.resolve(file) === target) {
           readFailures += 1;
           throw Object.assign(new Error('controlled risk artifact access failure'), { code: 'EACCES' });
@@ -813,7 +813,7 @@ await withTemporaryEnv(env, async () => {
           seed: 'file:src/a.js', includePartialFlows: true }), { reason: 'risk_artifact_load_failed', artifact: family, causeCode: 'EACCES' });
       }
       assert.ok(readFailures >= 2, 'both delta directions must reach the real selected artifact failure');
-    } finally { fsSync.readFileSync = original; syncBuiltinESMExports(); }
+    } finally { fsSync.openSync = original; syncBuiltinESMExports(); }
   }
   await seedBuild({ repoCacheRoot, buildId: 'build-missing-piece', chunkUid: 'chunk-alpha-a', flows: [flowStableA], partialFlows: [] });
   await fs.rm(path.join(repoCacheRoot, 'builds', 'build-missing-piece', 'index-code', 'risk_flows.json'));

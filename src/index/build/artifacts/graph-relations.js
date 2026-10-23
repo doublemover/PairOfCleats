@@ -14,7 +14,7 @@ import { mergeRunsWithPlanner, readJsonlRows } from '../../../shared/merge.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { buildShardedJsonlMetaFields } from './writers/_common.js';
 import { writeSemanticQueryIndex } from './writers/semantic/query-index.js';
-import { withSemanticDiskWriter } from '../../semantic/disk-writes.js';
+import { withSemanticDiskWriter, writeSemanticJson } from '../../semantic/disk-writes.js';
 import { normalizeSemanticConfig } from '../../semantic/config.js';
 import { reopenSemanticDiskAccount } from '../incremental/working-set.js';
 import { compareStrings } from '../../../shared/sort.js';

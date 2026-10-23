@@ -372,9 +372,9 @@ export const assertArtifactPublicationReady = async ({
     }
     const expectedIndexDir = path.resolve(buildRoot, `index-${mode}`);
     if (payload.schemaVersion !== ARTIFACT_PUBLICATION_SCHEMA_VERSION || payload.mode !== mode
-      || path.resolve(payload.buildRoot || '.') !== path.resolve(buildRoot)
-      || path.resolve(payload.indexDir || '.') !== expectedIndexDir
-      || payload.generationId !== resolveGenerationId({ buildId: payload.buildId, buildRoot, mode })
+      || path.relative(path.resolve(payload.buildRoot || '.'), path.resolve(buildRoot)) !== ''
+      || path.relative(path.resolve(payload.indexDir || '.'), expectedIndexDir) !== ''
+      || payload.generationId !== resolveGenerationId({ buildId: payload.buildId, buildRoot: payload.buildRoot, mode })
       || payload.artifactSurfaceVersion !== ARTIFACT_SURFACE_VERSION) {
       throw new Error(`[artifact-publication] ${mode} record does not belong to the requested generation.`);
     }
