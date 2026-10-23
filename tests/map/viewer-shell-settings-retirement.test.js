@@ -34,4 +34,18 @@ const turn=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
   assert.equal(f.shell.adoptSettings(late),false,'late initializer cannot continue through a replaced shell publication');
   assert.equal(calls,1);await f.shell.dispose();assert.equal(f.state.viewerShell,sibling);await f.window.happyDOM.close();
 }
+{
+  const f=fixture();let calls=0;
+  const original={dispose(){assert.equal(this,original);calls++;}};
+  assert.equal(f.shell.adoptSource(original),true);
+  f.state.remoteSource={dispose(){assert.fail('current source cannot become the shell original source');}};
+  original.dispose=()=>assert.fail('original source disposer replacement cannot acquire authority');
+  await f.shell.dispose();assert.equal(calls,1);await f.window.happyDOM.close();
+}
+{
+  const f=fixture(),sibling={accepted:true};let calls=0;
+  f.state.viewerShell=sibling;
+  assert.equal(f.shell.adoptSource({dispose(){calls++;}}),false);
+  assert.equal(calls,1);await f.shell.dispose();assert.equal(f.state.viewerShell,sibling);await f.window.happyDOM.close();
+}
 console.log('Actual viewer shell retires original and late settings sessions without sibling callback adoption.');

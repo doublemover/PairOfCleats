@@ -28,3 +28,9 @@ dialog, ResizeObserver, native allocation and scheduling acceptance remain open.
 This owner covers the shell; renderer/source/controls/data owners retain their
 separate lifetimes. It does not claim disposal of inaccessible objects from a
 throwing native constructor or preservation of edits hidden behind host getters.
+
+The actual viewer initializer also hands its newly constructed remote source to
+this shell before publishing it. Page retirement invokes that captured source's
+original disposer rather than rereading `state.remoteSource`. A late/replaced
+shell refuses the handoff and retires the original source. Snapshot module
+worker and transport/body physical lifetimes remain separate original owners.

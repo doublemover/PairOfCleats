@@ -8,6 +8,7 @@ export const initViewerShell = (state, document) => {
   const lifetime = createViewerShellLifetime(state), { step, wrap, undo } = lifetime;
   let active = null, pinned = false, opener = null, inspectDismissed = false, settingsOwner = null, settingsSession = null;
   let settingsCaptured = false;
+  let sourceCaptured = false, sourceSession = null, sourceOwner = null;
   let app, bar, menu, inspector, status, title, panels, triggers;
   const properties = new Map();
   const property = (target, name, value) => {
@@ -60,6 +61,17 @@ export const initViewerShell = (state, document) => {
     get active() { return active; }, get retired() { return lifetime.retired; },
     get retirementFailures() { return lifetime.failures; }, get pendingOwners() { return lifetime.pendingOwners; },
     get resourceOwner() { return lifetime.owner; },
+    adoptSource(source) {
+      if (sourceCaptured && sourceSession !== source) throw new Error('Viewer shell already owns its original remote source.');
+      if (!sourceCaptured) { sourceCaptured = true; sourceSession = source; sourceOwner = lifetime.resource(source, 'original viewer shell remote source'); }
+      try { sourceOwner.assertCaptured(); }
+      catch (error) { lifetime.retain(error); lifetime.owner.retainFailure(error); throw error; }
+      let current;
+      try { current = lifetime.isCurrent(); }
+      catch (error) { lifetime.retain(error); lifetime.dispose(); throw error; }
+      if (!current) { lifetime.dispose(); lifetime.adoptRetired(sourceOwner); return false; }
+      return true;
+    },
     adoptSettings(session) {
       if (settingsCaptured && settingsSession !== session) throw new Error('Viewer shell already owns its original settings session.');
       if (!settingsCaptured) {

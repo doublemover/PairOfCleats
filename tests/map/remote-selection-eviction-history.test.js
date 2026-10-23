@@ -10,7 +10,7 @@ const transport=createMapSnapshotTransport({model,snapshotId:'source:eviction'})
 const wire=[];const demand=createDemandSnapshotSource({snapshot:'source:eviction',fetchPage:async(request,signal)=>{signal?.throwIfAborted();wire.push(request);return JSON.parse(transport.respond(request));}});
 await demand.init();
 Object.assign(state,{graphWorkerReady:true,graphWorkerClient:{request:(kind,payload,options={})=>demand.query(kind,payload,options.signal,options.revision)},dom:{summary:{textContent:''}},viewRevisions:null,cancelCameraMotion:null});
-const remote=createRemoteSource({manifest:transport.manifest,snapshot:'source:eviction',endpoint:'/unused',token:'fixture'});state.remoteSource=remote;
+const remote=createRemoteSource({manifest:transport.manifest,snapshot:'source:eviction',endpoint:'/unused',token:'fixture'});state.remoteSource=remote;state.sourceIndex=remote.index;
 const history=[];
 for(const i of [0,500,1199]){
   await remote.navigate({type:'member',address:{fileRow:i,memberOrdinal:0}},info=>history.push({...info}));

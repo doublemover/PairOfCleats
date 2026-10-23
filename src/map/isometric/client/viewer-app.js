@@ -28,19 +28,27 @@ import { createRendererEnhancementOwner } from './rendering/enhancement-owner.js
 import { initSnapshotData } from './data/session-owner.js';
 import { createRemoteSource } from './data/remote-source.js';
 import { buildSnapshotOverview } from './rendering/snapshot-overview.js';
+import { preserveSceneCleanupFailures } from './scene-retirement.js';
 
 const initViewer = async () => {
   const loaded=loadDomConfig();
   const {map:rawMap,dom}=loaded;
   const shell=initViewerShell(state,document);
   Object.assign(state,{rawMap,map:rawMap,dom,config:loaded.config,THREE:null});
-  if(loaded.config.snapshotData?.demand)state.remoteSource=createRemoteSource(loaded.config.snapshotData);
+  if(loaded.config.snapshotData?.demand){
+    const originalSource=createRemoteSource(loaded.config.snapshotData);
+    if(!shell.adoptSource(originalSource))return;
+    try{state.remoteSource=originalSource;}
+    catch(primary){
+      const errors=[];try{await shell.dispose();}catch(error){errors.push(error);}
+      throw preserveSceneCleanupFailures(primary,errors,{hasPrimary:true,forceAggregate:true});
+    }
+  }
   initMapData();initStackNavigation();
   initSnapshotData(loaded.config.snapshotData);
   if(state.remoteSource){
     state.afterSceneRebuild=()=>{if(!state.residentFiles){buildSnapshotOverview(state.remoteSource.manifest);focusStack();}};
     state.showSnapshotOverview=()=>{state.resetResidency?.();rebuildScene();};
-    window.addEventListener('pagehide',()=>state.remoteSource?.dispose(),{once:true});
   }
   dom.summary.textContent=`Available snapshot: ${state.sourceIndex.counts.files} files / ${state.sourceIndex.counts.members} members / ${state.sourceIndex.counts.edges} edges. Source browser ready.`;
   const settingsSession=await loadViewerSettingsSession(loaded.config,{onStatus:value=>shell.setSaveStatus(value)});
