@@ -34,7 +34,8 @@ export const emitCompilerTypeFacts = async ({ ts, checker, sourceFile, nodes, ex
       }
       let span = spanOf(lexicalNode || node);
       if (origin !== 'declared') {
-        span = node.name ? spanOf(node.name) : [span[0], Math.min(span[1], span[0] + 1)];
+        const anchorWidth = sourceFile.text.codePointAt(span[0]) > 0xffff ? 2 : 1;
+        span = node.name ? spanOf(node.name) : [span[0], Math.min(span[1], span[0] + anchorWidth)];
       }
       const placeholder = ref(Number.MAX_SAFE_INTEGER);
       const additions = [{ family: 'node', row: { id: placeholder.localId, kind: 'type', span, scope: owner,
