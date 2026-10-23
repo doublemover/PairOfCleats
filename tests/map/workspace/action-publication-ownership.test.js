@@ -13,7 +13,7 @@ const response = data => {
   const bytes = new TextEncoder().encode(JSON.stringify(data)); let read = false;
   return { ok: true, body: { getReader: () => ({ async read() {
     if (read) return { done: true }; read = true; return { done: false, value: bytes };
-  }, async cancel() {} }) } };
+  }, async cancel() {}, releaseLock() {} }) } };
 };
 const html = await fs.readFile(new URL('../../../src/map/workspace/index.html', import.meta.url), 'utf8');
 document.write(html.replace(/<script[\s\S]*?<\/script>/g, ''));

@@ -1,4 +1,5 @@
 import { VIEW_LIMITS } from './projection.js';
+import { readMapJsonBody } from '../isometric/client/data/response-body.js';
 const failures = new WeakMap();
 /** Bounded passive diagnostics; reporting cannot replace the original throw. */
 export function captureWorkspaceFailure(primary) {
@@ -24,21 +25,10 @@ export const OPERATIONS = Object.freeze({
   families: '/analysis/runtime-families', compare: '/analysis/runtime-compare',
   claims: '/analysis/runtime-claims'
 });
-export async function readBoundedJson(response, limit = VIEW_LIMITS.bytes) {
-  if (!response.ok) throw new Error(`Request failed (${response.status}); previous view retained.`);
-  const reader = response.body.getReader(); const chunks = []; let bytes = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read(); if (done) break;
-      bytes += value.byteLength;
-      if (bytes > limit) throw new RangeError('Response exceeds the 2 MiB view admission; narrow the query.');
-      chunks.push(value);
-    }
-  } finally { await reader.cancel(); }
-  const joined = new Uint8Array(bytes); let at = 0;
-  for (const chunk of chunks) { joined.set(chunk, at); at += chunk.byteLength; }
-  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(joined));
-}
+export const readBoundedJson = (response, limit = VIEW_LIMITS.bytes, { signal = null } = {}) => readMapJsonBody(response, {
+  signal, maxBytes: limit, budgetMessage: 'Response exceeds the 2 MiB view admission; narrow the query.',
+  assertResponse: original => { if (!original.ok) throw new Error(`Request failed (${original.status}); previous view retained.`); }
+});
 const generationKey = value => value && typeof value === 'object' ? JSON.stringify(Object.keys(value).sort().map(key => [key, value[key]])) : JSON.stringify(value);
 const ownValue = (value, key) => {
   if (value === null || typeof value !== 'object') return { present: false };
@@ -75,10 +65,10 @@ export function createRequestController({ fetchFn = globalThis.fetch } = {}) {
       if (operation === 'enrichment' && input.action && input.action !== 'plan') throw new Error('The viewer only reads enrichment plans; execution is not supported.');
       const hasExpectedGeneration = expectedGeneration !== null && expectedGeneration !== undefined;
       const originalGenerationKey = hasExpectedGeneration ? generationKey(expectedGeneration) : null;
-      controller?.abort(); controller = new AbortController(); const requestId = ++serial;
+      controller?.abort(); controller = new AbortController(); const originalController = controller, requestId = ++serial;
       const request = operation === 'enrichment' ? { ...input, action: 'plan' } : input;
-      const result = await readBoundedJson(await fetchFn(OPERATIONS[operation], { method: 'POST', signal: controller.signal,
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(request) }));
+      const result = await readBoundedJson(await fetchFn(OPERATIONS[operation], { method: 'POST', signal: originalController.signal,
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(request) }), VIEW_LIMITS.bytes, { signal: originalController.signal });
       if (requestId !== serial) throw Object.assign(new Error('Superseded request.'), { name: 'AbortError' });
       const generation = result?.result?.generation ?? result?.generation;
       if (hasExpectedGeneration && generationKey(generation) !== originalGenerationKey) throw new Error('Generation mismatch; previous view retained.');

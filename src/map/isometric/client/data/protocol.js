@@ -1,4 +1,5 @@
 import { MAP_DATA_PROTOCOL } from './revisions.js';
+import { readMapJsonBody } from './response-body.js';
 
 export { MAP_DATA_PROTOCOL };
 export const SNAPSHOT_PAGE_LIMITS=Object.freeze({rows:256,responseBytes:256*1024,requestBytes:16*1024,inFlight:2});
@@ -18,15 +19,8 @@ export const acceptSnapshotResponse = (response,request) => {
   return response;
 };
 
-export const readBoundedJsonResponse = async(response,{signal,maxBytes=SNAPSHOT_PAGE_LIMITS.responseBytes}={}) => {
-  if(!/^application\/json(?:;|$)/i.test(response.headers.get('content-type')||''))throw new Error('Snapshot transport requires JSON.');
-  const reader=response.body.getReader(),chunks=[];let bytes=0;
-  try{
-    for(;;){signal?.throwIfAborted();const result=await reader.read();if(result.done)break;bytes+=result.value.byteLength;
-      if(bytes>maxBytes)throw new Error('Snapshot response exceeds its byte budget.');chunks.push(result.value);}
-    const merged=new Uint8Array(bytes);let offset=0;for(const chunk of chunks){merged.set(chunk,offset);offset+=chunk.byteLength;}
-    const value=JSON.parse(new TextDecoder().decode(merged));
-    if(!response.ok)throw new Error(value.error||`Snapshot transport returned ${response.status}.`);
-    return value;
-  }finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
-};
+export const readBoundedJsonResponse = (response,{signal,maxBytes=SNAPSHOT_PAGE_LIMITS.responseBytes}={}) => readMapJsonBody(response, {
+  signal, maxBytes, budgetMessage: 'Snapshot response exceeds its byte budget.',
+  assertResponse: original => { if (!/^application\/json(?:;|$)/i.test(original.headers.get('content-type') || '')) throw new Error('Snapshot transport requires JSON.'); },
+  assertValue: (value, original) => { if (!original.ok) throw new Error(typeof value?.error === 'string' ? value.error : `Snapshot transport returned ${original.status}.`); }
+});

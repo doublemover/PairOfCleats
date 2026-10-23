@@ -4,21 +4,26 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const client = path.join(root, 'src/map/workspace');
 const vendor = path.join(root, 'node_modules/reladraw/dist');
+const readerClient = path.join(root, 'src/map/isometric/client');
+const readerPrefix = '/map/isometric/client/';
+const readerFiles = new Set(['data/response-body.js', 'scene-retirement.js', 'scene-work-prerequisites.js', 'scene-failure-inspection.js', 'scene-ownership-observation.js']);
 const files = new Set(['index.html', 'style.css', 'app.js', 'projection.js', 'find.js', 'reladraw.js', 'reladraw-worker.js', 'request.js', 'inspect.js', 'svg.js']);
 /** Static application assets contain no repository data; origin guard runs first. Data routes retain authentication. */
 export async function handleMapWorkspaceRoute(req, res, url, headers = {}) {
-  if (req.method !== 'GET' || !(url.pathname === '/map/workspace' || url.pathname.startsWith('/map/workspace/') || url.pathname.startsWith('/map/vendor/reladraw/'))) return false;
+  if (req.method !== 'GET' || !(url.pathname === '/map/workspace' || url.pathname.startsWith('/map/workspace/') || url.pathname.startsWith('/map/vendor/reladraw/') || url.pathname.startsWith(readerPrefix))) return false;
   const vendorRequest = url.pathname.startsWith('/map/vendor/reladraw/');
+  const readerRequest = url.pathname.startsWith(readerPrefix), readerName = readerRequest ? url.pathname.slice(readerPrefix.length) : null;
   const name = url.pathname === '/map/workspace' || url.pathname === '/map/workspace/' ? 'index.html' : url.pathname.split('/').at(-1);
-  const expected = vendorRequest ? `/map/vendor/reladraw/${name}` : `/map/workspace/${name}`;
+  const expected = readerRequest ? `${readerPrefix}${readerName}` : vendorRequest ? `/map/vendor/reladraw/${name}` : `/map/workspace/${name}`;
   if ((url.pathname !== '/map/workspace' && url.pathname !== '/map/workspace/' && url.pathname !== expected)
-    || (vendorRequest ? !/^[a-z][a-z0-9-]*\.js$/.test(name) : !files.has(name))) {
+    || (readerRequest ? !readerFiles.has(readerName) : vendorRequest ? !/^[a-z][a-z0-9-]*\.js$/.test(name) : !files.has(name))) {
     res.writeHead(404, headers); res.end('Not found.'); return true;
   }
   try {
-    const file = path.join(vendorRequest ? vendor : client, name);
+    const sourceRoot = readerRequest ? readerClient : vendorRequest ? vendor : client;
+    const file = path.join(sourceRoot, readerRequest ? readerName : name);
     // Reject symlink escapes in dependency or client assets.
-    const base = await fs.realpath(vendorRequest ? vendor : client), actual = await fs.realpath(file);
+    const base = await fs.realpath(sourceRoot), actual = await fs.realpath(file);
     if (!actual.startsWith(base + path.sep)) throw new Error('Asset outside root.');
     const bytes = await fs.readFile(actual);
     res.writeHead(200, { ...headers, 'Content-Type': name.endsWith('.html') ? 'text/html; charset=utf-8' : name.endsWith('.css') ? 'text/css' : 'text/javascript',
