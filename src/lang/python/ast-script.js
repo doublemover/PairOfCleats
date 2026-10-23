@@ -1,5 +1,5 @@
 export const PYTHON_AST_SCRIPT = `
-import ast, json, sys, warnings
+import ast, io, json, sys, tokenize, warnings
 
 dataflow_enabled = True
 control_flow_enabled = True
@@ -213,8 +213,39 @@ def format_arg_value(node):
         return "[...]"
     return "..."
 
+def declaration_prefixes(source):
+    prefixes = {}
+    pending = None
+    logical_start = True
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(source).readline):
+            if token.type in (tokenize.INDENT, tokenize.DEDENT, tokenize.NL, tokenize.COMMENT, tokenize.ENDMARKER):
+                continue
+            if token.type == tokenize.NEWLINE:
+                logical_start = True
+                continue
+            if not logical_start:
+                continue
+            logical_start = False
+            row, column = token.start
+            if token.type == tokenize.OP and token.string == "@":
+                byte_column = len(token.line[:column].encode("utf-8"))
+                if pending is None or pending[1] != byte_column:
+                    pending = (row, byte_column)
+            elif token.type == tokenize.NAME and token.string in ("def", "class", "async"):
+                byte_column = len(token.line[:column].encode("utf-8"))
+                if pending is not None and pending[1] == byte_column:
+                    prefixes[(row, byte_column)] = pending
+                pending = None
+            else:
+                pending = None
+    except (tokenize.TokenError, IndentationError):
+        # A tokenization mismatch cannot authorize a guessed prefix range.
+        return {}
+    return prefixes
+
 class Collector(ast.NodeVisitor):
-    def __init__(self):
+    def __init__(self, prefixes=None):
         self.defs = []
         self.imports = set()
         self.calls = []
@@ -229,6 +260,7 @@ class Collector(ast.NodeVisitor):
         self.lexical_stack = []
         self.call_omissions = {}
         self.lambda_scopes = 0
+        self.declaration_prefixes = prefixes or {}
     def current_func(self):
         return self.lexical_stack[-1]["name"] if self.lexical_stack else "(module)"
     def current_scope(self):
@@ -358,9 +390,11 @@ class Collector(ast.NodeVisitor):
         entry["definitionStartLine"] = entry["startLine"]
         entry["definitionStartCol"] = entry["startCol"]
         if getattr(node, "decorator_list", []):
-            first = min(node.decorator_list, key=lambda d: (d.lineno, d.col_offset))
-            entry["startLine"] = first.lineno
-            entry["startCol"] = max(0, first.col_offset - 1)
+            prefix = self.declaration_prefixes.get((node.lineno, node.col_offset))
+            if prefix is not None:
+                entry["startLine"], entry["startCol"] = prefix
+            else:
+                entry["sourceCoverageReason"] = "python_decorator_prefix_unavailable"
         entry["modifiers"] = {
             "async": False,
             "generator": False,
@@ -648,7 +682,7 @@ def parse_source(source, filename=None, dataflow_flag=True, control_flow_flag=Tr
             tree = ast.parse(source, filename=filename or "<unknown>")
     except Exception as e:
         return {"error": str(e)}
-    collector = Collector()
+    collector = Collector(declaration_prefixes(source))
     collector.visit(tree)
     for entry in collector.defs:
         calls = collector.call_map.get(entry["scopeId"])

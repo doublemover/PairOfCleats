@@ -41,6 +41,7 @@ export function buildPythonChunksFromAst(text, astData) {
       meta: {
         pythonScopeId: current.scopeId || null,
         ...(current.callOmissions ? { syntaxCallOmissions: current.callOmissions } : {}),
+        ...(current.sourceCoverageReason ? { sourceCoverage: 'partial', sourceCoverageReason: current.sourceCoverageReason } : {}),
         startLine: current.startLine,
         definitionStartLine: current.definitionStartLine ?? current.startLine,
         definitionStartCol: current.definitionStartCol ?? current.startCol,
