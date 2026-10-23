@@ -30,12 +30,13 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `0eebcf74e` captures original local reranker and map
-runtime callbacks, preserves symbolic/archive/reservation cleanup evidence, and
-retains evaluation cohort membership. Canonical JS/TS imports and runtime exports
-use importResolution9/callFlow35/moduleExports3; ANN/FTS contracts describe actual
-provider capabilities. Dispositions:141 historical,562 source,164 partial,90 pending.
-All authored checks remain unvalidated; durable failed-job cleanup recovery is open.
+Latest source continuation: `e3d75b2ff` preserves scalar compiler/source spans
+(compilerBindings22), retained-page/semantic advisory and lock failure evidence,
+original rerank policy and Sublime navigation packets. Workspace build accounts
+for unstarted/disabled/no-work targets. Shared HTTP/MCP search domains are authored;
+MCP1.9.0 snapshots remain stale pending generation and checks.
+Dispositions:141 historical,563 source,165 partial,88 pending. All new controls are
+unvalidated; durable service recovery and final Windows acceptance remain open.
 
 ### Execution order
 
@@ -84,7 +85,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `0eebcf74e` repairs watch/pointer and queue authority,
+Current source through `e3d75b2ff` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
