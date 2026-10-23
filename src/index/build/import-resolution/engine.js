@@ -1,3 +1,4 @@
+import { createBazelPackageIndex, isBazelSourceFile } from './bazel-label.js';
 import path from 'node:path';
 import { buildCacheKey } from '../../../shared/cache-key.js';
 import { sha1 } from '../../../shared/hash.js';
@@ -67,7 +68,7 @@ import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
 const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64|dev|proc|sys|run|tmp|home|root)(?:\/|$)/i;
 const SCHEME_RELATIVE_URL_RX = /^\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/:]|$)/i;
-const IMPORT_RESOLVER_VERSION = 'import-resolution-engine-v7';
+const IMPORT_RESOLVER_VERSION = 'import-resolution-engine-v8';
 
 const normalizeAliasRuleText = (value) => (
   typeof value === 'string'
@@ -318,7 +319,11 @@ export function resolveImportLinks({
     rootAbs: resolvedLookup.rootAbs,
     fsMemo,
     generatedPolicy,
-    configuredSnapshot: configuredBuildSnapshot
+    configuredSnapshot: configuredBuildSnapshot,
+    bazelLabels: createBazelPackageIndex({ entries: resolvedLookup.fileSet, references: importsByFile,
+      rootAbs: resolvedLookup.rootAbs, fsMemo, caseSensitive: resolvedLookup.caseSensitive !== false,
+      resolveTarget: candidate => resolvedLookup.fileSet.has(candidate) ? candidate
+        : resolvedLookup.caseSensitive === false ? resolvedLookup.fileLower.get(candidate.toLowerCase()) || null : null })
   });
   const fsExistsIndexFingerprint = resolveFsExistsIndexCacheFingerprint(resolverPlugins);
   const budgetPolicy = createImportResolutionBudgetPolicy({
@@ -687,13 +692,16 @@ export function resolveImportLinks({
     const nextSpecCache = cacheState && fileHash ? {} : null;
 
     for (const rawSpec of rawSpecs) {
+      const bazelLabel = isBazelSourceFile(relNormalized)
+        ? buildContext.bazelLabels.classify(rawSpec, { importerRel: relNormalized }) : null;
+      const hasBazelLabel = bazelLabel && bazelLabel.state !== 'not-label';
       const resolutionTrace = createImportResolutionTrace({
         importer: relNormalized,
         rawSpecifier: rawSpec
       });
       const spec = stageTracker.withStage(
         IMPORT_RESOLVER_STAGES.NORMALIZE,
-        () => normalizeImportSpecifier(rawSpec)
+        () => hasBazelLabel ? rawSpec : normalizeImportSpecifier(rawSpec)
       );
       if (!spec) {
         stageTracker.markMiss(IMPORT_RESOLVER_STAGES.NORMALIZE);
@@ -857,6 +865,18 @@ export function resolveImportLinks({
             fallbackPath = null,
             expiresAt = null
           } = cached);
+        } else if (hasBazelLabel) {
+          // Labels own their exact spelling and package boundary. Generic path,
+          // alias and package fallbacks cannot supply a different target.
+          resolvedType = bazelLabel.state === 'resolved' ? 'bazel-label' : 'unresolved';
+          resolvedPath = bazelLabel.resolvedPath || null;
+          if (resolvedPath) stageTracker.markHit(IMPORT_RESOLVER_STAGES.BUILD_SYSTEM_RESOLVER);
+          else stageTracker.markMiss(IMPORT_RESOLVER_STAGES.BUILD_SYSTEM_RESOLVER);
+          resolutionTrace.record({ stage: IMPORT_RESOLUTION_TRACE_STAGES.WORKSPACE_ANCHORING,
+            outcome: resolvedPath ? 'hit' : 'miss', adapter: 'bazel-label',
+            details: { labelState: bazelLabel.state, candidates: bazelLabel.candidates,
+              packageExists: bazelLabel.packageExists, targetExists: bazelLabel.targetExists,
+              packageWitnesses: bazelLabel.packageWitnesses || [], targetScope: bazelLabel.targetScope || null } });
         } else if (isRelative) {
           const base = spec.startsWith('/')
             ? normalizeRelPath(spec.slice(1))
@@ -985,7 +1005,8 @@ export function resolveImportLinks({
                   spec,
                   lookup: resolvedLookup,
                   goModulePath,
-                  dartPackageName
+                  dartPackageName,
+                  bazelLabels: buildContext.bazelLabels
                 })
               );
               if (languageResolved) {
@@ -1008,10 +1029,8 @@ export function resolveImportLinks({
                   outcome: 'miss',
                   details: { relative: false }
                 });
-                const bazelLabelLike = isBazelLabelSpecifier(spec)
-                  && (importerInfo?.extension === '.bzl'
-                    || importerInfo?.extension === '.star'
-                    || importerInfo?.extension === '.bazel');
+                const bazelLabelLike = isBazelLabelSpecifier(spec, { importerRel: importerInfo.importerRel })
+                  && isBazelSourceFile(importerInfo.importerRel);
                 if (bazelLabelLike) {
                   resolvedType = 'unresolved';
                   unresolvedReasonCodeHint = IMPORT_REASON_CODES.RESOLVER_GAP;

@@ -8,13 +8,16 @@ const entries = [
   { rel: 'src/proto/client.proto' },
   { rel: 'schema/api.graphql' },
   { rel: 'api/openapi.yaml' },
+  { rel: 'tools/BUILD' },
+  { rel: 'go/BUILD' },
+  { rel: 'app/BUILD' },
   { rel: 'tools/defs.bzl' },
   { rel: 'go/extensions.bzl' },
   { rel: 'app/local.bzl' }
 ];
 
 const buildContext = createImportBuildContext({ entries });
-assert.equal(buildContext.version, 'build-context-v5');
+assert.equal(buildContext.version, 'build-context-v6');
 assert.equal(typeof buildContext.fingerprint, 'string');
 assert.equal(Array.isArray(buildContext.plugins), true);
 assert.deepEqual(

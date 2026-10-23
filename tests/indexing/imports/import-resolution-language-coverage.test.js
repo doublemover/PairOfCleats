@@ -85,6 +85,7 @@ await write('nix/modules/default.nix', '{ }:\n{ }\n');
 await write('nix/pkgs/tool/default.nix', '{ }:\n{ }\n');
 await write('nix/git-hooks.nix', '{ }:\n{ }\n');
 
+for (const directory of ['tools', 'tools/pkg', 'app', 'go']) await write(`${directory}/BUILD`, '# package fixture\n');
 await write('tools/defs.bzl', 'def macro():\n  pass\n');
 await write('tools/pkg/pkg.bzl', 'def pkg_macro():\n  pass\n');
 await write('tools/pkg/defs.bzl', 'def defs_macro():\n  pass\n');
@@ -94,6 +95,7 @@ await write(
     'load("//tools:defs.bzl", "macro")',
     'load("//tools/pkg", "pkg_macro")',
     'load("//tools/pkg:defs", "defs_macro")',
+    'load("//tools/pkg:defs.bzl", "explicit_defs_macro")',
     'load(":local.bzl", "local_macro")',
     'load(":missing_local.bzl", "missing_local_macro")',
     'load("@repo_tools//defs:missing.bzl", "missing_external_macro")',
@@ -190,6 +192,10 @@ const entries = [
   'nix/modules/default.nix',
   'nix/pkgs/tool/default.nix',
   'nix/git-hooks.nix',
+  'tools/BUILD',
+  'tools/pkg/BUILD',
+  'app/BUILD',
+  'go/BUILD',
   'tools/defs.bzl',
   'tools/pkg/pkg.bzl',
   'tools/pkg/defs.bzl',
@@ -250,6 +256,7 @@ const importsByFile = {
     '//tools:defs.bzl',
     '//tools/pkg',
     '//tools/pkg:defs',
+    '//tools/pkg:defs.bzl',
     ':local.bzl',
     ':missing_local.bzl',
     '@repo_tools//defs:missing.bzl'
@@ -337,7 +344,7 @@ assertLinks('web/frpc/index.html', ['web/frpc/src/main.ts']);
 assertLinks('cmake/main.cmake', ['cmake/modules/common.cmake']);
 assertLinks('cmake/sub/main.cmake', ['cmake/modules/common.cmake']);
 assertLinks('nix/flake.nix', ['nix/git-hooks.nix', 'nix/modules/default.nix', 'nix/pkgs/tool/default.nix']);
-assertLinksUnordered('app/rules.bzl', ['app/local.bzl', 'tools/defs.bzl', 'tools/pkg/defs.bzl', 'tools/pkg/pkg.bzl']);
+assertLinksUnordered('app/rules.bzl', ['app/local.bzl', 'tools/defs.bzl', 'tools/pkg/defs.bzl']);
 assertLinks('MODULE.bazel', ['go/extensions.bzl']);
 assertLinks('Makefile', ['Dockerfile-kubernetes']);
 assertLinks(
@@ -360,8 +367,13 @@ assertLinks(
 );
 
 const realUnresolvedSamples = enrichUnresolvedImportSamples(resolution.unresolvedSamples || []);
-assert.equal(realUnresolvedSamples.length, 8, 'expected unresolved samples from shell, bazel label, and generated coverage');
+assert.equal(realUnresolvedSamples.length, 10, 'expected unresolved samples from shell, bazel label, and generated coverage');
 const realBySpecifier = Object.fromEntries(realUnresolvedSamples.map((entry) => [entry.specifier, entry]));
+// Bazel default/extensionless targets are retained queries, not guessed .bzl files.
+for (const specifier of ['//tools/pkg', '//tools/pkg:defs']) {
+  assert.equal(realBySpecifier[specifier]?.reasonCode, 'IMP_U_RESOLVER_GAP');
+  assert.equal(realBySpecifier[specifier]?.resolverAdapter, 'bazel-label');
+}
 assert.equal(realBySpecifier['./lib/missing.sh']?.reasonCode, 'IMP_U_MISSING_FILE_RELATIVE');
 assert.equal(realBySpecifier['./lib/missing.sh']?.failureCause, 'missing_file');
 assert.equal(realBySpecifier['./lib/missing.sh']?.disposition, 'actionable');
@@ -427,7 +439,7 @@ const taxonomySamples = enrichUnresolvedImportSamples([
 ]);
 const taxonomy = summarizeUnresolvedImportTaxonomy(taxonomySamples);
 assert.equal(taxonomy.liveSuppressed, 2);
-assert.equal(taxonomy.gateSuppressed, 5);
+assert.equal(taxonomy.gateSuppressed, 7);
 assert.equal(taxonomy.actionable, 6);
 assert.equal(Object.keys(taxonomy.reasonCodes).length > 0, true, 'expected reason-code aggregation');
 assert.deepEqual(
@@ -435,6 +447,7 @@ assert.deepEqual(
   {
     build_system_resolver: 8,
     classify: 3,
+    language_resolver: 2,
     filesystem_probe: 1,
     normalize: 1
   },
@@ -443,7 +456,7 @@ assert.deepEqual(
 assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.resolverAdapters || {})),
   {
-    'bazel-label': 3,
+    'bazel-label': 5,
     'generated-artifacts': 4
   },
   'expected resolver adapter aggregation in taxonomy'
@@ -465,13 +478,14 @@ assert.deepEqual(
 );
 assert.equal(Number.isFinite(Number(taxonomy.actionableRate)), true, 'expected actionable rate in taxonomy');
 assert.equal(taxonomy.actionableUnresolvedRate, taxonomy.actionableRate, 'expected actionable rate alias');
-assert.equal(taxonomy.parserArtifactRate, 1 / 13, 'expected parser artifact rate in taxonomy');
-assert.equal(taxonomy.resolverGapRate, 0, 'expected resolver-gap rate in taxonomy');
+assert.equal(taxonomy.parserArtifactRate, 1 / 15, 'expected parser artifact rate in taxonomy');
+assert.equal(taxonomy.resolverGapRate, 2 / 15, 'expected resolver-gap rate in taxonomy');
 assert.deepEqual(Object.fromEntries(Object.entries(taxonomy.failureCauses)), {
   generated_expected_missing: 4,
   missing_dependency: 2,
   missing_file: 4,
   parser_artifact: 1,
+  resolver_gap: 2,
   unknown: 2
 });
 

@@ -231,6 +231,19 @@ full cleanup-category capability or deep-suite green is claimed.
   symlinks or real tool execution. Existing parity gives its POSIX positive
   fixture execute permission instead of proving mere existence.
 
+- #1704: typed Bazel admission preserves explicit/default target identity before
+  path normalization. Positive resolution and unresolved classification share
+  bounded BUILD-package observations; descendant files cannot prove a package,
+  stale listed BUILD files cannot override owned metadata, and unknown coverage
+  cannot authorize a guessed edge. Local labels use the nearest established
+  package and cannot cross subpackages. Generic relative/alias fallbacks cannot
+  reinterpret admitted Bazel labels. Old shorthand/extensionless queries remain
+  negative coverage, justified by the primary Bazel contract, with explicit
+  positives added. Exact candidate/BUILD witnesses survive graph JSON receipts.
+  Pure index and collector-to-graph cold/warm metadata regressions are authored,
+  unrun. Semantic importResolution 11 to 12; build context v6 / resolver v8.
+  See [the contract](../contracts/bazel-label-source-resolution.md).
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -419,7 +432,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1701](https://github.com/doublemover/PairOfCleats/issues/1701) | [Perf] Enforce native bridge manifest byte admission before full canonical expansion | Pending full-scope review |
 | [#1702](https://github.com/doublemover/PairOfCleats/issues/1702) | [P2] Align change-impact direction with caller and importer dependency semantics | Pending full-scope review |
 | [#1703](https://github.com/doublemover/PairOfCleats/issues/1703) | [P2] Preserve actionable API-contract diagnostics in policy failures and human reports | Pending full-scope review |
-| [#1704](https://github.com/doublemover/PairOfCleats/issues/1704) | [P2] Preserve exact Bazel label identity instead of resolving unrelated package fallback files | Pending full-scope review |
+| [#1704](https://github.com/doublemover/PairOfCleats/issues/1704) | [P2] Preserve exact Bazel label identity instead of resolving unrelated package fallback files | Source repair committed; runtime proof pending |
 | [#1705](https://github.com/doublemover/PairOfCleats/issues/1705) | [P2] Reject non-launchable command candidates without shadowing later valid PATH entries | Source repair committed; runtime proof pending |
 | [#1706](https://github.com/doublemover/PairOfCleats/issues/1706) | [P2] Reject skipped architecture rules before reporting a complete clean evaluation | Pending full-scope review |
 | [#1707](https://github.com/doublemover/PairOfCleats/issues/1707) | [Enhancement] Preserve source and policy witnesses in actionable architecture reports | Pending full-scope review |
