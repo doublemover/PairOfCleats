@@ -6,6 +6,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { createCompatibilityIndex } from '../../helpers/index-compatibility-fixture.js';
 import { writeFederationRepoFixture } from './repo-fixture.js';
 import { runFederatedSearch } from '../../../src/retrieval/federation/coordinator.js';
+import { parseFederatedCliRequest } from '../../../src/retrieval/federation/args.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-fed-real-'));
 applyTestEnv({ cacheRoot: path.join(root, 'cache'), embeddings: 'off' });
@@ -29,5 +30,12 @@ try {
     assert.equal(page.pagination.hasMore, i < 3);
   }
   assert.deepEqual(hits.sort(), ['a0', 'a1', 'b0', 'b1']);
+  const cliRequest = parseFederatedCliRequest(['--workspace', workspacePath, '--mode', 'code',
+    '--backend', 'memory', '--type', 'FunctionDeclaration', '--top', '1', '--']);
+  const cliFirst = await runFederatedSearch(cliRequest);
+  const cliSecond = await runFederatedSearch({ ...cliRequest, cursor: cliFirst.pagination.nextCursor });
+  assert.match(cliFirst.code[0].name, /0$/);
+  assert.equal(cliSecond.code[0].name, cliFirst.code[0].name.slice(0, -1) + '1',
+    'real core search receives the local continuation before the CLI terminator');
   console.log('real federated search exhausts filter matches without ranking');
 } finally { await fs.rm(root, { recursive: true, force: true }); }

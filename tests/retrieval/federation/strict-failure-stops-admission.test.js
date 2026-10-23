@@ -158,6 +158,18 @@ try {
   assert.equal(partial.status, 'partial');
   assert.deepEqual(bestEffort.slice().sort(), orderedRepos.map(repo => repo.repoRootCanonical).sort());
 
+  for (const strict of [false, true]) {
+    let calls = 0;
+    const cachedRequest = { ...request, query: `cancelled-cache-hit-${strict}`, strict };
+    const context = { searchFn: async () => { calls++; return emptyResult(); } };
+    await runFederatedSearch(cachedRequest, context);
+    assert.equal(calls, 4);
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(runFederatedSearch(cachedRequest, { ...context, signal: controller.signal }), { code: ERROR_CODES.CANCELLED });
+    assert.equal(calls, 4, 'pre-aborted requests cannot return a cached success or start another child');
+  }
+
   // Exclude only this sibling's extracted-prose cohort so it needs separate
   // code/prose/records calls. Strict failure must stop its second mode admission.
   await fs.writeFile(path.join(descriptors.get(sibling).indexes['extracted-prose'].indexDir, 'index_state.json'),

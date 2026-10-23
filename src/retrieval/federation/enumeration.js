@@ -9,6 +9,7 @@ const keys = { code: 'code', prose: 'prose', 'extracted-prose': 'extractedProse'
 export const withoutCursor = (args) => {
   const result = [];
   for (let i = 0; i < args.length; i += 1) {
+    if (args[i] === '--') { result.push(...args.slice(i)); break; }
     if (args[i] === '--cursor') { i += 1; continue; }
     if (args[i].startsWith('--cursor=')) continue;
     result.push(args[i]);
@@ -16,26 +17,51 @@ export const withoutCursor = (args) => {
   return result;
 };
 
+const isLocalCursor = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,8192}$/.test(value);
+const admitRepositoryPage = (result, key, previousCursor) => {
+  const pagination = result?.pagination;
+  if (result?.ok === false || !pagination || typeof pagination !== 'object' || Array.isArray(pagination)) {
+    throw invalid('Repository did not return structured enumeration metadata.');
+  }
+  const hits = result[key];
+  if (!Array.isArray(hits) || hits.some(hit => !hit || typeof hit !== 'object' || Array.isArray(hit))) {
+    throw invalid('Repository returned invalid enumeration hits.');
+  }
+  const nextCursor = pagination.nextCursor ?? null;
+  if (nextCursor !== null && !isLocalCursor(nextCursor)) throw invalid('Repository returned an invalid enumeration cursor.');
+  if (pagination.returned != null && (!Number.isSafeInteger(pagination.returned) || pagination.returned !== hits.length)) {
+    throw invalid('Repository enumeration count does not match the selected mode.');
+  }
+  if (pagination.hasMore != null && (typeof pagination.hasMore !== 'boolean' || pagination.hasMore !== (nextCursor !== null))) {
+    throw invalid('Repository enumeration continuation metadata is inconsistent.');
+  }
+  if (nextCursor !== null && (nextCursor === previousCursor || hits.length === 0)) {
+    throw invalid('Repository enumeration did not advance. Restart without --cursor.');
+  }
+  return { hits, nextCursor };
+};
+
 /** One repository/mode page per request keeps work and cursor state bounded. */
-export const enumerateWorkspace = async ({ tasks, args, cursor, manifestHash, search, signal, verifyGeneration }) => {
+export const enumerateWorkspace = async ({ tasks, args, cursor, manifestHash, search, signal, verifyGeneration, verifyResult }) => {
   const identity = createHash('sha256').update(stableStringify({
     tasks: tasks.map(({ repo, mode }) => [repo.repoId, mode]), args
   })).digest('hex');
   let position = 0;
   let localCursor = null;
   let timeAnchor = Date.now();
-  if (cursor) {
+  if (cursor != null) {
     let decoded;
     try {
       if (typeof cursor !== 'string' || !/^[A-Za-z0-9_-]{1,16384}$/.test(cursor)) throw new Error();
       decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString());
     } catch { throw invalid('Invalid workspace cursor. Restart without --cursor.'); }
-    if (decoded.version !== 1 || decoded.identity !== identity || decoded.generation !== manifestHash) {
+    if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)
+      || decoded.version !== 1 || decoded.identity !== identity || decoded.generation !== manifestHash) {
       throw invalid('Workspace filters, selection or indexed generation changed. Restart without --cursor.');
     }
     if (!Number.isSafeInteger(decoded.position) || decoded.position < 0 || decoded.position >= tasks.length
-      || !Number.isSafeInteger(decoded.timeAnchor) || decoded.timeAnchor < 0
-      || (decoded.localCursor !== null && typeof decoded.localCursor !== 'string')) throw invalid('Invalid workspace cursor position.');
+      || !Number.isSafeInteger(decoded.timeAnchor) || decoded.timeAnchor < 0 || decoded.timeAnchor > 8.64e15
+      || (decoded.localCursor !== null && !isLocalCursor(decoded.localCursor))) throw invalid('Invalid workspace cursor position.');
     position = decoded.position;
     localCursor = decoded.localCursor;
     timeAnchor = decoded.timeAnchor;
@@ -63,17 +89,20 @@ export const enumerateWorkspace = async ({ tasks, args, cursor, manifestHash, se
       emitOutput: false, exitOnError: false, signal,
       [INTERNAL_EXACT_SEARCH_MODE]: task.mode
     });
-    if (!result?.pagination) throw invalid('Repository did not return structured enumeration metadata.');
+    signal?.throwIfAborted();
     const key = keys[task.mode];
-    output[key] = (result[key] || []).map((hit) => ({ ...hit,
+    const admitted = admitRepositoryPage(result, key, localCursor);
+    verifyResult?.(task, result);
+    output[key] = admitted.hits.map((hit) => ({ ...hit,
       repoId: task.repo.repoId, repoAlias: task.repo.alias || null,
       globalId: `${task.repo.repoId}:${hit.chunkUid || hit.id}`
     }));
     output.repos.push({ repoId: task.repo.repoId, mode: task.mode, pagination: result.pagination });
-    localCursor = result.pagination.nextCursor || null;
+    localCursor = admitted.nextCursor;
     if (!localCursor) position += 1;
   }
   await verifyGeneration();
+  signal?.throwIfAborted();
   const hasMore = position < tasks.length;
   output.pagination = {
     order: 'repository-mode-indexed-order',

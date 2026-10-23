@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { runFederatedSearch } from '../../../src/retrieval/federation/coordinator.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
+import { loadWorkspaceConfig } from '../../../src/workspace/config.js';
+import { generateWorkspaceManifest } from '../../../src/workspace/manifest.js';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
 
@@ -48,9 +50,11 @@ await fs.writeFile(workspacePath, `{
 }`, 'utf8');
 
 let capturedGenerationContext = null;
+const admitted = (await generateWorkspaceManifest(loadWorkspaceConfig(workspacePath), { write: false })).manifest.repos[0];
 const response = await runFederatedSearch({
   workspacePath,
   query: 'generation-context-forwarding',
+  debug: { includePaths: true },
   search: { mode: 'code', top: 5 }
 }, {
   resolveRepoCaches: async () => ({
@@ -59,7 +63,7 @@ const response = await runFederatedSearch({
     buildId: 'build-ctx',
     buildRoot,
     activeBuildRoot: buildRoot,
-    buildGenerationKey: 'test-generation-key'
+    buildGenerationKey: admitted.build.generationKey
   }),
   searchFn: async (_repoRootCanonical, params) => {
     capturedGenerationContext = params.generationContext || null;
@@ -75,8 +79,19 @@ const response = await runFederatedSearch({
 
 assert.equal(capturedGenerationContext?.buildId, 'build-ctx');
 assert.equal(capturedGenerationContext?.activeBuildRoot, buildRoot);
-assert.equal(capturedGenerationContext?.buildGenerationKey, 'test-generation-key');
+assert.equal(capturedGenerationContext?.buildGenerationKey, admitted.build.generationKey);
 assert.equal(response.repos[0]?.freshness?.buildId, 'build-ctx');
 assert.ok(response.repos[0]?.freshness?.generationKey, 'expected freshness generation key in response');
+assert.equal(capturedGenerationContext?.buildGenerationKey, response.repos[0].freshness.generationKey);
+assert.equal(capturedGenerationContext?.activeBuildRoot, response.repos[0].freshness.activeBuildRoot);
+
+let searched = false;
+await assert.rejects(runFederatedSearch({ workspacePath, query: 'generation-mismatch', search: { mode: 'code' } }, {
+  resolveRepoCaches: async () => ({ buildId: 'build-other', buildGenerationKey: 'other-generation' }),
+  searchFn: async () => { searched = true; return { code: [] }; }
+}), { code: 'INVALID_REQUEST' });
+assert.equal(searched, false, 'host generation mismatch rejects before any child read');
+
+await fs.rm(tempRoot, { recursive: true, force: true });
 
 console.log('federated repo generation context forwarding test passed');

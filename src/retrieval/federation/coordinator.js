@@ -30,6 +30,7 @@ import { parseSearchArgs, hasSearchFilterArgs } from '../cli-args.js';
 import { bindRelativeModificationArgs } from './time-filter.js';
 import { captureFederatedShadow, publishFederatedShadow } from './shadow-routing.js';
 import { createFederatedAdmission } from './admission.js';
+import { verifyFederatedModeGeneration } from './generation.js';
 
 export const resolveFederatedUnavailableModes = ({repos,requestedModes,eligibleModesByRepo,cohortExcluded={}}) =>
   (repos || []).filter(repo=>repo.enabled !== false).flatMap(repo=>(requestedModes || [])
@@ -579,6 +580,10 @@ const resolveWorkspaceConfig = (request, context) => {
  * host caches keep their host ownership, including after the caller rejects.
  */
 export const runFederatedSearch = async (request = {}, context = {}) => {
+  const checkAbort = () => {
+    if (context.signal?.aborted) throw createError(ERROR_CODES.CANCELLED, 'Federated search cancelled.');
+  };
+  checkAbort();
   const timeAnchor = Date.now();
   const query = String(request.query || '').trim();
   if (query && (request.cursor || request.search?.cursor)) {
@@ -591,9 +596,12 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   }
 
   const manifestResult = await generateWorkspaceManifest(workspaceConfig, { write: true });
+  checkAbort();
   const manifest = manifestResult.manifest;
   const verifyRankedGeneration = async () => {
+    checkAbort();
     const current = await generateWorkspaceManifest(workspaceConfig, { write: false });
+    checkAbort();
     if (current.manifest.manifestHash !== manifest.manifestHash) {
       throw createError(ERROR_CODES.INVALID_REQUEST, 'Workspace generation changed during ranked search. Retry against the current generation.');
     }
@@ -680,6 +688,8 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     const result = await enumerateWorkspace({
       tasks, args: enumerationArgs, cursor: request.cursor || request.search?.cursor,
       manifestHash: manifest.manifestHash, search: context.searchFn || coreSearch, signal: context.signal,
+      verifyResult: (task, result) => verifyFederatedModeGeneration({ repoId: task.repo.repoId,
+        modes: [task.mode], result, manifestRepo: manifest.repos.find(repo => repo.repoId === task.repo.repoId) }),
       verifyGeneration: async () => {
         const current = await generateWorkspaceManifest(workspaceConfig, { write: false });
         if (current.manifest.manifestHash !== manifest.manifestHash) {
@@ -759,6 +769,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     cachePath,
     repoSetId: workspaceConfig.repoSetId
   });
+  checkAbort();
   const cachedEntry = findFederatedQueryCacheEntry(cacheData, {
     keyHash: cacheKeyInfo.keyHash,
     manifestHash: manifest.manifestHash,
@@ -774,9 +785,11 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
         keyHash: cacheKeyInfo.keyHash, maxEntries: cachePolicy.maxEntries });
       if (!touched) await persistFederatedQueryCache({ cachePath, cache: cacheData });
     } catch {}
+    checkAbort();
     return JSON.parse(stableStringify(cachedEntry.result));
   }
   const persistCachedResult = async (result) => {
+    checkAbort();
     try {
       upsertFederatedQueryCacheEntry(cacheData, {
         keyHash: cacheKeyInfo.keyHash,
@@ -902,6 +915,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     const stable = toStableResponse(emptyResponse, includePaths);
     await verifyRankedGeneration();
     await persistCachedResult(stable);
+    checkAbort();
     emitShadow([]);
     return stable;
   }
@@ -999,6 +1013,8 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
                 buildGenerationKey: admittedBuild.generationKey || null
               } : resolvedGeneration
             });
+            verifyFederatedModeGeneration({ repoId: repo.repoId, modes: plan.modesCovered, result,
+              manifestRepo: manifestRepoMap.get(repo.repoId) });
             if (result?.backend) combined.backend = result.backend;
             for (const mode of plan.modesCovered) {
               const key = MODE_PAYLOAD_KEYS[mode];
@@ -1146,5 +1162,6 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     await persistCachedResult(stable);
   }
   emitShadow(perRepoResults, manifestRepoMap);
+  checkAbort();
   return stable;
 };

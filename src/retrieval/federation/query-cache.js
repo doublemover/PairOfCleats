@@ -165,8 +165,8 @@ export const buildFederatedQueryCacheKeyPayload = ({
   limits = {},
   runtime = {}
 } = {}) => ({
-  // Boolean complements now admit rows outside the positive lexical seed.
-  v: 4,
+  // Child mode signatures now prove generation admission before result caching.
+  v: 5,
   repoSetId: repoSetId || null,
   manifestHash: manifestHash || null,
   workspace: normalizeWorkspace(workspace),
