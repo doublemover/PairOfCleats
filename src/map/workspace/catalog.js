@@ -7,6 +7,7 @@ import { loadPiecesManifest } from '../../shared/artifact-io/manifest.js';
 import { loadJsonArrayArtifactRows, loadJsonObjectArtifact } from '../../shared/artifact-io/loaders/core.js';
 import { ARTIFACT_SCHEMA_DEFS, MANIFEST_ONLY_ARTIFACT_NAMES } from '../../contracts/schemas/artifacts.js';
 import { createAbortError, throwIfAborted } from '../../shared/abort.js';
+import { combineMapReadCleanupFailure } from '../shared/read-outcome.js';
 const MAX_READ_BYTES = 2 * 1024 * 1024;
 const arraySchema = schema => schema?.type === 'array' || schema?.anyOf?.some(item => item.type === 'array');
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -34,16 +35,16 @@ export function createArtifactBrowser({
     : loadJsonArrayArtifactRows(dir, name, { maxBytes: MAX_READ_BYTES, manifest, strict: true, signal })
 } = {}) {
   const readers = new Map(), entries = new Set(), operations = new Set();
-  let closed = false, closing = null, idleTimer = null, cleanupFailure = null;
+  let closed = false, closing = null, idleTimer = null, cleanupFailure, cleanupFailed = false;
   const ensureOpen = () => {
     if (closed) throw Object.assign(new Error('Artifact browser is closed.'), { status: 503 });
-    if (cleanupFailure) throw Object.assign(new Error('Artifact reader cleanup failed; close this service.'), { status: 503, cause: cleanupFailure });
+    if (cleanupFailed) throw Object.assign(new Error('Artifact reader cleanup failed; close this service.'), { status: 503, cause: cleanupFailure });
   };
   const closeEntry = entry => {
     entry.controller?.abort(createAbortError('Artifact reader closed.'));
     for (const [key, saved] of readers) if (saved === entry) readers.delete(key);
     if (!entry.closing) entry.closing = Promise.resolve().then(() => entry.iterator.return?.())
-      .catch(error => { cleanupFailure ||= error; throw error; })
+      .catch(error => { if (!cleanupFailed) { cleanupFailed = true; cleanupFailure = error; } throw error; })
       .finally(() => entries.delete(entry));
     return entry.closing;
   };
@@ -86,6 +87,8 @@ export function createArtifactBrowser({
     return { dir, manifest, generation: hash(manifest) };
   };
   return {
+    get cleanupFailed() { return cleanupFailed; },
+    get cleanupFailure() { return cleanupFailure; },
     close() {
       if (!closing) {
         closed = true;
@@ -97,7 +100,7 @@ export function createArtifactBrowser({
           const results = await Promise.allSettled([...entries].map(closeEntry));
           const failure = results.find(result => result.status === 'rejected');
           if (failure) throw failure.reason;
-          if (cleanupFailure) throw cleanupFailure;
+          if (cleanupFailed) throw cleanupFailure;
         })();
       }
       return closing;
@@ -149,7 +152,7 @@ export function createArtifactBrowser({
       const abortEntry = () => entry.controller.abort(signal.reason || createAbortError());
       signal.addEventListener('abort', abortEntry, { once: true });
       if (signal.aborted) abortEntry();
-      const rows = []; let bytes = 0, done = false;
+      const rows = []; let bytes = 0, done = false, completing = false;
       try {
         while (rows.length < 128) {
           throwIfAborted(signal);
@@ -166,10 +169,15 @@ export function createArtifactBrowser({
         let nextCursor = null;
         if (!done) {
           nextCursor = randomUUID(); entry.touched = clock(); readers.set(nextCursor, entry);
-        } else await closeEntry(entry);
+        } else { completing = true; await closeEntry(entry); }
         return { kind: 'artifact-page', generation, name, mode: 'rows', rows, ordinal, cursor: nextCursor,
           coverage: { returned: rows.length, total: null, state: done ? 'complete' : 'partial' }, provenance: pieces.slice(0, 20) };
-      } catch (error) { await closeEntry(entry); throw error; }
+      } catch (error) {
+        if (completing) throw error; // The only failure was terminal completion cleanup.
+        try { await closeEntry(entry); }
+        catch (cleanup) { throw combineMapReadCleanupFailure(error, [cleanup], { hasPrimary: true, terminal: true }); }
+        throw error;
+      }
       finally { signal.removeEventListener('abort', abortEntry); }
     }); }
   };

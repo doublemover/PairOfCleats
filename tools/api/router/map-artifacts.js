@@ -1,5 +1,6 @@
 import { sendJson, sendError } from '../response.js';
 import { parseJsonBodyOrSendError, resolveRepoOrSendError } from './request-helpers.js';
+import { projectMapReadFailure } from '../../../src/map/shared/read-outcome.js';
 export async function handleMapArtifactsRoute({ req, res, requestUrl, corsHeaders, parseJsonBody, resolveRepo, browser }) {
   const parsed = await parseJsonBodyOrSendError(req, res, parseJsonBody, corsHeaders); if (!parsed.ok) return;
   const input = parsed.payload;
@@ -12,6 +13,9 @@ export async function handleMapArtifactsRoute({ req, res, requestUrl, corsHeader
       || typeof input.generation !== 'string' || (input.cursor != null && typeof input.cursor !== 'string'))) throw Object.assign(new Error('Invalid logical artifact name, generation or cursor.'), { status: 400 });
     const result = requestUrl.pathname === '/map/catalog' ? await browser.catalog(resolved.repoPath, controller.signal) : await browser.read(resolved.repoPath, input, controller.signal);
     sendJson(res, 200, { ok: true, result }, corsHeaders);
-  } catch (error) { sendError(res, error.status || 400, 'ARTIFACT_UNAVAILABLE', error.message, {}, corsHeaders); }
+  } catch (error) {
+    const projected = projectMapReadFailure(error, { terminal: browser.cleanupFailed === true, cleanupError: browser.cleanupFailure });
+    sendError(res, projected.status, projected.code, projected.message, projected.details, corsHeaders);
+  }
   finally { req.off('aborted', abort); res.off('close', abort); res.off('error', abort); }
 }
