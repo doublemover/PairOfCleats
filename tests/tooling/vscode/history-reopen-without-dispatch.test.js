@@ -34,10 +34,10 @@ try {
   assert.equal(harness.fetchCalls.length, 0);
   assert.deepEqual(harness.workspaceStateStore.get('pairofcleats.searchHistory'), before);
 
-  harness.queuedFetchResults.push({ status: 200, json: { code: [{ file: 'src/fresh.js', startLine: 1 }] } });
   await harness.runCommand('pairofcleats.repeatLastSearch');
-  assert.equal(harness.fetchCalls.length, 1, 'only explicit repeat dispatches');
-  assert.equal(harness.workspaceStateStore.get('pairofcleats.searchHistory').length, 3);
+  assert.equal(harness.fetchCalls.length, 0, 'legacy transport/argv history cannot manufacture semantic replay authority');
+  assert.match(harness.errorMessages.at(-1), /semantic request/);
+  assert.equal(harness.workspaceStateStore.get('pairofcleats.searchHistory').length, 2);
   assert.equal(harness.workspaceStateStore.get('pairofcleats.searchHistory').find(entry => entry.resultSetId === 'older').hits[0].file, 'src/old.js');
 } finally {
   harness.restoreGlobals();

@@ -92,8 +92,10 @@ function carryFilterPageHistory(originalHits, normalizedHits) {
 
 function continuationInvocation(invocation, cursor) {
   if (!cursor || !invocation) throw new Error('No indexed continuation is available.');
+  const request = invocation.request ? { ...invocation.request,
+    options: { ...invocation.request.options, cursor } } : null;
   if (invocation.kind === 'api-search') {
-    return { ...invocation, payload: { ...invocation.payload, cursor } };
+    return { ...invocation, ...(request ? { request } : {}), payload: { ...invocation.payload, cursor } };
   }
   const args = [...invocation.args];
   const end = args.indexOf('--');
@@ -102,7 +104,7 @@ function continuationInvocation(invocation, cursor) {
   if (existing >= 0 && existing < boundary) args.splice(existing, 2);
   const insertion = args.indexOf('--');
   args.splice(insertion < 0 ? args.length : insertion, 0, '--cursor', cursor);
-  return { ...invocation, args };
+  return { ...invocation, ...(request ? { request } : {}), args };
 }
 
 module.exports = { normalizeFilterPagination, admitFilterPage, filterHitIdentity, mergeFilterPage, carryFilterPageHistory, continuationInvocation };

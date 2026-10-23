@@ -59,6 +59,7 @@ const {
 } = require('./runtime.js');
 const { buildDestinationBoundApiHeaders, workspaceTrustError } = require('./security.js');
 const { normalizeWorkflowRequest, hasRequiredWorkflowInput } = require('./workflow-replay.js');
+const { normalizeSearchRequest, captureSearchRequest, admitSearchReplay } = require('./search-replay.js');
 const { boundedFacts, captureSearchExplanation, renderSearchExplanation, normalizeCapturedExplanation, normalizeSearchDiagnostics } = require('./search-explanation.js');
 
 // Check immediately at each sink, including after async prompts/probes and
@@ -925,9 +926,12 @@ function normalizeWorkflowInvocation(rawInvocation, fallbackTimeoutMs = 60000) {
 function normalizeSearchInvocation(rawInvocation) {
   if (!rawInvocation || typeof rawInvocation !== 'object') return null;
   const kind = String(rawInvocation.kind || 'cli-search').trim() || 'cli-search';
+  const request = normalizeSearchRequest(rawInvocation.request);
+  const requestInvalid = rawInvocation.requestInvalid === true || rawInvocation.request != null && !request;
   if (kind === 'api-search') {
     return {
       kind,
+      request, requestInvalid,
       baseUrl: normalizeApiBaseUrl(rawInvocation.baseUrl),
       timeoutMs: Number.isFinite(rawInvocation.timeoutMs) ? rawInvocation.timeoutMs : DEFAULT_API_TIMEOUT_MS,
       transport: rawInvocation.transport ? String(rawInvocation.transport) : 'api',
@@ -938,6 +942,7 @@ function normalizeSearchInvocation(rawInvocation) {
   }
   return {
     kind,
+    request, requestInvalid,
     command: String(rawInvocation.command || '').trim(),
     args: Array.isArray(rawInvocation.args) ? rawInvocation.args.map((value) => String(value)) : [],
     transport: rawInvocation.transport ? String(rawInvocation.transport) : 'cli'
@@ -1039,7 +1044,7 @@ function resolvePassiveRepoContext() {
     return {
       ok: false,
       kind: 'ambiguous-workspace',
-      repoLabel: `${candidates.length || eligibleFolders.length} repos`
+      repoLabel: `${candidates.length} repos`
     };
   }
   return {
@@ -1625,7 +1630,7 @@ async function recordSearchResultSet({
     backend: searchOptions.backend,
     pagination: normalizeFilterPagination(payload?.pagination),
     totalHits: hits.length,
-    invocation,
+    invocation: { ...invocation, request: invocation?.request || captureSearchRequest(repoContext.repoRoot, query, searchOptions) },
     explanation: explain ? captureSearchExplanation(payload) : null,
     searchDiagnostics: normalizeSearchDiagnostics(payload?.retrieval?.diagnostics),
     hits
@@ -1652,8 +1657,12 @@ function presentSearchDiagnostics(resultSet, historical = false) {
     const labels = facts.actions.map(action => action === 'index-report' ? 'Index Health' : 'Tooling Doctor');
     // Labels resolve locally to registered read-only commands. Response text is
     // never executable and receiving metadata never dispatches a workflow.
+    const scope = operations.current();
+    const repoContext = { ok: true, ...createStoredRepoContext(resultSet) };
     Promise.resolve(vscode.window.showInformationMessage(`PairOfCleats: ${message}`, ...labels)).then(label => {
-      if (labels.includes(label) && actionIds[label]) return vscode.commands.executeCommand(actionIds[label]);
+      if (operations.isCurrent(scope) && labels.includes(label) && actionIds[label]) {
+        return runOperatorCommand(OPERATOR_COMMANDS_BY_ID.get(actionIds[label]), { repoContext });
+      }
       return undefined;
     }).catch(() => {});
     output.show?.(true);
@@ -1733,10 +1742,9 @@ async function reopenLastResults() {
 async function rerunResultSet(nodeOrResultSet) {
   const resultSet = nodeOrResultSet?.resultSet || nodeOrResultSet;
   const invocation = resultSet?.invocation || null;
-  const canRerun = (invocation?.kind === 'api-search' && invocation.payload)
-    || (invocation?.command && Array.isArray(invocation?.args));
+  const canRerun = normalizeSearchRequest(invocation?.request) && !invocation?.requestInvalid;
   if (!canRerun) {
-    vscode.window.showErrorMessage('PairOfCleats cannot rerun that result set because its invocation was not preserved.');
+    vscode.window.showErrorMessage('Saved search has no admitted semantic request. Reopen its evidence or deliberately run a new search.');
     return;
   }
   const output = getOutputChannel();
@@ -1786,7 +1794,10 @@ async function openIndexDirectory() {
     vscode.window.showErrorMessage('PairOfCleats could not locate the config-dump command.');
     return;
   }
-  const config = getExtensionConfiguration();
+  const config = getExtensionConfiguration(repoContext);
+  const execution = await resolveExecutionMode(config, spec.id);
+  if (!operations.isCurrent()) return;
+  if (!execution.ok) { vscode.window.showErrorMessage(execution.message); return; }
   const cliResolution = resolveCli(repoContext.repoRoot, config);
   const invocation = resolveOperatorInvocation(spec, repoContext, cliResolution, undefined);
   if (!invocation.ok) {
@@ -4810,12 +4821,12 @@ async function executeOwnedSearchCommand({
             ? `${hit.score.toFixed(2)} ${hit.scoreType || ''}`.trim()
             : 'n/a';
           const label = hit.name || hit.headline || fileLabel;
-          return {
+          return Object.freeze({
             label,
             description: fileLabel,
             detail: `${hit.section} • score ${scoreLabel}`,
-            hit
-          };
+            hit: Object.freeze({ ...hit })
+          });
         });
         const selection = await vscode.window.showQuickPick(items, {
           title: `PairOfCleats results (${hits.length})`,
@@ -4823,6 +4834,7 @@ async function executeOwnedSearchCommand({
           matchOnDetail: true
         });
         if (!selection) return;
+        if (!items.includes(selection)) { vscode.window.showErrorMessage('Search selection must identify an original result from this picker.'); return; }
         const openResult = await openSearchHit(vscode, repoContext, selection.hit);
         if (!openResult.ok) {
           output.appendLine(`[search] open failure path=${openResult.filePath}`);
@@ -4963,12 +4975,12 @@ async function executeOwnedSearchCommand({
               ? `${hit.score.toFixed(2)} ${hit.scoreType || ''}`.trim()
               : 'n/a';
             const label = hit.name || hit.headline || fileLabel;
-            return {
+            return Object.freeze({
               label,
               description: fileLabel,
               detail: `${hit.section} • score ${scoreLabel}`,
-              hit
-            };
+              hit: Object.freeze({ ...hit })
+            });
           });
 
           const selection = await vscode.window.showQuickPick(items, {
@@ -4979,6 +4991,9 @@ async function executeOwnedSearchCommand({
           if (!selection) {
             resolve();
             return;
+          }
+          if (!items.includes(selection)) {
+            vscode.window.showErrorMessage('Search selection must identify an original result from this picker.'); resolve(); return;
           }
 
           const selected = selection.hit;
@@ -5441,10 +5456,28 @@ function runSavedSearchInvocation(resultSet, repoContext) {
 
 async function runOwnedSavedSearch(resultSet, repoContext, appendTo = null) {
   const output = getOutputChannel();
-  const invocation = resultSet?.invocation || null;
+  let invocation = normalizeSearchInvocation(resultSet?.invocation);
+  const config = getExtensionConfiguration(repoContext);
+  const policy = readApiSettings(config);
+  if (policy.error) { vscode.window.showErrorMessage(policy.error); return { ok: false }; }
+  const capturedApi = invocation?.kind === 'api-search';
+  if (capturedApi && (policy.mode === 'cli' || policy.baseUrl !== invocation.baseUrl)
+    || !capturedApi && policy.mode === 'require') {
+    vscode.window.showErrorMessage('Transport policy or endpoint changed. Run a new search with the intended transport.');
+    return { ok: false };
+  }
+  let request;
+  try {
+    request = admitSearchReplay(invocation, repoContext.repoRoot, resultSet.query,
+      normalizeStringArray(config.get(VSCODE_SETTINGS.extraSearchArgsKey)));
+  } catch (error) { vscode.window.showErrorMessage(error.message); return { ok: false }; }
+  if (!validateReplayRepoContext(repoContext, capturedApi ? 'api' : 'cli')) return { ok: false };
+  const execution = await resolveExecutionMode(config, request.options.explain ? 'explain-search' : 'search', capturedApi ? 'api' : 'cli');
+  if (!operations.isCurrent()) return { ok: false };
+  if (!execution.ok) { vscode.window.showErrorMessage(execution.message); return { ok: false }; }
   let hits = [];
   let payload = null;
-  if (invocation?.kind === 'api-search') {
+  if (capturedApi) {
     const key = `${invocation.baseUrl}::${repoContext.repoUri?.toString?.() || ''}`;
     const mapping = readWorkspaceState('pairofcleats.serviceRepositories', {})?.[key];
     try {
@@ -5452,12 +5485,14 @@ async function runOwnedSavedSearch(resultSet, repoContext, appendTo = null) {
         throw new Error('Saved search repository mapping changed or is unavailable. Select the service repository and restart browsing.');
       }
       assertServiceMappingCurrent(repoContext, mapping, vscode.workspace.workspaceFolders);
+      invocation = { ...invocation, timeoutMs: execution.timeoutMs,
+        payload: buildApiSearchRequest(request.query, mapping.serviceRoot, request.options) };
     } catch (error) { vscode.window.showErrorMessage(error.message); return { ok: false }; }
     const result = await requestApiJson(invocation.baseUrl, '/search', {
       method: 'POST',
       payload: invocation.payload,
-      headers: buildApiHeaders(getExtensionConfiguration(repoContext), invocation.baseUrl),
-      timeoutMs: invocation.timeoutMs || DEFAULT_API_TIMEOUT_MS,
+      headers: execution.headers,
+      timeoutMs: execution.timeoutMs,
       label: 'PairOfCleats search'
     });
     if (!result.ok) {
@@ -5472,14 +5507,18 @@ async function runOwnedSavedSearch(resultSet, repoContext, appendTo = null) {
     } catch (error) { vscode.window.showErrorMessage(error.message); return { ok: false }; }
     hits = collectSearchHits(payload);
   } else {
+    const cliResolution = resolveCli(repoContext.repoRoot, config);
+    if (!cliResolution.ok) { vscode.window.showErrorMessage(cliResolution.message); return { ok: false }; }
+    invocation = { ...invocation, command: cliResolution.command,
+      args: [...cliResolution.argsPrefix, ...buildSearchArgs(request.query, repoContext.repoRoot, request.options)] };
     const searchTimeoutMs = 60000;
     const spec = { title: 'PairOfCleats search', progressTitle: 'PairOfCleats search', timeoutMs: searchTimeoutMs };
-    const env = buildSpawnEnv(getExtensionConfiguration(repoContext));
+    const env = buildSpawnEnv(config);
     const result = await runBufferedJsonCommand({
       spec,
       repoRoot: repoContext.repoRoot,
-      command: resultSet.invocation.command,
-      args: resultSet.invocation.args,
+      command: invocation.command,
+      args: invocation.args,
       env,
       output
     });
@@ -5513,15 +5552,12 @@ async function runOwnedSavedSearch(resultSet, repoContext, appendTo = null) {
   }
   await recordSearchResultSet({
     repoContext,
-    query: resultSet.query,
-    searchOptions: {
-      mode: resultSet.mode,
-      backend: resultSet.backend
-    },
-    invocation: resultSet.invocation,
+    query: request.query,
+    searchOptions: request.options,
+    invocation,
     hits,
     payload,
-    explain: Boolean(resultSet.explanation)
+    explain: request.options.explain === true
   });
   return { ok: true, hits };
 }

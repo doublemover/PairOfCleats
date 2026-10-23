@@ -21,21 +21,24 @@ const position = new harness.fakeVscode.Position(0, 3);
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 try {
   harness.activate();
+  const definitions = harness.definitionProviders[0].provider;
+  const references = harness.referenceProviders[0].provider;
+  const symbols = harness.documentSymbolProviders[0].provider;
+  const completions = harness.completionProviders[0].provider;
   token.isCancellationRequested = true;
-  for (const method of ['provideDefinitionsAtPosition', 'provideCompletionItemsAtPosition']) {
-    await harness.extension._test[method](document, position, token);
-  }
-  await harness.extension._test.provideReferencesAtPosition(document, position, {}, token);
-  await harness.extension._test.provideDocumentSymbolsForDocument(document, token);
+  await definitions.provideDefinition(document, position, token);
+  await completions.provideCompletionItems(document, position, token);
+  await references.provideReferences(document, position, {}, token);
+  await symbols.provideDocumentSymbols(document, token);
   assert.equal(harness.spawnCalls.length, 0);
   token.isCancellationRequested = false;
-  const duringLookup = harness.extension._test.provideDefinitionsAtPosition(document, position, token);
+  const duringLookup = definitions.provideDefinition(document, position, token);
   cancel();
   await duringLookup;
   assert.equal(harness.spawnCalls.length, 0, 'cancellation during asynchronous repo resolution prevents dispatch');
   token.isCancellationRequested = false;
   harness.queuedResults.push({ persistent: true });
-  const running = harness.extension._test.provideCompletionItemsAtPosition(document, position, token);
+  const running = completions.provideCompletionItems(document, position, token);
   await flush();
   assert.equal(harness.spawnCalls.length, 1);
   cancel();
