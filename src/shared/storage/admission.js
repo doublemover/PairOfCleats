@@ -26,7 +26,13 @@ const reservationKeys = ['schemaVersion', 'kind', 'hostname', 'scope', 'resource
   'root', 'device', 'requiredBytes', 'minimumFreeBytes', 'hardBytes', 'measuredBytes', 'metric', 'id'].sort().join(',');
 const readReservation = async file => {
   const read = await readVerifiedContainedFile(path.parse(file).root, file, { maxBytes: 64 * 1024 });
-  return { value: JSON.parse(read.buffer.toString('utf8')), hash: read.hash, stat: read.stat };
+  // Default Stats numeric inode values can round native Windows file IDs.
+  // The verified reader already captured exact BigInt descriptor identity.
+  const fileIdentity = read.fileIdentity;
+  if (!fileIdentity || !['dev', 'ino'].every(key => typeof fileIdentity[key] === 'string' && /^\d+$/u.test(fileIdentity[key]))) {
+    throw fail('write-reservation-file-identity-unknown');
+  }
+  return { value: JSON.parse(read.buffer.toString('utf8')), hash: read.hash, stat: read.stat, fileIdentity };
 };
 const reservations = async directory => {
   const entries = [];
@@ -195,9 +201,9 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
           if (current.hash !== sealed.hash || digest(current.value) !== digest(value)) throw fail('write-reservation-owner-changed');
           const stat = await fs.lstat(file, { bigint: true });
           if (!settlementResourcesSettled()) throw settlementFailure();
-          if (!stat.isFile() || stat.nlink !== 1n || String(stat.dev) !== String(current.stat.dev)
-            || String(stat.ino) !== String(current.stat.ino) || String(stat.dev) !== String(sealed.stat.dev)
-            || String(stat.ino) !== String(sealed.stat.ino)) throw fail('write-reservation-file-changed');
+          if (!stat.isFile() || stat.nlink !== 1n || String(stat.dev) !== current.fileIdentity.dev
+            || String(stat.ino) !== current.fileIdentity.ino || String(stat.dev) !== sealed.fileIdentity.dev
+            || String(stat.ino) !== sealed.fileIdentity.ino) throw fail('write-reservation-file-changed');
           const removal = await fs.unlink(file);
           if (removal !== undefined) throw fail('reservation-removal-unconfirmed');
           removed = true;
