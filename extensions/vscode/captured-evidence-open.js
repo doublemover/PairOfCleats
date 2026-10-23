@@ -1,4 +1,5 @@
 const { readVerifiedSource, createDocumentAuthority, assertQualifiedEditor } = require('./document-authority.js');
+const { reportEditorFailure } = require('./editor-failure-evidence.js');
 const MAX_SOURCE_ROWS_BYTES = 256 * 1024;
 
 function captureRows(rows) {
@@ -34,7 +35,7 @@ function createCapturedEvidenceOpener({ vscode, operations, getEvidence, collect
     };
     try {
       captured = getEvidence();
-      if (!captured) { vscode.window.showInformationMessage('Run Context Pack or Risk Explain to capture evidence first.'); return; }
+      if (!captured) { await vscode.window.showInformationMessage('Run Context Pack or Risk Explain to capture evidence first.'); return; }
       if (!current()) return;
       const repoSnapshot = { ...captured.repoContext };
       const repoUri = repoSnapshot.repoUri?.toString?.();
@@ -59,7 +60,7 @@ function createCapturedEvidenceOpener({ vscode, operations, getEvidence, collect
       if (!target.ok) throw new Error(target.message);
       if (!current()) return;
       if (!hit.sourceHash) {
-        vscode.window.showInformationMessage('Captured evidence has no full source hash. Opening the file; indexed range freshness is unknown.');
+        await vscode.window.showInformationMessage('Captured evidence has no full source hash. Opening the file; indexed range freshness is unknown.');
         if (!current()) return;
         const document = await vscode.workspace.openTextDocument(target.targetUri);
         if (!current()) return;
@@ -85,14 +86,13 @@ function createCapturedEvidenceOpener({ vscode, operations, getEvidence, collect
       if (precise) {
         editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
         editor.revealRange(editor.selection);
-      } else vscode.window.showInformationMessage('Evidence source bytes were verified. Its producer supplied no exact UTF-16 range, so only the source file was opened.');
+      } else await vscode.window.showInformationMessage('Evidence source bytes were verified. Its producer supplied no exact UTF-16 range, so only the source file was opened.');
     } catch (error) {
-      const inspectionErrors = []; let message = 'Captured evidence range unavailable.';
-      try { const value = error?.message; if (typeof value === 'string') message = value; } catch (inspection) { inspectionErrors.push(inspection); }
-      let report = false;
-      try { report = current(); } catch (inspection) { if (inspection !== error) inspectionErrors.push(inspection); }
-      if (report) try { vscode.window.showErrorMessage(`Captured evidence range unavailable: ${message}`); } catch (inspection) { inspectionErrors.push(inspection); }
-      return Object.freeze({ ok: false, primaryError: error, inspectionErrors: Object.freeze(inspectionErrors) });
+      const original = await reportEditorFailure(error, {
+        isCurrent: () => { try { return current(); } catch (inspection) { if (inspection === error) return false; throw inspection; } },
+        notify: message => vscode.window.showErrorMessage(message), prefix: 'Captured evidence range unavailable: '
+      });
+      return Object.freeze({ ok: false, primaryError: error, inspectionErrors: original.inspectionErrors });
     }
   }, { key: 'captured-evidence-open' });
 }

@@ -36,6 +36,15 @@ additional native command arguments separate from that private prerequisite.
 
 Original falsey failures and independent diagnostic/notification inspection
 failures remain available separately in immutable returned failure evidence.
+The opener uses the shared original failure snapshot and awaits its original
+error notification. Reusing a frozen failure across deliberate attempts cannot
+reinspect its message or lazy stack. An asynchronous notification rejection
+remains an exact independent inspection value beside the original operation
+failure, including when a newer opener supersedes it while notification is
+pending. Completing that old notification cannot publish a new source action.
+Informational notices are also awaited: the original publication is checked
+again before an unknown-source notice can lead to file opening. Failed notices
+retain their original failure; they cannot silently authorize the next action.
 No observer-bearing error is adopted as proof that another owner settled. A
 display, clipboard write or file write already accepted by its native boundary
 is still awaited; revocation does not establish rollback or native cancellation.

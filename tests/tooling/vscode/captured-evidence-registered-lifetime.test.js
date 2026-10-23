@@ -69,6 +69,17 @@ try {
   const older = run(); await entered.promise; harness.quickPickQueue.length = 0;
   harness.quickPickQueue.push(originalItem, 'Open Source'); before = selections; await run(); gate.resolve(); await older;
   assert.equal(selections, before + 1, 'late registered opener cannot publish a second exact selection');
+
+  reset(); await capture();
+  const operationFailure = Object.freeze(new Error('registered original captured picker'));
+  const notificationFailure = Object.freeze(new Error('registered original captured notification'));
+  harness.quickPickQueue.push(() => { throw operationFailure; });
+  const originalNotify = harness.fakeVscode.window.showErrorMessage;
+  harness.fakeVscode.window.showErrorMessage = async message => { harness.errorMessages.push(message); throw notificationFailure; };
+  try {
+    const result = await run(); assert.equal(result.primaryError, operationFailure);
+    assert.deepEqual(result.inspectionErrors, [notificationFailure]);
+  } finally { harness.fakeVscode.window.showErrorMessage = originalNotify; }
 } finally {
   for (const gate of gates) gate.resolve();
   if (originalOpen) harness.fakeVscode.workspace.openTextDocument = originalOpen;

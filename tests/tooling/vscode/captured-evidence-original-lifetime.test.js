@@ -18,8 +18,8 @@ const workspace = await prepareVsCodeFixtureWorkspace('vscode/workspace-root', {
 const file = workspace.resolvePath('src', 'app.ts'), text = 'Widget\n';
 const sourceHash = createHash('sha256').update(text).digest('hex');
 const fixtures = [], gates = [];
-const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; });
-  const gate = { promise, resolve }; gates.push(gate); return gate; };
+const deferred = () => { let resolve, reject; const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+  const gate = { promise, resolve, reject }; gates.push(gate); return gate; };
 const uri = filePath => ({ scheme: 'file', fsPath: path.resolve(filePath), toString() { return pathToFileURL(this.fsPath).href; } });
 const source = () => ({ file: 'src/app.ts', name: 'Widget', sourceHash, coordinateUnit: 'utf16', startLine: 1, startCol: 1, endLine: 1, endCol: 7 });
 const fixture = () => {
@@ -57,7 +57,8 @@ const fixture = () => {
         return { document, set selection(selection) { value.selections.push(selection); }, revealRange() {} };
       },
       async showSaveDialog() { return value.onSave ? value.onSave() : uri(workspace.resolvePath('chosen.json')); },
-      showErrorMessage(message) { value.errors.push(message); }, showInformationMessage(message) { value.infos.push(message); }
+      showErrorMessage(message) { value.errors.push(message); return value.notify?.(message); },
+      showInformationMessage(message) { value.infos.push(message); return value.inform?.(message); }
     }, env: { clipboard: { async writeText(content) { value.copies.push(content); } } } };
   const vscode = value.operations.wrapVscode(api);
   const copy = createEvidenceCollection({ vscode, operations: value.operations, getResults() { assert.fail('opener supplies its original result set'); },
@@ -137,5 +138,55 @@ try {
   const failure = await failingCurrent.run(); assert.equal(failure.primaryError, original); assert.deepEqual(failure.inspectionErrors, [inspection]);
   assert.equal(reads, 1); assert.equal(observed, 2, 'original authority inspection failure cannot be retried during reporting');
   assert.equal(failure.inspectionErrors[0].cacheOwnershipReleased(), false);
+
+  let sharedReads = 0;
+  const sharedInspection = Object.freeze({ cacheOwnershipReleased: () => false });
+  const sharedOriginal = Object.freeze(Object.defineProperties({}, {
+    message: { get() { sharedReads++; throw sharedInspection; } },
+    stack: { get() { assert.fail('captured opening diagnostics do not inspect a lazy stack'); } }
+  }));
+  const repeated = fixture(); repeated.collect = () => { throw sharedOriginal; };
+  const firstShared = await repeated.run(), secondShared = await repeated.run();
+  assert.equal(firstShared.primaryError, sharedOriginal); assert.equal(secondShared.primaryError, sharedOriginal);
+  assert.deepEqual(firstShared.inspectionErrors, [sharedInspection]); assert.deepEqual(secondShared.inspectionErrors, [sharedInspection]);
+  assert.equal(sharedReads, 1, 'shared original diagnostic snapshot survives later deliberate opener attempts');
+
+  for (const notification of [undefined, null, false, 0, '', Object.freeze(new Error('original notification failed'))]) {
+    const operation = Object.freeze(new Error('original captured source operation'));
+    const failed = fixture(); failed.collect = () => { throw operation; }; failed.notify = async () => { throw notification; };
+    const result = await failed.run(); assert.equal(result.primaryError, operation); assert.deepEqual(result.inspectionErrors, [notification]);
+    assert.equal(failed.errors.length, 1); assert.equal(failed.sourcePicks, 0);
+  }
+  const late = fixture(), notifyEntered = deferred(), notifyGate = deferred();
+  const oldPrimary = Object.freeze(new Error('old captured opening operation'));
+  late.collect = () => { throw oldPrimary; };
+  late.notify = async () => { notifyEntered.resolve(); await notifyGate.promise; };
+  const oldNotification = late.run(); await notifyEntered.promise;
+  late.collect = null; late.notify = null; await late.run(); notifyGate.reject(false);
+  const oldResult = await oldNotification;
+  assert.equal(oldResult.primaryError, oldPrimary); assert.deepEqual(oldResult.inspectionErrors, [false]);
+  assert.equal(late.selections.length, 1); assert.equal(late.errors.length, 1, 'settling old notification cannot publish another failure over a newer opener');
+
+  const informational = fixture(), informationError = Object.freeze(new Error('original unknown-source notice'));
+  delete informational.latest.payload.primary.sourceHash;
+  informational.inform = async () => { throw informationError; };
+  const informationResult = await informational.run(); assert.equal(informationResult.primaryError, informationError);
+  assert.equal(informational.sourceOpens, 0); assert.equal(informational.sourceShows, 0);
+
+  const noticed = fixture(), noticeEntered = deferred(), noticeGate = deferred();
+  delete noticed.latest.payload.primary.sourceHash;
+  noticed.inform = async () => { noticeEntered.resolve(); await noticeGate.promise; };
+  const oldNotice = noticed.run(); await noticeEntered.promise;
+  noticed.latest = { ...noticed.latest, payload: { primary: source() } }; noticed.inform = null;
+  await noticed.run(); noticeGate.resolve(); await oldNotice;
+  assert.equal(noticed.sourceOpens, 1); assert.equal(noticed.selections.length, 1,
+    'superseded informational notice cannot begin an unknown-source file open after the newer captured selection');
+
+  const missingCapture = fixture(); missingCapture.latest = null; missingCapture.inform = async () => { throw false; };
+  const missingResult = await missingCapture.run(); assert.equal(missingResult.primaryError, false); assert.equal(missingCapture.errors.length, 0);
+  const noExactRange = fixture(), rangeNoticeError = Object.freeze(new Error('original verified-file notice'));
+  noExactRange.latest.payload.primary.coordinateUnit = 'utf8-byte'; noExactRange.inform = async () => { throw rangeNoticeError; };
+  const rangeNoticeResult = await noExactRange.run(); assert.equal(rangeNoticeResult.primaryError, rangeNoticeError);
+  assert.equal(noExactRange.sourceShows, 1); assert.equal(noExactRange.selections.length, 0, 'failure evidence does not invent rollback of accepted verified-file display');
 } finally { for (const gate of gates) gate.resolve(); for (const value of fixtures) await value.operations.dispose(); }
 console.log('Captured evidence original source/picker/nested-parent lifetime controls authored; execution deferred.');
