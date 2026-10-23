@@ -18,6 +18,13 @@ export const FEDERATED_QUERY_CACHE_DEFAULTS = Object.freeze({
 const FEDERATED_QUERY_CACHE_MAX_READ_BYTES = 16 * 1024 * 1024;
 const FEDERATED_QUERY_CACHE_CORRUPT_SUFFIX = '.corrupt';
 const cachePolicies = new WeakMap();
+// Every loaded snapshot owns mutable entry metadata. Its original payload ids
+// distinguish explicit replacements from stale recency-only writes.
+const cacheEntryOrigins = new WeakMap();
+const rememberEntryOrigins = cache => {
+  cacheEntryOrigins.set(cache, new Map(Object.entries(cache.entries).map(([key, entry]) => [key, entry.payloadId])));
+  return cache;
+};
 const parsedCaches = new Map();
 let parsedCacheBytes = 0;
 const MAX_PARSED_CACHE_BYTES = 16 * 1024 * 1024;
@@ -38,7 +45,8 @@ const cacheFileSignature = async cachePath => {
     return { signature: [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].map(String).join(':'), bytes: Number(stat.size) };
   } catch { return null; }
 };
-const forkCache = cache => ({ ...cache, entries: Object.fromEntries(Object.entries(cache.entries).map(([key, entry]) => [key, { ...entry }])) });
+const forkCache = cache => rememberEntryOrigins({ ...cache,
+  entries: Object.fromEntries(Object.entries(cache.entries).map(([key, entry]) => [key, { ...entry }])) });
 const rememberParsedCache = (key, record) => {
   const previous = parsedCaches.get(key);
   if (previous) parsedCacheBytes -= previous.bytes;
@@ -190,7 +198,7 @@ export const buildFederatedQueryCacheKey = (payload) => {
   };
 };
 
-const createEmptyCache = (repoSetId) => ({
+const createEmptyCache = (repoSetId) => rememberEntryOrigins({
   schemaVersion: FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
   repoSetId: repoSetId || null,
   updatedAt: null,
@@ -233,12 +241,12 @@ const normalizeCachePayload = (parsed, repoSetId) => {
       result: freezePayload(entry.result)
     };
   }
-  return {
+  return rememberEntryOrigins({
     schemaVersion: FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
     repoSetId: parsed.repoSetId || repoSetId || null,
     updatedAt: toIsoString(parsed.updatedAt, null),
     entries
-  };
+  });
 };
 
 const bumpCacheHealthCounter = (health, key) => {
@@ -323,7 +331,7 @@ export const loadFederatedQueryCache = async ({
   }
   const cache = normalizeCachePayload(parsedPayload, repoSetId);
   const after = await cacheFileSignature(cachePath);
-  if (before && after?.signature === before.signature) rememberParsedCache(parsedKey, { ...after, cache });
+  if (before && after?.signature === before.signature) rememberParsedCache(parsedKey, { ...after, cache: forkCache(cache) });
   foldFederatedTouches(cache, cachePath);
   return cache;
 };
@@ -478,12 +486,21 @@ export const persistFederatedQueryCache = async ({
   cache
 } = {}) => {
   if (!cachePath || !cache) return;
+  const submitted = Object.fromEntries(Object.entries(cache.entries || {}).map(([key, entry]) => [key, { ...entry }]));
+  const origins = new Map(cacheEntryOrigins.get(cache) || []);
+  const policy = cachePolicies.get(cache) || {};
   await withFileLock({ lockPath: `${cachePath}.lock`, waitMs: 5000, timeoutBehavior: 'throw' }, async () => {
     const disk = await loadFederatedQueryCache({ cachePath, repoSetId: cache.repoSetId });
-    foldFederatedTouches(cache, cachePath);
     const merged = { ...disk.entries };
-    for (const [key, entry] of Object.entries(cache.entries || {})) {
-      if (!merged[key] || toMs(entry.lastUsedAt) >= toMs(merged[key].lastUsedAt)) merged[key] = entry;
+    for (const [key, entry] of Object.entries(submitted)) {
+      const replaced = !origins.has(key) || entry.payloadId !== origins.get(key);
+      if (replaced) {
+        merged[key] = entry;
+      } else if (merged[key]?.payloadId === entry.payloadId && merged[key].manifestHash === entry.manifestHash) {
+        // A touch can only extend the exact payload it observed. It cannot
+        // resurrect an evicted entry or overwrite a newer generation/result.
+        merged[key] = { ...merged[key], lastUsedAt: new Date(Math.max(toMs(merged[key].lastUsedAt), toMs(entry.lastUsedAt))).toISOString() };
+      }
     }
     for (const entry of Object.values(merged)) entry.payloadId ||= randomUUID();
     const normalized = {
@@ -492,8 +509,13 @@ export const persistFederatedQueryCache = async ({
       updatedAt: cache.updatedAt || null,
       entries: sortObjectDeep(merged)
     };
-    pruneFederatedQueryCache(normalized, cachePolicies.get(cache) || {});
+    pruneFederatedQueryCache(normalized, policy);
     await atomicWriteText(path.resolve(cachePath), stableStringify(normalized), { newline: true });
     await clearQueryCacheTouchesUnlocked(cachePath);
+    const currentOrigins = cacheEntryOrigins.get(cache) || new Map();
+    for (const [key, entry] of Object.entries(submitted)) {
+      if (cache.entries?.[key]?.payloadId === entry.payloadId) currentOrigins.set(key, entry.payloadId);
+    }
+    cacheEntryOrigins.set(cache, currentOrigins);
   });
 };
