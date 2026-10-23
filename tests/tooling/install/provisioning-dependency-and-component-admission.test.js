@@ -76,7 +76,10 @@ try {
   const matched = createToolProvisioningPlan({ tool: javaTool(jdk), selection, probe: verifyJava });
   assert.equal(bindProvisioningCommand({ cmd: command, args: [] }, matched, {}).env.JAVA_HOME, jdk);
   const mismatched = createToolProvisioningPlan({ tool: javaTool(secondJdk), selection, probe: verifyJava });
-  assert.throws(() => bindProvisioningCommand({ cmd: command, args: [] }, mismatched, {}), /different JDK roots/);
+  assert.equal(mismatched.steps[1].reason, 'selected-runtime-root-mismatch');
+  assert.throws(() => bindProvisioningCommand({ cmd: command, args: [] }, mismatched, {}), /not verified/);
+  const mismatchedAsync = await verifyToolProvisioningPlan(createToolProvisioningPlan({ tool: javaTool(secondJdk), selection }), { probe: async candidate => verifyJava(candidate) });
+  assert.equal(mismatchedAsync.steps[1].reason, 'selected-runtime-root-mismatch', 'installed-tool reuse cannot bypass shared-runtime SDK alignment');
   assert.throws(() => bindProvisioningCommand({ cmd: command, args: [] }, matched, { JAVA_HOME: secondJdk }), /selection changed/);
 } finally { await rmDirRecursive(temporary); }
 console.log('Prerequisite DAG failures block dependent launch; Python components, runtime identity and shared JDK selection remain explicit.');

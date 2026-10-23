@@ -24,7 +24,7 @@ import { getToolingConfig, resolveToolRoot } from '../shared/dict-utils.js';
 import { resolveClangdArchiveTarget, resolveManagedClangd } from '../../src/shared/managed-clangd.js';
 import { PHPACTOR_APPROVED_RELEASE } from './approved-artifacts.js';
 import { resolveManagedLuaLanguageServer } from '../../src/shared/managed-lua.js';
-import { normalizeToolProvisioningDeclaration } from './provisioning-plan.js';
+import { createToolProvisioningPlan, normalizeToolProvisioningDeclaration, verifyToolProvisioningPlan } from './provisioning-plan.js';
 import { resolveManagedToolInstallation } from '../../src/shared/managed-installation.js';
 import { AST_GREP_VERSION, identifyAstGrepVersion, resolveAstGrepManagedRecipe, verifyManagedAstGrep } from './managed-ast-grep.js';
 import { resolveOperationalManagedRecipe } from './operational-recipes.js';
@@ -883,19 +883,35 @@ export async function buildToolingReport(root, languageOverride = null, options 
   const tools = [];
   if (options.skipToolDetection !== true) {
     const detect = options.detectTool || (await import('./owned-detect.js')).detectToolOwned;
+    const environment = options.env || process.env;
+    const isAllowed = command => {
+      if (isRepoTrusted(root)) return true;
+      try {
+        const physical = fs.realpathSync(command);
+        return !isPathWithinRoot(physical, root) || isApplicationOwnedCommand({ commandPath: physical, repoRoot: root, toolRoot: resolveToolRoot() });
+      } catch { return false; }
+    };
     for (const tool of resolveToolsForLanguages(languageList, toolingConfig.dir, root, toolingConfig)) {
       signal?.throwIfAborted();
-      const status = await detect(tool, { signal });
+      const status = await detect(tool, { signal, env: environment });
       signal?.throwIfAborted();
+      const provisioning = await verifyToolProvisioningPlan(createToolProvisioningPlan({ tool, selection: { scope: 'cache', plan: null },
+        env: environment, isAllowed, signal, ...(options.resolvePrerequisite ? { resolve: options.resolvePrerequisite } : {}) }),
+      { env: environment, signal, cwd: resolveToolRoot(), ...(options.probePrerequisite ? { probe: options.probePrerequisite } : {}) });
+      signal?.throwIfAborted();
+      const found = status.found === true && provisioning.state === 'requirements-verified';
       tools.push({
         id: tool.id,
         label: tool.label,
         docs: tool.docs,
         languages: tool.languages,
-        found: status.found,
+        found,
+        executableFound: status.found === true,
         source: status.source,
         path: status.path,
         probe: status.probe || null,
+        provisioning,
+        readiness: { state: found ? 'executable-and-prerequisites-identified' : 'blocked', consumer: 'not-qualified' },
         install: tool.install || {}
       });
     }

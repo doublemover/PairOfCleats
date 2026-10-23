@@ -76,6 +76,20 @@ export const orderProvisioningRequirements = requirements => {
   return ordered;
 };
 
+const alignRuntimeSelections = steps => {
+  const normalize = value => process.platform === 'win32' ? value.toLowerCase() : value;
+  return steps.map(step => {
+    if (step.state !== 'verified') return step;
+    const runtime = step.family === 'javac' ? steps.find(candidate => candidate.family === 'java' && candidate.state === 'verified')
+      : step.family === 'dotnet' ? steps.find(candidate => candidate.family === 'dotnet-runtime' && candidate.state === 'verified') : null;
+    if (!runtime) return step;
+    const root = value => step.family === 'javac' ? path.dirname(path.dirname(value.executable.path)) : path.dirname(value.executable.path);
+    if (normalize(root(step)) === normalize(root(runtime))) return step;
+    return { ...step, state: 'incompatible', ok: false, reason: 'selected-runtime-root-mismatch', runtimeRequirement: runtime.id,
+      nextAction: 'Select runtime and SDK/compiler from one physical installation; retain explicit selections and re-plan.' };
+  });
+};
+
 export const createToolProvisioningPlan = ({ tool, selection, probe = null, resolve = findBinaryOnPath,
   isAllowed = () => true, env = process.env, signal = null } = {}) => {
   signal?.throwIfAborted();
@@ -136,9 +150,10 @@ export const createToolProvisioningPlan = ({ tool, selection, probe = null, reso
     steps.push(blockedBy.length ? { ...requirement, state: 'blocked', reason: 'upstream-prerequisite-not-verified', blockedBy,
       nextAction: 'Resolve the selected prerequisite blockers and re-plan before this dependent command is executed.' } : resolveStep(requirement));
   }
+  const aligned = alignRuntimeSelections(steps);
   const body = { schemaVersion: 1, kind: 'tool-provisioning-plan', toolId: tool.id, scope: selection.scope,
-    platform: process.platform, arch: process.arch, steps, action: selection.plan || null,
-    state: steps.every(step => step.state === 'verified') ? 'requirements-verified' : 'blocked-or-unprobed' };
+    platform: process.platform, arch: process.arch, steps: aligned, action: selection.plan || null,
+    state: aligned.every(step => step.state === 'verified') ? 'requirements-verified' : 'blocked-or-unprobed' };
   return { ...body, planId: digest(stableStringify(body)) };
 };
 
@@ -223,7 +238,7 @@ export const verifyToolProvisioningPlan = async (plan, { env = process.env, sign
         nextAction: 'Re-plan after resolving the prerequisite dependency; no new executable is selected during verification.' });
       continue;
     }
-    if (!step.executable || !sameExecutable(identifyProvisioningExecutable(step.executable.path, { signal }), step.executable)) throw new Error('Prerequisite bytes changed before async verification: ' + step.id);
+    if (!sameExecutable(identifyProvisioningExecutable(step.executable.path, { signal }), step.executable)) throw new Error('Prerequisite bytes changed before async verification: ' + step.id);
     let verification = null, acceptedArgs = null;
     for (const args of resolveInstallerRequirementProbeArgs(step.family || step.id)) {
       signal?.throwIfAborted();
@@ -245,6 +260,7 @@ export const verifyToolProvisioningPlan = async (plan, { env = process.env, sign
       ...(acceptedArgs ? { args: acceptedArgs } : { nextAction: 'Repair the exact selected runtime/components, then re-plan.' }) });
   }
   const { planId: _previousIdentity, ...body } = plan;
-  const updated = { ...body, steps, state: steps.every(step => step.state === 'verified') ? 'requirements-verified' : 'blocked-or-unprobed' };
+  const aligned = alignRuntimeSelections(steps);
+  const updated = { ...body, steps: aligned, state: aligned.every(step => step.state === 'verified') ? 'requirements-verified' : 'blocked-or-unprobed' };
   return { ...updated, planId: digest(stableStringify(updated)) };
 };

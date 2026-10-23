@@ -4,7 +4,7 @@ import { TOOLING_DETECT_OPTIONS } from '../../src/shared/cli-options.js';
 import { buildToolingReport, normalizeLanguageList } from './utils.js';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
 import { emitJson } from '../shared/cli-utils.js';
-import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
+import { toolingFailureReport } from './cli-failure-report.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats tooling detect',
@@ -55,15 +55,17 @@ try {
       console.error('[tooling] Missing tools:');
       for (const tool of missing) {
         console.error(`- ${tool.id} (${tool.label})`);
+        for (const step of tool.provisioning?.steps || []) {
+          if (step.state !== 'verified') console.error(`  ${step.id}: ${step.reason || step.state}`);
+        }
         if (tool.docs) console.error(`  Docs: ${tool.docs}`);
       }
       console.error('Run: pairofcleats tooling install --scope cache');
     }
   }
 } catch (error) {
-  const failure = { root, languages: {}, formats: {}, tools: [], ready: false,
-    state: error.cacheOwnershipPending ? 'settlement-pending' : cancellation.signal.aborted ? 'cancelled' : 'blocked',
-    error: { code: error.code || 'ERR_TOOLING_DETECT', message: redactDiagnosticText(error.message || String(error), 2048) } };
+  const failure = { ...toolingFailureReport(error, { signal: cancellation.signal, fallbackCode: 'ERR_TOOLING_DETECT' }),
+    root, languages: {}, formats: {}, tools: [], ready: false };
   if (argv.json) emitJson(failure);
   else console.error(`[tooling] ${failure.state}: ${failure.error.message}`);
   process.exitCode = cancellationExitCode || 1;
