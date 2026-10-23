@@ -31,6 +31,7 @@ import { openSemanticControlStore } from './control-store.js';
 import { reopenSemanticDiskAccount } from '../build/incremental/working-set.js';
 import { normalizeSemanticConfig } from './config.js';
 import { createCompilerSourceReuse } from '../tooling/typescript/source-reuse.js';
+export { planCompilerSummaryDemand as planSemanticSummaryDemand } from './compiler-summary-demand.js';
 
 const hashBytes = bytes => createHash('sha256').update(bytes).digest('hex');
 const fail = (message, code = 'ERR_SEMANTIC_BINDING_WORK') => Object.assign(new Error(message), { code });
