@@ -2,6 +2,18 @@ const MACHINE_KEYS = new Set(['cliPath', 'nodePath', 'cliArgs', 'env', 'apiServe
   'apiExecutionMode', 'apiToken', 'extraSearchArgs']);
 const SECRET_KEY = /token|secret|password|credential|authorization|cookie|env|args/i;
 
+function captureSetting(value) {
+  if (value == null) return value;
+  const captured = JSON.parse(JSON.stringify(value));
+  const pending = [captured];
+  while (pending.length) {
+    const item = pending.pop();
+    if (!item || typeof item !== 'object') continue;
+    pending.push(...Object.values(item)); Object.freeze(item);
+  }
+  return captured;
+}
+
 function displayValue(key, value) {
   if (SECRET_KEY.test(key)) return '[redacted]';
   if (key === 'apiServerUrl' && value) {
@@ -21,7 +33,7 @@ function snapshotConfiguration(configuration, keys) {
   const inspections = new Map();
   const evidence = [];
   for (const key of keys) {
-    const inspected = JSON.parse(JSON.stringify(configuration.inspect?.(key) || {}));
+    const inspected = captureSetting(configuration.inspect?.(key) || {});
     inspections.set(key, inspected);
     const machine = MACHINE_KEYS.has(key);
     const value = machine
@@ -31,10 +43,10 @@ function snapshotConfiguration(configuration, keys) {
       : inspected.workspaceFolderValue !== undefined ? 'folder'
         : inspected.workspaceValue !== undefined ? 'workspace'
           : inspected.globalValue !== undefined ? 'user' : 'default';
-    values.set(key, value == null ? value : JSON.parse(JSON.stringify(value)));
-    evidence.push({ key, value: displayValue(key, values.get(key)), source,
+    values.set(key, captureSetting(value));
+    evidence.push(Object.freeze({ key, value: displayValue(key, values.get(key)), source,
       ignoredWorkspaceValue: machine && (inspected.workspaceValue !== undefined
-        || inspected.workspaceFolderValue !== undefined) });
+        || inspected.workspaceFolderValue !== undefined) }));
   }
   return Object.freeze({
     get(key, fallback) { return values.has(key) ? values.get(key) ?? fallback : fallback; },

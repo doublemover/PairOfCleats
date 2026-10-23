@@ -78,4 +78,22 @@ function verifyServiceRevision(status, expectedCommit) {
   return { commit: String(commit).toLowerCase(), workingTree: 'editor-worktree-unverified' };
 }
 
-module.exports = { readGitHead, validateServiceRoot, serviceRelativeFile, mapServicePayload, verifyServiceRevision };
+/** The same repository authority must survive each async status/consent wait.
+ * A matching old service commit cannot qualify a newly checked-out editor root. */
+function assertServiceMappingCurrent(repoContext, mapping, workspaceFolders) {
+  const uri = repoContext.repoUri;
+  const folder = (workspaceFolders || []).find(item => {
+    if (item.uri?.scheme !== 'file' || !item.uri.fsPath) return false;
+    if (repoContext.workspaceUri && item.uri.toString() !== repoContext.workspaceUri.toString()) return false;
+    const relative = path.relative(item.uri.fsPath, repoContext.repoRoot);
+    return relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
+  });
+  if (!folder || uri?.scheme !== 'file' || mapping.editorUri !== uri.toString()
+    || readGitHead(repoContext.repoRoot) !== mapping.commit) {
+    throw new Error('Editor repository identity changed during service mapping. Select the repository again.');
+  }
+  validateServiceRoot(mapping.serviceRoot);
+  return true;
+}
+
+module.exports = { readGitHead, validateServiceRoot, serviceRelativeFile, mapServicePayload, verifyServiceRevision, assertServiceMappingCurrent };

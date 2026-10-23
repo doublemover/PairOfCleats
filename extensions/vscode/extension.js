@@ -11,7 +11,7 @@ const { snapshotConfiguration, renderEffectiveSettings } = require('./effective-
 const { inspectCliVersion } = require('./installation-evidence.js');
 const { createDocumentAuthority, assertQualifiedEditor } = require('./document-authority.js');
 const { qualifyDocumentSymbols } = require('./document-symbols.js');
-const { createTaskObservations, taskRecoveryActions } = require('./task-observations.js');
+const { captureTaskObservation, createTaskObservations, taskRecoveryActions } = require('./task-observations.js');
 const taskObservations = createTaskObservations();
 const { generationFromContextPack, contextDiscoveryRequest, contextDiscoveryCliArgs } = require('./semantic-discovery.js');
 const { normalizeFilterPagination, admitFilterPage, mergeFilterPage, carryFilterPageHistory, continuationInvocation } = require('./filter-pagination.js');
@@ -20,7 +20,7 @@ const { createSemanticEvidenceWorkflow, sourceQualifiedSelection, qualifiedBindi
 let latestNavigationEvidence = null;
 const navigationLocationSources = new WeakMap();
 const { captureNavigationRequest, sourceNavigationArgs, qualifiedNavigationRows, qualifiedDocumentSymbolRows } = require('./source-navigation.js');
-const { readGitHead, validateServiceRoot, mapServicePayload, verifyServiceRevision } = require('./service-repository.js');
+const { readGitHead, validateServiceRoot, mapServicePayload, verifyServiceRevision, assertServiceMappingCurrent } = require('./service-repository.js');
 const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask,
   boundedLogLine, retainTaskLog } = require('./progress-view.js');
 const { readWatchProgress } = require('./watch-progress.js');
@@ -301,7 +301,7 @@ async function showEffectiveSettings(seededRepoContext = null) {
   if (action === 'Open User Settings') {
     await vscode.commands.executeCommand('workbench.action.openSettings', 'pairofcleats');
   } else if (action === 'Tooling Doctor') {
-    await vscode.commands.executeCommand('pairofcleats.doctor');
+    await runOperatorCommand(OPERATOR_COMMANDS_BY_ID.get('pairofcleats.doctor'), { repoContext });
   } else if (action === 'Inspect Installation / Transport Evidence') {
     const args = [...(cli.argsPrefix || []), '--version'];
     const invocation = process.platform === 'win32' && /\.(cmd|bat)$/i.test(cli.command || '')
@@ -1052,8 +1052,10 @@ function updateWorkflowStatusBar() {
   const runningSession = getMostRecentRunningWorkflowSession();
   const passiveRepo = resolvePassiveRepoContext();
   if (runningSession) {
-    workflowStatusBar.text = `PairOfCleats: ${runningSession.repoLabel} • ${runningSession.title.replace(/^PairOfCleats:\s*/, '')}`;
-    workflowStatusBar.tooltip = `${runningSession.title}\n${runningSession.repoRoot}\nStatus: running`;
+    const task = [...managedProcesses.values()].find(entry => entry.sessionId === runningSession.sessionId);
+    const phase = task?.cleanupUnconfirmed ? 'stop-unconfirmed' : task?.progress?.phase || 'starting';
+    workflowStatusBar.text = `PairOfCleats: ${runningSession.repoLabel} • ${runningSession.title.replace(/^PairOfCleats:\s*/, '')} • ${phase}`;
+    workflowStatusBar.tooltip = task ? describeTask(task) : `${runningSession.title}\n${runningSession.repoRoot}\nStatus: ${phase}`;
   } else if (passiveRepo.ok) {
     const lastSession = getMostRecentWorkflowSession();
     const parts = [];
@@ -4273,6 +4275,7 @@ async function stopManagedProcessEntry(entry, { reason = 'cancelled', summaryLin
   entry.stopSummaryLine = summaryLine || '';
   entry.progress = { ...entry.progress, phase: 'stopping', cancellationRequestedAt: Date.now(),
     message: 'Cancellation requested; waiting for owned process and termination-helper settlement.' };
+  updateWorkflowStatusBar();
   entry.termination = Promise.resolve().then(() => operations.stopChild(entry.child));
   return entry.completion;
 }
@@ -4474,6 +4477,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
         entry.progress = { ...entry.progress, phase: 'ready', endpoint,
           message: 'API listener readiness observed in its authoritative startup frame.' };
         vscode.window.showInformationMessage(`${spec.title} ready at ${endpoint}.`);
+        updateWorkflowStatusBar();
       }
     }
     if (!line) return;
@@ -4497,7 +4501,14 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
         }
         if (entry.stopping || entry.settling) return;
         entry.progress = applyProgressEvent(entry.progress, event);
-        if (operations.isCurrent()) entry.progressReporter?.report?.({ message: `${entry.progress.stage}: ${entry.progress.message}` });
+        if (operations.isCurrent()) {
+          entry.progressReporter?.report?.({ message: `${entry.progress.stage}: ${entry.progress.message}` });
+          const now = Date.now();
+          if (now - (entry.statusReportedAt || 0) >= 100 || entry.statusReportedPhase !== entry.progress.phase) {
+            entry.statusReportedAt = now; entry.statusReportedPhase = entry.progress.phase;
+            updateWorkflowStatusBar();
+          }
+        }
       },
       onText: (line, truncated) => taskText(prefix, line, truncated)
     });
@@ -4577,6 +4588,7 @@ async function executeOwnedSearchCommand({
   prompt = 'PairOfCleats search query',
   placeHolder = 'e.g. auth token validation',
   enumeration = false,
+  promptFilter = false,
   optionOverrides = null
 } = {}) {
   let config = getExtensionConfiguration();
@@ -4593,6 +4605,19 @@ async function executeOwnedSearchCommand({
   if (!repoContext || !operations.isCurrent()) return;
   const { repoRoot } = repoContext;
   config = getExtensionConfiguration(repoContext);
+  if (enumeration && promptFilter) {
+    let configured;
+    try {
+      configured = readSearchOptions(config, VSCODE_SETTINGS);
+      buildSearchArgs('', repoRoot, configured);
+    } catch (error) { vscode.window.showErrorMessage(error.message); return; }
+    const filter = await promptTextInput({ prompt: `Browse indexed metadata in ${repoRoot} • ${configured.mode} • ${
+      configured.backend || 'auto'} • ${configured.asOf || configured.snapshot || 'current generation'}`,
+    placeHolder: 'Filter expression, e.g. lang:javascript; blank/cancel leaves the previous results unchanged',
+    value: configured.filter });
+    if (!filter?.trim() || !operations.isCurrent()) return;
+    optionOverrides = { ...(optionOverrides || {}), filter: filter.trim() };
+  }
   let serviceMapping = null;
   if (execution.mode === 'api') {
     try { serviceMapping = await resolveServiceRepository(repoContext, execution); }
@@ -4947,11 +4972,11 @@ const runSemanticEvidence = createSemanticEvidenceWorkflow({
     if (execution.mode === 'api' && !mapping) return null;
     return { transport: execution.mode, execution, config, serviceMapping: mapping };
   },
-  discoverGeneration: async (repoContext, state, seedNode) => {
+  discoverGeneration: async (repoContext, state, seedNode, sourceFile) => {
     const { execution, config } = state;
     let seed = seedNode?.hit?.chunkUid ? `chunk:${seedNode.hit.chunkUid}` : null;
     if (!seed) {
-      let file = seedNode?.hit?.file || vscode.window.activeTextEditor?.document?.uri?.fsPath || '';
+      let file = seedNode?.hit?.file || sourceFile || '';
       if (path.isAbsolute(file)) file = path.relative(repoContext.repoRoot, file).replace(/\\/g, '/');
       if (!file || file === '..' || file.startsWith('../') || path.isAbsolute(file)) {
         file = await vscode.window.showInputBox({ prompt: 'Retained source path for canonical semantic generation discovery',
@@ -5171,7 +5196,7 @@ async function resolveServiceRepository(repoContext, execution, { force = false 
     throw new Error('Service mapping requires a file checkout on the workspace extension host. Virtual/non-file URI roots cannot be source-qualified.');
   }
   const editorUri = repoContext.repoUri?.toString?.() || '';
-  const mappings = readWorkspaceState('pairofcleats.serviceRepositories', {}) || {};
+  const mappings = { ...(readWorkspaceState('pairofcleats.serviceRepositories', {}) || {}) };
   const key = `${execution.baseUrl}::${editorUri}`;
   let mapping = force ? null : mappings[key];
   const commit = readGitHead(repoContext.repoRoot);
@@ -5181,22 +5206,28 @@ async function resolveServiceRepository(repoContext, execution, { force = false 
     const value = await vscode.window.showInputBox({ prompt: `Repository path on ${execution.baseUrl} (service host)`,
       value: repoContext.repoRoot, placeHolder: '/srv/repositories/project or C:\\repositories\\project' });
     if (!value) return null;
-    root = validateServiceRoot(value);
+    root = value;
   }
+  root = validateServiceRoot(root);
+  const pending = Object.freeze({ serviceRoot: root, editorUri, commit });
+  assertServiceMappingCurrent(repoContext, pending, vscode.workspace.workspaceFolders);
   const response = await requestApiJson(execution.baseUrl, `/status?repo=${encodeURIComponent(root)}`, {
     timeoutMs: execution.timeoutMs, label: 'PairOfCleats service repository identity' });
   if (!response.ok) throw new Error(response.message);
+  assertServiceMappingCurrent(repoContext, pending, vscode.workspace.workspaceFolders);
   const identity = verifyServiceRevision(response.payload?.status, commit);
   if (!mapping) {
     const action = await vscode.window.showInformationMessage(
       `Service ${execution.baseUrl} repository ${root} matches revision ${identity.commit.slice(0, 12)}. ` +
       `Open results in ${editorUri}. Editor working-tree freshness remains unverified.`, 'Use repository mapping');
     if (action !== 'Use repository mapping') return null;
+    assertServiceMappingCurrent(repoContext, pending, vscode.workspace.workspaceFolders);
     mapping = { serviceRoot: root, editorUri, commit, verifiedAt: new Date().toISOString() };
     mappings[key] = mapping;
     await writeWorkspaceState('pairofcleats.serviceRepositories', mappings);
   }
-  return { ...mapping, ...identity };
+  assertServiceMappingCurrent(repoContext, pending, vscode.workspace.workspaceFolders);
+  return Object.freeze({ ...mapping, ...pending, ...identity });
 }
 
 async function inspectTasks() {
@@ -5204,11 +5235,15 @@ async function inspectTasks() {
   const activeIds = new Set(active.map(entry => entry.sessionId));
   const entries = [...active, ...taskObservations.list().filter(entry => !activeIds.has(entry.sessionId))];
   if (!entries.length) { await showWorkflowStatus(); return; }
-  const picked = await vscode.window.showQuickPick(entries.map(entry => ({
-    label: entry.spec.title, description: `${entry.repoRoot} • ${entry.progress?.phase || 'starting'}`,
-    detail: entry.sessionId, entry
-  })), { title: 'PairOfCleats exact task', placeHolder: 'Choose the repository and operation to inspect' });
+  const items = Object.freeze(entries.map(owner => {
+    const entry = captureTaskObservation(owner);
+    return Object.freeze({ label: entry.spec.title, description: `${entry.repoRoot} • ${entry.progress?.phase || 'starting'}`,
+      detail: entry.sessionId, entry });
+  }));
+  const picked = await vscode.window.showQuickPick(items,
+    { title: 'PairOfCleats exact task', placeHolder: 'Choose the repository and operation to inspect' });
   if (!picked) return;
+  if (!items.includes(picked)) { vscode.window.showErrorMessage('Task selection must identify an original task from this picker.'); return; }
   const entry = picked.entry;
   const document = await vscode.workspace.openTextDocument({ content: describeTask(entry), language: 'plaintext' });
   await vscode.window.showTextDocument(document, { preview: true });
@@ -5237,12 +5272,12 @@ async function inspectTasks() {
     else vscode.window.showInformationMessage('This task observation has no admitted saved workflow. Run its registered command deliberately.');
   }
   else if (action === 'stop') {
-    if (managedProcesses.get(entry.key)?.sessionId !== entry.sessionId) {
+    const owned = managedProcesses.get(entry.key);
+    if (owned?.sessionId !== entry.sessionId || owned.stopping || owned.settling || owned.cleanupUnconfirmed) {
       vscode.window.showInformationMessage('That exact task already settled. Inspect tasks again.');
       return;
     }
-    entry.progress.phase = 'cancellation-requested';
-    await stopManagedProcessEntry(entry, { reason: 'cancelled', summaryLine: `${entry.spec.title} stopped after owned process settlement.` });
+    await stopManagedProcessEntry(owned, { reason: 'cancelled', summaryLine: `${entry.spec.title} stopped after owned process settlement.` });
   }
 }
 
@@ -5260,10 +5295,7 @@ async function selectServiceRepository() {
 }
 
 async function browseIndexedMatches() {
-  const filter = await promptTextInput({ prompt: 'Browse indexed metadata: filter expression',
-    placeHolder: 'e.g. lang:javascript — current repo, modes, backend and time settings apply' });
-  if (!filter?.trim()) return;
-  await executeSearchCommand({ enumeration: true, optionOverrides: { filter: filter.trim() } });
+  await executeSearchCommand({ enumeration: true, promptFilter: true });
 }
 
 async function loadMoreIndexedMatches() {

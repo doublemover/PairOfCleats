@@ -19,11 +19,22 @@ function captureSemanticData(value) {
   return freeze(captured);
 }
 
-function captureSemanticResponse(original) {
+function captureSemanticResponse(original, operation) {
   if (!original || typeof original !== 'object' || Array.isArray(original)) {
     throw new Error('Semantic operation returned no object evidence.', { cause: original });
   }
-  return captureSemanticData(original);
+  const captured = captureSemanticData(original);
+  if (typeof captured.generation?.baseBuildId !== 'string' || !captured.generation.baseBuildId
+    || !Number.isSafeInteger(captured.generation.semanticRevision) || captured.generation.semanticRevision < 0
+    || operation !== 'enrichment' && (!Array.isArray(captured.records) || captured.records.length > LIMITS.records)
+    || operation === 'enrichment' && (!Array.isArray(captured.tasks) || captured.tasks.length > 32)
+    || ['edges', 'operands', 'names', 'ownership', 'providerEvidence'].some(field => captured[field] != null
+      && (!Array.isArray(captured[field]) || captured[field].length > 512))
+    || captured.sourceRefs != null && (!Array.isArray(captured.sourceRefs) || captured.sourceRefs.length > LIMITS.records)
+    || captured.cursor != null && (typeof captured.cursor !== 'string' || !captured.cursor || captured.cursor.length > 8192)) {
+    throw new Error('Semantic response exceeds its generation/128-record/512-edge/cursor contract.');
+  }
+  return captured;
 }
 
 function qualifiedBindingSeed(payload) {
@@ -108,6 +119,7 @@ function qualifiedDocumentOffsets(document, target) {
 function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execute, chooseTransport,
   getCursorSeed = null, resolveCursorSeed = null, discoverGeneration = null }) {
   let last = null;
+  const pageHistories = new WeakMap();
   async function pick(items, options) {
     const issued = Object.freeze(items.map(item => item && typeof item === 'object' ? Object.freeze({ ...item }) : item));
     const selected = await vscode.window.showQuickPick(issued, options);
@@ -146,8 +158,9 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
     const request = captureSemanticData(buildSemanticRequest(operation, state.repoContext.repoRoot, generation, value, extra));
     const original = await execute(operation, request, selectedState);
     if (!operations.isCurrent()) return null;
-    const payload = captureSemanticResponse(original);
+    const payload = captureSemanticResponse(original, operation);
     if (!sameGeneration(generation, payload.generation)) throw new Error('Semantic generation changed; restart from the seed.');
+    pageHistories.set(payload, new Set(payload.cursor ? [payload.cursor] : []));
     return show(payload, { ...selectedState, operation, request, value: operation === 'find' ? request.selector : value });
   }
 
@@ -183,8 +196,13 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
         if (choice.action === 'more') {
           const original = await execute(state.operation, captureSemanticData({ ...state.request, cursor: payload.cursor }), state);
           if (!operations.isCurrent()) return;
-          const next = captureSemanticResponse(original);
+          const next = captureSemanticResponse(original, state.operation);
           if (!sameGeneration(next?.generation, state.generation)) throw new Error('Continuation generation changed. Restart from seed.');
+          const seen = new Set(pageHistories.get(payload) || [payload.cursor]);
+          if (next.cursor && seen.has(next.cursor)) throw new Error('Semantic continuation repeated an earlier cursor. Return to the seed; previous evidence is retained.');
+          if (seen.size >= 256) throw new Error('Semantic evidence reached its 256-page navigation bound. Narrow the seed and restart.');
+          if (next.cursor) seen.add(next.cursor);
+          pageHistories.set(next, seen);
           const page = await show(next, state);
           if (page) await inspect(page, failures);
           await show(payload, state);
@@ -200,8 +218,10 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
           placeHolder: state.transport === 'api' ? 'Only operations advertised by this service are offered' : 'Bounded canonical semantic operations' });
         if (!action) continue;
         if (action.value === 'open') {
-          const source = (payload.sourceRefs || []).find(item => item?.ref?.partitionId === choice.record.ref?.partitionId
+          const sources = (payload.sourceRefs || []).filter(item => item?.ref?.partitionId === choice.record.ref?.partitionId
           && item?.ref?.localId === choice.record.ref?.localId);
+          if (sources.length !== 1) throw new Error('Exact source opening requires one unambiguous captured source mapping.');
+          const source = sources[0];
           const target = sourceQualifiedSelection(state.repoContext, source, choice.record);
           const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: () => operations.isCurrent(), maxDocuments: 1 });
           const qualified = await authority.qualify({ repoRoot: state.repoContext.repoRoot, file: target.file,
@@ -252,8 +272,15 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
       const failures = [];
       await (async () => {
         try {
-          const selectedChunkUid = seedNode?.hit?.chunkUid;
-          const resolved = await resolveRepo(seedNode);
+          const capturedSeed = seedNode ? captureSemanticData({
+            ...(seedNode.resultSet ? { resultSet: { repoRoot: seedNode.resultSet.repoRoot,
+              repoUri: seedNode.resultSet.repoUri, workspacePath: seedNode.resultSet.workspacePath,
+              workspaceUri: seedNode.resultSet.workspaceUri } } : {}),
+            ...(seedNode.hit ? { hit: { chunkUid: seedNode.hit.chunkUid, file: seedNode.hit.file } } : {})
+          }) : null;
+          const sourceFile = vscode.window.activeTextEditor?.document?.uri?.fsPath || '';
+          const selectedChunkUid = capturedSeed?.hit?.chunkUid;
+          const resolved = await resolveRepo(capturedSeed);
           if (!resolved || !operations.isCurrent()) return;
           const repoContext = Object.freeze({ ...resolved });
           const chosenTransport = await chooseTransport(repoContext);
@@ -262,8 +289,8 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
             ...(chosenTransport.execution ? { execution: Object.freeze({ ...chosenTransport.execution,
               capabilities: Object.freeze({ ...chosenTransport.execution.capabilities }) }) } : {}),
             ...(chosenTransport.serviceMapping ? { serviceMapping: Object.freeze({ ...chosenTransport.serviceMapping }) } : {}) });
-          let cursorSeed = !seedNode && transport.transport === 'cli' ? getCursorSeed?.(repoContext) : null;
-          if (!cursorSeed && !seedNode && transport.transport === 'cli' && resolveCursorSeed) {
+          let cursorSeed = !capturedSeed && transport.transport === 'cli' ? getCursorSeed?.(repoContext) : null;
+          if (!cursorSeed && !capturedSeed && transport.transport === 'cli' && resolveCursorSeed) {
             cursorSeed = await resolveCursorSeed(repoContext, transport);
             if (!operations.isCurrent()) return;
           }
@@ -292,7 +319,7 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
             if (!route) return;
             if (route.value === 'discover') {
               try {
-                const witness = await discoverGeneration(repoContext, transport, seedNode);
+                const witness = await discoverGeneration(repoContext, transport, capturedSeed, sourceFile);
                 if (!operations.isCurrent()) return;
                 if (witness) { generation = witness.generation; generationSource = witness.source; }
               } catch (error) {
@@ -321,7 +348,7 @@ function createSemanticEvidenceWorkflow({ vscode, operations, resolveRepo, execu
           if (selectorKind === 'Selected chunk ownership') {
             selector = { field: 'chunkUid', value: selectedChunkUid };
           } else if (selectorKind === 'Current source file') {
-            const file = vscode.window.activeTextEditor?.document?.uri?.fsPath;
+            const file = sourceFile;
             const relative = file ? path.relative(repoContext.repoRoot, file).replace(/\\/g, '/') : '';
             if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Focus a saved file in the selected repository.');
             selector = { field: 'sourcePath', value: relative };
