@@ -61,6 +61,14 @@ byte/stat identity and nonenumerable `fileIdentity` projection are unchanged.
 Successful legacy `openContainedFile{Sync}` still transfers its descriptor to
 the caller, whose subsequent lifetime remains that caller's responsibility.
 
+The actual resource owner's `isSettled` observation is also available to its
+internal compositor. The async `withContainedFile` callback receives a frozen
+second argument containing only that captured observation, with no release or
+detach method. The persistent JSONL reader uses it to distinguish confirmed
+descriptor closure from already reported ordinary read failures, while retaining
+the same original owner through admission and snapshot handoff; see
+[persistent reader resource lifetime](persistent-reader-resource-lifetime.md).
+
 The actual dictionary reuse reader now borrows immutable operations through
 `withContainedFile`. Its bounded streaming, exact final object check, checksum
 and one-final-LF normalization remain in place. Captured operations and verify

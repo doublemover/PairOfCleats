@@ -1,8 +1,8 @@
 import { readExactAt } from '../io/read-exact.js';
 import fs from 'node:fs/promises';
-import { openContainedFile } from '../contained-file.js';
 import { createContainedFileResource } from '../contained-file-resource.js';
-import { withOpenedFileReaders } from './with-opened-readers.js';
+import { openFileReaderScope, withOpenedFileReaders } from './with-opened-readers.js';
+import { addStorageFailureContext } from '../storage/operation-error.js';
 import { createHash } from 'node:crypto';
 import { throwIfAborted } from '../abort.js';
 import { parseJsonlLine } from './jsonl.js';
@@ -246,21 +246,6 @@ export const resolveOffsetsCount = async (
   return resolveOffsetCountFromSize(size, offsetsPath);
 };
 
-// Both opens can finish independently. A rejected peer must not strand the
-// successful handle, including when it resolves after the rejection.
-const openJsonlHandles = async (jsonlPath, offsetsPath, { containedRoot = null } = {}) => {
-  const open = target => containedRoot ? openContainedFile(containedRoot, target) : fs.open(target, 'r');
-  const pending = [open(jsonlPath), open(offsetsPath)];
-  try {
-    return await Promise.all(pending);
-  } catch (error) {
-    const settled = await Promise.allSettled(pending);
-    await Promise.allSettled(settled.filter(result => result.status === 'fulfilled')
-      .map(result => result.value.close()));
-    throw error;
-  }
-};
-
 /**
  * Read one JSONL row by index using its offsets sidecar.
  * @param {string} jsonlPath
@@ -444,14 +429,16 @@ const readJsonlRowsAtWithHandles = async (
  * cancellation or failure. Positioned reads retain the existing byte bounds.
  */
 export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) => {
-  let handles = await openJsonlHandles(jsonlPath, offsetsPath, options);
+  const scope = await openFileReaderScope([jsonlPath, offsetsPath], options);
+  let handles = scope.descriptors;
   let closed = false;
   let verification = null, identity = null, contentVerification = null, closePromise = null;
   const pending = new Set();
   const track = operation => {
-    pending.add(operation);
-    operation.then(() => pending.delete(operation), () => pending.delete(operation));
-    return operation;
+    const tracked = operation.catch(error => { throw scope.remember(error); });
+    pending.add(tracked);
+    tracked.then(() => pending.delete(tracked), () => pending.delete(tracked));
+    return tracked;
   };
   const checkIdentity = async () => {
     if (!identity) return;
@@ -474,19 +461,22 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) =
         throw new TypeError('JSONL verification requires bounded byte counts and explicit SHA-1/SHA-256/xxh64 hashes.');
       }
       verification = track((async () => {
+        scope.requireFailuresSettled();
         const snapshot = jsonlBytes <= VERIFIED_SNAPSHOT_BYTES && offsetsBytes <= VERIFIED_SNAPSHOT_BYTES;
         // Both reads settle before disposal, including cancellation or a failed peer.
         const hashes = await Promise.allSettled(handles.map((handle, index) =>
           hashReadSource(handle, index ? offsetsBytes : jsonlBytes, signal, snapshot,
             index ? offsetsHashAlgorithm : jsonlHashAlgorithm)));
-        const failed = hashes.find(result => result.status === 'rejected');
-        if (failed) throw failed.reason;
+        const failures = hashes.filter(result => result.status === 'rejected').map(result => scope.remember(result.reason));
+        if (failures.length) throw failures.slice(1).reduce((failure, secondary) =>
+          addStorageFailureContext(failure, {}, secondary, { secondaryPresent: true }), failures[0]);
         const values = hashes.map(result => result.value);
         if (values[0].hash !== jsonlHash || values[1].hash !== offsetsHash) throw contentChanged();
         if (snapshot) {
-          const disposed = await Promise.allSettled(handles.map(handle => handle.close()));
-          const failedClose = disposed.find(result => result.status === 'rejected');
-          if (failedClose) throw failedClose.reason;
+          for (const handle of handles) handle.verify?.();
+          const disposed = await scope.complete();
+          if (disposed.failure) throw disposed.failure;
+          if (!disposed.settled) throw new Error('JSONL snapshot descriptor closure remains unconfirmed.');
           // These exact hashed bytes live only in this reader, never a global cache.
           handles = values.map(value => bufferReadSource(value.captured));
         } else {
@@ -501,6 +491,7 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) =
       if (closed) throw new Error('JSONL row reader is closed.');
       return track((async () => {
         if (verification) await verification;
+        scope.requireFailuresSettled();
         throwIfAborted(options.signal);
         await checkIdentity();
         const rows = await readJsonlRowsAtWithHandles(jsonlPath, offsetsPath, indexes, options, readSources(options.signal));
@@ -513,6 +504,7 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) =
       if (closed) throw new Error('JSONL row reader is closed.');
       return track((async () => {
         if (verification) await verification;
+        scope.requireFailuresSettled();
         await checkIdentity();
         const result = await validateOffsetsAgainstSources(jsonlPath, offsetsPath, options, readSources(options.signal));
         await checkIdentity();
@@ -524,7 +516,11 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) =
       closed = true;
       closePromise = (async () => {
         await Promise.allSettled([...pending]);
-        await Promise.allSettled(handles.map(handle => handle.close()));
+        const disposed = await scope.complete();
+        // Read/parse failures were already reported to their callers. An exact
+        // per-descriptor close or independent original-work failure is retained.
+        if (!disposed.settled) throw disposed.failure || new Error('JSONL row reader descriptors remain retained.');
+        scope.requireFailuresSettled();
         handles = [];
         identity = null;
         contentVerification = null;
@@ -541,10 +537,8 @@ export const readJsonlRowsAt = async (jsonlPath, offsetsPath, indexes, options =
   const { maxBytes = MAX_JSON_BYTES } = options;
   resolveValidatedMaxBytes(maxBytes, 'readJsonlRowsAt');
   if (!Array.isArray(indexes) || !indexes.some(value => Number.isFinite(value) && value >= 0)) return [];
-  const reader = await openJsonlRowReader(jsonlPath, offsetsPath);
-  try {
-    return await reader.readRows(indexes, options);
-  } finally { await reader.close(); }
+  return withOpenedFileReaders([jsonlPath, offsetsPath], handles =>
+    readJsonlRowsAtWithHandles(jsonlPath, offsetsPath, indexes, options, handles), options);
 };
 
 /**

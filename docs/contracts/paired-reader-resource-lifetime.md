@@ -37,10 +37,10 @@ withheld valid rows, original observer replacement, strict failed-admission
 recovery and admitted dual-read drain without replay. Original bytes remain
 unchanged, and external fixture teardown is not a settlement receipt.
 
-This is scoped adoption only. The persistent `openJsonlRowReader`, verified
-snapshot transition and its batch facade retain separate open lifetime work;
-they are not routed through a competing persistent reader here. Stream and
-compression ownership, category/index/coordinator leases and durable
+The persistent `openJsonlRowReader`, verified snapshot transition and its batch
+facade now reuse this same compositor; see
+[persistent reader resource lifetime](persistent-reader-resource-lifetime.md).
+Stream and compression ownership, category/index/coordinator leases and durable
 cross-process native settlement remain outside this scope. No tests,
 syntax/lint/format, bootstrap, native/platform/full-index or performance checks
 have run; no completed issue or executable acceptance is claimed.

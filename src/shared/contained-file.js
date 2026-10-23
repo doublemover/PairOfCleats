@@ -127,7 +127,7 @@ export const withContainedFile = async (root, target, action, options = {}) => {
   const { owner, verification, identity } = await acquireContainedFile(root, target, options);
   const descriptor = Object.freeze({ ...owner.operations,
     verify: () => owner.inspect(fd => verifyHandle(fd, root, target, identity, verification)) });
-  return owner.run(() => action(descriptor));
+  return owner.run(() => action(descriptor, Object.freeze({ isSettled: owner.isSettled })));
 };
 
 export const withContainedFileSync = (root, target, action, options = {}) => {

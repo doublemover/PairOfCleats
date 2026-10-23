@@ -221,7 +221,7 @@ export const createContainedFileResource = ({ handle = null, fd, sync, methods }
     if (!isSettled()) throw pendingFailure();
     if (hasPrimary) throw completedFailure();
   };
-  return Object.freeze({ operations, hasFailure: () => hasPrimary, remember,
+  return Object.freeze({ operations, hasFailure: () => hasPrimary, isSettled, remember,
     inspect: action => {
       if (!accepting) throw new Error('Contained descriptor no longer admits verification.');
       try { return action(fd); } catch (value) { remember(value); throw value; }
