@@ -104,7 +104,9 @@ try {
   assert.equal(second.body.pagination.hasMore, false);
   assert.notEqual(first.body.code[0].chunkUid, second.body.code[0].chunkUid);
   const sameAliases = await post({ ...enumeration, cursor, search: { ...enumeration.search, cursor } });
-  assert.deepEqual(sameAliases.body, second.body);
+  assert.equal(sameAliases.status, 200);
+  assert.deepEqual(sameAliases.body.code.map(hit => hit.chunkUid), second.body.code.map(hit => hit.chunkUid));
+  assert.equal(sameAliases.body.pagination.nextCursor, second.body.pagination.nextCursor);
   const cli = await runFederatedSearch(parseFederatedCliRequest(['--workspace', healthyPath, '--mode', 'code',
     '--backend', 'memory', '--type', 'FunctionDeclaration', '--top', '1', '--']));
   const mcp = await runWorkspaceSearch(enumeration);

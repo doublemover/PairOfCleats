@@ -7,6 +7,10 @@
 
 This spec defines the orchestration layer (selection → fanout → merge → response) and is designed to reuse existing single-repo search functionality (`src/integrations/core/index.js` → `runSearchCli`).
 
+For operational response interpretation and current route limits, see
+[Read a federated search result](../guides/federated-search-limits.md) and
+[Search two repositories](../guides/workspaces.md).
+
 ---
 
 ## 1. Goals and constraints
