@@ -6,7 +6,6 @@ import {
   resolveLspFixtureCommand,
   runDedicatedProviderFixture
 } from '../../helpers/lsp-provider-fixture.js';
-import { withLspTestPath } from '../../helpers/lsp-runtime.js';
 
 const root = process.cwd();
 const tempRoot = await createLspProviderTempRepo({
@@ -26,7 +25,7 @@ const inputs = buildSingleSymbolInputs({
   symbolName: 'greet'
 });
 
-await withLspTestPath({ repoRoot: root }, async () => {
+{
   const result = await runDedicatedProviderFixture({
     tempRoot,
     providerId: 'dart',
@@ -51,6 +50,6 @@ await withLspTestPath({ repoRoot: root }, async () => {
     true,
     'expected dart package-config missing warning check'
   );
-});
+}
 
 console.log('dart provider package config missing preflight test passed');

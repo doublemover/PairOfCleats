@@ -207,7 +207,8 @@ const shouldBlockProviderFromPreflight = (preflight) => {
  *     ctx: object,
  *     config: object,
  *     requested: { cmd: string, args: string[] },
- *     commandProfile: object
+ *     commandProfile: object,
+ *     abortSignal: AbortSignal|null
  *   }) => Promise<{
  *     args?: string[],
  *     checks?: Array<{name: string, status: string, message: string}>,
@@ -236,6 +237,7 @@ export const createDedicatedLspProvider = (descriptor) => {
     version: descriptor.version || '1.0.0',
     label: descriptor.label,
     priority: descriptor.priority,
+    ...(descriptor.profileContractVersion ? { profileContractVersion: descriptor.profileContractVersion } : {}),
     languages: descriptor.languages,
     kinds: Array.isArray(descriptor.kinds) && descriptor.kinds.length
       ? descriptor.kinds
@@ -319,57 +321,58 @@ export const createDedicatedLspProvider = (descriptor) => {
       let resolvedArgs = runtimeCommand.args;
       let collectOptions = {};
       let collectCleanup = null;
-      if (typeof descriptor.prepareCollect === 'function') {
-        const prepared = await descriptor.prepareCollect({
-          ctx,
-          config,
-          preflight,
-          requested,
-          commandProfile
-        });
-        if (Array.isArray(prepared?.args)) resolvedArgs = prepared.args;
-        if (Array.isArray(prepared?.checks) && prepared.checks.length) checks.push(...prepared.checks);
-        if (prepared?.skip === true) {
-          return buildBaseResult(providerRef, checks);
-        }
-        if (typeof prepared?.cleanup === 'function') {
-          collectCleanup = prepared.cleanup;
-        }
-        if (prepared?.collectOptions && typeof prepared.collectOptions === 'object') {
-          collectOptions = { ...prepared.collectOptions };
-        }
-      }
-
-      const runtimeConfig = resolveLspRuntimeConfig({
-        providerConfig: config,
-        globalConfigs: [ctx?.toolingConfig || null],
-        defaults: {
-          ...DEFAULT_RUNTIME_OPTIONS,
-          ...(descriptor.runtimeDefaults || {})
-        }
-      });
-      const initializationOptions = isPlainObject(config.initializationOptions)
-        ? config.initializationOptions
-        : null;
-      const workspaceRouting = resolveLspWorkspaceRouting({
-        repoRoot: ctx.repoRoot,
-        providerId: descriptor.id,
-        documents: docs,
-        targets,
-        workspaceMarkerOptions: descriptor.workspace?.markerOptions || null,
-        requireWorkspaceModel: config.requireWorkspaceModel !== false,
-        workspaceModelPolicy: 'block'
-      });
-      const workspaceLogLine = formatLspWorkspacePartitionLogLine({
-        providerId: descriptor.id,
-        workspaceRouting
-      });
-      if (workspaceLogLine) {
-        getLogger(ctx)(workspaceLogLine);
-      }
-
       let result;
+      let workspaceRouting;
       try {
+        throwIfAborted(abortSignal);
+        if (typeof descriptor.prepareCollect === 'function') {
+          const prepared = await descriptor.prepareCollect({
+            ctx,
+            config,
+            preflight,
+            requested,
+            commandProfile,
+            abortSignal
+          });
+          if (typeof prepared?.cleanup === 'function') collectCleanup = prepared.cleanup;
+          if (Array.isArray(prepared?.args)) resolvedArgs = prepared.args;
+          if (Array.isArray(prepared?.checks) && prepared.checks.length) checks.push(...prepared.checks);
+          if (prepared?.skip === true) {
+            return buildBaseResult(providerRef, checks);
+          }
+          if (prepared?.collectOptions && typeof prepared.collectOptions === 'object') {
+            collectOptions = { ...prepared.collectOptions };
+          }
+        }
+
+        const runtimeConfig = resolveLspRuntimeConfig({
+          providerConfig: config,
+          globalConfigs: [ctx?.toolingConfig || null],
+          defaults: {
+            ...DEFAULT_RUNTIME_OPTIONS,
+            ...(descriptor.runtimeDefaults || {})
+          }
+        });
+        const initializationOptions = isPlainObject(config.initializationOptions)
+          ? config.initializationOptions
+          : null;
+        workspaceRouting = resolveLspWorkspaceRouting({
+          repoRoot: ctx.repoRoot,
+          providerId: descriptor.id,
+          documents: docs,
+          targets,
+          workspaceMarkerOptions: descriptor.workspace?.markerOptions || null,
+          requireWorkspaceModel: config.requireWorkspaceModel !== false,
+          workspaceModelPolicy: 'block'
+        });
+        const workspaceLogLine = formatLspWorkspacePartitionLogLine({
+          providerId: descriptor.id,
+          workspaceRouting
+        });
+        if (workspaceLogLine) {
+          getLogger(ctx)(workspaceLogLine);
+        }
+
         throwIfAborted(abortSignal);
         const currentAuthority = executionAuthorityFor(ctx);
         if (currentAuthority) return buildBaseResult(providerRef, [...checks, currentAuthority.check]);
