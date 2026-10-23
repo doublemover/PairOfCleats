@@ -599,13 +599,13 @@ export async function createIndexerWorkerPool(input = {}) {
       getRoutingReason(sizeBytes) {
         if (heapLaunchContract?.supported === false && !processBackend) return 'heap-contract';
         if (config.enabled === false) return 'disabled-config';
-        if (lifecycle.isDisabled() || lifecycle.isPermanentlyDisabled()) return 'pool-unavailable';
+        if ((lifecycle.isDisabled() && !lifecycle.isPressureReconfigurePending()) || lifecycle.isPermanentlyDisabled()) return 'pool-unavailable';
         if (config.enabled === 'auto' && ((config.minFileBytes > 0 && sizeBytes < config.minFileBytes)
           || (config.maxFileBytes != null && sizeBytes > config.maxFileBytes))) return 'size';
         return 'eligible';
       },
       shouldUseForFile(sizeBytes) {
-        if (lifecycle.isDisabled() || lifecycle.isPermanentlyDisabled()) return false;
+        if ((lifecycle.isDisabled() && !lifecycle.isPressureReconfigurePending()) || lifecycle.isPermanentlyDisabled()) return false;
         if (config.enabled === true) return true;
         if (config.enabled === 'auto') {
           const normalizedSizeBytes = Number.isFinite(sizeBytes) ? sizeBytes : 0;
@@ -635,6 +635,15 @@ export async function createIndexerWorkerPool(input = {}) {
         let throttleSlot = null;
         let admissionFailure = null;
         try {
+          if (queueController.isClosed()) return null;
+          // Pressure-driven reconfiguration must not turn zero-slot heavy work
+          // into inline fallback merely because relief disabled the backend.
+          // Admission retains authority until pressure recovers or terminates.
+          queueController.recordPressureCacheEntry(payload);
+          waitingForThrottle += 1;
+          try { throttleSlot = await queueController.acquireLanguageThrottleSlot(payload, { signal }); }
+          finally { waitingForThrottle -= 1; }
+          if (queueController.isClosed()) return null;
           if (lifecycle.isDisabled() && !(await lifecycle.ensurePool())) {
             logWorkerPoolUnavailable({
               payload,
@@ -645,11 +654,6 @@ export async function createIndexerWorkerPool(input = {}) {
             });
             return null;
           }
-          queueController.recordPressureCacheEntry(payload);
-          waitingForThrottle += 1;
-          try { throttleSlot = await queueController.acquireLanguageThrottleSlot(payload, { signal }); }
-          finally { waitingForThrottle -= 1; }
-          if (queueController.isClosed()) return null;
           const result = await lifecycle.getPool().run(
             batchItems ? { items: batchItems.map(item => sanitizePoolPayload(item, sanitizeDictConfig(item.dictConfig))) }
               : sanitizePoolPayload(payload, sanitizeDictConfig(payload?.dictConfig)),
@@ -685,6 +689,8 @@ export async function createIndexerWorkerPool(input = {}) {
         throwIfAborted(signal);
         activeTasks += 1;
         updatePoolMetrics();
+        let primaryFailure;
+        let hasPrimaryFailure = false;
         try {
           if (lifecycle.isDisabled() && !(await lifecycle.ensurePool())) {
             logWorkerPoolUnavailable({
@@ -710,23 +716,41 @@ export async function createIndexerWorkerPool(input = {}) {
           updatePoolMetrics();
           return result;
         } catch (err) {
-          throwIfAborted(signal);
+          primaryFailure = err;
+          hasPrimaryFailure = true;
           if (isAbortError(err)) throw err;
-          if (err?.code === 'ERR_PROCESS_TASK_BUDGET' || err?.code === 'ERR_TOKENIZER_RESOURCE_PRESSURE') throw err;
-          return handleWorkerTaskError({
-            err,
-            payload,
-            payloadMetaPool: quantizePayloadMetaPool,
-            assignPayloadMeta: assignQuantizePayloadMeta,
-            phase: 'worker-quantize',
-            task: 'quantizeVectors'
-          });
+          if (['ERR_PROCESS_TASK_BUDGET', 'ERR_TOKENIZER_RESOURCE_PRESSURE', 'ERR_EMBEDDING_QUANTIZATION',
+            'BUILD_CLEANUP_TIMEOUT', 'PISCINA_DESTROY_TIMEOUT', 'PISCINA_FORCE_TERMINATE_INCOMPLETE'].includes(err?.code)
+            || err?.workerOwnershipPending || err?.cacheOwnershipPending || err instanceof AggregateError) throw err;
+          try { throwIfAborted(signal); }
+          catch (abortError) { primaryFailure = abortError; throw abortError; }
+          try {
+            return await handleWorkerTaskError({
+              err,
+              payload,
+              payloadMetaPool: quantizePayloadMetaPool,
+              assignPayloadMeta: assignQuantizePayloadMeta,
+              phase: 'worker-quantize',
+              task: 'quantizeVectors'
+            });
+          } catch (cleanupError) {
+            primaryFailure = Object.assign(new AggregateError([err, cleanupError], 'Quantize worker recovery did not settle.', { cause: err }), {
+              code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', workerOwnershipPending: true
+            });
+            throw primaryFailure;
+          }
         } finally {
           activeTasks = Math.max(0, activeTasks - 1);
           queueController.recordWorkSettled();
           completedRequests += 1;
           updatePoolMetrics();
-          await lifecycle.handleTaskDrained();
+          try { await lifecycle.handleTaskDrained(); }
+          catch (cleanupError) {
+            throw Object.assign(new AggregateError(hasPrimaryFailure ? [primaryFailure, cleanupError] : [cleanupError],
+              'Quantize worker cleanup did not settle.', { cause: hasPrimaryFailure ? primaryFailure : cleanupError }), {
+              code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', workerOwnershipPending: true
+            });
+          }
         }
       },
       async destroy() {
