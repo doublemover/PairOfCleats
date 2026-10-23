@@ -12,7 +12,7 @@ import { toRealPathSync } from '../../workspace/identity.js';
 import { generateWorkspaceManifest } from '../../workspace/manifest.js';
 import { buildPerRepoArgsFromCli, buildPerRepoArgsFromRequest } from './args.js';
 import { selectFederationCohorts } from './cohorts.js';
-import { mergeFederatedResults } from './merge.js';
+import { mergeFederatedModeResults } from './merge.js';
 import {
   buildFederatedQueryCacheKey,
   buildFederatedQueryCacheKeyPayload,
@@ -317,7 +317,8 @@ export const mergeFederatedResultsByMode = ({
   selectedReposByMode = {},
   topN = 10,
   perRepoTop = 20,
-  rrfK = 60
+  rrfK = 60,
+  signal = null
 } = {}) => {
   const mergedByMode = {
     code: [],
@@ -336,13 +337,14 @@ export const mergeFederatedResultsByMode = ({
       continue;
     }
     const scopedPerRepoResults = perRepoResults.filter((entry) => selectedRepoIds.has(entry.repoId));
-    const scopedMerged = mergeFederatedResults({
+    mergedByMode[payloadKey] = mergeFederatedModeResults({
       perRepoResults: scopedPerRepoResults,
+      mode,
       topN,
       perRepoTop,
-      rrfK
+      rrfK,
+      signal
     });
-    mergedByMode[payloadKey] = scopedMerged[payloadKey] || [];
   }
   return mergedByMode;
 };
@@ -934,7 +936,9 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
               const key = MODE_PAYLOAD_KEYS[mode];
               if (!key) continue;
               const hits = Array.isArray(result?.[key]) ? result[key] : [];
-              if (hits.length) combined[key].push(...hits);
+              for (let hitIndex = 0; hitIndex < Math.min(hits.length, perRepoTop); hitIndex += 1) {
+                combined[key].push(hits[hitIndex]);
+              }
               fulfilledModes.add(mode);
             }
             callSucceeded = true;
@@ -1045,7 +1049,8 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     selectedReposByMode: selectedByMode,
     topN,
     perRepoTop,
-    rrfK
+    rrfK,
+    signal: context.signal
   });
   await verifyRankedGeneration();
 

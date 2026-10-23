@@ -311,6 +311,15 @@ workspace snapshot: selected historical mode signatures must match the admitted
 workspace manifest or the request rejects. Custom programmatic search producers
 that omit retrieval metadata remain trusted and rely on the final manifest fence.
 
+The coordinator retains at most `perRepoTop` admitted rows per repository and
+mode, and merges each chosen mode once. RRF merge compares lightweight ranked
+heads when numeric contributions and the full tie comparator prove local order.
+Rounded, unordered streams use a bounded top-N descriptor heap. Only retained
+rows receive merged payload/provenance objects, with the same tie ordering and
+source scores as the full-sort contract. This bounds merge work and temporary
+storage; it does not reduce work already performed by child search engines, and
+no end-to-end timing improvement is implied.
+
 ### 7.4 Per-repo forwarded args and coordinator overrides (critical)
 
 The coordinator MUST build **per-repo raw args** as follows:

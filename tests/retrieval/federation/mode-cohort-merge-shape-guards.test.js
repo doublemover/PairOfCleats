@@ -32,4 +32,11 @@ assert.deepEqual(merged.code, [], 'malformed selectedReposByMode entry should no
 assert.equal(merged.prose.length, 1, 'iterable selectedReposByMode entries should be accepted');
 assert.equal(merged.prose[0].repoId, 'repo-a');
 
+const admittedOnly = mergeFederatedResultsByMode({ perRepoResults: [{ repoId: 'repo-a', result: {
+  code: [{ id: 'admitted' }],
+  get prose() { throw new Error('unadmitted mode must not be read or materialized'); }
+} }], selectedReposByMode: { code: [{ repoId: 'repo-a' }] } });
+assert.equal(admittedOnly.code[0].id, 'admitted');
+assert.deepEqual(admittedOnly.prose, []);
+
 console.log('federated mode cohort merge shape guard test passed');

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { mergeFederatedResults } from '../../../src/retrieval/federation/merge.js';
+import { MinHeap } from '../../../src/shared/min-heap.js';
 
 const finite = value => Number.isFinite(Number(value)) ? Number(value) : 0;
 const oracle = ({ perRepoResults, topN = 10, perRepoTop = 20, rrfK = 60 }) => {
@@ -11,7 +12,7 @@ const oracle = ({ perRepoResults, topN = 10, perRepoTop = 20, rrfK = 60 }) => {
       const hits = (repo.result?.[mode] || []).slice(0, Math.max(0, perRepoTop));
       for (let rank = 0; rank < hits.length; rank++) all.push({ ...hits[rank], repoId: repo.repoId,
         repoAlias: repo.repoAlias || null, globalId: `${repo.repoId}:${hits[rank].id}`,
-        repoPriority: repo.priority ?? 0, rrf: 1 / (rrfK + rank + 1), order: order++ });
+        repoPriority: repo.priority ?? 0, rrf: 1 / (rrfK + (rank + 1)), order: order++ });
     }
     all.sort((a, b) => b.rrf - a.rrf || finite(b.repoPriority) - finite(a.repoPriority)
       || String(a.repoId || '').localeCompare(String(b.repoId || ''))
@@ -47,4 +48,23 @@ for (let seed = 0; seed < 72; seed++) {
 const tied = { perRepoResults: [{ repoId: 'r', result: { code: [{ id: 'z' }, { id: 'a' }] } }],
   rrfK: Number.MAX_VALUE, topN: 1 };
 assert.equal(mergeFederatedResults(tied).code[0].id, 'a', 'rounded RRF ties take comparator-preserving fallback');
+for (const rrfK of [2 ** 52 - 1, 2 ** 53 - 1, 2 ** 53, 2 ** 54, 1e100, Number.MAX_VALUE]) {
+  const options = { perRepoResults: [{ repoId: 'same', priority: Infinity,
+    result: Object.fromEntries(['code', 'prose', 'extractedProse', 'records'].map(mode => [mode,
+      Array.from({ length: 500 }, (_, rank) => ({ id: String(500 - rank).padStart(4, '0'),
+        file: `${rank % 2}.js`, start: rank % 3, score: rank }))])) }], topN: 7, perRepoTop: 500, rrfK };
+  assert.deepEqual(mergeFederatedResults(options), oracle(options), 'bounded fallback retains precision-boundary and all-mode parity');
+}
+const originalPush = MinHeap.prototype.push;
+let maxRetained = 0;
+try {
+  MinHeap.prototype.push = function (value) {
+    originalPush.call(this, value);
+    maxRetained = Math.max(maxRetained, this.size);
+  };
+  const options = { perRepoResults: [{ repoId: 'one', result: { code: Array.from({ length: 1000 }, (_, rank) => ({ id: 1000 - rank })) } }],
+    topN: 7, perRepoTop: 1000, rrfK: Number.MAX_VALUE };
+  assert.deepEqual(mergeFederatedResults(options), oracle(options));
+  assert.equal(maxRetained, 7, 'an unordered rounded stream retains only the requested top-N descriptors');
+} finally { MinHeap.prototype.push = originalPush; }
 console.log('Federated head merging preserves the full-sort oracle, including rounded RRF ties.');
