@@ -14,10 +14,10 @@ const fail = message => Object.assign(new Error(message), { code: 'ERR_TOOLING_D
 /** Read-only runtime selection. No installation, host probe or repository load.
  * Explicit external dotnet hosts keep their own runtime; managed apphosts never
  * fall back to ambient SDK discovery when their selected SDK is unavailable. */
-export const resolveDotnetRuntimeLaunch = ({ command, args = [], cwd = process.cwd(), providerId, toolingRoot, baseEnv = process.env } = {}) => {
+export const resolveDotnetRuntimeLaunch = ({ command, args = [], cwd = process.cwd(), providerId, languages = [], toolingRoot, baseEnv = process.env } = {}) => {
   const environment = { ...baseEnv };
   const host = token(command) === 'dotnet';
-  if (!host && !isDotnetWorkspaceProvider({ providerId, server: { cmd: command } })) {
+  if (!host && !isDotnetWorkspaceProvider({ providerId, server: { cmd: command }, languages })) {
     return { command, environment, managedRuntimeCommands: [] };
   }
   toolingRoot ||= resolveStorageLayout().descriptors.tooling.path;

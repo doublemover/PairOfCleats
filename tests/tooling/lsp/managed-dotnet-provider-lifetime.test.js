@@ -26,7 +26,7 @@ try {
       commandRelative: hostName, commandContent: shim('sdk.mjs'), additionalFiles: [{ path: 'sdk.mjs',
         content: "if (!['--version','--list-sdks','--help'].includes(process.argv[2])) process.exit(19); console.log('10.0.100 [synthetic fixture]');\n" }] });
     const server = await createManagedCommandFixture(root, { toolId: 'csharp-ls',
-      commandRelative: process.platform === 'win32' ? 'csharp-ls.cmd' : 'csharp-ls', commandContent: shim('server.mjs'),
+      commandRelative: process.platform === 'win32' ? 'selected-server.cmd' : 'selected-server', commandContent: shim('server.mjs'),
       additionalFiles: [{ path: 'server.mjs', content: `import fs from 'node:fs';
         const expected=${JSON.stringify(sdk.root)};
         if(process.env.DOTNET_ROOT!==expected || process.env.DOTNET_HOST_PATH!==${JSON.stringify(sdk.command)})process.exit(23);
@@ -64,6 +64,11 @@ try {
     assert.deepEqual(JSON.parse(await fs.readFile(path.join(root, 'observed-dotnet.json'), 'utf8')), { root: sdk.root, host: sdk.command });
     assert.equal(await server.protected(), true, 'server generation remains owned during idle pooling');
     assert.equal(await sdk.protected(), true, 'independent SDK generation remains owned during idle pooling');
+    const renamed = await collectLspTypes({ rootDir: root, providerId: 'custom-dotnet-profile', cmd: server.command,
+      args: [], toolingRoot: sdk.toolingRoot, documents: inputs.documents, targets: inputs.targets,
+      sessionIdleTimeoutMs: 60000 });
+    assert.equal(renamed.runtime.managedRuntimeInstallations[0].installId, sdk.installId,
+      'renamed configured servers still bind their admitted C# source language to the selected SDK');
     assert.equal((await drainLspSessionPool()).status, 'ok');
     assert.equal(await server.protected(), false);
     assert.equal(await sdk.protected(), false);

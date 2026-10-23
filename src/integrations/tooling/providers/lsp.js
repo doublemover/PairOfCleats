@@ -482,6 +482,7 @@ export async function collectLspTypes({
   const onRequest = createLspConfigurationHandler(initializationOptions);
 
   const launch = resolveDotnetRuntimeLaunch({ command: cmd, args, cwd: resolvedWorkspaceRootDir, providerId: resolvedProviderId, toolingRoot,
+    languages: docs.map(doc => doc.languageId),
     baseEnv: applyToolchainDaemonPolicyEnv(process.env, { toolingRoot, providerId: resolvedProviderId, command: cmd }) });
   runtime.command = String(launch.command || '');
   runtime.managedRuntimeInstallations = launch.managedRuntimeCommands.map(({ toolId, descriptorId, installId }) => ({ toolId, descriptorId, installId }));
