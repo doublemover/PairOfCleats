@@ -1,5 +1,6 @@
 import { collectConstantReferences } from '../js-ts/constant-references.js';
 import { createReturnCallEvidence } from '../js-ts/return-call-evidence.js';
+import { recordJsTsImportBindings } from '../js-ts/import-bindings.js';
 import { prepareTypeScriptBabelSyntax, ownsTypeScriptBabelSyntaxText } from './syntax-context.js';
 import { collectImportsFromAst } from '../javascript.js';
 import { findTypeScriptBodyBounds } from './brace-bounds.js';
@@ -132,7 +133,7 @@ function collectTypeScriptCallsAndUsages(text, normalizedText = null) {
  * Build import/export/call/usage relations for TypeScript chunks.
  * @param {string} text
  * @param {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null} tsChunks
- * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
+ * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importBindings:Object|null}}
  */
 export function buildTypeScriptRelations(text, tsChunks, options = {}) {
   const normalizedText = stripTypeScriptComments(text);
@@ -141,6 +142,7 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
   const calls = [];
   const callDetails = [];
   const usages = new Set();
+  const importBindings = Object.create(null);
 
   const ast = prepareTypeScriptBabelSyntax(text, options);
   const sourceOwned = ownsTypeScriptBabelSyntaxText(ast, text);
@@ -246,6 +248,7 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
         continue;
       }
       const returnOwner = returnEvidence.enter(node, parent, frame.returnOwner);
+      recordJsTsImportBindings(node, parent, importBindings, sourceOwned && !ast.errors?.length);
       if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression'
         || node.type === 'NewExpression' && returnEvidence.get(node)) {
         recordCall(node);
@@ -294,6 +297,7 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
     exports: Array.from(exports),
     calls,
     callDetails,
-    usages: Array.from(usages)
+    usages: Array.from(usages),
+    importBindings: Object.keys(importBindings).length ? importBindings : null
   };
 }

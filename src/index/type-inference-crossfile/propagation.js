@@ -181,12 +181,13 @@ export async function runCrossFilePropagation({
   const resolveSymbolRefCached = ({
     targetName,
     kindHint = null,
-    fromFile = null
+    fromFile = null,
+    runtimeOnly = true
   }) => {
     const name = typeof targetName === 'string' ? targetName : null;
     if (!name) return null;
     const now = Date.now();
-    const cacheKey = `${fromFile || ''}\u0001${kindHint || ''}\u0001${name}`;
+    const cacheKey = `${fromFile || ''}\u0001${kindHint || ''}\u0001${name}\u0001${runtimeOnly ? 'runtime' : 'usage'}`;
     const cached = symbolRefCache.get(cacheKey);
     if (cached && Number(cached.ts) >= (now - SYMBOL_REF_CACHE_TTL_MS)) {
       symbolRefCache.delete(cacheKey);
@@ -202,7 +203,8 @@ export async function runCrossFilePropagation({
       fromFile,
       fileRelations,
       symbolIndex: symbolResolver,
-      fileSet
+      fileSet,
+      runtimeOnly
     });
     symbolRefCache.set(cacheKey, { value: resolved || null, ts: now });
     symbolRefMaintenance.inserted(now);
@@ -376,7 +378,10 @@ export async function runCrossFilePropagation({
       returnCallsByChunk.set(chunk, empty);
       return empty;
     }
-    const parsed = extractReturnCalls(chunkText, { knownCallees: collectKnownCallees(chunk), chunk });
+    const fileRelation = fileRelations
+      ? (typeof fileRelations.get === 'function' ? fileRelations.get(chunk.file) : fileRelations[chunk.file]) : null;
+    const parsed = extractReturnCalls(chunkText, { knownCallees: collectKnownCallees(chunk), chunk,
+      importBindings: fileRelation?.importBindings });
     returnCallsByChunk.set(chunk, parsed);
     return parsed;
   };
@@ -678,7 +683,8 @@ export async function runCrossFilePropagation({
           const symbolRef = resolveSymbolRefCached({
             targetName: usage,
             kindHint: null,
-            fromFile: chunk.file
+            fromFile: chunk.file,
+            runtimeOnly: false
           });
           if (!symbolRef || symbolRef.status === 'unresolved') admission.usages.unresolved += 1;
           if (!symbolRef) continue;

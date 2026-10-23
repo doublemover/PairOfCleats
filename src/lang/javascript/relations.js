@@ -1,5 +1,6 @@
 import { collectConstantReferences } from '../js-ts/constant-references.js';
 import { createReturnCallEvidence } from '../js-ts/return-call-evidence.js';
+import { recordJsTsImportBindings } from '../js-ts/import-bindings.js';
 import * as esprima from 'esprima';
 import {
   collectPatternNames,
@@ -396,26 +397,8 @@ export function buildCodeRelations(text, relPath, options = {}) {
 
       if (node.type === 'ImportDeclaration') {
         if (node.source?.value) imports.add(node.source.value);
-        const sourceValue = typeof node.source?.value === 'string' ? node.source.value : null;
-        if (sourceValue && Array.isArray(node.specifiers)) {
-          for (const specifier of node.specifiers) {
-            const localName = specifier?.local?.name;
-            if (!localName) continue;
-            usages.add(localName);
-            if (specifier.type === 'ImportSpecifier') {
-              const importedName = specifier.imported?.name || null;
-              importBindings[localName] = { imported: importedName || null, module: sourceValue };
-              continue;
-            }
-            if (specifier.type === 'ImportDefaultSpecifier') {
-              importBindings[localName] = { imported: 'default', module: sourceValue };
-              continue;
-            }
-            if (specifier.type === 'ImportNamespaceSpecifier') {
-              importBindings[localName] = { imported: '*', module: sourceValue };
-            }
-          }
-        }
+        for (const specifier of node.specifiers || []) if (specifier?.local?.name) usages.add(specifier.local.name);
+        recordJsTsImportBindings(node, parent, importBindings, sourceOwned && !ast.errors?.length);
       }
 
       if (node.type === 'ImportExpression' && node.source) {

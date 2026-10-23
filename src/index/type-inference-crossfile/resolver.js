@@ -87,7 +87,8 @@ export const resolveSymbolRef = ({
   fromFile = null,
   fileRelations = null,
   symbolIndex,
-  fileSet
+  fileSet,
+  runtimeOnly = false
 }) => {
   const name = toKey(targetName);
   const leaf = leafName(name);
@@ -97,6 +98,7 @@ export const resolveSymbolRef = ({
   let importedTarget = null;
   let narrowedEntries = [];
   let hasImportNarrowing = false;
+  let runtimeTypeOnly = false;
 
   if (fileRelations && fromFile) {
     const relation = typeof fileRelations.get === 'function'
@@ -111,6 +113,7 @@ export const resolveSymbolRef = ({
         // its module. An empty admitted target set must not escape to unrelated
         // repository-global same-name or same-leaf candidates.
         hasImportNarrowing = true;
+        runtimeTypeOnly = runtimeOnly === true && binding.typeOnly === true;
         importHint.moduleSpecifier = binding.module;
         if (typeof binding.imported === 'string' && binding.imported) importedName = binding.imported;
         const suffix = name.slice(rootName.length);
@@ -122,7 +125,7 @@ export const resolveSymbolRef = ({
         const resolvedFile = resolveRelativeImport(fromFile, binding.module, fileSet);
         if (resolvedFile) {
           importHint.resolvedFile = resolvedFile;
-          narrowedEntries = symbolIndex?.byFile?.get(resolvedFile) || [];
+          if (!runtimeTypeOnly) narrowedEntries = symbolIndex?.byFile?.get(resolvedFile) || [];
         }
       }
     }
@@ -195,6 +198,7 @@ export const resolveSymbolRef = ({
     importHint: resolvedImportHint,
     candidates: formatted,
     status: formatted.length ? 'ambiguous' : 'unresolved',
-    resolved: null
+    resolved: null,
+    ...(runtimeTypeOnly ? { reason: 'type-only-import' } : {})
   };
 };
