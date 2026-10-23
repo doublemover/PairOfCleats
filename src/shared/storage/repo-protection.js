@@ -7,6 +7,7 @@ import { classifyGeneratedArtifactCachePrefix, isGeneratedCacheMetadata } from '
 import { removeToolingCacheEntry } from '../../index/tooling/cache-storage.js';
 import { stableStringify } from '../stable-json.js';
 import { inspectStorageInventory, sameStorageFileIdentity, storageFileIdentity } from './inventory.js';
+import { describeStorageFailure } from './failure-observation.js';
 
 const EVIDENCE = new Set(['triage', 'snapshots', 'diffs', 'metrics', 'logs', 'recovery', 'reports',
   'recordings', 'history', 'state', 'pins', '.pins']);
@@ -58,7 +59,8 @@ export const inspectRepoStorageProtection = async ({ repoCacheRoot, cacheRoot, e
       throw new Error('Legacy repo cleanup requires the exact canonical repos/<repoId> root.');
     }
   } catch (error) { return { protected: true, complete: false, root: path.resolve(repoCacheRoot),
-    reasons: [reason('unproven-canonical-storage-authority', repoCacheRoot, error.message)] }; }
+    reasons: [reason('unproven-canonical-storage-authority', repoCacheRoot,
+      describeStorageFailure(error, { phase: 'repo-storage-authority' }).message)] }; }
   const inventory = await inspectStorageInventory({ roots: [{ id: 'repo-cleanup', path: root }],
     includeFiles: true, maxEntries, maxDurationMs, signal });
   const item = inventory.items[0];
@@ -83,7 +85,8 @@ export const inspectRepoStorageProtection = async ({ repoCacheRoot, cacheRoot, e
         break;
       }
       try { files.push(await qualifyGeneratedFile(root, file, { maxBytes: Math.min(maxBytes, 8 * 1024 * 1024) })); }
-      catch (error) { reasons.push(reason('unknown-unreadable-or-retained-file', path.join(root, file.relativePath), error.message)); }
+      catch (error) { reasons.push(reason('unknown-unreadable-or-retained-file', path.join(root, file.relativePath),
+        describeStorageFailure(error, { phase: 'repo-storage-file-qualification' }).message)); }
     }
     for (const directory of directories) {
       if (!directory.relativePath || directory.relativePath === 'locks') continue;
@@ -135,5 +138,6 @@ export const removeDerivedRepoCache = async (expected, { cacheRoot, hooks = {} }
     }
     return { ok: true, attempts: 1, deletedLogicalBytes, deletedFiles, actualReclaimedBytes: null };
   } catch (error) { return { ok: false, attempts: 1, deletedLogicalBytes, deletedFiles,
-    actualReclaimedBytes: null, error: { code: error.code || 'ERR_REPO_STORAGE_CHANGED', message: error.message } }; }
+    actualReclaimedBytes: null, error: describeStorageFailure(error,
+      { phase: 'repo-storage-removal', defaultCode: 'ERR_REPO_STORAGE_CHANGED' }) }; }
 };
