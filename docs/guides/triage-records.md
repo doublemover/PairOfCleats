@@ -47,6 +47,22 @@ retain it. Fallback provenance remains lower trust. A conflicting persisted
 record at a derived ID is preserved and reported as an error; normalization's
 generated outer timestamps alone do not make a repeat import conflicting.
 
+For generic records, vulnerability, package and asset attributes alone are not
+unique finding keys. Without an explicit `recordId` or `stableKey`, the complete
+raw payload owns the existing lower-trust fallback identity. Different affected
+packages, manifests, assets or routes therefore remain distinct findings. An
+explicit ID/key keeps its documented update semantics. Previously derived IDs
+are not renamed automatically: retain an old `recordId` explicitly when updating
+that exact finding, and reconcile its decision links from original source rather
+than merging every record with the same CVE/package.
+
+Generic routing preserves valid supplied `service`, `env`, `team`, `owner` and
+`repo` strings, trimmed as with CLI metadata. Explicit valid `--meta` values take
+precedence field by field. The invocation repository is only the default when
+the record has no valid repository value; null scaffold fields cannot erase a
+mixed array's individual routing. Invalid/blank routing values do not override
+valid defaults or existing supplied routing.
+
 Each ingest writes:
 - `<repoCacheRoot>/triage/records/<recordId>.json`
 - `<repoCacheRoot>/triage/records/<recordId>.md`
