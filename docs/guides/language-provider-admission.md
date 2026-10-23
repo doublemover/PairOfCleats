@@ -1,5 +1,23 @@
 # Language provider admission and retained presentation
 
+Managed .NET server launches resolve `dotnet-sdk` through the canonical selected
+installation receipt. Its root binds `DOTNET_ROOT`, the matching architecture
+variable, `DOTNET_HOST_PATH`, the MSBuild CLI resolver and child PATH. Conflicting
+ambient SDK directory overrides are removed. These settings follow Microsoft's
+[host environment contract](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-environment-variables)
+and [MSBuild locator search order](https://github.com/microsoft/MSBuildLocator/blob/main/README.md).
+A managed server with a missing or damaged selected SDK reports unavailable;
+it does not substitute an ambient SDK. Explicit external dotnet hosts retain
+their separate selection and carry no managed SDK qualification.
+
+The retained LSP client acquires independent server and SDK generation leases.
+Both survive idle pooling and every transport generation until the original
+child, streams and process-tree cleanup settle. Pool identity includes exact SDK
+command, descriptor/generation identity and selected environment. Request-cache
+generation also includes the managed runtime selection. These controls do not
+prove CLR compatibility, project loading, restore closure or Roslyn compiler
+fact coverage; official SDK/server execution remains separately qualified.
+
 Direct command-profile and initialize-handshake consumers use the same current
 project-execution and selected-command trust rules as indexing. Doctor forwards
 its host cancellation signal into handshakes and checks it between synchronous

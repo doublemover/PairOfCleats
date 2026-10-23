@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { createRetainedLspClient } from '../../lsp/managed-client.js';
+import { normalizeManagedRuntimeCommands } from '../../../../index/tooling/managed-command-lifetime.js';
 import { createToolingGuard, createToolingLifecycleHealth } from '../shared.js';
 import { coercePositiveInt } from '../../../../shared/number-coerce.js';
 import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-timeout.js';
@@ -264,6 +265,7 @@ const buildSessionKey = ({
   workspaceKey,
   cmd,
   toolingRoot,
+  managedRuntimeCommands,
   args,
   env,
   initializationOptions,
@@ -284,6 +286,7 @@ const buildSessionKey = ({
     workspaceKey: String(workspaceKey || ''),
     cmd: String(cmd || ''),
     toolingRoot: String(toolingRoot || ''),
+    managedRuntimeCommands: normalizeManagedRuntimeCommands(managedRuntimeCommands),
     args: normalizeArgs(args),
     envFingerprint: buildEnvFingerprint(env),
     initializationOptions: initializationOptions ?? null,
@@ -633,6 +636,7 @@ const createSession = async (options) => {
   const client = await createRetainedLspClient({
     cmd: options.cmd,
     toolingRoot: options.toolingRoot,
+    managedRuntimeCommands: options.managedRuntimeCommands,
     args: options.args,
     cwd: options.cwd,
     env: options.env,

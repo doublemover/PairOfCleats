@@ -2,7 +2,7 @@ import path from 'node:path';
 import { languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
 import { resolveInitializeResultPositionEncoding, buildLspLineIndex as buildLineIndex } from '../lsp/positions.js';
 import { createLspConfigurationHandler } from '../lsp/configuration.js';
-import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { resolveProviderWorkspaceExecutionAuthority as resolveWorkspaceExecutionAuthority } from '../../../index/tooling/workspace-execution.js';
 import { openOwnedLspDocument, closeOwnedLspDocuments } from './lsp/document-lifecycle.js';
 import { buildVfsUri } from '../lsp/uris.js';
 import { buildIndexSignature } from '../../../retrieval/index-cache.js';
@@ -56,6 +56,7 @@ import { throwIfAborted } from '../../../shared/abort.js';
 import { coercePositiveInt } from '../../../shared/number-coerce.js';
 import { sleep } from '../../../shared/sleep.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
+import { resolveDotnetRuntimeLaunch } from '../../../index/tooling/dotnet-runtime.js';
 import { sha1 } from '../../../shared/hash.js';
 
 /**
@@ -480,16 +481,22 @@ export async function collectLspTypes({
   });
   const onRequest = createLspConfigurationHandler(initializationOptions);
 
+  const launch = resolveDotnetRuntimeLaunch({ command: cmd, args, cwd: resolvedWorkspaceRootDir, providerId: resolvedProviderId, toolingRoot,
+    baseEnv: applyToolchainDaemonPolicyEnv(process.env, { toolingRoot, providerId: resolvedProviderId, command: cmd }) });
+  runtime.command = String(launch.command || '');
+  runtime.managedRuntimeInstallations = launch.managedRuntimeCommands.map(({ toolId, descriptorId, installId }) => ({ toolId, descriptorId, installId }));
+
   const runWithPooledSession = () => withLspSession({
     enabled: sessionPoolingEnabled !== false,
     repoRoot: rootDir,
     providerId: resolvedProviderId,
     workspaceKey: resolvedWorkspaceKey || rootDir,
-    cmd,
+    cmd: launch.command,
     args,
     toolingRoot,
     cwd: resolvedWorkspaceRootDir,
-    env: applyToolchainDaemonPolicyEnv(process.env, { toolingRoot, providerId: resolvedProviderId, command: cmd }),
+    env: launch.environment,
+    managedRuntimeCommands: launch.managedRuntimeCommands,
     log,
     stderrFilter,
     onNotification,
@@ -994,7 +1001,9 @@ export async function collectLspTypes({
             providerId: resolvedProviderId,
             providerVersion: resolvedProviderVersion,
             workspaceKey: resolvedWorkspaceKey,
-            generation: resolvedRequestCacheGeneration
+            generation: launch.managedRuntimeCommands.length
+              ? sha1(JSON.stringify([resolvedRequestCacheGeneration, launch.managedRuntimeCommands]))
+              : resolvedRequestCacheGeneration
           },
           providerConfidenceBias: resolveProviderConfidenceBias(resolvedProviderId),
           semanticTokensLegend: initializeResult?.capabilities?.semanticTokensProvider?.legend

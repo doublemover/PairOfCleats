@@ -10,7 +10,7 @@ export const isSourcekitProvider = ({ providerId, server } = {}) => {
   return ['sourcekit', 'sourcekit-lsp', 'lsp-sourcekit', 'lsp-sourcekit-lsp'].includes(id) || command === 'sourcekit-lsp';
 };
 
-const isDotnetWorkspaceProvider = ({ providerId, server, languages } = {}) => {
+export const isDotnetWorkspaceProvider = ({ providerId, server, languages } = {}) => {
   const command = path.basename(String(server?.cmd || '')).toLowerCase().replace(/\.(exe|cmd|bat)$/u, '');
   const id = String(server?.workspaceExecutionProfile || server?.id || providerId || '').toLowerCase();
   const selected = [...(Array.isArray(server?.languages) ? server.languages : []), ...(Array.isArray(languages) ? languages : [])]

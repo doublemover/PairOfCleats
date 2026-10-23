@@ -25,18 +25,43 @@ const observePending = (error, lease) => {
 /** Identify only a command inside this application's managed install owner.
  * PATH/system tools keep their existing execution authority. A stale physical
  * generation inside the owner is an error, never an unmanaged fallback. */
-export const resolveManagedCommandSelection = ({ toolingRoot, command }) => {
-  if (!path.isAbsolute(command || '')) return null;
+export const normalizeManagedRuntimeCommands = (commands = []) => {
+  if (!Array.isArray(commands) || commands.length > 4) throw fail('Invalid managed runtime command closure.');
+  const selected = commands.map(entry => {
+    if (!entry || Object.keys(entry).some(key => !['toolId', 'command', 'descriptorId', 'installId'].includes(key))
+      || !/^[a-z0-9][a-z0-9.-]{0,100}$/u.test(entry.toolId || '') || !path.isAbsolute(entry.command || '')
+      || /[\x00-\x1f]/u.test(entry.command) || !/^[a-f0-9]{64}$/u.test(entry.descriptorId || '')
+      || !/^[a-f0-9]{64}$/u.test(entry.installId || '')) throw fail('Managed runtime closure requires exact selected command and generation identities.');
+    return Object.freeze({ toolId: entry.toolId, command: path.resolve(entry.command), descriptorId: entry.descriptorId, installId: entry.installId });
+  }).sort((left, right) => left.command.localeCompare(right.command));
+  if (new Set(selected.map(entry => process.platform === 'win32' ? entry.command.toLowerCase() : entry.command)).size !== selected.length) {
+    throw fail('Managed runtime closure contains duplicate commands.');
+  }
+  return Object.freeze(selected);
+};
+
+export const resolveManagedCommandSelection = ({ toolingRoot, command, expectedSelection = null }) => {
+  if (!path.isAbsolute(command || '')) {
+    if (expectedSelection) throw fail('Expected managed runtime command is not absolute.');
+    return null;
+  }
   toolingRoot ||= resolveStorageLayout().descriptors.tooling.path;
   const installs = path.join(path.resolve(toolingRoot), 'installs');
   const relative = path.relative(installs, path.resolve(command));
-  if (path.isAbsolute(relative) || relative === '..' || relative.startsWith('..' + path.sep)) return null;
+  if (path.isAbsolute(relative) || relative === '..' || relative.startsWith('..' + path.sep)) {
+    if (expectedSelection) throw fail('Expected runtime command is outside the managed installation owner.');
+    return null;
+  }
   const [toolId, directory, installId, ...filename] = relative.split(path.sep);
   if (!/^[a-z0-9][a-z0-9.-]{0,100}$/u.test(toolId || '') || directory !== 'generations'
     || !/^[a-f0-9]{64}$/u.test(installId || '') || !filename.length) throw fail('Command is not a canonical managed physical generation.');
   const selected = resolveManagedToolInstallation(toolingRoot, toolId);
   if (!selected || path.resolve(selected.command) !== path.resolve(command) || selected.installId !== installId) {
     throw fail('Managed command is stale, damaged or differs from the selected executable.');
+  }
+  if (expectedSelection && (expectedSelection.toolId !== toolId || expectedSelection.descriptorId !== selected.descriptorId
+    || expectedSelection.installId !== selected.installId || path.resolve(expectedSelection.command) !== path.resolve(command))) {
+    throw fail('Managed runtime generation changed after launch selection.');
   }
   return { toolingRoot: path.resolve(toolingRoot), toolId, descriptorId: selected.descriptorId,
     installId: selected.installId, command: selected.command };
@@ -81,25 +106,49 @@ const wrapRetainedInstallation = (selected, held) => {
 };
 
 export const runWithManagedCommandInstallationSync = (options, run) => {
-  const selected = resolveManagedCommandSelection(options);
-  if (!selected) return run();
-  const lease = wrapRetainedInstallation(selected, retainManagedToolInstallationSync(selected));
-  const reaped = value => value && (Number.isInteger(value.exitCode) || typeof value.signal === 'string' && value.signal.length > 0);
+  const runtimes = normalizeManagedRuntimeCommands(options.managedRuntimeCommands);
+  const leases = [];
+  const releaseSettled = primary => {
+    let failure = primary;
+    for (const lease of leases.toReversed()) {
+      if (lease.released) continue;
+      try { lease.releaseAfterSettlement({ settled: true, pending: false }); }
+      catch (error) { failure = retainPendingManagedCommand(lease, failure || error, failure ? { cleanupError: error } : {}); }
+    }
+    return failure;
+  };
+  const retainAllPending = error => {
+    for (const lease of leases) if (!lease.released) error = retainPendingManagedCommand(lease, error);
+    return error;
+  };
   try {
-    lease.assertHeld();
+    for (const selection of [options, ...runtimes.map(expectedSelection => ({ ...options,
+      command: expectedSelection.command, expectedSelection }))]) {
+      const selected = resolveManagedCommandSelection(selection);
+      if (selected) leases.push(wrapRetainedInstallation(selected, retainManagedToolInstallationSync(selected)));
+    }
+  } catch (error) { throw releaseSettled(error); }
+  if (!leases.length) return run();
+  const reaped = value => value && (Number.isInteger(value.exitCode) || typeof value.signal === 'string' && value.signal.length > 0);
+  let invoked = false, childSettled = false;
+  try {
+    for (const lease of leases) lease.assertHeld();
+    invoked = true;
     const value = run();
     if (!reaped(value)) throw Object.assign(fail('Managed sync subprocess returned without reaped child evidence.'), { cacheOwnershipPending: true });
-    lease.releaseAfterSettlement({ settled: true, pending: false });
+    childSettled = true;
+    const cleanupError = releaseSettled(null);
+    if (cleanupError) throw cleanupError;
     return value;
   } catch (error) {
     // spawnSync returning normally with a status drains stdio and reaps its
     // direct child. Timeout/tree escalation has weaker evidence: retain it.
     const neverSpawned = error?.result?.pid === null && ['ENOENT', 'EACCES', 'ENOEXEC', 'EINVAL'].includes(error?.cause?.code);
-    if (error?.code !== 'SUBPROCESS_TIMEOUT' && error?.cacheOwnershipPending !== true && (reaped(error?.result) || neverSpawned)) {
-      try { lease.releaseAfterSettlement({ settled: true, pending: false }); }
-      catch (cleanupError) { throw retainPendingManagedCommand(lease, error, { cleanupError }); }
-    } else throw retainPendingManagedCommand(lease, error);
-    throw error;
+    if (childSettled) throw error;
+    if (!invoked || error?.code !== 'SUBPROCESS_TIMEOUT' && error?.cacheOwnershipPending !== true && (reaped(error?.result) || neverSpawned)) {
+      throw releaseSettled(error);
+    }
+    throw retainAllPending(error);
   }
 };
 

@@ -15,6 +15,7 @@ import {
 import { pathToFileUri } from '../../integrations/tooling/lsp/client.js';
 import { createRetainedLspClient } from '../../integrations/tooling/lsp/managed-client.js';
 import { runWithManagedCommandInstallationSync } from './managed-command-lifetime.js';
+import { resolveDotnetRuntimeLaunch } from './dotnet-runtime.js';
 import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from './binary-utils.js';
 import {
   __getPersistentCommandProbeCacheRuntimeStatsForTests,
@@ -53,7 +54,8 @@ const runProbeCommand = (cmd, args = [], options = {}) => {
     : DEFAULT_PROBE_TIMEOUT_MS;
   const cwd = String(options.cwd || process.cwd());
   return runWithManagedCommandInstallationSync({
-    toolingRoot: options.toolingConfig?.dir || options.env?.PAIROFCLEATS_TOOLING_DIR || null, command: cmd
+    toolingRoot: options.toolingConfig?.dir || options.env?.PAIROFCLEATS_TOOLING_DIR || null, command: cmd,
+    managedRuntimeCommands: options.managedRuntimeCommands
   }, () => spawnResolvedSubprocessSync(cmd, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     cwd,
@@ -565,8 +567,11 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
 const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutMs, toolingConfig, cwd = process.cwd() }) => {
   let probeCwd = path.resolve(cwd);
   try { probeCwd = fsSync.realpathSync(probeCwd); } catch {}
-  const probeEnv = resolveNoProvisionToolingEnvironment(process.env, { cwd: probeCwd, command,
-    providerId, toolingRoot: toolingConfig?.dir || null });
+  const launch = resolveDotnetRuntimeLaunch({ command, args: launchArgs, cwd: probeCwd, providerId, toolingRoot: toolingConfig?.dir || null,
+    baseEnv: resolveNoProvisionToolingEnvironment(process.env, { cwd: probeCwd, command,
+      providerId, toolingRoot: toolingConfig?.dir || null }) });
+  command = launch.command;
+  const probeEnv = launch.environment;
   const environmentIdentity = createCommandProbeEnvironmentIdentity(probeEnv);
   const cacheKey = `${normalizeProviderId(providerId) || ''}\u0000${String(command || '').trim()}\u0000${JSON.stringify(launchArgs || [])}\u0000${JSON.stringify(probeArgs || [])}\u0000${Math.max(100, Math.floor(Number(timeoutMs) || DEFAULT_PROBE_TIMEOUT_MS))}\u0000${normalizeComparablePath(probeCwd)}\u0000${environmentIdentity}`;
   const now = Date.now();
@@ -611,7 +616,8 @@ const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutM
   const attempted = [];
   for (const args of probeArgs) {
     try {
-      const result = runProbeCommand(command, args, { timeoutMs, cwd: probeCwd, providerId, toolingConfig, env: probeEnv });
+      const result = runProbeCommand(command, args, { timeoutMs, cwd: probeCwd, providerId, toolingConfig, env: probeEnv,
+        managedRuntimeCommands: launch.managedRuntimeCommands });
       attempted.push({
         args,
         exitCode: result.exitCode ?? null,
@@ -799,12 +805,25 @@ export const resolveToolingCommandProfile = (input) => {
         validationFailure: { reasonCode: executionAuthority.reasonCode } }
     };
   }
-  const resolvedCmd = resolveBaseCommand({
+  let resolvedCmd = resolveBaseCommand({
     providerId,
     requestedCmd,
     repoRoot,
     toolingConfig
   });
+  try {
+    // Bind a bare dotnet selection to the canonical SDK host before any PATH
+    // fallback can choose a different installation. Explicit external hosts
+    // remain separately selected and carry no managed-runtime qualification.
+    const runtimeSelection = resolveDotnetRuntimeLaunch({ command: requestedCmd === 'dotnet' ? requestedCmd : resolvedCmd, args: requestedArgs, cwd: repoRoot,
+      providerId, toolingRoot: toolingConfig?.dir || null });
+    if (runtimeSelection.managedRuntimeCommands.length) resolvedCmd = runtimeSelection.command;
+  } catch (error) {
+    if (error?.code !== 'ERR_TOOLING_DOTNET_RUNTIME_UNAVAILABLE') throw error;
+    return { providerId, requested: { cmd: requestedCmd, args: requestedArgs },
+      resolved: { cmd: '', args: [], mode: 'blocked', reason: error.code },
+      probe: { ok: false, resolvedPath: null, attempted: [], validationFailure: { reasonCode: error.code, message: error.message } } };
+  }
   // Also reject PATH symlinks and explicit commands that resolve into an
   // untrusted repo before even a --version probe can execute them.
   const candidate = findBinaryOnPath(resolvedCmd) || resolvedCmd;
@@ -895,7 +914,7 @@ export const probeLspInitializeHandshake = async (input) => {
   const signal = composeAbortSignals(input?.signal, input?.abortSignal);
   throwIfAborted(signal);
   const requestedCmd = String(input?.cmd || '').trim();
-  const cmd = requestedCmd && !isAbsolutePathNative(requestedCmd)
+  let cmd = requestedCmd && !isAbsolutePathNative(requestedCmd)
     ? findBinaryOnPath(requestedCmd) || requestedCmd : requestedCmd;
   const executionAuthority = resolveWorkspaceExecutionAuthority({
     repoRoot: input?.cwd || process.cwd(), providerId: input?.providerId, server: { cmd }
@@ -911,11 +930,23 @@ export const probeLspInitializeHandshake = async (input) => {
       errorMessage: 'missing command'
     };
   }
+  const cwd = input?.cwd || process.cwd();
+  let launch;
+  try {
+    launch = resolveDotnetRuntimeLaunch({ command: requestedCmd === 'dotnet' ? requestedCmd : cmd,
+      args: input?.args || [], cwd,
+      providerId: input?.providerId, toolingRoot: input?.toolingConfig?.dir || null,
+      baseEnv: resolveNoProvisionToolingEnvironment(process.env, { cwd, command: cmd,
+        providerId: input?.providerId, toolingRoot: input?.toolingConfig?.dir || null }) });
+    cmd = launch.command;
+  } catch (error) {
+    if (error?.code !== 'ERR_TOOLING_DOTNET_RUNTIME_UNAVAILABLE') throw error;
+    return { ok: false, latencyMs: 0, errorCode: error.code, errorMessage: error.message };
+  }
   if (!isResolvedCommandTrusted({ commandPath: cmd, repoRoot: input?.cwd || process.cwd(), toolRoot: resolveToolRoot() })) {
     return { ok: false, latencyMs: 0, errorCode: 'untrusted-repository-command', errorMessage: 'Repository command requires an exact launch-owned trust grant.' };
   }
   const args = Array.isArray(input?.args) ? input.args.map((entry) => String(entry)) : [];
-  const cwd = input?.cwd || process.cwd();
   const timeoutMs = Number.isFinite(Number(input?.timeoutMs))
     ? Math.max(750, Math.floor(Number(input.timeoutMs)))
     : 4000;
@@ -935,12 +966,12 @@ export const probeLspInitializeHandshake = async (input) => {
   }
   throwIfAborted(signal);
   const client = await createRetainedLspClient({
-    cmd,
+    cmd: launch.command,
     toolingRoot: input?.toolingConfig?.dir || null,
     args,
     cwd,
-    env: resolveNoProvisionToolingEnvironment(process.env, { cwd, command: cmd,
-      providerId: input?.providerId, toolingRoot: input?.toolingConfig?.dir || null }),
+    env: launch.environment,
+    managedRuntimeCommands: launch.managedRuntimeCommands,
     onLifecycleEvent: input?.onLifecycleEvent,
     onStderrLine: input?.onStderrLine,
     log: () => {}
