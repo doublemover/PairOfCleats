@@ -4,11 +4,11 @@ import { TASK_SPAN_TRACE_VERSION } from '../../contracts/schemas/task-span-trace
 import { QUALITY_COMPARISON_VERSION } from '../../contracts/schemas/quality-comparison.js';
 import { TASK_SPAN_TRACE_POLICY } from './task-span-trace.js';
 import { comparePairedQuality } from './paired-quality.js';
+import { captureTaskSpanQualityReceipts } from './task-span-quality-inputs.js';
 
 export const TASK_SPAN_QUALITY_METRICS = Object.freeze(['retrievalOverlap', 'exploredOverlap', 'deliveredCoverage',
   'claimedUtilization', 'atomicSupportRate', 'taskSuccess']);
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
-const hash = /^[a-f0-9]{64}$/u;
 const fail = message => Object.assign(new Error(message), { code: 'ERR_TASK_SPAN_TRACE' });
 
 /** Failed/censored runs retain their outcomes. Unknown instrumentation never
@@ -16,19 +16,14 @@ const fail = message => Object.assign(new Error(message), { code: 'ERR_TASK_SPAN
 export const compareTaskSpanQuality = async ({ baseline, candidate, metric = 'deliveredCoverage',
   seed = 'task-span-quality-v1', cluster = 'repository', resamples = 256,
   signal = null, limits = {}, resumeKey = null } = {}) => {
-  if (!TASK_SPAN_QUALITY_METRICS.includes(metric) || !Array.isArray(baseline) || !Array.isArray(candidate)
-    || baseline.length > 128 || candidate.length > 128) throw fail('Explicit bounded task-span evaluation populations and metric required.');
+  if (!TASK_SPAN_QUALITY_METRICS.includes(metric)) throw fail('Explicit bounded task-span evaluation populations and metric required.');
+  baseline = captureTaskSpanQualityReceipts(baseline, metric);
+  candidate = captureTaskSpanQualityReceipts(candidate, metric);
   const judgmentPolicies = new Set();
   const observations = receipts => receipts.map(receipt => {
-    const identity = receipt?.identity;
-    if (receipt?.schemaVersion !== TASK_SPAN_TRACE_VERSION || receipt.kind !== 'task-span-evaluation' || !receipt.complete
-      || receipt.policy !== TASK_SPAN_TRACE_POLICY || !hash.test(receipt.traceKey || '')
-      || !hash.test(receipt.sourceDigest || '') || !hash.test(receipt.goldDigest || '')
-      || !hash.test(receipt.judgmentPolicyKey || '')
-      || !hash.test(identity?.taskKey || '') || !hash.test(identity?.inputKey || '') || !hash.test(identity?.queryDigest || '')
-      || !identity.repoId || !identity.familyId || !['complete', 'failed', 'timeout', 'cancelled', 'incomplete'].includes(receipt.runStatus)) throw fail('Comparable task-span evaluation receipt and immutable input provenance required.');
+    const identity = receipt.identity;
     judgmentPolicies.add(receipt.judgmentPolicyKey);
-    const value = receipt.runStatus === 'complete' ? receipt.metrics?.[metric] : null;
+    const value = receipt.measurement;
     const status = receipt.runStatus === 'complete' ? Number.isFinite(value) ? 'complete' : 'missing'
       : receipt.runStatus === 'timeout' || receipt.runStatus === 'cancelled' ? receipt.runStatus
         : receipt.runStatus === 'failed' ? 'failed' : 'missing';

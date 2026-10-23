@@ -101,6 +101,22 @@ no inferred quality zero. One complete repository/family cluster has no interval
 The metric definition and exact saved run keys participate in comparison identity.
 No test-label tuning, success threshold or promotion decision is added.
 
+The comparison adapter captures dense original receipt membership and the own
+passive provenance, run-status and selected metric fields before pairing. It
+does not invoke receipt accessors, inherited evidence or caller array methods.
+The complete flag must be exactly true, and the original run-complete observation
+must agree with the declared run status. Original task/input/query/source/gold,
+rubric and trace keys are read once as bounded primitive data; later caller
+mutation cannot change a run key after its pairing evidence was admitted. The
+captured original summaries, including unknown or failed observations, feed the
+existing paired-quality owner. Full retained traces and unrelated metadata are
+not copied into this small comparison snapshot.
+
+This admission does not authenticate a caller-pinned receipt or independently
+revalidate its source bytes or judgments. The actual producer/comparison and
+passive receipt controls are authored and **UNVALIDATED**, including accessor,
+inherited/sparse/custom-array, changing descriptor and falsey inspection cases.
+
 ## Bounds and remaining integration
 
 A trace admits at most1,024 source files,4,096 events,4,096 gold spans,256 claims
