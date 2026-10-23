@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { openContainedFile, verifyContainedFileHandle } from '../../../shared/contained-file.js';
+import { withContainedFile } from '../../../shared/contained-file.js';
 import { readExactAt } from '../../../shared/io/read-exact.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 
@@ -16,9 +16,7 @@ export const streamFieldPostingsShardBody = async ({ root, filename, expected, o
     throw fail('Completed shard integrity receipt is required.');
   }
   throwIfAborted(signal);
-  const handle = await openContainedFile(root, filename);
-  let primary = null;
-  try {
+  const populated = await withContainedFile(root, filename, async handle => {
     const before = await handle.stat();
     if (before.size !== expected.bytes) throw fail('Completed shard length changed.');
     const prefix = Buffer.alloc(prefixBytes), suffix = Buffer.alloc(suffixBytes);
@@ -46,17 +44,13 @@ export const streamFieldPostingsShardBody = async ({ root, filename, expected, o
     }
     hash.update(suffix);
     if (hash.digest('hex') !== expected.checksum) throw fail('Completed shard checksum changed.');
-    const after = await handle.stat(); verifyContainedFileHandle(handle, root, filename);
+    const after = await handle.stat(); handle.verify();
     if (!same(before, after)) throw fail('Completed shard changed during merge.');
     throwIfAborted(signal);
-    metrics.shardsRead = (metrics.shardsRead || 0) + 1;
-    metrics.readBytes = (metrics.readBytes || 0) + prefix.length + suffix.length;
     return end > prefix.length;
-  } catch (error) { primary = error; throw error; }
-  finally {
-    try { await handle.close(); } catch (error) {
-      if (!primary) throw error;
-      try { primary.closeError = error; } catch {}
-    }
-  }
+  });
+  // Completion is a witness only after the original read/close owner settles.
+  metrics.shardsRead = (metrics.shardsRead || 0) + 1;
+  metrics.readBytes = (metrics.readBytes || 0) + prefixBytes + suffixBytes;
+  return populated;
 };

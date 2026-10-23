@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { enqueueFieldPostingsShards, writeFieldPostingsFragments, mergeFieldPostingsFragments,
   FIELD_POSTINGS_FRAGMENT_LAYOUT } from '../../../src/index/build/artifacts/field-postings-shards.js';
+import { getContainedFileSession } from '../../../src/shared/contained-file-resource.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-field-fragments-'));
 const makeField = size => ({ vocab: Array.from({ length: size }, (_, index) => `雪😀,"${index}`),
@@ -44,6 +45,11 @@ try {
         assert.equal(await fs.readFile(targetPath, 'utf8'), 'old authority');
         corrupt[0] = { ...result.parts[0], offset: 1 };
         await assert.rejects(mergeFieldPostingsFragments({ root: output, parts: corrupt, targetPath }), { code: 'ERR_FIELD_POSTINGS_SHARD_INTEGRITY' });
+        await assert.rejects(mergeFieldPostingsFragments({ root: output, parts: result.parts.slice(0, -1), targetPath }),
+          { code: 'ERR_FIELD_POSTINGS_SHARD_INTEGRITY' });
+        await assert.rejects(mergeFieldPostingsFragments({ root: output, parts: result.parts, targetPath,
+          expectedTotalBytes: expected.length + 1 }), { code: 'ERR_FIELD_POSTINGS_SHARD_INTEGRITY' });
+        assert.equal(await fs.readFile(targetPath, 'utf8'), 'old authority');
       }
     }
   }
@@ -91,6 +97,43 @@ try {
     } finally { fs.rename = rename; }
     assert.equal(await fs.readFile(path.join(generationRoot, 'field_postings.json'), 'utf8'), '{"fields":{"old":{}}}\n');
     assert.equal(await fs.readFile(path.join(generationRoot, 'field_postings.shards.bak', 'recovery'), 'utf8'), 'retained');
+  }
+  const ownerRoot = path.join(root, 'read-owner');
+  const owned = await writeFieldPostingsFragments({ directory: ownerRoot, fields: { only: makeField(30) }, maxPartBytes: 97 });
+  const ownerTarget = path.join(root, 'read-owner.json'); await fs.writeFile(ownerTarget, 'old authority');
+  const firstPath = path.join(ownerRoot, owned.parts[0].filename), nativeOpen = fs.open;
+  const closeFailure = Object.freeze(new Error('independent original fragment close failed'));
+  let rejectClose = true, closeCalls = 0, readCalls = 0, failure;
+  fs.open = async (...args) => {
+    const handle = await nativeOpen(...args);
+    if (args[0] === firstPath) {
+      const read = handle.read.bind(handle), close = handle.close.bind(handle);
+      handle.read = (buffer, offset, length, position) => { readCalls++; return read(buffer, offset, Math.min(3, length), position); };
+      handle.close = async () => { closeCalls++; if (rejectClose) { rejectClose = false; throw closeFailure; } return close(); };
+    }
+    return handle;
+  };
+  try {
+    const metrics = {}, corrupt = owned.parts.map((part, index) => index ? part : { ...part, checksum: '0'.repeat(40) });
+    await assert.rejects(mergeFieldPostingsFragments({ root: ownerRoot, parts: corrupt, targetPath: ownerTarget, metrics }), error => {
+      failure = error; return error.code === 'ERR_FIELD_POSTINGS_SHARD_INTEGRITY' && error.cacheOwnershipPending === true;
+    });
+    assert.equal(metrics.shardsRead || 0, 0, 'read completion is withheld until original closure');
+    assert.equal(closeCalls, 1);
+    const session = getContainedFileSession(failure); assert.ok(session);
+    await session.releaseAfterClose();
+    assert.equal(session.isSettled(), true); assert.equal(closeCalls, 2);
+    assert.equal(await fs.readFile(ownerTarget, 'utf8'), 'old authority');
+    const expected = Buffer.from(JSON.stringify({ fields: { only: makeField(30) } }) + '\n');
+    await mergeFieldPostingsFragments({ root: ownerRoot, parts: owned.parts, expectedTotalBytes: owned.totalBytes,
+      targetPath: ownerTarget });
+    assert.deepEqual(await fs.readFile(ownerTarget), expected); assert.ok(readCalls > 2);
+  } finally {
+    if (failure) {
+      const session = getContainedFileSession(failure);
+      if (session && !session.isSettled()) await session.releaseAfterClose();
+    }
+    fs.open = nativeOpen;
   }
   const controller = new AbortController(); controller.abort();
   await assert.rejects(writeFieldPostingsFragments({ directory: path.join(root, 'aborted'), fields: { only: makeField(1) },

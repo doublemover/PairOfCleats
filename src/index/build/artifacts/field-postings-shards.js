@@ -8,8 +8,11 @@ import { createJsonWriteStream, writeChunk } from '../../../shared/json-stream/s
 import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { streamFieldPostingsShardBody } from './field-postings-shard-stream.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 
 export const FIELD_POSTINGS_FRAGMENT_LAYOUT = 'json-byte-fragments-v1';
+const PREFIX = Buffer.from('{"fields":{'), SUFFIX = Buffer.from('}}\n');
+const integrityFailure = message => Object.assign(new Error(message), { code: 'ERR_FIELD_POSTINGS_SHARD_INTEGRITY' });
 
 const exists = async filename => {
   try { await fs.lstat(filename); return true; }
@@ -62,32 +65,76 @@ export const writeFieldPostingsFragments = async ({ directory, fields, maxPartBy
     throwIfAborted(signal);
     return { parts, totalBytes, encodingTiming };
   } catch (error) {
-    stream.destroy(error); await done.catch(() => {});
-    if (current) {
-      current.stream.destroy(error); await current.done.catch(() => {});
+    let primary = error;
+    try { stream.destroy(error); } catch (cleanupError) {
+      primary = addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true });
     }
-    throw error;
+    try { await done; } catch (cleanupError) {
+      if (cleanupError !== error) primary = addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true });
+    }
+    if (current) {
+      try { current.stream.destroy(error); } catch (cleanupError) {
+        primary = addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true });
+      }
+      try { await current.done; } catch (cleanupError) {
+        if (cleanupError !== error) primary = addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true });
+      }
+    }
+    throw primary;
   }
 };
 
-export const mergeFieldPostingsFragments = async ({ root, parts, targetPath, signal = null, metrics = {} }) => {
+export const mergeFieldPostingsFragments = async ({ root, parts, targetPath, expectedTotalBytes = null, signal = null, metrics = {} }) => {
+  if (!Array.isArray(parts) || !parts.length) throw integrityFailure('Field-postings fragment sequence is empty.');
+  let admittedBytes = 0;
+  const filenames = new Set();
+  for (const part of parts) {
+    const filename = part?.absPath || path.join(root, part?.path || part?.filename || '');
+    if (part?.offset !== admittedBytes || !Number.isSafeInteger(part?.bytes) || part.bytes <= 0
+      || !Number.isSafeInteger(admittedBytes + part.bytes) || filenames.has(filename)) {
+      throw integrityFailure('Field-postings fragment sequence is not a unique contiguous safe span.');
+    }
+    filenames.add(filename); admittedBytes += part.bytes;
+  }
+  if (expectedTotalBytes !== null && expectedTotalBytes !== admittedBytes) throw integrityFailure('Field-postings fragment total differs from its selected family.');
+  const prefix = Buffer.alloc(PREFIX.length), suffix = Buffer.alloc(SUFFIX.length);
+  let prefixBytes = 0, suffixBytes = 0;
   const output = createJsonWriteStream(targetPath, { atomic: true, checksumAlgo: 'sha1', signal });
   let offset = 0;
   try {
     for (const part of parts) {
       throwIfAborted(signal);
       if (part.offset !== offset || !Number.isSafeInteger(part.bytes) || part.bytes <= 0) {
-        throw Object.assign(new Error('Field-postings fragment sequence is not contiguous.'), { code: 'ERR_FIELD_POSTINGS_SHARD_INTEGRITY' });
+        throw integrityFailure('Field-postings fragment sequence changed after admission.');
       }
       await streamFieldPostingsShardBody({ root, filename: part.absPath || path.join(root, part.path || part.filename),
-        expected: part, signal, metrics, fragment: true, onChunk: bytes => writeChunk(output.stream, bytes) });
+        expected: { ...part }, signal, metrics, fragment: true, onChunk: async bytes => {
+          const take = Math.min(PREFIX.length - prefixBytes, bytes.length);
+          if (take) { bytes.copy(prefix, prefixBytes, 0, take); prefixBytes += take; }
+          if (bytes.length >= SUFFIX.length) { bytes.copy(suffix, 0, bytes.length - SUFFIX.length); suffixBytes = SUFFIX.length; }
+          else {
+            const keep = Math.min(suffixBytes, SUFFIX.length - bytes.length);
+            suffix.copy(suffix, 0, suffixBytes - keep, suffixBytes);
+            bytes.copy(suffix, keep); suffixBytes = keep + bytes.length;
+          }
+          await writeChunk(output.stream, bytes);
+        } });
       offset += part.bytes;
     }
+    if (offset !== admittedBytes || prefixBytes !== PREFIX.length || suffixBytes !== SUFFIX.length
+      || !prefix.equals(PREFIX) || !suffix.equals(SUFFIX)) throw integrityFailure('Field-postings fragments do not frame a complete selected document.');
     output.stream.end(); await output.done;
     return { bytes: output.getBytesWritten(), checksum: output.getChecksum(), checksumAlgo: output.checksumAlgo,
       serializationMs: 0, directFdStreaming: true };
   } catch (error) {
-    output.stream.destroy(error); await output.done.catch(() => {}); throw error;
+    let primary = error;
+    try { output.stream.destroy(error); } catch (cleanupError) {
+      primary = addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true });
+    }
+    try { await output.done; } catch (cleanupError) {
+      if (cleanupError !== error) primary = addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true });
+    }
+    throw primary;
   }
 };
 
@@ -117,7 +164,8 @@ export const enqueueFieldPostingsShards = async ({ outDir, fields, estimatedByte
       path: path.posix.join(generation, 'field_postings.shards', part.filename), absPath: path.join(shardsDir, part.filename) }));
     setPhase?.('publish:field-postings-shard-merge');
     const metrics = {};
-    const merged = await mergeFieldPostingsFragments({ root: outDir, parts, targetPath: legacyPath, signal, metrics });
+    const merged = await mergeFieldPostingsFragments({ root: outDir, parts, expectedTotalBytes: written.totalBytes,
+      targetPath: legacyPath, signal, metrics });
     const meta = await writeJsonObjectFile(metaPath, { fields: {
       schemaVersion: '2.0.0', layout: FIELD_POSTINGS_FRAGMENT_LAYOUT,
       generatedAt: new Date().toISOString(), shardCount: parts.length, fields: Object.keys(fields).length,
