@@ -93,3 +93,15 @@ Historical benchmark JSON/JSONL, run ledgers, summaries and canary receipts made
 before this repair may contain inherited prefixed values. Review those local
 artifacts under your existing retention/sharing policy; this change neither scans
 nor deletes historical evidence and does not attest that it was sanitized.
+
+
+### Cache cleanup admission
+
+A repository attempt denied index-lock admission never owns cleanup. Finalization
+reports a typed `cacheCleanup` outcome separately from the workload/skip result.
+Admitted cleanup uses the existing reader exclusion, rechecks builder locks, and
+requires the category's producer/retention proof. Live or unknown readers, pending
+resources, saved evidence, current builds and unqualified categories are retained.
+Cleanup does not force-remove those owners or recursively erase a shared cache.
+A parent that still retains readers reports protection; a real owner drain/handoff
+is required before those readers can be replaced by exclusive cleanup authority.
