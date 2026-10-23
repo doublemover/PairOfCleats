@@ -1,9 +1,12 @@
 const fs = require('node:fs');
 const { renderCompositeContextPack } = require('./analysis-renderers.js');
 const { assertQualifiedEditor } = require('./document-authority.js');
+const { captureEditorFailure, reportEditorFailure, editorFailureEvidence } = require('./editor-failure-evidence.js');
 
 const MAX_SELECTED = 8;
 const MAX_EXPORT_BYTES = 256 * 1024;
+const previewBudgetErrors = new WeakSet();
+const previewBudget = message => { const error = new Error(message); previewBudgetErrors.add(error); return error; };
 
 function originalChoices(selected, items, maximum) {
   if (!Array.isArray(selected) || !selected.length) return null;
@@ -68,7 +71,7 @@ function collectEvidenceSources(payload) {
 
 function renderEvidencePreview(packets, purpose, omitted = []) {
   const json = JSON.stringify(packets, null, 2) + '\n';
-  if (Buffer.byteLength(json) > MAX_EXPORT_BYTES) throw new Error('Selected canonical context packets exceed the 256 KiB export bound. Exclude items or narrow their budgets.');
+  if (Buffer.byteLength(json) > MAX_EXPORT_BYTES) throw previewBudget('Selected canonical context packets exceed the 256 KiB export bound. Exclude items or narrow their budgets.');
   const escapedPurpose = String(purpose || '').replace(/[\r\n]/g, ' ').slice(0, 512);
   const markdown = [`# Selected source evidence`, '', `Purpose: ${escapedPurpose || '(unspecified)'}`,
     `Selected: ${packets.length} canonical context packet(s). JSON bytes: ${Buffer.byteLength(json)}. Token estimate unavailable.`,
@@ -78,7 +81,7 @@ function renderEvidencePreview(packets, purpose, omitted = []) {
     ...omitted.map(reason => `Omitted: ${reason}`), '',
     ...packets.map(packet => renderCompositeContextPack(packet)),
     'Full canonical evidence:', '```json', json, '```'].join('\n\n');
-  if (Buffer.byteLength(markdown) > MAX_EXPORT_BYTES) throw new Error('Rendered Markdown exceeds the 256 KiB export bound. Exclude items before exporting.');
+  if (Buffer.byteLength(markdown) > MAX_EXPORT_BYTES) throw previewBudget('Rendered Markdown exceeds the 256 KiB export bound. Exclude items before exporting.');
   return { json, markdown, bytes: Buffer.byteLength(json) };
 }
 
@@ -97,6 +100,7 @@ function createEvidenceCollection({ vscode, operations, getResults, fetchContext
   };
   return async function copyContext(node, sourceCurrent = null) {
     return operations.run('evidence-collection', async () => {
+      const failures = [];
       let revoked = false, failed = false, sourceError;
       const isCurrent = () => {
         if (!operations.isCurrent() || revoked) return false;
@@ -114,7 +118,7 @@ function createEvidenceCollection({ vscode, operations, getResults, fetchContext
         const resultSet = node?.resultSet || getResults();
         const selectedHit = node?.hit;
         const hits = selectedHit ? [selectedHit] : resultSet?.hits || [];
-        if (!resultSet || !hits.length) { vscode.window.showInformationMessage('Select a saved search result before creating context.'); return; }
+        if (!resultSet || !hits.length) { await vscode.window.showInformationMessage('Select a saved search result before creating context.'); return; }
         const repoRoot = resultSet.repoRoot, repoUri = resultSet.repoUri;
         if (typeof repoRoot !== 'string' || !repoRoot
           || (repoUri != null && typeof repoUri !== 'string')) throw new Error('Selected evidence has no captured repository authority.');
@@ -141,6 +145,7 @@ function createEvidenceCollection({ vscode, operations, getResults, fetchContext
         if (!choices) return;
         const purpose = await vscode.window.showInputBox({ prompt: 'Purpose of this context (included in Markdown preview)' });
         if (purpose === undefined || !isCurrent()) return;
+        if (typeof purpose !== 'string') throw new TypeError('Evidence purpose requires the original text input.');
         const packets = [], omitted = [];
         for (const choice of choices) {
           if (!isCurrent()) return;
@@ -156,7 +161,11 @@ function createEvidenceCollection({ vscode, operations, getResults, fetchContext
         }
         let initial;
         try { initial = renderEvidencePreview(packets, purpose, omitted); }
-        catch { initial = { markdown: 'The current selection exceeds the export bound. Exclude packets in the review picker; the final bounded output will be previewed before copying or saving.' }; }
+        catch (primary) {
+          if (!previewBudgetErrors.has(primary)) throw primary;
+          failures.push(captureEditorFailure(primary));
+          initial = { markdown: 'The current selection exceeds the export bound. Exclude packets in the review picker; the final bounded output will be previewed before copying or saving.' };
+        }
         if (!await showPreview(initial.markdown, isCurrent)) return;
         const review = Object.freeze(packets.map((packet, index) => Object.freeze({
           label: packet.primary.file || `Context ${index + 1}`,
@@ -187,17 +196,15 @@ function createEvidenceCollection({ vscode, operations, getResults, fetchContext
           else if (target.scheme === 'file') fs.writeFileSync(target.fsPath, text, 'utf8');
           else throw new Error('This destination does not support writing evidence.');
         }
+        return editorFailureEvidence(failures);
       } catch (error) {
-        const inspectionErrors = []; let message = 'Evidence operation failed.';
-        try { const value = error?.message; if (typeof value === 'string') message = value; }
-        catch (inspection) { inspectionErrors.push(inspection); }
-        let report = false;
-        try { report = isCurrent(); } catch (inspection) { if (inspection !== error) inspectionErrors.push(inspection); }
-        if (report) {
-          try { vscode.window.showErrorMessage(`PairOfCleats evidence: ${message}`); }
-          catch (inspection) { inspectionErrors.push(inspection); }
-        }
-        return Object.freeze({ ok: false, primaryError: error, inspectionErrors: Object.freeze(inspectionErrors) });
+        const original = await reportEditorFailure(error, {
+          isCurrent: () => { try { return isCurrent(); } catch (inspection) { if (inspection === error) return false; throw inspection; } },
+          notify: message => vscode.window.showErrorMessage(message), prefix: 'PairOfCleats evidence: '
+        });
+        failures.push(original);
+        return Object.freeze({ ok: false, primaryError: error, inspectionErrors: original.inspectionErrors,
+          failures: Object.freeze([...failures]) });
       }
     }, { key: 'evidence-collection' });
   };

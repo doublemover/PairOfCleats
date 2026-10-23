@@ -32,10 +32,10 @@ const fixture = () => {
         return value.chooseReview ? value.chooseReview(items) : [...items]; }
       return value.chooseAction ? value.chooseAction(items) : 'Copy JSON';
     },
-    async showInputBox() { await value.onPurpose?.(); return 'Investigate original flow'; },
+    async showInputBox() { await value.onPurpose?.(); return Object.hasOwn(value, 'purpose') ? value.purpose : 'Investigate original flow'; },
     async showTextDocument(document) { value.shown.push(document); return value.onDisplay ? value.onDisplay(document) : { document }; },
     async showSaveDialog() { return value.onSave ? value.onSave() : { scheme: 'file', fsPath: 'C:/chosen/evidence.json' }; },
-    showErrorMessage(message) { value.errors.push(message); }, showInformationMessage() {}
+    showErrorMessage(message) { value.errors.push(message); return value.notify?.(message); }, showInformationMessage() { return value.inform?.(); }
   }, env: { clipboard: { async writeText(text) { value.copies.push(text); } } } };
   value.copy = createEvidenceCollection({ vscode: value.operations.wrapVscode(api), operations: value.operations,
     getResults: () => value.results, fetchContext: async (seed, authority) => { value.fetched.push({ seed, authority });
@@ -105,6 +105,19 @@ try {
   const oversized = fixture(); oversized.packet.primary.excerpt = 'x'.repeat(MAX_EXPORT_BYTES);
   await oversized.copy(); assert.equal(oversized.documents.length, 0); assert.equal(oversized.copies.length, 0);
 
+  const malformedRender = fixture(); malformedRender.packet.graph = { warnings: [null] };
+  const malformedResult = await malformedRender.copy(); assert.equal(malformedResult.ok, false);
+  assert(malformedResult.primaryError instanceof TypeError); assert.equal(malformedRender.documents.length, 0); assert.equal(malformedRender.reviews, 0,
+    'an original rendering failure is not an oversized-selection recovery notice');
+  const reduced = fixture(); reduced.results.hits.push({ file: 'b.js', name: 'Second source' });
+  reduced.packet.primary.excerpt = 'x'.repeat(70 * 1024); reduced.chooseSource = items => [...items]; reduced.chooseReview = items => [items[0]];
+  const recovered = await reduced.copy(); assert.equal(recovered.kind, 'editor-failure-evidence'); assert.equal(recovered.failures.length, 1);
+  assert.match(recovered.primaryError.message, /256 KiB/); assert.equal(reduced.copies.length, 1); assert.equal(JSON.parse(reduced.copies[0]).length, 1);
+  assert.match(reduced.documents[0].content, /selection exceeds the export bound/); assert.equal(reduced.errors.length, 0);
+  const invalidPurpose = fixture(); invalidPurpose.purpose = { toString() { assert.fail('native text input cannot authorize object coercion or replay a prior budget error'); } };
+  const purposeFailure = await invalidPurpose.copy(); assert(purposeFailure.primaryError instanceof TypeError);
+  assert.equal(invalidPurpose.fetched.length, 0); assert.equal(invalidPurpose.documents.length, 0);
+
   for (const primary of [undefined, null, false, 0, '']) {
     const failed = fixture(); failed.fetch = async () => { throw primary; };
     const result = await failed.copy(); assert.equal(result.ok, false); assert.equal(result.primaryError, primary);
@@ -117,6 +130,28 @@ try {
   const inspectedResult = await inspected.copy(); assert.equal(inspectedResult.primaryError, primary);
   assert.deepEqual(inspectedResult.inspectionErrors, [originalInspection]); assert.equal(messageReads, 1);
   assert.equal(inspectedResult.inspectionErrors[0].cacheOwnershipReleased(), false, 'independent original inspection owner remains available without a settled claim');
+  const repeatedInspection = await inspected.copy(); assert.equal(repeatedInspection.primaryError, primary);
+  assert.deepEqual(repeatedInspection.inspectionErrors, [originalInspection]); assert.equal(messageReads, 1,
+    'a later report cannot reread original diagnostic getter evidence');
+
+  for (const notification of [undefined, null, false, 0, '', Object.freeze(new Error('original notification failure'))]) {
+    const failedNotification = fixture(), operationError = Object.freeze(new Error('original collection failure'));
+    failedNotification.fetch = () => { throw operationError; }; failedNotification.notify = () => { throw notification; };
+    const result = await failedNotification.copy(); assert.equal(result.primaryError, operationError);
+    assert.deepEqual(result.inspectionErrors, [notification]); assert.equal(failedNotification.errors.length, 1);
+  }
+  const notified = fixture(), notificationEntered = deferred(), notificationGate = deferred();
+  const operationError = Object.freeze(new Error('original asynchronous collection failure'));
+  const notificationError = Object.freeze(new Error('original asynchronous notification failure'));
+  notified.fetch = () => { throw operationError; }; notified.notify = async () => { notificationEntered.resolve(); await notificationGate.promise; throw notificationError; };
+  const oldNotification = notified.copy(); await notificationEntered.promise;
+  notified.fetch = null; await notified.copy(); notificationGate.resolve(); const reported = await oldNotification;
+  assert.equal(reported.primaryError, operationError); assert.deepEqual(reported.inspectionErrors, [notificationError]); assert.equal(notified.errors.length, 1);
+  assert.equal(notified.copies.length, 1, 'accepted old notification settlement cannot revoke or overwrite newer collection output');
+  const information = fixture(), informationalFailure = Object.freeze(new Error('original no-results notification'));
+  information.results.hits = []; information.inform = async () => { throw informationalFailure; };
+  const informationResult = await information.copy(); assert.equal(informationResult.primaryError, informationalFailure);
+  assert.equal(information.errors.length, 1); assert.equal(information.sourcePicks, 0);
 
   const deniedParent = fixture(); await deniedParent.copy(undefined, () => false);
   assert.equal(deniedParent.sourcePicks, 0); assert.equal(deniedParent.fetched.length, 0);
