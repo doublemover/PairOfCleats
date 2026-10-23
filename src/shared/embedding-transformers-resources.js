@@ -1,7 +1,14 @@
-import { observeEmbeddingOwnership } from './embedding-cache-lifetime.js';
+import { observeEmbeddingOwnership, getEmbeddingCacheLeaseOwner, getEmbeddingFailureProvenance } from './embedding-cache-lifetime.js';
 
 const pendingResources = new Set();
 const failureProvenance = new WeakMap();
+const resourceProducers = new WeakMap();
+/** Bind only an actual constructor's resource to its existing reconciliation
+ * owner. Copied error fields and causal members never establish this relation. */
+export const bindTransformersResourceProducer = (resource, owner) => {
+  if (!objectLike(resource) || !objectLike(owner) || resourceProducers.has(resource)) throw new Error('Transformers resource already has a producer or is invalid.');
+  resourceProducers.set(resource, owner);
+};
 export const getTransformersFailureProvenance = error => objectLike(error) ? failureProvenance.get(error) || null : null;
 export const trackPendingTransformersOwner = owner => {
   if (owner.pending) pendingResources.add(owner); else pendingResources.delete(owner);
@@ -41,7 +48,10 @@ export const captureTransformersResource = (resource, role = 'transformers resou
   catch (error) { captureFailed = true; captureError = error; }
   const record = error => {
     const observe = observeEmbeddingOwnership(error);
-    if (observe && !blockers.has(error)) blockers.set(error, observe);
+    const producer = resourceProducers.get(resource), cacheOwner = getEmbeddingCacheLeaseOwner(resource);
+    const reconciles = Boolean(producer && getTransformersFailureProvenance(error)?.owner === producer
+      || cacheOwner && getEmbeddingFailureProvenance(error)?.owner === cacheOwner);
+    if (observe && !blockers.has(error)) blockers.set(error, { observe, reconciles });
   };
   const close = ({ retry = false } = {}) => {
     if (closed) return Promise.resolve(true);
@@ -49,14 +59,14 @@ export const captureTransformersResource = (resource, role = 'transformers resou
     if (lastError && !retry) return Promise.reject(lastError);
     flight = Promise.resolve().then(async () => {
       if (captureFailed) throw captureError;
-      for (const [error, observe] of blockers) if (!observe()) throw error;
+      for (const [error, entry] of blockers) if (!entry.reconciles && !entry.observe()) throw error;
       if (!disposed) {
         const confirmed = method ? await method.call(resource) : undefined;
         if (confirmed === false) throw Object.assign(new Error('Transformers resource disposal was explicitly unconfirmed.'),
           { code: 'ERR_TRANSFORMERS_RESOURCE_UNCONFIRMED' });
         disposed = true;
       }
-      for (const [error, observe] of blockers) if (!observe()) throw error;
+      for (const [error, entry] of blockers) if (!entry.observe()) throw error;
       closed = true; pendingResources.delete(owner); return true;
     }).catch(error => {
       record(error); pendingResources.add(owner);

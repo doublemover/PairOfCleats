@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createPreparedTextEncoder } from '../../../src/shared/embedding-prepared.js';
 import { resolveEmbeddingModelProfile } from '../../../src/shared/embedding-model-profile.js';
-import { getPendingTransformersResourceOwners } from '../../../src/shared/embedding-transformers-resources.js';
+import { getPendingTransformersResourceOwners, captureTransformersResource } from '../../../src/shared/embedding-transformers-resources.js';
 
 // Actual prepared encoder with inert constructors; no native sessions/model.
 const profile = resolveEmbeddingModelProfile('onnx-community/embeddinggemma-2-ONNX', { dimensions: 128 });
@@ -107,6 +107,13 @@ try {
   externalClosed = true; await blocked.encoder.dispose();
   assert.ok(blocked.tensors.every(tensor => tensor.closes === 1)); assert.equal(blocked.calls, 1);
   assert.equal(blockedFailure.cacheOwnershipReleased(), true);
+
+  const ownedRetry = fixture({ failOutputClose: true }), ownedRows = await ownedRetry.encoder.prepare(['known producer reconciliation']);
+  const outer = captureTransformersResource(ownedRetry.encoder);
+  await rejected(ownedRetry.encoder.embedPrepared(ownedRows));
+  await rejected(outer.retire()); assert.equal(ownedRetry.models, 0);
+  await outer.release(); assert.equal(ownedRetry.models, 1); assert.equal(outer.pending, false,
+    'an actual prepared producer reconciles its own pending closure without repeating independently pending native disposal');
 
   const gate = deferred(), entered = deferred(), active = fixture({ gate, entered });
   const activeWork = active.encoder(['accepted work']); await entered.promise;

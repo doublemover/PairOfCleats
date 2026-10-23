@@ -8,7 +8,7 @@ import { captureTransformersResource, createTransformersResourceScope, trackPend
   transformersCleanupFailure, getTransformersFailureProvenance } from './embedding-transformers-resources.js';
 import { getPreparedTextEncoderOwner } from './embedding-prepared.js';
 import { resolveEmbeddingDenseContract, validateEmbeddingDenseContract } from './embedding-dense-contract.js';
-import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
+import { snapshotEmbeddingMetadata, snapshotEmbeddingRequestArguments } from './embedding-selection-snapshot.js';
 import {
   DEFAULT_EMBEDDING_POOLING,
   normalizeEmbeddingBatchOutput
@@ -305,6 +305,9 @@ export const createEmbeddingProviderAdapter = ({
     let activeProvider = resolvedProvider;
     let warned = false;
     let fallbackReason = null;
+    let disposed = false, disposing = null;
+    const accepted = new Set();
+    const children = [{ resource: onnxEmbedder, dispose: onnxEmbedder.dispose, completed: false }];
     let loaded = false;
     let loading = !!onnxEmbedder.embedderPromise;
     // The ONNX owner acknowledges only session construction here. Requested
@@ -319,6 +322,7 @@ export const createEmbeddingProviderAdapter = ({
     const ensureFallback = (err) => {
       if (!fallbackAdapter) {
         fallbackAdapter = createXenovaAdapter({ modelId, modelsDir, dims, normalize, loadPipeline });
+        children.push({ resource: fallbackAdapter, dispose: fallbackAdapter.dispose, completed: false });
         fallbackReason = {
           from: resolvedProvider, to: 'xenova', reason: 'native-load-failed',
           code: err?.code || err?.cause?.code || 'ERR_DLOPEN_FAILED'
@@ -333,7 +337,12 @@ export const createEmbeddingProviderAdapter = ({
       const code = err?.code || err?.cause?.code || 'ERR_DLOPEN_FAILED';
       console.warn(`[embeddings] onnxruntime-node failed to load (${code}); falling back to xenova.`);
     };
-    return {
+    const prewarmFallback = async ({ model, texts }) => {
+      const warmTexts = normalizeAdapterPrewarmTexts(texts);
+      if (model === true && warmTexts?.length) await fallbackAdapter.embed(warmTexts);
+      else await fallbackAdapter.embedderPromise;
+    };
+    const adapter = {
       embed: async (texts) => {
         if (fallbackAdapter) return fallbackAdapter.embed(texts);
         try {
@@ -381,6 +390,8 @@ export const createEmbeddingProviderAdapter = ({
         model = false,
         texts = null
       } = {}) => {
+        if (tokenizer === false && model !== true) return;
+        if (fallbackAdapter) return prewarmFallback({ model, texts });
         try {
           await onnxEmbedder.prewarm({ tokenizer, model, texts });
         } catch (err) {
@@ -388,18 +399,8 @@ export const createEmbeddingProviderAdapter = ({
           if (observe && !observe()) throw err;
           if (isDlopenFailure(err)) {
             warnFallback(err);
-            const fallback = ensureFallback(err);
-            const warmTexts = normalizeAdapterPrewarmTexts(texts);
-            const shouldWarmModel = model === true;
-            if (shouldWarmModel && warmTexts?.length) {
-              await fallback.embed(warmTexts);
-            } else {
-              const preloadPromise = fallback?.embedderPromise;
-              if (preloadPromise && typeof preloadPromise.then === 'function') {
-                await preloadPromise;
-              }
-            }
-            return;
+            ensureFallback(err);
+            return prewarmFallback({ model, texts });
           }
           throw err;
         }
@@ -419,16 +420,45 @@ export const createEmbeddingProviderAdapter = ({
         requestedOnnxConfig: structuredClone(onnxConfig ?? {}),
         fallback: fallbackReason ? { ...fallbackReason } : null
       }),
-      dispose: async () => {
-        await onnxEmbedder.dispose();
-        await fallbackAdapter?.dispose?.();
+      dispose: () => {
+        if (!disposing) {
+          disposed = true;
+          disposing = Promise.allSettled([...accepted]).then(async () => {
+            const failures = [];
+            // Each child is its original provider's reconciliation producer.
+            // A failed native parent cannot skip an independent fallback close.
+            for (const child of [...children].reverse()) {
+              if (child.completed) continue;
+              try {
+                const confirmed = await child.dispose.call(child.resource);
+                if (confirmed === false) throw Object.assign(new Error('Embedding provider child disposal was explicitly unconfirmed.'),
+                  { code: 'ERR_EMBEDDING_PROVIDER_DISPOSAL_UNCONFIRMED' });
+                child.completed = true;
+              } catch (error) { failures.push(error); }
+            }
+            if (failures.length) throw failures.slice(1).reduce(preserveEmbeddingCleanupFailure, failures[0]);
+            return true;
+          }).catch(error => { disposing = null; throw error; });
+        }
+        return disposing;
       },
-      embedderPromise: onnxEmbedder.embedderPromise,
+      get embedderPromise() { return disposed ? Promise.reject(new Error('Embedding provider adapter is disposed.')) : onnxEmbedder.embedderPromise; },
       get provider() {
         return activeProvider;
       },
       supportsParallelDispatch: true
     };
+    for (const method of ['embed', 'embedOne', 'estimateTokensBatch', 'prewarm']) {
+      const invoke = adapter[method];
+      adapter[method] = (...args) => {
+        if (disposed) return Promise.reject(new Error('Embedding provider adapter is disposed.'));
+        const selected = snapshotEmbeddingRequestArguments(args);
+        const work = Promise.resolve().then(() => invoke(...selected)); accepted.add(work);
+        work.then(() => accepted.delete(work), () => accepted.delete(work));
+        return work;
+      };
+    }
+    return adapter;
   }
 
   return createXenovaAdapter({ modelId, modelsDir, dims, normalize, loadPipeline, modelProfile, localFilesOnly, sessionOptions, modelFileName, modelArtifact });

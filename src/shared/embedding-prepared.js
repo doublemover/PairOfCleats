@@ -3,7 +3,7 @@ import { performance } from 'node:perf_hooks';
 import { normalizeEmbeddingGemma2Output } from './embedding-model-profile.js';
 import { createRunQueue } from './onnx-embeddings/run-queue.js';
 import { observeEmbeddingOwnership, preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
-import { createTransformersResourceScope, trackPendingTransformersOwner, transformersCleanupFailure } from './embedding-transformers-resources.js';
+import { createTransformersResourceScope, trackPendingTransformersOwner, transformersCleanupFailure, bindTransformersResourceProducer } from './embedding-transformers-resources.js';
 import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
 
 const INTEGER_OPTIONS = new Set(['intraOpNumThreads', 'interOpNumThreads']);
@@ -335,5 +335,6 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
     release: () => admittedEmbed.dispose() });
   admittedEmbed.transformersResourceOwner = encoderOwner;
   encoderOwners.set(admittedEmbed, encoderOwner);
+  bindTransformersResourceProducer(admittedEmbed, encoderOwner);
   return admittedEmbed;
 };
