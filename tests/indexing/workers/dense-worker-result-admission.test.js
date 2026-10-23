@@ -79,6 +79,14 @@ for (const code of ['ABORT_ERR', 'ERR_PROCESS_TASK_BUDGET', 'ERR_TOKENIZER_RESOU
 const controller = new AbortController();
 await assert.rejects(buildDenseVectors({ chunks: [{ embedding: [.1, .2] }], abortSignal: controller.signal,
   quantizePool: { async runQuantize() { controller.abort(); return []; } } }), error => error.code === 'ABORT_ERR' || error.name === 'AbortError');
+const abortWithCleanup = new AbortController();
+const cancellation = Object.assign(new Error('cancelled'), { name: 'AbortError', code: 'ABORT_ERR' });
+const unresolved = Object.assign(new AggregateError([cancellation, new Error('native cleanup pending')], 'cleanup unresolved'), {
+  code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', workerOwnershipPending: true
+});
+await assert.rejects(buildDenseVectors({ chunks: [{ embedding: [.1, .2] }], abortSignal: abortWithCleanup.signal,
+  quantizePool: { async runQuantize() { abortWithCleanup.abort(cancellation); throw unresolved; } } }), error => error === unresolved,
+'a simultaneous abort must not erase unresolved cleanup evidence');
 await assert.rejects(buildDenseVectors({ chunks: [{ embedding_u8: Uint8Array.of(255, 1) }],
   quantization: { levels: 16 } }), /Invalid quantized value/);
 console.log('Dense worker candidates are admitted atomically and settled malformed batches recover with the effective codec.');
