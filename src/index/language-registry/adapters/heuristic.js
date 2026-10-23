@@ -383,7 +383,8 @@ const buildHeuristicManagedRelations = ({
       : collectPatternNames(source, symbolPatterns, budgetContext.scanBudget);
     if (Array.isArray(chunks) && chunks.some(chunk=>Array.isArray(chunk.meta?.syntaxCalls))) {
       return {...base,exports:symbols,...syntaxRelationsForChunks(chunks),
-        callCoverage: chunks.some(chunk=>chunk.meta?.syntaxCallCoverage?.startsWith('partial')) ? 'partial-traversal-budget' : 'supported-syntax'};
+        callCoverage: chunks.some(chunk=>chunk.meta?.syntaxCallCoverage?.startsWith('partial')) ? 'partial-syntax-owner' : 'supported-syntax',
+        callCoverageReasons: sortUnique(chunks.map(chunk=>chunk.meta?.syntaxCallCoverage).filter(reason=>reason?.startsWith('partial')))};
     }
     const callees = typeof usageCollector === 'function'
       ? usageCollector(source, budgetContext.scanBudget)

@@ -802,7 +802,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options, captureN
 
     if (queryResult?.usedQuery) {
       if (Array.isArray(queryResult.chunks) && queryResult.chunks.length) {
-        attachSyntaxCallFacts(rootNode,text,queryResult.chunks,{maxNodes:traversalBudget.maxAstNodes});
+        attachSyntaxCallFacts(rootNode,text,queryResult.chunks,{maxNodes:traversalBudget.maxAstNodes,languageId:resolvedId});
         queryResult.chunks = withLeafProduct(withParserCoverage(queryResult.chunks, resolvedId, parserRecovered));
         if (cacheKey && cacheRef) {
           storeCachedChunks({
@@ -894,7 +894,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options, captureN
       return null;
     }
 
-    attachSyntaxCallFacts(rootNode,text,traversalResult.chunks,{maxNodes:traversalBudget.maxAstNodes});
+    attachSyntaxCallFacts(rootNode,text,traversalResult.chunks,{maxNodes:traversalBudget.maxAstNodes,languageId:resolvedId});
     traversalResult.chunks = withLeafProduct(withParserCoverage(traversalResult.chunks, resolvedId, parserRecovered));
 
     if (cacheKey && cacheRef) {

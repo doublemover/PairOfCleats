@@ -7,6 +7,7 @@ import { treeSitterState } from '../state.js';
 import { TREE_SITTER_CHUNK_VERSION } from '../config.js';
 import { createHash } from 'node:crypto';
 import { assertNoSymlinkPath } from '../../../shared/contained-file.js';
+import { SYNTAX_CALL_FACTS_VERSION } from '../call-facts.js';
 
 const DEFAULT_CHUNK_CACHE_MAX_ENTRIES = 64;
 const CHUNK_CACHE_PERSISTENT_SCHEMA = '1.0.0';
@@ -60,6 +61,7 @@ const buildChunkCacheSignature = (options, resolvedId) => {
       : null;
 
   return {
+    syntaxCallFactsVersion: SYNTAX_CALL_FACTS_VERSION,
     useQueries: config.useQueries ?? null,
     maxBytes: perLanguage.maxBytes ?? config.maxBytes ?? null,
     maxLines: perLanguage.maxLines ?? config.maxLines ?? null,

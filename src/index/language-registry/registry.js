@@ -183,6 +183,10 @@ export async function buildLanguageContext({ ext, relPath, mode, text, options }
 export function buildChunkRelations({ lang, chunk, fileRelations, callIndex = null, chunkIndex = null }) {
   if (!fileRelations) return {};
   const output = {};
+  const coverage = chunk?.meta?.syntaxCallCoverage || fileRelations.callCoverage;
+  if (coverage) output.callCoverage = coverage;
+  if (chunk?.meta?.syntaxCallOmissions) output.callOmissions = { ...chunk.meta.syntaxCallOmissions };
+  else if (Array.isArray(fileRelations.callCoverageReasons)) output.callCoverageReasons = [...fileRelations.callCoverageReasons];
   if (chunk?.name) {
     const callsForChunk = callIndex?.callsByCaller
       ? (callIndex.callsByCaller.get(chunk.name) || [])
