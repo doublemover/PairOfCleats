@@ -5,6 +5,7 @@ import { assertNoSymlinkPath, withContainedFile } from './contained-file.js';
 import { createContainedFileResource } from './contained-file-resource.js';
 import { observeEmbeddingOwnership, preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
 import { throwIfAborted } from './abort.js';
+import { addStorageFailureContext } from './storage/operation-error.js';
 import { readExactAt } from './io/read-exact.js';
 import { atomicWriteJson } from './io/atomic-write.js';
 import { syncParentDirectory } from './io/persistence-helpers.js';
@@ -114,7 +115,7 @@ export const installOnnxArtifactClosure = async ({ sourceGraph, targetGraph, hoo
         if (!observe || observe()) {
           try { assertNoSymlinkPath(assets, stage); await fs.rm(stage, { recursive: true, force: true }); }
           catch (error) { throw failed ? preserveEmbeddingCleanupFailure(failure, error) : error; }
-        }
+        } else throw addStorageFailureContext(failure, { stagingPath: stage, modelTarget: targetGraph });
       }
     }
   });
