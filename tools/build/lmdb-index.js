@@ -7,29 +7,23 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { MAX_JSON_BYTES } from '../../src/shared/artifact-io/constants.js';
 import { readJsonFile } from '../../src/shared/artifact-io/json.js';
-import {
-  loadChunkMeta,
-  loadJsonArrayArtifactSync,
-  loadJsonObjectArtifact,
-  loadTokenPostings
-} from '../../src/shared/artifact-io/loaders.js';
-import { loadPiecesManifest } from '../../src/shared/artifact-io/manifest.js';
+import { loadJsonObjectArtifact } from '../../src/shared/artifact-io/loaders.js';
+import { loadPiecesManifest, resolveArtifactPresence } from '../../src/shared/artifact-io/manifest.js';
 import {
   loadDenseVectorBinaryFromMetaAsync,
   resolveDenseVectorBinaryArtifact
 } from '../../src/shared/dense-vector-artifacts.js';
-import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
 import { updateIndexStateManifest } from '../../src/shared/index-state-utils.js';
 import { withGeneratedArtifactMetadata } from '../../src/shared/generated-artifact-core.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../src/storage/lmdb/schema.js';
-import { loadLmdbMinhashArtifact } from '../../src/storage/lmdb/minhash.js';
 import { replaceLmdbEntries } from '../../src/storage/lmdb/replace.js';
-import { loadLmdbOptionalArray } from '../../src/storage/lmdb/optional-arrays.js';
+import { loadLmdbArtifactInputs } from '../../src/storage/lmdb/artifact-inputs.js';
 import { getIndexDir, getMetricsDir, resolveRepoCacheRootPath, resolveIndexRoot, resolveLmdbPaths, resolveRepoConfig } from '../shared/dict-utils.js';
 import { resolveAsOfContext, resolveSingleRootForModes } from '../../src/index/as-of.js';
 import { createIndexBuildToolCli } from './index-tool-cli.js';
 import { Packr } from 'msgpackr';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 
 const require = createRequire(import.meta.url);
 let open = null;
@@ -241,93 +235,46 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
       ], value => packr.pack(value));
     };
 
-    /**
- * Coarse sparse-artifact readiness probe for LMDB materialization.
- *
- * @param {string|null|undefined} indexDir
- * @returns {boolean}
- */
-    const hasChunkMeta = (indexDir) => {
-      if (!indexDir) return false;
-      return hasChunkMetaArtifactsSync(indexDir);
-    };
-
-    const hasTokenPostings = (indexDir) => {
-      if (!indexDir) return false;
-      const json = path.join(indexDir, 'token_postings.json');
-      const meta = path.join(indexDir, 'token_postings.meta.json');
-      const shards = path.join(indexDir, 'token_postings.shards');
-      return fsSync.existsSync(json) || fsSync.existsSync(meta) || fsSync.existsSync(shards);
-    };
-
     const validateRequiredArtifacts = (indexDir, mode) => {
-      if (!hasChunkMeta(indexDir)) {
-        fail(`[lmdb] ${mode} missing chunk_meta artifacts. Run build_index.js first.`, 2);
-      }
-      if (!hasTokenPostings(indexDir)) {
-        fail(`[lmdb] ${mode} missing token_postings artifacts. Run build_index.js first.`, 2);
+      const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
+      for (const name of ['chunk_meta', 'token_postings']) {
+        const presence = resolveArtifactPresence(indexDir, name, { manifest, strict: true });
+        if (presence.error || presence.format === 'missing' || presence.missingMeta || presence.missingPaths.length) {
+          fail(`[lmdb] ${mode} missing or invalid ${name} artifacts. Run build_index.js first.`, 2);
+        }
       }
     };
 
     const loadArtifactsForMode = async (indexDir, mode) => {
-      let manifest = null;
-      try {
-        manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: false });
-      } catch {
-        manifest = null;
-      }
+      const { manifest, chunkMeta, tokenPostings, fileMeta, fileRelations, repoMap, fieldPostings,
+        fieldTokens, phraseNgrams, chargramPostings, minhashSignatures, indexState } = await loadLmdbArtifactInputs(indexDir, { mode });
       const loadDenseVectorArtifact = async (artifactName) => {
         const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
         if (!descriptor) return null;
-        let meta = null;
-        if (manifest) {
-          try {
-            meta = await loadJsonObjectArtifact(indexDir, descriptor.metaName, {
-              maxBytes: MAX_JSON_BYTES,
-              manifest,
-              strict: false
-            });
-          } catch {
-            meta = null;
-          }
-        }
-        if (!meta) {
-          meta = readJsonOptional(path.join(indexDir, `${descriptor.baseName}.bin.meta.json`));
-        }
+        const declared = manifest.pieces.some(piece => piece.name === artifactName || piece.name === descriptor.metaName);
+        if (!declared) return null;
+        const meta = await loadJsonObjectArtifact(indexDir, descriptor.metaName, {
+          maxBytes: MAX_JSON_BYTES, manifest, strict: true
+        });
         return await loadDenseVectorBinaryFromMetaAsync({
           dir: indexDir,
           baseName: descriptor.baseName,
-          meta
+          meta, manifest, strict: true
         });
       };
-      const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES });
-      const tokenPostings = loadTokenPostings(indexDir, { maxBytes: MAX_JSON_BYTES });
-      const fileMeta = await loadLmdbOptionalArray(indexDir, 'file_meta', manifest);
-      const fileRelations = (() => {
-        try {
-          return loadJsonArrayArtifactSync(indexDir, 'file_relations', { maxBytes: MAX_JSON_BYTES });
-        } catch {
-          return null;
-        }
-      })();
-      const repoMap = (() => {
-        try {
-          return loadJsonArrayArtifactSync(indexDir, 'repo_map', { maxBytes: MAX_JSON_BYTES });
-        } catch {
-          return null;
-        }
-      })();
       const filterIndex = readJsonOptional(path.join(indexDir, 'filter_index.json'));
-      const fieldPostings = readJsonOptional(path.join(indexDir, 'field_postings.json'));
-      const fieldTokens = await loadLmdbOptionalArray(indexDir, 'field_tokens', manifest);
-      const phraseNgrams = readJsonOptional(path.join(indexDir, 'phrase_ngrams.json'));
-      const chargramPostings = readJsonOptional(path.join(indexDir, 'chargram_postings.json'));
-      const minhashSignatures = await loadLmdbMinhashArtifact(indexDir);
-      const [denseVectors, denseVectorsDoc, denseVectorsCode] = await Promise.all([
+      const denseResults = await Promise.allSettled([
         loadDenseVectorArtifact('dense_vectors'),
         loadDenseVectorArtifact('dense_vectors_doc'),
         loadDenseVectorArtifact('dense_vectors_code')
       ]);
+      let denseFailure, denseFailed = false;
+      for (const outcome of denseResults) if (outcome.status === 'rejected') {
+        denseFailure = denseFailed ? addStorageFailureContext(denseFailure, {}, outcome.reason, { secondaryPresent: true }) : outcome.reason;
+        denseFailed = true;
+      }
+      if (denseFailed) throw denseFailure;
+      const [denseVectors, denseVectorsDoc, denseVectorsCode] = denseResults.map(outcome => outcome.value);
       const loadHnswMeta = async name => {
         if (!manifest?.pieces?.some(piece => piece.name === name)) return null;
         return loadJsonObjectArtifact(indexDir, name, { manifest, maxBytes: MAX_JSON_BYTES, strict: true });
@@ -336,7 +283,6 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
         loadHnswMeta('dense_vectors_hnsw_meta'), loadHnswMeta('dense_vectors_doc_hnsw_meta'),
         loadHnswMeta('dense_vectors_code_hnsw_meta')
       ]);
-      const indexState = readJsonOptional(path.join(indexDir, 'index_state.json'));
       const artifacts = {
         [LMDB_ARTIFACT_KEYS.chunkMeta]: chunkMeta,
         [LMDB_ARTIFACT_KEYS.tokenPostings]: tokenPostings,
@@ -391,15 +337,6 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
       }
       const targetPath = mode === 'code' ? lmdbPaths.codePath : lmdbPaths.prosePath;
       const buildStart = Date.now();
-      await fs.mkdir(targetPath, { recursive: true });
-      await updateLmdbState(indexDir, {
-        enabled: true,
-        ready: false,
-        pending: true,
-        schemaVersion: LMDB_SCHEMA_VERSION,
-        buildMode
-      });
-
       const readStart = Date.now();
       const { meta, artifacts, stats } = await loadArtifactsForMode(indexDir, mode);
       const estimatedBytes = estimateLmdbBytes(meta, artifacts);
@@ -409,6 +346,16 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
       meta.mapSizeFactor = LMDB_MAP_SIZE_FACTOR;
       meta.pageSize = LMDB_PAGE_SIZE;
       const readMs = Date.now() - readStart;
+      // A rejected selected source must not invalidate an otherwise ready old
+      // store or create its replacement target before source admission settles.
+      await fs.mkdir(targetPath, { recursive: true });
+      await updateLmdbState(indexDir, {
+        enabled: true,
+        ready: false,
+        pending: true,
+        schemaVersion: LMDB_SCHEMA_VERSION,
+        buildMode
+      });
       const writeStart = Date.now();
       const db = resources.open(() => open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes }));
       await resources.use(db, () => storeArtifacts(db, meta, artifacts));
