@@ -374,12 +374,12 @@ export async function runCrossFilePropagation({
     const cached = returnCallsByChunk.get(chunk);
     if (cached) return cached;
     const chunkText = await getChunkText(chunk);
-    if (!chunkText || !chunkText.includes('return')) {
+    if (!chunkText) {
       const empty = { calls: new Set(), news: new Set() };
       returnCallsByChunk.set(chunk, empty);
       return empty;
     }
-    const parsed = extractReturnCalls(chunkText, { knownCallees: collectKnownCallees(chunk) });
+    const parsed = extractReturnCalls(chunkText, { knownCallees: collectKnownCallees(chunk), chunk });
     returnCallsByChunk.set(chunk, parsed);
     return parsed;
   };
@@ -760,7 +760,7 @@ export async function runCrossFilePropagation({
           return;
         }
 
-        const { calls: returnCalls } = await getReturnCalls(chunk);
+        const { calls: returnCalls, callSites: returnCallSites = null } = await getReturnCalls(chunk);
         if (!returnCalls.size) return;
         if (!chunk.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
         const resolvedViaSummaries = new Set();
@@ -768,6 +768,7 @@ export async function runCrossFilePropagation({
           for (const summary of callSummaries) {
             const callName = typeof summary?.name === 'string' ? summary.name : null;
             if (!callName || !returnCalls.has(callName)) continue;
+            if (returnCallSites && !returnCallSites.has(`${summary.start}:${summary.end}`)) continue;
             const resolvedUid = summary?.resolvedCalleeChunkUid || summary?.targetChunkUid || null;
             const resolvedChunk = resolvedUid ? chunkByUid.get(resolvedUid) : null;
             const returnTypes = Array.isArray(summary?.returnTypes) && summary.returnTypes.length
@@ -786,6 +787,10 @@ export async function runCrossFilePropagation({
             }
           }
         }
+        // Parser-owned return facts authorize only their admitted occurrence.
+        // Name fallback would recreate omitted summaries and could borrow a
+        // different same-spelling call's binding or declared return type.
+        if (returnCallSites) return;
         for (const callName of returnCalls) {
           if (resolvedViaSummaries.has(callName)) continue;
           const symbolRef = resolveSymbolRefCached({

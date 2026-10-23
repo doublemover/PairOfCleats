@@ -100,10 +100,29 @@ export const extractParamTypes = (chunk) => {
   return { paramNames, paramTypes };
 };
 
-export const extractReturnCalls = (chunkText, { knownCallees = null } = {}) => {
+export const extractReturnCalls = (chunkText, { knownCallees = null, chunk = null } = {}) => {
   const calls = new Set();
   const news = new Set();
-  if (!chunkText) return { calls, news };
+  if (['javascript', 'typescript', 'jsx', 'tsx'].includes(chunk?.lang)) {
+    const callSites = new Set();
+    for (const detail of chunk.codeRelations?.callDetails || []) {
+      const evidence = detail?.returnedValue;
+      if (evidence?.v !== 1 || !['call', 'construct'].includes(evidence.kind)
+        || evidence.awaited !== false || evidence.async !== false || evidence.generator !== false
+        || !Array.isArray(evidence.ownerRanges) || !Array.isArray(evidence.expression) || evidence.expression.length !== 2
+        || evidence.expression[0] !== detail.start || evidence.expression[1] !== detail.end
+        || !Number.isSafeInteger(chunk.start) || !Number.isSafeInteger(chunk.end)
+        || !Number.isSafeInteger(detail.start) || !Number.isSafeInteger(detail.end)
+        || detail.start < chunk.start || detail.end > chunk.end || detail.start >= detail.end
+        || !evidence.ownerRanges.some(range => Array.isArray(range) && range.length === 2
+          && range[0] === chunk.start && range[1] === chunk.end)
+        || typeof detail.callee !== 'string' || !detail.callee) continue;
+      (evidence.kind === 'construct' ? news : calls).add(detail.callee);
+      if (evidence.kind === 'call') callSites.add(`${detail.start}:${detail.end}`);
+    }
+    return { calls, news, callSites };
+  }
+  if (!chunkText || !chunkText.includes('return')) return { calls, news };
   RETURN_CALL_RX.lastIndex = 0;
   RETURN_NEW_RX.lastIndex = 0;
   RETURN_BARE_TARGET_RX.lastIndex = 0;

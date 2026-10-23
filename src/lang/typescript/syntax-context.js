@@ -6,8 +6,10 @@ const owners = new WeakMap();
 const contexts = new WeakMap();
 const babelContexts = new WeakMap();
 const babelOwners = new WeakMap();
+const babelSources = new WeakMap();
 const babelVersion = createRequire(import.meta.url)('@babel/parser/package.json').version;
 export const getTypeScriptBabelSyntaxIdentity = (ast) => babelOwners.get(ast) || null;
+export const ownsTypeScriptBabelSyntaxText = (ast, text) => babelSources.has(ast) && babelSources.get(ast) === text;
 export const getTypeScriptSyntaxIdentity = (sourceFile) => owners.get(sourceFile) || null;
 
 /** A caller-owned, file-scoped cache; never retains a project or creates a Program. */
@@ -58,12 +60,15 @@ export const prepareTypeScriptBabelSyntax = (text, options = {}) => {
     context.babelParses += 1;
     babelContexts.set(context, { text, ext, ast });
   }
-  if (ast) babelOwners.set(ast, { family: 'babel', version: babelVersion,
-    options: { ext, mode: 'typescript', sourceType: 'unambiguous', errorRecovery: true,
-      ranges: true, tokens: false, allowReturnOutsideFunction: true, allowAwaitOutsideFunction: true,
-      plugins: ['decorators-legacy', 'classProperties', 'classPrivateProperties', 'classPrivateMethods',
-        'classStaticBlock', 'dynamicImport', 'importMeta', 'optionalChaining', 'nullishCoalescingOperator',
-        'objectRestSpread', 'topLevelAwait', 'numericSeparator', 'logicalAssignment', 'privateIn',
-        'exportDefaultFrom', 'exportNamespaceFrom', ...(ext.toLowerCase() === '.tsx' ? ['jsx'] : []), 'typescript'] } });
+  if (ast) {
+    babelSources.set(ast, text);
+    babelOwners.set(ast, { family: 'babel', version: babelVersion,
+      options: { ext, mode: 'typescript', sourceType: 'unambiguous', errorRecovery: true,
+        ranges: true, tokens: false, allowReturnOutsideFunction: true, allowAwaitOutsideFunction: true,
+        plugins: ['decorators-legacy', 'classProperties', 'classPrivateProperties', 'classPrivateMethods',
+          'classStaticBlock', 'dynamicImport', 'importMeta', 'optionalChaining', 'nullishCoalescingOperator',
+          'objectRestSpread', 'topLevelAwait', 'numericSeparator', 'logicalAssignment', 'privateIn',
+          'exportDefaultFrom', 'exportNamespaceFrom', ...(ext.toLowerCase() === '.tsx' ? ['jsx'] : []), 'typescript'] } });
+  }
   return ast;
 };

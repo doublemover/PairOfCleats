@@ -1,5 +1,6 @@
 import { collectConstantReferences } from '../js-ts/constant-references.js';
-import { prepareTypeScriptBabelSyntax } from './syntax-context.js';
+import { createReturnCallEvidence } from '../js-ts/return-call-evidence.js';
+import { prepareTypeScriptBabelSyntax, ownsTypeScriptBabelSyntaxText } from './syntax-context.js';
 import { collectImportsFromAst } from '../javascript.js';
 import { findTypeScriptBodyBounds } from './brace-bounds.js';
 import {
@@ -142,6 +143,7 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
   const usages = new Set();
 
   const ast = prepareTypeScriptBabelSyntax(text, options);
+  const returnEvidence = createReturnCallEvidence(ast, { sourceOwned: ownsTypeScriptBabelSyntaxText(ast, text) });
   const constants = collectConstantReferences(ast);
   const getMemberName = (node) => resolveAstMemberName(node, { includeTsQualifiedName: true, constantKeys: constants.keys });
 
@@ -218,25 +220,31 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
         if (value) args.push(value);
       }
     }
-    callDetails.push(buildCallDetail({ callerName, calleeName, args, location }));
-    calls.push([callerName, calleeName]);
+    const detail = buildCallDetail({ callerName, calleeName, args, location });
+    const returnedValue = returnEvidence.get(node);
+    if (returnedValue) detail.returnedValue = returnedValue;
+    if (node.type === 'NewExpression') detail.role = 'constructor';
+    callDetails.push(detail);
+    if (node.type !== 'NewExpression') calls.push([callerName, calleeName]);
   };
 
   const walk = (root) => {
     const seen = new Set();
-    const stack = [root];
+    const stack = [{ node: root, parent: null, returnOwner: null }];
     while (stack.length) {
-      const node = stack.pop();
+      const frame = stack.pop(), { node, parent } = frame;
       if (!node || typeof node !== 'object') continue;
       if (seen.has(node)) continue;
       seen.add(node);
       if (Array.isArray(node)) {
         for (let i = node.length - 1; i >= 0; i -= 1) {
-          stack.push(node[i]);
+          stack.push({ node: node[i], parent, returnOwner: frame.returnOwner });
         }
         continue;
       }
-      if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
+      const returnOwner = returnEvidence.enter(node, parent, frame.returnOwner);
+      if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression'
+        || node.type === 'NewExpression' && returnEvidence.get(node)) {
         recordCall(node);
       }
       if (node.type === 'Identifier' && !TS_USAGE_SKIP.has(node.name)) {
@@ -247,7 +255,7 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
         if (WALK_SKIP_KEYS.has(key)) continue;
         const value = node[key];
         if (value && typeof value === 'object') {
-          stack.push(value);
+          stack.push({ node: value, parent: node, returnOwner });
         }
       }
     }

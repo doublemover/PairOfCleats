@@ -1,4 +1,5 @@
 import { collectConstantReferences } from '../js-ts/constant-references.js';
+import { createReturnCallEvidence } from '../js-ts/return-call-evidence.js';
 import * as esprima from 'esprima';
 import {
   collectPatternNames,
@@ -7,7 +8,7 @@ import {
   keyName,
   visibilityFor
 } from './ast-utils.js';
-import { parseJavaScriptAst } from './parse.js';
+import { parseJavaScriptAst, ownsJavaScriptSyntaxText } from './parse.js';
 import {
   buildCallDetail,
   formatJsTsCallArg,
@@ -52,6 +53,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
   const classStack = [];
 
   const ast = options.ast || parseJavaScriptAst(text, options);
+  const returnEvidence = createReturnCallEvidence(ast, { sourceOwned: ownsJavaScriptSyntaxText(ast, text) });
   const constants = collectConstantReferences(ast);
   const getMemberName = (node) => resolveAstMemberName(node, { constantKeys: constants.keys });
 
@@ -372,7 +374,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
   const MAX_CALL_ARGS = 5;
   const MAX_CALL_ARG_LEN = 80;
   const walk = (root) => {
-    const stack = [{ node: root, parent: null, phase: 0, exitType: null }];
+    const stack = [{ node: root, parent: null, phase: 0, exitType: null, returnOwner: null }];
     while (stack.length) {
       const frame = stack.pop();
       const { node, parent, phase, exitType } = frame;
@@ -384,11 +386,12 @@ export function buildCodeRelations(text, relPath, options = {}) {
       }
       if (Array.isArray(node)) {
         for (let i = node.length - 1; i >= 0; i -= 1) {
-          stack.push({ node: node[i], parent, phase: 0, exitType: null });
+          stack.push({ node: node[i], parent, phase: 0, exitType: null, returnOwner: frame.returnOwner });
         }
         continue;
       }
       if (typeof node !== 'object') continue;
+      const returnOwner = returnEvidence.enter(node, parent, frame.returnOwner);
 
       if (node.type === 'ImportDeclaration') {
         if (node.source?.value) imports.add(node.source.value);
@@ -466,11 +469,12 @@ export function buildCodeRelations(text, relPath, options = {}) {
         if (left && left.startsWith('exports.')) exports.add(left.slice('exports.'.length));
       }
 
-      if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
+      if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression'
+        || node.type === 'NewExpression' && returnEvidence.get(node)) {
         const calleeName = getCalleeName(node.callee);
         const callerName = functionStack.length ? functionStack[functionStack.length - 1] : '(module)';
         if (calleeName) {
-          calls.push([callerName, calleeName]);
+          if (node.type !== 'NewExpression') calls.push([callerName, calleeName]);
           const args = [];
           if (Array.isArray(node.arguments)) {
             for (let i = 0; i < node.arguments.length && args.length < MAX_CALL_ARGS; i += 1) {
@@ -482,7 +486,11 @@ export function buildCodeRelations(text, relPath, options = {}) {
             }
           }
           const location = resolveCallLocation(node);
-          callDetails.push(buildCallDetail({ callerName, calleeName, args, location }));
+          const detail = buildCallDetail({ callerName, calleeName, args, location });
+          const returnedValue = returnEvidence.get(node);
+          if (returnedValue) detail.returnedValue = returnedValue;
+          if (node.type === 'NewExpression') detail.role = 'constructor';
+          callDetails.push(detail);
         }
       }
 
@@ -590,7 +598,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
         classStack.push(node.id.name);
         stack.push({ node, parent, phase: 1, exitType: 'class' });
         if (node.body?.body) {
-          stack.push({ node: node.body.body, parent: node, phase: 0, exitType: null });
+          stack.push({ node: node.body.body, parent: node, phase: 0, exitType: null, returnOwner });
         }
         continue;
       }
@@ -600,7 +608,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
         functionStack.push(fnName);
         stack.push({ node, parent, phase: 1, exitType: 'function' });
         if (node.body) {
-          stack.push({ node: node.body, parent: node, phase: 0, exitType: null });
+          stack.push({ node: node.body, parent: node, phase: 0, exitType: null, returnOwner });
         }
         continue;
       }
@@ -610,7 +618,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
         if (WALK_SKIP_KEYS.has(key)) continue;
         const child = node[key];
         if (child && typeof child === 'object') {
-          stack.push({ node: child, parent: node, phase: 0, exitType: null });
+          stack.push({ node: child, parent: node, phase: 0, exitType: null, returnOwner });
         }
       }
     }
