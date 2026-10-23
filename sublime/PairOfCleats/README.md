@@ -240,6 +240,13 @@ failure recovery retain the previous frontier. More refuses repeated cursors
 and stops at 128 pages. These controls do not certify provider completeness or
 supported Sublime host behavior.
 
+Task observations schedule at most one pending progress render per window on
+Sublime's UI thread. Noisy output coalesces until that render runs; this is a
+work bound, not a measured latency claim. Revoked operations cannot reacquire
+UI authority while settling. Read, close, wait and settlement-callback failures
+remain failures even after a zero exit, with the initiating diagnostic preserved
+beside cleanup uncertainty. Unconfirmed cleanup stays registered for inspection.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only

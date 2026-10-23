@@ -1,6 +1,7 @@
 import time
 import json
 import math
+import threading
 from datetime import datetime
 
 import sublime
@@ -14,6 +15,8 @@ _ACTIVE_TASKS = {}
 _RECENT_TASKS = {}
 _NEXT_TASK_ID = 1
 _MAX_RECENT_TASKS = 8
+_PENDING_RENDERS = {}
+_RENDER_LOCK = threading.RLock()
 
 
 def _window_id(window):
@@ -37,7 +40,7 @@ def _next_task_id():
 
 
 def start_task(window, title, kind='task', repo_root=None, cancellable=False, cancel=None,
-               details=None, show_panel=True):
+               details=None, show_panel=True, operation_scope=None):
     if window is None:
         window = sublime.active_window()
     if window is None:
@@ -59,10 +62,10 @@ def start_task(window, title, kind='task', repo_root=None, cancellable=False, ca
         'lastActivityAt': _now(),
         'lastWatchdogAt': None,
         'watchdogCount': 0,
-        '_scope': operations.capture(window),
+        '_scope': dict(operation_scope or operations.capture(window)),
     }
     _ACTIVE_TASKS.setdefault(task['windowId'], []).append(task)
-    _render(window, show_panel=show_panel)
+    _render(window, show_panel=show_panel, scope=task['_scope'])
     return task
 
 
@@ -72,7 +75,7 @@ def note_progress(window, task, details=None):
     task['lastActivityAt'] = _now()
     if details is not None:
         task['details'] = details
-    _render(window)
+    _render(window, scope=task.get('_scope'))
 
 
 def note_log(task, line):
@@ -122,7 +125,7 @@ def note_structured_progress(window, task, line):
             task['watchFailure'] = True
     if task.get('status') == 'cancelling':
         task['lastActivityAt'] = _now()
-        _render(window)
+        _render(window, scope=task.get('_scope'))
         return True
     task['stage'] = str(event.get('stage') or event.get('name') or task.get('stage') or 'indeterminate')[:256]
     task['details'] = str(event.get('message') or event.get('text') or task.get('details') or '')[:1024]
@@ -139,7 +142,7 @@ def note_structured_progress(window, task, line):
     if not watch and (task.get('watch') or {}).get('phase') == 'degraded':
         task['status'] = 'degraded'
     task['lastActivityAt'] = _now()
-    _render(window)
+    _render(window, scope=task.get('_scope'))
     return True
 
 
@@ -150,7 +153,7 @@ def note_watchdog(window, task, details=None):
     task['watchdogCount'] += 1
     if details:
         task['details'] = details
-    _render(window, show_panel=True)
+    _render(window, show_panel=True, scope=task.get('_scope'))
 
 
 def mark_cancelling(window, task, details=None):
@@ -160,7 +163,7 @@ def mark_cancelling(window, task, details=None):
     task['lastActivityAt'] = _now()
     if details:
         task['details'] = details
-    _render(window, show_panel=True)
+    _render(window, show_panel=True, scope=task.get('_scope'))
 
 
 def complete_task(window, task, status='done', details=None):
@@ -182,7 +185,7 @@ def complete_task(window, task, status='done', details=None):
     observation['logTail'] = list(task.get('logTail') or [])
     recent.insert(0, observation)
     del recent[_MAX_RECENT_TASKS:]
-    _render(window)
+    _render(window, scope=task.get('_scope'))
 
 
 def active_tasks(window):
@@ -211,7 +214,8 @@ def cancel_active(window):
 
 def cancel_task(window, task_id):
     task = next((entry for entry in active_tasks(window) if entry['id'] == task_id), None)
-    if not task or not task.get('cancellable') or not callable(task.get('cancel')):
+    if (not task or task.get('status') == 'cancelling'
+            or not task.get('cancellable') or not callable(task.get('cancel'))):
         return None
     mark_cancelling(window, task, details='Cancellation requested; waiting for owned process settlement.')
     task['cancel']()
@@ -224,9 +228,13 @@ def clear_window(window):
     if confirmed:
         _ACTIVE_TASKS.pop(window_id, None)
     _RECENT_TASKS.pop(window_id, None)
+    with _RENDER_LOCK:
+        _PENDING_RENDERS.pop(window_id, None)
 
 
 def clear_all():
+    with _RENDER_LOCK:
+        _PENDING_RENDERS.clear()
     for active in _ACTIVE_TASKS.values():
         for task in active:
             task['status'] = 'interrupted'
@@ -247,13 +255,35 @@ def _format_age(seconds):
     return '{0}m {1}s'.format(minutes, rem)
 
 
-def _render(window, show_panel=False):
+def _render(window, show_panel=False, scope=None):
     if window is None:
         window = sublime.active_window()
     if window is None:
         return
-    if not operations.is_current(operations.capture(window)):
+    scope = scope or operations.capture(window)
+    if not operations.is_current(scope):
         return
+    window_id = _window_id(window)
+    with _RENDER_LOCK:
+        previous = _PENDING_RENDERS.get(window_id)
+        if previous and operations.is_current(previous['scope']):
+            previous['showPanel'] = previous['showPanel'] or show_panel
+            return
+        pending = {'scope': dict(scope), 'showPanel': show_panel}
+        _PENDING_RENDERS[window_id] = pending
+    def publish():
+        with _RENDER_LOCK:
+            if _PENDING_RENDERS.get(window_id) is not pending:
+                return
+            _PENDING_RENDERS.pop(window_id, None)
+        if operations.is_current(pending['scope']):
+            _render_now(window, show_panel=pending['showPanel'])
+    # Reader/watchdog/settlement threads update observations, never native views.
+    # One pending render per window also bounds UI work during noisy output.
+    sublime.set_timeout(publish, 50)
+
+
+def _render_now(window, show_panel=False):
     now = _now()
     lines = ['PairOfCleats task progress', '']
     active = active_tasks(window)

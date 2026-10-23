@@ -6,7 +6,8 @@ def describe_process_outcome(result, title, stop_requested=False):
     error = getattr(result, 'error', None)
     code = getattr(result, 'returncode', None)
     if state == 'cleanup_unconfirmed':
-        return {'status': 'failed', 'summary': title + ': owned process-tree stop remains unconfirmed.'}
+        return {'status': 'failed', 'summary': (title + ': owned process-tree stop remains unconfirmed.'
+                + ('\n' + str(error) if error else ''))[:2048]}
     if getattr(result, 'timed_out', False) or state == 'timed_out':
         return {'status': 'failed', 'summary': title + ': timeout is not a confirmed successful stop.'}
     if error or state in ('spawn_failed', 'parse_failed', 'failed'):

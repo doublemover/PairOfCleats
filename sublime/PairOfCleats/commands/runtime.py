@@ -19,7 +19,7 @@ class PairOfCleatsShowProgressCommand(sublime_plugin.WindowCommand):
 class PairOfCleatsCancelActiveTaskCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
         return any(
-            task.get('cancellable') and callable(task.get('cancel'))
+            task.get('status') != 'cancelling' and task.get('cancellable') and callable(task.get('cancel'))
             for task in tasks.active_tasks(self.window)
         )
 
@@ -28,12 +28,13 @@ class PairOfCleatsCancelActiveTaskCommand(sublime_plugin.WindowCommand):
 
     def run(self):
         active = [task for task in tasks.active_tasks(self.window)
-                  if task.get('cancellable') and callable(task.get('cancel'))]
+                  if task.get('status') != 'cancelling' and task.get('cancellable') and callable(task.get('cancel'))]
         if not active:
             ui.show_status('PairOfCleats: no active cancellable task.')
             return
+        scope = operations.capture(self.window, key='task-cancel-picker')
         def selected(index):
-            if index < 0:
+            if index < 0 or index >= len(active) or not operations.is_current(scope):
                 return
             task = tasks.cancel_task(self.window, active[index]['id'])
             ui.show_status('PairOfCleats: cancellation requested for exact task {0}.'.format(

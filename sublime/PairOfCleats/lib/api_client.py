@@ -246,6 +246,7 @@ def run_async(request_fn, on_done, on_progress=None, window=None, scope=None, ta
     handle = ApiHandle(None, scope=scope)
     if task is not None:
         from . import tasks
+        task['_scope'] = dict(scope)
         def cancelled_task():
             tasks.mark_cancelling(window, task,
                 details='Cancellation requested; waiting for owned HTTP request settlement.')

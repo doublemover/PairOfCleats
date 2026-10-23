@@ -36,6 +36,9 @@ class ProcessResult(object):
         self.stdout = stdout
         self.stderr = stderr
         self.state = state
+        self.primary_state = state
+        self.primary_error = error
+        self.cleanup_errors = []
         self.timed_out = timed_out
         self.cancelled = cancelled
         self.truncated = truncated
@@ -211,10 +214,19 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
             state='spawn_failed',
         )
         if callable(on_settled):
-            on_settled(result)
+            try:
+                on_settled(result)
+            except Exception as cleanup_error:
+                result.cleanup_errors.append('Settlement callback failed: {0}'.format(cleanup_error)[:1024])
+                result.error += '\n' + result.cleanup_errors[-1]
+                result.state = 'cleanup_unconfirmed'
         if on_done:
             sublime.set_timeout(lambda: on_done(result) if operations.is_current(scope) else None, 0)
-        return ProcessHandle(None, None)
+        failed_handle = ProcessHandle(None, None)
+        failed_handle._cleanup_failures = list(result.cleanup_errors)
+        if failed_handle._cleanup_failures:
+            operations.track(scope, failed_handle)
+        return failed_handle
     task = tasks.start_task(
         window,
         title,
@@ -223,6 +235,7 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
         cancellable=True,
         details='Starting...',
         show_panel=show_progress_panel,
+        operation_scope=scope,
     )
 
     stdout_lines = []
@@ -237,6 +250,7 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
         'done': False,
         'stop_reason': None,
         'stop_lock': threading.Lock(),
+        'stream_errors': [],
         'stdout': {'size': 0, 'truncated': False, 'marked': False},
         'stderr': {'size': 0, 'truncated': False, 'marked': False},
         'combined': {'size': 0, 'truncated': False, 'marked': False},
@@ -279,11 +293,14 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
         try:
             for line in stream:
                 append_line(line, sink)
+        except Exception as error:
+            with activity_lock:
+                state['stream_errors'].append('Process output read failed: {0}'.format(error)[:1024])
         finally:
             try:
                 stream.close()
-            except Exception:
-                pass
+            except Exception as error:
+                handle._cleanup_failures.append('Process output close failed: {0}'.format(error)[:1024])
 
     def request_stop(reason):
         with state['stop_lock']:
@@ -291,8 +308,11 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
                 return
             state['stop_reason'] = reason
         def terminate():
-            if not _terminate_process_tree(proc, force=True):
-                handle._cleanup_failures.append('Owned descendant termination was not confirmed.')
+            try:
+                if not _terminate_process_tree(proc, force=True):
+                    handle._cleanup_failures.append('Owned descendant termination was not confirmed.')
+            except Exception as error:
+                handle._cleanup_failures.append('Owned descendant termination failed: {0}'.format(error)[:1024])
         stopper = threading.Thread(target=terminate)
         handle._stopper = stopper
         stopper.daemon = True
@@ -309,24 +329,29 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
         stderr_thread.start()
         stdout_thread.join()
         stderr_thread.join()
-        proc.wait()
+        try:
+            proc.wait()
+        except Exception as error:
+            handle._cleanup_failures.append('Owned process wait failed: {0}'.format(error)[:1024])
 
         output = ''.join(combined_lines)
         stdout_output = ''.join(stdout_lines)
         stderr_output = ''.join(stderr_lines)
         payload = None
-        error = None
-        result_state = 'done'
+        error = '\n'.join(state['stream_errors']) or None
+        result_state = 'failed' if error else 'done'
         if capture_json:
             if state['stdout']['truncated']:
-                error = 'Process output was truncated before JSON parsing could complete.'
-                result_state = 'parse_failed'
+                if not error:
+                    error = 'Process output was truncated before JSON parsing could complete.'
+                    result_state = 'parse_failed'
             else:
                 try:
                     payload = json.loads(stdout_output or '{}')
                 except Exception as exc:
-                    error = 'Failed to parse JSON output: {0}'.format(exc)
-                    result_state = 'parse_failed'
+                    if not error:
+                        error = 'Failed to parse JSON output: {0}'.format(exc)
+                        result_state = 'parse_failed'
         stop_reason = state['stop_reason']
         if stop_reason == 'timed_out':
             result_state = 'timed_out'
@@ -357,11 +382,20 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
             handle._cleanup_failures.append('Canonical watch teardown ownership remains pending.')
         cleanup_unconfirmed = bool(handle._cleanup_failures or (handle._stopper is not None and handle._stopper.is_alive()))
         if cleanup_unconfirmed:
-            result.error = 'Owned process-tree settlement remains unconfirmed.'
+            result.error = (result.error + '\n' if result.error else '') + 'Owned process-tree settlement remains unconfirmed.'
             result.state = 'cleanup_unconfirmed'
         elif state.get('watch_failure') or task and task.get('watchFailure'):
-            result.error = 'Canonical watch teardown reported failure; cancellation does not prove success.'
+            result.error = (result.error + '\n' if result.error else '') + 'Canonical watch teardown reported failure; cancellation does not prove success.'
             result.state = 'failed'
+        if callable(on_settled):
+            try:
+                on_settled(result)
+            except Exception as cleanup_error:
+                handle._cleanup_failures.append('Settlement callback failed: {0}'.format(cleanup_error)[:1024])
+                result.error = (result.error + '\n' if result.error else '') + handle._cleanup_failures[-1]
+                result.state = 'cleanup_unconfirmed'
+                cleanup_unconfirmed = True
+        result.cleanup_errors = list(handle._cleanup_failures)
         if task and window:
             task['cleanupUnconfirmed'] = cleanup_unconfirmed
             if cleanup_unconfirmed:
@@ -380,8 +414,6 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
                 final_status = 'done' if proc.returncode == 0 else 'failed'
                 detail = 'Completed successfully.' if proc.returncode == 0 else (output.strip() or 'Process failed.')
             tasks.complete_task(window, task, status=final_status, details=detail[:240])
-        if callable(on_settled):
-            on_settled(result)
         sublime.set_timeout(lambda: done_callback(result), 0)
         if not handle._cleanup_failures and (handle._stopper is None or not handle._stopper.is_alive()):
             operations.release(handle)
