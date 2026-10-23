@@ -1,5 +1,9 @@
 import { createIndexCacheLease, assertIndexCacheLease } from '../../../index/build/cache-lease.js';
 import { sealCompletedStage } from '../../../index/build/completed-stage.js';
+import { observeStageProducer } from '../../../index/build/stage-provenance.js';
+import { prepareStageReuse, restoreReusableStage } from '../../../index/build/stage-reuse.js';
+import { stageIdentityHash } from '../../../index/build/stage-output.js';
+import { readBuildRecoveryGrant } from './recovery-context.js';
 import crypto from 'node:crypto';
 import { refreshRuntimeReceipt } from '../../../index/build/runtime/receipt.js';
 import { redactDiagnosticText } from '../../../shared/diagnostic-text.js';
@@ -549,11 +553,15 @@ export const runSqliteStage = async ({
     try {
       // SQLite mutates retained generation bytes too. Own the writer lease for
       // materialization, validation/publication and the entire runtime drain.
-      stage4Lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log,
+      const recovery = readBuildRecoveryGrant(options?.buildRecoveryGrant, root);
+      if (recovery && stageIdentityHash(runtime.userConfig) !== recovery.plan.configIdentity) throw Object.assign(
+        new Error('Recovery configuration changed during Stage4 admission.'), { code: 'ERR_RECOVERY_PLAN_STALE' });
+      stage4Lock = recovery ? null : await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log,
         storageContext: { repoRoot: runtime.root, userConfig: runtime.userConfig },
         signal: effectiveAbortSignal, requireSettlement: true,
         metadata: { operation: 'stage4-cache-writer' } });
-      runtime.cacheWriterLease = createIndexCacheLease(stage4Lock, runtime.repoCacheRoot);
+      runtime.cacheWriterLease = recovery?.lease || createIndexCacheLease(stage4Lock, runtime.repoCacheRoot);
+      runtime.effectiveSqliteEnabled = true;
       await markBuildPhase(runtime.buildRoot, 'stage4', 'running');
       stage4Running = true;
       let sqliteResult = null;
@@ -599,7 +607,7 @@ export const runSqliteStage = async ({
       await markBuildPhase(runtime.buildRoot, 'stage4', 'done');
       stage4Done = true;
       await updateBuildState(runtime.buildRoot, { stage: 'stage4' });
-      const shouldPromote = !(explicitIndexRoot && argv.stage === 'stage4');
+      const shouldPromote = !recovery && !(explicitIndexRoot && argv.stage === 'stage4');
       if (shouldPromote) {
         assertIndexCacheLease(runtime.cacheWriterLease, runtime.repoCacheRoot);
         await markBuildPhase(runtime.buildRoot, 'validation', 'running');
@@ -636,9 +644,10 @@ export const runSqliteStage = async ({
           runtime.buildRoot,
           'promote',
           'done',
-          'skipped promotion for explicit stage4 --index-root'
+          recovery ? 'publication deferred to reviewed recovery transaction' : 'skipped promotion for explicit stage4 --index-root'
         );
-        log('[build] stage4 ran against explicit --index-root; skipping current.json promotion.');
+        log(recovery ? '[build] stage4 publication deferred to reviewed recovery transaction.'
+          : '[build] stage4 ran against explicit --index-root; skipping current.json promotion.');
       }
       if (includeSqlite && overallProgressRef?.current?.advance) {
         for (const modeItem of sqliteModes) {
@@ -736,7 +745,7 @@ export const runSqliteStage = async ({
 export const runStage = async (
   stage,
   context,
-  { allowSqlite = true, onStage2ModeCompleted = null } = {}
+  { allowSqlite = true, onStage2ModeCompleted = null, deferPublication = false } = {}
 ) => {
   const {
     root,
@@ -760,6 +769,8 @@ export const runStage = async (
   let phaseStage = stage || 'stage2';
   let runtime = null;
   let result = null;
+  const recovery = readBuildRecoveryGrant(options?.buildRecoveryGrant, root);
+  deferPublication ||= Boolean(recovery);
   try {
     throwIfAborted(effectiveAbortSignal);
     runtime = await createBuildRuntime({
@@ -767,6 +778,7 @@ export const runStage = async (
       argv: stageArgv,
       rawArgv,
       policy,
+      indexRoot: recovery?.buildRoot || null,
       observability: context?.observability || null
     });
     await runtime.loggerScope.run(async () => {
@@ -809,10 +821,19 @@ export const runStage = async (
         : () => {};
       try {
         throwIfAborted(effectiveAbortSignal);
-        lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log,
+        lock = recovery ? null : await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log,
           storageContext: { repoRoot: runtime.root, userConfig: runtime.userConfig },
           signal: effectiveAbortSignal, requireSettlement: true, metadata: { operation: `${phaseStage}-cache-writer` } });
-        runtime.cacheWriterLease = createIndexCacheLease(lock, runtime.repoCacheRoot);
+        runtime.cacheWriterLease = recovery?.lease || createIndexCacheLease(lock, runtime.repoCacheRoot);
+        assertIndexCacheLease(runtime.cacheWriterLease, runtime.repoCacheRoot);
+        if (recovery && stageIdentityHash(runtime.userConfig) !== recovery.plan.configIdentity) throw Object.assign(
+          new Error('Recovery configuration changed during Stage2 admission.'), { code: 'ERR_RECOVERY_PLAN_STALE' });
+        runtime.stageProducer = await observeStageProducer(effectiveAbortSignal);
+        runtime.recoveryPlanId = recovery?.plan.planId || null;
+        runtime.reuseDecision = context.reuseDecision || null;
+        runtime.requestedStage = explicitStage || null;
+        runtime.requestedModes = [...modes];
+        if (recovery?.clean) runtime.incrementalEnabled = false;
 
         await updateBuildState(runtime.buildRoot, {
           buildId: runtime.buildId,
@@ -865,9 +886,25 @@ export const runStage = async (
           throwIfAborted(effectiveAbortSignal);
           await writePreprocessStats(runtime.repoCacheRoot, preprocess.stats);
           runtime.buildSourceSnapshot = preprocess.stats?.retrySnapshot?.sourceSnapshot || null;
+          runtime.preprocessedSources = preprocess.sourceHashesByPath;
+          runtime.sourceSelection = { modes: {},
+            changedSourceFiles: preprocess.stats?.retrySnapshot?.contentChanges ?? null,
+            addedCandidates: preprocess.stats?.retrySnapshot?.membersAdded ?? null,
+            removedCandidates: preprocess.stats?.retrySnapshot?.membersRemoved ?? null,
+            discovery: Object.fromEntries(['source', 'candidateEnumerationComplete', 'coverageScope', 'candidates',
+              'directoryErrors', 'statFailures', 'maxFilesReached', 'maxDepthReached'].map(key => [key, preprocess.stats?.discovery?.[key] ?? null])) };
           await markBuildPhase(runtime.buildRoot, 'preprocessing', 'done');
           sharedDiscovery = {};
           for (const modeItem of preprocessModes) {
+            const entries = preprocess.entriesByMode[modeItem] || [];
+            const extensions = new Map();
+            for (const entry of entries) extensions.set(entry.ext || 'unknown', (extensions.get(entry.ext || 'unknown') || 0) + 1);
+            runtime.sourceSelection.modes[modeItem] = { selectedFiles: entries.length,
+              selectedBytes: entries.every(entry => Number.isSafeInteger(entry.stat?.size))
+                ? entries.reduce((sum, entry) => sum + entry.stat.size, 0) : null,
+              extensionMix: Object.fromEntries([...extensions].sort(([left], [right]) => left.localeCompare(right)).slice(0, 16)),
+              extensionMixTruncated: extensions.size > 16, skipped: preprocess.stats.modes[modeItem]?.skipped || null,
+              languageMix: null, languageMixReason: 'adapter-selection-is-actual-processing-evidence' };
             sharedDiscovery[modeItem] = {
               entries: preprocess.entriesByMode[modeItem] || [],
               skippedFiles: preprocess.skippedByMode[modeItem] || [],
@@ -876,6 +913,8 @@ export const runStage = async (
           }
         }
         computeCompatibilityKey({ runtime, modes, sharedDiscovery });
+        const stageReuse = recovery && recovery.kind !== 'new-generation'
+          ? await prepareStageReuse({ runtime, modes, plan: recovery.plan, signal: effectiveAbortSignal }) : new Map();
         await markBuildPhase(runtime.buildRoot, 'discovery', 'done');
         await markBuildPhase(runtime.buildRoot, phaseStage, 'running');
         phaseRunning = true;
@@ -895,13 +934,19 @@ export const runStage = async (
           for (const modeItem of group.modes) {
             throwIfAborted(effectiveAbortSignal);
             const discovery = sharedDiscovery ? sharedDiscovery[modeItem] : null;
-            await buildIndexForMode({
+            const reusable = stageReuse.get(modeItem);
+            if (reusable) {
+              runtime.completedStageWork ||= {};
+              runtime.completedStageWork[modeItem] = { ...await restoreReusableStage({ runtime, mode: modeItem,
+                reuse: reusable, signal: effectiveAbortSignal }), selectedFiles: discovery?.entries?.length ?? null };
+              await refreshRuntimeReceipt(runtime);
+            } else await buildIndexForMode({
               mode: modeItem,
               runtime,
               discovery,
               abortSignal: effectiveAbortSignal
             });
-            if (phaseStage === 'stage2') {
+            if (phaseStage === 'stage2' && !reusable) {
               await drainCacheWriters(runtime, { log });
               const completion = await sealCompletedStage({ runtime, mode: modeItem,
                 sourceSnapshot: runtime.buildSourceSnapshot || null,
@@ -969,6 +1014,7 @@ export const runStage = async (
         const shouldBuildSqlite = allowSqlite
         && (typeof stageArgv.sqlite === 'boolean' ? stageArgv.sqlite : sqliteConfigured);
         const sqliteEnabledForValidation = shouldBuildSqlite && sqliteModes.length > 0;
+        runtime.effectiveSqliteEnabled = sqliteEnabledForValidation;
         if (shouldBuildSqlite && sqliteModes.length) {
           throwIfAborted(effectiveAbortSignal);
           const scheduleSqlite = (fn) => (runtime?.scheduler?.schedule
@@ -1053,12 +1099,14 @@ export const runStage = async (
         validationDone = true;
         throwIfAborted(effectiveAbortSignal);
         assertIndexCacheLease(runtime.cacheWriterLease, runtime.repoCacheRoot);
-        await markBuildPhase(runtime.buildRoot, 'promote', 'running');
-        promoteRunning = true;
+        if (!deferPublication) {
+          await markBuildPhase(runtime.buildRoot, 'promote', 'running');
+          promoteRunning = true;
+        }
         throwIfAborted(effectiveAbortSignal);
         await runtime.semanticEnrichmentDrain?.beforePublish();
         await refreshRuntimeReceipt(runtime);
-        await promoteBuild({
+        if (!deferPublication) await promoteBuild({
           repoRoot: runtime.root,
           userConfig: runtime.userConfig,
           buildId: runtime.buildId,
@@ -1070,8 +1118,8 @@ export const runStage = async (
           compatibilityKey: runtime.compatibilityKey || null,
           abortSignal: effectiveAbortSignal
         });
-        promoteDone = true;
-        await markBuildPhase(runtime.buildRoot, 'promote', 'done');
+        promoteDone = !deferPublication;
+        if (promoteDone) await markBuildPhase(runtime.buildRoot, 'promote', 'done');
         await refreshRuntimeReceipt(runtime, { lifecycle: 'succeeded' });
         result = {
           modes,
@@ -1081,8 +1129,11 @@ export const runStage = async (
           buildRoot: runtime.buildRoot,
           buildId: runtime.buildId,
           runtimeAttemptId: runtime.runtimeAttempt?.attemptId,
+          configHash: runtime.configHash,
+          repoProvenance: runtime.repoProvenance,
           validation: { status: validationSummary.ok ? 'passed' : 'failed', ...validationSummary },
-          publication: { status: 'published', buildId: runtime.buildId, modes },
+          publication: { status: promoteDone ? 'published' : 'retained', buildId: runtime.buildId, modes },
+          completedStageWork: runtime.completedStageWork || null,
           repoCacheRoot: runtime.repoCacheRoot,
           profile: runtime.profile || null
         };

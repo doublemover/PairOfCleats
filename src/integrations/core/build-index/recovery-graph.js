@@ -14,7 +14,8 @@ const fail = message => Object.assign(new Error(message), { code: 'ERR_GRAPH_CAP
  */
 export const sealRetainedGraph = async ({ root, userConfig, buildRoot, buildId, repoCacheRoot, lease, signal }) => {
   const { value: state } = await readBuildMetadata(buildRoot, path.join(buildRoot, 'build_state.json'), 8 * 1024 * 1024, signal);
-  const existing = state.graphCapabilities?.code || state.completedStages?.code?.snapshot;
+  const existing = [state.completedStages?.code?.snapshot, state.graphCapabilities?.code]
+    .find(locator => locator?.graphCapability?.status === 'ready');
   if (existing?.graphCapability?.status === 'ready') {
     return withRetainedGraph({ root, userConfig, buildRoot, buildId, locator: existing, signal }, receipt => receipt);
   }
@@ -38,7 +39,10 @@ export const sealRetainedGraph = async ({ root, userConfig, buildRoot, buildId, 
 export const withRetainedGraph = async ({ root, userConfig, buildRoot, buildId, capabilityId = null, locator = null, signal }, consume) => {
   if (!locator) {
     const { value: state } = await readBuildMetadata(buildRoot, path.join(buildRoot, 'build_state.json'), 8 * 1024 * 1024, signal);
-    locator = state.graphCapabilities?.code || (await readCompletedStage({ buildRoot, mode: 'code', state, signal }))?.snapshot;
+    const candidates = [state.completedStages?.code?.snapshot, state.graphCapabilities?.code].filter(Boolean);
+    if (!candidates.length) candidates.push((await readCompletedStage({ buildRoot, mode: 'code', state, signal }))?.snapshot);
+    locator = candidates.find(value => value?.graphCapability?.status === 'ready'
+      && (!capabilityId || value.graphCapability.capabilityId === capabilityId));
   }
   if (locator?.graphCapability?.status !== 'ready' || capabilityId && locator.graphCapability.capabilityId !== capabilityId) throw fail('No matching validated graph capability exists in this exact generation.');
   const indexRoot = resolveStageSnapshotRoot(buildRoot, locator);

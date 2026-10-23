@@ -2,12 +2,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { assertIndexCacheLease } from './cache-lease.js';
-import { openContainedFile, verifyContainedFileHandle, readVerifiedContainedFile, assertNoSymlinkPath } from '../../shared/contained-file.js';
+import { withContainedFile, readVerifiedContainedFile, assertNoSymlinkPath } from '../../shared/contained-file.js';
 import { readExactAt } from '../../shared/io/read-exact.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
-import { withSchedulerCpuSuspended } from '../../shared/concurrency/scheduler-task-scope.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from '../semantic/analysis-versions.js';
 import { toRealPath } from '../../workspace/identity.js';
 
@@ -32,12 +31,10 @@ export const observePreprocessSource = async ({ root, entry, countLines = false,
   expectedHash = null, signal = null, metrics = {} }) => {
   if (!Number.isSafeInteger(sampleBytes) || sampleBytes < 0 || sampleBytes > MAX_PREPROCESS_SAMPLE_BYTES) throw new RangeError('Invalid preprocessing sample allowance.');
   throwIfAborted(signal);
-  const handle = await openContainedFile(root, entry.abs);
-  let primary = null;
-  try {
-    const before = await withSchedulerCpuSuspended(() => handle.stat());
+  return withContainedFile(root, entry.abs, async handle => {
+    const before = await handle.stat();
     if (!Number.isSafeInteger(before.size) || before.size < 0 || (entry.stat && !sameIdentity(entry.stat, before))) throw changed();
-    const hash = crypto.createHash('sha256');
+    const hash = crypto.createHash('sha256'), sourceHash = crypto.createHash('sha1');
     const scratch = Buffer.alloc(Math.min(65536, Math.max(1, before.size)));
     const sample = sampleBytes ? Buffer.alloc(Math.min(sampleBytes, before.size)) : null;
     let lfCount = 0;
@@ -45,10 +42,10 @@ export const observePreprocessSource = async ({ root, entry, countLines = false,
     metrics.sourceReads = (metrics.sourceReads || 0) + 1;
     while (position < before.size) {
       const length = Math.min(scratch.length, before.size - position);
-      const { bytesRead } = await withSchedulerCpuSuspended(() => readExactAt(handle, scratch, 0, length, position, { signal }));
+      const { bytesRead } = await readExactAt(handle, scratch, 0, length, position, { signal });
       if (bytesRead !== length) throw changed();
       const bytes = scratch.subarray(0, bytesRead);
-      hash.update(bytes);
+      hash.update(bytes); sourceHash.update(bytes);
       if (countLines) for (let index = 0; index < bytes.length; index += 1) if (bytes[index] === 10) lfCount += 1;
       if (sample && position < sample.length) bytes.copy(sample, position, 0, Math.min(bytes.length, sample.length - position));
       position += bytesRead;
@@ -56,21 +53,15 @@ export const observePreprocessSource = async ({ root, entry, countLines = false,
       metrics.hashedBytes = (metrics.hashedBytes || 0) + bytesRead;
     }
     throwIfAborted(signal);
-    const after = await withSchedulerCpuSuspended(() => handle.stat());
-    verifyContainedFileHandle(handle, root, entry.abs);
+    const after = await handle.stat();
+    handle.verify();
     if (!sameIdentity(before, after)) throw changed();
     const digest = hash.digest('hex');
     if (expectedHash !== null && digest !== expectedHash) throw changed();
     if (countLines) metrics.lineCountPasses = (metrics.lineCountPasses || 0) + 1;
-    return { hash: digest, bytes: position, lines: countLines ? (position ? lfCount + 1 : 0) : null,
+    return { hash: digest, sourceSha1: sourceHash.digest('hex'), bytes: position, lines: countLines ? (position ? lfCount + 1 : 0) : null,
       sample, stat: after };
-  } catch (error) { primary = error; throw error; }
-  finally {
-    try { await withSchedulerCpuSuspended(() => handle.close()); } catch (error) {
-      if (primary && typeof primary === 'object') primary.closeError = error;
-      else throw error;
-    }
-  }
+  });
 };
 
 const boundedJsonValue = value => {
@@ -218,7 +209,7 @@ export const createPreprocessSnapshotSession = async ({ root, snapshotCache, pol
         return { hit: false, observation };
       }
       applyOutput(entry, cached.output);
-      retainProduct(cached);
+      retainProduct({ ...cached, sourceSha1: observation.sourceSha1 });
       metrics.classificationHits = (metrics.classificationHits || 0) + 1;
       if (Number.isSafeInteger(entry.lines)) metrics.lineCountHits = (metrics.lineCountHits || 0) + 1;
       return { hit: true, observation: null };
@@ -227,7 +218,7 @@ export const createPreprocessSnapshotSession = async ({ root, snapshotCache, pol
       const observation = Number.isSafeInteger(earlier?.lines) ? earlier
         : await observePreprocessSource({ root, entry, countLines: true, expectedHash: earlier?.hash || null, signal, metrics });
       entry.lines = observation.lines;
-      const row = { rel: entry.rel, inputKey: inputKey(entry), sourceHash: observation.hash, bytes: observation.bytes,
+      const row = { rel: entry.rel, inputKey: inputKey(entry), sourceHash: observation.hash, sourceSha1: observation.sourceSha1, bytes: observation.bytes,
         output: projectOutput(entry) };
       // Capture the discovery input key before content sniffing changes record routing.
       row.inputKey = entry.preprocessInputKey || row.inputKey;
@@ -235,6 +226,7 @@ export const createPreprocessSnapshotSession = async ({ root, snapshotCache, pol
       metrics.lineCountMisses = (metrics.lineCountMisses || 0) + 1;
     },
     inputKey,
+    sourceHashes: () => new Map([...products].map(([relative, row]) => [relative, { hash: row.sourceSha1, bytes: row.bytes }])),
     async seal(entries, skipped, discoveryMetrics) {
       throwIfAborted(signal);
       assertIndexCacheLease(snapshotCache.lease, cacheRoot);

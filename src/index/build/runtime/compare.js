@@ -13,6 +13,14 @@ const selected = attempt => ({
   learnedPolicy: attempt.inputs?.learnedAutoProfile,
   schedulerAutoTunePolicy: attempt.inputs?.schedulerAutoTuneProfile,
   configSources: attempt.inputs?.configSources,
+  implementationIdentity: attempt.inputs?.executionPlan?.producerIdentity?.identity,
+  dependencyBootstrapIdentity: attempt.inputs?.executionPlan?.producerIdentity?.bootstrap,
+  semanticEnvironment: attempt.inputs?.executionPlan?.semanticEnvironment,
+  recoveryPlanId: attempt.inputs?.executionPlan?.recoveryPlanId,
+  reuseDecision: attempt.inputs?.executionPlan?.reuseDecision,
+  sourceSelection: attempt.inputs?.executionPlan?.sourceSelection,
+  featurePolicy: attempt.inputs?.executionPlan?.featurePlan,
+  actualFileWork: attempt.runtime?.actualFileWork,
   ...Object.fromEntries(['lint', 'complexity', 'astDataflow', 'controlFlow', 'types', 'crossFileTypes',
     'risk', 'tooling', 'semantic', 'embeddings', 'embeddingService'].map(feature => [
     `feature.${feature}`, attempt.inputs?.executionPlan?.features?.[feature]
@@ -59,7 +67,8 @@ export const compareBuildAttempts = (before, after) => {
     limitations: ['Changed settings are correlations; no slowdown cause is inferred.',
       'Configured workers are distinct from observed worker/process evidence.',
       'Completed mode work is not a whole-run total; stages and modes can overlap.',
-      'Implementation working-tree, dependency/native identity and unrecorded historical work remain unknown.'] };
+      'Observed source/bootstrap identities do not certify loaded-module or unrecorded native/host state.',
+      'Unrecorded historical work remains unknown.'] };
 };
 
 export const readBuildAttemptComparison = async ({ before, after }) => {

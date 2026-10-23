@@ -433,7 +433,8 @@ export const hydrateStateDefaults = async (state, buildRoot) => {
 export const mergeState = (base, patch) => {
   const merged = { ...base, ...patch };
   if (patch.completedStages) merged.completedStages = { ...(base?.completedStages || {}), ...patch.completedStages };
-  if (patch.recoveryTransactions) merged.recoveryTransactions = { ...(base?.recoveryTransactions || {}), ...patch.recoveryTransactions };
+  if (patch.recoveryTransactions) merged.recoveryTransactions = Object.fromEntries(
+    Object.entries({ ...(base?.recoveryTransactions || {}), ...patch.recoveryTransactions }).slice(-16));
   if (patch.runtime) merged.runtime = mergeRuntimeAttempts(base?.runtime, patch.runtime);
   if (patch.phases) {
     merged.phases = { ...(base?.phases || {}), ...patch.phases };

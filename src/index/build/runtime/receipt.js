@@ -7,6 +7,7 @@ import { createRuntimeAttempt, observeRuntimePath, projectRuntimeScheduler } fro
 import { redactDiagnosticText } from '../../../shared/diagnostic-text.js';
 import { logLine } from '../../../shared/progress-runtime.js';
 import { createRuntimeFailure } from './failure.js';
+import { buildStageOverrides } from './stage.js';
 
 export const withRuntimeReceiptInitialization = async (create, { finalizeFailure = null } = {}) => {
   let active = null;
@@ -74,6 +75,42 @@ export const collectRuntimeResourceEvidence = (runtime) => ({
   scheduler: projectRuntimeScheduler(runtime.scheduler?.stats?.() || null)
 });
 
+const projectFeaturePlan = runtime => {
+  const configured = runtime.userConfig?.indexing || {};
+  const overrides = buildStageOverrides(configured.twoStage || {}, runtime.stage) || {};
+  const definitions = {
+    lint: ['lintEnabled', 'lint'], complexity: ['complexityEnabled', 'complexity'],
+    astDataflow: ['astDataflowEnabled', 'astDataflow'], controlFlow: ['controlFlowEnabled', 'controlFlow'],
+    types: ['typeInferenceEnabled', 'typeInference'], crossFileTypes: ['typeInferenceCrossFileEnabled', 'typeInferenceCrossFile'],
+    risk: ['riskAnalysisEnabled', 'riskAnalysis'], crossFileRisk: ['riskAnalysisCrossFileEnabled', 'riskAnalysisCrossFile']
+  };
+  const plan = Object.fromEntries(Object.entries(definitions).map(([name, [field, key]]) => {
+    const requested = typeof configured[key] === 'boolean' ? configured[key] : null;
+    const effective = typeof runtime[field] === 'boolean' ? runtime[field] : null;
+    return [name, { requested, effective, source: 'effective-runtime-and-stage-policy',
+      stageOverride: typeof overrides[key] === 'boolean' ? overrides[key] : null,
+      reason: effective === null ? 'runtime-evidence-unavailable' : effective ? 'enabled'
+        : overrides[key] === false ? 'stage-policy-disabled' : requested === false ? 'configuration-disabled'
+          : 'effective-disabled-reason-unrecorded' }];
+  }));
+  for (const [name, requested, effective, override] of [
+    ['tooling', runtime.userConfig?.tooling?.autoEnableOnDetect, runtime.toolingEnabled, null],
+    ['semantic', configured.semantic?.enabled, runtime.semanticPolicy?.enabled, overrides.semantic?.enabled],
+    ['embeddings', configured.embeddings?.enabled, runtime.embeddingEnabled, overrides.embeddings?.enabled],
+    ['sqlite', runtime.userConfig?.sqlite?.use, runtime.effectiveSqliteEnabled, null]
+  ]) plan[name] = { requested: typeof requested === 'boolean' ? requested : null,
+    effective: typeof effective === 'boolean' ? effective : null, stageOverride: override ?? null,
+    source: 'effective-runtime-and-stage-policy', reason: typeof effective !== 'boolean' ? 'runtime-evidence-unavailable'
+      : effective ? 'enabled' : override === false ? 'stage-policy-disabled' : requested === false ? 'configuration-disabled'
+        : 'effective-disabled-reason-unrecorded' };
+  return plan;
+};
+const projectActualFileWork = runtime => runtime.featureMetrics?.state ? Object.fromEntries(Object.entries(runtime.featureMetrics.state.modes).map(([mode, data]) => [mode,
+  { fileMetricEvents: data.totals.count, observedBytes: data.totals.bytes, observedDurationMs: data.totals.durationMs,
+    languageMetricEvents: Object.fromEntries(Object.entries(data.languages || {}).slice(0, 16).map(([language, bucket]) =>
+      [language, { count: bucket.count, lines: bucket.lines, bytes: bucket.bytes, durationMs: bucket.durationMs }])),
+    languageMetricsTruncated: Object.keys(data.languages || {}).length > 16 } ])) : null;
+
 export const refreshRuntimeReceipt = async (runtime, { lifecycle = 'running', ...patch } = {}) => {
   if (!runtime?.runtimeAttempt || !runtime?.buildRoot) return null;
   const paths = {};
@@ -85,15 +122,21 @@ export const refreshRuntimeReceipt = async (runtime, { lifecycle = 'running', ..
       stage: runtime.stage || null, configHash: runtime.configHash || null,
       sourceSnapshot: runtime.buildSourceSnapshot || null,
       profile: runtime.profile || null,
+      requestedStage: runtime.requestedStage || null, requestedModes: runtime.requestedModes || null,
+      featurePlan: projectFeaturePlan(runtime), sourceSelection: runtime.sourceSelection || null,
       features: { lint: runtime.lintEnabled ?? null, complexity: runtime.complexityEnabled ?? null,
         astDataflow: runtime.astDataflowEnabled ?? null, controlFlow: runtime.controlFlowEnabled ?? null,
         types: runtime.typeInferenceEnabled ?? null, crossFileTypes: runtime.typeInferenceCrossFileEnabled ?? null,
         risk: runtime.riskAnalysisEnabled ?? null, tooling: runtime.toolingEnabled ?? null,
         semantic: runtime.semanticPolicy?.enabled ?? null,
         embeddings: runtime.embeddingEnabled ?? null, embeddingService: runtime.embeddingService ?? null },
-      producerIdentity: 'implementation-working-tree-unknown'
+      producerIdentity: runtime.stageProducer || null,
+      semanticEnvironment: runtime.stageReuseEnvironment || null,
+      recoveryPlanId: runtime.recoveryPlanId || null,
+      reuseDecision: runtime.reuseDecision || null
     }, ...patch.inputs },
-    runtime: { ...collectRuntimeResourceEvidence(runtime), completedStageWork: runtime.completedStageWork || null, ...patch.runtime },
+    runtime: { ...collectRuntimeResourceEvidence(runtime), completedStageWork: runtime.completedStageWork || null,
+      actualFileWork: projectActualFileWork(runtime), ...patch.runtime },
     embeddings: {
       requested: { modelId: runtime.modelId, provider: runtime.embeddingProvider, mode: runtime.embeddingMode, stub: runtime.useStubEmbeddings },
       resolvedIdentity: runtime.embeddingIdentity || null, identityKey: runtime.embeddingIdentityKey || null,

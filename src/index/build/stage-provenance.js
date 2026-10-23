@@ -64,12 +64,17 @@ export const observeStageProducer = async (signal = null) => {
 export const buildStageReusePolicy = (runtime, mode) => {
   if (!Object.hasOwn(runtime, 'stageReuseEnvironment')) return null;
   const config = normalizeContentConfig({ ...runtime.userConfig, indexing: runtime.indexingConfig });
+  const environment = { ...runtime.stageReuseEnvironment };
   if (!runtime.embeddingEnabled && !runtime.embeddingService) {
     if (config.indexing) delete config.indexing.embeddings;
     delete config.models;
+    for (const name of ['embeddings', 'embeddingsSampleFiles', 'embeddingsSampleSeed']) delete environment[name];
   }
   delete config.sqlite;
+  if (config.indexing?.twoStage) {
+    for (const name of ['enabled', 'stage1', 'stage3', 'stage4', 'background']) delete config.indexing.twoStage[name];
+  }
   return stageIdentityHash({ schemaVersion: 1, mode, config, semanticPolicy: runtime.semanticPolicy,
-    environment: runtime.stageReuseEnvironment,
+    environment,
     dependencyContract: 'whole-mode-stage2.v1' });
 };

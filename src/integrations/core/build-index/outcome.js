@@ -6,6 +6,7 @@
 export const createBuildIndexOutcome = ({ result = {}, repo = null, requestedStage = null, modes = [], error = null } = {}) => {
   const entries = ['stage1', 'stage2', 'stage3', 'stage4'].flatMap(stage => result[stage] ? [[stage, result[stage]]] : []);
   if (!entries.length && result.stage) entries.push([result.stage, result]);
+  if (result.recovery) entries.push([result.recovery.stage, result.recovery]);
   const stages = entries.map(([stage, value]) => {
     const facts = value.embeddings || value.sqlite || value;
     const perModeFacts = Array.isArray(facts.perMode) ? facts.perMode.map(entry => entry.embeddings || entry) : [];

@@ -2,6 +2,7 @@ import path from 'node:path';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { loadJsonArrayArtifact } from '../../shared/artifact-io/loaders.js';
 import { assertIndexCacheLease } from './cache-lease.js';
 import { updateBuildState } from './build-state.js';
 import { assertArtifactPublicationReady, resolveArtifactPublicationPath,
@@ -38,6 +39,23 @@ export const sealCompletedStage = async ({ runtime, mode, sourceSnapshot = null,
     || !sameStagePath(validation.indexDir, path.join(runtime.buildRoot, `index-${mode}`))
     || !Array.isArray(validation.families)) throw stageFailure('Required publication family validation is absent or belongs to another generation.');
   const { output, manifest, inventory } = await inventoryStageOutput({ buildRoot: runtime.buildRoot, buildId: runtime.buildId, mode, signal });
+  let sourceValidation = { status: 'unavailable', reason: 'actual-processed-source-identity-unavailable' };
+  if (runtime.preprocessedSources instanceof Map && manifest.pieces.some(piece => piece.name === 'file_meta')) {
+    const rows = await loadJsonArrayArtifact(path.join(runtime.buildRoot, `index-${mode}`), 'file_meta', { manifest, strict: true });
+    const names = new Set();
+    const verified = rows.every(row => {
+      const source = runtime.preprocessedSources.get(row.file);
+      if (names.has(row.file)) return false;
+      names.add(row.file);
+      return source && typeof source.hash === 'string' && /^[a-f0-9]{40}$/.test(source.hash)
+        && row.hashAlgo === 'sha1' && row.hash === source.hash && row.size === source.bytes;
+    });
+    if (verified && rows.length === runtime.sourceSelection?.modes?.[mode]?.selectedFiles) {
+      sourceValidation = { status: 'verified', files: rows.length, algorithm: 'sha1',
+        identity: stageIdentityHash(rows.map(row => ({ file: row.file, size: row.size, hash: row.hash, hashAlgo: row.hashAlgo }))),
+        reason: 'actual-file-meta-matches-same-pass-preprocessing-hashes' };
+    }
+  }
   const observedProducer = await observeStageProducer(signal);
   const producer = runtime.stageProducer?.identity && runtime.stageProducer.identity !== observedProducer.identity
     ? { identity: null, reason: 'implementation-changed-during-stage' } : observedProducer;
@@ -48,7 +66,7 @@ export const sealCompletedStage = async ({ runtime, mode, sourceSnapshot = null,
     originatingAttemptId: runtime.runtimeAttempt?.attemptId || null,
     sealedAt: new Date().toISOString(), configHash: runtime.configHash || null,
     profile: runtime.profile || null, sourceSnapshot, dependencySignatures,
-    producer, reusePolicy: buildStageReusePolicy(runtime, mode), output,
+    producer, reusePolicy: buildStageReusePolicy(runtime, mode), sourceValidation, output,
     publicationHash, validationHash, familyContractsVersion: validation.familyContractsVersion,
     publicationFamilies: validation.families.map(({ family, owner, requiredMembers, optionalMembers }) =>
       ({ family, owner, requiredMembers, optionalMembers })),

@@ -29,6 +29,11 @@ try {
   assert.equal(row('toolRevision').status, 'unknown', 'two absent revisions cannot establish exact implementation sameness');
   assert.equal(report.before.partial, true);
   assert.equal(report.after.partial, true);
+  const implementationChanged = compareBuildAttempts({ ...original, inputs: { executionPlan: {
+    producerIdentity: { identity: 'same-commit-clean-content', bootstrap: 'same-dependencies' } } } },
+  { ...retry, inputs: { executionPlan: { producerIdentity: { identity: 'same-commit-dirty-content', bootstrap: 'same-dependencies' } } } });
+  assert.equal(implementationChanged.changes.find(change => change.field === 'implementationIdentity').status, 'changed');
+  assert.equal(implementationChanged.changes.find(change => change.field === 'dependencyBootstrapIdentity').status, 'unchanged');
   const admittedBefore = { ...original, inputs: { ...original.inputs, learnedAutoProfile: { profile: 'old' } },
     runtime: { ...original.runtime, workers: { tokenize: { configuredMaxWorkers: 4, observedWorkerCount: 2 } } } };
   const admittedAfter = { ...retry, inputs: { ...retry.inputs, learnedAutoProfile: { profile: 'new' } },

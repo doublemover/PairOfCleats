@@ -35,6 +35,8 @@ import { validateBuildIntent } from '../../../shared/cli-option-validators.js';
 import { createBuildIndexOutcome } from './outcome.js';
 import { planBuildRecovery, executeBuildRecovery, withBuildGraphCapability as consumeBuildGraphCapability } from './recovery.js';
 import { readBuildAttemptComparison, formatBuildAttemptComparison } from '../../../index/build/runtime/compare.js';
+import { listBuildRecoveryCandidates } from './recovery-candidates.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 
 const toolRoot = resolveToolRoot();
 const buildEmbeddingsPath = path.join(toolRoot, 'tools', 'build/embeddings.js');
@@ -94,10 +96,14 @@ async function buildIndexRun(repoRoot, options = {}) {
     const userConfig = loadUserConfig(root);
     const signal = coerceAbortSignal(options.abortSignal || null);
     const recovery = options.recovery;
+    if (recovery.action === 'candidates') return listBuildRecoveryCandidates({ root, userConfig,
+      modes: recovery.modes || ['code'], signal });
     if (recovery.action === 'inspect') return planBuildRecovery({ root, userConfig,
-      indexRoot: recovery.indexRoot, operation: recovery.operation, modes: recovery.modes, signal });
+      indexRoot: recovery.indexRoot, operation: recovery.operation, modes: recovery.modes, resumeTarget: recovery.resumeTarget, signal });
     if (recovery.action === 'execute') return executeBuildRecovery({ root, userConfig,
-      plan: recovery.plan, signal, log: options.log });
+      plan: recovery.plan, signal, log: options.log,
+      resumeBuild: (grant, request) => buildIndexRun(root, { ...request, progress: options.progress,
+        log: options.log, logError: options.logError, abortSignal: signal, buildRecoveryGrant: grant }) });
     if (recovery.action === 'open-graph') return consumeBuildGraphCapability({ root, userConfig,
       indexRoot: recovery.indexRoot, capabilityId: recovery.capabilityId, signal }, receipt => receipt);
     throw Object.assign(new Error('Recovery action must be inspect or execute.'), { code: 'ERR_RECOVERY_OPERATION' });
@@ -146,6 +152,34 @@ async function buildIndexRun(repoRoot, options = {}) {
   if (rebuild.requested) {
     await rebuildRepoCache({ root, userConfig, argv, log, abortSignal });
   }
+  let reuseDecision = options.reuseDecision || null;
+  if (!options.buildRecoveryGrant && !argv.watch && !rebuild.requested && !argv['index-root']
+    && (!explicitStage || explicitStage === 'stage2')) {
+    const inventory = await listBuildRecoveryCandidates({ root, userConfig, modes, signal: abortSignal });
+    reuseDecision = { disposition: 'recompute', reason: inventory.reason, examined: inventory.examined,
+      candidates: inventory.candidates.map(candidate => ({ buildId: candidate.buildId, attemptId: candidate.attemptId })) };
+    if (inventory.candidates.length === 1 && !inventory.truncated) {
+      const candidate = inventory.candidates[0];
+      const plan = await planBuildRecovery({ root, userConfig, indexRoot: candidate.buildRoot,
+        operation: 'resume', modes, resumeTarget: explicitStage === 'stage2' ? 'stage2' : 'full', signal: abortSignal });
+      if (!plan.blocked) {
+        try {
+          const recovered = await executeBuildRecovery({ root, userConfig, plan, signal: abortSignal, log,
+            resumeBuild: grant => buildIndexRun(root, { ...options, buildRecoveryGrant: grant,
+              reuseDecision: { disposition: 'candidate-admission', sourceBuildId: candidate.buildId },
+              abortSignal }) });
+          return { ...recovered.execution, recovery: recovered, publication: recovered.publication,
+            reuseDecision: { disposition: 'reused', sourceBuildId: candidate.buildId, recoveryPlanId: plan.planId }, repo: root };
+        } catch (error) {
+          observeStorageResource(error, { phase: 'automatic-completed-stage-admission' }).requireSettled();
+          if (!['ERR_RECOVERY_INPUT_CHANGED', 'ERR_COMPLETED_STAGE_INVALID', 'ERR_RECOVERY_PLAN_STALE'].includes(error.code)) throw error;
+          reuseDecision = { ...reuseDecision, sourceBuildId: candidate.buildId,
+            reason: error.reuseReason || error.code, candidateRefused: true };
+        }
+      } else reuseDecision.reason = plan.blocked;
+    }
+    if (reuseDecision.candidates.length || inventory.truncated) log(`[recovery] Stage2 recomputation: ${reuseDecision.reason}.`);
+  }
   const qualityOverride = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
   const policyConfig = qualityOverride ? { ...userConfig, quality: qualityOverride } : userConfig;
   const policy = await buildAutoPolicy({ repoRoot: root, config: policyConfig, logger: log });
@@ -180,7 +214,7 @@ async function buildIndexRun(repoRoot, options = {}) {
   throwIfAborted(abortSignal);
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const twoStageConfig = userConfig?.indexing?.twoStage || {};
-  const twoStageEnabled = twoStageConfig.enabled === true;
+  const twoStageEnabled = twoStageConfig.enabled === true && !options.buildRecoveryGrant;
   const embeddingRuntime = { ...resolveEmbeddingRuntime({ argv, userConfig, policy }), configSources };
   const embedModes = modes.filter((modeItem) => (
     modeItem === 'code'
@@ -216,7 +250,8 @@ async function buildIndexRun(repoRoot, options = {}) {
     recordIndexMetric,
     sqliteLogger,
     explicitStage,
-    twoStageEnabled
+    twoStageEnabled,
+    reuseDecision
   };
 
   if (explicitStage === 'stage3') {
@@ -266,6 +301,7 @@ async function buildIndexRun(repoRoot, options = {}) {
     let streamedCancelled = false;
     const stage2Result = await runStage('stage2', stageContext, {
       allowSqlite: false,
+      deferPublication: includeSqlite,
       onStage2ModeCompleted: async ({ mode: modeItem, runtime }) => {
         if (!includeEmbeddings || !embedModes.includes(modeItem)) return null;
         const modeEmbedResult = await runEmbeddingsStage({
@@ -449,7 +485,7 @@ export async function buildIndex(repoRoot, options = {}) {
   const requestedStage = normalizeStage(options.stage);
   try {
     const result = await buildIndexRun(repoRoot, options);
-    if (options.compareAttempts || ['inspect', 'open-graph'].includes(options.recovery?.action)) return result;
+    if (options.compareAttempts || ['inspect', 'open-graph', 'candidates'].includes(options.recovery?.action)) return result;
     return { ...result, outcome: createBuildIndexOutcome({ result, repo: repoRoot,
       requestedStage, modes: result?.modes || options.modes || [] }) };
   } catch (error) {

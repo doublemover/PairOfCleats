@@ -13,6 +13,7 @@ import { createRecordsClassifier, shouldSniffRecordContent } from './records.js'
 import { resolveFileCaps } from './file-processor/read.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 import {
   buildGeneratedPolicyConfig,
   buildGeneratedPolicyDowngradePayload,
@@ -175,7 +176,7 @@ export async function preprocessFiles({
           observation = reuse?.observation || null;
           if (observation) {
             // Only the bounded worker-local sample survives classification; no corpus-sized prefix cache.
-            observations.set(entry, { hash: observation.hash, bytes: observation.bytes, lines: observation.lines });
+            observations.set(entry, { hash: observation.hash, sourceSha1: observation.sourceSha1, bytes: observation.bytes, lines: observation.lines });
           }
         }
       }
@@ -202,7 +203,8 @@ export async function preprocessFiles({
         if (!sampleBuffer && recordSniffBytes > 0 && shouldSniffRecordContent(entry.ext)) {
           try {
             sampleBuffer = await sample(entry.abs, recordSniffBytes);
-          } catch {
+          } catch (error) {
+            observeStorageResource(error, { phase: 'preprocess-record-sample' }).requireSettled();
             sampleBuffer = null;
           }
         }
@@ -414,7 +416,7 @@ export async function preprocessFiles({
     const totalIncluded = Object.values(statsByMode).reduce((sum, entry) => sum + entry.included, 0);
     log(`→ Preprocess: ${totalIncluded.toLocaleString()} files across ${modes.length} mode(s).`);
   }
-  return { entriesByMode, skippedByMode, lineCountsByMode, stats };
+  return { entriesByMode, skippedByMode, lineCountsByMode, stats, sourceHashesByPath: snapshot?.sourceHashes() || null };
 }
 
 export async function writePreprocessStats(repoCacheRoot, stats) {
@@ -423,7 +425,8 @@ export async function writePreprocessStats(repoCacheRoot, stats) {
   try {
     await atomicWriteJson(output, stats, { spaces: 2, newline: false });
     return output;
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'preprocess-statistics-write' }).requireSettled();
     return null;
   }
 }
