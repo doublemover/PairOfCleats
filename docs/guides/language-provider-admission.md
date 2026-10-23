@@ -1,5 +1,19 @@
 # Language provider admission and retained presentation
 
+Direct command-profile and initialize-handshake consumers use the same current
+project-execution and selected-command trust rules as indexing. Doctor forwards
+its host cancellation signal into handshakes and checks it between synchronous
+command probes; cancellation stops later providers and report publication.
+Handshake cancellation requests teardown from the original LSP client and awaits
+its child, stream and process-tree settlement before returning. Cleanup failures
+remain errors with live ownership evidence; they are not successful doctor checks.
+
+A SourceKit doctor handshake in a package, Xcode, BSP or configured-hook workspace
+requires the same host-owned `sourcekitOperationPlan` as provider launch. An exact
+repository trust grant alone does not authorize package loading. A deliberately
+selected, trusted empty installation workspace can still test initialize protocol
+advertisements; that receipt does not qualify a Swift project or compiler facts.
+
 Kotlin's explicit `kotlin-lsp` profile uses the shared configured LSP runtime.
 The existing Kotlin source route produces chunks and targets before provider
 selection; the provider cannot introduce syntax partitions. Script `.kts`

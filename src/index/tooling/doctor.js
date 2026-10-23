@@ -1,5 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { composeAbortSignals, isAbortError, throwIfAborted } from '../../shared/abort.js';
 import { buildProviderRecovery } from './recovery.js';
 import { resolveProviderWorkspaceExecutionAuthority } from './workspace-execution.js';
 import { getXxhashBackend } from '../../shared/hash.js';
@@ -168,10 +169,11 @@ const resolveRuntimeRequirementsForCommand = (commandName) => {
   return [];
 };
 
-const writeReport = async (reportPath, report) => {
+const writeReport = async (reportPath, report, signal) => {
   await atomicWriteJson(reportPath, report, {
     spaces: 2,
-    newline: false
+    newline: false,
+    signal
   });
 };
 
@@ -187,14 +189,22 @@ const toStructuredFailureReasons = (checks) => (
 );
 
 export const runToolingDoctor = async (ctx, providerIds = null, options = {}) => {
+  const signal = composeAbortSignals(ctx?.signal, ctx?.abortSignal, options?.signal, options?.abortSignal);
+  throwIfAborted(signal);
   const repoRoot = ctx?.repoRoot || process.cwd();
   const buildRoot = ctx?.buildRoot || repoRoot;
   const toolingConfig = ctx?.toolingConfig || {};
   const strict = ctx?.strict !== false;
   const log = typeof options?.log === 'function' ? options.log : (() => {});
-  const resolveCommandProfile = typeof options?.resolveCommandProfile === 'function'
+  const resolveProfile = typeof options?.resolveCommandProfile === 'function'
     ? options.resolveCommandProfile
     : resolveToolingCommandProfile;
+  const resolveCommandProfile = input => {
+    throwIfAborted(signal);
+    const profile = resolveProfile({ ...input, signal });
+    throwIfAborted(signal);
+    return profile;
+  };
   const scmConfig = ctx?.scmConfig || resolveScmConfig({
     indexingConfig: ctx?.indexingConfig || {},
     analysisPolicy: ctx?.analysisPolicy || null,
@@ -244,6 +254,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
   };
 
   const backend = await getXxhashBackend();
+  throwIfAborted(signal);
   report.identity.chunkUid.available = Boolean(backend);
   report.identity.chunkUid.backend = backend || 'none';
   report.xxhash.backend = backend || 'none';
@@ -278,8 +289,10 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       repoRoot: scmSelection.repoRoot
     });
   } catch (err) {
+    if (isAbortError(err) || err?.cacheOwnershipPending === true) throw err;
     scmError = err?.message || String(err);
   }
+  throwIfAborted(signal);
   if (!scmSelection) {
     scmSelection = { provider: 'none', repoRoot, detectedBy: 'none' };
   }
@@ -327,6 +340,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
   let providerOrdinal = 0;
 
   for (const provider of providers) {
+    throwIfAborted(signal);
     providerOrdinal += 1;
     const providerId = normalizeProviderId(provider?.id);
     if (!providerId) continue;
@@ -565,6 +579,8 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
               toolingConfig,
               args: commandProfile.resolved.args || [],
               cwd: handshakeCwd,
+              signal,
+              sourcekitOperationPlan: ctx?.sourcekitOperationPlan || null,
               timeoutMs: Number.isFinite(Number(options?.handshakeTimeoutMs))
                 ? Math.max(750, Math.floor(Number(options.handshakeTimeoutMs)))
                 : 4000
@@ -704,7 +720,9 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
     .sort((a, b) => String(a).localeCompare(String(b)));
 
   const reportPath = path.join(buildRoot, TOOLING_DOCTOR_REPORT_FILENAME);
-  await writeReport(reportPath, report);
+  throwIfAborted(signal);
+  await writeReport(reportPath, report, signal);
+  throwIfAborted(signal);
   report.reportPath = reportPath;
   if (report.summary.status === 'error') {
     log(`[tooling] doctor: ${report.summary.errors} error(s), ${report.summary.warnings} warning(s).`);

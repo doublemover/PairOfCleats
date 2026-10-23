@@ -1,7 +1,8 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { isResolvedCommandTrusted, isRepoTrusted } from '../../shared/config-authority.js';
-import { resolveWorkspaceExecutionAuthority } from '../../shared/workspace-execution-authority.js';
+import { isSourcekitProvider, resolveProviderWorkspaceExecutionAuthority as resolveWorkspaceExecutionAuthority } from './workspace-execution.js';
+import { composeAbortSignals, isAbortError, raceAbort, throwIfAborted } from '../../shared/abort.js';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { resolveEnvPath } from '../../shared/env-path.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
@@ -780,6 +781,8 @@ export const isProbeCommandDefinitelyMissing = (probe) => {
  * }}
  */
 export const resolveToolingCommandProfile = (input) => {
+  const signal = composeAbortSignals(input?.signal, input?.abortSignal);
+  throwIfAborted(signal);
   const providerId = normalizeProviderId(input?.providerId || input?.cmd || 'tooling');
   const requestedCmd = String(input?.cmd || '').trim();
   const requestedArgs = Array.isArray(input?.args)
@@ -829,6 +832,7 @@ export const resolveToolingCommandProfile = (input) => {
     toolingConfig,
     cwd: repoRoot
   });
+  throwIfAborted(signal);
   const validation = validateResolvedToolingCommandLayout({
     providerId,
     resolvedCmd: resolvedCmd || requestedCmd,
@@ -888,7 +892,11 @@ export const resolveToolingCommandProfile = (input) => {
  * @returns {Promise<{ok:boolean,latencyMs:number,errorCode:string|null,errorMessage:string|null}>}
  */
 export const probeLspInitializeHandshake = async (input) => {
-  const cmd = String(input?.cmd || '').trim();
+  const signal = composeAbortSignals(input?.signal, input?.abortSignal);
+  throwIfAborted(signal);
+  const requestedCmd = String(input?.cmd || '').trim();
+  const cmd = requestedCmd && !isAbsolutePathNative(requestedCmd)
+    ? findBinaryOnPath(requestedCmd) || requestedCmd : requestedCmd;
   const executionAuthority = resolveWorkspaceExecutionAuthority({
     repoRoot: input?.cwd || process.cwd(), providerId: input?.providerId, server: { cmd }
   });
@@ -903,11 +911,29 @@ export const probeLspInitializeHandshake = async (input) => {
       errorMessage: 'missing command'
     };
   }
+  if (!isResolvedCommandTrusted({ commandPath: cmd, repoRoot: input?.cwd || process.cwd(), toolRoot: resolveToolRoot() })) {
+    return { ok: false, latencyMs: 0, errorCode: 'untrusted-repository-command', errorMessage: 'Repository command requires an exact launch-owned trust grant.' };
+  }
   const args = Array.isArray(input?.args) ? input.args.map((entry) => String(entry)) : [];
   const cwd = input?.cwd || process.cwd();
   const timeoutMs = Number.isFinite(Number(input?.timeoutMs))
     ? Math.max(750, Math.floor(Number(input.timeoutMs)))
     : 4000;
+  let assertSourcekitLaunch = null;
+  if (isSourcekitProvider({ providerId: input?.providerId, server: { cmd } })) {
+    // Import lazily: operation-plan validation itself uses command profiles.
+    const { assertSourcekitWorkspaceLaunch } = await import('./preflight/sourcekit-package-resolution.js');
+    assertSourcekitLaunch = () => assertSourcekitWorkspaceLaunch({ repoRoot: cwd,
+      resolutionPlan: input?.sourcekitOperationPlan || null, signal });
+    try {
+      await assertSourcekitLaunch();
+    } catch (error) {
+      if (isAbortError(error) || error?.cacheOwnershipPending === true) throw error;
+      return { ok: false, latencyMs: 0, errorCode: error?.code || 'ERR_SOURCEKIT_OPERATION_PLAN',
+        errorMessage: summarizeProbeText(error?.message || error, 240) };
+    }
+  }
+  throwIfAborted(signal);
   const client = await createRetainedLspClient({
     cmd,
     toolingRoot: input?.toolingConfig?.dir || null,
@@ -920,14 +946,38 @@ export const probeLspInitializeHandshake = async (input) => {
     log: () => {}
   });
   const startedAt = Date.now();
+  let killPromise = null;
+  const kill = () => {
+    if (!killPromise) {
+      killPromise = Promise.resolve().then(() => client.kill());
+      // The abort callback cannot await; finally consumes this exact teardown.
+      killPromise.catch(() => {});
+    }
+    return killPromise;
+  };
+  signal?.addEventListener('abort', kill, { once: true });
+  let primaryError = null, result = null;
   try {
-    const initializeResult = await client.initialize({
+    throwIfAborted(signal);
+    // Managed installation acquisition is asynchronous. Re-read SourceKit's
+    // workspace admission after it, before any initialize can spawn a child.
+    if (assertSourcekitLaunch) await assertSourcekitLaunch();
+    throwIfAborted(signal);
+    const currentAuthority = resolveWorkspaceExecutionAuthority({ repoRoot: cwd, providerId: input?.providerId, server: { cmd } });
+    if (currentAuthority || !isResolvedCommandTrusted({ commandPath: cmd, repoRoot: cwd, toolRoot: resolveToolRoot() })) {
+      throw Object.assign(new Error(currentAuthority?.message || 'Command trust changed before LSP handshake launch.'), {
+        code: currentAuthority?.reasonCode || 'untrusted-repository-command'
+      });
+    }
+    const initializeResult = await raceAbort(signal, client.initialize({
       rootUri: pathToFileUri(cwd),
       capabilities: { textDocument: { documentSymbol: {} } },
       timeoutMs
-    });
-    await client.shutdownAndExit();
-    return {
+    }));
+    throwIfAborted(signal);
+    await raceAbort(signal, client.shutdownAndExit());
+    throwIfAborted(signal);
+    result = {
       ok: true,
       latencyMs: Date.now() - startedAt,
       errorCode: null,
@@ -940,6 +990,7 @@ export const probeLspInitializeHandshake = async (input) => {
       capabilityEvidence: 'initialize-advertisement'
     };
   } catch (err) {
+    primaryError = err;
     invalidateToolingCommandProbeCache({
       providerId: input?.providerId || null,
       command: cmd,
@@ -949,7 +1000,7 @@ export const probeLspInitializeHandshake = async (input) => {
       successOnly: true
     });
     const errorCode = err?.code;
-    return {
+    result = {
       ok: false,
       latencyMs: Date.now() - startedAt,
       errorCode: typeof errorCode === 'string' ? errorCode || null
@@ -957,10 +1008,45 @@ export const probeLspInitializeHandshake = async (input) => {
       errorMessage: summarizeProbeText(err?.message || err, 240) || 'initialize handshake failed'
     };
   } finally {
-    await Promise.resolve(client.kill());
-    await client.releaseManagedInstallation();
+    const failures = [];
+    try { await kill(); } catch (error) { failures.push(error); }
+    try {
+      const evidence = await client.waitForResourceSettlement();
+      if (evidence.settled !== true) {
+        const error = Object.assign(new Error('LSP handshake resources remain owned after teardown.'), {
+          code: 'ERR_LSP_DISPOSAL_UNCONFIRMED', termination: evidence
+        });
+        Object.defineProperties(error, {
+          cacheOwnershipPending: { get: () => client.getTerminationEvidence().settled !== true },
+          cacheOwnershipReleased: { value: () => client.getTerminationEvidence().settled === true }
+        });
+        failures.push(error);
+      }
+    } catch (error) { failures.push(error); }
+    // Release must still be requested when kill or transport settlement fails.
+    try { await client.releaseManagedInstallation(); } catch (error) { failures.push(error); }
+    signal?.removeEventListener('abort', kill);
     if (typeof input?.onMetrics === 'function') {
-      try { input.onMetrics(client.getMetrics()); } catch {}
+      try { input.onMetrics({ ...client.getMetrics(), termination: client.getTerminationEvidence() }); } catch {}
+    }
+    if (failures.length) {
+      const primary = primaryError || failures[0];
+      const errors = [...new Set([primary, ...failures])];
+      const failure = new AggregateError(errors, primary?.message || 'LSP handshake cleanup failed.', { cause: primary });
+      failure.code = primary?.code || 'ERR_LSP_DISPOSAL_UNCONFIRMED';
+      if (isAbortError(primary)) failure.name = 'AbortError';
+      const pending = () => client.getTerminationEvidence().settled !== true || errors.some(error => {
+        try { return typeof error?.cacheOwnershipReleased === 'function'
+          ? error.cacheOwnershipReleased() !== true : error?.cacheOwnershipPending === true; }
+        catch { return true; }
+      });
+      Object.defineProperties(failure, {
+        cacheOwnershipPending: { get: pending }, cacheOwnershipReleased: { value: () => !pending() }
+      });
+      throw failure;
     }
   }
+  if (isAbortError(primaryError) || primaryError?.cacheOwnershipPending === true) throw primaryError;
+  throwIfAborted(signal);
+  return result;
 };
