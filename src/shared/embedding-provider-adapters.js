@@ -17,7 +17,7 @@ import {
   normalizeAdapterPrewarmTexts
 } from './embedding-adapter-helpers.js';
 
-export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipeline, modelProfile, localFilesOnly = false, sessionOptions = {}, modelFileName = null, modelArtifact = null }) => {
+export const createXenovaAdapter = ({ modelId, modelsDir, dims = null, normalize, loadPipeline, modelProfile, localFilesOnly = false, sessionOptions = {}, modelFileName = null, modelArtifact = null }) => {
   let embedderPromise = null;
   let resolvedEmbedder = null;
   let acquiredEmbedder = null, acquiredOwner = null;
@@ -27,6 +27,7 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
   let observedArtifact = modelArtifact;
   const measurements = { scope: 'adapter-lifetime', initializationMs: 0, runs: 0,
     providerBusyMs: 0, active: 0, peakActive: 0, failures: 0 };
+  let observedDimensions = modelProfile?.dimensions ?? dims;
   const ensureEmbedder = () => {
     if (disposed) return Promise.reject(new Error('Embedding provider adapter is disposed.'));
     if (!embedderPromise) {
@@ -122,7 +123,9 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
     try {
       const output = await embedder(list, modelProfile ? options : pipelineOptions);
       captureOutput(scope, output);
-      result = normalizeEmbeddingBatchOutput(output, list.length);
+      result = normalizeEmbeddingBatchOutput(output, list.length, { provider: 'xenova',
+        batchId: measurements.runs, dimensions: observedDimensions });
+      observedDimensions ??= result[0].length;
       const outputBuffers = new Set();
       for (const owner of scope.resources) {
         const data = owner.resource?.data;
@@ -166,7 +169,11 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
     embedPrepared: (items, options = {}) => track(async () => {
       const embedder = await ensureEmbedder();
       if (!embedder.embedPrepared) throw new Error('Prepared token inputs require the EG2 adapter.');
-      return embedder.embedPrepared(items, options);
+      const output = await embedder.embedPrepared(items, options);
+      const vectors = normalizeEmbeddingBatchOutput(output, items.length, { provider: 'xenova',
+        dimensions: observedDimensions });
+      if (vectors.length) observedDimensions ??= vectors[0].length;
+      return vectors;
     }),
     executionInfo: () => ({
       provider: 'xenova', requestedProvider: 'xenova', stub: false, measurements: { ...measurements },
@@ -298,7 +305,7 @@ export const createEmbeddingProviderAdapter = ({
     });
     const ensureFallback = (err) => {
       if (!fallbackAdapter) {
-        fallbackAdapter = createXenovaAdapter({ modelId, modelsDir, normalize, loadPipeline });
+        fallbackAdapter = createXenovaAdapter({ modelId, modelsDir, dims, normalize, loadPipeline });
         fallbackReason = {
           from: resolvedProvider, to: 'xenova', reason: 'native-load-failed',
           code: err?.code || err?.cause?.code || 'ERR_DLOPEN_FAILED'
@@ -407,5 +414,5 @@ export const createEmbeddingProviderAdapter = ({
     };
   }
 
-  return createXenovaAdapter({ modelId, modelsDir, normalize, loadPipeline, modelProfile, localFilesOnly, sessionOptions, modelFileName, modelArtifact });
+  return createXenovaAdapter({ modelId, modelsDir, dims, normalize, loadPipeline, modelProfile, localFilesOnly, sessionOptions, modelFileName, modelArtifact });
 };
