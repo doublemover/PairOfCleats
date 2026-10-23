@@ -52,6 +52,7 @@ export const initControls = () => {
     visuals,
     visualDefaults
   } = state;
+  const ownsControls = () => state.disposeControls === dispose && state.renderer === renderer;
 
   const pointer = new THREE.Vector2();
   const raycaster = new THREE.Raycaster();
@@ -157,16 +158,20 @@ export const initControls = () => {
   };
 
   const onPointer = (event) => {
+    if (disposed || !ownsControls()) return false;
     const ndc = getPointerNdc(event);
-    if (!ndc) return;
+    if (!ndc || disposed || !ownsControls()) return false;
     hover.move(event);
+    if (disposed || !ownsControls()) return false;
     pointer.x = ndc.x;
     pointer.y = ndc.y;
     raycaster.setFromCamera(pointer, camera);
-
+    if (disposed || !ownsControls()) return false;
     const hits = pick();
+    if (disposed || !ownsControls()) return false;
     if(hits[0]?.object?.userData?.type==='snapshotAggregate'){state.openSnapshotAggregate?.(hits[0].object.userData);return false;}
     setSelection(hits.length ? hits[0] : null);
+    if (disposed || !ownsControls()) return false;
   };
 
   let dragging = false;
@@ -213,13 +218,16 @@ export const initControls = () => {
   };
 
   const updateHover = (event) => {
-    if (dragging) return;
+    if (dragging || disposed || !ownsControls()) return;
     const ndc = getPointerNdc(event);
+    if (disposed || !ownsControls()) return;
     if (!ndc) { state.hovered = null; applyHighlights(); return; }
     pointer.x = ndc.x;
     pointer.y = ndc.y;
     raycaster.setFromCamera(pointer, camera);
+    if (disposed || !ownsControls()) return;
     const hits = pick();
+    if (disposed || !ownsControls()) return;
     const nextHover = hits.length ? hits[0] : null;
     const prev = state.hovered;
     const same =
@@ -238,7 +246,7 @@ export const initControls = () => {
     invalidateRender();
   };
 
-  hover = createHoverFrame({ pick: updateHover, clear: () => {
+  hover = createHoverFrame({ pick: updateHover, isCurrent: ownsControls, clear: () => {
     if (state.hovered !== null) { state.hovered = null; applyHighlights(); }
   } });
 
@@ -265,12 +273,12 @@ export const initControls = () => {
       dragMoved = false;
       return;
     }
-    if(onPointer(event)!==false)openSelection();
+    if(onPointer(event)!==false && !disposed && ownsControls())openSelection();
   });
 
   const velocity = new THREE.Vector2(0, 0);
   let zoomVelocity = 0;
-  const inputCurrent = () => !disposed && state.disposeControls === dispose && state.renderer === renderer;
+  const inputCurrent = () => !disposed && ownsControls();
   const cancelMotion = () => { if (!inputCurrent()) return; state.pickFence?.cancel(); velocity.set(0,0); zoomVelocity=0; endDrag(); };
   inputOwner=createViewportInputOwner({ viewport:dom.app, canvas:renderer.domElement, window, document,
     cancelMotion, invalidate:invalidateRender, isCurrent:inputCurrent, shortcut:event=>{
@@ -352,6 +360,7 @@ export const initControls = () => {
   let fileVisibleSnapshot, memberVisibleSnapshot;
   const refreshHoverCamera = () => {
     camera.updateMatrixWorld();
+    if (disposed || !ownsControls()) return;
     const world = camera.matrixWorld.elements, projection = camera.projectionMatrix.elements;
     let changed = false;
     for (let index = 0; index < 16; index += 1) {
@@ -369,13 +378,14 @@ export const initControls = () => {
     cameraSeen=true;
   };
   const animate = (now, {continuous}) => {
-    if (disposed) return;
+    if (disposed || !ownsControls()) return false;
     const started=performance.now();
     const frameMs = continuous ? now-lastTime : 0;
     const dt = continuous ? Math.min(0.05, frameMs/1000) : 1/60;
     lastTime = now;
     if(motionAllowed())effectTime+=dt*1000;
     updateCamera(dt);
+    if (disposed || !ownsControls()) return false;
     if (Math.abs(zoomVelocity) > 0.0001) {
       const zoomMin = state.cameraZoomRange?.min??(Number.isFinite(controls.zoomMin)
         ? controls.zoomMin
@@ -531,8 +541,11 @@ export const initControls = () => {
     }
 
     refreshHoverCamera();
+    if (disposed || !ownsControls()) return false;
     hover.frame();
+    if (disposed || !ownsControls()) return false;
     renderer.render(state.scene, camera);
+    if (disposed || !ownsControls()) return false;
     const renderInfo=renderer.info;
     perfStats.renderer=renderInfo?{calls:renderInfo.render?.calls??null,triangles:renderInfo.render?.triangles??null,
       lines:renderInfo.render?.lines??null,points:renderInfo.render?.points??null,
