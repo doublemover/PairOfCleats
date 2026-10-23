@@ -121,6 +121,9 @@ const createBuildRootResolutionError = (message, failureClass, context = null) =
   return error;
 };
 
+const postCommitFailure = (buildId, cause) => Object.assign(new Error('Generation published; build closeout failed.', { cause }),
+  { code: 'ERR_BUILD_POST_COMMIT', publication: { status: 'published', buildId } });
+
 /**
  * Execute embeddings stage (inline or queued service mode) for requested modes.
  *
@@ -490,6 +493,7 @@ export const runSqliteStage = async ({
   let runtime = null;
   let stage4Lock = null;
   let stage4OperationError = null;
+  let stage4Committed = false;
   try {
     throwIfAborted(effectiveAbortSignal);
     if (!shouldBuildSqlite) {
@@ -625,6 +629,7 @@ export const runSqliteStage = async ({
           abortSignal: effectiveAbortSignal
         });
         promoteDone = true;
+        stage4Committed = true;
         await markBuildPhase(runtime.buildRoot, 'promote', 'done');
       } else {
         await markBuildPhase(
@@ -662,6 +667,7 @@ export const runSqliteStage = async ({
       throw err;
     }
   } catch (err) {
+    stage4Committed ||= err?.publication?.status === 'published';
     stage4OperationError = err;
     try {
       await refreshRuntimeReceipt(runtime, { lifecycle: isAbortError(err) ? 'aborted' : 'failed', error: { code: String(err?.code || 'UNKNOWN'), message: redactDiagnosticText(err?.message || err) } });
@@ -679,11 +685,24 @@ export const runSqliteStage = async ({
   } finally {
     if (runtime) {
       try { await teardownRuntime(runtime); }
-      catch (cleanupError) { throw combineCacheWriterErrors(stage4OperationError, cleanupError); }
+      catch (cleanupError) {
+        const original = combineCacheWriterErrors(stage4OperationError, cleanupError);
+        const failure = stage4Committed ? combineCacheWriterErrors(postCommitFailure(runtime.buildId, original), original) : original;
+        if (stage4Committed) failure.publication = { status: 'published', buildId: runtime.buildId };
+        throw failure;
+      }
     }
     if (stage4Lock) {
-      await releaseCacheWriterOwnership({ lease: runtime?.cacheWriterLease,
-        release: () => stage4Lock.release(), operationError: stage4OperationError });
+      try {
+        await releaseCacheWriterOwnership({ lease: runtime?.cacheWriterLease,
+          release: () => stage4Lock.release(), operationError: stage4OperationError });
+      } catch (releaseError) {
+        if (!stage4Committed) throw releaseError;
+        const original = combineCacheWriterErrors(stage4OperationError, releaseError);
+        const failure = combineCacheWriterErrors(postCommitFailure(runtime.buildId, original), original);
+        failure.publication = { status: 'published', buildId: runtime.buildId };
+        throw failure;
+      }
     }
   }
 };
@@ -1136,7 +1155,9 @@ export const runStage = async (
 
         const closeoutResult = await closeout.run();
         if (closeoutResult.error) {
-          const failure = combineCacheWriterErrors(operationError, closeoutResult.error);
+          const committed = promoteDone || operationError?.publication?.status === 'published';
+          const original = combineCacheWriterErrors(operationError, closeoutResult.error);
+          const failure = committed ? combineCacheWriterErrors(postCommitFailure(runtime.buildId, original), original) : original;
           if (promoteDone || operationError?.publication?.status === 'published') {
             failure.publication = { status: 'published', buildId: runtime.buildId };
           }
