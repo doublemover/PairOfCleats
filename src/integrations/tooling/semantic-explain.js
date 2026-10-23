@@ -7,15 +7,19 @@ import { getRepoRoot } from '../../shared/repo-paths.js';
 import { loadUserConfig } from '../../shared/dict-utils.js';
 import { canonicalSemanticJson } from '../../index/semantic/identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { captureSemanticRequest } from '../../semantic/request-snapshot.js';
+import { SEMANTIC_EXPLAIN_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-explain.js';
 
 /** One cursor service per repository/query policy; stores reopen the exact requested generation. */
 export const createSemanticExplainRunner = ({ openStore = openSemanticQueryStore, maxServices = 32 } = {}) => {
   if (!Number.isSafeInteger(maxServices) || maxServices < 1 || maxServices > 64) throw new TypeError('Invalid semantic service cache bound.');
   const services = new Map();
   return async (request, { signal = null, userConfig = null } = {}) => {
+    request = captureSemanticRequest(request, SEMANTIC_EXPLAIN_REQUEST_SCHEMA);
     assertSemanticExplain('request', request);
     throwIfAborted(signal);
-    request = { ...request, repoRoot: getRepoRoot(request.repoRoot) };
+    const repoRoot = getRepoRoot(request.repoRoot);
+    if (repoRoot !== request.repoRoot) request = captureSemanticRequest({ ...request, repoRoot }, SEMANTIC_EXPLAIN_REQUEST_SCHEMA);
     const config = userConfig || loadUserConfig(request.repoRoot);
     const query = normalizeSemanticConfig(config.indexing?.semantic).query;
     const options = { maxRecords: query.maxRecords, maxEdges: query.maxRows, maxDepth: query.maxDepth, maxBytes: query.maxBytes,

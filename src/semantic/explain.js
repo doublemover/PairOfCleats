@@ -1,10 +1,13 @@
 import { createSemanticTraceService } from './trace.js';
 import { assertSemanticExplain } from '../contracts/validators/semantic-explain.js';
 import { projectExplainEnrichment } from './explain-enrichment.js';
+import { captureSemanticRequest } from './request-snapshot.js';
+import { SEMANTIC_EXPLAIN_REQUEST_SCHEMA } from '../contracts/schemas/semantic-explain.js';
 /** Explain cited static edges without promoting modeled relationships to observations. */
 export const createSemanticExplainService = options => {
   const trace=createSemanticTraceService(options);
   return async input => {
+    input = { ...input, request: captureSemanticRequest(input.request, SEMANTIC_EXPLAIN_REQUEST_SCHEMA) };
     assertSemanticExplain('request',input.request);
     const began=performance.now();
     const result=await trace(input);

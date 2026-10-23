@@ -3,6 +3,7 @@ import { assertSemanticTask } from '../contracts/validators/semantic-task.js';
 import { semanticTaskInputHash } from '../index/semantic/frontier.js';
 import { canonicalSemanticJson } from '../index/semantic/identity.js';
 import { throwIfAborted } from '../shared/abort.js';
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
 
 /** Bounded suggestions only. The explicit enrichment service revalidates targets before enqueue. */
 const project = async ({ store, manifest, request, result, signal, maxMs }) => {
@@ -89,8 +90,14 @@ export const projectExplainEnrichment = async input => {
   const signal = input.signal ? AbortSignal.any([input.signal, deadline]) : deadline;
   try { return await project({ ...input, signal, maxMs }); }
   catch (error) {
+    const observation = observeStorageResource(error, { phase: 'semantic-explain-enrichment' });
+    observation.requireSettled();
     throwIfAborted(input.signal);
-    if (!deadline.aborted || !(error === deadline.reason || ['AbortError', 'TimeoutError'].includes(error?.name))) throw error;
+    let name;
+    try { name = error?.name; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    if (!deadline.aborted || !(error === deadline.reason || ['AbortError', 'TimeoutError'].includes(name))) throw error;
     return { sourceRefs: [], enrichment: { status: 'partial', suggestions: [],
       reasons: ['Source/frontier projection exhausted its work allowance; no task suggestion was inferred.'] } };
   }
