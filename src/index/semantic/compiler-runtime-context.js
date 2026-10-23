@@ -6,6 +6,7 @@ import { isCompilerTransparentExpression } from './compiler-property-paths.js';
  */
 export const createCompilerRuntimeContext = ts => {
   const runtime = new WeakMap();
+  const referencePositions = new WeakMap();
   const classHeritage = node => node && ts.isHeritageClause(node) && node.token === ts.SyntaxKind.ExtendsKeyword
     && (ts.isClassDeclaration(node.parent) || ts.isClassExpression(node.parent));
   const erased = node => {
@@ -29,6 +30,37 @@ export const createCompilerRuntimeContext = ts => {
     for (const child of path) runtime.set(child, admitted);
     return Boolean(admitted);
   };
+  const isReferencePosition = node => {
+    const path = [];
+    let current = node, reference = false, aggregate = false;
+    while (current && !referencePositions.has(current)) {
+      path.push(current);
+      const parent = current.parent;
+      if (!parent) break;
+      if (ts.isBinaryExpression(parent) && parent.left === current && parent.operatorToken.kind === ts.SyntaxKind.EqualsToken
+        || ts.isDeleteExpression(parent) && parent.expression === current && !aggregate
+        || (ts.isForInStatement(parent) || ts.isForOfStatement(parent)) && parent.initializer === current) {
+        reference = true; break;
+      }
+      // An aggregate is a target pattern only when a proven enclosing owner
+      // selects it as a reference. Value aggregates retain their ordinary reads.
+      if (parent.expression === current && isCompilerTransparentExpression(ts, parent)) {
+        current = parent; continue;
+      }
+      if (ts.isArrayLiteralExpression(parent) || ts.isObjectLiteralExpression(parent)
+        || ts.isPropertyAssignment(parent) && parent.initializer === current
+        || ts.isShorthandPropertyAssignment(parent) && parent.name === current
+        || (ts.isSpreadElement(parent) || ts.isSpreadAssignment(parent)) && parent.expression === current) {
+        aggregate = true; current = parent; continue;
+      }
+      break;
+    }
+    if (current && referencePositions.has(current)) reference = referencePositions.get(current);
+    // Parent roles are immutable within this compiler tree. Memoize structural
+    // ancestors too, avoiding repeated walks of deeply nested shared patterns.
+    for (const child of path) referencePositions.set(child, reference);
+    return reference;
+  };
   const isLexicalValueRead = node => {
     if (!node || !ts.isIdentifier(node) || !isRuntimeNode(node)) return false;
     const parent = node.parent;
@@ -39,13 +71,7 @@ export const createCompilerRuntimeContext = ts => {
       || parent.name === node && !ts.isShorthandPropertyAssignment(parent)
       || ts.isLabeledStatement(parent) && parent.label === node
       || (ts.isBreakStatement(parent) || ts.isContinueStatement(parent)) && parent.label === node) return false;
-    let target = node;
-    while (target.parent?.expression === target && isCompilerTransparentExpression(ts, target.parent)) target = target.parent;
-    const owner = target.parent;
-    if (owner && (ts.isBinaryExpression(owner) && owner.left === target && owner.operatorToken.kind === ts.SyntaxKind.EqualsToken
-      || ts.isDeleteExpression(owner) && owner.expression === target
-      || (ts.isForInStatement(owner) || ts.isForOfStatement(owner)) && owner.initializer === target)) return false;
-    return true;
+    return !isReferencePosition(node);
   };
   return { isRuntimeNode, isLexicalValueRead };
 };
