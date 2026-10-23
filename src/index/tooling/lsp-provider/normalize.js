@@ -11,7 +11,7 @@ import { listLspServerPresets, resolveLspServerPreset } from '../lsp-presets.js'
 import { SCRIPT_LSP_PRESET_DEFINITIONS } from '../script-lsp-profiles.js';
 import { isRetiredKotlinLspSelection } from '../kotlin-lsp-profile.js';
 import { isRepoTrusted } from '../../../shared/config-authority.js';
-import { isProviderWorkspaceExecution } from '../workspace-execution.js';
+import { isProviderWorkspaceExecution, isSourcekitProvider } from '../workspace-execution.js';
 import {
   deepCloneValue,
   deepMergeObjects,
@@ -390,6 +390,7 @@ export const collectAutoPresetServers = (toolingConfig, configuredServerIds) => 
 
 export const buildConfiguredProviderConfigHash = ({ server, ctx }) => (
   hashProviderConfig({ server, lsp: ctx?.toolingConfig?.lsp || {},
+    ...(isSourcekitProvider({ server }) ? { operationPlanIdentity: ctx?.sourcekitOperationPlan?.identity || null } : {}),
     ...(isProviderWorkspaceExecution({ server })
       ? { workspaceExecutionTrusted: isRepoTrusted(ctx?.repoRoot || process.cwd()) } : {}) })
 );

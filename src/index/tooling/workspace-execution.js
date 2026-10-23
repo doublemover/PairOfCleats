@@ -4,13 +4,19 @@ import { isRepoTrusted } from '../../shared/config-authority.js';
 import { isPathWithinRoot } from '../../shared/file-paths.js';
 import { resolveWorkspaceExecutionAuthority, isWorkspaceBuildExecution } from '../../shared/workspace-execution-authority.js';
 
+export const isSourcekitProvider = ({ providerId, server } = {}) => {
+  const id = String(server?.workspaceExecutionProfile || server?.id || providerId || '').toLowerCase();
+  const command = path.basename(String(server?.cmd || '')).toLowerCase().replace(/\.(exe|cmd|bat)$/u, '');
+  return ['sourcekit', 'sourcekit-lsp', 'lsp-sourcekit', 'lsp-sourcekit-lsp'].includes(id) || command === 'sourcekit-lsp';
+};
+
 /** Phpactor can include Composer-generated PHP and trusted project extensions.
  * A tool selection is distinct from permission to execute that repository. */
 export const isProviderWorkspaceExecution = ({ providerId, server, languages, requiresWorkspaceExecution } = {}) => {
   const command = path.basename(String(server?.cmd || '')).toLowerCase().replace(/\.(exe|cmd|bat|phar)$/u, '');
   return requiresWorkspaceExecution === true || server?.requiresWorkspaceExecution === true
     || String(server?.workspaceExecutionProfile || server?.id || providerId || '').toLowerCase() === 'phpactor'
-    || command === 'phpactor' || isWorkspaceBuildExecution({ providerId, server, languages });
+    || command === 'phpactor' || isSourcekitProvider({ providerId, server }) || isWorkspaceBuildExecution({ providerId, server, languages });
 };
 
 export const resolveProviderWorkspaceExecutionAuthority = ({ repoRoot, workspaceRoot = repoRoot, ...input }) => {

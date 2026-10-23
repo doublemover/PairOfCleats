@@ -4,6 +4,8 @@ import { SymbolKind } from 'vscode-languageserver-protocol';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { toPosix } from '../../shared/file-paths.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { isRepoTrusted } from '../../shared/config-authority.js';
+import { resolveProviderWorkspaceExecutionAuthority } from './workspace-execution.js';
 import { resolveRequestedAbortSignal } from './preflight/manager-state.js';
 import {
   appendDiagnosticChecks,
@@ -28,6 +30,7 @@ import {
 } from './preflight/command-profile-preflight.js';
 import {
   buildSourcekitRepoScopedLockPath,
+  assertSourcekitWorkspaceLaunch,
   ensureSourcekitPackageResolutionPreflight,
   resolveSourcekitPreflightLockPath
 } from './preflight/sourcekit-package-resolution.js';
@@ -58,6 +61,10 @@ const SOURCEKIT_REQUEST_CLASSES = Object.freeze([
   'signatureHelp',
   'inlayHints'
 ]);
+const sourcekitBlocked = preflight => preflight?.blockSourcekit === true || preflight?.blockProvider === true
+  || String(preflight?.state || '').toLowerCase() === 'blocked';
+const sourcekitAuthority = ctx => resolveProviderWorkspaceExecutionAuthority({ repoRoot: ctx?.repoRoot || process.cwd(),
+  providerId: 'sourcekit', requiresWorkspaceExecution: true });
 
 let fileLockModulePromise = null;
 
@@ -353,7 +360,7 @@ const resolveSourcekitStartupMode = ({
   if (hostLockUnavailable) {
     return SOURCEKIT_ADMISSION_STARTUP_MODE.HOST_LOCK_UNAVAILABLE;
   }
-  if (preflight?.blockSourcekit) {
+  if (sourcekitBlocked(preflight)) {
     return SOURCEKIT_ADMISSION_STARTUP_MODE.DEPENDENCY_BLOCKED;
   }
   if (Number(runtime?.guard?.tripCount || 0) > 0) {
@@ -540,7 +547,8 @@ export const createSourcekitProvider = () => ({
   id: 'sourcekit',
   preflightId: 'sourcekit.package-resolution',
   preflightClass: 'dependency',
-  version: '2.1.1',
+  version: '2.2.0',
+  requiresWorkspaceExecution: true,
   profileContractVersion: 1,
   label: 'sourcekit-lsp',
   priority: 40,
@@ -562,10 +570,11 @@ export const createSourcekitProvider = () => ({
     supportsSymbolRef: false
   },
   getConfigHash(ctx) {
-    return hashProviderConfig({ sourcekit: ctx?.toolingConfig?.sourcekit || {} });
+    return hashProviderConfig({ sourcekit: ctx?.toolingConfig?.sourcekit || {}, workspaceExecutionTrusted: isRepoTrusted(ctx?.repoRoot || process.cwd()),
+      operationPlanIdentity: ctx?.sourcekitOperationPlan?.identity || null });
   },
   getPreflightKey(ctx) {
-    return resolveSourcekitPackageSignatureKey(ctx?.repoRoot || process.cwd());
+    return `${resolveSourcekitPackageSignatureKey(ctx?.repoRoot || process.cwd())}|${ctx?.sourcekitOperationPlan?.identity || 'passive'}`;
   },
   async preflight(ctx, inputs = {}) {
     const log = typeof inputs?.log === 'function'
@@ -587,6 +596,8 @@ export const createSourcekitProvider = () => ({
         check: null
       };
     }
+    const authority = sourcekitAuthority(ctx);
+    if (authority) return { ...authority, blockSourcekit: true };
     const requestedCommand = resolveSourcekitRequestedCommand(ctx);
     const commandPreflight = resolveCommandProfilePreflightResult({
       providerId: 'sourcekit',
@@ -615,9 +626,11 @@ export const createSourcekitProvider = () => ({
       signal: abortSignal,
       sourcekitConfig,
       cacheRoot: ctx?.cache?.dir || null,
-      timeoutMs: inputs?.preflightTimeoutMs
+      timeoutMs: inputs?.preflightTimeoutMs,
+      resolutionPlan: ctx?.sourcekitOperationPlan || null
     });
-    if (preflight?.blockSourcekit) {
+    throwIfAborted(abortSignal);
+    if (sourcekitBlocked(preflight)) {
       const checks = [];
       if (commandCheck) checks.push(commandCheck);
       if (preflight?.check && typeof preflight.check === 'object') checks.push(preflight.check);
@@ -666,7 +679,7 @@ export const createSourcekitProvider = () => ({
     if (!docs.length || (!targets.length && !ctx.semanticLspSession?.hasTargetedWork)) {
       return {
         ...(ctx.semanticLspSession ? { semanticFacts: ctx.semanticLspSession.output() } : {}),
-        provider: { id: 'sourcekit', version: '2.1.1', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'sourcekit', version: this.version, configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
@@ -729,7 +742,7 @@ export const createSourcekitProvider = () => ({
       ? sourcekitConfig.hoverSymbolKinds
       : [SymbolKind.Function, SymbolKind.Method];
 
-    const preflight = await awaitToolingProviderPreflight(ctx, {
+    let preflight = await awaitToolingProviderPreflight(ctx, {
       provider: this,
       inputs: {
         documents: docs,
@@ -743,13 +756,15 @@ export const createSourcekitProvider = () => ({
         : null
     });
     throwIfAborted(abortSignal);
+    const authority = sourcekitAuthority(ctx);
+    if (authority) preflight = { ...authority, blockSourcekit: true };
     if (preflight?.check) checks.push(preflight.check);
     if (Array.isArray(preflight?.checks)) {
       for (const check of preflight.checks) {
         if (check && typeof check === 'object') checks.push(check);
       }
     }
-    if (preflight?.blockSourcekit) {
+    if (sourcekitBlocked(preflight)) {
       log('[tooling] sourcekit skipped because package preflight did not complete safely.');
       const admissionPolicy = resolveSourcekitAdmissionPolicy({ preflight });
       const fidelity = buildProviderFidelityContract({
@@ -766,7 +781,7 @@ export const createSourcekitProvider = () => ({
         })
       });
       return {
-        provider: { id: 'sourcekit', version: '2.1.1', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'sourcekit', version: this.version, configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: buildSourcekitDiagnostics({
           preflight,
@@ -797,7 +812,7 @@ export const createSourcekitProvider = () => ({
     if (!resolvedCmd) {
       checks.push(...runtimeCommand.checks);
       return {
-        provider: { id: 'sourcekit', version: '2.1.1', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'sourcekit', version: this.version, configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
@@ -812,7 +827,7 @@ export const createSourcekitProvider = () => ({
       if (definitelyMissing) {
         log('[index] sourcekit-lsp not detected; skipping.');
         return {
-          provider: { id: 'sourcekit', version: '2.1.1', configHash: this.getConfigHash(ctx) },
+          provider: { id: 'sourcekit', version: this.version, configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
           diagnostics: appendDiagnosticChecks(null, checks)
         };
@@ -861,7 +876,7 @@ export const createSourcekitProvider = () => ({
           })
         });
         return {
-          provider: { id: 'sourcekit', version: '2.1.1', configHash: this.getConfigHash(ctx) },
+          provider: { id: 'sourcekit', version: this.version, configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
           diagnostics: buildSourcekitDiagnostics({
             admission: admissionPolicy,
@@ -921,6 +936,10 @@ export const createSourcekitProvider = () => ({
     }
 
     try {
+      throwIfAborted(abortSignal);
+      const currentAuthority = sourcekitAuthority(ctx);
+      if (currentAuthority) throw Object.assign(new Error(currentAuthority.message), { code: 'ERR_SOURCEKIT_OPERATION_PLAN' });
+      await assertSourcekitWorkspaceLaunch({ repoRoot: ctx.repoRoot, resolutionPlan: ctx?.sourcekitOperationPlan, signal: abortSignal });
       const result = await collectLspTypes({
         requestCacheGeneration: resolveRequestCacheGeneration(ctx),
         semanticSession: ctx.semanticLspSession || null,
@@ -935,6 +954,9 @@ export const createSourcekitProvider = () => ({
         adaptiveReasonHint: preflight?.reasonCode || null,
         cmd: resolvedCmd,
         args: resolvedArgs,
+        // Verified in the upstream swift-6.2-RELEASE option contract. A project
+        // config can override this; opening such a workspace needs a host plan.
+        initializationOptions: { backgroundIndexing: false },
         hoverTimeoutMs,
         signatureHelpTimeoutMs,
         hoverEnabled,
@@ -997,7 +1019,7 @@ export const createSourcekitProvider = () => ({
         })
       });
       return {
-        provider: { id: 'sourcekit', version: '2.1.1', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'sourcekit', version: this.version, configHash: this.getConfigHash(ctx) },
         byChunkUid: result.byChunkUid,
         diagnostics: buildSourcekitDiagnostics({
           diagnosticsCount: result.diagnosticsCount,

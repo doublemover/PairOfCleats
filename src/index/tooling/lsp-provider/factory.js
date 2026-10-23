@@ -1,7 +1,8 @@
 import { awaitToolingProviderPreflight } from '../preflight-manager.js';
 import { resolveRequestedAbortSignal } from '../preflight/manager-state.js';
 import { throwIfAborted } from '../../../shared/abort.js';
-import { resolveProviderWorkspaceExecutionAuthority } from '../workspace-execution.js';
+import { resolveProviderWorkspaceExecutionAuthority, isSourcekitProvider } from '../workspace-execution.js';
+import { ensureSourcekitPackageResolutionPreflight } from '../preflight/sourcekit-package-resolution.js';
 import { admitScriptLspInputs } from '../script-lsp-profiles.js';
 import { admitKotlinLspInputs, kotlinLspMigrationDiagnostic } from '../kotlin-lsp-profile.js';
 import {
@@ -348,6 +349,15 @@ export const createConfiguredLspProvider = (server) => {
         ...commandPreflight,
         ...(checks.length ? { checks } : {})
       };
+    }
+    if (isSourcekitProvider({ providerId, server })) {
+      const sourcekitPreflight = await ensureSourcekitPackageResolutionPreflight({ repoRoot: ctx?.repoRoot || process.cwd(),
+        log: typeof ctx?.logger === 'function' ? ctx.logger : () => {}, signal: resolveRequestedAbortSignal(ctx, inputs),
+        sourcekitConfig: ctx?.toolingConfig?.sourcekit || {}, cacheRoot: ctx?.cache?.dir || null,
+        resolutionPlan: ctx?.sourcekitOperationPlan || null });
+      return { ...sourcekitPreflight, blockProvider: sourcekitPreflight.blockSourcekit === true,
+        requestedCommand: commandPreflight.requestedCommand, commandProfile: commandPreflight.commandProfile,
+        checks: mergePreflightChecks(commandPreflight.checks, sourcekitPreflight.check, sourcekitPreflight.checks) };
     }
     const luaWorkspaceConfigPreflight = await resolveLuaWorkspaceConfigPreflight({
       server,

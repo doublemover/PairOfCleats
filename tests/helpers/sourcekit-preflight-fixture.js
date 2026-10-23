@@ -5,6 +5,7 @@ import { getToolingProvider } from '../../src/index/tooling/provider-registry.js
 import { resolveTestCachePath } from './test-cache.js';
 import { prependLspTestPath } from './lsp-runtime.js';
 import { applyTestEnv, withTemporaryEnv } from './test-env.js';
+import { createSourcekitOperationPlan } from '../../src/index/tooling/preflight/sourcekit-operation-plan.js';
 
 const buildPackageSwift = ({ dependencyVersion = '1.0.0', includeDependencies = true }) => {
   const dependencyLines = includeDependencies
@@ -210,6 +211,12 @@ export const createSourcekitPreflightFixture = async (input) => {
       }
     };
   };
+  const authorizeOperations = async ctx => {
+    ctx.sourcekitOperationPlan = await createSourcekitOperationPlan({ repoRoot: tempRoot,
+      swiftCommand: process.platform === 'win32' ? swiftCmdPath : swiftPosixPath,
+      allowWorkspaceLoad: true, toolingConfig: ctx.toolingConfig });
+    return ctx.sourcekitOperationPlan;
+  };
 
   return {
     tempRoot,
@@ -219,7 +226,8 @@ export const createSourcekitPreflightFixture = async (input) => {
     cacheRoot, startedPath, completedPath, resolveScriptPath, fixtureCommand,
     restorePath,
     writePackage,
-    contextFor
+    contextFor,
+    authorizeOperations
   };
 };
 
@@ -251,6 +259,9 @@ export const withSourcekitPreflightProvider = async ({
     registerDefaultToolingProviders();
     const provider = getToolingProvider('sourcekit');
     if (!provider) throw new Error('expected sourcekit provider');
+    // This helper explicitly exercises the benign resolver/workspace operation;
+    // ordinary provider fixtures receive no operation plan by default.
+    await fixture.authorizeOperations(fixtureContext.ctx);
     await run({ provider, ...fixtureContext });
   });
 };

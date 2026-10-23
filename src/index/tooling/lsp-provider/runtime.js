@@ -1,6 +1,7 @@
 import { collectLspTypes } from '../../../integrations/tooling/providers/lsp.js';
 import { throwIfAborted } from '../../../shared/abort.js';
-import { resolveProviderWorkspaceExecutionAuthority } from '../workspace-execution.js';
+import { resolveProviderWorkspaceExecutionAuthority, isSourcekitProvider } from '../workspace-execution.js';
+import { assertSourcekitWorkspaceLaunch } from '../preflight/sourcekit-package-resolution.js';
 import { invalidateProbeCacheOnInitializeFailure } from '../command-resolver.js';
 import { resolveLspRuntimeConfig } from '../lsp-runtime-config.js';
 import {
@@ -469,6 +470,9 @@ export const collectConfiguredOutput = async ({
       : null;
     let partitionResult;
     try {
+      if (isSourcekitProvider({ providerId, server })) {
+        await assertSourcekitWorkspaceLaunch({ repoRoot: ctx.repoRoot, resolutionPlan: ctx?.sourcekitOperationPlan, signal: abortSignal });
+      }
       partitionResult = await collectLspTypes({
         requestCacheGeneration: resolveRequestCacheGeneration(ctx),
         semanticSession: ctx.semanticLspSession || null,
@@ -505,7 +509,8 @@ export const collectConfiguredOutput = async ({
           ? { hoverSymbolKinds: server.hoverSymbolKinds }
           : {}),
         ...(rustWorkspaceStderr ? { stderrFilter: rustWorkspaceStderr.filter } : {}),
-        initializationOptions: server.initializationOptions,
+        initializationOptions: isSourcekitProvider({ providerId, server })
+          ? { ...server.initializationOptions, backgroundIndexing: false } : server.initializationOptions,
         captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(requestedKinds)
       });
     } finally {

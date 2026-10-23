@@ -100,6 +100,39 @@ is no new PHP-Parser producer, benchmark result or automatic alternative switch.
 Framework/magic PHP semantics, Composer freshness and real-server qualification
 in #1160 remain unfinished.
 
+SourceKit ordinary preflight is now passive. Package, Xcode and BSP/configured
+workspaces require an explicitly selected host operation before workspace loading
+can evaluate manifests, build-server hooks or plugins. Finding dependencies,
+`preflightFailOpen`, a trusted repository alone and historical ready markers do
+not authorize `swift package resolve`. A missing operation plan produces an
+actionable blocked reason without changing package/workspace files. Native Swift
+source admission remains available. The same gate covers dedicated and known
+configured SourceKit routes, with a fresh bounded workspace check before launch.
+
+Existing programmatic operational callers migrate by explicitly constructing
+`createSourcekitOperationPlan` with an absolute selected Swift command, an exact
+repository execution grant and `allowWorkspaceLoad: true`, then supplying that
+in-process object as `ctx.sourcekitOperationPlan`. The fixed operation is package
+resolution plus workspace loading; this can evaluate project code and fetch
+packages. The plan is not a JSON/config flag, portable approval receipt or new
+CLI option. It binds the root, manifest, executable metadata and effective
+environment; changed inputs or revoked trust require a newly selected operation.
+The normal tooling pass does not create an operation plan. Benign resolver
+fixtures now select their operation explicitly; untrusted/passive cases receive
+none. Missing/inconclusive Swift probing cannot authorize a plan.
+
+SourceKit's v3 health markers also bind the operation identity, expire, observe
+post-resolution lock content and honor cancellation during reads/publication.
+Generic `blockProvider`/blocked preflight states stop SourceKit launch, including
+timeouts with teardown pending. Initialization requests disable background
+indexing using the inspected Swift 6.2 option contract; project configuration can
+override initialization options and therefore requires explicit workspace
+authority. This does not qualify an installed SourceKit release or prove that a
+SwiftPM graph is offline, fresh or free of plugins. Configured Swift signature
+presentation uses the existing Swift adapter and reaches retained `docmeta` and
+inferred-type consumers in the explicit protocol fixture. SwiftSyntax, IndexStore
+facts, SDK pairing and real-server/compiler qualification remain unfinished.
+
 Primary references: [Kotlin function syntax](https://kotlinlang.org/spec/declarations.html#function-declaration),
 [official Kotlin LSP](https://github.com/Kotlin/kotlin-lsp),
 [Dart package-config v2 specification](https://github.com/dart-lang/language/blob/main/accepted/2.8/language-versioning/package-config-file-v2.md),
@@ -108,4 +141,5 @@ Primary references: [Kotlin function syntax](https://kotlinlang.org/spec/declara
 [Phpactor Composer execution configuration](https://phpactor.readthedocs.io/en/master/reference/configuration.html),
 [Composer manifest schema](https://github.com/composer/composer/blob/main/res/composer-schema.json),
 [Intelephense client/server licences](https://github.com/bmewburn/vscode-intelephense/blob/master/LICENSE.txt),
-[PHP-Parser 5.9.0 licence](https://github.com/nikic/PHP-Parser/blob/v5.9.0/LICENSE).
+[PHP-Parser 5.9.0 licence](https://github.com/nikic/PHP-Parser/blob/v5.9.0/LICENSE),
+[SourceKit Swift 6.2 configuration precedence/options](https://github.com/swiftlang/sourcekit-lsp/blob/swift-6.2-RELEASE/Documentation/Configuration%20File.md).

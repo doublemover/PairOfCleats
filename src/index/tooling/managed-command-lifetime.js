@@ -136,12 +136,12 @@ export const retainPendingManagedCommand = (lease, error, { cleanupError = null,
 export const runWithManagedCommandInstallation = async (options, run) => {
   throwIfAborted(options.signal);
   const lease = await retainManagedCommandInstallation(options);
-  const admitInvocation = () => {
+  const admitInvocation = async () => {
     throwIfAborted(options.signal);
-    options.beforeSpawn?.();
+    await options.beforeSpawn?.();
     throwIfAborted(options.signal);
   };
-  if (!lease) { admitInvocation(); return run({ onSpawn: null }); }
+  if (!lease) { await admitInvocation(); return run({ onSpawn: null }); }
   let child = null, closeObserved = false, invocationStarted = false, invocationSettled = false, ownerSettlement = null, primaryFailure = null;
   const reconcile = () => {
     const treeSettled = ownerSettlement === null || ownerSettlement() === true;
@@ -171,7 +171,7 @@ export const runWithManagedCommandInstallation = async (options, run) => {
     lease.assertHeld();
     // Lease acquisition can await I/O. A cancelled or newly denied launch has
     // no child: release that exact acquisition before invoking the spawn owner.
-    admitInvocation();
+    await admitInvocation();
     invocationStarted = true;
     const value = await run({ onSpawn });
     invocationSettled = true;

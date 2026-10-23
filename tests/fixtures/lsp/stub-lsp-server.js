@@ -53,6 +53,9 @@ const symbolsByMode = {
     detail: 'func greet(name: String, count: Int) -> String',
     kind: 12
   },
+  'sourcekit-passive': {
+    name: 'greet', detail: 'func greet(name: String, count: Int) -> String', kind: 12
+  },
   pyright: {
     name: 'greet',
     detail: 'def greet(name: str) -> str',
@@ -267,6 +270,8 @@ const documents = new Map();
 let initializeCount = 0;
 
 const resolveInitializeCapabilities = (initializeParams = null) => {
+  if (mode === 'sourcekit-passive') return initializeParams?.initializationOptions?.backgroundIndexing === false
+    ? { documentSymbolProvider: true } : {};
   if (mode === 'yaml-requires-schemastore-off') {
     const schemaStoreEnabled = initializeParams?.initializationOptions?.settings?.yaml?.schemaStore?.enable;
     if (schemaStoreEnabled !== false) {
