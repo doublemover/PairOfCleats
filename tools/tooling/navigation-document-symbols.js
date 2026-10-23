@@ -47,9 +47,11 @@ export async function projectQualifiedDocumentSymbols({ result, store, syntax, s
     const location = { name, qualifiedName: name, kind: row.data.declarationKind, file: source.path,
       virtualPath: source.path, ref: { partitionId: syntax.partitionId, localId: row.id },
       sourceHash: source.byteHash, coordinateUnit: 'utf16', role: 'declaration',
+      sourceSpan: { start: container[0], end: container[1], unit: 'utf16' },
       startLine: start.line, startCol: start.col, endLine: end.line, endCol: end.col,
       selectionRange: { startLine: selectedStart.line, startCol: selectedStart.col,
-        endLine: selectedEnd.line, endCol: selectedEnd.col }, score: 0 };
+        endLine: selectedEnd.line, endCol: selectedEnd.col,
+        sourceSpan: { start: row.span[0], end: row.span[1], unit: 'utf16' } }, score: 0 };
     if (result.results.length < resultLimit) result.results.push(location);
     else result.coverage.omittedResults++;
   }

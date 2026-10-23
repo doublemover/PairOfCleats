@@ -81,9 +81,10 @@ try {
   for (const [label, mutate] of [
     ['missing source witness', value => { delete value.results[0].sourceHash; }],
     ['missing range', value => { delete value.results[0].startLine; }],
-    ['out of bounds', value => { value.results[0].endLine = 999; }],
-    ['selection outside container', value => { value.results[0].selectionRange.endLine = 6; }],
-    ['zero-width unlocated range', value => { Object.assign(value.results[0], { endLine: 1, endCol: 1, selectionRange: null }); }],
+    ['out of bounds', value => { value.results[0].sourceSpan.end = text.length + 1; }],
+    ['selection outside container', value => { value.results[0].selectionRange.sourceSpan.end = text.length; }],
+    ['zero-width unlocated range', value => { Object.assign(value.results[0], { endLine: 1, endCol: 1, sourceSpan: null, selectionRange: null }); }],
+    ['unsupported span unit', value => { value.results[0].sourceSpan.unit = 'utf8-byte'; }],
     ['missing generation', value => { delete value.generation; }],
     ['unsupported coordinates', value => { value.results[0].coordinateUnit = 'utf8-byte'; }],
     ['wrong file authority', value => { value.results[0].file = 'README.md'; }]
@@ -116,6 +117,13 @@ try {
     assert.equal(symbol.range.start.line, 1); assert.equal(symbol.range.end.line, 5);
     assert.equal(symbol.selectionRange.start.character, 9);
   }
+
+  reset('// separator\u2028' + text);
+  const separated = await produce('// separator\u2028' + text); queue(separated.payload);
+  const separatedSymbol = (await provider.provideDocumentSymbols(document, {})).find(row => row.name === 'WidgetBuilder');
+  assert(separatedSymbol); assert.equal(separatedSymbol.range.start.line, 0);
+  assert.equal(separatedSymbol.range.start.character, '// separator\u2028'.length,
+    'canonical absolute UTF-16 spans use the actual requested host positionAt policy even for Unicode source separators');
 
   reset(text);
   const mapped = await produce(text, { quality: 'exact', parentSourceUnitId: 'su1:' + 'b'.repeat(64) });

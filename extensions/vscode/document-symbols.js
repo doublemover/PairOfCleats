@@ -18,8 +18,15 @@ async function qualifyDocumentSymbols({ vscode, repoContext, rows, sourceRequest
       || !entry.file || fs.realpathSync(path.resolve(repoContext.repoRoot, entry.file)) !== file) {
       throw new Error('Document symbol does not identify the original requested source.');
     }
-    const qualify = range => authority.qualify({ repoRoot: repoContext.repoRoot, file,
-      uri: document.uri, sourceHash: hash, range });
+    const qualify = range => {
+      const sourceSpan = range.sourceSpan;
+      if (sourceSpan != null && (sourceSpan.unit !== 'utf16' || !Number.isSafeInteger(sourceSpan.start)
+        || !Number.isSafeInteger(sourceSpan.end) || sourceSpan.start < 0 || sourceSpan.end <= sourceSpan.start)) {
+        throw new Error('Document symbol has no supported exact source span.');
+      }
+      return authority.qualify({ repoRoot: repoContext.repoRoot, file, uri: document.uri, sourceHash: hash,
+        range, ...(sourceSpan ? { span: { start: sourceSpan.start, end: sourceSpan.end } } : {}) });
+    };
     const enclosing = await qualify(entry);
     if (!enclosing || !isCurrent() || !sourceRequest.isCurrent()) return [];
     const selected = entry.selectionRange == null ? enclosing : await qualify(entry.selectionRange);
