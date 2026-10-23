@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createAbortError } from '../abort.js';
 import { observeStorageResource } from '../storage/failure-observation.js';
+import { readLockRecord, readFileLockFailureCode } from './file-lock-info.js';
 import { isFileLockPublicationPending, publishFileLock } from './file-lock-publication.js';
 export { isFileLockPublicationSession, isFileLockPublicationPending } from './file-lock-publication.js';
 import {
@@ -55,7 +56,7 @@ export {
  *  timeoutMessage?:string,
  *  invalidLockGraceMs?:number,
  *  signal?:AbortSignal|null,
- *  staleRemovalImpl?:(input:{lockPath:string,info:object|null,staleMs:number})=>Promise<{removed:boolean,removalMode:'owner'|'force'|'owner-fallback-force'}>,
+ *  staleRemovalImpl?:(input:{lockPath:string,info:object|null,staleMs:number,expectedIdentity:object})=>Promise<{removed:boolean,removalMode:'owner'|'force'|'owner-fallback-force'}>,
  *  onStale?:(info:{lockPath:string,info:object|null,pid:number|null,reason:'stale'|'dead-pid',removalMode?:'owner'|'force'|'owner-fallback-force'})=>void,
  *  onBusy?:(info:{lockPath:string,info:object|null,pid:number|null,reason?:'parent_missing'|'publication-pending',retries?:number})=>void
  * }} input
@@ -171,7 +172,16 @@ export const acquireFileLock = async ({
         return null;
       }
       if (code !== 'EEXIST') throw err;
-      const info = await readLockInfo(lockPath);
+      let record;
+      try { record = await readLockRecord(lockPath); }
+      catch (readError) {
+        if (readFileLockFailureCode(readError) !== 'ENOENT') throw readError;
+        if (deadline != null && Date.now() < deadline) { await sleepWithAbort(resolvedPollMs, lockSignal); continue; }
+        safeInvokeHook(onBusy, { lockPath, info: null, pid: null });
+        if (timeoutBehavior === 'throw') throw new Error(timeoutMessage || 'Lock timeout.');
+        return null;
+      }
+      const info = record.value;
       const cleanupState = await shouldCleanupStaleLock({
         lockPath,
         info,
@@ -184,7 +194,8 @@ export const acquireFileLock = async ({
           const { removed, removalMode } = await staleRemovalImpl({
             lockPath,
             info,
-            staleMs: resolvedStaleMs
+            staleMs: resolvedStaleMs,
+            expectedIdentity: record.identity
           });
           if (!removed) {
             if (deadline != null && Date.now() < deadline) {

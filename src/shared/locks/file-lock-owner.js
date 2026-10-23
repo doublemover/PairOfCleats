@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../subprocess/sync-command.js';
 import { DEFAULT_WINDOWS_TASKLIST_TIMEOUT_MS } from './file-lock-constants.js';
-import { readLockInfo, resolveLockPid, isOwnedBy, requiresLockResourceSettlement } from './file-lock-info.js';
+import { readLockRecord, readFileLockFailureCode, captureFileLockIdentity, sameFileLockIdentity,
+  resolveLockPid, isOwnedBy, requiresLockResourceSettlement } from './file-lock-info.js';
 import { isFileLockPublicationPending } from './file-lock-publication.js';
 import { observeStorageResource } from '../storage/failure-observation.js';
 export { isOwnedBy, removeLockFileSyncIfOwned } from './file-lock-info.js';
@@ -39,15 +40,21 @@ export const isProcessAlive = (pid) => {
   }
 };
 
-export const removeLockFileIfOwned = async (lockPath, owner, { force = false, swallowErrors = true } = {}) => {
+export const removeLockFileIfOwned = async (lockPath, owner, { force = false, swallowErrors = true, expectedIdentity = null } = {}) => {
   if (!lockPath || isFileLockPublicationPending(lockPath)) return false;
   try {
-    const info = await readLockInfo(lockPath);
+    const { value: info, identity } = await readLockRecord(lockPath);
+    if (expectedIdentity && !sameFileLockIdentity(identity, expectedIdentity)) return false;
     if ((!force || requiresLockResourceSettlement(info)) && !isOwnedBy(info, owner)) return false;
-    await fs.rm(lockPath, { force: true });
+    if (isFileLockPublicationPending(lockPath)) return false;
+    const current = await fs.lstat(lockPath, { bigint: true });
+    if (!sameFileLockIdentity(captureFileLockIdentity(current), identity) || isFileLockPublicationPending(lockPath)) return false;
+    if (await fs.rm(lockPath, { force: true }) !== undefined) throw Object.assign(
+      new Error('Original lock metadata removal did not confirm its standard void result.'), { cacheOwnershipPending: true });
     return true;
   } catch (err) {
     observeStorageResource(err, { phase: 'file-lock-remove' }).requireSettled();
+    if (force && readFileLockFailureCode(err) === 'ENOENT') return true;
     if (!swallowErrors) throw err;
     return false;
   }

@@ -41,15 +41,22 @@ export const isOwnedBy = (info, owner) => {
   return false;
 };
 
-export const removeLockFileSyncIfOwned = (lockPath, owner, { force = false } = {}) => {
+export const removeLockFileSyncIfOwned = (lockPath, owner, { force = false, expectedIdentity = null } = {}) => {
   if (!lockPath || isFileLockPublicationPending(lockPath)) return false;
   try {
-    const info = readLockInfoSync(lockPath);
+    const { value: info, identity } = readLockRecordSync(lockPath);
+    if (expectedIdentity && !sameFileLockIdentity(identity, expectedIdentity)) return false;
     if ((!force || requiresLockResourceSettlement(info)) && !isOwnedBy(info, owner)) return false;
-    fsSync.rmSync(lockPath, { force: true });
+    if (isFileLockPublicationPending(lockPath)) return false;
+    const current = fsSync.lstatSync(lockPath, { bigint: true });
+    if (!sameFileLockIdentity(captureFileLockIdentity(current), identity) || isFileLockPublicationPending(lockPath)) return false;
+    if (fsSync.rmSync(lockPath, { force: true }) !== undefined) throw Object.assign(
+      new Error('Original lock metadata removal did not confirm its standard void result.'), { cacheOwnershipPending: true });
     return true;
   } catch (error) {
-    observeStorageResource(error, { phase: 'file-lock-remove-sync' }).requireSettled();
+    const observation = observeStorageResource(error, { phase: 'file-lock-remove-sync' });
+    observation.requireSettled();
+    if (force && readFileLockFailureCode(error) === 'ENOENT') return true;
     return false;
   }
 };
@@ -130,6 +137,38 @@ export const buildOwnerFromLockInfo = (info) => {
   const pid = resolveLockPid(info);
   if (pid) owner.pid = pid;
   return Object.keys(owner).length ? owner : null;
+};
+
+export const readFileLockFailureCode = error => {
+  const observation = observeStorageResource(error, { phase: 'file-lock-metadata-classification' });
+  observation.requireSettled(); let code;
+  try { code = observation.primary.code; } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+  observation.requireSettled(); return code;
+};
+export const captureFileLockIdentity = stat => {
+  if (!stat.isFile() || stat.ino === 0n || stat.nlink !== 1n) throw Object.assign(
+    new Error('Lock metadata requires an exact ordinary single-link identity.'), { code: 'ERR_FILE_LOCK_METADATA_IDENTITY' });
+  return Object.freeze({ dev: String(stat.dev), ino: String(stat.ino), mode: String(stat.mode), nlink: String(stat.nlink), size: String(stat.size),
+    mtime: String(stat.mtimeNs ?? stat.mtimeMs), ctime: String(stat.ctimeNs ?? stat.ctimeMs), birthtime: String(stat.birthtimeNs ?? stat.birthtimeMs) });
+};
+export const sameFileLockIdentity = (left, right) => Boolean(left && right)
+  && ['dev', 'ino', 'mode', 'nlink', 'size', 'mtime', 'ctime', 'birthtime'].every(key => left[key] === right[key]);
+const parseLockRecordValue = raw => {
+  try { const value = JSON.parse(raw); return value && typeof value === 'object' ? value : null; }
+  catch (error) { observeStorageResource(error, { phase: 'file-lock-metadata-parse' }).requireSettled(); return null; }
+};
+/** Internal destructive consumers require a complete read and its exact seal.
+ * Ordinary unreadable data is not the same evidence as completed corrupt JSON.
+ */
+export const readLockRecord = async lockPath => {
+  let identity;
+  const raw = await readJsonResourceText(lockPath, null, stat => { identity = captureFileLockIdentity(stat); });
+  return { value: parseLockRecordValue(raw), identity };
+};
+export const readLockRecordSync = lockPath => {
+  let identity;
+  const raw = readJsonResourceTextSync(lockPath, null, stat => { identity = captureFileLockIdentity(stat); });
+  return { value: parseLockRecordValue(raw), identity };
 };
 
 export const readLockInfoSync = (lockPath) => {

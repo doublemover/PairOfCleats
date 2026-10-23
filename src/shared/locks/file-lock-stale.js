@@ -9,6 +9,8 @@ import {
   isStableStaleSnapshot,
   readLockInfo,
   readLockSnapshot,
+  readLockRecord,
+  sameFileLockIdentity,
   requiresLockResourceSettlement,
   resolveLockPid
 } from './file-lock-info.js';
@@ -94,22 +96,29 @@ export const isLockStale = async (lockPath, staleMs = DEFAULT_FILE_LOCK_STALE_MS
 export const removeStaleLockFile = async ({
   lockPath,
   info,
-  staleMs
+  staleMs,
+  expectedIdentity = null
 }) => {
   if (isFileLockPublicationPending(lockPath) || requiresLockResourceSettlement(info)) return { removed: false, removalMode: 'owner' };
   const staleOwner = buildOwnerFromLockInfo(info);
+  const baseline = await readLockRecord(lockPath);
+  if (expectedIdentity && !sameFileLockIdentity(baseline.identity, expectedIdentity)) return { removed: false, removalMode: 'owner' };
+  expectedIdentity ||= baseline.identity;
+  if (requiresLockResourceSettlement(baseline.value)
+    || (!staleOwner && !isInvalidLockInfo(baseline.value))) return { removed: false, removalMode: 'owner' };
   if (!staleOwner) {
     return {
       removed: await removeLockFileIfOwned(lockPath, null, {
         force: true,
-        swallowErrors: false
+        swallowErrors: false,
+        expectedIdentity
       }),
       removalMode: 'force'
     };
   }
   const before = await readLockSnapshot(lockPath, staleMs);
   const removedByOwner = await removeLockFileIfOwned(lockPath, staleOwner, {
-    swallowErrors: false
+    swallowErrors: false, expectedIdentity
   });
   if (removedByOwner) {
     return {
@@ -132,7 +141,7 @@ export const removeStaleLockFile = async ({
   }
   const forceRemoved = await removeLockFileIfOwned(lockPath, null, {
     force: true,
-    swallowErrors: false
+    swallowErrors: false, expectedIdentity
   });
   if (forceRemoved) {
     incrementStaleRemoveOwnerFailedForceSucceededMetric();

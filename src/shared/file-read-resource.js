@@ -49,17 +49,27 @@ export const readJsonResourceText = async (filePath, admitStat = null, onExactSt
   return bytes.toString('utf8');
 };
 
-export const readJsonResourceTextSync = (filePath, admitStat = null) => {
+export const readJsonResourceTextSync = (filePath, admitStat = null, onExactStat = null) => {
+  if (onExactStat !== null && typeof onExactStat !== 'function') throw new TypeError('Exact JSON descriptor stat observer must be a function.');
   const methods = { receiver: fs, close: fs.closeSync, stat: fs.fstatSync, read: fs.readSync };
   const fd = fs.openSync(filePath, 'r'), owner = createContainedFileResource({ fd, sync: true, methods });
   const bytes = owner.runSync(descriptor => {
     const before = descriptor.stat(), buffer = admit(before, admitStat);
+    const exactBefore = onExactStat ? descriptor.stat({ bigint: true }) : null;
     let position = 0;
     while (position < buffer.length) {
       const count = Math.min(65536, buffer.length - position);
       position += progress(descriptor.read(buffer, position, count, position), count);
     }
     unchanged(before, descriptor.stat());
+    if (onExactStat) {
+      const exactAfter = descriptor.stat({ bigint: true });
+      if (!exactAfter.isFile() || ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs', 'mtimeNs', 'ctimeNs']
+        .some(key => exactBefore[key] !== exactAfter[key])) throw changed();
+      const result = onExactStat(exactAfter);
+      if (result && typeof result.then === 'function') throw Object.assign(
+        new Error('Synchronous exact descriptor stat observer returned unknown asynchronous work.'), { cacheOwnershipPending: true });
+    }
     return buffer;
   });
   return bytes.toString('utf8');
