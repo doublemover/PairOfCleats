@@ -4,11 +4,11 @@ import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 import { planManagedChildStorage } from '../../src/shared/storage/child-environment.js';
 import { runManagedChildWithStorage } from '../../src/shared/storage/managed-child-session.js';
 import { observeProvisioningResource } from './provisioning-failure.js';
-import { retainManagedResourceFailure } from './managed-verification.js';
+import { retainManagedResourceFailure, trackManagedVerificationStorageFailure } from './managed-verification.js';
 import { identifyProvisioningExecutable } from './provisioning-plan.js';
 
 const FAMILIES = Object.freeze({ graphviz: 'graphviz', 'npm-sbom': 'npm', cargo: 'cargo', 'cargo-cyclonedx': 'cargo',
-  ripgrep: 'native', scip: 'native', 'universal-ctags': 'native', 'gnu-global': 'native', 'git-lfs': 'native' });
+  ripgrep: 'native', scip: 'native', 'universal-ctags': 'native', 'gnu-global': 'native', 'git-lfs': 'native', 'ast-grep': 'native' });
 const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
 
 /** A cache route is prepared only under the canonical storage session. Its
@@ -59,8 +59,8 @@ export const runOperationalChildWithStorage = async ({ id, toolingRoot, repoRoot
       if (!completed) return false;
       try { observation?.requireSettled(); return true; } catch { return false; }
     };
-    const retain = cleanupError => retainManagedResourceFailure(primary, { field: 'operationalStorageSession',
-      session: recovery, released: () => released && settled(), cleanupError });
+    const retain = cleanupError => trackManagedVerificationStorageFailure(retainManagedResourceFailure(primary, { field: 'operationalStorageSession',
+      session: recovery, released: () => released && settled(), cleanupError }), recovery);
     const recovery = Object.freeze({ resourceId: session.resourceId, scratch: plan.scratch,
       isReleased: () => released && settled(), releaseAfterClosure: () => {
         try {

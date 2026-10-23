@@ -1,5 +1,8 @@
-import { probeProvisioningCommand } from './provisioning-plan.js';
+import path from 'node:path';
+import { identifyProvisioningExecutable, probeProvisioningCommand } from './provisioning-plan.js';
 import { downloadOfficialGitHubRelease } from './official-release-download.js';
+import { runOperationalChildWithStorage } from './operational-storage.js';
+import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
 
 // Official 0.40.4 release asset metadata, resolved on 2026-10-23:
 // https://api.github.com/repos/ast-grep/ast-grep/releases/tags/0.40.4
@@ -39,14 +42,19 @@ export const resolveAstGrepManagedRecipe = ({ platform = process.platform, arch 
 /** A version string is only executable identity. Readiness additionally proves
  * the pinned parser can perform a local stdin match without scanning a project.
  */
-export const verifyManagedAstGrep = async ({ root, command, descriptor, resourceId, signal = null }, { probe = probeProvisioningCommand } = {}) => {
+export const verifyManagedAstGrep = async ({ root, command, descriptor, toolingRoot, resourceId, signal = null }, { probe = probeProvisioningCommand } = {}) => {
+  if (!path.isAbsolute(toolingRoot || '') || !path.isAbsolute(root || '')) throw new Error('Managed ast-grep verification requires its launch-selected tooling owner and exact generation root.');
   const settlement = { resourceId, settled: true, pending: false };
-  const options = { cwd: root, signal, timeoutMs: 4000, maxOutputBytes: 65536 };
-  const version = await probe(command, ['--version'], options);
+  const identity = identifyProvisioningExecutable(command, { signal });
+  const env = resolveNoProvisionToolingEnvironment(process.env, { command, providerId: 'ast-grep', toolingRoot, cwd: root });
+  const options = { cwd: root, signal, timeoutMs: 4000, maxOutputBytes: 65536, env };
+  const run = (args, extra = {}) => runOperationalChildWithStorage({ id: 'ast-grep', toolingRoot, repoRoot: toolingRoot,
+    command, identity, env, cwd: root }, ({ env: routed }) => probe(command, args, { ...options, ...extra, env: routed }));
+  const version = await run(['--version']);
   const identified = version.ok && identifyAstGrepVersion(version.stdout) === descriptor.version;
   if (!identified) return { ok: false, level: 'executable-version-rejected', settlement };
   const input = 'console.log("pairofcleats-managed-probe")';
-  const matched = await probe(command, ['run', '--lang', 'javascript', '--pattern', input, '--json=compact', '--stdin'], { ...options, input });
+  const matched = await run(['run', '--lang', 'javascript', '--pattern', input, '--json=compact', '--stdin'], { input });
   let rows = null;
   try { rows = JSON.parse(matched.stdout); } catch { /* Non-JSON output cannot prove the selected capability. */ }
   const ok = matched.ok && Array.isArray(rows) && rows.length === 1 && rows[0]?.text === input;

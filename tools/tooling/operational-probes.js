@@ -1,5 +1,8 @@
 import semver from 'semver';
-import { probeProvisioningCommand } from './provisioning-plan.js';
+import path from 'node:path';
+import { identifyProvisioningExecutable, probeProvisioningCommand } from './provisioning-plan.js';
+import { runOperationalChildWithStorage } from './operational-storage.js';
+import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
 
 export const identifyOperationalTool = (id, { stdout = '', stderr = '' } = {}) => {
   const output = `${stdout}\n${stderr}`.trim();
@@ -76,8 +79,15 @@ export const verifyOperationalCapability = async ({ id, command, argsPrefix = []
   return { ok: true, identity, level: 'recognized-executable-version-only' };
 };
 
-export const verifyManagedOperationalTool = async input => ({
-  ...await verifyOperationalCapability({ id: input.descriptor.toolId, command: input.command, argsPrefix: input.args || [],
-    cwd: input.root, signal: input.signal, expectedVersion: input.descriptor.version }),
-  settlement: { resourceId: input.resourceId, settled: true, pending: false }
-});
+export const verifyManagedOperationalTool = async (input, { probe = probeProvisioningCommand } = {}) => {
+  if (!path.isAbsolute(input.toolingRoot || '') || !path.isAbsolute(input.root || '')) throw new Error('Managed operational verification requires its launch-selected tooling owner and exact generation root.');
+  const id = input.descriptor.toolId, identity = identifyProvisioningExecutable(input.command, { signal: input.signal });
+  const env = resolveNoProvisionToolingEnvironment(process.env, { command: input.command, providerId: id,
+    toolingRoot: input.toolingRoot, cwd: input.root });
+  return { ...await verifyOperationalCapability({ id, command: input.command, argsPrefix: input.args || [],
+    cwd: input.root, env, signal: input.signal, expectedVersion: input.descriptor.version }, {
+    probe: (command, args, options) => runOperationalChildWithStorage({ id, toolingRoot: input.toolingRoot,
+      repoRoot: input.toolingRoot, command, identity, env: options.env, cwd: options.cwd }, ({ env: routed }) =>
+      probe(command, args, { ...options, env: routed }))
+  }), settlement: { resourceId: input.resourceId, settled: true, pending: false } };
+};

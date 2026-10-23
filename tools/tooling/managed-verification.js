@@ -2,6 +2,11 @@ import { isStorageSessionReleaseFailure } from '../../src/shared/storage/session
 
 const verificationFailures = new WeakMap();
 const settledVerificationFailures = new WeakMap();
+const storageVerificationFailures = new WeakMap();
+// Only the actual operational storage owner registers these in-process
+// capabilities. Serialized/lookalike error fields cannot authorize release.
+export const trackManagedVerificationStorageFailure = (error, recovery) => { storageVerificationFailures.set(error, recovery); return error; };
+export const getManagedVerificationStorageRecovery = error => error && typeof error === 'object' ? storageVerificationFailures.get(error) || null : null;
 const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
 const observePending = error => {
   if (!error) return null;
@@ -118,10 +123,13 @@ export const verifyOwnedInstallation = async (verify, input, resourceId) => {
  */
 export const verifyRetainedManagedInstallation = async (held, verify, input, resourceId) => {
   let released = false, resourceSettled = false, firstFailure = null, observerOverflow = false;
+  const storageRecoveries = new Set();
   const observers = [], observed = new WeakSet(), described = new WeakSet(), ownedMetadataFailures = new WeakSet();
   const observeFailure = error => {
     if (!error || typeof error !== 'object' || observed.has(error) || described.has(error) || ownedMetadataFailures.has(error)) return;
     observed.add(error);
+    const storage = getManagedVerificationStorageRecovery(error);
+    if (storage) storageRecoveries.add(storage);
     const owned = verificationFailures.get(error);
     const observe = owned?.resourceId === resourceId ? owned.observe : observePending(error);
     if (observe) {
@@ -129,7 +137,7 @@ export const verifyRetainedManagedInstallation = async (held, verify, input, res
       else observerOverflow = true;
     }
   };
-  const settled = () => !observerOverflow && resourceSettled && observers.every(observe => observe());
+  const settled = () => !observerOverflow && resourceSettled && [...storageRecoveries].every(storage => storage.isReleased()) && observers.every(observe => observe());
   const release = receipt => {
     if (receipt !== undefined) {
       if (!exactSettlement(receipt, resourceId)) throw new Error('Managed verification remains pending.');
@@ -150,6 +158,7 @@ export const verifyRetainedManagedInstallation = async (held, verify, input, res
   const session = Object.freeze({ resourceId, releaseAfterSettlement: receipt => {
     try {
       if (!exactSettlement(receipt, resourceId)) throw new Error('Managed verification remains pending.');
+      for (const storage of storageRecoveries) storage.releaseAfterClosure();
       return release(receipt);
     }
     catch (error) { observeFailure(error); throw retainFailure(firstFailure || error, error); }

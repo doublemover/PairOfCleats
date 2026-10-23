@@ -19,7 +19,7 @@ import { storageFileIdentity } from '../../src/shared/storage/inventory.js';
 import { verifyStorageFile, isStorageTransferSession } from '../../src/shared/storage/transfer.js';
 import { getStorageDirectorySession, withStorageDirectory } from '../../src/shared/storage/directory.js';
 import { verifyOwnedInstallation, verifyRetainedManagedInstallation, captureManagedVerificationFailure,
-  retainManagedResourceFailure } from './managed-verification.js';
+  getManagedVerificationStorageRecovery, retainManagedResourceFailure } from './managed-verification.js';
 export { retainManagedToolInstallation, retainManagedToolInstallationSync } from '../../src/shared/managed-installation.js';
 
 export const MANAGED_INSTALL_VERSION = 1;
@@ -208,7 +208,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     const held = await retainManagedToolInstallation({ toolingRoot, toolId: pinned.toolId, descriptorId: pinned.descriptorId });
     const resourceId = randomUUID();
     const verification = await verifyRetainedManagedInstallation(held, verify,
-      { root: held.root, command: held.command, args: held.args, descriptor: pinned, signal }, resourceId);
+      { root: held.root, command: held.command, args: held.args, descriptor: pinned, toolingRoot, signal }, resourceId);
     return { ...reused, reused: true, downloadedBytes: 0, verification };
   }
   const owner = await resolveOwner(toolingRoot, pinned.toolId, { create: true });
@@ -228,9 +228,12 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
   let resourcePending = false, reconciling = null, observerOverflow = false;
   const observers = [], observed = new WeakSet(), described = new WeakSet(), ownedMetadataFailures = new WeakSet();
   const directorySessions = new Set(), transferSessions = new Set(), archiveSessions = new Set();
+  const childStorageRecoveries = new Set();
   const observeFailure = error => {
     if (!error || typeof error !== 'object' || observed.has(error) || described.has(error) || ownedMetadataFailures.has(error)) return;
     observed.add(error);
+    const childStorage = getManagedVerificationStorageRecovery(error);
+    if (childStorage) childStorageRecoveries.add(childStorage);
     const archive = getArchiveExtractionSession(error);
     if (archive) archiveSessions.add(archive);
     const directory = getStorageDirectorySession(error);
@@ -243,7 +246,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     }
     if (captured.owned || captured.observe && !captured.observe()) resourcePending = true;
   };
-  const resourcesSettled = () => !observerOverflow && !resourcePending && observers.every(observe => observe());
+  const resourcesSettled = () => !observerOverflow && !resourcePending && [...childStorageRecoveries].every(storage => storage.isReleased()) && observers.every(observe => observe());
   const releaseSession = session => {
     try { return session.releaseAfterSettlement({ resourceId: session.resourceId, settled: true, pending: false }); }
     catch (error) { if (isStorageSessionReleaseFailure(error, session)) ownedMetadataFailures.add(error); throw error; }
@@ -291,6 +294,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
           throw new Error('Actual managed install descriptor owner did not confirm exact closure.');
         }
       }
+      for (const storage of childStorageRecoveries) storage.releaseAfterClosure();
       if (observerOverflow || observers.some(observe => !observe())) throw new Error('Actual managed install native/resource observer remains pending.');
       resourcePending = false;
       return releaseResources();
@@ -319,7 +323,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
       admitVerification();
       const retained = await inspectGeneration(owner, pinned.toolId, resumable.receipt.installId, { signal });
       if (!retained.ok) throw new Error('Retained managed generation changed before verification admission.');
-      const verification = await verifyOwnedInstallation(verify, { root: retained.root, command: retained.command, args: retained.args, descriptor: pinned, signal }, transactionId);
+      const verification = await verifyOwnedInstallation(verify, { root: retained.root, command: retained.command, args: retained.args, descriptor: pinned, toolingRoot, signal }, transactionId);
       if (releaseSession(verificationLease) !== true) throw new Error('Retained-generation verification lease changed before publication.');
       verificationLease = null;
       const publication = await withExclusiveStorageAccess(owner, async () => {
@@ -365,7 +369,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     await checkpoint({ files: files.length });
     admitVerification('managed-new-generation-verifier');
     const verification = await verifyOwnedInstallation(verify, { root: packageRoot, command: path.join(packageRoot, pinned.command),
-      args: pinned.args || [], descriptor: pinned, signal }, transactionId);
+      args: pinned.args || [], descriptor: pinned, toolingRoot, signal }, transactionId);
     if (identity(await captureFiles(packageRoot, DEFAULT_LIMITS, { signal })) !== identity(files)) throw new Error('Tool verification mutated immutable installation bytes.');
     if (releaseSession(verificationLease) !== true) throw new Error('New-generation verification lease changed before publication.');
     verificationLease = null;

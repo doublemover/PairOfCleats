@@ -86,12 +86,12 @@ else { let input=''; for await(const chunk of process.stdin) input+=chunk; conso
     assert.equal(payload.actions.length, 0, 'existing compatible executable is reused before the archive mutation branch');
     assert.equal(downloads, 1);
     let calls = 0;
-    const rejected = await verifyManagedAstGrep({ command: first.command, descriptor, resourceId: 'fixture-version' }, { probe: async () => {
+    const rejected = await verifyManagedAstGrep({ command: first.command, root: first.root, toolingRoot, descriptor, resourceId: 'fixture-version' }, { probe: async () => {
       calls++; return { ok: true, stdout: 'ast-grep 0.39.0' };
     } });
     assert.equal(rejected.ok, false);
     assert.equal(calls, 1, 'a wrong pinned version never reaches capability execution');
-    const malformed = await verifyManagedAstGrep({ command: first.command, descriptor, resourceId: 'fixture-match' }, { probe: async (_command, args, options) => {
+    const malformed = await verifyManagedAstGrep({ command: first.command, root: first.root, toolingRoot, descriptor, resourceId: 'fixture-match' }, { probe: async (_command, args, options) => {
       if (args[0] === '--version') return { ok: true, stdout: 'ast-grep 0.40.4' };
       assert.equal(options.input, input);
       return { ok: true, stdout: '[]' };
