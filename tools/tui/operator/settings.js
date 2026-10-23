@@ -12,7 +12,8 @@ import { atomicWriteTextSync } from '../../../src/shared/io/atomic-write.js';
 import { withFileLock } from '../../../src/shared/locks/file-lock.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
-import { resolveRepoConfigPath } from '../../../src/shared/dict-utils.js';
+import { loadUserConfig, resolveRepoConfigPath } from '../../../src/shared/dict-utils.js';
+import { getOperationalGuardrailDiagnostic, resolveOperationalGuardrails } from '../../../src/retrieval/operational-guardrails.js';
 import { loadWorkspaceConfig } from '../../../src/workspace/config.js';
 import { DEFAULT_USER_CONFIG_TEMPLATE } from '../../config/default-template.js';
 import { assertTuiSettingsRequest } from '../../../src/contracts/validators/tui-settings.js';
@@ -82,6 +83,18 @@ export const createTuiSettingsSession = ({ toolRoot, schemaPath = path.join(tool
   let disposed = false;
   let schemaMemo = null;
   const previews = new Map();
+  const validateEffectiveRetrieval = (config, selected) => {
+    // Reuse canonical authority/trusted-source precedence for the proposed bytes;
+    // never publish a temporary repository config or initialize search backends.
+    const effective = loadUserConfig(selected.configRoot, { env, repositoryConfig: config });
+    try { resolveOperationalGuardrails({ userConfig: effective }); }
+    catch (error) {
+      const diagnostic = getOperationalGuardrailDiagnostic(error);
+      if (!diagnostic) throw error;
+      return { ok: false, errors: [diagnostic.message] };
+    }
+    return { ok: true, errors: [] };
+  };
   const requireScope = scopeId => {
     if (!scope || scope.id !== scopeId) fail('ERR_TUI_SCOPE_CHANGED', 'Select the current repository or workspace again.');
     const current = fsSync.lstatSync(scope.configRoot, { bigint: true });
@@ -148,6 +161,7 @@ export const createTuiSettingsSession = ({ toolRoot, schemaPath = path.join(tool
       config = parseJsoncText(document.raw); validation = validateConfig(schema.schema, config);
     }
     catch (error) { validation = { ok: false, errors: [error.message] }; }
+    if (validation.ok) validation = validateEffectiveRetrieval(config, selected);
     let effective = null;
     let diagnostics = [];
     if (validation.ok) {
@@ -235,7 +249,9 @@ export const createTuiSettingsSession = ({ toolRoot, schemaPath = path.join(tool
         ...(removing ? { action: 'remove', description: 'Remove only this override. The next effective configuration layer or policy applies; it may differ from the schema default.' } : {}) }];
     }
     if (Buffer.byteLength(raw) > MAX_CONFIG_BYTES) fail('ERR_TUI_SETTINGS_VALUE', 'Configuration exceeds the editor limit.');
-    const validation = validateConfig(schema.schema, parseJsoncText(raw));
+    const proposed = parseJsoncText(raw);
+    let validation = validateConfig(schema.schema, proposed);
+    if (validation.ok) validation = validateEffectiveRetrieval(proposed, selected);
     if (!validation.ok) return { ok: false, scope: selected, validation, diff };
     const backup = reset && document.found ? await readDocument(selected.configRoot, `${file}.bak`, signal) : null;
     requireScope(request.scopeId);
@@ -288,6 +304,13 @@ export const createTuiSettingsSession = ({ toolRoot, schemaPath = path.join(tool
         || (finalBackup?.revision ?? null) !== pending.backupRevision) {
         previews.delete(previewId);
         fail('ERR_TUI_SETTINGS_STALE', 'Configuration, schema or backup changed before publication.');
+      }
+      // Trusted configuration can change without changing repository bytes.
+      // Re-admit the current effective combination before backup or publication.
+      const effectiveValidation = validateEffectiveRetrieval(parseJsoncText(pending.raw), selected);
+      if (!effectiveValidation.ok) {
+        previews.delete(previewId);
+        fail('ERR_TUI_SETTINGS_GUARDRAIL', effectiveValidation.errors.join('\n'));
       }
       if (backup) {
         assertNoSymlinkPath(selected.configRoot, `${file}.bak`, { allowMissing: true });

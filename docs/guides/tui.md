@@ -240,6 +240,13 @@ cannot be saved; reload after an external edit. Unrelated fields and comments
 survive ordinary edits. Sensitive fields and launch-policy-controlled values stay
 read only; use a private editor for credentials or raw provider commands/arguments.
 
+Settings also checks search's existing ANN candidate bounds and positive RRF
+constant after canonical repository authority and trusted configuration merging.
+Conflicts produce field-specific errors before a save token is issued; current
+effective constraints are checked again before publication. To reduce an ANN
+maximum below the default cap, lower the cap first, then the maximum. No value is
+silently clamped. The separate `config validate` command remains schema-only.
+
 `[R]` previews replacement with the canonical default template. Review the diff
 and backup location, type literal `RESET`, then press `[Enter]`. Reset preserves
 the original bytes in its backup, including an undecodable original file. The

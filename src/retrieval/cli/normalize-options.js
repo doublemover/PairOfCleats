@@ -24,71 +24,11 @@ import { getEnvConfig } from '../../shared/env/runtime.js';
 import { normalizeBooleanString } from '../../shared/boolean-normalization.js';
 import { normalizeDenseVectorMode } from '../../shared/dense-vector-mode.js';
 
-export const OP_CONFIG_GUARDRAIL_CODES = Object.freeze({
-  ANN_CANDIDATE_BOUNDS_INVALID: 'op_guardrail_ann_candidate_bounds_invalid',
-  ANN_CANDIDATE_CAP_OUT_OF_RANGE: 'op_guardrail_ann_candidate_cap_out_of_range',
-  RRF_K_INVALID: 'op_guardrail_rrf_k_invalid'
-});
-
-export const OP_RETRIEVAL_DEFAULTS = Object.freeze({
-  annCandidateCap: 20000,
-  annCandidateMinDocCount: 100,
-  annCandidateMaxDocCount: 20000,
-  queryCacheMaxEntries: 200,
-  queryCacheTtlMs: 0,
-  rrfK: 60,
-  storageTier: 'balanced',
-  queryCacheStrategy: 'disk-first',
-  queryCachePrewarmMaxEntries: 128,
-  queryCacheMemoryFreshMs: 1000,
-  sqliteFtsTailRowCap: 3000,
-  sqliteFtsTailTimeBudgetMs: 90,
-  sqliteFtsTailChunkSize: 256
-});
+import { OP_RETRIEVAL_DEFAULTS, resolveOperationalGuardrails } from '../operational-guardrails.js';
+export { OP_CONFIG_GUARDRAIL_CODES, OP_RETRIEVAL_DEFAULTS } from '../operational-guardrails.js';
 
 const STORAGE_TIERS = new Set(['balanced', 'fast']);
 const QUERY_CACHE_STRATEGIES = new Set(['disk-first', 'memory-first']);
-
-const buildGuardrailError = (code, message) => {
-  const error = new Error(`[${code}] ${message}`);
-  error.guardrailCode = code;
-  return error;
-};
-
-/**
- * Reject risky retrieval knob combinations early with stable guardrail codes.
- * @param {{
- *   annCandidateCap:number,
- *   annCandidateMinDocCount:number,
- *   annCandidateMaxDocCount:number,
- *   rrfK:number
- * }} input
- */
-const validateOperationalGuardrails = ({
-  annCandidateCap,
-  annCandidateMinDocCount,
-  annCandidateMaxDocCount,
-  rrfK
-}) => {
-  if (annCandidateMinDocCount > annCandidateMaxDocCount) {
-    throw buildGuardrailError(
-      OP_CONFIG_GUARDRAIL_CODES.ANN_CANDIDATE_BOUNDS_INVALID,
-      'retrieval.annCandidateMinDocCount cannot exceed retrieval.annCandidateMaxDocCount.'
-    );
-  }
-  if (annCandidateCap < annCandidateMinDocCount || annCandidateCap > annCandidateMaxDocCount) {
-    throw buildGuardrailError(
-      OP_CONFIG_GUARDRAIL_CODES.ANN_CANDIDATE_CAP_OUT_OF_RANGE,
-      'retrieval.annCandidateCap must stay within [annCandidateMinDocCount, annCandidateMaxDocCount].'
-    );
-  }
-  if (!Number.isFinite(rrfK) || rrfK <= 0) {
-    throw buildGuardrailError(
-      OP_CONFIG_GUARDRAIL_CODES.RRF_K_INVALID,
-      'search.rrf.k must be a positive number.'
-    );
-  }
-};
 
 const normalizeStorageTier = (value) => {
   if (typeof value !== 'string') return null;
@@ -278,18 +218,8 @@ export function normalizeSearchOptions({
       || retrievalConfig.storageTier
       || searchConfig.storageTier
   ) || OP_RETRIEVAL_DEFAULTS.storageTier;
-  const annCandidateCap = normalizePositiveInt(
-    retrievalConfig.annCandidateCap,
-    OP_RETRIEVAL_DEFAULTS.annCandidateCap
-  );
-  const annCandidateMinDocCount = normalizePositiveInt(
-    retrievalConfig.annCandidateMinDocCount,
-    OP_RETRIEVAL_DEFAULTS.annCandidateMinDocCount
-  );
-  const annCandidateMaxDocCount = normalizePositiveInt(
-    retrievalConfig.annCandidateMaxDocCount,
-    OP_RETRIEVAL_DEFAULTS.annCandidateMaxDocCount
-  );
+  const { annCandidateCap, annCandidateMinDocCount, annCandidateMaxDocCount, rrfK }
+    = resolveOperationalGuardrails({ userConfig, policy });
 
   const minhashMaxDocs = 5000;
 
@@ -375,15 +305,6 @@ export function normalizeSearchOptions({
   const rrfEnabled = typeof rrfConfig.enabled === 'boolean'
     ? rrfConfig.enabled
     : (policyRrfEnabled ?? true);
-  const rrfK = normalizeOptionalNumber(rrfConfig.k)
-    ?? normalizeOptionalNumber(policy?.retrieval?.rrf?.k)
-    ?? OP_RETRIEVAL_DEFAULTS.rrfK;
-  validateOperationalGuardrails({
-    annCandidateCap,
-    annCandidateMinDocCount,
-    annCandidateMaxDocCount,
-    rrfK
-  });
 
   const graphRankingRaw = userConfig?.retrieval?.graphRanking || {};
   const graphRankingEnabled = graphRankingRaw.enabled === true;
