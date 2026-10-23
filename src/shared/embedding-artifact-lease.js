@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import PQueue from 'p-queue';
-import { openContainedFile, verifyContainedFileHandle } from './contained-file.js';
+import { withContainedFile } from './contained-file.js';
 import { throwIfAborted } from './abort.js';
 import { planEmbeddingArtifactInventory, buildVerifiedEmbeddingArtifact, unknownEmbeddingArtifact,
   assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from './embedding-artifact-identity.js';
@@ -14,8 +14,8 @@ const metrics = { verifications: 0, coalesced: 0, filesHashed: 0, bytesHashed: 0
 const changed = () => Object.assign(new Error('Embedding artifact changed during verified acquisition.'), { code: 'ERR_EMBEDDING_ARTIFACT_CHANGED' });
 const sameFile = (left, right) => fields.every(field => left[field] === right[field]);
 const fingerprint = async file => {
-  const root = path.dirname(file), handle = await openContainedFile(root, file);
-  try {
+  const root = path.dirname(file);
+  return withContainedFile(root, file, async handle => {
     const before = await handle.stat({ bigint: true }), hash = createHash('sha256'), scratch = Buffer.allocUnsafe(1024 * 1024);
     let bytes = 0;
     for (;;) {
@@ -24,11 +24,11 @@ const fingerprint = async file => {
       bytes += bytesRead; hash.update(scratch.subarray(0, bytesRead));
     }
     const after = await handle.stat({ bigint: true }), current = await fs.stat(file, { bigint: true });
-    verifyContainedFileHandle(handle, root, file);
+    handle.verify();
     if (!sameFile(before, after) || !sameFile(after, current) || BigInt(bytes) !== after.size) throw changed();
     metrics.filesHashed++; metrics.bytesHashed += bytes;
     return { bytes, sha256: hash.digest('hex'), stat: after };
-  } finally { await handle.close(); }
+  });
 };
 const verify = async options => {
   metrics.verifications++; metrics.active++; metrics.peakActive = Math.max(metrics.peakActive, metrics.active);
@@ -48,7 +48,7 @@ const verify = async options => {
     // Revalidate the entire selected set after the last file, not only each
     // immediately-read file while later graph/tokenizer bytes are still hashed.
     for (const row of observed) if (!sameFile(row.stat, await fs.stat(row.file, { bigint: true }))) throw changed();
-    return buildVerifiedEmbeddingArtifact(inventory);
+    return buildVerifiedEmbeddingArtifact(inventory, plan.revision ?? null);
   } finally { metrics.active--; }
 };
 

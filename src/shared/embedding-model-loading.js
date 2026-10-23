@@ -2,15 +2,11 @@ import path from 'node:path';
 import { isEmbeddingModelRepositoryId, resolveEmbeddingArtifactRoot } from './embedding-artifact-identity.js';
 import { createTransformersResourceScope } from './embedding-transformers-resources.js';
 import { preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
+import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
 
-export const EMBEDDING_ACQUISITION_RECEIPT = '.pairofcleats-acquisition.json';
+export { EMBEDDING_ACQUISITION_RECEIPT } from './embedding-acquisition-receipt.js';
 
-/** The inference and prefetch owners must select the same model space. */
-export const resolveEmbeddingAcquisitionPlan = (modelId, profile = null) => ({
-  version: 1, modelId, runtime: profile?.runtime ?? null,
-  revision: profile?.revision ?? null, dtype: profile?.dtype ?? 'q8',
-  textOnly: profile?.textOnly === true
-});
+export { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
 
 export const resolveEmbeddingAcquisitionRoot = (modelId, modelsDir, profile = null) => {
   const root = resolveEmbeddingArtifactRoot(modelId, modelsDir);

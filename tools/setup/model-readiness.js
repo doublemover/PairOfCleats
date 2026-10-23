@@ -4,6 +4,8 @@ import { resolveEmbeddingArtifactRoot } from '../../src/shared/embedding-artifac
 import { normalizeEmbeddingProvider, resolveOnnxConfig, resolveOnnxModelPath } from '../../src/shared/onnx-embeddings/config.js';
 import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile } from '../../src/shared/embedding-model-profile.js';
 import { EMBEDDING_ACQUISITION_RECEIPT, resolveEmbeddingAcquisitionPlan, resolveEmbeddingAcquisitionRoot } from '../../src/shared/embedding-model-loading.js';
+import { readEmbeddingAcquisitionReceipt } from '../../src/shared/embedding-acquisition-receipt.js';
+import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
 
 const isUsableFile = (file) => {
   if (!file) return false;
@@ -46,20 +48,14 @@ export const resolveModelSetupReadiness = ({ root, modelConfig, embeddingsConfig
     const selectedRoot = resolveEmbeddingAcquisitionRoot(modelId, modelConfig.dir, modelProfile);
     const receiptPath = selectedRoot ? path.join(selectedRoot, EMBEDDING_ACQUISITION_RECEIPT) : null;
     try {
-      if (!receiptPath || fs.statSync(receiptPath).size > 64 * 1024) throw new Error('Selected model acquisition receipt is missing or oversized.');
-      const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+      if (!receiptPath) throw new Error('Selected model acquisition receipt is missing.');
       const plan = resolveEmbeddingAcquisitionPlan(modelId, modelProfile);
-      if (JSON.stringify(receipt.plan) !== JSON.stringify(plan)
-        || !Array.isArray(receipt.files) || !receipt.files.length || receipt.files.length > 128
-        || !['config.json', 'tokenizer.json', 'tokenizer_config.json'].every(file => receipt.files.includes(file))
-        || !receipt.files.some(file => typeof file === 'string' && file.endsWith('.onnx'))) {
-        throw new Error('Selected model acquisition receipt does not match the configured revision/precision/components.');
-      }
-      for (const file of receipt.files) {
-        if (typeof file !== 'string' || path.isAbsolute(file) || /[\\:]/u.test(file) || file.split('/').some(part => !part || part === '.' || part === '..')) {
-          throw new Error('Selected model acquisition receipt contains an invalid component path.');
-        }
-        assets[file] = path.join(selectedRoot, file);
+      const receipt = readEmbeddingAcquisitionReceipt(selectedRoot, plan);
+      for (const row of receipt.inventory) {
+        const file = path.join(selectedRoot, ...row.path.split('/'));
+        assets[row.path] = file;
+        assertNoSymlinkPath(selectedRoot, file);
+        if (!isUsableFile(file) || fs.statSync(file).size !== row.bytes) throw new Error('Selected model component is missing, unreadable or truncated.');
       }
       modelPath = Object.values(assets).find(file => file.endsWith('.onnx')) ?? null;
     } catch (error) {

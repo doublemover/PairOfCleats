@@ -5,6 +5,7 @@ import path from 'node:path';
 import { resolveEmbeddingModelProfile } from '../../src/shared/embedding-model-profile.js';
 import { EMBEDDING_ACQUISITION_RECEIPT, loadEmbeddingModelComponents, resolveEmbeddingAcquisitionPlan, resolveEmbeddingAcquisitionRoot } from '../../src/shared/embedding-model-loading.js';
 import { resolveModelSetupReadiness } from '../../tools/setup/model-readiness.js';
+import { publishEmbeddingAcquisitionReceipt } from '../../src/shared/embedding-acquisition-receipt.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-acquisition-plan-'));
 const modelId = 'onnx-community/embeddinggemma-2-ONNX';
@@ -31,17 +32,17 @@ try {
     const files = ['config.json', 'tokenizer.json', 'tokenizer_config.json', `onnx/selected-${profile.dtype}.onnx`, `onnx/selected-${profile.dtype}.onnx_data`];
     for (const file of files) {
       await fs.mkdir(path.dirname(path.join(selectedRoot, file)), { recursive: true });
-      await fs.writeFile(path.join(selectedRoot, file), 'recording asset');
+      await fs.writeFile(path.join(selectedRoot, file), file.endsWith('.onnx') ? Buffer.from([0x3a, 0]) : 'recording asset');
     }
     const receiptPath = path.join(selectedRoot, EMBEDDING_ACQUISITION_RECEIPT);
-    await fs.writeFile(receiptPath, JSON.stringify({ plan: loaded.plan, files }));
+    const receipt = await publishEmbeddingAcquisitionReceipt({ root: selectedRoot, plan: loaded.plan, files });
     const readiness = embeddingsConfig => resolveModelSetupReadiness({ root, modelConfig: { id: modelId, dir: root }, embeddingsConfig });
     assert.equal(readiness({ embeddinggemma2: options }).present, true);
-    await fs.writeFile(receiptPath, JSON.stringify({ plan: { ...loaded.plan, dtype: 'wrong' }, files }));
+    await fs.writeFile(receiptPath, JSON.stringify({ ...receipt, plan: { ...loaded.plan, dtype: 'wrong' } }));
     assert.equal(readiness({ embeddinggemma2: options }).present, false, 'wrong precision receipt is not selected readiness');
-    await fs.writeFile(receiptPath, JSON.stringify({ plan: { ...loaded.plan, revision: 'b'.repeat(40) }, files }));
+    await fs.writeFile(receiptPath, JSON.stringify({ ...receipt, plan: { ...loaded.plan, revision: 'b'.repeat(40) } }));
     assert.equal(readiness({ embeddinggemma2: options }).present, false, 'wrong revision receipt is not selected readiness');
-    await fs.writeFile(receiptPath, JSON.stringify({ plan: loaded.plan, files }));
+    await fs.writeFile(receiptPath, JSON.stringify(receipt));
     await fs.rm(path.join(selectedRoot, files.at(-1)));
     assert.equal(readiness({ embeddinggemma2: options }).present, false, 'missing external weights cannot count as staged');
   }

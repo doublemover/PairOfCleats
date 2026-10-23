@@ -117,6 +117,10 @@ export const statSize = (filePath) => {
 
 export function normalizeOnnxConfig(raw = {}) {
   const config = raw && typeof raw === 'object' ? raw : {};
+  if (config.modelPath != null && (typeof config.modelPath !== 'string'
+    || config.modelPath.length > 0 && !config.modelPath.trim())) {
+    throw Object.assign(new Error('Explicit ONNX modelPath must name a nonempty selected file or directory.'), { code: 'ERR_EMBEDDING_MODEL_PATH' });
+  }
   const executionProviders = normalizeProviders(config.executionProviders);
   const prewarmTokenizer = resolveBooleanOption(config.prewarmTokenizer, false);
   const prewarmModel = resolveBooleanOption(config.prewarmModel, false);
@@ -172,6 +176,9 @@ export function normalizeEmbeddingProvider(raw, { strict = false } = {}) {
 
 export function resolveOnnxModelPath({ rootDir, modelPath, modelsDir, modelId }) {
   const root = rootDir ? path.resolve(rootDir) : process.cwd();
+  if (modelPath != null && (typeof modelPath !== 'string' || modelPath.length > 0 && !modelPath.trim())) {
+    throw Object.assign(new Error('Explicit ONNX modelPath is not a usable selected path.'), { code: 'ERR_EMBEDDING_MODEL_PATH' });
+  }
   const trimmed = typeof modelPath === 'string' ? modelPath.trim() : '';
   const readableFile = (candidate) => {
     const stat = fs.statSync(candidate);
@@ -186,6 +193,7 @@ export function resolveOnnxModelPath({ rootDir, modelPath, modelsDir, modelId })
       if (installed) return readableFile(installed);
       const stat = fs.statSync(candidate);
       if (stat.isDirectory()) {
+        if (/\.onnx$/iu.test(path.basename(candidate))) throw new Error('The selected ONNX graph is a directory, not a regular file.');
         const nested = [
           path.join(candidate, 'model.onnx'),
           path.join(candidate, 'model_quantized.onnx'),

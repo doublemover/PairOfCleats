@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { resolveOnnxModelPath } from './onnx-embeddings/config.js';
 import { readOnnxInstallationReceipt } from './onnx-installation.js';
+import { readEmbeddingAcquisitionReceipt } from './embedding-acquisition-receipt.js';
+import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
 
 const TOKENIZER_FILES = new Set([
   'config.json', 'tokenizer.json', 'tokenizer_config.json', 'special_tokens_map.json',
@@ -81,8 +83,17 @@ export const resolveEmbeddingArtifactRoot = (id, modelsDir) => {
 export const planEmbeddingArtifactInventory = ({ provider, modelId, modelsDir, rootDir,
   onnx = null, modelProfile = null, stub = false } = {}) => {
   if (stub) return { immediate: { status: 'stub', reuse: 'allow', digest: null, revision: null, method: 'deterministic-stub' } };
-  if (modelProfile?.revision) return { immediate: { status: 'immutable-revision', reuse: 'allow',
-    digest: null, revision: modelProfile.revision, method: 'qualified-model-profile' } };
+  if (modelProfile?.revision) {
+    const root = resolveEmbeddingArtifactRoot(modelId, modelsDir);
+    const selectedRoot = root && isEmbeddingModelRepositoryId(modelId) ? path.join(root, modelProfile.revision) : root;
+    let receipt = null;
+    try { if (selectedRoot) receipt = readEmbeddingAcquisitionReceipt(selectedRoot, resolveEmbeddingAcquisitionPlan(modelId, modelProfile)); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (receipt) return { revision: modelProfile.revision, hasWeights: true, hasTokenizer: true, modelPath: null,
+      files: receipt.inventory.map(row => ({ rel: row.path, filePath: path.join(selectedRoot, ...row.path.split('/')), expected: row })) };
+    return { immediate: { status: 'immutable-revision', reuse: 'allow',
+      digest: null, revision: modelProfile.revision, method: 'qualified-model-profile' } };
+  }
   const modelPath = provider === 'onnx' ? resolveOnnxModelPath({
     rootDir, modelPath: onnx?.resolvedModelPath || onnx?.modelPath, modelsDir, modelId
   }) : null;
@@ -110,7 +121,7 @@ export const planEmbeddingArtifactInventory = ({ provider, modelId, modelsDir, r
   return { files: selected, modelPath, hasWeights, hasTokenizer };
 };
 
-export const buildVerifiedEmbeddingArtifact = inventory => ({ status: 'verified', reuse: 'allow', revision: null, method: 'opened-local-artifacts-sha256',
+export const buildVerifiedEmbeddingArtifact = (inventory, revision = null) => ({ status: 'verified', reuse: 'allow', revision, method: 'opened-local-artifacts-sha256',
   digest: crypto.createHash('sha256').update(JSON.stringify(inventory)).digest('hex'), inventory });
 export const unknownEmbeddingArtifact = unknown;
 
@@ -127,7 +138,7 @@ export const resolveEmbeddingArtifactIdentity = options => {
       }
       return { path: rel, ...identity };
     });
-  return buildVerifiedEmbeddingArtifact(inventory);
+  return buildVerifiedEmbeddingArtifact(inventory, plan.revision ?? null);
 };
 
 export const embeddingArtifactReusable = (artifact) => artifact?.reuse === 'allow'

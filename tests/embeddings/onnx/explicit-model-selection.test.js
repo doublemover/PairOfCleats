@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings/config.js';
+import { normalizeOnnxConfig, resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings/config.js';
 import { resolveModelSetupReadiness } from '../../../tools/setup/model-readiness.js';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-onnx-selection-'));
@@ -20,7 +20,12 @@ try {
       error.code === 'ERR_EMBEDDING_MODEL_PATH' && error.message.includes(path.resolve(root, modelPath)));
   }
   fs.mkdirSync(selected);
+  fs.writeFileSync(path.join(selected, 'model.onnx'), 'nested cached graph must not replace selected graph');
   assert.throws(() => resolveOnnxModelPath({ ...options, modelPath: selected }), { code: 'ERR_EMBEDDING_MODEL_PATH' });
+  for (const modelPath of [true, 12, {}, '   ']) {
+    assert.throws(() => resolveOnnxModelPath({ ...options, modelPath }), { code: 'ERR_EMBEDDING_MODEL_PATH' });
+    assert.throws(() => normalizeOnnxConfig({ modelPath }), { code: 'ERR_EMBEDDING_MODEL_PATH' });
+  }
   fs.rmSync(selected, { recursive: true });
   fs.writeFileSync(selected, '');
   assert.throws(() => resolveOnnxModelPath({ ...options, modelPath: selected }), { code: 'ERR_EMBEDDING_MODEL_PATH' });

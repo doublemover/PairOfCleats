@@ -354,7 +354,7 @@ export function getEmbeddingAdapter(options = {}) {
   validateEmbeddingModelProfile(modelProfile, { provider, normalize: options.normalize !== false });
   const verification = { provider, modelId: options.modelId, modelsDir: options.modelsDir,
     rootDir: options.rootDir, onnx: normalizeOnnxConfig(options.onnxConfig), modelProfile, stub: options.useStub === true };
-  if (verification.stub || modelProfile?.revision) return getVerifiedEmbeddingAdapter({ ...options, modelArtifact: resolveEmbeddingArtifactIdentity(verification) });
+  if (verification.stub) return getVerifiedEmbeddingAdapter({ ...options, modelArtifact: resolveEmbeddingArtifactIdentity(verification) });
   return createDeferredEmbeddingAdapter({ provider, methods: [...LEASE_OPERATIONS],
     acquire: async () => getVerifiedEmbeddingAdapter({ ...options, sessionOptions, modelFileName, modelProfile, modelArtifact: await resolveEmbeddingArtifactIdentityAsync(verification) }) });
 }

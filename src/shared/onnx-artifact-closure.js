@@ -1,8 +1,10 @@
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { openContainedFile, verifyContainedFileHandle } from './contained-file.js';
+import { withContainedFile, assertNoSymlinkPath } from './contained-file.js';
 import { readExactAt } from './io/read-exact.js';
 import { safeOnnxRelativePath } from './onnx-installation.js';
+import { throwIfAborted } from './abort.js';
 
 const MAX_FILE_BYTES = 64 * 1024 ** 3;
 const MAX_FIELDS = 4_000_000;
@@ -22,15 +24,17 @@ const sameStat = (left, right) => ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].e
 
 /** Walk only protobuf metadata, skipping embedded raw tensors without loading
  * their bytes. One 64 KiB window, bounded strings, fields and message depth. */
-export const readOnnxExternalData = async graphPath => {
-  const root = path.dirname(graphPath), handle = await openContainedFile(root, graphPath);
-  try {
+export const readOnnxExternalData = async (graphPath, { signal = null } = {}) => {
+  throwIfAborted(signal);
+  const root = path.dirname(graphPath);
+  return withContainedFile(root, graphPath, async handle => {
     const before = await handle.stat();
     if (!before.size || before.size > MAX_FILE_BYTES) throw invalid('ONNX graph exceeds the admitted file bound.');
     const window = Buffer.allocUnsafe(64 * 1024);
     let windowStart = -1, windowLength = 0, fields = 0, graphs = 0;
     const byteAt = async position => {
       if (position < windowStart || position >= windowStart + windowLength) {
+        throwIfAborted(signal);
         windowStart = position;
         const read = await readExactAt(handle, window, 0, Math.min(window.length, before.size - position), position);
         windowLength = read.bytesRead;
@@ -55,6 +59,7 @@ export const readOnnxExternalData = async graphPath => {
       let externalLocation = false;
       for (let cursor = start; cursor < end;) {
         if (++fields > MAX_FIELDS) throw invalid('ONNX metadata exceeds its field bound.');
+        if (fields % 1024 === 0) throwIfAborted(signal);
         const tag = await varint(cursor, end);
         cursor = tag.next;
         const number = Number(tag.value >> 3n), wire = Number(tag.value & 7n);
@@ -97,39 +102,62 @@ export const readOnnxExternalData = async graphPath => {
     };
     await visit('model', 0, before.size);
     if (graphs !== 1 || !sameStat(before, await handle.stat())) throw invalid('ONNX graph is incomplete or changed during inspection.');
-    verifyContainedFileHandle(handle, root, graphPath);
+    throwIfAborted(signal);
+    handle.verify();
+    Object.defineProperty(references, 'sourceStat', { value: before });
     return references;
-  } finally { await handle.close(); }
+  });
 };
 
-export const fingerprintOnnxFile = async (root, file) => {
-  const handle = await openContainedFile(root, file);
-  try {
+export const fingerprintOnnxFile = async (root, file, { signal = null } = {}) => {
+  throwIfAborted(signal);
+  return withContainedFile(root, file, async handle => {
     const before = await handle.stat();
     if (before.size > MAX_FILE_BYTES) throw invalid('ONNX asset exceeds its file bound.');
     const hash = createHash('sha256'), sha1 = createHash('sha1'), buffer = Buffer.allocUnsafe(1024 * 1024);
     for (let offset = 0; offset < before.size;) {
+      throwIfAborted(signal);
       const read = await readExactAt(handle, buffer, 0, Math.min(buffer.length, before.size - offset), offset);
       if (!read.bytesRead) throw invalid('Truncated ONNX asset during verification.');
       hash.update(buffer.subarray(0, read.bytesRead)); sha1.update(buffer.subarray(0, read.bytesRead)); offset += read.bytesRead;
     }
     if (!sameStat(before, await handle.stat())) throw invalid('ONNX asset changed during verification.');
-    verifyContainedFileHandle(handle, root, file);
-    return { bytes: before.size, sha256: hash.digest('hex'), sha1: sha1.digest('hex') };
-  } finally { await handle.close(); }
+    throwIfAborted(signal);
+    handle.verify();
+    return Object.defineProperty({ bytes: before.size, sha256: hash.digest('hex'), sha1: sha1.digest('hex') },
+      'sourceStat', { value: before });
+  });
 };
 
-export const planOnnxArtifactClosure = async (graphPath, graphName = path.basename(graphPath)) => {
+/** Validate the whole selected set after its final file has been read. This is
+ * an acquisition consistency check; it never authorizes digest reuse by stat.
+ */
+export const verifyOnnxArtifactSnapshot = async (observed, { signal = null } = {}) => {
+  for (const { root, file, stat } of observed) {
+    throwIfAborted(signal);
+    assertNoSymlinkPath(root, file);
+    if (!sameStat(stat, await fs.stat(file))) throw invalid('ONNX acquisition changed across its selected file set.');
+  }
+};
+
+export const planOnnxArtifactClosure = async (graphPath, graphName = path.basename(graphPath), { signal = null } = {}) => {
+  throwIfAborted(signal);
   if (!safeOnnxRelativePath(graphName) || graphName.includes('/')) throw invalid('Unsafe ONNX graph target name.');
-  const references = await readOnnxExternalData(graphPath), root = path.dirname(graphPath);
-  const files = new Map([[graphName, { path: graphName, source: graphPath, ...await fingerprintOnnxFile(root, graphPath) }]]);
+  const references = await readOnnxExternalData(graphPath, { signal }), root = path.dirname(graphPath);
+  const graphIdentity = await fingerprintOnnxFile(root, graphPath, { signal });
+  if (!sameStat(references.sourceStat, graphIdentity.sourceStat)) throw invalid('ONNX graph changed between metadata and byte verification.');
+  const observed = [{ root, file: graphPath, stat: graphIdentity.sourceStat }];
+  const files = new Map([[graphName, { path: graphName, source: graphPath, ...graphIdentity }]]);
   for (const reference of references) {
+    throwIfAborted(signal);
     const file = path.join(root, ...reference.location.split('/'));
     let row = files.get(reference.location);
     if (row && row.source !== file) throw invalid('ONNX graph target collides with an external-data location.');
     if (!row) {
       if (files.size >= 128) throw invalid('ONNX closure exceeds its file count bound.');
-      row = { path: reference.location, source: file, ...await fingerprintOnnxFile(root, file) };
+      const identity = await fingerprintOnnxFile(root, file, { signal });
+      observed.push({ root, file, stat: identity.sourceStat });
+      row = { path: reference.location, source: file, ...identity };
       files.set(reference.location, row);
     }
     const offset = BigInt(reference.offset || '0'), length = reference.length == null ? BigInt(row.bytes) - offset : BigInt(reference.length);
@@ -138,6 +166,8 @@ export const planOnnxArtifactClosure = async (graphPath, graphName = path.basena
   }
   const rows = [...files.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
   if (rows.reduce((sum, row) => sum + row.bytes, 0) > 128 * 1024 ** 3) throw invalid('ONNX closure exceeds its total byte bound.');
+  await verifyOnnxArtifactSnapshot(observed, { signal });
   const identities = rows.map(({ path, bytes, sha256 }) => ({ path, bytes, sha256 }));
-  return { graph: graphName, files: rows, digest: createHash('sha256').update(JSON.stringify(identities)).digest('hex') };
+  return Object.defineProperty({ graph: graphName, files: rows, digest: createHash('sha256').update(JSON.stringify(identities)).digest('hex') },
+    'observed', { value: observed });
 };
