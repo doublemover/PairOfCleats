@@ -56,9 +56,11 @@ explicit exact recovery without read replay, and withheld valid batches. Existin
 offset/cardinality/checksum and unified-reader assertions remain authored.
 
 Callers outside this owner can still suppress cleanup exceptions or mutate a
-frozen primary while handling close. Semantic store scope disposal and retained
-evidence page cleanup need separate adoption; this change does not repair those
-caller contracts or claim category/index/coordinator lease retention. An
+frozen primary while handling close. Semantic store scopes now adopt explicit
+[operation and cleanup failure composition](semantic-reader-cleanup.md), with
+their own unvalidated controls. Retained evidence page cleanup and outer service/
+continuation admission remain separate; this does not claim category/index/
+coordinator lease retention. An
 abandoned reader remains its caller's responsibility. There is no durable
 cross-process native settlement, automatic native retry or metadata unlink
 authority. No tests, syntax/lint/format, bootstrap, native/platform/full-index or

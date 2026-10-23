@@ -15,6 +15,10 @@ import { throwIfAborted } from '../shared/abort.js';
 import { assertCurrentIndexFormat } from '../contracts/index-format.js';
 import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelopes.js';
 import { validateSemanticRecord } from '../contracts/validators/semantic.js';
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../shared/storage/operation-error.js';
+import { closeSemanticReaders, completeSemanticReaderCleanup, semanticReaderFailure,
+  withSemanticReaderCleanup } from './reader-lifetime.js';
 
 const FAMILY = {
   semantic_lookup: 'lookup', semantic_records: 'node', semantic_operands: 'operand', semantic_edges: 'edge',
@@ -86,15 +90,19 @@ export const createArtifactSemanticStore = ({
     if (scope?.closed) throw error('Semantic read scope has already settled.');
     return scope;
   };
-  const closeReaders = async readers => {
-    const pending = [...readers.values()];
-    readers.clear();
-    const opened = await Promise.allSettled(pending);
-    await Promise.allSettled(opened.filter(result => result.status === 'fulfilled')
-      .map(result => result.value.close()));
+  const pieceReadError = caught => {
+    // Classification cannot turn pending original work into an ordinary content
+    // diagnostic, including when a verified snapshot failed to close its files.
+    const observation = observeStorageResource(caught, { phase: 'semantic-piece-read' });
+    observation.requireSettled();
+    let code;
+    try { code = caught?.code; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    return code === 'ERR_JSONL_CONTENT_INTEGRITY'
+      ? addStorageFailureContext(error('Semantic part hash/size mismatch.'), {}, observation.retain(), { secondaryPresent: true })
+      : caught;
   };
-  const pieceReadError = caught => caught.code === 'ERR_JSONL_CONTENT_INTEGRITY'
-    ? error('Semantic part hash/size mismatch.') : caught;
   const openVerifiedPieceReader = async (piece, signal) => {
     throwIfAborted(signal);
     assertSemanticPartPath(piece.path);
@@ -134,8 +142,7 @@ export const createArtifactSemanticStore = ({
         close: () => reader.close()
       };
     } catch (caught) {
-      await reader.close();
-      throw pieceReadError(caught);
+      return withSemanticReaderCleanup(() => { throw pieceReadError(caught); }, () => reader.close());
     }
   };
   const readPieceRows = async (piece, indexes, { signal = null, ...options } = {}) => {
@@ -152,18 +159,16 @@ export const createArtifactSemanticStore = ({
       return (await scope.readers.get(piece)).readRows(indexes, { ...options, signal });
     }
     const reader = await openVerifiedPieceReader(piece, signal);
-    try { return await reader.readRows(indexes, { ...options, signal }); }
-    finally { await reader.close(); }
+    return withSemanticReaderCleanup(() => reader.readRows(indexes, { ...options, signal }), () => reader.close());
   };
   const withReadScope = async run => {
     if (currentReadScope()) return run();
     const scope = { owner: scopeOwner, readers: new Map(), readerBytes: 0,
       operationRanges: new Map(), closed: false };
-    try { return await READ_SCOPES.run(scope, run); }
-    finally {
+    return withSemanticReaderCleanup(() => READ_SCOPES.run(scope, run), async () => {
       scope.closed = true;
-      await closeReaders(scope.readers);
-    }
+      await closeSemanticReaders(scope.readers);
+    });
   };
   const getRecords = async (refs, fields = ['span', 'scope', 'data'], { signal = null, metrics = null } = {}) => {
     if (!Array.isArray(refs) || refs.length > maxRecords) throw error('Semantic record request exceeds its limit.');
@@ -220,6 +225,7 @@ export const createArtifactSemanticStore = ({
     if (!Number.isSafeInteger(batchRows) || batchRows <= 0 || batchRows > maxRecords) throw error('Invalid hydration batch.');
     for (const piece of partition.members[member]) {
       const reader = await openVerifiedPieceReader(piece, signal);
+      let primary, primaryPresent = false;
       try {
         for (let start = 0; start < piece.count; start += batchRows) {
           throwIfAborted(signal);
@@ -232,7 +238,8 @@ export const createArtifactSemanticStore = ({
             yield row;
           }
         }
-      } finally { await reader.close(); }
+      } catch (caught) { primary = caught; primaryPresent = true; throw caught; }
+      finally { await completeSemanticReaderCleanup(() => reader.close(), primary, primaryPresent); }
     }
   };
   const getSourceReference = createSourceReferenceReader({
@@ -385,7 +392,7 @@ export const createArtifactSemanticStore = ({
       || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 512) throw error('Invalid related semantic request.');
     const scope = currentReadScope();
     const queryRows = new Map(), readers = new Map();
-    try {
+    return withSemanticReaderCleanup(async () => {
       const readRow = ordinal => {
         if (!queryRows.has(ordinal)) queryRows.set(ordinal,
           readQueryIndexRow(ordinal, signal, metrics, readers, scope));
@@ -405,8 +412,8 @@ export const createArtifactSemanticStore = ({
       };
       // Await both searches on failure too, before disposing their shared files.
       const bounds = await Promise.allSettled([bound(false), bound(true)]);
-      const failed = bounds.find(result => result.status === 'rejected');
-      if (failed) throw failed.reason;
+      const failures = bounds.filter(result => result.status === 'rejected').map(result => result.reason);
+      if (failures.length) throw semanticReaderFailure(failures);
       const [start, end] = bounds.map(result => result.value);
       if (offset > end - start) throw error('Related semantic cursor exceeds member rows.');
       const selected = [];
@@ -438,9 +445,7 @@ export const createArtifactSemanticStore = ({
         }
       }
       return { rows, offset: offset + rows.length, done: start + offset + rows.length === end };
-    } finally {
-      await closeReaders(readers);
-    }
+    }, () => closeSemanticReaders(readers));
   };
   const verifySource = async (source, { signal = null, spans = [] } = {}) => {
     throwIfAborted(signal);
