@@ -181,6 +181,9 @@ export function createSchedulerDispatch({
     const lease = { queue, used, signal, active: true, surfaceActive: true, suspended: false, depth: 0, resuming: false,
       resumePromise: null, resumeResolve: null, resumeReject: null, pendingWaits: new Set() };
     lease.trackWait = operation => {
+      if (!lease.active) return Promise.reject(Object.assign(new Error('Scheduler task retired before nested wait.'), {
+        code: 'ERR_SCHEDULER_TASK_RETIRED'
+      }));
       let pending;
       try { pending = Promise.resolve(operation()); } catch (error) { pending = Promise.reject(error); }
       lease.pendingWaits.add(pending);

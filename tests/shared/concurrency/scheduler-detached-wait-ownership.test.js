@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { setImmediate as tick } from 'node:timers/promises';
+import { AsyncResource } from 'node:async_hooks';
 import { createBuildScheduler } from '../../../src/shared/concurrency/scheduler-core.js';
 import { withSchedulerCpuSuspended } from '../../../src/shared/concurrency/scheduler-task-scope.js';
 import { runWithTimeout } from '../../../src/shared/promise-timeout.js';
@@ -50,3 +51,18 @@ for (const route of ['detached', 'nested', 'timeout']) {
   }
 }
 console.log('detached nested waits keep retained scheduler ownership until actual settlement');
+
+// A callback can retain the suspended async context after its originating task
+// settles. Borrowed suspension must reject before invoking that late operation.
+{
+  const scheduler = createBuildScheduler({ cpuTokens: 1 });
+  let invoke, executed = 0;
+  try {
+    await scheduler.schedule('origin', { cpu: 1 }, () => withSchedulerCpuSuspended(async () => {
+      invoke = AsyncResource.bind(() => withSchedulerCpuSuspended(async () => { executed++; }));
+    }));
+    await assert.rejects(invoke(), { code: 'ERR_SCHEDULER_TASK_RETIRED' });
+    assert.equal(executed, 0, 'retired borrowed scope cannot launch unowned work');
+    assert.equal(scheduler.stats().tokens.cpu.used, 0);
+  } finally { await scheduler.shutdown({ awaitRunning: true, timeoutMs: 1000 }); }
+}
