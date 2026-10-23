@@ -1,9 +1,28 @@
-import { encodeVarint64List } from '../../../../../shared/artifact-io/varint.js';
+import { encodeVarint64Into } from '../../../../../shared/artifact-io/varint.js';
 import { parseHash64 } from '../../../../../shared/token-id.js';
 import { stableOrderWithComparator } from '../../../../../shared/order.js';
 import { TRIM_POLICY_VERSION, TRIM_REASONS } from '../../trim-policy.js';
 import { createPreparedJsonlRows, readPreparedJsonlRow } from '../../../../../shared/json-stream/prepared-row.js';
 import { compactChunkMetaEntry, compareChunkMetaChunks } from './shared.js';
+
+// The schema requires one final base64 string. Encode through one bounded byte
+// block rather than retaining a second BigInt array and a JS number per byte.
+// Intermediate base64 pieces end on whole three-byte groups, so only the final
+// piece carries padding and concatenation is byte-identical to one full buffer.
+const packChunkMetaTokenIds = values => {
+  const block = Buffer.allocUnsafe(Math.min(64 * 1024, Math.max(10, values.length * 10))), pieces = [];
+  let used = 0;
+  for (const value of values) {
+    if (block.length - used < 10) {
+      const complete = used - used % 3;
+      pieces.push(block.toString('base64', 0, complete));
+      block.copy(block, 0, complete, used); used -= complete;
+    }
+    used += encodeVarint64Into(parseHash64(value), block, used);
+  }
+  if (used) pieces.push(block.toString('base64', 0, used));
+  return pieces.join('');
+};
 
 /**
  * Return a stable permutation when chunk_meta rows are out of canonical order.
@@ -181,8 +200,7 @@ export const createChunkMetaIterator = ({
           const packInput = resolvedTokenMode === 'sample'
             ? tokenIds.slice(0, tokenSampleSize)
             : tokenIds;
-          const packed = encodeVarint64List(packInput.map((value) => parseHash64(value)));
-          entry.token_ids_packed = packed.toString('base64');
+          entry.token_ids_packed = packChunkMetaTokenIds(packInput);
           entry.token_ids_count = packInput.length;
         } else if (typeof c.token_ids_packed === 'string' && Number.isFinite(Number(c.token_ids_count))) {
           const packedCount = Math.max(0, Math.floor(Number(c.token_ids_count)));
