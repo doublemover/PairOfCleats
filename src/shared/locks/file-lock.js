@@ -231,6 +231,8 @@ export const acquireFileLock = async ({
 /**
  * Acquire a lock, run work, then release lock.
  * Returns null if lock couldn't be acquired.
+ * Original worker resource prerequisites gate metadata release. Unknown work
+ * retains the actual published session for explicit recovery; work is not replayed.
  * @param {object} options
  * @param {(lock:{lockPath:string,payload:object,release:(opts?:{force?:boolean})=>Promise<boolean>})=>Promise<any>} worker
  */

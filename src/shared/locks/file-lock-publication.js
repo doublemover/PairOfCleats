@@ -330,7 +330,7 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
   const lock = { lockPath, payload, diagnostics, release: async (_options = {}) => releasePublished() };
   publishedLock = lock;
   Object.defineProperty(lock, 'fileLockPublicationSession', { value: session });
-  recordPublishedFileLockHandle(lock, { session, remember, releaseObservation: Object.freeze({
+  recordPublishedFileLockHandle(lock, { session, remember, hold, forget, isSettled, releaseObservation: Object.freeze({
     cacheOwnershipPending: true, cacheOwnershipReleased: originalResourcesSettled, fileLockPublicationSession: session,
     get containedFileSession() { return [...readSessions][0] || null; },
     get containedFileSessions() { return Object.freeze([...readSessions]); }

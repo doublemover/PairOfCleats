@@ -10,13 +10,25 @@ export const isFileLockPublicationFailureForSession = (failure, session) => {
 export const recordFileLockPublicationFailure = (failure, session) => {
   publicationOwners.set(failure, { session, failure: true });
 };
-export const recordPublishedFileLockHandle = (lock, { session, remember, releaseObservation }) => {
-  publicationOwners.set(lock, { session, remember, releaseObservation });
+export const recordPublishedFileLockHandle = (lock, { session, remember, hold, forget, isSettled, releaseObservation }) => {
+  publicationOwners.set(lock, { session, remember, hold, forget, isSettled, releaseObservation });
+};
+const refreshFence = actual => {
+  if (actual.isSettled()) actual.forget(); else actual.hold();
 };
 
 // Observations describe independent prerequisites, never metadata settlement.
 export const getPublishedFileLockReleaseObservation = lock => objectLike(lock)
   ? publicationOwners.get(lock)?.releaseObservation || null : null;
+export const retainPublishedFileLockPrerequisite = (lock, observation) => {
+  const actual = objectLike(lock) ? publicationOwners.get(lock) : null;
+  if (!actual?.releaseObservation) return false;
+  // Append an original prerequisite to the same owner. This cannot clear any
+  // existing unknown resource or confer metadata/path mutation authority.
+  actual.remember(observation);
+  refreshFence(actual);
+  return true;
+};
 export const isFileLockPublicationFailureFor = (failure, lock) => {
   const actual = objectLike(lock) ? publicationOwners.get(lock) : null;
   const producer = objectLike(failure) ? publicationOwners.get(failure) : null;
@@ -36,5 +48,6 @@ export const recordFileLockReleaseWrapperFailure = (failure, lock, observe) => {
   // Return new independent worker/inspection/native observations to this same
   // existing metadata owner before another explicit operation is admitted.
   actual.remember(failure);
+  refreshFence(actual);
   return true;
 };

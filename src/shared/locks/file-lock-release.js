@@ -1,6 +1,8 @@
 import { addStorageFailureContext } from '../storage/operation-error.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
 import { getPublishedFileLockReleaseObservation, isFileLockPublicationFailureFor,
-  getFileLockReleaseFailureObservation, recordFileLockReleaseWrapperFailure } from './file-lock-producer-observations.js';
+  getFileLockReleaseFailureObservation, recordFileLockReleaseWrapperFailure,
+  retainPublishedFileLockPrerequisite } from './file-lock-producer-observations.js';
 
 const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
 const createLockReleaseFailureError = ({
@@ -8,11 +10,14 @@ const createLockReleaseFailureError = ({
   cause,
   releaseResult,
   workerError,
+  workerObservation = null,
+  workerContext = null,
+  releaseAttempted = true,
   releaseFailed = false
 }) => {
   const error = new Error('[file-lock] lock release remains unconfirmed.', releaseFailed ? { cause } : undefined);
   Object.assign(error, { code: 'ERR_FILE_LOCK_RELEASE_FAILED', causeCode: '',
-    releaseResult: releaseResult === undefined ? null : releaseResult, workerError });
+    releaseResult: releaseResult === undefined ? null : releaseResult, workerError, releaseAttempted });
   // This pure context owner captures independent original observations before
   // code/name/path diagnostics can replace them. It does not witness metadata
   // removal or authorize another release call on an arbitrary lock.
@@ -30,8 +35,10 @@ const createLockReleaseFailureError = ({
     else delete failure.cause;
   };
   restoreCause();
-  if (objectLike(workerError) && workerError !== cause) {
-    failure = addStorageFailureContext(failure, {}, workerError, { secondaryPresent: true });
+  if (objectLike(workerError) && !isFileLockPublicationFailureFor(workerError, lock)
+    && (workerObservation || workerError !== cause)) {
+    failure = addStorageFailureContext(failure, {}, workerContext || (workerObservation ? workerObservation.retain() : workerError),
+      { secondaryPresent: true });
     restoreCause();
   }
   const retainInspection = inspection => {
@@ -48,7 +55,8 @@ const createLockReleaseFailureError = ({
   }
   try { const value = lock.lockPath; if (typeof value === 'string') lockPath = value; }
   catch (inspection) { retainInspection(inspection); }
-  const resultCode = releaseResult === false ? 'RELEASE_RETURNED_FALSE' : 'RELEASE_THROW';
+  const resultCode = !releaseAttempted ? 'RELEASE_NOT_ATTEMPTED'
+    : releaseResult === false ? 'RELEASE_RETURNED_FALSE' : 'RELEASE_THROW';
   const detailCode = causeCode || resultCode || 'UNKNOWN';
   const message = [
     `[file-lock] lock release failed for "${lockPath}"`,
@@ -78,17 +86,50 @@ export const releaseFileLockOrThrow = async (
   lock,
   options = {}
 ) => {
-  const { releaseOptions = undefined } = options;
   const workerError = Object.hasOwn(options, 'workerError') ? options.workerError : null;
+  const previousWorker = getFileLockReleaseFailureObservation(workerError, lock);
+  const ownWorkerFailure = isFileLockPublicationFailureFor(workerError, lock);
+  const workerValue = previousWorker ? Object.freeze({ cacheOwnershipPending: true, cacheOwnershipReleased: previousWorker })
+    : ownWorkerFailure ? getPublishedFileLockReleaseObservation(lock) : workerError;
+  const workerObservation = objectLike(workerError)
+    ? observeStorageResource(workerValue, { phase: 'file-lock-worker' }) : null;
   if (!lock) {
     throw new TypeError('releaseFileLockOrThrow requires a lock with a release() function.');
+  }
+  if (workerObservation) {
+    if (!ownWorkerFailure) retainPublishedFileLockPrerequisite(lock, Object.freeze({ cacheOwnershipPending: true,
+      cacheOwnershipReleased: workerObservation.isSettled }));
+    try { workerObservation.requireSettled(); }
+    catch (pending) {
+      throw createLockReleaseFailureError({ lock, cause: null, releaseResult: null, workerError,
+        workerObservation, workerContext: pending, releaseAttempted: false });
+    }
+  }
+  let releaseOptions;
+  try { releaseOptions = options.releaseOptions; }
+  catch (cause) {
+    throw createLockReleaseFailureError({ lock, cause, releaseResult: null, workerError,
+      workerObservation, releaseAttempted: false, releaseFailed: true });
   }
   let release;
   try { release = lock.release; }
   catch (cause) {
-    throw createLockReleaseFailureError({ lock, cause, releaseResult: null, workerError, releaseFailed: true });
+    throw createLockReleaseFailureError({ lock, cause, releaseResult: null, workerError,
+      workerObservation, releaseAttempted: false, releaseFailed: true });
   }
-  if (typeof release !== 'function') throw new TypeError('releaseFileLockOrThrow requires a lock with a release() function.');
+  if (typeof release !== 'function') {
+    const cause = new TypeError('releaseFileLockOrThrow requires a lock with a release() function.');
+    if (getPublishedFileLockReleaseObservation(lock)) throw createLockReleaseFailureError({ lock, cause,
+      releaseResult: null, workerError, workerObservation, releaseAttempted: false, releaseFailed: true });
+    throw cause;
+  }
+  if (workerObservation) {
+    try { workerObservation.requireSettled(); }
+    catch (pending) {
+      throw createLockReleaseFailureError({ lock, cause: null, releaseResult: null, workerError,
+        workerObservation, workerContext: pending, releaseAttempted: false });
+    }
+  }
   let releaseResult = null;
   let releaseError = null;
   let releaseFailed = false;
@@ -104,6 +145,7 @@ export const releaseFileLockOrThrow = async (
       cause: releaseError,
       releaseResult,
       workerError,
+      workerObservation,
       releaseFailed
     });
   }

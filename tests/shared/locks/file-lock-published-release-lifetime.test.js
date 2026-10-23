@@ -132,14 +132,17 @@ try {
   // A serialization, field/capability copy, or changed physical pathname does
   // not confer the original published owner's private observation or unlink.
   for (const source of ['worker', 'inspection']) {
-    const { file, lock, session } = await create(); let ready = false, phase = 'initial', removals = 0, failure;
+    const { file, lock, session } = await create(); let ready = source === 'worker', phase = 'initial', removals = 0, failure;
     const independent = Object.assign(new Error('wrapper independently observed native work'), {
       cacheOwnershipReleased() { assert.equal(this, independent); return ready; }
     });
     const primary = new Error('first native removal failed');
     if (source === 'inspection') Object.defineProperty(primary, 'code', { get() { throw independent; } });
     fs.rm = async (name, options) => {
-      if (name === file) { removals += 1; if (phase === 'initial') throw primary; if (phase === 'self') throw failure; }
+      if (name === file) {
+        removals += 1; if (phase === 'initial') { if (source === 'worker') ready = false; throw primary; }
+        if (phase === 'self') throw failure;
+      }
       return remove(name, options);
     };
     failure = await rejected(() => releaseFileLockOrThrow(lock, source === 'worker' ? { workerError: independent } : {}));
@@ -152,13 +155,16 @@ try {
     assert.equal(removals, 3); fs.rm = remove;
   }
   {
-    const { file, lock, session } = await create(); let phase = 'initial', first, ready = false, removals = 0;
+    const { file, lock, session } = await create(); let phase = 'initial', first, ready = true, removals = 0;
     const primary = Object.freeze(new Error('first release'));
     const worker = Object.assign(new Error('later independent wrapper worker'), {
       cacheOwnershipReleased() { assert.equal(this, worker); return ready; }
     });
     fs.rm = async (name, options) => {
-      if (name === file) { removals += 1; if (phase === 'initial') throw primary; if (phase === 'self') throw first; }
+      if (name === file) {
+        removals += 1; if (phase === 'initial') throw primary;
+        if (phase === 'self') { ready = false; throw first; }
+      }
       return remove(name, options);
     };
     first = await rejected(() => releaseFileLockOrThrow(lock)); phase = 'self';

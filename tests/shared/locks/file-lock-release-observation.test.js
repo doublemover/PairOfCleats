@@ -105,16 +105,18 @@ try {
     assert.equal(inspected(failure, secondary), true);
   }
   {
-    let ready = false, paths = 0;
+    let ready = false, paths = 0, calls = 0;
     const worker = Object.freeze(Object.assign(new Error('independent worker owner'), {
       cacheOwnershipReleased() { assert.equal(this, worker); return ready; }
     }));
-    const failure = await rejected(() => releaseFileLockOrThrow({
-      get lockPath() { paths += 1; return 'inert'; }, release() { return false; }
-    }, { workerError: worker }));
+    const lock = { get lockPath() { paths += 1; return 'inert'; }, release() { calls += 1; return false; } };
+    const failure = await rejected(() => releaseFileLockOrThrow(lock, { workerError: worker }));
     assert.equal(Object.hasOwn(failure, 'cause'), false); assert.equal(failure.workerError, worker);
-    assert.equal(failure.releaseResult, false); assert.equal(failure.cacheOwnershipReleased(), false); assert.equal(paths, 1);
+    assert.equal(failure.releaseAttempted, false); assert.equal(failure.releaseResult, null);
+    assert.equal(calls, 0); assert.equal(failure.cacheOwnershipReleased(), false); assert.equal(paths, 1);
     ready = true; assert.equal(failure.cacheOwnershipReleased(), true);
+    const refused = await rejected(() => releaseFileLockOrThrow(lock, { workerError: worker }));
+    assert.equal(refused.releaseResult, false); assert.equal(refused.releaseAttempted, true); assert.equal(calls, 1);
   }
   for (const value of [undefined, null, false, 0, '']) {
     const failure = await rejected(() => releaseFileLockOrThrow({ release() { throw value; } }, { workerError: value }));
