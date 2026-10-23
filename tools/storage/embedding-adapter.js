@@ -6,6 +6,7 @@ import { EMBEDDING_PROTECTED_METADATA } from '../../src/shared/storage/catalog.j
 import { resolveEmbeddingCacheProfile } from '../../src/shared/embeddings-cache/layout.js';
 import { readCacheIndex } from '../build/embeddings/cache.js';
 import { collectReferenceProtection } from '../build/embeddings/cache/file-references.js';
+import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 
 export const EMBEDDING_STORAGE_METADATA = Object.freeze([...new Set([
   ...EMBEDDING_PROTECTED_METADATA, 'cache.index.bin', 'cache.lock'
@@ -22,7 +23,11 @@ const fingerprint = async directory => {
       const stat = await fs.lstat(file, { bigint: true });
       if (!stat.isFile()) throw new Error('Embedding metadata is not an ordinary file.');
       result[name] = stamp(stat);
-    } catch (error) { if (error.code === 'ENOENT') result[name] = null; else throw error; }
+    } catch (error) {
+      const failure = describeStorageFailure(error, { phase: 'embedding-storage-metadata-stat' });
+      if (failure.code === 'ENOENT') result[name] = null;
+      else throw error;
+    }
   }
   return result;
 };
@@ -33,6 +38,9 @@ const fingerprint = async directory => {
  */
 export const inspectEmbeddingStorageProfile = async ({ cacheRoot, identity, repoId = null,
   maxEntries = 100000, maxDurationMs = 10000, signal = null } = {}) => {
+  if (!Number.isSafeInteger(maxEntries) || maxEntries < 1 || !Number.isSafeInteger(maxDurationMs) || maxDurationMs < 1) {
+    throw new TypeError('Embedding storage inspection requires positive bounded limits.');
+  }
   const profile = resolveEmbeddingCacheProfile({ cacheRoot, identity });
   const roots = [];
   const indexes = [];
@@ -41,13 +49,21 @@ export const inspectEmbeddingStorageProfile = async ({ cacheRoot, identity, repo
   let protectedKeys = 0;
   let referencesComplete = true;
   const started = Date.now();
+  let stopReason = null;
+  const stopped = () => {
+    if (signal?.aborted) stopReason = 'cancelled';
+    else if (Date.now() - started >= maxDurationMs) stopReason ||= 'time-budget';
+    else if (entryCount >= maxEntries) stopReason ||= 'entry-budget';
+    return Boolean(stopReason);
+  };
   for (const [tier, root] of [['canonical', profile.canonical], ['legacy-read-only', profile.legacy]]) {
+    if (stopped()) { failures.push({ tier, reason: stopReason }); break; }
     const directories = [path.join(root, 'global-chunks'), ...MODES.map(mode => path.join(root, mode, 'files'))];
     for (const mode of MODES) roots.push({ id: `embedding-${tier}-${mode}-metadata`, category: 'embedding-metadata',
       path: path.join(root, mode, 'cache.meta.json'), retention: 'referenced', repoId });
     const snapshots = new Map();
     for (const directory of directories) {
-      if (signal?.aborted || Date.now() - started >= maxDurationMs) { failures.push({ tier, reason: signal?.aborted ? 'cancelled' : 'time-budget' }); break; }
+      if (stopped()) { failures.push({ tier, reason: stopReason }); break; }
       try {
         const before = await fingerprint(directory);
         snapshots.set(directory, before);
@@ -57,7 +73,10 @@ export const inspectEmbeddingStorageProfile = async ({ cacheRoot, identity, repo
         if (!before['cache.index.json'] && !before['cache.index.bin'] && !before['cache.index.delta']) {
           let present = false;
           try { present = (await fs.lstat(directory)).isDirectory(); }
-          catch (error) { if (error.code !== 'ENOENT') throw error; }
+          catch (error) {
+            const failure = describeStorageFailure(error, { phase: 'embedding-storage-directory-stat' });
+            if (failure.code !== 'ENOENT') throw error;
+          }
           if (present) referencesComplete = false;
           indexes.push({ tier, directory, status: present ? 'unindexed-report-only' : 'missing', entries: null, referencesComplete: !present });
           continue;
@@ -89,21 +108,25 @@ export const inspectEmbeddingStorageProfile = async ({ cacheRoot, identity, repo
           lastUseProvenance: newestAccess === null ? 'unknown' : 'partial-index-entry-lastAccessAt',
           protectedChunkKeys: reference.protectedKeys.size, referencesComplete: !reference.incomplete });
       } catch (error) { referencesComplete = false; failures.push({ tier, directory,
-        reason: 'unreadable-or-active-embedding-owner', code: error.code || 'ERR_EMBEDDING_STORAGE_INVENTORY', message: error.message }); }
+        reason: 'unreadable-or-active-embedding-owner', ...describeStorageFailure(error, { phase: 'embedding-storage-index-inventory',
+          defaultCode: 'ERR_EMBEDDING_STORAGE_INVENTORY' }) }); }
     }
     for (const [directory, before] of snapshots) {
+      if (stopped()) { failures.push({ tier, directory, reason: stopReason }); break; }
       try {
         if (JSON.stringify(await fingerprint(directory)) !== JSON.stringify(before)) throw new Error('Embedding checkpoint/delta/lock changed during inventory.');
-      } catch (error) { referencesComplete = false; failures.push({ tier, directory, reason: 'concurrent-embedding-publication', message: error.message }); }
+      } catch (error) { referencesComplete = false; failures.push({ tier, directory, reason: 'concurrent-embedding-publication',
+        ...describeStorageFailure(error, { phase: 'embedding-storage-metadata-revalidation' }) }); }
     }
     // Only known mode roots are scanned. Scanning the legacy tuple parent would
     // accidentally include profiles-v2 and every unrelated complete identity.
   }
-  const physical = await inspectStorageInventory({ roots, maxEntries,
+  const physical = stopped() ? null : await inspectStorageInventory({ roots, maxEntries: maxEntries - entryCount,
     maxDurationMs: Math.max(1, maxDurationMs - (Date.now() - started)), signal });
   return { schemaVersion: 1, category: 'embedding-profile', repoId, profile,
     indexes, physical, protectedMetadata: EMBEDDING_STORAGE_METADATA,
-    complete: failures.length === 0 && referencesComplete && physical.complete,
+    complete: !stopReason && failures.length === 0 && referencesComplete && physical?.complete === true,
+    stopReason, physicalInspection: physical ? 'observed-bounded-files' : 'not-performed-budget-or-cancellation',
     references: { complete: referencesComplete, retained: protectedKeys > 0, protectedChunkKeys: protectedKeys },
     failures, logicalEntryCount: entryCount, cleanupAuthority: false,
     genericMigration: 'unsupported-use-embedding-profile-owner',

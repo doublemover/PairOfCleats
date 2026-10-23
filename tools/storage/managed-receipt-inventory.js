@@ -5,7 +5,9 @@ import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 import { readVerifiedContainedFile } from '../../src/shared/contained-file.js';
 import { inspectStorageInventory, storageFileIdentity, sameStorageFileIdentity } from '../../src/shared/storage/inventory.js';
 import { inspectStorageAccess } from '../../src/shared/storage/access.js';
-const errorRecord = error => ({ code: error.code || 'ERR_MANAGED_STORAGE_RECEIPT', message: error.message });
+import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
+const errorRecord = error => describeStorageFailure(error, { phase: 'managed-storage-receipt-inventory',
+  defaultCode: 'ERR_MANAGED_STORAGE_RECEIPT' });
 
 /** Read existing producer receipts and account only launch-selected registered
  * roots. A persisted path is declaration evidence, never read/write adoption,

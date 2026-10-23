@@ -9,9 +9,11 @@ import { isOwnedCommandProbeCacheEntry } from '../../src/index/tooling/command-p
 import { inspectEmbeddingStorageProfile } from './embedding-adapter.js';
 import { readStorageProbePolicy } from '../../src/shared/storage/probe-policy-read.js';
 import { inspectManagedStorageReceipts } from './managed-receipt-inventory.js';
+import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 
 export const STORAGE_INVENTORY_ADAPTERS = Object.freeze(['embedding-profiles', 'dictionaries', 'command-probes', 'managed-installations']);
-const errorRecord = error => ({ code: error.code || 'ERR_STORAGE_CATEGORY_INVENTORY', message: error.message });
+const errorRecord = error => describeStorageFailure(error, { phase: 'storage-category-inventory',
+  defaultCode: 'ERR_STORAGE_CATEGORY_INVENTORY' });
 
 /** Same structured read-only owner entry for CLI and native/TUI consumers.
  * A requested path is inspection scope, never adoption or mutation authority.
