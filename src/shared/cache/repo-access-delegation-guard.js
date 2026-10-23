@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readVerifiedContainedFileSync } from '../contained-file.js';
+import { describeStorageFailure } from '../storage/failure-observation.js';
 
 export const repoDelegationPath = paths => path.join(paths.directory, 'delegation.json');
 
@@ -15,9 +16,10 @@ export const inspectRepoCacheDelegation = paths => {
     const value = JSON.parse(buffer.toString('utf8'));
     return { protected: true, reason: 'delegated-exclusive-owner-unsettled', file, sha256: hash, value };
   } catch (error) {
-    if (error.code === 'ENOENT' && !fs.existsSync(file)) return { protected: false, file, value: null };
+    const diagnostic = describeStorageFailure(error, { phase: 'repo-cache-delegation-inspection', defaultCode: 'ERR_REPO_CACHE_DELEGATION' });
+    if (diagnostic.code === 'ENOENT' && !fs.existsSync(file)) return { protected: false, file, value: null };
     return { protected: true, reason: 'unknown-delegated-exclusive-owner', file, value: null,
-      error: { code: error.code || 'ERR_REPO_CACHE_DELEGATION', message: error.message } };
+      error: diagnostic };
   }
 };
 

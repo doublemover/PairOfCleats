@@ -1,10 +1,11 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { repoAccessPaths, retainRepoCacheAccess, withExclusiveRepoCacheCleanup } from '../cache/repo-access.js';
 import { isLocalProcessDefinitelyDead } from '../locks/file-lock-info.js';
 import { readVerifiedContainedFile } from '../contained-file.js';
 import { inspectRepoCacheDelegation } from '../cache/repo-access-delegation-guard.js';
 import { isKnownRepoAccessOwner, isKnownRepoResourceOwner } from '../cache/repo-access-owner.js';
+import { withStorageDirectory } from './directory.js';
+import { describeStorageFailure } from './failure-observation.js';
 
 /** Use the existing admission/exclusion handshake for adopted assets as well. */
 export const retainStorageAssetAccess = (root, options = {}) => retainRepoCacheAccess(root, options);
@@ -33,16 +34,18 @@ export const inspectStorageAccess = async (root, options = {}) => {
         status: !valid ? 'unknown-owner' : dead ? 'dead-local-owner' : 'live-or-unknown-or-pid-reused',
         protected: !dead };
     } catch (error) {
-      if (error.code === 'ENOENT') return null;
+      const diagnostic = describeStorageFailure(error, { phase: 'storage-access-owner-read', defaultCode: 'ERR_STORAGE_LEASE' });
+      if (diagnostic.code === 'ENOENT') return null;
       complete = false;
-      return { path: file, status: 'unreadable-owner', protected: true, code: error.code || 'ERR_STORAGE_LEASE' };
+      return { path: file, status: 'unreadable-owner', protected: true, code: diagnostic.code };
     }
   };
   const cleanup = await readOwner(paths.lockPath);
   if (cleanup) owners.push({ ...cleanup, role: 'cleanup' });
+  let enumerationStarted = false;
   try {
-    const directory = await fs.opendir(paths.leases);
-    try {
+    await withStorageDirectory(paths.leases, async directory => {
+      enumerationStarted = true;
       for (let count = 0; ; count += 1) {
         if (count >= 10000) { complete = false; owners.push({ status: 'lease-inventory-budget', protected: true }); break; }
         const entry = await directory.read();
@@ -50,9 +53,12 @@ export const inspectStorageAccess = async (root, options = {}) => {
         const owner = await readOwner(path.join(paths.leases, entry.name));
         if (owner) owners.push({ ...owner, role: 'reader-or-writer' });
       }
-    } finally { await directory.close(); }
+    });
   } catch (error) {
-    if (error.code !== 'ENOENT') { complete = false; owners.push({ status: 'unreadable-leases', protected: true, code: error.code }); }
+    const diagnostic = describeStorageFailure(error, { phase: 'storage-access-leases', defaultCode: 'ERR_STORAGE_LEASE' });
+    if (enumerationStarted || diagnostic.code !== 'ENOENT') {
+      complete = false; owners.push({ status: 'unreadable-leases', protected: true, code: diagnostic.code });
+    }
   }
   return { complete, protected: !complete || owners.some(owner => owner.protected), owners,
     coverage: 'existing-repo-access-protocol-only',
