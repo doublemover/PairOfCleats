@@ -41,7 +41,11 @@ have 60 passes, 9 ordinary failures and 1 timeout. Actual repairs and a focused 
 then yield 11 passes / 3 timeouts; records MetaV2 and three wrapper partitions have
 additional source repairs awaiting execution. The [Windows receipt](archived/windows-post-wave-validation-2026-10-22.md)
 retains exact provenance. Broad acceptance waits for a frozen resulting tree.
-New P2 reports #1541–#1550 have explicit owners; no complete deep-suite pass is claimed.
+New P2 reports #1541–#1550 have source repairs and authored regressions. Extended
+spans add immutable graph capability consumption, bounded opt-in JS/TS coarse
+worker analysis, distinct backend/waiter shutdown accounting and pending-provider
+fallback protection. MCP 1.10.0 and generated surfaces await final-tree refresh
+and qualification; no complete deep-suite pass is claimed.
 
 ### Execution order
 
@@ -130,8 +134,8 @@ Unicode type roots and own parameter/argument names reach parser/cache/public
 consumers. Complete source-checked semantic tokens and iterative symbols preserve
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
-moduleExports3/sourceChunking12/importResolution9/typeNormalization8/compilerBindings22/
-lspBindings41/rq10/cfgFlow27/callFlow36/valueSlice10/boundaryFlow10/workerFlow9. VSCode and Sublime retain
+moduleExports3/recordsProducer3/sourceChunking13/importResolution9/typeNormalization8/compilerBindings23/
+lspBindings43/rq10/cfgFlow27/callFlow41/valueSlice10/boundaryFlow10/workerFlow9. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 Proto/SemanticDB/ShellCheck report adapters are3 and SCIP importer is5; the other
 five report adapters remain2.

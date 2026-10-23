@@ -237,3 +237,19 @@ platform exclusion and scripted no-probe control must be included in the next
 cohort reconciliation. Nested coverage defaults to zero retries and still honors
 explicit zero through group entry points. No new broad test campaign is run while
 sixteen workers continue source changes.
+
+## Source-only continuation after b0214d350
+
+The sixteen-worker wave continues without runtime tests. Shared integration now
+separates backend-dispatched work from waiting requests, so pressure waiters do
+not prevent the shutdown/recreation needed for admission. Actual coarse JS/TS
+analysis is explicitly opt-in, bounded and unsupported for coordinator-owned
+compiler/native/SCM/embedding contexts; both production backend transport cases
+are authored, not executed. Pending sparse/ANN provider failures cannot become
+successful fallback. Immutable graph report consumption holds exact authority
+through read/render/publication and preserves ordinary current selection.
+
+New authored fixture membership, generated command/contract surfaces, MCP 1.10.0
+schema/server snapshots and the complete front gate must be reconciled before the
+next frozen Windows campaign. The earlier 70-case and focused receipts above
+retain their original outcomes. No new execution acceptance is claimed here.

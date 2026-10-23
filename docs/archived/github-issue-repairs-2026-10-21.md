@@ -4661,3 +4661,35 @@ execution is now deferred during shared edits. The complete front gate, generate
 surfaces, explicit case membership and Windows cohorts must be reconciled and run
 against a stable resulting candidate. No issue closure, current deep-suite pass,
 real-model qualification or measured speedup is claimed by this checkpoint.
+
+## Extended implementation integrations after b0214d350
+
+- `b5ab35d37` binds actual map SVG/HTML rendering to selected retained Graphviz
+  capability, bounded output/time and exact child/storage settlement.
+- `876d5fa5e` prevents sparse/ANN availability, preflight and query fallback from
+  hiding original pending resource or diagnostic-inspection failures. Settled
+  optional backend failure keeps its existing sparse fallback.
+- `e8b1054ca` integrates #1329's bounded opt-in JS/TS file-analysis facade and
+  real outer byte admission. Backend-dispatched work is distinct from pressure
+  waiters for shutdown/recreation, removing a source-proven circular wait.
+  Tokenizer task/recovery/drain composition retains falsey failures.
+- `1ec22dea1` carries explicit chunk binary requirements into the representation
+  plan; `d59d95278` consumes #1321's independently validated immutable graph
+  capability through the actual report dispatcher. The reader lease spans reads,
+  render and publication; selected identity exposes exact snapshot and source build.
+- `d03f52a72` applies the shared early HTTP lifetime to graph preparation and
+  disconnect failures, with an actual held-descriptor adapter case.
+- `12bc78a32` and `4011557cd` coordinate PHP/source-authority/shadow-summary changes
+  through LSP bindings 43, compiler bindings 23 and call flow 40. Source chunking
+  remains 13 and records producer 3. The additive semantic path contract advances
+  the source MCP catalog to 1.10.0; generated snapshots and acceptance are deferred.
+
+Every listed regression remains unrun during this shared-source wave. Required
+scoped formatting and owned diff checks pass. #1132 still declines cross-generation
+summary reuse; #1133 is a blocked plan-only prototype, not authorized execution.
+No measured throughput, native lifecycle, editor host, real-model or complete-suite
+acceptance follows from the extended source work.
+
+`2fa86ec91` subsequently advances fresh-solve dirty propagation and explicitly
+marks invalidated processed summary components unconverged. Call flow 41 retires
+older meaning; authored differential/reference controls remain unrun.
