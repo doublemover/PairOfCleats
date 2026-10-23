@@ -1,4 +1,3 @@
-const knownMetadataLocks = new WeakSet();
 const contextStates = new WeakMap();
 const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
 const asError = value => objectLike(value) ? value : new Error(String(value), { cause: value });
@@ -39,7 +38,7 @@ export const readStorageFailureContext = error => {
  * Explicit null remains the legacy no-secondary sentinel unless the actual
  * producer passes secondaryPresent:true for a caught null/undefined failure.
  */
-export const addStorageFailureContext = (value, fields = {}, secondary = null,
+export const addStorageFailureContext = (value, fields = {}, secondary,
   { nonEnumerable = [], secondaryPresent = secondary !== null && secondary !== undefined,
     forceAggregate = false } = {}) => {
   const primary = asError(value);
@@ -154,28 +153,3 @@ export const addStorageFailureContext = (value, fields = {}, secondary = null,
   Object.defineProperties(aggregate, { ...context, ...ownershipDescriptors(true) });
   return retainContext(aggregate);
 };
-/** Failed operation-coordinator cleanup exposes only its actual metadata lock.
- * Retrying that handle cannot settle an independent child/native resource.
- */
-export const releaseStorageOperationLock = async (lock, operationError = null) => {
-  try {
-    const { releaseFileLockOrThrow } = await import('../locks/file-lock.js');
-    return await releaseFileLockOrThrow(lock, { workerError: operationError });
-  }
-  catch (cleanupError) {
-    knownMetadataLocks.add(lock);
-    const operationPresent = operationError !== null && operationError !== undefined;
-    let primary = operationPresent ? operationError : cleanupError;
-    let prior = [];
-    try {
-      const existing = operationError?.storageOperationLocks;
-      if (Array.isArray(existing)) prior = existing.filter(handle => knownMetadataLocks.has(handle));
-    } catch (inspectionError) {
-      primary = addStorageFailureContext(primary, { storageOperationContextError: inspectionError }, inspectionError,
-        { secondaryPresent: true });
-    }
-    throw addStorageFailureContext(primary, { storageOperationLocks: [...new Set([...prior, lock])] },
-      operationPresent ? cleanupError : null);
-  }
-};
-

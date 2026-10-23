@@ -5,7 +5,8 @@ import { assertNoSymlinkPath, readVerifiedContainedFile } from '../contained-fil
 import { assertSafeCacheDeletion } from '../cache-deletion.js';
 import { atomicWriteJson } from '../io/atomic-write.js';
 import { acquireFileLock, releaseFileLockOrThrow } from '../locks/file-lock.js';
-import { addStorageFailureContext, releaseStorageOperationLock } from './operation-error.js';
+import { addStorageFailureContext } from './operation-error.js';
+import { releaseStorageOperationLock } from './operation-lock.js';
 import { syncParentDirectory } from '../io/persistence-helpers.js';
 import { throwIfAborted } from '../abort.js';
 import { withExclusiveStorageAccess } from './access.js';

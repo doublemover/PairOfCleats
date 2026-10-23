@@ -4,7 +4,8 @@ import { assertNoSymlinkPath, readVerifiedContainedFile } from '../contained-fil
 import { isPathWithinRoot } from '../file-paths.js';
 import { atomicWriteJson } from '../io/atomic-write.js';
 import { acquireFileLock } from '../locks/file-lock.js';
-import { addStorageFailureContext, releaseStorageOperationLock } from './operation-error.js';
+import { addStorageFailureContext } from './operation-error.js';
+import { releaseStorageOperationLock } from './operation-lock.js';
 import { storagePlanDigest } from './migration-plan.js';
 import { readStorageProbePolicy } from './probe-policy-read.js';
 import { STORAGE_POLICY_VERSION, assertCommandProbeStoragePolicy } from '../../contracts/schemas/storage-policy.js';

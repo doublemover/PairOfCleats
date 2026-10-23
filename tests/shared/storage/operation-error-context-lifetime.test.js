@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { addStorageFailureContext, readStorageFailureContext, releaseStorageOperationLock } from '../../../src/shared/storage/operation-error.js';
+import { addStorageFailureContext, readStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
+import { releaseStorageOperationLock } from '../../../src/shared/storage/operation-lock.js';
 import { acquireFileLock } from '../../../src/shared/locks/file-lock.js';
 import { resolveStorageLayout } from '../../../src/shared/storage/layout.js';
 import { planStorageConfiguration } from '../../../src/shared/storage/configuration.js';
