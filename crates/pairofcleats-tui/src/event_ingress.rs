@@ -1,6 +1,6 @@
 use serde_json::Value;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{mpsc, Arc};
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::Instant;
 
 pub struct InboundEvent {
@@ -12,20 +12,27 @@ pub struct InboundEvent {
 pub struct Sender {
     sender: mpsc::SyncSender<(Value, Instant)>,
     pending: Arc<AtomicUsize>,
+    failure: Arc<Mutex<Option<std::io::ErrorKind>>>,
 }
 
 pub struct Receiver {
     receiver: mpsc::Receiver<(Value, Instant)>,
     pending: Arc<AtomicUsize>,
+    failure: Arc<Mutex<Option<std::io::ErrorKind>>>,
 }
 
 pub fn channel() -> (Sender, Receiver) {
     let (sender, receiver) = mpsc::sync_channel(4096);
     let pending = Arc::new(AtomicUsize::new(0));
-    (Sender { sender, pending: pending.clone() }, Receiver { receiver, pending })
+    let failure = Arc::new(Mutex::new(None));
+    (Sender { sender, pending: pending.clone(), failure: failure.clone() }, Receiver { receiver, pending, failure })
 }
 
 impl Sender {
+    pub fn record_transport_failure(&self, kind: std::io::ErrorKind) {
+        if let Ok(mut failure) = self.failure.lock() { failure.get_or_insert(kind); }
+    }
+
     pub fn send(&self, value: Value) -> Result<(), mpsc::SendError<(Value, Instant)>> {
         self.send_at(value, Instant::now())
     }
@@ -41,6 +48,10 @@ impl Sender {
 }
 
 impl Receiver {
+    pub fn transport_failure(&self) -> Option<std::io::ErrorKind> {
+        self.failure.lock().map(|failure| *failure).unwrap_or(Some(std::io::ErrorKind::Other))
+    }
+
     pub fn pending(&self) -> usize {
         self.pending.load(Ordering::Acquire)
     }

@@ -29,7 +29,13 @@ fn read_frame(reader: &mut impl BufRead) -> io::Result<Option<Vec<u8>>> {
 /// Reads only bounded frames into the existing bounded ingress owner. A lost
 /// pipe or oversized/incomplete frame closes this sender so the real session
 /// owner can enter shutdown; neither an error frame nor saved data grants control.
-pub fn read_events(mut reader: impl BufRead, sender: &Sender) -> io::Result<()> {
+pub fn read_events(reader: impl BufRead, sender: &Sender) -> io::Result<()> {
+    let result = read_events_inner(reader, sender);
+    if let Err(error) = &result { sender.record_transport_failure(error.kind()); }
+    result
+}
+
+fn read_events_inner(mut reader: impl BufRead, sender: &Sender) -> io::Result<()> {
     let mut parse_failures = 0usize;
     while let Some(frame) = read_frame(&mut reader)? {
         if frame.iter().all(u8::is_ascii_whitespace) { continue; }
@@ -76,7 +82,26 @@ mod tests {
     }
     #[test]
     fn reader_failure_is_not_treated_as_clean_end_of_stream() {
-        let (sender, _) = event_ingress::channel();
+        let (sender, receiver) = event_ingress::channel();
         assert_eq!(read_events(BufReader::new(BrokenPipe), &sender).unwrap_err().kind(), io::ErrorKind::BrokenPipe);
+        assert_eq!(receiver.transport_failure(), Some(io::ErrorKind::BrokenPipe));
+    }
+
+    #[test]
+    fn final_partial_frame_retains_real_terminal_event_and_independent_reader_failure() {
+        let (sender, receiver) = event_ingress::channel();
+        let input = b"{\"event\":\"job:end\",\"jobId\":\"owned\",\"status\":\"cancelled\"}\n{\"event\":";
+        assert_eq!(read_events(Cursor::new(input), &sender).unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
+        drop(sender);
+        assert_eq!(receiver.try_recv().unwrap().value["status"], "cancelled");
+        assert!(matches!(receiver.try_recv(), Err(TryRecvError::Disconnected)));
+        assert_eq!(receiver.transport_failure(), Some(io::ErrorKind::UnexpectedEof));
+    }
+
+    #[test]
+    fn protocol_data_cannot_forge_local_reader_failure() {
+        let (sender, receiver) = event_ingress::channel();
+        read_events(Cursor::new(b"{\"event\":\"log\",\"transport_failure\":\"BrokenPipe\"}\n"), &sender).unwrap();
+        assert!(receiver.transport_failure().is_none());
     }
 }

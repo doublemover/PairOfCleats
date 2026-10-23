@@ -154,3 +154,19 @@ fn retained_cleanup_failure_never_becomes_published_success_or_resurrected_progr
     assert!(screen(&model,220,40).contains("unconfirmed resource cleanup"));
     assert!(!interaction::activity_text(&model).contains("10/10"));
 }
+
+#[test]
+fn missing_terminal_observations_are_interrupted_without_overwriting_real_outcomes() {
+    let mut model = measured_replay();
+    model.update_job_status("observed-done", "done", None);
+    model.update_job_status("observed-failed", "failed", None);
+    model.update_job_status("observed-cancelled", "cancelled", None);
+    interrupt_unobserved_jobs(&mut model);
+    assert_eq!(model.job_status["owner"], "interrupted");
+    assert_eq!(model.job_status["observed-done"], "done");
+    assert_eq!(model.job_status["observed-failed"], "failed");
+    assert_eq!(model.job_status["observed-cancelled"], "cancelled");
+    let task = &model.task_status[&json!(["owner","scan"]).to_string()];
+    assert_eq!(task.lifecycle(), Lifecycle::Interrupted); assert_eq!(task.current, Some(4.0));
+    assert!(snapshot_from_model(&model).final_job_statuses["owner"] == "interrupted");
+}

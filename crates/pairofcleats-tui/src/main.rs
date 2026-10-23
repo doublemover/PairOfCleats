@@ -1924,9 +1924,11 @@ fn metric_label(value: Option<f64>) -> String {
 
 fn runtime_summary_text(model: &AppModel, width: usize) -> String {
     let (running_jobs, failed_jobs, done_jobs, cancelled_jobs) = job_status_counts(model);
+    let interrupted = model.job_status.values().filter(|status| Lifecycle::from_status(status) == Lifecycle::Interrupted).count();
     let (active_tasks, failed_tasks) = task_status_counts(model);
     let parts = [
-        format!("jobs {running_jobs}run/{failed_jobs}fail/{done_jobs}done/{cancelled_jobs}cancel"),
+        format!("jobs {running_jobs}run/{failed_jobs}fail/{done_jobs}done/{cancelled_jobs}cancel{}",
+            if interrupted > 0 { format!("/{interrupted}interrupted") } else { String::new() }),
         format!("tasks {active_tasks}a/{failed_tasks}f"),
         format!("flow queue {}", metric_label(model.telemetry.queue_depth_ewma)),
         format!("ingress lag {}ms", metric_label(model.telemetry.event_lag_ms_ewma)),
@@ -4276,15 +4278,20 @@ fn main() -> anyhow::Result<()> {
 
     let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
     let shutdown = supervisor.shutdown(|event| apply_ingress_event_at(live, event, Instant::now()));
-    let unfinished_jobs: Vec<_> = live.job_status.iter()
-        .filter(|(_, status)| Lifecycle::from_status(status) == Lifecycle::Active)
-        .map(|(id, _)| id.clone()).collect();
-    for id in unfinished_jobs {
-        live.job_status.insert(id.clone(), "failed".to_owned());
-        live.reconcile_terminal_tasks(&id, "failed");
-    }
+    interrupt_unobserved_jobs(live);
     save_snapshot(&snapshot_path, live);
     supervisor_lifetime::combine_session_outcomes(execution, shutdown)
+}
+
+fn interrupt_unobserved_jobs(model: &mut AppModel) {
+    let unfinished: Vec<_> = model.job_status.iter()
+        .filter(|(_, status)| Lifecycle::from_status(status) == Lifecycle::Active)
+        .map(|(id, _)| id.clone()).collect();
+    for id in unfinished {
+        // Process-family containment does not supply the lost producer outcome.
+        model.update_job_status(&id, "interrupted", None);
+        model.reconcile_terminal_tasks(&id, "interrupted");
+    }
 }
 
 #[cfg(test)]

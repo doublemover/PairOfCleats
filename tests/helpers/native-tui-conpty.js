@@ -38,7 +38,7 @@ export const verifyNativeTuiConpty = async (mode, { binaryPath = null } = {}) =>
           const rows = await readPids();
           if (!sentRun && rows.some(row => row.supervisor)) { terminal.write('r'); sentRun = true; }
           if (rows.some(row => row.descendant)) {
-            if (mode === 'quit') terminal.write('q');
+            if (['quit', 'shutdown-error', 'shutdown-timeout', 'shutdown-partial-frame'].includes(mode)) terminal.write('q');
             if (mode === 'interrupt') {
               let overlayOutput = '';
               const subscription = terminal.onData(data => { overlayOutput = (overlayOutput + data).slice(-32768); });
@@ -76,6 +76,18 @@ export const verifyNativeTuiConpty = async (mode, { binaryPath = null } = {}) =>
       assert.notEqual(receipt.exitCode, 0, 'unexpected supervisor failure must propagate to the native exit status');
       assert.match(receipt.stderr, /supervisor exited before TUI shutdown/);
     }
+    if (mode === 'shutdown-error') {
+      assert.notEqual(receipt.exitCode, 0, 'a real nonzero owned supervisor exit during quit must reach the native status');
+      assert.match(receipt.stderr, /supervisor exited unsuccessfully during shutdown/);
+    }
+    if (mode === 'shutdown-timeout') {
+      assert.notEqual(receipt.exitCode, 0, 'forced containment cannot become successful graceful shutdown');
+      assert.match(receipt.stderr, /graceful shutdown deadline; containment was required/);
+    }
+    if (mode === 'shutdown-partial-frame') {
+      assert.notEqual(receipt.exitCode, 0, 'a lost final frame cannot become clean output EOF during quit');
+      assert.match(receipt.stderr, /Supervisor output transport failed during shutdown \(UnexpectedEof\)/);
+    }
     if (mode === 'terminal-error') {
       assert.notEqual(receipt.exitCode, 0, 'broken output must exercise native error return');
       assert.match(receipt.stderr, /os error (109|232)/, 'the deliberately closed pipe owns the expected diagnostic');
@@ -97,9 +109,9 @@ export const verifyNativeTuiConpty = async (mode, { binaryPath = null } = {}) =>
     assert.deepEqual(pids.filter(isProcessAlive), [], 'every owned process must be reaped');
     const snapshot = JSON.parse(await fs.readFile(path.join(dir, 'state.json'), 'utf8'));
     const statuses = Object.values(snapshot.final_job_statuses);
-    assert.ok(statuses.length && statuses.every(status => ['cancelled', 'failed', 'done'].includes(status)));
-    if (!['supervisor-error', 'event-transport-error'].includes(mode)) assert.deepEqual(statuses, ['cancelled']);
-    else assert.deepEqual(statuses, ['failed']);
+    assert.ok(statuses.length && statuses.every(status => ['cancelled', 'failed', 'done', 'interrupted'].includes(status)));
+    if (!['supervisor-error', 'event-transport-error', 'shutdown-timeout'].includes(mode)) assert.deepEqual(statuses, ['cancelled']);
+    else assert.deepEqual(statuses, ['interrupted'], 'loss of producer terminal evidence must be explicit');
     const summary = { ...receipt, binary, binarySha256, ownedPids: pids, finalStatuses: statuses,
       allReaped: true, capture: capture.outputDir };
     console.log(`Native ConPTY lifetime passed: ${JSON.stringify(summary)}`);

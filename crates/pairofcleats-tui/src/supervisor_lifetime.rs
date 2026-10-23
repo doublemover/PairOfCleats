@@ -18,6 +18,16 @@ pub fn combine_session_outcomes(execution: anyhow::Result<()>, shutdown: anyhow:
     }
 }
 
+fn shutdown_outcome(status: std::process::ExitStatus, forced: bool) -> anyhow::Result<()> {
+    if forced { anyhow::bail!("Owned supervisor exceeded its graceful shutdown deadline; containment was required ({status})"); }
+    if !status.success() { anyhow::bail!("Owned supervisor exited unsuccessfully during shutdown: {status}"); }
+    Ok(())
+}
+
+fn join_shutdown_outcomes(primary: anyhow::Result<()>, cleanup: impl IntoIterator<Item = std::io::Result<()>>) -> anyhow::Result<()> {
+    cleanup.into_iter().fold(primary, |outcome, next| combine_session_outcomes(outcome, next.map_err(Into::into)))
+}
+
 #[cfg(target_os = "linux")]
 fn process_identity(pid: u32) -> std::io::Result<(u32, u64)> {
     use std::io::Read;
@@ -170,29 +180,29 @@ impl SupervisorLifetime {
                     break;
                 }
             }
-            if self.child.try_wait()?.is_some() {
+            if let Some(status) = self.child.try_wait()? {
                 while let Ok(event) = self.poll() {
                     observe(event);
                 }
                 let containment = self.contain_remaining();
                 let reaped = self.child.wait().map(|_| ());
                 let drained = self.drain_closed_output(&mut observe);
-                self.closed = true;
-                return containment.and(reaped).and(drained).map_err(Into::into);
+                self.closed = containment.is_ok() && reaped.is_ok() && drained.is_ok();
+                return join_shutdown_outcomes(shutdown_outcome(status, false), [containment, reaped, drained]);
             }
             std::thread::sleep(Duration::from_millis(20));
         }
         let containment = self.contain_remaining();
         let _ = self.child.kill();
-        let reaped = self.child.wait().map(|_| ());
+        let reaped = self.child.wait();
         let final_containment = self.contain_remaining();
         let drained = self.drain_closed_output(&mut observe);
-        self.closed = true;
-        containment
-            .and(reaped)
-            .and(final_containment)
-            .and(drained)
-            .map_err(Into::into)
+        self.closed = containment.is_ok() && reaped.is_ok() && final_containment.is_ok() && drained.is_ok();
+        let primary = match &reaped {
+            Ok(status) => shutdown_outcome(*status, true),
+            Err(_) => Err(anyhow::anyhow!("Owned supervisor exceeded its graceful shutdown deadline; containment was required")),
+        };
+        join_shutdown_outcomes(primary, [containment, reaped.map(|_| ()), final_containment, drained])
     }
 
     fn drain_closed_output(&mut self, observe: &mut impl FnMut(InboundEvent)) -> std::io::Result<()> {
@@ -205,7 +215,10 @@ impl SupervisorLifetime {
             }
             match self.poll() {
                 Ok(event) => observe(event),
-                Err(TryRecvError::Disconnected) => return Ok(()),
+                Err(TryRecvError::Disconnected) => return match self.events.transport_failure() {
+                    Some(kind) => Err(std::io::Error::new(kind, format!("Supervisor output transport failed during shutdown ({kind:?})"))),
+                    None => Ok(()),
+                },
                 Err(TryRecvError::Empty) => {
                     if Instant::now() >= until {
                         return Err(std::io::Error::other(
@@ -305,6 +318,29 @@ mod outcome_tests {
         assert_eq!(error.root_cause().to_string(), "original terminal transport failure");
         assert!(combine_session_outcomes(Ok(()), Err(anyhow::anyhow!("cleanup failure"))).is_err());
         assert!(combine_session_outcomes(Ok(()), Ok(())).is_ok());
+    }
+
+    #[test]
+    fn every_independent_shutdown_failure_remains_visible() {
+        let error = join_shutdown_outcomes(Err(anyhow::anyhow!("original supervisor exit failure")), [
+            Err(std::io::Error::other("exact job termination unknown")),
+            Err(std::io::Error::other("child wait failed")),
+            Err(std::io::Error::other("last output frame not drained")),
+        ]).unwrap_err();
+        let text = format!("{error:#}");
+        for expected in ["original supervisor exit failure", "exact job termination unknown", "child wait failed", "last output frame not drained"] {
+            assert!(text.contains(expected));
+        }
+        assert_eq!(error.root_cause().to_string(), "original supervisor exit failure");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn nonzero_exit_and_forced_containment_cannot_be_clean_shutdown() {
+        use std::os::windows::process::ExitStatusExt;
+        assert!(shutdown_outcome(std::process::ExitStatus::from_raw(0), false).is_ok());
+        assert!(shutdown_outcome(std::process::ExitStatus::from_raw(19), false).unwrap_err().to_string().contains("unsuccessfully"));
+        assert!(shutdown_outcome(std::process::ExitStatus::from_raw(0), true).unwrap_err().to_string().contains("containment was required"));
     }
 }
 

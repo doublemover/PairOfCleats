@@ -49,6 +49,23 @@ expired flush wait reports incomplete output and makes an otherwise successful
 exit nonzero. Existing nonzero signal status is preserved. The supervisor borrows
 stdout and does not destroy an unrelated stream or perform process discovery.
 
+The native lifetime owner separately reports the actual supervisor exit status.
+A nonzero exit during quit and expiration of the graceful deadline remain host
+failures even if subsequent exact job containment succeeds. Every independent
+containment, wait and output-drain failure remains in the reported error chain.
+The lifetime owner marks closure only after those resource operations succeed.
+Reader I/O/framing failure is retained in the private bounded ingress owner,
+separately from JSON protocol fields. EOF after a partial final frame therefore
+cannot become a successful shutdown drain.
+
+If no producer terminal event arrived, the native snapshot records the job as
+`interrupted` and reconciles its unfinished tasks without claiming a failed,
+cancelled or successful producer outcome. Observed terminal outcomes remain
+unchanged. Exact process-family reaping and terminal restoration are separate
+qualification witnesses. The Windows ConPTY shutdown-error, shutdown-timeout and
+shutdown-partial-frame fixtures exercise real owned process exits and byte
+transport failures with the existing deadlines; they are authored, unvalidated.
+
 Authored fixtures cover callback/synchronous/error/close failures, ordinary
 backpressure, durable final events, incomplete flushes, concurrent shutdown,
 rejected closers, post-terminal artifact work and backend admission. Tests and

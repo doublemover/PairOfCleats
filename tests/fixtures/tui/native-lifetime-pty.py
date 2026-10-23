@@ -122,11 +122,11 @@ with tempfile.TemporaryDirectory(prefix='poc-native-lifetime-') as directory:
             requests = [row.get('request') for row in read_rows()]
             assert requests.count('eof') == 1, 'Ctrl+C must use the existing single graceful supervisor EOF'
             assert 'job:cancel' not in requests, 'Ctrl+C cannot submit selected-job cancellation'
-        assert statuses and all(status in ('cancelled', 'failed', 'done') for status in statuses), state
+        assert statuses and all(status in ('cancelled', 'failed', 'done', 'interrupted') for status in statuses), state
         if mode not in ('supervisor-error', 'event-transport-error'):
             assert statuses == ['cancelled'], state
         else:
-            assert statuses == ['failed'], state
+            assert statuses == ['interrupted'], state
         print(json.dumps(dict(mode=mode, exitCode=code, ownedPids=sorted(pids),
                               allReaped=True, terminalRestored=True, finalStatuses=statuses)))
     finally:

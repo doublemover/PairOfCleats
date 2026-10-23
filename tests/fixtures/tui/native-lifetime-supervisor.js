@@ -50,6 +50,9 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
   supervisor.stdin.write(JSON.stringify(request) + '\n');
 }).on('close', () => {
   if (mode === 'interrupt' || mode === 'event-transport-error') record({ request: 'eof' });
-  supervisor.stdin.end();
+  if (mode !== 'shutdown-timeout') supervisor.stdin.end();
 });
-supervisor.on('close', code => process.exit(code ?? 1));
+supervisor.on('close', code => {
+  if (mode === 'shutdown-partial-frame') process.stdout.write('{"event":', () => process.exit(code ?? 1));
+  else process.exit(mode === 'shutdown-error' ? 19 : code ?? 1);
+});
