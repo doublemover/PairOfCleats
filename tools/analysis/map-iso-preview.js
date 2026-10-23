@@ -4,7 +4,6 @@ import http from 'node:http';
 import https from 'node:https';
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID, randomBytes } from 'node:crypto';
-import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { bootstrapRuntime, getRepoCacheRoot, getRepoId, resolveToolRoot } from '../shared/dict-utils.js';
 import { renderIsometricHtml } from '../../src/map/isometric-viewer.js';
 import { decodePathnameSafe } from './map-iso-safe-join.js';
@@ -17,6 +16,7 @@ import { SNAPSHOT_PAGE_LIMITS } from '../../src/map/isometric/client/data/protoc
 import { createMapPreviewLifetime } from './map-preview-lifetime.js';
 import { combineMapReadCleanupFailure, projectMapReadFailure } from '../../src/map/shared/read-outcome.js';
 import { createMapPreviewSessionView, freezeMapPreviewMetadata } from './map-preview-session-view.js';
+import { captureMapPreviewGraphSelection, prepareMapPreviewExport } from './map-preview-export.js';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 export const openMapPreviewBrowser = (url, { platform = process.platform, spawnImpl = spawn, warn = console.error } = {}) => {
@@ -30,6 +30,7 @@ export const openMapPreviewBrowser = (url, { platform = process.platform, spawnI
 };
 
 export const runMapPreview = async (argv, { stdout = process.stdout, stderr = process.stderr, signal = null } = {}) => {
+  captureMapPreviewGraphSelection(argv);
   if (argv.input && argv.out) throw new Error('--input opens saved evidence; --out creates a new export. Use separate commands.');
   if (Boolean(argv['tls-key']) !== Boolean(argv['tls-cert'])) throw new Error('Supply both --tls-key and --tls-cert, or use default loopback HTTP.');
   const port = argv.port ?? 0;
@@ -65,28 +66,11 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
       if(argv.repo){const selected=bootstrapRuntime(argv.repo);preferenceStore=createMapPreferenceStore(getRepoId(selected.repoRoot));}
     } else {
       const { repoRoot, userConfig, runtimeEnv } = bootstrapRuntime(argv.repo || argv.dir || null);
-      preferenceStore=createMapPreferenceStore(getRepoId(repoRoot));
+      const repoId=getRepoId(repoRoot);preferenceStore=createMapPreferenceStore(repoId);
       const outPath = argv.out ? path.resolve(argv.out) : path.join(getRepoCacheRoot(repoRoot, userConfig), 'maps', `preview-${randomUUID()}.html`);
       if (!argv.out) temporaryOutput = outPath;
       stderr.write(`Preparing map for ${repoRoot}. Only the selected existing index is read; no index build is performed.\n`);
-      const args = [path.join(toolRoot, 'tools/reports/report-code-map.js'), '--repo', repoRoot,
-        '--format', 'html-iso', '--out', outPath, '--three-url', '/three/three.module.js', '--json'];
-      for (const key of ['mode','index-root','scope','focus','include','collapse','max-files','max-members-per-file','max-edges','top-k-by-degree','only-exported','refresh','cache-dir','open-uri-template']) {
-        const value = argv[key];
-        if (value == null || value === false) continue;
-        if (value === true) args.push(`--${key}`);
-        else if (Array.isArray(value)) for (const item of value) args.push(`--${key}`, String(item));
-        else args.push(`--${key}`, String(value));
-      }
-      const result = await spawnSubprocess(process.execPath, args, { cwd: toolRoot, env: runtimeEnv,
-        signal: controller.signal, outputMode: 'string', maxOutputBytes: 1024 * 1024, rejectOnNonZeroExit: false });
-      let receipt;
-      try { receipt = JSON.parse(result.stdout); } catch { throw new Error(`Map export produced no readable success receipt. ${result.stderr || ''}`); }
-      const output = receipt.outputs?.find(entry => entry.kind === 'report');
-      if (result.exitCode !== 0 || receipt.ok !== true || !output?.ok || output.path !== outPath) throw new Error(`Map export did not publish requested HTML: ${JSON.stringify(receipt.outputs || receipt)}. Validate the selected existing index before retrying.`);
-      input = await readSavedMap(outPath, { signal: controller.signal });
-      if (input.sha256 !== output.sha256 || input.bytes !== output.bytes) throw new Error('Map output changed after publication; preview admission refused. Retry with a separate --out destination.');
-      identity = { kind: 'live-index-export', ...receipt.identity, cacheKey: receipt.cacheKey };
+      ({input,identity}=await prepareMapPreviewExport({argv,toolRoot,repoRoot,repoId,runtimeEnv,outPath,signal:controller.signal}));
     }
     controller.signal.throwIfAborted();
     const threeUrl = argv['three-url'] || '/three/three.module.js';
