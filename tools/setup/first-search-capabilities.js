@@ -47,11 +47,43 @@ export const describeFirstSearchCapabilities = ({ repoRoot, userConfig, profile,
 export const describeAppliedFirstSearchCapabilities = (plan, outcome) => plan.capabilities.readiness.map(item => {
   if (item.state === 'not-requested') return item;
   const complete = id => outcome.completed.includes(id);
-  if (item.id.startsWith('tool:')) return { ...item, state: complete('tooling') ? 'install-command-completed' : 'pending',
-    nextAction: 'Inspect the selected tool install receipt, then qualify its protocol and project consumer.' };
+  if (item.id.startsWith('tool:')) {
+    const verified = outcome.toolingReadiness?.items.find(entry => `tool:${entry.id}` === item.id);
+    return { ...item, state: complete('tooling') && verified ? 'executable-runtime-verified' : 'pending',
+      executable: verified ? 'verified' : 'not-probed', verificationLevel: verified?.verificationLevel || null,
+      nextAction: 'Qualify the selected tool protocol and project consumer; executable/runtime verification does not establish them.' };
+  }
   if (item.id === 'semantic-search') return { ...item,
     state: (complete('models') || plan.modelReadiness.present === true) && complete('validate') ? 'assets-and-index-command-completed' : 'pending',
     nextAction: 'Run the target-qualified search command to verify selected-model inference and first results.' };
   return { ...item, state: complete('validate') ? 'index-validation-command-completed' : 'pending',
     nextAction: 'Run the target-qualified search command to verify first results.' };
 });
+
+/** Only the actual selected installer stdout can advance requested readiness. */
+export const admitFirstSearchToolReceipt = (stdout, { repoRoot, tools }) => {
+  let payload;
+  try {
+    if (typeof stdout !== 'string' || Buffer.byteLength(stdout) > 1024 * 1024) throw new Error('Receipt output is missing or oversized.');
+    payload = JSON.parse(stdout);
+  }
+  catch { throw Object.assign(new Error('Selected tooling did not return its required JSON readiness receipt.'), { code: 'ERR_SETUP_TOOL_RECEIPT' }); }
+  const items = payload?.readiness?.items;
+  const results = payload?.results;
+  const selected = new Set(tools);
+  const accepted = new Set(['available-and-verified', 'installed-and-verified']);
+  if (typeof payload?.root !== 'string' || fs.realpathSync(payload.root) !== fs.realpathSync(repoRoot)
+    || payload.readiness?.schemaVersion !== 1 || payload.readiness?.ready !== true
+    || !Array.isArray(items) || !Array.isArray(results) || items.length !== tools.length || results.length !== tools.length
+    || items.some(item => !item || !selected.has(item.id) || !accepted.has(item.state) || typeof item.verificationLevel !== 'string' || !item.verificationLevel)
+    || new Set(items.map(item => item.id)).size !== tools.length
+    || results.some(result => !result || !selected.has(result.id) || !['installed', 'already-installed'].includes(result.status)
+      || result.probe?.ok !== true || typeof result.receiptId !== 'string' || !result.receiptId
+      || typeof result.receiptPath !== 'string' || !result.receiptPath)
+    || new Set(results.map(result => result.id)).size !== tools.length) {
+    throw Object.assign(new Error('Selected tooling readiness is incomplete or belongs to another target/capability selection.'), { code: 'ERR_SETUP_TOOL_RECEIPT' });
+  }
+  return { schemaVersion: 1, state: 'ready', ready: true, items: items.map(item => ({ id: item.id, state: item.state,
+    verificationLevel: item.verificationLevel })), receipts: results.map(result => ({ id: result.id,
+    receiptId: result.receiptId, receiptPath: result.receiptPath })) };
+};
