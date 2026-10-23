@@ -8,7 +8,7 @@ export const captureRerankerAdapter = adapter => {
     || formattingIdentity !== null && typeof formattingIdentity !== 'string') throw new TypeError('Reranker identity requires immutable string evidence.');
   const range = adapter.scoreRange, minimum = range?.min ?? -1000000, maximum = range?.max ?? 1000000;
   if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || minimum > maximum) throw new TypeError('Invalid reranker score range.');
-  return Object.freeze({ id, identityKey, formattingIdentity, minimum, maximum,
+  return Object.freeze({ id, identityKey, formattingIdentity, minimum, maximum, originalCallback: rerank,
     rerank: request => Reflect.apply(rerank, adapter, [request]) });
 };
 

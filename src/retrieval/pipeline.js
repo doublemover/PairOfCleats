@@ -797,7 +797,7 @@ export function createSearchPipeline(context) {
 
       return await rerankEvidence({ adapter: reranker, query, hits: ranked, signal,
         finalOutputCap: searchTopN, maxMs: modelRerankPolicy.maxMs,
-        fallback: modelRerankPolicy.enabled, policyKey: modelRerankPolicy.key,
+        fallback: modelRerankPolicy.enabled, policyKey: modelRerankPolicy.key, poolPolicy: modelRerankPolicy,
         sourceContext: { mode, generation: rerankSourceContext?.generation || idx.generationTag?.buildGenerationKey
           || idx.generationTag?.buildId || idx.state?.buildId || idx.state?.embeddings?.embeddingGeneration || null,
         repoScope: rerankSourceContext?.repoScope || context.repoRoot || null,

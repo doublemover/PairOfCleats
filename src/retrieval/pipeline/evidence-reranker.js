@@ -5,6 +5,7 @@ import { buildRetrievalHitKey } from '../hit-comparison.js';
 import { pendingRerankerWorkFailure, trackRerankerWork } from '../rerankers/failure-ownership.js';
 import { classifyRerankerError } from './reranker-error-classification.js';
 import { captureRerankerAdapter, captureRerankerScores } from './reranker-evidence-admission.js';
+import { assertRerankPoolAdapter } from './rerank-policy.js';
 
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const freeze = (value, depth = 0) => {
@@ -19,7 +20,7 @@ const cancelled = () => Object.assign(createAbortError('Reranker cancelled'), { 
  * work, retaining actual adapter ownership until its own settlement confirms.
  * Legacy direct calls reject errors unless fallback is explicitly requested. */
 const runEvidence = async ({ adapter, query, hits, signal, maxMs = 2000,
-  finalOutputCap = hits.length, policyKey = null, sourceContext = null,
+  finalOutputCap = hits.length, policyKey = null, poolPolicy = null, sourceContext = null,
   fallback = false }, captureDiagnostic) => {
   throwIfAborted(signal, 'Reranker cancelled');
   if (!adapter) return hits;
@@ -27,6 +28,7 @@ const runEvidence = async ({ adapter, query, hits, signal, maxMs = 2000,
   if (!Array.isArray(hits) || hits.length > 64) throw new RangeError('Reranker evidence window exceeds64');
   if (!Number.isSafeInteger(finalOutputCap) || finalOutputCap < 0 || finalOutputCap > 64
     || !Number.isSafeInteger(maxMs) || maxMs < 1 || maxMs > 10000) throw new RangeError('Invalid reranker output/deadline cap.');
+  if (poolPolicy !== null) assertRerankPoolAdapter(poolPolicy, adapter, originalAdapter, policyKey, { finalOutputCap, maxMs, poolSize: hits.length });
   const controller = new AbortController();
   let timer, rejectCancelled, work = null, tracked = null, timedOut = false, members = null;
   const cancel = () => { controller.abort(signal?.reason); rejectCancelled?.(cancelled()); };
