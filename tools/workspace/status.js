@@ -3,6 +3,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { WORKSPACE_INDEX_MODES, generateWorkspaceManifest } from '../../src/workspace/manifest.js';
+import { describeWorkspaceReadiness } from './diagnostics.js';
 
 const formatModeSummary = (entry, mode) => {
   const modeEntry = entry.indexes[mode];
@@ -26,12 +27,7 @@ export async function runWorkspaceStatusCli() {
 
   const workspaceConfig = loadWorkspaceConfig(argv.workspace);
   const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: false });
-  const nextActions = manifest.repos.flatMap(repo => WORKSPACE_INDEX_MODES.map(mode => ({
-    repoId: repo.repoId, alias: repo.alias || null, mode,
-    state: repo.enabled === false ? 'disabled' : repo.indexes[mode]?.availabilityReason || 'missing-index-dir',
-    command: repo.enabled === false ? null : ['node', 'bin/pairofcleats.js', 'index', 'build', '--repo', repo.repoRootCanonical, '--mode', mode],
-    consequence: repo.enabled === false ? 'Excluded by workspace membership.' : 'Unavailable/incompatible members may make search partial; inspect per-repo diagnostics.'
-  })));
+  const readiness = describeWorkspaceReadiness(workspaceConfig, manifest);
 
   if (argv.json) {
     console.log(JSON.stringify({
@@ -41,7 +37,7 @@ export async function runWorkspaceStatusCli() {
       repoSetId: manifest.repoSetId,
       manifestHash: manifest.manifestHash,
       repos: manifest.repos,
-      nextActions
+      ...readiness
     }, null, 2));
     return;
   }
@@ -58,9 +54,12 @@ export async function runWorkspaceStatusCli() {
     console.error(`  root=${repo.repoRootCanonical}`);
     console.error(`  ${modeSummary}`);
   }
-  for (const action of nextActions.filter(entry => entry.command && !['ready', 'available'].includes(entry.state))) {
+  for (const [mode, summary] of Object.entries(readiness.modes)) console.error(`- ${mode}: ${summary.state}; ${summary.ready}/${summary.selected} members available; ${summary.disabled} disabled`);
+  for (const action of readiness.nextActions.filter(entry => entry.command)) {
     console.error(`  next (${action.alias || action.repoId}/${action.mode}): ${action.command.map(value => JSON.stringify(value)).join(' ')}`);
   }
+  console.error(readiness.qualification);
+  console.error(`  search: ${readiness.nextCommands.search.map(value => JSON.stringify(value)).join(' ')}`);
 }
 
 if (isDirectExecution(import.meta.url)) {

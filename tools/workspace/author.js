@@ -8,8 +8,17 @@ import { parseJsoncText } from '../../src/shared/jsonc.js';
 import { loadWorkspaceConfig, resolveWorkspaceConfig } from '../../src/workspace/config.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { atomicWriteText } from '../../src/shared/io/atomic-write.js';
+import { acquireFileLock, releaseFileLockOrThrow } from '../../src/shared/locks/file-lock.js';
+import { stableStringify } from '../../src/shared/stable-json.js';
+import { createWorkspaceNextCommands } from './diagnostics.js';
 
 const hash = text => createHash('sha256').update(text).digest('hex');
+const identifyMembers = workspace => workspace.repos.map(repo => {
+  const stat = fs.statSync(repo.repoRootCanonical, { bigint: true });
+  if (!stat.isDirectory()) throw new Error('Workspace members must remain directories.');
+  return { repoId: repo.repoId, root: fs.realpathSync(repo.repoRootCanonical),
+    device: String(stat.dev), inode: String(stat.ino), createdNs: String(stat.birthtimeNs) };
+});
 export const WORKSPACE_AUTHOR_OPTIONS = {
   workspace: { type: 'string', demandOption: true }, operation: { type: 'string', choices: ['init', 'add', 'validate'], default: 'init' },
   repo: { type: 'array' }, alias: { type: 'array' }, apply: { type: 'boolean', default: false }, json: { type: 'boolean', default: false }
@@ -26,6 +35,7 @@ export const planWorkspaceAuthoring = ({ workspacePath, operation = 'init', root
   workspacePath = path.resolve(workspacePath);
   if (!['init', 'add'].includes(operation)) throw new Error('Workspace authoring supports init/add.');
   if (!roots.length) throw new Error('Select at least one explicit repository root.');
+  if (aliases.length > roots.length) throw new Error('Each alias must correspond to an explicitly selected root.');
   const before = readWorkspaceText(workspacePath);
   if (operation === 'init' && before !== null) throw new Error('Workspace already exists; use add to preserve existing membership/settings.');
   if (operation === 'add' && before === null) throw new Error('Workspace does not exist; use init.');
@@ -42,38 +52,49 @@ export const planWorkspaceAuthoring = ({ workspacePath, operation = 'init', root
     : applyEdits(before, modify(before, ['repos'], repos, { formattingOptions: { insertSpaces: true, tabSize: 2 } }));
   const body = { schemaVersion: 1, kind: 'workspace-authoring-plan', operation, workspacePath,
     inputHash: before === null ? null : hash(before), outputHash: hash(after), content: after,
-    repoSetId: resolved.repoSetId, repos: resolved.repos, writes: [workspacePath],
+    repoSetId: resolved.repoSetId, workspaceConfigHash: resolved.workspaceConfigHash,
+    memberIdentities: identifyMembers(resolved), repos: resolved.repos, writes: [workspacePath],
     formatting: before === null ? 'new JSON document' : 'membership array rewritten; comments outside repos preserved',
-    nextCommands: [['workspace', 'status', '--workspace', workspacePath], ['workspace', 'manifest', '--workspace', workspacePath],
-      ['search', '--workspace', workspacePath, '--mode', 'code', '--', '<query from your projects>']] };
+    nextCommands: createWorkspaceNextCommands(resolved) };
   return { ...body, planId: hash(JSON.stringify(body)) };
 };
 
-export const applyWorkspaceAuthoring = async plan => {
+export const applyWorkspaceAuthoring = async (plan, { signal = null } = {}) => {
+  signal?.throwIfAborted();
   const { planId, ...body } = plan;
   if (plan.schemaVersion !== 1 || hash(JSON.stringify(body)) !== planId) throw new Error('Workspace authoring plan identity is invalid.');
   const before = readWorkspaceText(plan.workspacePath);
   if ((before === null ? null : hash(before)) !== plan.inputHash) throw new Error('Workspace changed; review a new plan.');
   if (hash(plan.content) !== plan.outputHash) throw new Error('Workspace plan content changed.');
-  resolveWorkspaceConfig(parseJsoncText(plan.content, plan.workspacePath), { workspacePath: plan.workspacePath });
-  const lockPath = plan.workspacePath + '.authoring-lock';
-  const lock = fs.openSync(lockPath, 'wx', 0o600);
+  const assertReviewedMembership = () => {
+    signal?.throwIfAborted();
+    const resolved = resolveWorkspaceConfig(parseJsoncText(plan.content, plan.workspacePath), { workspacePath: plan.workspacePath });
+    if (resolved.repoSetId !== plan.repoSetId || resolved.workspaceConfigHash !== plan.workspaceConfigHash
+      || stableStringify(identifyMembers(resolved)) !== stableStringify(plan.memberIdentities)) {
+      throw new Error('Workspace member identities changed; review a new plan.');
+    }
+    return resolved;
+  };
+  assertReviewedMembership();
+  const lock = await acquireFileLock({ lockPath: plan.workspacePath + '.authoring-lock', waitMs: 0, signal,
+    metadata: { scope: 'workspace-authoring', planId } });
+  if (!lock) throw new Error('Another workspace authoring owner is active; review a new plan after it settles.');
   try {
-    fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, planId }));
     await atomicWriteText(plan.workspacePath, plan.content, { mkdir: false, mode: 0o600, createOnly: before === null,
       beforeCommit: () => {
+        assertReviewedMembership();
         const latest = readWorkspaceText(plan.workspacePath);
         if ((latest === null ? null : hash(latest)) !== plan.inputHash) throw new Error('Workspace changed during staging; review a new plan.');
       } });
     return { ok: true, workspacePath: plan.workspacePath, workspace: loadWorkspaceConfig(plan.workspacePath), nextCommands: plan.nextCommands };
   } finally {
-    fs.closeSync(lock);
-    fs.rmSync(lockPath, { force: true });
+    await releaseFileLockOrThrow(lock);
   }
 };
 
-export const runWorkspaceAuthoringCli = async () => {
-  const argv = createCli({ scriptName: 'workspace-author', options: WORKSPACE_AUTHOR_OPTIONS }).strictOptions().parse();
+export const runWorkspaceAuthoringCli = async (rawArgs = process.argv.slice(2)) => {
+  const argv = createCli({ argv: ['node', 'workspace-author', ...rawArgs], scriptName: 'workspace-author', options: WORKSPACE_AUTHOR_OPTIONS }).strictOptions().parse();
+  if (argv.operation === 'validate' && (argv.apply || argv.repo?.length || argv.alias?.length)) throw new Error('Workspace validate is read-only and does not accept membership/apply choices.');
   const payload = argv.operation === 'validate' ? { ok: true, workspace: loadWorkspaceConfig(argv.workspace), indexReadiness: 'not-probed' }
     : await (async () => {
       const plan = planWorkspaceAuthoring({ workspacePath: argv.workspace, operation: argv.operation,

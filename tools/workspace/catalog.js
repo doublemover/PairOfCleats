@@ -3,8 +3,10 @@ import { createCli } from '../../src/shared/cli.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { WORKSPACE_INDEX_MODES, generateWorkspaceManifest } from '../../src/workspace/manifest.js';
 import { getRepoCacheRoot } from '../shared/dict-utils.js';
+import { describeWorkspaceReadiness } from './diagnostics.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 
-const main = async () => {
+export const runWorkspaceCatalogCli = async () => {
   const argv = createCli({
     scriptName: 'workspace-catalog',
     options: {
@@ -68,7 +70,8 @@ const main = async () => {
       generatedAt: manifest.generatedAt,
       diagnostics: manifest.diagnostics || { warnings: [], errors: [] }
     },
-    repos
+    repos,
+    ...describeWorkspaceReadiness(workspaceConfig, manifest)
   };
 
   if (argv.json) {
@@ -91,7 +94,7 @@ const main = async () => {
   }
 };
 
-main().catch((error) => {
+if (isDirectExecution(import.meta.url)) runWorkspaceCatalogCli().catch((error) => {
   console.error(error?.message || error);
   process.exit(1);
 });

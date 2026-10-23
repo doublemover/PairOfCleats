@@ -2,10 +2,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import { planWorkspaceAuthoring, applyWorkspaceAuthoring } from '../../tools/workspace/author.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 
-const suite = path.join(process.cwd(), '.tmp', 'tasks', 'workspace-authoring-preview');
+const suite = path.join(os.tmpdir(), 'workspace-authoring-preview');
 await fs.mkdir(suite, { recursive: true });
 const root = await fs.mkdtemp(path.join(suite, 'case-'));
 try {
@@ -19,6 +20,9 @@ try {
   assert.equal(plan.repos.length, 2);
   assert.equal((await applyWorkspaceAuthoring(plan)).ok, true);
   assert.equal(loadWorkspaceConfig(file).repos.length, 2);
+  assert.equal(plan.nextCommands.members.length, 2);
+  for (const entry of plan.nextCommands.members) assert.equal(entry.search[entry.search.indexOf('--repo-filter') + 1], entry.repoId);
+  assert.throws(() => planWorkspaceAuthoring({ workspacePath: path.join(root, 'extra-alias.jsonc'), roots: [first], aliases: ['one', 'unused'] }), /alias/);
   assert.throws(() => planWorkspaceAuthoring({ workspacePath: file, roots: [first] }), /already exists/);
   assert.throws(() => planWorkspaceAuthoring({ workspacePath: file, operation: 'add', roots: [first] }), /Duplicate|duplicate/);
   const third = path.join(root, 'third');
@@ -27,5 +31,24 @@ try {
   await fs.appendFile(file, '\n// concurrent edit\n');
   await assert.rejects(applyWorkspaceAuthoring(add), /changed/);
   assert.equal(loadWorkspaceConfig(file).repos.length, 2);
+  const custom = '{\n // retained workspace comment\n "schemaVersion": 1, "name": "Custom", "defaults": { "enabled": false, "tags": ["team"] }, "repos": [{"root":"./repo one","alias":"one"}]\n}\n';
+  await fs.writeFile(file, custom);
+  const preserving = planWorkspaceAuthoring({ workspacePath: file, operation: 'add', roots: [second], aliases: ['two'] });
+  assert.equal(preserving.repos.every(repo => repo.enabled === false), true);
+  await applyWorkspaceAuthoring(preserving);
+  assert.match(await fs.readFile(file, 'utf8'), /retained workspace comment/);
+  assert.equal(loadWorkspaceConfig(file).name, 'Custom');
+  assert.throws(() => planWorkspaceAuthoring({ workspacePath: file, operation: 'add', roots: [third], aliases: ['ONE'] }), /Duplicate|duplicate/);
+  const replacement = planWorkspaceAuthoring({ workspacePath: file, operation: 'add', roots: [third], aliases: ['three'] });
+  const oldText = await fs.readFile(file, 'utf8');
+  await fs.rename(third, path.join(root, 'previous third'));
+  await fs.mkdir(third);
+  await assert.rejects(applyWorkspaceAuthoring(replacement), /identities changed/);
+  assert.equal(await fs.readFile(file, 'utf8'), oldText);
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(applyWorkspaceAuthoring(planWorkspaceAuthoring({ workspacePath: file, operation: 'add', roots: [third] }), { signal: controller.signal }), { name: 'AbortError' });
+  assert.equal(await fs.readFile(file, 'utf8'), oldText);
+  await assert.rejects(fs.stat(file + '.authoring-lock'), { code: 'ENOENT' });
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('Workspace authoring previews canonical identities and rejects stale writes.');
