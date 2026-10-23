@@ -68,6 +68,13 @@ if (process.platform === 'win32') {
   await fs.mkdir(parent, { recursive: true });
   const stateRoot = await fs.mkdtemp(path.join(parent, 'case-'));
   try {
+    const unsigned = path.join(stateRoot, "unsigned $(exit 91) & '🚀.ps1");
+    await fs.writeFile(unsigned, '# Inspection fixture; never executed.');
+    const inspected = await inspectWindowsPrerequisiteInstaller(unsigned);
+    assert.equal(inspected.path, unsigned);
+    assert.equal(inspected.signature.status, 'NotSigned',
+      'the real PowerShell inspector treats spaces, quotes, Unicode and command syntax as literal path input');
+    assert.equal(inspected.verification, 'actual-local-bytes-and-native-authenticode');
     const fixtureCatalog = { ...WINDOWS_PREREQUISITE_CATALOG, allocation: { complete: true,
       writes: [{ root: stateRoot, requiredBytes: 64, source: 'inert-fixture-only-not-a-production-estimate' }] } };
     const options = { ...dependencies, catalog: fixtureCatalog };

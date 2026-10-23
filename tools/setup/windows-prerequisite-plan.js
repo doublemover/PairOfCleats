@@ -20,7 +20,7 @@ const failureReason = error => {
 };
 const base = path.dirname(fileURLToPath(import.meta.url));
 const ownSources = ['windows-prerequisite-plan.js', 'windows-prerequisite-catalog.js', 'windows-capability.js', 'preflight.js'];
-const signatureScript = '$ErrorActionPreference="Stop"; $p=$env:PAIROFCLEATS_PREREQUISITE_FILE; $s=Get-AuthenticodeSignature -LiteralPath $p; $v=(Get-Item -LiteralPath $p).VersionInfo; @{status=[string]$s.Status;subject=$s.SignerCertificate.Subject;thumbprint=$s.SignerCertificate.Thumbprint;issuer=$s.SignerCertificate.Issuer;productVersion=$v.ProductVersion;fileVersion=$v.FileVersion} | ConvertTo-Json -Compress';
+const signatureScript = '$ErrorActionPreference="Stop"; $s=Get-AuthenticodeSignature -LiteralPath $p; $v=(Get-Item -LiteralPath $p).VersionInfo; @{status=[string]$s.Status;subject=$s.SignerCertificate.Subject;thumbprint=$s.SignerCertificate.Thumbprint;issuer=$s.SignerCertificate.Issuer;productVersion=$v.ProductVersion;fileVersion=$v.FileVersion} | ConvertTo-Json -Compress';
 
 const boundedFile = async (file, maxBytes, signal) => {
   signal?.throwIfAborted();
@@ -33,12 +33,20 @@ export const inspectWindowsPrerequisiteInstaller = async (file, { env = process.
   const before = await boundedFile(file, 256 * 1024 * 1024, signal);
   if (!env.SystemRoot) throw new Error('Windows SystemRoot is required for the native signature inspector.');
   const powershell = path.win32.join(env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-  const result = await spawn(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', signatureScript], {
-    env: { ...env, PAIROFCLEATS_PREREQUISITE_FILE: file }, signal, timeoutMs: 15000,
+  // This is private child input, not an environment/configuration surface.
+  // Base64 keeps every path character out of PowerShell syntax and interpolation.
+  const pathLiteral = Buffer.from(file, 'utf8').toString('base64');
+  const script = `$p=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${pathLiteral}'));${signatureScript}`;
+  const childEnv = Object.fromEntries(Object.entries(env).filter(([key]) => key.toLowerCase() !== 'psmodulepath'));
+  // A Node child can inherit PowerShell 7's module path, whose assemblies do
+  // not load in Windows PowerShell. Use this selected binary's built-in modules.
+  childEnv.PSModulePath = path.win32.join(path.win32.dirname(powershell), 'Modules');
+  const result = await spawn(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], {
+    env: childEnv, signal, timeoutMs: 15000,
     outputEncoding: 'utf8', maxOutputBytes: 65536, rejectOnNonZeroExit: false
   });
   signal?.throwIfAborted();
-  if (result.exitCode !== 0 || result.outputCapture?.stdout?.truncated) throw new Error('Native prerequisite signature inspection failed.');
+  if (result.exitCode !== 0 || result.outputCapture?.stdout?.truncated) throw new Error('Native prerequisite signature inspection failed.', { cause: result });
   const signature = JSON.parse(String(result.stdout || '').replace(/^\uFEFF/, ''));
   const after = await boundedFile(file, 256 * 1024 * 1024, signal);
   if (before.sha256 !== after.sha256) throw new Error('Installer bytes changed during signature inspection.');

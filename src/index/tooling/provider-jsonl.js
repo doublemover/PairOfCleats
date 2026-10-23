@@ -1,5 +1,6 @@
 import { TextDecoder } from 'node:util';
 import { canonicalSemanticJson, semanticHash } from '../semantic/identity.js';
+import { getEnvConfig } from '../../shared/env/runtime.js';
 import { combineSemanticProviderOutputs } from './result-dispatch.js';
 import { assertSemanticEnvelope } from '../../contracts/validators/semantic-envelopes.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -138,7 +139,7 @@ export const runJsonlProvider = async ({ command, profile, request, repoRoot, se
   const decoder = createProviderJsonlDecoder({ request, signal, ...budgets });
   let stderrBytes = 0, stderr = '';
   const processResult = await runWithManagedCommandInstallation({
-    toolingRoot: toolingRoot || process.env.PAIROFCLEATS_TOOLING_DIR || null, command: command[0]
+    toolingRoot: toolingRoot || getEnvConfig().toolingDir || null, command: command[0]
   }, ({ onSpawn }) => spawnSubprocess(command[0], command.slice(1), { cwd: repoRoot, input, onSpawn,
     signal, timeoutMs, shell: false, killTree: true, captureStdout: false, captureStderr: false,
     outputEncoding: 'latin1', onStdout: text => decoder.push(Buffer.from(text, 'latin1')),
