@@ -182,7 +182,11 @@ For uint8 embeddings:
 - `levels` MUST be clamped to `[2, 256]`
 - emitted vectors MUST only contain values in `[0, 255]` (no wrap)
 - dequantization MUST use the same `(minVal, maxVal, levels)` used for quantization
-- clamping indicates the embedding cache may be stale; clear the embeddings cache before rebuilding
+- present rows MUST have the declared width and integer values in `[0, levels - 1]`; incompatible cached or worker bytes are rejected before publication
+- inline and deferred producers use scalar codec version 2 with finite `minVal < maxVal`, a derived scale, and a codec-specific zero bin; level counts retain the historical floor/clamp to `[2, 256]`
+- missing channels retain empty rows plus validity metadata; fixed-width binary padding uses the codec's zero bin and does not make absent rows searchable
+- codec version 2 changes producer identity, so previous inline rows that advertised a custom codec without using it are rebuilt rather than reinterpreted
+- a settled invalid worker batch is recomputed entirely inline with the same effective codec; cancellation, resource admission and unresolved cleanup failures propagate
 
 ## 5) ANN backend behavior
 

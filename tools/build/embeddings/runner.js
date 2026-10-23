@@ -24,7 +24,7 @@ import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../.
 import { createStageCheckpointRecorder } from '../../../src/index/build/stage-checkpoints.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/scheduler.js';
 import { loadIncrementalManifest, writeIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
-import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
+import { resolveEmbeddingQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
 import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
 import {
   loadChunkMetaRows,
@@ -1482,12 +1482,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
     return { skipped: true };
   }
 
-  const quantization = resolveQuantizationParams(embeddingsConfig.quantization);
-  const quantRange = quantization.maxVal - quantization.minVal;
-  const quantLevels = Number.isFinite(quantization.levels) ? quantization.levels : 256;
-  const denseScale = quantLevels > 1 && Number.isFinite(quantRange) && quantRange !== 0
-    ? quantRange / (quantLevels - 1)
-    : 2 / 255;
+  const quantization = resolveEmbeddingQuantizationSpec(embeddingsConfig.quantization);
+  const denseScale = quantization.scale;
   let cacheDims = modelProfile?.dimensions ?? (useStubEmbeddings ? resolveStubDims(configuredDims) : configuredDims);
   const embeddingInputFormatting = resolveEmbeddingInputFormatting(modelId);
   const resolvedOnnxModelPath = embeddingProvider === 'onnx'
@@ -1517,7 +1513,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
       maxLength: null,
       inputFormatting: embeddingInputFormatting,
       quantization: {
-        version: 1,
+        version: quantization.version,
         minVal: quantization.minVal,
         maxVal: quantization.maxVal,
         levels: quantization.levels
@@ -2374,9 +2370,9 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                   return { cacheKey, vectors: null, rejected: true };
                 }
                 const expectedDims = cacheDims;
-                validateCachedDims({ vectors: cached.codeVectors, expectedDims, mode });
-                validateCachedDims({ vectors: cached.docVectors, expectedDims, mode });
-                validateCachedDims({ vectors: cached.mergedVectors, expectedDims, mode });
+                validateCachedDims({ vectors: cached.codeVectors, expectedDims, mode, quantization });
+                validateCachedDims({ vectors: cached.docVectors, expectedDims, mode, quantization });
+                validateCachedDims({ vectors: cached.mergedVectors, expectedDims, mode, quantization });
                 const codeVec = ensureVectorArrays(cached.codeVectors, 1)[0] || [];
                 const docVec = ensureVectorArrays(cached.docVectors, 1)[0] || [];
                 const mergedVec = ensureVectorArrays(cached.mergedVectors, 1)[0] || [];
@@ -3199,9 +3195,9 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                 const cacheIdentityMatches = cached.cacheMeta?.identityKey === cacheIdentityKey;
                 if (cacheIdentityMatches) {
                   const expectedDims = configuredDims || cached.cacheMeta?.identity?.dims || null;
-                  validateCachedDims({ vectors: cached.codeVectors, expectedDims, mode });
-                  validateCachedDims({ vectors: cached.docVectors, expectedDims, mode });
-                  validateCachedDims({ vectors: cached.mergedVectors, expectedDims, mode });
+                  validateCachedDims({ vectors: cached.codeVectors, expectedDims, mode, quantization });
+                  validateCachedDims({ vectors: cached.docVectors, expectedDims, mode, quantization });
+                  validateCachedDims({ vectors: cached.mergedVectors, expectedDims, mode, quantization });
                 }
                 if (isCacheValid({
                   cached,
@@ -3353,9 +3349,9 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                   const cacheIdentityMatches = cached.cacheMeta?.identityKey === cacheIdentityKey;
                   if (cacheIdentityMatches) {
                     const expectedDims = configuredDims || cached.cacheMeta?.identity?.dims || null;
-                    validateCachedDims({ vectors: cached.codeVectors, expectedDims, mode });
-                    validateCachedDims({ vectors: cached.docVectors, expectedDims, mode });
-                    validateCachedDims({ vectors: cached.mergedVectors, expectedDims, mode });
+                    validateCachedDims({ vectors: cached.codeVectors, expectedDims, mode, quantization });
+                    validateCachedDims({ vectors: cached.docVectors, expectedDims, mode, quantization });
+                    validateCachedDims({ vectors: cached.mergedVectors, expectedDims, mode, quantization });
                   }
                   if (isCacheValid({
                     cached,
@@ -3662,7 +3658,10 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           scale: denseScale,
           minVal: quantization.minVal,
           maxVal: quantization.maxVal,
-          levels: quantization.levels
+          levels: quantization.levels,
+          quantizationVersion: quantization.version,
+          zeroPoint: quantization.zeroPoint,
+          absence: quantization.absence
         };
         await runWithConcurrency(
           [

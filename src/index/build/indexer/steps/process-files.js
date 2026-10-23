@@ -2131,6 +2131,7 @@ const processFilesInTransformScope = async ({
         embeddingBatchSize: runtimeRef.embeddingBatchSize,
         embeddingEnabled: runtimeRef.embeddingEnabled,
         embeddingNormalize: runtimeRef.embeddingNormalize,
+        embeddingQuantization: runtimeRef.embeddingQuantization,
         analysisPolicy: runtimeRef.analysisPolicy,
         typeInferenceEnabled: runtimeRef.typeInferenceEnabled,
         riskAnalysisEnabled: runtimeRef.riskAnalysisEnabled,

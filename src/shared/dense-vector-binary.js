@@ -5,6 +5,7 @@ import { createTempPath, replaceFile } from './json-stream/atomic.js';
 import { joinPathSafe } from './path-normalize.js';
 import { resolveBinaryArtifactPath } from './artifact-io/manifest.js';
 import { decodeDenseVectorValidity } from './dense-vector-validity.js';
+import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from './embedding-quantization-spec.js';
 import {
   normalizeDenseVectorMeta,
   resolveDenseVectorCountFromBuffer
@@ -73,8 +74,8 @@ export const resolveDenseVectorBinaryPayloadPath = ({ dir, baseName, meta, manif
   return declaredPath;
 };
 
-const fillDenseBinaryRow = (buffer, offset, rowWidth, vec) => {
-  buffer.fill(0, offset, offset + rowWidth);
+const fillDenseBinaryRow = (buffer, offset, rowWidth, vec, paddingValue) => {
+  buffer.fill(paddingValue, offset, offset + rowWidth);
   if (!vec || typeof vec.length !== 'number') return;
   if (ArrayBuffer.isView(vec) && vec.BYTES_PER_ELEMENT === 1) {
     const copyLength = Math.min(rowWidth, Math.max(0, Math.floor(Number(vec.length) || 0)));
@@ -104,10 +105,13 @@ const fillDenseBinaryRow = (buffer, offset, rowWidth, vec) => {
 export const writeDenseVectorBinaryFile = async ({
   binPath,
   vectors,
-  dims
+  dims,
+  quantization = {}
 }) => {
   const count = Array.isArray(vectors) ? vectors.length : 0;
   const rowWidth = toPositiveInteger(dims);
+  const spec = resolveEmbeddingQuantizationSpec(quantization);
+  for (const row of vectors || []) assertQuantizedEmbeddingRow(row, { spec, dims: rowWidth });
   const totalBytes = rowWidth > 0 ? rowWidth * count : 0;
   const tempBinPath = createTempPath(binPath);
   await fsPromises.mkdir(path.dirname(binPath), { recursive: true });
@@ -135,7 +139,7 @@ export const writeDenseVectorBinaryFile = async ({
         };
         for (let docId = 0; docId < count; docId += 1) {
           const rowOffset = chunkRows * rowWidth;
-          fillDenseBinaryRow(chunk, rowOffset, rowWidth, vectors[docId]);
+          fillDenseBinaryRow(chunk, rowOffset, rowWidth, vectors[docId], spec.paddingValue);
           chunkRows += 1;
           if (chunkRows >= rowsPerChunk) {
             await flushChunk();

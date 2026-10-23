@@ -1,5 +1,6 @@
 import { zstdCompress, zstdDecompress } from 'node:zlib';
 import { promisify } from 'node:util';
+import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../embedding-quantization-spec.js';
 
 const zstdCompressAsync = promisify(zstdCompress);
 const zstdDecompressAsync = promisify(zstdDecompress);
@@ -17,10 +18,17 @@ const isVectorLike = (value) => (
 const toUint8 = (vec) => {
   if (!isVectorLike(vec) || !vec.length) return new Uint8Array(0);
   if (vec instanceof Uint8Array) return vec;
-  if (ArrayBuffer.isView(vec)) {
-    return new Uint8Array(vec.buffer, vec.byteOffset, vec.byteLength);
-  }
   return Uint8Array.from(vec);
+};
+
+const validateVectorSections = (sections, cacheMeta) => {
+  const identity = cacheMeta?.identity;
+  const spec = resolveEmbeddingQuantizationSpec(identity?.quantization || cacheMeta?.quantization);
+  const dims = Number.isSafeInteger(identity?.dims) && identity.dims > 0 ? identity.dims : null;
+  for (const rows of sections) for (const row of rows) {
+    if (row == null) continue;
+    assertQuantizedEmbeddingRow(row, { spec, dims });
+  }
 };
 
 const normalizeVectors = (vectors, count) => {
@@ -134,6 +142,7 @@ export async function encodeEmbeddingsCache(payload, options = {}) {
   const codeVectors = Array.isArray(payload?.codeVectors) ? payload.codeVectors : [];
   const docVectors = Array.isArray(payload?.docVectors) ? payload.docVectors : [];
   const mergedVectors = Array.isArray(payload?.mergedVectors) ? payload.mergedVectors : [];
+  validateVectorSections([codeVectors, docVectors, mergedVectors], payload?.cacheMeta);
   const count = Math.max(codeVectors.length, docVectors.length, mergedVectors.length);
   const code = normalizeVectors(codeVectors, count);
   const doc = normalizeVectors(docVectors, count);
@@ -245,6 +254,7 @@ export async function decodeEmbeddingsCache(buffer) {
   const docSection = decodeVectorSection(raw, offset, count, docEncoding);
   offset += docSection.bytes;
   const mergedSection = decodeVectorSection(raw, offset, count, mergedEncoding);
+  validateVectorSections([codeSection.vectors, docSection.vectors, mergedSection.vectors], header?.cacheMeta);
 
   return {
     key: header?.key || null,

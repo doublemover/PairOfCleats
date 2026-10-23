@@ -9,6 +9,7 @@ import { createDeterministicFileStreamSampler, selectDeterministicFileSample } f
 import { buildCacheKey, readCacheIndex, readCacheMeta, readCacheEntries, resolveCacheDir,
   resolveLegacyCacheDir, resolveGlobalChunkCacheDir, withEmbeddingCacheReadLock } from '../cache.js';
 import { hydrateReferencedFileCache } from '../cache/file-references.js';
+import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../../../../src/shared/embedding-quantization-spec.js';
 
 const MAX_FILES = 2048;
 const MAX_CHUNKS = 131072;
@@ -22,6 +23,9 @@ const invalidated = () => Object.assign(new Error('Validated cache-only coverage
  * The payload remains borrowed; this check never mutates or detaches it. */
 export const hasCompleteCachedFileVectors = ({ cached, items, dims }) => {
   if (!Number.isSafeInteger(dims) || dims <= 0 || !Array.isArray(items)) return false;
+  let spec;
+  try { spec = resolveEmbeddingQuantizationSpec(cached?.cacheMeta?.identity?.quantization); }
+  catch { return false; }
   for (const channel of ['code', 'doc', 'merged']) {
     const rows = cached?.[`${channel}Vectors`];
     if (!Array.isArray(rows) || rows.length !== items.length) return false;
@@ -31,7 +35,8 @@ export const hasCompleteCachedFileVectors = ({ cached, items, dims }) => {
       const hasDoc = typeof items[index]?.chunk?.docmeta?.doc === 'string' && Boolean(items[index].chunk.docmeta.doc.trim());
       if (channel === 'doc' && !hasDoc && row.length === 0) continue;
       if (row.length !== dims) return false;
-      for (const value of row) if (!Number.isInteger(value) || value < 0 || value > 255) return false;
+      try { assertQuantizedEmbeddingRow(row, { spec, dims, allowEmpty: false }); }
+      catch { return false; }
     }
   }
   return true;

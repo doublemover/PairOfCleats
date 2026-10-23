@@ -1,5 +1,5 @@
 import { postprocessEmbeddingChannels } from '../../../src/shared/embedding-postprocess.js';
-import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
+import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
 export { assertVectorArrays, runBatched } from '../../../src/shared/embedding-batches.js';
 
 const isVectorLike = (value) => {
@@ -39,9 +39,11 @@ export const createDimsValidator = ({ mode, configuredDims }) => {
 export const isDimsMismatch = (err) =>
   err?.message?.includes('embedding dims mismatch');
 
-export const validateCachedDims = ({ vectors, expectedDims, mode }) => {
+export const validateCachedDims = ({ vectors, expectedDims, mode, quantization }) => {
+  const spec = resolveEmbeddingQuantizationSpec(quantization);
   if (!expectedDims || !Array.isArray(vectors)) return;
   for (const vec of vectors) {
+    assertQuantizedEmbeddingRow(vec, { spec, dims: expectedDims });
     if (!isVectorLike(vec) || !vec.length) continue;
     if (vec.length !== expectedDims) {
       throw new Error(
@@ -57,7 +59,7 @@ export const buildQuantizedVectors = ({
   quantization,
   normalize = true
 }) => {
-  const resolved = resolveQuantizationParams(quantization);
+  const resolved = resolveEmbeddingQuantizationSpec(quantization);
   return postprocessEmbeddingChannels({ codeVector, docVector, normalize, quantization: resolved });
 };
 

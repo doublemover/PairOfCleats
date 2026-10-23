@@ -3,6 +3,7 @@ import { executeTokenizeBatch } from './tokenize-batch.js';
 import { observeWorkerHeap } from '../../../shared/workers/heap-contract.js';
 import util from 'node:util';
 import { quantizeVec } from '../../embedding.js';
+import { resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
 import {
   createTokenizationBuffers,
   createTokenizationContext,
@@ -391,6 +392,7 @@ export const tokenizeBatch = withWorkerError(input => {
 }, 'tokenizeBatch');
 
 export const quantizeVectors = withWorkerError((input) => {
-  const { vectors = [], minVal = -1, maxVal = 1, levels = 256 } = input || {};
-  return vectors.map((vec) => quantizeVec(vec, minVal, maxVal, levels));
+  const { vectors = [] } = input || {};
+  const spec = resolveEmbeddingQuantizationSpec(input?.quantization || input);
+  return vectors.map((vec) => quantizeVec(vec, spec.minVal, spec.maxVal, spec.levels));
 }, 'quantizeVectors');

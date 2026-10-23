@@ -10,6 +10,7 @@ import {
   tuneBM25Params
 } from './constants.js';
 import { buildDenseVectors } from './dense-vectors.js';
+import { resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
 import { resolveMinhashOutputs } from './minhash.js';
 import { normalizeTfPostingList } from './id-lists.js';
 import { buildPhraseAndChargramPostings } from './phrase-chargram.js';
@@ -100,10 +101,13 @@ export async function buildPostings(input) {
     log,
     workerPool,
     quantizePool,
+    quantization: configuredQuantization,
+    abortSignal = null,
     embeddingsEnabled = true,
     sparsePostingsEnabled = true,
     buildStage = null
   } = input;
+  const quantization = resolveEmbeddingQuantizationSpec(configuredQuantization);
   void df;
   const sparseEnabled = sparsePostingsEnabled !== false;
 
@@ -234,6 +238,8 @@ export async function buildPostings(input) {
     log,
     workerPool,
     quantizePool,
+    quantization,
+    abortSignal,
     requestYield,
     buildStage
   });
@@ -318,6 +324,7 @@ export async function buildPostings(input) {
     quantizedVectors,
     quantizedDocVectors,
     quantizedCodeVectors,
-    postingsMergeStats
+    postingsMergeStats,
+    quantization
   };
 }

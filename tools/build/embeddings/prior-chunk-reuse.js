@@ -1,4 +1,5 @@
 import { isNonEmptyVector, isVectorLike } from '../../../src/shared/embedding-vector-utils.js';
+import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
 
 /** Aggregate file fingerprints are hints; exact chunk hashes decide reuse. */
 export const reusePriorChunkVectors = ({ prior, chunkHashes, docTexts, identityKey, expectedDims, reuse }) => {
@@ -12,8 +13,12 @@ export const reusePriorChunkVectors = ({ prior, chunkHashes, docTexts, identityK
     bucket.indices.push(index);
   }
   let matched = 0;
-  const valid = vector => isNonEmptyVector(vector) && (!expectedDims || vector.length === expectedDims)
-    && Array.from(vector).every(Number.isFinite);
+  const spec = resolveEmbeddingQuantizationSpec(prior.cacheMeta?.identity?.quantization);
+  const valid = vector => {
+    if (!isNonEmptyVector(vector)) return false;
+    try { assertQuantizedEmbeddingRow(vector, { spec, dims: expectedDims }); return true; }
+    catch { return false; }
+  };
   for (let index = 0; index < chunkHashes.length; index++) {
     const bucket = buckets.get(chunkHashes[index]);
     if (!bucket || bucket.cursor >= bucket.indices.length) continue;

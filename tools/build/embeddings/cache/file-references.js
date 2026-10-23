@@ -2,13 +2,15 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { assertNoSymlinkPath } from '../../../../src/shared/contained-file.js';
+import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../../../../src/shared/embedding-quantization-spec.js';
 const CHANNELS = ['code', 'doc', 'merged'];
-export const digestQuantizedChannels = vectors => {
+export const digestQuantizedChannels = (vectors, quantization = {}) => {
+  const spec = resolveEmbeddingQuantizationSpec(quantization);
   const hash = createHash('sha256');
   for (const channel of CHANNELS) {
     const vector = vectors[channel] || [];
     hash.update(`${channel}:${vector.length}:`);
-    for (const value of vector) if (!Number.isInteger(value) || value < 0 || value > 255) throw new Error('Invalid quantized cache vector.');
+    assertQuantizedEmbeddingRow(vector, { spec });
     hash.update(ArrayBuffer.isView(vector) && vector.BYTES_PER_ELEMENT === 1
       ? Buffer.from(vector.buffer, vector.byteOffset, vector.byteLength) : Buffer.from(vector));
   }
@@ -23,13 +25,16 @@ export const buildReferencedFileCache = ({ filePayload, chunkHashes, codeVectors
   for (let index = 0; index < chunkHashes.length; index++) {
     const chunkHash = chunkHashes[index]; if (typeof chunkHash !== 'string' || !chunkHash) return null;
     const vectors = { code: codeVectors[index] || [], doc: docVectors[index] || [], merged: mergedVectors[index] || [] };
-    const digest = digestQuantizedChannels(vectors), inputKey = buildInputKey(chunkHash);
+    for (const vector of Object.values(vectors)) assertQuantizedEmbeddingRow(vector, {
+      spec: resolveEmbeddingQuantizationSpec(identity?.quantization), dims: identity?.dims });
+    const digest = digestQuantizedChannels(vectors, identity?.quantization), inputKey = buildInputKey(chunkHash);
     if (!inputKey) return null;
     const cacheKey = `${inputKey}-${digest}`;
     records.push({ key: cacheKey, hash: chunkHash, digest,
       channels: Object.fromEntries(CHANNELS.map(channel => [channel, vectors[channel].length])) });
     if (!chunks.has(cacheKey)) chunks.set(cacheKey, { cacheKey, inputKey, digest, vectors, payload: {
-      key: cacheKey, hash: chunkHash, cacheMeta: { schemaVersion: 2, scope: 'global-chunk', inputKey, identityKey, identity: { dims: identity?.dims ?? null } },
+      key: cacheKey, hash: chunkHash, cacheMeta: { schemaVersion: 2, scope: 'global-chunk', inputKey, identityKey,
+        identity: { dims: identity?.dims ?? null, quantization: identity?.quantization } },
       codeVectors: [vectors.code], docVectors: [vectors.doc], mergedVectors: [vectors.merged] } });
   }
   return { chunks: [...chunks.values()], filePayload: filePayload ? { ...filePayload, chunkCount: records.length,
@@ -63,7 +68,11 @@ export const hydrateReferencedFileCache = async ({ entry, identityKey, readChunk
       const ref = unique.get(batch[index]), payload = results[index]?.entry;
       if (payload?.key !== ref.key || payload.hash !== ref.hash || payload.cacheMeta?.identityKey !== identityKey) return null;
       const vectors = { code: payload.codeVectors?.[0] || [], doc: payload.docVectors?.[0] || [], merged: payload.mergedVectors?.[0] || [] };
-      let digest; try { digest = digestQuantizedChannels(vectors); } catch { return null; }
+      let digest; try {
+        const spec = resolveEmbeddingQuantizationSpec(entry.cacheMeta?.identity?.quantization);
+        for (const vector of Object.values(vectors)) assertQuantizedEmbeddingRow(vector, { spec, dims: entry.cacheMeta?.identity?.dims });
+        digest = digestQuantizedChannels(vectors, spec);
+      } catch { return null; }
       if (CHANNELS.some(channel => vectors[channel].length !== ref.channels[channel]) || digest !== ref.digest) return null;
       retained.set(ref.key, vectors);
     }

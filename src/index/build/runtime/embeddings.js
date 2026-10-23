@@ -11,7 +11,7 @@ import { resolveEmbeddingInputFormatting } from '../../../shared/embedding-input
 import { resolveStubDims } from '../../../shared/embedding.js';
 import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile } from '../../../shared/embedding-model-profile.js';
 import { normalizeEmbeddingProvider, resolveOnnxConfig, resolveOnnxModelPath } from '../../../shared/onnx-embeddings.js';
-import { resolveQuantizationParams } from '../../../storage/sqlite/quantization.js';
+import { resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
 
 /**
  * Resolve embedding runtime configuration and lazy embedding adapters.
@@ -51,7 +51,7 @@ export const resolveEmbeddingRuntime = async ({
   }
   const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
   const embeddingOnnx = resolveOnnxConfig(embeddingsConfig.onnx || {}, rawEnv);
-  const quantization = resolveQuantizationParams(embeddingsConfig.quantization);
+  const quantization = resolveEmbeddingQuantizationSpec(embeddingsConfig.quantization);
   const embeddingNormalize = embeddingsConfig.normalize !== false;
   const embeddingQueueConfig = embeddingsConfig.queue || {};
   const embeddingCacheConfig = embeddingsConfig.cache || {};
@@ -238,11 +238,7 @@ export const resolveEmbeddingRuntime = async ({
       modelId
     })
     : null;
-  const quantRange = quantization.maxVal - quantization.minVal;
-  const quantLevels = Number.isFinite(quantization.levels) ? quantization.levels : 256;
-  const denseScale = quantLevels > 1 && Number.isFinite(quantRange) && quantRange !== 0
-    ? quantRange / (quantLevels - 1)
-    : 2 / 255;
+  const denseScale = quantization.scale;
   embeddingIdentity = buildEmbeddingIdentity({
     modelProfile,
     modelArtifact,
@@ -258,7 +254,7 @@ export const resolveEmbeddingRuntime = async ({
     maxLength: null,
     inputFormatting: embeddingInputFormatting,
     quantization: {
-      version: 1,
+      version: quantization.version,
       minVal: quantization.minVal,
       maxVal: quantization.maxVal,
       levels: quantization.levels
@@ -279,6 +275,7 @@ export const resolveEmbeddingRuntime = async ({
     embeddingProvider,
     embeddingOnnx,
     embeddingNormalize,
+    embeddingQuantization: quantization,
     embeddingInputFormatting,
     embeddingQueue: {
       dir: embeddingQueueDir || null,

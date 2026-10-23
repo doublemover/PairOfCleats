@@ -5,6 +5,7 @@ import { normalizeDenseVectorMeta } from './dense-vector-meta.js';
 import { decodeDenseVectorValidity } from './dense-vector-validity.js';
 import { throwIfAborted } from './abort.js';
 import { createXxhash64Hasher } from './hash/xxhash-backend.js';
+import { assertQuantizedEmbeddingRow, resolveDenseQuantizationSpec } from './embedding-quantization-spec.js';
 
 const MAX_ROW_BYTES = 16 * 1024 * 1024;
 const DEFAULT_WINDOW_BYTES = 1024 * 1024;
@@ -20,6 +21,7 @@ export const normalizeDenseVectorStreamMeta = raw => {
     || (input.count != null && input.totalRecords != null && input.count !== input.totalRecords)
     || (input.bytes != null && input.bytes !== count * input.dims)) throw invalid('Invalid dense vector stream dimensions or count.');
   const meta = { ...input, count };
+  resolveDenseQuantizationSpec(meta);
   decodeDenseVectorValidity(meta);
   return meta;
 };
@@ -34,7 +36,7 @@ const plan = (raw, { start = 0, count = null, maxBytes = DEFAULT_WINDOW_BYTES, e
     throw invalid('Invalid dense vector manifest checksum.');
   }
   const bits = decodeDenseVectorValidity(meta);
-  return { meta, bits, start, end: start + count, rowsPerWindow: Math.max(1, Math.floor(maxBytes / meta.dims)),
+  return { meta, spec: resolveDenseQuantizationSpec(meta), bits, start, end: start + count, rowsPerWindow: Math.max(1, Math.floor(maxBytes / meta.dims)),
     expectedDigest: match?.[2].toLowerCase() ?? null, digestAlgorithm: match?.[1].toLowerCase() ?? null };
 };
 const admit = (stat, meta) => {
@@ -62,7 +64,7 @@ const finish = ({ before, after, digest, expectedDigest, fd, root, filename, sig
  * the iterator completes. Consumers publish only after successful completion. */
 export async function* iterateDenseVectorBinaryRows({ root, filename, meta: raw, signal = null, metrics = null, ...options }) {
   const selected = plan(raw, options);
-  const { meta, bits, start, end, rowsPerWindow, expectedDigest, digestAlgorithm } = selected;
+  const { meta, spec, bits, start, end, rowsPerWindow, expectedDigest, digestAlgorithm } = selected;
   throwIfAborted(signal);
   const digest = digestAlgorithm === 'xxh64' ? await createXxhash64Hasher() : digestAlgorithm ? createHash(digestAlgorithm) : null;
   const handle = await openContainedFile(root, filename);
@@ -85,7 +87,9 @@ export async function* iterateDenseVectorBinaryRows({ root, filename, meta: raw,
       digest?.update(bytes);
       for (let row = Math.max(first, start); row < Math.min(first + rowCount, end); row++) {
         throwIfAborted(signal);
-        yield { docId: row, vector: present(bits, row) ? bytes.subarray((row - first) * meta.dims, (row - first + 1) * meta.dims) : new Uint8Array(0) };
+        const vector = present(bits, row) ? bytes.subarray((row - first) * meta.dims, (row - first + 1) * meta.dims) : new Uint8Array(0);
+        assertQuantizedEmbeddingRow(vector, { spec, dims: meta.dims });
+        yield { docId: row, vector };
       }
     }
     finish({ before, after: await handle.stat({ bigint: true }), digest, expectedDigest, fd: handle, root, filename, signal });
@@ -97,7 +101,7 @@ export async function* iterateDenseVectorBinaryRows({ root, filename, meta: raw,
  * must roll back the caller's transaction before any publication. */
 export const openDenseVectorBinarySourceSync = ({ root, filename, meta: raw, signal = null, metrics = null, ...options }) => {
   const selected = plan(raw, options);
-  const { meta, bits, start, end, rowsPerWindow, expectedDigest, digestAlgorithm } = selected;
+  const { meta, spec, bits, start, end, rowsPerWindow, expectedDigest, digestAlgorithm } = selected;
   if (digestAlgorithm === 'xxh64') throw invalid('Synchronous xxh64 reads require prior asynchronous verification.');
   throwIfAborted(signal);
   const fd = openContainedFileSync(root, filename);
@@ -124,7 +128,9 @@ export const openDenseVectorBinarySourceSync = ({ root, filename, meta: raw, sig
       digest?.update(bytes);
       for (let row = Math.max(first, start); row < Math.min(first + rowCount, end); row++) {
         throwIfAborted(signal);
-        yield { docId: row, vector: present(bits, row) ? bytes.subarray((row - first) * meta.dims, (row - first + 1) * meta.dims) : new Uint8Array(0) };
+        const vector = present(bits, row) ? bytes.subarray((row - first) * meta.dims, (row - first + 1) * meta.dims) : new Uint8Array(0);
+        assertQuantizedEmbeddingRow(vector, { spec, dims: meta.dims });
+        yield { docId: row, vector };
       }
     }
     finish({ before, after: fs.fstatSync(fd, { bigint: true }), digest, expectedDigest, fd, root, filename, signal });

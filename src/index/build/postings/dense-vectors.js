@@ -2,12 +2,16 @@ import { quantizeVec } from '../../embedding.js';
 import { DEFAULT_STUB_DIMS } from '../../../shared/embedding.js';
 import { isVectorLike } from '../../../shared/embedding-utils.js';
 import { maybeYield } from './constants.js';
+import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
+import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
 
 /** Preserve each channel's absence independently of fixed-width disk padding. */
 export const buildDenseVectors = async ({
   chunks, embeddingsEnabled = true, useStubEmbeddings, modelId, log,
-  workerPool, quantizePool, requestYield, buildStage = null
+  workerPool, quantizePool, requestYield, buildStage = null, quantization = {}, abortSignal = null
 }) => {
+  throwIfAborted(abortSignal);
+  const spec = resolveEmbeddingQuantizationSpec(quantization);
   if (!embeddingsEnabled) {
     log?.('Embeddings disabled' + (buildStage ? ' (' + buildStage + ')' : '') + '; skipping dense vector build.');
     return { dims: 0, quantizedVectors: [], quantizedDocVectors: [], quantizedCodeVectors: [] };
@@ -26,10 +30,12 @@ export const buildDenseVectors = async ({
   dims ||= DEFAULT_STUB_DIMS;
   const normalize = vector => {
     if (!isVectorLike(vector) || !vector.length) return [];
-    if (vector.length === dims) return vector;
-    const result = isByteVector(vector) ? new Uint8Array(dims).fill(128) : new Float32Array(dims);
-    result.set(ArrayBuffer.isView(vector) ? vector.subarray(0, dims) : vector.slice(0, dims));
-    return result;
+    if (vector.length !== dims) throw new Error('[postings] embedding dimensions differ across dense rows.');
+    if (isByteVector(vector)) assertQuantizedEmbeddingRow(vector, { spec, dims, allowEmpty: false });
+    else for (const value of vector) if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new TypeError('[postings] embedding values must be finite numbers.');
+    }
+    return vector;
   };
   let warnedDoc = false;
   const select = (chunk, field, fallback) => {
@@ -72,17 +78,28 @@ export const buildDenseVectors = async ({
     }
     const batchSize = Math.max(1, Math.floor(Number(worker?.config?.quantizeBatchSize) || 128));
     for (let offset = 0; offset < pending.length; offset += batchSize) {
+      throwIfAborted(abortSignal);
       const batch = pending.slice(offset, offset + batchSize);
-      let quantized;
+      let quantized = null;
       if (worker) {
         try {
-          quantized = await worker.runQuantize({ vectors: batch.map(row => row.vector) });
-          if (!Array.isArray(quantized) || quantized.length !== batch.length) throw new Error('Invalid worker quantization rows.');
-        } catch {
+          const candidate = await worker.runQuantize({ vectors: batch.map(row => row.vector),
+            quantization: spec, minVal: spec.minVal, maxVal: spec.maxVal, levels: spec.levels }, { signal: abortSignal });
+          throwIfAborted(abortSignal);
+          if (!Array.isArray(candidate) || candidate.length !== batch.length) throw new Error('Invalid worker quantization rows.');
+          for (let index = 0; index < candidate.length; index++) {
+            assertQuantizedEmbeddingRow(candidate[index], { spec, dims: batch[index].vector.length, allowEmpty: false });
+          }
+          quantized = candidate;
+        } catch (error) {
+          throwIfAborted(abortSignal);
+          if (isAbortError(error) || ['ERR_PROCESS_TASK_BUDGET', 'ERR_TOKENIZER_RESOURCE_PRESSURE',
+            'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', 'ERR_WORKER_POOL_CLEANUP_TIMEOUT'].includes(error?.code)
+            || error?.cleanupError || error instanceof AggregateError) throw error;
           if (!warnedWorker) { warnedWorker = true; log?.('Quantize worker unavailable; falling back to inline quantization.'); }
         }
       }
-      if (!quantized) quantized = batch.map(row => quantizeVec(row.vector));
+      if (quantized === null) quantized = batch.map(row => quantizeVec(row.vector, spec.minVal, spec.maxVal, spec.levels));
       batch.forEach((row, index) => { output[row.index] = quantized[index]; });
       await maybeYield(requestYield);
     }

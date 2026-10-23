@@ -3,6 +3,7 @@ import { throwIfAborted } from '../../../shared/abort.js';
 import { isVectorLike } from '../../../shared/embedding-utils.js';
 import { postprocessEmbeddingChannels } from '../../../shared/embedding-postprocess.js';
 import { resolveEmbeddingBatchSize } from '../embedding-batch.js';
+import { resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
 
 // Empty marker used throughout the indexing pipeline to indicate a missing doc vector.
 // Downstream code treats a zero-length Uint8Array as "missing doc" and substitutes a
@@ -40,6 +41,7 @@ export async function attachEmbeddings({
   abortSignal = null,
   embeddingEnabled,
   embeddingNormalize,
+  quantization = {},
   getChunkEmbedding,
   getChunkEmbeddings,
   runEmbedding,
@@ -48,6 +50,7 @@ export async function attachEmbeddings({
   languageOptions
 }) {
   throwIfAborted(abortSignal);
+  const spec = resolveEmbeddingQuantizationSpec(quantization);
   if (!embeddingEnabled) {
     for (const chunk of chunks) {
       chunk.embed_code = [];
@@ -82,18 +85,7 @@ export async function attachEmbeddings({
   docIndexes.forEach((index, slot) => { docVectors[index] = outputs[chunks.length + slot]; });
   outputs.length = 0;
   const codeDims = assertVectorBatch('code', codeVectors, chunks.length);
-  const docDims = assertVectorBatch('doc', docVectors, chunks.length, codeDims);
-  const mergedDims = codeDims || docDims;
-
-  // Avoid allocating a full zero-vector per chunk when docs are missing.
-  // Most code chunks have no doc payload; allocating `dims` zeros for each chunk
-  // is a major memory multiplier for large indexes.
-
-  // Capture a best-effort dimension hint for missing vectors so we can still emit
-  // fixed-length byte vectors for every chunk. If a chunk ends up with no code/doc
-  // embedding (e.g., upstream service failure), we store a shared "zero" byte vector
-  // instead of an empty one to keep downstream consumers consistent.
-  const zeroU8 = mergedDims ? new Uint8Array(mergedDims).fill(128) : EMPTY_U8;
+  assertVectorBatch('doc', docVectors, chunks.length, codeDims);
 
   const shouldNormalize = embeddingNormalize !== false;
   for (let i = 0; i < chunks.length; i += 1) {
@@ -102,9 +94,10 @@ export async function attachEmbeddings({
     const embedCode = isVectorLike(codeVectors[i]) ? codeVectors[i] : EMPTY_FLOAT;
     const rawDoc = docVectors[i];
     const hasDoc = isVectorLike(rawDoc) && rawDoc.length;
-    const quantized = postprocessEmbeddingChannels({ codeVector: embedCode, docVector: hasDoc ? rawDoc : EMPTY_FLOAT, normalize: shouldNormalize });
-    const mergedU8 = quantized.quantizedMerged.length ? quantized.quantizedMerged : zeroU8;
-    const codeU8 = quantized.quantizedCode.length ? quantized.quantizedCode : mergedU8;
+    const quantized = postprocessEmbeddingChannels({ codeVector: embedCode, docVector: hasDoc ? rawDoc : EMPTY_FLOAT,
+      normalize: shouldNormalize, quantization: spec });
+    const mergedU8 = quantized.quantizedMerged.length ? quantized.quantizedMerged : EMPTY_U8;
+    const codeU8 = quantized.quantizedCode.length ? quantized.quantizedCode : EMPTY_U8;
     const docU8 = quantized.quantizedDoc.length ? quantized.quantizedDoc : EMPTY_U8;
 
     chunk.embedding_u8 = mergedU8;
