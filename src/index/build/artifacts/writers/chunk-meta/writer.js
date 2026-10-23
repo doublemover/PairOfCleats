@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { createPreparedJsonlRows, readPreparedJsonlRow } from '../../../../../shared/json-stream/prepared-row.js';
 import path from 'node:path';
 import { log } from '../../../../../shared/progress-runtime.js';
 import {
@@ -92,12 +93,24 @@ export const enqueueChunkMetaArtifacts = async ({
   };
   const expandPartPaths = (parts) => expandMetaPartPaths(parts, outDir);
   let enableHotColdSplit = chunkMetaStreaming !== true;
-  const projectHotEntry = (entry) => (
-    enableHotColdSplit ? stripChunkMetaColdFields(entry) : entry
-  );
-  const projectColdEntry = (entry) => (
-    enableHotColdSplit ? extractChunkMetaColdFields(entry) : null
-  );
+  let prepareProjectedRows = chunkMetaUseJsonl;
+  if (chunkMetaUseJsonl) chunkMetaIterator.enablePreparedRows?.();
+  const preparedProjections = createPreparedJsonlRows();
+  const hotProjections = new WeakMap(), coldProjections = new WeakMap();
+  const project = (entry, cache, mapper) => {
+    const canCache = Boolean(readPreparedJsonlRow(entry));
+    if (canCache && cache.has(entry)) return cache.get(entry);
+    const mapped = mapper(entry);
+    if (!mapped) return mapped;
+    if (!prepareProjectedRows) return mapped;
+    const prepared = preparedProjections.prepare(mapped, { maxLineBytes: resolvedMaxJsonBytes });
+    if (canCache && prepared.reused) cache.set(entry, prepared.row);
+    return prepared.row;
+  };
+  const projectHotEntry = entry => enableHotColdSplit
+    ? project(entry, hotProjections, stripChunkMetaColdFields) : entry;
+  const projectColdEntry = entry => enableHotColdSplit
+    ? project(entry, coldProjections, extractChunkMetaColdFields) : null;
   const scanChunkMeta = ({ collectRows = false } = {}) => (
     analyzeChunkMetaRows({
       chunkMetaIterator,
@@ -158,6 +171,10 @@ export const enqueueChunkMetaArtifacts = async ({
     }
   }
 
+  if (resolvedUseJsonl) {
+    prepareProjectedRows = true;
+    chunkMetaIterator.enablePreparedRows?.();
+  }
   if (resolvedUseJsonl && !chunkMetaStreaming) {
     jsonlScan = scanChunkMeta({ collectRows: false });
     outOfOrder = !jsonlScan.ordered;

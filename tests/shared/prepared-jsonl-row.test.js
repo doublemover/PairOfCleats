@@ -47,5 +47,8 @@ assert.equal(noRows.prepare({ id: 3 }).reused, false);
 const circular = {}; circular.self = circular;
 assert.throws(() => oversized.prepare(circular), TypeError);
 assert.throws(() => oversized.prepare(undefined), TypeError);
+const typed = oversized.prepare({ id: 4, nested: { values: new Uint8Array([1, 2, 3]) } });
+assert.deepEqual(typed.row.nested.values, [1, 2, 3]);
+assert.equal(resolveJsonlLine(typed.row), '{"id":4,"nested":{"values":[1,2,3]}}');
 for (const maxCacheBytes of [-1, NaN, Infinity, 1.5]) assert.throws(() => createPreparedJsonlRows({ maxCacheBytes }), TypeError);
 console.log('Prepared JSONL row exact bytes/ownership/allowance/custom-layout controls authored; execution deferred.');

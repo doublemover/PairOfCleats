@@ -1,3 +1,5 @@
+import { stringifyJsonValue } from './encode.js';
+
 const preparedRows = new WeakMap();
 
 // An invocation's encoded-line reuse allowance, not a whole-process heap bound.
@@ -32,9 +34,12 @@ export const createPreparedJsonlRows = ({
   }
   let retainedBytes = 0, retainedRows = 0;
   const prepare = (row, { maxLineBytes = null } = {}) => {
+    if (row === undefined || typeof row === 'function' || typeof row === 'symbol') {
+      throw new TypeError('Prepared JSONL row has no JSON representation.');
+    }
     const existing = readPreparedJsonlRow(row);
     if (existing) return Object.freeze({ row, lineBytes: existing.lineBytes, reused: true });
-    const line = JSON.stringify(row);
+    const line = stringifyJsonValue(row);
     if (typeof line !== 'string') throw new TypeError('Prepared JSONL row has no JSON representation.');
     const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
     // Charge actual retained string code units, including the line terminator,

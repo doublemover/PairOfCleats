@@ -7,9 +7,6 @@ import { readPreparedJsonlRow } from './prepared-row.js';
 const resolveJsonlLine = (item) => {
   const prepared = readPreparedJsonlRow(item);
   if (prepared) return prepared.line;
-  if (item && typeof item === 'object' && typeof item.__jsonl === 'string') {
-    return item.__jsonl;
-  }
   return stringifyJsonValue(item);
 };
 
