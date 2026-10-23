@@ -10,7 +10,7 @@ import {
 } from '../scoring/ann-candidate-policy.js';
 import { VECTOR_REQUIRED_CODE } from './constants.js';
 import { throwIfAborted } from '../../shared/abort.js';
-import { observeRetrievalProviderFailure } from './provider-failure.js';
+import { observeAnnAttemptFailure, observeRetrievalProviderFailure } from './provider-failure.js';
 import { createEligibilityPlan } from './eligibility-plan.js';
 import { rankDenseVectorsAsync } from '../rankers.js';
 import { createCountAwareAnnWork, planCountAwareAnn, snapshotCountAwareStoredDense } from './count-aware-ann.js';
@@ -240,15 +240,10 @@ export const runAnnStage = async ({
       if (reservation) reservation.attempt.accepted = accepted.length;
       return { hits: accepted, succeeded: true, topN: resolvedTopN };
     } catch (err) {
-      const failure = observeRetrievalProviderFailure(err);
-      if (signal?.aborted) throwIfAborted(signal);
-      if (reservation?.timeout.aborted) {
+      const failure = observeAnnAttemptFailure(err, { signal, timeout: reservation?.timeout });
+      if (failure.deadline) {
         reservation.attempt.status = 'deadline'; countWork.receipt.reasonEnded = 'deadline';
         return { hits: [], succeeded: false, budgetEnded: true };
-      }
-      if (signal?.aborted || failure.abort) {
-        throwIfAborted(signal);
-        throw err;
       }
       if (reservation) { reservation.attempt.status = 'failed'; reservation.attempt.reason = failure.code || failure.message || 'provider-error'; }
       try { providerRuntime.recordProviderFailure(provider, mode, failure.message || 'query failed'); }
@@ -314,6 +309,7 @@ export const runAnnStage = async ({
         else if (!reservation) { countHandled = true; providerAvailable = true; }
         else {
           const metrics = {};
+          countWork.receipt.retainedVectorBytes = snapshot.retainedVectorBytes;
           try {
             // No full-corpus lazy load is authorized by a small eligible count.
             const exactHits = await rankDenseVectorsAsync(snapshot.index, Array.from(queryEmbedding),
@@ -324,11 +320,10 @@ export const runAnnStage = async ({
             exactStored = true; countHandled = true; providerAvailable = true; annSource = ANN_PROVIDER_IDS.DENSE;
             countWork.finish({ hits: annHits, exact: true, metrics });
           } catch (error) {
-            const failure = observeRetrievalProviderFailure(error);
-            throwIfAborted(signal);
-            if (failure.abort) throw error;
-            if (reservation.timeout.aborted) {
+            const failure = observeAnnAttemptFailure(error, { signal, timeout: reservation.timeout });
+            if (failure.deadline) {
               countWork.receipt.reasonEnded = 'deadline'; reservation.attempt.status = 'deadline'; countHandled = true; providerAvailable = true;
+              countWork.finish({ hits: [], metrics });
             } else {
               reservation.attempt.status = 'failed'; reservation.attempt.reason = failure.code || failure.message || 'stored-scan-error';
               countWork.receipt.route = 'ann'; countWork.receipt.reason = 'stored-scan-unavailable';
@@ -387,6 +382,7 @@ export const runAnnStage = async ({
         if ((primaryResult.succeeded || primaryResult.budgetEnded) && (annHits.length > 0 || resolveProviderAvailability())) {
           providerAvailable = true;
         }
+        if (primaryResult.budgetEnded || countWork?.receipt.reasonEnded === 'deadline') break;
         if (!annHits.length && shouldTryAnnFallback) {
           const fallbackCandidates = resolveAnnFallback();
           if (fallbackCandidates) {

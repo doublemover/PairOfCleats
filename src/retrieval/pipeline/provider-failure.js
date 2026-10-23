@@ -1,4 +1,5 @@
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { throwIfAborted } from '../../shared/abort.js';
 
 /** Fallback is allowed only after the original provider resource has settled.
  * Snapshot diagnostics once; arbitrary getters cannot replace its observer or
@@ -21,4 +22,15 @@ export const observeRetrievalProviderFailure = primary => {
     requireSettled: observation.requireSettled,
     retain: observation.retain
   });
+};
+
+/** Both ANN routes honor the caller, then their own deadline, then an
+ * independent provider abort, after retaining the original resource observer.
+ */
+export const observeAnnAttemptFailure = (error, { signal = null, timeout = null } = {}) => {
+  const failure = observeRetrievalProviderFailure(error);
+  throwIfAborted(signal);
+  if (timeout?.aborted) return { ...failure, deadline: true };
+  if (failure.abort) throw error;
+  return { ...failure, deadline: false };
 };

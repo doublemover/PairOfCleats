@@ -103,6 +103,7 @@ export const createCountAwareAnnWork = ({ policy, plan, signal = null }) => {
     reserve(provider, topN, { exact = false } = {}) {
       throwIfAborted(signal);
       if (!Number.isSafeInteger(topN) || topN < 1) throw fail('An attempt requires a positive finite requested-hit bound.');
+      if (receipt.reasonEnded === 'deadline') return null;
       const remaining = Math.ceil(deadline - performance.now());
       const reason = remaining <= 0 ? 'deadline' : receipt.attempts.length >= policy.maxAttempts ? 'attempt-limit'
         : topN > policy.maxTopN || receipt.requestedHitWork + topN > policy.requestedHitWork ? 'requested-hit-work-limit' : null;
