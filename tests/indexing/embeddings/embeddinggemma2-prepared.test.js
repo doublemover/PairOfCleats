@@ -159,6 +159,8 @@ try {
   assert.equal(loads.length, 4, 'different graph basename segregates loaded session cache');
   assert.equal(loads.at(-1).model_file_name, 'model_w8a8');
   assert.equal(customGraph.executionInfo().modelFileName, 'model_w8a8');
+  assert.equal(customGraph.executionInfo().modelArtifact.reuse, 'refuse');
+  assert.equal(customGraph.executionInfo().modelArtifact.method, 'custom-model-graph-needs-selected-closure', 'default profile revision cannot qualify a different graph stem');
   for (const modelFileName of ['../model', 'model.onnx', 'a/b', '', 1]) {
     assert.throws(() => getEmbeddingAdapter({ ...config, modelFileName }), /basename/);
   }

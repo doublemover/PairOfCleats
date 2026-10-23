@@ -20,7 +20,8 @@ export const snapshotEmbeddingMetadata = value => {
 
 export const snapshotEmbeddingArtifactSelection = (options = {}) => ({
   provider: options.provider, modelId: options.modelId, modelsDir: options.modelsDir, rootDir: options.rootDir,
-  onnx: snapshotEmbeddingMetadata(options.onnx), modelProfile: snapshotEmbeddingMetadata(options.modelProfile), stub: options.stub === true
+  onnx: snapshotEmbeddingMetadata(options.onnx), modelProfile: snapshotEmbeddingMetadata(options.modelProfile),
+  modelFileName: options.modelFileName ?? null, stub: options.stub === true
 });
 
 /** Snapshot request containers at the outermost accepted call. Signals and

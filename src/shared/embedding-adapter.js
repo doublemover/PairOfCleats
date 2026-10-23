@@ -285,7 +285,7 @@ function getVerifiedEmbeddingAdapter(options) {
   validateEmbeddingModelProfile(modelProfile, { provider: resolvedProvider, normalize });
   const modelArtifact = snapshotEmbeddingMetadata(options?.modelArtifact || resolveEmbeddingArtifactIdentity({
     provider: resolvedProvider, modelId: options?.modelId, modelsDir: options?.modelsDir,
-    rootDir: options?.rootDir, onnx: normalizedOnnxConfig, modelProfile, stub: options?.useStub === true
+    rootDir: options?.rootDir, onnx: normalizedOnnxConfig, modelProfile, modelFileName, stub: options?.useStub === true
   }));
   const retainInCache = options?.retainInCache === true && embeddingArtifactReusable(modelArtifact);
   const cacheKey = JSON.stringify({
@@ -354,7 +354,7 @@ export function getEmbeddingAdapter(options = {}) {
     modelArtifact: snapshotEmbeddingMetadata(options.modelArtifact) };
   if (selected.modelArtifact) return getVerifiedEmbeddingAdapter(selected);
   const verification = { provider, modelId: selected.modelId, modelsDir: selected.modelsDir,
-    rootDir: selected.rootDir, onnx: selected.onnxConfig, modelProfile, stub: selected.useStub === true };
+    rootDir: selected.rootDir, onnx: selected.onnxConfig, modelProfile, modelFileName, stub: selected.useStub === true };
   if (verification.stub) return getVerifiedEmbeddingAdapter({ ...selected, modelArtifact: resolveEmbeddingArtifactIdentity(verification) });
   return createDeferredEmbeddingAdapter({ provider, methods: [...LEASE_OPERATIONS],
     acquire: async () => {

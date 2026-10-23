@@ -82,8 +82,13 @@ export const resolveEmbeddingArtifactRoot = (id, modelsDir) => {
 
 /** No provider loading or network I/O. Unknown evidence is scoped to one attempt. */
 export const planEmbeddingArtifactInventory = ({ provider, modelId, modelsDir, rootDir,
-  onnx = null, modelProfile = null, stub = false } = {}) => {
+  onnx = null, modelProfile = null, modelFileName = null, stub = false } = {}) => {
   if (stub) return { immediate: { status: 'stub', reuse: 'allow', digest: null, revision: null, method: 'deterministic-stub' } };
+  // A custom graph stem is an experimental model, not the qualified registry's
+  // default graph. Its revision/default acquisition receipt proves neither its
+  // graph bytes nor numerical meaning; never lend that reusable authority.
+  if (modelFileName != null) return { immediate: { ...unknown(), revision: modelProfile?.revision ?? null,
+    method: 'custom-model-graph-needs-selected-closure' } };
   if (modelProfile?.revision) {
     const root = resolveEmbeddingArtifactRoot(modelId, modelsDir);
     const selectedRoot = root && isEmbeddingModelRepositoryId(modelId) ? path.join(root, modelProfile.revision) : root;

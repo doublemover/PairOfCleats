@@ -43,7 +43,7 @@ export const createXenovaAdapter = ({ modelId, modelsDir, dims = null, normalize
         acquiredEmbedder = embedder; startupFailure = null; startupObserver = null; startupFailureReported = false;
         acquiredOwner = captureTransformersResource(embedder, 'Xenova acquired pipeline lease');
         try {
-          observedArtifact = await resolveEmbeddingArtifactIdentityAsync({ provider: 'xenova', modelId, modelsDir, modelProfile }, { phase: 'loaded' });
+          observedArtifact = await resolveEmbeddingArtifactIdentityAsync({ provider: 'xenova', modelId, modelsDir, modelProfile, modelFileName }, { phase: 'loaded' });
           if (embeddingArtifactReusable(modelArtifact)) assertEmbeddingArtifactCompatibility(modelArtifact, observedArtifact);
         } catch (error) {
           try {

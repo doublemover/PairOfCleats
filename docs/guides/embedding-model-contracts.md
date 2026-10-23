@@ -45,6 +45,8 @@ Declared ONNX external-data paths belong to that closure even when their names
 or subdirectories differ from generic cache conventions. Legacy file-list-only
 profile receipts require prefetch again; acquisition preserves existing model
 files and earlier selected ONNX installations.
+Experimental EG2 graph stems retain unknown, attempt-scoped artifact provenance;
+the default profile revision or acquisition receipt cannot qualify their bytes.
 
 Setup readiness reports readable, nonempty selected assets and matching recorded
 sizes. It does not initialize inference or promise content/native correctness.
