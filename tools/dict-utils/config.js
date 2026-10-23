@@ -6,7 +6,9 @@ import { buildAutoPolicy } from '../../src/shared/auto-policy/build.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { getTestEnvConfig } from '../../src/shared/env/testing.js';
 import { getCacheRoot as getResolvedCacheRoot, getCacheRootBase, getStorageCategorySelection } from '../../src/shared/cache-roots.js';
-import { readJsoncFile, parseJsoncText } from '../../src/shared/jsonc.js';
+import { parseJsoncText } from '../../src/shared/jsonc.js';
+import { readJsonResourceTextSync } from '../../src/shared/file-read-resource.js';
+import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
 import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { applyRepoConfigAuthority, resolveTrustedConfigPath, isRepoTrusted } from '../../src/shared/config-authority.js';
@@ -78,7 +80,7 @@ export const readShippedConfigSchema = schemaPath => {
   const before = fs.statSync(absolute,{ bigint: true });
   const identity = schemaIdentity(before);
   if (shippedSchemaCache?.path === absolute && shippedSchemaCache.identity === identity) return shippedSchemaCache.schema;
-  const schema = freezeShippedSchema(JSON.parse(fs.readFileSync(absolute,'utf8')));
+  const schema = freezeShippedSchema(JSON.parse(readJsonResourceTextSync(absolute)));
   if (schemaIdentity(fs.statSync(absolute,{ bigint: true })) !== identity) throw new Error('Shipped config schema changed while being read.');
   shippedSchemaCache = { path: absolute,identity,schema };
   return schema;
@@ -95,11 +97,27 @@ export function loadUserConfig(repoRoot, { env = process.env, onSources = null, 
     let raw;
     const evidence = { path: filename, source, exists: false, contentHash: null };
     metadata.files.push(evidence);
-    try { raw = fs.readFileSync(filename, 'utf8'); }
+    try { raw = readJsonResourceTextSync(filename); }
     catch (error) {
-      evidence.errorCode = error.code || 'UNKNOWN';
-      if (optional && error.code === 'ENOENT') return {};
-      throw error;
+      const observation = observeStorageResource(error, { phase: 'configuration-source-read' });
+      const confirm = () => {
+        try { observation.requireSettled(); }
+        catch (pending) { evidence.readState = 'pending'; throw pending; }
+      };
+      confirm();
+      let code;
+      try { code = observation.primary.code; }
+      catch (inspection) {
+        const retained = observation.retain(inspection, { inspectionPresent: true });
+        try { observeStorageResource(retained, { phase: 'configuration-source-diagnostic' }).requireSettled(); }
+        catch (pending) { evidence.readState = 'pending'; throw pending; }
+        evidence.readState = 'failed'; throw retained;
+      }
+      confirm();
+      evidence.errorCode = typeof code === 'string' && code ? code : 'UNKNOWN';
+      evidence.readState = code === 'ENOENT' ? 'missing' : 'failed';
+      if (optional && code === 'ENOENT') return {};
+      throw observation.primary;
     }
     evidence.exists = true;
     const value = parseJsoncText(raw, filename);
@@ -107,6 +125,7 @@ export function loadUserConfig(repoRoot, { env = process.env, onSources = null, 
     else evidence.contentHash = crypto.createHash('sha256').update(raw).digest('hex');
     return value;
   };
+  let loadedConfig, failed = false, primary, observation = null;
   try {
     const configPath = selectedConfigPath ? path.resolve(selectedConfigPath) : path.join(repoRoot, '.pairofcleats.json');
     // Setup previews use the same validation/authority/trusted merge without a
@@ -138,10 +157,23 @@ export function loadUserConfig(repoRoot, { env = process.env, onSources = null, 
     const normalized = normalizeUserConfig(mergeConfig(safe, trusted), repoRoot);
     const testEnv = getTestEnvConfig(env);
     metadata.testOverlay.applied = Boolean(testEnv.testing && testEnv.config);
-    return metadata.testOverlay.applied ? mergeConfig(normalized, testEnv.config) : normalized;
-  } finally {
-    if (typeof onSources === 'function') onSources(metadata);
+    loadedConfig = metadata.testOverlay.applied ? mergeConfig(normalized, testEnv.config) : normalized;
+  } catch (error) {
+    failed = true; primary = error;
+    observation = observeStorageResource(error, { phase: 'configuration-load' });
   }
+  let reportFailed = false, reportError, reportObservation = null;
+  try { if (typeof onSources === 'function') onSources(metadata); }
+  catch (error) {
+    reportFailed = true; reportError = error;
+    reportObservation = observeStorageResource(error, { phase: 'configuration-source-report' });
+  }
+  if (failed) {
+    if (reportFailed) throw observation.retain(reportObservation.retain(), { inspectionPresent: true });
+    observation.requireSettled(); throw primary;
+  }
+  if (reportFailed) { reportObservation.requireSettled(); throw reportError; }
+  return loadedConfig;
 }
 
 /**

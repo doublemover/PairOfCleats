@@ -5,6 +5,7 @@ import { sanitizeRuntimeReceipt } from '../../src/shared/runtime-envelope/receip
 import { resolveCurrentProcessRuntimeEnvelope } from '../../src/shared/runtime-envelope/resolve-current-process-envelope.js';
 import { normalizeEmbeddingProvider } from '../../src/shared/onnx-embeddings/config.js';
 import { getOperationalGuardrailDiagnostic, resolveOperationalGuardrails } from '../../src/retrieval/operational-guardrails.js';
+import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
 
 /** Canonical loader/preview projection. Does not probe providers or install assets. */
 export const explainEffectiveConfiguration = async ({ repoRoot, configPath = null, env = process.env } = {}) => {
@@ -39,17 +40,31 @@ export const explainEffectiveConfiguration = async ({ repoRoot, configPath = nul
       readiness: 'Configuration acceptance does not establish executable, protocol, model or index readiness.'
     });
   } catch (error) {
-    const guardrail = getOperationalGuardrailDiagnostic(error);
-    return sanitizeRuntimeReceipt({ schemaVersion: 1, kind: 'effective-configuration', ok: false, repoRoot,
-      configSources, validation: { schema: schemaState, effective: 'rejected', runtime: 'not-probed', artifacts: 'not-probed' },
-      errors: guardrail ? [guardrail] : error.errors || [{ code: error.code || 'ERR_EFFECTIVE_CONFIG', message: error.message }],
-      errorCode: guardrail?.code || error.code || 'ERR_EFFECTIVE_CONFIG' });
+    const observation = observeStorageResource(error, { phase: 'effective-configuration-report' });
+    observation.requireSettled();
+    let report;
+    try {
+      const guardrail = getOperationalGuardrailDiagnostic(observation.primary);
+      let errors = guardrail ? [guardrail] : null, errorCode = guardrail?.code;
+      if (!guardrail) {
+        const originalErrors = observation.primary.errors, code = observation.primary.code, message = observation.primary.message;
+        errorCode = typeof code === 'string' && code ? code : 'ERR_EFFECTIVE_CONFIG';
+        errors = Array.isArray(originalErrors) ? originalErrors : [{ code: errorCode,
+          message: typeof message === 'string' ? message : 'Effective configuration failed.' }];
+      }
+      report = sanitizeRuntimeReceipt({ schemaVersion: 1, kind: 'effective-configuration', ok: false, repoRoot,
+        configSources, validation: { schema: schemaState, effective: 'rejected', runtime: 'not-probed', artifacts: 'not-probed' },
+        errors, errorCode });
+    } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    return report;
   }
 };
 
 export const formatEffectiveConfiguration = report => {
   const lines = [`Effective configuration: ${report.ok ? 'accepted' : 'rejected'}; runtime/artifacts not probed`, `- repo: ${report.repoRoot}`];
-  for (const source of report.configSources?.files || []) lines.push(`- source: ${source.source}: ${source.path} (${source.exists ? 'read' : 'absent'})`);
+  for (const source of report.configSources?.files || []) lines.push(`- source: ${source.source}: ${source.path} (${source.readState === 'pending'
+    ? 'pending' : source.readState === 'failed' ? 'failed' : source.exists ? 'read' : 'absent'})`);
   if (report.configSources) lines.push(`- repository trust: ${report.configSources.repoTrusted ? 'trusted' : 'untrusted'}; trusted merge: ${report.configSources.trustedMerge ? 'applied' : 'none'}`);
   for (const ignored of report.ignored || []) lines.push(`- ignored: ${ignored.path}: ${ignored.reason}. ${ignored.nextAction}`);
   if (report.preview?.embeddings) lines.push(`- selected model: ${report.preview.embeddings.selectedModel} (${report.preview.embeddings.modelSource}); observed runtime: unknown`);
