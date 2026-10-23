@@ -16,6 +16,7 @@ import { resolveIndexDir } from '../../retrieval/cli-index.js';
 import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
 import { loadUserConfig } from '../../shared/dict-utils.js';
 import { getRepoRoot } from '../../shared/repo-paths.js';
+import { admitReportInput, emitReportOutcome } from './report-outcome.js';
 
 const loadRulesFile = (rulesPath) => {
   const ext = path.extname(rulesPath).toLowerCase();
@@ -58,7 +59,8 @@ export async function runArchitectureCheckCli(rawArgs = process.argv.slice(2)) {
     throw new Error(`Rules file not found: ${rulesPath}`);
   }
   const rulesPayload = loadRulesFile(rulesPath);
-  const parsedRules = parseArchitectureRules(rulesPayload);
+  const parsedRules = admitReportInput(() => parseArchitectureRules(rulesPayload), { format,
+    inputCodes: ['ERR_ARCHITECTURE_RULE_INPUT', 'ERR_ARCHITECTURE_DUPLICATE_RULE_ID'] });
 
   const userConfig = loadUserConfig(repoRoot);
   const indexDir = resolveIndexDir(repoRoot, 'code', userConfig);
@@ -96,27 +98,20 @@ export async function runArchitectureCheckCli(rawArgs = process.argv.slice(2)) {
     repoRoot
   });
 
-  const validation = validateArchitectureReport(report);
-  if (!validation.ok) {
-    throw new Error(`Architecture report schema validation failed: ${validation.errors.join('; ')}`);
-  }
-
   const failOnViolation = argv.failOnViolation === true || argv['fail-on-violation'] === true;
-  if (failOnViolation && (report.summary?.detectedViolations || report.violations.length)) {
-    const error = new Error('Architecture violations detected.');
-    error.code = 'ERR_ARCHITECTURE_VIOLATION';
-    error.report = report;
-    throw error;
-  }
-  if (failOnViolation && report.summary?.complete === false) {
-    throw Object.assign(new Error('Architecture evaluation is incomplete; a clean verdict is unavailable.'),
-      { code: 'ERR_ARCHITECTURE_INCOMPLETE', report });
-  }
-
-  return emitCliOutput({
-    format,
-    payload: report,
-    renderMarkdown: renderArchitectureReport
+  return emitReportOutcome({ label: 'Architecture report', validate: validateArchitectureReport,
+    policyCodes: ['ERR_ARCHITECTURE_VIOLATION', 'ERR_ARCHITECTURE_INCOMPLETE'],
+    build: () => {
+      if (failOnViolation && (report.summary?.detectedViolations || report.violations.length)) {
+        throw Object.assign(new Error('Architecture violations detected.'), { code: 'ERR_ARCHITECTURE_VIOLATION', report });
+      }
+      if (failOnViolation && report.summary?.complete === false) {
+        throw Object.assign(new Error('Architecture evaluation is incomplete; a clean verdict is unavailable.'),
+          { code: 'ERR_ARCHITECTURE_INCOMPLETE', report });
+      }
+      return report;
+    },
+    emit: payload => emitCliOutput({ format, payload, renderMarkdown: renderArchitectureReport })
   });
 }
 

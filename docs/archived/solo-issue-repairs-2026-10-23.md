@@ -281,6 +281,20 @@ full cleanup-category capability or deep-suite green is claimed.
   assertions are corrected with primary XSD proof, retaining unbound negatives.
   Import producer 14 to 15. See [the contract](../contracts/xml-schema-reference-identity.md).
 
+- #1706 / #1413 fixture follow-through: canonical architecture input version 1
+  now validates both file and direct-builder paths before cache compilation.
+  Unknown/malformed rules and selectors reject with exact rule/property identity;
+  valid empty policies and intentional empty selectors remain supported. Every
+  admitted rule compiles, so skipped authored work cannot certify completion.
+  Private obsolete skip/warn branches are removed after both entry paths gained
+  this invariant. Existing upstream and zero-detail/work bounds remain intact.
+  Shared report-outcome emission validates analyzed policy failures before one
+  requested output and preserves original failure status; rejected JSON input
+  has a distinct versioned error diagnostic. Schema/direct/parser/cache/JSON/YAML
+  CLI controls are authored, unrun. The contradictory completion fixture now owns
+  its closed synthetic topology and retains its original unknown-coverage input
+  as a negative. See [the contract](../contracts/architecture-rule-admission.md).
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -471,7 +485,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1703](https://github.com/doublemover/PairOfCleats/issues/1703) | [P2] Preserve actionable API-contract diagnostics in policy failures and human reports | Pending full-scope review |
 | [#1704](https://github.com/doublemover/PairOfCleats/issues/1704) | [P2] Preserve exact Bazel label identity instead of resolving unrelated package fallback files | Source repair committed; runtime proof pending |
 | [#1705](https://github.com/doublemover/PairOfCleats/issues/1705) | [P2] Reject non-launchable command candidates without shadowing later valid PATH entries | Source repair committed; runtime proof pending |
-| [#1706](https://github.com/doublemover/PairOfCleats/issues/1706) | [P2] Reject skipped architecture rules before reporting a complete clean evaluation | Pending full-scope review |
+| [#1706](https://github.com/doublemover/PairOfCleats/issues/1706) | [P2] Reject skipped architecture rules before reporting a complete clean evaluation | Source repair committed; runtime proof pending |
 | [#1707](https://github.com/doublemover/PairOfCleats/issues/1707) | [Enhancement] Preserve source and policy witnesses in actionable architecture reports | Pending full-scope review |
 | [#1708](https://github.com/doublemover/PairOfCleats/issues/1708) | [Perf] Reuse architecture policy matches and avoid preparing capped adjacency tails | Pending full-scope review |
 | [#1709](https://github.com/doublemover/PairOfCleats/issues/1709) | [P2] Qualify API parameter requirements instead of interpreting TypeScript type syntax as runtime arity | Pending full-scope review |

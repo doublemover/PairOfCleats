@@ -3,11 +3,20 @@ import assert from 'node:assert/strict';
 import { buildArchitectureReport } from '../../src/graph/architecture.js';
 import { validateArchitectureReport } from '../../src/contracts/validators/analysis.js';
 import { renderArchitectureReport } from '../../src/retrieval/output/architecture.js';
+import { CROSS_FILE_FIDELITY_VERSION, resolveCrossFileFidelity } from '../../src/index/cross-file-fidelity.js';
 
 const input = { rules: [{ id: 'deny-ab', type: 'forbiddenImport',
   from: { anyOf: ['src/a.js'] }, to: { anyOf: ['src/b.js'] } }],
-graphRelations: { importGraph: { nodes: [{ id: 'src/a.js', out: ['src/b.js'] }, { id: 'src/b.js', out: [] }] } },
+graphRelations: { upstreamCoverage: { schemaVersion: CROSS_FILE_FIDELITY_VERSION,
+  policy: resolveCrossFileFidelity('comprehensive'), fingerprint: 'closed-enumerated-fixture',
+  admission: { status: 'complete', firstLayer: null, propagation: null }, analysis: { status: 'complete', reasons: [] } },
+importGraph: { nodes: [{ id: 'src/a.js', out: ['src/b.js'] }, { id: 'src/b.js', out: [] }] } },
 indexSignature: 'fixture' };
+// The complete positive owns this entire fixed topology. Preserve the original
+// missing-receipt input as a separate negative rather than relaxing its owner.
+const unknown = buildArchitectureReport({ ...input, graphRelations: { ...input.graphRelations, upstreamCoverage: null } });
+assert.equal(unknown.summary.detectedViolations, 1);
+assert.equal(unknown.summary.complete, false, 'observed violations do not qualify absent upstream coverage');
 for (const caps of [{}, { maxViolations: undefined }, { maxViolations: null, maxEdgesExamined: null },
   { maxViolations: 10 }, { maxEdgesExamined: 10 }]) {
   const report = buildArchitectureReport({ ...input, caps });
