@@ -1,3 +1,4 @@
+import { resolveSourceFileUrl } from './source-file-url.js';
 import { createBrowserPortFlow } from './compiler-browser-port-flow.js';
 import { collectCompilerNodeWorkerFlow } from './compiler-node-worker-flow.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
@@ -78,7 +79,9 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
     // A bare string Worker URL depends on ambient document base, so only import.meta.url is anchored.
     if (!literal.text.startsWith('.') || /[?#\\]/.test(literal.text) || !doc.containerPath && doc.item.source.mapping) return null;
     const container = doc.containerPath || doc.item.source.path;
-    const target = keyPath(path.resolve(group.repoRoot,path.dirname(container),literal.text));
+    const resolved = resolveSourceFileUrl({ repoRoot: group.repoRoot, containerPath: container, literal: literal.text });
+    if (resolved.state !== 'resolved') { ledgers.get(doc).reasons.add('worker_entry_url_' + resolved.reason); return null; }
+    const target = keyPath(resolved.path);
     return entries.get(target)?.length === 1 ? entries.get(target)[0] : null;
   };
   const handlerFor = (doc,node) => {

@@ -1,3 +1,4 @@
+import { resolveSourceFileUrl } from './source-file-url.js';
 import { createCompilerWasmFlow } from './compiler-wasm-flow.js';
 import { SEMANTIC_ANALYSIS_VERSIONS, WASM_VALIDATOR_RUNTIME } from './analysis-versions.js';
 import path from 'node:path';
@@ -142,9 +143,11 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
     const verified = await invocationAuthority(doc, argument);
     if (!(defaultLibrary(verified) && has(verified, 'URL') || sameModule(verified, 'url') && has(verified, 'URL'))) return null;
     const [name, base] = argument.arguments || [], value = literal(doc.ts, name);
-    if (!value || !value.startsWith('.') || /[?#\\]/.test(value) || !base || !doc.ts.isPropertyAccessExpression(base) || base.name.text !== 'url' || !doc.ts.isMetaProperty(base.expression) || base.expression.keywordToken !== doc.ts.SyntaxKind.ImportKeyword) return null;
+    if (!value || !value.startsWith('.') || /[?#\\]/.test(value) || !base || !doc.ts.isPropertyAccessExpression(base) || base.name.text !== 'url' || !doc.ts.isMetaProperty(base.expression) || base.expression.keywordToken !== doc.ts.SyntaxKind.ImportKeyword || base.expression.name.text !== 'meta') return null;
     const container = doc.containerPath || (!doc.item.source.mapping ? doc.item.source.path : null);
-    const found = container && entries.get(keyPath(path.resolve(group.repoRoot, path.dirname(container), value)));
+    const resolved = resolveSourceFileUrl({ repoRoot: group.repoRoot, containerPath: container, literal: value });
+    if (resolved.state !== 'resolved') { ledgers.get(doc).reasons.add('process_entry_url_' + resolved.reason); return null; }
+    const found = entries.get(keyPath(resolved.path));
     return found?.length === 1 ? found[0] : null;
   };
   const launches = new WeakMap(), settlements = new WeakMap(), consumers = new Map();

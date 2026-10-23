@@ -1,3 +1,4 @@
+import { resolveSourceFileUrl } from './source-file-url.js';
 import path from 'node:path';
 import { createCompilerBoundaryAuthority } from './compiler-boundary-authority.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -96,9 +97,12 @@ export const collectCompilerNodeWorkerFlow = async ({group,documents,entries,led
     const verified=await declaration(doc,url);
     if(!(verified?.family==='typescript-default-library'&&verified.names.includes('URL')||verified?.family==='node-type-package'&&verified.names.includes('URL')&&['url','node:url'].includes(verified.moduleName)))return null;
     const [filename,base]=url.arguments||[];
-    if(!filename||!ts.isStringLiteralLike(filename)||!filename.text.startsWith('.')||/[?#\\%]/.test(filename.text)||!base||!ts.isPropertyAccessExpression(base)||base.name.text!=='url'||!ts.isMetaProperty(base.expression)||base.expression.keywordToken!==ts.SyntaxKind.ImportKeyword)return null;
+    if(!filename||!ts.isStringLiteralLike(filename)||!filename.text.startsWith('.')||/[?#\\%]/.test(filename.text)||!base||!ts.isPropertyAccessExpression(base)||base.name.text!=='url'||!ts.isMetaProperty(base.expression)||base.expression.keywordToken!==ts.SyntaxKind.ImportKeyword||base.expression.name.text!=='meta')return null;
     const container=doc.containerPath||(!doc.item.source.mapping?doc.item.source.path:null);
-    const candidates=container&&entries.get(keyPath(path.resolve(group.repoRoot,path.dirname(container),filename.text)));
+    // Preserve the narrower percent-escape admission above for Node workers.
+    const resolved=resolveSourceFileUrl({repoRoot:group.repoRoot,containerPath:container,literal:filename.text});
+    if(resolved.state!=='resolved'){ledgers.get(doc).reasons.add('node_worker_entry_url_'+resolved.reason);return null;}
+    const candidates=entries.get(keyPath(resolved.path));
     return candidates?.length===1?candidates[0]:null;
   };
   const entryFor = worker => {if(!entryCache.has(worker.node))entryCache.set(worker.node,resolveEntry(worker));return entryCache.get(worker.node);};

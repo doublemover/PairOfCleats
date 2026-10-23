@@ -199,6 +199,16 @@ full cleanup-category capability or deep-suite green is claimed.
   parser identity advances 3→4 and shared native/LSP admission lspBindings45→46;
   raw format versions, request-cache rq11 and public authority rules remain.
 
+- #1685: fork/browser entry joins resolve admitted physical container URLs with
+  WHATWG URL and fileURLToPath before exact inventory lookup. Decoded versus
+  literal-percent children remain distinct; malformed/encoded-separator/outside
+  paths stay unresolved. Node workers keep their narrower percent rejection and
+  exact import.meta shape; WASM byte recovery is unchanged. Independent decoded
+  path oracles plus actual compiler/stored-graph invocation/source/consumer and
+  scheduling controls are authored, unrun. Browser joins remain conditional static
+  mapping candidates without served-URL/launch/delivery proof. Producer identities
+  advance to boundaryFlow11/workerFlow10; original authority negatives remain.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -368,7 +378,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1682](https://github.com/doublemover/PairOfCleats/issues/1682) | [Perf] Backpressure native control-flow row construction before bounded analysis writes | Pending full-scope review |
 | [#1683](https://github.com/doublemover/PairOfCleats/issues/1683) | [P2] Skip WASM flow construction when disabled or deferred and preserve structural projection | Pending full-scope review |
 | [#1684](https://github.com/doublemover/PairOfCleats/issues/1684) | [P2] Decode retained WASM from the same bounded snapshot that source verification admits | Pending full-scope review |
-| [#1685](https://github.com/doublemover/PairOfCleats/issues/1685) | [P2] Resolve fork file URLs before joining process-boundary source candidates | Pending full-scope review |
+| [#1685](https://github.com/doublemover/PairOfCleats/issues/1685) | [P2] Resolve fork file URLs before joining process-boundary source candidates | Source repair committed; runtime proof pending |
 | [#1686](https://github.com/doublemover/PairOfCleats/issues/1686) | [P2] Share qualified worker transfer options instead of selecting overwritten properties | Pending full-scope review |
 | [#1687](https://github.com/doublemover/PairOfCleats/issues/1687) | [P2] Qualify and bound throughput result-file admission before aggregation | Pending full-scope review |
 | [#1688](https://github.com/doublemover/PairOfCleats/issues/1688) | [P2] Revoke ordered storage precision when fresh typed-array views escape through containers | Pending full-scope review |
