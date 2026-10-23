@@ -2,6 +2,7 @@ import { propertyPathsOverlap } from './compiler-property-paths.js';
 import { canonicalSemanticJson } from './identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { createCompilerSummaryRecorder, joinMayDependencies } from './compiler-summary-manifest.js';
+import { createSummaryComponentWorklist } from './compiler-summary-worklist.js';
 const key = canonicalSemanticJson;
 export const callInput = (call, ordinal) => ordinal === -1 ? call.receiver : call.arguments?.[ordinal];
 export const callUnknownInputs = call => [...new Map([call.receiver, ...(call.arguments || []), ...(call.unknownInputs || [])]
@@ -29,8 +30,9 @@ const components = (graph, signal) => {
 };
 /** Bounded monotone parameter-to-return may-depend summaries; field effects and exception inputs are caller-instantiated may channels. */
 export const buildCallDependencySummaries = (documents, { maxIterations = 12, signal,
-  manifestIdentity = null, manifestLimits = null } = {}) => {
+  manifestIdentity = null, manifestLimits = null, referenceSchedule = false } = {}) => {
   throwIfAborted(signal);
+  if (!Number.isSafeInteger(maxIterations) || maxIterations < 0) throw new TypeError('Invalid call summary iteration allowance.');
   const canonicalKeys = new WeakMap();
   const key = value => {
     if (!value || typeof value !== 'object') return canonicalSemanticJson(value);
@@ -40,9 +42,11 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
   const functions=new Map(),reverse=new Map(),calls=[],graph=new Map(),ownershipReasons=new Set();
   const summaryIndexes = new WeakMap(), summaryIds = new WeakMap(), nodeDependents = new Map();
   const nodeCalls = new Map(), cacheWatchers = new Map(), dirty = new Set(), dirtyCalls = new Set(), callRevisions = new WeakMap(), revisions = new Map();
-  const callers = new Map(); let cacheMemberships = 0, cacheEntries = 0, activeCall = null, activeTarget = null;
+  const callers = new Map(); let cacheMemberships = 0, cacheEntries = 0, activeCall = null, activeTarget = null, activeWorklist = null;
+  const processed = new Set(), informationInvalidations = new Set();
+  const markDirty = id => { dirty.add(id); if (processed.has(id)) informationInvalidations.add(id); activeWorklist?.mark(id); };
   const stats = { derives: 0, reverseEdgeVisits: 0, aliasCandidates: 0, callInstantiations: 0,
-    reachabilityCacheHits: 0, dirtyFunctionVisits: 0, cachedMemberships: 0 };
+    reachabilityCacheHits: 0, dirtyFunctionVisits: 0, cachedMemberships: 0, componentMembershipChecks: 0 };
   const recorder = manifestIdentity ? createCompilerSummaryRecorder({ identity: manifestIdentity, signal,
     ...(manifestLimits || {}) }) : null;
 
@@ -52,13 +56,20 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     if (activeCall) recorder?.contribution(activeCall.ownerId, key(activeCall.occurrence), a, b, activeTarget);
     if(!reverse.has(b))reverse.set(b,new Set());const inputs=reverse.get(b),changed=!inputs.has(a);inputs.add(a);
     if (changed) {
-      for (const id of nodeDependents.get(b) || []) dirty.add(id);
+      for (const id of nodeDependents.get(b) || []) markDirty(id);
       for (const call of nodeCalls.get(b) || []) dirtyCalls.add(call);
       for (const query of cacheWatchers.get(b) || []) { query.valid = false; for (const call of query.calls) dirtyCalls.add(call); }
     }
     return changed;
   };
-  for(const document of documents){
+  const documentKeys = new WeakMap();
+  const documentKey = document => {
+    if (!documentKeys.has(document)) documentKeys.set(document, document.item?.source?.sourceUnitId || document.partition?.partitionId
+      || document.summaries.reduce((smallest, summary) => summary.declaration && (!smallest || key(summary.declaration) < smallest) ? key(summary.declaration) : smallest, ''));
+    return documentKeys.get(document);
+  };
+  const orderedDocuments = [...documents].sort((a,b) => documentKey(a) < documentKey(b) ? -1 : documentKey(a) > documentKey(b) ? 1 : 0);
+  for(const document of orderedDocuments){
     for(const edge of document.flowEdges||[])if(channelKinds.has(edge.kind))add(edge.from,edge.to);
     const owners=document.summaries.filter(summary=>summary.declaration).sort((a,b)=>(a.span?.[0]||0)-(b.span?.[0]||0)||(b.span?.[1]||0)-(a.span?.[1]||0));
     const executionOwners=new Map(document.summaries.filter(summary=>summary.ownerRef)
@@ -69,7 +80,9 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     }
     for(const summary of owners){
       const id=key(summary.declaration);
+      if (functions.has(id)) throw Object.assign(new Error('Duplicate source-qualified compiler summary declaration.'), { code: 'ERR_COMPILER_SUMMARY_IDENTITY' });
       const current={...summary,dependencies:new Set(),exceptionDependencies:new Set(),effectDependencies:new Map(),aliases:document.aliases||[],fieldPathDepth:document.policy?.enrichment.fieldPathDepth??8,widened:false,calls:[],maxRounds:document.policy?.enrichment.maxSccIterations??maxIterations,converged:false};
+      if (!Number.isSafeInteger(current.maxRounds) || current.maxRounds < 0) throw new TypeError('Invalid source summary iteration allowance.');
       functions.set(id,current); graph.set(id,new Set()); revisions.set(id,0); summaryIds.set(current,id);
       recorder?.register(id, current, document);
       const ordinals = new Map(); current.parameters.forEach((ref, ordinal) => { if (ref) ordinals.set(key(ref), ordinal); });
@@ -87,7 +100,9 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
       const entry=routes.get(id);entry.reads.push(...route.reads);entry.exceptionTargets.push(...route.exceptionTargets);entry.exceptionEscapes ||= route.exceptionEscapes;
       if(Object.hasOwn(route,'ownerRef'))entry.owners.add(key(route.ownerRef));
     }
-    for(const call of [...document.calls].sort((a,b)=>(a.span?.[0]||0)-(b.span?.[0]||0))){
+    for(const call of [...document.calls].sort((a,b)=>(a.span?.[0]||0)-(b.span?.[0]||0)
+      || (a.span?.[1]||0)-(b.span?.[1]||0) || (key(a.occurrence) < key(b.occurrence) ? -1 : key(a.occurrence) > key(b.occurrence) ? 1 : 0)
+      || ((a.invocationKind || '') < (b.invocationKind || '') ? -1 : (a.invocationKind || '') > (b.invocationKind || '') ? 1 : 0))){
       if(document.orderedOperations?.has(key(call.result || call.occurrence)))continue;
       const start=call.span?.[0],end=call.span?.[1];
       while(nextOwner<owners.length&&owners[nextOwner].span?.[0]<=start){const owner=owners[nextOwner++];while(scopeStack.length&&scopeStack.at(-1).span[1]<=owner.span[0])scopeStack.pop();scopeStack.push(owner);}
@@ -211,46 +226,54 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     }
     return changed;
   };
-  for(const summary of functions.values())if(summary.maxRounds>0&&maxIterations>0) {
+  const orderedIds = [...functions.keys()].sort();
+  for(const id of orderedIds) {
+    const summary = functions.get(id);
+    if (!(summary.maxRounds>0&&maxIterations>0)) continue;
     if (derive(summary)) revisions.set(summaryIds.get(summary), 1);
   }
   const targetRevision = call => call.targets.slice(0, 32).map(ref => [key(ref), revisions.get(key(ref)) ?? null]);
   const needsCall = call => dirtyCalls.has(call) || JSON.stringify(callRevisions.get(call)) !== JSON.stringify(targetRevision(call));
   let iterations=0,converged=true;
+  for (const id of orderedIds) { const targets = graph.get(id); graph.delete(id); graph.set(id, new Set([...targets].sort())); }
   for(const component of components(graph,signal)){
     const members = new Set(component);
-    for (const id of component) dirty.add(id);
-    let round=0;
+    for (const id of component) markDirty(id);
     const roundLimit=component.reduce((limit,id)=>Math.min(limit,functions.get(id).maxRounds),maxIterations);
-    while(component.some(id => dirty.has(id))&&!exhausted&&round<roundLimit){
-      round++;iterations++;
-      for(const id of component){
-        if (!dirty.delete(id)) continue;
-        stats.dirtyFunctionVisits++;
-        const summary=functions.get(id), beforeComplete=summary.complete, beforeWidened=summary.widened;
-        let changed=false;
-        for(const call of summary.calls) {
-          if (!needsCall(call)) continue;
-          dirtyCalls.delete(call); activeCall=call;
-          try { changed=instantiate(call)||changed; }
-          finally { activeCall=null; }
-          callRevisions.set(call,targetRevision(call));
-        }
-        changed=derive(summary)||changed;
-        changed=beforeComplete!==summary.complete||beforeWidened!==summary.widened||changed;
-        if (changed) {
-          revisions.set(id, (revisions.get(id) || 0) + 1);
-          for (const caller of callers.get(id) || []) if (members.has(caller)) dirty.add(caller);
-        }
+    activeWorklist = createSummaryComponentWorklist({ component, dirty, roundLimit, reference: referenceSchedule });
+    while(!exhausted){
+      throwIfAborted(signal);
+      const id = activeWorklist.next(); if (id === null) break;
+      if (!dirty.delete(id)) continue;
+      stats.dirtyFunctionVisits++;
+      const summary=functions.get(id), beforeComplete=summary.complete, beforeWidened=summary.widened;
+      let changed=false;
+      for(const call of summary.calls) {
+        if (!needsCall(call)) continue;
+        dirtyCalls.delete(call); activeCall=call;
+        try { changed=instantiate(call)||changed; }
+        finally { activeCall=null; }
+        callRevisions.set(call,targetRevision(call));
+      }
+      changed=derive(summary)||changed;
+      changed=beforeComplete!==summary.complete||beforeWidened!==summary.widened||changed;
+      if (changed) {
+        revisions.set(id, (revisions.get(id) || 0) + 1);
+        for (const caller of callers.get(id) || []) if (members.has(caller)) markDirty(caller);
       }
     }
+    const worklist = activeWorklist.snapshot(); activeWorklist = null;
+    iterations += worklist.rounds; stats.componentMembershipChecks += worklist.checks;
     const complete=!component.some(id => dirty.has(id))&&!exhausted;converged=complete&&converged;
-    for(const id of component)functions.get(id).converged=complete;
+    for(const id of component) { functions.get(id).converged=complete; processed.add(id); }
     if(exhausted)break;
   }
-  const complete = converged && !exhausted;
-  return {functions,converged:complete,iterations,stats,ownershipReasons:[...ownershipReasons].sort(),
-    shadowManifest: recorder?.finish({ functions, reverse, converged: complete, ownershipReasons }) || null};
+  const analysisReasons = [...dirty].some(id => informationInvalidations.has(id)) ? ['call_summary_information_dependency_unsettled'] : [];
+  for (const id of dirty) if (functions.has(id)) functions.get(id).converged = false;
+  const complete = converged && !exhausted && dirty.size === 0;
+  return {functions,converged:complete,budgetIncomplete:!converged || exhausted,iterations,stats,ownershipReasons:[...ownershipReasons].sort(),
+    analysisReasons,
+    shadowManifest: recorder?.finish({ functions, reverse, converged: complete, ownershipReasons, analysisReasons }) || null};
 };
 
 /** Join known alternatives at the call site without promoting the remainder to exactness. */

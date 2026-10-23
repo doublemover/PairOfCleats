@@ -2,7 +2,7 @@ import { canonicalSemanticJson, semanticHash } from './identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 
-export const COMPILER_SUMMARY_MANIFEST_VERSION = 2;
+export const COMPILER_SUMMARY_MANIFEST_VERSION = 3;
 export const COMPILER_SUMMARY_MANIFEST_MAX_BYTES = 1048576;
 const MAX_ENTRIES = 4096;
 const DOMAIN = 'finite-parameter-return-exception-field-may-v1';
@@ -116,7 +116,7 @@ export const createCompilerSummaryRecorder = ({ identity, signal = null,
       if (reason) return;
     }
   };
-  const finish = ({ functions, reverse, converged, ownershipReasons }) => {
+  const finish = ({ functions, reverse, converged, ownershipReasons, analysisReasons = [] }) => {
     if (reason) return unavailable();
     const list = (values, project = value => value) => {
       const result = [];
@@ -161,7 +161,7 @@ export const createCompilerSummaryRecorder = ({ identity, signal = null,
     if (reason) return unavailable();
     const value = { schemaVersion: COMPILER_SUMMARY_MANIFEST_VERSION, domain: DOMAIN,
       mode: 'shadow', qualifiesReuse: false, reuseGuard: 'full-group-rebuild-required', status: 'recorded', reason: null, identity,
-      limits: { maxBytes, maxEntries }, converged, ownershipReasons: [...ownershipReasons].sort(order), summaries };
+      limits: { maxBytes, maxEntries }, converged, ownershipReasons: [...ownershipReasons].sort(order), analysisReasons: [...analysisReasons].sort(order), summaries };
     // The retained staging allowance also covers framing and immutable projection.
     if (!charge(value)) return unavailable();
     return immutable(JSON.parse(canonicalSemanticJson(value, { maxBytes, check: () => throwIfAborted(signal) })));

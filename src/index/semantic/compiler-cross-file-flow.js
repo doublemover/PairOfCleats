@@ -41,7 +41,7 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
     const evidence = { partitionId, localId: 0 }, rows = [{ family: 'node', row: { id: 0, kind: 'evidence', span: null, scope: null,
       data: { method: 'monotone-call-site-may-depend-summary', producerId: 'semantic-flow', producerVersion: SEMANTIC_ANALYSIS_VERSIONS.callFlow, evidenceKind: 'static-analysis', sourceRef: item.source.sourceUnitId,
         artifactRef: ['off', 'deferred'].includes(effective.enrichment.crossFileFlow) ? null : summaryArtifactRef } } }];
-    const edges = [], reasons = new Set(summaries.ownershipReasons); let completed = 0, nextId = 1;
+    const edges = [], reasons = new Set([...summaries.ownershipReasons, ...summaries.analysisReasons]); let completed = 0, nextId = 1;
     const mode = effective.enrichment.crossFileFlow;
     const emit = (kind, from, to, call, ordinal = null) => from && to && edges.push({ kind, from, to, callSite: call.occurrence,
       operandOrdinal: ordinal, contextKey: group.context.contextKey, condition: null, evidence, certainty: 'modeled' });
@@ -156,7 +156,7 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
       }
       if (summary) completed += 1;
     }
-    if (!summaries.converged && !['off', 'deferred'].includes(mode)) reasons.add('call_summary_iteration_or_work_budget');
+    if (summaries.budgetIncomplete && !['off', 'deferred'].includes(mode)) reasons.add('call_summary_iteration_or_work_budget');
     // May dependencies do not prove execution, alias uniqueness, or exception delivery.
     if (completed) reasons.add('call_owned_return_field_exception_may_summary');
     const uniqueEdges = [...new Map(edges.map(edge => [canonicalSemanticJson(edge), edge])).values()];

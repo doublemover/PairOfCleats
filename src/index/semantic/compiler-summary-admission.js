@@ -112,11 +112,12 @@ export const admitCompilerSummaryManifest = ({ manifest, expectedIdentity, signa
     || value.domain !== 'finite-parameter-return-exception-field-may-v1') return decision('summary_manifest_version_or_domain_mismatch');
   if (value.status === 'unavailable') return decision('summary_manifest_recording_unavailable');
   if (!exact(value, ['schemaVersion', 'domain', 'mode', 'qualifiesReuse', 'reuseGuard', 'status', 'reason', 'identity',
-    'limits', 'converged', 'ownershipReasons', 'summaries']) || value.status !== 'recorded' || value.reason !== null
+    'limits', 'converged', 'ownershipReasons', 'analysisReasons', 'summaries']) || value.status !== 'recorded' || value.reason !== null
     || !exact(value.limits, ['maxBytes', 'maxEntries']) || !Number.isSafeInteger(value.limits.maxBytes)
     || value.limits.maxBytes < 1024 || value.limits.maxBytes > COMPILER_SUMMARY_MANIFEST_MAX_BYTES
     || !Number.isSafeInteger(value.limits.maxEntries) || value.limits.maxEntries < 1 || value.limits.maxEntries > 4096
     || typeof value.converged !== 'boolean' || !array(value.ownershipReasons) || !value.ownershipReasons.every(reason => typeof reason === 'string')
+    || !array(value.analysisReasons) || !value.analysisReasons.every(reason => typeof reason === 'string')
     || !array(value.summaries) || !unique(value.summaries, summary => summary.declaration) || !value.summaries.every(validSummary)) {
     return decision('summary_manifest_schema_mismatch');
   }

@@ -1,6 +1,6 @@
 # Compiler summary shadow manifests
 
-The existing compiler call-summary solver can record version2 shadow manifests.
+The existing compiler call-summary solver can record version3 shadow manifests.
 The compiler cross-file consumer registers one immutable group sidecar through
 the existing semantic evidence inventory and disk account, then links it from
 canonical analysis evidence. This is reusable instrumentation for #1132. It does
@@ -57,6 +57,11 @@ are immutable inspection inputs; admission still refuses reuse. Complete reverse
 support qualification, affected information-SCC recomputation and cross-generation
 reuse remain pending. No speedup, deletion-safe incremental acceptance or #1133
 plan/enqueue/drain support is claimed.
+
+Fresh-solve analysis reasons are distinct from execution-ownership diagnostics.
+In particular, a later information edge that invalidates a previously processed
+call-graph component leaves its summary and group unconverged. The shadow product
+records that blocker; it cannot promote the payload to a fixed-point certificate.
 
 The analysis policy binds the local manifest version. The shared `callFlow`
 producer version must also advance because canonical evidence now points to this
