@@ -107,6 +107,10 @@ export const resolveSymbolRef = ({
       const rootName = name.split(/::|\./)[0] || '';
       const binding = bindings[rootName];
       if (binding && typeof binding.module === 'string') {
+        // A known import owns this root even when this resolver cannot establish
+        // its module. An empty admitted target set must not escape to unrelated
+        // repository-global same-name or same-leaf candidates.
+        hasImportNarrowing = true;
         importHint.moduleSpecifier = binding.module;
         if (typeof binding.imported === 'string' && binding.imported) importedName = binding.imported;
         const suffix = name.slice(rootName.length);
@@ -119,7 +123,6 @@ export const resolveSymbolRef = ({
         if (resolvedFile) {
           importHint.resolvedFile = resolvedFile;
           narrowedEntries = symbolIndex?.byFile?.get(resolvedFile) || [];
-          hasImportNarrowing = true;
         }
       }
     }

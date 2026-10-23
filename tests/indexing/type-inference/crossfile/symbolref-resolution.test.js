@@ -151,3 +151,17 @@ assert.equal(resolveSymbolRef({ targetName: 'Missing', kindHint: 'function',
   symbolIndex: { byName: new Map([['Missing', [unrelatedEntry]]]) }, fileSet: new Set(['src/lib.js']) }).status, 'unresolved',
   'a kind hint can rank matching candidates, but cannot manufacture a name match');
 console.log('symbolref imported member path, case and positive name-match controls passed');
+
+for (const module of ['./missing.js', 'external-package', '@configured/alias']) {
+  const result = resolveSymbolRef({ targetName: 'Alpha', fromFile: 'src/use.js', symbolIndex: basicIndex,
+    fileSet: basicFileSet, fileRelations: new Map([['src/use.js', {
+      importBindings: { Alpha: { imported: 'Alpha', module } }
+    }]]) });
+  assert.equal(result.status, 'unresolved', `known import ${module} cannot escape to repository-global Alpha`);
+  assert.deepEqual(result.candidates, []);
+  assert.equal(result.importHint.moduleSpecifier, module);
+  assert.equal(result.importHint.resolvedFile, null);
+}
+assert.equal(resolveSymbolRef({ targetName: 'Alpha', fromFile: 'src/use.js', symbolIndex: basicIndex,
+  fileSet: basicFileSet }).resolved.chunkUid, 'uid-alpha', 'unimported heuristic resolution retains its existing route');
+console.log('symbolref unavailable import module boundaries and unimported name compatibility controls passed');
