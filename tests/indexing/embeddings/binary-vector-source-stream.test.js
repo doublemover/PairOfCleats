@@ -40,6 +40,20 @@ try {
   assert.throws(() => resolveVectorsSource(path.join(root, base), { ...options, expectedDims: 4 }),
     { code: 'ERR_DENSE_VECTOR_SOURCE_IDENTITY' });
 
+  const primaryPath = path.join(root, `${base}.meta.json`);
+  const primaryBytes = await fs.readFile(primaryPath);
+  const primary = JSON.parse(primaryBytes);
+  for (const change of [{ format: 'uint8-row-major' }, { format: 'unrecognized' },
+    { dims: 4 }, { embeddingGeneration: '8'.repeat(64) },
+    { validity: { ...primary.validity, validCount: 4, bits: 'Dw==' } }]) {
+    await fs.writeFile(primaryPath, JSON.stringify({ ...primary, ...change }));
+    assert.throws(() => resolveVectorsSource(path.join(root, base), options),
+      { code: 'ERR_DENSE_VECTOR_SOURCE_IDENTITY' }, 'textual companion format and identity remain authoritative');
+  }
+  await fs.writeFile(primaryPath, JSON.stringify({ ...primary, totalRecords: 5 }));
+  assert.throws(() => resolveVectorsSource(path.join(root, base), options), { code: 'ERR_DENSE_VECTOR_VALIDITY' });
+  await fs.writeFile(primaryPath, primaryBytes);
+
   const bytes = await fs.readFile(path.join(root, `${base}.bin`));
   await fs.writeFile(path.join(root, `${base}.bin`), bytes.subarray(0, bytes.length - 1));
   const truncated = resolveVectorsSource(path.join(root, base), options);

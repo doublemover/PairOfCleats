@@ -56,7 +56,11 @@ export const resolveBinaryVectorsSource = ({ dir, artifactBase, manifest, expect
     || (binary.bytes != null && binary.bytes !== meta.count * meta.dims)) throw invalid(`Manifested dense binary dimensions/count disagree: ${name}`);
   const primaryPath = path.join(dir, `${spec.baseName}.meta.json`);
   if (fs.existsSync(primaryPath)) {
-    const primary = normalizeDenseVectorStreamMeta(readMetadata(dir, primaryPath).meta);
+    const { format, ...geometry } = readMetadata(dir, primaryPath).meta;
+    // The companion describes JSONL shards, not binary row-major bytes. Share
+    // geometry/validity admission without imposing the binary encoding on it.
+    if (format != null && format !== 'jsonl-sharded') throw invalid(`Invalid dense textual metadata format: ${name}`);
+    const primary = normalizeDenseVectorStreamMeta(geometry);
     for (const key of ['count', 'dims', 'model', 'validity', 'embeddingIdentity', 'embeddingGeneration', 'minVal', 'maxVal', 'levels', 'scale']) {
       if (stableStringify(primary[key]) !== stableStringify(meta[key])) throw invalid(`Dense binary and textual metadata disagree on ${key}: ${name}`);
     }

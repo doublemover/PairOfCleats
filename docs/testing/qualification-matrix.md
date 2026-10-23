@@ -11,7 +11,9 @@ After `d256540ac`, the user requested a full solo Windows validation pass and
 failure repair; [the current receipt](../archived/windows-solo-validation-2026-10-23.md)
 records fresh setup, focused failures/repairs and pending full-tree acceptance.
 Initial discovery contained 4348 default-all cases. Two ownership regressions
-expand it to 4350, with 4288 selected cases and 62 documented exclusions. Older
+expand it to 4350. Splitting four aggregate CLI wrappers into all 77 original
+command cases yields 4423 discovered cases, 4361 required and the same 62
+documented exclusions. Native build/query lifecycle cases run serially. Older
 inventory totals below are historical. Current source is not fully qualified.
 
 The following earlier post-wave checkpoint remains revision-specific. The post-wave source

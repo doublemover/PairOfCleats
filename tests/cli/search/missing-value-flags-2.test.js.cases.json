@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "ann-backend",
+    "awaits",
+    "branch",
+    "candidates",
+    "concurrency",
+    "decorator",
+    "file",
+    "graph-ranking-max-ms",
+    "import",
+    "match",
+    "mode",
+    "mutates",
+    "path",
+    "repo-filter",
+    "risk-flow",
+    "rrf-k",
+    "struct-pack",
+    "throws",
+    "uses"
+  ]
+}

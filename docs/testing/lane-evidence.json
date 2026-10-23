@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-22T02:07:24.341Z",
+  "generatedAt": "2026-10-23T23:23:14.606Z",
   "summary": {
     "lanes": 5,
-    "tests": 1457,
+    "tests": 1534,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 374,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1383
+      "missingTests": 1460
     }
   },
   "lanes": [
@@ -51,7 +51,7 @@
       "targetMaxDurationSeconds": 60,
       "orderFile": "tests/ci/ci.order.txt",
       "timingArtifactPath": ".testLogs/ci-testRunTimes.txt",
-      "totalTests": 154,
+      "totalTests": 228,
       "knownDurationTests": 22,
       "knownDurationMs": 101770,
       "p50DurationMs": 5020,
@@ -59,7 +59,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 22,
-        "missing": 132
+        "missing": 206
       }
     },
     {
@@ -67,7 +67,7 @@
       "targetMaxDurationSeconds": 180,
       "orderFile": "tests/ci-long/ci-long.order.txt",
       "timingArtifactPath": ".testLogs/ci-long-testRunTimes.txt",
-      "totalTests": 20,
+      "totalTests": 23,
       "knownDurationTests": 3,
       "knownDurationMs": 15060,
       "p50DurationMs": 5020,
@@ -75,7 +75,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 3,
-        "missing": 17
+        "missing": 20
       }
     },
     {
@@ -301,6 +301,12 @@
       "unknownDurationCount": 106
     },
     {
+      "key": "cli/search",
+      "count": 88,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 88
+    },
+    {
       "key": "integrations/inference-history",
       "count": 34,
       "knownDurationMs": 0,
@@ -395,12 +401,6 @@
       "count": 13,
       "knownDurationMs": 0,
       "unknownDurationCount": 13
-    },
-    {
-      "key": "cli/search",
-      "count": 12,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 12
     },
     {
       "key": "indexing/incremental",
@@ -715,6 +715,12 @@
       "unknownDurationCount": 3
     },
     {
+      "key": "cli/build-index",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
       "key": "embeddings/cache",
       "count": 2,
       "knownDurationMs": 0,
@@ -944,12 +950,6 @@
     },
     {
       "key": "ci/workflow-contract",
-      "count": 1,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 1
-    },
-    {
-      "key": "cli/build-index",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -2358,9 +2358,9 @@
     },
     {
       "key": "cli-cold-start",
-      "count": 10,
+      "count": 11,
       "knownDurationMs": 5410,
-      "unknownDurationCount": 8,
+      "unknownDurationCount": 9,
       "note": "CLI process startup and argument-routing overlap."
     },
     {
@@ -2385,18 +2385,18 @@
       "note": "Dedicated/configured provider bootstrap and session reuse."
     },
     {
+      "key": "search-cli-contract",
+      "count": 88,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 88,
+      "note": "Search CLI help, explain, and contract surfaces share fixture/index bootstrap."
+    },
+    {
       "key": "smoke-wiring",
       "count": 13,
       "knownDurationMs": 0,
       "unknownDurationCount": 13,
       "note": "Smoke suites should stay thin and avoid chaining lower-level contract tests."
-    },
-    {
-      "key": "search-cli-contract",
-      "count": 12,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 12,
-      "note": "Search CLI help, explain, and contract surfaces share fixture/index bootstrap."
     },
     {
       "key": "map-build",

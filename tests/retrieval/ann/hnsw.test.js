@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import { embeddingArtifactPath } from '../../helpers/embedding-artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
@@ -48,7 +49,7 @@ requireHnswLib({ reason: 'hnswlib-node not available; skipping hnsw-ann test.' }
 await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 await fsPromises.writeFile(
   path.join(repoRoot, 'src', 'main.js'),
-  'export function indexItem(value) { return value + 1; }\n',
+  'export function indexItem(value) {\n  // Increment an indexed item value.\n  return value + 1;\n}\n',
   'utf8'
 );
 await fsPromises.writeFile(
@@ -100,8 +101,6 @@ const codeCodeIndex = embeddingArtifactPath(codeDir, 'dense_vectors_code_hnsw');
 const codeCodeMeta = embeddingArtifactPath(codeDir, 'dense_vectors_code_hnsw_meta');
 const proseIndex = embeddingArtifactPath(proseDir, 'dense_vectors_hnsw');
 const proseMeta = embeddingArtifactPath(proseDir, 'dense_vectors_hnsw_meta');
-const proseDocIndex = embeddingArtifactPath(proseDir, 'dense_vectors_doc_hnsw');
-const proseDocMeta = embeddingArtifactPath(proseDir, 'dense_vectors_doc_hnsw_meta');
 const proseCodeIndex = embeddingArtifactPath(proseDir, 'dense_vectors_code_hnsw');
 const proseCodeMeta = embeddingArtifactPath(proseDir, 'dense_vectors_code_hnsw_meta');
 
@@ -121,14 +120,20 @@ if (!fs.existsSync(proseIndex) || !fs.existsSync(proseMeta)) {
   console.error('HNSW index missing for prose mode.');
   process.exit(1);
 }
-if (!fs.existsSync(proseDocIndex) || !fs.existsSync(proseDocMeta)) {
-  console.error('HNSW doc index missing for prose mode.');
-  process.exit(1);
-}
 if (!fs.existsSync(proseCodeIndex) || !fs.existsSync(proseCodeMeta)) {
   console.error('HNSW code index missing for prose mode.');
   process.exit(1);
 }
+
+// Prose has no separate docmeta.doc channel. Its absence mask must not be
+// fabricated into a nonempty native index; the documented code fixture above
+// supplies the positive doc-channel coverage.
+const proseManifest = JSON.parse(fs.readFileSync(path.join(proseDir, 'pieces', 'manifest.json'), 'utf8'));
+for (const name of ['dense_vectors_doc_hnsw', 'dense_vectors_doc_hnsw_meta']) {
+  assert.equal(proseManifest.pieces.some(piece => piece.name === name), false, `Absent prose doc channel published ${name}`);
+}
+const proseDocVectors = JSON.parse(fs.readFileSync(path.join(proseDir, 'dense_vectors_doc_uint8.meta.json'), 'utf8'));
+assert.equal(proseDocVectors.validity.validCount, 0);
 
 const codeState = JSON.parse(fs.readFileSync(path.join(codeDir, 'index_state.json'), 'utf8'));
 const proseState = JSON.parse(fs.readFileSync(path.join(proseDir, 'index_state.json'), 'utf8'));

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import { embeddingArtifactPath } from '../../helpers/embedding-artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
@@ -21,7 +22,7 @@ await requireLanceDb({ reason: 'lancedb not available; skipping lancedb-ann test
 await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 await fsPromises.writeFile(
   path.join(repoRoot, 'src', 'main.js'),
-  'export function indexItem(value) { return value + 1; }\n',
+  'export function indexItem(value) {\n  // Increment an indexed item value.\n  return value + 1;\n}\n',
   'utf8'
 );
 await fsPromises.writeFile(
@@ -73,13 +74,11 @@ const codeDb = embeddingArtifactPath(codeDir, 'dense_vectors_lancedb');
 const codeDocDb = embeddingArtifactPath(codeDir, 'dense_vectors_doc_lancedb');
 const codeCodeDb = embeddingArtifactPath(codeDir, 'dense_vectors_code_lancedb');
 const proseDb = embeddingArtifactPath(proseDir, 'dense_vectors_lancedb');
-const proseDocDb = embeddingArtifactPath(proseDir, 'dense_vectors_doc_lancedb');
 const proseCodeDb = embeddingArtifactPath(proseDir, 'dense_vectors_code_lancedb');
 const codeMeta = embeddingArtifactPath(codeDir, 'dense_vectors_lancedb_meta');
 const codeDocMeta = embeddingArtifactPath(codeDir, 'dense_vectors_doc_lancedb_meta');
 const codeCodeMeta = embeddingArtifactPath(codeDir, 'dense_vectors_code_lancedb_meta');
 const proseMeta = embeddingArtifactPath(proseDir, 'dense_vectors_lancedb_meta');
-const proseDocMeta = embeddingArtifactPath(proseDir, 'dense_vectors_doc_lancedb_meta');
 const proseCodeMeta = embeddingArtifactPath(proseDir, 'dense_vectors_code_lancedb_meta');
 
 if (!fs.existsSync(codeDb) || !fs.existsSync(codeMeta)) {
@@ -98,14 +97,20 @@ if (!fs.existsSync(proseDb) || !fs.existsSync(proseMeta)) {
   console.error('LanceDB index missing for prose mode.');
   process.exit(1);
 }
-if (!fs.existsSync(proseDocDb) || !fs.existsSync(proseDocMeta)) {
-  console.error('LanceDB doc index missing for prose mode.');
-  process.exit(1);
-}
 if (!fs.existsSync(proseCodeDb) || !fs.existsSync(proseCodeMeta)) {
   console.error('LanceDB code index missing for prose mode.');
   process.exit(1);
 }
+
+// Prose has no separate docmeta.doc channel. Its absence mask must not be
+// fabricated into a nonempty native index; the documented code fixture above
+// supplies the positive doc-channel coverage.
+const proseManifest = JSON.parse(fs.readFileSync(path.join(proseDir, 'pieces', 'manifest.json'), 'utf8'));
+for (const name of ['dense_vectors_doc_lancedb', 'dense_vectors_doc_lancedb_meta']) {
+  assert.equal(proseManifest.pieces.some(piece => piece.name === name), false, `Absent prose doc channel published ${name}`);
+}
+const proseDocVectors = JSON.parse(fs.readFileSync(path.join(proseDir, 'dense_vectors_doc_uint8.meta.json'), 'utf8'));
+assert.equal(proseDocVectors.validity.validCount, 0);
 
 const codeState = JSON.parse(fs.readFileSync(path.join(codeDir, 'index_state.json'), 'utf8'));
 const proseState = JSON.parse(fs.readFileSync(path.join(proseDir, 'index_state.json'), 'utf8'));
@@ -122,7 +127,6 @@ const codeMetaPayload = JSON.parse(fs.readFileSync(codeMeta, 'utf8'));
 const codeDocMetaPayload = JSON.parse(fs.readFileSync(codeDocMeta, 'utf8'));
 const codeCodeMetaPayload = JSON.parse(fs.readFileSync(codeCodeMeta, 'utf8'));
 const proseMetaPayload = JSON.parse(fs.readFileSync(proseMeta, 'utf8'));
-const proseDocMetaPayload = JSON.parse(fs.readFileSync(proseDocMeta, 'utf8'));
 const proseCodeMetaPayload = JSON.parse(fs.readFileSync(proseCodeMeta, 'utf8'));
 if (codeMetaPayload.metric !== lanceConfig.metric) {
   console.error(`Expected LanceDB code metric=${lanceConfig.metric}, got ${codeMetaPayload.metric}`);
@@ -138,10 +142,6 @@ if (codeCodeMetaPayload.metric !== lanceConfig.metric) {
 }
 if (proseMetaPayload.metric !== lanceConfig.metric) {
   console.error(`Expected LanceDB prose metric=${lanceConfig.metric}, got ${proseMetaPayload.metric}`);
-  process.exit(1);
-}
-if (proseDocMetaPayload.metric !== lanceConfig.metric) {
-  console.error(`Expected LanceDB prose/doc metric=${lanceConfig.metric}, got ${proseDocMetaPayload.metric}`);
   process.exit(1);
 }
 if (proseCodeMetaPayload.metric !== lanceConfig.metric) {

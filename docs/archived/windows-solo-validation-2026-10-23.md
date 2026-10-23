@@ -124,3 +124,66 @@ root and are removed in `finally`. This is installer/header admission, not nativ
 execution proof. New discovery totals 4350; 4288 cases remain required after the
 same 62 documented exclusions. The next candidate must rerun the CLI cohort and
 continue the remaining cohorts without borrowing earlier green observations.
+
+
+## ANN handoff and bounded CLI repair batch
+
+The frozen `ad726ba309ec54e72d335c2854dca231f968ad41` CLI cohort passed 46 of
+48 cases and timed out two; no native crash occurred. The missing-value wrapper
+completed its assertions after its aggregate deadline. Four wrappers now retain
+all 77 original sorted/partitioned flag commands as explicit discovered cases,
+with the same nonzero-status and exact missing-value assertions, 5-second child
+bounds and ordered CI membership. Physical scripts remain; none of their
+coverage was removed. Static inventories must exactly equal canonical flags so
+new options cannot disappear. The 77-case run passed with zero retries/timeouts.
+CI grows from 155 to 228 selected cases; generated lane evidence preserves
+historical timings instead of inventing timings for new cases. Discovery grows
+from 4350 to 4423; the same 62 exclusions leave 4361 required cases.
+
+The full native build/two-query determinism fixture now uses a fresh managed
+workspace per invocation and cleans it in `finally`. Its two queries still share
+the same generation and require positive hits and byte-identical result content.
+An earlier timeout left a conservative settlement lock in its shared author
+cache, with no surviving matching child observed. That cache/lock is preserved;
+no live index was stopped or authority bypassed. Fresh isolation passes in
+26.012 seconds with production backend settings and the original 30-second
+bound. This complete native lifecycle belongs in the serial cohort, separate
+from concurrent CLI argument checks.
+
+The native writer exposed an actual Arrow constructor-realm defect. The ESM
+Arrow objects reached LanceDB's CommonJS sanitizer, which reconstructed nested
+Data without its children and rejected the resulting RecordBatch/Table schemas.
+The producer now resolves CommonJS Arrow from the installed LanceDB consumer.
+No dependency, native patch, schema, dimension, nullability or buffer-lifetime
+contract changed. The original real custom-column round-trip failed before the
+repair and passed afterward; explicit schema and owned-buffer checks also pass.
+Inert native-boundary fixtures now intercept only the optional-dependency import,
+so resolving Arrow itself still uses the actual installed dependency. Atomic
+persistence failures must retain the exact injected primary on their cause chain;
+byte preservation, rollback, cleanup and close-count assertions remain.
+
+A second production bug imposed binary `uint8-row-major` encoding admission on
+the JSONL companion metadata. The cross-representation comparison now validates
+the textual encoding separately and retains strict shared geometry, validity,
+model and generation comparisons. Its existing real binary-stream fixture failed
+before and passes after; added format/count/dimension/generation/validity negatives
+remain required. A third bug inserted an own `dims: undefined` into legacy inline
+rows, incorrectly claiming explicit geometry. Absent dimensions now stay absent
+unless the selected caller supplies them; canonical row validation remains.
+
+The native retrieval fixtures now provide an actual in-chunk code doc comment for
+positive doc-channel coverage. Prose supplies no docmeta.doc channel, so fixtures
+assert its zero-validity mask and absence of a fabricated native doc index while
+retaining merged/code indexes and retrieval availability. The 14-case affected
+selection passed 13 with one stale error-identity assertion; the corrected staged
+replacement then passed separately. Real HNSW/Lance retrieval passed in
+21.1/21.7 seconds. No retry, backend disabling, increased deadline or crash-status
+redo was used. Upstream Lance new-dataset WARN lines remain visible and require
+explicit classification before any warning-clean acceptance claim. These are
+focused observations, not full final-head qualification; all remaining cohorts
+must execute against the next frozen candidate.
+
+This repair batch passes scoped npm formatting, config budget, environment usage,
+generated-surface freshness, command-surface and workflow contracts, the complete
+40-case front gate, and git diff --check. These checks do not substitute for
+the pending complete frozen-source Windows cohorts.

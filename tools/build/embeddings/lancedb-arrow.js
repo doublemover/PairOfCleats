@@ -1,8 +1,14 @@
-import { DataType, Field, FixedSizeList, Float32, Int64, Schema, Struct,
-  RecordBatch, Table, makeData } from 'apache-arrow';
+import { createRequire } from 'node:module';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
 import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
+
+// LanceDB consumes CommonJS Arrow instances. Mixing the ESM constructor realm
+// invokes its cross-instance sanitizer, which drops nested Data children. Bind
+// this boundary to the exact Arrow instance resolved by the LanceDB consumer.
+const requireLance = createRequire(import.meta.resolve('@lancedb/lancedb'));
+const { DataType, Field, FixedSizeList, Float32, Int64, Schema, Struct,
+  RecordBatch, Table, makeData } = requireLance('apache-arrow');
 
 /** One schema for every batch, independent of configured column spelling. */
 export const createLanceVectorContract = ({ dims, idColumn, embeddingColumn, batchSize,

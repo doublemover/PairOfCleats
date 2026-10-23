@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 124,
+    "hero": 197,
     "matrix": 27,
     "meta": 4,
     "soak": 0,
@@ -923,26 +923,464 @@
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "cli/search/missing-value-flags-1",
+      "id": "cli/search/missing-value-flags-1/alias",
       "order": 152,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "cli/search/missing-value-flags-2",
+      "id": "cli/search/missing-value-flags-1/author",
       "order": 153,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "cli/search/missing-value-flags-3",
+      "id": "cli/search/missing-value-flags-1/bm25-k1",
       "order": 154,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "cli/search/missing-value-flags-4",
+      "id": "cli/search/missing-value-flags-1/calls",
       "order": 155,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/cohort",
+      "order": 156,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/deadline-ms",
+      "order": 157,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/extends",
+      "order": 158,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/fts-weights",
+      "order": 159,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/graph-ranking-seeds",
+      "order": 160,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/loops",
+      "order": 161,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/meta-json",
+      "order": 162,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/modified-since",
+      "order": 163,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/param",
+      "order": 164,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/repo",
+      "order": 165,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/risk-category",
+      "order": 166,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/risk-tag",
+      "order": 167,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/snapshot",
+      "order": 168,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/tag",
+      "order": 169,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/type",
+      "order": 170,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1/writes",
+      "order": 171,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/ann-backend",
+      "order": 172,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/awaits",
+      "order": 173,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/branch",
+      "order": 174,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/candidates",
+      "order": 175,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/concurrency",
+      "order": 176,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/decorator",
+      "order": 177,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/file",
+      "order": 178,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/graph-ranking-max-ms",
+      "order": 179,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/import",
+      "order": 180,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/match",
+      "order": 181,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/mode",
+      "order": 182,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/mutates",
+      "order": 183,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/path",
+      "order": 184,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/repo-filter",
+      "order": 185,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/risk-flow",
+      "order": 186,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/rrf-k",
+      "order": 187,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/struct-pack",
+      "order": 188,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/throws",
+      "order": 189,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2/uses",
+      "order": 190,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/ann-candidates",
+      "order": 191,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/backend",
+      "order": 192,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/branches",
+      "order": 193,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/chunk-author",
+      "order": 194,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/continues",
+      "order": 195,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/dense-vector-mode",
+      "order": 196,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/filter",
+      "order": 197,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/graph-ranking-max-work",
+      "order": 198,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/inferred-type",
+      "order": 199,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/merge",
+      "order": 200,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/model",
+      "order": 201,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/n",
+      "order": 202,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/preset",
+      "order": 203,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/return-type",
+      "order": 204,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/risk-sink",
+      "order": 205,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/select",
+      "order": 206,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/struct-rule",
+      "order": 207,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/top",
+      "order": 208,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3/visibility",
+      "order": 209,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/as-of",
+      "order": 210,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/bm25-b",
+      "order": 211,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/breaks",
+      "order": 212,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/churn",
+      "order": 213,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/cursor",
+      "order": 214,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/ext",
+      "order": 215,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/fts-profile",
+      "order": 216,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/graph-ranking-seed-k",
+      "order": 217,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/lang",
+      "order": 218,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/meta",
+      "order": 219,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/modified-after",
+      "order": 220,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/output-bytes",
+      "order": 221,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/reads",
+      "order": 222,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/risk",
+      "order": 223,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/risk-source",
+      "order": 224,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/signature",
+      "order": 225,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/struct-tag",
+      "order": 226,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/top-per-repo",
+      "order": 227,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4/workspace",
+      "order": 228,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

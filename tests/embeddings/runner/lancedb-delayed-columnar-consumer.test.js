@@ -8,9 +8,11 @@ import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js'
 // Actual staged writer/Arrow batches, inert delayed native boundary. Authored
 // only; successful delayed consumption does not qualify rejected native work.
 const key = Symbol.for('poc.tests.lancedb-delayed-columnar');
+// Replace only the native connection import; Arrow resolves the real consumer package.
 const hooks = registerHooks({
   resolve(specifier, context, next) {
-    return specifier === '@lancedb/lancedb' ? { url: 'poc:lancedb-delayed-columnar', shortCircuit: true } : next(specifier, context);
+    return specifier === '@lancedb/lancedb'
+      && context.parentURL?.endsWith('/src/shared/optional-deps.js') ? { url: 'poc:lancedb-delayed-columnar', shortCircuit: true } : next(specifier, context);
   },
   load(url, context, next) {
     return url === 'poc:lancedb-delayed-columnar' ? { format: 'module', shortCircuit: true,

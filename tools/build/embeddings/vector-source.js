@@ -85,7 +85,10 @@ const admitMeta = (raw, { expectedDims, expectedModelId, expectedEmbeddingIdenti
     || (expectedModelId != null && meta.model != null && meta.model !== expectedModelId)
     || (expectedEmbeddingIdentity != null && stableStringify(meta.embeddingIdentity) !== stableStringify(expectedEmbeddingIdentity))
     || (expectedEmbeddingGeneration != null && meta.embeddingGeneration !== expectedEmbeddingGeneration)) throw invalid('Dense textual metadata disagrees with the selected backend input.');
-  return { ...meta, dims: meta.dims ?? expectedDims ?? undefined };
+  // Preserve an absent dimension field for legacy inline rows, whose geometry
+  // is inferred from their actual vectors. An own `dims: undefined` incorrectly
+  // claims explicit geometry and makes the canonical row validator reject them.
+  return meta.dims == null && expectedDims != null ? { ...meta, dims: expectedDims } : meta;
 };
 const readVectorsPayload = (filePath, selection) => {
   const data = readJsonFile(filePath, { maxBytes: Number.POSITIVE_INFINITY });

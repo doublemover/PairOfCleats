@@ -5,9 +5,11 @@ import { registerHooks } from 'node:module';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 const key = Symbol.for('poc.tests.lancedb-staged-replacement');
+// Replace only the native connection import; Arrow resolves the real consumer package.
 const hooks = registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === '@lancedb/lancedb') return { url: 'poc:lancedb-staged-replacement', shortCircuit: true };
+    if (specifier === '@lancedb/lancedb'
+      && context.parentURL?.endsWith('/src/shared/optional-deps.js')) return { url: 'poc:lancedb-staged-replacement', shortCircuit: true };
     return nextResolve(specifier, context);
   },
   load(url, context, nextLoad) {
@@ -21,6 +23,17 @@ const dir = path.join(root, 'dense_vectors.lancedb');
 const metaPath = `${dir}.meta.json`;
 const primary = Object.assign(new Error('controlled build failure'), { code: 'EIO' });
 const cleanup = Object.assign(new Error('controlled cleanup failure'), { code: 'EIO' });
+// Atomic persistence now retains operation context in AggregateError.cause.
+// Require the exact injected primary to remain on that chain; a matching message
+// or an unrelated cleanup error must never satisfy the fault assertion.
+const hasPrimaryCause = error => {
+  const seen = new Set();
+  for (let current = error; current && !seen.has(current); current = current.cause) {
+    if (current === primary) return true;
+    seen.add(current);
+  }
+  return false;
+};
 let fault = null, closeFailure = false, rollbackFailure = false;
 let publicationInjected = false;
 let connections = 0, tableCloses = 0, databaseCloses = 0, tables = 0;
@@ -79,7 +92,8 @@ try {
     emitOutput: false, logger: { log() {}, warn(message) { assert.fail(`Unexpected warning: ${message}`); } } });
   for (fault of ['connect', 'add', 'count', 'count-mismatch', 'metadata', 'publication']) {
     await assert.rejects(write(), error => fault === 'count-mismatch'
-      ? /insert count mismatch/.test(error.message) : error === primary);
+      ? /insert count mismatch/.test(error.message)
+      : ['metadata', 'publication'].includes(fault) ? hasPrimaryCause(error) : error === primary);
     await priorUnchanged();
     assert.equal((await fs.readdir(root)).some(name => name.startsWith('.lancedb-staging-')), false);
     assert.equal((await fs.readdir(root)).some(name => name.includes('.bak-')), false);
@@ -93,7 +107,7 @@ try {
     && error.errors.includes(cleanup) && /staging cleanup retained/.test(error.message));
   await priorUnchanged();
   fault = 'publication'; rollbackFailure = true; publicationInjected = false;
-  await assert.rejects(write(), error => error instanceof AggregateError && error.cause === primary
+  await assert.rejects(write(), error => error instanceof AggregateError && hasPrimaryCause(error)
     && /recovery retained/.test(error.message));
   const journal = JSON.parse(await fs.readFile(`${metaPath}.publication.json`, 'utf8'));
   assert.equal(await fs.readFile(path.join(root, journal.backupPath, 'prior-index'), 'utf8'), 'prior immutable bytes');
