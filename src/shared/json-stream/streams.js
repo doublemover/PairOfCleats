@@ -6,6 +6,7 @@ import { createByteCounter } from './byte-counter.js';
 import { createFflateGzipStream, createZstdStream, normalizeHighWaterMark } from './compress.js';
 import { createAbortError } from './runtime.js';
 import { getEnvConfig } from '../env.js';
+import { addStorageFailureContext } from '../storage/operation-error.js';
 
 const JSON_STREAM_WAIT_TIMEOUT_SYMBOL = Symbol.for('pairofcleats.json_stream_wait_timeout_ms');
 const DEFAULT_JSON_STREAM_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
@@ -74,6 +75,12 @@ const waitForEventWithTimeout = async ({ stream, event, timeoutMs, label = null 
  * @returns {Promise<void>}
  */
 export const waitForStreamEvent = async (stream, event, options = {}) => {
+  if (event === 'close' && stream.closed) return;
+  if (event === 'finish' && stream.writableFinished) return;
+  if (event !== 'error' && stream.errored) throw stream.errored;
+  if (event === 'drain' && (stream.destroyed || stream.writableEnded)) {
+    throw Object.assign(new Error('JSON output closed before writable drain.'), { code: 'ERR_STREAM_DESTROYED' });
+  }
   const timeoutMs = resolveJsonStreamWaitTimeoutMs(
     options?.timeoutMs ?? stream?.[JSON_STREAM_WAIT_TIMEOUT_SYMBOL]
   );
@@ -95,6 +102,10 @@ export const waitForStreamEvent = async (stream, event, options = {}) => {
  * @returns {Promise<void>}
  */
 export const writeChunkIfNeeded = (stream, chunk) => {
+  if (stream.errored) throw stream.errored;
+  if (stream.destroyed || stream.writableEnded) {
+    throw Object.assign(new Error('JSON output is closed.'), { code: 'ERR_STREAM_DESTROYED' });
+  }
   if (!stream.write(chunk)) {
     return waitForStreamEvent(stream, 'drain', { label: 'writeChunk.drain' });
   }
@@ -158,12 +169,17 @@ const waitForFinish = async (stream, requireClose = false, timeoutMs = 0, label 
 const waitForClose = (stream, timeoutMs = 0) => {
   if (!stream) return Promise.resolve();
   if (stream.closed) return Promise.resolve();
-  return waitForEventWithTimeout({
-    stream,
-    event: 'close',
-    timeoutMs,
-    label: 'stream.close'
-  }).catch(() => {});
+  // An error is diagnostic data, not evidence that the descriptor closed.
+  // Pipeline owners keep observing errors while this waits for actual close.
+  return new Promise((resolve, reject) => {
+    let timer = null;
+    const close = () => { if (timer) clearTimeout(timer); resolve(); };
+    stream.once('close', close);
+    if (timeoutMs > 0) timer = setTimeout(() => {
+      stream.removeListener('close', close);
+      reject(createStreamWaitTimeoutError({ event: 'close', timeoutMs, label: 'stream.close' }));
+    }, timeoutMs);
+  });
 };
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -389,8 +405,12 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     getChecksum
   } = counting;
   let writer = null;
-  let committed = false;
   const streams = [];
+  const streamErrors = new Set();
+  for (const owned of [codec, counter, fileStream].filter(Boolean)) owned.on('error', error => {
+    streamErrors.add(error);
+    if (owned.errored) streamErrors.add(owned.errored);
+  });
   const attachAbortHandler = () => {
     if (!signal) return () => {};
     const handler = () => {
@@ -438,15 +458,14 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     if (counter && counter !== writer) counter.on('error', forwardToFile);
     fileStream.on('error', forwardToWriter);
   };
-  const createWriteStreamResult = (stream) => ({
-    stream,
-    getBytesWritten: getBytes,
-    checksumAlgo: resolvedChecksumAlgo,
-    getChecksum,
-    done: Promise.all([...new Set(streams)].map((entry) => (
+  const createWriteStreamResult = (stream) => {
+    const ownedStreams = [...new Set(streams)];
+    const done = Promise.all(ownedStreams.map((entry) => (
       waitForFinish(entry, entry === fileStream, resolvedWaitTimeoutMs, `json-stream.${entry === fileStream ? 'close' : 'finish'}`)
     )))
       .then(async () => {
+        await Promise.all(ownedStreams.map(entry => waitForClose(entry, resolvedWaitTimeoutMs)));
+        if (streamErrors.size) throw streamErrors.values().next().value;
         if (isOverLimit()) {
           throw new Error('JSON stream exceeded maxBytes.');
         }
@@ -455,20 +474,30 @@ export const createJsonWriteStream = (filePath, options = {}) => {
         }
         if (atomic) {
           await replaceFile(targetPath, filePath);
-          committed = true;
         }
       })
       .catch(async (err) => {
-        await removeTempFile();
-        throw err;
-      })
-      .finally(async () => {
-        if (atomic && !committed) {
-          await removeTempFile();
+        let primary = err;
+        for (const owned of ownedStreams) {
+          try { if (!owned.destroyed) owned.destroy(err); }
+          catch (error) { streamErrors.add(error); }
         }
-        detachAbort();
+        const settled = await Promise.allSettled(ownedStreams.map(entry => waitForClose(entry, resolvedWaitTimeoutMs)));
+        for (const outcome of settled) if (outcome.status === 'rejected') streamErrors.add(outcome.reason);
+        for (const error of streamErrors) if (error !== err) {
+          primary = addStorageFailureContext(primary, {}, error, { secondaryPresent: true });
+        }
+        try { await removeTempFile(); } catch (error) {
+          primary = addStorageFailureContext(primary, {}, error, { secondaryPresent: true });
+        }
+        throw primary;
       })
-  });
+      .finally(() => { detachAbort(); });
+    // A producer can be awaiting its next row when the destination fails.
+    // Observe the finalizer immediately; callers still receive its exact error.
+    done.catch(() => {});
+    return { stream, getBytesWritten: getBytes, checksumAlgo: resolvedChecksumAlgo, getChecksum, done };
+  };
   if (compression === 'gzip') {
     const gzip = codec;
     writer = gzip;

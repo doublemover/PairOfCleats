@@ -21,9 +21,17 @@ const createJsonOutput = async (filePath, options) => {
       sink.done.catch(error => stream?.destroy(error));
     }
   } catch (error) {
-    for (const sink of sinks) sink.stream.destroy(error);
-    await Promise.allSettled(sinks.map(sink => sink.done));
-    throw error;
+    let primary = error;
+    for (const sink of sinks) {
+      try { sink.stream.destroy(error); } catch (cleanupError) {
+        primary = addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true });
+      }
+    }
+    const settled = await Promise.allSettled(sinks.map(sink => sink.done));
+    for (const outcome of settled) if (outcome.status === 'rejected' && outcome.reason !== error) {
+      primary = addStorageFailureContext(primary, {}, outcome.reason, { secondaryPresent: true });
+    }
+    throw primary;
   }
   stream = new Writable({
     highWaterMark: options.highWaterMark || 64 * 1024,

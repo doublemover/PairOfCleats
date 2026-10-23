@@ -149,8 +149,12 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
       pendingLease?.release(); pendingLease = null;
       pendingBuffer = null; pendingBytes = 0;
       pendingBlocks = 0;
-      try { stream.destroy(failed); } catch {}
-      try { await done; } catch {}
+      try { stream.destroy(failed); } catch (error) {
+        if (error !== failed) failed = addStorageFailureContext(failed, {}, error, { secondaryPresent: true });
+      }
+      try { await done; } catch (error) {
+        if (error !== failed) failed = addStorageFailureContext(failed, {}, error, { secondaryPresent: true });
+      }
       if (ownedPool && compressionPool) {
         try { await compressionPool.close(); compressionPool = null; }
         catch (error) { failed = addStorageFailureContext(failed, {}, error, { secondaryPresent: true }); }
