@@ -309,6 +309,19 @@ full cleanup-category capability or deep-suite green is claimed.
   renderer/frozen/falsey/schema negatives are authored, all unrun. See
   [the output contract](../contracts/api-contract-report-outcomes.md).
 
+- #1672: successful TypeScript compiler/Babel callable metadata now projects
+  actual nodes and preserves explicit slot, annotation and range presence.
+  Display signatures cannot contaminate callback types, add decorator arguments
+  or replace known-empty/absent facts. Bodyless declarations use their own end;
+  methods, constructors, interfaces and overloads retain source identity. The
+  canonical compact version-1 receipt separates bounded slots/type text from
+  original counts and justified arity, and keeps receiver/default/rest/pattern
+  roles. Metadata remains source-owned through doc enrichment and payload JSON.
+  Actual parser/registered/payload and recovery/300-slot controls are authored,
+  unrun; original structural operand coverage remains. SourceChunking 18 to 19,
+  typeNormalization 8 to 9. #1709 API handoff and #1678 broader positional consumer
+  repairs remain pending. See [the authority contract](../contracts/callable-parameter-authority.md).
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -465,7 +478,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1669](https://github.com/doublemover/PairOfCleats/issues/1669) | [P2] Reject missing retrieval cohorts before scoring or enforcing backend parity | Pending full-scope review |
 | [#1670](https://github.com/doublemover/PairOfCleats/issues/1670) | [P2] Qualify reported score deltas by score space and paired measurement support | Pending full-scope review |
 | [#1671](https://github.com/doublemover/PairOfCleats/issues/1671) | [P2] Preserve Boolean operator semantics in generated benchmark queries | Pending full-scope review |
-| [#1672](https://github.com/doublemover/PairOfCleats/issues/1672) | [P2] Preserve authoritative TypeScript callable metadata instead of reparsing display signatures | Pending full-scope review |
+| [#1672](https://github.com/doublemover/PairOfCleats/issues/1672) | [P2] Preserve authoritative TypeScript callable metadata instead of reparsing display signatures | Source repair committed; runtime proof pending |
 | [#1673](https://github.com/doublemover/PairOfCleats/issues/1673) | [P2] Join JavaScript callable metadata and flow by declaration occurrence, not display name | Pending full-scope review |
 | [#1674](https://github.com/doublemover/PairOfCleats/issues/1674) | [P2] Retain JavaScript declaration expressions under the correct evaluation owner | Pending full-scope review |
 | [#1675](https://github.com/doublemover/PairOfCleats/issues/1675) | [P2] Admit all benchmark query pools against one aggregate resource plan | Pending full-scope review |

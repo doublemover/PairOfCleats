@@ -1,10 +1,7 @@
+import { projectBabelCallable } from './callable-metadata.js';
 import { prepareTypeScriptBabelSyntax } from './syntax-context.js';
 import {
-  extractTypeScriptInheritance,
-  extractTypeScriptParamTypes,
-  extractTypeScriptParams,
-  extractTypeScriptReturns,
-  parseTypeScriptSignature
+  extractTypeScriptInheritance
 } from './signature.js';
 import {
   createTypeScriptChunkDeclarationSink,
@@ -28,11 +25,9 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
   const ast = prepareTypeScriptBabelSyntax(text, options);
   if (!ast || !Array.isArray(ast.body)) return null;
   const { buildSignature, buildMetaBase, addDeclaration, finish } = createTypeScriptChunkDeclarationSink(text);
-  const buildFunctionMeta = (start, end, signature) => ({
+  const buildFunctionMeta = (node, start, end, signature) => ({
     ...buildMetaBase(start, end, signature),
-    params: extractTypeScriptParams(signature),
-    paramTypes: extractTypeScriptParamTypes(signature),
-    returns: extractTypeScriptReturns(signature)
+    ...projectBabelCallable({ node, text, start, end, parseComplete: !ast.errors?.length })
   });
   const buildTypeMeta = (start, end, signature) => {
     const base = buildMetaBase(start, end, signature);
@@ -49,20 +44,20 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
   const handleClassMembers = (prefix, className, members) => {
     const qualified = qualifyTypeScriptChunkName(prefix, className);
     for (const member of members || []) {
-      if (member.type === 'ClassMethod' || member.type === 'ClassPrivateMethod') {
+      if (['ClassMethod', 'ClassPrivateMethod', 'TSDeclareMethod', 'TSMethodSignature'].includes(member.type)) {
         const methodName = getBabelName(member.key) || 'anonymous';
-        const signature = buildSignature(member.start, member.body?.start ?? -1);
-        addChunk(member, `${qualified}.${methodName}`, 'MethodDeclaration',
-          buildFunctionMeta(member.start, member.end, signature));
+        const signature = buildSignature(member.start, member.body?.start ?? -1, member.end);
+        addChunk(member, `${qualified}.${methodName}`, member.kind === 'constructor' ? 'ConstructorDeclaration' : 'MethodDeclaration',
+          buildFunctionMeta(member, member.start, member.end, signature));
       }
       if ((member.type === 'ClassProperty' || member.type === 'ClassPrivateProperty')
         && member.value && (member.value.type === 'ArrowFunctionExpression'
           || member.value.type === 'FunctionExpression')) {
         const propName = getBabelName(member.key) || 'anonymous';
         const bodyStart = member.value.body?.start ?? -1;
-        const signature = buildSignature(member.start, bodyStart);
+        const signature = buildSignature(member.start, bodyStart, member.end);
         addChunk(member, `${qualified}.${propName}`, 'MethodDeclaration',
-          buildFunctionMeta(member.start, member.end, signature));
+          buildFunctionMeta(member.value, member.start, member.end, signature));
       }
     }
   };
@@ -78,7 +73,7 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
     if (stmt.type === 'ClassDeclaration' && (stmt.id?.name || defaultExport)) {
       const name = stmt.id?.name || 'default';
       const start = stmt.start ?? 0;
-      const signature = buildSignature(start, stmt.body?.start ?? -1);
+      const signature = buildSignature(start, stmt.body?.start ?? -1, stmt.end);
       addChunk(stmt, qualifyTypeScriptChunkName(prefix, name), 'ClassDeclaration',
         buildTypeMeta(start, stmt.end ?? start, signature));
       handleClassMembers(prefix, name, stmt.body?.body || []);
@@ -86,21 +81,22 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
     }
     if (stmt.type === 'TSInterfaceDeclaration' && stmt.id?.name) {
       const start = stmt.start ?? 0;
-      const signature = buildSignature(start, stmt.body?.start ?? -1);
+      const signature = buildSignature(start, stmt.body?.start ?? -1, stmt.end);
       addChunk(stmt, qualifyTypeScriptChunkName(prefix, stmt.id.name), 'InterfaceDeclaration',
         buildTypeMeta(start, stmt.end ?? start, signature));
+      handleClassMembers(prefix, stmt.id.name, stmt.body?.body || []);
       return;
     }
     if (stmt.type === 'TSEnumDeclaration' && stmt.id?.name) {
       const start = stmt.start ?? 0;
-      const signature = buildSignature(start, stmt.members?.[0]?.start ?? -1);
+      const signature = buildSignature(start, stmt.members?.[0]?.start ?? -1, stmt.end);
       addChunk(stmt, qualifyTypeScriptChunkName(prefix, stmt.id.name), 'EnumDeclaration',
         buildMetaBase(start, stmt.end ?? start, signature));
       return;
     }
     if (stmt.type === 'TSTypeAliasDeclaration' && stmt.id?.name) {
       const start = stmt.start ?? 0;
-      const signature = buildSignature(start, -1);
+      const signature = buildSignature(start, -1, stmt.end);
       addChunk(stmt, qualifyTypeScriptChunkName(prefix, stmt.id.name), 'TypeAliasDeclaration',
         buildMetaBase(start, stmt.end ?? start, signature));
       return;
@@ -109,7 +105,7 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
       const name = getBabelName(stmt.id);
       if (!name) return;
       const start = stmt.start ?? 0;
-      const signature = buildSignature(start, stmt.body?.start ?? -1);
+      const signature = buildSignature(start, stmt.body?.start ?? -1, stmt.end);
       addChunk(stmt, qualifyTypeScriptChunkName(prefix, name), 'NamespaceDeclaration',
         buildMetaBase(start, stmt.end ?? start, signature));
       const moduleBody = stmt.body?.body;
@@ -122,17 +118,17 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
     }
     if (stmt.type === 'TSDeclareFunction' && stmt.id?.name) {
       const start = stmt.start ?? 0;
-      const signature = buildSignature(start, -1);
+      const signature = buildSignature(start, -1, stmt.end);
       addChunk(stmt, qualifyTypeScriptChunkName(prefix, stmt.id.name), 'FunctionDeclaration',
-        buildFunctionMeta(start, stmt.end ?? start, signature));
+        buildFunctionMeta(stmt, start, stmt.end ?? start, signature));
       return;
     }
     if ((stmt.type === 'FunctionDeclaration' && (stmt.id?.name || defaultExport))
       || (defaultExport && ['FunctionExpression', 'ArrowFunctionExpression'].includes(stmt.type))) {
       const start = stmt.start ?? 0;
-      const signature = buildSignature(start, stmt.body?.start ?? -1);
+      const signature = buildSignature(start, stmt.body?.start ?? -1, stmt.end);
       addChunk(stmt, qualifyTypeScriptChunkName(prefix, stmt.id?.name || 'default'), 'FunctionDeclaration',
-        buildFunctionMeta(start, stmt.end ?? start, signature));
+        buildFunctionMeta(stmt, start, stmt.end ?? start, signature));
       return;
     }
     if (stmt.type === 'VariableDeclaration') {
@@ -140,9 +136,9 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
         if (decl.id?.name && decl.init
           && (decl.init.type === 'FunctionExpression' || decl.init.type === 'ArrowFunctionExpression')) {
           const start = decl.start ?? stmt.start ?? 0;
-          const signature = buildSignature(start, decl.init.body?.start ?? -1);
+          const signature = buildSignature(start, decl.init.body?.start ?? -1, decl.end);
           addChunk(decl, qualifyTypeScriptChunkName(prefix, decl.id.name), 'FunctionDeclaration',
-            buildFunctionMeta(start, decl.end ?? start, signature));
+            buildFunctionMeta(decl.init, start, decl.end ?? start, signature));
         }
       }
     }
