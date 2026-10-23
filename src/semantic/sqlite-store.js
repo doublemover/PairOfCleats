@@ -78,6 +78,7 @@ export const createSqliteSemanticStore = ({
   if (!Number.isSafeInteger(maxRowBytes) || maxRowBytes < 1 || maxRowBytes > 16 * 1024 * 1024) throw new TypeError('Invalid semantic SQLite row allowance.');
   const inventoryHashes = rows => [...rows].sort((a,b)=>a.partitionId.localeCompare(b.partitionId));
   const descriptors = physicalPartitions.map(entry=>JSON.parse(entry.descriptor));
+  const sourceUnitsByPartition = new Map(descriptors.map(descriptor => [descriptor.partitionId, descriptor.sourceUnitId]));
   if (manifest && (canonicalSemanticJson(manifest.generation)!==canonicalSemanticJson(generation)
     || canonicalSemanticJson(inventoryHashes(manifest.partitions))!==canonicalSemanticJson(inventoryHashes(descriptors)))) {
     throw Object.assign(new Error('SQLite semantic inventory differs from the published family.'),{code:'ERR_SEMANTIC_GENERATION_MISMATCH'});
@@ -181,5 +182,6 @@ export const createSqliteSemanticStore = ({
     const rows = db.prepare(sql).all(selector.value,limit+1,offset);
     return { refs: rows.slice(0,limit).map(row => ({partitionId:row.partition_id,localId:row.local_id})),offset:offset+Math.min(limit,rows.length),done:rows.length<=limit };
   };
-  return { findOperations, iterateRows, getExplainInventory, backend: 'sqlite', storeId: indexPath, cursorScope: semanticHash('semantic.store-inventory.v1', physicalPartitions.map(entry => { const descriptor = JSON.parse(entry.descriptor); return { partitionId: descriptor.partitionId, canonicalHash: descriptor.canonicalHash }; })), repoRoot, generation: { ...generation }, getRecords, getSourceReference, getCoverage, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
+  return { findOperations, iterateRows, getExplainInventory, getPartitionSourceUnitId: id => sourceUnitsByPartition.get(id) || null,
+    backend: 'sqlite', storeId: indexPath, cursorScope: semanticHash('semantic.store-inventory.v1', physicalPartitions.map(entry => { const descriptor = JSON.parse(entry.descriptor); return { partitionId: descriptor.partitionId, canonicalHash: descriptor.canonicalHash }; })), repoRoot, generation: { ...generation }, getRecords, getSourceReference, getCoverage, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
 };

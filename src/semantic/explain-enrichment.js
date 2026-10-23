@@ -7,16 +7,12 @@ import { observeStorageResource } from '../shared/storage/failure-observation.js
 
 /** Bounded suggestions only. The explicit enrichment service revalidates targets before enqueue. */
 const project = async ({ store, manifest, request, result, signal, maxMs }) => {
-  manifest ||= store.getExplainInventory?.();
   const sourceRefs = [], suggestions = [], reasons = [];
   const enrichment = { status: 'unavailable', reasons, suggestions };
   if (manifest?.completedTasks === null) reasons.push('Task completion metadata is unavailable; suggested immutable tasks require an explicit plan status check.');
   if (!manifest || typeof store.iterateRows !== 'function') {
     reasons.push('Pinned source/frontier inventory is unavailable on this store.');
     return { sourceRefs, enrichment };
-  }
-  if (canonicalSemanticJson(manifest.generation) !== canonicalSemanticJson(request.generation)) {
-    throw Object.assign(new Error('Explanation inventory generation mismatch.'), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
   }
   const began = performance.now();
   const expired = () => performance.now() - began >= maxMs;
@@ -84,11 +80,15 @@ const project = async ({ store, manifest, request, result, signal, maxMs }) => {
 
 export const projectExplainEnrichment = async input => {
   throwIfAborted(input.signal);
+  const manifest = input.manifest || input.store.getExplainInventory?.();
+  if (manifest && canonicalSemanticJson(manifest.generation) !== canonicalSemanticJson(input.request.generation)) {
+    throw Object.assign(new Error('Explanation inventory generation mismatch.'), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
+  }
   const maxMs=Math.max(0,Math.min(input.maxMs??input.request.limits?.workMs??250,250));
   if(maxMs===0)return {sourceRefs:[],enrichment:{status:'partial',suggestions:[],reasons:['Trace consumed the work allowance; source/frontier projection requires another bounded request.']}};
   const deadline = AbortSignal.timeout(Math.max(1,Math.ceil(maxMs)));
   const signal = input.signal ? AbortSignal.any([input.signal, deadline]) : deadline;
-  try { return await project({ ...input, signal, maxMs }); }
+  try { return await project({ ...input, manifest, signal, maxMs }); }
   catch (error) {
     const observation = observeStorageResource(error, { phase: 'semantic-explain-enrichment' });
     observation.requireSettled();

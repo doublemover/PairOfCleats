@@ -69,6 +69,17 @@ try {
   const explained = await post('explain', explainRequest);
   assert.equal(explained.status, 200); assert.deepEqual(explained.body.result.generation, fixture.generation);
   assert.deepEqual((await handleToolCall('semantic_explain', explainRequest)).records, explained.body.result.records);
+  for (const operation of ['trace', 'explain']) {
+    const profiled = { ...explainRequest, pathSemantics: 'balanced-call-value' };
+    const response = await post(operation, profiled);
+    assert.equal(response.status, 200);
+    assert.equal(response.body.result.pathCapability.declaration.operation, 'semantic_' + operation);
+    assert.equal(response.body.result.pathCapability.declaration.feasibility, 'unsupported');
+    assert.deepEqual(response.body.result.pathCapability.scope.generation, fixture.generation);
+    const mcp = await handleToolCall('semantic_' + operation, profiled);
+    assert.deepEqual(mcp.pathCapability, response.body.result.pathCapability);
+    assert.equal((await post(operation, { ...profiled, pathSemantics: 'graph-witness' })).status, 400);
+  }
   // Exercise #1425 through the actual empty and all-range-rejected buckets,
   // including the exact final UTF-8 envelope boundary on both adapters.
   for (const selector of [{ field: 'astKind', value: '界😀-absent' },

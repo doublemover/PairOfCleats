@@ -307,6 +307,36 @@ return `ERR_SEMANTIC_CURSOR_EXPIRED`; restart with the same retained generation.
 Extraction, analysis and response coverage are separate. Query coverage carries
 partition provenance and retains incomplete evidence rather than claiming no path.
 
+Trace and explain requests can opt into a versioned path declaration with
+`"pathSemantics": "balanced-call-value"` or `"relation-neighborhood"`. The returned
+`pathCapability` identifies the operation, producer, exact generation and partition
+inventory, selected edge kinds, validation policy and current page allowances.
+Continuations bind these meanings and their declaration version, as well as the
+repository, generation and existing request identity. A trace continuation cannot
+be used for an explanation or a different path policy.
+
+`balanced-call-value` uses the existing call-site/context-key stack. Calls entered
+from the seed can leave only through the matching return; a seed inside a callee
+may return without an earlier entry in the page's path. The declared policy is
+therefore prefix balanced. `relation-neighborhood` follows the selected semantic
+relations without balancing those crossings. The separate `graph-witness`
+declaration describes graph-node references and index signatures; it is not an
+accepted semantic trace mode. Graph producer publication of that declaration is a
+separate integration responsibility.
+
+Opt-in validation checks retained edge endpoints, call-site source ownership and
+available operand ordinals with at most six record hydrations per edge. Malformed
+references and incompatible retained kinds fail the query. Missing context or
+operand metadata retains its edge with an explicit incomplete frontier; supported
+modeled ordinal uncertainty remains incomplete evidence. Depth, call-stack, visited
+record, edge, partition, byte and work allowances bound the existing traversal.
+Extraction, analysis and response completeness stay separate. Neither an empty
+page nor a completed relation search proves that an executable path is absent.
+Capabilities report feasibility as unsupported and execution as none; these
+operations perform no path-condition solving, IFDS analysis or runtime execution.
+Runtime and bounded overhead qualification of this opt-in surface is deferred to
+the stable-tree acceptance run.
+
 ## Shared symbolic finite-string types
 
 The explicit `tooling.typescript.typeRepresentation: "symbolic"` backend retains
