@@ -15,6 +15,19 @@ nodes. Cycles/accessors, cancellation and budget exhaustion produce incomplete
 records with no selected proposal. This helper does not execute providers,
 change constraints, select repositories or alter primary result/cache identity.
 
+The query feature policy is `explicit-own-ast-abstain.v3`. It captures each of
+the six supported AST fields once as original own passive data. Inherited fields,
+accessors, unknown node kinds and nonboolean explicit/grouping flags produce
+incomplete evidence; no later raw property read can replace an admitted node.
+Children retain their original captured references under the existing node/cycle
+bound. Introspection failures propagate exactly to the existing observational
+consumer boundary, including falsey failures; no such failure supplies a complete
+route. Cancellation is checked after capture and before completed publication.
+The changed feature admission participates in the existing policy digest; valid
+canonical AST classification and primary retrieval behavior remain unchanged.
+These direct feature controls and existing primary/federation parity controls
+are authored and **UNVALIDATED**, with no parser, native, model or host execution.
+
 `simulateShadowAllocation` works only on caller-supplied saved ranked candidates.
 The expected workspace, query/filter identity and every repository generation
 must match. Each repository belongs to one explicit compatibility cohort for the

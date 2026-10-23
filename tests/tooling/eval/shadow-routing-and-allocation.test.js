@@ -21,6 +21,40 @@ assert.equal(shadowQueryRoute({ query: 'x', queryAst: cyclic }).complete, false)
 let accessorCalls = 0;
 const accessor = Object.defineProperty({}, 'type', { get() { accessorCalls++; return 'term'; } });
 assert.equal(shadowQueryRoute({ query: 'x', queryAst: accessor }).complete, false); assert.equal(accessorCalls, 0);
+for (const key of ['type', 'grouped', 'implicit', 'left', 'right', 'child']) {
+  const own = { type: 'term' }; Object.defineProperty(own, key, { get() { accessorCalls++; return key === 'type' ? 'phrase' : true; } });
+  assert.equal(shadowQueryRoute({ query: 'identifier', queryAst: own }).complete, false);
+  const inherited = { type: 'term' }; delete inherited[key];
+  Object.setPrototypeOf(inherited, { get [key]() { accessorCalls++; return key === 'type' ? 'phrase' : true; } });
+  assert.equal(shadowQueryRoute({ query: 'identifier', queryAst: inherited }).complete, false);
+}
+assert.equal(accessorCalls, 0, 'own and inherited AST getters cannot become feature evidence');
+for (const queryAst of [{}, { type: 'unknown' }, { type: {} }, { type: 'term', grouped: 'yes' },
+  { type: 'and', implicit: 1 }, [], { type: 'not', child: false }]) {
+  const malformed = shadowQueryRoute({ query: 'identifier', queryAst });
+  assert.equal(malformed.complete, false); assert.equal(malformed.proposal, null); assert.equal(malformed.metrics, null);
+}
+const fields = new Map(), originalAst = { type: 'term' };
+const noReread = new Proxy(originalAst, {
+  get() { assert.fail('AST property getters are not original shadow feature evidence'); },
+  getOwnPropertyDescriptor(target, key) {
+    fields.set(key, (fields.get(key) || 0) + 1);
+    const descriptor = Reflect.getOwnPropertyDescriptor(target, key);
+    if (key === 'grouped') target.type = 'phrase';
+    return descriptor;
+  }
+});
+assert.equal(shadowQueryRoute({ query: 'identifier', queryAst: noReread }).label, 'symbol-or-path');
+assert([...fields.values()].every(count => count === 1), 'original supported AST fields are captured once before feature classification');
+for (const primary of [undefined, null, false, 0, '']) {
+  let observed = Symbol('no original AST inspection failure');
+  try { shadowQueryRoute({ query: 'identifier', queryAst: new Proxy({ type: 'term' }, { getOwnPropertyDescriptor() { throw primary; } }) }); }
+  catch (error) { observed = error; }
+  assert.equal(observed, primary, 'original descriptor failure cannot fabricate feature completion');
+}
+const duringCapture = new AbortController();
+const cancelledAst = new Proxy({ type: 'term' }, { getOwnPropertyDescriptor(target, key) { duringCapture.abort(); return Reflect.getOwnPropertyDescriptor(target, key); } });
+assert.equal(shadowQueryRoute({ query: 'identifier', queryAst: cancelledAst, signal: duringCapture.signal }).reason, 'cancelled');
 assert.equal(shadowQueryRoute({ query: 'x'.repeat(4097) }).complete, false);
 const controller = new AbortController(); controller.abort();
 assert.equal(shadowQueryRoute({ query: 'x', signal: controller.signal }).reason, 'cancelled');

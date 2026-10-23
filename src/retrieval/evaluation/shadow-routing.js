@@ -6,12 +6,27 @@ export const SHADOW_ROUTING_VERSION = 1;
 const hash = /^[a-f0-9]{64}$/u;
 const classes = new Set(['symbol-or-path', 'explicit-boolean-or-phrase', 'natural-language', 'semantic-fact', 'unknown']);
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
-const policy = Object.freeze({ version: SHADOW_ROUTING_VERSION, queryPolicy: 'explicit-ast-abstain.v2',
+const policy = Object.freeze({ version: SHADOW_ROUTING_VERSION, queryPolicy: 'explicit-own-ast-abstain.v3',
   allocationPolicy: 'judgment-independent-prefix-floor-abstention-fixed.v2', astNodes: 256, queryChars: 4096,
   repos: 32, candidates: 2048, outputBytes: 65536, work: 200000, maxMs: 100 });
 export const SHADOW_ROUTING_POLICY_KEY = digest(policy);
 const incomplete = reason => ({ schemaVersion: SHADOW_ROUTING_VERSION, policyKey: SHADOW_ROUTING_POLICY_KEY,
   authoritative: false, complete: false, reason, proposal: null, metrics: null });
+const astTypes = new Set(['term', 'phrase', 'not', 'and', 'or']);
+const captureAstFeatures = original => {
+  const node = Object.create(null);
+  for (const key of ['type', 'grouped', 'implicit', 'left', 'right', 'child']) {
+    const descriptor = Object.getOwnPropertyDescriptor(original, key);
+    if (!descriptor) {
+      if (key in original) return null;
+    } else {
+      if (!Object.hasOwn(descriptor, 'value')) return null;
+      node[key] = descriptor.value;
+    }
+  }
+  if (!astTypes.has(node.type) || ['grouped', 'implicit'].some(key => node[key] !== undefined && typeof node[key] !== 'boolean')) return null;
+  return node;
+};
 
 /** Feature-only heuristic proposal. No raw query/source is retained in reports,
  * and explicit syntax never becomes fuzzy structural/type/literal evidence.
@@ -20,25 +35,22 @@ export const shadowQueryRoute = ({ query, queryAst = null, requestKind = 'text',
   if (signal?.aborted) return incomplete('cancelled');
   if (typeof query !== 'string' || query.length > policy.queryChars) return incomplete('query-bound');
   const started = performance.now(), stack = [queryAst], seen = new WeakSet();
+  const stop = () => signal?.aborted ? 'cancelled' : performance.now() - started > policy.maxMs ? 'deadline' : null;
   const features = { explicitBoolean: false, phrase: false, path: false, symbol: false,
     naturalLanguageTokens: 0, structuralRequest: requestKind === 'semantic-find', visitedAstNodes: 0,
     unqualifiedExplicitSyntax: queryAst == null && /\b(?:AND|OR|NOT)\b|["()]/u.test(query) };
   while (stack.length) {
-    if (signal?.aborted || performance.now() - started > policy.maxMs) return incomplete(signal?.aborted ? 'cancelled' : 'deadline');
-    const node = stack.pop(); if (node == null) continue;
-    if (typeof node !== 'object' || seen.has(node) || ++features.visitedAstNodes > policy.astNodes) return incomplete('ast-bound-or-cycle');
-    seen.add(node);
-    if (['type', 'grouped', 'implicit', 'left', 'right', 'child'].some(key => {
-      const descriptor = Object.getOwnPropertyDescriptor(node, key);
-      return descriptor && !Object.hasOwn(descriptor, 'value');
-    })) return incomplete('unsupported-ast-accessor');
+    const reason = stop(); if (reason) return incomplete(reason);
+    const original = stack.pop(); if (original == null) continue;
+    if (typeof original !== 'object' || Array.isArray(original) || seen.has(original)
+      || ++features.visitedAstNodes > policy.astNodes) return incomplete('ast-bound-or-cycle');
+    seen.add(original);
+    const node = captureAstFeatures(original);
+    if (!node) return incomplete('unsupported-ast-evidence');
+    const afterCapture = stop(); if (afterCapture) return incomplete(afterCapture);
     if (node.type === 'phrase') features.phrase = true;
     if (node.grouped || node.type === 'or' || node.type === 'not' || node.type === 'and' && node.implicit !== true) features.explicitBoolean = true;
-    for (const key of ['left', 'right', 'child']) {
-      const descriptor = Object.getOwnPropertyDescriptor(node, key);
-      if (descriptor && !Object.hasOwn(descriptor, 'value')) return incomplete('unsupported-ast-accessor');
-      if (descriptor?.value != null) stack.push(descriptor.value);
-    }
+    for (const key of ['left', 'right', 'child']) if (node[key] != null) stack.push(node[key]);
   }
   const text = query.trim();
   features.path = /^(?:[\w.@-]+[\\/])+[^\s]+$/u.test(text) || /^[\w.@-]+\.[A-Za-z0-9]{1,12}$/u.test(text);
@@ -51,6 +63,7 @@ export const shadowQueryRoute = ({ query, queryAst = null, requestKind = 'text',
     : label === 'explicit-boolean-or-phrase' ? 'existing-hybrid-with-explicit-constraints'
       : label === 'symbol-or-path' ? 'shadow-lexical-effort-preference'
         : label === 'natural-language' ? 'shadow-dense-effort-preference' : 'existing-hybrid-abstain';
+  const reason = stop(); if (reason) return incomplete(reason);
   return Object.freeze({ schemaVersion: SHADOW_ROUTING_VERSION, policyKey: SHADOW_ROUTING_POLICY_KEY,
     authoritative: false, complete: true, label, abstained: label === 'unknown', proposal,
     calibration: 'unqualified-heuristic;not-production-confidence', features: Object.freeze(features),
