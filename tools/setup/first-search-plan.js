@@ -116,7 +116,7 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
   const selectedModel = getModelConfig(repoRoot, proposedEffective);
   const capabilities = describeFirstSearchCapabilities({ repoRoot, userConfig: proposedEffective, profile, backend, tooling, prerequisitePlans });
   const modelReadiness = profile === 'semantic' ? resolveModelSetupReadiness({ root: repoRoot, modelConfig: selectedModel,
-    embeddingsConfig: proposedEffective.indexing?.embeddings || {} }) : { state: 'not-requested', runtime: 'not-probed' };
+    embeddingsConfig: proposedEffective.indexing?.embeddings || {}, signal }) : { state: 'not-requested', runtime: 'not-probed' };
   const detected = await buildToolingReport(repoRoot, null, { skipToolDetection: true, signal });
   signal?.throwIfAborted();
   const operations = [];
@@ -196,7 +196,8 @@ const executeSetupStep = async (command, args, options) => {
   return projected;
 };
 
-export const applyFirstSearchPlan = async (approved, { execute = executeSetupStep, signal = null, jsonOutput = false } = {}) => {
+export const applyFirstSearchPlan = async (approved, { execute = executeSetupStep, signal = null, jsonOutput = false,
+  resolveRuntimeEnv = resolveWorkspaceChildRuntimeEnv } = {}) => {
   if (signal?.aborted) return { schemaVersion: 1, kind: 'setup-plan-result', planId: approved?.planId || null,
     repoRoot: approved?.repoRoot || null, state: 'cancelled', completed: [], pending: ['config'],
     validation: 'not-performed-cancelled-before-planning', mutationPerformed: false };
@@ -243,14 +244,21 @@ export const applyFirstSearchPlan = async (approved, { execute = executeSetupSte
     outcome.completed.push('config');
     outcome.pending.shift();
     const appliedConfigHash = hash(next);
-    for (const step of current.operations) {
-      if (signal?.aborted) { outcome.state = 'cancelled'; break; }
+    const assertCurrentTarget = () => {
+      signal?.throwIfAborted();
       if (stableStringify(identifySetupTarget(current.repoRoot)) !== stableStringify(current.inputIdentity.target)) throw new Error('Target directory changed during apply; re-plan.');
       const targetConfig = readOptional(current.configPath);
       if (targetConfig === null || hash(targetConfig) !== appliedConfigHash) throw new Error('Target config changed during apply; re-plan.');
       if (hash(stableStringify(loadUserConfig(current.repoRoot))) !== current.inputIdentity.proposedEffective) throw new Error('Effective target policy changed during apply; re-plan.');
-      const env = step.id === 'index' ? await resolveWorkspaceChildRuntimeEnv({ repoRoot: current.repoRoot, buildArgs: step.args.slice(3), baseEnv: process.env }) : { ...process.env };
-      const result = await execute(step.command, step.args, { cwd: current.applicationRoot,
+      signal?.throwIfAborted();
+    };
+    for (const step of current.operations) {
+      if (signal?.aborted) { outcome.state = 'cancelled'; break; }
+      assertCurrentTarget();
+      const env = step.id === 'index' ? await resolveRuntimeEnv({ repoRoot: current.repoRoot, buildArgs: step.args.slice(3), baseEnv: process.env }) : { ...process.env };
+      observeStorageResource(env, { phase: 'first-search-startup-environment' }).requireSettled();
+      assertCurrentTarget();
+      const result = await execute(step.command, step.args, { cwd: current.repoRoot,
         stdio: step.output ? ['ignore', 'pipe', 'inherit'] : jsonOutput ? ['ignore', 'ignore', 'inherit'] : 'inherit', env, signal });
       const observation = observeStorageResource(result, { phase: 'first-search-step-result' });
       observation.requireSettled();
@@ -273,7 +281,9 @@ export const applyFirstSearchPlan = async (approved, { execute = executeSetupSte
     let commands = current.commands;
     if (outcome.pending.length === 0) {
       outcome.pending.push('first-query');
+      assertCurrentTarget();
       suggestion = await resolveFirstSearchSuggestion({ repoRoot: current.repoRoot, signal });
+      assertCurrentTarget();
       outcome.pending.pop();
       if (suggestion.query) commands = { ...commands, search: [...commands.search.slice(0, -1), suggestion.query] };
       outcome.state = 'complete';

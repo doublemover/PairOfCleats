@@ -23,10 +23,10 @@ try {
   assert.equal(await fs.readFile(path.join(root, '.pairofcleats.json'), 'utf8'), config);
   await fs.writeFile(path.join(root, '.pairofcleats.json'), '{"quality":"fast"}');
   let executed = 0;
-  await assert.rejects(applyFirstSearchPlan(plan, { execute: () => { executed++; return { ok: true }; } }), { code: 'ERR_SETUP_PLAN_STALE' });
+  await assert.rejects(applyFirstSearchPlan(plan, { execute: () => { executed++; return { ok: true, status: 0 }; } }), { code: 'ERR_SETUP_PLAN_STALE' });
   assert.equal(executed, 0);
   const fresh = await createFirstSearchPlan({ repoRoot: root });
-  const applied = await applyFirstSearchPlan(fresh, { execute: () => { executed++; return { ok: true }; } });
+  const applied = await applyFirstSearchPlan(fresh, { execute: () => { executed++; return { ok: true, status: 0 }; } });
   assert.equal(applied.state, 'complete');
   assert.equal(applied.completed.includes('config'), true);
   assert.equal(JSON.parse(await fs.readFile(path.join(root, '.pairofcleats.json'), 'utf8')).quality, 'fast');
@@ -64,7 +64,8 @@ try {
   assert.equal((await fs.stat(path.join(root, '.pairofcleats.json.setup-lock'))).isFile(), true);
   const pendingSession = pendingError.setupPlanSession;
   assert.throws(() => pendingSession.releaseAfterSettlement({ resourceId: 'wrong-owner', settled: true }), /unconfirmed/);
-  assert.throws(() => pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true, pending: false }), /actual execution owner/,
+  assert.throws(() => pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true, pending: false }),
+    error => error.cacheOwnershipPending === true && error.cacheOwnershipReleased() === false,
     'knowing the exact lock id cannot fabricate child settlement');
   actualChildClosed = true;
   assert.throws(() => pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true }), /unconfirmed/,

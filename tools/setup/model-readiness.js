@@ -6,19 +6,46 @@ import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile } from '../
 import { EMBEDDING_ACQUISITION_RECEIPT, resolveEmbeddingAcquisitionPlan, resolveEmbeddingAcquisitionRoot } from '../../src/shared/embedding-model-loading.js';
 import { readEmbeddingAcquisitionReceipt } from '../../src/shared/embedding-acquisition-receipt.js';
 import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
+import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 
-const isUsableFile = (file) => {
+const isMissing = code => code === 'ENOENT' || code === 'ENOTDIR';
+const hasReceipt = file => {
   if (!file) return false;
   try {
-    const stat = fs.statSync(file);
-    if (!stat.isFile() || stat.size === 0) return false;
-    fs.accessSync(file, fs.constants.R_OK);
+    fs.lstatSync(file);
     return true;
-  } catch { return false; }
+  } catch (error) {
+    const failure = describeStorageFailure(error, { phase: 'setup-model-receipt-presence' });
+    if (isMissing(failure.code)) return false;
+    throw error;
+  }
 };
 
 /** Selected local asset presence only: no provider initialization, hashing or inference. */
-export const resolveModelSetupReadiness = ({ root, modelConfig, embeddingsConfig = {} }) => {
+export const resolveModelSetupReadiness = ({ root, modelConfig, embeddingsConfig = {}, signal = null }) => {
+  signal?.throwIfAborted();
+  const observations = new Map();
+  const inspectFile = file => {
+    signal?.throwIfAborted();
+    if (!file) return { usable: false, bytes: null };
+    if (observations.has(file)) return observations.get(file);
+    let result;
+    try {
+      const stat = fs.statSync(file);
+      signal?.throwIfAborted();
+      const usable = stat.isFile() && stat.size > 0;
+      if (usable) fs.accessSync(file, fs.constants.R_OK);
+      signal?.throwIfAborted();
+      result = { usable, bytes: stat.size };
+    } catch (error) {
+      const failure = describeStorageFailure(error, { phase: 'setup-model-asset-presence' });
+      signal?.throwIfAborted();
+      if (!isMissing(failure.code)) throw error;
+      result = { usable: false, bytes: null };
+    }
+    observations.set(file, result);
+    return result;
+  };
   const provider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
   const onnx = resolveOnnxConfig(embeddingsConfig.onnx || {});
   const modelId = modelConfig.id;
@@ -29,13 +56,18 @@ export const resolveModelSetupReadiness = ({ root, modelConfig, embeddingsConfig
   try {
     modelRoot = resolveEmbeddingArtifactRoot(modelId, modelConfig.dir);
     tokenizerRoot = resolveEmbeddingArtifactRoot(tokenizerId, modelConfig.dir);
-  } catch (error) { reason = `Selected model asset location cannot be inspected: ${error.message}`; }
+  } catch (error) {
+    describeStorageFailure(error, { phase: 'setup-model-location' });
+    throw error;
+  }
+  signal?.throwIfAborted();
   let modelPath = null;
   try {
     modelPath = provider === 'onnx'
       ? resolveOnnxModelPath({ rootDir: root, modelPath: onnx.modelPath, modelsDir: modelConfig.dir, modelId })
       : modelRoot ? path.join(modelRoot, 'onnx', 'model_quantized.onnx') : null;
-  } catch (error) { reason = error.message; }
+  } catch (error) { reason = describeStorageFailure(error, { phase: 'setup-model-selection' }).message; }
+  signal?.throwIfAborted();
   // The prefetch owner selects q8; the pinned tokenizer loader uses these two files.
   let assets = {
     weights: modelPath,
@@ -45,28 +77,41 @@ export const resolveModelSetupReadiness = ({ root, modelConfig, embeddingsConfig
   };
   const selectedRoot = modelProfile ? resolveEmbeddingAcquisitionRoot(modelId, modelConfig.dir, modelProfile) : modelRoot;
   const selectedReceipt = selectedRoot ? path.join(selectedRoot, EMBEDDING_ACQUISITION_RECEIPT) : null;
-  if (modelProfile || provider === 'xenova' && selectedReceipt && fs.existsSync(selectedReceipt)) {
+  if (modelProfile || provider === 'xenova' && hasReceipt(selectedReceipt)) {
     assets = {};
     const receiptPath = selectedReceipt;
     try {
-      if (!receiptPath) throw new Error('Selected model acquisition receipt is missing.');
+      signal?.throwIfAborted();
+      if (!receiptPath) throw Object.assign(new Error('Selected model acquisition receipt is missing.'), { code: 'ERR_SETUP_MODEL_INCOMPLETE' });
       const plan = resolveEmbeddingAcquisitionPlan(modelId, modelProfile);
       const receipt = readEmbeddingAcquisitionReceipt(selectedRoot, plan);
+      signal?.throwIfAborted();
       for (const row of receipt.inventory) {
         const file = path.join(selectedRoot, ...row.path.split('/'));
         assets[row.path] = file;
         assertNoSymlinkPath(selectedRoot, file);
-        if (!isUsableFile(file) || fs.statSync(file).size !== row.bytes) throw new Error('Selected model component is missing, unreadable or truncated.');
+        const observation = inspectFile(file);
+        if (!observation.usable || observation.bytes !== row.bytes) throw Object.assign(
+          new Error('Selected model component is missing or truncated.'), { code: 'ERR_SETUP_MODEL_INCOMPLETE' });
       }
       modelPath = Object.values(assets).find(file => file.endsWith('.onnx')) ?? null;
     } catch (error) {
-      reason = `Selected profile assets require prefetch: ${error.message}`;
+      const failure = describeStorageFailure(error, { phase: 'setup-model-selected-receipt' });
+      signal?.throwIfAborted();
+      // Missing or incompatible content can be prefetched. An inaccessible,
+      // changed or unresolved resource never grants replacement admission.
+      if (!isMissing(failure.code) && !['ERR_SETUP_MODEL_INCOMPLETE', 'ERR_EMBEDDING_ACQUISITION'].includes(failure.code)
+        && !(error instanceof SyntaxError)) throw error;
+      reason = `Selected profile assets require prefetch: ${failure.message}`;
       assets = { acquisitionReceipt: receiptPath };
       modelPath = null;
     }
   }
-  const usablePaths = Object.values(assets).filter(isUsableFile);
-  const missing = Object.keys(assets).filter(name => !isUsableFile(assets[name]));
+  const usablePaths = [], missing = [];
+  for (const [name, file] of Object.entries(assets)) {
+    if (inspectFile(file).usable) usablePaths.push(file);
+    else missing.push(name);
+  }
   const present = !reason && missing.length === 0;
   return {
     provider, modelId, tokenizerId, modelPath, assets, usablePaths, missing, present,

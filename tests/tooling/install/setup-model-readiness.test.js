@@ -12,6 +12,10 @@ const calls = path.join(dir, 'download.json');
 await fs.writeFile(shim, [
   "import fs from 'node:fs'; import childProcess from 'node:child_process';",
   "import { syncBuiltinESMExports } from 'node:module';",
+  'const access = fs.accessSync;',
+  'fs.accessSync = function(file, ...args) {',
+  "  if (String(file) === process.env.POC_MODEL_READINESS_DENY) throw Object.assign(new Error('controlled selected asset denial'), { code: 'EACCES' });",
+  '  return access(file, ...args); };',
   'const original = childProcess.spawnSync;',
   'childProcess.spawnSync = function(command, args, options) {',
   "  if (args.some(arg => String(arg).replaceAll('\\\\', '/').endsWith('/tools/download/models.js'))) {",
@@ -33,6 +37,7 @@ const cases = [
   { id: 'partial-model', assets: { 'fixture/model-b': { 'config.json': '{}' } }, present: false, partial: true },
   { id: 'empty-weights', assets: { 'fixture/model-b': { ...fullAssets, 'onnx/model_quantized.onnx': '' } }, present: false, partial: true },
   { id: 'selected-model', assets: { 'fixture/model-b': fullAssets }, present: true, partial: false },
+  { id: 'unreadable-selected', assets: { 'fixture/model-b': fullAssets }, denied: true },
   { id: 'onnx-selected', assets: { 'fixture/tokenizer': fullAssets }, onnx: { modelPath: 'weights/custom.onnx', tokenizerId: 'fixture/tokenizer' }, weight: 'fixture onnx bytes', present: true, partial: false },
   { id: 'onnx-missing', assets: { 'fixture/tokenizer': fullAssets }, onnx: { modelPath: 'weights/missing.onnx', tokenizerId: 'fixture/tokenizer' }, present: false, partial: true }
 ];
@@ -47,12 +52,22 @@ try {
     await fs.rm(calls, { force: true });
     const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(repo, 'cache'),
       extraEnv: { POC_MODEL_READINESS_CALLS: calls, PAIROFCLEATS_MODELS_DIR: modelsDir,
+        POC_MODEL_READINESS_DENY: entry.denied ? path.join(modelsDir, 'fixture/model-b/onnx/model_quantized.onnx') : null,
         PAIROFCLEATS_HOME: path.join(dir, 'home'), PAIROFCLEATS_TRUSTED_CONFIG: null } });
     const result = runNode(['--import', pathToFileURL(shim).href, path.resolve('tools/setup/setup.js'), '--root', repo,
       '--json', '--non-interactive', '--require-steps', 'models', '--skip-install', '--skip-validate', '--skip-dicts',
       '--skip-extensions', '--skip-tooling', '--skip-index', '--skip-sqlite', '--skip-artifacts'],
     entry.id, process.cwd(), env, { stdio: 'pipe', allowFailure: true, timeoutMs: 5000 });
     const receipt = JSON.parse(result.stdout);
+    if (entry.denied) {
+      assert.equal(result.status, 1);
+      assert.equal(receipt.lifecycle.state, 'blocked');
+      assert.equal(receipt.lifecycle.step, 'models');
+      assert.equal(receipt.lifecycle.code, 'EACCES');
+      assert.equal(await fs.stat(calls).then(() => true, () => false), false,
+        'an actual setup invocation never admits download over an inaccessible selected asset');
+      continue;
+    }
     assert.equal(result.status, entry.present ? 0 : 1, `${entry.id}: selected model controls readiness; ${result.stderr}`);
     const model = receipt.steps.models;
     assert.equal(model.present, entry.present, entry.id);
