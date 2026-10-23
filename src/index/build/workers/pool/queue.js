@@ -262,72 +262,82 @@ export const createWorkerPoolQueue = (input = {}) => {
     if (!languageId || mode !== 'code') return null;
     let capacityAdmission = false;
     let pressureWaitStartedAt = null;
-    while (true) {
-      throwIfAborted(signal);
-      if (closed) throw createAbortError('Worker admission is closed');
-      if (pressureFailure) throw pressureFailure;
-      const sample = readAdmissionPressureSample();
-      updatePressureState({
-        pressureRatio: sample.pressureRatio,
-        rssPressure: sample.rssPressure,
-        gcPressure: sample.heapUtilization,
-        reason: 'tokenize-admission'
-      });
-      const limit = resolveLanguageThrottleLimit({
-        pressureState,
-        languageId,
-        throttleConfig: languageThrottleConfig
-      });
-      const active = Number(tokenizeInFlightByLanguage.get(languageId) || 0);
-      if ((!Number.isFinite(limit) || active < limit) && (capacityAdmission || !pendingCapacityWakes.has(languageId))) {
-        tokenizeInFlightByLanguage.set(languageId, active + 1);
-        const slot = Object.freeze({ languageId, limit });
-        ownedSlots.add(slot);
-        return slot;
-      }
-      let deadline = Infinity;
-      if (limit === 0) {
-        pressureHardBlockCount += 1;
-        pressureWaitStartedAt ??= now();
-        requestRelief(sample);
-        const draining = readDraining();
-        const decision = evaluateTokenizerPressureWait({ startedAt: pressureWaitStartedAt, now: now(), lastProgressAt, draining });
-        deadline = decision.deadline;
-        if (decision.reason) {
-          pressureFailure = createTokenizerPressureError({ reason: decision.reason, languageId,
-            waitMs: decision.elapsed, noProgressMs: decision.noProgressMs, draining, progressEpoch,
-            retainedAdmissionWaiters: [...pressureThrottleWaitersByLanguage.values()].reduce((sum, rows) => sum + rows.size, 0) + 1,
-            heapUtilization: sample.heapUtilization, rssPressure: sample.rssPressure,
-            evidenceScope: 'committed-heap-occupancy-and-owned-RSS; not proof of V8 hard-heap exhaustion',
-            reliefStatus, reliefError, noProgressLimitMs: TOKENIZER_PRESSURE_NO_PROGRESS_MS,
-            maxWaitMs: TOKENIZER_PRESSURE_MAX_WAIT_MS });
-          notifyThrottleWaiters();
-          throw pressureFailure;
+    try {
+      while (true) {
+        throwIfAborted(signal);
+        if (closed) throw createAbortError('Worker admission is closed');
+        if (pressureFailure) throw pressureFailure;
+        const sample = readAdmissionPressureSample();
+        updatePressureState({
+          pressureRatio: sample.pressureRatio,
+          rssPressure: sample.rssPressure,
+          gcPressure: sample.heapUtilization,
+          reason: 'tokenize-admission'
+        });
+        const limit = resolveLanguageThrottleLimit({
+          pressureState,
+          languageId,
+          throttleConfig: languageThrottleConfig
+        });
+        const active = Number(tokenizeInFlightByLanguage.get(languageId) || 0);
+        if ((!Number.isFinite(limit) || active < limit) && (capacityAdmission || !pendingCapacityWakes.has(languageId))) {
+          tokenizeInFlightByLanguage.set(languageId, active + 1);
+          const slot = Object.freeze({ languageId, limit });
+          ownedSlots.add(slot);
+          capacityAdmission = false;
+          return slot;
         }
-      } else pressureWaitStartedAt = null;
-      const waitStart = now();
-      let capacityWake;
-      let capacityClaimed = false;
-      const releaseCapacityWake = () => {
-        if (!capacityClaimed) return;
-        const pending = pendingCapacityWakes.get(languageId) || 0;
-        if (pending <= 1) pendingCapacityWakes.delete(languageId); else pendingCapacityWakes.set(languageId, pending - 1);
-        capacityClaimed = false;
-      };
-      try {
-        // This is admission, not worker execution. Only the wait relinquishes
-        // compute; the caller reacquires before sampling or dispatching work.
-        capacityWake = await withSchedulerCpuSuspended(() => waitForThrottleSignal(languageId, signal, deadline).then(value => {
-          capacityClaimed = value;
-          return value;
-        }));
-      } finally {
-        // A CPU reacquisition failure must also retire a delivered wake claim.
-        releaseCapacityWake();
-        pressureThrottleWaitCount += 1;
-        pressureThrottleWaitMs += Math.max(0, now() - waitStart);
+        let deadline = Infinity;
+        if (limit === 0) {
+          pressureHardBlockCount += 1;
+          pressureWaitStartedAt ??= now();
+          requestRelief(sample);
+          const draining = readDraining();
+          const decision = evaluateTokenizerPressureWait({ startedAt: pressureWaitStartedAt, now: now(), lastProgressAt, draining });
+          deadline = decision.deadline;
+          if (decision.reason) {
+            pressureFailure = createTokenizerPressureError({ reason: decision.reason, languageId,
+              waitMs: decision.elapsed, noProgressMs: decision.noProgressMs, draining, progressEpoch,
+              retainedAdmissionWaiters: [...pressureThrottleWaitersByLanguage.values()].reduce((sum, rows) => sum + rows.size, 0) + 1,
+              heapUtilization: sample.heapUtilization, rssPressure: sample.rssPressure,
+              evidenceScope: 'committed-heap-occupancy-and-owned-RSS; not proof of V8 hard-heap exhaustion',
+              reliefStatus, reliefError, noProgressLimitMs: TOKENIZER_PRESSURE_NO_PROGRESS_MS,
+              maxWaitMs: TOKENIZER_PRESSURE_MAX_WAIT_MS });
+            notifyThrottleWaiters();
+            throw pressureFailure;
+          }
+        } else pressureWaitStartedAt = null;
+        capacityAdmission = false;
+        const waitStart = now();
+        let capacityClaimed = false;
+        const releaseCapacityWake = () => {
+          if (!capacityClaimed) return;
+          const pending = pendingCapacityWakes.get(languageId) || 0;
+          if (pending <= 1) pendingCapacityWakes.delete(languageId); else pendingCapacityWakes.set(languageId, pending - 1);
+          capacityClaimed = false;
+        };
+        try {
+          // This is admission, not worker execution. Only the wait relinquishes
+          // compute; the caller reacquires before sampling or dispatching work.
+          await withSchedulerCpuSuspended(() => waitForThrottleSignal(languageId, signal, deadline).then(value => {
+            capacityClaimed = value;
+            // Record delivery before CPU reacquisition: that admission can fail
+            // or the recipient can abort while another task still owns compute.
+            capacityAdmission = value;
+            return value;
+          }));
+        } finally {
+          // A CPU reacquisition failure must also retire a delivered wake claim.
+          releaseCapacityWake();
+          pressureThrottleWaitCount += 1;
+          pressureThrottleWaitMs += Math.max(0, now() - waitStart);
+        }
       }
-      capacityAdmission = capacityWake;
+    } finally {
+      // A delivered capacity claim belongs to one FIFO waiter. Hand it on when
+      // that request exits without taking the slot; unchanged pressure alone
+      // does not wake the next waiter, whose capacity deadline is infinite.
+      if (capacityAdmission && !closed && !pressureFailure) notifyThrottleWaiters(languageId);
     }
   };
 

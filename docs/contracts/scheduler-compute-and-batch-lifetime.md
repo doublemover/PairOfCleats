@@ -192,6 +192,7 @@ backend work through recovery, separately from request/throttle-wait counters.
 
 - `tests/indexing/workers/hard-pressure-no-progress.test.js`
 - `tests/indexing/workers/pressure-admission-compute-suspension.test.js`
+- `tests/indexing/workers/pressure-capacity-wake-retirement.test.js`
 - `tests/indexing/workers/pressure-reconfigure-admission-authority.test.js`
 - `tests/indexing/workers/tokenize-batch-real-worker-receipt.test.js`
 - `tests/indexing/file-processor/scm-command-compute-suspension.test.js`
