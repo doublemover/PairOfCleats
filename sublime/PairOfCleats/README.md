@@ -289,6 +289,13 @@ child resources. An exited parent with pending output does not release its
 operation. Windows fallback parent termination still cannot certify descendant
 cleanup; host process-tree and minimum-runtime qualification remain open.
 
+Reviewed context collection freezes the selected hit membership before asking
+for its purpose and copies each received packet before preview. Older toggle,
+response, review and save callbacks cannot revive an earlier native step or
+publish twice. Missing primary source identity remains visibly unresolved;
+partial-frontier warnings and generation provenance remain in copied packets.
+Clipboard/save actions continue to require a deliberate native selection.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only
