@@ -42,6 +42,23 @@ outer queue recovery preserve this failure instead of computing inline without
 a permit. Transport-budget and original pending cleanup failures have the same
 no-fallback authority, including nested aggregate causes and concurrent abort.
 
+The process backend retains the same scheduler CPU/byte lease through actual
+task storage release, even when its direct caller receives an abort or timeout
+first. Original termination errors expose `workerSettlement`,
+`workerOwnershipReleased()` and dynamic `workerOwnershipPending`; the settlement
+resolves only after child close and IPC release. Frozen/primitive primaries keep
+their exact cause in an ownership wrapper. A scheduled file cannot retire or lend
+its permit while this original child still computes. Concurrent pure I/O waits
+also cannot release that worker's charged CPU permit. Process dispatch from an
+existing CPU-zero/retired scheduler scope rejects before starting work; standalone
+transport callers remain supported.
+
+Process byte accounts and capacity options reject invalid/nonfinite/unsafe counts
+before acquisition. Rejected reservations leave their counters unchanged;
+fractional byte estimates round upward and successful release remains idempotent.
+Remote process error names/codes are bounded and retained for cancellation
+classification. Falsey dispatch failures remain failures with their exact value.
+
 ## Independent concurrency limits
 
 The effective queue concurrency is the minimum of the configured scheduler cap
@@ -189,6 +206,8 @@ backend work through recovery, separately from request/throttle-wait counters.
 - `tests/indexing/workers/coarse-file-analysis-transport.test.js`
 - `tests/indexing/workers/coarse-file-analysis-facade.test.js`
 - `tests/indexing/workers/pressure-reconfigure-backend-ownership.test.js`
+- `tests/indexing/workers/process-task-scheduler-retirement.test.js`
+- `tests/indexing/workers/process-budget-request-validation.test.js`
 - `tests/indexing/runtime/scheduler-shadow-producer.test.js`
 - `tests/shared/concurrency/scheduler-compute-suspension.test.js`
 - `tests/shared/concurrency/scheduler-detached-wait-ownership.test.js`
@@ -196,6 +215,7 @@ backend work through recovery, separately from request/throttle-wait counters.
 - `tests/shared/concurrency/scheduler-shared-adapter-cap-authority.test.js`
 - `tests/shared/concurrency/scheduler-exact-ready-replay.test.js`
 - `tests/shared/concurrency/run-with-queue-resource-recovery-authority.test.js`
+- `tests/shared/concurrency/scheduler-retained-worker-compute.test.js`
 
 Execution acceptance remains tied to the exact tested source and environment.
 Author-workspace `.testLogs` receipts are historical observations and are not

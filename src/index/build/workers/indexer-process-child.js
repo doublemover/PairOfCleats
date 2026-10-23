@@ -38,6 +38,8 @@ process.on('message', async message => {
     if (payload.length > Math.min(message.outputLimit, maxMessageBytes)) throw Object.assign(new Error('Task result exceeds reserved output bytes.'), { code: 'ERR_PROCESS_TASK_BUDGET' });
     send({ type: 'result', taskId: message.taskId, payload, rssBytes: process.memoryUsage().rss });
   } catch (error) { send({ type: 'result', taskId: message.taskId,
-    error: { code: error.code || 'ERR_PROCESS_TASK', message: String(error.message).slice(0, 2048) }, rssBytes: process.memoryUsage().rss }); }
+    error: { code: typeof error?.code === 'string' ? error.code.slice(0, 128) : 'ERR_PROCESS_TASK',
+      name: typeof error?.name === 'string' ? error.name.slice(0, 128) : 'Error',
+      message: String(error?.message ?? error).slice(0, 2048) }, rssBytes: process.memoryUsage().rss }); }
   finally { busy = false; }
 });

@@ -190,15 +190,21 @@ export function createSchedulerDispatch({
   const createTaskLease = (queue, used, signal) => {
     const cpu = used.cpu;
     const lease = { queue, used, signal, active: true, surfaceActive: true, suspended: false, depth: 0, resuming: false,
-      resumePromise: null, resumeResolve: null, resumeReject: null, pendingWaits: new Set() };
-    lease.trackWait = operation => {
+      resumePromise: null, resumeResolve: null, resumeReject: null, pendingWaits: new Set(), retainedComputeWaits: new Set() };
+    lease.trackWait = (operation, { retainCpu = false } = {}) => {
       if (!lease.active) return Promise.reject(Object.assign(new Error('Scheduler task retired before nested wait.'), {
         code: 'ERR_SCHEDULER_TASK_RETIRED'
+      }));
+      if (retainCpu && !(lease.used.cpu > 0)) return Promise.reject(Object.assign(new Error('Worker execution requires retained CPU admission.'), {
+        code: 'ERR_SCHEDULER_COMPUTE_NOT_ADMITTED'
       }));
       let pending;
       try { pending = Promise.resolve(operation()); } catch (error) { pending = Promise.reject(error); }
       lease.pendingWaits.add(pending);
-      pending.finally(() => lease.pendingWaits.delete(pending)).catch(() => {});
+      if (retainCpu) lease.retainedComputeWaits.add(pending);
+      pending.finally(() => {
+        lease.pendingWaits.delete(pending); lease.retainedComputeWaits.delete(pending);
+      }).catch(() => {});
       return pending;
     };
     const enqueueResume = () => {
@@ -233,6 +239,9 @@ export function createSchedulerDispatch({
     const suspendCpu = async operation => {
       if (!lease.active) throw new Error('Scheduler task retired before nested wait.');
       if (!cpu) return operation();
+      // A worker still computes against this exact permit. A concurrent I/O
+      // callback may wait, but it cannot lend that permit to unrelated work.
+      if (lease.retainedComputeWaits.size) return operation();
       lease.depth++;
       if (!lease.suspended) {
         lease.suspended = true; lease.surfaceActive = false;
@@ -267,9 +276,15 @@ export function createSchedulerDispatch({
     lease.suspendCpu = operation => lease.trackWait(() => suspendCpu(operation));
     lease.drainWaits = () => {
       const drain = async () => {
-        while (lease.pendingWaits.size) await Promise.allSettled([...lease.pendingWaits]);
+        while (lease.pendingWaits.size) {
+          if (lease.retainedComputeWaits.size) await Promise.allSettled([...lease.retainedComputeWaits]);
+          else if (lease.suspended) await Promise.allSettled([...lease.pendingWaits]);
+          else await suspendCpu(async () => {
+            while (lease.pendingWaits.size && !lease.retainedComputeWaits.size) await Promise.allSettled([...lease.pendingWaits]);
+          });
+        }
       };
-      return lease.suspended ? drain() : suspendCpu(drain);
+      return drain();
     };
     return lease;
   };

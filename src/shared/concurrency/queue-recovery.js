@@ -1,7 +1,7 @@
 const unsafeCodes = new Set(['ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', 'BUILD_CLEANUP_TIMEOUT',
   'PISCINA_DESTROY_TIMEOUT', 'PISCINA_FORCE_TERMINATE_INCOMPLETE', 'ERR_PROCESS_TASK_BUDGET',
   'ERR_TOKENIZER_RESOURCE_PRESSURE', 'ERR_SCHEDULER_CPU_REACQUIRE', 'ERR_SCHEDULER_TASK_RETIRED',
-  'ERR_SCHEDULER_COMPUTE_NOT_ADMITTED']);
+  'ERR_SCHEDULER_COMPUTE_NOT_ADMITTED', 'ERR_SCHEDULER_UNAWAITED_WAIT']);
 const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
 
 /** Recovery may replace only proven-settled ordinary work. Preserve each
