@@ -1,5 +1,6 @@
 import fsSync from 'node:fs';
 import { throwIfAborted } from '../../../../shared/abort.js';
+import { matchesSqliteBundleSource } from '../bundle-source.js';
 import { resolveManifestBundleNames } from '../../../../shared/bundle-io-paths.js';
 import { readIncrementalBundleSnapshot } from '../../../../index/build/incremental/bundle-snapshot.js';
 import { toArray } from '../../../../shared/iterables.js';
@@ -145,7 +146,7 @@ export const loadBundlesAndCollectState = async ({ changed, bundleDir, signal = 
     const snapshot = await readIncrementalBundleSnapshot({ repoRoot, bundleDir, relKey: fileKey, entry, signal });
     throwIfAborted(signal);
     const bundle = snapshot?.bundle;
-    if (!bundle) {
+    if (!matchesSqliteBundleSource({ bundle, file: fileKey, entry, signal })) {
       return { ok: false, reason: `invalid bundle for ${fileKey}` };
     }
     bundles.set(normalizedFile, { bundle, entry, fileKey, normalizedFile });

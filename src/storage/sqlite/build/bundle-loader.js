@@ -14,6 +14,7 @@ import { createTimeoutError, runWithTimeout } from '../../../shared/promise-time
 import { buildWorkerExecArgv, parseMaxOldSpaceSizeMb } from '../../../shared/workers/node-argv.js';
 import { measureBundleProjectionBytes } from './bundle-projection-size.js';
 import { orderedBundleShardWindow } from './bundle-pipeline.js';
+import { matchesSqliteBundleSource } from './bundle-source.js';
 const retainedFailedPools = new Set();
 let quarantine = null;
 const MiB = 1024 * 1024;
@@ -101,7 +102,7 @@ export const createBundleLoader = ({ bundleThreads, workerPath, repoRoot = proce
         const maxProjectionBytes = Math.max(65536, (stat.size + patchBytes) * 64 + 65536);
         // Account encoded input/string scratch plus two admitted projections
         // during worker -> parent cloning. These units are not measured RSS.
-        yield { file, bundlePath, authority, patchBytes, encodedBytes: stat.size, maxEncodedBytes: stat.size || 1, maxProjectionBytes,
+        yield { file, entry, bundlePath, authority, patchBytes, encodedBytes: stat.size, maxEncodedBytes: stat.size || 1, maxProjectionBytes,
           reservedBytes: (stat.size + patchBytes) * 3 + maxProjectionBytes * 2 + MiB,
           shardIndex: index, shardCount: names.names.length, finalShard: index === names.names.length - 1 };
       }
@@ -146,6 +147,10 @@ export const createBundleLoader = ({ bundleThreads, workerPath, repoRoot = proce
       // transport envelope alone cannot authorize unbounded parent retention.
       if (task.authority && !validateIncrementalBundleShardAuthority({ ...task.authority, bundle: result.bundle })) {
         return { ...metadata, ok: false, reason: 'bundle differs from selected manifest snapshot (' + task.bundlePath + ')' };
+      }
+      if (!matchesSqliteBundleSource({ bundle: result.bundle, file: task.file, entry: task.entry,
+        index: task.shardIndex, count: task.shardCount, signal: currentSignal })) {
+        return { ...metadata, ok: false, reason: 'bundle chunk source differs from selected manifest file (' + task.bundlePath + ')' };
       }
       const projectionBytes = measureBundleProjectionBytes(result.bundle, task.maxProjectionBytes);
       return { ...metadata, ok: true, bundleShards: [result.bundle], encodedBytes: task.encodedBytes, projectionBytes };
