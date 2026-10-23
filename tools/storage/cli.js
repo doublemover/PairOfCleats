@@ -115,7 +115,7 @@ export const runStorageCli = async (rawArgs = process.argv.slice(2), { signal = 
     let receipt;
     signal?.throwIfAborted();
     const diagnosticScope = ['list', 'explain', 'inspect', 'doctor'].includes(action)
-      ? resolveStorageDiagnosticScope({ action, argv, layout, legacy, currentCache }) : null;
+      ? resolveStorageDiagnosticScope({ action, argv, rawArgs, layout, legacy, currentCache }) : null;
     if (configurationErrors.length && ['cleanup-plan', 'cleanup-apply', 'migration-plan', 'migration-apply', 'migration-rollback', 'migration-status', 'configure-plan', 'configure-apply', 'policy-plan', 'policy-apply'].includes(action)) {
       receipt = { schemaVersion: 1, action, ready: false, complete: false, mutationPerformed: false,
         blocked: [{ reason: 'configuration-incomplete-no-storage-authority-granted' }], configurationErrors };
@@ -202,8 +202,9 @@ export const runStorageCli = async (rawArgs = process.argv.slice(2), { signal = 
     // exact apply admission. Configuration failures already block plan creation.
     if (!receipt.planId) receipt = { ...receipt, configurationErrors };
     if (argv.json) console.log(JSON.stringify(receipt, null, 2));
-    else console.log(JSON.stringify({ action, status: receipt.complete === true ? 'complete' : receipt.ready === false ? 'blocked' : 'review-receipt',
-      mutationPerformed: receipt.mutationPerformed ?? (mutationStarted ? null : false), receipt }, null, 2));
+    else console.log(JSON.stringify({ action, status: receipt.ready === false || receipt.applyReady === false ? 'blocked'
+      : action.endsWith('-plan') ? 'review-receipt' : receipt.complete === true ? 'complete' : 'review-receipt',
+    mutationPerformed: receipt.mutationPerformed ?? (mutationStarted ? null : false), receipt }, null, 2));
     if (['cleanup-apply', 'configure-apply', 'migration-apply', 'migration-rollback', 'policy-apply'].includes(action) && receipt.complete !== true
     || action.endsWith('-plan') && (receipt.ready === false || receipt.applyReady === false)) process.exitCode = 1;
     return receipt;

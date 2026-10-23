@@ -41,6 +41,8 @@ an explicit diagnostic `--path` requires such an adapter. `--plan` on a diagnost
 action means the existing complete-identity embedding-profile request only.
 Category doctor reports incomplete/protected ownership and invalid probe policy
 without installations, repair, lock recovery or new migration authority.
+Category adapters require their existing bounded owner inspection; an explicit
+metadata-only `--no-exact` request is rejected instead of scanning file content.
 
 Migration plan/apply/rollback preserve the selected category, absolute source,
 absolute destination and application home. Status may omit category/source/

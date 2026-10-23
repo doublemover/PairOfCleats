@@ -4,13 +4,16 @@ import { inspectStorageCategory, STORAGE_INVENTORY_ADAPTERS } from './category-i
 /** Scope only the diagnostic inputs of existing owners. This does not resolve
  * new storage, adopt a requested path or grant cleanup/migration authority.
  */
-export const resolveStorageDiagnosticScope = ({ action, argv, layout, legacy, currentCache }) => {
+export const resolveStorageDiagnosticScope = ({ action, argv, rawArgs = [], layout, legacy, currentCache }) => {
   const category = argv.category || null;
   const adapter = STORAGE_INVENTORY_ADAPTERS.includes(category);
   if (category && !adapter && !Object.hasOwn(layout.descriptors, category)) throw new Error('Unknown logical storage category or inventory adapter.');
   if (adapter && ['list', 'explain'].includes(action)) throw new Error('Use storage inspect or doctor for a category inventory adapter.');
   if (argv.path && !adapter) throw new Error('Explicit diagnostic --path requires a category inventory adapter; logical category roots come from the selected layout.');
   if (argv.plan && category !== 'embedding-profiles') throw new Error('Diagnostic --plan is a read-only embedding-profiles request only.');
+  if (adapter && argv.exact === false && rawArgs.some(token => token === '--exact' || token === '--no-exact' || token.startsWith('--exact='))) {
+    throw new Error('Category adapters require their bounded owner inspection; explicit metadata-only --no-exact is unsupported.');
+  }
   const descriptors = category && !adapter ? { [category]: layout.descriptors[category] } : layout.descriptors;
   const diagnostics = category && !adapter ? layout.diagnostics.filter(entry => !entry.category || entry.category === category) : layout.diagnostics;
   const extraRoots = category && !adapter ? legacy.filter(entry => entry.category === category) : legacy;

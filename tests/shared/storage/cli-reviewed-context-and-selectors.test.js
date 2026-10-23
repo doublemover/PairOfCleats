@@ -47,12 +47,21 @@ try {
 
     for (const args of [['cleanup-plan', '--category', 'models'], ['cleanup-plan', '--path', path.join(root, 'different-probes')],
       ['inspect', '--category', 'models', '--path', target], ['inspect', '--category', 'dictionaries', '--plan', planFile],
+      ['inspect', '--category', 'command-probes', '--exact=false'],
       ['doctor', '--category', 'not-a-storage-category'], ['policy-plan', '--category', 'command-probes', '--enabled=invalid'],
       ['inspect', '--max-entries', '0']]) {
       const result = await invoke(args);
       assert.equal(result.exitCode, 1, args.join(' '));
       assert.equal(result.receipt.mutationPerformed, false);
     }
+    const statusOutput = [];
+    console.log = value => statusOutput.push(value); process.exitCode = undefined;
+    try {
+      const cleanup = await runStorageCli(['cleanup-plan', '--repo', repoA, '--home', home, '--cache-root', path.join(home, 'cache')]);
+      assert.equal(cleanup.applyReady, false);
+      assert.equal(JSON.parse(statusOutput[0]).status, 'blocked', 'complete absence accounting does not mean cleanup has mutation authority');
+      assert.equal(process.exitCode, 1);
+    } finally { console.log = originalLog; process.exitCode = originalExitCode; }
     const policy = await invoke(['policy-plan', '--category', 'command-probes', '--enabled=false', '--enabled', 'true', '--entry-limit', '0']);
     assert.equal(policy.receipt.after.enabled, true);
     assert.equal(policy.receipt.after.entryLimit, 0);
