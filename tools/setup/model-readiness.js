@@ -43,10 +43,11 @@ export const resolveModelSetupReadiness = ({ root, modelConfig, embeddingsConfig
     tokenizerConfig: tokenizerRoot ? path.join(tokenizerRoot, 'tokenizer_config.json') : null,
     ...(provider === 'xenova' ? { modelConfig: modelRoot ? path.join(modelRoot, 'config.json') : null } : {})
   };
-  if (modelProfile) {
+  const selectedRoot = modelProfile ? resolveEmbeddingAcquisitionRoot(modelId, modelConfig.dir, modelProfile) : modelRoot;
+  const selectedReceipt = selectedRoot ? path.join(selectedRoot, EMBEDDING_ACQUISITION_RECEIPT) : null;
+  if (modelProfile || provider === 'xenova' && selectedReceipt && fs.existsSync(selectedReceipt)) {
     assets = {};
-    const selectedRoot = resolveEmbeddingAcquisitionRoot(modelId, modelConfig.dir, modelProfile);
-    const receiptPath = selectedRoot ? path.join(selectedRoot, EMBEDDING_ACQUISITION_RECEIPT) : null;
+    const receiptPath = selectedReceipt;
     try {
       if (!receiptPath) throw new Error('Selected model acquisition receipt is missing.');
       const plan = resolveEmbeddingAcquisitionPlan(modelId, modelProfile);

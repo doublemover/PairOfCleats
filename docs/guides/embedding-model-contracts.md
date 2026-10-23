@@ -37,3 +37,31 @@ These changes encode documented semantic contracts. Synthetic adapter/tensor
 regressions do not qualify a real model revision, native runtime, retrieval score,
 latency or memory improvement. Independent official-reference vector comparison
 and judged multilingual code/document retrieval evaluation remain acceptance work.
+
+Qualified-profile prefetch uses the same runtime, revision, precision and text
+component loader as inference. It closes the temporary native loader before
+hashing the local closure and atomically publishing its acquisition receipt.
+Declared ONNX external-data paths belong to that closure even when their names
+or subdirectories differ from generic cache conventions. Legacy file-list-only
+profile receipts require prefetch again; acquisition preserves existing model
+files and earlier selected ONNX installations.
+
+Setup readiness reports readable, nonempty selected assets and matching recorded
+sizes. It does not initialize inference or promise content/native correctness.
+Runtime verification hashes the selected profile closure asynchronously and
+rejects bytes that disagree with the receipt, including same-size edits with
+preserved modification times. Mutable warm acquisitions still rehash; a path/stat
+match alone cannot authorize digest reuse. Concurrent requests coalesce only for
+the exact selected closure. Cancelled callers retain an observable verification
+owner while shared byte verification drains for other callers.
+
+ONNX execution telemetry separates output conversion and captured tensor cleanup
+time. Tensor disposal settlement is not evidence of measured native memory
+release. Profile experiment source bindings include artifact/closure/lifetime
+helpers, and corrected processing identities do not enable a faster default.
+
+Generic prefetch preserves q8 selection. When the runtime registry exposes its
+selected component list, the downloader uses that graph for relocation even if
+an unused fp32 sibling is already cached. `--onnx-path` selects relocation itself;
+profile exports needing multiple graphs and EmbeddingGemma 2's qualified text
+runtime cannot be advertised as generic single-graph ONNX installations.

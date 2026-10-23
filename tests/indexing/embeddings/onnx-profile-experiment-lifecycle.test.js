@@ -49,7 +49,8 @@ assert.equal(report.measured.stages.disposalConfirmed, true); assert.equal(loade
 assert.equal(peakActive, 1, 'one session preserves serialized inference scratch ownership');
 assert.equal(report.binding.workload.batchSize, 2);
 assert.deepEqual(report.binding.processing, resolveOnnxEmbeddingProcessing(modelId));
-for (const key of ['denseContract', 'outputAdmission', 'tokenization', 'tensorLifetime', 'tensorResources', 'sessionCacheLifetime']) {
+for (const key of ['denseContract', 'outputAdmission', 'tokenization', 'tensorLifetime', 'tensorResources', 'sessionCacheLifetime',
+  'artifactLease', 'artifactIdentity', 'acquisitionPlan', 'acquisitionReceipt', 'onnxClosure', 'onnxInstallation', 'deferredAdapter']) {
   assert.match(report.source[key], /^[a-f0-9]{64}$/);
 }
 assert.equal(report.measured.sessions[0].requestedSessionOptions.graphOptimizationLevel, 'extended');

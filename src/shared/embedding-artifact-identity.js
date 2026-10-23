@@ -98,6 +98,13 @@ export const planEmbeddingArtifactInventory = ({ provider, modelId, modelsDir, r
     rootDir, modelPath: onnx?.resolvedModelPath || onnx?.modelPath, modelsDir, modelId
   }) : null;
   const modelRoot = resolveEmbeddingArtifactRoot(modelId, modelsDir);
+  if (provider === 'xenova' && modelRoot) {
+    let receipt = null;
+    try { receipt = readEmbeddingAcquisitionReceipt(modelRoot, resolveEmbeddingAcquisitionPlan(modelId)); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (receipt) return { hasWeights: true, hasTokenizer: true, modelPath: null,
+      files: receipt.inventory.map(row => ({ rel: row.path, filePath: path.join(modelRoot, ...row.path.split('/')), expected: row })) };
+  }
   const tokenizerId = onnx?.tokenizerId || modelId;
   const tokenizerRoot = resolveEmbeddingArtifactRoot(tokenizerId, modelsDir);
   const rootFiles = inventoryFiles(provider === 'onnx' ? tokenizerRoot : modelRoot);

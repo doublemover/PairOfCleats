@@ -40,7 +40,15 @@ try {
       } }, ModelRegistry: { get_model_files: async (id, settings) => {
         calls.push(['registry', id, settings]); if (abortAtRegistry) controller.abort(); return ['config.json', graphPath];
       } }, pipeline: () => assert.fail('qualified profile cannot use generic pipeline') };
-    const result = await prefetchEmbeddingModel(mod, { modelId, modelsDir: dir, modelProfile: profile });
+    const originalOpen = fs.open;
+    let result;
+    try {
+      fs.open = async (file, ...args) => {
+        if (String(file) === path.join(selectedRoot, graphPath)) assert(modelCloses > 0, 'temporary native loader closes before receipt verification reads the graph');
+        return originalOpen(file, ...args);
+      };
+      result = await prefetchEmbeddingModel(mod, { modelId, modelsDir: dir, modelProfile: profile });
+    } finally { fs.open = originalOpen; }
     assert.equal(result.plan.dtype, profile.dtype); assert.equal(result.plan.revision, profile.revision);
     assert(calls.slice(0, 3).every(call => call[2].revision === profile.revision));
     assert.equal(calls[2][2].dtype, profile.dtype); assert.equal(calls[3][2].config.vision_config, null);

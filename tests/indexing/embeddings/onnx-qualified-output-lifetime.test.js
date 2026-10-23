@@ -77,6 +77,11 @@ try {
   assert(Math.abs(vectors[0][0] - 0.6) < 1e-6); assert(Math.abs(vectors[0][1] - 0.8) < 1e-6);
   assert.equal(control.outputs[0].closes, 1); assert.deepEqual(control.feeds.map(value => value.closes), [1, 1]);
   assert.equal(control.outputs[0].data[0], 99); assert.notEqual(vectors[0][0], 99);
+  const observed = adapter.executionInfo().measurements;
+  assert.equal(observed.tensorResourcesObserved, 3); assert.equal(observed.tensorResourcesSettled, 3);
+  assert.equal(observed.retainedTensorScopes, 0); assert.equal(observed.peakRetainedTensorScopes, 1);
+  assert(observed.tensorCleanupWallMs >= 0);
+  assert.equal(observed.tensorCleanupEvidence, 'captured-disposal-settlement; native-memory-freeing-unobserved');
   assert.equal(tokenOptions[0].max_length, 8192);
   await adapter.prewarm({ model: true, texts: ['warm'] });
   assert(control.outputs.every(value => value.closes === 1), 'prewarm outputs are disposed too');

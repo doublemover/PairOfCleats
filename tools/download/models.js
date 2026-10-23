@@ -31,20 +31,23 @@ const cacheDir = argv['cache-dir']
   ? path.resolve(argv['cache-dir'])
   : modelConfig.dir;
 const modelId = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
-const wantsOnnx = argv.onnx === true || embeddingProvider === 'onnx';
+const wantsOnnx = argv.onnx === true || Boolean(argv['onnx-path']) || embeddingProvider === 'onnx';
 const onnxPathOverride = argv['onnx-path'] ? path.resolve(argv['onnx-path']) : null;
 const modelProfile = resolveEmbeddingModelProfile(modelId, embeddingsConfig.embeddinggemma2);
 validateEmbeddingModelProfile(modelProfile, { provider: embeddingProvider, normalize: embeddingsConfig.normalize !== false });
+if (wantsOnnx && modelProfile) throw new Error('EmbeddingGemma 2 acquisition requires its qualified Xenova text components; generic ONNX relocation is unsupported for this profile.');
 
 await fs.mkdir(cacheDir, { recursive: true });
 transformers.env.cacheDir = cacheDir;
 
 // Preserve the quantized model filename used by existing model caches.
-await prefetchEmbeddingModel(transformers, { modelId, modelsDir: cacheDir, modelProfile });
+const acquisition = await prefetchEmbeddingModel(transformers, { modelId, modelsDir: cacheDir, modelProfile });
 
 let onnxResolvedPath = null;
 if (wantsOnnx) {
-  onnxResolvedPath = resolveOnnxModelPath({
+  const selectedGraphs = acquisition.receipt?.files.filter(file => file.endsWith('.onnx')) || [];
+  if (selectedGraphs.length > 1) throw new Error('Selected embedding export requires multiple ONNX graphs; generic single-graph relocation cannot preserve this model contract.');
+  onnxResolvedPath = selectedGraphs.length === 1 ? path.join(acquisition.root, ...selectedGraphs[0].split('/')) : resolveOnnxModelPath({
     rootDir: root,
     // A configured output may not exist yet. Discover downloaded source assets
     // independently; runtime selection remains authoritative.
@@ -82,6 +85,6 @@ if (wantsOnnx) {
     console.error(`ONNX model available at ${onnxResolvedPath}`);
     console.error('Config: set indexing.embeddings.provider=onnx and indexing.embeddings.onnx.modelPath to that path.');
   } else {
-    console.error('ONNX model path not found. Run with --onnx-path or set indexing.embeddings.onnx.modelPath.');
+    throw new Error('Selected downloaded ONNX model path was not found. Verify the selected export and model acquisition before configuring an ONNX target.');
   }
 }

@@ -388,7 +388,8 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
   const adapter = {
     embedderPromise,
     executionInfo: () => ({ provider: 'onnx', denseEncoding: denseContract ? { ...denseContract } : null,
-      measurements: { ...sessionEntry.measurements }, modelArtifact: sessionEntry.loaded?.observedArtifact || selectedArtifact,
+      measurements: { ...sessionEntry.measurements, retainedTensorScopes: sessionEntry.tensorScopes.size,
+        tensorCleanupEvidence: 'captured-disposal-settlement; native-memory-freeing-unobserved' }, modelArtifact: sessionEntry.loaded?.observedArtifact || selectedArtifact,
       modelRevision: selectedArtifact.revision, effectiveSessionOptions: sessionEntry.loaded?.effectiveSessionOptions ?? null, requestedSessionOptions: buildSessionOptions(normalized, { lowMemory }),
       qualification: qualificationSlot ? { kind: 'unaccepted-experiment', bindingDigest: qualificationSlot.bindingDigest,
         requestedOptions: qualificationSlot.options, independentSession: true } : null,

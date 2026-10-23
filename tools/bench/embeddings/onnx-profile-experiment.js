@@ -56,6 +56,13 @@ const sourceIdentity = async () => Object.fromEntries(await Promise.all([
   ['sessionCacheLifetime', new URL('../../../src/shared/onnx-embeddings/cache-lifetime.js', import.meta.url)],
   ['failureComposition', new URL('../../../src/shared/embedding-cache-lifetime.js', import.meta.url)],
   ['failureInspection', new URL('../../../src/shared/embedding-cache-failure-inspection.js', import.meta.url)],
+  ['artifactLease', new URL('../../../src/shared/embedding-artifact-lease.js', import.meta.url)],
+  ['artifactIdentity', new URL('../../../src/shared/embedding-artifact-identity.js', import.meta.url)],
+  ['acquisitionPlan', new URL('../../../src/shared/embedding-acquisition-plan.js', import.meta.url)],
+  ['acquisitionReceipt', new URL('../../../src/shared/embedding-acquisition-receipt.js', import.meta.url)],
+  ['onnxClosure', new URL('../../../src/shared/onnx-artifact-closure.js', import.meta.url)],
+  ['onnxInstallation', new URL('../../../src/shared/onnx-installation.js', import.meta.url)],
+  ['deferredAdapter', new URL('../../../src/shared/embedding-deferred-adapter.js', import.meta.url)],
   ['qualification', new URL('../../../src/shared/onnx-embeddings/qualification.js', import.meta.url)],
   ['resourceLifetime', new URL('../../../src/shared/onnx-embeddings/resource-lifetime.js', import.meta.url)]
 ].map(async ([name, url]) => {
