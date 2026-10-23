@@ -273,6 +273,15 @@ foreground request lifetime. Invalid saved limits, modes, booleans and filters
 remain incomplete scope instead of being coerced into current defaults, and a
 failed history save retains the previous acknowledged project state.
 
+Risk seed resolution, standalone execution and optional export retain one
+original repository/request scope. Direct chunks must agree with the canonical
+context packet; retained file/symbol selections execute their qualified chunk
+UID, and a different returned chunk cannot inherit that qualification. The panel
+shows the selected index directory and context-pack signature, while stating
+that standalone risk output does not independently reattest the signature.
+Context from the active source resolves that source's repository before the
+request. Late prompts/results cannot export after project or window revocation.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only

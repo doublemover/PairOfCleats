@@ -163,7 +163,8 @@ class AnalysisBehaviorTests(unittest.TestCase):
             with open(manifest, 'w') as handle:
                 handle.write('{}')
             source = {'source': 'context-pack', 'repoRoot': self.fixture_repo, 'mode': 'code',
-                      'indexDir': generation, 'indexSignature': 'retained-generation'}
+                      'indexDir': generation, 'indexSignature': 'retained-generation',
+                      'seed': 'chunk:chunk-risk', 'chunkUid': 'chunk-risk'}
             self.analysis.PairOfCleatsRiskExplainCommand(self.window).run(
                 chunk='chunk-risk', source_qualification=source)
             self.assertEqual(len(self.runner_calls), 1)

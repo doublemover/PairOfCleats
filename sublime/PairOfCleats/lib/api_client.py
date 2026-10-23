@@ -163,6 +163,9 @@ def build_url(base_url, path, params=None):
     base_url = normalize_base_url(base_url)
     if not base_url:
         return ''
+    from . import config
+    if not config._is_valid_base_url(base_url):
+        raise ValueError('API endpoint must be an HTTP(S) base without user-info, query or fragment. Inspect User Settings.')
     params = params or {}
     filtered = {}
     for key, value in params.items():

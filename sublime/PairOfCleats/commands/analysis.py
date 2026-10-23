@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import copy
 
 import sublime
 import sublime_plugin
@@ -12,6 +13,7 @@ from ..lib import results_state
 from ..lib import runner
 from ..lib import ui
 from ..lib import views
+from ..lib import operations
 
 DEFAULT_CONTEXT_PACK_HOPS = 2
 DEFAULT_RISK_EXPLAIN_MAX = 5
@@ -85,10 +87,15 @@ def _prompt_value(window, caption, initial, on_done):
     if window is None or not hasattr(window, 'show_input_panel'):
         ui.show_error('PairOfCleats: this command requires an input-capable window.')
         return
-    window.show_input_panel(caption, initial or '', lambda value: on_done((value or '').strip()), None, None)
+    scope = operations.capture(window, key='analysis-input')
+    window.show_input_panel(caption, initial or '', lambda value: on_done((value or '').strip())
+                            if operations.is_current(scope) else None, None, None)
 
 
-def _resolve_cli_context(window, path_hint=None, allow_fallback=True, workflow=None):
+def _resolve_cli_context(window, path_hint=None, allow_fallback=True, workflow=None, operation_scope=None):
+    scope = operation_scope or operations.capture(window, key='analysis-' + str(workflow or 'command'))
+    if not operations.is_current(scope):
+        return None
     settings = config.get_settings(window)
     repo_root, reason = _resolve_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
     if not repo_root:
@@ -108,18 +115,22 @@ def _resolve_cli_context(window, path_hint=None, allow_fallback=True, workflow=N
         'repo_root': repo_root,
         'cli': cli,
         'env': env,
+        'scope': scope,
     }
 
 
 def _with_mutating_cli_context(window, action_label, on_resolved, path_hint=None, workflow=None):
-    settings = config.get_settings(window)
+    scope = operations.capture(window, key='analysis-' + action_label)
 
     def handle_repo_root(repo_root, reason):
+        if not operations.is_current(scope):
+            return
         if not repo_root:
             ui.show_error('PairOfCleats: {0}'.format(reason))
             return
         if reason:
             ui.show_status('PairOfCleats: {0}'.format(reason))
+        settings = config.get_settings(window)
         errors = config.validate_settings(settings, repo_root, workflow=workflow)
         if errors:
             message = 'PairOfCleats settings need attention:\n- {0}'.format('\n- '.join(errors))
@@ -130,6 +141,7 @@ def _with_mutating_cli_context(window, action_label, on_resolved, path_hint=None
             'repo_root': repo_root,
             'cli': paths.resolve_cli(settings, repo_root),
             'env': config.build_env(settings),
+            'scope': scope,
         })
 
     paths.resolve_repo_root_interactive(
@@ -433,6 +445,13 @@ def _render_context_pack_text(payload, hits):
 
 def _render_risk_explain_text(payload, hits):
     lines = ['PairOfCleats risk explain', '']
+    qualified = payload.get('sourceQualification') if isinstance(payload, dict) else None
+    if isinstance(qualified, dict):
+        lines.extend(['Selected code generation',
+            '- repository: {0}'.format(qualified.get('repoRoot')),
+            '- index: {0}'.format(qualified.get('indexDir')),
+            '- context-pack index signature: {0}'.format(qualified.get('indexSignature')),
+            'Standalone risk output does not independently reattest this generation signature.', ''])
     chunk = payload.get('chunk') if isinstance(payload, dict) else None
     if isinstance(chunk, dict):
         lines.append('Chunk')
@@ -596,7 +615,7 @@ def _build_analysis_session(kind, repo_root, hits, text, payload, json_path=None
         'analysisKind': kind,
         'hits': [results.normalize_hit(hit) for hit in hits],
         'text': text,
-        'payload': payload,
+        'payload': copy.deepcopy(payload),
     }
     if json_path:
         session['jsonPath'] = json_path
@@ -669,6 +688,9 @@ def _run_cli_json(window, title, repo_root, args, on_done, context=None, workflo
     context = context or _resolve_cli_context(window, path_hint=repo_root, workflow=workflow)
     if not context:
         return None
+    scope = context.get('scope') or operations.capture(window)
+    if not operations.is_current(scope):
+        return None
     cli = context['cli']
     full_args = list(cli.get('args_prefix') or []) + args
     return runner.run_process(
@@ -679,9 +701,10 @@ def _run_cli_json(window, title, repo_root, args, on_done, context=None, workflo
         window=window,
         title=title,
         capture_json=True,
-        on_done=on_done,
+        on_done=lambda result: on_done(result) if operations.is_current(scope) else None,
         stream_output=False,
         panel_name='pairofcleats-analysis',
+        operation_scope=scope,
     )
 
 
@@ -769,7 +792,8 @@ def _default_workspace_path(window):
 
 
 def _resolve_risk_source(repo_root, payload, seed):
-    provenance = payload.get('provenance') or {}
+    provenance = payload.get('provenance')
+    provenance = provenance if isinstance(provenance, dict) else {}
     index_dir = provenance.get('indexDir')
     signature = provenance.get('indexSignature')
     source_repo = provenance.get('repo')
@@ -780,14 +804,23 @@ def _resolve_risk_source(repo_root, payload, seed):
             != os.path.normcase(os.path.abspath(repo_root))):
         raise ValueError('Risk seed resolution returned no qualified code generation. '
                          'Run Risk Explain again to deliberately select the current generation.')
-    risk = payload.get('risk') or {}
-    primary = payload.get('primary') or {}
-    ref = primary.get('ref') or {}
-    chunk_uid = ((risk.get('anchor') or {}).get('chunkUid') or ref.get('chunkUid')
-                 or (ref.get('resolved') or {}).get('chunkUid'))
+    risk = payload.get('risk')
+    primary = payload.get('primary')
+    risk = risk if isinstance(risk, dict) else {}
+    primary = primary if isinstance(primary, dict) else {}
+    ref = primary.get('ref')
+    ref = ref if isinstance(ref, dict) else {}
+    anchor = risk.get('anchor')
+    resolved = ref.get('resolved')
+    identities = [value for value in ((anchor.get('chunkUid') if isinstance(anchor, dict) else None),
+        ref.get('chunkUid'), (resolved.get('chunkUid') if isinstance(resolved, dict) else None))
+        if value is not None]
+    chunk_uid = identities[0] if identities else None
     if not isinstance(chunk_uid, str) or not chunk_uid.strip():
         raise ValueError('The selected seed has no chunk in this generation. '
                          'Run Risk Explain again to deliberately select the current generation.')
+    if any(value != chunk_uid for value in identities) or seed.startswith('chunk:') and seed[6:] != chunk_uid:
+        raise ValueError('Risk seed resolution returned conflicting chunk identity. Previous evidence is retained.')
     return {
         'chunkUid': chunk_uid,
         'source': 'context-pack', 'repoRoot': os.path.abspath(repo_root), 'mode': 'code',
@@ -805,12 +838,18 @@ class PairOfCleatsContextPackCommand(sublime_plugin.WindowCommand):
 
     def run(self, seed=None, hops=DEFAULT_CONTEXT_PACK_HOPS, include_risk=True, include_types=False,
             include_paths=False, export_json=False, out_path=None):
+        scope = operations.capture(self.window, key='analysis-context-pack')
         if seed:
-            self._execute(seed, hops, include_risk, include_types, include_paths, export_json, out_path)
+            context = _resolve_cli_context(self.window, workflow='context-pack', operation_scope=scope)
+            if context:
+                self._execute(seed, hops, include_risk, include_types, include_paths, export_json, out_path, context)
             return
         default_seed, _repo_root, reason = _resolve_active_file_seed(self.window)
+        context = _resolve_cli_context(self.window, path_hint=_repo_root, workflow='context-pack', operation_scope=scope)
+        if not context:
+            return
         if default_seed:
-            self._execute(default_seed, hops, include_risk, include_types, include_paths, export_json, out_path)
+            self._execute(default_seed, hops, include_risk, include_types, include_paths, export_json, out_path, context)
             return
         if reason:
             ui.show_status(reason)
@@ -818,13 +857,14 @@ class PairOfCleatsContextPackCommand(sublime_plugin.WindowCommand):
             self.window,
             'PairOfCleats context pack seed',
             default_seed or '',
-            lambda value: self._execute(value, hops, include_risk, include_types, include_paths, export_json, out_path) if value else None,
+            lambda value: self._execute(value, hops, include_risk, include_types, include_paths, export_json, out_path, context)
+                if value and operations.is_current(scope) else None,
         )
 
-    def _execute(self, seed, hops, include_risk, include_types, include_paths, export_json, out_path):
+    def _execute(self, seed, hops, include_risk, include_types, include_paths, export_json, out_path, context=None):
         if not seed:
             return
-        context = _resolve_cli_context(self.window, workflow='context-pack')
+        context = context or _resolve_cli_context(self.window, workflow='context-pack')
         if not context:
             return
         execution = config.resolve_execution_mode(context.get('settings') or {}, 'context-pack')
@@ -855,7 +895,8 @@ class PairOfCleatsContextPackCommand(sublime_plugin.WindowCommand):
                 return
             payload = result.payload
             if not isinstance(payload, dict) or payload.get('ok') is False:
-                ui.show_error((payload or {}).get('message') or 'PairOfCleats context pack returned invalid JSON.')
+                ui.show_error(payload.get('message') if isinstance(payload, dict) and payload.get('message')
+                              else 'PairOfCleats context pack returned invalid JSON.')
                 return
             hits = _collect_context_pack_hits(payload)
             text = _render_context_pack_text(payload, hits)
@@ -882,8 +923,13 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
 
     def run(self, chunk=None, max=DEFAULT_RISK_EXPLAIN_MAX, source_rule=None, sink_rule=None,
             export_json=False, out_path=None, source_qualification=None):
+        scope = operations.capture(self.window, key='analysis-risk-explain')
+        context = _resolve_cli_context(self.window, workflow='risk-explain', operation_scope=scope)
+        if not context:
+            return
+        source_qualification = copy.deepcopy(source_qualification)
         if chunk:
-            self._execute(chunk, max, source_rule, sink_rule, export_json, out_path, source_qualification)
+            self._execute(chunk, max, source_rule, sink_rule, export_json, out_path, source_qualification, context)
             return
         view = self.window.active_view() if self.window else None
         selection = views.extract_selection(view)
@@ -892,13 +938,14 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
             self.window,
             'PairOfCleats risk explain chunkUid',
             initial,
-            lambda value: self._execute(value, max, source_rule, sink_rule, export_json, out_path) if value else None,
+            lambda value: self._execute(value, max, source_rule, sink_rule, export_json, out_path, context=context)
+                if value and operations.is_current(scope) else None,
         )
 
-    def _execute(self, chunk_uid, max_flows, source_rule, sink_rule, export_json, out_path, retained_source=None):
+    def _execute(self, chunk_uid, max_flows, source_rule, sink_rule, export_json, out_path, retained_source=None, context=None):
         if not chunk_uid:
             return
-        context = _resolve_cli_context(self.window, workflow='risk-explain')
+        context = context or _resolve_cli_context(self.window, workflow='risk-explain')
         if not context:
             return
         execution = config.resolve_execution_mode(context.get('settings') or {}, 'risk-explain')
@@ -932,7 +979,11 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
                 ui.show_error((payload or {}).get('message', 'PairOfCleats risk explain returned invalid JSON.')
                               if isinstance(payload, dict) else 'PairOfCleats risk explain returned invalid JSON.')
                 return
-            payload = dict(payload, sourceQualification=source_qualification)
+            returned_chunk = payload.get('chunk')
+            if not isinstance(returned_chunk, dict) or returned_chunk.get('chunkUid') != source_qualification['chunkUid']:
+                ui.show_error('Risk response did not retain the selected chunk identity. Previous evidence is retained.')
+                return
+            payload = dict(copy.deepcopy(payload), sourceQualification=copy.deepcopy(source_qualification))
             hits = _collect_risk_explain_hits(payload)
             text = _render_risk_explain_text(payload, hits)
             json_path = None
@@ -971,8 +1022,13 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
 
         if retained_source is not None:
             if (not isinstance(retained_source, dict) or retained_source.get('source') != 'context-pack'
-                    or retained_source.get('mode') != 'code' or not retained_source.get('indexSignature')
+                    or retained_source.get('mode') != 'code'
+                    or not isinstance(retained_source.get('indexSignature'), str) or not retained_source['indexSignature'].strip()
+                    or not isinstance(retained_source.get('chunkUid'), str) or not retained_source['chunkUid']
+                    or retained_source.get('seed') != seed
+                    or seed.startswith('chunk:') and retained_source['chunkUid'] != seed[6:]
                     or not isinstance(retained_source.get('indexDir'), str)
+                    or not os.path.isabs(retained_source['indexDir'])
                     or not isinstance(retained_source.get('repoRoot'), str)
                     or os.path.normcase(os.path.abspath(retained_source['repoRoot']))
                     != os.path.normcase(os.path.abspath(repo_root))):
@@ -985,6 +1041,7 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
                 return
             source_qualification = dict(retained_source)
             args[args.index('--index') + 1] = source_qualification['indexDir']
+            args[args.index('--chunk') + 1] = source_qualification['chunkUid']
             _run_cli_json(self.window, 'PairOfCleats risk explain', repo_root, args,
                           on_done, context=context, workflow='risk-explain')
             return
