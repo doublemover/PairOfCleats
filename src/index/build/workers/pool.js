@@ -5,6 +5,8 @@ import { readEffectiveMemory } from '../../../shared/effective-memory.js';
 import { resolveWorkerHeapLaunchContract } from '../../../shared/workers/heap-contract.js';
 import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
+import { awaitWithKeepalive } from '../../../shared/promise-keepalive.js';
+import { isQueueRecoveryUnsafe } from '../../../shared/concurrency/queue-recovery.js';
 import os from 'node:os';
 import util from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -54,6 +56,28 @@ export {
   resolveMemoryPressureState,
   resolveLanguageThrottleLimit,
   evictDeterministicPressureCacheEntries
+};
+
+/** Process cancellation rejects the request before the original child closes.
+ * Keep facade dispatch/throttle ownership until that backend's exact settlement;
+ * no CPU suspension is valid while the child can still compute.
+ */
+const awaitBackendFailureSettlement = async error => {
+  if (error === null || !['object', 'function'].includes(typeof error)) return;
+  const descriptor = Object.getOwnPropertyDescriptor(error, 'workerSettlement');
+  if (!descriptor) return;
+  try {
+    if (!(descriptor.value instanceof Promise)) throw new Error('Worker settlement is not an owned promise.');
+    const released = Object.getOwnPropertyDescriptor(error, 'workerOwnershipReleased')?.value;
+    if (typeof released !== 'function') throw new Error('Worker settlement has no original release observer.');
+    await awaitWithKeepalive(descriptor.value);
+    if (released.call(error) !== true) throw new Error('Worker settlement did not confirm original child release.');
+  } catch (cleanupError) {
+    throw Object.assign(new AggregateError([error, cleanupError],
+      'Worker request failed before backend ownership could be retired.', { cause: error }), {
+      code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', workerOwnershipPending: true
+    });
+  }
 };
 
 export const destroyWorkerPoolLifecycleWithTimeout = async ({
@@ -639,6 +663,7 @@ export async function createIndexerWorkerPool(input = {}) {
         let primaryFailure;
         let hasPrimaryFailure = false;
         let dispatched = false;
+        let dispatchedFailure;
         try {
           if (queueController.isClosed()) return null;
           // Pressure-driven reconfiguration must not turn zero-slot heavy work
@@ -670,11 +695,10 @@ export async function createIndexerWorkerPool(input = {}) {
           updatePoolMetrics();
           return result;
         } catch (err) {
+          dispatchedFailure = err;
           primaryFailure = err;
           hasPrimaryFailure = true;
-          if (err?.workerOwnershipPending || err?.cacheOwnershipPending || err instanceof AggregateError
-            || ['ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', 'BUILD_CLEANUP_TIMEOUT',
-              'PISCINA_DESTROY_TIMEOUT', 'PISCINA_FORCE_TERMINATE_INCOMPLETE'].includes(err?.code)) throw err;
+          if (isQueueRecoveryUnsafe(err) || err instanceof AggregateError) throw err;
           throwIfAborted(signal);
           if (isAbortError(err)) throw err;
           if (err?.code === 'ERR_PROCESS_TASK_BUDGET' || err?.code === 'ERR_TOKENIZER_RESOURCE_PRESSURE') throw err;
@@ -692,6 +716,7 @@ export async function createIndexerWorkerPool(input = {}) {
             throw primaryFailure;
           }
         } finally {
+          if (dispatched) await awaitBackendFailureSettlement(dispatchedFailure);
           if (dispatched) backendTasks = Math.max(0, backendTasks - 1);
           const cleanupFailures = [];
           try { queueController.releaseLanguageThrottleSlot(throttleSlot); }
@@ -729,6 +754,7 @@ export async function createIndexerWorkerPool(input = {}) {
         let primaryFailure;
         let hasPrimaryFailure = false;
         let dispatched = false;
+        let dispatchedFailure;
         try {
           if (queueController.isClosed()) return null;
           queueController.recordPressureCacheEntry(request);
@@ -744,14 +770,13 @@ export async function createIndexerWorkerPool(input = {}) {
           dispatched = true;
           return await lifecycle.getPool().run(request, { name: 'analyzeFile', signal });
         } catch (error) {
+          dispatchedFailure = error;
           primaryFailure = error;
           hasPrimaryFailure = true;
           let skipRecovery;
           try {
-            skipRecovery = isAbortError(error) || signal?.aborted || error instanceof AggregateError
-              || error?.workerOwnershipPending || error?.cacheOwnershipPending
-              || ['ERR_PROCESS_TASK_BUDGET', 'ERR_TOKENIZER_RESOURCE_PRESSURE', 'BUILD_CLEANUP_TIMEOUT',
-                'PISCINA_DESTROY_TIMEOUT', 'PISCINA_FORCE_TERMINATE_INCOMPLETE'].includes(error?.code);
+            skipRecovery = isQueueRecoveryUnsafe(error) || isAbortError(error) || signal?.aborted
+              || error instanceof AggregateError;
             if (!skipRecovery) await handleWorkerTaskError({ err: error, payload: request,
               payloadMetaPool: tokenizePayloadMetaPool, assignPayloadMeta: assignTokenizePayloadMeta,
               phase: 'worker-file-analysis', task: 'analyzeFile', preferDetailMessage: true });
@@ -764,6 +789,7 @@ export async function createIndexerWorkerPool(input = {}) {
           }
           throw error;
         } finally {
+          if (dispatched) await awaitBackendFailureSettlement(dispatchedFailure);
           if (dispatched) backendTasks = Math.max(0, backendTasks - 1);
           const cleanupFailures = [];
           try { queueController.releaseLanguageThrottleSlot(throttleSlot); }
@@ -792,6 +818,7 @@ export async function createIndexerWorkerPool(input = {}) {
         let primaryFailure;
         let hasPrimaryFailure = false;
         let dispatched = false;
+        let dispatchedFailure;
         try {
           if (lifecycle.isDisabled() && !(await lifecycle.ensurePool())) {
             logWorkerPoolUnavailable({
@@ -819,12 +846,11 @@ export async function createIndexerWorkerPool(input = {}) {
           updatePoolMetrics();
           return result;
         } catch (err) {
+          dispatchedFailure = err;
           primaryFailure = err;
           hasPrimaryFailure = true;
-          if (isAbortError(err)) throw err;
-          if (['ERR_PROCESS_TASK_BUDGET', 'ERR_TOKENIZER_RESOURCE_PRESSURE', 'ERR_EMBEDDING_QUANTIZATION',
-            'BUILD_CLEANUP_TIMEOUT', 'PISCINA_DESTROY_TIMEOUT', 'PISCINA_FORCE_TERMINATE_INCOMPLETE'].includes(err?.code)
-            || err?.workerOwnershipPending || err?.cacheOwnershipPending || err instanceof AggregateError) throw err;
+          if (isQueueRecoveryUnsafe(err) || err instanceof AggregateError || isAbortError(err)
+            || err?.code === 'ERR_EMBEDDING_QUANTIZATION') throw err;
           try { throwIfAborted(signal); }
           catch (abortError) { primaryFailure = abortError; throw abortError; }
           try {
@@ -843,6 +869,7 @@ export async function createIndexerWorkerPool(input = {}) {
             throw primaryFailure;
           }
         } finally {
+          if (dispatched) await awaitBackendFailureSettlement(dispatchedFailure);
           if (dispatched) backendTasks = Math.max(0, backendTasks - 1);
           activeTasks = Math.max(0, activeTasks - 1);
           queueController.recordWorkSettled();
