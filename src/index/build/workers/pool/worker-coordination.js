@@ -1,5 +1,8 @@
 import util from 'node:util';
 
+export const WORKER_DIAGNOSTIC_LIMIT = 256;
+const validWorkerId = value => Number.isSafeInteger(value) && value > 0;
+
 /**
  * Coordinate worker-process event handling and telemetry collection.
  *
@@ -32,6 +35,7 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     crashPayloadMetaPool,
     observeWorkerTaskDuration,
     setStageGcPressure,
+    setWorkerGcPressure = () => {},
     readProcessPressureSample,
     updatePressureState,
     maybeReduceWorkersOnPressure,
@@ -60,6 +64,22 @@ export const createWorkerProcessCoordinator = (input = {}) => {
   };
   const workerNumaNodeByThreadId = new Map();
   let workerCreateOrdinal = 0;
+
+  const forgetWorker = id => {
+    gcByWorker.delete(String(id));
+    runtimeByWorker.delete(id);
+    runningByWorker.delete(id);
+    workerNumaNodeByThreadId.delete(id);
+  };
+  const pruneInactiveDiagnostics = () => {
+    const threads = currentPool?.threads;
+    if (!Array.isArray(threads)) return;
+    const live = new Set(threads.map(worker => worker.threadId).filter(validWorkerId));
+    for (const key of gcByWorker.keys()) if (!live.has(Number(key))) gcByWorker.delete(key);
+    for (const key of runtimeByWorker.keys()) if (!live.has(key)) runtimeByWorker.delete(key);
+    for (const key of runningByWorker.keys()) if (!live.has(key)) runningByWorker.delete(key);
+    for (const key of workerNumaNodeByThreadId.keys()) if (!live.has(key)) workerNumaNodeByThreadId.delete(key);
+  };
 
   const setNumaPinningPlan = (plan) => {
     numaPinningPlan = plan && typeof plan === 'object'
@@ -95,8 +115,14 @@ export const createWorkerProcessCoordinator = (input = {}) => {
       reason: 'worker-task'
     });
     setStageGcPressure({ stage: normalizedStage, value: pressureRatio });
-    if (workerId == null) return null;
+    setWorkerGcPressure({ pool: poolLabel, worker: 'all', stage: normalizedStage, value: pressureRatio });
+    const pressureSample = { rssPressure, gcPressure: heapUtilization, pressureRatio };
+    if (!validWorkerId(workerId)) return pressureSample;
     const key = String(workerId);
+    if (!gcByWorker.has(key) && gcByWorker.size >= WORKER_DIAGNOSTIC_LIMIT) {
+      pruneInactiveDiagnostics();
+      if (gcByWorker.size >= WORKER_DIAGNOSTIC_LIMIT) return pressureSample;
+    }
     const previous = gcByWorker.get(key) || {
       worker: key,
       samples: 0,
@@ -118,25 +144,31 @@ export const createWorkerProcessCoordinator = (input = {}) => {
       updatedAt: new Date(now).toISOString()
     };
     gcByWorker.set(key, next);
-    return { rssPressure, gcPressure: heapUtilization, pressureRatio };
+    return pressureSample;
   };
 
   const attachPoolListeners = (poolInstance) => {
     if (!poolInstance?.on) return;
     currentPool = poolInstance;
+    gcByWorker.clear();
     runtimeByWorker.clear();
     runningByWorker.clear();
+    workerNumaNodeByThreadId.clear();
     poolInstance.on('message', (message) => {
       if (poolInstance !== currentPool || !message || typeof message !== 'object') return;
       if (message.type === 'worker-runtime') {
-        if (Number.isInteger(message.threadId) && message.observation && runtimeByWorker.size < 256) {
+        if (!runtimeByWorker.has(message.threadId) && runtimeByWorker.size >= WORKER_DIAGNOSTIC_LIMIT) pruneInactiveDiagnostics();
+        if (validWorkerId(message.threadId) && message.observation
+          && (runtimeByWorker.has(message.threadId) || runtimeByWorker.size < WORKER_DIAGNOSTIC_LIMIT)) {
           runtimeByWorker.set(message.threadId, message.observation);
           onRuntimeObservation(message.observation);
         }
         return;
       }
       if (message.type === 'worker-task-start') {
-        if (runningByWorker.size < 256) runningByWorker.set(message.threadId, Date.now());
+        if (!runningByWorker.has(message.threadId) && runningByWorker.size >= WORKER_DIAGNOSTIC_LIMIT) pruneInactiveDiagnostics();
+        if (validWorkerId(message.threadId)
+          && (runningByWorker.has(message.threadId) || runningByWorker.size < WORKER_DIAGNOSTIC_LIMIT)) runningByWorker.set(message.threadId, Date.now());
         return;
       }
       if (message.type === 'worker-task') {
@@ -205,7 +237,7 @@ export const createWorkerProcessCoordinator = (input = {}) => {
       crashLogger?.enabled && crashLogger.logError({ phase: 'worker-pool', ...formatPoolError(err) });
     });
     poolInstance.on('workerCreate', (worker) => {
-      if (!worker) return;
+      if (poolInstance !== currentPool || !worker) return;
       const threadId = worker.threadId ?? worker.id ?? worker.worker?.threadId;
       if (numaPinningPlan.active && Number.isFinite(Number(threadId))) {
         const assignments = Array.isArray(numaPinningPlan.assignments)
@@ -236,9 +268,9 @@ export const createWorkerProcessCoordinator = (input = {}) => {
         });
       });
       target.on('exit', (code) => {
-        if (Number.isFinite(Number(threadId))) {
-          workerNumaNodeByThreadId.delete(Number(threadId));
-        }
+        // Retirement is independent of exit status and crash logging. An old
+        // pool's later exit must not erase a replacement pool's same-number ID.
+        if (poolInstance === currentPool && validWorkerId(Number(threadId))) forgetWorker(Number(threadId));
         if (code === 0) return;
         log(`Worker thread exited with code ${code}.`);
         crashLogger?.enabled && crashLogger.logError({
@@ -250,18 +282,21 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     });
   };
 
-  const gcPressureStats = () => ({
-    stage: normalizedStage,
-    samples: gcSampleCount,
-    global: {
-      scope: 'parent-process',
-      method: 'heap-utilization-and-aggregate-rss-pressure-proxy',
-      pressureRatio: gcGlobalPressure,
-      heapUtilization: gcGlobalHeapUtilization,
-      rssPressure: gcGlobalRssPressure
-    },
-    workers: Array.from(gcByWorker.values())
-  });
+  const gcPressureStats = () => {
+    pruneInactiveDiagnostics();
+    return {
+      stage: normalizedStage,
+      samples: gcSampleCount,
+      global: {
+        scope: 'parent-process',
+        method: 'heap-utilization-and-aggregate-rss-pressure-proxy',
+        pressureRatio: gcGlobalPressure,
+        heapUtilization: gcGlobalHeapUtilization,
+        rssPressure: gcGlobalRssPressure
+      },
+      workers: Array.from(gcByWorker.values())
+    };
+  };
 
   return {
     setNumaPinningPlan,
@@ -274,6 +309,7 @@ export const createWorkerProcessCoordinator = (input = {}) => {
       method: 'worker-start-end-events; excludes throttle, startup and backend queue waits' }),
     runtimeObservationStats: (pool) => {
       if (!pool || pool !== currentPool) return [];
+      pruneInactiveDiagnostics();
       const threads = Array.isArray(pool.threads) ? new Set(pool.threads.map((worker) => worker.threadId)) : null;
       return Array.from(runtimeByWorker.entries())
         .filter(([id]) => !threads || threads.has(id)).map(([, observation]) => observation);
