@@ -39,9 +39,11 @@ and actual nested reservation FileHandle/Dir/coordinator recovery. Positive
 budget denial and subsequent valid admission remain. Existing reservation bytes
 stay unchanged, and exact recovery never repeats accounting or reads.
 
-This batch covers initial acquisition and inventory adoption. Returned
-reservation settlement's own cleanup composition/retry prerequisites and atomic
-receipt publication's descriptor lifecycle remain separate open work. The lock
+This batch covers initial acquisition and inventory adoption. The returned
+reservation now also adopts original settlement prerequisites and failure
+composition; see [reservation settlement lifetime](storage-write-reservation-settlement-lifetime.md).
+Atomic receipt publication's descriptor lifecycle and underlying metadata-release
+wrapper propagation remain separate open work. The lock
 is the existing cooperative metadata coordinator, with its existing cross-process
 limits; this adds no durable native-work proof, PID inference, eviction, deletion
 authority or automatic native retry. External teardown is not settlement. No

@@ -139,40 +139,82 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
     let removed = false;
     let releasing = null;
     let settlementLock = null;
+    const settlementErrors = [], settlementSeen = new WeakMap(), settlementFailures = new WeakSet();
+    let settlementOverflow = false;
+    const rememberSettlement = value => {
+      const objectLike = value !== null && ['object', 'function'].includes(typeof value);
+      if (objectLike && settlementFailures.has(value)) return value;
+      if (objectLike && settlementSeen.has(value)) return settlementSeen.get(value);
+      if (settlementErrors.length >= 128) {
+        settlementOverflow = true;
+        return settlementErrors[0];
+      }
+      const retained = observeStorageResource(value, { phase: 'storage-write-settlement' }).retain();
+      settlementErrors.push(retained); if (objectLike) settlementSeen.set(value, retained);
+      return retained;
+    };
+    const settlementResourcesSettled = () => !settlementOverflow && settlementErrors.every(error => {
+      const observe = Object.getOwnPropertyDescriptor(error, 'cacheOwnershipReleased').value;
+      return observe.call(error) === true;
+    });
+    const settlementFailure = (preferred = null) => {
+      let error = preferred === null ? settlementErrors[0] || fail('reservation-settlement-unconfirmed') : preferred;
+      for (const secondary of settlementErrors) if (secondary !== error) {
+        error = addStorageFailureContext(error, {}, secondary, { secondaryPresent: true });
+      }
+      const files = [], directories = [];
+      for (const original of settlementErrors) {
+        const fileSession = getContainedFileSession(original), directorySession = getStorageDirectorySession(original);
+        if (fileSession && !files.includes(fileSession)) files.push(fileSession);
+        if (directorySession && !directories.includes(directorySession)) directories.push(directorySession);
+      }
+      error = addStorageFailureContext(error, {
+        cacheOwnershipPending: true,
+        cacheOwnershipReleased: () => released && settlementLock === null && settlementResourcesSettled(),
+        storageWriteReservations: Object.freeze([admittedReservation]), storageAdmissionSession: admittedReservation,
+        ...(files.length ? { containedFileSession: files[0], containedFileSessions: Object.freeze(files) } : {}),
+        ...(directories.length ? { storageDirectorySession: directories[0], storageDirectorySessions: Object.freeze(directories) } : {})
+      }, null, { forceAggregate: true, nonEnumerable: ['storageWriteReservations', 'storageAdmissionSession',
+        'containedFileSession', 'containedFileSessions', 'storageDirectorySession', 'storageDirectorySessions'] });
+      const observe = Object.getOwnPropertyDescriptor(error, 'cacheOwnershipReleased').value;
+      Object.defineProperties(error, { cacheOwnershipPending: { value: true, writable: false, configurable: false },
+        cacheOwnershipReleased: { value: observe, writable: false, configurable: false } });
+      settlementFailures.add(error); return error;
+    };
     const settle = async () => {
-      let operationError = null;
+      let operationError = null, cleanupError = null;
       try {
+        if (!settlementResourcesSettled()) throw settlementFailure();
         if (!removed) {
           settlementLock ||= admissionLock;
           settlementLock ||= await acquireFileLock({ lockPath, waitMs: 0, staleMs: Number.MAX_SAFE_INTEGER,
             metadata: { scope: 'storage-write-settlement', hostname: os.hostname(), resourceId } });
           if (!settlementLock) throw fail('admission-owner-busy-during-settlement');
           const current = await readReservation(file);
+          if (!settlementResourcesSettled()) throw settlementFailure();
           if (current.hash !== sealed.hash || digest(current.value) !== digest(value)) throw fail('write-reservation-owner-changed');
           const stat = await fs.lstat(file, { bigint: true });
+          if (!settlementResourcesSettled()) throw settlementFailure();
           if (!stat.isFile() || stat.nlink !== 1n || String(stat.dev) !== String(current.stat.dev)
             || String(stat.ino) !== String(current.stat.ino) || String(stat.dev) !== String(sealed.stat.dev)
             || String(stat.ino) !== String(sealed.stat.ino)) throw fail('write-reservation-file-changed');
-          await fs.unlink(file);
+          const removal = await fs.unlink(file);
+          if (removal !== undefined) throw fail('reservation-removal-unconfirmed');
           removed = true;
         }
-      } catch (error) { operationError = error; throw error; }
+      } catch (error) { operationError = rememberSettlement(error); }
       finally {
-        if (settlementLock) {
+        if (settlementLock && settlementResourcesSettled()) {
           try {
             await releaseFileLockOrThrow(settlementLock);
             if (settlementLock === admissionLock) admissionLock = null;
             settlementLock = null;
           }
-          catch (cleanupError) {
-            const error = operationError ? new AggregateError([operationError, cleanupError], operationError.message,
-              { cause: operationError }) : cleanupError;
-            if (operationError?.code) error.code = operationError.code;
-            if (operationError?.reason) error.reason = operationError.reason;
-            error.cacheOwnershipPending = true;
-            throw error;
-          }
+          catch (error) { cleanupError = rememberSettlement(error); }
         }
+      }
+      if (operationError !== null || cleanupError !== null || !settlementResourcesSettled()) {
+        throw settlementFailure(operationError === null ? cleanupError : operationError);
       }
       // Removing the record alone is not the complete owner release. A failed
       // lock release keeps its exact handle for retry, without unlinking again.
@@ -183,7 +225,11 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
     admittedReservation = Object.freeze({ schemaVersion: 1, resourceId, root, requiredBytes, reservationId: id,
       admission: 'admitted-declared-write-estimate', metric: value.metric,
       releaseAfterSettlement: async receipt => {
-        if (receipt?.resourceId !== resourceId || receipt.settled !== true || receipt.pending !== false) throw fail('resource-settlement-unconfirmed');
+        let valid;
+        try { valid = receipt?.resourceId === resourceId && receipt.settled === true && receipt.pending === false; }
+        catch (error) { throw settlementFailure(rememberSettlement(error)); }
+        if (!valid) throw fail('resource-settlement-unconfirmed');
+        if (!settlementResourcesSettled()) throw settlementFailure();
         if (released) return true;
         if (!releasing) releasing = settle().finally(() => { releasing = null; });
         return releasing;
