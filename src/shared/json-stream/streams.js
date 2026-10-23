@@ -7,6 +7,8 @@ import { createFflateGzipStream, createZstdStream, normalizeHighWaterMark } from
 import { createAbortError } from './runtime.js';
 import { getEnvConfig } from '../env.js';
 import { addStorageFailureContext } from '../storage/operation-error.js';
+import { createContainedFileResource } from '../contained-file-resource.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
 
 const JSON_STREAM_WAIT_TIMEOUT_SYMBOL = Symbol.for('pairofcleats.json_stream_wait_timeout_ms');
 const DEFAULT_JSON_STREAM_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
@@ -290,6 +292,33 @@ const cleanupPendingDeleteTombstones = async (targetPath) => {
  * @param {number} [preallocateBytes]
  * @returns {{tempPath:string,fileStream:import('node:fs').WriteStream}}
  */
+const createOpenedFileStream = (targetPath, flags, highWaterMark, preallocateBytes, removeOnFailure) => {
+  const methods = { receiver: fs, close: fs.closeSync, stat: fs.fstatSync, read: fs.readSync, truncate: fs.ftruncateSync };
+  const fd = fs.openSync(targetPath, flags);
+  const owner = createContainedFileResource({ fd, sync: true, methods, additionalMethods: ['truncate'] });
+  if (owner.hasFailure()) return owner.runSync(() => {});
+  try {
+    if (preallocateBytes > 0) owner.operations.truncate(preallocateBytes);
+    const fileStream = fs.createWriteStream(targetPath, {
+      fd, autoClose: true, ...(highWaterMark ? { highWaterMark } : {})
+    });
+    owner.detach();
+    return fileStream;
+  } catch (error) {
+    owner.remember(error);
+    let primary = error;
+    try { owner.runSync(() => {}); } catch (failure) { primary = failure; }
+    // An unconfirmed close retains the original descriptor and private file.
+    // Recovery through that owner never replays truncate, construction or data.
+    if (removeOnFailure && owner.isSettled()) {
+      try { fs.rmSync(targetPath, { force: true }); } catch (cleanupError) {
+        primary = addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true });
+      }
+    }
+    throw primary;
+  }
+};
+
 const createExclusiveAtomicFileStream = (filePath, highWaterMark, preallocateBytes = 0) => {
   const preallocate = resolvePreallocateBytes(preallocateBytes);
   let lastErr = null;
@@ -298,22 +327,10 @@ const createExclusiveAtomicFileStream = (filePath, highWaterMark, preallocateByt
     const tempPath = createTempPath(filePath, { preferFallback });
     try {
       fs.mkdirSync(path.dirname(tempPath), { recursive: true });
-      const fd = fs.openSync(tempPath, 'wx');
-      if (preallocate > 0) {
-        try {
-          fs.ftruncateSync(fd, preallocate);
-        } catch (err) {
-          try { fs.closeSync(fd); } catch {}
-          throw err;
-        }
-      }
-      const fileStream = fs.createWriteStream(tempPath, {
-        fd,
-        autoClose: true,
-        ...(highWaterMark ? { highWaterMark } : {})
-      });
+      const fileStream = createOpenedFileStream(tempPath, 'wx', highWaterMark, preallocate, true);
       return { tempPath, fileStream };
     } catch (err) {
+      observeStorageResource(err, { phase: 'json-output-file-admission' }).requireSettled();
       if (err?.code === 'EEXIST') {
         lastErr = err;
         continue;
@@ -340,21 +357,8 @@ const createExclusiveAtomicFileStream = (filePath, highWaterMark, preallocateByt
  */
 const createPreallocatedFileStream = (targetPath, highWaterMark, preallocateBytes = 0) => {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  const fd = fs.openSync(targetPath, 'w');
   const preallocate = resolvePreallocateBytes(preallocateBytes);
-  if (preallocate > 0) {
-    try {
-      fs.ftruncateSync(fd, preallocate);
-    } catch (err) {
-      try { fs.closeSync(fd); } catch {}
-      throw err;
-    }
-  }
-  return fs.createWriteStream(targetPath, {
-    fd,
-    autoClose: true,
-    ...(highWaterMark ? { highWaterMark } : {})
-  });
+  return createOpenedFileStream(targetPath, 'w', highWaterMark, preallocate, false);
 };
 
 /**

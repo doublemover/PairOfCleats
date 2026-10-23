@@ -7,6 +7,7 @@ import { setImmediate } from 'node:timers/promises';
 import { writeJsonArrayFile } from '../../../src/shared/json-stream/json-writers.js';
 import { writeJsonLinesFile } from '../../../src/shared/json-stream/jsonl-write.js';
 import { createJsonlBatchWriter } from '../../../src/shared/json-stream/jsonl-batch.js';
+import { getContainedFileSession } from '../../../src/shared/contained-file-resource.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-json-output-finalizers-'));
 const nativeCreate = fsSync.createWriteStream;
@@ -78,5 +79,40 @@ try {
   await batch.writeLine('{"id":1}');
   await assert.rejects(batch.destroy(primary), error => contains(error, primary) && contains(error, closeFailure));
   closed(); closeFailure = null;
+  const admissionPath = path.join(root, 'admission.jsonl'); await fs.writeFile(admissionPath, 'old authority');
+  const nativeTruncate = fsSync.ftruncateSync, nativeClose = fsSync.closeSync;
+  const truncateFailure = Object.freeze(Object.assign(new Error('preallocation failed'), { code: 'EIO' }));
+  const admissionCloseFailure = Object.freeze(new Error('original admission close failed'));
+  let rejectClose = false, admissionFd = null, admissionCloses = 0, admissionError;
+  fsSync.ftruncateSync = fd => { admissionFd = fd; throw truncateFailure; };
+  fsSync.closeSync = function (fd) {
+    if (fd === admissionFd) { admissionCloses++; if (rejectClose) { rejectClose = false; throw admissionCloseFailure; } }
+    return nativeClose.call(this, fd);
+  };
+  try {
+    const before = (await fs.readdir(root)).sort();
+    assert.throws(() => createJsonlBatchWriter(admissionPath, { atomic: true, preallocateBytes: 65536 }),
+      error => contains(error, truncateFailure));
+    assert.deepEqual((await fs.readdir(root)).sort(), before, 'confirmed admission close permits removal of only the private new file');
+    assert.equal(await fs.readFile(admissionPath, 'utf8'), 'old authority');
+    rejectClose = true;
+    assert.throws(() => createJsonlBatchWriter(admissionPath, { atomic: true, preallocateBytes: 65536 }), error => {
+      admissionError = error;
+      return contains(error, truncateFailure) && contains(error, admissionCloseFailure) && error.cacheOwnershipPending === true;
+    });
+    assert.ok(fsSync.fstatSync(admissionFd).isFile(), 'failed original close keeps that exact descriptor open');
+    const session = getContainedFileSession(admissionError); assert.ok(session);
+    await session.releaseAfterCloseSync();
+    assert.equal(session.isSettled(), true);
+    assert.throws(() => fsSync.fstatSync(admissionFd), { code: 'EBADF' });
+    assert.equal(admissionCloses, 3, 'one ordinary close, one failed close and one explicit original-owner recovery');
+    assert.equal(await fs.readFile(admissionPath, 'utf8'), 'old authority');
+  } finally {
+    if (admissionError) {
+      const session = getContainedFileSession(admissionError);
+      if (session && !session.isSettled()) await session.releaseAfterCloseSync();
+    }
+    fsSync.ftruncateSync = nativeTruncate; fsSync.closeSync = nativeClose;
+  }
 } finally { fsSync.createWriteStream = nativeCreate; await fs.rm(root, { recursive: true, force: true }); }
 console.log('JSON writers observe early destination failure and join real descriptor finalizers without losing independent errors.');
