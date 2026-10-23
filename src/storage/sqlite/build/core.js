@@ -165,7 +165,12 @@ export const openSqliteBuildDatabase = ({
   ftsVariants = []
 }) => {
   fsSync.mkdirSync(path.dirname(outPath), { recursive: true });
-  const { db, dbPath, promotePath } = openDatabaseWithFallback(Database, outPath);
+  // Exported artifact/bundle consumers may receive an existing authority too.
+  // Keep their schema/rows untouched until the complete replacement validates.
+  const existingOutput = fsSync.existsSync(outPath);
+  const opened = openDatabaseWithFallback(Database, existingOutput ? createTempPath(outPath) : outPath);
+  const { db, dbPath } = opened;
+  const promotePath = existingOutput ? path.resolve(outPath) : opened.promotePath;
   // Ownership transfers only after every initialization step succeeds.
   let pragmaState = null;
   try {
@@ -414,7 +419,6 @@ export const closeSqliteBuildDatabase = async ({
   signal = null,
   warn
 }) => {
-  const resolvedOutPath = toComparablePath(outPath);
   const resolvedDbPath = toComparablePath(dbPath);
   const resolvedPromotePath = promotePath ? toComparablePath(promotePath) : null;
   const needsPromote = Boolean(
@@ -468,17 +472,9 @@ export const closeSqliteBuildDatabase = async ({
     }
   }
   if (!succeeded) {
-    try {
-      fsSync.rmSync(outPath, { force: true });
-    } catch {}
-    if (resolvedDbPath !== resolvedOutPath) {
-      try {
-        fsSync.rmSync(dbPath, { force: true });
-      } catch {}
-    }
-    await removeSqliteSidecars(outPath);
-    if (resolvedDbPath !== resolvedOutPath) {
-      await removeSqliteSidecars(dbPath);
-    }
+    // A different dbPath is private staging; outPath can still be the old
+    // published database, including WAL frames owned by other connections.
+    try { fsSync.rmSync(dbPath, { force: true }); } catch {}
+    await removeSqliteSidecars(dbPath);
   }
 };

@@ -624,7 +624,6 @@ export const executeSqliteModeBuilds = async ({
       throwIfAborted(signal);
       await replaceSqliteDatabase(tempOutputPath, outputPath, { signal });
       tempOutputPath = null;
-      await removeSqliteSidecars(outputPath);
       const counts = readSqliteCounts({
         repoRoot: root,
         Database,
