@@ -34,7 +34,7 @@ const form = (entry, options, suffix = '', positional = {}) => {
   const managed = key => (OWNED_FIELDS.has(key) && !(entry.id === 'service.indexer' && key === 'watch'))
     || (REQUEST_COMMANDS.has(entry.id) && ['all', 'operation'].includes(key))
     || (entry.id === 'service.api' && ['host', 'allowed-hosts', 'cors-allowed-origins'].includes(key))
-    || (entry.id === 'report.map' && ['serve', 'input', 'port', 'no-open', 'tls-key', 'tls-cert'].includes(key))
+    || (entry.id === 'report.map' && ['serve', 'input', 'port', 'no-open', 'tls-key', 'tls-cert', 'graph-capability'].includes(key))
     || (['sqlite.compact', 'lmdb.build'].includes(entry.id) && key === 'index-root')
     || (entry.id === 'risk.explain' && key === 'index')
     || (entry.id === 'bench.micro' && ['build', 'clean', 'repo-current'].includes(key));
@@ -53,7 +53,9 @@ const form = (entry, options, suffix = '', positional = {}) => {
       ...(entry.id === 'service.indexer' && name === 'interval' ? { type: 'integer', minimum: 100, maximum: 5000 } : {}),
       ...(['sqlite.compact', 'lmdb.build'].includes(entry.id) && name === 'mode' ? { enum: ['all', 'code', 'prose'] } : {}),
       ...(entry.id === 'bench.micro' && name === 'components' ? { enum: ['sparse', 'dense', 'hybrid', 'sparse,dense,hybrid'] } : {}) },
-    description: spec.describe || spec.description || '', ...(spec.default !== undefined ? { default: spec.default } : {}),
+    description: entry.id === 'report.map' && name === 'index-root'
+      ? 'Exact retained build root. Native confirmation validates its independent graph capability and preserves the original build outcome.'
+      : spec.describe || spec.description || '', ...(spec.default !== undefined ? { default: spec.default } : {}),
     ...(entry.id.startsWith('storage.') && name === 'max-entries' ? { default: 10000 } : {}),
     ...(entry.id.startsWith('storage.') && name === 'max-duration-ms' ? { default: 5000 } : {}),
     ...(entry.id === 'service.indexer' && name === 'command' ? { default: 'status' } : {}),

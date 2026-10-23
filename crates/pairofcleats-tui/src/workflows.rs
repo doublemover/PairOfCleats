@@ -358,6 +358,11 @@ impl WorkflowUi {
         );
         self.status = if event["workflow"]["maintenance"]["pending"] == true {
             "Backend ownership unresolved; cache admission remains fenced. Status reads do not inspect cache artifacts.".into()
+        } else if event["error"]["code"] == "ERR_TUI_RESOURCE_PENDING"
+            || event["workflow"]["graphRetirements"].as_array().is_some_and(|owners| !owners.is_empty()) {
+            "Original resource ownership unresolved; cache admission remains fenced until its exact cleanup settles.".into()
+        } else if event["workflow"]["graphOnly"] == true {
+            "Retained graph command ended; inspect its exact graph receipt. Normal search readiness was not requested.".into()
         } else {
             "Process ended; inspect publication evidence separately. Artifacts remain in Job inspection.".into()
         };
@@ -496,6 +501,8 @@ impl WorkflowUi {
                 self.scroll.reset();
                 self.status = if data["maintenance"]["blocked"] == true {
                     "Backend maintenance fences cache admission; no publication artifacts were read".into()
+                } else if data["graphRetirements"].as_array().is_some_and(|owners| !owners.is_empty()) {
+                    "Original graph cleanup remains pending; no publication artifacts were read".into()
                 } else {
                     "Published generation observation; independent of process success".into()
                 };
@@ -587,7 +594,7 @@ impl WorkflowUi {
                 if self.page == Page::Preview {
                     let empty = Value::Null;
                     let preview = self.preview.as_ref().unwrap_or(&empty);
-                    let projection: std::collections::BTreeMap<_, _> = ["canonicalArgv", "executionOwner", "backendReview", "serviceReview", "storageReview", "launchable", "errors", "effect", "observations"]
+                    let projection: std::collections::BTreeMap<_, _> = ["canonicalArgv", "executionOwner", "backendReview", "serviceReview", "storageReview", "graphReview", "launchable", "errors", "effect", "observations"]
                         .into_iter().map(|key| (key, &preview[key])).collect();
                     return self.presentation.borrow_mut().lines(1, self.scope.as_ref(), &projection,
                         &self.scroll, lines, height, width);
@@ -674,6 +681,24 @@ mod presentation_tests {
             "workflow":{"maintenance":{"blocked":true,"pending":true},"publications":[]}}));
         assert!(ui.status.contains("ownership unresolved"));
         assert_eq!(ui.result.as_ref().unwrap()["publicationEvidence"]["maintenance"]["pending"], true);
+    }
+    #[test]
+    fn retained_graph_review_is_visible_without_current_search_readiness() {
+        let mut ui = WorkflowUi { available: true, scope: Some(json!({"id":"scope","target":"repo"})),
+            ..WorkflowUi::default() };
+        ui.request("preview", json!({}));
+        end(&mut ui, json!({"plannedJobId":"retained-map", "launchable":true,"canonicalArgv":null,
+            "graphReview":{"canonicalPlan":{"operation":"graph","buildId":"EXACT-RETAINED-GRAPH"},
+                "effect":"Original failure preserved; publication and search readiness are not requested"}}));
+        let review = ui.lines(40, 160).join("\n");
+        assert!(review.contains("EXACT-RETAINED-GRAPH"));
+        assert!(review.contains("Original failure preserved"));
+        assert!(!ui.outbox.iter().any(|request| request["method"] == "launch"));
+        ui.completed(&json!({"jobId":"retained-map","status":"done","workflow":{"graphOnly":true,"publications":[]}}));
+        assert!(ui.status.contains("Normal search readiness was not requested"));
+        ui.request("status", json!({}));
+        end(&mut ui, json!({"graphRetirements":[{"closurePending":true}],"publications":[]}));
+        assert!(ui.status.contains("no publication artifacts were read"));
     }
     #[test]
     fn service_stop_reviews_exact_identity_and_preserves_pending_resource_outcome() {
