@@ -78,6 +78,8 @@ Workflow pickers capture the displayed session and repository through selection.
 
 Configuration changes revoke pending foreground requests before an old runtime/transport snapshot can dispatch or publish. Already-started background indexing/services retain their admitted snapshot until deliberately stopped or their repository/host is removed. A child error alone does not establish close; its exact task remains excluded from replacement while close is pending. Failed producer envelopes and incomplete presentation/export cannot become successful workflow state through parsed JSON or a plain-text fallback. Native numeric/scalar validators keep invalid input editable; indexed name completions remain approximate suggestions and require the original buffer to remain unchanged through response publication.
 
+API body cancellation/reader-lock failures retain their original response owner and prevent automatic transport fallback. Semantic CLI request files retire through their exact extension-storage owner; a failed file/directory retirement prevents successful evidence publication. These failures remain explicit in host shutdown observations. Releasing a reader lock, closing a child, or showing fallback text does not establish that every independent resource settled.
+
 ## References
 
 The installed package includes the [settings/runtime contract](editor-config-contract.json), [first-search walkthrough](walkthroughs/first-search.md) and [operations walkthrough](walkthroughs/operations.md). The [PairOfCleats repository](https://github.com/doublemover/PairOfCleats) contains the canonical CLI, configuration, packaging and search-diagnostics contracts under `docs/`; the README and walkthrough above remain usable without those repository files installed.

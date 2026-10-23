@@ -14,6 +14,7 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
   const pending = new Set();
   const latest = new Map();
   const teardownFailures = [];
+  const retainedOwners = new Set();
   let alive = true;
   let epoch = 0;
   const current = () => context.getStore();
@@ -59,6 +60,12 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
     pending.add(tracked);
     tracked.then(() => pending.delete(tracked), () => pending.delete(tracked));
     return tracked;
+  }
+
+  function retainUnconfirmed(owner, evidence) {
+    if (!owner || retainedOwners.has(owner)) return;
+    retainedOwners.add(owner);
+    teardownFailures.push(...evidence.failures);
   }
 
   function stopChild(child) {
@@ -205,8 +212,9 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
     ]);
     clearTimeout(timer);
     return {
-      ok: pending.size === 0 && children.size === 0 && teardownFailures.length === 0,
+      ok: pending.size === 0 && children.size === 0 && teardownFailures.length === 0 && retainedOwners.size === 0,
       pending: pending.size, children: children.size, failures: teardownFailures.map(failure => failure.message),
+      retainedOwners: retainedOwners.size,
       failureEvidence: editorFailureEvidence(teardownFailures)
     };
   }
@@ -310,7 +318,7 @@ function createEditorOperations({ platform = process.platform, spawn = cp.spawn 
 
   return {
     run, current, isCurrent, cancelled, trackChild, stopChild, request, invalidate, dispose, wrapVscode,
-    bindRepository, invalidateRepositories, cancelLabel,
+    bindRepository, invalidateRepositories, cancelLabel, retainUnconfirmed,
     preserveBackground, observeTermination: child => childTerminations.get(child) || null,
     observeChildSettlement: child => childSettlements.get(child)?.completion || Promise.resolve(),
     isChildSettled: child => childSettlements.get(child)?.record.closed === true,

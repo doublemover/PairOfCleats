@@ -1,7 +1,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createDocumentAuthority, assertQualifiedEditor } = require('./document-authority.js');
-const { captureEditorFailure } = require('./editor-failure-evidence.js');
+const { captureEditorFailure, editorFailureEvidence } = require('./editor-failure-evidence.js');
+const responseCleanupOwners = new WeakMap();
 
 const DEFAULT_MAX_BUFFER_BYTES = 20 * 1024 * 1024;
 const DEFAULT_API_TIMEOUT_MS = 5000;
@@ -233,7 +234,9 @@ async function readApiResponseText(response, { signal, maxBytes = DEFAULT_MAX_BU
   const limit = Number.isSafeInteger(maxBytes) && maxBytes > 0
     ? Math.min(maxBytes, DEFAULT_MAX_BUFFER_BYTES) : DEFAULT_MAX_BUFFER_BYTES;
   const blocks = [];
-  let block = null, used = 0, total = 0, reader = null, cancelled = false;
+  let block = null, used = 0, total = 0, reader = null, cancellation = null;
+  let primaryError, hasPrimary = false;
+  const cleanupFailures = [];
   const tooLarge = (incoming = null) => {
     const error = new Error(`API response exceeded the ${limit}-byte editor limit. Narrow the request or reduce result volume.`);
     error.code = 'ERR_API_RESPONSE_TOO_LARGE';
@@ -241,10 +244,10 @@ async function readApiResponseText(response, { signal, maxBytes = DEFAULT_MAX_BU
     error.preview = prefix ? Buffer.from(prefix.subarray(0, 4096)).toString('utf8') : '';
     return error;
   };
-  const cancel = async (reason) => {
-    if (cancelled) return;
-    cancelled = true;
-    try { await (reader ? reader.cancel(reason) : response.body?.cancel?.(reason)); } catch {}
+  const cancel = (reason) => {
+    cancellation ||= Promise.resolve().then(() => reader ? reader.cancel(reason) : response.body?.cancel?.(reason))
+      .catch(error => { cleanupFailures.push(captureEditorFailure(error)); });
+    return cancellation;
   };
   const abort = () => { void cancel(signal.reason); };
   try {
@@ -277,11 +280,20 @@ async function readApiResponseText(response, { signal, maxBytes = DEFAULT_MAX_BU
     const text = Buffer.concat(blocks, total).toString('utf8');
     return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
   } catch (error) {
+    primaryError = error; hasPrimary = true;
     await cancel(error);
     throw error;
   } finally {
     signal?.removeEventListener('abort', abort);
-    reader?.releaseLock();
+    if (cancellation) await cancellation;
+    try { reader?.releaseLock(); } catch (error) { cleanupFailures.push(captureEditorFailure(error)); }
+    if (cleanupFailures.length) {
+      const failure = new Error('Owned API response cleanup remains unconfirmed.', {
+        cause: hasPrimary ? primaryError : cleanupFailures[0].primaryError });
+      responseCleanupOwners.set(failure, Object.freeze({ response, reader,
+        failureEvidence: editorFailureEvidence([...(hasPrimary ? [captureEditorFailure(primaryError)] : []), ...cleanupFailures]) }));
+      throw failure;
+    }
   }
 }
 
@@ -363,6 +375,15 @@ async function requestApiJson(baseUrl, requestPath, {
         : typeof body.code === 'string' ? body.code.slice(0, 4096) : null };
     return { ok: true, payload: body || {} };
   } catch (error) {
+    const owner = responseCleanupOwners.get(error);
+    if (owner) {
+      const failure = { ok: false, kind: 'api-response-cleanup-unconfirmed',
+        message: `${label} failed: owned API response cleanup remains unconfirmed. Automatic transport fallback is unavailable.`,
+        detail: 'Inspect the original response/cleanup failure; a closed reader lock does not prove underlying resource release.',
+        failureEvidence: owner.failureEvidence };
+      responseCleanupOwners.set(failure, owner);
+      return failure;
+    }
     if (error?.code === 'ERR_API_RESPONSE_TOO_LARGE') return {
       ok: false, kind: 'api-response-too-large', message: `${label} failed: ${error.message}`,
       detail: error.preview || null
@@ -785,6 +806,7 @@ module.exports = {
   normalizeApiBaseUrl,
   normalizeApiTimeoutMs,
   requestApiJson,
+  getApiResponseCleanupOwner: result => result && typeof result === 'object' ? responseCleanupOwners.get(result) : null,
   probeApiHealth,
   probeApiCapabilities,
   summarizeProcessFailure,

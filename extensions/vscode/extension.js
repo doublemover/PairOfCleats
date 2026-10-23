@@ -29,6 +29,7 @@ const { createCapturedEvidenceOpener } = require('./captured-evidence-open.js');
 let latestAnalysisEvidence = null;
 const { resolveRiskSource, validateRiskSource } = require('./risk-source.js');
 const { summarizeIndexHealth } = require('./index-health.js');
+const { withSemanticRequestFile } = require('./semantic-request-file.js');
 const {
   buildRiskExplanationModelFromStandalone,
   renderCompositeContextPack,
@@ -51,6 +52,7 @@ const {
   normalizeApiBaseUrl,
   normalizeApiTimeoutMs,
   requestApiJson: requestApiJsonUnchecked,
+  getApiResponseCleanupOwner,
   probeApiCapabilities: probeApiCapabilitiesRequest,
   summarizeProcessFailure,
   summarizeSpawnFailure,
@@ -88,7 +90,13 @@ async function requestApiJson(baseUrl, requestPath, options = {}) {
   delete headers.Authorization;
   delete headers.authorization;
   Object.assign(headers, buildApiHeaders(getExtensionConfiguration(), baseUrl));
-  return operations.request((signal) => requestApiJsonUnchecked(baseUrl, requestPath, { ...options, headers, signal }));
+  return operations.request(async signal => retainResponseOwner(await requestApiJsonUnchecked(baseUrl, requestPath, { ...options, headers, signal })));
+}
+
+function retainResponseOwner(result) {
+  const owner = getApiResponseCleanupOwner(result);
+  if (owner) operations.retainUnconfirmed(owner, owner.failureEvidence);
+  return result;
 }
 const EDITOR_CONFIG_CONTRACT = Object.freeze(require('./editor-config-contract.json'));
 const DEFAULT_EDITOR_CONFIG_CONTRACT = EDITOR_CONFIG_CONTRACT;
@@ -395,7 +403,7 @@ async function getCachedApiCapabilities(baseUrl, timeoutMs, headers = null) {
   if (cached && (Date.now() - cached.timestamp) < API_CAPABILITY_CACHE_TTL_MS) {
     return cached.result;
   }
-  const probe = await operations.request((signal) => probeApiCapabilitiesRequest(baseUrl, timeoutMs, headers, signal));
+  const probe = await operations.request(async signal => retainResponseOwner(await probeApiCapabilitiesRequest(baseUrl, timeoutMs, headers, signal)));
   if (!operations.isCurrent()) return operations.cancelled();
   const result = probe.ok
     ? {
@@ -493,6 +501,7 @@ async function resolveExecutionMode(config, workflow, requestedMode = null) {
     };
   }
   const probe = await getCachedApiCapabilities(apiSettings.baseUrl, apiSettings.timeoutMs, headers);
+  if (getApiResponseCleanupOwner(probe)) return probe;
   if (probe.ok) {
     if (probe.capabilities?.[transport.workflow] === false) {
       if (apiSettings.mode === 'prefer' && transport.supportsCli) {
@@ -5143,12 +5152,7 @@ const runSemanticEvidence = createSemanticEvidenceWorkflow({
     const cli = resolveCli(repoContext.repoRoot, config);
     if (!cli.ok) throw new Error(cli.message);
     const storage = extensionContext?.globalStorageUri?.fsPath;
-    if (!storage) throw new Error('Extension-owned request storage is unavailable.');
-    fs.mkdirSync(storage, { recursive: true });
-    const directory = fs.mkdtempSync(path.join(storage, 'semantic-request-'));
-    const requestPath = path.join(directory, 'request.json');
-    try {
-      fs.writeFileSync(requestPath, JSON.stringify(request), { encoding: 'utf8', flag: 'wx' });
+    return withSemanticRequestFile({ storage, request, operations, execute: async requestPath => {
       const result = await runBufferedJsonCommand({
         spec: { title: `Semantic ${operation}`, progressTitle: `PairOfCleats semantic ${operation}`, timeoutMs: 5000 },
         repoRoot: repoContext.repoRoot, command: cli.command,
@@ -5161,10 +5165,7 @@ const runSemanticEvidence = createSemanticEvidenceWorkflow({
       if (result.payload.cursor) result.payload.warnings = [...(result.payload.warnings || []),
         'Additional bounded pages require a persistent API session; CLI cursor expires with this process.'];
       return result.payload;
-    } finally {
-      try { fs.unlinkSync(requestPath); } catch {}
-      try { fs.rmdirSync(directory); } catch {}
-    }
+    } });
   }
 });
 
@@ -5781,7 +5782,7 @@ async function deactivate() {
   if (result.ok) managedProcesses.clear();
   else console.error('[PairOfCleats] Owned editor work did not finish shutdown:', {
     ok: result.ok, pending: result.pending, children: result.children,
-    failures: result.failures, pendingOwners: result.pendingOwners
+    failures: result.failures, pendingOwners: result.pendingOwners, retainedOwners: result.retainedOwners
   });
   taskObservations.clear();
   return result;
