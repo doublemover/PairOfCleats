@@ -15,6 +15,7 @@ export const bindClaimedJobExecution = (job) => {
 };
 const STALE_SWEEP_MIN_INTERVAL_MS = 1000;
 const SHUTDOWN_POLL_INTERVAL_MS = 250;
+const LEASE_FENCE_ERRORS = new Set(['QUEUE_LEASE_MISMATCH', 'QUEUE_LEASE_VERSION_MISMATCH', 'QUEUE_INVALID_TRANSITION']);
 const DEFAULT_SHUTDOWN_STATE = Object.freeze({
   mode: 'running',
   accepting: true,
@@ -99,7 +100,7 @@ export const createQueueWorker = ({
   let staleSweepPromise = null;
   let lastStaleSweepAtMs = 0;
   const workerOwnerId = `queue-worker:${process.pid}:${Math.random().toString(16).slice(2, 10)}`;
-  const activeJobControls = new Map();
+  const activeJobControls = new Set();
   let currentShutdownState = { ...DEFAULT_SHUTDOWN_STATE };
   let shutdownMonitor = null;
   let shutdownRefreshPromise = null;
@@ -136,7 +137,7 @@ export const createQueueWorker = ({
    * @param {ReturnType<typeof createLifecycleRegistry>} jobLifecycle
    * @returns {{logPath:string}}
    */
-  const startJobLifecycle = (job, jobLifecycle) => {
+  const startJobLifecycle = (job, jobLifecycle, claimControl) => {
     const leasePolicy = resolveLeasePolicy({ job, queueName: resolvedQueueName });
     const renewalIntervalMs = Number.isFinite(Number(leasePolicy?.renewIntervalMs))
       ? Math.max(250, Math.trunc(Number(leasePolicy.renewIntervalMs)))
@@ -147,7 +148,7 @@ export const createQueueWorker = ({
       lastSuccessAt: Date.now()
     };
     const heartbeat = setInterval(() => {
-      if (jobLifecycle.isClosed() || renewalState.inFlight) return;
+      if (jobLifecycle.isClosed() || claimControl.leaseLost || renewalState.inFlight) return;
       renewalState.inFlight = true;
       const renewal = (async () => {
         const replayState = await loadJobReplayState(job);
@@ -164,10 +165,22 @@ export const createQueueWorker = ({
             note: `workload=${leasePolicy?.workloadClass || 'balanced'}`
           }
         });
-      })().then(() => {
+      })().then(observed => {
+        // The queue owner returns null for a missing job, and a non-running
+        // record before lease inspection. Neither confirms this execution's
+        // claim, even though the I/O itself fulfilled successfully.
+        if (observed === null || (observed?.status && observed.status !== 'running')) {
+          throw Object.assign(new Error(`Job ${job.id} no longer has a running queue claim.`),
+            { code: 'QUEUE_INVALID_TRANSITION' });
+        }
         renewalState.consecutiveFailures = 0;
         renewalState.lastSuccessAt = Date.now();
       }).catch((err) => {
+        if (LEASE_FENCE_ERRORS.has(err?.code)) {
+          claimControl.leaseLost = err;
+          clearInterval(heartbeat);
+          if (!claimControl.abortController.signal.aborted) claimControl.abortController.abort(err);
+        }
         renewalState.consecutiveFailures += 1;
         const gapMs = Date.now() - renewalState.lastSuccessAt;
         const failureLimit = Number.isFinite(Number(leasePolicy?.maxConsecutiveRenewalFailures))
@@ -195,7 +208,7 @@ export const createQueueWorker = ({
       pid: process.pid,
       ownerId: workerOwnerId,
       status: status || (activeJobControls.size > 0 ? 'running' : 'idle'),
-      activeJobs: Array.from(activeJobControls.keys()),
+      activeJobs: [...new Set(Array.from(activeJobControls.values(), control => control.jobId))],
       lastSeenAt: new Date().toISOString()
     });
   };
@@ -269,12 +282,15 @@ export const createQueueWorker = ({
     // Establish ownership before any fallible post-claim setup.
     const jobLifecycle = createLifecycleRegistry({ name: `indexer-service-job:${job.id}` });
     const abortController = new AbortController();
+    // A stale recovery may reclaim an ID while its old execution is still
+    // draining. The exact control owns one claim, never the reusable job ID.
+    const claimControl = { jobId: job.id, abortController, leaseLost: null };
     let execution = {
       handled: false,
       runResult: buildDefaultRunResult()
     };
     try {
-      activeJobControls.set(job.id, { abortController });
+      activeJobControls.add(claimControl);
       if (batchState?.failed) {
         // A claim already in flight still belongs to this batch. Settle its
         // completion policy without starting new work after the fatal lane.
@@ -283,10 +299,10 @@ export const createQueueWorker = ({
           ...execution.runResult, exitCode: 130, cancelled: true, shutdownMode: 'cancel'
         };
       } else {
-        const { logPath } = startJobLifecycle(executionJob, jobLifecycle);
+        const { logPath } = startJobLifecycle(executionJob, jobLifecycle, claimControl);
         await syncWorkerShutdownState();
-        if (batchState?.failed) {
-          abortController.abort(batchState.error);
+        if (batchState?.failed || claimControl.leaseLost) {
+          if (!abortController.signal.aborted) abortController.abort(batchState?.error || claimControl.leaseLost);
           execution.runResult = {
             ...execution.runResult, exitCode: 130, cancelled: true, shutdownMode: 'cancel'
           };
@@ -308,13 +324,17 @@ export const createQueueWorker = ({
       await jobLifecycle.close().catch(err => {
         console.error(`[indexer] job ${job.id} resource cleanup failed: ${err?.message || err}`);
       });
-      activeJobControls.delete(job.id);
+      activeJobControls.delete(claimControl);
       try {
         await syncWorkerShutdownState();
       } catch (err) {
         // Telemetry persistence must not prevent the claimed job's completion.
         console.error(`[indexer] job ${job.id} shutdown state update failed: ${err?.message || err}`);
       }
+    }
+    if (claimControl.leaseLost) {
+      console.error(`[indexer] job ${job.id} completion skipped after lease loss: ${claimControl.leaseLost.message}`);
+      return true;
     }
     if (execution?.handled) {
       // `handled` jobs are completed out-of-band (currently non-retriable failures),
