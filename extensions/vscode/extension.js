@@ -1005,13 +1005,14 @@ function readWorkspaceState(key, fallback) {
   return extensionContext?.workspaceState?.get?.(key, fallback) ?? fallback;
 }
 
-async function writeWorkspaceState(key, value) {
+async function writeWorkspaceState(key, value, { updateCurrent = false } = {}) {
   if (!operations.isCurrent()) return;
   if (typeof extensionContext?.workspaceState?.update !== 'function') return;
   const scope = operations.current();
   const previous = workspaceWrites.get(key) || Promise.resolve();
   const next = previous.catch(() => {}).then(() => {
-    if (operations.isCurrent(scope)) return extensionContext.workspaceState.update(key, value);
+    if (operations.isCurrent(scope)) return extensionContext.workspaceState.update(key,
+      updateCurrent ? value(readWorkspaceState(key)) : value);
   });
   operations.trackPromise(next);
   workspaceWrites.set(key, next);
@@ -4245,18 +4246,7 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
 }
 
 async function runOperatorCommand(spec, { repoContext: seededRepoContext = null, inputContext: seededInputContext = undefined } = {}) {
-  let config = getExtensionConfiguration();
-  const workflow = spec.id === 'pairofcleats.indexHealth' ? 'index-health' : spec.id;
-  const execution = await resolveExecutionMode(config, workflow);
-  if (!execution.ok) {
-    const output = getOutputChannel();
-    output.appendLine(execution.detail || execution.message);
-    output.show?.(true);
-    vscode.window.showErrorMessage(execution.message);
-    return;
-  }
-  appendExecutionFallbackNote(getOutputChannel(), execution);
-  const repoContext = seededRepoContext || await resolveRepoContext({ allowRemote: execution.mode === 'api' });
+  const repoContext = seededRepoContext || await resolveRepoContext();
   if (!repoContext.ok) {
     if (repoContext.message) {
       if (repoContext.detail) {
@@ -4268,8 +4258,18 @@ async function runOperatorCommand(spec, { repoContext: seededRepoContext = null,
     }
     return;
   }
+  if (!operations.isCurrent()) return;
   const { repoRoot } = repoContext;
-  config = getExtensionConfiguration(repoContext);
+  const config = getExtensionConfiguration(repoContext);
+  const workflow = spec.id === 'pairofcleats.indexHealth' ? 'index-health' : spec.id;
+  const execution = await resolveExecutionMode(config, workflow);
+  if (!operations.isCurrent()) return;
+  if (!execution.ok) {
+    const output = getOutputChannel();
+    output.appendLine(execution.detail || execution.message); output.show?.(true);
+    vscode.window.showErrorMessage(execution.message); return;
+  }
+  appendExecutionFallbackNote(getOutputChannel(), execution);
   if (seededRepoContext && !validateReplayRepoContext(repoContext, execution.mode)) return;
   const cliResolution = execution.mode === 'cli' ? resolveCli(repoRoot, config) : { ok: true };
   if (execution.mode === 'cli' && !cliResolution.ok) {
@@ -4422,12 +4422,6 @@ async function stopManagedCommand(stopSpec, { sessionId = null, repoRoot = null 
 }
 
 async function startManagedCommand(spec, { repoContext: seededRepoContext = null } = {}) {
-  let config = getExtensionConfiguration();
-  const execution = await resolveExecutionMode(config, spec.id);
-  if (!execution.ok) {
-    vscode.window.showErrorMessage(execution.message);
-    return;
-  }
   const repoContext = seededRepoContext || await resolveRepoContext();
   if (!repoContext.ok) {
     if (repoContext.message) {
@@ -4435,8 +4429,12 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     }
     return;
   }
+  if (!operations.isCurrent()) return;
   const { repoRoot } = repoContext;
-  config = getExtensionConfiguration(repoContext);
+  const config = getExtensionConfiguration(repoContext);
+  const execution = await resolveExecutionMode(config, spec.id);
+  if (!operations.isCurrent()) return;
+  if (!execution.ok) { vscode.window.showErrorMessage(execution.message); return; }
   if (seededRepoContext && !validateReplayRepoContext(repoContext, 'cli')) return;
   const cliResolution = resolveCli(repoRoot, config);
   const invocation = resolveManagedInvocation(spec, repoContext, cliResolution);
@@ -4714,7 +4712,10 @@ async function executeOwnedSearchCommand({
   promptFilter = false,
   optionOverrides = null
 } = {}) {
-  let config = getExtensionConfiguration();
+  const repoContext = await resolveSearchRepoContext();
+  if (!repoContext || !operations.isCurrent()) return;
+  const { repoRoot } = repoContext;
+  const config = getExtensionConfiguration(repoContext);
   const execution = await resolveExecutionMode(config, explain ? 'explain-search' : workflow);
   if (!operations.isCurrent()) return;
   if (!execution.ok) {
@@ -4724,10 +4725,6 @@ async function executeOwnedSearchCommand({
     vscode.window.showErrorMessage(execution.message);
     return;
   }
-  const repoContext = await resolveSearchRepoContext({ allowRemote: execution.mode === 'api' });
-  if (!repoContext || !operations.isCurrent()) return;
-  const { repoRoot } = repoContext;
-  config = getExtensionConfiguration(repoContext);
   if (enumeration && promptFilter) {
     let configured;
     try {
@@ -5329,6 +5326,9 @@ async function resolveServiceRepository(repoContext, execution, { force = false 
   const mappings = { ...(readWorkspaceState('pairofcleats.serviceRepositories', {}) || {}) };
   const key = `${execution.baseUrl}::${editorUri}`;
   let mapping = force ? null : mappings[key];
+  if (mapping && (mapping.editorUri !== editorUri || !/^[a-f0-9]{40,64}$/.test(mapping.commit || ''))) {
+    throw new Error('Saved service mapping has no matching editor/source qualification. Select Service Repository again.');
+  }
   const commit = readGitHead(repoContext.repoRoot);
   if (!commit) throw new Error('Service mapping needs a readable Git HEAD for source identity. Use a supported local CLI checkout or select a source-qualified service workflow.');
   let root = mapping?.serviceRoot;
@@ -5352,9 +5352,14 @@ async function resolveServiceRepository(repoContext, execution, { force = false 
       `Open results in ${editorUri}. Editor working-tree freshness remains unverified.`, 'Use repository mapping');
     if (action !== 'Use repository mapping') return null;
     assertServiceMappingCurrent(repoContext, pending, vscode.workspace.workspaceFolders);
+  }
+  if (!mapping || mapping.commit !== commit) {
     mapping = { serviceRoot: root, editorUri, commit, verifiedAt: new Date().toISOString() };
-    mappings[key] = mapping;
-    await writeWorkspaceState('pairofcleats.serviceRepositories', mappings);
+    const capturedMapping = mapping;
+    await writeWorkspaceState('pairofcleats.serviceRepositories', current => {
+      assertServiceMappingCurrent(repoContext, pending, vscode.workspace.workspaceFolders);
+      return { ...(current && typeof current === 'object' && !Array.isArray(current) ? current : {}), [key]: capturedMapping };
+    }, { updateCurrent: true });
   }
   assertServiceMappingCurrent(repoContext, pending, vscode.workspace.workspaceFolders);
   return Object.freeze({ ...mapping, ...pending, ...identity });

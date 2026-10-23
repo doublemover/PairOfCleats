@@ -63,8 +63,8 @@ try {
   virtual.queuedFetchResults.push({ status: 200, json: { ok: true, runtimeManifest } });
   await virtual.runCommand('pairofcleats.search');
   assert.equal(virtual.spawnCalls.length, 0);
-  assert.equal(virtual.fetchCalls.length, 1, 'virtual URI cannot become a local filesystem identity or service search');
-  assert.ok(virtual.errorMessages.some(message => /Virtual\/non-file URI roots cannot be source-qualified/i.test(message)));
+  assert.equal(virtual.fetchCalls.length, 0, 'an unsupported source root cannot issue even a capability probe');
+  assert.ok(virtual.errorMessages.some(message => /unsupported|local file|Virtual|non-file/i.test(message)));
 } finally { virtual.restoreGlobals(); }
 
 const prefer = createVsCodeRuntimeHarness({ repoRoot: workspace.root,
