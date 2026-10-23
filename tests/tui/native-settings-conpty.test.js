@@ -87,14 +87,17 @@ try {
     const select = async (target, toggle = false) => {
       const after = await lastJob();
       if (toggle) terminal.write('\t');
-      terminal.write(`\x15${target}\r`);
+      terminal.write(`\x15\x1b[200~${target}\x1b[201~`);
+      await rendered(path.basename(target));
+      assert.equal(await lastJob(), after, 'actual bracketed path paste cannot submit a scope request');
+      terminal.write('\r');
       const result = await settled('inspect', after);
       assert.equal(result.result.data.validation.ok, true);
       await rendered('Loaded canonical configuration preview');
       return result.result.data;
     };
     const preview = async () => {
-      terminal.write('\r'); await rendered('Edit threads as JSON');
+      terminal.write('\r'); await rendered('Field: threads');
       terminal.write('\x151\r'); await rendered('Validated preview; no file has been changed');
     };
     try {
@@ -125,10 +128,15 @@ try {
       } else {
         terminal.write('/threads\r'); await rendered('Selected: threads');
         if (mode === 'edit') {
-          terminal.write('\r'); await rendered('Edit threads as JSON');
-          terminal.write('\x15"invalid"\r'); await rendered('Invalid value; nothing saved');
+          terminal.write('\r'); await rendered('Field: threads');
+          const beforePaste = await lastJob();
+          terminal.write('\x15\x1b[200~"invalid"\x1b[201~'); await rendered('"invalid"');
+          assert.equal(await lastJob(), beforePaste, 'actual bracketed value paste is inert before explicit Enter');
+          terminal.write('\r'); await rendered('Invalid value; nothing saved');
           assert.equal(await fs.readFile(file, 'utf8'), original);
-          await preview(); terminal.write('\x1b'); await rendered('Preview cancelled; nothing saved');
+          await rendered('"invalid"');
+          terminal.write('\x151\r'); await rendered('Validated preview; no file has been changed');
+          terminal.write('\x1b'); await rendered('Preview cancelled; nothing saved');
           assert.equal(await fs.readFile(file, 'utf8'), original);
           await preview();
           const after = await lastJob(); terminal.write('\r');
@@ -143,13 +151,16 @@ try {
           await fs.writeFile(file, '{"threads":3}');
           terminal.write('\r'); await rendered('ERR_TUI_SETTINGS_STALE');
           assert.equal(await fs.readFile(file, 'utf8'), '{"threads":3}', 'stale UI save cannot overwrite a concurrent edit');
-          const after = await lastJob(); terminal.write('r');
+          const after = await lastJob(); terminal.write('\x12');
           const next = await settled('inspect', after);
           assert.equal(next.result.data.effective.userConfig.threads, 3);
-          await rendered('Effective: 3');
+          await rendered('Unsaved draft retained against reloaded scope; Enter revalidates');
+          assert.equal(await fs.readFile(file, 'utf8'), '{"threads":3}');
+          terminal.write('\r'); await rendered('Validated preview; no file has been changed');
+          terminal.write('\x1b'); await rendered('Preview cancelled; nothing saved');
         }
       }
-      terminal.write('\x1b'); await rendered('Tab focus'); terminal.write('q');
+      terminal.write('\x1b'); await rendered('R search | b commands'); terminal.write('q');
     } finally {
       subscription.dispose();
       await fs.writeFile(path.join(dir, 'terminal-output.ansi.log'), output);

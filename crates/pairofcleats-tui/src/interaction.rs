@@ -3,10 +3,22 @@ use ratatui::layout::Rect;
 use crossterm::event::{MouseEvent, MouseEventKind, MouseButton};
 
 #[derive(Default)]
-pub(super) struct HitMap { panes: Vec<(FocusPanel, Rect)>, jobs: Vec<(Rect, String)>, revision: u64, area: Rect }
+pub(super) struct HitMap { panes: Vec<(FocusPanel, Rect)>, jobs: Vec<(Rect, String)>, revision: u64, area: Rect,
+    signature: String, overlay: Option<Rect>, palette: Vec<(Rect, PaletteAction)> }
 
 #[derive(Clone)]
-pub(super) struct MouseInput { panel: FocusPanel, job: Option<String>, revision: u64, wheel: i8, rows: usize }
+pub(super) struct MouseInput { panel: FocusPanel, job: Option<String>, revision: u64, wheel: i8, rows: usize,
+    signature: String, area: Rect, overlay: OverlayMode, row: Option<usize>, action: Option<PaletteAction> }
+
+pub(super) enum RecordingMouse { Key(KeyEvent), Row(usize) }
+
+pub(super) fn overlay_rect(mode: OverlayMode, area: Rect) -> Rect {
+    let (width, height) = match mode { OverlayMode::Palette => (68, 60), OverlayMode::Search => (90, 44),
+        OverlayMode::Settings => (94, 92), _ => (96, 94) };
+    let rect = centered_rect(width, height, area);
+    if (mode == OverlayMode::Help && (rect.width < 24 || rect.height < 5))
+        || (mode == OverlayMode::Palette && (rect.width < 24 || rect.height < 6)) { area } else { rect }
+}
 
 pub(super) fn record_geometry(model: &AppModel, area: Rect) {
     let panes = if area.height < 7 || area.width < 20 { Vec::new() }
@@ -17,8 +29,12 @@ pub(super) fn record_geometry(model: &AppModel, area: Rect) {
             Constraint::Percentage(28), Constraint::Percentage(28), Constraint::Percentage(44)]).split(body);
         vec![(FocusPanel::Jobs, cols[0]), (FocusPanel::Tasks, cols[1]), (FocusPanel::Logs, cols[2])]
     };
-    *model.hit_map.borrow_mut() = HitMap { panes, jobs: vec![], revision: model.content_revision, area };
+    *model.hit_map.borrow_mut() = HitMap { panes, jobs: vec![], revision: model.content_revision, area,
+        signature: frame_signature(model), overlay: if model.overlay == OverlayMode::None { None }
+            else { Some(overlay_rect(model.overlay, area)) }, palette: vec![] };
 }
+
+pub(super) fn record_palette(model: &AppModel, rows: Vec<(Rect, PaletteAction)>) { model.hit_map.borrow_mut().palette = rows; }
 
 pub(super) fn record_jobs(model: &AppModel, area: Rect) {
     let height = area.height.saturating_sub(2) as usize;
@@ -33,40 +49,62 @@ pub(super) fn mouse(model: &mut AppModel, event: MouseEvent) {
     if !model.terminal_caps.mouse { return; }
     let wheel = match event.kind { MouseEventKind::ScrollUp => 1, MouseEventKind::ScrollDown => -1,
         MouseEventKind::Down(MouseButton::Left) => 0, _ => return };
-    if model.overlay != OverlayMode::None {
-        let area = model.hit_map.borrow().area;
-        let (width, height) = match model.overlay { OverlayMode::Palette => (68,60),
-            OverlayMode::Search => (90,44), OverlayMode::Settings => (94,92), _ => (96,94) };
-        let overlay = centered_rect(width, height, area);
-        if !overlay.contains(ratatui::layout::Position::new(event.column, event.row)) { return; }
-        if wheel == 0 && model.overlay == OverlayMode::RepositorySearch
-            && event.column > overlay.x && event.column + 1 < overlay.right()
-            && event.row > overlay.y && event.row + 1 < overlay.bottom() {
-            model.repository_search.click((event.row - overlay.y - 1) as usize);
-            model.dirty = true;
-        }
-        // Modal precedence: clicks cannot focus/select a covered pane or approve
-        // any action. Wheel is routed only to the visible modal viewport.
-        if wheel != 0 {
-            let key = KeyEvent::from(if wheel > 0 { KeyCode::Up } else { KeyCode::Down });
-            enqueue_terminal_key(model, key);
-        }
-        return;
-    }
     let hit = {
         let map = model.hit_map.borrow();
+        if map.signature != frame_signature(model) { return; }
         let position = ratatui::layout::Position::new(event.column, event.row);
-        map.panes.iter().find(|(_, rect)| rect.contains(position)).map(|(panel, rect)| MouseInput {
+        if let Some(overlay) = map.overlay {
+            if event.column <= overlay.x || event.column.saturating_add(1) >= overlay.right()
+                || event.row <= overlay.y || event.row.saturating_add(1) >= overlay.bottom() { return; }
+            Some(MouseInput { panel: model.focus_panel, job: None, revision: map.revision, wheel,
+                rows: overlay.height.saturating_sub(2) as usize, signature: map.signature.clone(), overlay: model.overlay,
+                area: map.area,
+                row: Some((event.row - overlay.y - 1) as usize),
+                action: map.palette.iter().find(|(rect, _)| rect.contains(position)).map(|(_, action)| *action) })
+        } else { map.panes.iter().find(|(_, rect)| rect.contains(position)).map(|(panel, rect)| MouseInput {
             panel: *panel, revision: map.revision, wheel,
             rows: rect.height.saturating_sub(2) as usize,
             job: if wheel == 0 { map.jobs.iter().find(|(rect, _)| rect.contains(position)).map(|(_, id)| id.clone()) } else { None },
-        })
+            signature: map.signature.clone(), area: map.area, overlay: OverlayMode::None, row: None, action: None,
+        }) }
     };
     if let Some(hit) = hit { enqueue_input(model, InputCommand::Mouse(hit), "mouse"); }
 }
 
-pub(super) fn apply_mouse(model: &mut AppModel, input: MouseInput) {
-    if model.overlay != OverlayMode::None { return; }
+pub(super) fn apply_mouse(model: &mut AppModel, input: MouseInput) -> Option<RecordingMouse> {
+    if !model.terminal_caps.mouse { return None; }
+    if model.overlay != input.overlay || frame_signature(model) != input.signature { return None; }
+    if { let map = model.hit_map.borrow(); map.area != input.area || map.signature != input.signature } { return None; }
+    if model.overlay != OverlayMode::None {
+        if input.wheel == 0 {
+            if let Some(row) = input.row {
+                match model.overlay {
+                    OverlayMode::RepositorySearch => model.repository_search.click(row),
+                    OverlayMode::Settings => model.settings.click(row),
+                    OverlayMode::IndexWorkflows => model.index_workflows.click(row),
+                    OverlayMode::JobInspection => model.job_inspection.click(row),
+                    OverlayMode::Recordings => return Some(RecordingMouse::Row(row)),
+                    OverlayMode::Palette => if let Some(action) = input.action {
+                        if let Some(index) = actions(model).iter().position(|candidate| *candidate == action) { model.palette_index = index; }
+                    },
+                    _ => {}
+                }
+            }
+        } else {
+            let key = KeyEvent::from(if input.wheel > 0 { KeyCode::Up } else { KeyCode::Down });
+            match model.overlay {
+                OverlayMode::RepositorySearch => { model.repository_search.key(key); }
+                OverlayMode::Settings => { model.settings.key(key); }
+                OverlayMode::IndexWorkflows => { model.index_workflows.key(key); }
+                OverlayMode::JobInspection => { model.job_inspection.key(key); }
+                OverlayMode::Help => help_key(model, key),
+                OverlayMode::Palette => move_palette(model, if input.wheel > 0 { -1 } else { 1 }),
+                OverlayMode::Recordings => return Some(RecordingMouse::Key(key)),
+                _ => {}
+            }
+        }
+        model.dirty = true; return None;
+    }
     if input.wheel == 0 {
         model.focus_panel = input.panel;
         if let Some(id) = input.job {
@@ -88,6 +126,7 @@ pub(super) fn apply_mouse(model: &mut AppModel, input: MouseInput) {
         }
     }
     model.dirty = true;
+    None
 }
 
 pub(super) fn compact(model: &AppModel, area: Rect) -> bool {
@@ -159,36 +198,46 @@ pub(super) fn paste(model: &mut AppModel, text: &str) {
         OverlayMode::Settings => model.settings.paste(text),
         OverlayMode::IndexWorkflows => model.index_workflows.paste(text),
         OverlayMode::Search => { model.panel_cursor.paste(&mut model.search_draft, text, 4096); }
-        OverlayMode::Palette => { model.panel_cursor.paste(&mut model.palette_query, text, 256); model.palette_index = 0; }
+        OverlayMode::Palette => { edit_palette(model, |cursor, query| cursor.paste(query, text, 256)); }
+        OverlayMode::Help if model.help_editing => {
+            model.panel_cursor.paste(&mut model.help_query, text, 256);
+            model.help_viewport.reset(); model.help_revision += 1;
+        }
         _ => return,
     }
     model.dirty = true;
 }
 
 pub(super) fn action_shortcut(action: PaletteAction) -> &'static str {
-    match action {
-        PaletteAction::ToggleFollow => "p", PaletteAction::FocusJobs => "1", PaletteAction::FocusTasks => "2",
-        PaletteAction::FocusLogs => "3", PaletteAction::CycleFilter => "f", PaletteAction::ClearSearch => "x",
-        PaletteAction::RunJob => "r", PaletteAction::Settings => "s", PaletteAction::RepositorySearch => "R",
-        PaletteAction::IndexWorkflows => "b", PaletteAction::InspectJob => "v", PaletteAction::CancelSelected => "c",
-        PaletteAction::ShowHelp => "?", PaletteAction::Recordings => "O", PaletteAction::Quit => "q / Ctrl+C",
-    }
+    actions::shortcut(action)
 }
 
 pub(super) fn bound_input(key: KeyEvent) -> Option<InputCommand> {
-    if key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) { return None; }
-    let KeyCode::Char(ch) = key.code else { return None; };
-    let action = palette_actions().into_iter().find(|action| action_shortcut(*action).starts_with(ch))?;
-    Some(match action {
-        PaletteAction::ToggleFollow => InputCommand::ToggleFollow, PaletteAction::FocusJobs => InputCommand::FocusJobs,
-        PaletteAction::FocusTasks => InputCommand::FocusTasks, PaletteAction::FocusLogs => InputCommand::FocusLogs,
-        PaletteAction::CycleFilter => InputCommand::CycleFilter, PaletteAction::ClearSearch => InputCommand::ClearSearch,
-        PaletteAction::RunJob => InputCommand::RunJob, PaletteAction::Settings => InputCommand::Settings,
-        PaletteAction::RepositorySearch => InputCommand::RepositorySearch, PaletteAction::IndexWorkflows => InputCommand::IndexWorkflows,
-        PaletteAction::InspectJob => InputCommand::InspectJob, PaletteAction::CancelSelected => InputCommand::CancelSelected,
-        PaletteAction::ShowHelp => InputCommand::ToggleHelp, PaletteAction::Recordings => InputCommand::Recordings,
-        PaletteAction::Quit => InputCommand::Quit,
-    })
+    actions::bound_input(key)
+}
+
+pub(super) fn input_disabled(model: &AppModel, input: &InputCommand) -> Option<&'static str> {
+    let action = match input { InputCommand::Settings => PaletteAction::Settings,
+        InputCommand::RepositorySearch => PaletteAction::RepositorySearch, InputCommand::IndexWorkflows => PaletteAction::IndexWorkflows,
+        InputCommand::InspectJob => PaletteAction::InspectJob, InputCommand::CancelSelected => PaletteAction::CancelSelected,
+        InputCommand::RunJob => PaletteAction::RunJob, _ => return None };
+    disabled(model, action)
+}
+
+pub(super) fn edit_palette(model: &mut AppModel, edit: impl FnOnce(&mut text_editor::TextCursor, &mut String) -> bool) {
+    let selected = actions(model).get(model.palette_index).copied();
+    if !edit(&mut model.panel_cursor, &mut model.palette_query) { return; }
+    model.palette_index = selected.and_then(|selected| actions(model).iter().position(|action| *action == selected)).unwrap_or(usize::MAX);
+    model.dirty = true;
+}
+
+pub(super) fn move_palette(model: &mut AppModel, direction: i8) {
+    let count = actions(model).len();
+    model.palette_index = if count == 0 { usize::MAX }
+        else if model.palette_index >= count { if direction > 0 { 0 } else { count - 1 } }
+        else if direction > 0 { (model.palette_index + 1) % count }
+        else { (model.palette_index + count - 1) % count };
+    model.dirty = true;
 }
 
 pub(super) fn disabled(model: &AppModel, action: PaletteAction) -> Option<&'static str> {
@@ -232,6 +281,7 @@ pub(super) fn help_text(model: &AppModel) -> String {
         "Saved sessions: O picker; replay is passive. Space play/pause; arrows step; Esc detach.".into(),
         "Job inspection: 1 summary, 2 result, 3 artifacts; arrows/page keys scroll; o/y/e actions.".into(),
         "Palette: type to filter; arrows select; Enter runs selected visible action; Esc close.".into()];
+    rows.extend(actions::help_rows());
     rows.extend(palette_actions().into_iter().map(|action| format!("{}: {}{}", action_shortcut(action), action.label(),
         disabled(model, action).map(|reason| format!(" [disabled: {reason}]")).unwrap_or_default())));
     let query = model.help_query.to_lowercase();
@@ -395,5 +445,51 @@ mod tests {
         help_key(&mut model, KeyCode::Esc.into());
         assert!(model.overlay == OverlayMode::Settings);
         assert!(model.settings.outbox.is_empty());
+    }
+
+    #[test]
+    fn palette_filter_retains_exact_visible_action_and_requires_reselection_when_hidden() {
+        let mut model = model(); model.overlay = OverlayMode::Palette;
+        model.palette_index = palette_actions().iter().position(|action| *action == PaletteAction::Recordings).unwrap();
+        edit_palette(&mut model, |cursor, query| cursor.paste(query, "saved", 256));
+        assert!(matches!(actions(&model).get(model.palette_index), Some(PaletteAction::Recordings)));
+        let text = screen(&model, 60, 18);
+        assert!(text.contains("Esc close") && text.contains("1-1 / 1"));
+        edit_palette(&mut model, |cursor, query| { cursor.key(query, KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL), 256); cursor.paste(query, "settings", 256) });
+        assert!(actions(&model).get(model.palette_index).is_none());
+        apply_local_input(&mut model, "palette_select");
+        assert!(model.overlay == OverlayMode::Palette && model.settings.outbox.is_empty());
+        move_palette(&mut model, 1);
+        assert!(matches!(actions(&model).get(model.palette_index), Some(PaletteAction::Settings)));
+        assert!(screen(&model, 80, 24).contains("Disabled:"));
+        apply_local_input(&mut model, "palette_select");
+        assert!(model.overlay == OverlayMode::Palette && model.settings.outbox.is_empty());
+    }
+
+    #[test]
+    fn captured_modal_mouse_uses_rendered_geometry_and_rejects_stale_frames() {
+        let mut model = model(); model.overlay = OverlayMode::Palette;
+        screen(&model, 80, 24);
+        let (rect, action) = model.hit_map.borrow().palette.last().copied().unwrap();
+        mouse(&mut model, MouseEvent { kind: MouseEventKind::Down(MouseButton::Left),
+            column: rect.x, row: rect.y, modifiers: KeyModifiers::NONE });
+        assert_eq!(model.palette_index, 0, "capture itself cannot bypass queued input order");
+        let (_, InputCommand::Mouse(input)) = model.input_queue.pop_front().unwrap() else { panic!("modal hit"); };
+        assert!(apply_mouse(&mut model, input).is_none());
+        assert!(actions(&model).get(model.palette_index).is_some_and(|selected| *selected == action));
+        assert!(model.overlay == OverlayMode::Palette && model.settings.outbox.is_empty());
+        screen(&model, 80, 24);
+        mouse(&mut model, MouseEvent { kind: MouseEventKind::ScrollDown, column: rect.x, row: rect.y, modifiers: KeyModifiers::NONE });
+        let (_, InputCommand::Mouse(input)) = model.input_queue.pop_front().unwrap() else { panic!("wheel"); };
+        let selected = model.palette_index;
+        screen(&model, 60, 18);
+        apply_mouse(&mut model, input);
+        assert_eq!(model.palette_index, selected, "a resized frame invalidates captured row geometry");
+        model.overlay = OverlayMode::Help; screen(&model, 80, 24);
+        help_key(&mut model, KeyCode::End.into());
+        assert!(screen(&model, 80, 24).contains("rows"));
+        help_key(&mut model, KeyCode::Char('/').into());
+        paste(&mut model, "saved\n\u{1b}\u{3}");
+        assert!(model.help_query.contains("saved") && model.overlay == OverlayMode::Help);
     }
 }

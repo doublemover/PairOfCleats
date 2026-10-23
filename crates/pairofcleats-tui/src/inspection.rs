@@ -408,6 +408,8 @@ pub struct InspectionUi {
     cancel_requested: bool,
     next_id: u64,
     action_status: String,
+    rendered_clicks: RefCell<Vec<(usize, usize, String, String)>>,
+    rendered_revision: std::cell::Cell<Option<u64>>,
 }
 
 impl Default for InspectionUi {
@@ -430,6 +432,8 @@ impl Default for InspectionUi {
             cancel_requested: false,
             next_id: 0,
             action_status: "Actions reverify the recorded object before use".into(),
+            rendered_clicks: RefCell::new(vec![]),
+            rendered_revision: std::cell::Cell::new(None),
         }
     }
 }
@@ -732,7 +736,20 @@ impl InspectionUi {
         false
     }
 
+    pub fn click(&mut self, row: usize) {
+        if self.page != Page::Artifacts || self.pending.is_some() || self.prompt.is_some()
+            || self.rendered_revision.get() != Some(self.revision) { return; }
+        let selected = self.rendered_clicks.borrow().iter().find(|(line, _, _, _)| *line == row)
+            .map(|(_, index, id, path)| (*index, id.clone(), path.clone()));
+        if let Some((index, id, path)) = selected {
+            let matching = self.current_record().and_then(|record| record.artifacts.get(index))
+                .is_some_and(|artifact| artifact.id == id && artifact.path == path);
+            if matching { self.selected_artifact = index; self.revision += 1; }
+        }
+    }
+
     pub fn lines(&self, width: usize, height: usize) -> Vec<String> {
+        let mut clicks = self.rendered_clicks.borrow_mut(); clicks.clear(); self.rendered_revision.set(Some(self.revision));
         let fit = |output: Vec<String>| {
             output
                 .into_iter()
@@ -801,6 +818,11 @@ impl InspectionUi {
                 let mut lines = Vec::new();
                 for (index, artifact) in record.artifacts.iter().enumerate().skip(start).take(count)
                 {
+                    for part in 0..3 {
+                        if lines.len() + part < available.saturating_sub(1) && output.len() + lines.len() + part < height {
+                            clicks.push((output.len() + lines.len() + part, index, artifact.id.clone(), artifact.path.clone()));
+                        }
+                    }
                     lines.push(format!(
                         "{} {} [{}]",
                         if index == self.selected_artifact {
@@ -903,6 +925,25 @@ mod tests {
         ));
         assert_eq!(ui.current.as_ref().unwrap().0, "selected");
         assert!(ui.action_status.contains("cancelled"));
+    }
+
+    #[test]
+    fn rendered_artifact_clicks_pin_recorded_identity_without_authorizing_a_side_effect() {
+        let mut ui = InspectionUi::default(); actionable(&mut ui);
+        ui.record(&json!({"event":"job:artifacts","jobId":"selected","artifactsIndexed":true,
+            "inventoryId":"11111111-1111-1111-1111-111111111111","artifacts":[
+            {"path":"/selected/first","artifactId":"22222222-2222-2222-2222-222222222222","snapshotVerified":true,"actions":["open"]},
+            {"path":"/selected/second","artifactId":"33333333-3333-3333-3333-333333333333","snapshotVerified":true,"actions":["open"]}]}));
+        let rows = ui.lines(80, 24);
+        let row = rows.iter().position(|line| line.contains("/selected/second")).unwrap();
+        ui.click(row); assert_eq!(ui.selected_artifact, 1);
+        assert!(ui.outbox.is_empty() && ui.prompt.is_none(), "passive artifact selection never grants disk authority");
+        ui.available = true; ui.key(KeyCode::Char('o').into());
+        ui.lines(80, 24); ui.click(4);
+        assert_eq!(ui.selected_artifact, 1, "a confirmation cannot be retargeted by clicking another row");
+        assert!(ui.outbox.is_empty());
+        ui.key(KeyCode::Enter.into());
+        assert_eq!(ui.outbox.back().unwrap()["params"]["artifactId"], "33333333-3333-3333-3333-333333333333");
     }
 
     #[test]

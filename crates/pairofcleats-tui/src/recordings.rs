@@ -8,7 +8,7 @@ use super::{apply_protocol_event, AppModel};
 use crossterm::event::{KeyCode, KeyEvent};
 use serde_json::{json, Value};
 use crate::text_editor::TextCursor;
-use crate::overlay_viewport::selected_rows;
+use crate::overlay_viewport::{selected_rows, selected_window};
 
 const MAX_EVENTS: usize = 32768;
 const MAX_BYTES: usize = 8 * 1024 * 1024;
@@ -66,6 +66,8 @@ pub(crate) struct RecordingUi {
     checkpoints: VecDeque<ReplayCheckpoint>,
     checkpoint_bytes: usize,
     last_seek_reductions: usize,
+    rendered_clicks: std::cell::RefCell<Vec<(usize, String)>>,
+    rendered_revision: std::cell::Cell<Option<u64>>,
 }
 
 impl Default for RecordingUi {
@@ -94,6 +96,8 @@ impl Default for RecordingUi {
             checkpoints: VecDeque::new(),
             checkpoint_bytes: 0,
             last_seek_reductions: 0,
+            rendered_clicks: std::cell::RefCell::new(vec![]),
+            rendered_revision: std::cell::Cell::new(None),
         }
     }
 }
@@ -136,6 +140,17 @@ impl RecordingUi {
     pub fn paste(&mut self, text: &str) {
         if !self.available || self.pending.is_some() || self.page != Page::Path { return; }
         if self.cursor.paste(&mut self.draft, text, 4096) { self.revision += 1; }
+    }
+
+    pub fn click(&mut self, row: usize) {
+        if !self.available || self.pending.is_some() || self.page != Page::Entries
+            || self.rendered_revision.get() != Some(self.revision) { return; }
+        let id = self.rendered_clicks.borrow().iter().find(|(line, _)| *line == row).map(|(_, id)| id.clone());
+        if let Some(id) = id {
+            if let Some(index) = self.entries.iter().position(|entry| entry["id"].as_str() == Some(id.as_str())) {
+                self.selected = index; self.revision += 1;
+            }
+        }
     }
 
     pub fn key(&mut self, key: KeyEvent) -> bool {
@@ -560,12 +575,17 @@ impl RecordingUi {
     }
 
     pub fn lines(&self, height: usize, width: usize) -> Vec<String> {
+        let mut clicks = self.rendered_clicks.borrow_mut(); clicks.clear(); self.rendered_revision.set(Some(self.revision));
         let headers = vec![format!("Saved sessions {}/{} | Esc back/cancel | Ctrl+C quit",
             if self.entries.is_empty() { 0 } else { self.selected + 1 }, self.entries.len()),
             if self.available { "Enter absolute JSONL/directory | cursor/Home/End | Ctrl+U clear | paste is data".into() }
             else { "The owned supervisor has not advertised recording support".into() },
             format!("Path: {}", self.cursor.visible(&self.draft, width.saturating_sub(6))), self.status.clone()];
         if self.page == Page::Entries {
+            let (header_count, start, count) = selected_window(headers.len(), self.entries.len(), self.selected, height);
+            for (offset, entry) in self.entries.iter().skip(start).take(count).enumerate() {
+                if let Some(id) = entry["id"].as_str() { clicks.push((header_count + offset, id.to_owned())); }
+            }
             let rows = self.entries.iter().enumerate().map(|(i, entry)| format!("{} {}{}",
                 if i == self.selected { ">" } else { " " }, entry["filename"].as_str().unwrap_or("?"),
                 if entry["valid"] == true { "" } else { " [invalid]" })).collect();
@@ -593,6 +613,19 @@ mod picker_tests {
         assert!(ui.lines(8, 20).join("\n").contains('|'));
         let before = ui.draft.clone(); ui.paste(&"x".repeat(4097)); assert_eq!(ui.draft, before);
         ui.available = false; ui.paste("read-only"); assert_eq!(ui.draft, before);
+    }
+
+    #[test]
+    fn rendered_recording_click_only_selects_the_original_entry_without_loading() {
+        let mut ui = RecordingUi { available: true, page: Page::Entries,
+            entries: vec![json!({"id":"first","filename":"first.jsonl","valid":true}),
+                json!({"id":"second","filename":"second.jsonl","valid":true})], ..RecordingUi::default() };
+        let rows = ui.lines(12, 60);
+        let row = rows.iter().position(|line| line.contains("second.jsonl")).unwrap();
+        ui.click(row); assert_eq!(ui.selected, 1); assert!(ui.outbox.is_empty());
+        ui.entries.reverse(); ui.revision += 1; ui.click(row);
+        assert_eq!(ui.selected, 1, "changed inventory cannot retarget a captured row");
+        assert!(ui.outbox.is_empty(), "only explicit Enter may load or attach a saved session");
     }
 
     #[test]

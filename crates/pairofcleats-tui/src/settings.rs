@@ -39,6 +39,8 @@ pub(crate) struct SettingsUi {
     selected: usize,
     scroll: ReviewViewport,
     presentation: RefCell<ReviewPresentation>,
+    rendered_clicks: RefCell<Vec<(usize, Value)>>,
+    rendered_revision: std::cell::Cell<Option<u64>>,
     status: String,
     pending: Option<(String, String)>,
     next_id: u64,
@@ -67,6 +69,8 @@ impl Default for SettingsUi {
             selected: 0,
             scroll: ReviewViewport::default(),
             presentation: RefCell::new(ReviewPresentation::default()),
+            rendered_clicks: RefCell::new(vec![]),
+            rendered_revision: std::cell::Cell::new(None),
             status: String::new(),
             pending: None,
             next_id: 1,
@@ -432,6 +436,17 @@ impl SettingsUi {
         if let Some(field) = field { self.cursor.paste(field, text, 4096); self.revision += 1; }
     }
 
+    pub fn click(&mut self, row: usize) {
+        if !self.available || self.pending.is_some() || self.rendered_revision.get() != Some(self.revision)
+            || !matches!(self.page, Page::Fields | Page::Filter) { return; }
+        let path = self.rendered_clicks.borrow().iter().find(|(line, _)| *line == row).map(|(_, path)| path.clone());
+        if let Some(path) = path {
+            if let Some(index) = self.fields().iter().position(|field| field["path"] == path) {
+                self.selected = index; self.revision += 1;
+            }
+        }
+    }
+
     /// Consume only this view's request IDs, before foreground job routing.
     pub fn event(&mut self, event: &Value) -> bool {
         let Some((id, method)) = self.pending.as_ref() else {
@@ -560,6 +575,7 @@ impl SettingsUi {
     }
 
     pub fn lines(&self, height: usize, width: usize) -> Vec<String> {
+        let mut clicks = self.rendered_clicks.borrow_mut(); clicks.clear(); self.rendered_revision.set(Some(self.revision));
         let scope = self
             .scope
             .as_ref()
@@ -602,9 +618,9 @@ impl SettingsUi {
                     .selected
                     .saturating_sub(count / 2)
                     .min(fields.len().saturating_sub(count));
-                lines.extend(fields.iter().enumerate().skip(start).take(count).map(
-                    |(index, field)| {
-                        format!(
+                for (index, field) in fields.iter().enumerate().skip(start).take(count) {
+                    if lines.len() < height { clicks.push((lines.len(), field["path"].clone())); }
+                    lines.push(format!(
                             "{} {}{}",
                             if index == self.selected { ">" } else { " " },
                             field_name(field),
@@ -613,9 +629,8 @@ impl SettingsUi {
                             } else {
                                 " [read only]"
                             }
-                        )
-                    },
-                ));
+                    ));
+                }
                 if let Some(field) = self.selected_field() {
                     lines.extend([
                         format!(
@@ -711,6 +726,22 @@ mod tests {
         key(&mut ui, KeyCode::Enter);
         assert_eq!(ui.outbox.back().unwrap()["method"], "commit");
         assert_eq!(ui.outbox.back().unwrap()["params"]["previewId"], "remove-plan");
+    }
+
+    #[test]
+    fn rendered_field_clicks_select_exact_paths_without_opening_or_confirming() {
+        let mut ui = selected();
+        let lines = ui.lines(22, 76);
+        let row = lines.iter().position(|line| line.contains("tooling.lsp.servers")).unwrap();
+        ui.click(row);
+        assert_eq!(ui.selected_field().unwrap()["path"], json!(["tooling","lsp","servers"]));
+        assert!(ui.outbox.is_empty() && ui.page == Page::Fields);
+        let selected = ui.selected;
+        ui.revision += 1; ui.click(row.saturating_sub(1));
+        assert_eq!(ui.selected, selected, "stale rendered rows cannot select a different field");
+        ui.page = Page::Preview; ui.preview = Some(json!({"scope":{"id":"scope-1"},"previewId":"exact-token"}));
+        ui.lines(22, 76); ui.click(row);
+        assert!(ui.outbox.is_empty(), "mouse selection never confirms a settings token");
     }
 
     #[test]

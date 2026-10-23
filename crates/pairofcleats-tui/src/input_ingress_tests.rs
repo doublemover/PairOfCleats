@@ -45,6 +45,7 @@ fn queued_keys_observe_prior_modal_transitions_on_both_sides_of_the_dispatch_bou
     }
     assert_eq!(model.search_draft, "ee");
     model.overlay = OverlayMode::None;
+    model.owns_control_channel = true; model.session.controllable = true; model.settings.available = true;
     model.palette_index = palette_actions().iter().position(|action| matches!(action, PaletteAction::Settings)).unwrap();
     for code in [KeyCode::Char(':'), KeyCode::Enter, KeyCode::Char('q')] {
         enqueue_terminal_key(&mut model, KeyEvent::new(code, KeyModifiers::NONE));
@@ -249,4 +250,68 @@ fn job_and_task_presentation_is_bounded_by_the_admitted_viewport() {
     assert_eq!(ROW_PRESENTATIONS.with(|count| count.get()), (0,0));
     assert!(build_task_rows(&model, 80, 0).is_empty());
     assert!(build_job_rows(&model, 80, 0).0.is_empty());
+}
+
+#[test]
+fn actual_dispatch_keeps_paste_inert_and_grapheme_cursor_edits_in_the_focused_field() {
+    let mut model = model();
+    let mut child = InputChild(Command::new("node").args(["-e", "process.stdin.resume()"])
+        .stdin(Stdio::piped()).spawn().unwrap());
+    let start = Instant::now(); model.last_input_at = start;
+    model.overlay = OverlayMode::Search; model.search_draft = "A界e\u{301}😀Z".into();
+    let mut job = 0;
+    for (turn, input) in [InputCommand::TerminalKey(KeyCode::Home.into()),
+        InputCommand::TerminalKey(KeyCode::Right.into()), InputCommand::TerminalKey(KeyCode::Delete.into()),
+        InputCommand::Paste("q\n\u{1b}\u{3}; rm -rf".into())].into_iter().enumerate() {
+        enqueue_input(&mut model, input, "actual-paste-and-cursor");
+        assert!(!dispatch_input_with_recordings_at(&mut model, &mut child, &mut job, None,
+            start + Duration::from_millis((turn as u64 + 1) * 25)).unwrap());
+    }
+    assert_eq!(model.search_draft, "Aq ; rm -rfe\u{301}😀Z");
+    assert!(model.overlay == OverlayMode::Search && model.search_jobs.is_empty());
+    assert_eq!(job, 0, "pasted control and shell-looking text cannot start or cancel work");
+    enqueue_terminal_key(&mut model, KeyCode::Enter.into());
+    assert!(!dispatch_input_with_recordings_at(&mut model, &mut child, &mut job, None,
+        start + Duration::from_millis(125)).unwrap());
+    assert_eq!(model.search_jobs, "Aq ; rm -rfe\u{301}😀Z");
+    model.settings.available = true; model.overlay = OverlayMode::Settings;
+    model.settings.open("initial directory");
+    enqueue_terminal_key(&mut model, KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
+    enqueue_input(&mut model, InputCommand::Paste("C:/界/qq\n\u{1b}\u{3}".into()), "scope-paste");
+    for milliseconds in [150, 175] {
+        assert!(!dispatch_input_with_recordings_at(&mut model, &mut child, &mut job, None,
+            start + Duration::from_millis(milliseconds)).unwrap());
+    }
+    assert!(model.settings.outbox.is_empty());
+    enqueue_terminal_key(&mut model, KeyCode::Enter.into());
+    assert!(!dispatch_input_with_recordings_at(&mut model, &mut child, &mut job, None,
+        start + Duration::from_millis(200)).unwrap());
+    assert_eq!(model.settings.outbox.back().unwrap()["params"]["target"], "C:/界/qq ");
+    assert_eq!(model.settings.outbox.back().unwrap()["method"], "select");
+}
+
+#[test]
+fn queued_mouse_respects_prior_focus_and_passive_palette_admission() {
+    use crossterm::event::{MouseEvent, MouseEventKind, MouseButton};
+    let mut model = model(); model.terminal_caps.mouse = true;
+    model.update_job_status("rendered-job", "running", None); model.selected_job_pinned = false;
+    let mut terminal = Terminal::new(TestBackend::new(80,24)).unwrap();
+    terminal.draw(|frame| render_ui(frame, &model)).unwrap();
+    enqueue_terminal_key(&mut model, KeyCode::Tab.into());
+    interaction::mouse(&mut model, MouseEvent { kind: MouseEventKind::Down(MouseButton::Left),
+        column: 4, row: 3, modifiers: KeyModifiers::NONE });
+    let mut child = InputChild(Command::new("node").args(["-e", "process.stdin.resume()"])
+        .stdin(Stdio::piped()).spawn().unwrap());
+    let mut job = 0; let start = Instant::now(); model.last_input_at = start;
+    for milliseconds in [25, 50] {
+        assert!(!dispatch_input_with_recordings_at(&mut model, &mut child, &mut job, None,
+            start + Duration::from_millis(milliseconds)).unwrap());
+    }
+    assert!(model.focus_panel == FocusPanel::Tasks && !model.selected_job_pinned);
+    model.overlay = OverlayMode::Palette;
+    model.palette_index = palette_actions().iter().position(|action| *action == PaletteAction::Settings).unwrap();
+    enqueue_terminal_key(&mut model, KeyCode::Enter.into());
+    assert!(!dispatch_input_with_recordings_at(&mut model, &mut child, &mut job, None,
+        start + Duration::from_millis(75)).unwrap());
+    assert!(model.overlay == OverlayMode::Palette && model.settings.outbox.is_empty());
 }

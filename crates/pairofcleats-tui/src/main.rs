@@ -20,6 +20,7 @@ mod workflow_tests;
 mod workflows;
 mod text_editor;
 mod interaction;
+mod actions;
 use supervisor_lifetime::SupervisorLifetime;
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
@@ -400,7 +401,7 @@ struct ServiceSummary {
     queue_depth: Option<u64>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum PaletteAction {
     ToggleFollow,
     FocusJobs,
@@ -421,23 +422,7 @@ enum PaletteAction {
 
 impl PaletteAction {
     fn label(&self) -> &'static str {
-        match self {
-            Self::ToggleFollow => "Toggle follow / pause",
-            Self::FocusJobs => "Focus jobs panel",
-            Self::FocusTasks => "Focus tasks panel",
-            Self::FocusLogs => "Focus logs panel",
-            Self::CycleFilter => "Cycle active panel filter",
-            Self::ClearSearch => "Clear current panel search",
-            Self::RunJob => "Show search command help",
-            Self::IndexWorkflows => "Command catalog: indexes, setup, service, maintenance and analysis",
-            Self::Settings => "Repository / workspace and settings",
-            Self::RepositorySearch => "Search a repository and inspect results",
-            Self::InspectJob => "Inspect selected job result and artifacts",
-            Self::CancelSelected => "Cancel selected job",
-            Self::ShowHelp => "Open help overlay",
-            Self::Recordings => "Open a saved session / passive replay",
-            Self::Quit => "Quit TUI",
-        }
+        actions::label(*self)
     }
 }
 
@@ -563,6 +548,7 @@ enum InputCommand {
     SelectNextJob,
     FollowLatestJob,
     FocusNext,
+    ToggleMaximized,
     FocusJobs,
     FocusTasks,
     FocusLogs,
@@ -1940,6 +1926,7 @@ fn runtime_summary_text(model: &AppModel, width: usize) -> String {
 }
 
 fn footer_hint_text(model: &AppModel, width: usize) -> String {
+    if model.overlay == OverlayMode::None { return fit_text(&actions::footer(), width); }
     let text = match model.overlay {
         OverlayMode::Help => "help | arrows/Page/Home/End scroll | Esc or ? close",
         OverlayMode::Palette => "action palette | type filter | arrows move | Enter select | Esc close",
@@ -2262,7 +2249,7 @@ fn panel_block(title: String, focused: bool, color: bool) -> Block<'static> {
 }
 
 fn render_help_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
-    let area = centered_rect(96, 94, frame.area());
+    let area = interaction::overlay_rect(OverlayMode::Help, frame.area());
     if area.width < 24 || area.height < 5 {
         frame.render_widget(Clear, frame.area());
         frame.render_widget(Paragraph::new("Help: Esc/F1 back\nCtrl+C quit\nResize for reference"), frame.area());
@@ -2272,42 +2259,39 @@ fn render_help_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         model.help_query, if model.help_editing { " (typing; Enter ends)" } else { "" })],
         &interaction::help_text(model), area.height.saturating_sub(2) as usize, area.width.saturating_sub(2) as usize);
     frame.render_widget(Clear, area);
-    frame.render_widget(Paragraph::new(rows.join("\n")).block(panel_block("Help | Esc close".into(), true, model.terminal_caps.color)), area);
+    frame.render_widget(Paragraph::new(rows.join("\n")).block(panel_block(
+        format!("Help | Esc close | {}", model.help_viewport.range_label()), true, model.terminal_caps.color)), area);
 }
 
 fn palette_actions() -> Vec<PaletteAction> {
-    vec![
-        PaletteAction::ToggleFollow,
-        PaletteAction::FocusJobs,
-        PaletteAction::FocusTasks,
-        PaletteAction::FocusLogs,
-        PaletteAction::CycleFilter,
-        PaletteAction::ClearSearch,
-        PaletteAction::RunJob,
-        PaletteAction::IndexWorkflows,
-        PaletteAction::Settings,
-        PaletteAction::RepositorySearch,
-        PaletteAction::CancelSelected,
-        PaletteAction::ShowHelp,
-        PaletteAction::InspectJob,
-        PaletteAction::Recordings,
-        PaletteAction::Quit,
-    ]
+    actions::registered()
 }
 
 fn render_palette_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
     let actions = interaction::actions(model);
-    let area = centered_rect(68, 60, frame.area());
-    if area.width < 24 || area.height < 4 {
+    let area = interaction::overlay_rect(OverlayMode::Palette, frame.area());
+    if area.width < 24 || area.height < 6 {
         frame.render_widget(Clear, frame.area());
         frame.render_widget(Paragraph::new("Actions: Esc close\nCtrl+C quit\nResize for actions"), frame.area());
         return;
     }
-    let height = area.height.saturating_sub(2) as usize;
-    let start = model
-        .palette_index
+    let height = area.height.saturating_sub(5) as usize;
+    let start = (if model.palette_index < actions.len() { model.palette_index } else { 0 })
         .saturating_sub(height.saturating_sub(1))
         .min(actions.len().saturating_sub(height));
+    let inner = Rect::new(area.x + 1, area.y + 1, area.width.saturating_sub(2), area.height.saturating_sub(2));
+    let selected = actions.get(model.palette_index).copied();
+    let selection = selected.map(|action| interaction::disabled(model, action).map(|reason| format!("Disabled: {reason}"))
+        .unwrap_or_else(|| format!("Selected: {}", action.label()))).unwrap_or_else(|| "Arrows choose a visible action; Enter requires selection".into());
+    frame.render_widget(Clear, area);
+    frame.render_widget(panel_block("Actions | Esc close".into(), true, model.terminal_caps.color), area);
+    frame.render_widget(Paragraph::new(format!("{}\n{}", fit_text(&format!("{}-{} / {} | filter {}",
+        if actions.is_empty() { 0 } else { start + 1 }, (start + height).min(actions.len()), actions.len(),
+        model.panel_cursor.visible(&model.palette_query, inner.width.saturating_sub(20) as usize)), inner.width as usize),
+        selection)).wrap(Wrap { trim: false }), Rect::new(inner.x, inner.y, inner.width, 3));
+    let list_area = Rect::new(inner.x, inner.y + 3, inner.width, height as u16);
+    interaction::record_palette(model, actions.iter().copied().enumerate().skip(start).take(height)
+        .map(|(index, action)| (Rect::new(list_area.x, list_area.y + (index-start) as u16, list_area.width, 1), action)).collect());
     let rows: Vec<ListItem<'static>> = actions
         .iter()
         .enumerate()
@@ -2334,17 +2318,11 @@ fn render_palette_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             .style(style)
         })
         .collect();
-    let overlay = List::new(rows).block(panel_block(
-        format!("Actions: {} | type filter | arrows | Esc", model.palette_query),
-        true,
-        model.terminal_caps.color,
-    ));
-    frame.render_widget(Clear, area);
-    frame.render_widget(overlay, area);
+    frame.render_widget(List::new(rows), list_area);
 }
 
 fn render_search_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
-    let area = centered_rect(90, 44, frame.area());
+    let area = interaction::overlay_rect(OverlayMode::Search, frame.area());
     let text = format!(
         "Search {}\n\n{}\n\nEnter apply | Esc cancel | Backspace delete",
         model.search_target.label(),
@@ -2584,7 +2562,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
     }
     match model.overlay {
         OverlayMode::Recordings => {
-            let area = centered_rect(96, 94, frame.area());
+            let area = interaction::overlay_rect(OverlayMode::Recordings, frame.area());
             frame.render_widget(Clear, area);
             frame.render_widget(
                 Paragraph::new(model.recording_overlay_text.as_str())
@@ -2601,7 +2579,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         OverlayMode::Palette => render_palette_overlay(frame, model),
         OverlayMode::Search => render_search_overlay(frame, model),
         OverlayMode::IndexWorkflows => {
-            let area = centered_rect(96, 94, frame.area());
+            let area = interaction::overlay_rect(OverlayMode::IndexWorkflows, frame.area());
             let text = model
                 .index_workflows
                 .lines(area.height.saturating_sub(2) as usize, area.width.saturating_sub(2) as usize)
@@ -2618,7 +2596,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             );
         }
         OverlayMode::Settings => {
-            let area = centered_rect(94, 92, frame.area());
+            let area = interaction::overlay_rect(OverlayMode::Settings, frame.area());
             let text = model
                 .settings
                 .lines(area.height.saturating_sub(2) as usize, area.width.saturating_sub(2) as usize)
@@ -2635,7 +2613,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             );
         }
         OverlayMode::RepositorySearch => {
-            let area = centered_rect(96, 94, frame.area());
+            let area = interaction::overlay_rect(OverlayMode::RepositorySearch, frame.area());
             let text = model
                 .repository_search
                 .lines(
@@ -2656,7 +2634,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             );
         }
         OverlayMode::JobInspection => {
-            let area = centered_rect(96, 94, frame.area());
+            let area = interaction::overlay_rect(OverlayMode::JobInspection, frame.area());
             let text = model
                 .job_inspection
                 .lines(
@@ -2730,21 +2708,14 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
             model.dirty = true;
         }
         "palette_up" => {
-            let actions = interaction::actions(model);
-            if model.palette_index == 0 {
-                model.palette_index = actions.len().saturating_sub(1);
-            } else {
-                model.palette_index = model.palette_index.saturating_sub(1);
-            }
-            model.dirty = true;
+            interaction::move_palette(model, -1);
         }
         "palette_down" => {
-            let actions = interaction::actions(model);
-            model.palette_index = (model.palette_index + 1) % actions.len().max(1);
-            model.dirty = true;
+            interaction::move_palette(model, 1);
         }
         "palette_select" => {
             if let Some(action) = interaction::actions(model).get(model.palette_index).copied() {
+                if let Some(reason) = interaction::disabled(model, action) { model.push_alert("info", reason); return; }
                 match action {
                     PaletteAction::ToggleFollow => toggle_follow(model),
                     PaletteAction::FocusJobs => model.focus_panel = FocusPanel::Jobs,
@@ -2752,7 +2723,7 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
                     PaletteAction::FocusLogs => model.focus_panel = FocusPanel::Logs,
                     PaletteAction::CycleFilter => cycle_active_filter(model),
                     PaletteAction::ClearSearch => clear_search(model, model.focus_panel),
-                    PaletteAction::ShowHelp => model.overlay = OverlayMode::Help,
+                    PaletteAction::ShowHelp => interaction::context_help(model),
                     PaletteAction::IndexWorkflows => {
                         model.index_workflows.open(&model.session.scope);
                         model.overlay = OverlayMode::IndexWorkflows;
@@ -2771,7 +2742,7 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
                     }
                 }
             }
-            if model.overlay == OverlayMode::Palette {
+            if model.overlay == OverlayMode::Palette && interaction::actions(model).get(model.palette_index).is_some() {
                 model.overlay = OverlayMode::None;
             }
             model.dirty = true;
@@ -3133,7 +3104,9 @@ fn apply_palette_action(
     next_job_idx: &mut u64,
     action: PaletteAction,
 ) -> anyhow::Result<bool> {
-    if matches!(action, PaletteAction::RunJob | PaletteAction::CancelSelected) && interaction::disabled(model, action).is_some() { return Ok(false); }
+    if let Some(reason) = interaction::disabled(model, action) {
+        model.push_alert("info", format!("{}: {reason}", action.label())); return Ok(false);
+    }
     match action {
         PaletteAction::ToggleFollow => {
             toggle_follow(model);
@@ -3159,8 +3132,7 @@ fn apply_palette_action(
             send_selected_job_cancel(model, supervisor)?;
         }
         PaletteAction::ShowHelp => {
-            model.overlay = OverlayMode::Help;
-            model.dirty = true;
+            interaction::context_help(model);
         }
         PaletteAction::IndexWorkflows => {
             model.index_workflows.open(&model.session.scope);
@@ -3856,7 +3828,7 @@ fn interpret_terminal_key(model: &mut AppModel, key: KeyEvent) {
         }
         OverlayMode::Help => interaction::help_key(model, key),
         OverlayMode::Palette => match key.code {
-            KeyCode::Esc | KeyCode::Char(':') => {
+            KeyCode::Esc => {
                 enqueue_input(model, InputCommand::TogglePalette, "palette-close")
             }
             KeyCode::Down => {
@@ -3867,9 +3839,7 @@ fn interpret_terminal_key(model: &mut AppModel, key: KeyEvent) {
             }
             KeyCode::Enter => enqueue_input(model, InputCommand::PaletteSelect, "palette-select"),
             _ => {
-                if model.panel_cursor.key(&mut model.palette_query, key, 256) {
-                    model.palette_index = 0; model.dirty = true;
-                }
+                interaction::edit_palette(model, |cursor, query| cursor.key(query, key, 256));
             }
         },
         OverlayMode::Search => match key.code {
@@ -3883,21 +3853,8 @@ fn interpret_terminal_key(model: &mut AppModel, key: KeyEvent) {
         OverlayMode::None => {
             if let Some(input) = interaction::bound_input(key) { enqueue_input(model, input, "bound-action"); return; }
             match key.code {
-                KeyCode::Char('[') => enqueue_input(model, InputCommand::SelectPreviousJob, "previous-job"),
-                KeyCode::Char(']') => enqueue_input(model, InputCommand::SelectNextJob, "next-job"),
                 KeyCode::Up if model.focus_panel == FocusPanel::Jobs => enqueue_input(model, InputCommand::SelectPreviousJob, "previous-job"),
                 KeyCode::Down if model.focus_panel == FocusPanel::Jobs => enqueue_input(model, InputCommand::SelectNextJob, "next-job"),
-                KeyCode::Char('g') => enqueue_input(model, InputCommand::FollowLatestJob, "follow-latest-job"),
-                KeyCode::Char('z') => { model.maximized = !model.maximized; model.dirty = true; }
-                KeyCode::Char('j') => enqueue_input(model, InputCommand::LogsUp, "j"),
-                KeyCode::Char('k') => enqueue_input(model, InputCommand::LogsDown, "k"),
-                KeyCode::Char('n') => enqueue_input(model, InputCommand::JobsUp, "n"),
-                KeyCode::Char('m') => enqueue_input(model, InputCommand::JobsDown, "m"),
-                KeyCode::Char('u') => enqueue_input(model, InputCommand::TasksUp, "u"),
-                KeyCode::Char('i') => enqueue_input(model, InputCommand::TasksDown, "i"),
-                KeyCode::Tab => enqueue_input(model, InputCommand::FocusNext, "focus-next"),
-                KeyCode::Char(':') | KeyCode::Char('a') => enqueue_input(model, InputCommand::TogglePalette, "toggle-palette"),
-                KeyCode::Char('/') => enqueue_input(model, InputCommand::SearchOpen, "search-open"),
                 _ => {}
             }
         },
@@ -3950,6 +3907,9 @@ fn dispatch_input_with_recordings_at(
     }
     let (_, cmd) = model.input_queue.pop_front().unwrap();
     model.last_input_at = now;
+    if let Some(reason) = interaction::input_disabled(model, &cmd) {
+        model.push_alert("info", reason); return Ok(false);
+    }
     match cmd {
         InputCommand::ContextHelp => interaction::context_help(model),
         InputCommand::Paste(text) => {
@@ -3957,7 +3917,17 @@ fn dispatch_input_with_recordings_at(
                 if let Some(recordings) = recordings.as_mut() { recordings.paste(&text); model.dirty = true; }
             } else { interaction::paste(model, &text); }
         },
-        InputCommand::Mouse(input) => interaction::apply_mouse(model, input),
+        InputCommand::Mouse(input) => {
+            if let Some(input) = interaction::apply_mouse(model, input) {
+                if let Some(recordings) = recordings.as_mut() {
+                    if recordings.revision == model.recording_revision {
+                        match input { interaction::RecordingMouse::Key(key) => { recordings.key(key); },
+                            interaction::RecordingMouse::Row(row) => recordings.click(row) }
+                        model.dirty = true;
+                    }
+                }
+            }
+        }
         InputCommand::TerminalKey(_) => unreachable!("raw key must be interpreted before command dispatch"),
         InputCommand::InspectJob => open_job_inspection(model),
         InputCommand::Recordings => open_recordings(model),
@@ -3986,6 +3956,7 @@ fn dispatch_input_with_recordings_at(
             model.focus_panel = model.focus_panel.next();
             model.dirty = true;
         }
+        InputCommand::ToggleMaximized => { model.maximized = !model.maximized; model.dirty = true; }
         InputCommand::FocusJobs => {
             model.focus_panel = FocusPanel::Jobs;
             model.dirty = true;
@@ -4003,12 +3974,7 @@ fn dispatch_input_with_recordings_at(
             toggle_follow(model);
         }
         InputCommand::ToggleHelp => {
-            model.overlay = if model.overlay == OverlayMode::Help {
-                OverlayMode::None
-            } else {
-                OverlayMode::Help
-            };
-            model.dirty = true;
+            interaction::context_help(model);
         }
         InputCommand::TogglePalette => {
             model.overlay = if model.overlay == OverlayMode::Palette {
@@ -4019,27 +3985,22 @@ fn dispatch_input_with_recordings_at(
             model.dirty = true;
         }
         InputCommand::PaletteUp => {
-            let actions = interaction::actions(model);
-            if model.palette_index == 0 {
-                model.palette_index = actions.len().saturating_sub(1);
-            } else {
-                model.palette_index = model.palette_index.saturating_sub(1);
-            }
-            model.dirty = true;
+            interaction::move_palette(model, -1);
         }
         InputCommand::PaletteDown => {
-            let actions = interaction::actions(model);
-            model.palette_index = (model.palette_index + 1) % actions.len().max(1);
-            model.dirty = true;
+            interaction::move_palette(model, 1);
         }
         InputCommand::PaletteSelect => {
             let actions = interaction::actions(model);
             if let Some(action) = actions.get(model.palette_index).copied() {
+                if let Some(reason) = interaction::disabled(model, action) {
+                    model.push_alert("info", format!("{}: {reason}", action.label())); return Ok(false);
+                }
                 if apply_palette_action(model, supervisor, next_job_idx, action)? {
                     return Ok(true);
                 }
             }
-            if model.overlay == OverlayMode::Palette {
+            if model.overlay == OverlayMode::Palette && actions.get(model.palette_index).is_some() {
                 model.overlay = OverlayMode::None;
             }
             model.dirty = true;
@@ -4218,7 +4179,7 @@ fn main() -> anyhow::Result<()> {
             if model.recording_revision != recordings.revision {
                 model.recording_revision = recordings.revision;
                 let size = terminal.size()?;
-                let area = centered_rect(96, 94, ratatui::layout::Rect::new(0, 0, size.width, size.height));
+                let area = interaction::overlay_rect(OverlayMode::Recordings, ratatui::layout::Rect::new(0, 0, size.width, size.height));
                 model.recording_overlay_text = recordings.lines(area.height.saturating_sub(2) as usize,
                     area.width.saturating_sub(2) as usize).join("\n");
                 model.dirty = true;

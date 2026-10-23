@@ -7,6 +7,7 @@ pub struct ReviewViewport {
     offset: Cell<usize>,
     maximum: Cell<usize>,
     follow_tail: Cell<bool>,
+    range: Cell<(usize, usize, usize)>,
 }
 
 pub fn rendered_rows(text: &str, width: usize) -> Vec<String> {
@@ -30,6 +31,9 @@ pub fn rendered_rows(text: &str, width: usize) -> Vec<String> {
 }
 
 impl ReviewViewport {
+    pub fn range_label(&self) -> String {
+        let (start, end, total) = self.range.get(); format!("rows {start}-{end}/{total}")
+    }
     pub fn reset(&self) { self.offset.set(0); self.follow_tail.set(false); }
     pub fn tail(&self) { self.follow_tail.set(true); }
     pub fn down(&self) { self.offset.set(self.offset.get().saturating_add(1).min(self.maximum.get())); self.follow_tail.set(false); }
@@ -42,6 +46,7 @@ impl ReviewViewport {
         self.maximum.set(maximum);
         let offset = if self.follow_tail.get() { maximum } else { self.offset.get().min(maximum) };
         self.offset.set(offset);
+        self.range.set((if rows.is_empty() { 0 } else { offset + 1 }, (offset + count).min(rows.len()), rows.len()));
         output.extend(rows.iter().skip(offset).take(count).map(|[start, end]| {
             if *start == u32::MAX { "…".into() } else { text[*start as usize..*end as usize].to_owned() }
         }));
@@ -56,15 +61,20 @@ impl ReviewViewport {
         self.maximum.set(maximum);
         let offset = if self.follow_tail.get() { maximum } else { self.offset.get().min(maximum) };
         self.offset.set(offset);
+        self.range.set((if rows.is_empty() { 0 } else { offset + 1 }, (offset + count).min(rows.len()), rows.len()));
         output.extend(rows.into_iter().skip(offset).take(count));
         output
     }
 }
 
+pub fn selected_window(headers: usize, rows: usize, selected: usize, height: usize) -> (usize, usize, usize) {
+    let headers = headers.min(height.saturating_sub(1));
+    let count = height.saturating_sub(headers);
+    (headers, selected.saturating_sub(count / 2).min(rows.saturating_sub(count)), count)
+}
 pub fn selected_rows(mut headers: Vec<String>, rows: Vec<String>, selected: usize, height: usize, width: usize) -> Vec<String> {
-    headers.truncate(height.saturating_sub(1));
-    let count = height.saturating_sub(headers.len());
-    let start = selected.saturating_sub(count / 2).min(rows.len().saturating_sub(count));
+    let (header_count, start, count) = selected_window(headers.len(), rows.len(), selected, height);
+    headers.truncate(header_count);
     headers.extend(rows.into_iter().skip(start).take(count));
     headers.into_iter().map(|line| crate::fit_text(&line, width)).collect()
 }

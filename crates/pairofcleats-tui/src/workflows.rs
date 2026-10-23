@@ -4,7 +4,10 @@ use std::collections::VecDeque;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde_json::{json, Map, Value};
-use crate::overlay_viewport::{ReviewViewport, selected_rows};
+use crate::overlay_viewport::{ReviewViewport, selected_rows, selected_window};
+
+#[derive(Clone)]
+enum ClickTarget { Command(String), Field(String), Service(String) }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
@@ -42,6 +45,8 @@ pub(crate) struct WorkflowUi {
     status: String,
     scroll: ReviewViewport,
     presentation: RefCell<ReviewPresentation>,
+    rendered_clicks: RefCell<Vec<(usize, ClickTarget)>>,
+    rendered_revision: std::cell::Cell<Option<u64>>,
     next_id: u64,
     early_completion: Option<Value>,
     experimental: bool,
@@ -78,6 +83,8 @@ impl Default for WorkflowUi {
             status: String::new(),
             scroll: ReviewViewport::default(),
             presentation: RefCell::new(ReviewPresentation::default()),
+            rendered_clicks: RefCell::new(vec![]),
+            rendered_revision: std::cell::Cell::new(None),
             next_id: 1,
             early_completion: None,
             experimental: false,
@@ -351,6 +358,26 @@ impl WorkflowUi {
         if let Some(field) = field { self.cursor.paste(field, text, 4096); self.revision += 1; }
     }
 
+    pub fn click(&mut self, row: usize) {
+        if !self.available || self.pending.is_some() || self.rendered_revision.get() != Some(self.revision) { return; }
+        let target = self.rendered_clicks.borrow().iter().find(|(line, _)| *line == row).map(|(_, target)| target.clone());
+        match target {
+            Some(ClickTarget::Command(id)) if self.page == Page::Commands => {
+                if let Some(index) = self.commands().iter().position(|command| command["id"].as_str() == Some(id.as_str())) { self.selected = index; }
+            }
+            Some(ClickTarget::Field(name)) if self.page == Page::Fields => {
+                if let Some(index) = self.fields().iter().position(|field| field["name"].as_str() == Some(name.as_str())) { self.selected = index; }
+            }
+            Some(ClickTarget::Service(id)) if self.page == Page::Services => {
+                if self.services.iter().any(|service| service["serviceId"].as_str() == Some(id.as_str())) {
+                    self.service_selection = Some(id); self.service_armed = None;
+                }
+            }
+            _ => return,
+        }
+        self.revision += 1;
+    }
+
     fn completed(&mut self, event: &Value) {
         self.presentation.get_mut().clear(); self.result = Some(
             json!({"jobId":event["jobId"], "processStatus":event["status"],
@@ -546,6 +573,7 @@ impl WorkflowUi {
     }
 
     pub fn lines(&self, height: usize, width: usize) -> Vec<String> {
+        let mut clicks = self.rendered_clicks.borrow_mut(); clicks.clear(); self.rendered_revision.set(Some(self.revision));
         let mut lines = vec![
             format!(
                 "Scope: {}",
@@ -568,16 +596,21 @@ impl WorkflowUi {
             }
             Page::Commands => {
                 lines.push(format!("Arrows select | Enter form/reason | X experimental {} | t status | v owned services | s scope | Esc closes", self.experimental));
+                let (headers, start, count) = selected_window(lines.len(), self.commands().len(), self.selected, height);
+                for (offset, command) in self.commands().iter().skip(start).take(count).enumerate() {
+                    if let Some(id) = command["id"].as_str() { clicks.push((headers + offset, ClickTarget::Command(id.to_owned()))); }
+                }
                 let rows = self.commands().iter().enumerate().map(|(i, command)| format!("{} {} [{}] {}", if i == self.selected {">"} else {" "}, command["id"].as_str().unwrap_or_default(), command["supportTier"].as_str().unwrap_or_default(), command["description"].as_str().unwrap_or_default())).collect();
                 return selected_rows(lines, rows, self.selected, height, width);
             }
             Page::Fields => {
                 lines.push(format!("Typed form: {} | Enter literal | Space choice | e JSON | a item | Delete unset | p preview | Esc catalog", self.command.as_ref().and_then(|command| command["id"].as_str()).unwrap_or_default()));
                 let count = height.saturating_sub(lines.len() + 3).max(1); let start = self.selected.saturating_sub(count / 2).min(self.fields().len().saturating_sub(count));
-                lines.extend(self.fields().iter().enumerate().skip(start).take(count).map(|(i, field)| {
+                for (i, field) in self.fields().iter().enumerate().skip(start).take(count) {
                     let name = field["name"].as_str().unwrap_or_default();
-                    format!("{} {} ({}) = {}", if i == self.selected {">"} else {" "}, name, field["schema"]["type"].as_str().unwrap_or_default(), self.values.get(name).map(Value::to_string).unwrap_or_else(|| format!("unset; default {}", field["default"])))
-                }));
+                    if lines.len() < height { clicks.push((lines.len(), ClickTarget::Field(name.to_owned()))); }
+                    lines.push(format!("{} {} ({}) = {}", if i == self.selected {">"} else {" "}, name, field["schema"]["type"].as_str().unwrap_or_default(), self.values.get(name).map(Value::to_string).unwrap_or_else(|| format!("unset; default {}", field["default"]))));
+                }
                 if let Some(field) = self.fields().get(self.selected) { lines.push(format!("{} | required: {}", field["description"].as_str().unwrap_or_default(), field["required"])); }
                 if let Some(field) = self.fields().get(self.selected) { lines.push(crate::text_editor::schema_hint(&field["schema"])); }
                 lines.push("Provider/mode and model assets use Settings and canonical build contracts; no separate embeddings command.".into());
@@ -617,6 +650,10 @@ impl WorkflowUi {
                 if self.services.is_empty() { lines.push("No active service control is retained for this selected scope".into()); }
                 if self.service_selection.is_none() && !self.services.is_empty() { lines.push("Previous service disappeared; arrows choose a new exact service".into()); }
                 let selected = self.services.iter().position(|service| service["serviceId"].as_str() == self.service_selection.as_deref()).unwrap_or(0);
+                let (headers, start, count) = selected_window(lines.len(), self.services.len(), selected, height);
+                for (offset, service) in self.services.iter().skip(start).take(count).enumerate() {
+                    if let Some(id) = service["serviceId"].as_str() { clicks.push((headers + offset, ClickTarget::Service(id.to_owned()))); }
+                }
                 let rows = self.services.iter().map(|service| format!("{} {} | {} | {} | stop {}",
                     if service["serviceId"].as_str() == self.service_selection.as_deref() { ">" } else { " " },
                     service["service"].as_str().unwrap_or("service"), service["jobId"].as_str().unwrap_or("unknown"),
@@ -699,6 +736,27 @@ mod presentation_tests {
         ui.request("status", json!({}));
         end(&mut ui, json!({"graphRetirements":[{"closurePending":true}],"publications":[]}));
         assert!(ui.status.contains("no publication artifacts were read"));
+    }
+
+    #[test]
+    fn rendered_command_and_service_clicks_never_launch_or_retarget_stop_authority() {
+        let mut ui = WorkflowUi { available: true, scope: Some(json!({"id":"scope"})),
+            page: Page::Commands, commands: vec![json!({"id":"first","supportTier":"stable"}),
+                json!({"id":"second","supportTier":"stable"})], ..WorkflowUi::default() };
+        let lines = ui.lines(20, 80);
+        let row = lines.iter().position(|line| line.contains("second [stable]")).unwrap();
+        ui.click(row); assert_eq!(ui.selected, 1); assert!(ui.outbox.is_empty());
+        ui.commands.reverse(); ui.revision += 1; ui.click(row);
+        assert_eq!(ui.selected, 1, "a stale click cannot reinterpret a replaced command row");
+        ui.page = Page::Services;
+        ui.services = vec![json!({"serviceId":"exact-service","jobId":"owned-job","service":"api","canStop":true})];
+        ui.service_armed = Some("previous-service".into());
+        let lines = ui.lines(20, 80);
+        let row = lines.iter().position(|line| line.contains("owned-job")).unwrap();
+        ui.click(row);
+        assert_eq!(ui.service_selection.as_deref(), Some("exact-service"));
+        assert!(ui.service_armed.is_none() && ui.outbox.is_empty());
+        assert!(ui.page == Page::Services, "click does not arm or confirm service stop");
     }
     #[test]
     fn service_stop_reviews_exact_identity_and_preserves_pending_resource_outcome() {
