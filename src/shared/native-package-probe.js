@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { formatSpawnFailureReason } from '../../tools/setup/rebuild-native-exit.js';
 
 const PERL_LIFECYCLE_SOURCE = "my $x = <<'END';\n$END\n\\END\nEND trailing\nsub fake { die 'literal'; }\nEND\nsub actual { return $x; }\n";
+const SWIFT_OPERATOR_SOURCE = 'func value() throws -> Int { return 1 }\nlet forced = try! value()\nlet ordinary = !false\n';
 
 /** Probe the binding, which better-sqlite3 loads only when a database opens. */
 export const probeSqliteNative = (root, nativeBinding = null) => {
@@ -153,6 +154,19 @@ export const probeNativeGrammarRoutes = (root, routes) => {
                 || ends[0].startIndex !== literal.lastIndexOf('\\nEND\\n') + 1
                 || functions.length !== 1 || !functions[0].text.startsWith('sub actual')) {
                 throw Error('perl: literal heredoc lifecycle failed');
+              }
+            } finally { checked.delete?.(); }
+          }
+        }
+        if (languageId === 'swift') {
+          const operators = ${JSON.stringify(SWIFT_OPERATOR_SOURCE)};
+          for (let i = 0; i < 2; i++) {
+            parser.reset();
+            const checked = parser.parse(operators);
+            try {
+              const forceTry = checked.rootNode.descendantsOfType('try_operator');
+              if (checked.rootNode.hasError || forceTry.length !== 1 || forceTry[0].text !== 'try!') {
+                throw Error('swift: force-try and ordinary bang lifecycle failed');
               }
             } finally { checked.delete?.(); }
           }
