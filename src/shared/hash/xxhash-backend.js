@@ -6,6 +6,11 @@ const XXHASH_HEX_WIDTH = 16;
 let wasmStatePromise = null;
 let wasmBackendPromise = null;
 
+const incrementalHasher = create64 => {
+  const hasher = create64(), update = hasher.update, digest = hasher.digest;
+  return { update: bytes => update.call(hasher, bytes), digest: () => formatXxhashHex(digest.call(hasher)) };
+};
+
 const loadWasmState = async () => {
   if (!wasmStatePromise) {
     wasmStatePromise = xxhashWasm();
@@ -44,6 +49,7 @@ const createWasmBackend = async () => {
     const { h64ToString, create64 } = await loadWasmState();
     return {
       name: 'wasm',
+      createHasher: () => incrementalHasher(create64),
       hash64: async (input) => formatXxhashHex(h64ToString(input)),
       hash64Stream: async (stream) => new Promise((resolve, reject) => {
         const hasher = create64();
@@ -74,6 +80,7 @@ const createNativeBackend = async (options = {}) => {
   if (typeof create64 === 'function') {
     return {
       ...base,
+      createHasher: () => incrementalHasher(create64),
       hash64Stream: async (stream) => new Promise((resolve, reject) => {
         const hasher = create64();
         stream.on('error', reject);
@@ -85,6 +92,7 @@ const createNativeBackend = async (options = {}) => {
   const wasmBackend = await createWasmBackend();
   return {
     ...base,
+    createHasher: wasmBackend.createHasher,
     hash64Stream: wasmBackend.hash64Stream
   };
 };
