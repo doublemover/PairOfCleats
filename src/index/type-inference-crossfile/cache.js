@@ -286,8 +286,10 @@ export const buildCrossFileFingerprint = ({
       // and candidate identity. Source bytes and a stable chunkUid cannot stand
       // in for that producer handoff when replay restores derived links.
       symbolHash: sha1(stableStringify(chunk.metaV2?.symbol || null)),
-      start: Number.isFinite(chunk.start) ? chunk.start : 0,
-      end: Number.isFinite(chunk.end) ? chunk.end : 0,
+      // Invalid offsets must not alias a valid zero offset before the pinned
+      // source reader gets a chance to reject the range on a cache miss.
+      start: Number.isSafeInteger(chunk.start) ? chunk.start : null,
+      end: Number.isSafeInteger(chunk.end) ? chunk.end : null,
       relationHash: sha1(stableStringify(relationPayload)),
       docmetaHash: sha1(stableStringify(chunk.docmeta || null))
     });

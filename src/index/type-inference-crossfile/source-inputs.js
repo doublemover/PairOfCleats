@@ -8,6 +8,12 @@ const keyFor = file => String(file).replace(/\\/g, '/');
 const invalidIdentity = file => Object.assign(new Error(`Cross-file source identities disagree for ${file}.`), {
   code: 'ERR_CROSS_FILE_SOURCE_IDENTITY'
 });
+const invalidRange = file => Object.assign(new Error(`Pinned cross-file chunk has an invalid UTF-16 source range: ${file}.`), {
+  code: 'ERR_CROSS_FILE_SOURCE_RANGE'
+});
+const splitsSurrogate = (text, offset) => offset > 0 && offset < text.length
+  && text.charCodeAt(offset - 1) >= 0xd800 && text.charCodeAt(offset - 1) <= 0xdbff
+  && text.charCodeAt(offset) >= 0xdc00 && text.charCodeAt(offset) <= 0xdfff;
 
 /** These are producer byte identities, never path/mtime substitutes. */
 const parseIdentity = owner => {
@@ -102,5 +108,19 @@ export const createCrossFileSourceReader = ({ rootDir, chunks, signal = null,
     readFiles, unavailableFiles: unavailable.size,
     reasons: { ...(!inputs.qualified ? { source_identity_unavailable: 1 } : {}), ...reasons }
   });
-  return { getText, fileTextByFile, coverage };
+  const getChunkText = async chunk => {
+    if (!chunk?.file) return '';
+    const file = keyFor(chunk.file), start = chunk.start, end = chunk.end;
+    const pinned = Boolean(inputs.files.get(file)?.identity);
+    if (pinned && (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)
+      || start < 0 || end < start)) throw invalidRange(file);
+    const text = await getText(file);
+    throwIfAborted(signal);
+    if (pinned && (end > text.length
+      || splitsSurrogate(text, start) || splitsSurrogate(text, end))) throw invalidRange(file);
+    // Legacy unpinned reads keep their historical slice behavior, but their
+    // existing unqualified coverage cannot authorize output replay.
+    return text.slice(start, end);
+  };
+  return { getText, getChunkText, fileTextByFile, coverage };
 };

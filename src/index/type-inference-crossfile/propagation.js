@@ -343,11 +343,7 @@ export async function runCrossFilePropagation({
     symbolicTypeGraphs = mergeSymbolicTypeGraphs(symbolicTypeGraphs, toolingResult.symbolicTypeGraphs || []);
   }
 
-  const getChunkText = async (chunk) => {
-    if (!chunk?.file) return '';
-    const text = await getFileText(chunk.file);
-    return text.slice(chunk.start, chunk.end);
-  };
+  const getChunkText = sourceReader.getChunkText;
 
   const collectKnownCallees = (chunk) => {
     const known = new Set();
