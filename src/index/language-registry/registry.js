@@ -180,6 +180,14 @@ export async function buildLanguageContext({ ext, relPath, mode, text, options }
   return { lang, context };
 }
 
+const syntaxOccurrenceKey = detail => {
+  if (detail?.source !== 'tree-sitter' || detail.coordinateSystem !== 'utf16'
+    || !Number.isSafeInteger(detail.start) || !Number.isSafeInteger(detail.end)
+    || !Number.isSafeInteger(detail.callerStart) || !Number.isSafeInteger(detail.callerEnd)
+    || detail.end <= detail.start || detail.callerEnd <= detail.callerStart) return null;
+  return JSON.stringify([detail.start, detail.end, detail.callerStart, detail.callerEnd, detail.calleeRaw]);
+};
+
 export function buildChunkRelations({ lang, chunk, fileRelations, callIndex = null, chunkIndex = null }) {
   if (!fileRelations) return {};
   const output = {};
@@ -190,13 +198,15 @@ export function buildChunkRelations({ lang, chunk, fileRelations, callIndex = nu
   if (chunk?.name) {
     const pythonScopedCalls = lang?.id === 'python' && typeof chunk.meta?.pythonScopeId === 'string'
       && fileRelations.callOwnership === 'python-lexical-scope-v1';
+    const nativeScopedCalls = Array.isArray(chunk.meta?.syntaxCalls)
+      && fileRelations.callOwnership === 'native-syntax-occurrences-v1';
     const callsForChunk = callIndex?.callsByCaller
       ? (callIndex.callsByCaller.get(chunk.name) || [])
       : (Array.isArray(fileRelations.calls)
         ? fileRelations.calls.filter(([caller]) => caller && caller === chunk.name)
         : []);
     let detailsForChunk = [];
-    if (pythonScopedCalls) {
+    if (pythonScopedCalls || nativeScopedCalls) {
       // Header calls can lie in a nested declaration's source range while
       // belonging to its enclosing scope. A geometric index cannot override it.
       detailsForChunk = callIndex?.callDetailsByCaller
@@ -209,7 +219,32 @@ export function buildChunkRelations({ lang, chunk, fileRelations, callIndex = nu
     } else if (Array.isArray(fileRelations.callDetails)) {
       detailsForChunk = fileRelations.callDetails.filter((detail) => detail?.caller === chunk.name);
     }
-    if (pythonScopedCalls) {
+    if (nativeScopedCalls) {
+      // Equal display names can denote separate overloads, prototypes or
+      // redefinitions. Join only the native owner's original occurrences;
+      // inference annotations belong to the already-budgeted mutable view.
+      const expected = new Set();
+      let crossing = false;
+      for (const fact of chunk.meta.syntaxCalls) {
+        const key = syntaxOccurrenceKey(fact);
+        if (!key) continue;
+        if (fact.start >= chunk.start && fact.end <= chunk.end) expected.add(key);
+        else if (fact.start < chunk.end && fact.end > chunk.start) crossing = true;
+      }
+      detailsForChunk = detailsForChunk.filter(detail => expected.has(syntaxOccurrenceKey(detail)));
+      const retained = new Set(detailsForChunk.map(syntaxOccurrenceKey));
+      const callees = new Set(detailsForChunk.map(detail => detail.callee).filter(Boolean));
+      const seen = new Set();
+      output.calls = callsForChunk.filter(([, callee]) => {
+        if (!callees.has(callee) || seen.has(callee)) return false;
+        seen.add(callee); return true;
+      });
+      const reasons = [
+        ...(crossing ? ['split-call-occurrence'] : []),
+        ...(retained.size < expected.size ? ['unavailable-call-occurrence-details'] : [])
+      ];
+      if (reasons.length) output.callCoverage = `partial-native-call-occurrences;${coverage || 'unspecified'};${reasons.join(';')}`;
+    } else if (pythonScopedCalls) {
       // A display name can recur in separate lexical declarations. Preserve
       // the collector's source-qualified owner through the public projection.
       // Intersect both already-budgeted channels; never reconstruct discarded

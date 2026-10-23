@@ -28,6 +28,7 @@ import {
 } from '../index/constants.js';
 import { summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
+import { syntaxRelationsForChunks } from './tree-sitter/call-facts.js';
 import path from 'node:path';
 
 /**
@@ -500,6 +501,16 @@ export function buildCLikeRelations(text, relPath, options = {}) {
   // as declaration data. Registry callers provide their already prepared rows.
   const clikeChunks = Array.isArray(relPath) ? relPath
     : typeof relPath === 'string' ? buildCLikeChunks(text, ext, options) : null;
+  const nativeChunks = (Array.isArray(clikeChunks) ? clikeChunks : []).filter(chunk => Array.isArray(chunk.meta?.syntaxCalls));
+  const native = syntaxRelationsForChunks(nativeChunks);
+  let heuristicCalls = false;
+  const addCall = (caller, callee) => {
+    const pairKey = `${caller}\u0000${callee}`;
+    if (callPairs.has(pairKey)) return;
+    callPairs.add(pairKey); calls.push([caller, callee]);
+  };
+  for (const [caller, callee] of native.calls) addCall(caller, callee);
+  for (const usage of native.usages) usages.add(usage);
   if (Array.isArray(clikeChunks)) {
     for (const chunk of clikeChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
@@ -511,11 +522,9 @@ export function buildCLikeRelations(text, relPath, options = {}) {
       const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
       const slice = text.slice(scanStart, scanEnd);
       const { calls: chunkCalls, usages: chunkUsages } = collectCLikeCallsAndUsages(slice, keywordSets);
-      for (const callee of chunkCalls) {
-        const pairKey = `${chunk.name}\u0000${callee}`;
-        if (callPairs.has(pairKey)) continue;
-        callPairs.add(pairKey);
-        calls.push([chunk.name, callee]);
+      if (!Array.isArray(chunk.meta?.syntaxCalls)) {
+        heuristicCalls = true;
+        for (const callee of chunkCalls) addCall(chunk.name, callee);
       }
       for (const usage of chunkUsages) usages.add(usage);
     }
@@ -524,6 +533,8 @@ export function buildCLikeRelations(text, relPath, options = {}) {
     imports,
     exports: Array.from(exports),
     calls,
+    ...(nativeChunks.length ? { callDetails: native.callDetails, callOwnership: native.callOwnership } : {}),
+    ...(heuristicCalls ? { callCoverage: 'partial-heuristic-callable-bodies' } : {}),
     usages: Array.from(usages)
   };
 }

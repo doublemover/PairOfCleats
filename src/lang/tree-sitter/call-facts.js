@@ -1,7 +1,7 @@
 import { getNamedChild, getNamedChildCount } from './ast.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 
-export const SYNTAX_CALL_FACTS_VERSION = 2;
+export const SYNTAX_CALL_FACTS_VERSION = 3;
 const callTypes = new Set(['call_expression', 'function_call', 'call', 'method_invocation', 'function_call_expression', 'juxt_function_call',
   'member_call_expression', 'nullsafe_member_call_expression', 'scoped_call_expression', 'object_creation_expression', 'command']);
 const scopeBarriers = new Set(['function_definition', 'function_declaration', 'method', 'singleton_method', 'function_item',
@@ -64,6 +64,13 @@ export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, d
     if (languageId === 'julia' && node.type === 'signature') {
       blockedOwner = owner || blockedOwner; owner = null; exclusion = 'declarationHeaderCalls';
     }
+    // C++ defaults are substituted at a call site; signature queries and
+    // constraints are not ordinary body executions. Keep the missing execution
+    // owner explicit instead of attaching them to a prototype or definition.
+    if (['clike', 'cpp'].includes(languageId) && ['parameter_list', 'requires_clause', 'requires_expression',
+      'noexcept', 'noexcept_specifier', 'decltype'].includes(node.type)) {
+      blockedOwner = owner || blockedOwner; owner = null; exclusion = 'declarationHeaderCalls';
+    }
     if (!owner && blockedOwner && callTypes.has(node.type)) omissions.get(blockedOwner)[exclusion]++;
     if (owner && callTypes.has(node.type)) {
       const calleeNode = field(node, 'function') || field(node, 'name') || field(node, 'method') || field(node, 'constructor') || field(node, 'type')
@@ -104,5 +111,6 @@ export const syntaxRelationsForChunks = chunks => {
     const key = JSON.stringify([chunk.name,detail.callee]);
     if (!seen.has(key)) { seen.add(key); calls.push([chunk.name,detail.callee]); }
   }
-  return { calls, callDetails, usages: [...new Set(callDetails.map(detail => detail.callee).filter(Boolean))] };
+  return { calls, callDetails, callOwnership: 'native-syntax-occurrences-v1',
+    usages: [...new Set(callDetails.map(detail => detail.callee).filter(Boolean))] };
 };

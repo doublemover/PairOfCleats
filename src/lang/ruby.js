@@ -7,6 +7,7 @@ import {
 } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
+import { syntaxRelationsForChunks } from './tree-sitter/call-facts.js';
 
 /**
  * Ruby language chunking and relations.
@@ -289,6 +290,9 @@ export function buildRubyRelations(text, rubyChunks) {
   const exports = new Set();
   const calls = [];
   const usages = new Set();
+  const nativeChunks = (Array.isArray(rubyChunks) ? rubyChunks : []).filter(chunk => Array.isArray(chunk.meta?.syntaxCalls));
+  const native = syntaxRelationsForChunks(nativeChunks);
+  let heuristicCalls = false;
   if (Array.isArray(rubyChunks)) {
     for (const chunk of rubyChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
@@ -303,6 +307,7 @@ export function buildRubyRelations(text, rubyChunks) {
       // Fallback: discard the declaration header, including its optional
       // parenthesized name. Real recursive calls in the body remain intact.
       const start = text.indexOf('\n',chunk.start);
+      heuristicCalls = true;
       const slice = start >= 0 && start < chunk.end ? text.slice(start+1,chunk.end) : '';
       const { calls: chunkCalls, usages: chunkUsages } = collectRubyCallsAndUsages(slice);
       for (const callee of chunkCalls) calls.push([chunk.name, callee]);
@@ -313,6 +318,8 @@ export function buildRubyRelations(text, rubyChunks) {
     imports,
     exports: Array.from(exports),
     calls,
+    ...(nativeChunks.length ? { callDetails: native.callDetails, callOwnership: native.callOwnership } : {}),
+    ...(heuristicCalls ? { callCoverage: 'partial-heuristic-callable-bodies' } : {}),
     usages: Array.from(usages)
   };
 }
