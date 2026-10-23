@@ -143,3 +143,44 @@ export const stripTopLevelAssignment = (value, options = {}) => {
   const idx = findTopLevelIndex(source, '=', options);
   return idx === -1 ? source : source.slice(0, idx);
 };
+
+/** Split a bounded presentation parameter/type list. Default expressions stop
+ * treating angle operators as generic delimiters, while paired punctuation and
+ * quotes continue to protect separators. Unsupported unparenthesized generic
+ * calls in defaults are conservatively rejected by the caller's declaration
+ * parser rather than interpreted as extra typed parameters. */
+export const splitSignatureParameters = value => {
+  if (typeof value !== 'string' || value.length > 65536) return null;
+  const parts = [];
+  let start = 0, angle = 0, paren = 0, bracket = 0, brace = 0, quote = null, escaped = false, assigned = false;
+  for (let i = 0; i < value.length; i += 1) {
+    const ch = value[i];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (['"', "'", '`'].includes(ch)) { quote = ch; continue; }
+    if (ch === '(') paren += 1;
+    else if (ch === ')') paren -= 1;
+    else if (ch === '[') bracket += 1;
+    else if (ch === ']') bracket -= 1;
+    else if (ch === '{') brace += 1;
+    else if (ch === '}') brace -= 1;
+    else if (!assigned && ch === '<') angle += 1;
+    else if (!assigned && ch === '>' && angle > 0 && value[i - 1] !== '-') angle -= 1;
+    if (Math.min(paren, bracket, brace, angle) < 0) return null;
+    if (paren || bracket || brace || angle) continue;
+    if (ch === '=') assigned = true;
+    if (ch === ',') {
+      parts.push(value.slice(start, i).trim());
+      start = i + 1;
+      assigned = false;
+    }
+  }
+  if (quote || paren || bracket || brace || angle) return null;
+  const tail = value.slice(start).trim();
+  if (tail) parts.push(tail);
+  return parts;
+};

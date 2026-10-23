@@ -1,7 +1,7 @@
 import { awaitToolingProviderPreflight } from '../preflight-manager.js';
 import { resolveRequestedAbortSignal } from '../preflight/manager-state.js';
 import { throwIfAborted } from '../../../shared/abort.js';
-import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { resolveProviderWorkspaceExecutionAuthority } from '../workspace-execution.js';
 import { admitScriptLspInputs } from '../script-lsp-profiles.js';
 import { admitKotlinLspInputs, kotlinLspMigrationDiagnostic } from '../kotlin-lsp-profile.js';
 import {
@@ -47,7 +47,7 @@ const buildCommandUnavailableCheck = (providerId, requestedCmd) => ({
 
 export const createConfiguredLspProvider = (server) => {
   const providerId = normalizeServerId(server.providerId, `lsp-${server.id}`);
-  const executionAuthorityFor = (ctx) => resolveWorkspaceExecutionAuthority({
+  const executionAuthorityFor = (ctx) => resolveProviderWorkspaceExecutionAuthority({
     repoRoot: ctx?.repoRoot || process.cwd(), providerId, server
   });
   const admitInputs = inputs => admitKotlinLspInputs({ profileId: server.workspaceExecutionProfile || server.id,

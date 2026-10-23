@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { throwIfAborted } from '../../shared/abort.js';
-import { isWorkspaceBuildExecution, resolveWorkspaceExecutionAuthority } from '../../shared/workspace-execution-authority.js';
+import { isProviderWorkspaceExecution, resolveProviderWorkspaceExecutionAuthority } from './workspace-execution.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import {
   appendDiagnosticChecks,
@@ -73,9 +73,11 @@ const resolveProviderConfig = (ctx, configKey) => (
 
 const resolveProviderConfigHash = (ctx, descriptor) => (
   hashProviderConfig({ [descriptor.configKey]: resolveProviderConfig(ctx, descriptor.configKey),
-    ...(isWorkspaceBuildExecution({ providerId: descriptor.id, languages: descriptor.languages })
-      ? { workspaceExecutionAuthorized: !resolveWorkspaceExecutionAuthority({
-        repoRoot: ctx?.repoRoot || process.cwd(), providerId: descriptor.id, languages: descriptor.languages
+    ...(isProviderWorkspaceExecution({ providerId: descriptor.id, languages: descriptor.languages,
+      requiresWorkspaceExecution: descriptor.requiresWorkspaceExecution })
+      ? { workspaceExecutionAuthorized: !resolveProviderWorkspaceExecutionAuthority({
+        repoRoot: ctx?.repoRoot || process.cwd(), providerId: descriptor.id, languages: descriptor.languages,
+        requiresWorkspaceExecution: descriptor.requiresWorkspaceExecution
       }) }
       : {}) })
 );
@@ -187,6 +189,7 @@ const shouldBlockProviderFromPreflight = (preflight) => {
  *   parseSignature: (detail: unknown, languageId: string, symbolName: string) => unknown,
  *   version?: string,
  *   requires?: { cmd?: string, args?: string[] },
+ *   requiresWorkspaceExecution?: boolean,
  *   capabilities?: object,
  *   kinds?: string[],
  *   duplicateLabel?: string,
@@ -226,8 +229,9 @@ const shouldBlockProviderFromPreflight = (preflight) => {
  * @returns {import('./provider-registry.js').ToolingProvider}
  */
 export const createDedicatedLspProvider = (descriptor) => {
-  const executionAuthorityFor = (ctx, workspaceRoot) => resolveWorkspaceExecutionAuthority({
-    repoRoot: ctx?.repoRoot || process.cwd(), workspaceRoot, providerId: descriptor.id, languages: descriptor.languages
+  const executionAuthorityFor = (ctx, workspaceRoot) => resolveProviderWorkspaceExecutionAuthority({
+    repoRoot: ctx?.repoRoot || process.cwd(), workspaceRoot, providerId: descriptor.id, languages: descriptor.languages,
+    requiresWorkspaceExecution: descriptor.requiresWorkspaceExecution
   });
   const runtimeRequirementDescriptors = normalizePreflightRuntimeRequirements(
     descriptor.preflightRuntimeRequirements

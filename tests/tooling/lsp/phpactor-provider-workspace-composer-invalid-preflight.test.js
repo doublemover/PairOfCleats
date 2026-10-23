@@ -1,9 +1,11 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import {
   buildSingleSymbolInputs,
-  createLspProviderTempRepo
+  createLspProviderTempRepo,
+  resolveLspStubServerPath,
+  runDedicatedProviderFixture
 } from '../../helpers/lsp-provider-fixture.js';
-import { runDedicatedProviderDegradedPreflightCase } from './helpers/degraded-preflight-case.js';
 
 const root = process.cwd();
 const tempRoot = await createLspProviderTempRepo({
@@ -22,21 +24,18 @@ const inputs = buildSingleSymbolInputs({
   symbolName: 'greet'
 });
 
-await runDedicatedProviderDegradedPreflightCase({
-  root,
-  repo: tempRoot,
+const result = await runDedicatedProviderFixture({
+  tempRoot,
+  authorizeFixtureExecution: true,
   providerId: 'phpactor',
   providerConfigKey: 'phpactor',
-  fixtureCommand: 'phpactor',
-  inputs,
-  expectedEnrichment: true,
-  expectedReasonCode: 'phpactor_workspace_composer_invalid',
-  expectedCheckName: 'phpactor_workspace_composer_invalid',
-  messages: {
-    enrichment: 'expected phpactor provider to fail-open on invalid composer.json',
-    reasonCode: 'expected phpactor preflight invalid composer reason code',
-    check: 'expected invalid composer preflight warning check'
-  }
+  providerConfig: { cmd: process.execPath,
+    args: [resolveLspStubServerPath(), '--mode', 'php', 'language-server'] },
+  inputs
 });
+assert.equal(result.byChunkUid.has(inputs.chunkUid), true);
+assert.equal(result.diagnostics.phpactor.preflight.state, 'degraded');
+assert.equal(result.diagnostics.phpactor.preflight.reasonCode, 'phpactor_workspace_composer_invalid');
+assert.ok(result.diagnostics.phpactor.checks.some(check => check.name === 'phpactor_workspace_composer_invalid'));
 
 console.log('phpactor provider workspace composer invalid preflight test passed');

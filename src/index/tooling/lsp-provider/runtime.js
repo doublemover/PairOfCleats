@@ -1,6 +1,6 @@
 import { collectLspTypes } from '../../../integrations/tooling/providers/lsp.js';
 import { throwIfAborted } from '../../../shared/abort.js';
-import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { resolveProviderWorkspaceExecutionAuthority } from '../workspace-execution.js';
 import { invalidateProbeCacheOnInitializeFailure } from '../command-resolver.js';
 import { resolveLspRuntimeConfig } from '../lsp-runtime-config.js';
 import {
@@ -15,6 +15,7 @@ import { mergeLspWorkspacePartitionResults } from '../lsp-workspace-routing.js';
 import { parseClikeSignature } from '../signature-parse/clike.js';
 import { parseJavaSignature } from '../signature-parse/java.js';
 import { parseKotlinSignature } from '../signature-parse/kotlin.js';
+import { parsePhpSignature } from '../signature-parse/php.js';
 import { parseElixirSignature } from '../signature-parse/elixir.js';
 import { parseGoSignature } from '../signature-parse/go.js';
 import { parseHaskellSignature } from '../signature-parse/haskell.js';
@@ -40,11 +41,11 @@ export const parseGenericSignature = (detail, languageId, symbolName) => {
   if (lang === 'zig') return parseZigSignature(detail);
   if (lang === 'java') return parseJavaSignature(detail, symbolName);
   if (lang === 'kotlin') return parseKotlinSignature(detail);
+  if (lang === 'php') return parsePhpSignature(detail);
   if ([
     'c', 'cpp', 'objective-c', 'objective-cpp',
     'csharp',
-    'javascript', 'jsx', 'typescript', 'tsx',
-    'php'
+    'javascript', 'jsx', 'typescript', 'tsx'
   ].includes(lang)) {
     return parseClikeSignature(detail, symbolName);
   }
@@ -392,7 +393,7 @@ export const collectConfiguredOutput = async ({
   blockedWorkspaceRoots = []
 }) => {
   throwIfAborted(abortSignal);
-  const executionAuthority = resolveWorkspaceExecutionAuthority({ repoRoot: ctx?.repoRoot || process.cwd(), providerId, server });
+  const executionAuthority = resolveProviderWorkspaceExecutionAuthority({ repoRoot: ctx?.repoRoot || process.cwd(), providerId, server });
   if (executionAuthority) {
     return { byChunkUid: {}, checks: [executionAuthority.check] };
   }
@@ -453,7 +454,7 @@ export const collectConfiguredOutput = async ({
   );
   for (const partition of workspaceRouting.partitions) {
     throwIfAborted(abortSignal);
-    const currentAuthority = resolveWorkspaceExecutionAuthority({ repoRoot: ctx.repoRoot, workspaceRoot: partition.rootDir, providerId, server });
+    const currentAuthority = resolveProviderWorkspaceExecutionAuthority({ repoRoot: ctx.repoRoot, workspaceRoot: partition.rootDir, providerId, server });
     if (currentAuthority) {
       skippedBlockedPartitions.push(partition);
       preChecks.push(currentAuthority.check);

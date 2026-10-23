@@ -1,46 +1,8 @@
-import { findMatchingParen, findTopLevelIndex, findTopLevelWord } from './shared.js';
+import { findMatchingParen, findTopLevelIndex, findTopLevelWord, splitSignatureParameters as parameterParts } from './shared.js';
 import { setOwn } from '../../../shared/object-record.js';
 import { normalizeTypeWhitespace } from '../../../shared/type-normalization.js';
 
 const IDENTIFIER = /^(?:[\p{ID_Start}_][\p{ID_Continue}]*|`[^`\r\n]+`)$/u;
-
-// After a parameter's default assignment, < and > are expression operators as
-// well as possible type arguments. Parentheses/quotes still protect commas;
-// unsupported unparenthesized generic-call defaults are left unresolved.
-const parameterParts = value => {
-  const parts = [];
-  let start = 0, angle = 0, paren = 0, bracket = 0, brace = 0, quote = null, escaped = false, assigned = false;
-  for (let i = 0; i < value.length; i += 1) {
-    const ch = value[i];
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (ch === '\\') escaped = true;
-      else if (ch === quote) quote = null;
-      continue;
-    }
-    if (['"', "'", '`'].includes(ch)) { quote = ch; continue; }
-    if (ch === '(') paren += 1;
-    else if (ch === ')') paren -= 1;
-    else if (ch === '[') bracket += 1;
-    else if (ch === ']') bracket -= 1;
-    else if (ch === '{') brace += 1;
-    else if (ch === '}') brace -= 1;
-    else if (!assigned && ch === '<') angle += 1;
-    else if (!assigned && ch === '>' && angle > 0 && value[i - 1] !== '-') angle -= 1;
-    if (Math.min(paren, bracket, brace, angle) < 0) return null;
-    if (paren || bracket || brace || angle) continue;
-    if (ch === '=') assigned = true;
-    if (ch === ',') {
-      parts.push(value.slice(start, i).trim());
-      start = i + 1;
-      assigned = false;
-    }
-  }
-  if (quote || paren || bracket || brace || angle) return null;
-  const tail = value.slice(start).trim();
-  if (tail) parts.push(tail);
-  return parts;
-};
 
 /** Parse server-supplied Kotlin function presentation. The original signature
  * carries receiver, suspend and generic constraints; the legacy projection only

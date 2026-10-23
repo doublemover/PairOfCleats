@@ -112,7 +112,7 @@ await withLspTestPath({ repoRoot: root }, async () => {
       symbolName: entry.symbolName
     });
     const result = await runDedicatedProviderFixture({
-      authorizeFixtureExecution: entry.providerId === 'jdtls',
+      authorizeFixtureExecution: ['jdtls', 'phpactor'].includes(entry.providerId),
       tempRoot,
       providerId: entry.providerId,
       providerConfigKey: entry.providerConfigKey,

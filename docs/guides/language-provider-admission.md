@@ -55,6 +55,45 @@ provider output and late live output observe the same composed request/context
 cancellation signal as preflight, including profile verification and result
 admission. These controls do not cancel or discard already owned child teardown.
 
+Phpactor's dedicated profile and generic PHP LSP route now parse PHP function
+and completion-label presentation, including `$` parameter names, nullable and
+union/intersection types, PHPDoc shapes/generics, by-reference and variadic
+parameters. Omitted types stay unknown. The retained text does not prove overload
+selection, trait composition, magic dispatch or compiler-authoritative identity.
+The formatter contract was inspected in upstream Phpactor `2026.10.07.0`; no
+installed Phpactor or PHP runtime qualification is recorded by this change.
+
+Phpactor can load Composer-generated PHP and project extensions. Its dedicated
+profile requires an exact launch-owned repository execution grant before command
+probing, Composer observation or server launch. Known `phpactor` commands keep
+this requirement when their configured provider ID is renamed. Positive protocol
+fixtures grant only their isolated fixture repository; untrusted launch cases
+retain explicit blocked diagnostics.
+
+The read-only Composer preflight inspects the nearest selected package manifests,
+supported autoload mappings and lock package identities. Reads are bounded and
+contained. Invalid, missing, oversized and unreadable input remain distinct;
+external vendor directories remain unobserved. Manifest/lock digests and local
+autoloader presence are observations. A present autoloader stays unverified and
+dependency closure stays unknown. The profile never runs Composer, includes
+generated PHP or infers dependency/build freshness from file presence.
+
+The #1160 alternatives remain explicit: Intelephense is unsupported for this
+unattended indexing integration while its server licence is scoped to individual
+IDE/text-editor use and permission for this use is unresolved. The MIT client
+licence does not establish server permission. `nikic/PHP-Parser` 5.9.0 is a BSD-3
+syntax alternative, deferred until a focused parser differential demonstrates a
+current syntax-consumer gap and its packaging/runtime cost is authorized. There
+is no new PHP-Parser producer, benchmark result or automatic alternative switch.
+Framework/magic PHP semantics, Composer freshness and real-server qualification
+in #1160 remain unfinished.
+
 Primary references: [Kotlin function syntax](https://kotlinlang.org/spec/declarations.html#function-declaration),
 [official Kotlin LSP](https://github.com/Kotlin/kotlin-lsp),
-[Dart package-config v2 specification](https://github.com/dart-lang/language/blob/main/accepted/2.8/language-versioning/package-config-file-v2.md).
+[Dart package-config v2 specification](https://github.com/dart-lang/language/blob/main/accepted/2.8/language-versioning/package-config-file-v2.md),
+[Phpactor function formatter](https://github.com/phpactor/phpactor/blob/2026.10.07.0/templates/help/markdown/Phpactor/WorseReflection/Core/Reflection/ReflectionFunction.twig),
+[Phpactor parameter formatter](https://github.com/phpactor/phpactor/blob/2026.10.07.0/lib/Completion/Bridge/WorseReflection/Formatter/ParameterFormatter.php),
+[Phpactor Composer execution configuration](https://phpactor.readthedocs.io/en/master/reference/configuration.html),
+[Composer manifest schema](https://github.com/composer/composer/blob/main/res/composer-schema.json),
+[Intelephense client/server licences](https://github.com/bmewburn/vscode-intelephense/blob/master/LICENSE.txt),
+[PHP-Parser 5.9.0 licence](https://github.com/nikic/PHP-Parser/blob/v5.9.0/LICENSE).

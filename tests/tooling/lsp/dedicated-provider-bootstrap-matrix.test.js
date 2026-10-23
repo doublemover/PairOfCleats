@@ -96,7 +96,7 @@ const cases = [
 await withLspTestPath({ repoRoot: root }, async () => {
   for (const entry of cases) {
     const { result, inputs } = await runDedicatedProviderMatrixCase({ root, entry,
-      authorizeFixtureExecution: entry.providerId === 'jdtls' });
+      authorizeFixtureExecution: ['jdtls', 'phpactor'].includes(entry.providerId) });
 
     assert.equal(result.byChunkUid.has(inputs.chunkUid), true, `expected ${entry.providerId} to enrich its symbol`);
     const hit = result.byChunkUid.get(inputs.chunkUid);

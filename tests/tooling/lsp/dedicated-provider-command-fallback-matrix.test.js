@@ -67,7 +67,7 @@ const cases = [
 await withLspTestPath({ repoRoot: root }, async () => {
   for (const entry of cases) {
     const { result, inputs } = await runDedicatedProviderMatrixCase({
-      authorizeFixtureExecution: entry.providerId === 'jdtls',
+      authorizeFixtureExecution: ['jdtls', 'phpactor'].includes(entry.providerId),
       root,
       entry,
       providerConfig: {

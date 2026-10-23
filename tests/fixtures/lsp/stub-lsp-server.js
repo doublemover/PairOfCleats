@@ -102,8 +102,11 @@ const symbolsByMode = {
   },
   php: {
     name: 'greet',
-    detail: 'string greet(string name)',
+    detail: 'function greet(string $name): string',
     kind: 12
+  },
+  'php-generics': {
+    name: 'greet', detail: 'function greet(list<\\Domain\\User> $users, ?callable $format = null): array<string, \\Domain\\User|null>', kind: 12
   },
   haskell: {
     name: 'greet',
