@@ -9,6 +9,8 @@ import { sortManifestEntries } from '../shared/artifact-io/manifest-entry-select
 import { openJsonlRowReader } from '../shared/artifact-io/offsets.js';
 import { semanticHash } from '../index/semantic/identity.js';
 import { throwIfAborted } from '../shared/abort.js';
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../shared/storage/operation-error.js';
 
 const MAX_ROWS = 512;
 const MAX_SCAN_ROWS = 4096;
@@ -132,7 +134,7 @@ export const createRetainedEvidencePages = ({ indexDir, manifest, maxBytes = MAX
       if (position.row === piece.count) { position = { part: position.part + 1, row: 0 }; continue; }
       const reader = await openJsonlRowReader(resolveManifestPath(indexDir, piece.path, true),
         resolveManifestPath(indexDir, offsets.path, true), { containedRoot: indexDir });
-      let primary = null;
+      let primary, primaryPresent = false;
       try {
         await reader.verify({ jsonlBytes: piece.bytes, offsetsBytes: offsets.bytes,
           jsonlHash: dataHash.value, offsetsHash: offsetsHash.value,
@@ -149,10 +151,16 @@ export const createRetainedEvidencePages = ({ indexDir, manifest, maxBytes = MAX
           }
           position.row += 1; scanned += 1;
         }
-      } catch (error) { primary = error; throw error; }
+      } catch (error) {
+        primary = observeStorageResource(error, { phase: 'retained-evidence-page' }).retain();
+        primaryPresent = true;
+        throw error;
+      }
       finally {
         try { await reader.close(); }
-        catch (error) { if (primary) primary.cleanupError ||= error; else throw error; }
+        catch (error) {
+          throw primaryPresent ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : error;
+        }
       }
       if (position.row === piece.count) position = { part: position.part + 1, row: 0 };
       else break;
