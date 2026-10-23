@@ -1,4 +1,5 @@
 import { admitEmbeddingTensor, invalidEmbeddingOutput } from './embedding-output-admission.js';
+import { resolveEmbeddingDenseContract } from './embedding-dense-contract.js';
 
 const EMBEDDING_GEMMA2_PATTERN = /(^|\/)embeddinggemma-2(?:-onnx)?$/i;
 const DIMENSIONS = new Set([128, 256, 512, 768]);
@@ -13,6 +14,7 @@ export const isEmbeddingGemma2 = (modelId) => (
 /** Resolve the opt-in text model contract, shared by inference and cache identity. */
 export const resolveEmbeddingModelProfile = (modelId, options = null) => {
   if (!isEmbeddingGemma2(modelId)) {
+    resolveEmbeddingDenseContract(modelId);
     if (options && Object.keys(options).length) {
       throw new Error('embeddinggemma2 options require an EmbeddingGemma 2 model.');
     }

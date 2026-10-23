@@ -7,6 +7,7 @@ import { getEmbeddingCacheLeaseOwner, getEmbeddingFailureProvenance, observeEmbe
 import { captureTransformersResource, createTransformersResourceScope, trackPendingTransformersOwner,
   transformersCleanupFailure, getTransformersFailureProvenance } from './embedding-transformers-resources.js';
 import { getPreparedTextEncoderOwner } from './embedding-prepared.js';
+import { resolveEmbeddingDenseContract, validateEmbeddingDenseContract } from './embedding-dense-contract.js';
 import {
   DEFAULT_EMBEDDING_POOLING,
   normalizeEmbeddingBatchOutput
@@ -18,6 +19,8 @@ import {
 } from './embedding-adapter-helpers.js';
 
 export const createXenovaAdapter = ({ modelId, modelsDir, dims = null, normalize, loadPipeline, modelProfile, localFilesOnly = false, sessionOptions = {}, modelFileName = null, modelArtifact = null }) => {
+  const denseContract = resolveEmbeddingDenseContract(modelId);
+  validateEmbeddingDenseContract(denseContract, { normalize });
   let embedderPromise = null;
   let resolvedEmbedder = null;
   let acquiredEmbedder = null, acquiredOwner = null;
@@ -27,7 +30,7 @@ export const createXenovaAdapter = ({ modelId, modelsDir, dims = null, normalize
   let observedArtifact = modelArtifact;
   const measurements = { scope: 'adapter-lifetime', initializationMs: 0, runs: 0,
     providerBusyMs: 0, active: 0, peakActive: 0, failures: 0 };
-  let observedDimensions = modelProfile?.dimensions ?? dims;
+  let observedDimensions = modelProfile?.dimensions ?? denseContract?.dimensions ?? dims;
   const ensureEmbedder = () => {
     if (disposed) return Promise.reject(new Error('Embedding provider adapter is disposed.'));
     if (!embedderPromise) {
@@ -108,8 +111,9 @@ export const createXenovaAdapter = ({ modelId, modelsDir, dims = null, normalize
     }
   };
   const pipelineOptions = {
-    pooling: DEFAULT_EMBEDDING_POOLING,
-    normalize: normalize !== false
+    pooling: denseContract?.pooling ?? DEFAULT_EMBEDDING_POOLING,
+    normalize: normalize !== false,
+    ...(denseContract ? { truncation: true, max_length: denseContract.maxLength } : {})
   };
   const embed = (texts, options = {}) => track(async () => {
     const list = Array.isArray(texts) ? texts : [];
@@ -117,6 +121,7 @@ export const createXenovaAdapter = ({ modelId, modelsDir, dims = null, normalize
     const embedder = await ensureEmbedder();
     const startedAt = performance.now();
     measurements.runs++; measurements.active++; measurements.peakActive = Math.max(measurements.peakActive, measurements.active);
+    const batchId = measurements.runs;
     const scope = createTransformersResourceScope('Xenova output tensors', { drainFailuresBeforeResources: true });
     outputScopes.add(scope);
     let result, primaryError, hasPrimary = false, cleanupError, cleanupFailed = false;
@@ -124,7 +129,7 @@ export const createXenovaAdapter = ({ modelId, modelsDir, dims = null, normalize
       const output = await embedder(list, modelProfile ? options : pipelineOptions);
       captureOutput(scope, output);
       result = normalizeEmbeddingBatchOutput(output, list.length, { provider: 'xenova',
-        batchId: measurements.runs, dimensions: observedDimensions });
+        batchId, dimensions: observedDimensions, requireNonzero: Boolean(denseContract) });
       observedDimensions ??= result[0].length;
       const outputBuffers = new Set();
       for (const owner of scope.resources) {
@@ -177,6 +182,7 @@ export const createXenovaAdapter = ({ modelId, modelsDir, dims = null, normalize
     }),
     executionInfo: () => ({
       provider: 'xenova', requestedProvider: 'xenova', stub: false, measurements: { ...measurements },
+      denseEncoding: denseContract ? { ...denseContract } : null,
       loaded: resolvedEmbedder !== null, loading: embedderPromise !== null && resolvedEmbedder === null,
       modelArtifact: observedArtifact, modelRevision: observedArtifact?.revision ?? null, effectiveSessionOptions: null,
       preparedInputs: !!modelProfile, device: null,

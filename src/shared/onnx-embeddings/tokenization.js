@@ -104,6 +104,7 @@ export const prepareTokenRowsWithCache = ({
   texts,
   wantsTokenTypeIds = false,
   truncation = DEFAULT_EMBEDDING_TRUNCATION,
+  maxLength = null,
   tokenizationCache = null,
   preparedRows = null
 }) => {
@@ -139,6 +140,7 @@ export const prepareTokenRowsWithCache = ({
     const encodedMissing = tokenizer(missingTexts, {
       padding: false,
       truncation,
+      ...(maxLength ? { max_length: maxLength } : {}),
       return_tensor: false,
       return_token_type_ids: wantsTokenTypeIds
     });

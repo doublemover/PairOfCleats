@@ -1,10 +1,12 @@
 import { sha1 } from './hash.js';
 import { resolveEmbeddingModelProfile } from './embedding-model-profile.js';
+import { resolveEmbeddingDenseContract, denseContractFormatting, assertEmbeddingDenseFormatting,
+  validateEmbeddingDenseContract } from './embedding-dense-contract.js';
 
 /** Embedding identity schema version. */
-export const EMBEDDING_IDENTITY_VERSION = 5;
+export const EMBEDDING_IDENTITY_VERSION = 6;
 /** Embedding identity fingerprint tag used in cache keys. */
-export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v5';
+export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v6';
 
 const normalizeString = (value) => {
   if (typeof value !== 'string') return null;
@@ -43,7 +45,8 @@ const normalizeInputFormatting = (value) => {
   return {
     family,
     queryPrefix: queryPrefix || null,
-    passagePrefix: passagePrefix || null
+    passagePrefix: passagePrefix || null,
+    ...(value.contract ? { contract: value.contract, templateVersion: value.templateVersion, task: value.task ?? null } : {})
   };
 };
 
@@ -133,6 +136,16 @@ export const buildEmbeddingIdentity = ({
     identity.pooling = profile.output;
     identity.dims = profile.dimensions;
     identity.maxLength = profile.maxLength;
+  }
+  const denseContract = resolveEmbeddingDenseContract(modelId);
+  if (denseContract) {
+    validateEmbeddingDenseContract(denseContract, { normalize });
+    assertEmbeddingDenseFormatting(denseContract, inputFormatting);
+    identity.denseEncoding = { ...denseContract };
+    identity.pooling = denseContract.pooling;
+    identity.inputFormatting = denseContractFormatting(denseContract);
+    identity.maxLength = denseContract.maxLength;
+    if (stub !== true) identity.dims = denseContract.dimensions;
   }
   return identity;
 };

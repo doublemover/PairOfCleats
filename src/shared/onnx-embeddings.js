@@ -5,6 +5,7 @@ import { createOnnxCacheLifetime } from './onnx-embeddings/cache-lifetime.js';
 import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from './embedding-artifact-identity.js';
 import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-lease.js';
 import { createDeferredEmbeddingAdapter } from './embedding-deferred-adapter.js';
+import { resolveEmbeddingDenseContract, validateEmbeddingDenseContract } from './embedding-dense-contract.js';
 import path from 'node:path';
 import {
   DEFAULT_EMBEDDING_TRUNCATION,
@@ -178,6 +179,8 @@ const buildFeeds = (session, encoded, TensorCtor, scratch) => {
 
 export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, normalize, modelArtifact = null,
   qualificationLease = null }) {
+  const denseContract = resolveEmbeddingDenseContract(modelId);
+  validateEmbeddingDenseContract(denseContract, { normalize });
   const normalizeVec = normalize === false ? (vec) => vec : normalizeEmbeddingVectorInPlace;
   const normalized = normalizeOnnxConfig(onnxConfig);
   const resolvedModelPath = resolveOnnxModelPath({
@@ -305,7 +308,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
     const stats = sessionEntry.measurements;
     stats.runs++; stats.active++; stats.peakActive = Math.max(stats.peakActive, stats.active);
     const started = performance.now();
-    try { return await runOnnxEmbeddingSession({ session, feeds, measurements: stats }); }
+    try { return await runOnnxEmbeddingSession({ session, feeds, measurements: stats, denseContract }); }
     catch (error) { stats.failures++; throw error; }
     finally { stats.active--; stats.providerBusyMs += performance.now() - started; }
   };
@@ -318,6 +321,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
       texts,
       wantsTokenTypeIds,
       truncation: DEFAULT_EMBEDDING_TRUNCATION,
+      maxLength: denseContract?.maxLength ?? null,
       tokenizationCache: tokenizationCache.enabled ? tokenizationCache : null,
       preparedRows
     });
@@ -336,7 +340,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
     });
     if (!outputs) return Array.from({ length: list.length }, () => []);
     return decodeOnnxEmbeddingOutput({ outputs, attentionMask: encoded.attention_mask,
-      normalizeVector: normalizeVec, count: list.length, measurements: sessionEntry.measurements });
+      normalizeVector: normalizeVec, count: list.length, measurements: sessionEntry.measurements, denseContract });
   };
   const estimateTokens = async (texts) => {
     const list = Array.isArray(texts) ? texts : [];
@@ -345,7 +349,8 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
     const wantsTokenTypeIds = session.inputNames?.includes('token_type_ids') === true;
     const startedAt = performance.now();
     const rows = prepareTokenRowsWithCache({ tokenizer, texts: list, wantsTokenTypeIds,
-      truncation: DEFAULT_EMBEDDING_TRUNCATION, tokenizationCache: tokenizationCache.enabled ? tokenizationCache : null });
+      truncation: DEFAULT_EMBEDDING_TRUNCATION, maxLength: denseContract?.maxLength ?? null,
+      tokenizationCache: tokenizationCache.enabled ? tokenizationCache : null });
     sessionEntry.measurements.tokenizerMs += performance.now() - startedAt;
     const counts = new Array(list.length);
     for (let i = 0; i < list.length; i += 1) {
@@ -376,7 +381,8 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
   };
   const adapter = {
     embedderPromise,
-    executionInfo: () => ({ provider: 'onnx', measurements: { ...sessionEntry.measurements }, modelArtifact: sessionEntry.loaded?.observedArtifact || selectedArtifact,
+    executionInfo: () => ({ provider: 'onnx', denseEncoding: denseContract ? { ...denseContract } : null,
+      measurements: { ...sessionEntry.measurements }, modelArtifact: sessionEntry.loaded?.observedArtifact || selectedArtifact,
       modelRevision: selectedArtifact.revision, effectiveSessionOptions: sessionEntry.loaded?.effectiveSessionOptions ?? null, requestedSessionOptions: buildSessionOptions(normalized, { lowMemory }),
       qualification: qualificationSlot ? { kind: 'unaccepted-experiment', bindingDigest: qualificationSlot.bindingDigest,
         requestedOptions: qualificationSlot.options, independentSession: true } : null,

@@ -1,3 +1,5 @@
+import { admitEmbeddingTensor } from '../embedding-output-admission.js';
+
 const PREFERRED = ['sentence_embedding', 'embeddings', 'pooler_output', 'last_hidden_state', 'output_0'];
 const FLOAT_TYPES = new Set(['float32', 'float64']);
 const plans = new WeakMap();
@@ -7,25 +9,30 @@ const invalid = message => Object.assign(new Error(message), { code: 'ERR_ONNX_E
  * metadata. Unknown/unsupported metadata preserves the generic all-output run.
  * The pinned ORT common API accepts a nonempty output-name array as fetches.
  */
-export const selectOnnxEmbeddingOutput = session => {
-  if (plans.has(session)) return plans.get(session);
+export const selectOnnxEmbeddingOutput = (session, denseContract = null) => {
+  const key = denseContract?.id ?? null;
+  let cached = plans.get(session);
+  if (cached?.has(key)) return cached.get(key);
+  if (!cached) { cached = new Map(); plans.set(session, cached); }
   let plan = null;
   let names, metadata;
   try { names = session.outputNames; metadata = session.outputMetadata; }
-  catch { plans.set(session, null); return null; }
+  catch { cached.set(key, null); return null; }
   if (Array.isArray(names) && names.length && new Set(names).size === names.length && Array.isArray(metadata)) {
-    const name = PREFERRED.find(value => names.includes(value));
+    const name = denseContract ? denseContract.output : PREFERRED.find(value => names.includes(value));
     const selected = metadata.filter(value => value?.name === name);
     const value = selected[0];
     if (name && selected.length === 1 && value.isTensor === true && FLOAT_TYPES.has(value.type)
       && Array.isArray(value.shape) && [2, 3].includes(value.shape.length)
+      && (!denseContract || names.includes(name) && value.shape.length === denseContract.rank
+        && (typeof value.shape.at(-1) === 'string' || value.shape.at(-1) === denseContract.dimensions))
       && value.shape.every(dimension => typeof dimension === 'string' && dimension.length > 0
         || Number.isSafeInteger(dimension) && dimension > 0)) {
       plan = Object.freeze({ name, type: value.type, rank: value.shape.length,
         shape: Object.freeze([...value.shape]), method: 'loaded-session-output-metadata' });
     }
   }
-  plans.set(session, plan);
+  cached.set(key, plan);
   return plan;
 };
 
@@ -51,8 +58,9 @@ const logicalBytes = tensor => {
 /** No retry on a selected-fetch failure: native errors retain their identity.
  * Logical tensor bytes are work counts, not measured PCIe/device transfer bytes.
  */
-export const runOnnxEmbeddingSession = async ({ session, feeds, measurements }) => {
-  const plan = selectOnnxEmbeddingOutput(session);
+export const runOnnxEmbeddingSession = async ({ session, feeds, measurements, denseContract = null }) => {
+  const plan = selectOnnxEmbeddingOutput(session, denseContract);
+  if (denseContract && !plan) throw invalid(`ONNX export does not expose the qualified ${denseContract.id} token output.`);
   const outputs = plan ? await session.run(feeds, [plan.name]) : await session.run(feeds);
   if (plan && (!outputs || !Object.hasOwn(outputs, plan.name))) throw invalid('ONNX selected output was not returned.');
   if (measurements) {
@@ -69,15 +77,15 @@ export const runOnnxEmbeddingSession = async ({ session, feeds, measurements }) 
 
 /** Preserve the established Float32 assignment after every rank-3 addition and
  * division, including nonzero-mask rather than mask-weighted averaging. */
-export const decodeOnnxEmbeddingOutput = ({ outputs, attentionMask, normalizeVector, count, measurements }) => {
-  const tensor = findOnnxEmbeddingOutput(outputs);
-  if (!tensor) return Array.from({ length: count }, () => []);
-  const shape = tensor.dims;
-  if (!Array.isArray(shape) || ![2, 3].includes(shape.length)
-    || shape.some(value => !Number.isSafeInteger(value) || value <= 0)
-    || shape[0] !== count || tensor.type && !FLOAT_TYPES.has(tensor.type)) throw invalid('ONNX embedding output has an invalid shape or dtype.');
-  const elements = shape.reduce((product, value) => product * value, 1), data = tensor.data;
-  if (!Number.isSafeInteger(elements) || !data || data.length !== elements) throw invalid('ONNX embedding output length disagrees with its shape.');
+export const decodeOnnxEmbeddingOutput = ({ outputs, attentionMask, normalizeVector, count, measurements, denseContract = null }) => {
+  const tensor = denseContract ? outputs?.[denseContract.output] : findOnnxEmbeddingOutput(outputs);
+  if (!tensor && count === 0) return [];
+  let admitted;
+  try {
+    admitted = admitEmbeddingTensor(tensor, count, { provider: 'onnx',
+      ranks: denseContract ? [denseContract.rank] : [2, 3], dimensions: denseContract?.dimensions ?? null });
+  } catch (error) { error.code = 'ERR_ONNX_EMBEDDING_OUTPUT'; throw error; }
+  const { shape, data } = admitted;
   const started = performance.now(), cpuStarted = process.cpuUsage();
   const output = new Array(count), width = shape.at(-1);
   let valuesRead = 0;
@@ -86,22 +94,35 @@ export const decodeOnnxEmbeddingOutput = ({ outputs, attentionMask, normalizeVec
     if (shape.length === 2) {
       for (let coordinate = 0; coordinate < width; coordinate++) {
         const value = data[batch * width + coordinate];
-        if (!Number.isFinite(value)) throw invalid('ONNX sentence embedding contains a nonfinite value.');
+        if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isFinite(Math.fround(value))) throw invalid('ONNX sentence embedding contains a nonfinite value.');
         vector[coordinate] = value; valuesRead++;
       }
     } else {
       const sequence = shape[1]; let selectedTokens = 0;
+      if (denseContract && (!Array.isArray(attentionMask) || attentionMask.length !== count
+        || !Array.isArray(attentionMask[batch]) || attentionMask[batch].length !== sequence
+        || attentionMask[batch].some(value => value !== 0 && value !== 1 && value !== 0n && value !== 1n))) {
+        throw invalid('Qualified ONNX token output has an invalid attention mask.');
+      }
       for (let token = 0; token < sequence; token++) {
+        if (denseContract?.pooling === 'cls' && token > 0) break;
         if (attentionMask && !Number(attentionMask[batch]?.[token] ?? 0)) continue;
         selectedTokens++;
         for (let coordinate = 0; coordinate < width; coordinate++) {
           const value = data[(batch * sequence + token) * width + coordinate];
-          if (!Number.isFinite(value)) throw invalid('ONNX unmasked token embedding contains a nonfinite value.');
+          if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isFinite(Math.fround(value))) throw invalid('ONNX unmasked token embedding contains a nonfinite value.');
           vector[coordinate] += value; valuesRead++;
         }
       }
+      if (denseContract && !selectedTokens) throw invalid('Qualified ONNX pooling has no admitted tokens.');
       if (selectedTokens) for (let coordinate = 0; coordinate < width; coordinate++) vector[coordinate] /= selectedTokens;
     }
+    let norm = 0;
+    for (const value of vector) {
+      if (!Number.isFinite(value)) throw invalid('ONNX pooling overflowed a Float32 embedding.');
+      norm += value * value;
+    }
+    if (denseContract && (!(norm > 0) || !Number.isFinite(norm))) throw invalid('Qualified ONNX output has a zero or invalid norm.');
     output[batch] = normalizeVector(vector);
   }
   if (measurements) {

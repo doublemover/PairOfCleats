@@ -40,14 +40,19 @@ export const admitEmbeddingTensor = (tensor, count, {
 };
 
 /** Validate source values before coercion, and Float32 representability after it. */
-export const copyEmbeddingValues = (data, start, width, details = {}, target = null) => {
+export const copyEmbeddingValues = (data, start, width, details = {}, target = null, requireNonzero = false) => {
   const vector = target || new Float32Array(width);
+  let norm = 0;
   for (let column = 0; column < width; column++) {
     const value = data[start + column];
     if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isFinite(Math.fround(value))) {
       throw invalidEmbeddingOutput('embedding component is not a finite Float32 number.', { ...details, column });
     }
     vector[column] = value;
+    if (requireNonzero) norm += vector[column] * vector[column];
+  }
+  if (requireNonzero && (!(norm > 0) || !Number.isFinite(norm))) {
+    throw invalidEmbeddingOutput('embedding has a zero or invalid norm.', details);
   }
   return vector;
 };
@@ -72,10 +77,11 @@ export const admitEmbeddingBatchOutput = (output, count, options = {}) => {
         expectedDimensions: width, observedDimensions: data.length });
       // Ordinary Float32 vectors can retain their owned buffer. The adapter
       // copies only when that buffer belongs to a captured native resource.
-      return copyEmbeddingValues(data, 0, width, rowDetails, data instanceof Float32Array ? data : null);
+      return copyEmbeddingValues(data, 0, width, rowDetails, data instanceof Float32Array ? data : null, options.requireNonzero);
     });
   }
   if (count === 0 && output == null) return [];
   const { data, rows, width, details: tensorDetails } = admitEmbeddingTensor(output, count, options);
-  return Array.from({ length: rows }, (_, row) => copyEmbeddingValues(data, row * width, width, { ...tensorDetails, row }));
+  return Array.from({ length: rows }, (_, row) => copyEmbeddingValues(data, row * width, width,
+    { ...tensorDetails, row }, null, options.requireNonzero));
 };
