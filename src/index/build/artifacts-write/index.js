@@ -543,6 +543,7 @@ async function writeIndexArtifactsInCodecScope(input) {
     chunkMetaFormatConfig,
     chunkMetaStreaming,
     chunkMetaBinaryColumnar,
+    chunkMetaBinaryColumnarRequired: artifactConfig.chunkMetaBinaryColumnar === true,
     chunkMetaBinaryColumnarMaxBytes,
     chunkMetaJsonlThreshold,
     chunkMetaJsonlEstimateThresholdBytes,
