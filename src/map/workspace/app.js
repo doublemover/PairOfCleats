@@ -13,6 +13,7 @@ const expanded = new Set();
 let selected = null, page = 0, loadId = 0, compileEpoch = 0, history = [], historyAt = -1, activeRequest = null;
 let responseIdentity = 0, found = null, findAt = -1;
 let actionEpoch = 0;
+let selectionPublication = null;
 const notice = (text, error = false) => { $('notice').textContent = text; $('notice').classList.toggle('error', error); };
 const superseded = () => Object.freeze({ ok: false, reason: 'superseded' });
 const reportActionFailure = (primary, current) => {
@@ -24,6 +25,7 @@ const reportActionFailure = (primary, current) => {
 function selection(id, remember = true) {
   const node = pageLookup?.get(id);
   if (!node) { notice('Selected identity is unavailable in this admitted page.'); return; }
+  const originalPublication = {}; selectionPublication = originalPublication;
   selected = id;
   if (remember && (history[historyAt]?.id !== id || history[historyAt]?.page !== page)) { history = history.slice(0, historyAt + 1); history.push({ id, page }); if (history.length > 100) history.shift(); historyAt = history.length - 1; }
   $('back').disabled = historyAt < 1; $('forward').disabled = historyAt >= history.length - 1;
@@ -32,7 +34,7 @@ function selection(id, remember = true) {
   const related = projection.edges.filter(edge => edge.from === id || edge.to === id);
   const detailInput = semanticDetailInput(node, projection, activeRequest?.input?.repoRoot || '.');
   const originalPage = projection;
-  const originalSelection = () => projection === originalPage && pageLookup?.get(id) === node;
+  const originalSelection = () => selectionPublication === originalPublication && projection === originalPage && pageLookup?.get(id) === node;
   if (detailInput) {
     $('detail').prepend(button('Load semantic detail', async () => {
       if (!originalSelection()) return superseded();
@@ -48,8 +50,9 @@ function selection(id, remember = true) {
   for (const edge of related) {
     const other = pageLookup.get(edge.from === id ? edge.to : edge.from);
     $('detail').append(button(`${edge.from === id ? '→' : '←'} ${edge.kind} · ${other?.label ?? 'unloaded'}`, () => {
+      if (!originalSelection()) return superseded();
       $('selection').textContent = `${edge.kind} · source evidence`;
-      $('detail').replaceChildren(inspectValue(edge.detail), button('Go to source', () => selection(edge.from)), button('Go to target', () => selection(edge.to)));
+      $('detail').replaceChildren(inspectValue(edge.detail), button('Go to source', () => { if (originalSelection()) selection(edge.from); }), button('Go to target', () => { if (originalSelection()) selection(edge.to); }));
     }));
   }
   if (!related.length) $('detail').append(document.createTextNode('No admitted relationship. This does not establish absence from the index.'));
@@ -192,6 +195,7 @@ function rebuild(initialProjection = null) {
   $('coverage').textContent = `Source total unknown · response ${c.responseEntities} entities / ${c.responseRelations} relations · admitted ${c.admittedEntities} / ${c.admittedRelations} · outside page ${c.omittedEntities} / ${c.omittedRelations} · source/query gaps retained in evidence`;
   $('sections').replaceChildren();
   projection.sections.forEach(section => $('sections').append(button(section.title, () => {
+    selectionPublication = null;
     $('selection').textContent = section.title; $('detail').replaceChildren(inspectValue(section.value));
   })));
   renderTree(); if (diagramMode) { $('diagram').replaceChildren(document.createTextNode('Compiling this admitted page…')); compileSource(); } else renderEvidenceList();
@@ -209,7 +213,7 @@ function accept(data, name) {
   found = null; findAt = -1; $('filter').value = ''; $('find-matches').replaceChildren();
   $('find-next').disabled = true; $('find-previous').disabled = true; $('find-status').textContent = 'Find searches loaded evidence only.';
   diagramMode = ['map', 'graph', 'semantic', 'context', 'symbolic'].includes(next.family);
-  expanded.clear(); output = data; projection = next; page = 0; selected = null; history = []; historyAt = -1;
+  expanded.clear(); output = data; projection = next; page = 0; selected = null; selectionPublication = null; history = []; historyAt = -1;
   $('detail').replaceChildren(); $('selection').textContent = 'Select an entity or evidence surface';
   $('relation').value = '';
   $('export-evidence').disabled = false; $('back').disabled = true; $('forward').disabled = true;
@@ -258,7 +262,7 @@ $('reset-source').onclick = () => { if (story) { $('source').value = story.sourc
 $('zoom-in').onclick = () => { zoom = Math.min(3, zoom * 1.25); diagram?.zoom(zoom); };
 $('zoom-out').onclick = () => { zoom = Math.max(0.2, zoom / 1.25); diagram?.zoom(zoom); };
 $('fit').onclick = () => { $('diagram').scrollTo({ top: 0, left: 0 }); if (diagram) { diagram.svg.style.width = '100%'; diagram.svg.style.height = '100%'; } };
-$('close-detail').onclick = () => { $('detail').replaceChildren(); $('selection').textContent = 'Inspector closed · selection retained'; };
+$('close-detail').onclick = () => { selectionPublication = null; $('detail').replaceChildren(); $('selection').textContent = 'Inspector closed · selection retained'; };
 function followHistory(position) {
   const entry = history[position]; if (!entry) return;
   historyAt = position;

@@ -40,17 +40,31 @@ export async function readBoundedJson(response, limit = VIEW_LIMITS.bytes) {
   return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(joined));
 }
 const generationKey = value => value && typeof value === 'object' ? JSON.stringify(Object.keys(value).sort().map(key => [key, value[key]])) : JSON.stringify(value);
+const ownValue = (value, key) => {
+  if (value === null || typeof value !== 'object') return { present: false };
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  if (!descriptor) return { present: false };
+  if (!Object.hasOwn(descriptor, 'value')) throw new TypeError('Semantic hydration requires decoded source fields.');
+  return { present: true, value: descriptor.value };
+};
+const exactRecord = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
+  && Reflect.ownKeys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
 /** Canonical records inherit the pinned envelope; artifact wrappers pin their own generation. */
 export function semanticDetailInput(node, projection, repoRoot) {
-  const ref = node?.detail?.ref ?? node?.ref;
-  const generation = node?.detail?.generation ?? projection?.generation;
-  if (!ref || !/^(sy1|sa1):[a-f0-9]{64}$/.test(ref.partitionId)
-    || !Number.isSafeInteger(ref.localId) || ref.localId < 0
-    || !generation || typeof generation.baseBuildId !== 'string' || !generation.baseBuildId.length
-    || generation.semanticRevision !== 0 || Object.keys(generation).length !== 2
-    || typeof repoRoot !== 'string' || !repoRoot.length) return null;
-  return { repoRoot, generation, refs: [ref], include: ['operands', 'names', 'ownership'],
-    limits: { records: 128, rows: 512, bytes: 65536, workMs: 250 } };
+  try {
+    const detail = ownValue(node, 'detail').value;
+    const wrappedRef = ownValue(detail, 'ref'), wrappedGeneration = ownValue(detail, 'generation');
+    const originalRef = wrappedRef.present ? wrappedRef.value : ownValue(node, 'ref').value;
+    const originalGeneration = wrappedGeneration.present ? wrappedGeneration.value : ownValue(projection, 'generation').value;
+    if (!exactRecord(originalRef, ['partitionId', 'localId']) || !exactRecord(originalGeneration, ['baseBuildId', 'semanticRevision'])) return null;
+    const partitionId = ownValue(originalRef, 'partitionId').value, localId = ownValue(originalRef, 'localId').value;
+    const baseBuildId = ownValue(originalGeneration, 'baseBuildId').value, semanticRevision = ownValue(originalGeneration, 'semanticRevision').value;
+    if (typeof partitionId !== 'string' || !/^(sy1|sa1):[a-f0-9]{64}$/.test(partitionId)
+      || !Number.isSafeInteger(localId) || localId < 0 || typeof baseBuildId !== 'string' || !baseBuildId.length
+      || semanticRevision !== 0 || typeof repoRoot !== 'string' || !repoRoot.length) return null;
+    return { repoRoot, generation: { baseBuildId, semanticRevision }, refs: [{ partitionId, localId }], include: ['operands', 'names', 'ownership'],
+      limits: { records: 128, rows: 512, bytes: 65536, workMs: 250 } };
+  } catch { return null; }
 }
 export function createRequestController({ fetchFn = globalThis.fetch } = {}) {
   let controller = null, serial = 0;
@@ -59,13 +73,15 @@ export function createRequestController({ fetchFn = globalThis.fetch } = {}) {
     async request(operation, input, { token = '', expectedGeneration = null } = {}) {
       if (!Object.hasOwn(OPERATIONS, operation)) throw new Error('Unsupported read-only operation.');
       if (operation === 'enrichment' && input.action && input.action !== 'plan') throw new Error('The viewer only reads enrichment plans; execution is not supported.');
+      const hasExpectedGeneration = expectedGeneration !== null && expectedGeneration !== undefined;
+      const originalGenerationKey = hasExpectedGeneration ? generationKey(expectedGeneration) : null;
       controller?.abort(); controller = new AbortController(); const requestId = ++serial;
       const request = operation === 'enrichment' ? { ...input, action: 'plan' } : input;
       const result = await readBoundedJson(await fetchFn(OPERATIONS[operation], { method: 'POST', signal: controller.signal,
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(request) }));
       if (requestId !== serial) throw Object.assign(new Error('Superseded request.'), { name: 'AbortError' });
       const generation = result?.result?.generation ?? result?.generation;
-      if (expectedGeneration && generationKey(generation) !== generationKey(expectedGeneration)) throw new Error('Generation mismatch; previous view retained.');
+      if (hasExpectedGeneration && generationKey(generation) !== originalGenerationKey) throw new Error('Generation mismatch; previous view retained.');
       return result;
     }
   };
