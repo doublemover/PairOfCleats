@@ -79,5 +79,29 @@ try {
   await closeRuntimeDaemonSession(falsey);
   assert.equal(firstCalls, 2);
   assert.equal(secondCalls, 2);
+
+  const inspected = acquireRuntimeDaemonSession({ enabled: true, sessionKey: 'original-diagnostic-child' });
+  let inspectedCalls = 0, inspectorSettled = false;
+  const inspector = Object.assign(new Error('original diagnostic inspector still owns work'), {
+    cacheOwnershipPending: true, cacheOwnershipReleased() { return inspectorSettled; }
+  });
+  const inspectedFailure = Object.defineProperty({}, 'message', { configurable: true, get() { throw inspector; } });
+  addDaemonEmbeddingWarmKey(inspected, 'inspected', { dispose: async () => {
+    inspectedCalls++; if (inspectedCalls === 1) throw inspectedFailure;
+  } });
+  let inspectedDrain;
+  await assert.rejects(closeRuntimeDaemonSession(inspected), error => {
+    inspectedDrain = error;
+    assert.deepEqual(error.errors, [inspectedFailure, inspector]);
+    return true;
+  });
+  Object.defineProperty(inspectedFailure, 'message', { value: 'replacement diagnostic', configurable: true });
+  await assert.rejects(closeRuntimeDaemonSession(inspected), error => error.errors.includes(inspector));
+  assert.equal(inspectedCalls, 1, 'an independent original diagnostic child blocks another native disposal call');
+  assert.equal(inspectedDrain.cacheOwnershipReleased(), false);
+  inspectorSettled = true;
+  await closeRuntimeDaemonSession(inspected);
+  assert.equal(inspectedCalls, 2, 'explicit reconciliation invokes the original disposer once its inspector settles');
+  assert.equal(inspectedDrain.cacheOwnershipReleased(), true);
 } finally { await disposeRuntimeDaemonSessions(); }
 console.log('daemon embedding retirement preserves original failures, methods and child ownership');

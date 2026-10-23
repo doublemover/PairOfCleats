@@ -62,14 +62,20 @@ try {
     if (pendingCloseCalls === 1) throw childFailure;
     return pendingOriginalClose();
   };
-  await assert.rejects(pendingRuntime.closeEmbeddingRuntime(), error => error === childFailure);
+  let retainedClose;
+  await assert.rejects(pendingRuntime.closeEmbeddingRuntime(), error => {
+    retainedClose = error;
+    assert.equal(error.cacheOwnershipReleased(), false);
+    return contains(error, childFailure);
+  });
   const confirmedDisposals = disposeCalls;
-  await assert.rejects(pendingRuntime.closeEmbeddingRuntime(), error => error === childFailure);
-  assert.equal(disposeCalls, confirmedDisposals, 'pending child observation does not repeat confirmed lease release');
+  await assert.rejects(pendingRuntime.closeEmbeddingRuntime(), error => contains(error, childFailure));
+  assert.equal(disposeCalls, confirmedDisposals, 'pending child observation prevents parent lease release');
   childSettled = true;
   await pendingRuntime.closeEmbeddingRuntime();
   assert.equal(pendingCloseCalls, 2, 'once-confirmed batcher close is not replayed to poll its original child');
-  assert.equal(disposeCalls, confirmedDisposals);
+  assert.equal(disposeCalls, confirmedDisposals + 1);
+  assert.equal(retainedClose.cacheOwnershipReleased(), true, 'the original outward failure requires actual runtime close confirmation');
   await disposeEmbeddingAdapterCaches();
 } finally { release(); __setAdapterFactoryForTests(null); }
 console.log('inline runtime closes preserve independent failures and reconcile original lease disposal');

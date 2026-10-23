@@ -12,7 +12,10 @@ import { resolveStubDims } from '../../../shared/embedding.js';
 import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile } from '../../../shared/embedding-model-profile.js';
 import { normalizeEmbeddingProvider, resolveOnnxConfig, resolveOnnxModelPath } from '../../../shared/onnx-embeddings.js';
 import { resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
-import { observeEmbeddingOwnership, preserveEmbeddingCleanupFailure } from '../../../shared/embedding-cache-lifetime.js';
+import { addStorageFailureContext, readStorageFailureContext } from '../../../shared/storage/operation-error.js';
+import { captureRuntimeFailureObservation, composeRuntimeTeardownFailures } from './failure.js';
+
+const runtimeClosed = () => Object.assign(new Error('Inline embedding runtime is closed.'), { code: 'ERR_EMBEDDING_RUNTIME_CLOSED' });
 
 /**
  * Resolve embedding runtime configuration and lazy embedding adapters.
@@ -115,6 +118,34 @@ export const resolveEmbeddingRuntime = async ({
   let observation = { state: 'not-started', provider: null, dims: null, device: null, dtype: null, observedAt: null, method: null };
   let embeddingIdentity = null;
   let embeddingIdentityKey = null;
+  const failureObservations = new WeakMap(), pendingFailures = new Map();
+  let failureOverflow = null;
+  const settled = captured => captured.observe() && readStorageFailureContext(captured.context)?.complete === true;
+  const rememberFailure = (error, gatesDispose = true) => {
+    const objectLike = error !== null && (typeof error === 'object' || typeof error === 'function');
+    let captured = objectLike && failureObservations.get(error);
+    if (!captured) {
+      captured = captureRuntimeFailureObservation(error);
+      if (objectLike) failureObservations.set(error, captured);
+    }
+    const existing = pendingFailures.get(error);
+    if (existing && gatesDispose) existing.gatesDispose = true;
+    if (!settled(captured) && !existing) {
+      if (pendingFailures.size < 128) pendingFailures.set(error, { captured, gatesDispose });
+      else failureOverflow ||= captureRuntimeFailureObservation(Object.assign(new Error(
+        'Inline embedding unresolved failure inventory exceeded its bounded allowance.', { cause: error }),
+      { code: 'ERR_EMBEDDING_RUNTIME_FAILURE_INVENTORY', cacheOwnershipPending: true, cacheOwnershipReleased: () => false }));
+    }
+    return captured;
+  };
+  const retainedFailures = ({ beforeDispose = false } = {}) => {
+    for (const [error, { captured }] of pendingFailures) if (settled(captured)) pendingFailures.delete(error);
+    return [...pendingFailures.values()].filter(({ captured, gatesDispose }) => {
+      if (!beforeDispose || gatesDispose) return true;
+      const context = readStorageFailureContext(captured.context);
+      return !context?.complete || context.inspectionObservations.some(item => !item.observe());
+    }).map(item => item.captured).concat(failureOverflow ? [failureOverflow] : []);
+  };
   let observationWrite = Promise.resolve();
   const publishObservation = (next) => {
     const write = observationWrite.then(async () => {
@@ -138,54 +169,66 @@ export const resolveEmbeddingRuntime = async ({
       embeddingIdentity = identity;
       embeddingIdentityKey = identityKey;
     });
-    observationWrite = write.catch(() => {});
+    // The queue may continue after a rejected notification, but its original
+    // independent resource observation survives through runtime close.
+    observationWrite = write.catch(error => { rememberFailure(error); });
     return write;
   };
-  let getChunkEmbedding = async () => [];
-  let getChunkEmbeddings = async () => [];
-  let embedder = null;
   let closed = false;
+  let getChunkEmbedding = async () => { if (closed) throw runtimeClosed(); return []; };
+  let getChunkEmbeddings = async () => { if (closed) throw runtimeClosed(); return []; };
+  let embedder = null;
   let closing = null;
   let batcherClosed = false;
   let workDrained = false;
   let observationsDrained = false;
   let embedderDisposed = false;
   let disposeEmbedder = null;
-  const cleanupObservers = new Map();
+  let completelyClosed = false;
   const operations = new Set();
+  const trackOperation = work => {
+    const tracked = Promise.resolve(work).catch(error => {
+      throw composeRuntimeTeardownFailures([rememberFailure(error)]);
+    });
+    operations.add(tracked);
+    tracked.then(() => operations.delete(tracked), () => operations.delete(tracked));
+    return tracked;
+  };
   const closeEmbeddingRuntime = () => {
     if (!closing) {
       closed = true;
       closing = (async () => {
-        const errors = [];
-        const closeStep = async (done, action, confirm) => {
+        const failures = [];
+        const closeStep = async (done, action, confirm, gatesDispose = true) => {
           if (done) return;
           try { await action(); confirm(); }
-          catch (error) {
-            errors.push(error);
-            const observe = observeEmbeddingOwnership(error);
-            if (observe && !cleanupObservers.has(error)) cleanupObservers.set(error, observe);
-          }
+          catch (error) { failures.push(rememberFailure(error, gatesDispose)); }
         };
         await closeStep(batcherClosed, () => closeInlineEmbeddingBatcher(getChunkEmbeddings), () => { batcherClosed = true; });
         // A batcher failure cannot skip the runtime's original inference work.
         await closeStep(workDrained, () => Promise.allSettled([...operations]), () => { workDrained = true; });
         await closeStep(observationsDrained, () => observationWrite, () => { observationsDrained = true; });
-        await closeStep(embedderDisposed, async () => {
+        // Rejected work may already have left operations. Its captured native
+        // or diagnostic child still prevents releasing the parent lease.
+        if (!retainedFailures({ beforeDispose: true }).length) await closeStep(embedderDisposed, async () => {
           if (!disposeEmbedder && embedder) {
             const owner = embedder, dispose = owner.dispose;
             if (typeof dispose !== 'function') throw new TypeError('Inline embedder has no disposal control.');
             disposeEmbedder = () => dispose.call(owner);
           }
-          await disposeEmbedder?.();
-        }, () => { embedderDisposed = true; });
-        for (const [error, observe] of cleanupObservers) if (!observe() && !errors.includes(error)) errors.push(error);
-        if (errors.length) throw errors.slice(1).reduce(preserveEmbeddingCleanupFailure, errors[0]);
+          if (await disposeEmbedder?.() === false) throw Object.assign(new Error('Inline embedding disposal was explicitly unconfirmed.'),
+            { code: 'ERR_EMBEDDING_RUNTIME_DISPOSAL_UNCONFIRMED' });
+        }, () => { embedderDisposed = true; }, false);
+        for (const captured of retainedFailures()) if (!failures.includes(captured)) failures.push(captured);
+        if (failures.length) throw composeRuntimeTeardownFailures(failures);
+        completelyClosed = true;
       })().catch(error => {
         // Only a subsequent explicit close retries failed steps. Admissions stay
         // closed, confirmed steps stay complete, and the original lease survives.
         closing = null;
-        throw error;
+        throw addStorageFailureContext(error, { cacheOwnershipPending: true,
+          cacheOwnershipReleased: () => completelyClosed, closeEmbeddingRuntime }, null,
+        { forceAggregate: true, nonEnumerable: ['closeEmbeddingRuntime'] });
       });
     }
     return closing;
@@ -239,26 +282,26 @@ export const resolveEmbeddingRuntime = async ({
         }
         return result;
       } catch (error) {
-        await publishObservation({ state: 'failed', method: 'provider-request-failed', errorCode: String(error?.code || 'UNKNOWN') });
-        throw error;
+        const primary = rememberFailure(error);
+        try {
+          const code = primary.context.code;
+          await publishObservation({ state: 'failed', method: 'provider-request-failed', errorCode: typeof code === 'string' ? code : 'UNKNOWN' });
+        } catch (notificationError) {
+          throw composeRuntimeTeardownFailures([primary, rememberFailure(notificationError)]);
+        }
+        throw composeRuntimeTeardownFailures([primary]);
       }
     };
     const admit = (input, batch) => {
-      if (closed) return Promise.reject(Object.assign(new Error('Inline embedding runtime is closed.'), { code: 'ERR_EMBEDDING_RUNTIME_CLOSED' }));
-      const work = execute(input, batch);
-      operations.add(work);
-      work.then(() => operations.delete(work), () => operations.delete(work));
-      return work;
+      if (closed) return Promise.reject(runtimeClosed());
+      return trackOperation(execute(input, batch));
     };
     getChunkEmbedding = (text) => admit(text, false);
     getChunkEmbeddings = (texts) => admit(texts, true);
     getChunkEmbeddings.batchTokenBudget = resolveEmbeddingsBatchTokenBudget({ indexingConfig, embeddingBatchSize });
     getChunkEmbeddings.estimateTokensBatch = texts => {
-      if (closed) return Promise.reject(Object.assign(new Error('Inline embedding runtime is closed.'), { code: 'ERR_EMBEDDING_RUNTIME_CLOSED' }));
-      const work = Promise.resolve().then(() => ensureEmbedder().getChunkEmbeddings.estimateTokensBatch(texts));
-      operations.add(work);
-      work.then(() => operations.delete(work), () => operations.delete(work));
-      return work;
+      if (closed) return Promise.reject(runtimeClosed());
+      return trackOperation(Promise.resolve().then(() => ensureEmbedder().getChunkEmbeddings.estimateTokensBatch(texts)));
     };
   }
 

@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { observeEmbeddingOwnership } from '../../../shared/embedding-cache-lifetime.js';
+import { captureEmbeddingCacheFailure } from '../../../shared/embedding-cache-failure-inspection.js';
 
 const DAEMON_SESSION_MAX_ENTRIES = 8;
 const DAEMON_DICT_CACHE_MAX_ENTRIES = 32;
@@ -201,20 +202,27 @@ const startEmbeddingRetirement = (session, owner, { retry = false } = {}) => {
   retiredDaemonSessions.add(session);
   const retirement = Promise.resolve().then(async () => {
     if (owner.captureFailed) throw owner.error;
+    if (owner.observationOverflow) throw owner.error;
+    // A diagnostic inspector can own independent work. Its original evidence
+    // must settle before another explicit native disposal attempt is allowed.
+    for (const [error, captured] of owner.observers) if (!captured.inspectionsReleased()) throw error;
     if (!owner.disposeCompleted) {
       const result = await owner.dispose.call(owner.lease);
       if (result === false) throw new Error('Daemon embedding lease disposal was explicitly unconfirmed.');
       owner.disposeCompleted = true;
     }
-    for (const [error, observe] of owner.observers) if (!observe()) throw error;
+    for (const [error, captured] of owner.observers) if (!captured.released()) throw error;
     owners.delete(owner.lease);
     refreshRetirementErrors(session);
     if (!owners.size) retiredDaemonSessions.delete(session);
   }).catch(error => {
     owner.failed = true;
     owner.error = error;
-    const observe = observeEmbeddingOwnership(error);
-    if (observe && !owner.observers.has(error)) owner.observers.set(error, observe);
+    const captured = captureEmbeddingCacheFailure(error, observeEmbeddingOwnership);
+    if (!owner.observers.has(error)) {
+      if (owner.observers.size < 128) owner.observers.set(error, captured);
+      else owner.observationOverflow = true;
+    }
     refreshRetirementErrors(session);
     throw error;
   });
@@ -234,7 +242,7 @@ const retireEmbeddingLease = (session, key) => {
   let owner = owners.get(lease);
   if (!owner) {
     owner = { key, lease, dispose: null, disposeCompleted: false, captureFailed: false,
-      failed: false, error: null, work: null, observers: new Map() };
+      failed: false, error: null, work: null, observers: new Map(), observationOverflow: false };
     owners.set(lease, owner);
     try {
       const dispose = lease.dispose;
@@ -259,7 +267,11 @@ export const drainDaemonEmbeddingLeases = async (session) => {
     if (!pending.length) break;
     await Promise.allSettled(pending);
   }
-  const errors = [...owners.values()].filter(owner => owner.failed).map(owner => owner.error);
+  const failedOwners = [...owners.values()].filter(owner => owner.failed);
+  const errors = failedOwners.map(owner => owner.error);
+  for (const owner of failedOwners) for (const captured of owner.observers.values()) {
+    for (const error of captured.inspectionErrors) if (!errors.includes(error)) errors.push(error);
+  }
   if (errors.length) {
     const failure = new AggregateError(errors, 'Daemon embedding lease disposal failed.');
     Object.defineProperties(failure, {
