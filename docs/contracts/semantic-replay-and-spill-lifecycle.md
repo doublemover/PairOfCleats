@@ -90,16 +90,34 @@ its exact original-byte identity. Valid UTF-8 roundtrip equality is checked whil
 snapshotting. Syntax and ownership partitions can retain that capability without
 rehashing or copying a borrowed mutable source buffer for every partition. Raw
 byte callers remain copied and SHA-256 validated on each request.
+Their private byte snapshot is captured before waiting for a serialized writer;
+the snapshot exposes identity metadata and never lends its mutable buffer.
 
 Retention is serialized by the existing per-account disk writer. At most 256
 receipt entries retain finalized path, source digest/length and verified physical
 authority; they retain no source buffers and do not cross disk accounts. A complete
-opened-file verification compares stable identity/timestamps before and after the
-read and checks that the pathname still names that object. Reuse requires a regular
+opened-file verification uses the shared contained descriptor owner and compares
+at most 64 KiB per read to the captured bytes, with stable identity/timestamps before
+and after the read and checks that the pathname still names that object. Reuse
+requires a regular
 file with meaningful device/inode and nanosecond change identity. Unsupported
 identity information, replacement or mutation returns to full verification.
+The receipt also pins the storage root's device/inode; a replaced root requires
+full verification even if a retained source file survives a directory move.
+Cancellation is checked after the asynchronous receipt probes. Internal work
+counters distinguish captured raw bytes, physical comparison bytes, completed
+verifications and successful receipt hits; they are not runtime qualification.
 Cancellation, conflicting contents, EEXIST winner checks, disk credits and fsync
 boundaries remain authoritative; publication validation independently checks final
 artifacts. External same-size/mtime mutations must invalidate the receipt through
 the physical change identity. Runtime and storage-platform qualification remains
 deferred for this implementation.
+
+Original read, write, sync and close failures stay with the shared descriptor
+owner. An unsettled failure cannot be classified as a missing file, publish a new
+name, delete a temporary or release its disk credit. Explicit close recovery
+closes only the original handle and never replays the read/write, installs a
+receipt or resumes publication. The serialized writer retains an unsettled
+failure as the next writer's prerequisite instead of starting new IO on that path.
+Uncertain temporary credits remain retained;
+reopening independently accounts the actual physical inventory.

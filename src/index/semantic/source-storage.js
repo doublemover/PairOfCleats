@@ -1,18 +1,21 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { createHash } from 'node:crypto';
-import { retainSemanticBytes, withSemanticDiskWriter } from './disk-writes.js';
+import { captureSemanticRetainedBytes, retainSemanticBytes, withSemanticDiskWriter } from './disk-writes.js';
 import { readSemanticSourceCapability } from './source-capability.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { assertNoSymlinkPath } from '../../shared/contained-file.js';
+import { readPersistenceFailureCode } from '../../shared/io/persistence-helpers.js';
 
 const receiptsByAccount = new WeakMap();
 const MAX_RECEIPTS = 256;
 const authorityKey = stat => stat?.isFile() && !stat.isSymbolicLink() && stat.ino > 0n && stat.dev !== 0n
   && typeof stat.mtimeNs === 'bigint' && typeof stat.ctimeNs === 'bigint' && stat.ctimeNs > 0n
   ? [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].join(':') : null;
+const rootAuthorityKey = stat => stat?.isDirectory() && !stat.isSymbolicLink() && stat.ino > 0n && stat.dev !== 0n
+  ? [stat.dev, stat.ino].join(':') : null;
 
 /** Exact source retention; receipts never retain source bytes or cross accounts. */
-export const retainSemanticSource = async ({ root, source, bytes, sourceCapability = null, diskAccount, signal = null }) => {
+export const retainSemanticSource = async ({ root, source, bytes, sourceCapability = null, diskAccount, signal = null, metrics = null }) => {
   throwIfAborted(signal);
   const capability = readSemanticSourceCapability(sourceCapability);
   let owned = null;
@@ -22,8 +25,9 @@ export const retainSemanticSource = async ({ root, source, bytes, sourceCapabili
   } else {
     if (!(bytes instanceof Uint8Array)) throw new TypeError('Exact source bytes are required.');
     // Raw callers remain untrusted, including changes after an awaited IO call.
-    owned = Buffer.from(bytes);
-    if (owned.length !== source.byteLength || createHash('sha256').update(owned).digest('hex') !== source.byteHash) throw new Error('Semantic source bytes do not match the exact source manifest.');
+    owned = captureSemanticRetainedBytes(bytes);
+    if (metrics) metrics.semanticSourceSnapshotBytes = (metrics.semanticSourceSnapshotBytes || 0) + owned.byteLength;
+    if (owned.byteLength !== source.byteLength || owned.byteHash !== source.byteHash) throw new Error('Semantic source bytes do not match the exact source manifest.');
   }
   const filename = path.resolve(root, 'semantic-sources', source.byteHash + '.utf8');
   let receipts = receiptsByAccount.get(diskAccount);
@@ -31,23 +35,34 @@ export const retainSemanticSource = async ({ root, source, bytes, sourceCapabili
   const receiptKey = filename + ':' + source.byteHash + ':' + source.byteLength;
   return withSemanticDiskWriter(diskAccount, filename, async () => {
     throwIfAborted(signal);
+    let rootAuthority = null;
+    try {
+      assertNoSymlinkPath(root, filename, { allowMissing: true });
+      rootAuthority = rootAuthorityKey(await fs.lstat(root, { bigint: true }));
+    } catch (error) { if (readPersistenceFailureCode(error) !== 'ENOENT') throw error; }
+    throwIfAborted(signal);
     const previous = receipts.get(receiptKey);
     if (previous) {
       try {
         const current = authorityKey(await fs.lstat(filename, { bigint: true }));
-        if (current && current === previous) {
+        const currentRoot = rootAuthorityKey(await fs.lstat(root, { bigint: true }));
+        throwIfAborted(signal);
+        assertNoSymlinkPath(root, filename);
+        if (current && current === previous.file && rootAuthority && rootAuthority === previous.root && currentRoot === rootAuthority) {
           receipts.delete(receiptKey); receipts.set(receiptKey, previous);
+          if (metrics) metrics.semanticSourceReceiptHits = (metrics.semanticSourceReceiptHits || 0) + 1;
           return;
         }
-      } catch (error) { if (error.code !== 'ENOENT') throw error; }
+      } catch (error) { if (readPersistenceFailureCode(error) !== 'ENOENT') throw error; }
       receipts.delete(receiptKey);
     }
-    const payload = owned || Buffer.from(capability.text, 'utf8');
-    const verified = await retainSemanticBytes({ filename, bytes: payload, diskAccount, signal });
+    const verified = await retainSemanticBytes({ root, filename, bytes: owned || sourceCapability, diskAccount, signal, metrics });
+    const currentRoot = rootAuthorityKey(await fs.lstat(root, { bigint: true }));
     throwIfAborted(signal);
+    assertNoSymlinkPath(root, filename);
     const authority = authorityKey(verified);
-    if (authority) {
-      receipts.set(receiptKey, authority);
+    if (authority && currentRoot && (!rootAuthority || currentRoot === rootAuthority)) {
+      receipts.set(receiptKey, { file: authority, root: currentRoot });
       while (receipts.size > MAX_RECEIPTS) receipts.delete(receipts.keys().next().value);
     }
   });
