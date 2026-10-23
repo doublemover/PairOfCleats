@@ -10,12 +10,15 @@ const keyFor = file => process.platform === 'win32' ? path.resolve(file).toLower
 export const isFileLockPublicationPending = file => Boolean(file) && Boolean(publications.get(keyFor(file))?.size);
 export const isFileLockPublicationSession = session => Boolean(session) && sessions.has(session);
 const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
-const captureObservation = error => {
+const captureObservation = (error, retainInspection) => {
   if (!objectLike(error)) return { observe: null };
   try {
     const observe = error.cacheOwnershipReleased;
     if (error.cacheOwnershipPending !== true && typeof observe !== 'function') return { observe: null };
-    return { observe: () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } } };
+    return { observe: () => {
+      try { return typeof observe === 'function' && observe.call(error) === true; }
+      catch (inspectionError) { retainInspection(inspectionError); return false; }
+    } };
   } catch (inspectionError) { return { observe: () => false, inspectionFailed: true, inspectionError }; }
 };
 const identityOf = stat => ({ dev: stat.dev, ino: stat.ino, size: stat.size, mode: stat.mode, nlink: stat.nlink,
@@ -39,6 +42,8 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
   const initialFailures = [], retryFailures = [], inspectionFailures = [], observers = [], observed = new WeakSet();
   let primary, hasPrimary = false, closeMethod = null, statMethod = null, writeMethod = null;
   let primaryMessage = 'File lock publication or exact rollback remains unconfirmed.';
+  const primaryDescriptors = [], excludedFields = new Set(['cause', 'errors', 'message', 'stack',
+    'cacheOwnershipPending', 'cacheOwnershipReleased', 'fileLockPublicationSession', 'fileLockPublication', 'fileLockPublicationErrors']);
   let closeCaptureFailure, closeCaptureFailed = false;
   let original = null, snapshot = null, closed = false, removed = false, closing = null, reconciling = null, overflow = false;
   const remember = value => {
@@ -51,7 +56,7 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
       if (objectLike(error) && failureOwners.get(error) === session) continue;
       if (!objectLike(error) || observed.has(error)) continue;
       observed.add(error);
-      const captured = captureObservation(error);
+      const captured = captureObservation(error, retainInspection);
       if (captured.observe) { if (observers.length < 128) observers.push(captured.observe); else overflow = true; }
       if (captured.inspectionFailed) {
         if (inspectionFailures.length < 64) {
@@ -61,21 +66,41 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
       }
     }
   };
+  const retainInspection = value => {
+    if (objectLike(value) && observed.has(value)) return;
+    if (inspectionFailures.length < 64) inspectionFailures.push(value); else overflow = true;
+    remember(value);
+  };
   const fail = value => {
     remember(value);
     initialFailures.push(value);
     if (!hasPrimary) {
       hasPrimary = true; primary = value;
+      if (objectLike(value)) {
+        try {
+          for (const field of Reflect.ownKeys(value)) {
+            if (excludedFields.has(field)) continue;
+            if (primaryDescriptors.length === 128) { overflow = true; break; }
+            try {
+              const descriptor = Object.getOwnPropertyDescriptor(value, field);
+              if (descriptor) primaryDescriptors.push([field, descriptor]);
+            } catch (inspectionError) { retainInspection(inspectionError); }
+          }
+        } catch (inspectionError) { retainInspection(inspectionError); }
+      }
       try {
         const message = objectLike(value) ? value.message : null;
         if (typeof message === 'string') primaryMessage = message;
       } catch (inspectionError) {
-        inspectionFailures.push(inspectionError);
-        remember(inspectionError);
+        retainInspection(inspectionError);
       }
     }
   };
-  const originalResourcesSettled = () => !overflow && observers.every(observe => observe());
+  const originalResourcesSettled = () => {
+    if (overflow) return false;
+    for (let index = 0; index < observers.length; index += 1) if (!observers[index]()) return false;
+    return !overflow;
+  };
   const resourcesSettled = () => closed && originalResourcesSettled();
   const isSettled = () => removed && resourcesSettled();
   const closeOriginal = async () => {
@@ -84,7 +109,7 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
     if (!closing) closing = Promise.resolve().then(async () => {
       if (!originalResourcesSettled()) throw new Error('Original file lock publication work prohibits native descriptor close.');
       const result = await closeMethod.call(handle);
-      if (result === false) throw new Error('Original file lock descriptor close explicitly remained unconfirmed.');
+      if (result !== undefined) throw new Error('Original file lock descriptor close did not confirm its standard void result.');
       closed = true;
     }).finally(() => { closing = null; });
     return closing;
@@ -95,15 +120,20 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
     const failure = new AggregateError(errors, primaryMessage, hasPrimary ? { cause: primary } : { cause: latest });
     if (objectLike(primary)) {
       try {
-        for (const field of Reflect.ownKeys(primary)) {
-          if (['cause', 'errors', 'message', 'stack', 'cacheOwnershipPending', 'cacheOwnershipReleased',
-            'fileLockPublicationSession', 'fileLockPublication', 'fileLockPublicationErrors'].includes(field)) continue;
-          const descriptor = Object.getOwnPropertyDescriptor(primary, field);
-          if (descriptor) Object.defineProperty(failure, field, descriptor);
+        for (const [field, captured] of primaryDescriptors) {
+          const descriptor = { ...captured }, getter = descriptor.get, setter = descriptor.set;
+          if (typeof getter === 'function') descriptor.get = () => {
+            try { return getter.call(primary); }
+            catch (inspectionError) { retainInspection(inspectionError); throw inspectionError; }
+          };
+          if (typeof setter === 'function') descriptor.set = value => {
+            try { return setter.call(primary, value); }
+            catch (inspectionError) { retainInspection(inspectionError); throw inspectionError; }
+          };
+          Object.defineProperty(failure, field, descriptor);
         }
       } catch (copyError) {
-        remember(copyError);
-        if (inspectionFailures.length < 64) inspectionFailures.push(copyError); else overflow = true;
+        retainInspection(copyError);
         failure.errors.push(copyError);
       }
     }
@@ -117,10 +147,20 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
     failureOwners.set(failure, session);
     return failure;
   };
-  const currentOwned = async expected => {
+  const currentOwned = async (expected, retainOriginalFailure = false) => {
     let stat;
     try { stat = await fs.lstat(lockPath, { bigint: true }); }
-    catch (error) { if (error?.code === 'ENOENT') return null; throw error; }
+    catch (error) {
+      if (!retainOriginalFailure) { if (error?.code === 'ENOENT') return null; throw error; }
+      remember(error);
+      if (!originalResourcesSettled()) throw error;
+      let code;
+      try { code = error?.code; }
+      catch (inspectionError) { retainInspection(inspectionError); throw error; }
+      if (!originalResourcesSettled()) throw error;
+      if (code === 'ENOENT') return null;
+      throw error;
+    }
     if (!expected || !regular(stat) || !sameIdentity(identityOf(stat), expected)) {
       throw new Error('File lock metadata identity changed or was not sealed; existing evidence is preserved.');
     }
@@ -128,11 +168,18 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
   };
   const session = Object.freeze({ resourceId, lockPath, isSettled, releaseAfterClose: async () => {
     if (!reconciling) reconciling = (async () => {
-      if (isSettled()) return { resourceId, settled: true, pending: false };
+      if (isSettled()) { forget(); return { resourceId, settled: true, pending: false }; }
       await closeOriginal();
       if (!resourcesSettled()) throw new Error('Original file lock publication resource observation remains pending.');
-      if (await currentOwned(snapshot)) await fs.rm(lockPath, { force: false });
-      removed = true; forget();
+      const current = removed ? null : await currentOwned(snapshot, true);
+      if (!resourcesSettled()) throw new Error('Original file lock work changed during rollback identity inspection.');
+      if (current) {
+        const removal = await fs.rm(lockPath, { force: false });
+        if (removal !== undefined) throw new Error('Original file lock metadata removal did not confirm its standard void result.');
+      }
+      removed = true;
+      if (!isSettled()) throw new Error('Original file lock work remains unconfirmed after rollback removal.');
+      forget();
       return { resourceId, settled: true, pending: false };
     })().finally(() => { reconciling = null; });
     try { return await reconciling; }
@@ -193,7 +240,9 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
       const info = await readInfo(lockPath);
       if (!info || info.lockId !== lockId) return false;
       if (!await currentOwned(snapshot)) return false;
-      await fs.rm(lockPath, { force: false }); released = true;
+      const removal = await fs.rm(lockPath, { force: false });
+      if (removal !== undefined) throw new Error('Original file lock release did not confirm its standard void result.');
+      released = true;
       return true;
     })().finally(() => { releasing = null; });
     return releasing;
