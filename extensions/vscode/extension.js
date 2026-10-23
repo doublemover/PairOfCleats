@@ -4677,6 +4677,8 @@ async function executeOwnedSearchCommand({
     },
     async (_, token) => {
       if (execution.mode === 'api') {
+        try { assertServiceMappingCurrent(repoContext, serviceMapping, vscode.workspace.workspaceFolders); }
+        catch (error) { vscode.window.showErrorMessage(error.message); return; }
         const scope = operations.current();
         const cancelSub = token.onCancellationRequested(() => operations.cancelScope(scope));
         if (token.isCancellationRequested) operations.cancelScope(scope);
@@ -4700,7 +4702,10 @@ async function executeOwnedSearchCommand({
           return;
         }
         let payload;
-        try { payload = mapServicePayload(result.payload?.result || result.payload, serviceMapping.serviceRoot); }
+        try {
+          assertServiceMappingCurrent(repoContext, serviceMapping, vscode.workspace.workspaceFolders);
+          payload = mapServicePayload(result.payload?.result || result.payload, serviceMapping.serviceRoot);
+        }
         catch (error) { vscode.window.showErrorMessage(error.message); return; }
         const hits = collectSearchHits(payload);
         if (enumeration) {
@@ -4988,12 +4993,14 @@ const runSemanticEvidence = createSemanticEvidenceWorkflow({
     }
     let payload, expectedRepo = repoContext.repoRoot;
     if (execution.mode === 'api') {
+      assertServiceMappingCurrent(repoContext, state.serviceMapping, vscode.workspace.workspaceFolders);
       if (execution.capabilities?.['context-pack'] !== true) throw new Error('Service supports semantic requests but does not advertise context-pack generation discovery. Enter a known immutable generation.');
       expectedRepo = state.serviceMapping.serviceRoot;
       const response = await requestApiJson(execution.baseUrl, '/analysis/context-pack', { method: 'POST',
         payload: contextDiscoveryRequest(expectedRepo, seed), timeoutMs: execution.timeoutMs,
         label: 'Canonical semantic generation discovery' });
       if (!response.ok) throw new Error(response.message);
+      assertServiceMappingCurrent(repoContext, state.serviceMapping, vscode.workspace.workspaceFolders);
       payload = response.payload?.result || response.payload;
     } else {
       const cli = resolveCli(repoContext.repoRoot, config);
@@ -5013,12 +5020,15 @@ const runSemanticEvidence = createSemanticEvidenceWorkflow({
   execute: async (operation, request, state) => {
     const { execution, config, repoContext } = state;
     if (execution.mode === 'api') {
+      assertServiceMappingCurrent(repoContext, state.serviceMapping, vscode.workspace.workspaceFolders);
       request = { ...request, repoRoot: state.serviceMapping.serviceRoot };
       const probe = await getCachedApiCapabilities(execution.baseUrl, execution.timeoutMs);
+      assertServiceMappingCurrent(repoContext, state.serviceMapping, vscode.workspace.workspaceFolders);
       if (probe.capabilities?.[`semantic-${operation}`] !== true) throw new Error(`Service does not advertise semantic ${operation}.`);
       const response = await requestApiJson(execution.baseUrl, `/analysis/semantic-${operation}`, {
         method: 'POST', payload: request, timeoutMs: execution.timeoutMs, label: `Semantic ${operation}` });
       if (!response.ok) throw new Error(response.message);
+      assertServiceMappingCurrent(repoContext, state.serviceMapping, vscode.workspace.workspaceFolders);
       return response.payload?.result || response.payload;
     }
     const cli = resolveCli(repoContext.repoRoot, config);
@@ -5066,6 +5076,7 @@ const copySelectedContext = createEvidenceCollection({
           maxBytes: 24576, maxNodes: 16, maxEdges: 32 },
         timeoutMs: execution.timeoutMs, label: 'PairOfCleats selected context' });
       if (!response.ok) throw new Error(response.message);
+      assertServiceMappingCurrent(repoContext, mapping, vscode.workspace.workspaceFolders);
       return response.payload?.result || response.payload;
     }
     const cli = resolveCli(repoContext.repoRoot, config);
@@ -5361,6 +5372,14 @@ async function runOwnedSavedSearch(resultSet, repoContext, appendTo = null) {
   let hits = [];
   let payload = null;
   if (invocation?.kind === 'api-search') {
+    const key = `${invocation.baseUrl}::${repoContext.repoUri?.toString?.() || ''}`;
+    const mapping = readWorkspaceState('pairofcleats.serviceRepositories', {})?.[key];
+    try {
+      if (!mapping || mapping.serviceRoot !== invocation.payload?.repo) {
+        throw new Error('Saved search repository mapping changed or is unavailable. Select the service repository and restart browsing.');
+      }
+      assertServiceMappingCurrent(repoContext, mapping, vscode.workspace.workspaceFolders);
+    } catch (error) { vscode.window.showErrorMessage(error.message); return { ok: false }; }
     const result = await requestApiJson(invocation.baseUrl, '/search', {
       method: 'POST',
       payload: invocation.payload,
@@ -5374,7 +5393,10 @@ async function runOwnedSavedSearch(resultSet, repoContext, appendTo = null) {
       vscode.window.showErrorMessage(result.message || 'PairOfCleats search failed.');
       return { ok: false };
     }
-    payload = mapServicePayload(result.payload?.result || result.payload, invocation.payload.repo);
+    try {
+      assertServiceMappingCurrent(repoContext, mapping, vscode.workspace.workspaceFolders);
+      payload = mapServicePayload(result.payload?.result || result.payload, invocation.payload.repo);
+    } catch (error) { vscode.window.showErrorMessage(error.message); return { ok: false }; }
     hits = collectSearchHits(payload);
   } else {
     const searchTimeoutMs = 60000;

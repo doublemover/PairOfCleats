@@ -11,7 +11,7 @@ const original = { generation, status: 'partial', records: [{ ref, kind: 'operat
 const choose = value => items => items.find(item => item === value || item.value === value || item.action === value);
 const record = items => items.find(item => item.record);
 for (const scenario of ['seed-snapshot', 'current-source-snapshot', 'record-bound', 'edge-bound',
-  'ambiguous-source', 'repeated-cursor', 'cursor-cycle', 'canonical-plan']) {
+  'ambiguous-source', 'repeated-cursor', 'cursor-cycle', 'canonical-plan', 'head-after-seed', 'head-during-response']) {
   const root = createVsCodeRuntimeTempRepo({ prefix: 'poc-registered-semantic-bounds-' });
   let mapping;
   const responses = [], requests = [];
@@ -22,6 +22,7 @@ for (const scenario of ['seed-snapshot', 'current-source-snapshot', 'record-boun
         'semantic-find': true, 'semantic-detail': true, 'semantic-trace': true, 'semantic-enrichment': true } }));
       if (url.includes('/status')) return new Response(JSON.stringify(mapping.status));
       requests.push(JSON.parse(options.body));
+      if (scenario === 'head-during-response') fs.writeFileSync(path.join(root, '.git', 'HEAD'), 'b'.repeat(40) + '\n');
       return new Response(JSON.stringify({ ok: true, result: responses.shift() }));
     } });
   mapping = prepareServiceMappingFixture(harness, { repoRoot: root, serviceRoot: '/srv/semantic repo' });
@@ -33,6 +34,7 @@ for (const scenario of ['seed-snapshot', 'current-source-snapshot', 'record-boun
     harness.quickPickQueue.push(items => {
       node.hit.chunkUid = 'mutated-hit'; node.resultSet.repoRoot = path.join(root, 'foreign');
       harness.setActiveFile(path.join(root, 'src', 'another.ts'));
+      if (scenario === 'head-after-seed') fs.writeFileSync(path.join(root, '.git', 'HEAD'), 'b'.repeat(40) + '\n');
       return choose('manual')(items);
     }, choose(scenario === 'current-source-snapshot' ? 'Current source file' : 'Selected chunk ownership'));
     if (scenario === 'record-bound') data.records = Array.from({ length: 129 }, (_, localId) => ({ ...original.records[0], ref: { ...ref, localId } }));
@@ -57,6 +59,12 @@ for (const scenario of ['seed-snapshot', 'current-source-snapshot', 'record-boun
     } else harness.quickPickQueue.push(choose('back'));
     if (!responses.length) responses.push(data);
     await harness.registeredCommands.get('pairofcleats.semanticEvidence')(scenario === 'current-source-snapshot' ? null : node);
+    if (scenario === 'head-after-seed' || scenario === 'head-during-response') {
+      assert.equal(requests.length, scenario === 'head-after-seed' ? 0 : 1);
+      assert(harness.errorMessages.some(message => /identity changed/.test(message)));
+      assert.equal(harness.openedDocuments.length, 0, 'source replacement cannot publish semantic evidence for the old mapped revision');
+      continue;
+    }
     assert.equal(requests[0].repoRoot, '/srv/semantic repo');
     assert.deepEqual(requests[0].generation, generation);
     assert.equal(requests[0].selector.value, scenario === 'current-source-snapshot' ? 'src/app.ts' : 'original-hit', scenario);
