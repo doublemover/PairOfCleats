@@ -22,7 +22,7 @@ import {
   loadUserConfig,
   resolveSqlitePaths
 } from '../shared/dict-utils.js';
-import { loadWorkspaceConfig } from './config.js';
+import { loadWorkspaceConfig, snapshotWorkspaceMember, assertWorkspaceMemberCurrent } from './config.js';
 import { toRealPathSync } from './identity.js';
 
 export const WORKSPACE_MANIFEST_SCHEMA_VERSION = 1;
@@ -384,6 +384,7 @@ const resolveSqliteEntry = async (dbPath) => {
 };
 
 const buildRepoManifestEntry = async (repoEntry, diagnostics) => {
+  assertWorkspaceMemberCurrent(repoEntry);
   const repoRootCanonical = repoEntry.repoRootCanonical;
   const userConfig = loadUserConfig(repoRootCanonical);
   const repoCacheRoot = toRealPathSync(getRepoCacheRoot(repoRootCanonical, userConfig));
@@ -417,7 +418,7 @@ const buildRepoManifestEntry = async (repoEntry, diagnostics) => {
     }
   };
 
-  return {
+  const entry = {
     repoId: repoEntry.repoId,
     repoRootCanonical,
     repoCacheRoot,
@@ -445,6 +446,8 @@ const buildRepoManifestEntry = async (repoEntry, diagnostics) => {
     indexes,
     sqlite
   };
+  assertWorkspaceMemberCurrent(repoEntry);
+  return entry;
 };
 
 export const resolveFederationCacheRoot = (workspaceConfig) => {
@@ -530,9 +533,10 @@ export const generateWorkspaceManifest = async (workspaceConfigOrPath, {
     ? loadWorkspaceConfig(workspaceConfigOrPath, { platform })
     : workspaceConfigOrPath;
   const diagnostics = { warnings: [], errors: [] };
+  const members = workspaceConfig.repos.map(snapshotWorkspaceMember);
 
   const repos = [];
-  for (const repoEntry of workspaceConfig.repos) {
+  for (const repoEntry of members) {
     try { repos.push(await buildRepoManifestEntry(repoEntry, diagnostics)); }
     catch (error) {
       if (write || !allowPartial) throw error;
@@ -569,7 +573,8 @@ export const generateWorkspaceManifest = async (workspaceConfigOrPath, {
   }
   const outputPath = manifestPath || getWorkspaceManifestPath(workspaceConfig);
   if (write) {
-    await atomicWriteText(outputPath, stableStringify(manifest), { newline: true });
+    await atomicWriteText(outputPath, stableStringify(manifest), { newline: true,
+      beforeCommit: () => { for (const member of members) assertWorkspaceMemberCurrent(member); } });
   }
   return {
     manifest,

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { resolveWorkspaceBuildConcurrency, WORKSPACE_BUILD_OPTIONS } from '../../src/shared/index-tool-options.js';
 import { fileURLToPath } from 'node:url';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
-import { loadWorkspaceConfig } from '../../src/workspace/config.js';
+import { loadWorkspaceConfig, snapshotWorkspaceMember, assertWorkspaceMemberCurrent } from '../../src/workspace/config.js';
 import { generateWorkspaceManifest } from '../../src/workspace/manifest.js';
 import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
@@ -156,13 +156,16 @@ export const runRepoBuild = async ({ repo, buildArgs, signal: abortSignal = null
   const startedAt = Date.now();
   let startup = null;
   try {
+    repo = snapshotWorkspaceMember(repo);
     buildArgs = normalizeWorkspaceChildBuildArgs(buildArgs);
     abortSignal?.throwIfAborted();
+    assertWorkspaceMemberCurrent(repo);
     const request = { repoRoot: repo.repoRootCanonical, buildArgs, baseEnv: { ...baseEnv } };
     const plan = resolveEnv ? { env: await resolveEnv(request), evidence: null } : await resolvePlan(request);
     const env = plan.env;
     startup = plan.evidence;
     abortSignal?.throwIfAborted();
+    assertWorkspaceMemberCurrent(repo);
     const result = await spawn(
       process.execPath,
       [BUILD_INDEX_SCRIPT, ...buildArgs, '--repo', repo.repoRootCanonical],
@@ -210,11 +213,12 @@ export const runRepoBuild = async ({ repo, buildArgs, signal: abortSignal = null
     let entry, resultObservation;
     try {
       const candidate = observation.primary.result;
-      const result = candidate && typeof candidate === 'object' ? candidate : {};
+      const result = candidate !== null && ['object', 'function'].includes(typeof candidate) ? candidate : {};
       resultObservation = observeStorageResource(result, { phase: 'workspace-child-build-error-result' });
       resultObservation.requireSettled();
       const rawStderr = result.stderr, rawSignal = result.signal, rawExitCode = result.exitCode;
       const rawMessage = observation.primary.message;
+      const rawCode = observation.primary.code;
       const stderr = typeof rawStderr === 'string' ? rawStderr.trim() : '';
       const signal = typeof rawSignal === 'string' && rawSignal.trim().length > 0
         ? rawSignal.trim()
@@ -231,6 +235,7 @@ export const runRepoBuild = async ({ repo, buildArgs, signal: abortSignal = null
         durationMs: Date.now() - startedAt,
         startup,
         status: 'failed',
+        ...(typeof rawCode === 'string' ? { errorCode: rawCode } : {}),
         error: errorMessage
       };
     } catch (inspection) {
@@ -258,7 +263,7 @@ export const runWorkspaceBuildReport = async (workspaceConfig, {
   const invocationEnv = { ...baseEnv };
   const invocationArgs = normalizeWorkspaceChildBuildArgs(buildArgs);
   // Retain this invocation's target inventory before any build callback awaits.
-  const configured = workspaceConfig.repos.map(repo => ({ ...repo }));
+  const configured = workspaceConfig.repos.map(snapshotWorkspaceMember);
   const targets = configured
     .filter((repo) => includeDisabled || repo.enabled !== false)
     .slice()
@@ -280,6 +285,7 @@ export const runWorkspaceBuildReport = async (workspaceConfig, {
       const repo = targets[next];
       let result;
       try {
+        assertWorkspaceMemberCurrent(repo);
         const candidate = await runBuild({ repo, buildArgs: [...invocationArgs], signal, baseEnv: { ...invocationEnv } });
         const observation = observeStorageResource(candidate, { phase: 'workspace-build-outcome' });
         observation.requireSettled();
@@ -297,6 +303,7 @@ export const runWorkspaceBuildReport = async (workspaceConfig, {
         catch (pending) { pendingOwners.push(pending); }
         result = { repoId: repo.repoId, repoRootCanonical: repo.repoRootCanonical, exitCode: null,
           signal: null, durationMs: 0, status: failure ? 'failed' : 'settlement-pending',
+          ...(failure ? { errorCode: failure.code } : {}),
           error: failure?.message || 'Repository child ownership remains unresolved.' };
       }
       if (!result || typeof result !== 'object') {
@@ -414,6 +421,7 @@ export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2), {
     for (const entry of diagnostics.skipped) console.error(`  - ${entry.repoId}: skipped (${entry.reason})`);
     if (manifestError) console.error(`- manifest refresh failed: ${manifestError.code}: ${manifestError.message}`);
     for (const retry of payload.recovery.retryCandidates) console.error(`  retry (${retry.repoId}): ${retry.command.map(value => JSON.stringify(value)).join(' ')}`);
+    for (const review of payload.recovery.membershipReview) console.error(`  review membership (${review.repoId}): ${review.command.map(value => JSON.stringify(value)).join(' ')}`);
     console.error(payload.qualification);
   }
 
