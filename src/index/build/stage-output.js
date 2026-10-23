@@ -52,7 +52,7 @@ export const inventoryStageOutput = async ({ buildRoot, buildId, mode, signal, s
  */
 export const copyStageMember = async ({ sourceRoot, targetRoot, part, signal, assertOwned, createOnly = true }) => {
   throwIfAborted(signal); assertOwned();
-  const source = resolveArtifactPath(sourceRoot, part.path), target = resolveArtifactPath(targetRoot, part.path);
+  const source = resolveArtifactPath(sourceRoot, part.path), target = resolveArtifactPath(targetRoot, part.path, { allowMissing: true });
   assertNoSymlinkPath(targetRoot, target, { allowMissing: true });
   await fs.mkdir(path.dirname(target), { recursive: true });
   await withContainedFile(sourceRoot, source, async descriptor => {

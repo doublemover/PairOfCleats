@@ -31,7 +31,7 @@ export const snapshotStageOutput = async ({ runtime, mode, manifest, inventory, 
   const assertOwned = () => assertIndexCacheLease(runtime.cacheWriterLease, runtime.repoCacheRoot);
   assertOwned(); throwIfAborted(signal);
   const relativeRoot = `completed/${mode}/${randomUUID()}`;
-  const snapshotRoot = resolveArtifactPath(runtime.buildRoot, relativeRoot);
+  const snapshotRoot = resolveArtifactPath(runtime.buildRoot, relativeRoot, { allowMissing: true });
   assertNoSymlinkPath(runtime.buildRoot, snapshotRoot, { allowMissing: true });
   await fs.mkdir(path.join(snapshotRoot, `index-${mode}`), { recursive: true });
   const sourceRoot = path.join(runtime.buildRoot, `index-${mode}`), targetRoot = path.join(snapshotRoot, `index-${mode}`);

@@ -1,3 +1,4 @@
+import { runWithIndependentSchedulerOwner } from '../../../shared/concurrency/scheduler-task-scope.js';
 import path from 'node:path';
 import { estimateJsonBytes } from '../../../shared/cache/size.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
@@ -166,7 +167,9 @@ export const createPatchQueue = ({
     if (!buildRoot) return Promise.resolve(null);
     const key = path.resolve(buildRoot);
     const prior = stateQueues.get(key) || Promise.resolve();
-    const next = prior.catch(() => {}).then(action);
+    // This queue retains pending batches and explicit flush/drain ownership.
+    // Its I/O cannot borrow the lifetime of whichever file posted the patch.
+    const next = runWithIndependentSchedulerOwner(() => prior.catch(() => {}).then(action));
     // This queue is driven by fire-and-forget flushes, so consume the raw
     // rejection immediately and let explicit awaiters observe it separately.
     next.catch(() => null);

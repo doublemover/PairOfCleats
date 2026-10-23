@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { getBuildsRoot, getRepoCacheRoot } from '../../../shared/dict-utils.js';
 import { assertNoSymlinkPath } from '../../../shared/contained-file.js';
@@ -19,7 +20,7 @@ export const listBuildRecoveryCandidates = async ({ root, userConfig, modes, sig
     new Error('Recovery candidate inventory requires supported explicit modes.'), { code: 'ERR_RECOVERY_MODES' });
   modes = [...modes];
   const repoCacheRoot = getRepoCacheRoot(root, userConfig), buildsRoot = getBuildsRoot(root, userConfig);
-  const lease = acquireRepoCacheAccessLease(repoCacheRoot, { scope: 'build-recovery-candidates', requireSettlement: true });
+  const lease = acquireRepoCacheAccessLease(repoCacheRoot, { scope: 'build-recovery-candidates', resourceId: randomUUID(), requireSettlement: true });
   let primary = null, primaryObservation = null, released = false;
   const release = () => {
     if (primaryObservation && (!primaryObservation.call(primary) || !readStorageFailureContext(primary)?.complete)) throw primary;

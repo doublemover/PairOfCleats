@@ -3,6 +3,12 @@ const scope = new AsyncLocalStorage();
 const suspendedScopes = new AsyncLocalStorage();
 export const runWithSchedulerTaskLease = (lease, operation) => scope.run(lease, operation);
 export const currentSchedulerTaskLease = () => scope.getStore() || null;
+/** Independently drained queues must not inherit one producer's file lease.
+ * The receiving owner still retains its own work, bytes and close obligations;
+ * this boundary is not for unowned task continuations or native worker compute.
+ */
+export const runWithIndependentSchedulerOwner = operation => scope.run(null,
+  () => suspendedScopes.run(null, operation));
 
 /** Only explicit known waits suspend compute. Retained bytes, memory tokens and
  * task/window ownership stay with the original task until it actually settles.

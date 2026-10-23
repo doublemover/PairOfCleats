@@ -325,8 +325,8 @@ export function createSchedulerDispatch({
           let value, primary, failed = false;
           try { value = await next.fn(); } catch (error) { primary = error; failed = true; }
           if (lease.pendingWaits.size) {
-            const detached = Object.assign(new Error('Scheduler task finished with an unawaited nested wait.'), {
-              code: 'ERR_SCHEDULER_UNAWAITED_WAIT'
+            const detached = Object.assign(new Error(`Scheduler task ${queue.name} finished with an unawaited nested wait (pending=${lease.pendingWaits.size}, retainedCompute=${lease.retainedComputeWaits.size}, depth=${lease.depth}, suspended=${lease.suspended}).`), {
+              code: 'ERR_SCHEDULER_UNAWAITED_WAIT', schedulerQueue: queue.name
             });
             // Promise races/timeouts do not settle their losing operation.
             // Keep source/result bytes, memory and file-window ownership until

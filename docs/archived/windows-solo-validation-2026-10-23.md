@@ -68,3 +68,49 @@ actual execution. Measured performance and native lifecycle cohorts run serially
 The plan must be frozen to the committed source identity before acceptance.
 The prior 3963-case inventory is historical and cannot describe this source.
 Open GitHub issues remain open; these observations do not close the backlog.
+
+## First frozen cohorts and production repairs
+
+At `4382b77928a114df09cd00bac6017eb01871299f`, analysis (2), backcompat
+(1) and CI (30) passed. The 48-case CLI cohort passed 37 and failed 11, with no
+timeouts, skips or native crashes. This is 70/81 passing observations at that
+candidate, not a complete required-suite pass. Its remaining cohorts stopped.
+
+The ordinary multi-mode build reproduced a scheduler ownership failure. Bounded
+internal queue/count diagnostics and an attempt-only module-load stack trace
+identified actual pending descriptor operations in queued diagnostic appends and
+build-state atomic writes. These independently drained owners inherited a file
+producer's AsyncLocalStorage scheduler lease. Their background I/O outlived that
+file task, so the strict pending-wait guard correctly refused task completion.
+The queues now run under an explicit independent-owner scope; their original
+write chains, flush barriers, descriptor settlement and close obligations remain.
+Crash-state writes use the same owned boundary. The guard still rejects actual
+unawaited worker compute; no retry, backend or deadline relaxation was introduced.
+
+The same CLI path exposed two other production admission defects. Recovery
+candidate enumeration requested a settlement-required reader without its bounded
+resource identity; it now supplies a per-operation UUID. Stage snapshots and
+copied members resolved prospective write destinations with strict existing-file
+admission before creating them. Only owned write destinations now allow missing
+components; source reads and existing traversal/link checks stay strict, with
+publication rechecks retained.
+
+The original multi-mode artifacts case now passes in 16.5 seconds under its normal
+fixture settings. The original SQLite-stage4 and query-determinism cases pass
+separately in 18.3/17.6 seconds. Five owner regressions pass, including actual
+FileHandle writes/close and metadata drain, plus the existing unawaited-worker
+negative and append resource failure controls. New fresh/stale/aborted recovery
+inventory coverage passes, asserting scoped settlement leases separately from
+legitimate process-lifetime readers. Existing checkpoint traversal rejection also
+passes. Diagnostic stack instrumentation was absent from these passing runs.
+
+The remaining CLI cases still need reruns at the next frozen candidate. The TUI
+CLI build/install case independently fails staged target admission; its legacy
+synthetic binary and fixed install-path fixture need review against the immutable
+generation contract. No TUI native execution or whole-source acceptance is claimed.
+Two new regressions also require discovery/cohort reconciliation before refreezing.
+
+The production repair batch also passes scoped formatting, config budget,
+environment usage, generated-surface freshness, command-surface and workflow
+contracts, the full 40-case gate, and whitespace checks. Broad acceptance remains
+invalidated until the repaired source is frozen and its cohorts execute.

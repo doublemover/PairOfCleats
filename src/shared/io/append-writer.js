@@ -1,3 +1,4 @@
+import { runWithIndependentSchedulerOwner } from '../concurrency/scheduler-task-scope.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createContainedFileResource, getContainedFileSession } from '../contained-file-resource.js';
@@ -114,7 +115,9 @@ export const createQueuedAppendWriter = ({
     return handlePromise;
   };
   const append = task => {
-    const result = writeChain.then(task);
+    // The serialized writer owns these bytes until flush/close. A producer's
+    // file task may retire while its diagnostic append is still outstanding.
+    const result = runWithIndependentSchedulerOwner(() => writeChain.then(task));
     // Retain a fulfilled drain chain without suppressing the public task result.
     writeChain = result.then(() => undefined, () => undefined);
     return result;

@@ -1,3 +1,4 @@
+import { runWithIndependentSchedulerOwner } from '../../shared/concurrency/scheduler-task-scope.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import crypto from 'node:crypto';
@@ -930,7 +931,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled, buildId = null
 
   const flushStateWrites = async () => {
     if (stateWriteInFlight) return stateWriteInFlight;
-    stateWriteInFlight = (async () => {
+    stateWriteInFlight = runWithIndependentSchedulerOwner(async () => {
       while (queuedState) {
         const nextState = queuedState;
         queuedState = null;
@@ -943,7 +944,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled, buildId = null
           catch (err) { warnIo(action, err); }
         }
       }
-    })();
+    });
     try {
       await stateWriteInFlight;
     } finally {
