@@ -55,9 +55,15 @@ class ProcessHandle(object):
         self._window = window
         self._stopper = None
         self._cleanup_failures = []
+        self._started = threading.Event()
+        self._stopper_started = threading.Event()
+        self._auxiliary_threads = []
+        self._reader_threads = []
+        if thread is None:
+            self._started.set()
 
     def cancel(self):
-        if self.process is None or self.process.poll() is not None:
+        if self.process is None or self.process.poll() is not None and (self.thread is None or not self.thread.is_alive()):
             return
         if self._task and self._window:
             tasks.mark_cancelling(self._window, self._task, details='Cancellation requested.')
@@ -67,12 +73,23 @@ class ProcessHandle(object):
     def wait(self, timeout):
         deadline = time.monotonic() + timeout
         if self.thread is not None:
-            self.thread.join(timeout)
+            if not self._started.wait(max(0.0, deadline - time.monotonic())):
+                return False
+            if self.thread.ident is not None:
+                self.thread.join(max(0.0, deadline - time.monotonic()))
             if self.thread.is_alive():
                 return False
         if self._stopper is not None:
-            self._stopper.join(max(0.0, deadline - time.monotonic()))
+            if not self._stopper_started.wait(max(0.0, deadline - time.monotonic())):
+                return False
+            if self._stopper.ident is not None:
+                self._stopper.join(max(0.0, deadline - time.monotonic()))
             if self._stopper.is_alive():
+                return False
+        for auxiliary in self._auxiliary_threads + self._reader_threads:
+            if auxiliary.ident is not None:
+                auxiliary.join(max(0.0, deadline - time.monotonic()))
+            if auxiliary.is_alive():
                 return False
         return not self._cleanup_failures
 
@@ -135,8 +152,8 @@ def _terminate_process_tree(process, force=False):
             process.kill()
         else:
             process.terminate()
-    except Exception:
-        pass
+    except Exception as error:
+        raise RuntimeError('Owned process termination failed: {0}'.format(error)) from error
     # A direct-process fallback cannot certify the descendant tree on Windows.
     return os.name != 'nt'
 
@@ -175,7 +192,7 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
                 output_cap_chars=DEFAULT_OUTPUT_CAP_CHARS, operation_scope=None, on_settled=None):
     if window is None:
         window = sublime.active_window()
-    scope = operation_scope or operations.capture(window)
+    scope = dict(operation_scope or operations.capture(window))
     if not operations.is_current(scope):
         return ProcessHandle(None, None)
     settings = config.get_settings(window) if window is not None else {}
@@ -248,6 +265,7 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
         'last_activity_at': time.time(),
         'watchdog_count': 0,
         'done': False,
+        'done_event': threading.Event(),
         'stop_reason': None,
         'stop_lock': threading.Lock(),
         'stream_errors': [],
@@ -309,6 +327,13 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
             state['stop_reason'] = reason
         def terminate():
             try:
+                if proc.poll() is not None and any(reader.is_alive() for reader in handle._reader_threads):
+                    state['parent_exit_pending'] = True
+                    if task:
+                        task['cleanupUnconfirmed'] = True
+                        tasks.note_progress(window, task,
+                            details='Parent exited; waiting for owned output/descendant settlement. Parent exit does not release this operation.')
+                    return
                 if not _terminate_process_tree(proc, force=True):
                     handle._cleanup_failures.append('Owned descendant termination was not confirmed.')
             except Exception as error:
@@ -316,7 +341,17 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
         stopper = threading.Thread(target=terminate)
         handle._stopper = stopper
         stopper.daemon = True
-        stopper.start()
+        try:
+            stopper.start()
+        except Exception as error:
+            handle._cleanup_failures.append('Owned termination worker could not start: {0}'.format(error)[:1024])
+            try:
+                if not _terminate_process_tree(proc, force=True):
+                    handle._cleanup_failures.append('Synchronous owned termination fallback remains unconfirmed.')
+            except Exception as cleanup_error:
+                handle._cleanup_failures.append('Synchronous owned termination failed: {0}'.format(cleanup_error)[:1024])
+        finally:
+            handle._stopper_started.set()
 
     def worker():
         stdout_sink = {'parts': stdout_lines, 'state': state['stdout']}
@@ -325,12 +360,31 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
         stderr_thread = threading.Thread(target=read_stream, args=(proc.stderr, stderr_sink))
         stdout_thread.daemon = True
         stderr_thread.daemon = True
-        stdout_thread.start()
-        stderr_thread.start()
-        stdout_thread.join()
-        stderr_thread.join()
+        handle._reader_threads = [stdout_thread, stderr_thread]
+        reader_start_error = None
         try:
-            proc.wait()
+            stdout_thread.start()
+            stderr_thread.start()
+        except Exception as error:
+            reader_start_error = error
+            state['stream_errors'].append('Process output worker could not start: {0}'.format(error)[:1024])
+            try:
+                if not _terminate_process_tree(proc, force=True):
+                    handle._cleanup_failures.append('Owned process-tree stop after output worker failure remains unconfirmed.')
+            except Exception as cleanup_error:
+                handle._cleanup_failures.append('Owned output startup cleanup failed: {0}'.format(cleanup_error)[:1024])
+        for reader, stream in ((stdout_thread, proc.stdout), (stderr_thread, proc.stderr)):
+            if reader.ident is not None:
+                reader.join(2.0 if reader_start_error else None)
+                if reader.is_alive():
+                    handle._cleanup_failures.append('Owned output worker settlement remains unconfirmed.')
+            else:
+                try:
+                    stream.close()
+                except Exception as cleanup_error:
+                    handle._cleanup_failures.append('Owned unstarted output close failed: {0}'.format(cleanup_error)[:1024])
+        try:
+            proc.wait(timeout=2) if reader_start_error else proc.wait()
         except Exception as error:
             handle._cleanup_failures.append('Owned process wait failed: {0}'.format(error)[:1024])
 
@@ -376,11 +430,19 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
         )
         with activity_lock:
             state['done'] = True
+        state['done_event'].set()
+        for auxiliary in handle._auxiliary_threads:
+            if auxiliary.ident is not None:
+                auxiliary.join(1.0)
+            if auxiliary.is_alive():
+                handle._cleanup_failures.append('Owned watchdog settlement remains unconfirmed.')
         if handle._stopper is not None:
-            handle._stopper.join(2.1)
+            if handle._stopper_started.wait(2.1) and handle._stopper.ident is not None:
+                handle._stopper.join(2.1)
         if state.get('watch_ownership_pending') or task and (task.get('watch') or {}).get('ownershipPending'):
             handle._cleanup_failures.append('Canonical watch teardown ownership remains pending.')
-        cleanup_unconfirmed = bool(handle._cleanup_failures or (handle._stopper is not None and handle._stopper.is_alive()))
+        cleanup_unconfirmed = bool(handle._cleanup_failures or (handle._stopper is not None
+            and (not handle._stopper_started.is_set() or handle._stopper.is_alive())))
         if cleanup_unconfirmed:
             result.error = (result.error + '\n' if result.error else '') + 'Owned process-tree settlement remains unconfirmed.'
             result.state = 'cleanup_unconfirmed'
@@ -415,7 +477,7 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
                 detail = 'Completed successfully.' if proc.returncode == 0 else (output.strip() or 'Process failed.')
             tasks.complete_task(window, task, status=final_status, details=detail[:240])
         sublime.set_timeout(lambda: done_callback(result), 0)
-        if not handle._cleanup_failures and (handle._stopper is None or not handle._stopper.is_alive()):
+        if not cleanup_unconfirmed:
             operations.release(handle)
 
     def watchdog():
@@ -423,7 +485,8 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
         if timeout_seconds <= 0:
             return
         while True:
-            time.sleep(min(1.0, timeout_seconds))
+            if state['done_event'].wait(min(1.0, timeout_seconds)):
+                return
             with activity_lock:
                 if state['done']:
                     return
@@ -444,7 +507,8 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
             return
         timeout_seconds = timeout_ms / 1000.0
         while True:
-            time.sleep(min(0.25, timeout_seconds))
+            if state['done_event'].wait(min(0.25, timeout_seconds)):
+                return
             with activity_lock:
                 if state['done']:
                     return
@@ -460,13 +524,55 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
     operations.track(scope, handle)
     if task:
         task['cancel'] = handle.cancel
-    thread.start()
     watchdog_thread = threading.Thread(target=watchdog)
     watchdog_thread.daemon = True
-    watchdog_thread.start()
     timeout_thread = threading.Thread(target=timeout_watchdog)
     timeout_thread.daemon = True
-    timeout_thread.start()
+    handle._auxiliary_threads = [watchdog_thread, timeout_thread]
+    try:
+        # Register every owned timer before the worker can report settlement.
+        # Starting auxiliaries first also makes the worker's join set stable.
+        watchdog_thread.start()
+        timeout_thread.start()
+        thread.start()
+    except Exception as error:
+        state['done'] = True
+        state['done_event'].set()
+        message = 'Process execution worker could not start: {0}'.format(error)[:1024]
+        try:
+            if not _terminate_process_tree(proc, force=True):
+                handle._cleanup_failures.append('Owned process-tree stop after worker startup failure remains unconfirmed.')
+            proc.wait(timeout=2)
+        except Exception as cleanup_error:
+            handle._cleanup_failures.append('Owned startup cleanup failed: {0}'.format(cleanup_error)[:1024])
+        for stream in (proc.stdout, proc.stderr):
+            try:
+                stream.close()
+            except Exception as cleanup_error:
+                handle._cleanup_failures.append('Owned startup stream close failed: {0}'.format(cleanup_error)[:1024])
+        for auxiliary in handle._auxiliary_threads:
+            if auxiliary.ident is not None:
+                auxiliary.join(1.0)
+            if auxiliary.is_alive():
+                handle._cleanup_failures.append('Owned startup watchdog settlement remains unconfirmed.')
+        result = ProcessResult(getattr(proc, 'returncode', -1), '', error=message, state='start_failed')
+        if callable(on_settled):
+            try:
+                on_settled(result)
+            except Exception as cleanup_error:
+                handle._cleanup_failures.append('Settlement callback failed: {0}'.format(cleanup_error)[:1024])
+        result.cleanup_errors = list(handle._cleanup_failures)
+        if result.cleanup_errors:
+            result.error += '\n' + '\n'.join(result.cleanup_errors)
+            result.state = 'cleanup_unconfirmed'
+        if task:
+            task['cleanupUnconfirmed'] = bool(result.cleanup_errors)
+            tasks.complete_task(window, task, status='failed', details=result.error)
+        sublime.set_timeout(lambda: done_callback(result), 0)
+        if not handle._cleanup_failures:
+            operations.release(handle)
+    finally:
+        handle._started.set()
 
     return handle
 

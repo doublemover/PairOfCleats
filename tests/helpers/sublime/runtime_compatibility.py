@@ -103,7 +103,7 @@ class RuntimeCompatibilityTests(unittest.TestCase):
                 self.assertEqual(kwargs, {'stdout': subprocess.DEVNULL, 'stderr': subprocess.DEVNULL, 'timeout': 2})
                 self.assertEqual((proc.terminated, proc.killed), (0, 0))
 
-    def test_windows_helper_failure_falls_back_and_preserves_force_timer(self):
+    def test_windows_helper_failure_preserves_unconfirmed_descendant_settlement(self):
         failures = [1, OSError('fixture taskkill missing'), subprocess.TimeoutExpired('taskkill', 2)]
         for failure in failures:
             calls = []
@@ -122,9 +122,10 @@ class RuntimeCompatibilityTests(unittest.TestCase):
                 self.runner._terminate_process_tree(proc, force=True)
                 self.assertEqual(proc.killed, 1)
 
-        # Both explicit cancellation and timeout still schedule force-stop after
-        # a failed helper and ignored graceful termination. No fake PID is sent
-        # to the host: the explicit subprocess fixture owns every command here.
+        # The owned stop worker still reaches the direct force fallback when
+        # the minimum-runtime tree helper fails. Direct parent closure cannot
+        # certify Windows descendants, so settlement remains unconfirmed.
+        # No fake PID is sent to the host by this explicit subprocess fixture.
         for timed_out in (False, True):
             proc = RunningProcess()
             done = threading.Event()
@@ -144,10 +145,13 @@ class RuntimeCompatibilityTests(unittest.TestCase):
                 self.assertTrue(done.wait(4), 'cancellation/timeout must reach force-stop settlement')
                 handle.thread.join(1)
                 self.assertFalse(handle.thread.is_alive())
-                self.assertEqual((proc.terminated, proc.killed), (1, 1))
-                self.assertEqual(results[0].state, 'timed_out' if timed_out else 'cancelled')
+                self.assertEqual((proc.terminated, proc.killed), (0, 1))
+                self.assertEqual(results[0].state, 'cleanup_unconfirmed')
+                self.assertIn('settlement remains unconfirmed', results[0].error)
                 self.assertEqual(results[0].timed_out, timed_out)
                 self.assertEqual(results[0].cancelled, not timed_out)
+                handle._cleanup_failures[:] = []
+                importlib.import_module('PairOfCleats.lib.operations').release(handle)
 
     def test_real_owned_child_termination(self):
         # On Windows this exercises actual taskkill; elsewhere it exercises the

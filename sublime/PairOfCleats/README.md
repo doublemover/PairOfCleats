@@ -282,6 +282,13 @@ that standalone risk output does not independently reattest the signature.
 Context from the active source resolves that source's repository before the
 request. Late prompts/results cannot export after project or window revocation.
 
+Process settlement also joins its owned watchdog/deadline threads. Registration
+before worker start has an explicit bounded wait, and auxiliary/execution/output
+startup faults retain the original error while stopping and closing the owned
+child resources. An exited parent with pending output does not release its
+operation. Windows fallback parent termination still cannot certify descendant
+cleanup; host process-tree and minimum-runtime qualification remain open.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only
