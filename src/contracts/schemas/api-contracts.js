@@ -1,6 +1,7 @@
+import { CALL_ARGUMENTS_SCHEMA, callArgumentProjectionErrors, exactCallArity } from '../call-arguments.js';
 import { CALL_SITE_SEMANTIC_REF_SCHEMA } from './call-site-semantic-ref.js';
 import { CALLABLE_PARAMETER_SUMMARY_SCHEMA, callableSummaryProjectionErrors } from '../callable-parameters.js';
-export const API_CONTRACT_REPORT_VERSION = '1.1.0';
+export const API_CONTRACT_REPORT_VERSION = '1.2.0';
 
 const nullableString = { type: ['string', 'null'] };
 const nullableNumber = { type: ['number', 'null'] };
@@ -32,7 +33,7 @@ export const API_CONTRACT_ENTRY_SCHEMA = {
     signature: { type: 'object', additionalProperties: true, properties: { declared: nullableString, tooling: nullableString,
       parameters: CALLABLE_PARAMETER_SUMMARY_SCHEMA } },
     observedCalls: { type: 'array', items: { type: 'object', additionalProperties: true,
-      properties: { arity: nullableNumber, args: { type: ['array', 'null'], items: { type: 'string' } }, callSiteId: nullableString,
+      properties: { arguments: CALL_ARGUMENTS_SCHEMA, arity: nullableNumber, args: { type: ['array', 'null'], items: { type: 'string' } }, callSiteId: nullableString,
         file: nullableString, startLine: nullableNumber, confidence: nullableNumber, callerChunkUid: nullableString,
         start: nullableNumber, end: nullableNumber, startCol: nullableNumber, endLine: nullableNumber, endCol: nullableNumber,
         calleeNormalized: nullableString, targetChunkUid: nullableString, join: API_CONTRACT_JOIN_SCHEMA,
@@ -46,6 +47,10 @@ export const apiContractEntryProjectionErrors = (entry, scope = null, requireJoi
   const errors = [];
   errors.push(...callableSummaryProjectionErrors(entry.signature?.parameters));
   for (const call of entry.observedCalls || []) {
+    if (call.arguments) {
+      errors.push(...callArgumentProjectionErrors(call.arguments));
+      if (call.arity !== exactCallArity(call)) errors.push('Observed arity differs from argument authority.');
+    }
     if (!call.join) { if (requireJoin) errors.push('Qualified API report call is missing join evidence.'); continue; }
     if (call.targetChunkUid !== entry.symbol.chunkUid || call.join.targetChunkUid !== call.targetChunkUid
       || call.join.symbolId !== entry.symbol.symbolId) errors.push('API observed call target differs from its symbol identity.');
@@ -64,6 +69,7 @@ export const apiContractProjectionErrors = report => {
     errors.push(...apiContractEntryProjectionErrors(entry, scope, Boolean(evidence)));
     for (const call of entry.observedCalls || []) {
       reported++;
+      if (report.version === API_CONTRACT_REPORT_VERSION && !call.arguments) errors.push('API report call is missing argument authority qualification.');
       if (!call.join) continue;
       if (call.callSiteId) {
         const key = JSON.stringify([call.callSiteId, call.join.indexSignature]);

@@ -351,6 +351,25 @@ full cleanup-category capability or deep-suite green is claimed.
   #1678 full arity/spread/tail qualification remains separate. See
   [literal evidence](../contracts/js-ts-literal-evidence.md).
 
+- #1678: bounded display previews now have an independent source argument
+  receipt: original syntax count, exact/bounded runtime arity, compact slots,
+  source ranges, omitted-slot counts and unknown-spread frontiers. Shared source
+  callable metadata preserves 17th JS formals and pattern/default/rest roles.
+  Cross-file inference and risk join justified positions only; qualified prefix,
+  sixth-slot and rest positives survive while missing evidence stays incomplete.
+  Native Rust/C++ explicit argument lists distinguish actual empty/nonempty
+  calls. The compiler timer producer uses the same positional owner, including
+  direct small array expansion and unknown frontiers, with no runtime activation
+  claim. API 1.2.0 persists argument qualification, compares only justified
+  counts/bounds and diagnoses unavailable authority instead of inventing zero.
+  Existing semantic retained operands and generation admission remain separate;
+  no worktree hydration or implicit retention was introduced. Parser/count/
+  pattern/spread/300-slot, writer/reload/report, cross-file replay, risk and timer
+  fixtures are authored, UNRUN at this commit. RecordsProducer 5 to 6,
+  SourceChunking 20 to 21, TypeNormalization 10 to 11, CallFlow 46 to 47,
+  RiskPropagation 4 to 5, BoundaryFlow 11 to 12, SyntaxCallFacts 3 to 4. See
+  [argument authority](../contracts/call-argument-authority.md).
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -513,7 +532,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1675](https://github.com/doublemover/PairOfCleats/issues/1675) | [P2] Admit all benchmark query pools against one aggregate resource plan | Pending full-scope review |
 | [#1676](https://github.com/doublemover/PairOfCleats/issues/1676) | [P2] Preserve JavaScript generator kind and distinguish return statements from returned values | Pending full-scope review |
 | [#1677](https://github.com/doublemover/PairOfCleats/issues/1677) | [P2] Qualify low-hit remediation by judged outcomes and actual latency evidence | Pending full-scope review |
-| [#1678](https://github.com/doublemover/PairOfCleats/issues/1678) | [P2] Separate argument previews and missing operands from source arity and positional type/risk evidence | Pending full-scope review |
+| [#1678](https://github.com/doublemover/PairOfCleats/issues/1678) | [P2] Separate argument previews and missing operands from source arity and positional type/risk evidence | Source committed; runtime proof pending |
 | [#1679](https://github.com/doublemover/PairOfCleats/issues/1679) | [P1] Exclude API credentials from benchmark environment artifacts | Source repair committed; runtime proof pending |
 | [#1680](https://github.com/doublemover/PairOfCleats/issues/1680) | [P2] Bind reconstructed historical benchmark measurements to the recorded attempt | Pending full-scope review |
 | [#1681](https://github.com/doublemover/PairOfCleats/issues/1681) | [P2] Preserve unknown and matched observation scope in scan-profile rates | Pending full-scope review |

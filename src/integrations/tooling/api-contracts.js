@@ -1,3 +1,4 @@
+import { resolveCallArguments, exactCallArity } from '../../contracts/call-arguments.js';
 import { API_CONTRACT_REPORT_VERSION } from '../../contracts/schemas/api-contracts.js';
 import { CALLABLE_PARAMETERS_VERSION, isQualifiedCallableSummary, unavailableCallableParameters } from '../../contracts/callable-parameters.js';
 import path from 'node:path';
@@ -471,10 +472,10 @@ export const buildApiContractsReport = ({
       const requiredCount = signatureInfo.arity.min;
       const maxCount = signatureInfo.arity.max;
       for (const call of observedCalls) {
-        const arity = Array.isArray(call.args) ? call.args.length : null;
-        const belowRequired = requiredCount != null && arity != null && arity < requiredCount;
-        const aboveMax = maxCount != null && arity != null && arity > maxCount;
-        if (arity != null && (belowRequired || aboveMax)) {
+        const argumentsEvidence = resolveCallArguments(call), arity = exactCallArity(call);
+        const belowRequired = requiredCount != null && argumentsEvidence.arity.max != null && argumentsEvidence.arity.max < requiredCount;
+        const aboveMax = maxCount != null && argumentsEvidence.arity.min != null && argumentsEvidence.arity.min > maxCount;
+        if (belowRequired || aboveMax) {
           let expected = '';
           if (requiredCount != null && maxCount != null) {
             expected = requiredCount === maxCount
@@ -487,7 +488,7 @@ export const buildApiContractsReport = ({
           }
           const warning = {
             code: 'ARITY_MISMATCH',
-            message: `Observed arity ${arity} differs from signature arity. ${expected}`.trim(),
+            message: `Observed arity ${arity ?? `${argumentsEvidence.arity.min}+`} differs from signature arity. ${expected}`.trim(),
             data: { symbolId, callSiteId: call.callSiteId, targetChunkUid: call.targetChunkUid,
               indexSignature: call.join.indexSignature }
           };
@@ -496,6 +497,16 @@ export const buildApiContractsReport = ({
           }
         }
       }
+    }
+
+    for (const call of observedCalls) {
+      const argumentsEvidence = resolveCallArguments(call);
+      if (argumentsEvidence.arity.state === 'exact') continue;
+      const warning = { code: 'CALL_ARGUMENT_AUTHORITY_UNAVAILABLE',
+        message: 'Exact runtime argument count is unavailable; validation uses only justified bounds.',
+        data: { symbolId, callSiteId: call.callSiteId, targetChunkUid: call.targetChunkUid,
+          indexSignature: call.join.indexSignature, arityState: argumentsEvidence.arity.state } };
+      if (warn(warning)) entryWarnings.push(warning);
     }
 
     if (!isQualifiedCallableSummary(signatureInfo) && observedCalls.length) {
@@ -518,7 +529,8 @@ export const buildApiContractsReport = ({
         parameters: signatureInfo
       },
       observedCalls: observedCalls.map((call) => ({
-        arity: Array.isArray(call.args) ? call.args.length : null,
+        arity: exactCallArity(call),
+        arguments: structuredClone(resolveCallArguments(call)),
         args: Array.isArray(call.args) ? [...call.args] : null,
         callSiteId: call.callSiteId || null,
         file: call.file || null,

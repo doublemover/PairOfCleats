@@ -68,6 +68,7 @@ export function extractDocMeta(text, chunk, astMeta = null) {
     paramTypes,
     paramDefaults: nameMeta?.paramDefaults || {},
     paramDefaultLiterals: nameMeta?.paramDefaultLiterals || {},
+    ...(nameMeta?.callableParameters ? { callableParameters: nameMeta.callableParameters } : {}),
     returnType: mergedReturnType,
     returnsValue: nameMeta?.returnsValue || false,
     returns: returnsDoc,

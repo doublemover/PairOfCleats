@@ -1,3 +1,4 @@
+import { projectArgumentPositions } from '../../shared/argument-positions.js';
 import { resolveSourceFileUrl } from './source-file-url.js';
 import { createCompilerWasmFlow } from './compiler-wasm-flow.js';
 import { SEMANTIC_ANALYSIS_VERSIONS, WASM_VALIDATOR_RUNTIME } from './analysis-versions.js';
@@ -127,12 +128,15 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
     edge(doc, evidence, 'dispatches', candidate, handler.ref, invocation, ordinal);
     const parameters = compilerRuntimeParameters(handler.doc.ts, handler.node);
     for (let index = 0; index < payloads.length; index += 1) {
-      const parameter = parameters[index], payload = payloads[index];
+      const item = payloads[index];
+      const runtimeOrdinal = item && Object.hasOwn(item, 'runtimeOrdinal') ? item.runtimeOrdinal : index;
+      const payload = item && Object.hasOwn(item, 'runtimeOrdinal') ? item.ref : item;
+      const parameter = runtimeOrdinal === null ? null : parameters[runtimeOrdinal];
       if (!parameter || !handler.doc.ts.isIdentifier(parameter.name) || parameter.dotDotDotToken || !payload) { ledger.reasons.add('callback_payload_parameter_mapping_unresolved'); continue; }
       const symbol = handler.doc.checker.getSymbolAtLocation(parameter.name);
       const inputs = ledgers.get(handler.doc).uses.get(symbol) || [];
       for (const use of inputs) if (runtimeContexts.get(handler.doc).isLexicalValueRead(use.node)
-        && use.node.pos >= handler.node.pos && use.node.end <= handler.node.end) { edge(doc, evidence, 'consumes', payload, candidate, invocation, index); edge(doc, evidence, 'consumes', candidate, use.ref, invocation, index); }
+        && use.node.pos >= handler.node.pos && use.node.end <= handler.node.end) { edge(doc, evidence, 'consumes', payload, candidate, invocation, runtimeOrdinal); edge(doc, evidence, 'consumes', candidate, use.ref, invocation, runtimeOrdinal); }
     }
     ledger.completedSites.add(node); ledger.reasons.add('callback_activation_order_multiplicity_and_effects_unobserved');
     return handler;
@@ -233,7 +237,15 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
           callback(doc, node, request, args[0], 0, evidence, 'promise-executor');
           ledger.reasons.add('promise_resolver_rejector_capabilities_and_settlement_unresolved');
         } else if (timer) {
-          const payloads = timer === 'queueMicrotask' ? [] : args.slice(2).map(value => ts.isSpreadElement(value) ? null : doc.expressionFor(value));
+          const positions = projectArgumentPositions(timer === 'queueMicrotask' ? [] : args.slice(2), {
+            isSpread: value => ts.isSpreadElement(value),
+            spreadElements: value => ts.isArrayLiteralExpression(value.expression) && value.expression.elements.length <= 256
+              && !value.expression.elements.some(element => ts.isSpreadElement(element)) ? [...value.expression.elements] : null
+          });
+          if (positions.max === null || positions.omittedSlots) ledger.reasons.add('callback_payload_argument_frontier_incomplete');
+          const payloads = positions.entries.map(value => ({ runtimeOrdinal: value.runtimeOrdinal,
+            ref: value.runtimeOrdinal !== null && value.kind === 'ordinary' && !ts.isOmittedExpression(value.node)
+              ? doc.expressionFor(value.node) : null }));
           callback(doc, node, request, args[0], 0, evidence, timer, payloads);
         } else {
           edge(doc, evidence, 'consumes', doc.expressionFor(args[0]), request, invocation, 0);

@@ -1,3 +1,5 @@
+import { projectJsTsCallArguments } from '../js-ts/call-arguments.js';
+import { projectBabelCallable } from '../js-ts/callable-metadata.js';
 import { projectJsTsLiteral, collectCallLiteralEvidence } from '../js-ts/literal.js';
 import { collectConstantReferences } from '../js-ts/constant-references.js';
 import { createReturnCallEvidence } from '../js-ts/return-call-evidence.js';
@@ -10,7 +12,7 @@ import {
   keyName,
   visibilityFor
 } from './ast-utils.js';
-import { parseJavaScriptAst, ownsJavaScriptSyntaxText } from './parse.js';
+import { parseJavaScriptAst, ownsJavaScriptSyntaxText, getJavaScriptSyntaxIdentity } from './parse.js';
 import {
   buildCallDetail,
   formatJsTsCallArg,
@@ -203,7 +205,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
     return '(anonymous)';
   };
 
-  const MAX_PARAM_NAMES = 16;
+  const MAX_PARAM_NAMES = 256;
   const resolveStableParamName = (param, index) => {
     if (!param) return `arg${index}`;
     if (param.type === 'Identifier') return param.name;
@@ -273,6 +275,8 @@ export function buildCodeRelations(text, relPath, options = {}) {
     const existing = hasExisting ? functionMeta[name] : null;
     const { paramNames, stableParamNames, paramDefaults, paramDefaultLiterals } = collectParamMeta(node);
     const signature = buildSignature(node, name);
+    const callableParameters = sourceOwned ? projectBabelCallable({ node, text, start: node.start, end: node.end,
+      parseComplete: !ast.errors?.length, language: 'javascript', parser: `javascript-${getJavaScriptSyntaxIdentity(ast)?.family}` }).callableParameters : null;
     const modifiers = {
       async: !!node.async,
       generator: !!node.generator,
@@ -296,7 +300,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
       functionMeta[name] = {
         params: paramNames,
         paramNames: stableParamNames,
-        paramDefaults, paramDefaultLiterals,
+        paramDefaults, paramDefaultLiterals, callableParameters,
         signature,
         modifiers,
         methodKind,
@@ -476,7 +480,10 @@ export function buildCodeRelations(text, relPath, options = {}) {
           }
           const location = resolveCallLocation(node);
           const detail = buildCallDetail({ callerName, calleeName, args, location });
-          if (sourceOwned && !ast.errors?.length) detail.argLiterals = collectCallLiteralEvidence(node.arguments, text);
+          if (sourceOwned && !ast.errors?.length) {
+            detail.argLiterals = collectCallLiteralEvidence(node.arguments, text);
+            detail.arguments = projectJsTsCallArguments(node.arguments, text);
+          }
           const returnedValue = returnEvidence.get(node);
           if (returnedValue) detail.returnedValue = returnedValue;
           const lexicalBinding = sourceOwned && !ast.errors?.length ? constants.callRoots.get(node) : null;

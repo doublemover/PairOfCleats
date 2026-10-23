@@ -1,3 +1,4 @@
+import { resolveCallArguments } from '../../contracts/call-arguments.js';
 import { stableStringify } from '../../shared/stable-json.js';
 
 const capturedIndexes = new WeakMap();
@@ -8,6 +9,7 @@ const captureCall = call => ({
   startCol: call.startCol ?? null, endLine: call.endLine ?? null, endCol: call.endCol ?? null,
   calleeNormalized: text(call.calleeNormalized), targetChunkUid: text(call.targetChunkUid),
   invalidTarget: call.targetChunkUid != null && !text(call.targetChunkUid),
+  arguments: structuredClone(resolveCallArguments(call)),
   args: Array.isArray(call.args) ? [...call.args] : null, confidence: call.confidence ?? null,
   resolution: call.extensions?.syntax?.resolution ?? null,
   indexSignature: call.indexSignature ?? null,

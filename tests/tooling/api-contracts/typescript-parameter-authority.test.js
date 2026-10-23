@@ -1,3 +1,4 @@
+import { API_CONTRACT_REPORT_VERSION } from '../../../src/contracts/schemas/api-contracts.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -72,7 +73,7 @@ try {
     const input = { symbols: rows, callSites, indexSignature: 'parameter-generation', indexCompatKey: 'parameter-compat' };
     const report = buildApiContractsReport(input);
     assert.equal(validateApiContracts(report).ok, true);
-    assert.equal(report.version, '1.1.0');
+    assert.equal(report.version, API_CONTRACT_REPORT_VERSION);
     assert.equal(report.warnings.length, 2);
     assert.ok(report.warnings.every(warning => warning.code === 'ARITY_MISMATCH'));
     assert.deepEqual(report.warnings.map(warning => rows.find(row => row.symbolId === warning.data.symbolId).name).sort(), ['receiver', 'required']);

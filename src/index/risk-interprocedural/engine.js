@@ -1,3 +1,5 @@
+import { callArgumentView } from '../../contracts/call-arguments.js';
+import { runtimeParameterSlots, runtimeParameterFor } from '../../contracts/callable-parameters.js';
 import { sha1 } from '../../shared/hash.js';
 import { toArray } from '../../shared/iterables.js';
 import { edgeKey, sampleCallSitesForEdge } from './edges.js';
@@ -153,6 +155,12 @@ const isArgTainted = (argText, taintedIdentifiers, sourceRules) => {
 };
 
 const resolveParamNames = ({ edgeParamNames, calleeChunk }) => {
+  if (calleeChunk?.docmeta?.callableParameters) {
+    const slots = runtimeParameterSlots(calleeChunk.docmeta);
+    const names = [];
+    for (const slot of slots) names[slot.runtimeOrdinal] = slot.binding === 'identifier' ? slot.name : null;
+    return Array.from(names, name => name || null);
+  }
   if (Array.isArray(edgeParamNames) && edgeParamNames.length) return edgeParamNames;
   const docmetaParams = Array.isArray(calleeChunk?.docmeta?.paramNames)
     ? calleeChunk.docmeta.paramNames
@@ -817,16 +825,22 @@ export const computeInterproceduralRisk = ({
       let taintedArgIndices = [];
       if (strictness === 'argAware') {
         const argSet = new Set();
+        let incompleteArguments = false;
         for (const detail of details) {
-          const args = Array.isArray(detail?.args) ? detail.args : [];
-          for (let i = 0; i < args.length; i += 1) {
-            if (isArgTainted(args[i], state.taintList, sourceRules)) {
-              argSet.add(i);
-            }
+          const view = callArgumentView(detail);
+          incompleteArguments ||= !view.complete;
+          for (const slot of view.slots) {
+            if (slot.runtimeOrdinal !== null && !slot.previewTruncated && !slot.literalType
+              && isArgTainted(slot.preview, state.taintList, sourceRules)) argSet.add(slot.runtimeOrdinal);
           }
         }
+        if (incompleteArguments) blockedExpansions.push(buildBlockedExpansion({
+          targetChunkUid: calleeUid, reason: 'incompleteArgumentEvidence',
+          callSiteIds: details.map(detail => detail?.callSiteId).filter(Boolean)
+        }));
         taintedArgIndices = Array.from(argSet.values()).sort((a, b) => a - b);
         if (!taintedArgIndices.length) {
+          if (incompleteArguments) continue;
           blockedExpansions.push(buildBlockedExpansion({
             targetChunkUid: calleeUid,
             reason: 'untaintedArgs',
@@ -857,8 +871,11 @@ export const computeInterproceduralRisk = ({
       if (strictness === 'argAware') {
         if (paramNames.length) {
           for (const idx of taintedArgIndices) {
-            const name = paramNames[idx];
+            const formal = runtimeParameterFor(runtimeParameterSlots(chunkByUid.get(calleeUid)?.docmeta), idx);
+            const name = formal?.binding === 'identifier' ? formal.name : paramNames[idx];
             if (name) nextTaint.push(name);
+            else blockedExpansions.push(buildBlockedExpansion({ targetChunkUid: calleeUid,
+              reason: 'incompleteParameterEvidence', callSiteIds: details.map(detail => detail?.callSiteId).filter(Boolean) }));
           }
         }
         const calleeSummary = summaryByUid.get(calleeUid);
@@ -938,11 +955,12 @@ export const computeInterproceduralRisk = ({
       });
       break;
     }
-    if (!expandedAny && blockedExpansions.length) {
+    const incompleteExpansions = blockedExpansions.filter(value => ['incompleteArgumentEvidence', 'incompleteParameterEvidence'].includes(value.reason));
+    if (!expandedAny && blockedExpansions.length || incompleteExpansions.length) {
       appendPartialFlow({
         state,
-        terminalReason: blockedExpansions[0]?.reason || 'blocked',
-        blockedExpansions
+        terminalReason: (expandedAny ? incompleteExpansions[0] : blockedExpansions[0])?.reason || 'blocked',
+        blockedExpansions: expandedAny ? incompleteExpansions : blockedExpansions
       });
     }
   }

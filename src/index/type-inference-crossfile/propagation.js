@@ -1,3 +1,5 @@
+import { callArgumentView } from '../../contracts/call-arguments.js';
+import { runtimeParameterSlots, runtimeParameterFor } from '../../contracts/callable-parameters.js';
 import { literalEvidenceType } from '../../contracts/literal-evidence.js';
 import { setImmediate as yieldPropagation } from 'node:timers/promises';
 import { resolveCrossFileFidelity, resolveCrossFilePropagationBudget, orderCrossFileChunks } from '../cross-file-fidelity.js';
@@ -636,6 +638,7 @@ export async function runCrossFilePropagation({
             start: detail.start ?? null, end: detail.end ?? null, callSiteRef: detail.semanticRecordRef || null,
             args,
             ...(Array.isArray(detail.argLiterals) ? { argLiterals: detail.argLiterals } : {}),
+            ...(detail.arguments ? { arguments: detail.arguments } : {}),
             calleeRef: symbolRef || null,
             resolvedCalleeChunkUid: symbolRef?.resolved?.chunkUid || null
           };
@@ -652,16 +655,16 @@ export async function runCrossFilePropagation({
               summary.paramTypes = resolvedEntry.paramTypes;
             }
           }
-          const paramNames = Array.isArray(summary.params) ? summary.params : [];
-          if (args.length && paramNames.length) {
-            const argMap = Object.create(null);
-            for (let i = 0; i < paramNames.length && i < args.length; i += 1) {
-              const paramName = paramNames[i];
-              const argValue = args[i];
-              if (paramName && argValue) argMap[paramName] = argValue;
+          const parameterSlots = runtimeParameterSlots(resolvedEntry ? chunkByUid.get(resolvedEntry.chunkUid)?.docmeta : null);
+          const argMap = Object.create(null);
+          for (const slot of callArgumentView(detail).slots) {
+            if (slot.runtimeOrdinal === null || slot.previewTruncated) continue;
+            const parameter = runtimeParameterFor(parameterSlots, slot.runtimeOrdinal);
+            if (parameter?.name && parameter.binding === 'identifier' && !parameter.rest && slot.preview) {
+              argMap[parameter.name] = slot.preview;
             }
-            if (Object.keys(argMap).length) summary.argMap = argMap;
           }
+          if (Object.keys(argMap).length) summary.argMap = argMap;
           addLink(callSummaries, summary);
         }
       }
@@ -754,21 +757,20 @@ export async function runCrossFilePropagation({
             const currentSamples = callSampleCounts.get(sampleKey) || 0;
             if (currentSamples >= callSampleLimit) { admission.parameterSamplesDropped += 1; continue; }
             callSampleCounts.set(sampleKey, currentSamples + 1);
-            const args = Array.isArray(summary.args) ? summary.args : [];
-            const paramNames = Array.isArray(calleeChunk.docmeta?.paramNames)
-              ? calleeChunk.docmeta.paramNames
-              : (Array.isArray(calleeChunk.docmeta?.params) ? calleeChunk.docmeta.params : []);
-            const argMap = summary.argMap || {};
-            if (!paramNames.length && !args.length && !Object.keys(argMap).length) continue;
+            const parameterSlots = runtimeParameterSlots(calleeChunk.docmeta);
+            const argumentSlots = callArgumentView(summary).slots;
+            if (!parameterSlots.length || !argumentSlots.length) continue;
             if (!calleeChunk.docmeta || typeof calleeChunk.docmeta !== 'object') calleeChunk.docmeta = {};
             const hopCount = calleeChunk.file !== chunk.file ? 1 : 0;
             const confidence = confidenceForHop(hopCount);
-            for (let i = 0; i < paramNames.length && i < Math.max(args.length, paramNames.length); i += 1) {
-              const name = paramNames[i];
-              const argValue = Object.hasOwn(argMap, name) ? argMap[name] : args[i];
-              if (!name || !argValue) continue;
-              const literal = summary.argLiterals?.[i];
-              const type = literal ? literalEvidenceType(literal) : inferArgType(argValue);
+            for (const slot of argumentSlots) {
+              if (slot.runtimeOrdinal === null || slot.previewTruncated) continue;
+              const parameter = runtimeParameterFor(parameterSlots, slot.runtimeOrdinal), name = parameter?.name;
+              if (!name || parameter.binding !== 'identifier') continue;
+              const literal = slot.expansionOrdinal === null ? summary.argLiterals?.[slot.operandOrdinal] : null;
+              const type = parameter.rest ? 'array' : slot.literalType
+                ? (['string', 'number', 'boolean', 'null', 'bigint', 'undefined'].includes(slot.literalType) ? slot.literalType : null)
+                : literal ? literalEvidenceType(literal) : inferArgType(slot.preview);
               if (!type) continue;
               if (addInferredParam(calleeChunk.docmeta, name, type, FLOW_SOURCE, confidence, paramTypeLimit)) {
                 const entry = resolvedUid ? entryByUid.get(resolvedUid) : null;

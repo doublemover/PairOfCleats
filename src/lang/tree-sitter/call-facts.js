@@ -1,7 +1,8 @@
+import { projectNativeCallArguments } from './call-arguments.js';
 import { getNamedChild, getNamedChildCount } from './ast.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 
-export const SYNTAX_CALL_FACTS_VERSION = 3;
+export const SYNTAX_CALL_FACTS_VERSION = 4;
 const callTypes = new Set(['call_expression', 'function_call', 'call', 'method_invocation', 'function_call_expression', 'juxt_function_call',
   'member_call_expression', 'nullsafe_member_call_expression', 'scoped_call_expression', 'object_creation_expression', 'command']);
 const scopeBarriers = new Set(['function_definition', 'function_declaration', 'method', 'singleton_method', 'function_item',
@@ -93,6 +94,7 @@ export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, d
         role: node.type === 'object_creation_expression' ? 'constructor' : 'call',
         resolution: 'unresolved', reason: staticName ? 'syntax-target-unresolved' : 'dynamic-call-target',
         coordinateSystem: 'utf16', source: 'tree-sitter',
+        arguments: projectNativeCallArguments(node, text, languageId),
         callerStart: owner.start, callerEnd: owner.end });
       owner.meta.syntaxCalls.push(detail);
     }

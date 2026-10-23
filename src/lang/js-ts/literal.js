@@ -48,7 +48,8 @@ export const projectJsTsLiteral = (node, source = null) => {
   } else if (kind === 'null') scalar = semanticLiteralScalar({ kind: 'NullLiteral', value: null });
   else if (kind === 'boolean' && typeof value === 'boolean') scalar = semanticLiteralScalar({ kind: 'BooleanLiteral', value });
   else if (kind === 'string' && typeof value === 'string') scalar = semanticLiteralScalar({ kind: 'StringLiteral', value });
-  if (scalar?.representation.length > MAX_LITERAL_REPRESENTATION) scalar = null;
+  if (scalar && (scalar.representation.length > MAX_LITERAL_REPRESENTATION
+    || Buffer.byteLength(scalar.representation) > MAX_LITERAL_REPRESENTATION)) scalar = null;
   return { version: LITERAL_EVIDENCE_VERSION, kind, valueState: scalar ? 'qualified' : 'unavailable',
     scalar, range, rawPreview: raw.slice(0, 80), rawTruncated: !!rawTruncated };
 };

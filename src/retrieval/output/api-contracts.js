@@ -55,7 +55,9 @@ export const renderApiContracts = (report) => {
     if (calls.length) {
       lines.push(`  calls: ${calls.length}`);
       for (const call of calls.slice(0, 3)) {
-        const arity = Number.isFinite(call.arity) ? call.arity : 'n/a';
+        const bounds = call.arguments?.arity;
+        const arity = Number.isFinite(call.arity) ? call.arity : bounds?.state === 'bounded'
+          ? `${bounds.min}-${bounds.max ?? 'unbounded'} (bounded)` : 'unavailable';
         const target = call.join ? ` -> ${displayApiValue(call.join.symbolId)} [${displayApiValue(call.targetChunkUid)}; ${displayApiValue(call.join.qualification)}]` : '';
         lines.push(`    - arity ${arity} @ ${formatApiCallLocation(call)}${target}; call ${displayApiValue(call.callSiteId)}; generation ${displayApiValue(call.join?.indexSignature)}`);
       }

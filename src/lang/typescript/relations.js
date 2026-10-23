@@ -1,3 +1,4 @@
+import { projectJsTsCallArguments } from '../js-ts/call-arguments.js';
 import { collectCallLiteralEvidence } from '../js-ts/literal.js';
 import { collectConstantReferences } from '../js-ts/constant-references.js';
 import { createReturnCallEvidence } from '../js-ts/return-call-evidence.js';
@@ -225,7 +226,10 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
       }
     }
     const detail = buildCallDetail({ callerName, calleeName, args, location });
-    if (sourceOwned && !ast.errors?.length) detail.argLiterals = collectCallLiteralEvidence(node.arguments, text);
+    if (sourceOwned && !ast.errors?.length) {
+      detail.argLiterals = collectCallLiteralEvidence(node.arguments, text);
+      detail.arguments = projectJsTsCallArguments(node.arguments, text, 'typescript');
+    }
     const returnedValue = returnEvidence.get(node);
     if (returnedValue) detail.returnedValue = returnedValue;
     const lexicalBinding = sourceOwned && !ast.errors?.length ? constants.callRoots.get(node) : null;

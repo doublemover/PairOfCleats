@@ -1,3 +1,4 @@
+import { resolveCallArguments } from '../../../../contracts/call-arguments.js';
 import { createCallSiteSemanticRefResolver, unavailableCallSiteSemanticRef } from './call-site-semantic-refs.js';
 import { mergeRunsWithPlanner, readJsonlRows } from '../../../../shared/merge.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
@@ -184,6 +185,7 @@ const buildCallSiteRow = ({ chunk, detail, stats, semanticRef = null }) => {
   }
   row.extensions ||= {};
   row.extensions.semanticRef = semanticRef || unavailableCallSiteSemanticRef();
+  row.extensions.arguments = resolveCallArguments(detail);
   if (Array.isArray(detail.argLiterals)) row.extensions.argLiterals = detail.argLiterals.slice(0, MAX_ARGS_PER_CALL);
   const trimmedResult = maybeTrimRow(row);
   if (!trimmedResult.row) {

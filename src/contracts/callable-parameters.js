@@ -50,7 +50,8 @@ export const isQualifiedCallableSummary = summary => summary?.schemaVersion === 
   && summary.arity?.state === 'complete' && validCount(summary.arity.min) && typeof summary.arity.variadic === 'boolean'
   && (summary.arity.variadic ? summary.arity.max === null : validCount(summary.arity.max) && summary.arity.min <= summary.arity.max)
   && (summary.source === 'legacy-signature-subset' && ['javascript', 'typescript'].includes(summary.language)
-    || summary.source === 'parser-node' && summary.state === 'complete' && summary.language === 'typescript' && ['typescript-compiler', 'typescript-babel'].includes(summary.parser)
+    || summary.source === 'parser-node' && summary.state === 'complete' && (summary.language === 'typescript' && ['typescript-compiler', 'typescript-babel'].includes(summary.parser)
+      || summary.language === 'javascript' && ['javascript-acorn', 'javascript-babel', 'javascript-esprima'].includes(summary.parser))
       && validCount(summary.formalSlotCount) && validCount(summary.runtimeSlotCount)
       && summary.runtimeSlotCount <= summary.formalSlotCount && summary.formalSlotCount - summary.runtimeSlotCount <= 1
       && summary.arity.min <= summary.runtimeSlotCount && (summary.arity.variadic || summary.arity.max === summary.runtimeSlotCount)
@@ -78,3 +79,16 @@ export const callableSummaryProjectionErrors = summary => {
     && summary.arity.min === null && summary.arity.max === null && summary.arity.variadic === null ? [] : ['Unavailable parameter authority contains qualified arity.'];
   return isQualifiedCallableSummary(summary) ? [] : ['Parameter authority summary has inconsistent qualification or counts.'];
 };
+
+/** Retain runtime ordinals: receivers and binding-pattern names cannot shift
+ * later actuals. Rest binds one array; destructured names require another owner.
+ */
+export const runtimeParameterSlots = docmeta => {
+  const contract = docmeta?.callableParameters;
+  if (contract) return contract.schemaVersion === CALLABLE_PARAMETERS_VERSION && contract.state === 'complete' && Array.isArray(contract.slots)
+    ? contract.slots.filter(slot => slot.role === 'runtime') : [];
+  const names = Array.isArray(docmeta?.paramNames) ? docmeta.paramNames : Array.isArray(docmeta?.params) ? docmeta.params : [];
+  return names.map((name, runtimeOrdinal) => ({ name, runtimeOrdinal, rest: false, binding: 'identifier' }));
+};
+export const runtimeParameterFor = (slots, ordinal) => slots.find(slot => slot.runtimeOrdinal === ordinal
+  || slot.rest && slot.runtimeOrdinal <= ordinal) || null;

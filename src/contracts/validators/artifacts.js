@@ -1,3 +1,4 @@
+import { callArgumentProjectionErrors } from '../call-arguments.js';
 import { literalEvidenceProjectionErrors } from '../literal-evidence.js';
 import { compileSchema, createAjv } from '../../shared/validation/ajv-factory.js';
 import { ARTIFACT_SCHEMA_DEFS } from '../schemas/artifacts.js';
@@ -26,7 +27,8 @@ export function validateArtifact(name, data) {
       result.errors.push(...callableSummaryProjectionErrors(summary).map(error => `/${index}/extensions/callableParameters: ${error}`));
       if (summary?.source === 'legacy-signature-subset') result.errors.push(`/${index}/extensions/callableParameters: legacy display cannot supply parser-node symbol authority.`);
       const language = data[index]?.lang?.toLowerCase();
-      if (summary?.source === 'parser-node' && language && !['typescript', 'ts', 'tsx'].includes(language)) {
+      if (summary?.source === 'parser-node' && language && (summary.language === 'typescript'
+        ? !['typescript', 'ts', 'tsx'].includes(language) : !['javascript', 'js', 'jsx'].includes(language))) {
         result.errors.push(`/${index}/extensions/callableParameters: parameter language differs from the published symbol.`);
       }
       if (result.errors.length >= 20) break;
@@ -35,6 +37,9 @@ export function validateArtifact(name, data) {
   }
   if (result.ok && name === 'call_sites' && Array.isArray(data)) {
     for (let index = 0; index < data.length; index++) {
+      const argumentsEvidence = data[index]?.extensions?.arguments;
+      if (argumentsEvidence) result.errors.push(...callArgumentProjectionErrors(argumentsEvidence)
+        .map(error => `/${index}/extensions/arguments: ${error}`));
       for (const literal of data[index]?.extensions?.argLiterals || []) {
         if (literal) result.errors.push(...literalEvidenceProjectionErrors(literal)
           .map(error => `/${index}/extensions/argLiterals: ${error}`));
