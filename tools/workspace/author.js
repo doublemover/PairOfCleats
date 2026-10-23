@@ -50,12 +50,14 @@ export const planWorkspaceAuthoring = ({ workspacePath, operation = 'init', root
   const resolved = resolveWorkspaceConfig({ ...config, repos }, { workspacePath });
   const after = before === null ? JSON.stringify({ ...config, repos }, null, 2) + '\n'
     : applyEdits(before, modify(before, ['repos'], repos, { formattingOptions: { insertSpaces: true, tabSize: 2 } }));
+  const commands = createWorkspaceNextCommands(resolved);
   const body = { schemaVersion: 1, kind: 'workspace-authoring-plan', operation, workspacePath,
     inputHash: before === null ? null : hash(before), outputHash: hash(after), content: after,
     repoSetId: resolved.repoSetId, workspaceConfigHash: resolved.workspaceConfigHash,
     memberIdentities: identifyMembers(resolved), repos: resolved.repos, writes: [workspacePath],
     formatting: before === null ? 'new JSON document' : 'membership array rewritten; comments outside repos preserved',
-    nextCommands: createWorkspaceNextCommands(resolved) };
+    commands,
+    nextCommands: [commands.status, commands.refreshManifest, commands.search] };
   return { ...body, planId: hash(JSON.stringify(body)) };
 };
 
@@ -86,7 +88,8 @@ export const applyWorkspaceAuthoring = async (plan, { signal = null } = {}) => {
         const latest = readWorkspaceText(plan.workspacePath);
         if ((latest === null ? null : hash(latest)) !== plan.inputHash) throw new Error('Workspace changed during staging; review a new plan.');
       } });
-    return { ok: true, workspacePath: plan.workspacePath, workspace: loadWorkspaceConfig(plan.workspacePath), nextCommands: plan.nextCommands };
+    return { ok: true, workspacePath: plan.workspacePath, workspace: loadWorkspaceConfig(plan.workspacePath),
+      nextCommands: plan.nextCommands, commands: plan.commands };
   } finally {
     await releaseFileLockOrThrow(lock);
   }

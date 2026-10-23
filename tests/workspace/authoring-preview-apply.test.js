@@ -20,8 +20,9 @@ try {
   assert.equal(plan.repos.length, 2);
   assert.equal((await applyWorkspaceAuthoring(plan)).ok, true);
   assert.equal(loadWorkspaceConfig(file).repos.length, 2);
-  assert.equal(plan.nextCommands.members.length, 2);
-  for (const entry of plan.nextCommands.members) assert.equal(entry.search[entry.search.indexOf('--repo-filter') + 1], entry.repoId);
+  assert.equal(Array.isArray(plan.nextCommands), true, 'existing command-list consumers retain their response shape');
+  assert.equal(plan.commands.members.length, 2);
+  for (const entry of plan.commands.members) assert.equal(entry.search[entry.search.indexOf('--repo-filter') + 1], entry.repoId);
   assert.throws(() => planWorkspaceAuthoring({ workspacePath: path.join(root, 'extra-alias.jsonc'), roots: [first], aliases: ['one', 'unused'] }), /alias/);
   assert.throws(() => planWorkspaceAuthoring({ workspacePath: file, roots: [first] }), /already exists/);
   assert.throws(() => planWorkspaceAuthoring({ workspacePath: file, operation: 'add', roots: [first] }), /Duplicate|duplicate/);
