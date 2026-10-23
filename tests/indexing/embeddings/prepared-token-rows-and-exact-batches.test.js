@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createPreparedTokenRows, prepareTokenRowsWithCache, tokenizeBatchWithCache } from '../../../src/shared/onnx-embeddings/tokenization.js';
+import { createPreparedTokenRows, prepareTokenRowsWithCache, tokenizeBatchWithCache, createTokenizationIdentity } from '../../../src/shared/onnx-embeddings/tokenization.js';
 import { planEmbeddingBatches } from '../../../tools/build/embeddings/batch-plan.js';
 import { runBatched } from '../../../tools/build/embeddings/embed.js';
 let encodedItems = 0;
@@ -19,7 +19,8 @@ const texts = Array.from({ length: 512 }, (_, i) => `1:${i}`);
 encodedItems = 0;
 const rows = prepareTokenRowsWithCache({ tokenizer, texts, wantsTokenTypeIds: true, tokenizationCache });
 const preparedRows = createPreparedTokenRows();
-const release = preparedRows.retain(texts, rows, true);
+const identity = createTokenizationIdentity({ tokenizer, wantsTokenTypeIds: true });
+const release = preparedRows.retain(texts, rows, identity);
 for (let i = 0; i < texts.length; i += 64) {
   const encoding = tokenizeBatchWithCache({ tokenizer, texts: texts.slice(i, i + 64), wantsTokenTypeIds: true,
     tokenizationCache, preparedRows });
@@ -29,7 +30,7 @@ for (let i = 0; i < texts.length; i += 64) {
 assert.equal(encodedItems, 512, 'admitted rows larger than the LRU are not tokenized twice');
 release(); assert.equal(preparedRows.stats().entries, 0);
 const small = createPreparedTokenRows({ maxEntries: 2, maxBytes: 1000 });
-const releaseSmall = small.retain(texts, rows, true);
+const releaseSmall = small.retain(texts, rows, identity);
 assert.ok(small.stats().entries <= 2 && small.stats().bytes <= 1000);
 releaseSmall(); assert.equal(small.stats().bytes, 0);
 const estimates = [129, 255, 129, 255, 129, 255, 129, 255];

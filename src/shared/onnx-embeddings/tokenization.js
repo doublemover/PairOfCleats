@@ -1,42 +1,61 @@
 import { DEFAULT_EMBEDDING_TRUNCATION } from '../embedding-utils.js';
 
-const normalizeTokenValue = (value, fallback = 0) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.trunc(parsed);
+const invalid = message => Object.assign(new Error(message), { code: 'ERR_ONNX_TOKENIZER_OUTPUT' });
+const tokenizers = new WeakMap();
+let nextTokenizerId = 0;
+const isRow = value => Array.isArray(value) || ArrayBuffer.isView(value) && typeof value.length === 'number';
+const normalizeTokenValue = (value, field = 'input_ids') => {
+  const parsed = typeof value === 'bigint' ? Number(value) : value;
+  if (typeof parsed !== 'number' || !Number.isSafeInteger(parsed) || parsed < 0) throw invalid(`${field} contains an invalid token integer.`);
+  return parsed;
+};
+const normalizeMaskValue = value => {
+  if (value === true || value === 1 || value === 1n) return 1;
+  if (value === false || value === 0 || value === 0n) return 0;
+  throw invalid('attention_mask contains a value other than zero or one.');
+};
+const normalizeFieldRows = (value, rowCount, field) => {
+  if (!isRow(value)) throw invalid(`${field} is not an array of token rows.`);
+  const nested = Array.isArray(value) && value.length > 0 && isRow(value[0]);
+  if (nested ? value.length !== rowCount : rowCount !== 1) throw invalid(`${field} row count differs from the requested texts.`);
+  const source = nested ? value : [value];
+  return source.map(row => {
+    if (!isRow(row)) throw invalid(`${field} contains a missing or malformed row.`);
+    return Array.from(row, entry => field === 'attention_mask' ? normalizeMaskValue(entry) : normalizeTokenValue(entry, field));
+  });
 };
 
-const normalizeFieldRows = (value, rowCount) => {
-  if (rowCount <= 0) return [];
-  const emptyRows = Array.from({ length: rowCount }, () => []);
-  if (!Array.isArray(value) || !value.length) return emptyRows;
-  const first = value[0];
-  if (Array.isArray(first) || ArrayBuffer.isView(first)) {
-    const rows = value.map((row) => Array.from(row || [], (entry) => normalizeTokenValue(entry, 0)));
-    while (rows.length < rowCount) rows.push([]);
-    return rows.slice(0, rowCount);
-  }
-  const row = Array.from(value, (entry) => normalizeTokenValue(entry, 0));
-  return [row, ...Array.from({ length: rowCount - 1 }, () => [])];
+// These keys identify only pure token data, never model/session ownership. Each
+// adapter retains the exact tokenizer object and preprocessing policy it uses.
+export const createTokenizationIdentity = ({ tokenizer, wantsTokenTypeIds = false,
+  truncation = DEFAULT_EMBEDDING_TRUNCATION, maxLength = null }) => {
+  if (typeof tokenizer !== 'function') throw invalid('Tokenizer is not callable.');
+  if (typeof truncation !== 'boolean' && typeof truncation !== 'string') throw invalid('Tokenizer truncation policy is unsupported.');
+  if (maxLength != null && (!Number.isSafeInteger(maxLength) || maxLength <= 0)) throw invalid('Tokenizer maximum length is invalid.');
+  if (!tokenizers.has(tokenizer)) tokenizers.set(tokenizer, ++nextTokenizerId);
+  return JSON.stringify([tokenizers.get(tokenizer), wantsTokenTypeIds === true, truncation, maxLength]);
+};
+
+const count = (measurements, field, amount) => {
+  if (measurements) measurements[field] = Math.min(Number.MAX_SAFE_INTEGER, (measurements[field] || 0) + amount);
 };
 
 const buildRowsFromTokenizerOutput = (encoded, rowCount, { wantsTokenTypeIds = false } = {}) => {
-  const inputRows = normalizeFieldRows(encoded?.input_ids, rowCount);
-  const maskRows = normalizeFieldRows(encoded?.attention_mask, rowCount);
-  const tokenTypeRows = wantsTokenTypeIds
-    ? normalizeFieldRows(encoded?.token_type_ids, rowCount)
+  const inputRows = normalizeFieldRows(encoded?.input_ids, rowCount, 'input_ids');
+  const maskRows = encoded?.attention_mask == null ? null : normalizeFieldRows(encoded.attention_mask, rowCount, 'attention_mask');
+  const tokenTypeRows = wantsTokenTypeIds && encoded?.token_type_ids != null
+    ? normalizeFieldRows(encoded.token_type_ids, rowCount, 'token_type_ids')
     : null;
   const rows = new Array(rowCount);
   for (let i = 0; i < rowCount; i += 1) {
     const inputIds = inputRows[i] || [];
     const width = inputIds.length;
-    const mask = new Array(width);
-    const sourceMask = maskRows[i] || [];
-    for (let c = 0; c < width; c += 1) {
-      mask[c] = Number(sourceMask[c] ?? 1) ? 1 : 0;
+    if (maskRows && maskRows[i].length !== width || tokenTypeRows && tokenTypeRows[i].length !== width) {
+      throw invalid('Tokenizer mask or token-type width differs from its input token row.');
     }
+    const mask = maskRows ? maskRows[i] : Array(width).fill(1);
     const tokenTypeIds = wantsTokenTypeIds
-      ? Array.from({ length: width }, (_, c) => normalizeTokenValue(tokenTypeRows?.[i]?.[c], 0))
+      ? tokenTypeRows ? tokenTypeRows[i] : Array(width).fill(0)
       : null;
     rows[i] = {
       input_ids: inputIds,
@@ -65,9 +84,10 @@ const setTokenCacheValue = (cache, key, value, maxEntries) => {
   }
 };
 
-const buildTokenizationCacheKey = (text, wantsTokenTypeIds) => `${wantsTokenTypeIds ? 1 : 0}:${text}`;
+const buildTokenizationCacheKey = (text, identity) => JSON.stringify([identity, text]);
 
-export const buildPaddedBatchEncoding = (rows, { wantsTokenTypeIds = false, padTokenId = 0 } = {}) => {
+export const buildPaddedBatchEncoding = (rows, { wantsTokenTypeIds = false, padTokenId = 0, measurements = null } = {}) => {
+  padTokenId = normalizeTokenValue(padTokenId, 'pad_token_id');
   const width = rows.reduce((max, row) => Math.max(max, row?.input_ids?.length || 0), 0);
   const input_ids = new Array(rows.length);
   const attention_mask = new Array(rows.length);
@@ -82,16 +102,18 @@ export const buildPaddedBatchEncoding = (rows, { wantsTokenTypeIds = false, padT
     const tokenTypeRow = wantsTokenTypeIds ? new Array(width) : null;
     for (let c = 0; c < width; c += 1) {
       const hasToken = c < ids.length;
-      idRow[c] = hasToken ? normalizeTokenValue(ids[c], padTokenId) : padTokenId;
-      maskRow[c] = hasToken ? (Number(maskSrc[c] ?? 1) ? 1 : 0) : 0;
+      idRow[c] = hasToken ? normalizeTokenValue(ids[c]) : padTokenId;
+      maskRow[c] = hasToken ? normalizeMaskValue(maskSrc[c] ?? 1) : 0;
       if (tokenTypeRow) {
-        tokenTypeRow[c] = hasToken ? normalizeTokenValue(tokenTypeSrc[c], 0) : 0;
+        tokenTypeRow[c] = hasToken ? normalizeTokenValue(tokenTypeSrc[c] ?? 0, 'token_type_ids') : 0;
       }
     }
     input_ids[r] = idRow;
     attention_mask[r] = maskRow;
     if (tokenTypeRow) token_type_ids[r] = tokenTypeRow;
   }
+  count(measurements, 'paddedTokenCells', rows.length * width);
+  count(measurements, 'paddedFieldCells', rows.length * width * (wantsTokenTypeIds ? 3 : 2));
   return {
     input_ids,
     attention_mask,
@@ -106,12 +128,14 @@ export const prepareTokenRowsWithCache = ({
   truncation = DEFAULT_EMBEDDING_TRUNCATION,
   maxLength = null,
   tokenizationCache = null,
-  preparedRows = null
+  preparedRows = null,
+  measurements = null
 }) => {
   const list = Array.isArray(texts) ? texts.map((text) => (typeof text === 'string' ? text : String(text ?? ''))) : [];
   if (!list.length) {
     return [];
   }
+  const identity = createTokenizationIdentity({ tokenizer, wantsTokenTypeIds, truncation, maxLength });
   const rows = new Array(list.length);
   const missingByText = new Map();
   const cacheEnabled = tokenizationCache?.enabled === true;
@@ -121,13 +145,14 @@ export const prepareTokenRowsWithCache = ({
     : 0;
   for (let i = 0; i < list.length; i += 1) {
     const text = list[i];
-    const prepared = preparedRows?.take(text, wantsTokenTypeIds);
-    if (prepared) { rows[i] = prepared; continue; }
+    const prepared = preparedRows?.take(text, identity);
+    if (prepared) { rows[i] = prepared; count(measurements, 'preparedTokenRowHits', 1); continue; }
     if (cacheEnabled) {
-      const key = buildTokenizationCacheKey(text, wantsTokenTypeIds);
+      const key = buildTokenizationCacheKey(text, identity);
       const cached = getTokenCacheValue(cache, key);
       if (cached) {
         rows[i] = cached;
+        count(measurements, 'tokenCacheRowHits', 1);
         continue;
       }
     }
@@ -137,6 +162,8 @@ export const prepareTokenRowsWithCache = ({
   }
   if (missingByText.size) {
     const missingTexts = Array.from(missingByText.keys());
+    count(measurements, 'tokenizerCalls', 1);
+    count(measurements, 'tokenizerInputTexts', missingTexts.length);
     const encodedMissing = tokenizer(missingTexts, {
       padding: false,
       truncation,
@@ -149,13 +176,9 @@ export const prepareTokenRowsWithCache = ({
     });
     for (let i = 0; i < missingTexts.length; i += 1) {
       const text = missingTexts[i];
-      const row = missingRows[i] || {
-        input_ids: [],
-        attention_mask: [],
-        token_type_ids: wantsTokenTypeIds ? [] : null
-      };
+      const row = missingRows[i];
       if (cacheEnabled) {
-        const key = buildTokenizationCacheKey(text, wantsTokenTypeIds);
+        const key = buildTokenizationCacheKey(text, identity);
         setTokenCacheValue(cache, key, row, maxEntries);
       }
       const indexes = missingByText.get(text) || [];
@@ -164,6 +187,8 @@ export const prepareTokenRowsWithCache = ({
       }
     }
   }
+  count(measurements, 'preparedTokenRows', rows.length);
+  count(measurements, 'preparedUsefulTokens', rows.reduce((sum, row) => sum + row.attention_mask.reduce((tokens, value) => tokens + value, 0), 0));
   return rows;
 };
 
@@ -185,10 +210,10 @@ export const createPreparedTokenRows = ({ maxEntries = 4096, maxBytes = 16 * 102
     if (entries.size) { timer = setTimeout(expire, ttlMs); timer.unref?.(); }
   };
   return {
-    retain(texts, rows, wantsTokenTypeIds) {
+    retain(texts, rows, identity) {
       const owner = {}, keys = [];
       for (let i = 0; i < texts.length; i++) {
-        const key = buildTokenizationCacheKey(texts[i], wantsTokenTypeIds), row = rows[i];
+        const key = buildTokenizationCacheKey(texts[i], identity), row = rows[i];
         const size = key.length * 2 + 128 + (row.input_ids.length + row.attention_mask.length + (row.token_type_ids?.length || 0)) * 8;
         if (size > maxBytes) continue;
         remove(key);
@@ -198,8 +223,8 @@ export const createPreparedTokenRows = ({ maxEntries = 4096, maxBytes = 16 * 102
       if (entries.size && !timer) { timer = setTimeout(expire, ttlMs); timer.unref?.(); }
       return () => { for (const key of keys) if (entries.get(key)?.owner === owner) remove(key); };
     },
-    take(text, wantsTokenTypeIds) {
-      const key = buildTokenizationCacheKey(text, wantsTokenTypeIds), entry = entries.get(key);
+    take(text, identity) {
+      const key = buildTokenizationCacheKey(text, identity), entry = entries.get(key);
       if (!entry) return null;
       remove(key);
       return entry.expiresAt > Date.now() ? entry.row : null;
@@ -211,7 +236,8 @@ export const createPreparedTokenRows = ({ maxEntries = 4096, maxBytes = 16 * 102
 
 export const tokenizeBatchWithCache = input => buildPaddedBatchEncoding(prepareTokenRowsWithCache(input), {
   wantsTokenTypeIds: input.wantsTokenTypeIds,
-  padTokenId: normalizeTokenValue(input.tokenizer?.pad_token_id, 0)
+  padTokenId: input.tokenizer?.pad_token_id ?? 0,
+  measurements: input.measurements
 });
 
 export const __tokenizeBatchWithCacheForTests = (input = {}) => tokenizeBatchWithCache(input);

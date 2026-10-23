@@ -10,7 +10,7 @@ import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 const { dir } = await prepareIsolatedTestCacheDir('onnx-qualified-output-lifetime');
 const modelId = 'Xenova/bge-m3', adapters = [], controls = [], tokenOptions = [];
 const cleanup = Object.freeze(new Error('controlled ONNX output disposal failure'));
-let nextControl, tokenizerError = null;
+let nextControl, tokenizerError = null, tokenizerResult = null;
 class Tensor {
   constructor(type, data, dims) { Object.assign(this, { type, data, dims, closes: 0, failClose: false }); }
   dispose() {
@@ -22,6 +22,7 @@ class Tensor {
 const tokenizer = Object.assign((texts, options) => {
   if (tokenizerError) throw tokenizerError;
   tokenOptions.push(options);
+  if (tokenizerResult) return tokenizerResult;
   return { input_ids: texts.map(() => [1, 2]), attention_mask: texts.map(() => [1, 1]) };
 }, { dispose() {} });
 globalThis.__onnxQualifiedLifetimeFixture = { Tensor, env: {},
@@ -88,6 +89,22 @@ try {
   assert(control.outputs.every(value => value.closes === 1), 'prewarm outputs are disposed too');
   await adapter.dispose(); assert.equal(control.sessionCloses, 1);
 
+  const { adapter: rowAdapter, control: rowControl } = await create('valid');
+  tokenizerResult = { input_ids: [[1]], attention_mask: [[1]] };
+  await assert.rejects(rowAdapter.getEmbeddings(['first', 'second']), { code: 'ERR_ONNX_TOKENIZER_OUTPUT' });
+  assert.equal(rowControl.runs, 0); assert.equal(rowControl.feeds.length, 0);
+  assert.equal(rowAdapter.executionInfo().measurements.tokenizerFailures, 1);
+  tokenizerResult = null;
+  const estimates = await rowAdapter.estimateTokens(['estimate first', 'estimate second']);
+  assert.deepEqual([...estimates], [2, 2]);
+  const beforeDispatch = rowAdapter.executionInfo().measurements;
+  await rowAdapter.getEmbeddings(['estimate second', 'estimate first']); estimates.release();
+  const afterDispatch = rowAdapter.executionInfo().measurements;
+  assert.equal(afterDispatch.tokenizerCalls, beforeDispatch.tokenizerCalls);
+  assert.equal(afterDispatch.preparedTokenRowHits, 2); assert.equal(afterDispatch.preparedRowStore.entries, 0);
+  assert.equal(afterDispatch.paddedTokenCells, 4); assert.equal(afterDispatch.preparedUsefulTokens, 8);
+  await rowAdapter.dispose(); assert.equal(rowControl.sessionCloses, 1);
+
   for (const mode of ['extra-row', 'short', 'missing', 'nonfinite', 'zero']) {
     const { adapter: rejected, control: bad } = await create(mode);
     await assert.rejects(rejected.getEmbedding('invalid output'), { code: 'ERR_ONNX_EMBEDDING_OUTPUT' });
@@ -130,6 +147,7 @@ try {
   assert.equal(observeEmbeddingOwnership(nativeFailure)(), true);
 } finally {
   tokenizerError = null;
+  tokenizerResult = null;
   for (const control of controls) if (control.nativeError) control.nativeError = null;
   await Promise.allSettled(adapters.map(adapter => adapter.dispose()));
   hooks.deregister(); delete globalThis.__onnxQualifiedLifetimeFixture;

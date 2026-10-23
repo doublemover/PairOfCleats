@@ -24,7 +24,8 @@ import {
 } from './onnx-embeddings/config.js';
 import { createRunQueue } from './onnx-embeddings/run-queue.js';
 import { withOnnxTensorScope, captureOnnxOutputTensors } from './onnx-embeddings/tensor-lifetime.js';
-import { __tokenizeBatchWithCacheForTests, tokenizeBatchWithCache, prepareTokenRowsWithCache, createPreparedTokenRows } from './onnx-embeddings/tokenization.js';
+import { __tokenizeBatchWithCacheForTests, tokenizeBatchWithCache, prepareTokenRowsWithCache, createPreparedTokenRows,
+  createTokenizationIdentity } from './onnx-embeddings/tokenization.js';
 
 export {
   normalizeEmbeddingProvider,
@@ -313,6 +314,12 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
   };
   const runScratch = new Map();
   const preparedRows = createPreparedTokenRows();
+  const measureTokenization = invoke => {
+    const startedAt = performance.now();
+    try { return invoke(); }
+    catch (error) { sessionEntry.measurements.tokenizerFailures = (sessionEntry.measurements.tokenizerFailures || 0) + 1; throw error; }
+    finally { sessionEntry.measurements.tokenizerMs += performance.now() - startedAt; }
+  };
   // Every adapter for this native session enters the same run queue.
   const queueSessionRun = (step) => {
     const enqueuedAt = performance.now();
@@ -344,18 +351,16 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
   const encodeTexts = (tokenizer, session, texts) => {
     const wantsTokenTypeIds = Array.isArray(session.inputNames)
       && session.inputNames.includes('token_type_ids');
-    const startedAt = performance.now();
-    const encoded = tokenizeBatchWithCache({
+    return measureTokenization(() => tokenizeBatchWithCache({
       tokenizer,
       texts,
       wantsTokenTypeIds,
       truncation: DEFAULT_EMBEDDING_TRUNCATION,
       maxLength: denseContract?.maxLength ?? null,
       tokenizationCache: tokenizationCache.enabled ? tokenizationCache : null,
-      preparedRows
-    });
-    sessionEntry.measurements.tokenizerMs += performance.now() - startedAt;
-    return encoded;
+      preparedRows,
+      measurements: sessionEntry.measurements
+    }));
   };
   const getEmbeddings = async (texts) => {
     const list = Array.isArray(texts) ? texts : [];
@@ -369,11 +374,9 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
     if (!list.length) return [];
     const { tokenizer, session } = await embedderPromise;
     const wantsTokenTypeIds = session.inputNames?.includes('token_type_ids') === true;
-    const startedAt = performance.now();
-    const rows = prepareTokenRowsWithCache({ tokenizer, texts: list, wantsTokenTypeIds,
+    const rows = measureTokenization(() => prepareTokenRowsWithCache({ tokenizer, texts: list, wantsTokenTypeIds,
       truncation: DEFAULT_EMBEDDING_TRUNCATION, maxLength: denseContract?.maxLength ?? null,
-      tokenizationCache: tokenizationCache.enabled ? tokenizationCache : null });
-    sessionEntry.measurements.tokenizerMs += performance.now() - startedAt;
+      tokenizationCache: tokenizationCache.enabled ? tokenizationCache : null, measurements: sessionEntry.measurements }));
     const counts = new Array(list.length);
     for (let i = 0; i < list.length; i += 1) {
       const row = rows[i]?.attention_mask || [];
@@ -383,7 +386,8 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
       }
       counts[i] = Math.max(1, tokenCount);
     }
-    Object.defineProperty(counts, 'release', { value: preparedRows.retain(list, rows, wantsTokenTypeIds) });
+    Object.defineProperty(counts, 'release', { value: preparedRows.retain(list, rows, createTokenizationIdentity({ tokenizer,
+      wantsTokenTypeIds, truncation: DEFAULT_EMBEDDING_TRUNCATION, maxLength: denseContract?.maxLength ?? null })) });
     return counts;
   };
   const prewarm = async ({ tokenizer = true, model = false, texts = null } = {}) => {
@@ -401,6 +405,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
     embedderPromise,
     executionInfo: () => ({ provider: 'onnx', denseEncoding: denseContract ? { ...denseContract } : null,
       measurements: { ...sessionEntry.measurements, retainedTensorScopes: sessionEntry.tensorScopes.size,
+        preparedRowStore: preparedRows.stats(), tokenCacheEntries: tokenizationCache.cache.size,
         tensorCleanupEvidence: 'captured-disposal-settlement; native-memory-freeing-unobserved' }, modelArtifact: sessionEntry.loaded?.observedArtifact || selectedArtifact,
       modelRevision: selectedArtifact.revision, effectiveSessionOptions: sessionEntry.loaded?.effectiveSessionOptions ?? null, requestedSessionOptions: buildSessionOptions(normalized, { lowMemory }),
       qualification: qualificationSlot ? { kind: 'unaccepted-experiment', bindingDigest: qualificationSlot.bindingDigest,

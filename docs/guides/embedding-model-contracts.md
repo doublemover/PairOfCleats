@@ -60,6 +60,14 @@ time. Tensor disposal settlement is not evidence of measured native memory
 release. Profile experiment source bindings include artifact/closure/lifetime
 helpers, and corrected processing identities do not enable a faster default.
 
+Unpadded ONNX token rows are reused only with the same tokenizer object,
+truncation setting, token limit and token-type policy. Estimation retains rows
+in a bounded adapter store for dispatch; release removes only its original row
+owner. Tokenizer output must have the requested row count, matching field widths,
+safe nonnegative integer IDs and binary masks before feed assembly. Telemetry
+counts tokenizer calls, row-cache hits, useful tokens and padded field cells;
+these counts do not establish a model throughput improvement.
+
 Generic prefetch preserves q8 selection. When the runtime registry exposes its
 selected component list, the downloader uses that graph for relocation even if
 an unused fp32 sibling is already cached. `--onnx-path` selects relocation itself;
