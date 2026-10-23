@@ -33,7 +33,8 @@ and accepted issue closure are separate facts.
    New P1 #1679 credential projection and #1582 embedding channel identity have
    source repairs; #1574/#1693 now use cleanup admission/exclusion and truthful
    retained outcomes. Full index/backend category cleanup and real parent drain
-   remain partial. #1554 verified TUI replacement is next.
+   remain partial. #1554 now stages complete verified generations before atomic
+   selection; fault/concurrency and native Windows qualification remain unrun.
 2. Remaining P2/P3 issues, including prior partial owners, ordered by dependency:
    publication/resource ownership; source/cache identities; semantic and retrieval
    correctness; transports/providers; operator and evaluation workflows. Read full

@@ -352,7 +352,7 @@ Workload summaries:
 
 Default install root is under the PairOfCleats cache root:
 
-- `<cacheRoot>/tui/install-v1/<triple>/bin/<artifactName>`
+- `<cacheRoot>/tui/install-v1/<triple>/generations/<generationId>/<artifactName>`
 - `<cacheRoot>/tui/install-v1/<triple>/install-manifest.json`
 - `<cacheRoot>/tui/install-v1/<triple>/logs/`
 
@@ -375,7 +375,18 @@ Before launch, wrapper verifies:
 - install manifest shape/target match
 - binary existence + executable metadata
 - installed checksum vs install manifest
-- installed checksum vs build manifest (when available)
+- immutable generation manifest and source-build digest binding
+- exact supervisor and Node/package runtime identity
+- legacy fixed-path installs: build-manifest checksum when available
+
+Install stages and verifies a complete generation before atomically selecting it.
+Earlier binaries and shared logs are retained; installation never prunes unrelated
+siblings or replaces a running executable. A failed promotion leaves the prior
+complete selection available. Close a process holding the selecting manifest and
+retry if Windows refuses publication. Later build output does not invalidate an
+already verified generation. Reinstall after a runtime/package identity change.
+Retained/interrupted generations require explicit owned cleanup; they are not
+silently removed during an update.
 
 On failure, wrapper exits non-zero with repair hints.
 

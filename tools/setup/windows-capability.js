@@ -2,6 +2,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { inspectWindowsTargetBytes } from '../../src/shared/binary-target.js';
+export { inspectWindowsTargetBytes } from '../../src/shared/binary-target.js';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { assertNoSymlinkPath, readVerifiedContainedFile } from '../../src/shared/contained-file.js';
 import { runWithStorageSession, isStorageSessionReleaseFailure } from '../../src/shared/storage/session.js';
@@ -21,21 +23,6 @@ export const captureWindowsResourceObservation = error => {
     if (error?.cacheOwnershipPending !== true && typeof observe !== 'function') return null;
     return () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } };
   } catch { return () => false; }
-};
-
-export const inspectWindowsTargetBytes = (bytes, arch, { executable = false } = {}) => {
-  const expected = machine[arch];
-  if (!expected || !Buffer.isBuffer(bytes) || bytes.length < 20) throw new Error('Missing supported target output.');
-  let offset = 0;
-  if (executable) {
-    if (bytes.length < 64 || bytes.readUInt16LE(0) !== 0x5a4d) throw new Error('Compiler capability output is not a PE image.');
-    const header = bytes.readUInt32LE(0x3c);
-    if (header < 64 || header > bytes.length - 24 || bytes.readUInt32LE(header) !== 0x4550) throw new Error('Invalid PE target header.');
-    offset = header + 4;
-  }
-  const actual = bytes.readUInt16LE(offset);
-  if (actual !== expected) throw new Error(`Compiler target machine disagrees: expected ${arch}, observed 0x${actual.toString(16)}.`);
-  return { format: executable ? 'PE' : 'COFF', arch, machine: actual };
 };
 
 const readEvidence = async (file, { signal = null, includeContents = false } = {}) => {

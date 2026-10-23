@@ -10,6 +10,8 @@ const { getTuiEnvConfig } = await import('../src/shared/env/tui.js');
 const { exitLikeChild } = await import('../src/tui/wrapper-exit.js');
 const { resolveTuiWrapperEnv } = await import('./tui-wrapper-env.js');
 const { resolveTuiSupervisorPath } = await import('./tui-supervisor-path.js');
+const { resolveSelectedTuiGeneration } = await import('../tools/tui/install-generation.js');
+const { readVerifiedContainedFileSync } = await import('../src/shared/contained-file.js');
 const {
   isExecutableForPlatform,
   readBuildManifestSync,
@@ -42,7 +44,7 @@ const parseInstallMetadata = (metadataPath) => {
   }
   let payload = null;
   try {
-    payload = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+    payload = JSON.parse(readVerifiedContainedFileSync(path.dirname(metadataPath), metadataPath, { maxBytes: 256 * 1024 }).buffer.toString('utf8'));
   } catch {
     fail(`invalid install manifest JSON: ${toPosixRelative(root, metadataPath)}`, [
       'run `pairofcleats tui install --json` to rebuild install metadata'
@@ -91,21 +93,24 @@ const resolveRuntime = () => {
     );
   }
 
-  const binaryPath = layout.binaryPath;
+  let selected;
+  try { selected = resolveSelectedTuiGeneration({ root, layout, target, metadata }); }
+  catch (error) { fail(error.message, ['run `pairofcleats tui install` to repair generation metadata']); }
+  const { binaryPath, generation, binaryRead } = selected;
   if (!fs.existsSync(binaryPath)) {
     fail(`missing installed TUI binary: ${toPosixRelative(root, binaryPath)}`, [
       'run `pairofcleats tui install` to install the binary'
     ]);
   }
 
-  const stat = fs.statSync(binaryPath);
+  const stat = binaryRead?.stat || fs.statSync(binaryPath);
   if (!isExecutableForPlatform(stat, process.platform)) {
     fail(`installed binary is not executable: ${toPosixRelative(root, binaryPath)}`, [
       'run `pairofcleats tui install` to repair executable metadata'
     ]);
   }
 
-  const actualSha = sha256FileSync(binaryPath);
+  const actualSha = binaryRead?.hash || sha256FileSync(binaryPath);
   const expectedInstallSha = String(metadata?.binary?.sha256 || '').trim().toLowerCase();
   if (!expectedInstallSha || expectedInstallSha !== actualSha) {
     fail(`installed binary checksum mismatch for ${toPosixRelative(root, binaryPath)}`, [
@@ -113,7 +118,7 @@ const resolveRuntime = () => {
     ]);
   }
 
-  const expectedBuildSha = resolveBuildChecksum({ triple });
+  const expectedBuildSha = generation ? null : resolveBuildChecksum({ triple });
   if (expectedBuildSha && expectedBuildSha !== actualSha) {
     fail(`installed binary checksum does not match current build manifest for ${triple}`, [
       'run `pairofcleats tui build --smoke`',

@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
+import { describeStorageFailure, observeStorageResource } from '../../src/shared/storage/failure-observation.js';
 import {
   TUI_BUILD_MANIFEST_SCHEMA_VERSION,
   TUI_BUILD_MANIFEST_CHECKSUM_FILE,
@@ -48,7 +49,7 @@ export const verifyBuiltManifest = ({ rootDir, targets, targetsPath, targetsChec
         `build manifest missing target ${target.triple} (${toPosixRelative(rootDir, buildManifest.manifestPath)})`
       );
     }
-    if (artifact.artifactName !== target.artifactName) {
+    if (artifact.artifactName !== target.artifactName || artifact.platform !== target.platform) {
       throw new Error(
         `build manifest artifact mismatch for ${target.triple}: expected ${target.artifactName}, got ${artifact.artifactName}`
       );
@@ -210,25 +211,25 @@ export const ensureBuildArtifactAvailable = async ({
   if (!target) {
     throw new Error(`unsupported target triple: ${triple} (not present in tools/tui/targets.json)`);
   }
-  try {
-    const buildManifest = readBuildManifestSync({ root: rootDir, verifyChecksum: true });
+  const targetsPath = resolveTargetsPath(rootDir);
+  const targetsChecksum = sha256Text(await fsPromises.readFile(targetsPath, 'utf8'));
+  const readVerifiedBuild = () => {
+    const buildManifest = verifyBuiltManifest({ rootDir, targets: [target], targetsPath, targetsChecksum });
     const buildArtifact = resolveTargetForTriple(buildManifest.artifacts, triple);
-    if (
-      buildArtifact
-      && buildArtifact.artifactName === target.artifactName
-      && buildArtifact.exists
-      && buildArtifact.absoluteArtifactPath
-      && fs.existsSync(buildArtifact.absoluteArtifactPath)
-      && buildArtifact.sha256
-    ) {
-      return { target, buildManifest, buildArtifact, built: false };
-    }
-  } catch {}
+    if (!buildArtifact?.exists || !buildArtifact.absoluteArtifactPath) throw new Error(`missing staged TUI artifact for ${triple}`);
+    return { buildManifest, buildArtifact };
+  };
+  let previousFailure;
+  try { return { target, ...readVerifiedBuild(), built: false }; }
+  catch (error) {
+    observeStorageResource(error, { phase: 'tui-existing-build' }).requireSettled();
+    previousFailure = error;
+  }
 
   if (!autoBuild) {
-    throw new Error(
-      `missing staged TUI artifact for ${triple}. Run ${'`'}pairofcleats tui build --target '}${triple}${'`'} first, or rerun install without ${'`'}--no-build${'`'}.`
-    );
+    const diagnostic = describeStorageFailure(previousFailure, { phase: 'tui-staged-build-admission' });
+    throw new Error(`missing or invalid staged TUI artifact for ${triple}: ${diagnostic.message}. `
+      + `Run pairofcleats tui build --target ${triple}, or rerun install without --no-build.`, { cause: previousFailure });
   }
 
   const built = await buildTargetArtifact({
@@ -237,11 +238,7 @@ export const ensureBuildArtifactAvailable = async ({
     env,
     smoke: true
   });
-  const buildManifest = readBuildManifestSync({ root: rootDir, verifyChecksum: true });
-  const buildArtifact = resolveTargetForTriple(buildManifest.artifacts, triple);
-  if (!buildArtifact || !buildArtifact.exists || !buildArtifact.absoluteArtifactPath || !fs.existsSync(buildArtifact.absoluteArtifactPath)) {
-    throw new Error(`build completed but staged TUI artifact is still missing for ${triple}`);
-  }
+  const { buildManifest, buildArtifact } = readVerifiedBuild();
   return {
     target,
     buildManifest,

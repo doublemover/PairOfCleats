@@ -38,10 +38,16 @@ full cleanup-category capability or deep-suite green is claimed.
 
 ## Remaining integration and qualification
 
-- #1554: stage and verify complete immutable TUI generations before serialized
-  publication; preserve the previous generation through every failure and Windows
-  in-use executable condition. Fault/concurrency controls must retain meaningful
-  legacy wrapper/install assertions.
+- #1554 now has a source repair: complete immutable generations, exact staged
+  binary/target/runtime/supervisor admission, existing per-target locks and one
+  durable atomic selecting manifest. Prior generations/shared logs/siblings stay
+  retained. New schema 2 is written inside install-v1; legacy schema-1 fixed-path
+  launch checks remain. Existing CLI integrity negatives are preserved, and new
+  fault/interruption/concurrency controls are authored, all unrun. Synthetic
+  headers qualify only format/architecture, not native execution or actual
+  Windows sharing behavior. Real-wrapper/native replacement qualification and
+  explicit retained-generation cleanup remain open. The old stale-sibling prune
+  assertion described the destructive behavior and now asserts preservation.
 - New P2/P3/Perf intake below and prior partial owners remain pending; source
   mappings in the prior receipt do not count as final-head acceptance.
 - Reconcile generated MCP 1.10 schemas, snapshots, script/fixture inventories and
@@ -68,7 +74,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#356](https://github.com/doublemover/PairOfCleats/issues/356) | Bench verdict policy: add a production-clean gate distinct from permissive passed_with_degradation success | Pending full-scope review |
 | [#371](https://github.com/doublemover/PairOfCleats/issues/371) | Suggest-tests fidelity: distinguish graph-backed suggestions from heuristic fallback and make weak coverage explicit | Pending full-scope review |
 | [#385](https://github.com/doublemover/PairOfCleats/issues/385) | Benchmark blocker closure policy: require live canary outcome changes, not diagnostics-only improvements | Pending full-scope review |
-| [#1554](https://github.com/doublemover/PairOfCleats/issues/1554) | [P1] Preserve the working TUI installation until replacement bytes and metadata are verified | Full scope reviewed; source pending |
+| [#1554](https://github.com/doublemover/PairOfCleats/issues/1554) | [P1] Preserve the working TUI installation until replacement bytes and metadata are verified | Source repair authored; fault/native qualification pending |
 | [#1555](https://github.com/doublemover/PairOfCleats/issues/1555) | Make locked checkout bootstrap a strict plan-owned transaction with targeted recovery | Pending full-scope review |
 | [#1556](https://github.com/doublemover/PairOfCleats/issues/1556) | Provide a verified end-user runtime bundle separate from contributor checkout bootstrap | Pending full-scope review |
 | [#1557](https://github.com/doublemover/PairOfCleats/issues/1557) | [Setup] Stream truthful bootstrap progress with bounded per-task diagnostic logs | Pending full-scope review |
