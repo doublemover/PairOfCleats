@@ -12,6 +12,14 @@ const docText = 'int add(int a, int b) { return a + b; }\n';
 
 const cases = [
   {
+    mode: 'invalid-envelope-document-symbol',
+    expectedCheck: 'tooling_document_symbol_failed',
+    unexpectedChecks: ['tooling_initialize_failed'],
+    expectFailedMetric: true,
+    timeoutMs: 1500,
+    parseSignature: () => null
+  },
+  {
     mode: 'malformed-hover',
     expectedCheck: null,
     unexpectedChecks: ['tooling_initialize_failed', 'tooling_document_symbol_failed'],

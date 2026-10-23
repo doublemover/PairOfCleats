@@ -5,6 +5,7 @@ import {
   closeJsonRpcWriter,
   createFramedJsonRpcParser,
   getJsonRpcWriter,
+  getJsonRpcWriteEvidence,
   isClosedStreamWriteError
 } from '../../../shared/jsonrpc.js';
 import { registerChildProcessForCleanup } from '../../../shared/subprocess/tracking-register.js';
@@ -13,6 +14,8 @@ import { killChildProcessTree, killChildProcessTreeSync } from '../../../shared/
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
 import { resolveNearestRankPercentile } from '../../../shared/perf/percentiles.js';
 import { createJsonRpcTraceRecorder } from './trace.js';
+import { classifyLspEnvelope } from './response-envelope.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 
 /**
  * Convert a local path to a file:// URI.
@@ -210,7 +213,7 @@ export function createLspClient(options) {
   const STALE_REAP_RETRY_MS = 500;
   let nextId = 1;
   const pending = new Map();
-  let generation = 0;
+  let generation = 0, uncorrelatedProtocolEvents = 0;
   let backoffMs = 0;
   let nextStartAt = 0;
   // Ensure every LSP request is bounded unless explicitly disabled.
@@ -220,6 +223,8 @@ export function createLspClient(options) {
     succeeded: 0,
     failed: 0,
     timedOut: 0,
+    protocolFailed: 0,
+    localWriteFailed: 0,
     latencySamplesMs: [],
     latencyTotalMs: 0,
     latencyMaxMs: 0,
@@ -241,6 +246,8 @@ export function createLspClient(options) {
         succeeded: 0,
         failed: 0,
         timedOut: 0,
+        protocolFailed: 0,
+        localWriteFailed: 0,
         latencySamplesMs: [],
         latencyTotalMs: 0,
         latencyMaxMs: 0
@@ -503,26 +510,40 @@ export function createLspClient(options) {
     && typeof value.destroy === 'function'
   );
 
-  const send = (payload) => {
+  const failRequest = (id, entry, error, category = null) => {
+    if (pending.get(id) !== entry) return false;
+    pending.delete(id);
+    if (entry.timeout) clearTimeout(entry.timeout);
+    requestMetrics.failed += 1;
+    const metric = ensureMethodMetric(entry.method);
+    metric.failed += 1;
+    if (category) { requestMetrics[category] += 1; metric[category] += 1; }
+    recordRequestLatency(entry.method, Date.now() - entry.startedAt);
+    invalidateMetricsSnapshot();
+    entry.reject(error);
+    return true;
+  };
+
+  const send = (payload, onWriteFailure = null) => {
     if (!writer || writerClosed) return false;
-    const currentWriter = writer;
-    const currentGen = generation;
-    traceRecorder.recordOutbound(payload, {
-      providerId: providerId || cmd,
-      sessionKey
-    });
+    const currentWriter = writer, currentGen = generation, currentChild = proc;
+    traceRecorder.recordOutbound(payload, { providerId: providerId || cmd, sessionKey });
     const pendingWrite = currentWriter.write(payload);
-    if (pendingWrite && typeof pendingWrite.catch === 'function') {
-      pendingWrite.catch((err) => {
-        if (writer !== currentWriter || generation !== currentGen) return;
-        if (isClosedStreamWriteError(err)) {
-          rejectPendingTransportClosed();
-          writerClosed = true;
-          return;
-        }
-        log(`[lsp] write error: ${err?.message || err}`);
-      });
-    }
+    pendingWrite.catch(error => {
+      if (writer !== currentWriter || generation !== currentGen) return;
+      const evidence = getJsonRpcWriteEvidence(pendingWrite);
+      const local = evidence?.settled && !evidence.frameStarted && !evidence.streamRetired
+        && !isClosedStreamWriteError(error);
+      onWriteFailure?.(error, local);
+      if (!local) {
+        writerClosed = true;
+        currentWriter.close();
+        const failure = addStorageFailureContext(error, { code: 'ERR_LSP_TRANSPORT_CLOSED' }, undefined, { forceAggregate: true });
+        rejectPending(failure);
+        reapStaleChildProcess(currentChild, 'outbound_write_failed');
+      }
+      emitLifecycleEvent({ kind: 'write_failed', reason: local ? 'pre-frame' : 'transport' });
+    });
     return true;
   };
 
@@ -539,7 +560,7 @@ export function createLspClient(options) {
     const latencyMs = Date.now() - Number(entry.startedAt || Date.now());
     recordRequestLatency(entry.method, latencyMs);
     const methodMetric = ensureMethodMetric(entry.method);
-    if (message.error) {
+    if (Object.hasOwn(message, 'error')) {
       requestMetrics.failed += 1;
       methodMetric.failed += 1;
       invalidateMetricsSnapshot();
@@ -584,30 +605,29 @@ export function createLspClient(options) {
   };
 
   const handleMessage = (message) => {
-    if (!message || typeof message !== 'object') return;
-    if (!Object.prototype.hasOwnProperty.call(message, 'id') && message.method) {
-      traceRecorder.recordInbound(message, {
-        providerId: providerId || cmd,
-        sessionKey
-      });
-    }
-    if (Object.prototype.hasOwnProperty.call(message, 'id')) {
-      if (message.method) {
-        void handleRequest(message);
-        return;
+    const envelope = classifyLspEnvelope(message);
+    if (!envelope.kind) {
+      const entry = message && typeof message === 'object' && !Array.isArray(message)
+        && Object.hasOwn(message, 'id') ? pending.get(message.id) : null;
+      if (entry) {
+        const error = new Error(`Invalid LSP response envelope (${envelope.reason}).`);
+        error.code = 'ERR_LSP_PROTOCOL';
+        failRequest(message.id, entry, error, 'protocolFailed');
       }
-      handleResponse(message);
+      if (entry || uncorrelatedProtocolEvents < 8) {
+        if (!entry) uncorrelatedProtocolEvents += 1;
+        emitLifecycleEvent({ kind: 'protocol_envelope_error', reason: envelope.reason, correlated: Boolean(entry) });
+      }
       return;
     }
-    if (message.method && typeof onNotification === 'function') {
-      try {
-        onNotification(message);
-      } catch (error) {
+    if (envelope.kind === 'request') { void handleRequest(message); return; }
+    if (envelope.kind === 'response') { handleResponse(message); return; }
+    traceRecorder.recordInbound(message, { providerId: providerId || cmd, sessionKey });
+    if (typeof onNotification === 'function') {
+      try { onNotification(message); }
+      catch (error) {
         log(`[lsp] notification handler failed: ${error?.message || error}`);
-        emitLifecycleEvent({
-          kind: 'notification_handler_error',
-          message: error?.message || String(error)
-        });
+        emitLifecycleEvent({ kind: 'notification_handler_error', message: error?.message || String(error) });
       }
     }
   };
@@ -647,6 +667,7 @@ export function createLspClient(options) {
       throw new Error(`LSP start backoff active (${nextStartAt - now}ms remaining).`);
     }
     generation += 1;
+    uncorrelatedProtocolEvents = 0;
     const childGen = generation;
     const invocation = useShell
       ? resolveWindowsCmdInvocation(cmd, args)
@@ -840,6 +861,7 @@ export function createLspClient(options) {
       const entry = { resolve, reject, method, timeout: null, startedAt };
       if (Number.isFinite(resolvedTimeout) && resolvedTimeout > 0) {
         entry.timeout = setTimeout(() => {
+          if (pending.get(id) !== entry) return;
           pending.delete(id);
           requestMetrics.timedOut += 1;
           requestMetrics.failed += 1;
@@ -856,15 +878,14 @@ export function createLspClient(options) {
         }, resolvedTimeout);
       }
       pending.set(id, entry);
-      if (!send({ jsonrpc: '2.0', id, method, params })) {
-        pending.delete(id);
-        if (entry.timeout) clearTimeout(entry.timeout);
-        requestMetrics.failed += 1;
-        methodMetric.failed += 1;
-        recordRequestLatency(method, Date.now() - startedAt);
-        invalidateMetricsSnapshot();
-        entry.reject(new Error(`LSP writer unavailable (${method}).`));
-      }
+      const onWriteFailure = (error, local = true) => failRequest(id, entry,
+        addStorageFailureContext(error, { code: 'ERR_LSP_REQUEST_WRITE' }, undefined, { forceAggregate: true }),
+        local ? 'localWriteFailed' : null);
+      try {
+        if (!send({ jsonrpc: '2.0', id, method, params }, onWriteFailure)) {
+          failRequest(id, entry, new Error(`LSP writer unavailable (${method}).`));
+        }
+      } catch (error) { onWriteFailure(error); }
     });
   };
 
@@ -1070,6 +1091,8 @@ export function createLspClient(options) {
         succeeded: requestMetrics.succeeded,
         failed: requestMetrics.failed,
         timedOut: requestMetrics.timedOut,
+        protocolFailed: requestMetrics.protocolFailed,
+        localWriteFailed: requestMetrics.localWriteFailed,
         latencyMs: summarizeLatencies(
           requestMetrics.latencySamplesMs,
           requestMetrics.latencyTotalMs,
@@ -1083,6 +1106,8 @@ export function createLspClient(options) {
               succeeded: Number(stats?.succeeded || 0),
               failed: Number(stats?.failed || 0),
               timedOut: Number(stats?.timedOut || 0),
+              protocolFailed: Number(stats?.protocolFailed || 0),
+              localWriteFailed: Number(stats?.localWriteFailed || 0),
               latencyMs: summarizeLatencies(
                 stats?.latencySamplesMs,
                 stats?.latencyTotalMs,

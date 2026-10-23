@@ -135,6 +135,20 @@ full cleanup-category capability or deep-suite green is claimed.
   independent exact bytes, damaged-wire and cyclic-input controls are authored,
   unrun. Existing writer listener and queued-close regressions remain intact.
 
+- #1626/#1628: parsed LSP envelopes require JSON-RPC 2.0, exclusive own
+  result/error properties and structured errors before success settlement.
+  Typed ID correlation and valid falsey/empty results remain supported; invalid
+  correlated responses fail once and uncorrelated diagnostics are capped at
+  eight per generation. Request write rejection now owns exact entry/generation
+  settlement, clears timers and preserves original resource/cause context.
+  Proven pre-frame failures keep the healthy transport; partial writes retire it
+  through the existing child cleanup owner without claiming child closure.
+  Independent framed fake-child controls cover malformed envelopes, server
+  requests, falsey results, local cyclic input, disabled/captured finite timers,
+  partial body failure and response/write races. The actual document-symbol
+  fail-open matrix adds a valid-JSON invalid-envelope case. All are unrun;
+  existing malformed-JSON/stream/timeout controls remain intact.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -245,9 +259,9 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1623](https://github.com/doublemover/PairOfCleats/issues/1623) | [P2] Bind semantic drain publication to its admitted cache and configuration authority | Pending full-scope review |
 | [#1624](https://github.com/doublemover/PairOfCleats/issues/1624) | [Perf] Separate scheduler demand from I/O pressure and expire adaptive wait evidence | Pending full-scope review |
 | [#1625](https://github.com/doublemover/PairOfCleats/issues/1625) | [Perf] Derive scheduler autotune from bounded workload evidence, not the drained final snapshot | Pending full-scope review |
-| [#1626](https://github.com/doublemover/PairOfCleats/issues/1626) | [P2] Validate LSP response envelopes before settling requests as successful | Pending full-scope review |
+| [#1626](https://github.com/doublemover/PairOfCleats/issues/1626) | [P2] Validate LSP response envelopes before settling requests as successful | Source repair committed; runtime proof pending |
 | [#1627](https://github.com/doublemover/PairOfCleats/issues/1627) | [P2] Publish Tantivy as a source-pinned generation instead of rebuilding the served path in place | Pending full-scope review |
-| [#1628](https://github.com/doublemover/PairOfCleats/issues/1628) | [P3] Settle LSP requests when their outbound write rejects before a response is possible | Pending full-scope review |
+| [#1628](https://github.com/doublemover/PairOfCleats/issues/1628) | [P3] Settle LSP requests when their outbound write rejects before a response is possible | Source repair committed; runtime proof pending |
 | [#1629](https://github.com/doublemover/PairOfCleats/issues/1629) | [P2] Preserve LSP document failures and join sibling work before releasing the session | Source repair committed; runtime proof pending |
 | [#1630](https://github.com/doublemover/PairOfCleats/issues/1630) | [P2] Cancel queued LSP lease waiters without acquiring or killing the pooled session | Pending full-scope review |
 | [#1631](https://github.com/doublemover/PairOfCleats/issues/1631) | [P2] Recheck LSP request eligibility when queued method work acquires a slot | Pending full-scope review |

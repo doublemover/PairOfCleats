@@ -628,6 +628,10 @@ const handleRequest = (message) => {
     if (mode === 'stall-document-symbol') {
       return;
     }
+    if (mode === 'invalid-envelope-document-symbol') {
+      send({ jsonrpc: '2.0', id });
+      return;
+    }
     if (mode === 'malformed-document-symbol') {
       sendMalformedFrame('{"jsonrpc":"2.0","id":2,"result":');
       return;
