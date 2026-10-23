@@ -7,7 +7,13 @@ import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { generateWorkspaceManifest } from '../../src/workspace/manifest.js';
 import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
-import { resolveWorkspaceChildRuntimeEnv } from '../../src/workspace/child-runtime-env.js';
+import { resolveWorkspaceChildRuntimePlan } from '../../src/workspace/child-runtime-env.js';
+import { createWorkspaceBuildRecovery } from './diagnostics.js';
+import { createCli } from '../../src/shared/cli.js';
+import { INDEX_BUILD_OPTIONS } from '../../src/shared/cli-option-sets.js';
+import { validateBuildArgs } from '../../src/shared/cli-option-validators.js';
+import { describeStorageFailure, observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 
 const TOOL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BUILD_INDEX_SCRIPT = path.join(TOOL_ROOT, 'build_index.js');
@@ -20,6 +26,7 @@ export const parseRawWorkspaceBuildArgs = (rawArgs) => {
   let includeDisabled = WORKSPACE_BUILD_OPTIONS['include-disabled'].default;
   let json = WORKSPACE_BUILD_OPTIONS.json.default;
   const finiteModes = { watch: false, 'config-dump': false };
+  const seenFiniteModes = new Set();
 
   const readBoolean = (arg, index, name) => {
     if (arg.startsWith(`--no-${name}=`)) throw new Error(`Use --no-${name} without a value.`);
@@ -45,7 +52,9 @@ export const parseRawWorkspaceBuildArgs = (rawArgs) => {
       return { value, skip: 1 };
     }
     if (arg.startsWith(`--${flagName}=`)) {
-      return { value: arg.slice(flagName.length + 3), skip: 0 };
+      const value = arg.slice(flagName.length + 3);
+      if (!value) throw new Error(`Missing value for --${flagName}.`);
+      return { value, skip: 0 };
     }
     return null;
   };
@@ -84,8 +93,8 @@ export const parseRawWorkspaceBuildArgs = (rawArgs) => {
       const parsed = readBoolean(arg, i, name);
       if (!parsed) continue;
       finiteModes[name] = parsed.value;
-      buildArgs.push(arg);
-      if (parsed.skip) buildArgs.push(rawArgs[++i]);
+      seenFiniteModes.add(name);
+      i += parsed.skip;
       consumed = true;
       break;
     }
@@ -103,6 +112,10 @@ export const parseRawWorkspaceBuildArgs = (rawArgs) => {
   if (buildArgs.some((entry) => entry === '--repo' || entry.startsWith('--repo='))) {
     throw new Error('workspace build does not allow --repo; repo roots come from the workspace file.');
   }
+  for (const name of seenFiniteModes) buildArgs.push(`--no-${name}`);
+  const cli = createCli({ argv: ['node', 'workspace-build-child', ...buildArgs], options: INDEX_BUILD_OPTIONS })
+    .help(false).version(false).exitProcess(false).strictOptions().fail(message => { throw new Error(message); });
+  validateBuildArgs(cli.parseSync());
 
   return {
     workspacePath,
@@ -126,11 +139,17 @@ const printWorkspaceBuildHelp = () => {
   console.error('  -h, --help                Show this help');
 };
 
-export const runRepoBuild = async ({ repo, buildArgs, signal: abortSignal = null, baseEnv = process.env }, { spawn = spawnSubprocess, resolveEnv = resolveWorkspaceChildRuntimeEnv } = {}) => {
+export const runRepoBuild = async ({ repo, buildArgs, signal: abortSignal = null, baseEnv = process.env }, {
+  spawn = spawnSubprocess, resolveEnv = null, resolvePlan = resolveWorkspaceChildRuntimePlan
+} = {}) => {
   const startedAt = Date.now();
+  let startup = null;
   try {
     abortSignal?.throwIfAborted();
-    const env = await resolveEnv({ repoRoot: repo.repoRootCanonical, buildArgs, baseEnv: { ...baseEnv } });
+    const request = { repoRoot: repo.repoRootCanonical, buildArgs, baseEnv: { ...baseEnv } };
+    const plan = resolveEnv ? { env: await resolveEnv(request), evidence: null } : await resolvePlan(request);
+    const env = plan.env;
+    startup = plan.evidence;
     abortSignal?.throwIfAborted();
     const result = await spawn(
       process.execPath,
@@ -146,44 +165,53 @@ export const runRepoBuild = async ({ repo, buildArgs, signal: abortSignal = null
         rejectOnNonZeroExit: false
       }
     );
-    const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
-    const exitCode = Number.isInteger(result.exitCode) ? result.exitCode : null;
-    const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
-      ? result.signal.trim()
-      : null;
-    return {
-      repoId: repo.repoId,
-      repoRootCanonical: repo.repoRootCanonical,
-      exitCode,
-      signal,
-      durationMs: Date.now() - startedAt,
-      status: exitCode === 0 && !signal ? 'passed' : 'failed',
-      error: (exitCode === 0 && !signal)
-        ? null
-        : (stderr || (signal ? `build_index exited via signal ${signal}` : `build_index exited with code ${result.exitCode}`))
-    };
+    const observation = observeStorageResource(result, { phase: 'workspace-child-build-result' });
+    observation.requireSettled();
+    try {
+      const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
+      const exitCode = Number.isInteger(result.exitCode) ? result.exitCode : null;
+      const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
+        ? result.signal.trim()
+        : null;
+      return {
+        repoId: repo.repoId,
+        repoRootCanonical: repo.repoRootCanonical,
+        exitCode,
+        signal,
+        durationMs: Date.now() - startedAt,
+        startup,
+        status: exitCode === 0 && !signal ? 'passed' : 'failed',
+        error: (exitCode === 0 && !signal)
+          ? null
+          : (stderr || (signal ? `build_index exited via signal ${signal}` : `build_index exited with code ${result.exitCode}`))
+      };
+    } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
   } catch (err) {
     // Unknown child teardown still belongs to the actual subprocess owner.
     // Do not turn it into a settled failure that permits another acquisition.
-    if (err?.cacheOwnershipPending) throw err;
-    const result = err?.result && typeof err.result === 'object' ? err.result : {};
-    const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
-    const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
-      ? result.signal.trim()
-      : null;
-    const exitCode = Number.isInteger(result.exitCode) ? result.exitCode : null;
-    const errorMessage = stderr
+    const observation = observeStorageResource(err, { phase: 'workspace-child-build-error' });
+    observation.requireSettled();
+    try {
+      const result = err?.result && typeof err.result === 'object' ? err.result : {};
+      const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
+      const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
+        ? result.signal.trim()
+        : null;
+      const exitCode = Number.isInteger(result.exitCode) ? result.exitCode : null;
+      const errorMessage = stderr
       || (typeof err?.message === 'string' && err.message.trim().length > 0 ? err.message.trim() : '')
       || (signal ? `build_index exited via signal ${signal}` : `build_index exited with code ${exitCode}`);
-    return {
-      repoId: repo.repoId,
-      repoRootCanonical: repo.repoRootCanonical,
-      exitCode,
-      signal,
-      durationMs: Date.now() - startedAt,
-      status: 'failed',
-      error: errorMessage
-    };
+      return {
+        repoId: repo.repoId,
+        repoRootCanonical: repo.repoRootCanonical,
+        exitCode,
+        signal,
+        durationMs: Date.now() - startedAt,
+        startup,
+        status: 'failed',
+        error: errorMessage
+      };
+    } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
   }
 };
 
@@ -201,30 +229,44 @@ export const runWorkspaceBuildReport = async (workspaceConfig, {
   // Retain this invocation's target inventory before any build callback awaits.
   const configured = workspaceConfig.repos.map(repo => ({ ...repo }));
   const targets = configured
-    .filter((repo) => includeDisabled || repo.enabled)
+    .filter((repo) => includeDisabled || repo.enabled !== false)
     .slice()
     .sort((a, b) => a.repoId.localeCompare(b.repoId));
   const identities = targets.map(({ repoId, repoRootCanonical }) => ({ repoId, repoRootCanonical }));
-  const excluded = configured.filter(repo => !includeDisabled && !repo.enabled)
+  const excluded = configured.filter(repo => !includeDisabled && repo.enabled === false)
     .map(({ repoId, repoRootCanonical }) => ({ repoId, repoRootCanonical, reason: 'disabled' }))
     .sort((a, b) => a.repoId.localeCompare(b.repoId));
   const results = new Array(targets.length);
   let cursor = 0;
   let stopScheduling = false;
-  let pendingOwnerError = null;
+  const pendingOwners = [];
   const worker = async () => {
     while (true) {
-      if (signal?.aborted || pendingOwnerError || (strict && stopScheduling)) return;
+      if (signal?.aborted || pendingOwners.length || (strict && stopScheduling)) return;
       const next = cursor;
       if (next >= targets.length) return;
       cursor += 1;
       const repo = targets[next];
       let result;
-      try { result = await runBuild({ repo, buildArgs: [...invocationArgs], signal, baseEnv: { ...invocationEnv } }); }
+      try {
+        const candidate = await runBuild({ repo, buildArgs: [...invocationArgs], signal, baseEnv: { ...invocationEnv } });
+        const observation = observeStorageResource(candidate, { phase: 'workspace-build-outcome' });
+        observation.requireSettled();
+        try {
+          result = candidate && typeof candidate === 'object' ? { ...candidate } : null;
+          observation.requireSettled();
+        } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+        if (result?.status === 'passed' && (result.exitCode !== 0 || result.signal)) {
+          result = { ...result, status: 'failed', error: 'Repository build reported success without a zero, unsignalled child exit.' };
+        }
+      }
       catch (error) {
-        if (error?.cacheOwnershipPending && !pendingOwnerError) pendingOwnerError = error;
+        let failure;
+        try { failure = describeStorageFailure(error, { phase: 'workspace-build-outcome' }); }
+        catch (pending) { pendingOwners.push(pending); }
         result = { repoId: repo.repoId, repoRootCanonical: repo.repoRootCanonical, exitCode: null,
-          signal: null, durationMs: 0, status: error?.cacheOwnershipPending ? 'settlement-pending' : 'failed', error: error?.message || String(error) };
+          signal: null, durationMs: 0, status: failure ? 'failed' : 'settlement-pending',
+          error: failure?.message || 'Repository child ownership remains unresolved.' };
       }
       if (!result || typeof result !== 'object') {
         result = { exitCode: null, signal: null, durationMs: 0, status: 'failed', error: 'Repository build returned no outcome.' };
@@ -240,7 +282,7 @@ export const runWorkspaceBuildReport = async (workspaceConfig, {
   await Promise.all(workers);
   const entries = results.filter(Boolean);
   const skipped = identities.filter((_repo, index) => !results[index])
-    .map(repo => ({ ...repo, status: 'skipped', reason: pendingOwnerError ? 'settlement-pending' : signal?.aborted ? 'cancelled' : 'strict-failure' }));
+    .map(repo => ({ ...repo, status: 'skipped', reason: pendingOwners.length ? 'settlement-pending' : signal?.aborted ? 'cancelled' : 'strict-failure' }));
   const failed = entries.filter(entry => entry.status !== 'passed').length;
   const report = {
     total: entries.length, failed, entries,
@@ -249,11 +291,12 @@ export const runWorkspaceBuildReport = async (workspaceConfig, {
     skippedCancelled: skipped.filter(entry => entry.reason === 'cancelled').length,
     skippedSettlementPending: skipped.filter(entry => entry.reason === 'settlement-pending').length,
     excludedDisabled: excluded.length, skipped, excluded,
-    outcome: targets.length === 0 ? 'no-work' : pendingOwnerError ? 'settlement-pending' : signal?.aborted ? 'cancelled' : failed ? 'failed' : 'passed'
+    outcome: targets.length === 0 ? 'no-work' : pendingOwners.length ? 'settlement-pending' : signal?.aborted ? 'cancelled' : failed ? 'failed' : 'passed'
   };
-  if (pendingOwnerError) {
-    pendingOwnerError.workspaceBuildDiagnostics = report;
-    throw pendingOwnerError;
+  if (pendingOwners.length) {
+    let pending = pendingOwners[0];
+    for (const owner of pendingOwners.slice(1)) pending = addStorageFailureContext(pending, {}, owner, { secondaryPresent: true });
+    throw addStorageFailureContext(pending, { workspaceBuildDiagnostics: report, workspaceBuildPendingOwners: pendingOwners });
   }
   return report;
 };
@@ -261,7 +304,9 @@ export const runWorkspaceBuildReport = async (workspaceConfig, {
 /** Compatibility owner: existing callers receive attempted build entries only. */
 export const runWorkspaceBuild = async (...args) => (await runWorkspaceBuildReport(...args)).entries;
 
-export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2)) {
+export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2), {
+  runBuild = runRepoBuild, refreshManifest = generateWorkspaceManifest
+} = {}) {
   if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
     printWorkspaceBuildHelp();
     return;
@@ -275,16 +320,17 @@ export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2)) {
   process.once('SIGINT', onInterrupt);
   process.once('SIGTERM', onTerminate);
   let diagnostics;
-  try { diagnostics = await runWorkspaceBuildReport(workspaceConfig, { ...options, signal: cancellation.signal }); }
+  try { diagnostics = await runWorkspaceBuildReport(workspaceConfig, { ...options, signal: cancellation.signal }, { runBuild }); }
   catch (error) {
     if (!error?.cacheOwnershipPending) throw error;
     const payload = { ok: false, state: 'settlement-pending', workspacePath: workspaceConfig.workspacePath,
       manifestRefresh: 'not-performed-settlement-pending', diagnostics: error.workspaceBuildDiagnostics,
+      pendingOwnershipCount: error.workspaceBuildPendingOwners?.length || 1,
       nextAction: 'The actual subprocess owner still has unresolved teardown. Do not replay this build until it settles.' };
     if (options.json) console.log(JSON.stringify(payload, null, 2));
     else console.error(JSON.stringify(payload, null, 2));
     process.exitCode = cancellationExitCode || 1;
-    return;
+    return payload;
   }
   finally {
     process.removeListener('SIGINT', onInterrupt);
@@ -292,16 +338,26 @@ export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2)) {
   }
   const buildDiagnostics = diagnostics.entries;
   const failed = buildDiagnostics.filter((entry) => entry.status !== 'passed');
-  const manifestResult = diagnostics.outcome === 'cancelled' ? null : await generateWorkspaceManifest(workspaceConfig, { write: true });
+  let manifestResult = null, manifestError = null;
+  if (diagnostics.outcome !== 'cancelled') {
+    try { manifestResult = await refreshManifest(workspaceConfig, { write: true }); }
+    catch (error) {
+      try { manifestError = describeStorageFailure(error, { phase: 'workspace-build-manifest-refresh' }); }
+      catch (pending) { throw addStorageFailureContext(pending, { workspaceBuildDiagnostics: diagnostics }); }
+    }
+  }
 
   const payload = {
-    ok: failed.length === 0 && diagnostics.outcome !== 'cancelled',
+    ok: failed.length === 0 && diagnostics.outcome !== 'cancelled' && !manifestError,
     workspacePath: workspaceConfig.workspacePath,
     manifestPath: manifestResult?.manifestPath || null,
     repoSetId: workspaceConfig.repoSetId,
     manifestHash: manifestResult?.manifest.manifestHash || null,
-    manifestRefresh: manifestResult ? 'completed' : 'not-performed-cancelled',
-    diagnostics
+    manifestRefresh: manifestError ? 'failed' : manifestResult ? 'completed' : 'not-performed-cancelled',
+    ...(manifestError ? { manifestError } : {}),
+    diagnostics,
+    recovery: createWorkspaceBuildRecovery(workspaceConfig, diagnostics, options.buildArgs),
+    qualification: 'Build outcomes describe this invocation. The manifest can retain earlier generations for modes or members not rebuilt.'
   };
 
   if (options.json) {
@@ -309,7 +365,7 @@ export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2)) {
   } else {
     console.error(`Workspace build ${diagnostics.outcome}`);
     console.error(`- workspace: ${payload.workspacePath}`);
-    console.error(`- repos built: ${payload.diagnostics.total}`);
+    console.error(`- repos attempted: ${payload.diagnostics.total}`);
     console.error(`- repos selected: ${diagnostics.selected}; skipped after failure: ${diagnostics.skippedAfterFailure}; disabled: ${diagnostics.excludedDisabled}`);
     console.error(`- build outcome: ${diagnostics.outcome}`);
     console.error(`- repos failed: ${payload.diagnostics.failed}`);
@@ -325,16 +381,21 @@ export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2)) {
       }
     }
     for (const entry of diagnostics.skipped) console.error(`  - ${entry.repoId}: skipped (${entry.reason})`);
+    if (manifestError) console.error(`- manifest refresh failed: ${manifestError.code}: ${manifestError.message}`);
+    for (const retry of payload.recovery.retryCandidates) console.error(`  retry (${retry.repoId}): ${retry.command.map(value => JSON.stringify(value)).join(' ')}`);
+    console.error(payload.qualification);
   }
 
-  if (cancellationExitCode) { process.exitCode = cancellationExitCode; return; }
+  if (cancellationExitCode) { process.exitCode = cancellationExitCode; return payload; }
   if (failed.length > 0) {
     const firstSignal = failed.find((entry) => typeof entry?.signal === 'string' && entry.signal.trim().length > 0)?.signal || null;
     if (firstSignal) {
       exitLikeCommandResult({ status: null, signal: firstSignal });
     }
-    process.exit(1);
+    process.exitCode = 1;
   }
+  if (manifestError) process.exitCode = 1;
+  return payload;
 }
 
 if (isDirectExecution(import.meta.url)) {

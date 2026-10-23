@@ -55,14 +55,15 @@ await Promise.resolve();
 await Promise.resolve();
 assert.equal(settled, false, 'already claimed child must settle before reporting unresolved owner');
 finishB();
-await assert.rejects(pending, error => error === pendingError);
+let retained;
+await assert.rejects(pending, error => { retained = error; return error.cacheOwnershipPending === true; });
 assert.deepEqual(started, ['a', 'b']);
-assert.equal(pendingError.workspaceBuildDiagnostics.outcome, 'settlement-pending');
-assert.equal(pendingError.workspaceBuildDiagnostics.skippedSettlementPending, 2);
-assert.deepEqual(pendingError.workspaceBuildDiagnostics.entries.map(entry => entry.status), ['settlement-pending', 'passed']);
+assert.equal(retained.workspaceBuildDiagnostics.outcome, 'settlement-pending');
+assert.equal(retained.workspaceBuildDiagnostics.skippedSettlementPending, 2);
+assert.deepEqual(retained.workspaceBuildDiagnostics.entries.map(entry => entry.status), ['settlement-pending', 'passed']);
 await assert.rejects(runRepoBuild({ repo: workspace.repos[0], buildArgs: [] }, {
   resolveEnv: () => ({}), spawn: () => { throw pendingError; }
-}), error => error === pendingError);
+}), error => error.cacheOwnershipPending === true && error.cacheOwnershipReleased() === false);
 
 const launchController = new AbortController();
 await runRepoBuild({ repo: workspace.repos[0], buildArgs: [], signal: launchController.signal }, {
@@ -84,4 +85,20 @@ await runWorkspaceBuildReport(workspace, { concurrency: 1, baseEnv: callerEnv, b
   }
 });
 await assert.rejects(runWorkspaceBuildReport(workspace, { concurrency: 0 }), /concurrency/);
+const closure = [false, false];
+const claims = [];
+const owners = ['a', 'b'].map((id, index) => Object.assign(new Error(`pending child ${id}`), {
+  cacheOwnershipPending: true, cacheOwnershipReleased: () => closure[index]
+}));
+let both;
+await assert.rejects(runWorkspaceBuildReport(workspace, { concurrency: 2, strict: false }, {
+  runBuild: async ({ repo }) => { claims.push(repo.repoId); throw owners[repo.repoId === 'a' ? 0 : 1]; }
+}), error => { both = error; return error.cacheOwnershipPending === true; });
+assert.deepEqual(claims, ['a', 'b']);
+assert.equal(both.workspaceBuildPendingOwners.length, 2, 'every already-claimed pending child retains its original observer');
+assert.equal(both.cacheOwnershipReleased(), false);
+closure[0] = true;
+assert.equal(both.cacheOwnershipReleased(), false);
+closure[1] = true;
+assert.equal(both.cacheOwnershipReleased(), true);
 console.log('Workspace cancellation and pending teardown stop fanout without losing claimed owners.');
