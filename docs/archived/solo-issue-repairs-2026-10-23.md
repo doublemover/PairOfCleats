@@ -127,6 +127,14 @@ full cleanup-category capability or deep-suite green is claimed.
   causes through the existing failure compositor. Deferred sibling, progress
   boundary, logger and healthy concurrency controls are authored, unrun.
 
+- #1621: JSON-RPC retirement retains its physical framing owner until actual
+  queued writes settle. A failed partial frame permanently retires that wire;
+  pre-frame encoding failures remain local and stale handles cannot retire a
+  replacement. Per-write observations identify original framing admission and
+  settlement without serializing a payload twice. Held-header reacquisition,
+  independent exact bytes, damaged-wire and cyclic-input controls are authored,
+  unrun. Existing writer listener and queued-close regressions remain intact.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -232,7 +240,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1618](https://github.com/doublemover/PairOfCleats/issues/1618) | [Perf] Make runtime family discovery progress without rescanning the full destination per page | Pending full-scope review |
 | [#1619](https://github.com/doublemover/PairOfCleats/issues/1619) | [P2] Make the MCP test reader framing-specific and invariant to stream fragmentation | Pending full-scope review |
 | [#1620](https://github.com/doublemover/PairOfCleats/issues/1620) | [P2] Bound and settle legacy MCP outbound responses under stdout backpressure | Pending full-scope review |
-| [#1621](https://github.com/doublemover/PairOfCleats/issues/1621) | [P3] Fence JSON-RPC writer replacement until the prior frame settles | Pending full-scope review |
+| [#1621](https://github.com/doublemover/PairOfCleats/issues/1621) | [P3] Fence JSON-RPC writer replacement until the prior frame settles | Source repair committed; runtime proof pending |
 | [#1622](https://github.com/doublemover/PairOfCleats/issues/1622) | [P2] Separate runtime claim-page budgets from citation integrity failures | Pending full-scope review |
 | [#1623](https://github.com/doublemover/PairOfCleats/issues/1623) | [P2] Bind semantic drain publication to its admitted cache and configuration authority | Pending full-scope review |
 | [#1624](https://github.com/doublemover/PairOfCleats/issues/1624) | [Perf] Separate scheduler demand from I/O pressure and expire adaptive wait evidence | Pending full-scope review |
