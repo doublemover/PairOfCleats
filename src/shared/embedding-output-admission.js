@@ -80,7 +80,8 @@ export const admitEmbeddingBatchOutput = (output, count, options = {}) => {
         expectedDimensions: width, observedDimensions: data.length });
       // Ordinary Float32 vectors can retain their owned buffer. The adapter
       // copies only when that buffer belongs to a captured native resource.
-      return copyEmbeddingValues(data, 0, width, rowDetails, data instanceof Float32Array ? data : null, options.requireNonzero);
+      return copyEmbeddingValues(data, 0, width, rowDetails,
+        data instanceof Float32Array && !options.copyVectors ? data : null, options.requireNonzero);
     });
   }
   if (count === 0 && output == null) return [];

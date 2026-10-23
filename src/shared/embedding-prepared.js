@@ -212,9 +212,18 @@ export const createPreparedTextEncoder = ({ tokenizer, model, Tensor, profile, s
     try { assertAvailable(); } catch (error) { return Promise.reject(error); }
     return admission(work, options);
   };
-  const admittedEmbed = (texts, options = {}) => admit(() => embed(texts), options);
-  admittedEmbed.prepare = (texts, options = {}) => admit(() => prepare(texts), options);
-  admittedEmbed.embedPrepared = (items, options = {}) => admit(() => embedPrepared(items), options);
+  const admittedEmbed = (texts, options = {}) => {
+    const selected = Array.isArray(texts) ? texts.slice() : texts;
+    return admit(() => embed(selected), { ...options });
+  };
+  admittedEmbed.prepare = (texts, options = {}) => {
+    const selected = Array.isArray(texts) ? texts.slice() : texts;
+    return admit(() => prepare(selected), { ...options });
+  };
+  admittedEmbed.embedPrepared = (items, options = {}) => {
+    const selected = Array.isArray(items) ? items.slice() : items;
+    return admit(() => embedPrepared(selected), { ...options });
+  };
   admittedEmbed.executionInfo = () => ({
     device: 'cpu', executionProviders: ['cpu'], modelFileName, requestedSessionOptions: structuredClone(sessionOptions),
     effectiveNativeThreads: null, effectiveGraphExecutionMode: null,

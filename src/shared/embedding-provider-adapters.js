@@ -8,6 +8,7 @@ import { captureTransformersResource, createTransformersResourceScope, trackPend
   transformersCleanupFailure, getTransformersFailureProvenance } from './embedding-transformers-resources.js';
 import { getPreparedTextEncoderOwner } from './embedding-prepared.js';
 import { resolveEmbeddingDenseContract, validateEmbeddingDenseContract } from './embedding-dense-contract.js';
+import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
 import {
   DEFAULT_EMBEDDING_POOLING,
   normalizeEmbeddingBatchOutput
@@ -19,6 +20,9 @@ import {
 } from './embedding-adapter-helpers.js';
 
 export const createXenovaAdapter = ({ modelId, modelsDir, dims = null, normalize, loadPipeline, modelProfile, localFilesOnly = false, sessionOptions = {}, modelFileName = null, modelArtifact = null }) => {
+  modelArtifact = snapshotEmbeddingMetadata(modelArtifact);
+  modelProfile = snapshotEmbeddingMetadata(modelProfile);
+  sessionOptions = snapshotEmbeddingMetadata(sessionOptions);
   const denseContract = resolveEmbeddingDenseContract(modelId);
   validateEmbeddingDenseContract(denseContract, { normalize });
   let embedderPromise = null;
@@ -115,45 +119,40 @@ export const createXenovaAdapter = ({ modelId, modelsDir, dims = null, normalize
     normalize: normalize !== false,
     ...(denseContract ? { truncation: true, max_length: denseContract.maxLength } : {})
   };
-  const embed = (texts, options = {}) => track(async () => {
-    const list = Array.isArray(texts) ? texts : [];
-    if (!list.length) return [];
-    const embedder = await ensureEmbedder();
-    const startedAt = performance.now();
-    measurements.runs++; measurements.active++; measurements.peakActive = Math.max(measurements.peakActive, measurements.active);
-    const batchId = measurements.runs;
-    const scope = createTransformersResourceScope('Xenova output tensors', { drainFailuresBeforeResources: true });
-    outputScopes.add(scope);
-    let result, primaryError, hasPrimary = false, cleanupError, cleanupFailed = false;
-    try {
-      const output = await embedder(list, modelProfile ? options : pipelineOptions);
-      captureOutput(scope, output);
-      result = normalizeEmbeddingBatchOutput(output, list.length, { provider: 'xenova',
-        batchId, dimensions: observedDimensions, requireNonzero: Boolean(denseContract) });
-      observedDimensions ??= result[0].length;
-      const outputBuffers = new Set();
-      for (const owner of scope.resources) {
-        const data = owner.resource?.data;
-        if (ArrayBuffer.isView(data)) outputBuffers.add(data.buffer);
+  const embed = (texts, options = {}) => {
+    const list = Array.isArray(texts) ? texts.slice() : [];
+    const requested = { ...options };
+    return track(async () => {
+      if (!list.length) return [];
+      const embedder = await ensureEmbedder();
+      const startedAt = performance.now();
+      measurements.runs++; measurements.active++; measurements.peakActive = Math.max(measurements.peakActive, measurements.active);
+      const batchId = measurements.runs;
+      const scope = createTransformersResourceScope('Xenova output tensors', { drainFailuresBeforeResources: true });
+      outputScopes.add(scope);
+      let result, primaryError, hasPrimary = false, cleanupError, cleanupFailed = false;
+      try {
+        const output = await embedder(list, modelProfile ? requested : pipelineOptions);
+        captureOutput(scope, output);
+        result = normalizeEmbeddingBatchOutput(output, list.length, { provider: 'xenova',
+          batchId, dimensions: observedDimensions, requireNonzero: Boolean(denseContract), copyVectors: scope.resources.length > 0 });
+        observedDimensions ??= result[0].length;
+      } catch (error) {
+        hasPrimary = true; primaryError = error;
+        // Delegate only producer-proven owned closure; every unrelated original
+        // observer remains a blocker even in a mixed known/unknown aggregate.
+        if (scope.resources.length) scope.retainFailure(error);
+        else for (const blocker of independentBlockers(error)) scope.retainFailure(blocker.error);
+        measurements.failures++;
       }
-      // The normalizer already copies tensor-shaped rows. Copy only vectors
-      // that still alias an owned output's buffer (not those existing copies).
-      if (outputBuffers.size) result = result.map(vector => outputBuffers.has(vector.buffer) ? vector.slice() : vector);
-    } catch (error) {
-      hasPrimary = true; primaryError = error;
-      // Delegate only producer-proven owned closure; every unrelated original
-      // observer remains a blocker even in a mixed known/unknown aggregate.
-      if (scope.resources.length) scope.retainFailure(error);
-      else for (const blocker of independentBlockers(error)) scope.retainFailure(blocker.error);
-      measurements.failures++;
-    }
-    finally { measurements.active--; measurements.providerBusyMs += performance.now() - startedAt; }
-    try { await scope.close(); } catch (error) { cleanupFailed = true; cleanupError = error; }
-    if (!scope.pending) outputScopes.delete(scope);
-    if (cleanupFailed) throw hasPrimary ? preserveEmbeddingCleanupFailure(primaryError, cleanupError) : cleanupError;
-    if (hasPrimary) throw primaryError;
-    return result;
-  });
+      finally { measurements.active--; measurements.providerBusyMs += performance.now() - startedAt; }
+      try { await scope.close(); } catch (error) { cleanupFailed = true; cleanupError = error; }
+      if (!scope.pending) outputScopes.delete(scope);
+      if (cleanupFailed) throw hasPrimary ? preserveEmbeddingCleanupFailure(primaryError, cleanupError) : cleanupError;
+      if (hasPrimary) throw primaryError;
+      return result;
+    });
+  };
   const embedOne = async (text, options = {}) => {
     const list = await embed([text], options);
     return list[0] || new Float32Array(0);
@@ -166,20 +165,26 @@ export const createXenovaAdapter = ({ modelId, modelsDir, dims = null, normalize
   const adapter = {
     embed,
     embedOne,
-    prepare: (texts, options = {}) => track(async () => {
-      const embedder = await ensureEmbedder();
-      if (!embedder.prepare) throw new Error('Prepared token inputs require the EG2 adapter.');
-      return embedder.prepare(texts, options);
-    }),
-    embedPrepared: (items, options = {}) => track(async () => {
-      const embedder = await ensureEmbedder();
-      if (!embedder.embedPrepared) throw new Error('Prepared token inputs require the EG2 adapter.');
-      const output = await embedder.embedPrepared(items, options);
-      const vectors = normalizeEmbeddingBatchOutput(output, items.length, { provider: 'xenova',
-        dimensions: observedDimensions });
-      if (vectors.length) observedDimensions ??= vectors[0].length;
-      return vectors;
-    }),
+    prepare: (texts, options = {}) => {
+      const selected = Array.isArray(texts) ? texts.slice() : texts, requested = { ...options };
+      return track(async () => {
+        const embedder = await ensureEmbedder();
+        if (!embedder.prepare) throw new Error('Prepared token inputs require the EG2 adapter.');
+        return embedder.prepare(selected, requested);
+      });
+    },
+    embedPrepared: (items, options = {}) => {
+      const selected = Array.isArray(items) ? items.slice() : items, requested = { ...options };
+      return track(async () => {
+        const embedder = await ensureEmbedder();
+        if (!embedder.embedPrepared) throw new Error('Prepared token inputs require the EG2 adapter.');
+        const output = await embedder.embedPrepared(selected, requested);
+        const vectors = normalizeEmbeddingBatchOutput(output, selected.length, { provider: 'xenova',
+          dimensions: observedDimensions });
+        if (vectors.length) observedDimensions ??= vectors[0].length;
+        return vectors;
+      });
+    },
     executionInfo: () => ({
       provider: 'xenova', requestedProvider: 'xenova', stub: false, measurements: { ...measurements },
       denseEncoding: denseContract ? { ...denseContract } : null,

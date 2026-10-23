@@ -1,5 +1,6 @@
 import { embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from './embedding-artifact-identity.js';
 import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-lease.js';
+import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
 import { createDeferredEmbeddingAdapter } from './embedding-deferred-adapter.js';
 import { createPreparedTextEncoder, normalizeEg2SessionOptions, normalizeEg2ModelFileName } from './embedding-prepared.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig } from './onnx-embeddings.js';
@@ -200,18 +201,14 @@ export const __setTransformersModuleLoaderForTests = (loader) => {
  * @param {string|null} modelsDir
  * @returns {Promise<object>}
  */
-async function loadTransformersModule(modelsDir) {
+async function loadTransformersModule() {
   if (!transformersModulePromise) {
     transformersModulePromise = transformersModuleLoader().catch((err) => {
       transformersModulePromise = null;
       throw err;
     });
   }
-  const mod = await transformersModulePromise;
-  if (modelsDir && mod?.env) {
-    mod.env.cacheDir = modelsDir;
-  }
-  return mod;
+  return transformersModulePromise;
 }
 
 async function loadPipeline(modelId, modelsDir, modelProfile = null, localFilesOnly = false, sessionOptions = {}, modelFileName = null, modelArtifact = null) {
@@ -228,7 +225,7 @@ async function loadPipeline(modelId, modelsDir, modelProfile = null, localFilesO
     lastAccessAt: now,
     expiresAt: now + PIPELINE_CACHE_TTL_MS
   });
-  entry.promise = loadTransformersModule(modelsDir)
+  entry.promise = loadTransformersModule()
   // v2 selected model_quantized.onnx by default. Keep the same weights and
   // cache identity after the Transformers.js migration (Node defaults to fp32).
     .then(async (mod) => {
@@ -286,10 +283,10 @@ function getVerifiedEmbeddingAdapter(options) {
   const modelProfile = resolveEmbeddingModelProfile(options?.modelId, options?.modelProfile);
   if (modelFileName && !modelProfile) throw new Error('modelFileName requires the qualified EG2 profile.');
   validateEmbeddingModelProfile(modelProfile, { provider: resolvedProvider, normalize });
-  const modelArtifact = options?.modelArtifact || resolveEmbeddingArtifactIdentity({
+  const modelArtifact = snapshotEmbeddingMetadata(options?.modelArtifact || resolveEmbeddingArtifactIdentity({
     provider: resolvedProvider, modelId: options?.modelId, modelsDir: options?.modelsDir,
     rootDir: options?.rootDir, onnx: normalizedOnnxConfig, modelProfile, stub: options?.useStub === true
-  });
+  }));
   const retainInCache = options?.retainInCache === true && embeddingArtifactReusable(modelArtifact);
   const cacheKey = JSON.stringify({
     modelArtifact,
@@ -346,17 +343,21 @@ function getVerifiedEmbeddingAdapter(options) {
 }
 
 export function getEmbeddingAdapter(options = {}) {
-  if (options.modelArtifact) return getVerifiedEmbeddingAdapter(options);
+  options = { ...options };
   const provider = normalizeEmbeddingProvider(options.provider, { strict: true });
   const modelProfile = resolveEmbeddingModelProfile(options.modelId, options.modelProfile);
   const sessionOptions = normalizeEg2SessionOptions(options.sessionOptions), modelFileName = normalizeEg2ModelFileName(options.modelFileName);
   if (modelFileName && !modelProfile) throw new Error('modelFileName requires the qualified EG2 profile.');
   validateEmbeddingModelProfile(modelProfile, { provider, normalize: options.normalize !== false });
-  const verification = { provider, modelId: options.modelId, modelsDir: options.modelsDir,
-    rootDir: options.rootDir, onnx: normalizeOnnxConfig(options.onnxConfig), modelProfile, stub: options.useStub === true };
-  if (verification.stub) return getVerifiedEmbeddingAdapter({ ...options, modelArtifact: resolveEmbeddingArtifactIdentity(verification) });
+  const selected = { ...options, provider, modelProfile, sessionOptions, modelFileName,
+    onnxConfig: snapshotEmbeddingMetadata(normalizeOnnxConfig(options.onnxConfig)),
+    modelArtifact: snapshotEmbeddingMetadata(options.modelArtifact) };
+  if (selected.modelArtifact) return getVerifiedEmbeddingAdapter(selected);
+  const verification = { provider, modelId: selected.modelId, modelsDir: selected.modelsDir,
+    rootDir: selected.rootDir, onnx: selected.onnxConfig, modelProfile, stub: selected.useStub === true };
+  if (verification.stub) return getVerifiedEmbeddingAdapter({ ...selected, modelArtifact: resolveEmbeddingArtifactIdentity(verification) });
   return createDeferredEmbeddingAdapter({ provider, methods: [...LEASE_OPERATIONS],
-    acquire: async () => getVerifiedEmbeddingAdapter({ ...options, sessionOptions, modelFileName, modelProfile, modelArtifact: await resolveEmbeddingArtifactIdentityAsync(verification) }) });
+    acquire: async () => getVerifiedEmbeddingAdapter({ ...selected, modelArtifact: await resolveEmbeddingArtifactIdentityAsync(verification) }) });
 }
 
 /**

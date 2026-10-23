@@ -1,5 +1,6 @@
 import { sha1 } from './hash.js';
 import { resolveEmbeddingModelProfile } from './embedding-model-profile.js';
+import { isEmbeddingModelRepositoryId } from './embedding-artifact-identity.js';
 import { resolveEmbeddingDenseContract, denseContractFormatting, assertEmbeddingDenseFormatting,
   validateEmbeddingDenseContract } from './embedding-dense-contract.js';
 
@@ -136,6 +137,10 @@ export const buildEmbeddingIdentity = ({
     identity.pooling = profile.output;
     identity.dims = profile.dimensions;
     identity.maxLength = profile.maxLength;
+    if (!modelArtifact && stub !== true && !isEmbeddingModelRepositoryId(modelId)) {
+      identity.modelArtifact = { status: 'unknown', reuse: 'refuse', digest: null,
+        revision: profile.revision, method: 'local-profile-needs-artifact-verification' };
+    }
   }
   const denseContract = resolveEmbeddingDenseContract(modelId);
   if (denseContract) {

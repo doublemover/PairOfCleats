@@ -5,6 +5,7 @@ import PQueue from 'p-queue';
 import { withContainedFile } from './contained-file.js';
 import { throwIfAborted, raceAbort, isAbortError } from './abort.js';
 import { stableStringify } from './stable-json.js';
+import { snapshotEmbeddingArtifactSelection } from './embedding-selection-snapshot.js';
 import { planEmbeddingArtifactInventory, buildVerifiedEmbeddingArtifact, unknownEmbeddingArtifact,
   assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from './embedding-artifact-identity.js';
 
@@ -57,6 +58,7 @@ const verify = async (options, selectedPlan = null) => {
  * verified. There is no path/stat digest cache for mutable installations. */
 export const acquireEmbeddingArtifactLease = async (options = {}, { signal = null, phase = 'selection' } = {}) => {
   throwIfAborted(signal);
+  options = snapshotEmbeddingArtifactSelection(options);
   // Coalesce the exact already-selected closure, not resource tuning knobs or a
   // mutable selector path that may now point at a different installation.
   const plan = planEmbeddingArtifactInventory(options);

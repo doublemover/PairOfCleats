@@ -91,6 +91,9 @@ export const planEmbeddingArtifactInventory = ({ provider, modelId, modelsDir, r
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (receipt) return { revision: modelProfile.revision, hasWeights: true, hasTokenizer: true, modelPath: null,
       files: receipt.inventory.map(row => ({ rel: row.path, filePath: path.join(selectedRoot, ...row.path.split('/')), expected: row })) };
+    if (!isEmbeddingModelRepositoryId(modelId) || !root || inventoryFiles(selectedRoot).length) {
+      return { immediate: { ...unknown(), revision: modelProfile.revision, method: 'profile-assets-need-verified-acquisition' } };
+    }
     return { immediate: { status: 'immutable-revision', reuse: 'allow',
       digest: null, revision: modelProfile.revision, method: 'qualified-model-profile' } };
   }

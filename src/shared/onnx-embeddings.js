@@ -6,6 +6,7 @@ import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from 
 import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-lease.js';
 import { createDeferredEmbeddingAdapter } from './embedding-deferred-adapter.js';
 import { resolveEmbeddingDenseContract, validateEmbeddingDenseContract, resolveOnnxEmbeddingProcessing } from './embedding-dense-contract.js';
+import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
 import path from 'node:path';
 import {
   DEFAULT_EMBEDDING_TRUNCATION,
@@ -180,6 +181,7 @@ const buildFeeds = (session, encoded, TensorCtor, scratch, scope) => {
 
 export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, dims = null, normalize, modelArtifact = null,
   qualificationLease = null }) {
+  modelArtifact = snapshotEmbeddingMetadata(modelArtifact);
   const denseContract = resolveEmbeddingDenseContract(modelId);
   validateEmbeddingDenseContract(denseContract, { normalize });
   let observedDimensions = denseContract?.dimensions ?? dims;
@@ -240,10 +242,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
     const promise = (async () => {
       let tokenizer = null, session = null;
       try {
-        const { AutoTokenizer, env } = await import('@huggingface/transformers');
-        if (modelsDir) {
-          env.cacheDir = modelsDir;
-        }
+        const { AutoTokenizer } = await import('@huggingface/transformers');
         tokenizer = await AutoTokenizer.from_pretrained(tokenizerId, {
           ...(modelsDir ? { cache_dir: modelsDir } : {}), ...(qualificationSlot ? { local_files_only: true } : {}) });
         const { InferenceSession, Tensor } = await import('onnxruntime-node');
@@ -289,7 +288,9 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
   const sessionReference = cacheLifetime.createReference(sessionEntry, operations);
   const ownOperation = (fn) => (...args) => {
     if (disposed) return Promise.reject(new Error('ONNX adapter is disposed.'));
-    const work = Promise.resolve().then(() => fn(...args));
+    const selected = args.map(value => Array.isArray(value) ? value.slice()
+      : value && typeof value === 'object' ? { ...value, ...(Array.isArray(value.texts) ? { texts: value.texts.slice() } : {}) } : value);
+    const work = Promise.resolve().then(() => fn(...selected));
     operations.add(work);
     work.then(() => operations.delete(work), () => operations.delete(work));
     return work;

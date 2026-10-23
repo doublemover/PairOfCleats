@@ -32,7 +32,8 @@ try {
     assert.equal(recorded.model, expected);
     assert.equal(recorded.task, 'feature-extraction');
     assert.equal(recorded.options.dtype, 'q8');
-    assert.equal(recorded.cacheDir, path.join(cacheRoot, 'models'));
+    assert.equal(recorded.options.cache_dir, path.join(cacheRoot, 'models'));
+    assert.equal(recorded.cacheDir, undefined, 'one model download cannot mutate another caller\'s global cache policy');
   }
 } finally { await fs.rm(dir, { recursive: true, force: true }); }
 console.log('Model prefetch selects explicit, indexing, legacy and default identities through a recording pipeline');

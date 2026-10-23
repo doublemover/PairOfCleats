@@ -38,7 +38,6 @@ validateEmbeddingModelProfile(modelProfile, { provider: embeddingProvider, norma
 if (wantsOnnx && modelProfile) throw new Error('EmbeddingGemma 2 acquisition requires its qualified Xenova text components; generic ONNX relocation is unsupported for this profile.');
 
 await fs.mkdir(cacheDir, { recursive: true });
-transformers.env.cacheDir = cacheDir;
 
 // Preserve the quantized model filename used by existing model caches.
 const acquisition = await prefetchEmbeddingModel(transformers, { modelId, modelsDir: cacheDir, modelProfile });

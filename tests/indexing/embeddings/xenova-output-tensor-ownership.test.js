@@ -51,6 +51,14 @@ try {
   const pure = Float32Array.of(5, 6), pureProvider = provider(async () => [pure]);
   assert.equal((await pureProvider.adapter.embed(['pure JS vector']))[0], pure, 'no extra vector copy for already-owned plain JS vectors');
   await pureProvider.adapter.dispose();
+  const original = Float32Array.of(7, 8); let dataReads = 0;
+  const observedOnce = { dims: [2], type: 'float32',
+    get data() { if (++dataReads > 1) throw new Error('native output data must not be reread after admission'); return original; },
+    dispose() { original.fill(99); } };
+  const singleObservation = provider(async () => [observedOnce]);
+  assert.deepEqual(await singleObservation.adapter.embedOne('one native data observation'), Float32Array.of(7, 8));
+  assert.equal(dataReads, 1); assert.deepEqual(original, Float32Array.of(99, 99));
+  await singleObservation.adapter.dispose();
 
   const failed = tensor([cleanup]), failedProvider = provider(async () => failed);
   const outputFailure = await rejected(failedProvider.adapter.embedOne('failed output'));
