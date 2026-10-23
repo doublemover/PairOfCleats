@@ -1,4 +1,13 @@
-const intId = { type: 'integer', minimum: 0 };
+const quantizedByte = { type: 'integer', minimum: 0, maximum: 255 };
+const quantizationProperties = {
+  quantizationVersion: { enum: [1, 2] },
+  zeroPoint: quantizedByte,
+  absence: { const: 'validity-mask' },
+  scale: { type: 'number', exclusiveMinimum: 0 },
+  minVal: { type: 'number' },
+  maxVal: { type: 'number' },
+  levels: { type: 'integer', minimum: 2, maximum: 256 }
+};
 const nullableString = { type: ['string', 'null'] };
 const embeddingBindingProperties = {
   embeddingIdentity: { type: 'object', additionalProperties: true },
@@ -12,7 +21,7 @@ const nativeBindingProperties = {
 
 const denseVectorArray = {
   type: 'array',
-  items: intId
+  items: quantizedByte
 };
 
 const denseVectorsSchema = {
@@ -22,10 +31,7 @@ const denseVectorsSchema = {
     ...embeddingBindingProperties,
     dims: { type: 'integer', minimum: 1 },
     model: nullableString,
-    scale: { type: 'number' },
-    minVal: { type: 'number' },
-    maxVal: { type: 'number' },
-    levels: { type: 'integer', minimum: 2 },
+    ...quantizationProperties,
     vectors: { type: 'array', items: denseVectorArray }
   },
   additionalProperties: true
@@ -46,10 +52,7 @@ const denseVectorsHnswMetaSchema = {
     m: { type: 'integer', minimum: 1 },
     efConstruction: { type: 'integer', minimum: 1 },
     efSearch: { type: 'integer', minimum: 1 },
-    scale: { type: 'number' },
-    minVal: { type: 'number' },
-    maxVal: { type: 'number' },
-    levels: { type: 'integer', minimum: 2 }
+    ...quantizationProperties
   },
   additionalProperties: true
 };
@@ -69,10 +72,7 @@ const denseVectorsLanceDbMetaSchema = {
     table: { type: 'string' },
     embeddingColumn: { type: 'string' },
     idColumn: { type: 'string' },
-    scale: { type: 'number' },
-    minVal: { type: 'number' },
-    maxVal: { type: 'number' },
-    levels: { type: 'integer', minimum: 2 }
+    ...quantizationProperties
   },
   additionalProperties: true
 };
@@ -90,10 +90,7 @@ const denseVectorsSqliteVecMetaSchema = {
     table: { type: 'string' },
     embeddingColumn: nullableString,
     idColumn: nullableString,
-    scale: { type: 'number' },
-    minVal: { type: 'number' },
-    maxVal: { type: 'number' },
-    levels: { type: 'integer', minimum: 2 }
+    ...quantizationProperties
   },
   additionalProperties: true
 };
@@ -112,10 +109,7 @@ const denseVectorsBinaryMetaSchema = {
     dims: { type: 'integer', minimum: 1 },
     count: { type: 'integer', minimum: 0 },
     bytes: { type: 'integer', minimum: 0 },
-    scale: { type: 'number' },
-    minVal: { type: 'number' },
-    maxVal: { type: 'number' },
-    levels: { type: 'integer', minimum: 2 }
+    ...quantizationProperties
   },
   additionalProperties: true
 };
