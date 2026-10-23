@@ -25,6 +25,7 @@ import { planManagedChildStorage } from '../../src/shared/storage/child-environm
 import { bindDeclaredInstallAdmission, resolveDeclaredInstallAdmission, runToolInstallChild } from './install-execution.js';
 import { installPinnedManagedTool, validatePinnedInstallDescriptor } from './managed-install.js';
 import { createToolInstallPreview } from './install-preview.js';
+import { toolingFailureReport } from './cli-failure-report.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats tooling install',
@@ -32,9 +33,14 @@ const argv = createCli({
 }).parserConfiguration({ 'boolean-negation': false }).parse();
 
 const cancellation = new AbortController();
-const onInterrupt = () => cancellation.abort(new Error('Tool installation interrupted.'));
+let cancellationExitCode = null;
+const onInterrupt = () => { cancellationExitCode = 130; cancellation.abort(new Error('Tool installation interrupted.')); };
+const onTerminate = () => { cancellationExitCode = 143; cancellation.abort(new Error('Tool installation terminated.')); };
+const stdoutGuard = createStdoutGuard({ enabled: argv.json === true, stream: process.stdout, label: 'tooling-install stdout' });
+const actions = [], results = [];
+let failureContext = { root: null, scope: argv.scope || null };
 process.once('SIGINT', onInterrupt);
-process.once('SIGTERM', onInterrupt);
+process.once('SIGTERM', onTerminate);
 try {
 
   const explicitRoot = argv.root || argv.repo;
@@ -43,11 +49,7 @@ try {
   const toolingConfig = getToolingConfig(root);
   const scope = argv.scope || toolingConfig.installScope || 'cache';
   const allowFallback = argv['no-fallback'] ? false : toolingConfig.allowGlobalFallback !== false;
-  const stdoutGuard = createStdoutGuard({
-    enabled: argv.json === true,
-    stream: process.stdout,
-    label: 'tooling-install stdout'
-  });
+  failureContext = { root, scope, allowFallback };
   const languageOverride = normalizeLanguageList(argv.languages);
   const toolOverride = [...new Set(normalizeLanguageList(argv.tools))];
 
@@ -59,8 +61,6 @@ try {
     ? resolveToolsById(toolOverride, toolingConfig.dir, root, toolingConfig)
     : resolveToolsForLanguages(languageList, toolingConfig.dir, root, toolingConfig);
 
-  const actions = [];
-  const results = [];
   let managedGoSdk = resolveManagedGoSdk(toolingConfig.dir);
   let goBootstrapFailure = null;
   for (const id of toolOverride) {
@@ -395,7 +395,14 @@ try {
     }
     process.exitCode = hasFailedInstalls ? 1 : 0;
   }
+} catch (error) {
+  const failure = toolingFailureReport(error, { signal: cancellation.signal, fallbackCode: 'ERR_TOOLING_INSTALL' });
+  const payload = { ...failureContext, actions, results, ...failure,
+    readiness: { state: failure.state, ready: false, verification: 'incomplete-operation' } };
+  if (argv.json) stdoutGuard.writeJson(payload);
+  else console.error(`[tooling-install] ${failure.state}: ${failure.error.message}`);
+  process.exitCode = cancellationExitCode || 1;
 } finally {
   process.removeListener('SIGINT', onInterrupt);
-  process.removeListener('SIGTERM', onInterrupt);
+  process.removeListener('SIGTERM', onTerminate);
 }

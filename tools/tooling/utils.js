@@ -27,6 +27,8 @@ import { resolveManagedLuaLanguageServer } from '../../src/shared/managed-lua.js
 import { normalizeToolProvisioningDeclaration } from './provisioning-plan.js';
 import { resolveManagedToolInstallation } from '../../src/shared/managed-installation.js';
 import { AST_GREP_VERSION, identifyAstGrepVersion, resolveAstGrepManagedRecipe, verifyManagedAstGrep } from './managed-ast-grep.js';
+import { resolveOperationalManagedRecipe } from './operational-recipes.js';
+import { identifyOperationalTool, OPERATIONAL_TOOL_IDS, verifyManagedOperationalTool } from './operational-probes.js';
 
 const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
@@ -210,12 +212,14 @@ function probeWithArgCandidates(cmd, argCandidates, providerId, toolingRoot = nu
       providerId, command: cmd, stderr: probe.stderr, stdout: probe.stdout
     });
     const identified = providerId !== 'ast-grep' || identifyAstGrepVersion(probe.stdout) === AST_GREP_VERSION;
-    if (identified && (probe.ok || recognizedUsage)) {
+    const operationalIdentity = OPERATIONAL_TOOL_IDS.has(providerId) ? identifyOperationalTool(providerId, probe) : null;
+    if (identified && (!OPERATIONAL_TOOL_IDS.has(providerId) || operationalIdentity) && (probe.ok || recognizedUsage)) {
       return {
         ok: true,
         outcome: 'ok',
         ...(recognizedUsage ? { acceptance: 'recognized-transport-usage' } : {}),
         ...(providerId === 'ast-grep' ? { identity: { family: 'ast-grep', version: AST_GREP_VERSION } } : {}),
+        ...(operationalIdentity ? { identity: operationalIdentity } : {}),
         attempts
       };
     }
@@ -405,23 +409,33 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       docs: 'https://comby.dev/docs/get-started',
       provisioningBlocker: process.platform === 'win32' ? 'No qualified native Windows recipe. WSL/container setup requires a separate explicit system choice.' : 'Select and approve an official platform archive/package recipe.'
     },
-    {
-      id: 'graphviz', label: 'Graphviz SVG renderer', languages: [], capabilities: ['report.map.svg'],
-      detect: { cmd: 'dot', args: ['-V'], binDirs: [binDir] }, install: {},
-      docs: 'https://graphviz.org/download/',
-      provisioningBlocker: 'A selected platform package/archive and tiny DOT-to-SVG verification are required; DOT export alone requires no Graphviz.'
-    },
     ...[
+      ['graphviz', 'Graphviz SVG renderer', 'report.map.svg', ['-V']],
       ['cargo', 'Rust Cargo build tool', 'tui.source-build', ['--version']],
-      ['cargo-cyclonedx', 'Cargo CycloneDX producer', 'release.sbom', ['--version']],
+      ['cargo-cyclonedx', 'Cargo CycloneDX producer', 'release.sbom', ['cyclonedx', '--version']],
+      ['npm-sbom', 'npm CycloneDX producer', 'release.sbom', ['--version']],
       ['git-lfs', 'Git LFS', 'benchmark.lfs', ['version']],
       ['ripgrep', 'ripgrep accelerator', 'dictionary.scan.acceleration', ['--version']],
       ['universal-ctags', 'Universal Ctags producer', 'ingest.ctags.execute', ['--version']],
       ['gnu-global', 'GNU Global producer', 'ingest.gtags.execute', ['--version']],
       ['scip', 'SCIP producer', 'ingest.scip.execute', ['--version']]
-    ].map(([id, label, capability, args]) => ({ id, label, languages: [], capabilities: [capability],
-      detect: { cmd: ({ ripgrep: 'rg', 'universal-ctags': 'ctags', 'gnu-global': 'global' })[id] || id, args, binDirs: [binDir] },
-      install: {}, provisioningBlocker: 'Selected producer capability needs an approved platform/version recipe and consumer-specific verification. Reading file/stdin reports does not require a producer.' })),
+    ].map(([id, label, capability, args]) => {
+      const managedRecipe = resolveOperationalManagedRecipe(id);
+      const blockers = {
+        graphviz: 'Official portable ZIP recipes cover Windows x64/ia32. Other targets require a separately reviewed platform package-manager action; DOT-only output requires no Graphviz.',
+        scip: 'The pinned official SCIP CLI supplies macOS/Linux x64/arm64 archives; upstream publishes no native Windows archive for this version. JSON file/stdin ingest requires no producer.',
+        'universal-ctags': 'Stable upstream Windows v6.1.0 assets publish no usable immutable digest. Prerelease assets are not selected implicitly; POSIX source builds require a separately bounded compiler recipe.',
+        'gnu-global': 'No approved portable native archive is declared; select a verified GNU Global installation or authorize a separate platform package action. File/stdin ingest requires no producer.',
+        'cargo-cyclonedx': 'The pinned native ZIP covers Windows x64. Other official archives use tar.xz, which the bounded extractor does not support; no external extractor or source build is substituted.',
+        'npm-sbom': 'Reuse the selected npm supplied by the supported Node bootstrap; tooling setup does not replace the bootstrap toolchain.',
+        cargo: 'Reuse an explicitly selected compatible Cargo toolchain. Native linker/SDK installation is a separate system prerequisite.'
+      };
+      return { id, label, languages: [], capabilities: [capability], consumerArgsPrefix: id === 'cargo-cyclonedx' ? ['cyclonedx'] : [],
+        ...(id === 'cargo-cyclonedx' ? { prerequisites: [{ id: 'cargo', command: 'cargo', family: 'cargo', versionRange: '>=1.85.0', kind: 'project-sdk', phase: 'launch', dependsOn: [] }] } : {}),
+        detect: { cmd: ({ graphviz: 'dot', ripgrep: 'rg', 'universal-ctags': 'ctags', 'gnu-global': 'global', 'npm-sbom': 'npm' })[id] || id, args, binDirs: [binDir] },
+        install: managedRecipe ? { cache: managedRecipe } : {}, verifyManagedInstall: verifyManagedOperationalTool,
+        provisioningBlocker: blockers[id] || 'No approved native archive is declared for this platform/architecture.' };
+    }),
     {
       id: 'tsserver',
       label: 'TypeScript server',

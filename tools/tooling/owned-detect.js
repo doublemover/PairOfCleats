@@ -11,6 +11,7 @@ import path from 'node:path';
 import { isStorageSessionReleaseFailure } from '../../src/shared/storage/session.js';
 import { addStorageFailureContext, readStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { AST_GREP_VERSION, identifyAstGrepVersion } from './managed-ast-grep.js';
+import { identifyOperationalTool, OPERATIONAL_TOOL_IDS } from './operational-probes.js';
 
 const sameExecutable = (actual, expected) => actual.path === expected.path && actual.sha256 === expected.sha256
   && actual.size === expected.size;
@@ -177,7 +178,8 @@ export const detectToolOwned = async (tool, { signal = null, env = process.env }
           status = result.exitCode; childSignal = result.signal; stdout = result.stdout; stderr = result.stderr;
           recognized = !truncated && status !== 0 && isNonZeroToolingProbeSuccess({ providerId: tool.id, command, stdout, stderr });
           const identified = tool.id !== 'ast-grep' || identifyAstGrepVersion(stdout) === AST_GREP_VERSION;
-          ok = !truncated && identified && (status === 0 || recognized);
+          const operationalIdentity = OPERATIONAL_TOOL_IDS.has(tool.id) ? identifyOperationalTool(tool.id, { stdout, stderr }) : null;
+          ok = !truncated && identified && (!OPERATIONAL_TOOL_IDS.has(tool.id) || operationalIdentity) && (status === 0 || recognized);
           excerpts = ok ? {} : { stdoutExcerpt: redactDiagnosticText(stdout), stderrExcerpt: redactDiagnosticText(stderr) };
         } catch (value) { throw addStorageFailureContext(asError(value), {}, result, { secondaryPresent: true }); }
         if (!settled()) { pending = retainFailure(result); throw pending; }
@@ -186,6 +188,7 @@ export const detectToolOwned = async (tool, { signal = null, env = process.env }
         if (ok) {
           selectedProbe = { ok: true, outcome: 'ok', attempts, verificationLevel: 'bounded-command-transport-and-layout',
             ...(tool.id === 'ast-grep' ? { identity: { family: 'ast-grep', version: AST_GREP_VERSION } } : {}),
+            ...(OPERATIONAL_TOOL_IDS.has(tool.id) ? { identity: identifyOperationalTool(tool.id, { stdout, stderr }) } : {}),
             ...(recognized ? { acceptance: 'recognized-transport-usage' } : {}) };
           break;
         }

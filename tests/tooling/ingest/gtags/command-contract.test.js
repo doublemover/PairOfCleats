@@ -17,10 +17,10 @@ const coreArgs = ['-x', '--result=ctags-x', '--encode-path= \t%', '--color=never
 // separate task receipts execute checksum-verified native GNU Global itself.
 await fs.writeFile(preload, `import { registerHooks } from 'node:module';
   registerHooks({ load(url, context, next) {
-    if (!url.endsWith('/tools/ingest/shared-runner.js')) return next(url, context);
+    if (!url.endsWith('/tools/tooling/operational-execution.js')) return next(url, context);
     return { format: 'module', shortCircuit: true, source: ${JSON.stringify(`
       import fs from 'node:fs/promises';
-      export async function runLineStreamingCommand(input) {
+      async function runLineStreamingCommand(input) {
         if (input.command !== ${JSON.stringify(command)}) throw new Error('Explicit fixture command required');
         await fs.writeFile(${JSON.stringify(frame)}, JSON.stringify({ command: input.command, args: input.args, cwd: input.cwd }));
         const boundary = input.args.indexOf('--');
@@ -30,6 +30,10 @@ await fs.writeFile(preload, `import { registerHooks } from 'node:module';
         const lines = (await fs.readFile(${JSON.stringify(path.resolve('tests/fixtures/gtags') + '/') } + filename, 'utf8')).split(/\\r?\\n/).filter(Boolean);
         for (const line of lines) await input.onStdoutLine(line);
         return { exitCode: 0 };
+      }
+      export async function withOperationalTool(id, selection, execute) {
+        if (id !== 'gnu-global' || selection.commandOverride !== ${JSON.stringify(command)}) throw new Error('Explicit trusted GNU Global fixture selection required');
+        return execute({ stream: (_runner, args, options) => runLineStreamingCommand({ ...options, command: selection.commandOverride, args }) });
       }`)} };
   } });`);
 const run = async (name, args, status = 0) => {

@@ -2,12 +2,12 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { createCli } from '../../src/shared/cli.js';
 import ignore from 'ignore';
 import { getDictConfig, getRepoDictPath, resolveRepoConfig } from '../shared/dict-utils.js';
 import { toPosix } from '../../src/shared/file-paths.js';
 import { countDictionaryIdentifiers, sortedDictionaryCounts } from '../../src/shared/dictionary-identifiers.js';
+import { runOperationalCommand } from '../tooling/operational-execution.js';
 
 const argv = createCli({
   scriptName: 'generate-repo-dict',
@@ -48,9 +48,13 @@ const exts = new Set(extList.map((ext) => ext.startsWith('.') ? ext : `.${ext}`)
  * @returns {Promise<string[]>}
  */
 async function listFiles() {
-  const rg = spawnSync('rg', ['--files'], { cwd: repoRoot, encoding: 'utf8' });
-  if (rg.status === 0 && rg.stdout) {
-    return rg.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  try {
+    const rg = await runOperationalCommand({ id: 'ripgrep', repoRoot, args: ['--files'], options: { cwd: repoRoot, maxOutputBytes: 32 * 1024 * 1024 } });
+    if (rg.exitCode === 0 && rg.stdout) return rg.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  } catch (error) {
+    // This selected capability is an accelerator. Its documented repository
+    // walker fallback needs no external producer, installation or PATH change.
+    if (error.code !== 'ERR_OPERATIONAL_TOOL_UNAVAILABLE') throw error;
   }
 
   const ignoreMatcher = ignore();

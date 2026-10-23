@@ -16,6 +16,7 @@ import {
   writeJsonLine
 } from './shared.js';
 import { runLineStreamingCommand } from './shared-runner.js';
+import { withOperationalTool } from '../tooling/operational-execution.js';
 import { scipRoleInfo as roleInfo, normalizeScipFlatRange as normalizeRange,
   extractScipSymbolInfo as extractSymbolInfo } from '../../src/index/tooling/scip-format.js';
 
@@ -27,7 +28,7 @@ const argv = createCli({
     out: { type: 'string' },
     json: { type: 'boolean', default: false },
     run: { type: 'boolean', default: false },
-    scip: { type: 'string', default: 'scip' },
+    scip: { type: 'string' },
     args: { type: 'string' },
     'timeout-ms': { type: 'number' }
   }
@@ -41,7 +42,7 @@ const outputPath = argv.out
 const metaPath = `${outputPath}.meta.json`;
 const inputPath = argv.input ? String(argv.input) : null;
 const runScip = argv.run === true;
-const scipCmd = argv.scip || 'scip';
+const scipCmd = argv.scip || null;
 const commandTimeoutMs = normalizeTimeoutMs(argv['timeout-ms']);
 
 const normalizePath = (value) => {
@@ -158,14 +159,19 @@ const ingestJsonFile = async (filePath) => {
 };
 
 const runScipCommand = async () => {
-  const args = ['print', '--format=json'];
-  if (inputPath) args.push('--input', inputPath);
+  if (!inputPath) throw new Error('SCIP execution requires --input with a binary .scip file or - for protobuf stdin. Reading JSON input needs no --run or producer.');
+  // The selected official SCIP CLI uses a --json flag and positional input.
+  // https://github.com/scip-code/scip/blob/v0.10.0/cmd/scip/print.go
+  const args = ['print', '--json'];
   if (argv.args) {
-    args.push(...splitCliArgs(argv.args));
+    const extra = splitCliArgs(argv.args);
+    if (extra.some(token => token !== '--color=false')) throw new Error('SCIP ingest owns the print command, JSON format and input path. Only --color=false is supported as an extra print option.');
+    args.push(...extra);
   }
-  await runLineStreamingCommand({
-    command: scipCmd,
-    args,
+  args.push(inputPath === '-' ? '-' : path.resolve(inputPath));
+  await withOperationalTool('scip', { repoRoot, commandOverride: scipCmd }, tool => tool.stream(runLineStreamingCommand, args, {
+    cwd: repoRoot,
+    inputStream: inputPath === '-' ? process.stdin : null,
     timeoutMs: commandTimeoutMs,
     onStdoutLine: async (line) => {
       const trimmed = line.trim();
@@ -180,7 +186,7 @@ const runScipCommand = async () => {
       await handlePayload(parsed);
     },
     onStderrChunk: (chunk) => process.stderr.write(chunk)
-  });
+  }));
 };
 
 await withStagedIngestOutput(outputPath, async (stream) => {

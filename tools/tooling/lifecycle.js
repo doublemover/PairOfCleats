@@ -9,6 +9,7 @@ import { readToolInstallReceipts, verifyToolInstallReceipt } from './install-rec
 import { inspectManagedInstallation, inspectManagedToolRemoval, installPinnedManagedTool, removePinnedManagedTool, validatePinnedInstallDescriptor } from './managed-install.js';
 import { resolveToolsById, selectInstallPlan } from './utils.js';
 import { readVerifiedContainedFile } from '../../src/shared/contained-file.js';
+import { toolingFailureReport } from './cli-failure-report.js';
 
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 export const TOOL_LIFECYCLE_PLAN_VERSION = 1;
@@ -125,6 +126,12 @@ export const runToolLifecycleCli = async () => {
     if (argv.json) console.log(JSON.stringify(payload, null, 2));
     else console.error(JSON.stringify(payload, null, 2));
     if (!process.exitCode) process.exitCode = payload.state === 'blocked' || payload.ok === false ? 1 : 0;
+  } catch (error) {
+    const payload = { ...toolingFailureReport(error, { signal: cancellation.signal, fallbackCode: 'ERR_TOOL_LIFECYCLE' }),
+      applied: false, toolId: argv.tool, operation: argv.operation };
+    if (argv.json) console.log(JSON.stringify(payload));
+    else console.error(`[tooling-lifecycle] ${payload.state}: ${payload.error.message}`);
+    if (!process.exitCode) process.exitCode = 1;
   } finally {
     process.removeListener('SIGINT', onInterrupt);
     process.removeListener('SIGTERM', onTerminate);

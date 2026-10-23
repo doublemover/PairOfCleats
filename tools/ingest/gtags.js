@@ -14,6 +14,7 @@ import {
   writeJsonLine
 } from './shared.js';
 import { runLineStreamingCommand } from './shared-runner.js';
+import { withOperationalTool } from '../tooling/operational-execution.js';
 
 const argv = createCli({
   scriptName: 'gtags-ingest',
@@ -23,7 +24,7 @@ const argv = createCli({
     out: { type: 'string' },
     json: { type: 'boolean', default: false },
     run: { type: 'boolean', default: false },
-    global: { type: 'string', default: 'global' },
+    global: { type: 'string' },
     args: { type: 'string' },
     'timeout-ms': { type: 'number' }
   }
@@ -37,7 +38,7 @@ const outputPath = argv.out
 const metaPath = `${outputPath}.meta.json`;
 const inputPath = argv.input ? String(argv.input) : null;
 const runGlobal = argv.run === true;
-const globalCmd = argv.global || 'global';
+const globalCmd = argv.global || null;
 const commandTimeoutMs = normalizeTimeoutMs(argv['timeout-ms']);
 const suppliedArgs = argv.args ? splitCliArgs(argv.args) : [];
 const marker = suppliedArgs.indexOf('--');
@@ -105,16 +106,14 @@ const runGlobalCommand = async () => {
   }
   const args = ['-x', '--result=ctags-x', '--encode-path= \t%', '--color=never',
     ...(suppliedArgs.length ? suppliedArgs : ['.'])];
-  await runLineStreamingCommand({
-    command: globalCmd,
-    args,
+  await withOperationalTool('gnu-global', { repoRoot, commandOverride: globalCmd }, tool => tool.stream(runLineStreamingCommand, args, {
     cwd: repoRoot,
     timeoutMs: commandTimeoutMs,
     onStdoutLine: async (line) => {
       await handleGlobalLine(line);
     },
     onStderrChunk: (chunk) => process.stderr.write(chunk)
-  });
+  }));
 };
 
 await withStagedIngestOutput(outputPath, async (stream) => {
