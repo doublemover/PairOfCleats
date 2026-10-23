@@ -30,6 +30,7 @@ def record_query(window, query, options, limit):
     if window is None or not query:
         return
     data, state = _load_state(window)
+    data, state = dict(data), dict(state)
     history = state.get('history')
     if not isinstance(history, list):
         history = []

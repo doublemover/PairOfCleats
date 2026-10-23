@@ -265,6 +265,14 @@ close faults; unconfirmed close remains a failure rather than successful stop.
 These runtime/installed-consumer controls are authored, with behavior and real
 Sublime/Python/network qualification deferred.
 
+Completion edits retain a private, bounded original target receipt as well as
+the public JSON command arguments. Renames, window moves, project replacement,
+close and unload revoke that target; moving the caret alone still replaces the
+original admitted word. History and hit-action pickers retain their original
+foreground request lifetime. Invalid saved limits, modes, booleans and filters
+remain incomplete scope instead of being coerced into current defaults, and a
+failed history save retains the previous acknowledged project state.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only

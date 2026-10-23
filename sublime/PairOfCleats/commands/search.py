@@ -62,33 +62,37 @@ def _has_last_query(window):
 def _resolve_defaults(settings, overrides=None):
     overrides = overrides or {}
     saved_scope = overrides.get('scopeComplete') is True
-    mode = overrides.get('mode') or settings.get('index_mode_default') or 'both'
-    backend = overrides.get('backend') if saved_scope else overrides.get('backend') or settings.get('search_backend_default') or ''
-    limit = overrides.get('limit') or settings.get('search_limit') or 25
+    mode = overrides['mode'] if 'mode' in overrides else settings.get('index_mode_default') or 'both'
+    backend = overrides['backend'] if 'backend' in overrides else settings.get('search_backend_default') or ''
+    limit = overrides['limit'] if 'limit' in overrides else settings.get('search_limit') or 25
     ann = overrides['ann'] if 'ann' in overrides else settings.get('search_ann_default')
     allow_sparse_fallback = overrides.get('allow_sparse_fallback')
     if allow_sparse_fallback is None:
         allow_sparse_fallback = bool(settings.get('search_allow_sparse_fallback'))
     as_of = overrides.get('as_of')
     snapshot = overrides.get('snapshot')
-    if as_of is None and snapshot is None:
+    if not saved_scope and as_of is None and snapshot is None:
         as_of = settings.get('search_as_of_default') or ''
         snapshot = settings.get('search_snapshot_default') or ''
     filter_value = overrides.get('filter')
-    advanced = {} if saved_scope else search_lib.normalize_advanced_search_defaults(settings.get('search_advanced_defaults'))
+    advanced = {} if saved_scope else copy.deepcopy(settings.get('search_advanced_defaults') or {})
     if filter_value is None and not saved_scope:
         filter_value = settings.get('search_filter_default') or ''
-    if filter_value:
-        advanced['filter'] = str(filter_value)
-    advanced.update(search_lib.normalize_advanced_search_defaults(overrides.get('advanced')))
+    if 'advanced' in overrides:
+        if isinstance(advanced, dict) and isinstance(overrides['advanced'], dict):
+            advanced.update(copy.deepcopy(overrides['advanced']))
+        else:
+            advanced = copy.deepcopy(overrides['advanced'])
+    if filter_value and isinstance(advanced, dict):
+        advanced['filter'] = filter_value
     resolved = {
         'mode': mode,
         'backend': backend,
         'limit': limit,
-        'ann': ann if isinstance(ann, bool) else None,
-        'allow_sparse_fallback': bool(allow_sparse_fallback),
-        'as_of': as_of or '',
-        'snapshot': snapshot or '',
+        'ann': ann,
+        'allow_sparse_fallback': allow_sparse_fallback,
+        'as_of': as_of if as_of is not None else '',
+        'snapshot': snapshot if snapshot is not None else '',
         'advanced': advanced,
     }
     if saved_scope:
@@ -100,10 +104,11 @@ def _saved_scope_available(options):
     if not isinstance(options, dict):
         return True
     if options.get('scopeComplete') is False:
-        ui.show_error('PairOfCleats: this legacy search has incomplete saved scope. Run a new search with explicit options.')
+        ui.show_error('PairOfCleats: this legacy or invalid search has incomplete saved scope. Run a new search with explicit options.'
+            + ('\n' + '\n'.join(options.get('scopeErrors') or []) if options.get('scopeErrors') else ''))
         return False
     root = options.get('repoRoot')
-    if root and not os.path.isdir(root):
+    if root and (not isinstance(root, str) or not os.path.isdir(root)):
         ui.show_error('PairOfCleats: saved search repository is unavailable: {0}'.format(root))
         return False
     return True
@@ -804,13 +809,13 @@ def _resolve_completion_text(hit):
     return value.strip() if isinstance(value, str) else ''
 
 
-def _search_with_query(window, query, overrides=None, force_prompt=False):
+def _search_with_query(window, query, overrides=None, force_prompt=False, operation_scope=None):
     if not _saved_scope_available(overrides):
         return
     if not query:
         ui.show_status('PairOfCleats: empty query.')
         return
-    scope = operations.capture(window, key='foreground-search')
+    scope = operation_scope or operations.capture(window, key='foreground-search')
     settings = config.get_settings(window)
     defaults = _resolve_defaults(settings, overrides)
 
@@ -1008,6 +1013,7 @@ class PairOfCleatsSearchHistoryCommand(sublime_plugin.WindowCommand):
         if not entries:
             ui.show_status('PairOfCleats: no history yet.')
             return
+        scope = operations.capture(self.window, key='foreground-search')
 
         items = []
         for entry in entries:
@@ -1019,10 +1025,10 @@ class PairOfCleatsSearchHistoryCommand(sublime_plugin.WindowCommand):
             items.append([query, detail])
 
         def on_select(index):
-            if index < 0:
+            if index < 0 or index >= len(entries) or not operations.is_current(scope):
                 return
             entry = entries[index]
-            _execute_search(self.window, entry.get('query'), entry)
+            _execute_search(self.window, entry.get('query'), entry, operation_scope=scope)
 
         self.window.show_quick_panel(items, on_select)
 
@@ -1054,11 +1060,12 @@ class PairOfCleatsExplainSearchCommand(sublime_plugin.WindowCommand):
         if entry and entry.get('query'):
             _execute_search(self.window, entry.get('query'), entry, explain=True)
             return
+        scope = operations.capture(self.window, key='foreground-search')
 
         def on_query(value):
-            if not value:
+            if not value or not operations.is_current(scope):
                 return
-            _execute_search(self.window, value, explain=True)
+            _execute_search(self.window, value, explain=True, operation_scope=scope)
 
         _prompt_query(self.window, '', on_query)
 
@@ -1101,7 +1108,7 @@ class PairOfCleatsResultActionsCommand(sublime_plugin.WindowCommand):
         return self.is_enabled()
 
     def run(self, source='results', hit_index=None, action=None):
-        session = _load_action_session(self.window, source)
+        session = copy.deepcopy(_load_action_session(self.window, source))
         if not session:
             ui.show_status('PairOfCleats: no stored results for actions.')
             return
@@ -1109,17 +1116,18 @@ class PairOfCleatsResultActionsCommand(sublime_plugin.WindowCommand):
         if not hits:
             ui.show_status('PairOfCleats: stored results have no hits.')
             return
+        scope = operations.capture(self.window, key='foreground-search')
         if isinstance(hit_index, int) and 0 <= hit_index < len(hits):
-            _run_result_action(self.window, session, hits[hit_index], action)
+            _run_result_action(self.window, session, hits[hit_index], action, scope)
             return
 
         items = [results.format_quick_panel_item(hit) for hit in hits]
 
         def on_hit(index):
-            if index < 0:
+            if index < 0 or index >= len(hits) or not operations.is_current(scope):
                 return
             hit = hits[index]
-            _show_result_action_choices(self.window, session, hit)
+            _show_result_action_choices(self.window, session, hit, scope)
 
         self.window.show_quick_panel(items, on_hit)
 
@@ -1130,24 +1138,27 @@ def _load_action_session(window, source):
     return results_state.get_last_results(window)
 
 
-def _show_result_action_choices(window, session, hit):
+def _show_result_action_choices(window, session, hit, scope=None):
+    scope = scope or operations.capture(window, key='foreground-search')
     items = results.format_hit_action_items(hit)
 
     def on_action(index):
-        if index < 0:
+        if index < 0 or index >= len(results.HIT_ACTIONS) or not operations.is_current(scope):
             return
         action = results.HIT_ACTIONS[index][0]
-        _run_result_action(window, session, hit, action)
+        _run_result_action(window, session, hit, action, scope)
 
     window.show_quick_panel(items, on_action)
 
 
-def _run_result_action(window, session, hit, action):
+def _run_result_action(window, session, hit, action, scope=None):
+    if scope is not None and not operations.is_current(scope):
+        return
     repo_root = session.get('repoRoot')
     options = normalize_saved_options(session.get('options'), repo_root)
 
     def rerun(query):
-        _search_with_query(window, query, overrides=options)
+        _search_with_query(window, query, overrides=options, operation_scope=scope)
 
     outcome = results.apply_hit_action(
         window,

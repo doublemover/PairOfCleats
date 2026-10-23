@@ -5,6 +5,7 @@ from .lib import config
 from .lib import tasks
 from .lib import watch
 from .lib import operations
+from .lib import completion_target
 from .lib.installation import report_installation_diagnostics
 from .commands import analysis as _analysis_commands
 from .commands import evidence as _evidence_commands
@@ -27,14 +28,19 @@ def plugin_loaded():
 
 
 def plugin_unloaded():
+    completion_target.clear_all()
     watch.stop_all(reason='plugin_unload')
     operations.shutdown(all_windows=True)
     tasks.clear_all()
 
 
 class PairOfCleatsWindowListener(sublime_plugin.EventListener):
+    def on_close(self, view):
+        completion_target.clear_view(view)
+
     def on_window_command(self, window, command_name, args):
         if command_name == 'close_window':
+            completion_target.clear_window(window)
             watch.stop(window, reason='window_close')
             operations.shutdown(window)
 
@@ -51,6 +57,7 @@ class PairOfCleatsWindowListener(sublime_plugin.EventListener):
         operations.invalidate(window)
 
     def on_exit(self):
+        completion_target.clear_all()
         watch.stop_all(reason='app_exit')
         operations.shutdown(all_windows=True)
         tasks.clear_all()

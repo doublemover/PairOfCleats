@@ -198,12 +198,42 @@ def has_effective_filter(advanced):
 def validate_search_options(options):
     from . import config
     errors = []
-    if options.get('mode') not in config.VALID_INDEX_MODES:
+    if not isinstance(options, dict):
+        return ['Search options must be an object.']
+    if not isinstance(options.get('mode'), str) or options['mode'] not in config.VALID_INDEX_MODES:
         errors.append('Search mode must be one of: ' + ', '.join(sorted(config.VALID_INDEX_MODES)))
-    if options.get('backend') and options['backend'] not in config.VALID_BACKENDS:
+    if options.get('backend') is not None and (not isinstance(options['backend'], str)
+            or options['backend'] and options['backend'] not in config.VALID_BACKENDS):
         errors.append('Search backend must be one of: ' + ', '.join(sorted(config.VALID_BACKENDS)))
+    limit = options.get('limit')
+    if type(limit) is not int or limit < 1:
+        errors.append('Search limit must be a positive integer.')
+    if options.get('ann') is not None and not isinstance(options['ann'], bool):
+        errors.append('Search ANN must be true, false or default.')
+    if not isinstance(options.get('allow_sparse_fallback'), bool):
+        errors.append('Sparse fallback must be true or false.')
+    for key in ('as_of', 'snapshot'):
+        if options.get(key) is not None and not isinstance(options[key], str):
+            errors.append('Search ' + key + ' must be a string.')
     if options.get('as_of') and options.get('snapshot'):
         errors.append('Choose an as-of reference or a snapshot, not both.')
-    if options.get('cursor') and (not isinstance(options['cursor'], str) or len(options['cursor']) > 8192):
+    if options.get('cursor') is not None and (not isinstance(options['cursor'], str) or not 0 < len(options['cursor']) <= 8192):
         errors.append('Indexed continuation cursor is invalid or exceeds its 8 KiB bound. Restart browsing.')
+    advanced = options.get('advanced')
+    if not isinstance(advanced, dict):
+        errors.append('Search filters must be an object.')
+    else:
+        for key, value in advanced.items():
+            spec = ADVANCED_SEARCH_OPTION_SPECS.get(key)
+            if spec is None:
+                errors.append('Unsupported search filter: ' + str(key))
+                continue
+            kind = spec['type']
+            valid = ((kind == 'string' and isinstance(value, str))
+                or (kind == 'bool' and isinstance(value, bool))
+                or (kind == 'int' and type(value) is int and value >= 0)
+                or (kind == 'list' and (isinstance(value, str)
+                    or isinstance(value, list) and all(isinstance(item, str) and item for item in value))))
+            if not valid:
+                errors.append('Invalid value for search filter: ' + str(key))
     return errors
