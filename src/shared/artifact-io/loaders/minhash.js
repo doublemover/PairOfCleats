@@ -1,6 +1,7 @@
 import { readExactAt } from '../../io/read-exact.js';
 import fs from 'node:fs';
-import { openContainedFile, verifyContainedFileHandle } from '../../contained-file.js';
+import { iterateContainedFile } from '../../contained-file.js';
+import { createContainedFileResource, iterateContainedFileResource } from '../../contained-file-resource.js';
 import { readBuffer } from '../compression.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -285,31 +286,32 @@ export const loadMinhashSignatureRows = async function* (
       bytesPerSig,
       maxBytes
     });
-    const stat = await fsPromises.stat(packed.resolvedPackedPath);
-    const packedSize = Number(stat?.size);
-    if (!Number.isSafeInteger(packedSize) || packedSize < 0) {
-      throw createLoaderError('ERR_ARTIFACT_INVALID', 'Packed minhash signatures invalid size');
-    }
-    assertWithinMaxBytes(packedSize, maxBytes, 'Packed minhash signatures');
-    if (packedSize % BYTES_PER_U32 !== 0) {
-      throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures invalid byte alignment');
-    }
-    if (packedSize !== totalBytes) {
-      throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures size mismatch');
-    }
-    const handle = sources.containedRoot ? await openContainedFile(sources.containedRoot, packed.resolvedPackedPath) : await fsPromises.open(packed.resolvedPackedPath, 'r');
     const resolvedBatchSize = Math.max(1, Math.floor(Number(batchSize)) || 2048);
     const cappedBatchSize = Math.max(1, Math.floor(streamBudgetBytes / bytesPerSig));
     const safeBatchSize = Math.min(resolvedBatchSize, cappedBatchSize);
     const batchBufferBytes = multiplySafeInts(safeBatchSize, bytesPerSig, 'stream batch size');
-    const buffer = Buffer.allocUnsafe(batchBufferBytes);
-    try {
+    const readRows = async function* (descriptor) {
+      // Admission and final identity use the opened object, not a preceding
+      // pathname stat that could refer to a different generation.
+      const before = await descriptor.stat();
+      const packedSize = before.size;
+      if (!before.isFile() || !Number.isSafeInteger(packedSize) || packedSize < 0) {
+        throw createLoaderError('ERR_ARTIFACT_INVALID', 'Packed minhash signatures invalid size');
+      }
+      assertWithinMaxBytes(packedSize, maxBytes, 'Packed minhash signatures');
+      if (packedSize % BYTES_PER_U32 !== 0) {
+        throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures invalid byte alignment');
+      }
+      if (packedSize !== totalBytes) {
+        throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures size mismatch');
+      }
+      const buffer = Buffer.allocUnsafe(batchBufferBytes);
       let docId = 0;
       while (docId < count) {
         const remaining = count - docId;
         const batchCount = Math.min(safeBatchSize, remaining);
         const bytesToRead = batchCount * bytesPerSig;
-        const { bytesRead } = await readExactAt(handle, buffer, 0, bytesToRead, docId * bytesPerSig);
+        const { bytesRead } = await readExactAt(descriptor, buffer, 0, bytesToRead, docId * bytesPerSig);
         if (bytesRead < bytesToRead) {
           throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures truncated');
         }
@@ -328,9 +330,19 @@ export const loadMinhashSignatureRows = async function* (
         docId += batchCount;
       }
       packed.checksumValidator?.verify();
-      if (sources.containedRoot) verifyContainedFileHandle(handle, sources.containedRoot, packed.resolvedPackedPath);
-    } finally {
-      await handle.close();
+      const after = await descriptor.stat();
+      if (['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].some(key => before[key] !== after[key])) {
+        throw Object.assign(new Error('Packed minhash signatures changed during streaming.'), { code: 'ERR_FILE_CHANGED' });
+      }
+      descriptor.verify?.();
+    };
+    if (sources.containedRoot) {
+      yield* iterateContainedFile(sources.containedRoot, packed.resolvedPackedPath, readRows);
+    } else {
+      yield* iterateContainedFileResource(async () => {
+        const handle = await fsPromises.open(packed.resolvedPackedPath, 'r');
+        return { owner: createContainedFileResource({ handle, sync: false }), action: readRows };
+      });
     }
     return;
   }

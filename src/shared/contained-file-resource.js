@@ -37,6 +37,25 @@ export const iterateContainedFileResourceSync = acquire => {
   return iterator;
 };
 
+/** Async counterpart: acquisition and every admitted native operation settle
+ * through this same descriptor owner before the borrowed lifetime can finish.
+ */
+export const iterateContainedFileResource = acquire => {
+  const iterator = (async function* () {
+    const { owner, action, onComplete } = await acquire();
+    const borrowed = owner.iterate(action);
+    let result;
+    try { result = yield* borrowed; }
+    finally {
+      const session = getContainedFileSession(borrowed);
+      if (session) failures.set(iterator, session);
+    }
+    await onComplete?.();
+    return result;
+  })();
+  return iterator;
+};
+
 /** Own only one actual opened descriptor. This grants no path mutation or
  * lease authority. Failed synchronous close cannot safely be retried by fd
  * number: even a matching stat does not establish its descriptor generation.
@@ -196,6 +215,12 @@ export const createContainedFileResource = ({ handle = null, fd, sync, methods }
     if (!isSettled()) throw pendingFailure();
     if (hasPrimary) throw completedFailure();
   };
+  const finish = async () => {
+    accepting = false;
+    try { await closeAsync(false); } catch (value) { remember(value); }
+    if (!isSettled()) throw pendingFailure();
+    if (hasPrimary) throw completedFailure();
+  };
   return Object.freeze({ operations, hasFailure: () => hasPrimary, remember,
     inspect: action => {
       if (!accepting) throw new Error('Contained descriptor no longer admits verification.');
@@ -216,6 +241,20 @@ export const createContainedFileResource = ({ handle = null, fd, sync, methods }
       })();
       return iterator;
     },
+    iterate: action => {
+      if (sync) throw new TypeError('An async iterator requires its async descriptor owner.');
+      const iterator = (async function* () {
+        try {
+          if (hasPrimary) throw primary;
+          return yield* action(operations);
+        } catch (value) { remember(value); }
+        finally {
+          try { await finish(); }
+          finally { failures.set(iterator, session); }
+        }
+      })();
+      return iterator;
+    },
     runSync: action => {
       let result;
       try {
@@ -231,10 +270,7 @@ export const createContainedFileResource = ({ handle = null, fd, sync, methods }
     run: async action => {
       let result;
       try { if (hasPrimary) throw primary; result = await action(operations); } catch (value) { remember(value); }
-      accepting = false;
-      try { await closeAsync(false); } catch (value) { remember(value); }
-      if (!isSettled()) throw pendingFailure();
-      if (hasPrimary) throw completedFailure();
+      await finish();
       return result;
     } });
 };

@@ -39,6 +39,12 @@ private capability map; a yielded generator is not treated as a completed
 callback. See [binary frame iterator resource lifetime](binary-frame-resource-lifetime.md)
 for the actual decoder adoption and JavaScript external body-throw limits.
 
+The async iterator adapter keeps the same resource owner across async yields,
+drains admitted native operations before close and delegates explicit throw/return
+before cleanup. The actual packed MinHash consumer adopts it while retaining its
+bounded copied-signature and checksum-at-exhaustion protocol; see
+[packed MinHash iterator resource lifetime](minhash-resource-lifetime.md).
+
 Synchronous fd numbers have a stricter limit. If original work blocked the first
 close, `releaseAfterCloseSync()` can attempt that first captured close after
 settlement. Once `closeSync` throws or returns an unexpected nonvoid value, this
