@@ -16,7 +16,8 @@ revision-bound evidence. Latest qualified source remains
 
 Read-only GitHub snapshot: 1,151 open reports, #147–#1722; title priorities
 P0 0 / P1 58 / P2 574 / P3 105 / P4 0 / Perf 125 / other 289.
-The previous snapshot had 970. Delta: 181, including 12 older/reopened issues.
+A subsequent read-only refresh after the LSP/storage source batches still has
+1,151 open reports, with no added or removed issue identities. The previous snapshot had 970. Delta: 181, including 12 older/reopened issues.
 The author-workspace raw snapshot at `.tmp/tasks/windows-post-wave-20261022/`
 is historical, not promised in clean checkouts. The table below preserves the
 portable identity/title inventory. It is an intake list, not proof of full review

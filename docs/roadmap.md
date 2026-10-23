@@ -26,6 +26,14 @@ and [pause handoff](archived/implementation-pause-2026-10-23.md) retain the
 previous wave's detailed mappings and provenance. Open status, source changes
 and accepted issue closure are separate facts.
 
+Recent solo source batches repair exact embedding/cache identities, sparse Boolean
+completion and execution-qualified result reuse, offsets/bitmap/signed ranking,
+transactional TUI installation, document/wire/lease/method LSP lifetimes, and
+original SQLite/profile/native-read failure propagation. The refreshed GitHub
+snapshot still has 1,151 open reports. These implementations and their authored
+regressions remain unqualified; category cleanup/parent drain and the broader
+intake remain unfinished. LSP identity is 46/rq11; offline runtime parser is 4.
+
 ### Execution order
 
 1. **P0–P4 first**, prioritizing destructive authority/data-loss and lifecycle
