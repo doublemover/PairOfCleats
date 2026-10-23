@@ -52,6 +52,7 @@ const requiredShippedPaths = [
   'lib/operations.py',
   'lib/api_client.py',
   'lib/publication.py',
+  'lib/prompts.py',
 ];
 for (const entry of requiredShippedPaths) {
   if (!shippedPaths.has(entry)) {

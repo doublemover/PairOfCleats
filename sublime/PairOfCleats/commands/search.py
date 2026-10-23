@@ -17,6 +17,7 @@ from ..lib import tasks
 from ..lib import operations
 from ..lib import ui
 from ..lib import views
+from ..lib.prompts import NativePrompt
 from ..lib.saved_search import normalize_saved_options
 from ..lib.filter_pagination import (normalize_filter_pagination, admit_filter_page, merge_filter_page, continuation_endpoint_matches,
                                    selected_index, capture_selection)
@@ -138,22 +139,20 @@ def _resolve_results_target(settings, hit_count):
     return 'quick_panel'
 
 
-def _prompt_query(window, initial, on_done):
-    window.show_input_panel(
-        'PairOfCleats search query',
-        initial or '',
-        lambda value: on_done(value.strip()),
-        None,
-        None
-    )
+def _prompt_query(window, initial, on_done, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
+    prompt.input('PairOfCleats search query', initial or '', lambda value: on_done(value.strip()))
 
 
-def _prompt_options(window, settings, defaults, on_done, force_prompt=False):
+def _prompt_options(window, settings, defaults, on_done, force_prompt=False, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
+    if not prompt.current():
+        return
     if not force_prompt and not settings.get('search_prompt_options'):
-        on_done(defaults)
+        on_done(copy.deepcopy(defaults))
         return
 
-    options = dict(defaults)
+    options = copy.deepcopy(defaults)
     mode_choices = ['both'] + sorted(config.VALID_INDEX_MODES - {'both'})
     default_mode = options.get('mode')
     mode_index = mode_choices.index(default_mode) if default_mode in mode_choices else 2
@@ -162,16 +161,17 @@ def _prompt_options(window, settings, defaults, on_done, force_prompt=False):
         if index < 0:
             return
         options['mode'] = mode_choices[index]
-        _prompt_backend(window, options, on_done)
+        _prompt_backend(window, options, on_done, prompt)
 
-    window.show_quick_panel(
+    prompt.choose(
         mode_choices,
         on_mode_select,
         selected_index=mode_index
     )
 
 
-def _prompt_backend(window, options, on_done):
+def _prompt_backend(window, options, on_done, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
     backend_choices = [
         ('', 'auto'),
         ('memory', 'memory'),
@@ -192,12 +192,13 @@ def _prompt_backend(window, options, on_done):
         if index < 0:
             return
         options['backend'] = backend_choices[index][0]
-        _prompt_ann(window, options, on_done)
+        _prompt_ann(window, options, on_done, prompt)
 
-    window.show_quick_panel(labels, on_backend_select, selected_index=current_index)
+    prompt.choose(labels, on_backend_select, selected_index=current_index)
 
 
-def _prompt_ann(window, options, on_done):
+def _prompt_ann(window, options, on_done, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
     ann_choices = [
         (None, 'ann: default'),
         (True, 'ann: on'),
@@ -214,16 +215,17 @@ def _prompt_ann(window, options, on_done):
         if index < 0:
             return
         options['ann'] = ann_choices[index][0]
-        _prompt_temporal(window, options, on_done)
+        _prompt_temporal(window, options, on_done, prompt)
 
-    window.show_quick_panel(
+    prompt.choose(
         [label for _, label in ann_choices],
         on_ann_select,
         selected_index=current_index,
     )
 
 
-def _prompt_temporal(window, options, on_done):
+def _prompt_temporal(window, options, on_done, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
     current_as_of = options.get('as_of') or ''
     current_snapshot = options.get('snapshot') or ''
     items = []
@@ -233,63 +235,62 @@ def _prompt_temporal(window, options, on_done):
         items.append(label)
         actions.append(callback)
 
-    add_action('search current index', lambda: _set_temporal(options, '', '', on_done, window))
+    add_action('search current index', lambda: _set_temporal(options, '', '', on_done, window, prompt))
     if current_as_of:
-        add_action('as-of: {0}'.format(current_as_of), lambda: _set_temporal(options, current_as_of, '', on_done, window))
+        add_action('as-of: {0}'.format(current_as_of), lambda: _set_temporal(options, current_as_of, '', on_done, window, prompt))
     if current_snapshot:
-        add_action('snapshot: {0}'.format(current_snapshot), lambda: _set_temporal(options, '', current_snapshot, on_done, window))
-    add_action('as-of: custom', lambda: _prompt_as_of(window, options, on_done))
-    add_action('snapshot: custom', lambda: _prompt_snapshot(window, options, on_done))
+        add_action('snapshot: {0}'.format(current_snapshot), lambda: _set_temporal(options, '', current_snapshot, on_done, window, prompt))
+    add_action('as-of: custom', lambda: _prompt_as_of(window, options, on_done, prompt))
+    add_action('snapshot: custom', lambda: _prompt_snapshot(window, options, on_done, prompt))
 
     def on_temporal_select(index):
         if index < 0:
             return
         actions[index]()
 
-    window.show_quick_panel(items, on_temporal_select, selected_index=0)
+    prompt.choose(items, on_temporal_select, selected_index=0)
 
 
-def _set_temporal(options, as_of_value, snapshot_value, on_done, window):
+def _set_temporal(options, as_of_value, snapshot_value, on_done, window, prompt=None):
     options['as_of'] = as_of_value
     options['snapshot'] = snapshot_value
-    _prompt_limit(window, options, on_done)
+    _prompt_limit(window, options, on_done, prompt)
 
 
-def _prompt_as_of(window, options, on_done):
+def _prompt_as_of(window, options, on_done, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
     current = options.get('as_of') or ''
 
     def on_done_input(value):
         options['as_of'] = value.strip()
         options['snapshot'] = ''
-        _prompt_limit(window, options, on_done)
+        _prompt_limit(window, options, on_done, prompt)
 
-    window.show_input_panel(
+    prompt.input(
         'PairOfCleats as-of selector',
         current,
         on_done_input,
-        None,
-        None,
     )
 
 
-def _prompt_snapshot(window, options, on_done):
+def _prompt_snapshot(window, options, on_done, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
     current = options.get('snapshot') or ''
 
     def on_done_input(value):
         options['snapshot'] = value.strip()
         options['as_of'] = ''
-        _prompt_limit(window, options, on_done)
+        _prompt_limit(window, options, on_done, prompt)
 
-    window.show_input_panel(
+    prompt.input(
         'PairOfCleats snapshot id',
         current,
         on_done_input,
-        None,
-        None,
     )
 
 
-def _prompt_limit(window, options, on_done):
+def _prompt_limit(window, options, on_done, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
     limit_default = options.get('limit')
     limit_values = []
     if isinstance(limit_default, int) and limit_default > 0:
@@ -306,7 +307,7 @@ def _prompt_limit(window, options, on_done):
             return
         if index < len(limit_values):
             options['limit'] = limit_values[index]
-            on_done(options)
+            on_done(copy.deepcopy(options))
             return
 
         def on_custom_done(value):
@@ -322,21 +323,19 @@ def _prompt_limit(window, options, on_done):
                 ui.show_error('Limit must be at least 1.')
                 return
             options['limit'] = parsed
-            on_done(options)
+            on_done(copy.deepcopy(options))
 
-        window.show_input_panel(
+        prompt.input(
             'PairOfCleats result limit',
             str(limit_default or ''),
             on_custom_done,
-            None,
-            None
         )
 
-    window.show_quick_panel(choices, on_limit_select, selected_index=0)
+    prompt.choose(choices, on_limit_select, selected_index=0)
 
 
 def _execute_search(window, query, overrides=None, explain=False, enumeration=False, append_session=None, service_root=None,
-                    operation_scope=None):
+                    operation_scope=None, settings_snapshot=None):
     overrides = copy.deepcopy(overrides)
     append_session = copy.deepcopy(append_session)
     if not _saved_scope_available(overrides):
@@ -347,13 +346,13 @@ def _execute_search(window, query, overrides=None, explain=False, enumeration=Fa
     if not operations.is_current(scope):
         return
 
-    settings = config.get_settings(window)
+    settings = copy.deepcopy(settings_snapshot) if settings_snapshot is not None else config.get_settings(window)
     saved_root = overrides.get('repoRoot') if isinstance(overrides, dict) else None
     repo_root, reason = (saved_root, None) if saved_root else _resolve_repo_root(window)
     if not repo_root:
         paths.resolve_repo_root_interactive(window, lambda chosen, why: (
             _execute_search(window, query, dict(overrides or {}, repoRoot=chosen), explain, enumeration, append_session,
-                            operation_scope=scope)
+                            operation_scope=scope, settings_snapshot=settings)
             if chosen else ui.show_status('PairOfCleats: {0}'.format(why))))
         return
     if reason:
@@ -821,15 +820,17 @@ def _search_with_query(window, query, overrides=None, force_prompt=False, operat
 
     def after_options(options):
         if operations.is_current(scope):
-            _execute_search(window, query, options, operation_scope=scope)
+            _execute_search(window, query, options, operation_scope=scope, settings_snapshot=settings)
 
-    _prompt_options(window, settings, defaults, after_options, force_prompt=force_prompt)
+    _prompt_options(window, settings, defaults, after_options, force_prompt=force_prompt,
+                    prompt=NativePrompt(window, scope))
 
 
 def _search_with_prompt(window, overrides=None, force_prompt=False):
     scope = operations.capture(window, key='foreground-search')
     settings = config.get_settings(window)
     defaults = _resolve_defaults(settings, overrides)
+    prompt = NativePrompt(window, scope)
     last = history.get_last_query(window)
     initial = last.get('query') if isinstance(last, dict) else ''
 
@@ -838,10 +839,10 @@ def _search_with_prompt(window, overrides=None, force_prompt=False):
             return
         def after_options(options):
             if operations.is_current(scope):
-                _execute_search(window, value, options, operation_scope=scope)
-        _prompt_options(window, settings, defaults, after_options, force_prompt=force_prompt)
+                _execute_search(window, value, options, operation_scope=scope, settings_snapshot=settings)
+        _prompt_options(window, settings, defaults, after_options, force_prompt=force_prompt, prompt=prompt)
 
-    _prompt_query(window, initial, on_query)
+    _prompt_query(window, initial, on_query, prompt)
 
 
 class PairOfCleatsSearchCommand(sublime_plugin.WindowCommand):
@@ -1067,7 +1068,7 @@ class PairOfCleatsExplainSearchCommand(sublime_plugin.WindowCommand):
                 return
             _execute_search(self.window, value, explain=True, operation_scope=scope)
 
-        _prompt_query(self.window, '', on_query)
+        _prompt_query(self.window, '', on_query, NativePrompt(self.window, scope))
 
 
 class PairOfCleatsReopenLastResultsCommand(sublime_plugin.WindowCommand):
@@ -1177,7 +1178,7 @@ class PairOfCleatsBrowseIndexedMatchesCommand(sublime_plugin.WindowCommand):
         def execute(value):
             if value.strip() and operations.is_current(scope):
                 _execute_search(self.window, '', {'filter': value.strip()}, enumeration=True, operation_scope=scope)
-        self.window.show_input_panel('PairOfCleats indexed metadata filter', '', execute, None, None)
+        NativePrompt(self.window, scope).input('PairOfCleats indexed metadata filter', '', execute)
 
 
 class PairOfCleatsLoadMoreResultsCommand(sublime_plugin.WindowCommand):

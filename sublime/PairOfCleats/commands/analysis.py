@@ -15,6 +15,7 @@ from ..lib import ui
 from ..lib import views
 from ..lib import operations
 from ..lib import publication
+from ..lib.prompts import NativePrompt
 
 DEFAULT_CONTEXT_PACK_HOPS = 2
 DEFAULT_RISK_EXPLAIN_MAX = 5
@@ -88,9 +89,8 @@ def _prompt_value(window, caption, initial, on_done):
     if window is None or not hasattr(window, 'show_input_panel'):
         ui.show_error('PairOfCleats: this command requires an input-capable window.')
         return
-    scope = operations.capture(window, key='analysis-input')
-    window.show_input_panel(caption, initial or '', lambda value: on_done((value or '').strip())
-                            if operations.is_current(scope) else None, None, None)
+    NativePrompt(window, key='analysis-input').input(caption, initial or '',
+        lambda value: on_done(value.strip()))
 
 
 def _resolve_cli_context(window, path_hint=None, allow_fallback=True, workflow=None, operation_scope=None):

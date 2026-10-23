@@ -53,6 +53,81 @@ for prompt, args in [(search._prompt_options, (window, {}, {},)),
     window.quick_panel_callback(-1)
     assert calls == [], prompt.__name__
 
+
+class PromptWindow(FakeWindow):
+    def show_input_panel(self, caption, initial, done, changed, cancelled):
+        self.input = {'caption': caption, 'done': done, 'cancelled': cancelled}
+
+
+# Cancelling a real native step seals it even if a queued done/select callback
+# arrives later. Older accepted panels cannot skip ahead or execute twice.
+prompt_window = PromptWindow()
+for helper, args, is_input in [
+        (search._prompt_query, ('',), True), (search._prompt_as_of, ({},), True),
+        (search._prompt_snapshot, ({},), True), (search._prompt_limit, ({},), False),
+        (search._prompt_backend, ({},), False), (search._prompt_ann, ({},), False),
+        (search._prompt_temporal, ({},), False)]:
+    accepted = []
+    helper(prompt_window, *args, on_done=lambda value: accepted.append(value))
+    if is_input:
+        captured = dict(prompt_window.input)
+        captured['cancelled']()
+        captured['done']('queued after cancellation')
+    else:
+        captured = prompt_window.quick_panel_callback
+        captured(-1)
+        captured(0)
+    assert accepted == [], helper.__name__
+
+with tempfile.TemporaryDirectory() as prompt_root:
+    prompt_window.set_folders([prompt_root])
+    user = sublime.load_settings(search.config.SETTINGS_FILE)
+    user.update({'api_execution_mode': 'cli', 'search_advanced_defaults': {'file': ['original.py']},
+                 'env': {'ORIGINAL_RUNTIME': 'captured'}, 'search_prompt_options': True})
+    dispatched = []
+    with patch.object(search, '_resolve_repo_root', return_value=(prompt_root, None)), \
+            patch.object(search.config, 'validate_settings', return_value=[]), \
+            patch.object(search, '_execute_search_cli', side_effect=lambda *args, **kwargs: dispatched.append((args, kwargs))):
+        search.PairOfCleatsSearchWithOptionsCommand(prompt_window).run(query='native options')
+        mode_callback = prompt_window.quick_panel_callback
+        mode_callback(0)
+        backend_callback = prompt_window.quick_panel_callback
+        mode_callback(1)
+        assert prompt_window.quick_panel_callback is backend_callback
+        user.set('env', {'ORIGINAL_RUNTIME': 'replacement'})
+        user.get('search_advanced_defaults')['file'].append('replacement.py')
+        backend_callback(0)
+        prompt_window.quick_panel_callback(0)  # ANN default
+        prompt_window.quick_panel_callback(0)  # current index
+        final_callback = prompt_window.quick_panel_callback
+        final_callback(0)
+        final_callback(0)
+        assert len(dispatched) == 1
+        invocation = dispatched[0][0]
+        assert invocation[3]['env'] == {'ORIGINAL_RUNTIME': 'captured'}
+        assert invocation[4]['advanced']['file'] == ['original.py']
+
+        # Query cancellation and a project replacement both prevent a queued
+        # original native callback from executing with today's repository.
+        search.PairOfCleatsSearchCommand(prompt_window).run()
+        cancelled_query = dict(prompt_window.input)
+        cancelled_query['cancelled']()
+        cancelled_query['done']('cancelled query')
+        assert len(dispatched) == 1
+        search.PairOfCleatsSearchWithOptionsCommand(prompt_window).run(query='revoked options')
+        revoked_mode = prompt_window.quick_panel_callback
+        prompt_window.set_folders([])
+        revoked_mode(0)
+        assert prompt_window.quick_panel_callback is revoked_mode and len(dispatched) == 1
+
+    analysis = importlib.import_module('PairOfCleats.commands.analysis')
+    analysis_values = []
+    analysis._prompt_value(prompt_window, 'Original analysis seed', '', analysis_values.append)
+    cancelled = dict(prompt_window.input)
+    cancelled['cancelled']()
+    cancelled['done']('must not run')
+    assert analysis_values == []
+
 for change in ['move-before-response', 'move-before-accept', 'edit', 'close', 'supersede', 'rename',
                'move-window', 'invalidate-before-response', 'invalidate-before-accept', 'unload-before-accept', 'none']:
     operations.activate()

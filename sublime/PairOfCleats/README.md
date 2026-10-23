@@ -306,6 +306,15 @@ failed publication or replay the write. This uses Python 3.3-era file APIs and
 does not certify crash durability or native host/filesystem behavior. Fault and
 actual-consumer regressions are authored; execution remains deferred.
 
+Search query, mode/backend/ANN/time/limit steps and analysis seed inputs now
+seal each native callback after acceptance or cancellation. A queued callback
+cannot revive a cancelled step, skip a newer panel or execute twice. Project or
+request replacement also revokes the chain. Search prompts retain their original
+runtime and effective settings through final CLI/API dispatch; changing User
+Settings during a prompt does not substitute a different execution profile.
+Credentials are still read only through the destination-bound grant at request
+time. The additional actual-command regressions remain unrun.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only
