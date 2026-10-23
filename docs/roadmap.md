@@ -30,11 +30,11 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `8b2619377` binds imported members and unavailable
-modules to exact local candidate boundaries (callFlow32), preserves supplied
-relation-identity and configuration resource failures, bounds triage history reads/
-retained candidates, and requires exact SCIP declaration joins (adapter5).
-Dispositions: 141 historical, 559 source, 164 partial, 93 pending.
+Latest source continuation: `10a3423a5` preserves original persistent/semantic
+reader, controls/RAF/picking and reranker work; guards write-admission inventory,
+lexical import shadows (callFlow33), bounds worker telemetry without losing task
+totals, and reconciles HTTP documentation with the shipped contracts.
+Dispositions: 141 historical, 561 source, 164 partial, 91 pending.
 All authored checks remain unvalidated; durable failed-job cleanup recovery is open.
 
 ### Execution order
@@ -84,7 +84,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `8b2619377` repairs watch/pointer and queue authority,
+Current source through `10a3423a5` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
@@ -124,7 +124,7 @@ consumers. Complete source-checked semantic tokens and iterative symbols preserv
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
 sourceChunking11/importResolution7/typeNormalization7/compilerBindings21/
-lspBindings40/rq10/cfgFlow26/callFlow32/valueSlice9/boundaryFlow9/workerFlow8. VSCode and Sublime retain
+lspBindings40/rq10/cfgFlow26/callFlow33/valueSlice9/boundaryFlow9/workerFlow8. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 Proto/SemanticDB/ShellCheck report adapters are3 and SCIP importer is5; the other
 five report adapters remain2.
