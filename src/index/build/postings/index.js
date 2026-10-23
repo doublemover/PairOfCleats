@@ -52,6 +52,7 @@ import { buildTokenAndFieldPostings } from './token-field.js';
  * @property {object|null} fieldPostings
  * @property {string[]} phraseVocab
  * @property {number[][]} phrasePostings
+ * @property {object|null} phraseStats
  * @property {string[]} chargramVocab
  * @property {number[][]} chargramPostings
  * @property {object|null} chargramStats
@@ -190,6 +191,7 @@ export async function buildPostings(input) {
       fieldPostings: buildEmptyFieldPostings(),
       phraseVocab: [],
       phrasePostings: [],
+      phraseStats: null,
       chargramVocab: [],
       chargramPostings: [],
       tokenVocab: [],
@@ -247,6 +249,7 @@ export async function buildPostings(input) {
   const {
     phraseVocab,
     phrasePostings,
+    phraseStats,
     chargramVocab,
     chargramPostings,
     chargramStats,
@@ -267,6 +270,7 @@ export async function buildPostings(input) {
     chargramMaxDf,
     postingsGuard,
     requestYield,
+    abortSignal,
     mergeSpillRuns,
     compareChargramRows
   });
@@ -309,6 +313,7 @@ export async function buildPostings(input) {
     fieldPostings: fieldPostingsResult,
     phraseVocab,
     phrasePostings,
+    phraseStats,
     chargramVocab,
     chargramPostings,
     chargramStats,

@@ -252,34 +252,33 @@ export const createRowSpillCollector = ({
     }
   };
 
+  // Cleanup must remain available after an append/serialization failure. Using
+  // finalize for teardown would retry the still-buffered failing spill write.
+  const cleanup = async () => {
+    if (runsDir) await schedule(() => removeMergeDiskDirectory(runsDir, diskAccount));
+  };
+
   const finalize = async () => {
     if (runs.length) {
       if (buffer.length) await spill();
       return {
         runs: runs.slice(),
         stats,
-        cleanup: async () => {
-          if (runsDir) {
-            await schedule(() => removeMergeDiskDirectory(runsDir, diskAccount));
-          }
-        }
+        cleanup
       };
     }
     if (buffer.length) buffer.sort(compareRows);
     return {
       rows: buffer,
       stats,
-      cleanup: async () => {
-        if (runsDir) {
-          await schedule(() => removeMergeDiskDirectory(runsDir, diskAccount));
-        }
-      }
+      cleanup
     };
   };
 
   return {
     append,
     finalize,
+    cleanup,
     stats
   };
 };

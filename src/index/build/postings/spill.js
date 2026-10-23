@@ -89,24 +89,39 @@ export const createSpillHelpers = ({
       ? path.join(plannerCacheDir, 'spill-merge-planner', `${label}.planner-hints.json`)
       : null;
     const plannerInputKey = await buildPlannerInputKey(label, runs, { requestYield });
-    const { cleanup, stats } = await mergeRunsWithPlanner({
-      runs,
-      outputPath: mergedPath,
-      compare,
-      tempDir: mergeDir,
-      runPrefix: label,
-      checkpointPath,
-      maxOpenRuns: DEFAULT_MAX_OPEN_RUNS,
-      validateComparator: true,
-      plannerHintsPath,
-      plannerInputKey
-    });
+    let cleanup = null;
     const cleanupAll = async () => {
-      if (cleanup) await cleanup();
-      await fs.rm(mergedPath, { force: true });
-      await fs.rm(checkpointPath, { force: true });
-      await fs.rm(mergeDir, { recursive: true, force: true });
+      const failures = [];
+      if (cleanup) { try { await cleanup(); } catch (error) { failures.push(error); } }
+      // The original private directory also owns partially written planner
+      // outputs when planning fails before returning its cleanup function.
+      for (const [target, recursive] of [[mergedPath, false], [checkpointPath, false], [mergeDir, true]]) {
+        try { await fs.rm(target, { recursive, force: true }); } catch (error) { failures.push(error); }
+      }
+      if (failures.length) throw new AggregateError(failures, 'Postings planner output cleanup failed.');
     };
+    let stats;
+    try {
+      const planned = await mergeRunsWithPlanner({
+        runs,
+        outputPath: mergedPath,
+        compare,
+        tempDir: mergeDir,
+        runPrefix: label,
+        checkpointPath,
+        maxOpenRuns: DEFAULT_MAX_OPEN_RUNS,
+        validateComparator: true,
+        plannerHintsPath,
+        plannerInputKey
+      });
+      cleanup = planned.cleanup;
+      stats = planned.stats;
+    } catch (error) {
+      try { await cleanupAll(); } catch (cleanupError) {
+        throw new AggregateError([error, cleanupError], 'Postings planner and original output cleanup failed.', { cause: error });
+      }
+      throw error;
+    }
     return {
       iterator: readJsonlRows(mergedPath),
       cleanup: cleanupAll,
