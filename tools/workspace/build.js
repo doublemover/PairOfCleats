@@ -127,6 +127,17 @@ export const parseRawWorkspaceBuildArgs = (rawArgs) => {
   };
 };
 
+/** Programmatic fanout callers have the same finite child-intent boundary. */
+export const normalizeWorkspaceChildBuildArgs = (buildArgs = []) => {
+  if (!Array.isArray(buildArgs) || buildArgs.some(value => typeof value !== 'string')) throw new Error('Workspace child build flags must be a string array.');
+  for (const value of buildArgs) {
+    if (/^--(?:no-)?(?:workspace|concurrency|strict|include-disabled|json|repo)(?:=|$)/.test(value)) {
+      throw new Error('Workspace child build flags cannot override coordinator choices or repository membership.');
+    }
+  }
+  return parseRawWorkspaceBuildArgs(['--workspace', '<resolved-workspace>', ...buildArgs]).buildArgs;
+};
+
 const printWorkspaceBuildHelp = () => {
   console.error('Usage: pairofcleats workspace build --workspace <path> [options] [build flags]');
   console.error('');
@@ -145,6 +156,7 @@ export const runRepoBuild = async ({ repo, buildArgs, signal: abortSignal = null
   const startedAt = Date.now();
   let startup = null;
   try {
+    buildArgs = normalizeWorkspaceChildBuildArgs(buildArgs);
     abortSignal?.throwIfAborted();
     const request = { repoRoot: repo.repoRootCanonical, buildArgs, baseEnv: { ...baseEnv } };
     const plan = resolveEnv ? { env: await resolveEnv(request), evidence: null } : await resolvePlan(request);
@@ -225,7 +237,7 @@ export const runWorkspaceBuildReport = async (workspaceConfig, {
 } = {}, { runBuild = runRepoBuild } = {}) => {
   concurrency = resolveWorkspaceBuildConcurrency(concurrency);
   const invocationEnv = { ...baseEnv };
-  const invocationArgs = [...buildArgs];
+  const invocationArgs = normalizeWorkspaceChildBuildArgs(buildArgs);
   // Retain this invocation's target inventory before any build callback awaits.
   const configured = workspaceConfig.repos.map(repo => ({ ...repo }));
   const targets = configured

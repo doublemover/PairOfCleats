@@ -6,6 +6,11 @@ assert.throws(() => parseRawWorkspaceBuildArgs(['--workspace', 'fixture.jsonc', 
 assert.deepEqual(parseRawWorkspaceBuildArgs(['--workspace', 'fixture.jsonc', '--mode', 'code', '--']).buildArgs, ['--mode', 'code']);
 
 const workspace = { repos: ['a', 'b', 'c', 'd'].map(repoId => ({ repoId, repoRootCanonical: `/fixture/${repoId}`, enabled: true })) };
+for (const buildArgs of [['--watch'], ['--config-dump=true'], ['--strict'], ['--repo', '/different/target'], ['--unknown-child-flag']]) {
+  await assert.rejects(runWorkspaceBuildReport(workspace, { buildArgs }, {
+    runBuild: () => assert.fail('programmatic fanout cannot bypass finite child admission')
+  }));
+}
 const cancelled = new AbortController();
 cancelled.abort();
 const before = await runWorkspaceBuildReport(workspace, { signal: cancelled.signal }, {
