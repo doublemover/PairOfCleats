@@ -12,6 +12,7 @@ import { openPublishedSymbolicTypeStore } from '../../semantic/symbolic-type-sto
 import { measureSymbolicResponseBytes } from '../../semantic/symbolic-type-response.js';
 import { captureSemanticRequest } from '../../semantic/request-snapshot.js';
 import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-query.js';
+import { withSemanticReaderCleanup } from '../../semantic/reader-lifetime.js';
 
 /** One cursor service per repository/query policy; stores reopen the exact requested generation. */
 export const createSemanticDetailRunner = ({ openStore = openPublishedSemanticStore,
@@ -40,13 +41,18 @@ export const createSemanticDetailRunner = ({ openStore = openPublishedSemanticSt
       while (services.size > maxServices) services.delete(services.keys().next().value);
     }
     const deadlineAtMs = request.typeQueries ? performance.now() + (request.limits?.workMs || options.maxWorkMs) : null;
-    const indexDir = await resolveSemanticGenerationIndexDir({ repoRoot: request.repoRoot, generation: request.generation, userConfig: config });
+    const indexDir = await resolveSemanticGenerationIndexDir({ repoRoot: request.repoRoot, generation: request.generation, userConfig: config, signal });
     let result;
     if (request.refs.length || !request.typeQueries) {
-      const { store } = await openStore({ indexDir, repoRoot: request.repoRoot, generation: request.generation,
+      const opened = await openStore({ indexDir, repoRoot: request.repoRoot, generation: request.generation, signal,
         requireQueryIndex: Boolean(request.include?.some(value => ['operands', 'names', 'ownership'].includes(value))) });
-      throwIfAborted(signal);
-      result = await service({ store, request, signal });
+      const close = opened.close?.bind(opened);
+      result = await withSemanticReaderCleanup(async () => {
+        throwIfAborted(signal);
+        const value = await service({ store: opened.store, request, signal });
+        throwIfAborted(signal);
+        return value;
+      }, () => close?.());
     } else result = { schemaVersion: 1, generation: request.generation, status: 'complete', records: [],
       edges: [], operands: [], ownership: [], names: [], evidenceRefs: [], frontier: [], cursor: null, warnings: [],
       coverage: { extraction: [], analysis: [], response: { state: 'complete', returnedCount: 0, hydratedCount: 0 } } };

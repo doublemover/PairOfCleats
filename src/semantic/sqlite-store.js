@@ -22,6 +22,8 @@ export const createSqliteSemanticStore = ({
     foundVersion: artifactSurfaceVersion, repoRoot, indexPath
   });
   assertSemanticEnvelope('generation', generation);
+  generation = Object.freeze({ ...generation });
+  manifest = manifest ? structuredClone(manifest) : null;
   const storedGeneration = db.prepare("SELECT value FROM index_format_meta WHERE key='semanticGeneration'").get();
   if (!storedGeneration || canonicalSemanticJson(JSON.parse(storedGeneration.value)) !== canonicalSemanticJson(generation)) {
     throw Object.assign(new Error('SQLite semantic generation mismatch.'), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });

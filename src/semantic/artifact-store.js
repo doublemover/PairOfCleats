@@ -76,6 +76,9 @@ export const createArtifactSemanticStore = ({
     repoRoot, indexPath: root
   });
   assertSemanticEnvelope('generation', generation);
+  generation = Object.freeze({ ...generation });
+  operationIndex = operationIndex ? structuredClone(operationIndex) : null;
+  completedTasks = structuredClone(completedTasks);
   const queryIndex = inputQueryIndex ? structuredClone(inputQueryIndex) : null;
   const inventory = new Map();
   for (const partition of structuredClone(partitions)) {
