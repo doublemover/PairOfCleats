@@ -9,6 +9,7 @@ import { readStorageLocator, writeStorageLocator } from './locator.js';
 import { storagePlanDigest } from './migration-plan.js';
 import { storageFileIdentity, sameStorageFileIdentity } from './inventory.js';
 import { withStorageDirectory } from './directory.js';
+import { observeStorageResource } from './failure-observation.js';
 
 // Only these existing application callers consume category selections. Adding
 // a descriptor alone must not make a configure receipt claim caller adoption.
@@ -28,6 +29,15 @@ const settleObservations = async operations => {
   return results.map(result => result.value);
 };
 
+const observationCode = observation => {
+  observation.requireSettled();
+  let code;
+  try { code = observation.primary.code; }
+  catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+  observation.requireSettled();
+  return code;
+};
+
 const inspectDirectory = async target => {
   assertNoSymlinkPath(path.parse(target).root, target, { allowMissing: true });
   let observed = false;
@@ -40,25 +50,34 @@ const inspectDirectory = async target => {
     if (!sameStorageFileIdentity(storageFileIdentity(stat), storageFileIdentity(after))) throw new Error('Storage directory changed during configuration preview.');
     return { status: 'present', empty: first === null, identity: storageFileIdentity(after) };
   } catch (error) {
-    let code;
-    try { code = error?.code; }
-    catch (inspectionError) { throw addStorageFailureContext(error, { storageObservationInspectionError: inspectionError }, inspectionError,
-      { secondaryPresent: true }); }
-    if (observed || code !== 'ENOENT') throw error;
+    const observation = observeStorageResource(error, { phase: 'configuration-directory-observation' });
+    observation.requireSettled();
+    if (observed || observationCode(observation) !== 'ENOENT') throw observation.primary;
+    const missing = [observation];
+    const requireMissingSettled = () => { for (const original of missing) original.requireSettled(); };
     let ancestor = path.dirname(target);
-    for (;;) {
-      try {
-        const stat = await fs.lstat(ancestor, { bigint: true });
+    try {
+      for (;;) {
+        requireMissingSettled();
+        let stat, ancestorObservation;
+        try {
+          stat = await fs.lstat(ancestor, { bigint: true });
+        } catch (ancestorError) {
+          ancestorObservation = observeStorageResource(ancestorError, { phase: 'configuration-ancestor-observation' });
+          if (observationCode(ancestorObservation) !== 'ENOENT' || path.dirname(ancestor) === ancestor) throw ancestorObservation.primary;
+        }
+        requireMissingSettled();
+        if (ancestorObservation) { missing.push(ancestorObservation); ancestor = path.dirname(ancestor); continue; }
         if (!stat.isDirectory()) throw new Error('Storage destination ancestor is not a directory.');
-        return { status: 'missing', empty: true, ancestor, ancestorIdentity: storageFileIdentity(stat) };
-      } catch (ancestorError) {
-        let ancestorCode;
-        try { ancestorCode = ancestorError?.code; }
-        catch (inspectionError) { throw addStorageFailureContext(ancestorError,
-          { storageObservationInspectionError: inspectionError }, inspectionError, { secondaryPresent: true }); }
-        if (ancestorCode !== 'ENOENT' || path.dirname(ancestor) === ancestor) throw ancestorError;
-        ancestor = path.dirname(ancestor);
+        const ancestorIdentity = storageFileIdentity(stat);
+        requireMissingSettled();
+        return { status: 'missing', empty: true, ancestor, ancestorIdentity };
       }
+    } catch (ancestorFailure) {
+      // Keep earlier original observations even when a different later ancestor
+      // rejects. The new error does not settle work observed before its await.
+      throw missing.reduce((failure, original) => original.retain(failure,
+        { inspectionPresent: true, inspectionPrimary: true }), ancestorFailure);
     }
   }
 };
@@ -182,6 +201,9 @@ export const applyStorageConfiguration = async (plan, { approvedPlanId, home, ca
     return { schemaVersion: 1, planId, complete: true, mutationPerformed: true, selectedPath: body.after,
       restartRequired: true, sourcePreserved: true, destinationCreated: false, deletionAuthority: false,
       configFile: current.target, receiptFile };
-  } catch (error) { operationError = error; throw error; }
+  } catch (error) {
+    operationError = error !== null && ['object', 'function'].includes(typeof error) ? error : addStorageFailureContext(error, {});
+    throw operationError;
+  }
   finally { await releaseStorageOperationLock(lock, operationError); }
 };
