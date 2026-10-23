@@ -11,6 +11,7 @@ import {
 import {
   canUseFallbackAfterPrimaryError,
   captureFallbackReadError,
+  normalizeArtifactReadFailure,
   resolvePreferredReadError
 } from './fallback.js';
 import {
@@ -209,9 +210,10 @@ const readJsonLinesSyncWithFallback = (
     let raw = null;
     try {
       raw = readBuffer(targetPath, maxBytes, { containedRoot });
-    } catch (err) {
+    } catch (value) {
+      const err = normalizeArtifactReadFailure(value);
       if (shouldTreatAsTooLarge(err)) {
-        throw toJsonTooLargeError(targetPath, stat.size);
+        throw toJsonTooLargeError(targetPath, stat.size, { cause: err, causePresent: true });
       }
       throw err;
     }
@@ -238,7 +240,7 @@ const readJsonLinesSyncWithFallback = (
     try {
       return tryRead(filePath, true);
     } catch (err) {
-      primaryErr = err;
+      primaryErr = normalizeArtifactReadFailure(err);
       if (!canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback)) {
         throw primaryErr;
       }

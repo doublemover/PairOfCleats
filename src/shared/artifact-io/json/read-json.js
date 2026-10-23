@@ -11,6 +11,7 @@ import {
 import {
   canUseFallbackAfterPrimaryError,
   captureFallbackReadError,
+  normalizeArtifactReadFailure,
   resolvePreferredReadError
 } from './fallback.js';
 import {
@@ -29,9 +30,10 @@ const parseJsonBuffer = (buffer, sourcePath, maxBytes) => {
   }
   try {
     return JSON.parse(buffer.toString('utf8'));
-  } catch (err) {
+  } catch (value) {
+    const err = normalizeArtifactReadFailure(value);
     if (shouldTreatAsTooLarge(err)) {
-      throw toJsonTooLargeError(sourcePath, buffer.length);
+      throw toJsonTooLargeError(sourcePath, buffer.length, { cause: err, causePresent: true });
     }
     throw err;
   }
@@ -83,7 +85,7 @@ const readJsonFileUncached = (
   try {
     return readJsonSource(filePath, maxBytes, { cleanup: true, containedRoot });
   } catch (err) {
-    primaryErr = err;
+    primaryErr = normalizeArtifactReadFailure(err);
     if (!canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback)) {
       throw primaryErr;
     }

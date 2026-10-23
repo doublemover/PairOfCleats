@@ -20,6 +20,7 @@ import { createRowQueue } from './row-queue.js';
 import {
   canUseFallbackAfterPrimaryError,
   captureFallbackReadError,
+  normalizeArtifactReadFailure,
   resolvePreferredReadError
 } from './fallback.js';
 import {
@@ -329,7 +330,7 @@ const readJsonlIteratorSingle = async function* (
             throw err;
           }
           if (index === 0) {
-            primaryErr = err;
+            primaryErr = normalizeArtifactReadFailure(err);
             fallbackEnabled = canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback);
             if (!fallbackEnabled) {
               throw primaryErr;
@@ -368,7 +369,7 @@ const readJsonlIteratorSingle = async function* (
         rows
       });
     } catch (err) {
-      queue.finish(err);
+      queue.finish(normalizeArtifactReadFailure(err));
     } finally {
       await destroyStream();
     }
