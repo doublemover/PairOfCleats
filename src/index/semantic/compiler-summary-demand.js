@@ -40,9 +40,10 @@ const capture = (request, context, signal) => {
  * target/dependency/lease/publication checks after explicit future authorization.
  */
 export const planCompilerSummaryDemand = async ({ store, request, context, signal = null }) => {
+  const began = performance.now();
   throwIfAborted(signal);
   ({ request, context } = capture(request, context, signal));
-  const began = performance.now(), limits = request.limits;
+  const limits = request.limits;
   const root = store?.storeId;
   const planId = 'sd1:' + semanticHash('semantic.summary-demand-plan.v1', { request,
     descriptor: context.descriptor, expectedIdentity: context.expectedIdentity, tasks: context.tasks });

@@ -37,7 +37,7 @@ assert.equal(scalar.bodyHash, hash(astralBody.slice(...scalar.bodySpan)), 'strea
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-summary-admission-'));
 const originalOpen = fs.open, disposal = new Map();
 try {
-  const fixture = await createCompilerBoundaryFixture(root, { 'summary.ts': 'export {}; function leaf(value: number) { return value; } function forward(value: number) { return leaf(value); } const result = forward(101);' }, {}, { withFlow: true });
+  const fixture = await createCompilerBoundaryFixture(root, { 'summary.ts': 'export {}; function leaf(value: number) { return value; } function forward(value: number) { return leaf(value); } class Box { #value = 0; store(value: number) { this.#value = value; return this.#value; } } function mutate(object: Record<string, number>, key: string, value: number) { object[key] = value; return object[key]; } const result = forward(101);' }, {}, { withFlow: true });
   const doc = fixture.documents[0], flow = fixture.group.flowDocuments[0];
   const declarationRef = node => {
     const anchor = node?.name || node;
@@ -63,6 +63,10 @@ try {
   assert.ok(manifest.summaries.every(summary => summary.locator.sourceIdentity?.status === 'qualified-for-comparison'));
   assert.ok(manifest.summaries.some(summary => summary.supports.some(support => support.channel === 'return')));
   assert.ok(manifest.summaries.some(summary => summary.contributions.some(row => row.callee !== null)));
+  const paths = manifest.summaries.flatMap(summary => summary.payload.effects.map(effect => effect.path));
+  assert.ok(paths.some(path => path.includes(null)), 'canonical widened field key remains null');
+  assert.ok(paths.some(path => path.some(part => part && typeof part === 'object' && part.private === '#value')),
+    'canonical private brand retains its source/owner identity');
   assert.ok(manifest.summaries.every(summary => /^[a-f0-9]{64}$/u.test(summary.supportHash) && /^[a-f0-9]{64}$/u.test(summary.identityHash)));
   for (const mutate of [value => { value.schemaVersion--; }, value => { value.qualifiesReuse = true; },
     value => { value.summaries[0].payload.dependencies.push(999); }, value => { value.summaries[0].supports.push(null); },
@@ -73,6 +77,9 @@ try {
     assert.equal(admitCompilerSummaryManifest({ manifest: candidate, expectedIdentity }).status, 'rebuild-required');
   }
   assert.equal((await read({ expectedIdentity: { ...expectedIdentity, config: 'changed' } })).admission.reason, 'summary_manifest_broad_identity_changed');
+  const wrongLimits = structuredClone(manifest); wrongLimits.limits.maxBytes = 1024;
+  assert.equal(admitCompilerSummaryManifest({ manifest: wrongLimits, expectedIdentity }).reason,
+    'summary_manifest_recorded_limits_or_convergence_mismatch');
   assert.equal((await read({ registeredInventory: [] })).admission.reason, 'summary_manifest_not_registered');
   assert.equal((await read({ descriptor: { ...descriptor, path: '../' + descriptor.path } })).admission.reason, 'summary_manifest_not_registered');
   const missing = { path: 'semantic-evidence/' + '0'.repeat(64) + '.json', hash: '0'.repeat(64), bytes: descriptor.bytes };

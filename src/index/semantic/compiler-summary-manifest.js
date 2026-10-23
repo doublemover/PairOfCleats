@@ -128,7 +128,7 @@ export const createCompilerSummaryRecorder = ({ identity, signal = null,
       }
       return result;
     };
-    const refList = values => list(values || [], value => value === null ? null : canonicalSemanticJson(value)).sort(order);
+    const refList = values => [...new Set(list(values || [], value => value === null ? null : canonicalSemanticJson(value)))].sort(order);
     const numbers = values => list(values || []).sort((a, b) => a - b);
     const summaries = [];
     for (const [id, owner] of [...owners].sort(([a], [b]) => order(a, b))) {

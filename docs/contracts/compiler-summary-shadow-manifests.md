@@ -55,13 +55,18 @@ corrupt, incompatible or changed inputs require a group rebuild. A failed
 descriptor close remains an original pending failure. Schema-compatible manifests
 are immutable inspection inputs; admission still refuses reuse. Complete reverse
 support qualification, affected information-SCC recomputation and cross-generation
-reuse remain pending. No speedup, deletion-safe incremental acceptance or #1133
-plan/enqueue/drain support is claimed.
+reuse remain pending. The #1133 plan-only consumer is documented in
+`compiler-summary-demand-planning.md`; enqueue/drain execution remains pending.
+No speedup or deletion-safe incremental acceptance is claimed.
 
 Fresh-solve analysis reasons are distinct from execution-ownership diagnostics.
 In particular, a later information edge that invalidates a previously processed
 call-graph component leaves its summary and group unconverged. The shadow product
 records that blocker; it cannot promote the payload to a fixed-point certificate.
+Admission also checks recorded byte/entry limits and group/member convergence
+consistency. Field-effect paths preserve the established string, widened `null`
+and exact private-brand `{private,source,owner}` key forms; arbitrary objects do
+not become property keys. Repeated payload references are projected as sets.
 
 The analysis policy binds the local manifest version. The shared `callFlow`
 producer version must also advance because canonical evidence now points to this

@@ -32,6 +32,9 @@ const decision = (reason, fields = {}) => Object.freeze({ schemaVersion: 1, stat
   ]), ...fields });
 const validSpan = value => Array.isArray(value) && value.length === 2
   && value.every(offset => Number.isSafeInteger(offset) && offset >= 0) && value[0] <= value[1];
+const propertyKey = value => value === null || typeof value === 'string'
+  || exact(value, ['private', 'source', 'owner']) && typeof value.private === 'string' && value.private.startsWith('#')
+    && typeof value.source === 'string' && value.source.length > 0 && Number.isSafeInteger(value.owner) && value.owner >= 0;
 const validSourceIdentity = (value, summary) => {
   if (value === null) return true;
   if (value?.status === 'unavailable') return exact(value, ['status', 'reason']) && typeof value.reason === 'string';
@@ -73,7 +76,7 @@ const validSummary = summary => {
   if (!ordinals(payload.dependencies) || !ordinals(payload.exceptionDependencies) || !array(payload.effects)
     || payload.effects.some(effect => !exact(effect, ['parameter', 'path', 'refs', 'dependencies'])
       || !Number.isSafeInteger(effect.parameter) || effect.parameter < -1 || effect.parameter >= payload.parameters.length
-      || !array(effect.path) || !effect.path.every(part => typeof part === 'string')
+      || !array(effect.path) || !effect.path.every(propertyKey)
       || !refs(effect.refs) || !ordinals(effect.dependencies))) return false;
   const structure = array(summary.reads) && unique(summary.reads, row => row.ref)
     && summary.reads.every(row => exact(row, ['ref', 'predecessors']) && reference(row.ref) && refs(row.predecessors))
@@ -120,6 +123,10 @@ export const admitCompilerSummaryManifest = ({ manifest, expectedIdentity, signa
     || !array(value.analysisReasons) || !value.analysisReasons.every(reason => typeof reason === 'string')
     || !array(value.summaries) || !unique(value.summaries, summary => summary.declaration) || !value.summaries.every(validSummary)) {
     return decision('summary_manifest_schema_mismatch');
+  }
+  if (Buffer.byteLength(encoded) > value.limits.maxBytes || value.summaries.length > value.limits.maxEntries
+    || value.converged && (value.analysisReasons.length || value.summaries.some(summary => !summary.payload.converged))) {
+    return decision('summary_manifest_recorded_limits_or_convergence_mismatch');
   }
   const expected = canonicalSemanticJson(expectedIdentity, { maxBytes: COMPILER_SUMMARY_MANIFEST_MAX_BYTES, check: () => throwIfAborted(signal) });
   if (canonicalSemanticJson(value.identity) !== expected) return decision('summary_manifest_broad_identity_changed');
