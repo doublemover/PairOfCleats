@@ -1,13 +1,14 @@
-import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { init, parse } from 'es-module-lexer';
 import { resolveMapViewerAsset } from './map-viewer-assets.js';
 import { contentTypeForMapIsoPath } from './map-iso-static.js';
+import { readMapViewerAsset, assertOptionalMapAssetFailure } from './map-viewer-asset-read.js';
+import { projectMapReadFailure } from '../../src/map/shared/read-outcome.js';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
 /** Retain one bounded immutable local module closure for this listener. */
-export const pinMapViewerAssets = async (toolRoot, threeUrl = '/three/three.module.js', { signal = null } = {}) => {
+export const pinMapViewerAssets = async (toolRoot, threeUrl = '/three/three.module.js', { signal = null, fsImpl } = {}) => {
   await init;
   const origin = 'http://127.0.0.1';
   const three = new URL(threeUrl, origin);
@@ -28,21 +29,11 @@ export const pinMapViewerAssets = async (toolRoot, threeUrl = '/three/three.modu
     if (!filePath) throw new Error(`Viewer dependency has no safe local route: ${route}`);
     let bytes;
     try {
-      const handle = await fs.open(filePath, 'r');
-      try {
-        const stat = await handle.stat();
-        if (!stat.isFile() || stat.size > 8 * 1024 * 1024) throw new Error('Asset is not a bounded regular file.');
-        const chunks = []; let size = 0;
-        for await (const chunk of handle.createReadStream({ autoClose: false, signal })) {
-          size += chunk.length;
-          if (size > 8 * 1024 * 1024) throw new Error('Asset exceeded its admission budget while reading.');
-          chunks.push(chunk);
-        }
-        bytes = Buffer.concat(chunks, size);
-      } finally { await handle.close(); }
+      bytes = await readMapViewerAsset(filePath, { signal, fsImpl });
     } catch (error) {
-      if (required) throw new Error(`Required local viewer asset unavailable: ${route}: ${error.message}`);
-      unavailable.push({ route, reason: error.message });
+      if (required || signal?.aborted) throw error;
+      assertOptionalMapAssetFailure(error);
+      unavailable.push({ route, reason: projectMapReadFailure(error).message });
       continue;
     }
     totalBytes += bytes.length;

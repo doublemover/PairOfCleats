@@ -42,6 +42,8 @@ export const captureSceneFailure = primary => {
     releasedOriginalExcept: method => !overflow && (!observers.has(primary) || observers.get(primary).observeExcept(method)),
     get owners() { return Object.freeze([...owners]); },
     get hasMessage() { return typeof fields.get('message') === 'string' && fields.get('message').length > 0; },
+    get name() { return typeof fields.get('name') === 'string' ? fields.get('name') : 'Error'; },
+    get code() { return fields.get('code'); },
     get message() { return typeof fields.get('message') === 'string' ? fields.get('message') : 'Scene resource retirement remains pending.'; }
   });
   details.set(captured, { fields, descriptors });
