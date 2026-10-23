@@ -33,6 +33,22 @@ const untrackJsonTraversal = (value, seen, tracked) => {
 };
 
 const TYPED_ARRAY_JSON_BATCH = 2048;
+const JSON_STRING_BATCH_CHARS = 32 * 1024;
+
+// Native escaping is context independent except for surrogate pairs. Keep a
+// pair in the same slice so lone surrogates and astral text match one complete
+// JSON.stringify call without constructing one complete escaped large string.
+function* iterateJsonStringFragments(value) {
+  yield '"';
+  for (let offset = 0; offset < value.length;) {
+    let end = Math.min(value.length, offset + JSON_STRING_BATCH_CHARS);
+    const last = value.charCodeAt(end - 1), next = value.charCodeAt(end);
+    if (last >= 0xd800 && last <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) end--;
+    yield JSON.stringify(value.slice(offset, end)).slice(1, -1);
+    offset = end;
+  }
+  yield '"';
+}
 
 const serializeTypedArraySlice = (array, start, end) => {
   const size = end - start;
@@ -80,7 +96,11 @@ function* iterateJsonFragments(value, seen) {
         if (entry === undefined || typeof entry === 'function' || typeof entry === 'symbol') continue;
         stack.push({ ...frame, first: false });
         stack.push({ kind: 'value', value: entry });
-        yield `${frame.first ? '' : ','}${JSON.stringify(key)}:`;
+        if (key.length > JSON_STRING_BATCH_CHARS) {
+          if (!frame.first) yield ',';
+          yield* iterateJsonStringFragments(key);
+          yield ':';
+        } else yield `${frame.first ? '' : ','}${JSON.stringify(key)}:`;
         selected = true;
         break;
       }
@@ -89,8 +109,12 @@ function* iterateJsonFragments(value, seen) {
     }
     const normalized = normalizeJsonValue(frame.value);
     if (normalized === null || typeof normalized !== 'object') {
-      yield normalized === undefined || typeof normalized === 'function' || typeof normalized === 'symbol'
-        ? 'null' : JSON.stringify(normalized);
+      if (typeof normalized === 'string' && normalized.length > JSON_STRING_BATCH_CHARS) {
+        yield* iterateJsonStringFragments(normalized);
+      } else {
+        yield normalized === undefined || typeof normalized === 'function' || typeof normalized === 'symbol'
+          ? 'null' : JSON.stringify(normalized);
+      }
       continue;
     }
     if (ArrayBuffer.isView(normalized) && !(normalized instanceof DataView)) {
@@ -123,6 +147,7 @@ export const writeJsonValue = async (stream, value, options = {}) => {
     }
   };
   const cooperate = typeof options?.cooperate === 'function' ? options.cooperate : createCooperativeYielder();
+  const cooperateLarge = typeof options?.cooperate === 'function' ? options.cooperate : createCooperativeYielder({ every: 1 });
   const maxChunkChars = 64 * 1024;
   let parts = [], chars = 0;
   const flush = () => {
@@ -149,7 +174,7 @@ export const writeJsonValue = async (stream, value, options = {}) => {
         if (pending) await pause(pending, 'writeWaitMs');
       }
     }
-    const pending = cooperate();
+    const pending = fragment.length >= JSON_STRING_BATCH_CHARS ? cooperateLarge() : cooperate();
     if (pending) await pause(pending, 'cooperativeWaitMs');
   }
   if (chars) { const pending = flush(); if (pending) await pause(pending, 'writeWaitMs'); }
