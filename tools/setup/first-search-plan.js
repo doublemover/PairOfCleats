@@ -15,6 +15,9 @@ import { acquireFileLock, releaseFileLockOrThrow } from '../../src/shared/locks/
 import { createToolProvisioningPlan } from '../tooling/provisioning-plan.js';
 import { resolveModelSetupReadiness } from './model-readiness.js';
 import { resolveDeclaredInstallAdmission } from '../tooling/install-execution.js';
+import { SETUP_OPTIONS } from '../shared/operator-cli-options.js';
+import { describeAppliedFirstSearchCapabilities, describeFirstSearchCapabilities, identifySetupTarget } from './first-search-capabilities.js';
+import { resolveWorkspaceChildRuntimeEnv } from '../../src/workspace/child-runtime-env.js';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
 const readOptional = file => {
@@ -27,9 +30,12 @@ const readOptional = file => {
 
 export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', model = null, backend = 'memory', tools = [], signal = null } = {}) => {
   signal?.throwIfAborted();
-  repoRoot = fs.realpathSync(repoRoot);
-  if (!['sparse', 'semantic'].includes(profile) || !['memory', 'sqlite', 'lmdb'].includes(backend)) throw new Error('Unsupported setup profile/backend.');
+  const targetIdentity = identifySetupTarget(repoRoot);
+  repoRoot = targetIdentity.canonical;
+  if (!SETUP_OPTIONS.profile.choices.includes(profile) || !SETUP_OPTIONS.backend.choices.includes(backend)) throw new Error('Unsupported setup profile/backend.');
   if (profile === 'semantic' && !model) throw new Error('Semantic planning requires an explicit --model; no download is chosen by default.');
+  if (profile === 'sparse' && model) throw new Error('A selected model requires the semantic profile.');
+  if (!Array.isArray(tools) || tools.some(id => typeof id !== 'string' || !id.trim() || id !== id.trim())) throw new Error('Selected tools must be explicit nonempty tool IDs.');
   const toolRoot = resolveToolRoot();
   const configPath = path.join(repoRoot, '.pairofcleats.json');
   const currentText = readOptional(configPath);
@@ -47,6 +53,8 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
       typeInference: profile === 'semantic' },
     search: { annDefault: profile === 'semantic' }
   };
+  // Automatic provisioning would execute capabilities absent from this approval.
+  patch.tooling = { autoInstallOnDetect: false };
   const candidate = mergeConfig(rawConfig, patch);
   const schema = readShippedConfigSchema(path.join(toolRoot, 'docs/config/schema.json'));
   const validation = validateConfig(schema, candidate);
@@ -82,12 +90,13 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
       requirement: step.id, nextAction: step.nextAction });
   }
   const selectedModel = getModelConfig(repoRoot, proposedEffective);
+  const capabilities = describeFirstSearchCapabilities({ repoRoot, userConfig: proposedEffective, profile, backend, tooling, prerequisitePlans });
   const modelReadiness = profile === 'semantic' ? resolveModelSetupReadiness({ root: repoRoot, modelConfig: selectedModel,
     embeddingsConfig: proposedEffective.indexing?.embeddings || {} }) : { state: 'not-requested', runtime: 'not-probed' };
   const detected = await buildToolingReport(repoRoot, null, { skipToolDetection: true, signal });
   signal?.throwIfAborted();
   const operations = [];
-  if (profile === 'semantic') operations.push({ id: 'models', command: process.execPath,
+  if (profile === 'semantic' && !modelReadiness.present) operations.push({ id: 'models', command: process.execPath,
     args: [path.join(toolRoot, 'tools/download/models.js'), '--repo', repoRoot, '--model', model],
     effects: ['download selected model into configured managed model location'], bytes: 'unknown' });
   if (selectedTools.length) operations.push({ id: 'tooling', command: process.execPath,
@@ -95,7 +104,7 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
     effects: ['provision only selected tool requirements into owned locations'], bytes: 'unknown',
     recipes: tooling.map(tool => ({ id: tool.id, ...selectInstallPlan(tool, 'cache', false) })) });
   operations.push({ id: 'index', command: process.execPath,
-    args: [path.join(toolRoot, 'build_index.js'), '--repo', repoRoot, '--mode', 'code', '--threads', '1', ...(backend === 'sqlite' ? [] : ['--no-sqlite'])],
+    args: [path.join(toolRoot, 'build_index.js'), '--repo', repoRoot, '--mode', 'code', '--threads', '1', '--incremental', backend === 'sqlite' ? '--sqlite' : '--no-sqlite'],
     effects: ['build selected target code generation'], bytes: 'unknown' });
   if (backend === 'lmdb') operations.push({ id: 'lmdb', command: process.execPath,
     args: [path.join(toolRoot, 'tools/build/lmdb-index.js'), '--repo', repoRoot, '--mode', 'code'], effects: ['build selected LMDB representation'], bytes: 'unknown' });
@@ -107,12 +116,13 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
     configPath, configPatch: patch, languages: detected.languages,
     cacheRoot: resolveRepoCacheRootPath(repoRoot, proposedEffective),
     state: blockers.length ? 'blocked' : 'planned', blockers,
-    configuration: { sources: proposedSources, requestedChoices: effectivePatch, runtime: 'not-probed' },
+    configuration: { sources: proposedSources, requestedChoices: effectivePatch, runtime: 'not-probed' }, capabilities,
     modelReadiness,
-    inputIdentity: { config: currentText === null ? null : hash(currentText), effective: hash(stableStringify(effective)),
+    inputIdentity: { target: targetIdentity, config: currentText === null ? null : hash(currentText), effective: hash(stableStringify(effective)),
       runtime: process.version, executable: process.execPath, platform: process.platform, arch: process.arch,
       setupInputs: ['package.json', 'package-lock.json', '.nvmrc', 'docs/config/schema.json', 'tools/setup/first-search-plan.js',
-        'tools/setup/model-readiness.js', 'tools/dict-utils/config.js', 'tools/tooling/install.js', 'tools/tooling/utils.js', 'tools/tooling/provisioning-plan.js',
+        'tools/setup/model-readiness.js', 'tools/setup/first-search-capabilities.js', 'tools/shared/operator-cli-options.js',
+        'src/workspace/child-runtime-env.js', 'bin/dispatch-runtime-env.js', 'tools/dict-utils/config.js', 'tools/tooling/install.js', 'tools/tooling/utils.js', 'tools/tooling/provisioning-plan.js',
         'tools/tooling/install-execution.js', 'tools/tooling/install-storage.js', 'tools/tooling/managed-install.js', 'tools/tooling/install-go-sdk.js',
         'tools/tooling/owned-detect.js', 'tools/tooling/install-preview.js', 'src/shared/managed-installation.js',
         'src/shared/managed-installation-retain.js', 'src/shared/managed-installation-contract.js', 'src/shared/toolchain-env.js',
@@ -125,8 +135,8 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
         .map(relative => [relative, hash(fs.readFileSync(path.join(toolRoot, relative)))]) },
     prerequisites: prerequisitePlans,
     operations, readiness: 'not-probed',
-    commands: { validate: ['node', 'bin/pairofcleats.js', 'index', 'validate', '--repo', repoRoot, '--mode', 'code'],
-      search: ['node', 'bin/pairofcleats.js', 'search', '--repo', repoRoot, '--mode', 'code', '--backend', backend, '--top', '5', '--', '<query from your project>'] },
+    commands: { validate: [process.execPath, path.join(toolRoot, 'bin/pairofcleats.js'), 'index', 'validate', '--repo', repoRoot, '--mode', 'code'],
+      search: [process.execPath, path.join(toolRoot, 'bin/pairofcleats.js'), 'search', '--repo', repoRoot, '--mode', 'code', '--backend', backend, '--top', '5', '--', '<query from your project>'] },
     notes: ['No target dependency installation or trust change.', 'Unknown bytes are not an estimate.', 'Tool installation is distinct from protocol/project qualification.']
   };
   return { ...plan, planId: hash(stableStringify(plan)) };
@@ -136,14 +146,22 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
 const executeSetupStep = async (command, args, options) => {
   const result = await spawnResolvedSubprocess(command, args, { ...options, outputEncoding: 'utf8',
     maxOutputBytes: 1024 * 1024, rejectOnNonZeroExit: false });
-  return { ok: result.exitCode === 0, status: result.exitCode, signal: result.signal };
+  return { ok: result.exitCode === 0 && !result.signal, status: result.exitCode, signal: result.signal };
 };
 
 export const applyFirstSearchPlan = async (approved, { execute = executeSetupStep, signal = null, jsonOutput = false } = {}) => {
   if (signal?.aborted) return { schemaVersion: 1, kind: 'setup-plan-result', planId: approved?.planId || null,
     repoRoot: approved?.repoRoot || null, state: 'cancelled', completed: [], pending: ['config'],
     validation: 'not-performed-cancelled-before-planning', mutationPerformed: false };
-  const current = await createFirstSearchPlan({ repoRoot: approved.repoRoot, ...approved.choices, signal });
+  if (!approved || approved.kind !== 'first-search-plan' || !approved.choices || typeof approved.repoRoot !== 'string') throw new Error('A saved first-search plan is required.');
+  let current;
+  try { current = await createFirstSearchPlan({ ...approved.choices, repoRoot: approved.repoRoot, signal }); }
+  catch (error) {
+    if (!signal?.aborted) throw error;
+    return { schemaVersion: 1, kind: 'setup-plan-result', planId: approved.planId || null,
+      repoRoot: approved.repoRoot, state: 'cancelled', completed: [], pending: ['config'],
+      validation: 'not-performed-cancelled-during-planning', mutationPerformed: false };
+  }
   if (approved.schemaVersion !== 1 || current.planId !== approved.planId) throw Object.assign(new Error('Setup plan is stale or changed. Generate and review a new plan.'), { code: 'ERR_SETUP_PLAN_STALE' });
   if (current.blockers.length) return { schemaVersion: 1, kind: 'setup-plan-result', planId: current.planId,
     repoRoot: current.repoRoot, state: 'blocked', blockers: current.blockers, completed: [], pending: ['config', ...current.operations.map(step => step.id)] };
@@ -156,6 +174,7 @@ export const applyFirstSearchPlan = async (approved, { execute = executeSetupSte
   let pendingSettlement = false;
   let primaryError = null;
   try {
+    if (stableStringify(identifySetupTarget(current.repoRoot)) !== stableStringify(current.inputIdentity.target)) throw new Error('Target directory changed before apply; re-plan.');
     const before = readOptional(current.configPath);
     if ((before === null ? null : hash(before)) !== current.inputIdentity.config) throw new Error('Target config changed before apply; re-plan.');
     let next = before || '{}\n';
@@ -169,25 +188,32 @@ export const applyFirstSearchPlan = async (approved, { execute = executeSetupSte
     await atomicWriteText(current.configPath, next, { mkdir: false, mode: 0o600, createOnly: before === null,
       beforeCommit: () => {
         signal?.throwIfAborted();
+        if (stableStringify(identifySetupTarget(current.repoRoot)) !== stableStringify(current.inputIdentity.target)) throw new Error('Target directory changed while staging; re-plan.');
         const latest = readOptional(current.configPath);
         if ((latest === null ? null : hash(latest)) !== current.inputIdentity.config) throw new Error('Target config changed while staging; re-plan.');
       } });
     outcome.completed.push('config');
     outcome.pending.shift();
+    const appliedConfigHash = hash(next);
     for (const step of current.operations) {
       if (signal?.aborted) { outcome.state = 'cancelled'; break; }
+      if (stableStringify(identifySetupTarget(current.repoRoot)) !== stableStringify(current.inputIdentity.target)) throw new Error('Target directory changed during apply; re-plan.');
+      const targetConfig = readOptional(current.configPath);
+      if (targetConfig === null || hash(targetConfig) !== appliedConfigHash) throw new Error('Target config changed during apply; re-plan.');
+      const env = step.id === 'index' ? await resolveWorkspaceChildRuntimeEnv({ repoRoot: current.repoRoot, buildArgs: step.args.slice(3), baseEnv: process.env }) : { ...process.env };
       const result = await execute(step.command, step.args, { cwd: current.applicationRoot,
-        stdio: jsonOutput ? ['ignore', 'ignore', 'inherit'] : 'inherit', env: process.env, signal });
-      if (result.ok !== true) {
-        outcome.state = 'blocked';
-        outcome.failed = { id: step.id, status: result.status ?? null, signal: result.signal || null };
+        stdio: jsonOutput ? ['ignore', 'ignore', 'inherit'] : 'inherit', env, signal });
+      if (result?.ok !== true || result.signal || signal?.aborted) {
+        outcome.state = signal?.aborted ? 'cancelled' : 'blocked';
+        outcome.failed = { id: step.id, status: result?.status ?? null, signal: result?.signal || null };
         break;
       }
       outcome.completed.push(step.id);
       outcome.pending.shift();
     }
     if (outcome.pending.length === 0) outcome.state = 'complete';
-    return { ...outcome, commands: current.commands, qualification: 'Index validation completed only when listed; protocol/project/model inference readiness is not inferred.' };
+    return { ...outcome, commands: current.commands, capabilities: describeAppliedFirstSearchCapabilities(current, outcome),
+      firstSearch: 'not-performed', qualification: 'Index validation completed only when listed; protocol/project/model inference readiness is not inferred.' };
   } catch (error) {
     primaryError = error;
     outcome.state = signal?.aborted ? 'cancelled' : 'blocked';
@@ -209,7 +235,8 @@ export const applyFirstSearchPlan = async (approved, { execute = executeSetupSte
       error.setupOutcome = outcome;
       throw error;
     }
-    return { ...outcome, commands: current.commands };
+    return { ...outcome, commands: current.commands, capabilities: describeAppliedFirstSearchCapabilities(current, outcome),
+      firstSearch: 'not-performed', nextAction: 'Resolve the failed step, then generate and review a fresh target-qualified plan.' };
   } finally {
     if (!pendingSettlement) {
       try { await releaseFileLockOrThrow(lock); }
