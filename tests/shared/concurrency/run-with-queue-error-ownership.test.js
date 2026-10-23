@@ -23,7 +23,7 @@ for (const value of [undefined, null, false, 0, '']) {
   assert.equal(handler.retryable, false);
 }
 
-let originalClosed = false, secondaryClosed = false, originalReads = 0, secondaryReads = 0;
+let originalClosed = true, secondaryClosed = false, originalReads = 0, secondaryReads = 0;
 const original = new Error('original native ownership');
 const exactCapability = Object.freeze({ identity: 'original inert owner' });
 Object.defineProperty(original, 'nativeResourceOwner', { value: exactCapability });
@@ -37,6 +37,7 @@ const secondary = Object.freeze(Object.assign(new Error('callback native ownersh
 }));
 const both = await rejected(run(async () => { throw original; }, {
   onError(error) {
+    originalClosed = false;
     error.cacheOwnershipPending = false;
     error.cacheOwnershipReleased = () => true;
     error.code = 'ERR_REPLACED_DIAGNOSTIC';
@@ -89,10 +90,11 @@ const pending = Object.freeze(Object.assign(new Error('best effort native owner'
   }
 }));
 const ordinary = Object.freeze(new Error('independent best effort failure'));
+let ordinaryStarted = false;
 const bestEffort = await rejected(runWithQueue(new PQueue({ concurrency: 1 }), [pending, ordinary],
-  async error => { throw error; }, { bestEffort: true }));
-assert.deepEqual(bestEffort.errors, [pending, ordinary]);
-assert.equal(bestEffort.cause, pending);
+  async error => { if (error === ordinary) ordinaryStarted = true; throw error; }, { bestEffort: true }));
+assert.equal(ordinaryStarted, false, 'pending native ownership stops best-effort admission');
+assert.equal(bestEffort.errors[0].cause, pending);
 assert.equal(bestEffort.cacheOwnershipReleased(), false);
 bestEffortClosed = true;
 assert.equal(bestEffort.cacheOwnershipReleased(), true);

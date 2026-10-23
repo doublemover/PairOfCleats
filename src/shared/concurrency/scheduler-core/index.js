@@ -5,6 +5,7 @@ import { createSchedulerCoreConfig } from './config.js';
 import { createSchedulerDispatch } from './dispatch.js';
 import { createSchedulerQueueLifecycle } from './queue-lifecycle.js';
 import { createSchedulerShutdown } from './shutdown.js';
+import { createSchedulerDispatchReplay } from '../scheduler-dispatch-replay.js';
 
 /**
  * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
@@ -36,6 +37,9 @@ export function createBuildScheduler(input = {}) {
   };
 
   const queueLifecycle = createSchedulerQueueLifecycle({ config });
+  const dispatchReplay = createSchedulerDispatchReplay({ nowMs: config.nowMs,
+    startedAtMs: config.startedAtMs, starvationMs: config.starvationMs });
+  dispatchReplay.configure(input.dispatchReplay);
   const cloneTokenState = () => ({
     cpu: { ...state.tokens.cpu },
     io: { ...state.tokens.io },
@@ -79,7 +83,8 @@ export function createBuildScheduler(input = {}) {
     state,
     queueLifecycle,
     adaptiveController,
-    captureTelemetryIfDue
+    captureTelemetryIfDue,
+    dispatchReplay
   });
   const shutdownController = createSchedulerShutdown({
     config,
@@ -136,6 +141,11 @@ export function createBuildScheduler(input = {}) {
     // busy; it never queues behind a parent's retained byte/memory reservation.
     scheduleIfAvailable: dispatch.scheduleIfAvailable,
     stats,
+    // Internal learned-profile evidence only; these observers never select work.
+    setDispatchReplayContext: dispatchReplay.configure,
+    getDispatchReplay: dispatchReplay.snapshot,
+    getDispatchReplayResourceIdentity: dispatch.getReplayResourceIdentity,
+    noteDispatchReplayCommit: dispatchReplay.observeCommit,
     shutdown: shutdownController.shutdown,
     setLimits: shutdownController.setLimits,
     registerQueue: (name, queueConfig) => {

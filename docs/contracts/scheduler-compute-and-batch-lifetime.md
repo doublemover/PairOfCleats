@@ -108,12 +108,48 @@ pressure and uncertain backend lifetime errors propagate. Accepted observer
 failures cannot trigger duplicate analysis. Embedded/native/compiler routes and
 parser-cache budgets still need separate ownership qualification.
 
-The authored differential and real Worker/process transport controls remain
+The authored differential and real Worker/process/facade transport controls remain
 unexecuted pending a frozen shared candidate. No parity, measured break-even,
 throughput improvement or cross-platform acceptance is established by source.
-Aggregate scheduler telemetry alone cannot reconstruct exact ready sets for
-decision-level replay; additional admissibility and commit-frontier evidence is
-required before a cost comparator can make evaluable recommendations.
+## Exact-ready-set shadow evidence
+
+The existing learned-auto-profile opt-in can configure bounded dispatch replay.
+The scheduler records anonymous task ordinals, enqueue/start/settlement/outcome,
+byte/resource reservations, and the exact pending/admissible set immediately
+before its existing dispatch reserves resources. It uses the same admission
+function as live scheduling, including writer pressure, active/suspended queue
+limits, tokens, bytes and adaptive surface caps. It records current capacity and
+an identity for configured limits. Paths and runtime/parser handles are omitted.
+
+The producer forwards evidence only after existing ordered/dependency gates.
+Duration predictions use a bounded snapshot of prior empirical file-cost buckets.
+Profiles must carry matching producer/config/parser/runtime/repository-feature
+and resource identities; current-build observations cannot train that run's
+decision. Old, stale or missing profiles retain baseline behavior and produce
+explicit unevaluable decisions. No public tuning knob or live policy is added.
+
+The offline comparator reads recorded sets. It applies the explicit contiguous
+commit window/frontier and existing starvation threshold, then shortest predicted
+duration with enqueue-ordinal ties. It reports baseline/proposed IDs, predictions,
+admission/age/commit constraints, observed baseline outcomes, divergence, absolute
+prediction error, queue wait, commit delay and incomplete exclusions. Commit time
+comes only from the actual ordered owner; commit during a task's result callback
+can precede full scheduler settlement and has zero post-settlement delay.
+
+At most 512 tasks, 128 dispatches, 64 pending candidates per exact set and 2 MiB
+of conservatively charged trace data are retained. Overflow, missing task rows,
+malformed ordering, absent dependencies/frontier and changed resource limits are
+excluded. Shutdown/cancellation retains incomplete/rejected outcomes. Comparison
+never invents future resource releases, counterfactual concurrency, throughput or
+unobserved timings. Held-out calibration, runtime overhead, quality/performance
+acceptance and actual environment qualification remain deferred.
+
+Outer queue retries and ordered error/skip callbacks cannot replace unconfirmed
+worker/cache cleanup ownership. Known unresolved cleanup codes and original
+pending-resource observers stop retry and recovery callbacks, including
+best-effort producer continuation; independently retryable settled failures keep
+their existing retry policy. Pressure lifecycle idle accounting uses dispatched
+backend work through recovery, separately from request/throttle-wait counters.
 
 ## Focused consumer controls
 
@@ -127,10 +163,15 @@ required before a cost comparator can make evaluable recommendations.
 - `tests/indexing/file-processor/coarse-worker-file-analysis.test.js`
 - `tests/indexing/file-processor/coarse-worker-production-route.test.js`
 - `tests/indexing/workers/coarse-file-analysis-transport.test.js`
+- `tests/indexing/workers/coarse-file-analysis-facade.test.js`
+- `tests/indexing/workers/pressure-reconfigure-backend-ownership.test.js`
+- `tests/indexing/runtime/scheduler-shadow-producer.test.js`
 - `tests/shared/concurrency/scheduler-compute-suspension.test.js`
 - `tests/shared/concurrency/scheduler-detached-wait-ownership.test.js`
 - `tests/shared/concurrency/scheduler-invalid-resource-request.test.js`
 - `tests/shared/concurrency/scheduler-shared-adapter-cap-authority.test.js`
+- `tests/shared/concurrency/scheduler-exact-ready-replay.test.js`
+- `tests/shared/concurrency/run-with-queue-resource-recovery-authority.test.js`
 
 Execution acceptance remains tied to the exact tested source and environment.
 Author-workspace `.testLogs` receipts are historical observations and are not

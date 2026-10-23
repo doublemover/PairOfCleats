@@ -1,15 +1,26 @@
 import { runWithSchedulerTaskLease, currentSchedulerTaskLease } from '../scheduler-task-scope.js';
 import { createAbortError, isAbortSignal, coerceAbortSignal } from '../../abort.js';
 import { appendBounded } from '../scheduler-telemetry.js';
+import { schedulerReplayLimitIdentity } from '../scheduler-dispatch-replay.js';
 
 export function createSchedulerDispatch({
   config,
   state,
   queueLifecycle,
   adaptiveController,
-  captureTelemetryIfDue
+  captureTelemetryIfDue,
+  dispatchReplay
 }) {
   const blockedScans = new WeakMap();
+  const replayEnvelope = () => ({ tokens: { cpu: { ...state.tokens.cpu }, io: { ...state.tokens.io }, mem: { ...state.tokens.mem } },
+    globalBytes: state.globalInFlightBytes, globalMaxBytes: config.globalMaxInFlightBytes,
+    writeBackpressure: { ...queueLifecycle.evaluateWriteBackpressure() },
+    queues: config.queueOrder.map(entry => ({ name: entry.name, surface: entry.surface, running: entry.running,
+      suspendedCpu: entry.suspendedCpu, concurrency: entry.concurrency, configuredConcurrency: entry.configuredConcurrency,
+      adapterConcurrency: entry.adapterConcurrency, maxPending: entry.maxPending, maxPendingBytes: entry.maxPendingBytes,
+      maxInFlightBytes: entry.maxInFlightBytes, inFlightBytes: entry.inFlightBytes,
+      priority: entry.priority, weight: entry.weight,
+      surfaceConcurrency: config.adaptiveSurfaceStates.get(entry.surface)?.currentConcurrency ?? null })) });
   const admissionIdentity = (queue, pressure) => JSON.stringify([
     state.tokens.cpu.used,state.tokens.cpu.total,state.tokens.io.used,state.tokens.io.total,
     state.tokens.mem.used,state.tokens.mem.total,queue.running,queue.suspendedCpu,queue.resumeTarget?.running,queue.resumeTarget?.suspendedCpu,queue.resumeTarget?.concurrency,queue.concurrency,queue.maxPending,
@@ -258,6 +269,9 @@ export function createSchedulerDispatch({
   const startQueuedTask = (queue, index, starved = false) => {
     const next = queue.pending[index];
     if (!next) return;
+    dispatchReplay?.capture({ queues: config.queueOrder, baseline: next,
+      admissionReason: admissionBlockReason,
+      envelope: replayEnvelope });
     queue.pending.splice(index, 1);
     queue.pendingBytes = Math.max(0, config.normalizeByteCount(queue.pendingBytes) - config.normalizeByteCount(next.bytes));
     if (typeof next.detachAbort === 'function') {
@@ -277,6 +291,7 @@ export function createSchedulerDispatch({
     const used = reserve(queue, next.tokens);
     const lease = createTaskLease(queue, used, next.signal);
     const startedAt = config.nowMs();
+    dispatchReplay?.observeStart(next);
     queue.runningSince.set(next, startedAt);
     const done = Promise.resolve()
       .then(() => {
@@ -303,6 +318,7 @@ export function createSchedulerDispatch({
       })
       .then(value => ({ value, failed: false }), error => ({ error, failed: true }))
       .then(outcome => {
+        dispatchReplay?.observeEnd(next, outcome.failed ? 'failed' : 'completed');
         appendBounded(queue.stats.runSamples, Math.max(0, config.nowMs() - startedAt), config.WAIT_TIME_SAMPLE_LIMIT);
         queue.runningSince.delete(next);
         queue.running -= 1;
@@ -438,6 +454,11 @@ export function createSchedulerDispatch({
         enqueuedAt: config.nowMs(),
         detachAbort: null
       };
+      dispatchReplay?.register(pendingEntry, queueName, tokensReq?.shadow);
+      pendingEntry.reject = error => {
+        dispatchReplay?.observeEnd(pendingEntry, 'rejected');
+        reject(error);
+      };
       if (scheduleSignal) {
         const onAbort = () => {
           const pendingIndex = queue.pending.indexOf(pendingEntry);
@@ -452,7 +473,7 @@ export function createSchedulerDispatch({
           config.counters.rejected += 1;
           config.counters.rejectedByReason.abort += 1;
           captureTelemetryIfDue('abort');
-          reject(createAbortError());
+          pendingEntry.reject(createAbortError());
           pump();
         };
         scheduleSignal.addEventListener('abort', onAbort, { once: true });
@@ -463,7 +484,7 @@ export function createSchedulerDispatch({
           queue.stats.rejectedAbort += 1;
           config.counters.rejected += 1;
           config.counters.rejectedByReason.abort += 1;
-          reject(createAbortError());
+          pendingEntry.reject(createAbortError());
           return;
         }
       }
@@ -481,6 +502,7 @@ export function createSchedulerDispatch({
   const scheduleIfAvailable = (queueName, tokensReq, fn) => enqueue(queueName, tokensReq, fn, true);
 
   return {
+    getReplayResourceIdentity: () => schedulerReplayLimitIdentity(replayEnvelope()),
     canStart,
     snapshotQueueAdmission,
     reserve,

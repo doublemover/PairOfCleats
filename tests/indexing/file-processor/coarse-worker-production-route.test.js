@@ -7,6 +7,7 @@ import { createTokenizationBuffers, tokenizeChunkText } from '../../../src/index
 import { createFileProcessorFixture, writeFixtureFile, createScannedFileEntry,
   createFileProcessorForTest } from './file-processor-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runWithQueue } from '../../../src/shared/concurrency/run-with-queue.js';
 
 applyTestEnv({ testing: '1' });
 // AUTHORED, execution deferred until the shared source wave is frozen.
@@ -30,7 +31,9 @@ const make = overrides => createFileProcessorForTest({ root: fixture.repoRoot,
 const entry = createScannedFileEntry({ abs: file.targetPath, rel: file.rel, stat: file.stat });
 try {
   const expected = await make({ queues: { cpu }, tokenizationStats: {} }).processFile(entry, 0);
-  const actual = await make({ queues: { cpu }, workerPool, tokenizationStats }).processFile(entry, 0);
+  const [actual] = await runWithQueue(cpu, [entry], row =>
+    make({ queues: { cpu }, workerPool, tokenizationStats, useCpuQueue: false }).processFile(row, 0),
+  { estimateBytes: row => fileAnalysisAdmissionBytes(row.stat.size) });
   // Timing observations use wall clocks; compare the persistent file/chunk facts.
   for (const key of ['chunks', 'fileRelations', 'fileInfo', 'parseCheckpoint', 'lexicalCheckpoint']) {
     assert.deepEqual(actual?.[key], expected?.[key], key);

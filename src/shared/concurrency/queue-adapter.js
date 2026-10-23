@@ -123,6 +123,7 @@ export function createSchedulerQueueAdapter({
     if (overrides.cpu > 0) baseTokens.cpu = Math.max(baseTokens.cpu || 0, overrides.cpu);
     const tokenRequest = {
       ...baseTokens,
+      ...(options?.shadow ? { shadow: options.shadow } : {}),
       ...(bytes > 0 ? { bytes } : {}),
       ...(signal ? { signal } : {})
     };

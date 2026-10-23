@@ -3,6 +3,16 @@ import { createAbortError, isAbortSignal, throwIfAborted } from '../abort.js';
 import { awaitWithKeepalive } from '../promise-keepalive.js';
 
 const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
+const unsafeRecoveryCodes = new Set(['ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', 'BUILD_CLEANUP_TIMEOUT',
+  'PISCINA_DESTROY_TIMEOUT', 'PISCINA_FORCE_TERMINATE_INCOMPLETE']);
+const unsafeRecovery = error => {
+  if (!objectLike(error)) return false;
+  try {
+    if (unsafeRecoveryCodes.has(error.code) || error.workerOwnershipPending === true) return true;
+    const observer = captureQueueOwnership(error);
+    return Boolean(observer && !observer());
+  } catch { return true; }
+};
 const captureQueueOwnership = error => {
   if (!objectLike(error)) return null;
   try {
@@ -58,6 +68,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   const onBeforeDispatch = typeof options.onBeforeDispatch === 'function'
     ? options.onBeforeDispatch
     : null;
+  const schedulerMetadata = typeof options.schedulerMetadata === 'function' ? options.schedulerMetadata : null;
   const retries = Number.isFinite(Number(options.retries)) ? Math.max(0, Math.floor(Number(options.retries))) : 0;
   const retryDelayMs = Number.isFinite(Number(options.retryDelayMs)) ? Math.max(0, Math.floor(Number(options.retryDelayMs))) : 0;
   const backoffMs = Number.isFinite(Number(options.backoffMs)) ? Math.max(0, Math.floor(Number(options.backoffMs))) : null;
@@ -112,6 +123,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   }
   let aborted = false;
   let firstError = null;
+  let fatalResourceFailure = null;
   const errors = [];
   let doneCount = 0;
   const normalizePendingBytes = (value) => {
@@ -137,7 +149,10 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   const recordError = async (err, ctx) => {
     const primary = objectLike(err) ? err : new Error('Queue task failed', { cause: err });
     let error = primary;
-    if (onError) {
+    const resourceUnsafe = unsafeRecovery(primary);
+    if (resourceUnsafe) { fatalResourceFailure ||= primary; markAborted(); }
+    // A skip/publication callback cannot retire a failed worker/native owner.
+    if (onError && !resourceUnsafe) {
       const originalObserver = captureQueueOwnership(primary);
       const originalDescriptors = captureFailureDescriptors(primary);
       let callbackError, callbackFailed = false;
@@ -182,6 +197,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   const runWorker = async (item, ctx) => {
     let attempt = 0;
     while (true) {
+      if (fatalResourceFailure) throw fatalResourceFailure;
       throwIfAborted(signal);
       let result;
       try {
@@ -189,9 +205,13 @@ export async function runWithQueue(queue, items, worker, options = {}) {
       } catch (err) {
         const originalObserver = captureQueueOwnership(err);
         const primaryDescriptors = captureFailureDescriptors(err);
+        if (originalObserver && !originalObserver()) {
+          const failure = aggregateQueueFailures([err], 'Queue operation retains original resource ownership',
+            { originalObservers: [originalObserver], primaryDescriptors });
+          fatalResourceFailure ||= failure; markAborted(); throw failure;
+        }
+        if (unsafeRecovery(err)) { fatalResourceFailure ||= err; markAborted(); throw err; }
         if (primaryDescriptors?.retryable?.value === false) throw err;
-        if (originalObserver && !originalObserver()) throw aggregateQueueFailures([err],
-          'Queue operation retains original resource ownership', { originalObservers: [originalObserver], primaryDescriptors });
         let retryable;
         try { retryable = err?.retryable; }
         catch (classificationError) {
@@ -241,6 +261,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   const enqueue = async (item, index) => {
     const ctx = { index, item, signal };
     let taskBytes = 0;
+    let shadow = null;
     if (aborted) return;
     if (signal?.aborted) {
       markAborted();
@@ -262,6 +283,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     }
     try {
       taskBytes = resolveItemBytes(item, ctx);
+      shadow = schedulerMetadata?.(item, ctx) || null;
     } catch (err) {
       await recordError(err, ctx);
       doneCount += 1;
@@ -293,6 +315,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
         () => runWorker(item, ctx),
         {
           bytes: taskBytes,
+          ...(shadow ? { shadow } : {}),
           ...(signal ? { signal } : {})
         }
       );

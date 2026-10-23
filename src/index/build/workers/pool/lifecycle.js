@@ -24,7 +24,8 @@ import { destroyPiscinaPool } from '../../../../shared/piscina-cleanup.js';
  * @param {number} [input.upscaleRssThreshold]
  * @param {number} [input.upscaleGcThreshold]
  * @param {(input:{rssPressure:number,gcPressure:number,rssThreshold:number,gcThreshold:number})=>boolean} [input.shouldDownscaleWorkersForPressure]
- * @param {()=>number} [input.getActiveTasks]
+ * @param {()=>number} [input.getActiveTasks] Dispatched backend operations through
+ * settled execution/recovery; excludes requests awaiting throttle or ensurePool.
  * @param {(input:{pool:string})=>void} [input.incWorkerRetries]
  * @param {number|null} [input.cleanupTimeoutMs]
  * @param {(maxWorkers:number)=>unknown} input.createPool
