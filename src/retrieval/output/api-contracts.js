@@ -8,6 +8,12 @@ const formatSymbolLabel = (symbol) => {
 export const renderApiContracts = (report) => {
   const lines = [];
   lines.push('API Contracts');
+  const evidence = report?.callEvidence;
+  if (evidence) {
+    lines.push(`Recorded target calls: ${evidence.qualifiedCallCount}; reported: ${evidence.reportedCallCount}; omitted by selection/caps: ${evidence.omittedQualifiedCallCount}`);
+    lines.push(`Unresolved calls: ${evidence.unresolvedCallCount}; details: ${evidence.unresolvedDetails}`);
+    for (const [reason, count] of Object.entries(evidence.unresolvedByReason || {})) if (count) lines.push(`  ${reason}: ${count}`);
+  }
   const warningCap = Array.isArray(report?.truncation)
     ? report.truncation.find(entry => entry.cap === 'maxWarnings') : null;
   if (warningCap) {
@@ -36,7 +42,8 @@ export const renderApiContracts = (report) => {
       lines.push(`  calls: ${calls.length}`);
       for (const call of calls.slice(0, 3)) {
         const arity = Number.isFinite(call.arity) ? call.arity : 'n/a';
-        lines.push(`    - arity ${arity} @ ${call.file || 'unknown'}`);
+        const target = call.join ? ` -> ${call.join.symbolId} [${call.targetChunkUid}; ${call.join.qualification}]` : '';
+        lines.push(`    - arity ${arity} @ ${call.file || 'unknown'}${target}`);
       }
     }
     const warnings = Array.isArray(entry.warnings) ? entry.warnings : [];

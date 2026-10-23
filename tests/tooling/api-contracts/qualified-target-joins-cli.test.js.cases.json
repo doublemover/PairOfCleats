@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["js-clean", "ts-clean", "js-violation", "ts-violation"]
+}

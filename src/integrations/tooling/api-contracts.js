@@ -20,6 +20,7 @@ import { renderApiContracts } from '../../retrieval/output/api-contracts.js';
 import { loadUserConfig } from '../../shared/dict-utils.js';
 import { getRepoRoot } from '../../shared/repo-paths.js';
 import { writeJsonLinesFile } from '../../shared/json-stream/jsonl-write.js';
+import { apiContractSymbolIdentity, buildApiContractTargetJoins, createApiContractCallTargetIndex } from './api-contract-targets.js';
 
 /**
  * Build non-null API contract cap payload used in report metadata.
@@ -84,27 +85,18 @@ const collectRows = async (iterator) => {
  *
  * @param {string} indexDir
  * @param {object} manifest
- * @returns {Promise<Map<string, object[]>|null>}
+ * @returns {Promise<object|null>} Opaque captured call index.
  */
 const loadCallSitesByTarget = async (indexDir, manifest) => {
   const jsonlPaths = resolveJsonlSources(indexDir, manifest, 'call_sites');
   if (!jsonlPaths) return null;
-  const map = new Map();
+  const builder = createApiContractCallTargetIndex();
   for (const target of jsonlPaths) {
     for await (const callSite of readJsonlRows(target)) {
-      if (!callSite) continue;
-      const keys = new Set();
-      if (callSite.targetChunkUid) keys.add(callSite.targetChunkUid);
-      if (callSite.calleeNormalized) keys.add(callSite.calleeNormalized);
-      for (const key of keys) {
-        if (!key) continue;
-        const list = map.get(key) || [];
-        list.push(callSite);
-        map.set(key, list);
-      }
+      builder.add(callSite);
     }
   }
-  return map;
+  return builder.finish();
 };
 
 
@@ -384,6 +376,7 @@ export const buildApiContractsReport = ({
   indexCompatKey = null,
   repo = null,
   indexDir = null,
+  metrics = null,
   now = () => new Date().toISOString()
 } = {}) => {
   const maxSymbols = Number.isFinite(caps.maxSymbols) ? Math.max(0, Math.floor(caps.maxSymbols)) : null;
@@ -392,6 +385,8 @@ export const buildApiContractsReport = ({
     : null;
   const maxWarnings = Number.isFinite(caps.maxWarnings) ? Math.max(0, Math.floor(caps.maxWarnings)) : null;
   const capsPayload = buildCapsPayload({ maxSymbols, maxCallsPerSymbol, maxWarnings });
+  const reportProvenance = resolveProvenance({ provenance, indexSignature, indexCompatKey,
+    capsUsed: { apiContracts: capsPayload }, repo, indexDir, now, label: 'ApiContracts' });
 
   const truncation = [];
   const warnings = [];
@@ -404,8 +399,14 @@ export const buildApiContractsReport = ({
     return true;
   };
 
-  const sortedSymbols = Array.isArray(symbols) ? [...symbols] : [];
-  sortedSymbols.sort((a, b) => String(a.symbolId || '').localeCompare(String(b.symbolId || '')));
+  const sortedSymbols = Array.isArray(symbols)
+    ? [...new Map(symbols.map(symbol => [apiContractSymbolIdentity(symbol), symbol])).values()] : [];
+  sortedSymbols.sort((a, b) => String(a.symbolId || a.id || '').localeCompare(String(b.symbolId || b.id || ''))
+    || String(a.file || '').localeCompare(String(b.file || ''))
+    || String(a.chunkUid || '').localeCompare(String(b.chunkUid || ''))
+    || String(a.signature || '').localeCompare(String(b.signature || '')));
+  const joinedCalls = buildApiContractTargetJoins({ symbols: sortedSymbols, callSites, callSitesByTarget,
+    provenance: reportProvenance, metrics });
 
   let selected = sortedSymbols;
   if (onlyExports) {
@@ -428,48 +429,9 @@ export const buildApiContractsReport = ({
     selected = selected.slice(0, maxSymbols);
   }
 
-  const resolvedCallSitesByTarget = callSitesByTarget instanceof Map
-    ? callSitesByTarget
-    : new Map();
-  if (!(callSitesByTarget instanceof Map)) {
-    for (const callSite of Array.isArray(callSites) ? callSites : []) {
-      if (!callSite) continue;
-      const keys = new Set();
-      if (callSite.targetChunkUid) keys.add(callSite.targetChunkUid);
-      if (callSite.calleeNormalized) keys.add(callSite.calleeNormalized);
-      for (const key of keys) {
-        if (!key) continue;
-        const list = resolvedCallSitesByTarget.get(key) || [];
-        list.push(callSite);
-        resolvedCallSitesByTarget.set(key, list);
-      }
-    }
-  }
-  const sortCallSites = (a, b) => {
-    const fileCmp = String(a.file || '').localeCompare(String(b.file || ''));
-    if (fileCmp) return fileCmp;
-    const lineCmp = Number(a.startLine || 0) - Number(b.startLine || 0);
-    if (lineCmp) return lineCmp;
-    return String(a.callSiteId || '').localeCompare(String(b.callSiteId || ''));
-  };
-  for (const list of resolvedCallSitesByTarget.values()) {
-    list.sort(sortCallSites);
-  }
-
   const symbolEntries = selected.map((symbol) => {
     const symbolId = symbol.symbolId || symbol.id || null;
-    const targetCandidates = [];
-    if (symbol.chunkUid) targetCandidates.push(symbol.chunkUid);
-    if (symbolId) targetCandidates.push(symbolId);
-    if (symbol.name) targetCandidates.push(symbol.name);
-    let rawCalls = [];
-    for (const key of targetCandidates) {
-      const list = resolvedCallSitesByTarget.get(key);
-      if (list && list.length) {
-        rawCalls = list;
-        break;
-      }
-    }
+    const rawCalls = joinedCalls.forSymbol(symbol);
 
     let observedCalls = rawCalls;
     const entryTruncation = [];
@@ -507,7 +469,8 @@ export const buildApiContractsReport = ({
           const warning = {
             code: 'ARITY_MISMATCH',
             message: `Observed arity ${arity} differs from signature arity. ${expected}`.trim(),
-            data: { symbolId, callSiteId: call.callSiteId }
+            data: { symbolId, callSiteId: call.callSiteId, targetChunkUid: call.targetChunkUid,
+              indexSignature: call.join.indexSignature }
           };
           if (warn(warning)) {
             entryWarnings.push(warning);
@@ -530,16 +493,28 @@ export const buildApiContractsReport = ({
       },
       observedCalls: observedCalls.map((call) => ({
         arity: Array.isArray(call.args) ? call.args.length : null,
-        args: Array.isArray(call.args) ? call.args : null,
+        args: Array.isArray(call.args) ? [...call.args] : null,
         callSiteId: call.callSiteId || null,
         file: call.file || null,
         startLine: Number.isFinite(call.startLine) ? call.startLine : null,
-        confidence: Number.isFinite(call.confidence) ? call.confidence : null
+        start: Number.isFinite(call.start) ? call.start : null,
+        end: Number.isFinite(call.end) ? call.end : null,
+        startCol: Number.isFinite(call.startCol) ? call.startCol : null,
+        endLine: Number.isFinite(call.endLine) ? call.endLine : null,
+        endCol: Number.isFinite(call.endCol) ? call.endCol : null,
+        confidence: Number.isFinite(call.confidence) ? call.confidence : null,
+        callerChunkUid: call.callerChunkUid,
+        calleeNormalized: call.calleeNormalized,
+        targetChunkUid: call.targetChunkUid,
+        semanticRef: call.semanticRef ? structuredClone(call.semanticRef) : null,
+        join: call.join
       })),
       warnings: entryWarnings.length ? entryWarnings : null,
       truncation: entryTruncation.length ? entryTruncation : null
     };
   });
+  joinedCalls.evidence.reportedCallCount = symbolEntries.reduce((sum, entry) => sum + entry.observedCalls.length, 0);
+  joinedCalls.evidence.omittedQualifiedCallCount = joinedCalls.evidence.qualifiedCallCount - joinedCalls.evidence.reportedCallCount;
 
   const omittedWarnings = detectedWarnings - warnings.length;
   if (omittedWarnings > 0) {
@@ -554,22 +529,14 @@ export const buildApiContractsReport = ({
 
   const report = {
     version: '1.0.0',
-    provenance: resolveProvenance({
-      provenance,
-      indexSignature,
-      indexCompatKey,
-      capsUsed: { apiContracts: capsPayload },
-      repo,
-      indexDir,
-      now,
-      label: 'ApiContracts'
-    }),
+    provenance: reportProvenance,
     options: {
       onlyExports,
       failOnWarn,
       caps: capsPayload
     },
     symbols: symbolEntries,
+    callEvidence: joinedCalls.evidence,
     truncation: truncation.length ? truncation : null,
     warnings: warnings.length ? warnings : null
   };

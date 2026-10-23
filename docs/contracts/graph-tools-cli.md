@@ -222,10 +222,20 @@ aliased local exports. Internal declarations stay excluded. Missing or unknown
 JS/TS identity produces `EXPORT_IDENTITY_UNAVAILABLE`; validation is incomplete
 and `--failOnWarn` fails even when no warning details are retained.
 
+Calls with explicit targets stay attached to those exact declarations. Same-name
+declarations, imported spellings and caller-map buckets cannot retarget a call.
+Unresolved or ambiguous lexical calls are counted separately and never treated
+as definitive arity violations. The report's `callEvidence` records those counts
+and calls omitted by export/symbol/call caps; unresolved details are counts only.
+Observed calls retain `targetChunkUid` and a `join` record with admitted symbol
+and index authority. These are recorded structural targets, not runtime dispatch
+or feasibility proof.
+
 ### Output
 - JSON: `ApiContractsReport` (validated)
 - MD: deterministic ordering by `symbolId`:
   - per symbol: signature → observed calls → retained warnings
+  - observed call labels include their recorded target/join qualification
   - a report-wide summary exposes detected, retained and omitted warning counts
     when details were dropped; legacy unknown omission counts stay unreported
 

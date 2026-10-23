@@ -2,6 +2,7 @@ import { compileSchema, createAjv } from '../../shared/validation/ajv-factory.js
 import { ARTIFACT_SCHEMA_DEFS } from '../schemas/artifacts.js';
 import { toValidationResult } from './result.js';
 import { validateMetadataV2Semantics } from './metadata.js';
+import { apiContractProjectionErrors } from '../schemas/api-contracts.js';
 
 const ajv = createAjv({
   allErrors: true,
@@ -17,6 +18,10 @@ export function validateArtifact(name, data) {
   const validator = ARTIFACT_VALIDATORS[name];
   if (!validator) return { ok: true, errors: [] };
   const result = toValidationResult(validator, data);
+  if (result.ok && name === 'api_contracts' && Array.isArray(data)) {
+    result.errors.push(...apiContractProjectionErrors({ symbols: data }));
+    result.ok = result.errors.length === 0;
+  }
   if (result.ok && (name === 'chunk_meta' || name === 'chunk_meta_cold') && Array.isArray(data)) {
     for (let index = 0; index < data.length; index += 1) {
       const errors = validateMetadataV2Semantics(data[index]?.metaV2);

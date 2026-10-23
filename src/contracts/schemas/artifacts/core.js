@@ -1,4 +1,5 @@
 import { crossFileCoverageSchema } from '../relation-coverage.js';
+import { API_CONTRACT_ENTRY_SCHEMA } from '../api-contracts.js';
 import { METADATA_V2_SCHEMA } from '../analysis.js';
 import { MINHASH_HASH_IDENTITY } from '../../../index/minhash.js';
 import {
@@ -505,50 +506,7 @@ export const CORE_POST_SYMBOL_ARTIFACT_SCHEMA_DEFS = {
   },
   api_contracts: {
     type: 'array',
-    items: {
-      type: 'object',
-      required: ['symbol', 'signature', 'observedCalls'],
-      properties: {
-        symbol: {
-          type: 'object',
-          required: ['symbolId'],
-          properties: {
-            symbolId: { type: 'string' },
-            chunkUid: nullableString,
-            file: nullableString,
-            name: nullableString,
-            kind: nullableString
-          },
-          additionalProperties: true
-        },
-        signature: {
-          type: 'object',
-          properties: {
-            declared: nullableString,
-            tooling: nullableString
-          },
-          additionalProperties: true
-        },
-        observedCalls: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              arity: { type: ['number', 'null'] },
-              args: { type: ['array', 'null'], items: { type: 'string' } },
-              callSiteId: nullableString,
-              file: nullableString,
-              startLine: { type: ['number', 'null'] },
-              confidence: { type: ['number', 'null'] }
-            },
-            additionalProperties: true
-          }
-        },
-        warnings: { type: ['array', 'null'], items: { type: 'object' } },
-        truncation: { type: ['array', 'null'], items: { type: 'object' } }
-      },
-      additionalProperties: true
-    }
+    items: API_CONTRACT_ENTRY_SCHEMA
   }
 };
 

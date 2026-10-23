@@ -206,6 +206,31 @@ record reports the detected count in `observed` and the actual dropped count in
 by itself imply truncation. Symbols/calls excluded by their own caps remain
 unexamined evidence, with their existing truncation records.
 
+Observed calls join only through a recorded `targetChunkUid` and a checked,
+unambiguous symbol/chunk identity in the entire admitted inventory. Callee names
+and caller-supplied bucket keys are lexical hints, never alternate target IDs.
+Export filtering and symbol/call display caps run after target qualification and
+cannot make a lexical hint authoritative. A call explicitly targeting another
+declaration cannot supply this declaration's arity warning.
+
+Each newly produced observed call retains its target, caller, source coordinates,
+optional canonical semantic invocation reference, and `join` record. The join
+records the symbol, provider scheme and report index signature/compatibility key;
+it certifies a recorded structural association, not runtime dispatch, feasibility
+or provider completeness. A compatibility key without an index signature does
+not establish an exact generation. Explicit mismatching row index signatures
+remain unresolved. Symbol aliases and overload collisions fail closed.
+
+`callEvidence` reports unique qualified/unresolved counts, duplicate inputs,
+fixed reason counts, reported calls and qualified calls omitted by selection or
+caps. Unresolved details are explicitly `counts-only`; they do not become arity
+violations. Missing targets and unique lexical names remain unresolved. Target
+lookups are built once against all symbols; deterministic ordering is separate
+from qualification. The report and emitted `api_contracts` rows share one entry
+schema, with validator checks for target/join identity, index authority, duplicate
+observed identities and consistent report accounting. Legacy rows lacking the
+additive join fields remain shape-compatible without acquiring these guarantees.
+
 ### Architecture report
 
 Schema: `ARCHITECTURE_REPORT_SCHEMA`

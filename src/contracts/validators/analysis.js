@@ -16,6 +16,7 @@ import { formatValidatorErrors, toValidationResult } from './result.js';
 import { validateMetadataV2Semantics } from './metadata.js';
 import { graphPathProjectionErrors } from '../../graph/path-capability.js';
 import { contextTaskProjectionErrors } from '../context-task.js';
+import { apiContractProjectionErrors } from '../schemas/api-contracts.js';
 
 const ajv = createAjv({
   allErrors: true,
@@ -80,7 +81,10 @@ export function validateCompositeContextPack(payload) {
 }
 
 export function validateApiContracts(payload) {
-  return toValidationResult(API_CONTRACTS_VALIDATOR, payload);
+  const result = toValidationResult(API_CONTRACTS_VALIDATOR, payload);
+  if (!result.ok) return result;
+  const errors = apiContractProjectionErrors(payload);
+  return { ok: !errors.length, errors };
 }
 
 export function validateArchitectureReport(payload) {

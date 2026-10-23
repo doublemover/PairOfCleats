@@ -169,6 +169,12 @@ If Phase 11 enables artifact emission for API contracts, a new JSONL artifact MA
       - `symbolId` (string)
     - `signature` (object; `declared`, `tooling` optional)
     - `observedCalls[]` (bounded)
+      - Newly emitted rows retain `targetChunkUid`, caller/source identity,
+        optional canonical `semanticRef`, and `join` qualification with the
+        exact admitted symbol and available index signature/compatibility key.
+        A name match is never target authority. Recorded targets do not prove
+        runtime dispatch or feasibility. Legacy rows without additive join
+        fields do not acquire qualified-target guarantees.
   - Optional fields:
     - `symbol.chunkUid` (string|null)
     - `symbol.file` (string|null)
