@@ -30,10 +30,10 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `646d39f61` bounds report writer/detail identity,
-owns async MinHash and positioned offsets through close, revokes original viewport
-input before independent retirement, and admits typed SCIP coordinates/int32 roles
-(SCIP4). Shared cfgFlow26 and local report versions remain replay identity inputs.
+Latest source continuation: `994ff586d` retains original multi-error teardown
+observations, exact timer identity, canonical symbol replay and passive evaluation
+evidence; artifact fallback cannot pass retained work, and original hover/controls
+checks fence picking, render submission and telemetry. Shared versions unchanged.
 Dispositions: 141 historical, 555 source, 164 partial, 97 pending.
 All authored checks remain unvalidated; durable failed-job cleanup recovery is open.
 
@@ -84,7 +84,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `646d39f61` repairs watch/pointer and queue authority,
+Current source through `994ff586d` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
