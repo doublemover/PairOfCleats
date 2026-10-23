@@ -150,8 +150,12 @@ const readJsonlIteratorSingle = async function* (
   let cleanup = null;
   let stream = null;
   const ownedStreams = new Map();
+  const cleanupFailures = new Set();
   let cancelled = false;
+  let cancellationError = null;
+  let producerFailure = null;
   let containedReadError = null;
+  const cancelError = () => (cancellationError ||= createAbortError());
   const ownStream = (owned) => {
     const closed = owned.closed ? Promise.resolve() : new Promise(resolve => owned.once('close', resolve));
     // Ownership cleanup must also be safe before the row parser is attached.
@@ -160,14 +164,15 @@ const readJsonlIteratorSingle = async function* (
     ownedStreams.set(owned, state);
     return owned;
   };
-  const destroyStream = async () => {
+  const destroyStream = async (reason = undefined) => {
     const streams = [...ownedStreams];
-    for (const [owned] of streams) {
-      try { owned.destroy(); } catch {}
+    for (const [owned, state] of streams) {
+      try { owned.destroy(reason); } catch (error) { state.error ||= error; }
     }
     stream = null;
     await Promise.all(streams.map(([, state]) => state.closed));
     const errors = streams.map(([, state]) => state.error).filter(error => error != null);
+    for (const error of errors) cleanupFailures.add(error);
     for (const [owned] of streams) ownedStreams.delete(owned);
     return [...new Set(errors)];
   };
@@ -178,9 +183,11 @@ const readJsonlIteratorSingle = async function* (
     onResume
   });
   const abort = () => {
-    const error = createAbortError();
+    const error = cancelError();
     queue.cancel(error);
-    for (const owned of ownedStreams.keys()) owned.destroy(error);
+    for (const [owned, state] of ownedStreams) {
+      try { owned.destroy(error); } catch (cleanupError) { state.error ||= cleanupError; }
+    }
   };
   signal?.addEventListener('abort', abort, { once: true });
 
@@ -217,7 +224,7 @@ const readJsonlIteratorSingle = async function* (
         let emittedForCandidate = 0;
         const pushEntry = async (entry) => {
           throwIfAborted(signal);
-          if (cancelled) throw createAbortError();
+          if (cancelled) throw cancelError();
           emittedForCandidate += 1;
           await queue.push(entry);
           throwIfAborted(signal);
@@ -376,7 +383,7 @@ const readJsonlIteratorSingle = async function* (
         signal,
         onEntry: async (entry) => {
           throwIfAborted(signal);
-          if (cancelled) throw createAbortError();
+          if (cancelled) throw cancelError();
           await queue.push(entry);
         }
       }));
@@ -395,25 +402,41 @@ const readJsonlIteratorSingle = async function* (
       primary = normalizeArtifactReadFailure(err);
     } finally {
       const cleanupErrors = await destroyStream();
-      if (!cancelled) for (const error of cleanupErrors) {
-        if (error === primary || (signal?.aborted && error.name === 'AbortError')) continue;
+      for (const error of cleanupErrors) {
+        if (error === primary || error === cancellationError) continue;
         primary = primary ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : error;
       }
+      producerFailure = primary;
       queue.finish(primary);
     }
   })();
 
+  let iterationFailure = null, iterationFailed = false;
   try {
     for await (const entry of queue.iterator()) {
       throwIfAborted(signal);
       yield entry;
     }
+  } catch (error) {
+    iterationFailure = error; iterationFailed = true; throw error;
   } finally {
     cancelled = true;
     queue.cancel();
-    await destroyStream();
+    await destroyStream(cancelError());
     await producer.catch(() => {});
     signal?.removeEventListener('abort', abort);
+    // A consumer return has no queue read left to report finalizer failures.
+    // Suppress only our exact cancellation cause, retaining independent source
+    // or decoder errors even when the caller stops after the first row.
+    if (!iterationFailed || iterationFailure !== producerFailure) {
+      let primary = iterationFailure, failed = iterationFailed;
+      for (const error of cleanupFailures) {
+        if (error === cancellationError || error === primary) continue;
+        primary = failed ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : error;
+        failed = true;
+      }
+      if (failed && (!iterationFailed || primary !== iterationFailure)) throw primary;
+    }
   }
 };
 
@@ -462,9 +485,22 @@ export const readJsonLinesEachAwait = async (
   options = {}
 ) => {
   if (typeof onEntry !== 'function') return;
-  for await (const entry of readJsonLinesIterator(filePath, options)) {
-    await onEntry(entry);
+  const iterator = readJsonLinesIterator(filePath, options);
+  let completed = false, failed = false, primary;
+  try {
+    while (true) {
+      const entry = await iterator.next();
+      if (entry.done) { completed = true; break; }
+      await onEntry(entry.value);
+    }
+  } catch (error) { failed = true; primary = error; }
+  if (!completed) {
+    try { await iterator.return(); } catch (error) {
+      primary = failed ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : error;
+      failed = true;
+    }
   }
+  if (failed) throw primary;
 };
 
 /**

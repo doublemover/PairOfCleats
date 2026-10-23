@@ -12,11 +12,29 @@ import { readJsonLinesIterator, readJsonLinesEachAwait } from '../../../src/shar
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-jsonl-reader-owned-'));
 const nativeCreate = fsSync.createReadStream;
 let sources = [], decoders = [];
+let closeFailure = null;
 fsSync.createReadStream = function (...args) {
   const source = nativeCreate.apply(this, args), pipe = source.pipe;
+  if (closeFailure) {
+    const injected = closeFailure, destroy = source._destroy;
+    source._destroy = function (error, callback) {
+      // Close the real descriptor before reporting an independent finalizer
+      // failure; the fixture does not replace ownership with a fake stream.
+      destroy.call(this, error, failure => callback(failure && failure !== error ? failure : injected));
+    };
+  }
   sources.push(source);
   source.pipe = function (destination, ...options) { decoders.push(destination); return pipe.call(this, destination, ...options); };
   return source;
+};
+const contains = (error, expected) => {
+  const pending = [error], seen = new Set();
+  while (pending.length) {
+    const value = pending.pop(); if (value === expected) return true;
+    if (!value || typeof value !== 'object' || seen.has(value)) continue;
+    seen.add(value); pending.push(value.cause, ...(Array.isArray(value.errors) ? value.errors : []));
+  }
+  return false;
 };
 const assertClosed = () => {
   for (const stream of [...sources, ...decoders]) {
@@ -60,6 +78,18 @@ try {
         { maxBytes: bytes.length + 1, maxInFlight: 1 })) {} }, { code: 'ERR_JSON_TOO_LARGE' });
       assertClosed();
     }
+    sources = []; decoders = [];
+    closeFailure = Object.freeze(new Error(`${codec} independent close failure`));
+    const iterator = readJsonLinesIterator(filename, { maxInFlight: 1 });
+    assert.deepEqual((await iterator.next()).value, row);
+    await assert.rejects(iterator.return(), error => contains(error, closeFailure));
+    assertClosed();
+    sources = []; decoders = [];
+    const callbackFailure = Object.freeze(new Error(`${codec} callback failure`));
+    await assert.rejects(readJsonLinesEachAwait(filename, () => { throw callbackFailure; }, { maxInFlight: 1 }),
+      error => contains(error, callbackFailure) && contains(error, closeFailure));
+    assertClosed();
+    closeFailure = null;
   }
 } finally { fsSync.createReadStream = nativeCreate; await fs.rm(root, { recursive: true, force: true }); }
-console.log('Plain/gzip/zstd JSONL consumers settle source and decoder on completion, return, parse failure and backpressure abort.');
+console.log('Plain/gzip/zstd JSONL consumers settle sources and preserve independent return/callback cleanup failures.');
