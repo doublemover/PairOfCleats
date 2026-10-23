@@ -116,7 +116,7 @@ try {
       const provisioning = await verifyToolProvisioningPlan(createToolProvisioningPlan({ tool,
         selection: verifiedPath ? { ...selection, plan: null } : selection, isAllowed: isAllowedRequirementCommand, signal: cancellation.signal }),
       { signal: cancellation.signal, cwd: installationCwd });
-      const blockedPrerequisites = provisioning.steps.filter(step => ['missing', 'incompatible'].includes(step.state)
+      const blockedPrerequisites = provisioning.steps.filter(step => ['missing', 'incompatible', 'blocked'].includes(step.state)
     && step.id !== 'go');
       if (blockedPrerequisites.length && !argv['dry-run']) {
         results.push({ id: tool.id, status: 'missing-requirement', provisioning,

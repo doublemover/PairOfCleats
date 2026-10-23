@@ -16,7 +16,8 @@ export const createToolInstallPreview = ({ tools, scope = 'cache', allowFallback
     const blockers = [];
     if (!selection.plan) blockers.push({ code: 'selected-recipe-unavailable', reason: tool.provisioningBlocker || selection.reason || null });
     if (selection.scope === 'cache' && admission?.state !== 'estimate-declared') blockers.push({ code: 'storage-estimate-unavailable' });
-    for (const step of provisioning.steps) if (step.state === 'missing') blockers.push({ code: 'prerequisite-missing', requirement: step.id, reason: step.reason });
+    for (const step of provisioning.steps) if (['missing', 'incompatible', 'blocked'].includes(step.state)) blockers.push({ code: 'prerequisite-missing', requirement: step.id, reason: step.reason,
+      ...(step.blockedBy ? { blockedBy: step.blockedBy } : {}) });
     return { id: tool.id, scope: selection.scope, fallback: selection.fallback === true,
       location: { path: located.path, state: located.source === 'blocked' ? 'authority-blocked' : located.path ? 'located-not-probed' : 'not-found',
         managedInstallId: tool.managedInstallation?.installId || null, protocol: 'not-probed' },

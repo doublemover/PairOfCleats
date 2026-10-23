@@ -19,7 +19,8 @@ assert.equal(preview.steps.every(step => step.state === 'not-probed'), true);
 const verified = createToolProvisioningPlan({ tool, selection: { scope: 'cache', plan: tool.install.cache }, resolve: () => process.execPath,
   probe: (_command, args) => { probes++; return { ok: true, stdout: args[0] === '--version' ? '26.12.1' : '' }; } });
 assert.equal(verified.steps.find(step => step.id === 'node').state, 'incompatible', 'npm-like output cannot identify Node');
-const empty = bindProvisioningCommand({ cmd: 'npm', args: [], requires: 'npm' }, { steps: [] }, { PATH: '/preserve', TOKEN: 'private' });
+assert.throws(() => bindProvisioningCommand({ cmd: 'npm', args: [], requires: 'npm' }, { steps: [] }, { PATH: '/preserve' }), /verified physical executable/);
+const empty = bindProvisioningCommand({ cmd: process.execPath, args: [] }, { steps: [] }, { PATH: '/preserve', TOKEN: 'private' });
 assert.equal(empty.env.TOKEN, 'private');
 assert.equal(JSON.stringify(preview).includes('private'), false);
 const selectedMissing = createToolProvisioningPlan({ tool: { id: 'missing-runtime', prerequisites: [{ id: 'node', command: process.execPath + '.missing', family: 'node' }] },

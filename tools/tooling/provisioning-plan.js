@@ -30,7 +30,8 @@ export const normalizeToolProvisioningDeclaration = tool => {
     if (requires === 'npm') prerequisites.push({ id: 'node', command: process.execPath, family: 'node', kind: 'runtime', phase: 'install', dependsOn: [] });
     if (requires && !prerequisites.some(entry => entry.id === requires)) prerequisites.push({
       id: requires, command: requires, family: requires, kind: 'package-manager', phase: 'install',
-      dependsOn: requires === 'npm' ? ['node'] : [], minimumGoVersion: action.minimumGoVersion || null
+      dependsOn: requires === 'npm' ? ['node'] : requires === 'gem' && tool.prerequisites?.some(entry => entry.id === 'ruby') ? ['ruby'] : [],
+      minimumGoVersion: action.minimumGoVersion || null
     });
     return [scope, { ...action, requires, prerequisites }];
   }));
@@ -44,6 +45,10 @@ export const orderProvisioningRequirements = requirements => {
   const nodes = new Map();
   for (const input of requirements) {
     if (!input?.id || !/^[a-z0-9][a-z0-9.-]*$/.test(input.id)) throw new Error('Invalid provisioning requirement id.');
+    for (const key of ['dependsOn', 'requiredComponents']) {
+      if (input[key] !== undefined && (!Array.isArray(input[key]) || input[key].length > 256
+        || input[key].some(value => typeof value !== 'string' || !value || value.length > 256))) throw new Error('Invalid provisioning prerequisite edge/component declaration.');
+    }
     const prior = nodes.get(input.id);
     if (prior && (prior.command !== input.command || prior.family !== input.family)) throw new Error(`Conflicting prerequisite declarations: ${input.id}`);
     if (prior && ['versionRange', 'minimumGoVersion'].some(key => prior[key] && input[key] && prior[key] !== input[key])) {
@@ -76,7 +81,7 @@ export const createToolProvisioningPlan = ({ tool, selection, probe = null, reso
   signal?.throwIfAborted();
   const declared = [...(tool.prerequisites || []).filter(entry => entry.phase !== 'analysis'), ...(selection.plan?.prerequisites || [])];
   const requirements = orderProvisioningRequirements(declared);
-  const steps = requirements.map(requirement => {
+  const resolveStep = requirement => {
     signal?.throwIfAborted();
     const pinKey = path.isAbsolute(requirement.command) ? null : ['dotnet', 'dotnet-runtime'].includes(requirement.family) ? 'DOTNET_ROOT'
       : ['java', 'javac'].includes(requirement.family) ? 'JAVA_HOME' : null;
@@ -117,14 +122,20 @@ export const createToolProvisioningPlan = ({ tool, selection, probe = null, reso
         signal?.throwIfAborted();
         if (!sameExecutable(identifyProvisioningExecutable(selected, { signal }), executable)) throw new Error('Prerequisite bytes changed during verification: ' + requirement.id);
       } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true, inspectionPrimary: true }); }
-      try { verification = verifyInstallerRequirementProbe(requirement.family || requirement.id, outcome, requirement); }
+      try { verification = verifyInstallerRequirementProbe(requirement.family || requirement.id, outcome, { ...requirement, selectedExecutable: executable }); }
       catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
       observation.requireSettled();
       if (verification.ok) return { ...requirement, command: selected, args, state: 'verified', ...verification, executable };
     }
     return { ...requirement, command: selected, state: 'incompatible', ...verification,
       nextAction: 'Retain explicit selections; repair the reported runtime/components, then re-plan.' };
-  });
+  };
+  const steps = [];
+  for (const requirement of requirements) {
+    const blockedBy = (requirement.dependsOn || []).filter(id => ['missing', 'incompatible', 'blocked'].includes(steps.find(step => step.id === id)?.state));
+    steps.push(blockedBy.length ? { ...requirement, state: 'blocked', reason: 'upstream-prerequisite-not-verified', blockedBy,
+      nextAction: 'Resolve the selected prerequisite blockers and re-plan before this dependent command is executed.' } : resolveStep(requirement));
+  }
   const body = { schemaVersion: 1, kind: 'tool-provisioning-plan', toolId: tool.id, scope: selection.scope,
     platform: process.platform, arch: process.arch, steps, action: selection.plan || null,
     state: steps.every(step => step.state === 'verified') ? 'requirements-verified' : 'blocked-or-unprobed' };
@@ -132,7 +143,14 @@ export const createToolProvisioningPlan = ({ tool, selection, probe = null, reso
 };
 
 export const bindProvisioningCommand = (action, plan, baseEnv = process.env) => {
+  // Go's existing portable SDK owner binds its separately verified absolute
+  // command after acquisition. Other managers cannot use an unverified token.
+  const separatelyBoundGo = action.requires === 'go' && path.isAbsolute(action.cmd);
+  if (plan.steps.some(step => step.state !== 'verified' && !(separatelyBoundGo && step.id === 'go'))) {
+    throw new Error('Provisioning prerequisites are not verified; no installer or consumer command can be bound.');
+  }
   const manager = plan.steps.find(step => step.id === action.requires && step.state === 'verified');
+  if (action.requires && !manager && !separatelyBoundGo) throw new Error('Selected package manager has no verified physical executable; bare command fallback is forbidden.');
   const childEnv = { ...baseEnv, ...(action.env || {}) };
   const directories = [...new Set(plan.steps.filter(step => step.state === 'verified').map(step => path.dirname(step.executable.path)))];
   const pathKey = Object.keys(childEnv).find(key => key.toLowerCase() === 'path') || 'PATH';
@@ -146,6 +164,15 @@ export const bindProvisioningCommand = (action, plan, baseEnv = process.env) => 
     const root = path.dirname(dotnet.executable.path);
     if (childEnv.DOTNET_ROOT && fs.realpathSync(childEnv.DOTNET_ROOT) !== root) throw new Error('Explicit .NET runtime selection changed after verification.');
     childEnv.DOTNET_ROOT = root;
+  }
+  const java = plan.steps.find(step => step.family === 'java' && step.state === 'verified');
+  if (java) {
+    const root = path.dirname(path.dirname(java.executable.path));
+    const normalize = value => process.platform === 'win32' ? value.toLowerCase() : value;
+    if (childEnv.JAVA_HOME && normalize(fs.realpathSync(childEnv.JAVA_HOME)) !== normalize(root)) throw new Error('Explicit Java runtime selection changed after verification.');
+    const compiler = plan.steps.find(step => step.family === 'javac' && step.state === 'verified');
+    if (compiler && normalize(path.dirname(path.dirname(compiler.executable.path))) !== normalize(root)) throw new Error('Selected Java runtime and compiler belong to different JDK roots; retain explicit pins and re-plan.');
+    childEnv.JAVA_HOME = root;
   }
   return { command: manager && action.cmd === action.requires ? manager.executable.path : action.cmd,
     args: action.args, env: childEnv, prerequisites: plan.steps };
@@ -184,7 +211,18 @@ export const verifyToolProvisioningPlan = async (plan, { env = process.env, sign
   const steps = [];
   for (const step of plan.steps) {
     signal?.throwIfAborted();
+    const blockedBy = (step.dependsOn || []).filter(id => steps.find(prior => prior.id === id)?.state !== 'verified');
+    if (blockedBy.length) {
+      steps.push({ ...step, state: 'blocked', reason: 'upstream-prerequisite-not-verified', blockedBy,
+        nextAction: 'Resolve the selected prerequisite blockers and re-plan before this dependent command is executed.' });
+      continue;
+    }
     if (step.state === 'missing') { steps.push(step); continue; }
+    if (!step.executable) {
+      steps.push({ ...step, state: 'missing', reason: 'prerequisite-selection-unavailable',
+        nextAction: 'Re-plan after resolving the prerequisite dependency; no new executable is selected during verification.' });
+      continue;
+    }
     if (!step.executable || !sameExecutable(identifyProvisioningExecutable(step.executable.path, { signal }), step.executable)) throw new Error('Prerequisite bytes changed before async verification: ' + step.id);
     let verification = null, acceptedArgs = null;
     for (const args of resolveInstallerRequirementProbeArgs(step.family || step.id)) {
@@ -198,7 +236,7 @@ export const verifyToolProvisioningPlan = async (plan, { env = process.env, sign
         signal?.throwIfAborted();
         if (!sameExecutable(identifyProvisioningExecutable(command, { signal }), step.executable)) throw new Error('Prerequisite bytes changed during async verification: ' + step.id);
       } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true, inspectionPrimary: true }); }
-      try { verification = verifyInstallerRequirementProbe(step.family || step.id, result, step); }
+      try { verification = verifyInstallerRequirementProbe(step.family || step.id, result, { ...step, selectedExecutable: step.executable }); }
       catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
       observation.requireSettled();
       if (verification.ok) { acceptedArgs = args; break; }
