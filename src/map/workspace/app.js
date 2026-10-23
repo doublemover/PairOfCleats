@@ -57,10 +57,12 @@ function selection(id, remember = true) {
   }
   if (!related.length) $('detail').append(document.createTextNode('No admitted relationship. This does not establish absence from the index.'));
   if (projection.family === 'artifacts' && node.detail?.available && node.detail?.name) {
+    const originalScope = activeRequest?.input?.indexRoot !== undefined || activeRequest?.input?.capabilityId !== undefined
+      ? { indexRoot: activeRequest.input.indexRoot, capabilityId: activeRequest.input.capabilityId } : {};
     $('detail').prepend(button('Inspect this artifact', async () => {
       if (!originalSelection()) return superseded();
       const epoch = ++actionEpoch, current = () => epoch === actionEpoch && originalSelection();
-      try { const input = { repoRoot: activeRequest?.input?.repoRoot || '.', name: node.detail.name, generation: originalPage.generation };
+      try { const input = { repoRoot: activeRequest?.input?.repoRoot || '.', ...originalScope, name: node.detail.name, generation: originalPage.generation };
         const data = await requests.request('artifact', input, { token: $('token').value, expectedGeneration: originalPage.generation });
         if (!current()) return superseded();
         accept(data, node.detail.name); if (epoch !== actionEpoch) return superseded();
@@ -189,7 +191,7 @@ function rebuild(initialProjection = null) {
   for (const id of expanded) if (!pageLookup.has(id)) expanded.delete(id);
   story = authorProjection(projection); $('source').value = story.source;
   $('family').textContent = projection.family;
-  $('generation').textContent = projection.generation ? `Pinned generation · ${typeof projection.generation === 'string' ? projection.generation : JSON.stringify(projection.generation)}` : 'Generation not supplied · identity cannot be verified';
+  $('generation').textContent = projection.generation ? `${projection.graphCapability?.capability === 'graph' ? 'Recorded graph-only capability · optional-backend/current health not established · ' : ''}Pinned generation · ${typeof projection.generation === 'string' ? projection.generation : JSON.stringify(projection.generation)}` : 'Generation not supplied · identity cannot be verified';
   $('page').textContent = `${page + 1}`; $('previous').disabled = page === 0; $('next').disabled = !projection.hasNext;
   const c = projection.coverage;
   $('coverage').textContent = `Source total unknown · response ${c.responseEntities} entities / ${c.responseRelations} relations · admitted ${c.admittedEntities} / ${c.admittedRelations} · outside page ${c.omittedEntities} / ${c.omittedRelations} · source/query gaps retained in evidence`;

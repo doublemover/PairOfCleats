@@ -194,6 +194,7 @@ export function projectOutput(envelope, { page = 0, relation = '', family = dete
   for (const key of ['provenance', 'coverage', 'frontier', 'truncation', 'warnings']) section(key, data[key], 'coverage');
   section('Complete original output', data, 'records');
   return { version: PROJECTION_VERSION, family, generation: data.generation ?? data.provenance?.indexSignature ?? null,
+    graphCapability: data.graphCapability ?? null,
     nodes, edges, sections, page, relationKinds: [...relationKinds].sort(), hasNext: seen > start + VIEW_LIMITS.nodes,
     cursor: family === 'search' ? (data.pagination?.nextCursor ?? null) : (data.cursor ?? data.nextCursor ?? null),
     continuation: family === 'search' ? (data.pagination || null) : null,
