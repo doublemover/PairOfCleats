@@ -4,6 +4,7 @@ import path from 'node:path';
 import { registerHooks } from 'node:module';
 import { createOnnxEmbedder } from '../../../src/shared/onnx-embeddings.js';
 import { observeEmbeddingOwnership } from '../../../src/shared/embedding-cache-lifetime.js';
+import { LARGE_MODEL_BYTES } from '../../../src/shared/onnx-embeddings/config.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 // Actual deferred ONNX adapter/session queue with inert runtime dependencies.
@@ -27,8 +28,9 @@ const tokenizer = Object.assign((texts, options) => {
 }, { dispose() {} });
 globalThis.__onnxQualifiedLifetimeFixture = { Tensor, env: {},
   AutoTokenizer: { from_pretrained: async () => tokenizer },
-  InferenceSession: { create: async () => {
+  InferenceSession: { create: async (modelPath, sessionOptions) => {
     const control = nextControl;
+    control.sessionOptions = sessionOptions;
     const session = { inputNames: ['input_ids', 'attention_mask'], outputNames: ['last_hidden_state', 'pooler_output'],
       outputMetadata: [
         { name: 'last_hidden_state', isTensor: true, type: 'float32', shape: ['batch', 'sequence', 1024] },
@@ -62,12 +64,13 @@ const hooks = registerHooks({
     return next(url, context);
   }
 });
-const create = async mode => {
+const create = async (mode, options = {}) => {
   const control = { mode, runs: 0, sessionCloses: 0, outputs: [], feeds: [] };
   controls.push(control); nextControl = control;
   const modelPath = path.join(dir, `model-${controls.length}.onnx`);
   await fs.writeFile(modelPath, 'inert graph bytes, no native inference');
-  const adapter = createOnnxEmbedder({ modelId, modelsDir: dir, rootDir: dir, onnxConfig: { modelPath } });
+  const adapter = createOnnxEmbedder({ modelId, modelsDir: dir, rootDir: dir, ...options,
+    onnxConfig: { modelPath, ...options.onnxConfig } });
   adapters.push(adapter); await adapter.embedderPromise;
   return { adapter, control };
 };
@@ -104,6 +107,18 @@ try {
   assert.equal(afterDispatch.preparedTokenRowHits, 2); assert.equal(afterDispatch.preparedRowStore.entries, 0);
   assert.equal(afterDispatch.paddedTokenCells, 4); assert.equal(afterDispatch.preparedUsefulTokens, 8);
   await rowAdapter.dispose(); assert.equal(rowControl.sessionCloses, 1);
+
+  const { adapter: externalModel, control: externalOwner } = await create('valid', {
+    onnxConfig: { cpuExecutionProviderTuning: false },
+    modelArtifact: { status: 'unknown', reuse: 'refuse', digest: null, revision: null,
+      inventory: [{ path: 'weights/model.onnx', bytes: 100 }, { path: 'weights/model.onnx_data', bytes: LARGE_MODEL_BYTES + 1 }] }
+  });
+  assert.equal(externalOwner.sessionOptions.enableCpuMemArena, false);
+  assert.equal(externalOwner.sessionOptions.enableMemPattern, false);
+  assert.equal(externalOwner.sessionOptions.executionMode, 'sequential');
+  assert.equal(externalOwner.sessionOptions.intraOpNumThreads, 1);
+  assert.equal(externalOwner.sessionOptions.graphOptimizationLevel, 'basic', 'declared external-data bytes participate in large-model safeguards');
+  await externalModel.dispose(); assert.equal(externalOwner.sessionCloses, 1);
 
   for (const mode of ['extra-row', 'short', 'missing', 'nonfinite', 'zero']) {
     const { adapter: rejected, control: bad } = await create(mode);

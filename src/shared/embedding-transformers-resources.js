@@ -1,4 +1,5 @@
-import { observeEmbeddingOwnership, getEmbeddingCacheLeaseOwner, getEmbeddingFailureProvenance } from './embedding-cache-lifetime.js';
+import { getEmbeddingCacheLeaseOwner, getEmbeddingFailureProvenance } from './embedding-cache-lifetime.js';
+import { captureEmbeddingFailureDiagnostics, projectEmbeddingFailureDiagnostics } from './embedding-failure-diagnostics.js';
 
 const pendingResources = new Set();
 const failureProvenance = new WeakMap();
@@ -14,24 +15,17 @@ export const trackPendingTransformersOwner = owner => {
   if (owner.pending) pendingResources.add(owner); else pendingResources.delete(owner);
 };
 const objectLike = value => value && (typeof value === 'object' || typeof value === 'function');
-const describe = error => { try { return error?.message || 'Transformers resource cleanup remains pending.'; } catch { return 'Transformers resource cleanup remains pending.'; } };
-
 export const transformersCleanupFailure = (owner, errors, { primaryError, hasPrimary = false } = {}) => {
   const causes = hasPrimary ? [primaryError, ...errors] : [...errors], first = hasPrimary ? primaryError : causes[0];
-  const failure = new AggregateError(causes, describe(first), { cause: first });
-  if (objectLike(first)) {
-    const descriptors = Object.getOwnPropertyDescriptors(first);
-    const reserved = new Set(['cause', 'errors', 'message', 'stack', 'cleanupErrors', 'transformersResourceOwner',
-      'cacheOwnershipPending', 'cacheOwnershipReleased']);
-    for (const key of Reflect.ownKeys(descriptors)) if (!reserved.has(key)) Object.defineProperty(failure, key, descriptors[key]);
-    if (!Object.hasOwn(failure, 'name')) { try { if (typeof first.name === 'string') failure.name = first.name; } catch {} }
-  }
+  const captured = causes.map(captureEmbeddingFailureDiagnostics), primary = captured[0] || captureEmbeddingFailureDiagnostics(first);
+  const failure = new AggregateError([...causes, ...captured.flatMap(value => value.inspectionErrors)], primary.message, { cause: first });
+  projectEmbeddingFailureDiagnostics(failure, primary, ['cleanupErrors', 'transformersResourceOwner', 'cacheOwnershipPending', 'cacheOwnershipReleased']);
   if (!Object.hasOwn(failure, 'code')) failure.code = 'ERR_TRANSFORMERS_RESOURCE_PENDING';
-  const observers = causes.map(observeEmbeddingOwnership).filter(Boolean);
-  const released = () => !owner.pending && observers.every(observe => observe());
+  const released = () => !owner.pending && captured.every(value => value.released());
   Object.defineProperties(failure, { cleanupErrors: { value: Object.freeze([...errors]) }, transformersResourceOwner: { value: owner },
     cacheOwnershipPending: { get: () => !released() }, cacheOwnershipReleased: { value: released } });
-  failureProvenance.set(failure, Object.freeze({ owner, children: Object.freeze([...causes]) }));
+  failureProvenance.set(failure, Object.freeze({ owner,
+    get children() { return Object.freeze([...new Set([...causes, ...captured.flatMap(value => value.inspectionErrors)])]); } }));
   return failure;
 };
 
@@ -47,11 +41,12 @@ export const captureTransformersResource = (resource, role = 'transformers resou
   }
   catch (error) { captureFailed = true; captureError = error; }
   const record = error => {
-    const observe = observeEmbeddingOwnership(error);
+    const captured = captureEmbeddingFailureDiagnostics(error);
     const producer = resourceProducers.get(resource), cacheOwner = getEmbeddingCacheLeaseOwner(resource);
     const reconciles = Boolean(producer && getTransformersFailureProvenance(error)?.owner === producer
       || cacheOwner && getEmbeddingFailureProvenance(error)?.owner === cacheOwner);
-    if (observe && !blockers.has(error)) blockers.set(error, { observe, reconciles });
+    if (captured.hasOwnership && !blockers.has(error)) blockers.set(error, { observe: captured.released,
+      inspectionsReleased: captured.inspectionsReleased, reconciles });
   };
   const close = ({ retry = false } = {}) => {
     if (closed) return Promise.resolve(true);
@@ -59,7 +54,7 @@ export const captureTransformersResource = (resource, role = 'transformers resou
     if (lastError && !retry) return Promise.reject(lastError);
     flight = Promise.resolve().then(async () => {
       if (captureFailed) throw captureError;
-      for (const [error, entry] of blockers) if (!entry.reconciles && !entry.observe()) throw error;
+      for (const [error, entry] of blockers) if (!entry.inspectionsReleased() || !entry.reconciles && !entry.observe()) throw error;
       if (!disposed) {
         const confirmed = method ? await method.call(resource) : undefined;
         if (confirmed === false) throw Object.assign(new Error('Transformers resource disposal was explicitly unconfirmed.'),
@@ -85,8 +80,8 @@ export const createTransformersResourceScope = (kind = 'transformers resources',
   const resources = new Map(), blockers = new Map();
   let flight = null, lastError = null, closed = false;
   const retainFailure = error => {
-    const observe = observeEmbeddingOwnership(error);
-    if (observe && !blockers.has(error)) blockers.set(error, observe);
+    const captured = captureEmbeddingFailureDiagnostics(error);
+    if (captured.hasOwnership && !blockers.has(error)) blockers.set(error, captured.released);
   };
   const close = ({ retry = false } = {}) => {
     if (closed) return Promise.resolve(true);

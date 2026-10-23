@@ -64,6 +64,10 @@ ONNX execution telemetry separates output conversion and captured tensor cleanup
 time. Tensor disposal settlement is not evidence of measured native memory
 release. Profile experiment source bindings include artifact/closure/lifetime
 helpers, and corrected processing identities do not enable a faster default.
+The ordinary ONNX low-memory guard counts selected external-data bytes as well
+as the graph file. Cleanup error projection uses bounded captured diagnostics;
+an independently pending inspection cannot authorize another native dispose or
+release model/session capacity.
 Experiment source reads use bounded original descriptors and must agree before
 and after the case. The report distinguishes these source-byte observations
 from loaded-module byte attribution, which remains unobserved. Workload,

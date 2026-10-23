@@ -1,4 +1,5 @@
 import { observeEmbeddingOwnership as observePending } from '../embedding-cache-lifetime.js';
+import { captureEmbeddingFailureDiagnostics, projectEmbeddingFailureDiagnostics } from '../embedding-failure-diagnostics.js';
 
 const captureResource = (resource, name, required = false) => {
   let method = null, captureError = null, captureFailed = false, released = !resource;
@@ -40,11 +41,14 @@ export const createOnnxResourceOwner = ({ session, tokenizer, qualificationSlot 
   const capacity = captureResource(qualificationSlot, 'release', true);
   const observers = new Map();
   const operationObservers = new Map();
+  const diagnostics = new Map();
   const retain = error => {
+    if (!diagnostics.has(error)) diagnostics.set(error, captureEmbeddingFailureDiagnostics(error));
     if (observers.has(error)) return;
     const observe = observePending(error);
     if (observe) observers.set(error, observe);
   };
+  retain(primaryError);
   const primaryObserver = observePending(primaryError);
   if (primaryObserver) operationObservers.set(primaryError, primaryObserver);
   let flight = null, settled = false, tensorReleaseStarted = false;
@@ -53,20 +57,10 @@ export const createOnnxResourceOwner = ({ session, tokenizer, qualificationSlot 
   const failure = failures => {
     const primary = primaryError ?? failures[0];
     const errors = primaryError == null ? [...failures] : [primaryError, ...failures];
-    let message = 'ONNX resource cleanup remains pending.';
-    try { if (typeof primary?.message === 'string') message = primary.message; } catch {}
-    const error = new AggregateError(errors, message, { cause: primary });
-    if (primary && (typeof primary === 'object' || typeof primary === 'function')) {
-      const reserved = new Set(['cause', 'errors', 'message', 'stack', 'cleanupErrors', 'cleanupFailureCount',
-        'cacheOwnershipPending', 'cacheOwnershipReleased', 'qualificationLease', 'onnxSessionOwner', 'onnxResourceOwner']);
-      const descriptors = Object.getOwnPropertyDescriptors(primary);
-      for (const key of Reflect.ownKeys(descriptors)) {
-        if (!reserved.has(key)) Object.defineProperty(error, key, descriptors[key]);
-      }
-      if (!Object.hasOwn(error, 'name')) {
-        try { if (typeof primary.name === 'string') error.name = primary.name; } catch {}
-      }
-    }
+    const captured = errors.map(captureEmbeddingFailureDiagnostics), primaryCapture = captureEmbeddingFailureDiagnostics(primary);
+    const error = new AggregateError([...errors, ...captured.flatMap(value => value.inspectionErrors)], primaryCapture.message, { cause: primary });
+    projectEmbeddingFailureDiagnostics(error, primaryCapture, ['cleanupErrors', 'cleanupFailureCount',
+      'cacheOwnershipPending', 'cacheOwnershipReleased', 'qualificationLease', 'onnxSessionOwner', 'onnxResourceOwner']);
     if (!Object.hasOwn(error, 'code')) error.code = 'ERR_ONNX_RESOURCE_PENDING';
     Object.defineProperties(error, {
       cleanupErrors: { value: Object.freeze(failures.filter(value => value !== primary)) },
@@ -93,19 +87,24 @@ export const createOnnxResourceOwner = ({ session, tokenizer, qualificationSlot 
       // A pending native run or output disposal keeps its session/tokenizer and
       // qualification capacity alive. Preserve the original scope for retry.
       if (tensorScopes.size) throw failure(failures);
+      for (const [error, captured] of diagnostics) if (!captured.inspectionsReleased()) failures.push(error);
       for (const [error, observe] of operationObservers) if (!observe()) failures.push(error);
       if (failures.length) throw failure(failures);
       // Attempt every independent native resource in reverse acquisition order.
       for (const resource of [native, tokens]) {
         try { await resource.release(); }
-        catch (error) { failures.push(error); retain(error); }
+        catch (error) {
+          failures.push(error); retain(error);
+          if (!diagnostics.get(error).inspectionsReleased()) break;
+        }
       }
       if (!failures.length && [...observers.values()].every(observe => observe())) {
         try { await capacity.release(); }
         catch (error) { failures.push(error); retain(error); }
       }
       settled = native.released && tokens.released && capacity.released
-        && [...observers.values(), ...operationObservers.values()].every(observe => observe());
+        && [...observers.values(), ...operationObservers.values()].every(observe => observe())
+        && [...diagnostics.values()].every(captured => captured.inspectionsReleased());
       if (!settled) throw failure(failures);
       for (const observe of settlementObservers) {
         try { observe(); } catch { /* Observers cannot undo confirmed native settlement. */ }
@@ -117,6 +116,7 @@ export const createOnnxResourceOwner = ({ session, tokenizer, qualificationSlot 
   };
   const resourceOwner = Object.freeze({ release, retainOperationFailure: error => {
     if (settled) throw new Error('Released ONNX owner cannot acquire operation failures.');
+    retain(error);
     const observe = observePending(error);
     if (observe && !operationObservers.has(error)) operationObservers.set(error, observe);
   }, onSettled: observe => {

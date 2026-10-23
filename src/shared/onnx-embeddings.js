@@ -7,7 +7,7 @@ import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-leas
 import { createDeferredEmbeddingAdapter } from './embedding-deferred-adapter.js';
 import { resolveEmbeddingDenseContract, validateEmbeddingDenseContract, resolveOnnxEmbeddingProcessing } from './embedding-dense-contract.js';
 import { snapshotEmbeddingMetadata, snapshotEmbeddingRequestArguments } from './embedding-selection-snapshot.js';
-import { observeEmbeddingOwnership } from './embedding-cache-lifetime.js';
+import { captureEmbeddingFailureDiagnostics } from './embedding-failure-diagnostics.js';
 import path from 'node:path';
 import {
   DEFAULT_EMBEDDING_TRUNCATION,
@@ -209,10 +209,10 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
     } });
   const selectedArtifact = modelArtifact;
   const modelSize = statSize(resolvedModelPath);
-  const lowMemory = Number.isFinite(modelSize) && modelSize >= LARGE_MODEL_BYTES;
   const closureBytes = selectedArtifact.inventory?.reduce((total, item) => total + (Number(item.bytes) || 0), 0) || 0;
+  const lowMemory = Number.isFinite(modelSize) && modelSize >= LARGE_MODEL_BYTES || closureBytes >= LARGE_MODEL_BYTES;
   const qualificationSlot = qualificationLease ? acquireOnnxQualificationSlot(qualificationLease,
-    { modelArtifact: selectedArtifact, modelPath: resolvedModelPath, lowMemory: lowMemory || closureBytes >= LARGE_MODEL_BYTES,
+    { modelArtifact: selectedArtifact, modelPath: resolvedModelPath, lowMemory,
       processing: resolveOnnxEmbeddingProcessing(modelId, { normalize }) }) : null;
   const tokenizerId = normalized.tokenizerId || modelId;
   const cacheKey = JSON.stringify({
@@ -255,8 +255,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
         try {
           session = await InferenceSession.create(resolvedModelPath, sessionOptions);
         } catch (err) {
-          const observe = observeEmbeddingOwnership(err);
-          if (observe && !observe()) throw err;
+          if (!captureEmbeddingFailureDiagnostics(err).released()) throw err;
           if (!lowMemory && !qualificationSlot) {
             const fallbackOptions = buildSessionOptions(normalized, { lowMemory: true });
             effectiveSessionOptions = fallbackOptions;
@@ -300,8 +299,8 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
     operations.add(work);
     work.then(() => operations.delete(work), error => {
       operations.delete(work);
-      const observe = observeEmbeddingOwnership(error);
-      if (observe && !observe() && sessionEntry.loaded?.resourceOwner) {
+      const captured = captureEmbeddingFailureDiagnostics(error);
+      if (captured.hasOwnership && !captured.released() && sessionEntry.loaded?.resourceOwner) {
         sessionEntry.operationFailure ||= error;
         sessionEntry.loaded.resourceOwner.retainOperationFailure(error);
         retireEntry(cacheKey, sessionEntry).catch(() => {});

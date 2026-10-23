@@ -52,7 +52,7 @@ assert.equal(report.sourceEvidence, 'opened-source-byte-digests-stable-across-ca
 assert.deepEqual(report.binding.processing, resolveOnnxEmbeddingProcessing(modelId));
 for (const key of ['denseContract', 'outputAdmission', 'tokenization', 'tensorLifetime', 'tensorResources', 'sessionCacheLifetime',
   'artifactLease', 'artifactIdentity', 'acquisitionPlan', 'acquisitionReceipt', 'onnxClosure', 'onnxInstallation', 'deferredAdapter',
-  'configuration', 'selectionSnapshot', 'runQueue', 'containedFile', 'containedResource', 'readExact']) {
+  'configuration', 'selectionSnapshot', 'runQueue', 'containedFile', 'containedResource', 'readExact', 'failureDiagnostics']) {
   assert.match(report.source[key], /^[a-f0-9]{64}$/);
 }
 assert.equal(report.measured.sessions[0].requestedSessionOptions.graphOptimizationLevel, 'extended');

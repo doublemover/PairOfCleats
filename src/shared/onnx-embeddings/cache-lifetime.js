@@ -1,25 +1,13 @@
 import { observeEmbeddingOwnership as observePending } from '../embedding-cache-lifetime.js';
-
-const describe = error => {
-  try { return typeof error?.message === 'string' ? error.message : 'ONNX cache resource cleanup remains pending.'; }
-  catch { return 'ONNX cache resource cleanup remains pending.'; }
-};
+import { captureEmbeddingFailureDiagnostics, projectEmbeddingFailureDiagnostics } from '../embedding-failure-diagnostics.js';
 
 const retainedFailure = (error, owner) => {
   const observe = observePending(error);
-  const failure = new AggregateError([error], describe(error), { cause: error });
-  if (error && (typeof error === 'object' || typeof error === 'function')) {
-    const descriptors = Object.getOwnPropertyDescriptors(error);
-    const reserved = new Set(['cause', 'errors', 'message', 'stack', 'cacheOwnershipPending', 'cacheOwnershipReleased', 'onnxCacheOwner', 'retirementError']);
-    for (const key of Reflect.ownKeys(descriptors)) {
-      if (!reserved.has(key)) Object.defineProperty(failure, key, descriptors[key]);
-    }
-    if (!Object.hasOwn(failure, 'name')) {
-      try { if (typeof error.name === 'string') failure.name = error.name; } catch {}
-    }
-  }
+  const captured = captureEmbeddingFailureDiagnostics(error);
+  const failure = new AggregateError([error, ...captured.inspectionErrors], captured.message, { cause: error });
+  projectEmbeddingFailureDiagnostics(failure, captured, ['cacheOwnershipPending', 'cacheOwnershipReleased', 'onnxCacheOwner', 'retirementError']);
   if (!Object.hasOwn(failure, 'code')) failure.code = 'ERR_ONNX_CACHE_RESOURCE_PENDING';
-  const released = () => !owner.pending && (!observe || observe());
+  const released = () => !owner.pending && captured.released() && (!observe || observe());
   Object.defineProperties(failure, { retirementError: { value: error }, onnxCacheOwner: { value: owner },
     cacheOwnershipPending: { get: () => !released() }, cacheOwnershipReleased: { value: released } });
   return failure;
@@ -29,11 +17,15 @@ const retainedFailure = (error, owner) => {
  * retry a previously observed failure; no native acquisition occurs here. */
 export const createOnnxCacheLifetime = cache => {
   const retired = new Set();
+  const retainDiagnostics = (entry, error) => {
+    const captured = captureEmbeddingFailureDiagnostics(error);
+    if (captured.inspectionErrors.length) entry.diagnosticFailures.set(error, captured.inspectionsReleased);
+  };
   const receipt = entry => Object.freeze({ settled: entry.closed === true, pending: entry.closed !== true,
     references: entry.references });
   const confirmClosed = entry => {
     if (entry.references || entry.queueDrained !== true || entry.startupState === 'pending'
-      || entry.resourceOwner?.settled !== true) return false;
+      || entry.resourceOwner?.settled !== true || [...entry.diagnosticFailures.values()].some(released => !released())) return false;
     entry.closed = true; retired.delete(entry);
     return true;
   };
@@ -50,6 +42,7 @@ export const createOnnxCacheLifetime = cache => {
       // actual outcome, then retain that same owner rather than synthesizing an
       // empty success from the rejected startup promise.
       try { await entry.promise; } catch {}
+      for (const [error, released] of entry.diagnosticFailures) if (!released()) throw error;
       if (confirmClosed(entry)) return receipt(entry);
       if (entry.releaseError && (!retry || entry.releaseError !== observedFailure)) throw entry.releaseError;
       if (!entry.resourceOwner) {
@@ -63,6 +56,7 @@ export const createOnnxCacheLifetime = cache => {
         { code: 'ERR_ONNX_RESOURCE_UNCONFIRMED' });
       return receipt(entry);
     }).catch(error => {
+      retainDiagnostics(entry, error);
       entry.releaseError = error === entry.releaseError ? error : retainedFailure(error, entry.cacheOwner);
       throw entry.releaseError;
     }).finally(() => { entry.releasing = null; });
@@ -81,6 +75,7 @@ export const createOnnxCacheLifetime = cache => {
   const adopt = entry => {
     entry.startupState = 'pending'; entry.resourceOwner = null; entry.startupError = null;
     entry.closed = false; entry.queueDrained = false; entry.releaseError = null; entry.releasing = null;
+    entry.diagnosticFailures = new Map();
     entry.cacheOwner = Object.freeze({ kind: 'onnx-session-cache-entry',
       get pending() { return !entry.closed; }, get startup() { return entry.startupState; },
       get references() { return entry.references; }, get lastError() { return entry.releaseError; },
@@ -100,6 +95,7 @@ export const createOnnxCacheLifetime = cache => {
   };
   const startupFailed = (entry, error) => {
     entry.startupState = 'rejected';
+    retainDiagnostics(entry, error);
     if (observePending(error)) {
       entry.releaseError = retainedFailure(error, entry.cacheOwner);
       entry.startupError = entry.releaseError;
