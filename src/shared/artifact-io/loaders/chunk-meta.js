@@ -12,6 +12,8 @@ import { normalizeMetaV2ForRead } from '../../../index/metadata/meta-v2.js';
 import { formatHash64 } from '../../token-id.js';
 import { inflateColumnarRows } from '../columnar-rows.js';
 import { createLoaderError } from './shared.js';
+import path from 'node:path';
+import { existsOrBak } from '../fs.js';
 
 const iterateChunkMetaBinaryColumnarRowsLazy = async (dir, options) => {
   const { iterateChunkMetaBinaryColumnarRows } = await import('./binary-columnar-chunk-meta.js');
@@ -170,7 +172,7 @@ export const loadChunkMetaRows = async function* (
   const requiredKeys = resolveJsonlRequiredKeys('chunk_meta');
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
-  const useBinaryColumnar = resolveManifestBinaryColumnarPreference(resolvedManifest, {
+  let useBinaryColumnar = resolveManifestBinaryColumnarPreference(resolvedManifest, {
     fallback: preferBinaryColumnar
   });
   const sources = resolveManifestArtifactSources({
@@ -183,15 +185,56 @@ export const loadChunkMetaRows = async function* (
   if (!sources?.paths?.length) {
     throw createLoaderError('ERR_MANIFEST_ENTRY_MISSING', 'Missing manifest entry for chunk_meta');
   }
+  const primaryPieces = resolvedManifest?.pieces?.filter(piece => piece?.name === 'chunk_meta') || [];
+  const plans = primaryPieces.map(piece => piece.extensions?.representationPlan).filter(plan => plan != null);
+  let requireColdRows = false;
+  if (plans.length) {
+    const plan = plans[0], primary = sources.format === 'sharded' ? 'jsonl' : sources.format;
+    if (plans.length !== primaryPieces.length || plan.schemaVersion !== 1 || plan.family !== 'chunk-meta'
+      || plan.primary !== primary || typeof plan.emitBinaryColumnar !== 'boolean' || typeof plan.hotColdSplit !== 'boolean'
+      || !Array.isArray(plan.compatibility) || plan.compatibility.some(format => !['binary-columnar-v1', 'json-array'].includes(format))
+      || new Set(plan.compatibility).size !== plan.compatibility.length
+      || plan.compatibility.includes('binary-columnar-v1') !== plan.emitBinaryColumnar
+      || plans.some(other => JSON.stringify(other) !== JSON.stringify(plan))) {
+      throw createLoaderError('ERR_MANIFEST_INVALID', 'Chunk metadata differs from its recorded representation plan.');
+    }
+    useBinaryColumnar &&= plan.emitBinaryColumnar;
+    requireColdRows = plan.hotColdSplit && includeCold;
+    if (plan.hotColdSplit && !resolvedManifest.pieces.some(piece => piece.name === 'chunk_meta_cold')) {
+      throw createLoaderError('ERR_MANIFEST_INCOMPLETE', 'Chunk metadata requires its declared cold sidecar.');
+    }
+    if (plan.compatibility.includes('json-array') && !existsOrBak(path.join(dir, 'chunk_meta.json'))) {
+      throw createLoaderError('ERR_MANIFEST_INCOMPLETE', 'Chunk metadata requires its declared JSON compatibility copy.');
+    }
+    if (plan.emitBinaryColumnar) {
+      for (const [name, filename] of [
+        ['chunk_meta_binary_columnar', 'chunk_meta.binary-columnar.bin'],
+        ['chunk_meta_binary_columnar_offsets', 'chunk_meta.binary-columnar.offsets.bin'],
+        ['chunk_meta_binary_columnar_lengths', 'chunk_meta.binary-columnar.lengths.varint'],
+        ['chunk_meta_binary_columnar_meta', 'chunk_meta.binary-columnar.meta.json']
+      ]) {
+        const members = resolvedManifest.pieces.filter(piece => piece.name === name);
+        if (members.length !== 1 || members[0].path !== filename || !existsOrBak(path.join(dir, filename))) {
+          throw createLoaderError('ERR_MANIFEST_INCOMPLETE', `Chunk metadata compatibility is missing ${name}.`);
+        }
+      }
+    }
+  }
   let coldById = null;
   if (includeCold) {
     coldById = new Map();
     for await (const row of loadChunkMetaColdRows({ dir, maxBytes, manifest: resolvedManifest, strict, validationMode })) {
       const id = Number(row?.id);
-      if (Number.isFinite(id)) coldById.set(id, identityOnly ? projectChunkIdentityRow(row) : row);
+      if (Number.isFinite(id)) {
+        if (requireColdRows && coldById.has(id)) throw createLoaderError('ERR_ARTIFACT_INVALID', `Duplicate chunk metadata cold row ${id}.`);
+        coldById.set(id, identityOnly ? projectChunkIdentityRow(row) : row);
+      }
     }
   }
   const transform = (row) => {
+    if (requireColdRows && !coldById.has(Number(row?.id))) {
+      throw createLoaderError('ERR_ARTIFACT_INVALID', `Missing required chunk metadata cold row ${row?.id}.`);
+    }
     const merged = transformChunkMetaRow(row, { coldById, materializeTokenIds });
     return identityOnly ? projectChunkIdentityRow(merged) : merged;
   };

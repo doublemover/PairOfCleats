@@ -24,3 +24,22 @@ export const assertTokenPostingsRepresentationPlan = (plan, primary) => {
   if (!admittedPlans.has(plan) || plan.primary !== primary) throw new TypeError('Token-postings representation plan does not match the primary layout.');
   return plan;
 };
+
+/** Existing supported primaries remain canonical. No caller is migrated to a
+ * binary-only generation: SQLite, retrieval, validation and piece assembly all
+ * consume these primaries already. Explicit binary requests and the established
+ * small JSON compatibility export remain part of the required output plan.
+ */
+export const planChunkMetaRepresentations = ({ primary, binaryColumnar = false, requireBinaryColumnar = false,
+  legacyJson = false, hotColdSplit = false }) => {
+  if (!['json', 'jsonl', 'columnar'].includes(primary)) throw new TypeError('Unsupported primary chunk-metadata layout.');
+  if (requireBinaryColumnar && !binaryColumnar) {
+    throw Object.assign(new Error('Required chunk-metadata binary compatibility exceeds the admitted representation limits.'),
+      { code: 'ERR_CHUNK_META_COMPATIBILITY_LIMIT' });
+  }
+  const compatibility = [...(requireBinaryColumnar ? ['binary-columnar-v1'] : []), ...(legacyJson ? ['json-array'] : [])];
+  return Object.freeze({ schemaVersion: 1, family: 'chunk-meta', primary,
+    emitBinaryColumnar: requireBinaryColumnar, hotColdSplit: primary === 'jsonl' && hotColdSplit,
+    compatibility: Object.freeze(compatibility),
+    consumers: Object.freeze(['retrieval', 'validation', 'sqlite-ingestion', 'piece-assembly', 'manifest-bundle']) });
+};

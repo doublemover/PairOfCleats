@@ -2,6 +2,7 @@ import { log } from '../../../../../shared/progress-runtime.js';
 import { MAX_JSON_BYTES } from '../../../../../shared/artifact-io/constants.js';
 import { formatBytes } from '../../../../../shared/disk-space.js';
 import { resolveChunkMetaMaxBytes } from './shared.js';
+import { planChunkMetaRepresentations } from '../../sparse-representation-plan.js';
 
 /**
  * Decide chunk_meta artifact mode/sharding based on estimated row size and limits.
@@ -15,6 +16,7 @@ export const resolveChunkMetaPlan = ({
   chunkMetaFormatConfig,
   chunkMetaStreaming = false,
   chunkMetaBinaryColumnar = false,
+  chunkMetaBinaryColumnarRequired = false,
   chunkMetaBinaryColumnarMaxBytes = 512 * 1024 * 1024,
   chunkMetaJsonlThreshold,
   chunkMetaShardSize,
@@ -100,11 +102,15 @@ export const resolveChunkMetaPlan = ({
       `${formatBytes(resolvedBinaryColumnarMaxBytes)} while sharded JSONL is required.`
     );
   }
+  const representationPlan = planChunkMetaRepresentations({ primary: chunkMetaUseJsonl ? 'jsonl' : chunkMetaUseColumnar ? 'columnar' : 'json',
+    binaryColumnar: chunkMetaBinaryColumnar, requireBinaryColumnar: chunkMetaBinaryColumnarRequired });
   return {
     chunkMetaCount,
     chunkMetaFormat,
     chunkMetaStreaming: chunkMetaStreaming === true,
-    chunkMetaBinaryColumnar: chunkMetaBinaryColumnar === true,
+    chunkMetaBinaryColumnar: representationPlan.emitBinaryColumnar,
+    chunkMetaBinaryColumnarRequired,
+    representationPlan,
     chunkMetaBinaryColumnarMaxBytes: resolvedBinaryColumnarMaxBytes,
     chunkMetaBinaryColumnarDisabledReason,
     chunkMetaEstimatedJsonlBytes: estimatedJsonlBytes,
