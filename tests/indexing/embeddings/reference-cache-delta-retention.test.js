@@ -1,3 +1,4 @@
+import { EMBEDDING_CHUNK_INPUT_VERSION } from '../../../src/shared/embedding-chunk-input.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -14,7 +15,7 @@ try {
   const fileIndex = await readCacheIndex(fileDir, identityKey), globalIndex = await readCacheIndex(globalDir, identityKey);
   await writeCacheIndex(fileDir, fileIndex);
   const plan = buildReferencedFileCache({ identity, identityKey, chunkHashes: ['content'], codeVectors: [[1, 2]], docVectors: [[]], mergedVectors: [[1, 2]],
-    filePayload: { key: 'file', file: 'file.js', chunkHashes: ['content'], cacheMeta: { identityKey } },
+    filePayload: { key: 'file', file: 'file.js', chunkHashes: ['content'], cacheMeta: { identityKey, chunkInputVersion: EMBEDDING_CHUNK_INPUT_VERSION } },
     buildInputKey: chunkHash => buildGlobalChunkCacheKey({ chunkHash, identityKey }) });
   await writeReferencedCacheFile({ fileDir, fileIndex, globalDir, globalIndex, mode: 'code', filePayload: plan.filePayload,
     encodedFile: await encodeCacheEntryPayload(plan.filePayload), chunks: await Promise.all(plan.chunks.map(async chunk => ({ ...chunk, encodedPayload: await encodeCacheEntryPayload(chunk.payload) }))) });

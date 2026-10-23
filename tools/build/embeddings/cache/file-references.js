@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { EMBEDDING_CHUNK_INPUT_VERSION, hasCurrentEmbeddingChunkInput } from '../../../../src/shared/embedding-chunk-input.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { assertNoSymlinkPath } from '../../../../src/shared/contained-file.js';
@@ -20,6 +21,7 @@ export const digestQuantizedChannels = (vectors, quantization = {}) => {
 /** Ordered file metadata references immutable, identity/input/content-qualified chunks. */
 export const buildReferencedFileCache = ({ filePayload, chunkHashes, codeVectors, docVectors, mergedVectors,
   identityKey, identity, buildInputKey }) => {
+  if (filePayload && !hasCurrentEmbeddingChunkInput(filePayload)) return null;
   if (!Array.isArray(chunkHashes) || !chunkHashes.length || chunkHashes.length > 32768) return null;
   if ([codeVectors, docVectors, mergedVectors].some(rows => !Array.isArray(rows) || rows.length !== chunkHashes.length)) return null;
   const spec = resolveEmbeddingQuantizationSpec(identity?.quantization);
@@ -35,18 +37,21 @@ export const buildReferencedFileCache = ({ filePayload, chunkHashes, codeVectors
     records.push({ key: cacheKey, hash: chunkHash, digest,
       channels: Object.fromEntries(CHANNELS.map(channel => [channel, vectors[channel].length])) });
     if (!chunks.has(cacheKey)) chunks.set(cacheKey, { cacheKey, inputKey, digest, vectors, payload: {
-      key: cacheKey, hash: chunkHash, cacheMeta: { schemaVersion: 2, scope: 'global-chunk', inputKey, identityKey,
+      key: cacheKey, hash: chunkHash, cacheMeta: { schemaVersion: 2, chunkInputVersion: EMBEDDING_CHUNK_INPUT_VERSION,
+        scope: 'global-chunk', inputKey, identityKey,
         identity: { dims: identity?.dims ?? null, quantization: identity?.quantization } },
       codeVectors: [vectors.code], docVectors: [vectors.doc], mergedVectors: [vectors.merged] } });
   }
   return { chunks: [...chunks.values()], filePayload: filePayload ? { ...filePayload, chunkCount: records.length,
-    cacheMeta: { ...filePayload.cacheMeta, schemaVersion: 2, representation: 'chunk-references-v1' },
+    cacheMeta: { ...filePayload.cacheMeta, schemaVersion: 2, chunkInputVersion: EMBEDDING_CHUNK_INPUT_VERSION,
+      representation: 'chunk-references-v1' },
     chunkReferences: { schemaVersion: 1, identityKey, records }, codeVectors: [], docVectors: [], mergedVectors: [] } : null };
 };
 
 /** A missing/corrupt referenced chunk is a repairable cache miss, never an empty vector claim. */
 export const hydrateReferencedFileCache = async ({ entry, identityKey, readChunks, maxBytes = 64 * 1024 * 1024 }) => {
   if (!entry?.chunkReferences) return entry;
+  if (!hasCurrentEmbeddingChunkInput(entry)) return null;
   const references = entry.chunkReferences;
   if (references.schemaVersion !== 1 || references.identityKey !== identityKey || entry.cacheMeta?.identityKey !== identityKey
     || !Array.isArray(references.records) || references.records.length > 32768
@@ -76,7 +81,8 @@ export const hydrateReferencedFileCache = async ({ entry, identityKey, readChunk
     if (!Array.isArray(results) || results.length !== batch.length) return null;
     for (let index = 0; index < batch.length; index++) {
       const ref = unique.get(batch[index]), payload = results[index]?.entry;
-      if (payload?.key !== ref.key || payload.hash !== ref.hash || payload.cacheMeta?.identityKey !== identityKey) return null;
+      if (!hasCurrentEmbeddingChunkInput(payload) || payload?.key !== ref.key || payload.hash !== ref.hash
+        || payload.cacheMeta?.identityKey !== identityKey) return null;
       const vectors = { code: payload.codeVectors?.[0] || [], doc: payload.docVectors?.[0] || [], merged: payload.mergedVectors?.[0] || [] };
       let digest; try {
         for (const vector of Object.values(vectors)) assertQuantizedEmbeddingRow(vector, { spec, dims: entry.cacheMeta?.identity?.dims });
@@ -114,7 +120,8 @@ export const createReferenceCacheWriter = ({ lock, readIndex, writeIndex, publis
       const existing = await readEntries(globalDir, chunks.map(chunk => chunk.cacheKey), canonical);
       for (let index = 0; index < chunks.length; index++) {
         const chunk = chunks[index], old = existing[index]?.entry;
-        let valid = old?.key === chunk.cacheKey && old.hash === chunk.payload.hash && old.cacheMeta?.identityKey === canonical.identityKey;
+        let valid = hasCurrentEmbeddingChunkInput(old) && old?.key === chunk.cacheKey
+          && old.hash === chunk.payload.hash && old.cacheMeta?.identityKey === canonical.identityKey;
         if (valid) {
           try { valid = digestQuantizedChannels({ code: old.codeVectors?.[0], doc: old.docVectors?.[0], merged: old.mergedVectors?.[0] },
             chunk.payload.cacheMeta?.identity?.quantization) === chunk.digest; }

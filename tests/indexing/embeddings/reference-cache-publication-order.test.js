@@ -1,3 +1,4 @@
+import { EMBEDDING_CHUNK_INPUT_VERSION } from '../../../src/shared/embedding-chunk-input.js';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { buildReferencedFileCache, createReferenceCacheWriter } from '../../../tools/build/embeddings/cache/file-references.js';
@@ -7,7 +8,7 @@ const globalDir = path.resolve('.tmp/tasks/reference-publication-fixture/global-
 const fileDir = path.join(path.dirname(globalDir), 'code', 'files');
 const identityKey = 'identity', globalIndex = createCacheIndex(identityKey), fileIndex = createCacheIndex(identityKey), events = [];
 const plan = buildReferencedFileCache({ identityKey, identity: { dims: 2 }, chunkHashes: ['input'], codeVectors: [[1, 2]], docVectors: [[]], mergedVectors: [[3, 4]],
-  filePayload: { key: 'file', file: 'a.js', chunkHashes: ['input'], cacheMeta: { identityKey } }, buildInputKey: () => 'global-input' });
+  filePayload: { key: 'file', file: 'a.js', chunkHashes: ['input'], cacheMeta: { identityKey, chunkInputVersion: EMBEDDING_CHUNK_INPUT_VERSION } }, buildInputKey: () => 'global-input' });
 const failure = new Error('controlled file-index interruption');
 const write = createReferenceCacheWriter({ lock: async (_dir, run) => run(), readIndex: async () => createCacheIndex(identityKey),
   readEntries: async (_dir, keys) => keys.map(() => ({ entry: null })),

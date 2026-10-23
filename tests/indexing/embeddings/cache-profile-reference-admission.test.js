@@ -1,3 +1,4 @@
+import { EMBEDDING_CHUNK_INPUT_VERSION } from '../../../src/shared/embedding-chunk-input.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -30,7 +31,7 @@ assert.equal(hasReusableQuantizedChannels({ ...reused, doc: null }, { quantizati
 const assembled = buildOrReuseQuantizedChannels({ reused, codeVector: [], docVector: [], quantization });
 assert.equal(assembled.quantizedCode, code); assert.equal(assembled.quantizedDoc, doc); assert.equal(assembled.quantizedMerged, merged);
 assert.throws(() => buildOrReuseQuantizedChannels({ reused: { ...reused, code: Uint8Array.of(16, 2) }, quantization }), { code: 'ERR_EMBEDDING_CACHE_REUSE_INVALID' });
-const prior = { cacheMeta: { identityKey: a.key, identity: a.identity }, chunkHashes: ['first'],
+const prior = { cacheMeta: { chunkInputVersion: EMBEDDING_CHUNK_INPUT_VERSION, identityKey: a.key, identity: a.identity }, chunkHashes: ['first'],
   codeVectors: [code], docVectors: [doc], mergedVectors: [merged] };
 const reuse = { code: [], doc: [], merged: [] };
 assert.equal(reusePriorChunkVectors({ prior, chunkHashes: ['first'], docTexts: [''], identityKey: a.key, expectedDims: 2, reuse }), 1);
@@ -39,7 +40,7 @@ assert.equal(buildOrReuseQuantizedChannels({ reused: { code: reuse.code[0], doc:
 
 const vectors = { codeVectors: [code, code], docVectors: [doc, doc], mergedVectors: [merged, merged] };
 const plan = buildReferencedFileCache({ identityKey: a.key, identity: a.identity, chunkHashes: ['first', 'first'], ...vectors,
-  filePayload: { key: 'file', chunkHashes: ['first', 'first'], cacheMeta: { identityKey: a.key, identity: a.identity } },
+  filePayload: { key: 'file', chunkHashes: ['first', 'first'], cacheMeta: { chunkInputVersion: EMBEDDING_CHUNK_INPUT_VERSION, identityKey: a.key, identity: a.identity } },
   buildInputKey: hash => hash });
 assert.equal(plan.chunks.length, 1);
 let reads = 0;

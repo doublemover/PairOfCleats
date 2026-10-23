@@ -1,3 +1,4 @@
+import { EMBEDDING_CHUNK_INPUT_VERSION } from '../../../src/shared/embedding-chunk-input.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -14,7 +15,7 @@ const fileIndex = createCacheIndex(identityKey), globalIndex = createCacheIndex(
 const vectors = { codeVectors: [Uint8Array.of(1, 2), Uint8Array.of(3, 4), Uint8Array.of(1, 2)],
   docVectors: [[], Uint8Array.of(4, 3), []], mergedVectors: [Uint8Array.of(5, 6), Uint8Array.of(7, 8), Uint8Array.of(5, 6)] };
 const plan = file => buildReferencedFileCache({ identity, identityKey, ...vectors, chunkHashes: ['a', 'b', 'a'],
-  filePayload: { key: file, file: `${file}.js`, hash: 'source', chunkSignature: 'signature', chunkHashes: ['a', 'b', 'a'], cacheMeta: { identityKey } },
+  filePayload: { key: file, file: `${file}.js`, hash: 'source', chunkSignature: 'signature', chunkHashes: ['a', 'b', 'a'], cacheMeta: { identityKey, chunkInputVersion: EMBEDDING_CHUNK_INPUT_VERSION } },
   buildInputKey: chunkHash => buildGlobalChunkCacheKey({ chunkHash, identityKey, pathPolicy: 'posix' }) });
 const persist = async value => writeReferencedCacheFile({ fileDir, fileIndex, globalDir, globalIndex, mode: 'code', filePayload: value.filePayload,
   encodedFile: await encodeCacheEntryPayload(value.filePayload), chunks: await Promise.all(value.chunks.map(async chunk => ({ ...chunk,

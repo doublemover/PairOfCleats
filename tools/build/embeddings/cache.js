@@ -1,4 +1,5 @@
 import { createCachePhysicalStorage } from './cache/physical-storage.js';
+import { EMBEDDING_CHUNK_INPUT_VERSION, hasCurrentEmbeddingChunkInput } from '../../../src/shared/embedding-chunk-input.js';
 import { readEmbeddingIndex, checkpointEmbeddingIndex, appendEmbeddingIndexDelta, syncEmbeddingIndexDelta } from './cache/index-log.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
@@ -32,8 +33,8 @@ import { buildCachePhysicalSummary, compareCachePhysicalAge } from './cache/phys
 import { assertNoSymlinkPath, verifyContainedFileHandle, readVerifiedContainedFile, withContainedFile } from '../../../src/shared/contained-file.js';
 import { createContainedFileResource } from '../../../src/shared/contained-file-resource.js';
 
-const CACHE_KEY_SCHEMA_VERSION = 'embeddings-cache-v1';
-const GLOBAL_CHUNK_CACHE_KEY_SCHEMA_VERSION = 'embeddings-global-chunk-cache-v2';
+const CACHE_KEY_SCHEMA_VERSION = 'embeddings-cache-v2';
+const GLOBAL_CHUNK_CACHE_KEY_SCHEMA_VERSION = 'embeddings-global-chunk-cache-v3';
 const DEFAULT_MAX_SHARD_BYTES = 128 * 1024 * 1024;
 const CACHE_ENTRY_PREFIX_BYTES = 4;
 const CHUNK_HASH_FINGERPRINT_DELIMITER = '\n';
@@ -937,6 +938,7 @@ export const buildCacheKey = ({
     featureFlags: featureFlags || null,
     pathPolicy: pathPolicy || 'posix',
     extra: {
+      chunkInputVersion: EMBEDDING_CHUNK_INPUT_VERSION,
       file: file || null,
       hash,
       signature: signature || null
@@ -966,6 +968,7 @@ export const buildGlobalChunkCacheKey = ({
     featureFlags: featureFlags || null,
     pathPolicy: pathPolicy || 'posix',
     extra: {
+      chunkInputVersion: EMBEDDING_CHUNK_INPUT_VERSION,
       chunkHash
     }
   });
@@ -978,7 +981,7 @@ export const buildGlobalChunkCacheKey = ({
  * @returns {boolean}
  */
 export const isCacheValid = ({ cached, signature, identityKey, hash }) => {
-  if (!cached || cached.chunkSignature !== signature) return false;
+  if (!hasCurrentEmbeddingChunkInput(cached) || cached.chunkSignature !== signature) return false;
   if (hash && cached.hash && cached.hash !== hash) return false;
   return cached.cacheMeta?.identityKey === identityKey;
 };
@@ -989,7 +992,7 @@ export const isCacheValid = ({ cached, signature, identityKey, hash }) => {
  * @returns {boolean}
  */
 export const isGlobalChunkCacheValid = ({ cached, identityKey, chunkHash }) => {
-  if (!cached) return false;
+  if (!hasCurrentEmbeddingChunkInput(cached)) return false;
   if (chunkHash && cached.hash !== chunkHash) return false;
   if (!identityKey) return Boolean(cached.cacheMeta?.identityKey);
   return cached.cacheMeta?.identityKey === identityKey;

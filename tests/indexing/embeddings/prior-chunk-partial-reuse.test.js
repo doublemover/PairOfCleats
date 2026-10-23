@@ -1,6 +1,7 @@
+import { EMBEDDING_CHUNK_INPUT_VERSION } from '../../../src/shared/embedding-chunk-input.js';
 import assert from 'node:assert/strict';
 import { reusePriorChunkVectors } from '../../../tools/build/embeddings/prior-chunk-reuse.js';
-const prior = { cacheMeta: { identityKey: 'qualified' }, chunkHashes: ['a','b','a','d'],
+const prior = { cacheMeta: { chunkInputVersion: EMBEDDING_CHUNK_INPUT_VERSION, identityKey: 'qualified' }, chunkHashes: ['a','b','a','d'],
   codeVectors: [[1,0],[2,0],[3,0],[4,0]], docVectors: [[],[],[],[]], mergedVectors: [[1,0],[2,0],[3,0],[4,0]] };
 const match = (hashes, extra = {}) => {
   const reuse = { code: Array(hashes.length).fill(null), doc: Array(hashes.length).fill(null), merged: Array(hashes.length).fill(null) };

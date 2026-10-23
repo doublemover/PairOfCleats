@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { EMBEDDING_CHUNK_INPUT_VERSION } from '../../../src/shared/embedding-chunk-input.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -63,7 +64,7 @@ const toIso = (value) => new Date(value).toISOString();
   const signature = 'sig-1';
   const cached = {
     chunkSignature: signature,
-    cacheMeta: { identityKey: base.key }
+    cacheMeta: { identityKey: base.key, chunkInputVersion: EMBEDDING_CHUNK_INPUT_VERSION }
   };
   assert.equal(isCacheValid({ cached, signature, identityKey: base.key }), true);
   assert.equal(isCacheValid({ cached, signature, identityKey: dimsChanged.key }), false);

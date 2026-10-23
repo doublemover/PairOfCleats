@@ -103,3 +103,16 @@ original pending-resource prerequisite. Pending vector writes remain capped at
 256 keys/4 MiB, touch keys at 1,024, and digest memoization at 4,096 keys. Native
 SQLite limits, crash behavior, accuracy and throughput still require external
 qualification; authored source controls are not executed evidence.
+
+
+## Versioned chunk input framing
+
+Chunk input identity version2 hashes exact UTF-8 byte-length-framed code and
+documentation channels with SHA256. Missing documentation is explicit; moving
+newline-bearing text between channels changes identity. Provider inputs are not
+silently normalized: CRLF and LF remain distinct. File keys use cache-v2 and global
+chunk keys cache-v3; payloads require `cacheMeta.chunkInputVersion: 2` for reuse.
+Legacy ambiguous entries remain readable storage but cannot authorize prior-file,
+global, reference or cache-only reuse. Model/tokenizer/quantization identity and
+checked profile compatibility remain independently required. No cache deletion is
+needed for this migration.

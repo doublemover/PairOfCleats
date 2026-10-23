@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { hasCurrentEmbeddingChunkInput } from '../../../../src/shared/embedding-chunk-input.js';
 import { throwIfAborted, isAbortError } from '../../../../src/shared/abort.js';
 import { canonicalBundleSourceKey } from '../../../../src/shared/bundle-source-key.js';
 import { loadChunkMetaRows, loadFileMetaRows } from '../../../../src/shared/artifact-io/loaders.js';
@@ -138,7 +139,7 @@ export const planStage3CacheOnly = async ({ roots, identity, identityKey, cacheR
           () => hydrateReferencedFileCache({ entry: cached, identityKey, readChunks: keys => readCacheEntries(globalDir, keys, globalIndex, { fallbacks: globalFallbacks }) }),
           { waitMs: 0 });
         throwIfAborted(signal);
-        if (cached?.key !== cacheKey || cached.hash !== hash || cached.chunkSignature !== signature
+        if (!hasCurrentEmbeddingChunkInput(cached) || cached?.key !== cacheKey || cached.hash !== hash || cached.chunkSignature !== signature
           || cached.cacheMeta?.identityKey !== identityKey
           || !hasCompleteCachedFileVectors({ cached, items, dims: identity.dims })) return refuse('missing-or-incomplete-file');
         for (const channel of ['code', 'doc', 'merged']) for (const vector of cached[`${channel}Vectors`]) work.vectorBytesChecked += vector.length;

@@ -1,4 +1,5 @@
 import { resolveEmbeddingsBatchTokenBudget } from '../../../src/shared/embedding-batch.js';
+import { buildEmbeddingChunkInputHash, EMBEDDING_CHUNK_INPUT_VERSION } from '../../../src/shared/embedding-chunk-input.js';
 import { digestBundleMappingInventory, observeBundleCoverageFiles, checkBundleCoverageReceipt,
   createBundleCoverageReceipt } from './runner/bundle-coverage-receipt.js';
 import { planStage3CacheOnly, createCacheOnlyEmbedder, hasCompleteCachedFileVectors } from './runner/cache-only.js';
@@ -938,20 +939,12 @@ export const hydrateMissingChunkTextsFromBundle = ({
 };
 
 /**
- * Build line-ending-stable source payload hash for cache/dedupe checks.
+ * Compatibility export for the exact, versioned provider-channel identity.
  *
  * @param {{codeText?:string,docText?:string}} [input]
  * @returns {string}
  */
-export const buildNormalizedChunkPayloadHash = ({ codeText = '', docText = '' } = {}) => {
-  const normalizedCode = typeof codeText === 'string'
-    ? codeText.replace(/\r\n/g, '\n')
-    : '';
-  const normalizedDoc = typeof docText === 'string'
-    ? docText.replace(/\r\n/g, '\n')
-    : '';
-  return sha1(`${normalizedCode}\n${normalizedDoc}`);
-};
+export const buildNormalizedChunkPayloadHash = buildEmbeddingChunkInputHash;
 
 /**
  * Resolve deterministic embeddings sampling config.
@@ -3028,7 +3021,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                 key: entry.cacheKey, file: entry.normalizedRel, hash: entry.fileHash,
                 chunkSignature: entry.chunkSignature, chunkHashes: entry.chunkHashes,
                 chunkHashesFingerprint: entry.chunkHashesFingerprint || null,
-                cacheMeta: { schemaVersion: 2, identityKey: cacheIdentityKey, identity: cacheIdentity, createdAt: new Date().toISOString() }
+                cacheMeta: { schemaVersion: 2, chunkInputVersion: EMBEDDING_CHUNK_INPUT_VERSION,
+                  identityKey: cacheIdentityKey, identity: cacheIdentity, createdAt: new Date().toISOString() }
               } : null;
               const referenced = buildReferencedFileCache({ filePayload, chunkHashes: entry.chunkHashes,
                 codeVectors: cachedCodeVectors, docVectors: cachedDocVectors, mergedVectors: cachedMergedVectors,
@@ -3410,7 +3404,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
               chunkCodeTexts[i] = codeText;
               chunkDocTexts[i] = trimmedDoc;
               if (chunkHashes) {
-                chunkHashes[i] = sha1(`${codeText}\n${trimmedDoc}`);
+                chunkHashes[i] = buildEmbeddingChunkInputHash({ codeText, docText: trimmedDoc || null });
               }
             }
             const chunkHashesFingerprint = cacheEligible && chunkHashes

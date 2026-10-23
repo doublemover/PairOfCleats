@@ -1,8 +1,9 @@
 import { hasReusableQuantizedChannels } from './quantized-channels.js';
+import { hasCurrentEmbeddingChunkInput } from '../../../src/shared/embedding-chunk-input.js';
 
 /** Aggregate file fingerprints are hints; exact chunk hashes decide reuse. */
 export const reusePriorChunkVectors = ({ prior, chunkHashes, docTexts, identityKey, expectedDims, reuse }) => {
-  if (!prior || prior.cacheMeta?.identityKey !== identityKey || !Array.isArray(prior.chunkHashes)) return 0;
+  if (!hasCurrentEmbeddingChunkInput(prior) || prior.cacheMeta?.identityKey !== identityKey || !Array.isArray(prior.chunkHashes)) return 0;
   const buckets = new Map();
   for (let index = 0; index < prior.chunkHashes.length; index++) {
     const hash = prior.chunkHashes[index];
