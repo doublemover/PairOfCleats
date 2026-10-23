@@ -41,6 +41,7 @@ for (const quantization of [{}, { minVal: -2, maxVal: 2, levels: 16 }]) {
 }
 for (const fail of [
   () => new Error('ordinary settled rejection'),
+  () => new AggregateError([new Error('first settled failure'), new Error('second settled failure')], 'settled batch failure'),
   () => null
 ]) {
   const chunks = [{ embedding: Float32Array.of(.1, .2) }];
@@ -71,10 +72,18 @@ for (const typed of [false, true]) {
 }
 for (const code of ['ABORT_ERR', 'ERR_PROCESS_TASK_BUDGET', 'ERR_TOKENIZER_RESOURCE_PRESSURE',
   'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', 'ERR_WORKER_POOL_CLEANUP_TIMEOUT', 'BUILD_CLEANUP_TIMEOUT',
-  'PISCINA_DESTROY_TIMEOUT', 'PISCINA_WORKER_TERMINATE_TIMEOUT', 'PISCINA_FORCE_TERMINATE_INCOMPLETE']) {
+  'PISCINA_DESTROY_TIMEOUT', 'PISCINA_WORKER_TERMINATE_TIMEOUT', 'PISCINA_FORCE_TERMINATE_INCOMPLETE',
+  'ERR_SCHEDULER_COMPUTE_NOT_ADMITTED', 'ERR_SCHEDULER_CPU_REACQUIRE']) {
   const error = Object.assign(new Error(code), { code });
   await assert.rejects(buildDenseVectors({ chunks: [{ embedding: [.1, .2] }],
     quantizePool: { async runQuantize() { throw error; } } }), actual => actual === error);
+}
+{
+  const original = Object.assign(new Error('original resource still pending'), { cacheOwnershipPending: false,
+    cacheOwnershipReleased() { assert.equal(this, original); return false; } });
+  const failure = new AggregateError([new Error('settled sibling'), new Error('wrapped', { cause: original })], 'nested resource failure');
+  await assert.rejects(buildDenseVectors({ chunks: [{ embedding: [.1, .2] }],
+    quantizePool: { async runQuantize() { throw failure; } } }), actual => actual === failure);
 }
 const controller = new AbortController();
 await assert.rejects(buildDenseVectors({ chunks: [{ embedding: [.1, .2] }], abortSignal: controller.signal,

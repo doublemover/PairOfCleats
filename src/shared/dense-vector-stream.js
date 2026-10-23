@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
-import { openContainedFile, openContainedFileSync, verifyContainedFileHandle } from './contained-file.js';
+import { iterateContainedFile, openContainedFileSync, verifyContainedFileHandle } from './contained-file.js';
+import { createContainedFileResource } from './contained-file-resource.js';
 import { normalizeDenseVectorMeta } from './dense-vector-meta.js';
 import { decodeDenseVectorValidity } from './dense-vector-validity.js';
 import { throwIfAborted } from './abort.js';
@@ -15,11 +16,12 @@ const sameStat = (left, right) => identityFields.every(key => left[key] === righ
 
 export const normalizeDenseVectorStreamMeta = raw => {
   const input = normalizeDenseVectorMeta(raw);
-  const count = input?.count ?? input?.totalRecords;
+  const count = Object.hasOwn(input || {}, 'count') ? input.count : input?.totalRecords;
   if (!input || !Number.isSafeInteger(count) || count < 0 || !Number.isSafeInteger(input.dims)
     || input.dims <= 0 || input.dims > MAX_ROW_BYTES || !Number.isSafeInteger(count * input.dims)
-    || (input.count != null && input.totalRecords != null && input.count !== input.totalRecords)
-    || (input.bytes != null && input.bytes !== count * input.dims)) throw invalid('Invalid dense vector stream dimensions or count.');
+    || (Object.hasOwn(input, 'totalRecords') && count !== input.totalRecords)
+    || (Object.hasOwn(input, 'bytes') && input.bytes !== count * input.dims)
+    || (Object.hasOwn(input, 'format') && input.format !== 'uint8-row-major')) throw invalid('Invalid dense vector stream dimensions or count.');
   const meta = { ...input, count };
   resolveDenseQuantizationSpec(meta);
   decodeDenseVectorValidity(meta);
@@ -67,8 +69,7 @@ export async function* iterateDenseVectorBinaryRows({ root, filename, meta: raw,
   const { meta, spec, bits, start, end, rowsPerWindow, expectedDigest, digestAlgorithm } = selected;
   throwIfAborted(signal);
   const digest = digestAlgorithm === 'xxh64' ? await createXxhash64Hasher() : digestAlgorithm ? createHash(digestAlgorithm) : null;
-  const handle = await openContainedFile(root, filename);
-  try {
+  yield* iterateContainedFile(root, filename, async function* (handle) {
     const before = await handle.stat({ bigint: true }); admit(before, meta);
     const firstRow = digest ? 0 : start, lastRow = digest ? meta.count : end;
     for (let first = firstRow; first < lastRow; first += rowsPerWindow) {
@@ -92,8 +93,8 @@ export async function* iterateDenseVectorBinaryRows({ root, filename, meta: raw,
         yield { docId: row, vector };
       }
     }
-    finish({ before, after: await handle.stat({ bigint: true }), digest, expectedDigest, fd: handle, root, filename, signal });
-  } finally { await handle.close(); }
+    finish({ before, after: await handle.stat({ bigint: true }), digest, expectedDigest, fd: handle.fd, root, filename, signal });
+  });
 }
 
 /** Open and validate descriptor/length before a synchronous SQLite transaction.
@@ -105,34 +106,39 @@ export const openDenseVectorBinarySourceSync = ({ root, filename, meta: raw, sig
   if (digestAlgorithm === 'xxh64') throw invalid('Synchronous xxh64 reads require prior asynchronous verification.');
   throwIfAborted(signal);
   const fd = openContainedFileSync(root, filename);
+  const owner = createContainedFileResource({ fd, sync: true, methods: { receiver: fs, close: fs.closeSync, stat: fs.fstatSync, read: fs.readSync } });
+  if (owner.hasFailure()) return owner.runSync(() => {});
   let before;
-  try { before = fs.fstatSync(fd, { bigint: true }); admit(before, meta); }
-  catch (error) { fs.closeSync(fd); throw error; }
-  let closed = false;
-  const close = () => { if (!closed) { closed = true; fs.closeSync(fd); } };
+  try { before = owner.operations.stat({ bigint: true }); admit(before, meta); }
+  catch (error) { owner.remember(error); return owner.runSync(() => {}); }
+  let accepting = true;
+  const close = () => { if (!accepting && owner.isSettled()) return; accepting = false; return owner.runSync(() => {}); };
   return { count: end - start, meta, close, *[Symbol.iterator]() {
-    if (closed) throw invalid('Dense vector stream descriptor has closed.');
-    const digest = digestAlgorithm ? createHash(digestAlgorithm) : null;
-    const firstRow = digest ? 0 : start, lastRow = digest ? meta.count : end;
-    for (let first = firstRow; first < lastRow; first += rowsPerWindow) {
-      throwIfAborted(signal);
-      const rowCount = Math.min(rowsPerWindow, lastRow - first), bytes = Buffer.alloc(rowCount * meta.dims);
-      let offset = 0;
-      while (offset < bytes.length) {
+    if (!accepting) throw invalid('Dense vector stream descriptor no longer admits reads.');
+    try {
+      const digest = digestAlgorithm ? createHash(digestAlgorithm) : null;
+      const firstRow = digest ? 0 : start, lastRow = digest ? meta.count : end;
+      for (let first = firstRow; first < lastRow; first += rowsPerWindow) {
         throwIfAborted(signal);
-        const remaining = bytes.length - offset;
-        const progress = fs.readSync(fd, bytes, offset, remaining, first * meta.dims + offset);
-        if (!Number.isSafeInteger(progress) || progress <= 0 || progress > remaining) throw invalid('Dense vector read made invalid forward progress.');
-        recordRead(metrics, progress, bytes.length); offset += progress;
+        const rowCount = Math.min(rowsPerWindow, lastRow - first), bytes = Buffer.alloc(rowCount * meta.dims);
+        let offset = 0;
+        while (offset < bytes.length) {
+          throwIfAborted(signal);
+          const remaining = bytes.length - offset;
+          const progress = owner.operations.read(bytes, offset, remaining, first * meta.dims + offset);
+          if (!Number.isSafeInteger(progress) || progress <= 0 || progress > remaining) throw invalid('Dense vector read made invalid forward progress.');
+          recordRead(metrics, progress, bytes.length); offset += progress;
+        }
+        digest?.update(bytes);
+        for (let row = Math.max(first, start); row < Math.min(first + rowCount, end); row++) {
+          throwIfAborted(signal);
+          const vector = present(bits, row) ? bytes.subarray((row - first) * meta.dims, (row - first + 1) * meta.dims) : new Uint8Array(0);
+          assertQuantizedEmbeddingRow(vector, { spec, dims: meta.dims });
+          yield { docId: row, vector };
+        }
       }
-      digest?.update(bytes);
-      for (let row = Math.max(first, start); row < Math.min(first + rowCount, end); row++) {
-        throwIfAborted(signal);
-        const vector = present(bits, row) ? bytes.subarray((row - first) * meta.dims, (row - first + 1) * meta.dims) : new Uint8Array(0);
-        assertQuantizedEmbeddingRow(vector, { spec, dims: meta.dims });
-        yield { docId: row, vector };
-      }
-    }
-    finish({ before, after: fs.fstatSync(fd, { bigint: true }), digest, expectedDigest, fd, root, filename, signal });
+      finish({ before, after: owner.operations.stat({ bigint: true }), digest, expectedDigest, fd, root, filename, signal });
+    } catch (error) { owner.remember(error); throw error; }
+    finally { close(); }
   } };
 };

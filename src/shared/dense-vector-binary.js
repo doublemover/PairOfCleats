@@ -6,6 +6,9 @@ import { joinPathSafe } from './path-normalize.js';
 import { resolveBinaryArtifactPath } from './artifact-io/manifest.js';
 import { decodeDenseVectorValidity } from './dense-vector-validity.js';
 import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec, resolveDenseQuantizationSpec } from './embedding-quantization-spec.js';
+import { readVerifiedContainedFile, readVerifiedContainedFileSync } from './contained-file.js';
+import { createContainedFileResource } from './contained-file-resource.js';
+import { observeStorageResource } from './storage/failure-observation.js';
 import {
   normalizeDenseVectorMeta,
   resolveDenseVectorCountFromBuffer
@@ -41,9 +44,8 @@ export const resolveDenseVectorBinaryArtifact = (artifactName) => {
 };
 
 const toPositiveInteger = (value) => {
-  const number = Number(value);
-  return Number.isFinite(number) && number > 0
-    ? Math.floor(number)
+  return Number.isSafeInteger(value) && value > 0
+    ? value
     : 0;
 };
 
@@ -110,6 +112,8 @@ export const writeDenseVectorBinaryFile = async ({
 }) => {
   const count = Array.isArray(vectors) ? vectors.length : 0;
   const rowWidth = toPositiveInteger(dims);
+  if (!Array.isArray(vectors) || count > 0 && !rowWidth || rowWidth > 16 * 1024 * 1024
+    || !Number.isSafeInteger(rowWidth * count)) throw Object.assign(new Error('Invalid dense vector binary dimensions/count.'), { code: 'ERR_DENSE_VECTOR_INVALID' });
   const spec = resolveEmbeddingQuantizationSpec(quantization);
   for (const row of vectors || []) assertQuantizedEmbeddingRow(row, { spec, dims: rowWidth });
   const totalBytes = rowWidth > 0 ? rowWidth * count : 0;
@@ -117,7 +121,9 @@ export const writeDenseVectorBinaryFile = async ({
   await fsPromises.mkdir(path.dirname(binPath), { recursive: true });
   try {
     const handle = await fsPromises.open(tempBinPath, 'w');
-    try {
+    const owner = createContainedFileResource({ handle, sync: false, additionalMethods: ['write', 'sync'] });
+    await owner.run(async () => {
+      const descriptor = owner.operations;
       if (rowWidth > 0 && count > 0) {
         const rowsPerChunk = Math.max(1, Math.floor(DENSE_BINARY_WRITE_CHUNK_BYTES / rowWidth));
         const chunk = Buffer.alloc(rowsPerChunk * rowWidth);
@@ -128,7 +134,7 @@ export const writeDenseVectorBinaryFile = async ({
           let offset = 0;
           while (offset < bytesToWrite) {
             const remaining = bytesToWrite - offset;
-            const { bytesWritten } = await handle.write(chunk, offset, remaining);
+            const { bytesWritten } = await descriptor.write(chunk, offset, remaining);
             if (!Number.isSafeInteger(bytesWritten) || bytesWritten <= 0 || bytesWritten > remaining) {
               throw Object.assign(new Error('Dense vector write did not make valid forward progress.'),
                 { code: 'ERR_DENSE_VECTOR_SHORT_WRITE' });
@@ -147,13 +153,14 @@ export const writeDenseVectorBinaryFile = async ({
         }
         await flushChunk();
       }
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
+      await descriptor.sync();
+    });
     await replaceFile(tempBinPath, binPath);
     return { count, rowWidth, totalBytes };
   } catch (error) {
+    // A failed original close retains the temporary file and its exact owner.
+    // Namespace cleanup cannot erase an unresolved native resource prerequisite.
+    observeStorageResource(error, { phase: 'dense-vector-binary-write' }).requireSettled();
     try { await fsPromises.rm(tempBinPath, { force: true }); }
     catch (cleanupError) {
       throw Object.assign(new AggregateError([error, cleanupError],
@@ -171,15 +178,15 @@ const hydrateDenseVectorFromBinaryBuffer = ({
 }) => {
   const normalizedMeta = normalizeDenseVectorMeta(meta);
   if (!normalizedMeta) return null;
+  if (Object.hasOwn(normalizedMeta, 'format') && normalizedMeta.format !== 'uint8-row-major') return null;
   const spec = resolveDenseQuantizationSpec(normalizedMeta);
-  decodeDenseVectorValidity(normalizedMeta);
   const relPath = typeof normalizedMeta.path === 'string' && normalizedMeta.path
     ? normalizedMeta.path
     : `${baseName}.bin`;
   const view = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
   const { dims, count, requiredBytes } = resolveDenseVectorCountFromBuffer(normalizedMeta, view.length);
-  if (!dims || !count || view.length !== requiredBytes) return null;
-  const validity = decodeDenseVectorValidity(normalizedMeta);
+  if (!dims || view.length !== requiredBytes) return null;
+  const validity = decodeDenseVectorValidity({ ...normalizedMeta, count });
   for (let row = 0; row < count; row++) {
     if (validity && !(validity[row >> 3] & (1 << (row & 7)))) continue;
     assertQuantizedEmbeddingRow(view.subarray(row * dims, (row + 1) * dims), { spec, dims, allowEmpty: false });
@@ -221,18 +228,22 @@ export const loadDenseVectorBinaryFromMetaAsync = async ({
   const absPath = resolveDenseVectorBinaryPayloadPath({ dir, baseName, meta: normalizedMeta, manifest, strict });
   if (!absPath) return null;
   try {
-    const buffer = await fsPromises.readFile(absPath);
+    const extent = (await fsPromises.stat(absPath)).size;
+    const shape = resolveDenseVectorCountFromBuffer(normalizedMeta, extent);
+    if (!shape.dims) throw Object.assign(new Error('Dense binary extent disagrees with declared dimensions/count.'), { code: 'ERR_DENSE_VECTOR_INVALID' });
+    const { buffer } = await readVerifiedContainedFile(dir, absPath, { maxBytes: extent, expectedBytes: shape.requiredBytes });
     const loaded = hydrateDenseVectorFromBinaryBuffer({
       buffer,
       meta: normalizedMeta,
       baseName,
       modelId
     });
-    if (!loaded && strict && normalizedMeta.count !== 0) {
+    if (!loaded && strict) {
       throw Object.assign(new Error(`Declared dense vector binary payload is truncated or invalid: ${absPath}`), { code: 'ERR_DENSE_VECTOR_INVALID' });
     }
     return loaded;
   } catch (error) {
+    observeStorageResource(error, { phase: 'dense-vector-binary-read' }).requireSettled();
     if (strict) throw error;
     return null;
   }
@@ -265,18 +276,22 @@ export const loadDenseVectorBinaryFromMetaSync = ({
   const absPath = resolveDenseVectorBinaryPayloadPath({ dir, baseName, meta: normalizedMeta, manifest, strict });
   if (!absPath) return null;
   try {
-    const buffer = fs.readFileSync(absPath);
+    const extent = fs.statSync(absPath).size;
+    const shape = resolveDenseVectorCountFromBuffer(normalizedMeta, extent);
+    if (!shape.dims) throw Object.assign(new Error('Dense binary extent disagrees with declared dimensions/count.'), { code: 'ERR_DENSE_VECTOR_INVALID' });
+    const { buffer } = readVerifiedContainedFileSync(dir, absPath, { maxBytes: extent, expectedBytes: shape.requiredBytes });
     const loaded = hydrateDenseVectorFromBinaryBuffer({
       buffer,
       meta: normalizedMeta,
       baseName,
       modelId
     });
-    if (!loaded && strict && normalizedMeta.count !== 0) {
+    if (!loaded && strict) {
       throw Object.assign(new Error(`Declared dense vector binary payload is truncated or invalid: ${absPath}`), { code: 'ERR_DENSE_VECTOR_INVALID' });
     }
     return loaded;
   } catch (error) {
+    observeStorageResource(error, { phase: 'dense-vector-binary-read-sync' }).requireSettled();
     if (strict) throw error;
     return null;
   }

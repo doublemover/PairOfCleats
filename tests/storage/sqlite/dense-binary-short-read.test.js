@@ -31,7 +31,7 @@ try {
       try {
         const collect = async () => { const rows = []; for await (const row of artifact.rows) rows.push(Array.from(row.vector)); return rows; };
         if (cap) assert.deepEqual(await collect(), [[1, 2, 3], [4, 5, 6]]);
-        else await assert.rejects(collect(), { code: 'ERR_SQLITE_DENSE_BINARY_TRUNCATED' });
+        else await assert.rejects(collect(), { code: 'ERR_DENSE_VECTOR_STREAM' });
       } finally { fs.open = open; }
       assert.equal(closed, 1);
     }

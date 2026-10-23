@@ -15,8 +15,8 @@ await fsPromises.writeFile(filename, bytes);
 const meta = { count: 4, dims: 3, validity: buildDenseVectorValidity([[1, 2, 3], [], [0, 0, 0], [9, 8, 7]]) };
 const originalRead = fs.readSync, originalOpen = fsPromises.open;
 try {
-  const work = {}, source = openDenseVectorBinarySourceSync({ root, filename, meta, maxBytes: 6, metrics: work });
   fs.readSync = (fd, buffer, offset, length, position) => originalRead(fd, buffer, offset, Math.min(length, 1), position);
+  const work = {}, source = openDenseVectorBinarySourceSync({ root, filename, meta, maxBytes: 6, metrics: work });
   try {
     assert.deepEqual(Array.from(source, row => [row.docId, Array.from(row.vector)]),
       [[0, [1, 2, 3]], [1, []], [2, [0, 0, 0]], [3, [9, 8, 7]]]);

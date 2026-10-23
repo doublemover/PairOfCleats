@@ -3,6 +3,7 @@ import { DEFAULT_STUB_DIMS } from '../../../shared/embedding.js';
 import { isVectorLike } from '../../../shared/embedding-utils.js';
 import { maybeYield } from './constants.js';
 import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
+import { isQueueRecoveryUnsafe } from '../../../shared/concurrency/queue-recovery.js';
 import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
 
 /** Preserve each channel's absence independently of fixed-width disk padding. */
@@ -92,10 +93,7 @@ export const buildDenseVectors = async ({
           }
           quantized = candidate;
         } catch (error) {
-          if (isAbortError(error) || ['ERR_PROCESS_TASK_BUDGET', 'ERR_TOKENIZER_RESOURCE_PRESSURE',
-            'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', 'ERR_WORKER_POOL_CLEANUP_TIMEOUT', 'BUILD_CLEANUP_TIMEOUT',
-            'PISCINA_DESTROY_TIMEOUT', 'PISCINA_WORKER_TERMINATE_TIMEOUT', 'PISCINA_FORCE_TERMINATE_INCOMPLETE'].includes(error?.code)
-            || error?.workerOwnershipPending || error?.cacheOwnershipPending || error?.cleanupError || error instanceof AggregateError) throw error;
+          if (isAbortError(error) || isQueueRecoveryUnsafe(error)) throw error;
           throwIfAborted(abortSignal);
           if (!warnedWorker) { warnedWorker = true; log?.('Quantize worker unavailable; falling back to inline quantization.'); }
         }
