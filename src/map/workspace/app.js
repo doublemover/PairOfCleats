@@ -1,6 +1,6 @@
 import { projectOutput, createPageIdentityLookup, VIEW_LIMITS } from './projection.js';
 import { authorProjection, createCompileController } from './reladraw.js';
-import { createRequestController, semanticDetailInput, OPERATIONS } from './request.js';
+import { createRequestController, semanticDetailInput, captureWorkspaceFailure, OPERATIONS } from './request.js';
 import { mountDiagram } from './svg.js';
 import { inspectValue, button, download } from './inspect.js';
 import { createResponseFindController, entityFindText, FIND_PREVIEW_LIMIT } from './find.js';
@@ -12,7 +12,15 @@ let diagramMode = true, validSource = '', zoom = 1;
 const expanded = new Set();
 let selected = null, page = 0, loadId = 0, compileEpoch = 0, history = [], historyAt = -1, activeRequest = null;
 let responseIdentity = 0, found = null, findAt = -1;
+let actionEpoch = 0;
 const notice = (text, error = false) => { $('notice').textContent = text; $('notice').classList.toggle('error', error); };
+const superseded = () => Object.freeze({ ok: false, reason: 'superseded' });
+const reportActionFailure = (primary, current) => {
+  if (!current()) return Object.freeze({ ok: false, reason: 'superseded', primaryError: primary });
+  const captured = captureWorkspaceFailure(primary);
+  if (current() && captured.name !== 'AbortError') notice(captured.message, true);
+  return Object.freeze({ ok: false, primaryError: primary, inspectionErrors: captured.inspectionErrors });
+};
 function selection(id, remember = true) {
   const node = pageLookup?.get(id);
   if (!node) { notice('Selected identity is unavailable in this admitted page.'); return; }
@@ -23,12 +31,18 @@ function selection(id, remember = true) {
   const heading = document.createElement('h2'); heading.textContent = 'Directed relationships in this page'; $('detail').append(heading);
   const related = projection.edges.filter(edge => edge.from === id || edge.to === id);
   const detailInput = semanticDetailInput(node, projection, activeRequest?.input?.repoRoot || '.');
+  const originalPage = projection;
+  const originalSelection = () => projection === originalPage && pageLookup?.get(id) === node;
   if (detailInput) {
     $('detail').prepend(button('Load semantic detail', async () => {
+      if (!originalSelection()) return superseded();
+      const epoch = ++actionEpoch, current = () => epoch === actionEpoch && originalSelection();
       const input = detailInput;
       try { const data = await requests.request('detail', input, { token: $('token').value, expectedGeneration: input.generation });
-        accept(data, 'semantic detail'); activeRequest = { operation: 'detail', input }; $('next-response').disabled = !projection.cursor;
-      } catch (error) { notice(error.message, true); }
+        if (!current()) return superseded();
+        accept(data, 'semantic detail'); if (epoch !== actionEpoch) return superseded();
+        activeRequest = { operation: 'detail', input }; $('next-response').disabled = !projection.cursor;
+      } catch (error) { return reportActionFailure(error, current); }
     }));
   }
   for (const edge of related) {
@@ -41,10 +55,14 @@ function selection(id, remember = true) {
   if (!related.length) $('detail').append(document.createTextNode('No admitted relationship. This does not establish absence from the index.'));
   if (projection.family === 'artifacts' && node.detail?.available && node.detail?.name) {
     $('detail').prepend(button('Inspect this artifact', async () => {
-      try { const input = { repoRoot: activeRequest?.input?.repoRoot || '.', name: node.detail.name, generation: projection.generation };
-        const data = await requests.request('artifact', input, { token: $('token').value, expectedGeneration: projection.generation });
-        accept(data, node.detail.name); activeRequest = { operation: 'artifact', input }; $('next-response').disabled = !projection.cursor;
-      } catch (error) { notice(error.message, true); }
+      if (!originalSelection()) return superseded();
+      const epoch = ++actionEpoch, current = () => epoch === actionEpoch && originalSelection();
+      try { const input = { repoRoot: activeRequest?.input?.repoRoot || '.', name: node.detail.name, generation: originalPage.generation };
+        const data = await requests.request('artifact', input, { token: $('token').value, expectedGeneration: originalPage.generation });
+        if (!current()) return superseded();
+        accept(data, node.detail.name); if (epoch !== actionEpoch) return superseded();
+        activeRequest = { operation: 'artifact', input }; $('next-response').disabled = !projection.cursor;
+      } catch (error) { return reportActionFailure(error, current); }
     }));
   }
   diagram?.select(id); renderTree();
@@ -153,7 +171,9 @@ async function compileSource() {
     $('export-svg').disabled = false; $('export-story').disabled = false;
   } catch (error) {
     if (current !== loadId || requestEpoch !== compileEpoch) return;
-    if (error.name !== 'AbortError') { $('compile-status').textContent = error.message; notice(error.message, true); }
+    const captured = captureWorkspaceFailure(error);
+    if (current !== loadId || requestEpoch !== compileEpoch) return;
+    if (captured.name !== 'AbortError') { $('compile-status').textContent = captured.message; notice(captured.message, true); }
   }
 }
 function rebuild(initialProjection = null) {
@@ -199,17 +219,19 @@ function accept(data, name) {
 $('open-button').onclick = () => $('open').click();
 $('open').onchange = async event => {
   const file = event.target.files[0]; if (!file) return;
+  const epoch = ++actionEpoch, current = () => epoch === actionEpoch;
   requests.cancel(); activeRequest = null; $('next-response').disabled = true;
   const id = ++loadId;
   try { if (file.size > VIEW_LIMITS.bytes) throw new Error('File exceeds 2 MiB. Use a bounded query/export rather than a complete index.');
-    const data = JSON.parse(await file.text()); if (id !== loadId) return; accept(data, file.name);
-  } catch (error) { notice(error.message, true); } finally { event.target.value = ''; }
+    const data = JSON.parse(await file.text()); if (!current() || id !== loadId) return superseded(); accept(data, file.name);
+  } catch (error) { return reportActionFailure(error, current); } finally { if (current()) event.target.value = ''; }
 };
 for (const name of Object.keys(OPERATIONS)) $('operation').append(new Option(name, name));
 $('query-toggle').onclick = () => { $('query').hidden = !$('query').hidden; };
 $('editor-toggle').onclick = () => { $('editor').hidden = !$('editor').hidden; if (output && !diagramMode) { diagramMode = true; compileSource(); } };
 $('data-view').onclick = () => { if (projection) { diagramMode = !diagramMode; if (diagramMode) compileSource(); else { compiler.cancel(); renderEvidenceList(); } } };
 async function runQuery(continuation = false) {
+  const epoch = ++actionEpoch, current = () => epoch === actionEpoch;
   try {
     const input = continuation ? structuredClone(activeRequest.input) : JSON.parse($('request').value);
     const operation = continuation ? activeRequest.operation : $('operation').value;
@@ -218,12 +240,13 @@ async function runQuery(continuation = false) {
     const expected = input.generation ?? input.request?.generation ?? null;
     notice('Loading a bounded response…');
     const data = await requests.request(operation, input, { token: $('token').value, expectedGeneration: expected });
-    accept(data, `${operation} response`); activeRequest = { operation, input };
+    if (!current()) return superseded();
+    accept(data, `${operation} response`); if (!current()) return superseded(); activeRequest = { operation, input };
     $('next-response').disabled = !projection.cursor;
-  } catch (error) { if (error.name !== 'AbortError') notice(error.message, true); }
+  } catch (error) { return reportActionFailure(error, current); }
 }
 $('run').onclick = () => runQuery(); $('next-response').onclick = () => runQuery(true);
-$('cancel').onclick = () => { requests.cancel(); notice('Request cancelled. Previous admitted view retained.'); };
+$('cancel').onclick = () => { actionEpoch++; requests.cancel(); notice('Request cancelled. Previous admitted view retained.'); };
 $('previous').onclick = () => { if (page > 0) { page--; rebuild(); } };
 $('next').onclick = () => { if (projection?.hasNext) { page++; rebuild(); } };
 $('relation').onchange = () => { if (output) rebuild(); };
@@ -247,7 +270,7 @@ $('forward').onclick = () => { if (historyAt < history.length - 1) followHistory
 $('export-svg').onclick = () => { if (diagram) download('pairofcleats-story.svg', new XMLSerializer().serializeToString(diagram.svg), 'image/svg+xml'); };
 $('export-story').onclick = () => download('pairofcleats-story.json', JSON.stringify({ ...story, source: validSource, coverage: projection.coverage }, null, 2));
 $('export-evidence').onclick = () => download('pairofcleats-output.json', JSON.stringify(output, null, 2));
-window.addEventListener('pagehide', () => { compiler.cancel(); requests.cancel(); finder.dispose(); pageLookup = null; });
+window.addEventListener('pagehide', () => { actionEpoch++; compiler.cancel(); requests.cancel(); finder.dispose(); pageLookup = null; });
 // Served reports can hand in one bounded initial model; API workspace starts empty.
 const initial = document.getElementById('map-data');
 if (initial) { try { accept(JSON.parse(initial.textContent), 'Code map report'); } catch (error) { notice(error.message, true); } }

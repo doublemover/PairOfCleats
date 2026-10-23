@@ -1,4 +1,20 @@
 import { VIEW_LIMITS } from './projection.js';
+const failures = new WeakMap();
+/** Bounded passive diagnostics; reporting cannot replace the original throw. */
+export function captureWorkspaceFailure(primary) {
+  const object = primary !== null && (typeof primary === 'object' || typeof primary === 'function');
+  if (object && failures.has(primary)) return failures.get(primary);
+  const inspectionErrors = [], fields = {};
+  if (object) for (const key of ['message', 'name']) {
+    try { const descriptor = Object.getOwnPropertyDescriptor(primary, key); if (descriptor && Object.hasOwn(descriptor, 'value')) fields[key] = descriptor.value; }
+    catch (error) { inspectionErrors.push(error); }
+  }
+  const message = typeof fields.message === 'string' ? fields.message.slice(0, 1024)
+    : typeof primary === 'string' ? primary.slice(0, 1024) : 'Workspace action failed; previous admitted evidence retained.';
+  const captured = Object.freeze({ primary, message, name: typeof fields.name === 'string' ? fields.name : 'Error', inspectionErrors: Object.freeze(inspectionErrors) });
+  if (object) failures.set(primary, captured);
+  return captured;
+}
 /** Fixed read-only operations. No arbitrary URL, enqueue or drain is admitted. */
 export const OPERATIONS = Object.freeze({
   catalog: '/map/catalog', artifact: '/map/artifact', search: '/search', detail: '/analysis/semantic-detail', find: '/analysis/semantic-find',
