@@ -108,6 +108,18 @@ full cleanup-category capability or deep-suite green is claimed.
   their original publication/identity/resource assertions are retained. No runtime
   tests ran; real backend/model qualification and resulting-tree checks remain open.
 
+- #1574/#1693 follow-through (`e29127c0d`): benchmark path planning now uses the
+  existing path-only resolver, without creating a lifetime reader before any
+  artifact access. Actual artifact readers still retain admission. The tiny
+  planning/real-reader contrast is authored, unrun. This does not claim parent
+  resource drain or category deletion authority; those remain protected.
+- #951 follow-through: the existing all-settled mode fanout now tracks failure
+  presence independently of value, and retains independent sibling failures by
+  mode rather than reason identity. Frozen causes use the existing compositor.
+  Deferred sibling, falsey/frozen and identical-reason controls are authored,
+  unrun. Earlier sibling-drain work remains credited; runtime/backend disposal
+  qualification is not replaced by these source changes.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
