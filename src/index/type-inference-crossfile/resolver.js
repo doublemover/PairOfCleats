@@ -35,13 +35,21 @@ const buildCandidate = (entry) => {
   };
 };
 
-const scoreCandidate = ({ entry, targetName, leaf, kindHint, importedName }) => {
+const defaultDeclarationKinds = new Set(['ExportDefaultFunctionDeclaration', 'ExportDefaultClassDeclaration', 'ExportDefaultFunction']);
+const matchesImportedTarget = (entry, importedTarget) => {
+  if (!importedTarget) return false;
+  const name = entry?.qualifiedName || entry?.name || '';
+  if (importedTarget === 'default') return name === 'default' || defaultDeclarationKinds.has(entry?.kind);
+  return name === importedTarget || leafName(importedTarget) === importedTarget && leafName(name) === importedTarget;
+};
+
+const scoreCandidate = ({ entry, targetName, leaf, kindHint, importedTarget }) => {
   let score = 0;
   const name = entry?.qualifiedName || entry?.name || '';
   if (name === targetName) score += 3;
-  if (leaf && name === leaf) score += 2;
-  if (importedName && name === importedName) score += 2;
-  if (kindHint && entry?.kind && entry.kind === kindHint) score += 1;
+  if (leaf && leafName(name) === leaf) score += 2;
+  if (matchesImportedTarget(entry, importedTarget)) score += 3;
+  if (score > 0 && kindHint && entry?.kind && entry.kind === kindHint) score += 1;
   return score;
 };
 
@@ -86,6 +94,7 @@ export const resolveSymbolRef = ({
   const candidates = [];
   const importHint = { moduleSpecifier: null, resolvedFile: null };
   let importedName = null;
+  let importedTarget = null;
   let narrowedEntries = [];
   let hasImportNarrowing = false;
 
@@ -99,7 +108,13 @@ export const resolveSymbolRef = ({
       const binding = bindings[rootName];
       if (binding && typeof binding.module === 'string') {
         importHint.moduleSpecifier = binding.module;
-        if (binding.imported) importedName = binding.imported;
+        if (typeof binding.imported === 'string' && binding.imported) importedName = binding.imported;
+        const suffix = name.slice(rootName.length);
+        importedTarget = importedName === '*'
+          ? suffix.replace(/^(?:\.|::)/u, '') || null
+          : importedName === 'default'
+            ? suffix ? null : 'default'
+            : importedName ? `${importedName}${suffix}` : null;
         const resolvedFile = resolveRelativeImport(fromFile, binding.module, fileSet);
         if (resolvedFile) {
           importHint.resolvedFile = resolvedFile;
@@ -120,11 +135,7 @@ export const resolveSymbolRef = ({
 
   for (const entry of allEntries) {
     if (!resolveOwnedSymbol(entry)) continue;
-    if (importedName && importedName !== '*' && importedName !== 'default') {
-      const entryName = entry?.qualifiedName || entry?.name || '';
-      const entryLeaf = leafName(entryName);
-      if (entryLeaf !== importedName) continue;
-    }
+    if (hasImportNarrowing && !matchesImportedTarget(entry, importedTarget)) continue;
     candidates.push(entry);
   }
 
@@ -145,7 +156,7 @@ export const resolveSymbolRef = ({
 
   const scored = candidates.map((entry) => ({
     entry,
-    score: scoreCandidate({ entry, targetName: name, leaf, kindHint, importedName })
+    score: scoreCandidate({ entry, targetName: name, leaf, kindHint, importedTarget: hasImportNarrowing ? importedTarget : null })
   }));
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
@@ -157,8 +168,8 @@ export const resolveSymbolRef = ({
     return uidA.localeCompare(uidB);
   });
 
-  const top = scored.filter((item) => item.score > 0 || !scored.length);
-  const limited = (top.length ? top : scored).slice(0, MAX_CANDIDATES_PER_REF);
+  const top = scored.filter((item) => item.score > 0);
+  const limited = top.slice(0, MAX_CANDIDATES_PER_REF);
   const formatted = limited.map(({ entry }) => buildCandidate(entry)).filter(Boolean);
 
   if (formatted.length === 1) {

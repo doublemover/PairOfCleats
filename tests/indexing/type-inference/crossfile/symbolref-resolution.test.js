@@ -128,3 +128,26 @@ for (const imported of [false, true]) {
   assert.equal(result.resolved.chunkUid, 'uid-owner');
 }
 console.log('symbolref canonical owner agreement and legacy one-sided identity controls passed');
+
+const members = buildSymbolIndex([
+  buildEntry({ name: 'Beta', file: 'src/lib.js', chunkUid: 'uid-class' }),
+  buildEntry({ name: 'Beta.run', file: 'src/lib.js', chunkUid: 'uid-method' }),
+  buildEntry({ name: 'Other.run', file: 'src/lib.js', chunkUid: 'uid-other-method' })
+]);
+for (const [targetName, imported, expected] of [
+  ['Local.run', 'Beta', 'uid-method'], ['Local.missing', 'Beta', null], ['Local.Run', 'Beta', null],
+  ['ns.Beta.run', '*', 'uid-method'], ['ns.missing', '*', null], ['ns', '*', null]
+]) {
+  const rootName = targetName.split('.')[0];
+  const result = resolveSymbolRef({ targetName, fromFile: 'src/use.js', symbolIndex: members,
+    fileSet: new Set(['src/use.js', 'src/lib.js']), fileRelations: new Map([['src/use.js', {
+      importBindings: { [rootName]: { imported, module: './lib.js' } }
+    }]]) });
+  assert.equal(result.status, expected ? 'resolved' : 'unresolved', targetName);
+  assert.equal(result.resolved?.chunkUid ?? null, expected, targetName);
+}
+const unrelatedEntry = { ...buildEntry({ name: 'Unrelated', file: 'src/lib.js', chunkUid: 'uid-unrelated' }), kind: 'function' };
+assert.equal(resolveSymbolRef({ targetName: 'Missing', kindHint: 'function',
+  symbolIndex: { byName: new Map([['Missing', [unrelatedEntry]]]) }, fileSet: new Set(['src/lib.js']) }).status, 'unresolved',
+  'a kind hint can rank matching candidates, but cannot manufacture a name match');
+console.log('symbolref imported member path, case and positive name-match controls passed');
