@@ -126,22 +126,16 @@ const assertNoShardIndexGaps = (paths, baseName) => {
   throw err;
 };
 
-const validatedOffsets = new Set();
-
 /**
- * Validate offsets file against its JSONL source exactly once per process.
+ * Validate the current contained pair for this read invocation. Pathnames and
+ * metadata equality cannot carry successful proof into another invocation.
  *
  * @param {string} jsonlPath
  * @param {string} offsetsPath
  * @returns {Promise<boolean>}
  */
-const ensureOffsetsValid = async (jsonlPath, offsetsPath, options = {}) => {
-  const key = `${jsonlPath}::${offsetsPath}`;
-  if (validatedOffsets.has(key)) return true;
-  await validateOffsetsAgainstFile(jsonlPath, offsetsPath, options);
-  validatedOffsets.add(key);
-  return true;
-};
+const ensureOffsetsValid = (jsonlPath, offsetsPath, options = {}) =>
+  validateOffsetsAgainstFile(jsonlPath, offsetsPath, options);
 
 export {
   createLoaderError,

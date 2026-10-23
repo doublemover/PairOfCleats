@@ -368,3 +368,13 @@ the ordinary manifest-selected decoder and validation, then only identity and
 provenance fields enter the cold-ID map; complete context/relation rows are not
 retained. JSON/columnar formats retain their existing bounded decode limits. Full
 search/display readers continue to hydrate the complete cold surface.
+
+### JSONL offsets validation lifetime
+
+Offsets validation belongs to the current contained read invocation. A pathname,
+size or timestamp is not reusable integrity proof for a later call. Streaming
+loaders validate each declared pair before yielding rows; cancellation reaches
+both validation and decoding. The bounded 64-KiB validation scratch algorithm
+remains unchanged. Zero offsets is valid only for a zero-byte JSONL payload.
+Boundary validation does not itself prove manifest row-count completeness; that
+remains the declaring artifact owner's responsibility.

@@ -552,6 +552,9 @@ const validateOffsetsAgainstSources = async (jsonlPath, offsetsPath, { signal = 
   throwIfAborted(signal);
   const count = resolveOffsetCountFromSize(offsetsStat.size, offsetsPath);
   const fileSize = jsonlStat.size;
+  if (count === 0 && fileSize !== 0) {
+    throw createOffsetsInvalidError('Empty offsets sidecar requires an empty JSONL payload for ' + jsonlPath);
+  }
   // Fixed scratch space, independent of row count. Do not materialize the
   // sidecar or a second array of boundary positions on recovery scans.
   const offsetBuffer = Buffer.allocUnsafe(Math.min(offsetsStat.size, OFFSETS_VALIDATION_WINDOW_BYTES));

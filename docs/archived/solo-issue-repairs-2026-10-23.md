@@ -51,6 +51,15 @@ full cleanup-category capability or deep-suite green is claimed.
   bypass, without native inference. Authored controls are unrun; scoped format
   and whitespace checks passed.
 
+- #1571/#1572: removed the process-global path-only offsets success set. Each
+  actual streaming invocation validates its current contained pair; abort reaches
+  validation and stream decoding. Empty offsets with nonempty JSONL now produce
+  the established corruption error before validation scratch allocation. Existing
+  bounded window/boundary logic and row-count authority stay intact. Tiny loader
+  controls cover same-size/restored-mtime corruption, deletion/replacement,
+  changed containment, cancellation, paired-empty cases and descriptor closure.
+  Authored fixtures are unrun; only scoped format/whitespace checks passed.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -106,8 +115,8 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1568](https://github.com/doublemover/PairOfCleats/issues/1568) | [P2] Require coverage for every returned source before marking semantic queries complete | Pending full-scope review |
 | [#1569](https://github.com/doublemover/PairOfCleats/issues/1569) | [P2] Scope parser degradation by canonical VFS identity, not path substrings | Pending full-scope review |
 | [#1570](https://github.com/doublemover/PairOfCleats/issues/1570) | [P2] Prevent metadata and phrase boosts from penalizing negative ANN scores | Pending full-scope review |
-| [#1571](https://github.com/doublemover/PairOfCleats/issues/1571) | [P2] Scope offsets validation reuse to verified artifacts instead of process-global path strings | Pending full-scope review |
-| [#1572](https://github.com/doublemover/PairOfCleats/issues/1572) | [P2] Reject empty offsets sidecars for nonempty JSONL artifacts | Pending full-scope review |
+| [#1571](https://github.com/doublemover/PairOfCleats/issues/1571) | [P2] Scope offsets validation reuse to verified artifacts instead of process-global path strings | Source repair authored; runtime proof pending |
+| [#1572](https://github.com/doublemover/PairOfCleats/issues/1572) | [P2] Reject empty offsets sidecars for nonempty JSONL artifacts | Source repair authored; runtime proof pending |
 | [#1573](https://github.com/doublemover/PairOfCleats/issues/1573) | [P2] Bind federated result-cache reuse to each repository's effective retrieval plan | Pending full-scope review |
 | [#1574](https://github.com/doublemover/PairOfCleats/issues/1574) | [P1] Fence clean-artifacts deletion against live cache readers and builders | Source partial; category owners/drain pending |
 | [#1575](https://github.com/doublemover/PairOfCleats/issues/1575) | [P2] Delay standalone atomic zstd publication until owned codec teardown settles | Pending full-scope review |

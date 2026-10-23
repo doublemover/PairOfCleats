@@ -109,7 +109,8 @@ export const streamJsonlRowsFromSources = async function* (
     onBackpressure = null,
     onResume = null,
     containedRoot = null,
-    rowMapper = null
+    rowMapper = null,
+    signal = null
   }
 ) {
   const hasOffsets = Array.isArray(offsetsPaths);
@@ -117,7 +118,7 @@ export const streamJsonlRowsFromSources = async function* (
     const partPath = paths[i];
     const offsetsPath = hasOffsets ? offsetsPaths[i] : null;
     if (offsetsPath) {
-      await ensureOffsetsValid(partPath, offsetsPath, { containedRoot });
+      await ensureOffsetsValid(partPath, offsetsPath, { containedRoot, signal });
     }
     for await (const row of readJsonLinesIterator(partPath, {
       maxBytes,
@@ -126,7 +127,8 @@ export const streamJsonlRowsFromSources = async function* (
       validationMode,
       maxInFlight,
       onBackpressure,
-      onResume
+      onResume,
+      signal
     })) {
       yield rowMapper ? rowMapper(row) : row;
     }
