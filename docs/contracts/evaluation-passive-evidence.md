@@ -10,9 +10,13 @@ positive cutoff. MRR retains its existing distinct positive rank semantics.
 The selected response's optional success flag, selected cohort and optional
 output-retention receipt must also be passive own data. Explicit zero omitted
 hits and a boolean truncation observation remain required when a budget receipt
-is present. Selection preserves existing returned hit references for callers;
-the actual metric owner captures its own relevant evidence before invoking any
-matcher. An explicit empty array remains observed zero hits.
+is present. Selection returns its frozen dense membership capture, preserving
+the original returned hit references. Later array mutation, an original custom
+iterator/method, or a second source-slot descriptor read cannot change which
+members or count its metric consumers observe. The actual metric owner still
+captures each hit's relevant scalar evidence before invoking any matcher; this
+membership capture does not freeze or certify arbitrary hit metadata across
+independent metric requests. An explicit empty array remains observed zero hits.
 
 Judged hits capture only existing matching and stable identity fields: file,
 chunk identity (including its metadata alias), repository/mode scope, range and

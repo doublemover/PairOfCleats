@@ -41,7 +41,7 @@ export const selectEvaluationCohort = (payload, mode) => {
       throw invalid(`Invalid selected ${mode} evaluation hit at rank ${index + 1}.`);
     }
   }
-  return rows;
+  return captured;
 };
 export const judgmentsForCohort = (judgments, mode) => {
   assertEvaluationMode(mode);

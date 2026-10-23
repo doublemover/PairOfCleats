@@ -39,8 +39,23 @@ for (const payload of [accessor({ code: [] }, 'ok', true), accessor({}, 'code', 
   assert.throws(() => selectEvaluationCohort(payload, 'code'), value => value.code === 'ERR_EVAL_RESPONSE');
 }
 assert.equal(getterReads, 0, 'successful envelope/retention receipt/selected cohort require passive own evidence');
-const unchanged = [actual]; assert.equal(selectEvaluationCohort({ ok: true, code: unchanged }, 'code'), unchanged,
-  'cohort selection preserves existing returned hit references; metric admission owns its private capture');
+const unchanged = [actual], selected = selectEvaluationCohort({ ok: true, code: unchanged }, 'code');
+assert.notEqual(selected, unchanged); assert.equal(selected[0], actual); assert(Object.isFrozen(selected),
+  'cohort selection captures immutable admitted membership while preserving original hit references');
+unchanged[0] = { file: 'foreign.js', chunkUid: 'replacement' }; unchanged.push({ file: 'foreign-b.js' });
+assert.equal(selected.length, 1); assert.equal(selected[0], actual);
+assert.deepEqual(collectExpectedJudgments(selected, [{ file: actual.file }], matchExpected).ranks, [1]);
+let slotReads = 0;
+const changingCohort = new Proxy([actual], { getOwnPropertyDescriptor(target, name) {
+  if (String(name) === '0') { slotReads++; return { ...Reflect.getOwnPropertyDescriptor(target, name), value: slotReads === 1 ? actual : { file: 'foreign.js' } }; }
+  return Reflect.getOwnPropertyDescriptor(target, name);
+} });
+changingCohort[Symbol.iterator] = changingCohort.map = () => assert.fail('original response array methods are not admitted cohort membership');
+const originalCohort = selectEvaluationCohort({ code: changingCohort }, 'code');
+assert.equal(originalCohort[0], actual); assert.equal(slotReads, 1);
+assert.deepEqual(collectExpectedJudgments(originalCohort, [{ file: actual.file }], matchExpected).ranks, [1]);
+assert.deepEqual(collectExpectedJudgments(originalCohort, [{ name: actual.name }], matchExpected).ranks, [1]);
+assert.equal(slotReads, 1, 'silver/gold metric consumers cannot reread the original selected response array');
 
 for (const key of ['file', 'chunkUid', 'name', 'kind', 'mode', 'repoId', 'repoRoot', 'start', 'end', 'startLine', 'endLine', 'metaV2']) {
   const hit = { ...actual }; delete hit[key]; accessor(hit, key, key === 'metaV2' ? { chunkUid: 'original-a' } : 'forged');
