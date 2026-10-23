@@ -149,6 +149,16 @@ full cleanup-category capability or deep-suite green is claimed.
   fail-open matrix adds a valid-JSON invalid-envelope case. All are unrun;
   existing malformed-JSON/stream/timeout controls remain intact.
 
+- #1630: collection cancellation now reaches pooled creation, disposal and
+  exclusive lease waits. A cancelled queue link resolves only after its actual
+  predecessor; later work cannot overtake an active lease. Shared creation and
+  disposal retain their own completion owners. Idle pooled options no longer
+  retain lease-only handlers/signals. Fixed-size admission counters distinguish
+  queue wait/cancellation from provider timeouts; the lease boundary rechecks
+  cancellation before replacing handlers. Deferred A/B/C, owned creation and
+  prior-disposal controls use the production pool with an intercepted client
+  factory and are authored, unrun. Existing active-client cleanup is retained.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -263,7 +273,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1627](https://github.com/doublemover/PairOfCleats/issues/1627) | [P2] Publish Tantivy as a source-pinned generation instead of rebuilding the served path in place | Pending full-scope review |
 | [#1628](https://github.com/doublemover/PairOfCleats/issues/1628) | [P3] Settle LSP requests when their outbound write rejects before a response is possible | Source repair committed; runtime proof pending |
 | [#1629](https://github.com/doublemover/PairOfCleats/issues/1629) | [P2] Preserve LSP document failures and join sibling work before releasing the session | Source repair committed; runtime proof pending |
-| [#1630](https://github.com/doublemover/PairOfCleats/issues/1630) | [P2] Cancel queued LSP lease waiters without acquiring or killing the pooled session | Pending full-scope review |
+| [#1630](https://github.com/doublemover/PairOfCleats/issues/1630) | [P2] Cancel queued LSP lease waiters without acquiring or killing the pooled session | Source repair committed; runtime proof pending |
 | [#1631](https://github.com/doublemover/PairOfCleats/issues/1631) | [P2] Recheck LSP request eligibility when queued method work acquires a slot | Pending full-scope review |
 | [#1632](https://github.com/doublemover/PairOfCleats/issues/1632) | [P2] Derive per-mode validation verdicts from all owned semantic failures | Pending full-scope review |
 | [#1633](https://github.com/doublemover/PairOfCleats/issues/1633) | [P2] Admit directory-backed artifact families before recovery publication and completion | Pending full-scope review |

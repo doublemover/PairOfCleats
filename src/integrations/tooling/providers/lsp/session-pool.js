@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { isAbortError, raceAbort, throwIfAborted } from '../../../../shared/abort.js';
 import { createRetainedLspClient } from '../../lsp/managed-client.js';
 import { normalizeManagedRuntimeCommands } from '../../../../index/tooling/managed-command-lifetime.js';
 import { createToolingGuard, createToolingLifecycleHealth } from '../shared.js';
@@ -32,7 +33,12 @@ const sessionPoolMetrics = {
   disposalFailures: 0,
   creationBarrierFailures: 0,
   queueBarrierFailures: 0,
-  maxSessionEvictions: 0
+  maxSessionEvictions: 0,
+  admissionWaiters: 0,
+  leaseQueueWaiters: 0,
+  admissionHighWater: 0,
+  admissionWaitMs: 0,
+  admissionCancelled: 0
 };
 let cleanupTimer = null;
 let cleanupPassQueue = Promise.resolve();
@@ -397,15 +403,15 @@ const disposeSessionClient = async (session) => {
   catch (error) { session.disposePromise = null; throw error; }
 };
 
-const awaitSessionDisposalBarrier = async (key) => {
+const awaitSessionDisposalBarrier = async (key, signal) => {
   const normalizedKey = String(key || '');
   if (!normalizedKey) return;
   const pending = disposalBarriers.get(normalizedKey);
   if (!pending) return;
-  await pending;
+  await raceAbort(signal, pending);
 };
 
-const withSessionCreationBarrier = async (key, operation) => {
+const withSessionCreationBarrier = async (key, operation, signal) => {
   const normalizedKey = String(key || '');
   if (typeof operation !== 'function') {
     throw new TypeError('withSessionCreationBarrier requires an operation function.');
@@ -414,15 +420,16 @@ const withSessionCreationBarrier = async (key, operation) => {
     return await operation();
   }
   while (true) {
+    throwIfAborted(signal);
     const pending = creationBarriers.get(normalizedKey);
     if (pending) {
-      await pending.catch((error) => {
+      await raceAbort(signal, pending.catch((error) => {
         sessionPoolMetrics.creationBarrierFailures += 1;
         emitPoolWarning(
           null,
           `[tooling:lsp] session creation barrier failed for key=${normalizedKey}: ${error?.message || error}`
         );
-      });
+      }));
       continue;
     }
     const barrier = createPendingBarrier();
@@ -843,9 +850,10 @@ const getOrCreateSession = async (options) => {
   const healthRecord = getOrCreateSessionHealthRecord(key);
   return await withSessionCreationBarrier(key, async () => {
     if (drainSessionPoolPromise) {
-      await drainSessionPoolPromise.catch(() => {});
+      await raceAbort(options.abortSignal, drainSessionPoolPromise.catch(() => {}));
     }
-    await awaitSessionDisposalBarrier(key);
+    await awaitSessionDisposalBarrier(key, options.abortSignal);
+    throwIfAborted(options.abortSignal);
     const quarantineState = resolveQuarantineState(healthRecord);
     if (quarantineState.active) {
       const err = new Error(`LSP provider quarantined (${quarantineState.reasonCode || quarantineState.level || 'unknown'}).`);
@@ -878,12 +886,17 @@ const getOrCreateSession = async (options) => {
         }
       }
     }
-    await awaitSessionDisposalBarrier(key);
+    await awaitSessionDisposalBarrier(key, options.abortSignal);
+    throwIfAborted(options.abortSignal);
     await evictIdleSessionsForCapacity({
       maxEntries: options?.sessionPoolMaxEntries,
       protectedKey: key
     });
-    const next = await createSession({ ...options, healthRecord });
+    throwIfAborted(options.abortSignal);
+    // Lease-only closures/signals must not become idle pooled-session state.
+    const retainedOptions = { ...options, healthRecord };
+    for (const field of ['abortSignal', 'onNotification', 'onRequest', 'stderrFilter', 'onStderrLine']) delete retainedOptions[field];
+    const next = await createSession(retainedOptions);
     sessions.set(key, next);
     await evictIdleSessionsForCapacity({
       maxEntries: options?.sessionPoolMaxEntries,
@@ -891,7 +904,40 @@ const getOrCreateSession = async (options) => {
     });
     ensureCleanupTimer();
     return { session: next, reused: false };
-  });
+  }, options.abortSignal);
+};
+
+/** Cancellation withdraws a waiter, never the shared creation/disposal owner or
+ * an active predecessor. The small skipped barrier remains linked to prev.
+ */
+const acquireSessionTurn = async options => {
+  const signal = options.abortSignal, startedAt = Date.now();
+  sessionPoolMetrics.admissionWaiters += 1;
+  sessionPoolMetrics.admissionHighWater = Math.max(sessionPoolMetrics.admissionHighWater, sessionPoolMetrics.admissionWaiters);
+  try {
+    throwIfAborted(signal);
+    // Install the wait observer before a creation callback can cancel its caller.
+    const resolved = await raceAbort(signal, Promise.resolve().then(() => getOrCreateSession(options)));
+    throwIfAborted(signal);
+    const session = resolved.session, prev = session.queue, barrier = createPendingBarrier();
+    session.queue = barrier.promise;
+    sessionPoolMetrics.leaseQueueWaiters += 1;
+    try {
+      await raceAbort(signal, prev);
+      throwIfAborted(signal);
+    } catch (error) {
+      // Resolving here directly would allow C to overtake the still-active A.
+      void prev.then(barrier.resolve, barrier.resolve);
+      throw error;
+    } finally { sessionPoolMetrics.leaseQueueWaiters -= 1; }
+    return { resolved, barrier };
+  } catch (error) {
+    if (isAbortError(error)) sessionPoolMetrics.admissionCancelled += 1;
+    throw error;
+  } finally {
+    sessionPoolMetrics.admissionWaiters -= 1;
+    sessionPoolMetrics.admissionWaitMs += Math.max(0, Date.now() - startedAt);
+  }
 };
 
 /**
@@ -991,7 +1037,8 @@ export const drainLspSessionPool = async (options = {}) => {
  *   sessionIdleTimeoutMs?:number|null,
  *   sessionMaxLifetimeMs?:number|null,
  *   sessionPoolMaxEntries?:number|null,
- *   initializationOptions?:object|null
+ *   initializationOptions?:object|null,
+ *   abortSignal?:AbortSignal|null
  * }} options
  * @param {(lease:{
  *   client:Awaited<ReturnType<typeof createRetainedLspClient>>,
@@ -1006,6 +1053,7 @@ export const drainLspSessionPool = async (options = {}) => {
  * @returns {Promise<T>}
  */
 export const withLspSession = async (options, fn) => {
+  throwIfAborted(options?.abortSignal);
   const enabled = options?.enabled !== false;
   if (!enabled) {
     const singleSession = await createSession({
@@ -1014,6 +1062,7 @@ export const withLspSession = async (options, fn) => {
       workspaceKey: options?.workspaceKey || options?.repoRoot || options?.cwd || ''
     });
     try {
+      throwIfAborted(options?.abortSignal);
       return await fn({
         client: singleSession.client,
         guard: singleSession.guard,
@@ -1029,7 +1078,7 @@ export const withLspSession = async (options, fn) => {
     }
   }
 
-  const resolved = await getOrCreateSession({
+  const { resolved, barrier } = await acquireSessionTurn({
     ...options,
     providerId: options?.providerId || options?.cmd || 'lsp',
     workspaceKey: options?.workspaceKey || options?.repoRoot || options?.cwd || '',
@@ -1037,17 +1086,8 @@ export const withLspSession = async (options, fn) => {
     sessionPoolMaxEntries: options?.sessionPoolMaxEntries
   });
   const session = resolved.session;
-  const prev = session.queue;
-  const barrier = createPendingBarrier();
-  session.queue = barrier.promise.catch((error) => {
-    sessionPoolMetrics.queueBarrierFailures += 1;
-    emitPoolWarning(
-      session?.options?.log,
-      `[tooling:lsp] queue barrier failed for ${session?.lifecycleName || session?.key || 'session'}: ` +
-      `${error?.message || error}`
-    );
-  });
-  await prev;
+  try { throwIfAborted(options?.abortSignal); }
+  catch (error) { sessionPoolMetrics.admissionCancelled += 1; barrier.resolve(); throw error; }
   refreshSessionState(session);
   if (sessions.get(session.key) !== session || session.disposed || session.state === SESSION_STATE.RETIRED) {
     barrier.resolve();
@@ -1175,6 +1215,11 @@ export const __testLspSessionPool = {
     sessionPoolMetrics.creationBarrierFailures = 0;
     sessionPoolMetrics.queueBarrierFailures = 0;
     sessionPoolMetrics.maxSessionEvictions = 0;
+    sessionPoolMetrics.admissionWaiters = 0;
+    sessionPoolMetrics.leaseQueueWaiters = 0;
+    sessionPoolMetrics.admissionHighWater = 0;
+    sessionPoolMetrics.admissionWaitMs = 0;
+    sessionPoolMetrics.admissionCancelled = 0;
   },
   getSize() {
     return sessions.size;
@@ -1198,7 +1243,12 @@ export const __testLspSessionPool = {
       disposalFailures: Number(sessionPoolMetrics.disposalFailures) || 0,
       creationBarrierFailures: Number(sessionPoolMetrics.creationBarrierFailures) || 0,
       queueBarrierFailures: Number(sessionPoolMetrics.queueBarrierFailures) || 0,
-      maxSessionEvictions: Number(sessionPoolMetrics.maxSessionEvictions) || 0
+      maxSessionEvictions: Number(sessionPoolMetrics.maxSessionEvictions) || 0,
+      admissionWaiters: sessionPoolMetrics.admissionWaiters,
+      leaseQueueWaiters: sessionPoolMetrics.leaseQueueWaiters,
+      admissionHighWater: sessionPoolMetrics.admissionHighWater,
+      admissionWaitMs: sessionPoolMetrics.admissionWaitMs,
+      admissionCancelled: sessionPoolMetrics.admissionCancelled
     };
   },
   getHealthStateForKey(key) {

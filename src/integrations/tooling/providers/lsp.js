@@ -489,6 +489,7 @@ export async function collectLspTypes({
   runtime.managedRuntimeInstallations = launch.managedRuntimeCommands.map(({ toolId, descriptorId, installId }) => ({ toolId, descriptorId, installId }));
 
   const runWithPooledSession = () => withLspSession({
+    abortSignal: toolingAbortSignal,
     enabled: sessionPoolingEnabled !== false,
     repoRoot: rootDir,
     providerId: resolvedProviderId,
