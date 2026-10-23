@@ -29,13 +29,13 @@ try {
     cacheOwnershipPending: true, cacheOwnershipReleased: () => false
   }));
   await assert.rejects(storageMigrationOwnerProof({ ...owner, inspect: async () => { throw pendingResource; } }, {}),
-    error => error === pendingResource, 'unknown resource lifetime cannot become an ordinary blocked owner diagnostic');
+    error => contains(error, pendingResource), 'unknown resource lifetime cannot become an ordinary blocked owner diagnostic');
   const openDirectory = fs.opendir;
   let sourceScans = 0;
   try {
     fs.opendir = async (target, ...args) => { if (target === source) sourceScans++; return openDirectory(target, ...args); };
     await assert.rejects(createStorageMigrationPlan({ ...input, owner: { ...owner, inspect: async () => { throw pendingResource; } } }),
-      error => error === pendingResource);
+      error => contains(error, pendingResource));
     assert.equal(sourceScans, 0, 'a pending category owner stops before later source work');
   } finally { fs.opendir = openDirectory; }
   const plan = await createStorageMigrationPlan(input);

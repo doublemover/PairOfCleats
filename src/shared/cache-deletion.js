@@ -1,8 +1,9 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { isPathWithinRoot, isRootPath } from './file-paths.js';
-import { assertNoSymlinkPath } from './contained-file.js';
+import { assertNoSymlinkPath, readVerifiedContainedFileSync } from './contained-file.js';
 import { resolveSystemCacheAlias } from './system-cache-alias.js';
+import { describeStorageFailure } from './storage/failure-observation.js';
 
 /** Validate all targets before deleting any. Roots must be launch/user-owned. */
 export const CACHE_OWNER_FILE = '.pairofcleats-cache-owner.json';
@@ -17,9 +18,13 @@ export const assertSafeCacheDeletion = (target, roots, { allowUnmarked = false }
     const marker = path.join(entry, CACHE_OWNER_FILE);
     try {
       assertNoSymlinkPath(path.parse(entry).root, marker);
-      const record = JSON.parse(fs.readFileSync(marker, 'utf8'));
+      const { buffer } = readVerifiedContainedFileSync(path.parse(entry).root, marker, { maxBytes: 64 * 1024 });
+      const record = JSON.parse(buffer.toString('utf8'));
       return record.owner === 'pairofcleats' && record.layoutVersion === 1;
-    } catch { return false; }
+    } catch (error) {
+      describeStorageFailure(error, { phase: 'cache-deletion-authority-marker', defaultCode: 'ERR_STORAGE_AUTHORITY' });
+      return false;
+    }
   });
   if (!root) throw new Error('Cleanup target is outside user-authorized PairOfCleats storage.');
   // Beyond verified platform aliases, approved lexical roots must not be

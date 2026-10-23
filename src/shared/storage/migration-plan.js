@@ -8,26 +8,40 @@ import { inspectStorageAccess } from './access.js';
 import { readStorageLocator } from './locator.js';
 import { verifyStorageFile } from './transfer.js';
 import { captureStorageAuthority } from './authority.js';
+import { describeStorageFailure, observeStorageResource } from './failure-observation.js';
 
 export const storagePlanDigest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const storageMigrationOwnerProof = async (owner, input) => {
-  if (!owner || typeof owner.id !== 'string' || !Number.isSafeInteger(owner.version)
-    || typeof owner.inspect !== 'function' || typeof owner.verifyDestination !== 'function') {
+  if (!owner) return { complete: false, reason: 'category-migration-owner-required' };
+  const id = owner.id, version = owner.version, inspect = owner.inspect, verifyDestination = owner.verifyDestination;
+  if (typeof id !== 'string' || !Number.isSafeInteger(version)
+    || typeof inspect !== 'function' || typeof verifyDestination !== 'function') {
     return { complete: false, reason: 'category-migration-owner-required' };
   }
   let receipt;
-  try { receipt = await owner.inspect(input); }
+  try { receipt = await inspect.call(owner, input); }
   catch (error) {
-    if (input?.signal?.aborted || error.cacheOwnershipPending === true) throw error;
+    if (input?.signal?.aborted) throw error;
+    const diagnostic = describeStorageFailure(error, { phase: 'category-owner-inspection',
+      defaultCode: 'ERR_STORAGE_CATEGORY_INSPECTION', defaultMessage: 'Category owner inspection failed.' });
     return { complete: false, reason: 'category-owner-inspection-failed',
-      error: { code: error.code || 'ERR_STORAGE_CATEGORY_INSPECTION', message: String(error.message).slice(0, 2000) } };
+      error: { code: diagnostic.code, message: diagnostic.message.slice(0, 2000) } };
   }
-  if (receipt?.complete !== true || receipt.quiescent !== true || receipt.referencesPortable !== true
-    || receipt.permissionsCompatible !== true || typeof receipt.identity !== 'string' || !receipt.identity) {
-    return { complete: false, reason: typeof receipt?.reason === 'string' ? receipt.reason
+  const observation = observeStorageResource(receipt, { phase: 'category-owner-receipt' });
+  observation.requireSettled();
+  let complete, identity, reason;
+  try {
+    complete = receipt?.complete === true && receipt.quiescent === true && receipt.referencesPortable === true
+      && receipt.permissionsCompatible === true;
+    if (complete) { identity = receipt.identity; complete = typeof identity === 'string' && identity.length > 0; }
+    if (!complete) reason = receipt?.reason;
+  } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+  observation.requireSettled();
+  if (!complete) {
+    return { complete: false, reason: typeof reason === 'string' ? reason
       : 'category-owner-cannot-confirm-quiescence-portability-or-permissions' };
   }
-  return { complete: true, id: owner.id, version: owner.version, identity: receipt.identity };
+  return { complete: true, id, version, identity };
 };
 
 export const buildStorageMigrationManifest = async ({ root, maxEntries = 10000,
@@ -73,10 +87,18 @@ export const createStorageMigrationPlan = async ({ category, source, destination
   const blocked = [];
   let authoritySnapshots = [];
   try { authoritySnapshots = await captureStorageAuthority(authorityRoots); }
-  catch (error) { blocked.push({ role: 'authority', reason: 'unproven-storage-authority', message: error.message }); }
+  catch (error) {
+    if (signal?.aborted) throw error;
+    const diagnostic = describeStorageFailure(error, { phase: 'migration-plan-authority', defaultCode: 'ERR_STORAGE_AUTHORITY' });
+    blocked.push({ role: 'authority', reason: 'unproven-storage-authority', message: diagnostic.message });
+  }
   for (const [role, target] of Object.entries(locations)) {
     try { assertSafeCacheDeletion(target, authorityRoots); }
-    catch (error) { blocked.push({ role, reason: 'unproven-storage-authority', code: error.code || 'ERR_STORAGE_AUTHORITY' }); }
+    catch (error) {
+      if (signal?.aborted) throw error;
+      const diagnostic = describeStorageFailure(error, { phase: 'migration-plan-location', defaultCode: 'ERR_STORAGE_AUTHORITY' });
+      blocked.push({ role, reason: 'unproven-storage-authority', code: diagnostic.code });
+    }
   }
   const access = await inspectStorageAccess(locations.source, { coordinationRoot });
   if (access.protected) blocked.push({ role: 'source', reason: 'active-or-unknown-lease' });
@@ -88,8 +110,9 @@ export const createStorageMigrationPlan = async ({ category, source, destination
   let manifest = null;
   try { manifest = await buildStorageMigrationManifest({ root: locations.source, maxEntries, maxBytes, maxDurationMs, signal }); }
   catch (error) {
-    if (signal?.aborted || error.cacheOwnershipPending === true) throw error;
-    blocked.push({ role: 'source', reason: 'incomplete-or-changed-manifest', message: error.message });
+    if (signal?.aborted) throw error;
+    const diagnostic = describeStorageFailure(error, { phase: 'migration-plan-manifest', defaultCode: 'ERR_STORAGE_MANIFEST' });
+    blocked.push({ role: 'source', reason: 'incomplete-or-changed-manifest', message: diagnostic.message });
   }
   const body = { schemaVersion: 1, kind: 'pairofcleats-storage-migration-plan', category, ...locations,
     coordinationRoot, owner: ownerProof, manifest, blocked, ready: blocked.length === 0,
