@@ -29,6 +29,7 @@ import { enumerateWorkspace, withoutCursor } from './enumeration.js';
 import { parseSearchArgs, hasSearchFilterArgs } from '../cli-args.js';
 import { bindRelativeModificationArgs } from './time-filter.js';
 import { captureFederatedShadow, publishFederatedShadow } from './shadow-routing.js';
+import { createFederatedAdmission } from './admission.js';
 
 export const resolveFederatedUnavailableModes = ({repos,requestedModes,eligibleModesByRepo,cohortExcluded={}}) =>
   (repos || []).filter(repo=>repo.enabled !== false).flatMap(repo=>(requestedModes || [])
@@ -571,6 +572,12 @@ const resolveWorkspaceConfig = (request, context) => {
   return trustedWorkspaceConfig;
 };
 
+/**
+ * Ranked strict failures and external cancellation reject promptly and stop new
+ * repository/mode admissions. Already started reads drain with their original
+ * signal; request-owned caches retire only after every worker settles. Borrowed
+ * host caches keep their host ownership, including after the caller rejects.
+ */
 export const runFederatedSearch = async (request = {}, context = {}) => {
   const timeAnchor = Date.now();
   const query = String(request.query || '').trim();
@@ -899,9 +906,10 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     return stable;
   }
 
+  const admission = createFederatedAdmission(context.signal);
   let cursor = 0;
   const workers = Array.from({ length: Math.max(1, concurrency) }, async () => {
-    while (true) {
+    while (admission.accepting()) {
       const current = cursor;
       if (current >= activeRepoIds.length) return;
       cursor += 1;
@@ -923,7 +931,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
               error
             });
             if (strictFailures || aborted) {
-              throw error;
+              throw admission.stop(error);
             }
             recordRepoOutcome(repo.repoId, {
               status: error?.code === ERROR_CODES.NO_INDEX ? 'missing_index' : 'error',
@@ -943,6 +951,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
             continue;
           }
         }
+        if (!admission.accepting()) return;
         const fallbackCaches = getSharedCaches();
         const admittedBuild = manifestRepoMap.get(repo.repoId)?.build || null;
         const resolvedGeneration = buildRepoGenerationContext(repoCaches);
@@ -971,6 +980,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
         const fulfilledModes = new Set();
         const executionFailures = [];
         for (const plan of modePlans) {
+          if (!admission.accepting()) return;
           const repoArgs = applyModeOverride(basePerRepoArgs, plan.modeFlag);
           try {
             const result = await searchFn(repo.repoRootCanonical, {
@@ -1006,7 +1016,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
             });
             if (!firstRepoError) firstRepoError = error;
             if (strictFailures || aborted) {
-              throw error;
+              throw admission.stop(error);
             }
             executionFailures.push({
               modes: Array.from(plan.modesCovered).sort(),
@@ -1058,7 +1068,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
           }
         });
       } catch (error) {
-        throw error;
+        throw admission.stop(error);
       }
     }
   });
@@ -1066,11 +1076,14 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   // Strict failure remains fail-fast, but sibling workers may still be running.
   // Keep request-local caches alive until every worker settles, then retire
   // only caches created here. Host-provided caches keep their host ownership.
-  void Promise.allSettled(workers).then(disposeOwnedCaches).catch(() => {});
+  void Promise.allSettled(workers).then(() => {
+    admission.dispose();
+    disposeOwnedCaches();
+  }).catch(() => {});
   try {
-    await Promise.all(workers);
+    await Promise.race([Promise.all(workers), admission.whenStopped]);
   } catch (error) {
-    if (isFederatedAbortError(error, context.signal)) {
+    if (isFederatedAbortError(error)) {
       throw error;
     }
     const strictError = createError(
@@ -1078,6 +1091,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       `Federated search failed in strict mode: ${error?.message || error}`
     );
     strictError.code = error?.code || ERROR_CODES.INTERNAL;
+    strictError.cause = error;
     throw strictError;
   }
 
