@@ -132,7 +132,7 @@ export const createContainedFileResource = ({ handle = null, fd, sync, methods, 
     }
     for (const field of additionalMethods) {
       try {
-        if (!['write', 'writeFile', 'sync'].includes(field) || extraMethods.has(field)) throw new TypeError('Invalid original descriptor operation.');
+        if (!['write', 'writeFile', 'sync', 'truncate'].includes(field) || extraMethods.has(field)) throw new TypeError('Invalid original descriptor operation.');
         const method = sync ? methods[field] : handle[field];
         if (typeof method !== 'function') throw new TypeError(`Contained descriptor has no original ${field} method.`);
         extraMethods.set(field, method);

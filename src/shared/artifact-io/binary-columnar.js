@@ -1,7 +1,13 @@
 import fs from 'node:fs/promises';
+import path from 'node:path';
 
 import { decodeVarint64List, encodeVarint64Into, encodeVarint64List } from './varint.js';
 import { throwIfAborted } from '../abort.js';
+import { createContainedFileResource } from '../contained-file-resource.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
+import { persistenceFileIdentity, assertPersistenceFileIdentity } from '../io/file-identity.js';
+import { assertDirectoryIdentity, syncParentDirectory } from '../io/directory-sync.js';
+import { readPersistenceFailureCode, retainPersistenceFailure } from '../io/persistence-helpers.js';
 
 const OFFSET_BYTES = 8;
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
@@ -111,174 +117,222 @@ export const encodeBinaryRowFrames = (rowBuffers) => {
   };
 };
 
-const toAsyncIterable = (rows) => {
-  if (rows && typeof rows[Symbol.asyncIterator] === 'function') return rows;
-  return (async function* rowIterator() {
-    const iterable = rows && typeof rows[Symbol.iterator] === 'function' ? rows : [];
-    for (const row of iterable) {
-      yield row;
-    }
-  })();
+const unconfirmed = message => Object.assign(new Error(message), { cacheOwnershipPending: true });
+const sameObject = (stat, sealed) => {
+  const current = persistenceFileIdentity(stat);
+  if (['dev', 'ino', 'mode', 'birthtime'].some(field => current[field] !== sealed[field])) throw Object.assign(
+    new Error('Binary frame path no longer identifies its original created file.'), { code: 'ERR_BINARY_COLUMNAR_FILE_CHANGED' });
+  return current;
 };
-
+const openRowSource = rows => {
+  const asyncFactory = rows?.[Symbol.asyncIterator];
+  const asynchronous = typeof asyncFactory === 'function';
+  const syncFactory = asynchronous ? null : rows?.[Symbol.iterator];
+  const iterator = asynchronous ? asyncFactory.call(rows) : typeof syncFactory === 'function' ? syncFactory.call(rows) : [][Symbol.iterator]();
+  let closed = false, returnAttempted = false;
+  const next = iterator.next, close = iterator.return;
+  if (typeof next !== 'function' || close != null && typeof close !== 'function') throw new TypeError('Invalid binary row iterator methods.');
+  const step = async method => {
+    const result = await method.call(iterator);
+    if (result === null || !['object', 'function'].includes(typeof result)) throw unconfirmed('Binary row iterator returned an unconfirmed protocol result.');
+    const done = Boolean(result.done);
+    const value = asynchronous ? result.value : await result.value;
+    return { done, value };
+  };
+  return Object.freeze({
+    isClosed: () => closed,
+    next: async () => { const result = await step(next); if (result.done) closed = true; return result; },
+    close: async () => {
+      if (closed) return;
+      if (returnAttempted) throw unconfirmed('Original binary row iterator return cannot be implicitly retried.');
+      returnAttempted = true;
+      if (close == null) { closed = true; return; }
+      const result = await step(close);
+      if (!result.done) throw unconfirmed('Original binary row iterator return did not confirm completion.');
+      closed = true;
+    }
+  });
+};
 const writeAllToHandle = async (handle, payload, position) => {
   let offset = 0;
   while (offset < payload.length) {
-    const result = await handle.write(
-      payload,
-      offset,
-      payload.length - offset,
-      Number.isFinite(position) ? position + offset : null
-    );
-    const bytesWritten = Number(result?.bytesWritten || 0);
-    if (!Number.isSafeInteger(bytesWritten) || bytesWritten <= 0 || bytesWritten > payload.length-offset) {
-      const err = new Error('Failed to write full binary payload: zero-byte write.');
-      err.code = 'ERR_BINARY_COLUMNAR_SHORT_WRITE';
-      throw err;
-    }
+    const result = await handle.write(payload, offset, payload.length - offset,
+      Number.isFinite(position) ? position + offset : null);
+    const bytesWritten = result?.bytesWritten;
+    if (!Number.isSafeInteger(bytesWritten) || bytesWritten <= 0 || bytesWritten > payload.length - offset) throw Object.assign(
+      new Error('Failed to write full binary payload: invalid write progress.'), { code: 'ERR_BINARY_COLUMNAR_SHORT_WRITE' });
     offset += bytesWritten;
   }
 };
 
-const removeTempPathIfPresent = async (targetPath) => {
-  if (!targetPath) return;
-  await fs.rm(targetPath, { force: true }).catch(() => {});
-};
-
-const replaceTempBinarySidecar = async (tempPath, targetPath) => {
-  const { replaceFile } = await import('../io/replace-file.js');
-  try {
-    await replaceFile(tempPath, targetPath, { keepBackup: false });
-  } catch (error) {
-    await removeTempPathIfPresent(tempPath);
-    throw error;
-  }
-};
-
 /**
- * Stream row-frame payloads to disk while generating offset/length sidecars.
- * This avoids materializing a full in-memory data buffer for large artifacts.
- *
- * @param {{rowBuffers:Iterable<Buffer|Uint8Array|string>|AsyncIterable<Buffer|Uint8Array|string>,dataPath:string,offsetsPath:string,lengthsPath:string,preallocateBytes?:number,writeHints?:{preallocateBytes?:number}}} input
- * @returns {Promise<{count:number,totalBytes:number,preallocatedBytes:number}>}
+ * Stream bounded row frames and sidecars through their original descriptor owners.
+ * This preserves individual publication boundaries, not a multi-file transaction.
  */
 export const writeBinaryRowFrames = async ({
-  rowBuffers,
-  dataPath,
-  offsetsPath,
-  lengthsPath,
-  preallocateBytes = null,
-  writeHints = null,
-  signal = null
+  rowBuffers, dataPath, offsetsPath, lengthsPath, preallocateBytes = null, writeHints = null, signal = null
 }) => {
   const { createTempPath } = await import('../io/temp-path.js');
-  const resolvedPreallocateBytes = toBoundedNonNegativeInt(
-    preallocateBytes ?? writeHints?.preallocateBytes,
-    MAX_BINARY_COLUMNAR_PREALLOCATE_BYTES
-  );
-  let cursor = 0;
-  let count = 0;
-  let flushMs = 0;
-  let fsyncMs = 0;
-  let publishMs = 0;
-  const tempDataPath = createTempPath(dataPath);
-  const tempOffsetsPath = createTempPath(offsetsPath);
-  const tempLengthsPath = createTempPath(lengthsPath);
-  let dataHandle=null,offsetsHandle=null,lengthsHandle=null,primaryError=null;
-  let wrotePayload = false;
-  try {
-    throwIfAborted(signal);
-    dataHandle=await fs.open(tempDataPath,'wx');
-    offsetsHandle=await fs.open(tempOffsetsPath,'wx');
-    lengthsHandle=await fs.open(tempLengthsPath,'wx');
-    if (resolvedPreallocateBytes > 0) {
-      await dataHandle.truncate(resolvedPreallocateBytes);
-    }
-    const dataBlock=Buffer.allocUnsafe(1024*1024),offsetBlock=Buffer.allocUnsafe(256*OFFSET_BYTES),lengthBlock=Buffer.allocUnsafe(256*10);
-    let dataUsed=0,batchRows=0,lengthUsed=0,batchStart=0;
-    const flush=async()=>{
-      if(!batchRows)return;
-      throwIfAborted(signal);
-      const started=Date.now();
-      if(dataUsed)await writeAllToHandle(dataHandle,dataBlock.subarray(0,dataUsed),batchStart);
-      await writeAllToHandle(offsetsHandle,offsetBlock.subarray(0,batchRows*OFFSET_BYTES),null);
-      await writeAllToHandle(lengthsHandle,lengthBlock.subarray(0,lengthUsed),null);
-      flushMs+=Math.max(0,Date.now()-started);
-      dataUsed=0;batchRows=0;lengthUsed=0;batchStart=cursor;
-    };
-    for await (const row of toAsyncIterable(rowBuffers)) {
-      throwIfAborted(signal);
-      const payload = Buffer.isBuffer(row) ? row : Buffer.from(row || '');
-      if(batchRows && (batchRows===256 || dataUsed+payload.length>dataBlock.length))await flush();
-      const rowOffset = cursor;
-      cursor += payload.length;
-      if (payload.length>dataBlock.length) {
-        const payloadWriteStartedAt = Date.now();
-        await writeAllToHandle(dataHandle, payload, rowOffset);
-        flushMs += Math.max(0, Date.now() - payloadWriteStartedAt);
-      }else{payload.copy(dataBlock,dataUsed);dataUsed+=payload.length;}
-      offsetBlock.writeBigUInt64LE(BigInt(rowOffset),batchRows*OFFSET_BYTES);
-      lengthUsed+=encodeVarint64Into(payload.length,lengthBlock,lengthUsed);
-      batchRows+=1;
-      count += 1;
-      if(payload.length>dataBlock.length)await flush();
-    }
-    await flush();
-    if (resolvedPreallocateBytes > 0 && cursor !== resolvedPreallocateBytes) {
-      await dataHandle.truncate(cursor);
-    }
-    wrotePayload = true;
-    const syncStartedAt = Date.now();
-    await Promise.all([
-      dataHandle.sync(),
-      offsetsHandle.sync(),
-      lengthsHandle.sync()
-    ]);
-    fsyncMs += Math.max(0, Date.now() - syncStartedAt);
-  } catch(error) { primaryError=error; }
-  finally {
-    const closed=await Promise.allSettled([dataHandle,offsetsHandle,lengthsHandle].filter(Boolean).map(handle=>handle.close()));
-    const closeErrors=closed.filter(result=>result.status==='rejected').map(result=>result.reason);
-    if(closeErrors.length){if(primaryError)primaryError.cleanupErrors=[...(primaryError.cleanupErrors||[]),...closeErrors];
-    else primaryError=new AggregateError(closeErrors,'Binary row frame close failed.');}
-  }
-  if (primaryError || !wrotePayload) {
-    await Promise.allSettled([
-      removeTempPathIfPresent(tempDataPath),
-      removeTempPathIfPresent(tempOffsetsPath),
-      removeTempPathIfPresent(tempLengthsPath)
-    ]);
-    throw primaryError || new Error('Failed to materialize binary-columnar payload.');
-  }
-  try {
-    const publishStartedAt = Date.now();
-    await replaceTempBinarySidecar(tempOffsetsPath, offsetsPath);
-    await replaceTempBinarySidecar(tempLengthsPath, lengthsPath);
-    await replaceTempBinarySidecar(tempDataPath, dataPath);
-    publishMs += Math.max(0, Date.now() - publishStartedAt);
-  } catch (error) {
-    await Promise.allSettled([
-      removeTempPathIfPresent(tempDataPath),
-      removeTempPathIfPresent(tempOffsetsPath),
-      removeTempPathIfPresent(tempLengthsPath)
-    ]);
-    throw error;
-  }
-  return {
-    count,
-    totalBytes: cursor,
-    preallocatedBytes: resolvedPreallocateBytes,
-    phaseTimings: {
-      computeMs: 0,
-      serializationMs: 0,
-      compressionMs: 0,
-      flushMs,
-      fsyncMs,
-      publishMs,
-      manifestWaitMs: 0,
-      backpressureWaitMs: 0
+  const { replaceFile } = await import('../io/replace-file.js');
+  const resolvedPreallocateBytes = toBoundedNonNegativeInt(preallocateBytes ?? writeHints?.preallocateBytes, MAX_BINARY_COLUMNAR_PREALLOCATE_BYTES);
+  const entries = [], observations = [], errors = [];
+  let source = null, sourceClosed = true, primaryPresent = false, primary, observationOverflow = false;
+  let originalPrerequisites = Object.freeze([]), originalOverflow = false;
+  const sourceRecovery = [];
+  let cursor = 0, count = 0, totalLengthBytes = 0, flushMs = 0, fsyncMs = 0, publishMs = 0;
+  const overflow = unconfirmed('Binary frame original failure history exceeded its bounded limit.');
+  const remember = (error, phase) => {
+    if (!primaryPresent) { primaryPresent = true; primary = error; }
+    if (observations.length === 128) { observationOverflow = true; return; }
+    errors.push(error); observations.push(observeStorageResource(error, { phase }));
+  };
+  const requireOriginals = () => {
+    if (observationOverflow) throw overflow;
+    for (const observation of observations) observation.requireSettled();
+  };
+  const requireMetadata = () => {
+    requireOriginals();
+    if (!sourceClosed || entries.some(entry => entry.owner && !entry.owner.isSettled())) {
+      const previous = Object.freeze([...observations]);
+      throw Object.assign(new Error('Original binary frame source or descriptor work prohibits publication/cleanup.'), {
+        cacheOwnershipPending: true, cacheOwnershipReleased: () => sourceClosed && !observationOverflow
+          && entries.every(entry => !entry.owner || entry.owner.isSettled()) && previous.every(observation => observation.isSettled())
+      });
     }
   };
+  const create = async final => {
+    const temp = createTempPath(final), entry = { temp, final, owner: null, original: null, sealed: null, published: false, expectedBytes: null };
+    entries.push(entry); requireOriginals();
+    entry.tempParent = await fs.lstat(path.dirname(temp), { bigint: true }); assertDirectoryIdentity(entry.tempParent);
+    entry.finalParent = await fs.lstat(path.dirname(final), { bigint: true }); assertDirectoryIdentity(entry.finalParent);
+    const handle = await fs.open(temp, 'wx');
+    entry.owner = createContainedFileResource({ handle, sync: false, additionalMethods: ['write', 'sync', 'truncate'] });
+    if (entry.owner.hasFailure()) throw new Error('Original binary descriptor methods were not completely captured.');
+    entry.original = persistenceFileIdentity(await entry.owner.operations.stat({ bigint: true }));
+    if (entry.original.size !== '0') throw new Error('Binary staging file was not admitted as empty.');
+    return entry;
+  };
+  const voidResult = (value, operation) => { if (value !== undefined) throw unconfirmed('Original binary frame ' + operation + ' did not confirm its standard void result.'); };
+  try {
+    throwIfAborted(signal); sourceClosed = false; source = openRowSource(rowBuffers); sourceClosed = source.isClosed();
+    const data = await create(dataPath), offsets = await create(offsetsPath), lengths = await create(lengthsPath);
+    const dataHandle = data.owner.operations, offsetsHandle = offsets.owner.operations, lengthsHandle = lengths.owner.operations;
+    if (resolvedPreallocateBytes > 0) voidResult(await dataHandle.truncate(resolvedPreallocateBytes), 'preallocation');
+    const dataBlock = Buffer.allocUnsafe(1024 * 1024), offsetBlock = Buffer.allocUnsafe(256 * OFFSET_BYTES), lengthBlock = Buffer.allocUnsafe(256 * 10);
+    let dataUsed = 0, batchRows = 0, lengthUsed = 0, batchStart = 0;
+    const flush = async () => {
+      if (!batchRows) return;
+      throwIfAborted(signal); requireOriginals(); const started = Date.now();
+      if (dataUsed) await writeAllToHandle(dataHandle, dataBlock.subarray(0, dataUsed), batchStart);
+      await writeAllToHandle(offsetsHandle, offsetBlock.subarray(0, batchRows * OFFSET_BYTES), null);
+      await writeAllToHandle(lengthsHandle, lengthBlock.subarray(0, lengthUsed), null);
+      totalLengthBytes += lengthUsed; flushMs += Math.max(0, Date.now() - started);
+      dataUsed = 0; batchRows = 0; lengthUsed = 0; batchStart = cursor;
+    };
+    for (;;) {
+      throwIfAborted(signal); requireOriginals(); const next = await source.next();
+      if (next.done) { sourceClosed = true; break; }
+      const payload = Buffer.isBuffer(next.value) ? next.value : Buffer.from(next.value || '');
+      if (batchRows && (batchRows === 256 || dataUsed + payload.length > dataBlock.length)) await flush();
+      const rowOffset = cursor; cursor += payload.length;
+      if (!Number.isSafeInteger(cursor) || !Number.isSafeInteger(count + 1)) throw new RangeError('Binary row offsets exceed safe numeric bounds.');
+      if (payload.length > dataBlock.length) {
+        const started = Date.now(); await writeAllToHandle(dataHandle, payload, rowOffset); flushMs += Math.max(0, Date.now() - started);
+      } else { payload.copy(dataBlock, dataUsed); dataUsed += payload.length; }
+      offsetBlock.writeBigUInt64LE(BigInt(rowOffset), batchRows * OFFSET_BYTES);
+      lengthUsed += encodeVarint64Into(payload.length, lengthBlock, lengthUsed); batchRows++; count++;
+      if (payload.length > dataBlock.length) await flush();
+    }
+    await flush();
+    if (resolvedPreallocateBytes > 0 && cursor !== resolvedPreallocateBytes) voidResult(await dataHandle.truncate(cursor), 'truncate');
+    data.expectedBytes = cursor; offsets.expectedBytes = count * OFFSET_BYTES; lengths.expectedBytes = totalLengthBytes;
+    const started = Date.now();
+    const synced = await Promise.allSettled(entries.map(async entry => {
+      voidResult(await entry.owner.operations.sync(), 'sync');
+      const stat = await entry.owner.operations.stat({ bigint: true }); sameObject(stat, entry.original);
+      if (stat.size !== BigInt(entry.expectedBytes)) throw new Error('Binary frame descriptor extent differs from its completed payload.');
+    }));
+    for (const result of synced) if (result.status === 'rejected') remember(result.reason, 'binary-frame-sync');
+    fsyncMs += Math.max(0, Date.now() - started);
+  } catch (error) { remember(error, 'binary-frame-materialize'); }
+  finally {
+    if (source && !sourceClosed) {
+      try { requireOriginals(); await source.close(); sourceClosed = source.isClosed(); }
+      catch (error) { remember(error, 'binary-frame-source-close'); }
+    }
+    // Freeze only original operation/source prerequisites. Later same-owner
+    // outward close failures must never be fed back into their own close guards.
+    originalPrerequisites = Object.freeze([...observations]); originalOverflow = observationOverflow;
+    const prerequisite = Object.freeze({ cacheOwnershipPending: true,
+      cacheOwnershipReleased: () => sourceClosed && !originalOverflow && originalPrerequisites.every(observation => observation.isSettled())
+        && sourceRecovery.every(observation => observation.isSettled()) });
+    if (originalPrerequisites.length || !sourceClosed || originalOverflow) {
+      for (const entry of entries) entry.owner?.remember(prerequisite);
+    }
+    const closed = await Promise.allSettled(entries.filter(entry => entry.owner).map(entry => entry.owner.run(() => undefined)));
+    for (const result of closed) if (result.status === 'rejected') remember(result.reason, 'binary-frame-close');
+  }
+  const cleanup = async entry => {
+    if (entry.published || !entry.original) return;
+    requireMetadata(); assertDirectoryIdentity(await fs.lstat(path.dirname(entry.temp), { bigint: true }), entry.tempParent);
+    let stat;
+    try { stat = await fs.lstat(entry.temp, { bigint: true }); }
+    catch (error) { if (readPersistenceFailureCode(error) === 'ENOENT') { requireMetadata(); return; } throw error; }
+    requireMetadata(); sameObject(stat, entry.original);
+    assertDirectoryIdentity(await fs.lstat(path.dirname(entry.temp), { bigint: true }), entry.tempParent); requireMetadata();
+    voidResult(await fs.rm(entry.temp, { force: true }), 'cleanup'); requireMetadata();
+  };
+  if (!primaryPresent) {
+    try {
+      requireMetadata(); throwIfAborted(signal);
+      for (const entry of entries) {
+        const stat = await fs.lstat(entry.temp, { bigint: true }); requireMetadata();
+        entry.sealed = sameObject(stat, entry.original);
+        if (stat.size !== BigInt(entry.expectedBytes)) throw new Error('Closed binary frame extent changed before publication.');
+      }
+      const started = Date.now();
+      // Preserve existing offsets, lengths, data publication order.
+      for (const entry of [entries[1], entries[2], entries[0]]) {
+        requireMetadata(); throwIfAborted(signal);
+        assertDirectoryIdentity(await fs.lstat(path.dirname(entry.temp), { bigint: true }), entry.tempParent);
+        assertDirectoryIdentity(await fs.lstat(path.dirname(entry.final), { bigint: true }), entry.finalParent);
+        requireMetadata(); assertPersistenceFileIdentity(await fs.lstat(entry.temp, { bigint: true }), entry.sealed); requireMetadata();
+        await replaceFile(entry.temp, entry.final, { keepBackup: false, requireSettled: requireMetadata }); entry.published = true;
+        await syncParentDirectory(entry.final, { expectedParent: entry.finalParent }); requireMetadata();
+      }
+      publishMs += Math.max(0, Date.now() - started);
+    } catch (error) { remember(error, 'binary-frame-publication'); }
+  }
+  if (primaryPresent) {
+    for (const entry of entries) {
+      try { await cleanup(entry); } catch (error) { remember(error, 'binary-frame-cleanup'); }
+    }
+    const sourceClose = Object.freeze({ isClosed: () => sourceClosed, close: async () => {
+      if (sourceClosed) return { closed: true };
+      if (!source) throw new Error('Original binary row iterator methods were not captured; closure cannot be reconstructed.');
+      try {
+        if (originalOverflow) throw overflow;
+        for (const observation of [...originalPrerequisites, ...sourceRecovery]) observation.requireSettled();
+        await source.close(); sourceClosed = source.isClosed(); return { closed: sourceClosed };
+      } catch (error) {
+        if (sourceRecovery.length === 64) { observationOverflow = true; throw overflow; }
+        sourceRecovery.push(observeStorageResource(error, { phase: 'binary-frame-source-recovery' })); throw error;
+      }
+    } });
+    const failure = retainPersistenceFailure(primary, [...errors.filter(error => error !== primary),
+      ...observations.map(observation => observation.retain()), ...(observationOverflow ? [overflow] : [])], {
+      binaryColumnarTemporaryPaths: Object.freeze(entries.filter(entry => !entry.published).map(entry => entry.temp)),
+      binaryColumnarPublishedPaths: Object.freeze(entries.filter(entry => entry.published).map(entry => entry.final)),
+      binaryColumnarSourceClosed: sourceClosed, binaryColumnarSourceClose: sourceClose,
+      cacheOwnershipPending: true, cacheOwnershipReleased: () => sourceClosed && !observationOverflow
+        && sourceRecovery.every(observation => observation.isSettled())
+    });
+    Object.defineProperty(failure, 'binaryColumnarSourceClose', { value: sourceClose, configurable: false, writable: false, enumerable: false });
+    throw failure;
+  }
+  return { count, totalBytes: cursor, preallocatedBytes: resolvedPreallocateBytes, phaseTimings: {
+    computeMs: 0, serializationMs: 0, compressionMs: 0, flushMs, fsyncMs, publishMs, manifestWaitMs: 0, backpressureWaitMs: 0
+  } };
 };
 
 /**

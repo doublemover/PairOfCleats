@@ -1,78 +1,56 @@
-# Binary frame iterator resource lifetime
+# Binary row-frame producer resource lifetime
 
-Status: UNVALIDATED source and authored controls, 2026-10-22.
+Status: UNVALIDATED source and authored actual-consumer controls. No runtime,
+native, worker, cross-process, physical-link, import-budget or performance checks
+were run. Existing bounded-batch, positive-short-write, codec and timing fixtures
+remain unchanged and unexecuted for this source batch.
 
-The binary-columnar frame generator borrows the existing contained-file resource
-owner across synchronous yields in both strict and legacy path modes. Sidecar
-resolution remains eager, while the data descriptor opens only on first `next()`.
-An unstarted `return()` or `throw()` opens no data descriptor. Rows remain one
-bounded frame at a time; no full-payload materialization, fallback or replay is
-introduced. Existing safe offset, row extent and byte-budget checks remain, and
-read progress must be a positive safe integer within its requested window.
+The public binary row-frame producer retains its one-MiB payload buffer, 256-row
+offset/length batches, preallocation cap, exact output formats and existing
+offsets/lengths/data publication order. Original FileHandle write, truncate, sync,
+stat and close methods are captured by the existing contained-file owner for each
+of the three exclusive staging files. All admitted sync and close promises settle
+before the producer decides whether publication or cleanup is allowed.
 
-The exact original read/stat/close methods and receiver remain captured across
-yields. Normal exhaustion, explicit return, early break and unhandled throw use
-the same owner to close. Original read/stat/parse failures, falsey thrown values
-and independent close failures remain composed. Original independent native
-observations gate actual descriptor destruction; replacing a method or clearing
-a marker does not authorize it. Final file stamps must remain stable, and strict
-mode rechecks descriptor containment before close.
+The actual source iterator factory, next and return methods keep their original
+receivers. Sync iterator values, including a final return value, retain their
+promised-value semantics. Failure captures its original observer before source
+return or descriptor destruction. An absent/false marker or later method
+replacement cannot authorize closing while original work remains pending. Native
+write progress is strict; nonvoid truncate/sync/close acknowledgements cannot
+become success. Falsey/frozen primary and independent close failures compose.
 
-`iterateContainedFileResourceSync` and the contained-path adapter do not pass a
-generator object through `runSync` as if its work were complete. They acquire
-lazily and delegate to the same resource owner's synchronous iterator lifetime.
-The existing private resource map also recognizes the actual borrowed iterator
-after its borrowed lifetime ends, so a direct borrower holding it can retrieve
-its exact session with
-`getContainedFileSession(iterator)`. A copied ID, marker, cause chain or synthetic
-iterator confers no authority. A live suspended borrower does not expose this
-close-only recovery capability. There is no second registry or filesystem lease
-namespace. Failed admission still exposes its capability through the actual
-failure even when acquisition cannot return a borrowed iterator.
+Source protocol and original operation prerequisites are captured before native
+close failures are produced. A same-owner outward close error is never inserted
+back into that owner's own release predicate. Failed/unconfirmed close preserves
+the actual private descriptor sessions and every temporary pathname. Close-only
+reconciliation never consumes more rows, rewrites payload, reallocates, syncs,
+publishes or removes metadata.
 
-The actual JSON row decoder forwards parse failures and `throw(error)` at its
-suspended yield into the payload owner before close. The multi-part and public
-async row wrappers delegate return/throw rather than implicitly converting every
-abrupt completion into a plain `return()`. Parse error wrapping retains exact
-falsey/frozen causes and original native observations while preserving the
-public `ERR_ARTIFACT_CORRUPT` classification. Later parts and rows are not started
-after failure, early break or return.
+If original pending work prevented the first source return, the nonenumerable
+`binaryColumnarSourceClose` capability can explicitly attempt that captured return
+after the original observations settle. It neither calls next nor retries a known
+failed return. Its `{closed}` result describes iterator protocol completion; it
+does not prove arbitrary native resource settlement. Once that protocol and every
+independent prerequisite are confirmed, the existing descriptor sessions may
+explicitly close their exact FileHandles. Uncaptured or failed source closure stays
+unknown; no path/serialization/PID can reconstruct those original methods.
 
-A sequential verification witness hashes frames, padding and trailing bytes on
-the same opened descriptor. Its new `prepare()` step verifies and finalizes the
-certificate while the descriptor remains live; publication waits for normal
-exhaustion and confirmed close. Early termination, close failure and close-only
-recovery cannot publish it. Existing `finish()` consumers retain their immediate
-publication behavior and are not claimed to have adopted this iterator lifetime.
-The standalone checksum read remains a separate prior pass; it must close before
-the decode descriptor opens. This does not claim that two separate opens prove
-one physical generation or provide an index/category lease.
+Only confirmed closed staging files are sealed for publication. Exact object,
+extent and parent checks precede the existing replacement owner. Cleanup verifies
+the admitted original object and parent, preserving a replaced namespace. Parent
+directory sync uses the existing owner after each individual commit. A later
+parent failure preserves the published prefix and uncommitted staging, carrying
+the actual parent descriptor capability rather than reporting full success.
 
-The existing synchronous recovery limit remains strict: original work that
-blocked the first close can permit that first captured close once confirmed;
-an attempted close that throws or returns a nonvoid value leaves the numeric fd
-generation unknown and cannot be retried. Recovery never resumes the generator,
-reparses a row, rereads bytes or publishes a prepared witness. External teardown
-does not manufacture a settlement receipt.
+The new authored producer fixture covers captured methods and truncation, late
+close-only recovery, pending original write/sync, first-return recovery without
+row replay, partial open admission, failed return, falsey primaries, replaced
+staging and post-prefix parent close. It uses only disposable file/iterator seams.
 
-JavaScript's external `for-of`/`for-await-of` body-throw protocol calls the
-iterator's `return()` without passing that thrown value, and may preserve that
-body error over a failing close. An iterator cannot observe that hidden error or
-infer unrelated native settlement from it. Direct callers needing original-work
-gating must forward an actual `throw(error)` and retain the returned failure or
-the actual borrowed iterator capability. Ordinary body throw with successful
-close and early break with failing close are covered; arbitrary external native
-work and suppressed cleanup diagnostics at that language boundary remain an
-explicit limit. A suspended iterator must be exhausted, returned or thrown into;
-abandoning its reference does not run cleanup or prove close. No cross-process,
-garbage-collection settlement or descendant census is added.
-
-Authored controls use actual disposable frame fds, canonical public artifact
-families, checksums and both path modes. They cover lazy open, method replacement
-across yields, bounded short reads including trailing-byte hashing, zero-length
-frames, return/break/throw, falsey and frozen errors, close failure after the last
-yield, invalid progress, final stamp change, witness suppression, parse-plus-close
-composition and public observer replacement before explicit first-close recovery.
-Existing no-full-materialization and frame/budget regressions remain. No tests,
-syntax/lint/format, bootstrap, native, platform, performance or full-index checks
-have run; no executable acceptance or completed-issue claim is made.
+This is not a generation transaction or new resource registry. Three final paths
+still have separate publication boundaries; callers retain their manifest/replay
+and category admission responsibilities. Mutable external sources, abandoned
+producers, final compare/syscall races, platform durability and whole-generation
+recovery remain explicit independent limits. No JSON-stream, token-postings loader,
+quantization codec, embedding-cache or compiler/semantic producer is edited.

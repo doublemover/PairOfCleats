@@ -1,206 +1,170 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
+import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
-import { encodeBinaryRowFrames } from '../../../src/shared/artifact-io/binary-columnar.js';
-import { iterateBinaryColumnarRowPayloads } from '../../../src/shared/artifact-io/loaders/binary-columnar.js';
-import { getContainedFileSession } from '../../../src/shared/contained-file-resource.js';
-import { withVerifiedArtifactReadScope } from '../../../src/shared/artifact-io/verified-read-scope.js';
+import { writeBinaryRowFrames, encodeBinaryRowFrames } from '../../../src/shared/artifact-io/binary-columnar.js';
+import { getContainedFileSession, isContainedFileSession } from '../../../src/shared/contained-file-resource.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
-// UNVALIDATED: actual disposable frame data/descriptors and inert boundary faults.
-// No native binding, child, physical link, whole index or benchmark is used.
-const caught = action => {
-  let failed = false, error;
-  try { action(); } catch (value) { failed = true; error = value; }
-  assert.equal(failed, true); return error;
+// UNVALIDATED: actual public producer, native FileHandles and original iterators.
+const root = await makeTempDir('poc-binary-frame-resource-'), open = fs.open, remove = fs.rm;
+const disposal = new Map(); let sequence = 0;
+const restore = () => { fs.open = open; fs.rm = remove; };
+const rejected = async action => {
+  let present = false, failure;
+  try { await action(); } catch (error) { present = true; failure = error; }
+  assert.equal(present, true); return failure;
 };
-const contains = (value, expected) => {
-  const queue = [value], seen = new Set();
+const contains = (error, expected) => {
+  const queue = [error], seen = new Set();
   while (queue.length) {
     const current = queue.pop(); if (current === expected) return true;
     if (current === null || !['object', 'function'].includes(typeof current) || seen.has(current)) continue;
     seen.add(current);
-    if (Object.hasOwn(current, 'cause')) queue.push(current.cause);
-    if (Array.isArray(current.errors)) queue.push(...current.errors);
+    for (const field of ['cause', 'errors']) {
+      const descriptor = Object.getOwnPropertyDescriptor(current, field); if (!descriptor || !('value' in descriptor)) continue;
+      if (field === 'errors' && Array.isArray(descriptor.value)) queue.push(...descriptor.value);
+      else if (field === 'cause') queue.push(descriptor.value);
+    }
   }
   return false;
 };
-const root = await makeTempDir('poc-binary-frame-resource-');
-const originalOpen = fs.openSync, originalRead = fs.readSync, originalStat = fs.fstatSync;
-const originalClose = fs.closeSync, originalReadFile = fs.readFileSync;
-const disposal = new Set();
-const restore = () => {
-  fs.openSync = originalOpen; fs.readSync = originalRead; fs.fstatSync = originalStat;
-  fs.closeSync = originalClose; fs.readFileSync = originalReadFile;
+const fixture = async ({ failClose = -1, writeFailure, failWrite = false, syncFailure, failSync = false,
+  replaceMethods = false, openFailure, failOpen = -1, writeHook = null } = {}) => {
+  restore(); const directory = path.join(root, String(sequence++)); await fs.mkdir(directory);
+  const paths = { dataPath: path.join(directory, 'data'), offsetsPath: path.join(directory, 'offsets'), lengthsPath: path.join(directory, 'lengths') };
+  for (const file of Object.values(paths)) await fs.writeFile(file, 'old');
+  const states = [], events = []; let removals = 0, openings = 0;
+  fs.open = async (file, ...args) => {
+    if (file === directory && args[0] === 'r') throw Object.assign(new Error('unsupported directory sync fixture'), { code: 'EPERM' });
+    if (args[0] === 'wx' && openings++ === failOpen) throw openFailure;
+    const actual = await open(file, ...args); if (args[0] !== 'wx') return actual;
+    const index = states.length, state = { file, writes: 0, syncs: 0, closes: 0, truncates: 0, allowClose: index !== failClose };
+    states.push(state); const stat = actual.stat, close = actual.close, write = actual.write, sync = actual.sync, truncate = actual.truncate;
+    disposal.set(actual, () => close.call(actual));
+    actual.write = async function (...next) {
+      assert.equal(this, actual); state.writes++; events.push('write:' + index);
+      if (index === 0 && writeHook) await writeHook(file);
+      if (index === 0 && failWrite) throw writeFailure;
+      return write.call(actual, ...next);
+    };
+    actual.truncate = async function (...next) { assert.equal(this, actual); state.truncates++; return truncate.call(actual, ...next); };
+    actual.sync = async function () {
+      assert.equal(this, actual); state.syncs++; if (index === 0 && failSync) throw syncFailure; return sync.call(actual);
+    };
+    actual.close = async function () {
+      assert.equal(this, actual); state.closes++; events.push('close:' + index);
+      if (!state.allowClose) throw Object.freeze(new Error('original binary descriptor close failed'));
+      const result = await close.call(actual); disposal.delete(actual); return result;
+    };
+    actual.stat = async function (...next) {
+      const result = await stat.call(actual, ...next);
+      if (replaceMethods) actual.write = actual.sync = actual.close = actual.truncate = () => assert.fail('binary writer must retain captured native methods');
+      return result;
+    };
+    return actual;
+  };
+  fs.rm = async (...args) => { removals++; return remove(...args); };
+  return { directory, paths, states, events, removals: () => removals, openings: () => openings };
+};
+const unchanged = async paths => { for (const file of Object.values(paths)) assert.equal(await fs.readFile(file, 'utf8'), 'old'); };
+const sessions = failure => {
+  const values = failure.containedFileSessions || [getContainedFileSession(failure)];
+  assert.equal(values.every(isContainedFileSession), true); return values;
 };
 try {
-  const file = path.join(root, 'frames.bin');
-  const rows = [Buffer.from('first'), Buffer.from('second-😀'), Buffer.alloc(0)];
-  const encoded = encodeBinaryRowFrames(rows);
-  const bytes = Buffer.concat([encoded.dataBuffer, Buffer.alloc(65536 + 17, 7)]);
-  fs.writeFileSync(file, bytes);
-  const makeIterator = (containedRoot, overrides = {}) => iterateBinaryColumnarRowPayloads({
-    dataPath: file, offsetsPath: '', lengthsPath: '', count: rows.length,
-    offsetsBuffer: encoded.offsetsBuffer, lengthsBuffer: encoded.lengthsBuffer,
-    containedRoot, ...overrides
-  });
-  const install = ({ read = null, close = null, stat = null } = {}) => {
-    const state = { fd: null, opens: 0, reads: 0, closes: 0, stats: 0 };
-    fs.openSync = (target, ...args) => {
-      const opened = originalOpen(target, ...args);
-      if (target === file) { state.fd = opened; state.opens += 1; disposal.add(opened); }
-      return opened;
-    };
-    fs.readSync = (fd, ...args) => {
-      if (fd !== state.fd) return originalRead(fd, ...args);
-      state.reads += 1;
-      return read ? read(state, ...args) : originalRead(fd, ...args);
-    };
-    fs.fstatSync = (fd, ...args) => {
-      if (fd !== state.fd) return originalStat(fd, ...args);
-      state.stats += 1;
-      return stat ? stat(state, ...args) : originalStat(fd, ...args);
-    };
-    fs.closeSync = fd => {
-      if (fd !== state.fd) return originalClose(fd);
-      state.closes += 1;
-      if (close) return close(state);
-      const result = originalClose(fd); disposal.delete(fd); return result;
-    };
-    fs.readFileSync = (target, ...args) => {
-      if (target === file) assert.fail('frame iterator cannot materialize its full data file');
-      return originalReadFile(target, ...args);
-    };
-    return state;
-  };
-  for (const containedRoot of [root, null]) {
-    {
-      const state = install();
-      const unopened = makeIterator(containedRoot);
-      assert.deepEqual(unopened.return('unused'), { value: 'unused', done: true });
-      assert.equal(caught(() => makeIterator(containedRoot).throw(false)), false);
-      assert.equal(state.opens, 0); assert.equal(state.closes, 0); restore();
-    }
-    {
-      let records = 0;
-      const state = install({ read: (held, buffer, offset, length, position) => {
-        assert.ok(length <= 65536);
-        return originalRead(held.fd, buffer, offset, Math.min(position < encoded.dataBuffer.length ? 3 : 1024, length), position);
-      } });
-      withVerifiedArtifactReadScope({ root, record: (target, certificate) => {
-        assert.equal(target, file); assert.equal(state.closes, 1);
-        assert.equal(certificate.hash, createHash('sha256').update(bytes).digest('hex')); records += 1;
-      } }, () => {
-        const iterator = makeIterator(containedRoot);
-        assert.equal(state.opens, 0);
-        assert.deepEqual(iterator.next(), { value: rows[0], done: false });
-        assert.equal(state.closes, 0); assert.equal(records, 0);
-        assert.equal(getContainedFileSession(iterator), null, 'a live borrower must not expose a close-only recovery handle');
-        fs.readSync = () => assert.fail('later global read replacement is not the original operation');
-        fs.fstatSync = () => assert.fail('later global stat replacement is not the original operation');
-        fs.closeSync = () => assert.fail('later global close replacement is not the original operation');
-        assert.deepEqual([...iterator], rows.slice(1));
-        assert.equal(state.closes, 1); assert.equal(records, containedRoot ? 1 : 0);
-        assert.equal(getContainedFileSession(iterator).isSettled(), true);
-      });
-      restore();
-    }
-    for (const mode of ['return', 'break']) {
-      let records = 0;
-      const state = install();
-      withVerifiedArtifactReadScope({ root, record: () => { records += 1; } }, () => {
-        const iterator = makeIterator(containedRoot);
-        if (mode === 'return') {
-          assert.deepEqual(iterator.next().value, rows[0]);
-          assert.deepEqual(iterator.return('stopped'), { value: 'stopped', done: true });
-        } else {
-          for (const row of iterator) { assert.deepEqual(row, rows[0]); break; }
-        }
-        assert.equal(state.closes, 1); assert.equal(state.reads, 1); assert.equal(records, 0);
-        assert.equal(getContainedFileSession(iterator).isSettled(), true);
-      });
-      restore();
-    }
-    for (const primary of [undefined, null, false, 0, '', Object.freeze(new Error('frozen read failure'))]) {
-      const secondary = Object.freeze(new Error('independent original frame close failure'));
-      const state = install({ read: () => { throw primary; }, close: () => { throw secondary; } });
-      const iterator = makeIterator(containedRoot), failure = caught(() => iterator.next());
-      const session = getContainedFileSession(failure);
-      assert.equal(contains(failure, primary), true); assert.equal(contains(failure, secondary), true);
-      assert.equal(getContainedFileSession(iterator), session); assert.equal(state.reads, 1); assert.equal(state.closes, 1);
-      iterator.return(); iterator.next(); caught(() => session.releaseAfterCloseSync());
-      assert.equal(state.closes, 1); assert.equal(state.reads, 1);
-      originalClose(state.fd); disposal.delete(state.fd); assert.equal(session.isSettled(), false); restore();
-    }
-    for (const primary of [undefined, null, false, 0, '']) {
-      const secondary = Object.freeze(new Error('independent close after delegated throw'));
-      const state = install({ close: () => { throw secondary; } });
-      const iterator = makeIterator(containedRoot); iterator.next();
-      const failure = caught(() => iterator.throw(primary)), session = getContainedFileSession(failure);
-      assert.equal(contains(failure, primary), true); assert.equal(contains(failure, secondary), true);
-      assert.equal(getContainedFileSession(iterator), session); assert.equal(state.reads, 1); assert.equal(state.closes, 1);
-      caught(() => session.releaseAfterCloseSync()); assert.equal(state.closes, 1);
-      originalClose(state.fd); disposal.delete(state.fd); restore();
-    }
-    {
-      let settled = false, records = 0;
-      const primary = Object.assign(new Error('throw at suspended row retains original work'), {
-        cacheOwnershipPending: false, cacheOwnershipReleased() { assert.equal(this, primary); return settled; }
-      });
-      const state = install();
-      withVerifiedArtifactReadScope({ root, record: () => { records += 1; } }, () => {
-        const iterator = makeIterator(containedRoot); iterator.next();
-        const failure = caught(() => iterator.throw(primary)), session = getContainedFileSession(failure);
-        assert.equal(contains(failure, primary), true); assert.equal(state.closes, 0);
-        assert.equal(getContainedFileSession(iterator), session);
-        assert.equal(getContainedFileSession({ containedFileSession: { ...session } }), null);
-        primary.cacheOwnershipReleased = () => true;
-        caught(() => session.releaseAfterCloseSync()); assert.equal(state.closes, 0);
-        fs.closeSync = () => assert.fail('explicit first close must keep its original method');
-        settled = true;
-        assert.deepEqual(session.releaseAfterCloseSync(), { resourceId: session.resourceId, settled: true, pending: false });
-        assert.equal(state.closes, 1); assert.equal(state.reads, 1); assert.equal(records, 0);
-        assert.equal(failure.cacheOwnershipReleased(), true); assert.equal(iterator.next().done, true);
-      });
-      restore();
-    }
-    for (const returned of [false, undefined]) {
-      let records = 0;
-      const state = install({ close: () => {
-        if (returned === undefined) throw Object.freeze(new Error('close after final yielded frame'));
-        return returned;
-      } });
-      withVerifiedArtifactReadScope({ root, record: () => { records += 1; } }, () => {
-        const iterator = makeIterator(containedRoot);
-        for (const row of rows) assert.deepEqual(iterator.next().value, row);
-        const failure = caught(() => iterator.next()), session = getContainedFileSession(failure);
-        assert.equal(state.closes, 1); assert.equal(records, 0);
-        caught(() => session.releaseAfterCloseSync()); assert.equal(state.closes, 1);
-      });
-      originalClose(state.fd); disposal.delete(state.fd); restore();
-    }
-    for (const progress of [0, -1, NaN, 0.5, rows[0].length + 1]) {
-      const state = install({ read: () => progress });
-      const iterator = makeIterator(containedRoot), failure = caught(() => iterator.next());
-      assert.equal(state.closes, 1); assert.equal(state.reads, 1);
-      assert.equal(getContainedFileSession(failure), null); assert.equal(getContainedFileSession(iterator).isSettled(), true); restore();
-    }
-    {
-      const state = install({ stat: (held, ...args) => {
-        const actual = originalStat(held.fd, ...args);
-        if (args[0]?.bigint || held.reads === 0) return actual;
-        return new Proxy(actual, { get: (value, key) => key === 'size' ? actual.size + 1 : Reflect.get(value, key) });
-      } });
-      const iterator = makeIterator(containedRoot);
-      for (const row of rows) assert.deepEqual(iterator.next().value, row);
-      assert.equal(caught(() => iterator.next()).code, 'ERR_FILE_CHANGED'); assert.equal(state.closes, 1); restore();
-    }
+  {
+    const current = await fixture({ replaceMethods: true }), rows = [Buffer.from('λ😀'), Buffer.alloc(0), Buffer.from('last')];
+    const result = await writeBinaryRowFrames({ ...current.paths, rowBuffers: rows, preallocateBytes: 4096 });
+    const expected = encodeBinaryRowFrames(rows); assert.equal(result.count, 3); assert.equal(result.totalBytes, expected.dataBuffer.length);
+    assert.deepEqual(await fs.readFile(current.paths.dataPath), expected.dataBuffer);
+    assert.deepEqual(await fs.readFile(current.paths.offsetsPath), expected.offsetsBuffer);
+    assert.deepEqual(await fs.readFile(current.paths.lengthsPath), expected.lengthsBuffer);
+    assert.equal(current.states[0].truncates, 2); assert.deepEqual(current.states.map(state => state.closes), [1, 1, 1]);
   }
-  assert.deepEqual(fs.readFileSync(file), bytes);
+  {
+    const current = await fixture({ failClose: 1 });
+    const failure = await rejected(() => writeBinaryRowFrames({ ...current.paths, rowBuffers: ['new'] }));
+    assert.deepEqual(current.states.map(state => state.closes), [1, 1, 1]); assert.equal(current.removals(), 0); await unchanged(current.paths);
+    const retained = sessions(failure); assert.equal(retained.length, 1); const before = current.states.map(state => [state.writes, state.syncs]);
+    current.states[1].allowClose = true; await retained[0].releaseAfterClose();
+    assert.deepEqual(current.states.map(state => state.closes), [1, 2, 1]); assert.equal(current.removals(), 0);
+    assert.deepEqual(current.states.map(state => [state.writes, state.syncs]), before); assert.equal(failure.cacheOwnershipReleased(), true);
+  }
+  {
+    let ready = false, nexts = 0, returns = 0;
+    const primary = Object.assign(new Error('original binary write still owns work'), { cacheOwnershipPending: false, cacheOwnershipReleased() { return ready; } });
+    const iterator = { [Symbol.asyncIterator]() { return this; }, next() {
+      assert.equal(this, iterator); nexts++; this.next = this.return = () => assert.fail('source methods must remain original');
+      return Promise.resolve({ value: Buffer.alloc(1024 * 1024 + 1), done: false });
+    }, return() { assert.equal(this, iterator); returns++; return Promise.resolve({ done: true }); } };
+    const current = await fixture({ failWrite: true, writeFailure: primary });
+    const failure = await rejected(() => writeBinaryRowFrames({ ...current.paths, rowBuffers: iterator }));
+    assert.deepEqual(current.states.map(state => state.closes), [0, 0, 0]); assert.equal(returns, 0); assert.equal(current.removals(), 0);
+    primary.cacheOwnershipReleased = () => true; await rejected(() => failure.binaryColumnarSourceClose.close()); assert.equal(returns, 0);
+    ready = true; assert.equal((await failure.binaryColumnarSourceClose.close()).closed, true); assert.equal(returns, 1);
+    const retained = sessions(failure); assert.equal(retained.length, 3); for (const session of retained) await session.releaseAfterClose();
+    assert.deepEqual(current.states.map(state => state.closes), [1, 1, 1]); assert.equal(nexts, 1); assert.equal(current.states[0].writes, 1);
+    assert.equal(current.removals(), 0); assert.equal(failure.cacheOwnershipReleased(), true); await unchanged(current.paths);
+  }
+  {
+    let ready = false;
+    const primary = Object.assign(new Error('original sync retains native work'), { cacheOwnershipReleased() { return ready; } });
+    const current = await fixture({ failSync: true, syncFailure: primary });
+    const failure = await rejected(() => writeBinaryRowFrames({ ...current.paths, rowBuffers: ['new'] }));
+    assert.deepEqual(current.states.map(state => state.closes), [0, 0, 0]); assert.deepEqual(current.states.map(state => state.syncs), [1, 1, 1]);
+    primary.cacheOwnershipReleased = () => true; assert.equal(failure.cacheOwnershipReleased(), false); ready = true;
+    for (const session of sessions(failure)) await session.releaseAfterClose();
+    assert.deepEqual(current.states.map(state => state.closes), [1, 1, 1]); assert.deepEqual(current.states.map(state => state.syncs), [1, 1, 1]);
+    assert.equal(failure.cacheOwnershipReleased(), true); assert.equal(current.removals(), 0);
+  }
+  for (const primary of [undefined, null, false, 0, '', Object.freeze(new Error('ordinary frozen frame write'))]) {
+    const current = await fixture({ failWrite: true, writeFailure: primary });
+    const failure = await rejected(() => writeBinaryRowFrames({ ...current.paths, rowBuffers: ['new'] }));
+    assert.equal(contains(failure, primary), true); assert.deepEqual(current.states.map(state => state.closes), [1, 1, 1]);
+    assert.equal(current.removals(), 3); await unchanged(current.paths);
+  }
+  {
+    let ready = false;
+    const primary = Object.assign(new Error('second open retains unknown work'), { cacheOwnershipReleased() { return ready; } });
+    const current = await fixture({ failOpen: 1, openFailure: primary });
+    const failure = await rejected(() => writeBinaryRowFrames({ ...current.paths, rowBuffers: ['new'] }));
+    assert.equal(current.states.length, 1); assert.equal(current.states[0].closes, 0); assert.equal(current.openings(), 2);
+    ready = true; await getContainedFileSession(failure).releaseAfterClose(); assert.equal(current.states[0].closes, 1);
+    assert.equal(current.openings(), 2); assert.equal(current.removals(), 0); await unchanged(current.paths);
+  }
+  {
+    const primary = Object.freeze(new Error('row source failed')), secondary = Object.freeze(new Error('original source return failed')); let returns = 0;
+    const iterator = { [Symbol.iterator]() { return this; }, next() { throw primary; }, return() { returns++; throw secondary; } };
+    const current = await fixture(), failure = await rejected(() => writeBinaryRowFrames({ ...current.paths, rowBuffers: iterator }));
+    assert.equal(contains(failure, primary), true); assert.equal(contains(failure, secondary), true); assert.equal(returns, 1);
+    assert.deepEqual(current.states.map(state => state.closes), [0, 0, 0]);
+    await rejected(() => failure.binaryColumnarSourceClose.close()); assert.equal(returns, 1, 'a known failed return is not implicitly retried');
+  }
+  {
+    const primary = Object.freeze(new Error('preserve replaced staging namespace')); let staged, saved;
+    const current = await fixture({ failWrite: true, writeFailure: primary, writeHook: async file => {
+      staged = file; saved = file + '.saved'; await fs.rename(file, saved); await fs.writeFile(file, 'foreign');
+    } });
+    const failure = await rejected(() => writeBinaryRowFrames({ ...current.paths, rowBuffers: ['new'] }));
+    assert.equal(contains(failure, primary), true); assert.equal(await fs.readFile(staged, 'utf8'), 'foreign');
+    assert.equal((await fs.lstat(saved)).isFile(), true); assert.equal(current.removals(), 2); await unchanged(current.paths);
+  }
+  {
+    const current = await fixture(), marker = path.join(current.directory, 'parent-negative'); await fs.writeFile(marker, 'not directory');
+    const stagedOpen = fs.open; let parentCloses = 0, allowClose = false;
+    fs.open = async (file, ...args) => {
+      if (file !== current.directory || args[0] !== 'r') return stagedOpen(file, ...args);
+      const actual = await open(marker, 'r'), close = actual.close; disposal.set(actual, () => close.call(actual));
+      actual.close = async function () { parentCloses++; if (!allowClose) throw Object.freeze(new Error('parent close failed'));
+        const result = await close.call(actual); disposal.delete(actual); return result; };
+      return actual;
+    };
+    const failure = await rejected(() => writeBinaryRowFrames({ ...current.paths, rowBuffers: ['new'] }));
+    assert.deepEqual(failure.binaryColumnarPublishedPaths, [current.paths.offsetsPath]); assert.equal(parentCloses, 1);
+    assert.equal(await fs.readFile(current.paths.dataPath, 'utf8'), 'old'); assert.equal(await fs.readFile(current.paths.lengthsPath, 'utf8'), 'old');
+    allowClose = true; await getContainedFileSession(failure).releaseAfterClose(); assert.equal(parentCloses, 2); assert.equal(current.removals(), 0);
+  }
 } finally {
-  restore();
-  for (const fd of disposal) { try { originalClose(fd); } catch {} }
+  restore(); for (const close of disposal.values()) { try { await close(); } catch {} }
   await rmDirRecursive(root);
 }
-console.log('binary-frame-resource-lifetime passed');
