@@ -2,6 +2,7 @@ import { readExactAt } from '../io/read-exact.js';
 import fs from 'node:fs/promises';
 import { openContainedFile } from '../contained-file.js';
 import { createContainedFileResource } from '../contained-file-resource.js';
+import { withOpenedFileReaders } from './with-opened-readers.js';
 import { createHash } from 'node:crypto';
 import { throwIfAborted } from '../abort.js';
 import { parseJsonlLine } from './jsonl.js';
@@ -280,8 +281,7 @@ export const readJsonlRowAt = async (
 ) => {
   const resolvedMaxBytes = resolveValidatedMaxBytes(maxBytes, 'readJsonlRowAt');
   if (!Number.isFinite(index) || index < 0) return null;
-  const [jsonlHandle, offsetsHandle] = await openJsonlHandles(jsonlPath, offsetsPath);
-  try {
+  return withOpenedFileReaders([jsonlPath, offsetsPath], async ([jsonlHandle, offsetsHandle]) => {
     const [offsetCount, jsonlStat, offsets] = await Promise.all([
       resolveOffsetsCount(offsetsPath, { handle: offsetsHandle }),
       jsonlHandle.stat(),
@@ -315,9 +315,7 @@ export const readJsonlRowAt = async (
       metrics.rowsRead = currentRows + 1;
     }
     return parseJsonlLine(line, jsonlPath, index + 1, resolvedMaxBytes, requiredKeys);
-  } finally {
-    await Promise.allSettled([jsonlHandle.close(), offsetsHandle.close()]);
-  }
+  });
 };
 
 /**
@@ -612,7 +610,6 @@ const validateOffsetsAgainstSources = async (jsonlPath, offsetsPath, { signal = 
 
 export const validateOffsetsAgainstFile = async (jsonlPath, offsetsPath, options = {}) => {
   throwIfAborted(options.signal);
-  const handles = await openJsonlHandles(jsonlPath, offsetsPath, options);
-  try { return await validateOffsetsAgainstSources(jsonlPath, offsetsPath, options, handles); }
-  finally { await Promise.allSettled(handles.map(handle => handle.close())); }
+  return withOpenedFileReaders([jsonlPath, offsetsPath], handles =>
+    validateOffsetsAgainstSources(jsonlPath, offsetsPath, options, handles), options);
 };
