@@ -120,8 +120,9 @@ function documentOffsets(document, { sourceText, start, end }) {
  * revealed; each returned location uses an actually opened, versioned buffer. */
 function createDocumentAuthority({ workspace, isCurrent = () => true, maxDocuments = 25 }) {
   const sources = new Map();
-  async function qualify({ repoRoot, file, uri, sourceHash, range, span = null }) {
+  async function qualify({ repoRoot, file, uri, sourceHash, range, span = null, fileOnly = false }) {
     if (!isCurrent()) return null;
+    if (typeof fileOnly !== 'boolean' || fileOnly && (range != null || span !== null)) throw new Error('File-only qualification cannot supply an indexed range or span.');
     const root = fs.realpathSync(repoRoot);
     const key = JSON.stringify([root, file, sourceHash]);
     if (!sources.has(key)) {
@@ -147,7 +148,8 @@ function createDocumentAuthority({ workspace, isCurrent = () => true, maxDocumen
     assertSourceUri(source, source.document.uri);
     if (source.document.isClosed === true) throw new Error('Opened target document closed before location publication.');
     if (source.document.version !== source.version) throw new Error('Opened target version changed before location publication.');
-    const sourceSpan = span || sourceRangeOffsets(source.sourceText, range);
+    const offset = fileOnly && source.sourceText.startsWith('\ufeff') ? 1 : 0;
+    const sourceSpan = fileOnly ? { start: offset, end: offset } : span || sourceRangeOffsets(source.sourceText, range);
     const offsets = documentOffsets(source.document, { ...source, ...sourceSpan });
     const originalSource = Object.freeze({ file: path.relative(source.repoRoot, source.file).split(path.sep).join('/'),
       contentDigest: source.sourceHash, byteLength: source.byteLength,

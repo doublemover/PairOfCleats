@@ -1,4 +1,4 @@
-const { readVerifiedSource, createDocumentAuthority, assertQualifiedEditor } = require('./document-authority.js');
+const { createDocumentAuthority, assertQualifiedEditor } = require('./document-authority.js');
 const { reportEditorFailure } = require('./editor-failure-evidence.js');
 const MAX_SOURCE_ROWS_BYTES = 256 * 1024;
 
@@ -69,13 +69,8 @@ function createCapturedEvidenceOpener({ vscode, operations, getEvidence, collect
       }
       const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: current, maxDocuments: 1 });
       const precise = hit.coordinateUnit === 'utf16' && [hit.startLine, hit.startCol, hit.endLine, hit.endCol].every(Number.isSafeInteger);
-      let span = null;
-      if (!precise) {
-        const source = readVerifiedSource({ repoRoot: repoContext.repoRoot, file: target.filePath, sourceHash: hit.sourceHash });
-        const offset = source.sourceText.startsWith('\ufeff') ? 1 : 0; span = { start: offset, end: offset };
-      }
       const qualified = await authority.qualify({ repoRoot: repoContext.repoRoot, file: target.filePath,
-        uri: target.targetUri, sourceHash: hit.sourceHash, ...(precise ? { range: hit } : { span }) });
+        uri: target.targetUri, sourceHash: hit.sourceHash, ...(precise ? { range: hit } : { fileOnly: true }) });
       if (!qualified || !current()) return;
       await authority.assertCurrent();
       if (!current()) return;

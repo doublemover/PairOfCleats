@@ -18,9 +18,15 @@ source hash, explicit UTF-16 coordinates, original opened document, URI, version
 clean buffer and exact returned editor. Checks after opening and displaying the
 document fence later selection/reveal. A verified hash without exact UTF-16
 coordinates opens the verified file and explains that no exact range is
-available. Without a hash, freshness remains unknown: the contained-path
-resolver admits only a file open, and a publication check between opening its
-document and displaying it prevents a stale pending file open from starting a
+available.
+
+The verified-file-only branch derives its BOM-aware starting point inside the
+same document authority from its original verified bytes; it does not need an
+extra caller-side source read. All byte/buffer/version and native-await checks
+remain, and no exact indexed range is inferred. Without a hash, freshness remains
+unknown: the contained-path resolver admits only a file open, and a publication
+check between opening its document and displaying it prevents a stale pending
+file open from starting a
 new display. This does not certify unknown source bytes or ranges.
 
 Create Context from This Evidence passes the original opener's revocation

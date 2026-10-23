@@ -8,6 +8,9 @@ const require = createRequire(import.meta.url);
 const { createDocumentAuthority, readVerifiedSource, sourceRangeOffsets, documentOffsets } = require('../../../extensions/vscode/document-authority.js');
 const { sourceNavigationArgs } = require('../../../extensions/vscode/source-navigation.js');
 const { generationFromContextPack, contextDiscoveryRequest, contextDiscoveryCliArgs } = require('../../../extensions/vscode/semantic-discovery.js');
+const { openSearchHit, resolveValidatedHitTarget } = require('../../../extensions/vscode/runtime.js');
+const { createCapturedEvidenceOpener } = require('../../../extensions/vscode/captured-evidence-open.js');
+const { createEditorOperations } = require('../../../extensions/vscode/editor-operations.js');
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-opened-document-authority-'));
 const file = path.join(root, 'snow 雪.js');
@@ -29,6 +32,51 @@ try {
   await authority.qualify({ repoRoot: root, file, uri, sourceHash, range });
   assert.equal(opened, 1, 'one provider request opens each exact file/hash once');
   await authority.assertCurrent();
+  // File-only qualification derives its BOM point inside the original byte
+  // authority. It still owns both before/after-open reads and later assertions.
+  let descriptorReads = 0, fileOnlyOpens = 0;
+  const originalOpenSync = fs.openSync;
+  fs.openSync = function(selected, ...args) {
+    if (typeof selected === 'string' && path.resolve(selected) === file) descriptorReads++;
+    return Reflect.apply(originalOpenSync, this, [selected, ...args]);
+  };
+  try {
+    const fileOnlyDocument = { uri, version: 1, isDirty: false, isClosed: false, getText: () => 'a😀z\nsecond\n' };
+    const fileOnlyAuthority = createDocumentAuthority({ maxDocuments: 1,
+      workspace: { async openTextDocument() { fileOnlyOpens++; return fileOnlyDocument; } } });
+    const fileOnly = await fileOnlyAuthority.qualify({ repoRoot: root, file, uri, sourceHash, fileOnly: true });
+    assert.deepEqual(fileOnly.offsets, { start: 0, end: 0 });
+    assert.deepEqual(fileOnly.originalSource.span, { start: 3, end: 3, unit: 'utf8-byte' });
+    assert.equal(fileOnlyOpens, 1); assert.equal(descriptorReads, 2, 'the authority retains both original before/after-open verifications');
+    const sameOriginal = await fileOnlyAuthority.qualify({ repoRoot: root, file, uri, sourceHash, range });
+    assert.deepEqual(sameOriginal.offsets, { start: 5, end: 11 }); assert.equal(fileOnlyOpens, 1);
+    await fileOnlyAuthority.assertCurrent(); assert.equal(descriptorReads, 3, 'a cached file-only request still rechecks bytes at final publication');
+    for (const options of [{ fileOnly: true, range }, { fileOnly: true, span: { start: 1, end: 1 } },
+      { fileOnly: 1 }, { fileOnly: null }]) {
+      const before = descriptorReads;
+      await assert.rejects(fileOnlyAuthority.qualify({ repoRoot: root, file, uri, sourceHash, ...options }), /File-only/);
+      assert.equal(descriptorReads, before); assert.equal(fileOnlyOpens, 1);
+    }
+
+    const api = { Uri: { file: selected => ({ scheme: 'file', fsPath: selected }) },
+      workspace: { async openTextDocument(selected) { return { ...fileOnlyDocument, uri: selected }; } },
+      window: { async showTextDocument(openedDocument) { return { document: openedDocument,
+        set selection(_value) { assert.fail('file-only native display cannot apply an invented range'); }, revealRange() {} }; },
+      async showQuickPick(items) { return items[0]; }, showErrorMessage(message) { assert.fail(message); }, showInformationMessage() {} } };
+    descriptorReads = 0;
+    const genericFileOnly = await openSearchHit(api, root, { file: path.basename(file), sourceHash });
+    assert.equal(genericFileOnly.ok, true); assert.equal(genericFileOnly.rangeApplied, false); assert.equal(genericFileOnly.sourceVerified, true);
+    assert.equal(descriptorReads, 4, 'generic file-only consumer uses two qualification and two final byte checks without an extra caller read');
+
+    descriptorReads = 0;
+    const operations = createEditorOperations({ spawn() { assert.fail('file-only opening cannot spawn'); } });
+    const captured = { repoContext: { repoRoot: root }, payload: { sources: [{ file: path.basename(file), sourceHash }] } };
+    const openCaptured = createCapturedEvidenceOpener({ vscode: api, operations, getEvidence: () => captured,
+      collectSources: payload => payload.sources, resolveTarget: (repo, hit) => resolveValidatedHitTarget(api, repo, hit),
+      createContext() { assert.fail('file-only open cannot silently collect new context'); } });
+    try { await openCaptured(); assert.equal(descriptorReads, 4, 'captured-evidence file-only consumer retains the same original verification sequence'); }
+    finally { await operations.dispose(); }
+  } finally { fs.openSync = originalOpenSync; }
   const sibling = path.join(root, 'identical-sibling.js'), siblingUri = { scheme: 'file', fsPath: sibling };
   fs.writeFileSync(sibling, raw);
   await assert.rejects(authority.qualify({ repoRoot: root, file, uri: siblingUri, sourceHash, range }), /URI|source file/,

@@ -18,6 +18,14 @@ positive integer coordinates. A verified hash without that range evidence opens
 only the verified file; it cannot acquire an unqualified range as a substitute.
 Hash-qualified remote source is unavailable through this local verifier.
 
+Verified-file-only opening is an internal branch of the same document authority.
+It derives its BOM-aware zero-length source position from that owner's original
+verified bytes, rather than asking the caller for a separate preliminary read.
+The branch cannot be combined with a caller range or span. Existing contained
+descriptor, byte, buffer/version and before/after native-await checks remain;
+the branch grants file opening without an exact indexed-range claim. The removal
+of one redundant verification is source work, not a measured latency claim.
+
 The extension forwards its original existing operation scope to each generic
 open. Result-tree opening uses the same existing operation owner's private key
 so a newer open revokes remaining original display/selection/reveal authority.

@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { readVerifiedSource, createDocumentAuthority, assertQualifiedEditor } = require('./document-authority.js');
+const { createDocumentAuthority, assertQualifiedEditor } = require('./document-authority.js');
 const { captureEditorFailure } = require('./editor-failure-evidence.js');
 
 const DEFAULT_MAX_BUFFER_BYTES = 20 * 1024 * 1024;
@@ -564,13 +564,8 @@ async function openSearchHit(vscodeApi, repoRoot, originalHit, { isCurrent = () 
     if (hit.sourceHash) {
       if (targetIdentity.scheme !== 'file') throw new Error('Hash-qualified source opening requires a contained local file.');
       authority = createDocumentAuthority({ workspace: { openTextDocument: uri => Reflect.apply(open, workspace, [uri]) }, isCurrent: current, maxDocuments: 1 });
-      let span = null;
-      if (!precise) {
-        const source = readVerifiedSource({ repoRoot: root, file: filePath, sourceHash: hit.sourceHash });
-        const offset = source.sourceText.startsWith('\ufeff') ? 1 : 0; span = { start: offset, end: offset };
-      }
       qualified = await authority.qualify({ repoRoot: root, file: filePath, uri: target.targetUri, sourceHash: hit.sourceHash,
-        ...(precise ? { range: hit } : { span }) });
+        ...(precise ? { range: hit } : { fileOnly: true }) });
       if (!qualified || !current()) return cancelled();
       document = qualified.document;
       await authority.assertCurrent();
