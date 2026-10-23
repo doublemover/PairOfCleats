@@ -9,9 +9,9 @@ export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   lexicalAnalyzer: '2', importResolution: '9', pieceAssembly: '2',
   recordsProducer: '3', ignoreRules: '2', documentExtraction: '2', discoverySelection: '2',
   repoMapProducer: '2', graphRelations: '1',
-  sourceChunking: '12', typeNormalization: '8', vfsRouting: '2', complexityAnalysis: '2',
+  sourceChunking: '13', typeNormalization: '8', vfsRouting: '2', complexityAnalysis: '2',
   riskPropagation: '4', callSiteIdentity: '3',
-  compilerBindings: '22', lspBindings: '41', cfgFlow: '27', callFlow: '37',
+  compilerBindings: '22', lspBindings: '42', cfgFlow: '27', callFlow: '39',
   valueSlice: '10', storageFlow: '2', workerFlow: '9', boundaryFlow: '10', wasmFlow: '5', nativeFlow: '2'
 });
 // Static WASM validation is supplied by this runtime, so derived replay must

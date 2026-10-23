@@ -150,9 +150,11 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     const relPath = recordEntry.relPath;
     let text;
     let sourceHash;
+    let fileStat;
     try {
       const source = await readVerifiedContainedFile(path.dirname(absPath), absPath, { maxBytes: 32 * 1024 * 1024, signal: abortSignal });
       sourceHash = sha1(source.buffer);
+      fileStat = source.stat;
       text = source.buffer.toString('utf8');
     } catch (error) {
       if (error.code === 'ENOENT') continue;
@@ -160,11 +162,6 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     }
     if (!text) continue;
     text = text.normalize('NFKD');
-    const fileStat = await fs.stat(absPath).catch(error => {
-      if (error.code === 'ENOENT') return null;
-      throw error;
-    });
-    if (!fileStat) continue;
 
     const isTriage = recordEntry.source === 'triage'
       && recordsDir
@@ -280,7 +277,8 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       strict: true,
       log
     });
-    chunkPayload.metaV2 = buildMetaV2({ chunk: chunkPayload, docmeta, toolInfo: runtime.toolInfo });
+    chunkPayload.metaV2 = buildMetaV2({ chunk: chunkPayload, docmeta, toolInfo: runtime.toolInfo,
+      analysisPolicy: runtime.analysisPolicy });
     const manifestEntry = await writeIncrementalBundle({
       enabled: incrementalState.enabled,
       bundleDir: incrementalState.bundleDir,

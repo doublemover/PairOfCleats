@@ -35,7 +35,8 @@ try {
     { ...input, stop: new Set(['different']) },
     { ...input, synonyms: [['err', 'changed']] },
     { ...input, runtime: { ...runtime, embeddingService: true } },
-    { ...input, runtime: { ...runtime, toolInfo: { version: 'changed-producer' } } }
+    { ...input, runtime: { ...runtime, toolInfo: { version: 'changed-producer' } } },
+    { ...input, runtime: { ...runtime, analysisPolicy: { metadata: { enabled: false } } } }
   ]) { const next = recordsReusePolicy(changed); assert.notEqual(next.key, policy.key); assert.equal((await read({ policy: next })).chunk, null); }
   assert.equal(recordsReusePolicy({ ...input, runtime: { ...runtime, embeddingEnabled: true } }).allowed, false);
   assert.equal((await read({ logicalHash: recordsLogicalContentHash({ text, record: { source: 'two' }, recordMeta: {}, policy: policy.snapshot }) })).chunk, null);
