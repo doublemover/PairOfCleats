@@ -46,6 +46,10 @@ try {
   assert.equal(await fetch(moduleUrl).then(response => response.text()), asset.bytes.toString('utf8'));
   await assert.rejects(runMapPreview({ input: inputPath, out: path.join(root, 'x') }, { stdout: sink, stderr: sink }), /separate commands/);
   await assert.rejects(runMapPreview({ input: inputPath, port: new URL(first.ready.url).port * 1, 'no-open': true }, { stdout: sink, stderr: sink }), /EADDRINUSE/);
+  const originalClose = first.close();
+  assert.equal(first.close(), originalClose, 'actual preview callers share the original shutdown flight');
+  await originalClose;
+  assert.equal(first.resourceOwner.pending, false, 'actual listener and accepted handlers have returned before pins retire');
 } finally {
   await first?.close(); await second?.close();
   await fs.rm(root, { recursive: true, force: true });

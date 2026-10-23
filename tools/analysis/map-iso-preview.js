@@ -14,6 +14,8 @@ import { createMapPreferenceStore } from './map-viewer-preferences.js';
 import { VIEWER_SETTINGS_MAX_BYTES } from '../../src/map/isometric/client/effective-settings.js';
 import { createMapSnapshotTransportAsync } from './map-snapshot-transport.js';
 import { SNAPSHOT_PAGE_LIMITS } from '../../src/map/isometric/client/data/protocol.js';
+import { createMapPreviewLifetime } from './map-preview-lifetime.js';
+import { combineMapReadCleanupFailure, projectMapReadFailure } from '../../src/map/shared/read-outcome.js';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 export const openMapPreviewBrowser = (url, { platform = process.platform, spawnImpl = spawn, warn = console.error } = {}) => {
@@ -33,22 +35,23 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('--port must be an integer from 0 to 65535.');
   const toolRoot = resolveToolRoot(), controller = new AbortController();
   const onAbort = () => controller.abort(signal?.reason);
+  const originalOff = process.off, originalSignalRemove = signal?.removeEventListener;
   signal?.addEventListener('abort', onAbort, { once: true });
   if (signal?.aborted) onAbort();
-  let server, session, temporaryOutput = null, closed = false, snapshotTransport=null,activeSnapshotRequests=0;
-  const onSignal = () => { controller.abort(); close().catch(error => stderr.write(`${error.message}\n`)); };
-  const close = async () => {
-    if (closed) return;
-    closed = true;
-    controller.abort();
-    process.off('SIGINT', onSignal); process.off('SIGTERM', onSignal);
-    signal?.removeEventListener('abort', onAbort);
-    if (server?.listening) await new Promise((resolve, reject) => { server.close(error => error ? reject(error) : resolve()); server.closeAllConnections(); });
-    session?.assets.clear();
-    if(session)session.html=Buffer.alloc(0);
-    snapshotTransport?.dispose();
-  };
-  controller.signal.addEventListener('abort', () => { if (server?.listening) close().catch(error => stderr.write(`${error.message}\n`)); }, { once: true });
+  let server, session, temporaryOutput = null, snapshotTransport=null,activeSnapshotRequests=0;
+  const reportClose = error => stderr.write(`${projectMapReadFailure(error).message}\n`);
+  const onSignal = () => { close().catch(reportClose); };
+  const lifetime = createMapPreviewLifetime({ controller, detach: () => {
+    const errors = [];
+    for (const action of [() => Reflect.apply(originalOff, process, ['SIGINT', onSignal]),
+      () => Reflect.apply(originalOff, process, ['SIGTERM', onSignal]),
+      () => { if (signal) Reflect.apply(originalSignalRemove, signal, ['abort', onAbort]); }]) {
+      try { action(); } catch (error) { errors.push(error); }
+    }
+    if (errors.length) throw combineMapReadCleanupFailure(null, errors, { hasPrimary: false, terminal: true });
+  } });
+  const close = lifetime.close;
+  controller.signal.addEventListener('abort', () => { if (server?.listening) close().catch(reportClose); }, { once: true });
   process.once('SIGINT', onSignal); process.once('SIGTERM', onSignal);
   try {
     let input, identity,preferenceStore=null;
@@ -93,6 +96,7 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
     const viewerConfig = argv.input ? {} : input.model.viewer || {};
     const preferences=preferenceStore?{endpoint:'/map-preferences',repoId:preferenceStore.repoId,token:sessionToken}:null;
     snapshotTransport=await createMapSnapshotTransportAsync({model:input.model,snapshotId:input.sha256,identity},{signal:controller.signal});
+    lifetime.adopt(snapshotTransport, 'map preview original snapshot transport');
     const snapshotData={endpoint:'/map-snapshot',snapshot:input.sha256,token:sessionToken,demand:true,manifest:snapshotTransport.manifest};
     const bootstrapModel={version:input.model.version,root:input.model.root,nodes:[],edges:[],legend:input.model.legend,__poc_session_manifest:{version:1,snapshot:input.sha256},
       summary:{counts:{files:0,members:0,edges:0},scope:'manifest bootstrap; source detail is demand paged'},coverage:{source:snapshotTransport.manifest.coverage}};
@@ -101,6 +105,9 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
         sourceNavigation,preferences,snapshotData,openUriTemplate: sourceAvailable ? argv['open-uri-template'] || '' : '' } }));
     if (html.length > 40 * 1024 * 1024) throw new Error('Rendered saved map exceeds the preview document budget.');
     session = { ...pinned, html, documentSha256: digest(html), snapshotSha256: input.sha256, identity };
+    lifetime.adopt(session.assets, 'map preview original pinned assets', 'clear');
+    const originalSession = session;
+    lifetime.adopt({ dispose: () => { originalSession.html = Buffer.alloc(0); } }, 'map preview original document bytes');
     controller.signal.throwIfAborted();
     const tls = argv['tls-key'] ? { key: await fs.readFile(path.resolve(argv['tls-key'])), cert: await fs.readFile(path.resolve(argv['tls-cert'])) } : null;
     controller.signal.throwIfAborted();
@@ -153,8 +160,15 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
         'Cache-Control': 'no-store', ETag: `"${asset.sha256}"`, 'X-Map-Snapshot': session.snapshotSha256 });
       response.end(request.method === 'HEAD' ? undefined : asset.bytes);
     };
-    const handle=(request,response)=>{handleRequest(request,response).catch(error=>{if(!response.headersSent)response.writeHead(500,{'Content-Type':'application/json'});if(!response.writableEnded)response.end(JSON.stringify({error:error.message}));});};
+    const handle=(request,response)=>{
+      lifetime.request(()=>handleRequest(request,response)).catch(error=>{
+        if(response.destroyed||response.writableEnded)return;
+        if(!response.headersSent)response.writeHead(lifetime.retired?503:500,{'Content-Type':'application/json'});
+        response.end(JSON.stringify({error:projectMapReadFailure(error).message}));
+      });
+    };
     server = tls ? https.createServer(tls, handle) : http.createServer(handle);
+    lifetime.ownServer(server);
     await new Promise((resolve, reject) => {
       const aborted = () => failed(controller.signal.reason || new Error('Preview startup cancelled.'));
       const failed = error => { server.off('listening', ready); controller.signal.removeEventListener('abort', aborted); reject(error); };
@@ -164,7 +178,7 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
       server.listen({ port, host: '127.0.0.1', signal: controller.signal });
     });
     controller.signal.throwIfAborted();
-    server.on('error', error => { stderr.write(`Preview listener failed: ${error.message}\n`); close().catch(() => {}); });
+    server.on('error', error => { stderr.write(`Preview listener failed: ${projectMapReadFailure(error).message}\n`); close().catch(reportClose); });
     const address = server.address(), url = `${tls ? 'https' : 'http'}://127.0.0.1:${address.port}/map.iso.html`;
     const ready = { type: 'map-preview-ready', version: 1, url, lifecycle: 'listener-ready', pid: process.pid,
       identity, snapshotSha256: session.snapshotSha256, documentSha256: session.documentSha256,
@@ -178,9 +192,15 @@ export const runMapPreview = async (argv, { stdout = process.stdout, stderr = pr
       try { openMapPreviewBrowser(url, { warn: message => stderr.write(`${message}\n`) }); }
       catch (error) { stderr.write(`Browser did not open: ${error.message}. Use ${url}\n`); }
     }
-    return { server, close, ready, session };
-  } catch (error) { await close(); throw error; }
+    lifetime.finishStartup();
+    return { server, close, ready, session, resourceOwner: lifetime.resourceOwner };
+  } catch (error) {
+    lifetime.finishStartup();
+    try { await close(); } catch (cleanup) { throw combineMapReadCleanupFailure(error, [cleanup], { hasPrimary: true, terminal: true }); }
+    throw error;
+  }
   finally {
+    lifetime.finishStartup();
     if (temporaryOutput) await fs.unlink(temporaryOutput).catch(error => { if (error.code !== 'ENOENT') stderr.write(`Could not retire owned staging file ${temporaryOutput}: ${error.message}\n`); });
   }
 };
