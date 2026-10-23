@@ -57,7 +57,8 @@ const hasManifestChunkMetaArtifacts = (dir) => {
     const presence = resolveArtifactPresence(dir, 'chunk_meta', {
       manifest,
       maxBytes: MAX_JSON_BYTES,
-      strict: false
+      strict: false,
+      containedRoot: dir
     });
     if (presence?.error !== null && presence?.error !== undefined) {
       observeStorageResource(presence.error, { phase: 'chunk-meta-presence-source' }).requireSettled();

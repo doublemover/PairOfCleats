@@ -6,6 +6,8 @@ import { pathExists } from '../../../src/shared/file-read.js';
 import { hasChunkMetaArtifactsAsync, hasChunkMetaArtifactsSync } from '../../../src/shared/artifact-io/chunk-meta-presence.js';
 import { getContainedFileSession } from '../../../src/shared/contained-file-resource.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { writeCache } from '../../../src/shared/artifact-io/cache.js';
+import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
 // UNVALIDATED: actual coarse-presence consumers, disposable paths and FD counters.
@@ -107,12 +109,20 @@ try {
       { name: 'chunk_meta', path: 'pieces/data.json', format: 'json' }
     ] }));
   for (const asyncMode of [false, true]) {
+    writeCache(manifestMeta, { parts: ['pieces/data.json'] }, { maxBytes: MAX_JSON_BYTES, view: 'json', containedRoot: null });
     const state = intercept({ targetPath: manifestMeta, closeFailure: Object.freeze(new Error('manifest source metadata close failed')) });
     const failure = await rejected(() => asyncMode ? hasChunkMetaArtifactsAsync(dir) : hasChunkMetaArtifactsSync(dir));
     assert.ok(getContainedFileSession(failure)); assert.equal(state.opens, 1); assert.equal(state.closes, 1);
     assert.equal(failure.cacheOwnershipReleased(), false, 'embedded missing-format source error cannot mean absent');
     dispose(); restore();
   }
+  await fsp.writeFile(path.join(dir, 'pieces/data.json'), '[]');
+  assert.equal(hasChunkMetaArtifactsSync(dir), true, 'cold contained metadata confirms original close');
+  assert.equal(await hasChunkMetaArtifactsAsync(dir), true, 'warm contained metadata preserves valid presence');
+  await fsp.writeFile(manifestMeta, JSON.stringify({ parts: ['pieces/data.json'], changed: 'fresh generation' }));
+  const stale = intercept({ targetPath: manifestMeta, closeFailure: Object.freeze(new Error('stale metadata cache cannot hide current failed close')) });
+  await rejected(() => hasChunkMetaArtifactsSync(dir));
+  assert.equal(stale.opens, 1); assert.equal(stale.closes, 1); dispose(); restore();
   // Existing coarse oversized-manifest result still avoids parsing its bytes.
   await fsp.writeFile(manifest, 'x'.repeat(2 * 1024 * 1024 + 1));
   assert.equal(hasChunkMetaArtifactsSync(dir), true); assert.equal(await hasChunkMetaArtifactsAsync(dir), true);

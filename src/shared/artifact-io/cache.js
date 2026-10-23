@@ -11,12 +11,14 @@ const buildCacheKey = (filePath, {
   view = 'json',
   validationMode = null,
   strict = null,
+  containedRoot = null,
   recoveryFallback = false
 } = {}) => {
   try {
     // Unsupported/coercible limits retain cold-reader behavior without allowing
     // a memoized value to stand in for their current admission checks.
-    if (typeof maxBytes !== 'number' || !Number.isFinite(maxBytes) || maxBytes <= 0) return null;
+    if (typeof maxBytes !== 'number' || !Number.isFinite(maxBytes) || maxBytes <= 0
+      || (containedRoot !== null && typeof containedRoot !== 'string')) return null;
     const stat = fs.statSync(filePath);
     return buildLocalCacheKey({
       namespace: 'artifact-io',
@@ -31,6 +33,7 @@ const buildCacheKey = (filePath, {
         view,
         validationMode,
         strict,
+        containedRoot,
         recoveryFallback: recoveryFallback === true
       }
     }).key;
