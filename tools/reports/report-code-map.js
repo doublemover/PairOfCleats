@@ -22,6 +22,7 @@ import { publishMapOutput } from './map-output-publication.js';
 import { runMapPreview } from '../analysis/map-iso-preview.js';
 import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 import { isAbortError } from '../../src/shared/abort.js';
+import { projectMapReadFailure } from '../../src/map/shared/read-outcome.js';
 
 const argv = createCli({
   scriptName: 'report map',
@@ -35,7 +36,7 @@ if (argv['graph-capability'] != null && (!/^[a-f0-9]{64}$/.test(argv['graph-capa
 
 if (argv.serve) {
   try { await runMapPreview(argv); }
-  catch (error) { console.error(`Map preview failed: ${error.message}`); process.exitCode = 1; }
+  catch (error) { console.error(`Map preview failed: ${projectMapReadFailure(error).message}`); process.exitCode = 1; }
 } else {
   if (argv.input) throw new Error('--input opens saved evidence with --serve. It is not an output or a live-index override.');
   const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
