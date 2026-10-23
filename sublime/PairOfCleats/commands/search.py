@@ -814,6 +814,28 @@ def _resolve_completion_text(hit):
     return value.strip() if isinstance(value, str) else ''
 
 
+def _prepare_search_prompt(window, overrides, scope, on_ready):
+    retained = copy.deepcopy(overrides or {})
+    saved_root = retained.get('repoRoot')
+    repo_root, reason = (saved_root, None) if saved_root else _resolve_repo_root(window)
+    def resolved(root, why=None):
+        if not operations.is_current(scope):
+            return
+        if not root:
+            ui.show_status('PairOfCleats: ' + str(why or 'Repository selection cancelled.'))
+            return
+        if why:
+            ui.show_status('PairOfCleats: ' + why)
+        retained['repoRoot'] = root
+        # Target selection precedes the settings snapshot and every subsequent
+        # native input. Changing active files cannot substitute another root.
+        on_ready(config.get_settings(window), retained)
+    if repo_root:
+        resolved(repo_root, reason)
+    else:
+        paths.resolve_repo_root_interactive(window, resolved)
+
+
 def _search_with_query(window, query, overrides=None, force_prompt=False, operation_scope=None):
     if not _saved_scope_available(overrides):
         return
@@ -821,34 +843,34 @@ def _search_with_query(window, query, overrides=None, force_prompt=False, operat
         ui.show_status('PairOfCleats: empty query.')
         return
     scope = operation_scope or operations.capture(window, key='foreground-search')
-    settings = config.get_settings(window)
-    defaults = _resolve_defaults(settings, overrides)
-
-    def after_options(options):
-        if operations.is_current(scope):
-            _execute_search(window, query, options, operation_scope=scope, settings_snapshot=settings)
-
-    _prompt_options(window, settings, defaults, after_options, force_prompt=force_prompt,
-                    prompt=NativePrompt(window, scope))
+    def ready(settings, retained):
+        defaults = dict(_resolve_defaults(settings, retained), repoRoot=retained['repoRoot'])
+        def after_options(options):
+            if operations.is_current(scope):
+                _execute_search(window, query, options, operation_scope=scope, settings_snapshot=settings)
+        _prompt_options(window, settings, defaults, after_options, force_prompt=force_prompt,
+                        prompt=NativePrompt(window, scope))
+    _prepare_search_prompt(window, overrides, scope, ready)
 
 
 def _search_with_prompt(window, overrides=None, force_prompt=False):
+    if not _saved_scope_available(overrides):
+        return
     scope = operations.capture(window, key='foreground-search')
-    settings = config.get_settings(window)
-    defaults = _resolve_defaults(settings, overrides)
-    prompt = NativePrompt(window, scope)
-    last = history.get_last_query(window)
-    initial = last.get('query') if isinstance(last, dict) else ''
-
-    def on_query(value):
-        if not value or not operations.is_current(scope):
-            return
-        def after_options(options):
-            if operations.is_current(scope):
-                _execute_search(window, value, options, operation_scope=scope, settings_snapshot=settings)
-        _prompt_options(window, settings, defaults, after_options, force_prompt=force_prompt, prompt=prompt)
-
-    _prompt_query(window, initial, on_query, prompt)
+    def ready(settings, retained):
+        defaults = dict(_resolve_defaults(settings, retained), repoRoot=retained['repoRoot'])
+        prompt = NativePrompt(window, scope)
+        last = history.get_last_query(window)
+        initial = last.get('query') if isinstance(last, dict) else ''
+        def on_query(value):
+            if not value or not operations.is_current(scope):
+                return
+            def after_options(options):
+                if operations.is_current(scope):
+                    _execute_search(window, value, options, operation_scope=scope, settings_snapshot=settings)
+            _prompt_options(window, settings, defaults, after_options, force_prompt=force_prompt, prompt=prompt)
+        _prompt_query(window, initial, on_query, prompt)
+    _prepare_search_prompt(window, overrides, scope, ready)
 
 
 class PairOfCleatsSearchCommand(sublime_plugin.WindowCommand):
@@ -1068,13 +1090,14 @@ class PairOfCleatsExplainSearchCommand(sublime_plugin.WindowCommand):
             _execute_search(self.window, entry.get('query'), entry, explain=True)
             return
         scope = operations.capture(self.window, key='foreground-search')
-
-        def on_query(value):
-            if not value or not operations.is_current(scope):
-                return
-            _execute_search(self.window, value, explain=True, operation_scope=scope)
-
-        _prompt_query(self.window, '', on_query, NativePrompt(self.window, scope))
+        def ready(settings, retained):
+            def on_query(value):
+                if not value or not operations.is_current(scope):
+                    return
+                _execute_search(self.window, value, retained, explain=True,
+                                operation_scope=scope, settings_snapshot=settings)
+            _prompt_query(self.window, '', on_query, NativePrompt(self.window, scope))
+        _prepare_search_prompt(self.window, None, scope, ready)
 
 
 class PairOfCleatsReopenLastResultsCommand(sublime_plugin.WindowCommand):
@@ -1181,10 +1204,13 @@ def _run_result_action(window, session, hit, action, scope=None):
 class PairOfCleatsBrowseIndexedMatchesCommand(sublime_plugin.WindowCommand):
     def run(self):
         scope = operations.capture(self.window, key='foreground-search')
-        def execute(value):
-            if value.strip() and operations.is_current(scope):
-                _execute_search(self.window, '', {'filter': value.strip()}, enumeration=True, operation_scope=scope)
-        NativePrompt(self.window, scope).input('PairOfCleats indexed metadata filter', '', execute)
+        def ready(settings, retained):
+            def execute(value):
+                if value.strip() and operations.is_current(scope):
+                    _execute_search(self.window, '', dict(retained, filter=value.strip()), enumeration=True,
+                                    operation_scope=scope, settings_snapshot=settings)
+            NativePrompt(self.window, scope).input('PairOfCleats indexed metadata filter', '', execute)
+        _prepare_search_prompt(self.window, None, scope, ready)
 
 
 class PairOfCleatsLoadMoreResultsCommand(sublime_plugin.WindowCommand):

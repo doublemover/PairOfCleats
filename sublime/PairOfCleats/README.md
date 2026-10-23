@@ -334,6 +334,11 @@ originating owned failure ahead of secondary process-exit text, and negative
 diagnostic envelopes cannot claim successful operator reports. These source and
 actual-consumer fixture changes remain unqualified until deferred execution.
 
+Ordinary search prompts now resolve their repository before capturing settings
+or showing query/options input. The chosen root stays in the pending request,
+so a later active file or explicit repository choice cannot substitute another
+target before dispatch. Ambiguous roots use the existing repository picker.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only

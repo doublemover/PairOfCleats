@@ -1,4 +1,5 @@
 import importlib
+import os
 import tempfile
 from unittest.mock import patch
 from runtime_harness import FakeRegion, FakeView, FakeWindow, install_fake_modules
@@ -85,7 +86,10 @@ with tempfile.TemporaryDirectory() as prompt_root:
     user.update({'api_execution_mode': 'cli', 'search_advanced_defaults': {'file': ['original.py']},
                  'env': {'ORIGINAL_RUNTIME': 'captured'}, 'search_prompt_options': True})
     dispatched = []
-    with patch.object(search, '_resolve_repo_root', return_value=(prompt_root, None)), \
+    replacement_root = os.path.join(prompt_root, 'replacement')
+    os.makedirs(replacement_root)
+    current_root = [prompt_root]
+    with patch.object(search, '_resolve_repo_root', side_effect=lambda _window: (current_root[0], None)), \
             patch.object(search.config, 'validate_settings', return_value=[]), \
             patch.object(search, '_execute_search_cli', side_effect=lambda *args, **kwargs: dispatched.append((args, kwargs))):
         search.PairOfCleatsSearchWithOptionsCommand(prompt_window).run(query='native options')
@@ -94,6 +98,7 @@ with tempfile.TemporaryDirectory() as prompt_root:
         backend_callback = prompt_window.quick_panel_callback
         mode_callback(1)
         assert prompt_window.quick_panel_callback is backend_callback
+        current_root[0] = replacement_root
         user.set('env', {'ORIGINAL_RUNTIME': 'replacement'})
         user.get('search_advanced_defaults')['file'].append('replacement.py')
         backend_callback(0)
@@ -104,8 +109,10 @@ with tempfile.TemporaryDirectory() as prompt_root:
         final_callback(0)
         assert len(dispatched) == 1
         invocation = dispatched[0][0]
+        assert invocation[2] == prompt_root
         assert invocation[3]['env'] == {'ORIGINAL_RUNTIME': 'captured'}
         assert invocation[4]['advanced']['file'] == ['original.py']
+        current_root[0] = prompt_root
 
         # Query cancellation and a project replacement both prevent a queued
         # original native callback from executing with today's repository.
@@ -119,6 +126,19 @@ with tempfile.TemporaryDirectory() as prompt_root:
         prompt_window.set_folders([])
         revoked_mode(0)
         assert prompt_window.quick_panel_callback is revoked_mode and len(dispatched) == 1
+
+    prompt_window.set_folders([prompt_root])
+    current_root[0] = prompt_root
+    with patch.object(search, '_resolve_repo_root', side_effect=lambda _window: (current_root[0], None)), \
+            patch.object(search, '_execute_search') as execute:
+        search.PairOfCleatsBrowseIndexedMatchesCommand(prompt_window).run()
+        original_filter = dict(prompt_window.input)
+        current_root[0] = replacement_root
+        original_filter['done']('file:original.py')
+        original_filter['done']('file:replacement.py')
+        assert execute.call_count == 1
+        assert execute.call_args[0][2]['repoRoot'] == prompt_root
+        assert execute.call_args[0][2]['filter'] == 'file:original.py'
 
     analysis = importlib.import_module('PairOfCleats.commands.analysis')
     analysis_values = []
