@@ -45,14 +45,22 @@ try {
   artifactLease.release();
   for (const lease of leases.splice(0)) await lease.dispose(); await disposeEmbeddingAdapterCaches();
 
-  const env = { cacheDir: 'user-owned-default' }, loads = [];
+  const env = { cacheDir: 'user-owned-default' }, loads = [], inputs = [];
   __setTransformersModuleLoaderForTests(async () => ({ env, pipeline: async (task, modelId, options) => {
     const owner = { closes: 0 }; created.push(owner); loads.push({ modelId, options, globalCache: env.cacheDir });
-    return Object.assign(async () => [[1, 2]], { dispose() { owner.closes++; } });
+    return Object.assign(async texts => { inputs.push(texts.slice()); return [[1, 2]]; }, { dispose() { owner.closes++; } });
   } }));
   const a = getEmbeddingAdapter({ modelId: 'fixture/a', modelsDir: dir }), b = getEmbeddingAdapter({ modelId: 'fixture/b', modelsDir: dir });
   const fallback = getEmbeddingAdapter({ modelId: 'fixture/default' }); leases.push(a, b, fallback);
-  await Promise.all([a.embedOne('a'), b.embedOne('b'), fallback.embedOne('default')]);
+  const firstTexts = ['selected before deferred acquisition'], firstWork = a.embed(firstTexts);
+  firstTexts[0] = 'later input mutation';
+  await Promise.all([firstWork, b.embedOne('b'), fallback.embedOne('default')]);
+  assert(inputs.some(texts => texts[0] === 'selected before deferred acquisition'));
+  assert(!inputs.some(texts => texts[0] === 'later input mutation'));
+  const warmTexts = ['selected before cache lease dispatch'], warmWork = a.embed(warmTexts);
+  warmTexts[0] = 'later cached mutation'; await warmWork;
+  assert(inputs.some(texts => texts[0] === 'selected before cache lease dispatch'));
+  assert(!inputs.some(texts => texts[0] === 'later cached mutation'));
   assert.equal(env.cacheDir, 'user-owned-default'); assert(loads.every(row => row.globalCache === 'user-owned-default'));
   assert.equal(loads.find(row => row.modelId === 'fixture/a').options.cache_dir, dir);
   assert.equal(loads.find(row => row.modelId === 'fixture/b').options.cache_dir, dir);

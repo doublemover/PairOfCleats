@@ -103,7 +103,7 @@ export const acquireEmbeddingArtifactLease = async (options = {}, { signal = nul
   }
   Object.freeze(artifact);
   let released = false;
-  return Object.freeze({ artifact, release: () => { released = true; },
+  return Object.freeze({ artifact, selectedModelPath: plan.modelPath ?? null, release: () => { released = true; },
     verifyLoaded: async () => {
       if (released) throw new Error('Embedding artifact verification lease is released.');
       const next = await resolveEmbeddingArtifactIdentityAsync(options, { signal, phase: 'loaded' });

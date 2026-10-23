@@ -6,7 +6,7 @@ import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from 
 import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-lease.js';
 import { createDeferredEmbeddingAdapter } from './embedding-deferred-adapter.js';
 import { resolveEmbeddingDenseContract, validateEmbeddingDenseContract, resolveOnnxEmbeddingProcessing } from './embedding-dense-contract.js';
-import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
+import { snapshotEmbeddingMetadata, snapshotEmbeddingRequestArguments } from './embedding-selection-snapshot.js';
 import { observeEmbeddingOwnership } from './embedding-cache-lifetime.js';
 import path from 'node:path';
 import {
@@ -202,8 +202,11 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
     );
   }
   if (!modelArtifact) return createDeferredEmbeddingAdapter({ provider: 'onnx', methods: ['getEmbedding', 'getEmbeddings', 'estimateTokens', 'prewarm'],
-    acquire: async () => createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig: normalized, dims, normalize, qualificationLease,
-      modelArtifact: await resolveEmbeddingArtifactIdentityAsync({ provider: 'onnx', modelId, modelsDir, rootDir, onnx: normalized }) }) });
+    acquire: async () => {
+      const selected = { ...normalized, modelPath: resolvedModelPath };
+      return createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig: selected, dims, normalize, qualificationLease,
+        modelArtifact: await resolveEmbeddingArtifactIdentityAsync({ provider: 'onnx', modelId, modelsDir, rootDir, onnx: selected }) });
+    } });
   const selectedArtifact = modelArtifact;
   const modelSize = statSize(resolvedModelPath);
   const lowMemory = Number.isFinite(modelSize) && modelSize >= LARGE_MODEL_BYTES;
@@ -292,8 +295,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
   const ownOperation = (fn) => (...args) => {
     if (disposed) return Promise.reject(new Error('ONNX adapter is disposed.'));
     if (sessionEntry.operationFailure) return Promise.reject(sessionEntry.operationFailure);
-    const selected = args.map(value => Array.isArray(value) ? value.slice()
-      : value && typeof value === 'object' ? { ...value, ...(Array.isArray(value.texts) ? { texts: value.texts.slice() } : {}) } : value);
+    const selected = snapshotEmbeddingRequestArguments(args);
     const work = Promise.resolve().then(() => fn(...selected));
     operations.add(work);
     work.then(() => operations.delete(work), error => {

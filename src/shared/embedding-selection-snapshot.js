@@ -22,3 +22,9 @@ export const snapshotEmbeddingArtifactSelection = (options = {}) => ({
   provider: options.provider, modelId: options.modelId, modelsDir: options.modelsDir, rootDir: options.rootDir,
   onnx: snapshotEmbeddingMetadata(options.onnx), modelProfile: snapshotEmbeddingMetadata(options.modelProfile), stub: options.stub === true
 });
+
+/** Snapshot request containers at the outermost accepted call. Signals and
+ * prepared-item capabilities retain their original identity; no native owner
+ * or opaque prepared item is cloned or transferred by this operation. */
+export const snapshotEmbeddingRequestArguments = args => args.map(value => Array.isArray(value) ? value.slice()
+  : value && typeof value === 'object' ? { ...value, ...(Array.isArray(value.texts) ? { texts: value.texts.slice() } : {}) } : value);

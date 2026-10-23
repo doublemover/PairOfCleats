@@ -54,6 +54,9 @@ preserved modification times. Mutable warm acquisitions still rehash; a path/sta
 match alone cannot authorize digest reuse. Concurrent requests coalesce only for
 the exact selected closure. Cancelled callers retain an observable verification
 owner while shared byte verification drains for other callers.
+ONNX startup keeps the verified physical installation path if a newer selector
+is published while verification is pending. It rechecks that same closure after
+loading; the selector does not redirect an admitted request to another graph.
 
 ONNX execution telemetry separates output conversion and captured tensor cleanup
 time. Tensor disposal settlement is not evidence of measured native memory

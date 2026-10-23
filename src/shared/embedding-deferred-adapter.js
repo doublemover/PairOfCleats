@@ -1,4 +1,5 @@
 import { observeEmbeddingOwnership } from './embedding-cache-lifetime.js';
+import { snapshotEmbeddingRequestArguments } from './embedding-selection-snapshot.js';
 
 const closed = () => Object.assign(new Error('Embedding adapter lease is disposed.'), { code: 'ERR_EMBEDDING_RUNTIME_CLOSED' });
 
@@ -32,13 +33,14 @@ export const createDeferredEmbeddingAdapter = ({ acquire, provider, methods }) =
     }
   };
   for (const method of methods) target[method] = async (...args) => {
+    const selected = snapshotEmbeddingRequestArguments(args);
     const value = await ensure();
     if (disposed) throw closed();
     if (typeof value[method] !== 'function') {
       if (['prewarm', 'endProfiling'].includes(method)) return undefined;
       throw new Error(`Embedding adapter does not support ${method}.`);
     }
-    return value[method](...args);
+    return value[method](...selected);
   };
   return new Proxy(target, { get(object, key, receiver) {
     if (Reflect.has(object, key)) return Reflect.get(object, key, receiver);

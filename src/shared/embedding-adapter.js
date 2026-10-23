@@ -1,6 +1,6 @@
 import { embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from './embedding-artifact-identity.js';
-import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-lease.js';
-import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
+import { acquireEmbeddingArtifactLease } from './embedding-artifact-lease.js';
+import { snapshotEmbeddingMetadata, snapshotEmbeddingRequestArguments } from './embedding-selection-snapshot.js';
 import { createDeferredEmbeddingAdapter } from './embedding-deferred-adapter.js';
 import { createPreparedTextEncoder, normalizeEg2SessionOptions, normalizeEg2ModelFileName } from './embedding-prepared.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig } from './onnx-embeddings.js';
@@ -51,7 +51,8 @@ const acquirePipeline = async (entry) => {
   let disposed = false, disposing = null;
   const run = (fn, args) => {
     if (disposed || reference.released) return Promise.reject(new Error('Embedding pipeline lease is disposed.'));
-    const work = Promise.resolve().then(() => fn.apply(pipeline, args));
+    const selected = snapshotEmbeddingRequestArguments(args);
+    const work = Promise.resolve().then(() => fn.apply(pipeline, selected));
     operations.add(work);
     work.then(() => operations.delete(work), error => {
       operations.delete(work); pipelineLifetime.recordFailure(entry, error);
@@ -154,7 +155,8 @@ const leaseAdapter = (entry) => {
       };
       if (!methods.has(key)) methods.set(key, (...args) => {
         if (disposed || reference.released) return Promise.reject(new Error('Embedding adapter lease is disposed.'));
-        return track(Promise.resolve().then(() => value.apply(target, args)));
+        const selected = snapshotEmbeddingRequestArguments(args);
+        return track(Promise.resolve().then(() => value.apply(target, selected)));
       });
       return methods.get(key);
     }
@@ -196,9 +198,7 @@ export const __setTransformersModuleLoaderForTests = (loader) => {
 };
 
 /**
- * Load transformers module singleton and apply optional model cache directory.
- *
- * @param {string|null} modelsDir
+ * Load the transformers module singleton. Cache policy belongs to each loader.
  * @returns {Promise<object>}
  */
 async function loadTransformersModule() {
@@ -357,7 +357,14 @@ export function getEmbeddingAdapter(options = {}) {
     rootDir: selected.rootDir, onnx: selected.onnxConfig, modelProfile, stub: selected.useStub === true };
   if (verification.stub) return getVerifiedEmbeddingAdapter({ ...selected, modelArtifact: resolveEmbeddingArtifactIdentity(verification) });
   return createDeferredEmbeddingAdapter({ provider, methods: [...LEASE_OPERATIONS],
-    acquire: async () => getVerifiedEmbeddingAdapter({ ...selected, modelArtifact: await resolveEmbeddingArtifactIdentityAsync(verification) }) });
+    acquire: async () => {
+      const lease = await acquireEmbeddingArtifactLease(verification);
+      try {
+        const onnxConfig = provider === 'onnx' && lease.selectedModelPath
+          ? { ...selected.onnxConfig, modelPath: lease.selectedModelPath } : selected.onnxConfig;
+        return getVerifiedEmbeddingAdapter({ ...selected, onnxConfig, modelArtifact: lease.artifact });
+      } finally { lease.release(); }
+    } });
 }
 
 /**
